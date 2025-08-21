@@ -1,756 +1,695 @@
-// DoSo Platform Database Schema
-// A comprehensive social network for project ideation, execution, and business growth
-
 generator client {
-    provider        = "prisma-client-js"
-    previewFeatures = ["driverAdapters"]
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
 }
 
 datasource db {
-    provider = "mysql"
-    url      = env("DATABASE_URL")
-    relationMode = "prisma"
+  provider     = "mysql"
+  url          = env("DATABASE_URL")
+  relationMode = "prisma"
 }
-
-// ============================================================================
-// ENUMS
-// ============================================================================
-
-enum UserRole {
-    INDIVIDUAL
-    AGENCY
-    ADMIN
-}
-
-enum UserType {
-    INNOVATOR
-    SUPPORTER
-    VOLUNTEER
-    FREELANCER
-    SME_OWNER
-    AGENCY_MEMBER
-}
-
-enum ProjectStatus {
-    DRAFT
-    PUBLISHED
-    SEEKING_SUPPORT
-    FUNDED
-    IN_PROGRESS
-    COMPLETED
-    CANCELLED
-}
-
-enum ProjectCategory {
-    TECHNOLOGY
-    HEALTHCARE
-    EDUCATION
-    ENVIRONMENT
-    SOCIAL_IMPACT
-    BUSINESS
-    ARTS_CULTURE
-    AGRICULTURE
-    FINANCE
-    OTHER
-}
-
-enum TaskStatus {
-    TODO
-    IN_PROGRESS
-    REVIEW
-    COMPLETED
-    BLOCKED
-}
-
-enum TaskPriority {
-    LOW
-    MEDIUM
-    HIGH
-    URGENT
-}
-
-enum SupportType {
-    VOTE
-    SUBSCRIPTION
-    VOLUNTEER
-    RESOURCE
-}
-
-enum ApplicationStatus {
-    PENDING
-    ACCEPTED
-    REJECTED
-    WITHDRAWN
-}
-
-enum BidStatus {
-    SUBMITTED
-    UNDER_REVIEW
-    ACCEPTED
-    REJECTED
-    WITHDRAWN
-}
-
-enum InvoiceStatus {
-    DRAFT
-    SENT
-    PAID
-    OVERDUE
-    CANCELLED
-}
-
-enum PaymentMethod {
-    BANK_TRANSFER
-    USSD
-    CARD
-    WALLET
-}
-
-enum SubscriptionPlan {
-    FREE
-    STARTER
-    PRO
-    ENTERPRISE
-}
-
-enum CampaignStatus {
-    DRAFT
-    SCHEDULED
-    ACTIVE
-    COMPLETED
-    CANCELLED
-}
-
-// ============================================================================
-// AUTHENTICATION & USER MANAGEMENT
-// ============================================================================
 
 model Account {
-    id                String  @id @default(cuid())
-    userId            String
-    type              String
-    provider          String
-    providerAccountId String
-    refresh_token     String? @db.Text
-    access_token      String? @db.Text
-    expires_at        Int?
-    token_type        String?
-    scope             String?
-    id_token          String? @db.Text
-    session_state     String?
-    user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-    @@unique([provider, providerAccountId])
-    @@index([userId])
+  @@unique([provider, providerAccountId])
+  @@index([userId])
 }
 
 model Session {
-    id           String   @id @default(cuid())
-    sessionToken String   @unique
-    userId       String
-    expires      DateTime
-    user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-    @@index([userId])
+  @@index([userId])
 }
 
 model User {
-    id            String    @id @default(cuid())
-    email         String    @unique
-    emailVerified DateTime?
-    name          String?
-    image         String?
-    bio           String?   @db.Text
-    location      String?
-    phone         String?
-    website       String?
-    linkedIn      String?
-    twitter       String?
-    role          UserRole  @default(INDIVIDUAL)
-    userType      UserType  @default(INNOVATOR)
-    isVerified    Boolean   @default(false)
-    createdAt     DateTime  @default(now())
-    updatedAt     DateTime  @updatedAt
+  id                  String               @id @default(cuid())
+  email               String               @unique
+  emailVerified       DateTime?
+  name                String?
+  image               String?
+  bio                 String?              @db.Text
+  location            String?
+  phone               String?
+  website             String?
+  linkedIn            String?
+  twitter             String?
+  role                UserRole             @default(INDIVIDUAL)
+  userType            UserType             @default(INNOVATOR)
+  isVerified          Boolean              @default(false)
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  accounts            Account[]
+  sessions            Session[]
+  skills              UserSkill[]
+  experiences         UserExperience[]
+  projects            Project[]
+  projectSupports     ProjectSupport[]
+  projectApplications ProjectApplication[]
+  projectComments     ProjectComment[]
+  projectUpdates      ProjectUpdate[]
+  assignedTasks       ProjectTask[]
+  agency              Agency?
+  agencyMembers       AgencyMember[]
+  bids                ProjectBid[]
+  givenReviews        AgencyReview[]       @relation("ReviewGiver")
+  projectEquity       ProjectEquity[]
+  businesses          Business[]
+  invoices            Invoice[]
+  customers           Customer[]
+  products            Product[]
+  sales               Sale[]
+  inventoryItems      InventoryItem[]
+  marketingCampaigns  MarketingCampaign[]
 
-    // Relations
-    accounts            Account[]
-    sessions            Session[]
-    skills              UserSkill[]
-    experiences         UserExperience[]
-    projects            Project[]
-    projectSupports     ProjectSupport[]
-    projectApplications ProjectApplication[]
-    projectComments     ProjectComment[]
-    projectUpdates      ProjectUpdate[]
-    assignedTasks       ProjectTask[]
-    agency              Agency?
-    agencyMembers       AgencyMember[]
-    bids                ProjectBid[]
-    givenReviews        AgencyReview[]     @relation("ReviewGiver")
-    projectEquity       ProjectEquity[]
-    
-    // Business Tools Relations
-    businesses          Business[]
-    invoices            Invoice[]
-    customers           Customer[]
-    products            Product[]
-    sales               Sale[]
-    inventoryItems      InventoryItem[]
-    marketingCampaigns  MarketingCampaign[]
-
-    @@index([email])
-    @@index([role])
-    @@index([userType])
+  @@index([email])
+  @@index([role])
+  @@index([userType])
 }
 
 model UserSkill {
-    id     String @id @default(cuid())
-    userId String
-    skill  String
-    level  Int    @default(1) // 1-5 proficiency level
-    user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id     String @id @default(cuid())
+  userId String
+  skill  String
+  level  Int    @default(1)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-    @@unique([userId, skill])
-    @@index([userId])
+  @@unique([userId, skill])
+  @@index([userId])
 }
 
 model UserExperience {
-    id          String    @id @default(cuid())
-    userId      String
-    title       String
-    company     String
-    description String?   @db.Text
-    startDate   DateTime
-    endDate     DateTime?
-    isCurrent   Boolean   @default(false)
-    user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id          String    @id @default(cuid())
+  userId      String
+  title       String
+  company     String
+  description String?   @db.Text
+  startDate   DateTime
+  endDate     DateTime?
+  isCurrent   Boolean   @default(false)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-    @@index([userId])
+  @@index([userId])
 }
 
 model VerificationToken {
-    identifier String
-    token      String   @unique
-    expires    DateTime
+  identifier String
+  token      String   @unique
+  expires    DateTime
 
-    @@unique([identifier, token])
+  @@unique([identifier, token])
 }
 
-// ============================================================================
-// PROJECT MANAGEMENT SYSTEM
-// ============================================================================
-
 model Project {
-    id               String          @id @default(cuid())
-    title            String
-    slug             String          @unique
-    description      String          @db.Text
-    problemStatement String          @db.Text
-    solution         String          @db.Text
-    category         ProjectCategory
-    status           ProjectStatus   @default(DRAFT)
-    fundingGoal      Decimal?        @db.Decimal(10, 2)
-    currentFunding   Decimal         @default(0) @db.Decimal(10, 2)
-    supportersCount  Int             @default(0)
-    votesCount       Int             @default(0)
-    viewsCount       Int             @default(0)
-    featured         Boolean         @default(false)
-    tags             String?         @db.Text // JSON array of tags
-    images           String?         @db.Text // JSON array of image URLs
-    videos           String?         @db.Text // JSON array of video URLs
-    documents        String?         @db.Text // JSON array of document URLs
-    targetAudience   String?         @db.Text
-    expectedImpact   String?         @db.Text
-    timeline         String?         @db.Text
-    createdAt        DateTime        @default(now())
-    updatedAt        DateTime        @updatedAt
-    publishedAt      DateTime?
-    fundedAt         DateTime?
-    completedAt      DateTime?
+  id               String               @id @default(cuid())
+  title            String
+  slug             String               @unique
+  description      String               @db.Text
+  problemStatement String               @db.Text
+  solution         String               @db.Text
+  category         ProjectCategory
+  status           ProjectStatus        @default(DRAFT)
+  fundingGoal      Decimal?             @db.Decimal(10, 2)
+  currentFunding   Decimal              @default(0.00) @db.Decimal(10, 2)
+  supportersCount  Int                  @default(0)
+  votesCount       Int                  @default(0)
+  viewsCount       Int                  @default(0)
+  featured         Boolean              @default(false)
+  tags             String?              @db.Text
+  images           String?              @db.Text
+  videos           String?              @db.Text
+  documents        String?              @db.Text
+  targetAudience   String?              @db.Text
+  expectedImpact   String?              @db.Text
+  timeline         String?              @db.Text
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+  publishedAt      DateTime?
+  fundedAt         DateTime?
+  completedAt      DateTime?
+  createdById      String
+  assignedAgencyId String?
+  createdBy        User                 @relation(fields: [createdById], references: [id])
+  tasks            ProjectTask[]
+  resources        ProjectResource[]
+  milestones       ProjectMilestone[]
+  supports         ProjectSupport[]
+  applications     ProjectApplication[]
+  comments         ProjectComment[]
+  updates          ProjectUpdate[]
+  bids             ProjectBid[]
+  assignedAgency   Agency?              @relation(fields: [assignedAgencyId], references: [id])
+  equity           ProjectEquity[]
 
-    // Relations
-    createdBy         User                 @relation(fields: [createdById], references: [id])
-    createdById       String
-    tasks             ProjectTask[]
-    resources         ProjectResource[]
-    milestones        ProjectMilestone[]
-    supports          ProjectSupport[]
-    applications      ProjectApplication[]
-    comments          ProjectComment[]
-    updates           ProjectUpdate[]
-    bids              ProjectBid[]
-    assignedAgency    Agency?              @relation(fields: [assignedAgencyId], references: [id])
-    assignedAgencyId  String?
-    equity            ProjectEquity[]
-
-    @@index([createdById])
-    @@index([status])
-    @@index([category])
-    @@index([featured])
-    @@index([slug])
+  @@index([createdById])
+  @@index([status])
+  @@index([category])
+  @@index([featured])
+  @@index([slug])
 }
 
 model ProjectTask {
-    id          String       @id @default(cuid())
-    projectId   String
-    title       String
-    description String?      @db.Text
-    status      TaskStatus   @default(TODO)
-    priority    TaskPriority @default(MEDIUM)
-    estimatedHours Int?
-    actualHours    Int?
-    dueDate     DateTime?
-    completedAt DateTime?
-    createdAt   DateTime     @default(now())
-    updatedAt   DateTime     @updatedAt
+  id             String                  @id @default(cuid())
+  projectId      String
+  title          String
+  description    String?                 @db.Text
+  status         TaskStatus              @default(TODO)
+  priority       TaskPriority            @default(MEDIUM)
+  estimatedHours Int?
+  actualHours    Int?
+  dueDate        DateTime?
+  completedAt    DateTime?
+  createdAt      DateTime                @default(now())
+  updatedAt      DateTime                @updatedAt
+  assignedToId   String?
+  project        Project                 @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  assignedTo     User?                   @relation(fields: [assignedToId], references: [id])
+  dependencies   ProjectTaskDependency[] @relation("TaskDependencies")
+  dependents     ProjectTaskDependency[] @relation("DependentTasks")
 
-    // Relations
-    project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-    assignedTo   User?    @relation(fields: [assignedToId], references: [id])
-    assignedToId String?
-    dependencies ProjectTaskDependency[] @relation("TaskDependencies")
-    dependents   ProjectTaskDependency[] @relation("DependentTasks")
-
-    @@index([projectId])
-    @@index([assignedToId])
-    @@index([status])
+  @@index([projectId])
+  @@index([assignedToId])
+  @@index([status])
 }
 
 model ProjectTaskDependency {
-    id           String      @id @default(cuid())
-    taskId       String
-    dependsOnId  String
-    task         ProjectTask @relation("TaskDependencies", fields: [taskId], references: [id], onDelete: Cascade)
-    dependsOn    ProjectTask @relation("DependentTasks", fields: [dependsOnId], references: [id], onDelete: Cascade)
+  id          String      @id @default(cuid())
+  taskId      String
+  dependsOnId String
+  task        ProjectTask @relation("TaskDependencies", fields: [taskId], references: [id], onDelete: Cascade)
+  dependsOn   ProjectTask @relation("DependentTasks", fields: [dependsOnId], references: [id], onDelete: Cascade)
 
-    @@unique([taskId, dependsOnId])
-    @@index([taskId])
-    @@index([dependsOnId])
+  @@unique([taskId, dependsOnId])
+  @@index([taskId])
+  @@index([dependsOnId])
 }
 
 model ProjectResource {
-    id          String  @id @default(cuid())
-    projectId   String
-    name        String
-    description String? @db.Text
-    quantity    Int     @default(1)
-    estimatedCost Decimal? @db.Decimal(10, 2)
-    isRequired  Boolean @default(true)
-    isObtained  Boolean @default(false)
-    createdAt   DateTime @default(now())
+  id            String   @id @default(cuid())
+  projectId     String
+  name          String
+  description   String?  @db.Text
+  quantity      Int      @default(1)
+  estimatedCost Decimal? @db.Decimal(10, 2)
+  isRequired    Boolean  @default(true)
+  isObtained    Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  project       Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
-    project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-
-    @@index([projectId])
+  @@index([projectId])
 }
 
 model ProjectMilestone {
-    id          String    @id @default(cuid())
-    projectId   String
-    title       String
-    description String?   @db.Text
-    targetDate  DateTime
-    completedAt DateTime?
-    isCompleted Boolean   @default(false)
-    createdAt   DateTime  @default(now())
+  id          String    @id @default(cuid())
+  projectId   String
+  title       String
+  description String?   @db.Text
+  targetDate  DateTime
+  completedAt DateTime?
+  isCompleted Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
-    project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-
-    @@index([projectId])
+  @@index([projectId])
 }
 
-// ============================================================================
-// COMMUNITY & SUPPORT SYSTEM
-// ============================================================================
-
 model ProjectSupport {
-    id               String      @id @default(cuid())
-    projectId        String
-    userId           String
-    supportType      SupportType
-    monthlyAmount    Decimal?    @db.Decimal(10, 2) // For subscriptions
-    message          String?     @db.Text
-    isActive         Boolean     @default(true)
-    createdAt        DateTime    @default(now())
-    updatedAt        DateTime    @updatedAt
+  id            String      @id @default(cuid())
+  projectId     String
+  userId        String
+  supportType   SupportType
+  monthlyAmount Decimal?    @db.Decimal(10, 2)
+  message       String?     @db.Text
+  isActive      Boolean     @default(true)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  project       Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-    project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-    user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-    @@unique([projectId, userId, supportType])
-    @@index([projectId])
-    @@index([userId])
+  @@unique([projectId, userId, supportType])
+  @@index([projectId])
+  @@index([userId])
 }
 
 model ProjectApplication {
-    id            String            @id @default(cuid())
-    projectId     String
-    userId        String
-    roleTitle     String
-    message       String            @db.Text
-    skills        String?           @db.Text // JSON array
-    experience    String?           @db.Text
-    availability  String?
-    status        ApplicationStatus @default(PENDING)
-    appliedAt     DateTime          @default(now())
-    reviewedAt    DateTime?
-    reviewMessage String?           @db.Text
+  id            String            @id @default(cuid())
+  projectId     String
+  userId        String
+  roleTitle     String
+  message       String            @db.Text
+  skills        String?           @db.Text
+  experience    String?           @db.Text
+  availability  String?
+  status        ApplicationStatus @default(PENDING)
+  appliedAt     DateTime          @default(now())
+  reviewedAt    DateTime?
+  reviewMessage String?           @db.Text
+  project       Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user          User              @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-    project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-    user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-    @@unique([projectId, userId, roleTitle])
-    @@index([projectId])
-    @@index([userId])
-    @@index([status])
+  @@unique([projectId, userId, roleTitle])
+  @@index([projectId])
+  @@index([userId])
+  @@index([status])
 }
 
 model ProjectComment {
-    id        String   @id @default(cuid())
-    projectId String
-    userId    String
-    content   String   @db.Text
-    parentId  String?  // For nested comments
-    createdAt DateTime @default(now())
-    updatedAt DateTime @updatedAt
+  id        String           @id @default(cuid())
+  projectId String
+  userId    String
+  content   String           @db.Text
+  parentId  String?
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+  project   Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parent    ProjectComment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  replies   ProjectComment[] @relation("CommentReplies")
 
-    project Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
-    user    User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-    parent  ProjectComment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-    replies ProjectComment[] @relation("CommentReplies")
-
-    @@index([projectId])
-    @@index([userId])
-    @@index([parentId])
+  @@index([projectId])
+  @@index([userId])
+  @@index([parentId])
 }
 
 model ProjectUpdate {
-    id        String   @id @default(cuid())
-    projectId String
-    userId    String
-    title     String
-    content   String   @db.Text
-    images    String?  @db.Text // JSON array
-    createdAt DateTime @default(now())
+  id        String   @id @default(cuid())
+  projectId String
+  userId    String
+  title     String
+  content   String   @db.Text
+  images    String?  @db.Text
+  createdAt DateTime @default(now())
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-    project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-    user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-    @@index([projectId])
-    @@index([userId])
+  @@index([projectId])
+  @@index([userId])
 }
 
-// ============================================================================
-// AGENCY & BIDDING SYSTEM
-// ============================================================================
-
 model Agency {
-    id            String   @id @default(cuid())
-    name          String
-    slug          String   @unique
-    description   String   @db.Text
-    website       String?
-    email         String
-    phone         String?
-    address       String?  @db.Text
-    logo          String?
-    portfolio     String?  @db.Text // JSON array of portfolio items
-    specialties   String?  @db.Text // JSON array
-    isVerified    Boolean  @default(false)
-    rating        Decimal? @db.Decimal(3, 2) // Average rating
-    reviewsCount  Int      @default(0)
-    projectsCount Int      @default(0)
-    createdAt     DateTime @default(now())
-    updatedAt     DateTime @updatedAt
+  id            String         @id @default(cuid())
+  name          String
+  slug          String         @unique
+  description   String         @db.Text
+  website       String?
+  email         String
+  phone         String?
+  address       String?        @db.Text
+  logo          String?
+  portfolio     String?        @db.Text
+  specialties   String?        @db.Text
+  isVerified    Boolean        @default(false)
+  rating        Decimal?       @db.Decimal(3, 2)
+  reviewsCount  Int            @default(0)
+  projectsCount Int            @default(0)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  ownerId       String         @unique
+  owner         User           @relation(fields: [ownerId], references: [id])
+  members       AgencyMember[]
+  bids          ProjectBid[]
+  reviews       AgencyReview[]
+  projects      Project[]
 
-    // Relations
-    owner         User           @relation(fields: [ownerId], references: [id])
-    ownerId       String         @unique
-    members       AgencyMember[]
-    bids          ProjectBid[]
-    reviews       AgencyReview[]
-    projects      Project[]
-
-    @@index([slug])
-    @@index([isVerified])
+  @@index([slug])
+  @@index([isVerified])
 }
 
 model AgencyMember {
-    id       String @id @default(cuid())
-    agencyId String
-    userId   String
-    role     String
-    joinedAt DateTime @default(now())
+  id       String   @id @default(cuid())
+  agencyId String
+  userId   String
+  role     String
+  joinedAt DateTime @default(now())
+  agency   Agency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-    agency Agency @relation(fields: [agencyId], references: [id], onDelete: Cascade)
-    user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-    @@unique([agencyId, userId])
-    @@index([agencyId])
-    @@index([userId])
+  @@unique([agencyId, userId])
+  @@index([agencyId])
+  @@index([userId])
 }
 
 model ProjectBid {
-    id          String    @id @default(cuid())
-    projectId   String
-    agencyId    String
-    userId      String    // Bid creator
-    proposal    String    @db.Text
-    timeline    String?   @db.Text
-    budget      Decimal   @db.Decimal(10, 2)
-    deliverables String?  @db.Text // JSON array
-    status      BidStatus @default(SUBMITTED)
-    submittedAt DateTime  @default(now())
-    reviewedAt  DateTime?
+  id           String    @id @default(cuid())
+  projectId    String
+  agencyId     String
+  userId       String
+  proposal     String    @db.Text
+  timeline     String?   @db.Text
+  budget       Decimal   @db.Decimal(10, 2)
+  deliverables String?   @db.Text
+  status       BidStatus @default(SUBMITTED)
+  submittedAt  DateTime  @default(now())
+  reviewedAt   DateTime?
+  project      Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  agency       Agency    @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-    project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-    agency  Agency  @relation(fields: [agencyId], references: [id], onDelete: Cascade)
-    user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-    @@unique([projectId, agencyId])
-    @@index([projectId])
-    @@index([agencyId])
-    @@index([status])
+  @@unique([projectId, agencyId])
+  @@index([projectId])
+  @@index([agencyId])
+  @@index([status])
 }
 
 model AgencyReview {
-    id        String   @id @default(cuid())
-    agencyId  String
-    projectId String?  // Optional: review for specific project
-    userId    String   // Reviewer
-    rating    Int      // 1-5 stars
-    comment   String?  @db.Text
-    createdAt DateTime @default(now())
+  id        String   @id @default(cuid())
+  agencyId  String
+  projectId String?
+  userId    String
+  rating    Int
+  comment   String?  @db.Text
+  createdAt DateTime @default(now())
+  agency    Agency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  reviewer  User     @relation("ReviewGiver", fields: [userId], references: [id], onDelete: Cascade)
 
-    agency   Agency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
-    reviewer User     @relation("ReviewGiver", fields: [userId], references: [id], onDelete: Cascade)
-
-    @@unique([agencyId, userId, projectId])
-    @@index([agencyId])
-    @@index([userId])
+  @@unique([agencyId, userId, projectId])
+  @@index([agencyId])
+  @@index([userId])
 }
-
-// ============================================================================
-// FUNDING & EQUITY SYSTEM
-// ============================================================================
 
 model ProjectEquity {
-    id            String   @id @default(cuid())
-    projectId     String
-    userId        String   // Supporter/Investor
-    sharePercent  Decimal  @db.Decimal(5, 4) // e.g., 0.0025 = 0.25%
-    investmentAmount Decimal @db.Decimal(10, 2)
-    grantedAt     DateTime @default(now())
+  id               String   @id @default(cuid())
+  projectId        String
+  userId           String
+  sharePercent     Decimal  @db.Decimal(5, 4)
+  investmentAmount Decimal  @db.Decimal(10, 2)
+  grantedAt        DateTime @default(now())
+  project          Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-    project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-    user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-    @@unique([projectId, userId])
-    @@index([projectId])
-    @@index([userId])
+  @@unique([projectId, userId])
+  @@index([projectId])
+  @@index([userId])
 }
 
-// ============================================================================
-// BUSINESS TOOLS - SME MANAGEMENT
-// ============================================================================
-
 model Business {
-    id          String           @id @default(cuid())
-    name        String
-    description String?          @db.Text
-    industry    String?
-    address     String?          @db.Text
-    phone       String?
-    email       String?
-    website     String?
-    logo        String?
-    plan        SubscriptionPlan @default(FREE)
-    isActive    Boolean          @default(true)
-    createdAt   DateTime         @default(now())
-    updatedAt   DateTime         @updatedAt
+  id          String              @id @default(cuid())
+  name        String
+  description String?             @db.Text
+  industry    String?
+  address     String?             @db.Text
+  phone       String?
+  email       String?
+  website     String?
+  logo        String?
+  plan        SubscriptionPlan    @default(FREE)
+  isActive    Boolean             @default(true)
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  ownerId     String
+  owner       User                @relation(fields: [ownerId], references: [id])
+  customers   Customer[]
+  products    Product[]
+  invoices    Invoice[]
+  sales       Sale[]
+  inventory   InventoryItem[]
+  campaigns   MarketingCampaign[]
+  analytics   BusinessAnalytics[]
 
-    // Relations
-    owner       User              @relation(fields: [ownerId], references: [id])
-    ownerId     String
-    customers   Customer[]
-    products    Product[]
-    invoices    Invoice[]
-    sales       Sale[]
-    inventory   InventoryItem[]
-    campaigns   MarketingCampaign[]
-    analytics   BusinessAnalytics[]
-
-    @@index([ownerId])
-    @@index([plan])
+  @@index([ownerId])
+  @@index([plan])
 }
 
 model Customer {
-    id        String   @id @default(cuid())
-    businessId String
-    name      String
-    email     String?
-    phone     String?
-    address   String?  @db.Text
-    createdAt DateTime @default(now())
-    updatedAt DateTime @updatedAt
+  id         String    @id @default(cuid())
+  businessId String
+  name       String
+  email      String?
+  phone      String?
+  address    String?   @db.Text
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  userId     String
+  business   Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  user       User      @relation(fields: [userId], references: [id])
+  invoices   Invoice[]
+  sales      Sale[]
 
-    business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
-    user     User     @relation(fields: [userId], references: [id])
-    userId   String
-    invoices Invoice[]
-    sales    Sale[]
-
-    @@index([businessId])
-    @@index([userId])
+  @@index([businessId])
+  @@index([userId])
 }
 
 model Product {
-    id          String  @id @default(cuid())
-    businessId  String
-    name        String
-    description String? @db.Text
-    sku         String?
-    price       Decimal @db.Decimal(10, 2)
-    cost        Decimal? @db.Decimal(10, 2)
-    category    String?
-    isActive    Boolean @default(true)
-    createdAt   DateTime @default(now())
-    updatedAt   DateTime @updatedAt
+  id            String         @id @default(cuid())
+  businessId    String
+  name          String
+  description   String?        @db.Text
+  sku           String?
+  price         Decimal        @db.Decimal(10, 2)
+  cost          Decimal?       @db.Decimal(10, 2)
+  category      String?
+  isActive      Boolean        @default(true)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  userId        String
+  business      Business       @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  user          User           @relation(fields: [userId], references: [id])
+  inventoryItem InventoryItem?
+  saleItems     SaleItem[]
 
-    business      Business        @relation(fields: [businessId], references: [id], onDelete: Cascade)
-    user          User            @relation(fields: [userId], references: [id])
-    userId        String
-    inventoryItem InventoryItem?
-    saleItems     SaleItem[]
-
-    @@index([businessId])
-    @@index([userId])
-    @@index([sku])
+  @@index([businessId])
+  @@index([userId])
+  @@index([sku])
 }
 
 model Invoice {
-    id          String        @id @default(cuid())
-    businessId  String
-    customerId  String
-    invoiceNumber String      @unique
-    amount      Decimal       @db.Decimal(10, 2)
-    tax         Decimal?      @db.Decimal(10, 2)
-    discount    Decimal?      @db.Decimal(10, 2)
-    total       Decimal       @db.Decimal(10, 2)
-    status      InvoiceStatus @default(DRAFT)
-    dueDate     DateTime
-    paidAt      DateTime?
-    notes       String?       @db.Text
-    createdAt   DateTime      @default(now())
-    updatedAt   DateTime      @updatedAt
+  id            String        @id @default(cuid())
+  businessId    String
+  customerId    String
+  invoiceNumber String        @unique
+  amount        Decimal       @db.Decimal(10, 2)
+  tax           Decimal?      @db.Decimal(10, 2)
+  discount      Decimal?      @db.Decimal(10, 2)
+  total         Decimal       @db.Decimal(10, 2)
+  status        InvoiceStatus @default(DRAFT)
+  dueDate       DateTime
+  paidAt        DateTime?
+  notes         String?       @db.Text
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  userId        String
+  business      Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  customer      Customer      @relation(fields: [customerId], references: [id])
+  user          User          @relation(fields: [userId], references: [id])
 
-    business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
-    customer Customer @relation(fields: [customerId], references: [id])
-    user     User     @relation(fields: [userId], references: [id])
-    userId   String
-
-    @@index([businessId])
-    @@index([customerId])
-    @@index([userId])
-    @@index([status])
+  @@index([businessId])
+  @@index([customerId])
+  @@index([userId])
+  @@index([status])
 }
 
 model Sale {
-    id          String        @id @default(cuid())
-    businessId  String
-    customerId  String?
-    total       Decimal       @db.Decimal(10, 2)
-    tax         Decimal?      @db.Decimal(10, 2)
-    discount    Decimal?      @db.Decimal(10, 2)
-    paymentMethod PaymentMethod
-    notes       String?       @db.Text
-    createdAt   DateTime      @default(now())
+  id            String        @id @default(cuid())
+  businessId    String
+  customerId    String?
+  total         Decimal       @db.Decimal(10, 2)
+  tax           Decimal?      @db.Decimal(10, 2)
+  discount      Decimal?      @db.Decimal(10, 2)
+  paymentMethod PaymentMethod
+  notes         String?       @db.Text
+  createdAt     DateTime      @default(now())
+  userId        String
+  business      Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  customer      Customer?     @relation(fields: [customerId], references: [id])
+  user          User          @relation(fields: [userId], references: [id])
+  items         SaleItem[]
 
-    business  Business   @relation(fields: [businessId], references: [id], onDelete: Cascade)
-    customer  Customer?  @relation(fields: [customerId], references: [id])
-    user      User       @relation(fields: [userId], references: [id])
-    userId    String
-    items     SaleItem[]
-
-    @@index([businessId])
-    @@index([customerId])
-    @@index([userId])
-    @@index([createdAt])
+  @@index([businessId])
+  @@index([customerId])
+  @@index([userId])
+  @@index([createdAt])
 }
 
 model SaleItem {
-    id        String  @id @default(cuid())
-    saleId    String
-    productId String
-    quantity  Int
-    price     Decimal @db.Decimal(10, 2)
-    total     Decimal @db.Decimal(10, 2)
+  id        String  @id @default(cuid())
+  saleId    String
+  productId String
+  quantity  Int
+  price     Decimal @db.Decimal(10, 2)
+  total     Decimal @db.Decimal(10, 2)
+  sale      Sale    @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  product   Product @relation(fields: [productId], references: [id])
 
-    sale    Sale    @relation(fields: [saleId], references: [id], onDelete: Cascade)
-    product Product @relation(fields: [productId], references: [id])
-
-    @@index([saleId])
-    @@index([productId])
+  @@index([saleId])
+  @@index([productId])
 }
 
 model InventoryItem {
-    id            String   @id @default(cuid())
-    businessId    String
-    productId     String   @unique
-    currentStock  Int      @default(0)
-    minStock      Int      @default(0)
-    maxStock      Int?
-    reorderPoint  Int?
-    lastRestocked DateTime?
-    createdAt     DateTime @default(now())
-    updatedAt     DateTime @updatedAt
+  id            String    @id @default(cuid())
+  businessId    String
+  productId     String    @unique
+  currentStock  Int       @default(0)
+  minStock      Int       @default(0)
+  maxStock      Int?
+  reorderPoint  Int?
+  lastRestocked DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  userId        String
+  business      Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  product       Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  user          User      @relation(fields: [userId], references: [id])
 
-    business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
-    product  Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
-    user     User     @relation(fields: [userId], references: [id])
-    userId   String
-
-    @@index([businessId])
-    @@index([userId])
-    @@index([currentStock])
+  @@index([businessId])
+  @@index([userId])
+  @@index([currentStock])
 }
 
 model MarketingCampaign {
-    id          String         @id @default(cuid())
-    businessId  String
-    name        String
-    description String?        @db.Text
-    platform    String         // WhatsApp, Instagram, etc.
-    content     String         @db.Text
-    mediaUrls   String?        @db.Text // JSON array
-    scheduledAt DateTime?
-    status      CampaignStatus @default(DRAFT)
-    createdAt   DateTime       @default(now())
-    updatedAt   DateTime       @updatedAt
+  id          String         @id @default(cuid())
+  businessId  String
+  name        String
+  description String?        @db.Text
+  platform    String
+  content     String         @db.Text
+  mediaUrls   String?        @db.Text
+  scheduledAt DateTime?
+  status      CampaignStatus @default(DRAFT)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  userId      String
+  business    Business       @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  user        User           @relation(fields: [userId], references: [id])
 
-    business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
-    user     User     @relation(fields: [userId], references: [id])
-    userId   String
-
-    @@index([businessId])
-    @@index([userId])
-    @@index([status])
+  @@index([businessId])
+  @@index([userId])
+  @@index([status])
 }
 
 model BusinessAnalytics {
-    id           String   @id @default(cuid())
-    businessId   String
-    date         DateTime
-    revenue      Decimal  @db.Decimal(10, 2)
-    expenses     Decimal  @db.Decimal(10, 2)
-    profit       Decimal  @db.Decimal(10, 2)
-    salesCount   Int
-    newCustomers Int
-    createdAt    DateTime @default(now())
+  id           String   @id @default(cuid())
+  businessId   String
+  date         DateTime
+  revenue      Decimal  @db.Decimal(10, 2)
+  expenses     Decimal  @db.Decimal(10, 2)
+  profit       Decimal  @db.Decimal(10, 2)
+  salesCount   Int
+  newCustomers Int
+  createdAt    DateTime @default(now())
+  business     Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
 
-    business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  @@unique([businessId, date])
+  @@index([businessId])
+  @@index([date])
+}
 
-    @@unique([businessId, date])
-    @@index([businessId])
-    @@index([date])
+enum UserRole {
+  INDIVIDUAL
+  AGENCY
+  ADMIN
+}
+
+enum UserType {
+  INNOVATOR
+  SUPPORTER
+  VOLUNTEER
+  FREELANCER
+  SME_OWNER
+  AGENCY_MEMBER
+}
+
+enum ProjectStatus {
+  DRAFT
+  PUBLISHED
+  SEEKING_SUPPORT
+  FUNDED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum ProjectCategory {
+  TECHNOLOGY
+  HEALTHCARE
+  EDUCATION
+  ENVIRONMENT
+  SOCIAL_IMPACT
+  BUSINESS
+  ARTS_CULTURE
+  AGRICULTURE
+  FINANCE
+  OTHER
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  REVIEW
+  COMPLETED
+  BLOCKED
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum SupportType {
+  VOTE
+  SUBSCRIPTION
+  VOLUNTEER
+  RESOURCE
+}
+
+enum ApplicationStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  WITHDRAWN
+}
+
+enum BidStatus {
+  SUBMITTED
+  UNDER_REVIEW
+  ACCEPTED
+  REJECTED
+  WITHDRAWN
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+enum PaymentMethod {
+  BANK_TRANSFER
+  USSD
+  CARD
+  WALLET
+}
+
+enum SubscriptionPlan {
+  FREE
+  STARTER
+  PRO
+  ENTERPRISE
+}
+
+enum CampaignStatus {
+  DRAFT
+  SCHEDULED
+  ACTIVE
+  COMPLETED
+  CANCELLED
 }
