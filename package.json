@@ -21,9 +21,6 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@auth/prisma-adapter": "^2.7.2",
-    "@planetscale/database": "^1.19.0",
-    "@prisma/adapter-planetscale": "^6.5.0",
     "@prisma/client": "^6.5.0",
     "@radix-ui/react-avatar": "^1.1.10",
     "@radix-ui/react-dialog": "^1.1.14",
