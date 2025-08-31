@@ -4,8 +4,9 @@ import { Plus, TrendingUp, Users, Briefcase, Settings } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "~/components/ui/card";
 import { Badge } from "~/components/ui/badge";
-import { Navigation } from "~/components/navigation";
 import { auth } from "~/server/auth";
+import { DashboardProjects } from "~/components/dashboard-projects";
+import { DashboardProjectCards } from "~/components/dashboard-project-cards";
 
 export default async function DashboardPage() {
   const session = await auth();
@@ -18,8 +19,6 @@ export default async function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <Navigation user={user} />
-
       <div className="container mx-auto px-4 py-8">
         {/* Welcome Section */}
         <div className="mb-8">
@@ -33,22 +32,24 @@ export default async function DashboardPage() {
 
         {/* Quick Actions */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <Card className="hover:shadow-md transition-shadow cursor-pointer">
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <div className="p-2 bg-blue-100 rounded-lg">
-                  <Plus className="h-5 w-5 text-blue-600" />
+          <a href="/dashboard/create" className="block">
+            <Card className="hover:shadow-md transition-shadow cursor-pointer">
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <div className="p-2 bg-blue-100 rounded-lg">
+                    <Plus className="h-5 w-5 text-blue-600" />
+                  </div>
+                  <Badge variant="secondary">New</Badge>
                 </div>
-                <Badge variant="secondary">New</Badge>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <CardTitle className="text-lg mb-1">Create Project</CardTitle>
-              <CardDescription>
-                Start a new project and get community support
-              </CardDescription>
-            </CardContent>
-          </Card>
+              </CardHeader>
+              <CardContent>
+                <CardTitle className="text-lg mb-1">Create Project</CardTitle>
+                <CardDescription>
+                  Start a new project and get community support
+                </CardDescription>
+              </CardContent>
+            </Card>
+          </a>
 
           <Card className="hover:shadow-md transition-shadow cursor-pointer">
             <CardHeader className="pb-3">
@@ -107,9 +108,11 @@ export default async function DashboardPage() {
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <CardTitle>Your Projects</CardTitle>
-                  <Button variant="outline" size="sm">
-                    <Plus className="h-4 w-4 mr-2" />
-                    New Project
+                  <Button variant="outline" size="sm" asChild>
+                    <a href="/dashboard/create">
+                      <Plus className="h-4 w-4 mr-2" />
+                      New Project
+                    </a>
                   </Button>
                 </div>
                 <CardDescription>
@@ -117,14 +120,7 @@ export default async function DashboardPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="text-center py-12 text-slate-500">
-                  <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <Plus className="h-8 w-8" />
-                  </div>
-                  <h3 className="font-medium mb-2">No projects yet</h3>
-                  <p className="text-sm mb-4">Create your first project to get started</p>
-                  <Button>Create Project</Button>
-                </div>
+                <DashboardProjectCards />
               </CardContent>
             </Card>
 
@@ -222,12 +218,30 @@ export default async function DashboardPage() {
                   </div>
                 </div>
                 
-                <Button variant="outline" className="w-full mt-4" size="sm">
-                  View All Projects
+                <Button variant="outline" className="w-full mt-4" size="sm" asChild>
+                  <a href="/projects">View All Projects</a>
                 </Button>
               </CardContent>
             </Card>
           </div>
+        </div>
+
+        {/* My Projects Section */}
+        <div className="mb-8">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h2 className="text-2xl font-bold text-slate-900">My Projects</h2>
+              <p className="text-slate-600">Manage and track your project progress</p>
+            </div>
+            <Button asChild>
+              <a href="/dashboard/create">
+                <Plus className="h-4 w-4 mr-2" />
+                Create New Project
+              </a>
+            </Button>
+          </div>
+          
+          <DashboardProjects />
         </div>
       </div>
     </div>

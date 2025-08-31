@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Bell, Menu, X } from "lucide-react";
+import { Bell, Menu, X, Plus } from "lucide-react";
 import { useState } from "react";
 
 import { Button } from "~/components/ui/button";
@@ -70,6 +70,12 @@ export function Navigation({ user }: NavigationProps) {
         <div className="flex items-center space-x-4">
           {user ? (
             <>
+              <Button asChild variant="default" size="sm">
+                <Link href="/dashboard/create">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Create Project
+                </Link>
+              </Button>
               <Button variant="ghost" size="sm">
                 <Bell className="h-4 w-4" />
               </Button>
