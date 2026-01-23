@@ -1,0 +1,55 @@
+# ============================================
+# ArdaNova Railway Deployment Guide
+# ============================================
+#
+# This is a monorepo with two coupled services:
+# 1. ardanova-backend-api-mcp/ - .NET 8 API
+# 2. ardanova-client/ - Next.js 15 Frontend
+#
+# SHARED ENVIRONMENT:
+# ------------------
+# Both services share a root .env file locally.
+# On Railway, use shared variables or reference between services.
+#
+# DEPLOYMENT STEPS:
+# -----------------
+#
+# 1. Create a new Railway project
+#
+# 2. Add PostgreSQL database:
+#    - Click "New" -> "Database" -> "PostgreSQL"
+#    - Railway provides DATABASE_URL automatically
+#
+# 3. Add API Service (name it "ardanova-api"):
+#    - Click "New" -> "GitHub Repo" -> Select this repo
+#    - Set Root Directory: ardanova-backend-api-mcp
+#    - Add environment variables:
+#      * ConnectionStrings__DefaultConnection = (convert DATABASE_URL to .NET format)
+#        Format: Host=<host>;Port=<port>;Database=<db>;Username=<user>;Password=<pass>
+#      * API_KEY = <generate-secure-key>
+#
+# 4. Add Client Service (name it "ardanova-client"):
+#    - Click "New" -> "GitHub Repo" -> Select this repo
+#    - Set Root Directory: ardanova-client
+#    - Add environment variables:
+#      * DATABASE_URL = ${{Postgres.DATABASE_URL}}
+#      * API_URL = http://${{ardanova-api.RAILWAY_PRIVATE_DOMAIN}}:8080
+#      * API_KEY = <same-key-as-api-service>
+#      * AUTH_SECRET = <generate: openssl rand -base64 32>
+#      * AUTH_URL = https://${{RAILWAY_PUBLIC_DOMAIN}}
+#      * GOOGLE_CLIENT_ID = <your-google-client-id>
+#      * GOOGLE_CLIENT_SECRET = <your-google-client-secret>
+#
+# 5. Generate domain for client service (this is your public URL)
+#
+# PRIVATE NETWORKING:
+# ------------------
+# Railway provides private networking between services.
+# Use RAILWAY_PRIVATE_DOMAIN for internal API calls (faster, no egress costs)
+#
+# LOCAL DEVELOPMENT:
+# -----------------
+# 1. Copy .env.example to .env and fill in values
+# 2. Run: docker-compose up -d
+#
+# This starts PostgreSQL, API, and Client together using the shared .env

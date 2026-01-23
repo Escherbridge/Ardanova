@@ -1,0 +1,60 @@
+import { type BaseApiClient, type ApiResponse, type PagedResult } from "../../base-client";
+
+// ============ Type Definitions ============
+
+export interface User {
+  id: string;
+  email: string;
+  name?: string;
+  image?: string;
+  role: string;
+  userType: string;
+  isVerified: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateUserDto {
+  email: string;
+  name?: string;
+  image?: string;
+  role?: string;
+  userType?: string;
+}
+
+export interface UpdateUserDto {
+  name?: string;
+  image?: string;
+  role?: string;
+  userType?: string;
+}
+
+// ============ Users Endpoint ============
+
+export class UsersEndpoint {
+  constructor(private client: BaseApiClient) {}
+
+  getById(id: string): Promise<ApiResponse<User>> {
+    return this.client.get<User>(`/api/users/${id}`);
+  }
+
+  getByEmail(email: string): Promise<ApiResponse<User>> {
+    return this.client.get<User>(`/api/users/email/${encodeURIComponent(email)}`);
+  }
+
+  getAll(page = 1, pageSize = 10): Promise<ApiResponse<PagedResult<User>>> {
+    return this.client.get<PagedResult<User>>(`/api/users?page=${page}&pageSize=${pageSize}`);
+  }
+
+  create(data: CreateUserDto): Promise<ApiResponse<User>> {
+    return this.client.post<User>("/api/users", data);
+  }
+
+  update(id: string, data: UpdateUserDto): Promise<ApiResponse<User>> {
+    return this.client.put<User>(`/api/users/${id}`, data);
+  }
+
+  delete(id: string): Promise<ApiResponse<void>> {
+    return this.client.delete(`/api/users/${id}`);
+  }
+}

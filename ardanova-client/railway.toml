@@ -1,0 +1,23 @@
+[build]
+builder = "dockerfile"
+dockerfilePath = "Dockerfile"
+
+[build.args]
+SKIP_ENV_VALIDATION = "true"
+
+[deploy]
+numReplicas = 1
+healthcheckPath = "/api/health"
+healthcheckTimeout = 300
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 3
+
+# Railway will inject PORT automatically
+# Set these in Railway dashboard or via CLI:
+# - DATABASE_URL (use Railway's Postgres plugin - same as API)
+# - API_URL (reference API service: ${{ardanova-api.RAILWAY_PUBLIC_DOMAIN}} or use private networking)
+# - API_KEY (same key as API service)
+# - AUTH_SECRET (generate with: openssl rand -base64 32)
+# - AUTH_URL (your client's public URL)
+# - GOOGLE_CLIENT_ID
+# - GOOGLE_CLIENT_SECRET

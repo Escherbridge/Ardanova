@@ -1,0 +1,1728 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
+}
+
+datasource db {
+  provider     = "postgresql"
+  url          = env("DATABASE_URL")
+  relationMode = "prisma"
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model User {
+  id                  String               @id @default(cuid())
+  email               String               @unique
+  emailVerified       DateTime?
+  name                String?
+  image               String?
+  bio                 String?              @db.Text
+  location            String?
+  phone               String?
+  website             String?
+  linkedIn            String?
+  twitter             String?
+  role                UserRole             @default(INDIVIDUAL)
+  userType            UserType             @default(INNOVATOR)
+  isVerified          Boolean              @default(false)
+  // Gamification fields
+  totalXP             Int                  @default(0)
+  level               Int                  @default(1)
+  tier                UserTier             @default(BRONZE)
+  trustScore          Decimal              @default(0) @db.Decimal(5, 2)
+  verificationLevel   VerificationLevel    @default(ANONYMOUS)
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  accounts            Account[]
+  sessions            Session[]
+  skills              UserSkill[]
+  experiences         UserExperience[]
+  projects            Project[]
+  projectSupports     ProjectSupport[]
+  projectApplications ProjectApplication[]
+  projectComments     ProjectComment[]
+  projectUpdates      ProjectUpdate[]
+  assignedTasks       ProjectTask[]
+  agency              Agency?
+  agencyMembers       AgencyMember[]
+  bids                ProjectBid[]
+  givenReviews        AgencyReview[]       @relation("ReviewGiver")
+  projectEquity       ProjectEquity[]
+  businesses          Business[]
+  invoices            Invoice[]
+  customers           Customer[]
+  products            Product[]
+  sales               Sale[]
+  inventoryItems      InventoryItem[]
+  marketingCampaigns  MarketingCampaign[]
+  // Project management & gamification
+  projectMemberships  ProjectMember[]
+  xpEvents            XPEvent[]
+  achievements        UserAchievement[]
+  leaderboardEntries  LeaderboardEntry[]
+  proposalsCreated    Proposal[]           @relation("ProposalCreator")
+  votes               Vote[]
+  tokenHoldings       TokenHolder[]
+  icoContributions    ICOContribution[]
+  taskSubmissions     TaskSubmission[]     @relation("TaskSubmitter")
+  taskReviews         TaskSubmission[]     @relation("TaskReviewer")
+  // Wallet, notifications, activity
+  wallets             Wallet[]
+  notifications       Notification[]
+  activities          Activity[]
+  streak              UserStreak?
+  referralsGiven      Referral[]           @relation("ReferralGiver")
+  referralReceived    Referral?            @relation("ReferralReceiver")
+  // Escrow & delegation
+  fundedEscrows       TaskEscrow[]
+  delegatedVotesGiven DelegatedVote[]      @relation("VoteDelegator")
+  delegatedVotesReceived DelegatedVote[]   @relation("VoteDelegatee")
+  // Liquidity
+  liquidityPositions  LiquidityProvider[]
+  swaps               TokenSwap[]
+
+  @@index([email])
+  @@index([role])
+  @@index([userType])
+  @@index([totalXP])
+  @@index([level])
+}
+
+model UserSkill {
+  id     String @id @default(cuid())
+  userId String
+  skill  String
+  level  Int    @default(1)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, skill])
+  @@index([userId])
+}
+
+model UserExperience {
+  id          String    @id @default(cuid())
+  userId      String
+  title       String
+  company     String
+  description String?   @db.Text
+  startDate   DateTime
+  endDate     DateTime?
+  isCurrent   Boolean   @default(false)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Project {
+  id               String               @id @default(cuid())
+  title            String
+  slug             String               @unique
+  description      String               @db.Text
+  problemStatement String               @db.Text
+  solution         String               @db.Text
+  category         ProjectCategory
+  status           ProjectStatus        @default(DRAFT)
+  fundingGoal      Decimal?             @db.Decimal(10, 2)
+  currentFunding   Decimal              @default(0.00) @db.Decimal(10, 2)
+  supportersCount  Int                  @default(0)
+  votesCount       Int                  @default(0)
+  viewsCount       Int                  @default(0)
+  featured         Boolean              @default(false)
+  tags             String?              @db.Text
+  images           String?              @db.Text
+  videos           String?              @db.Text
+  documents        String?              @db.Text
+  targetAudience   String?              @db.Text
+  expectedImpact   String?              @db.Text
+  timeline         String?              @db.Text
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+  publishedAt      DateTime?
+  fundedAt         DateTime?
+  completedAt      DateTime?
+  createdById      String
+  assignedAgencyId String?
+  createdBy        User                 @relation(fields: [createdById], references: [id])
+  tasks            ProjectTask[]
+  resources        ProjectResource[]
+  milestones       ProjectMilestone[]
+  supports         ProjectSupport[]
+  applications     ProjectApplication[]
+  comments         ProjectComment[]
+  updates          ProjectUpdate[]
+  bids             ProjectBid[]
+  assignedAgency   Agency?              @relation(fields: [assignedAgencyId], references: [id])
+  equity           ProjectEquity[]
+  // Project management hierarchy
+  roadmap          Roadmap?
+  sprints          Sprint[]
+  members          ProjectMember[]
+  proposals        Proposal[]
+  token            ProjectToken?
+  treasury         Treasury?
+  // Activity & delegation
+  activities       Activity[]
+  delegatedVotes   DelegatedVote[]
+
+  @@index([createdById])
+  @@index([status])
+  @@index([category])
+  @@index([featured])
+  @@index([slug])
+}
+
+model ProjectTask {
+  id             String                  @id @default(cuid())
+  projectId      String
+  backlogItemId  String?
+  title          String
+  description    String?                 @db.Text
+  status         TaskStatus              @default(TODO)
+  priority       TaskPriority            @default(MEDIUM)
+  estimatedHours Int?
+  actualHours    Int?
+  tokenReward    Decimal?                @db.Decimal(18, 6)
+  escrowStatus   EscrowStatus            @default(NONE)
+  dueDate        DateTime?
+  completedAt    DateTime?
+  createdAt      DateTime                @default(now())
+  updatedAt      DateTime                @updatedAt
+  assignedToId   String?
+  project        Project                 @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  assignedTo     User?                   @relation(fields: [assignedToId], references: [id])
+  backlogItem    BacklogItem?            @relation("BacklogTasks", fields: [backlogItemId], references: [id])
+  dependencies   ProjectTaskDependency[] @relation("TaskDependencies")
+  dependents     ProjectTaskDependency[] @relation("DependentTasks")
+  // Sprint, compensation, submissions
+  sprintItems    SprintItem[]
+  compensation   TaskCompensation?
+  submissions    TaskSubmission[]
+  escrow         TaskEscrow?
+
+  @@index([projectId])
+  @@index([assignedToId])
+  @@index([backlogItemId])
+  @@index([status])
+  @@index([escrowStatus])
+}
+
+model ProjectTaskDependency {
+  id          String      @id @default(cuid())
+  taskId      String
+  dependsOnId String
+  task        ProjectTask @relation("TaskDependencies", fields: [taskId], references: [id], onDelete: Cascade)
+  dependsOn   ProjectTask @relation("DependentTasks", fields: [dependsOnId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, dependsOnId])
+  @@index([taskId])
+  @@index([dependsOnId])
+}
+
+model ProjectResource {
+  id            String   @id @default(cuid())
+  projectId     String
+  name          String
+  description   String?  @db.Text
+  quantity      Int      @default(1)
+  estimatedCost Decimal? @db.Decimal(10, 2)
+  isRequired    Boolean  @default(true)
+  isObtained    Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  project       Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+}
+
+model ProjectMilestone {
+  id          String    @id @default(cuid())
+  projectId   String
+  title       String
+  description String?   @db.Text
+  targetDate  DateTime
+  completedAt DateTime?
+  isCompleted Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+}
+
+model ProjectSupport {
+  id            String      @id @default(cuid())
+  projectId     String
+  userId        String
+  supportType   SupportType
+  monthlyAmount Decimal?    @db.Decimal(10, 2)
+  message       String?     @db.Text
+  isActive      Boolean     @default(true)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  project       Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId, supportType])
+  @@index([projectId])
+  @@index([userId])
+}
+
+model ProjectApplication {
+  id            String            @id @default(cuid())
+  projectId     String
+  userId        String
+  roleTitle     String
+  message       String            @db.Text
+  skills        String?           @db.Text
+  experience    String?           @db.Text
+  availability  String?
+  status        ApplicationStatus @default(PENDING)
+  appliedAt     DateTime          @default(now())
+  reviewedAt    DateTime?
+  reviewMessage String?           @db.Text
+  project       Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user          User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId, roleTitle])
+  @@index([projectId])
+  @@index([userId])
+  @@index([status])
+}
+
+model ProjectComment {
+  id        String           @id @default(cuid())
+  projectId String
+  userId    String
+  content   String           @db.Text
+  parentId  String?
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+  project   Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parent    ProjectComment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  replies   ProjectComment[] @relation("CommentReplies")
+
+  @@index([projectId])
+  @@index([userId])
+  @@index([parentId])
+}
+
+model ProjectUpdate {
+  id        String   @id @default(cuid())
+  projectId String
+  userId    String
+  title     String
+  content   String   @db.Text
+  images    String?  @db.Text
+  createdAt DateTime @default(now())
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@index([userId])
+}
+
+model Agency {
+  id            String         @id @default(cuid())
+  name          String
+  slug          String         @unique
+  description   String         @db.Text
+  website       String?
+  email         String
+  phone         String?
+  address       String?        @db.Text
+  logo          String?
+  portfolio     String?        @db.Text
+  specialties   String?        @db.Text
+  isVerified    Boolean        @default(false)
+  rating        Decimal?       @db.Decimal(3, 2)
+  reviewsCount  Int            @default(0)
+  projectsCount Int            @default(0)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  ownerId       String         @unique
+  owner         User           @relation(fields: [ownerId], references: [id])
+  members       AgencyMember[]
+  bids          ProjectBid[]
+  reviews       AgencyReview[]
+  projects      Project[]
+
+  @@index([slug])
+  @@index([isVerified])
+}
+
+model AgencyMember {
+  id       String   @id @default(cuid())
+  agencyId String
+  userId   String
+  role     String
+  joinedAt DateTime @default(now())
+  agency   Agency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([agencyId, userId])
+  @@index([agencyId])
+  @@index([userId])
+}
+
+model ProjectBid {
+  id           String    @id @default(cuid())
+  projectId    String
+  agencyId     String
+  userId       String
+  proposal     String    @db.Text
+  timeline     String?   @db.Text
+  budget       Decimal   @db.Decimal(10, 2)
+  deliverables String?   @db.Text
+  status       BidStatus @default(SUBMITTED)
+  submittedAt  DateTime  @default(now())
+  reviewedAt   DateTime?
+  project      Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  agency       Agency    @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, agencyId])
+  @@index([projectId])
+  @@index([agencyId])
+  @@index([status])
+}
+
+model AgencyReview {
+  id        String   @id @default(cuid())
+  agencyId  String
+  projectId String?
+  userId    String
+  rating    Int
+  comment   String?  @db.Text
+  createdAt DateTime @default(now())
+  agency    Agency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  reviewer  User     @relation("ReviewGiver", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([agencyId, userId, projectId])
+  @@index([agencyId])
+  @@index([userId])
+}
+
+model ProjectEquity {
+  id               String   @id @default(cuid())
+  projectId        String
+  userId           String
+  sharePercent     Decimal  @db.Decimal(5, 4)
+  investmentAmount Decimal  @db.Decimal(10, 2)
+  grantedAt        DateTime @default(now())
+  project          Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId])
+  @@index([projectId])
+  @@index([userId])
+}
+
+model Business {
+  id          String              @id @default(cuid())
+  name        String
+  description String?             @db.Text
+  industry    String?
+  address     String?             @db.Text
+  phone       String?
+  email       String?
+  website     String?
+  logo        String?
+  plan        SubscriptionPlan    @default(FREE)
+  isActive    Boolean             @default(true)
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  ownerId     String
+  owner       User                @relation(fields: [ownerId], references: [id])
+  customers   Customer[]
+  products    Product[]
+  invoices    Invoice[]
+  sales       Sale[]
+  inventory   InventoryItem[]
+  campaigns   MarketingCampaign[]
+  analytics   BusinessAnalytics[]
+
+  @@index([ownerId])
+  @@index([plan])
+}
+
+model Customer {
+  id         String    @id @default(cuid())
+  businessId String
+  name       String
+  email      String?
+  phone      String?
+  address    String?   @db.Text
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  userId     String
+  business   Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  user       User      @relation(fields: [userId], references: [id])
+  invoices   Invoice[]
+  sales      Sale[]
+
+  @@index([businessId])
+  @@index([userId])
+}
+
+model Product {
+  id            String         @id @default(cuid())
+  businessId    String
+  name          String
+  description   String?        @db.Text
+  sku           String?
+  price         Decimal        @db.Decimal(10, 2)
+  cost          Decimal?       @db.Decimal(10, 2)
+  category      String?
+  isActive      Boolean        @default(true)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  userId        String
+  business      Business       @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  user          User           @relation(fields: [userId], references: [id])
+  inventoryItem InventoryItem?
+  saleItems     SaleItem[]
+
+  @@index([businessId])
+  @@index([userId])
+  @@index([sku])
+}
+
+model Invoice {
+  id            String        @id @default(cuid())
+  businessId    String
+  customerId    String
+  invoiceNumber String        @unique
+  amount        Decimal       @db.Decimal(10, 2)
+  tax           Decimal?      @db.Decimal(10, 2)
+  discount      Decimal?      @db.Decimal(10, 2)
+  total         Decimal       @db.Decimal(10, 2)
+  status        InvoiceStatus @default(DRAFT)
+  dueDate       DateTime
+  paidAt        DateTime?
+  notes         String?       @db.Text
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  userId        String
+  business      Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  customer      Customer      @relation(fields: [customerId], references: [id])
+  user          User          @relation(fields: [userId], references: [id])
+
+  @@index([businessId])
+  @@index([customerId])
+  @@index([userId])
+  @@index([status])
+}
+
+model Sale {
+  id            String        @id @default(cuid())
+  businessId    String
+  customerId    String?
+  total         Decimal       @db.Decimal(10, 2)
+  tax           Decimal?      @db.Decimal(10, 2)
+  discount      Decimal?      @db.Decimal(10, 2)
+  paymentMethod PaymentMethod
+  notes         String?       @db.Text
+  createdAt     DateTime      @default(now())
+  userId        String
+  business      Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  customer      Customer?     @relation(fields: [customerId], references: [id])
+  user          User          @relation(fields: [userId], references: [id])
+  items         SaleItem[]
+
+  @@index([businessId])
+  @@index([customerId])
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model SaleItem {
+  id        String  @id @default(cuid())
+  saleId    String
+  productId String
+  quantity  Int
+  price     Decimal @db.Decimal(10, 2)
+  total     Decimal @db.Decimal(10, 2)
+  sale      Sale    @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  product   Product @relation(fields: [productId], references: [id])
+
+  @@index([saleId])
+  @@index([productId])
+}
+
+model InventoryItem {
+  id            String    @id @default(cuid())
+  businessId    String
+  productId     String    @unique
+  currentStock  Int       @default(0)
+  minStock      Int       @default(0)
+  maxStock      Int?
+  reorderPoint  Int?
+  lastRestocked DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  userId        String
+  business      Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  product       Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  user          User      @relation(fields: [userId], references: [id])
+
+  @@index([businessId])
+  @@index([userId])
+  @@index([currentStock])
+}
+
+model MarketingCampaign {
+  id          String         @id @default(cuid())
+  businessId  String
+  name        String
+  description String?        @db.Text
+  platform    String
+  content     String         @db.Text
+  mediaUrls   String?        @db.Text
+  scheduledAt DateTime?
+  status      CampaignStatus @default(DRAFT)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  userId      String
+  business    Business       @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  user        User           @relation(fields: [userId], references: [id])
+
+  @@index([businessId])
+  @@index([userId])
+  @@index([status])
+}
+
+model BusinessAnalytics {
+  id           String   @id @default(cuid())
+  businessId   String
+  date         DateTime
+  revenue      Decimal  @db.Decimal(10, 2)
+  expenses     Decimal  @db.Decimal(10, 2)
+  profit       Decimal  @db.Decimal(10, 2)
+  salesCount   Int
+  newCustomers Int
+  createdAt    DateTime @default(now())
+  business     Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@unique([businessId, date])
+  @@index([businessId])
+  @@index([date])
+}
+
+enum UserRole {
+  INDIVIDUAL
+  AGENCY
+  ADMIN
+}
+
+enum UserType {
+  INNOVATOR
+  SUPPORTER
+  VOLUNTEER
+  FREELANCER
+  SME_OWNER
+  AGENCY_MEMBER
+}
+
+enum UserTier {
+  BRONZE
+  SILVER
+  GOLD
+  PLATINUM
+  DIAMOND
+}
+
+enum VerificationLevel {
+  ANONYMOUS
+  VERIFIED
+  PRO
+  EXPERT
+}
+
+enum EscrowStatus {
+  NONE
+  FUNDED
+  RELEASED
+  DISPUTED
+  REFUNDED
+}
+
+enum ProjectStatus {
+  DRAFT
+  PUBLISHED
+  SEEKING_SUPPORT
+  FUNDED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum ProjectCategory {
+  TECHNOLOGY
+  HEALTHCARE
+  EDUCATION
+  ENVIRONMENT
+  SOCIAL_IMPACT
+  BUSINESS
+  ARTS_CULTURE
+  AGRICULTURE
+  FINANCE
+  OTHER
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  REVIEW
+  COMPLETED
+  BLOCKED
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum SupportType {
+  VOTE
+  SUBSCRIPTION
+  VOLUNTEER
+  RESOURCE
+}
+
+enum ApplicationStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  WITHDRAWN
+}
+
+enum BidStatus {
+  SUBMITTED
+  UNDER_REVIEW
+  ACCEPTED
+  REJECTED
+  WITHDRAWN
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+enum PaymentMethod {
+  BANK_TRANSFER
+  USSD
+  CARD
+  WALLET
+}
+
+enum SubscriptionPlan {
+  FREE
+  STARTER
+  PRO
+  ENTERPRISE
+}
+
+enum CampaignStatus {
+  DRAFT
+  SCHEDULED
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+// =============================================================================
+// PROJECT MANAGEMENT HIERARCHY (ROADMAP → EPIC → SPRINT → PBI → BACKLOG → TASK)
+// =============================================================================
+
+model Roadmap {
+  id          String          @id @default(cuid())
+  projectId   String          @unique
+  title       String
+  vision      String?         @db.Text
+  status      RoadmapStatus   @default(DRAFT)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  project     Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  phases      RoadmapPhase[]
+
+  @@index([projectId])
+}
+
+model RoadmapPhase {
+  id          String      @id @default(cuid())
+  roadmapId   String
+  name        String
+  description String?     @db.Text
+  order       Int
+  startDate   DateTime?
+  endDate     DateTime?
+  status      PhaseStatus @default(PLANNED)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  roadmap     Roadmap     @relation(fields: [roadmapId], references: [id], onDelete: Cascade)
+  epics       Epic[]
+
+  @@index([roadmapId])
+  @@index([order])
+}
+
+model Epic {
+  id          String     @id @default(cuid())
+  phaseId     String
+  title       String
+  description String?    @db.Text
+  status      EpicStatus @default(PLANNED)
+  priority    Priority   @default(MEDIUM)
+  tokenBudget Decimal?   @db.Decimal(18, 6)
+  progress    Int        @default(0)
+  startDate   DateTime?
+  targetDate  DateTime?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  phase       RoadmapPhase @relation(fields: [phaseId], references: [id], onDelete: Cascade)
+  pbis        ProductBacklogItem[]
+
+  @@index([phaseId])
+  @@index([status])
+}
+
+model Sprint {
+  id          String       @id @default(cuid())
+  projectId   String
+  name        String
+  goal        String?      @db.Text
+  startDate   DateTime
+  endDate     DateTime
+  tokenBudget Decimal?     @db.Decimal(18, 6)
+  velocity    Int?
+  status      SprintStatus @default(PLANNED)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  project     Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  items       SprintItem[]
+
+  @@index([projectId])
+  @@index([status])
+  @@index([startDate])
+}
+
+model ProductBacklogItem {
+  id                String    @id @default(cuid())
+  epicId            String
+  title             String
+  description       String?   @db.Text
+  type              PBIType   @default(FEATURE)
+  storyPoints       Int?
+  status            PBIStatus @default(NEW)
+  acceptanceCriteria String?  @db.Text
+  priority          Priority  @default(MEDIUM)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  epic              Epic      @relation(fields: [epicId], references: [id], onDelete: Cascade)
+  backlogItems      BacklogItem[]
+
+  @@index([epicId])
+  @@index([status])
+}
+
+model BacklogItem {
+  id          String          @id @default(cuid())
+  pbiId       String
+  title       String
+  description String?         @db.Text
+  type        BacklogItemType @default(TASK)
+  status      BacklogStatus   @default(NEW)
+  estimate    Int?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  pbi         ProductBacklogItem @relation(fields: [pbiId], references: [id], onDelete: Cascade)
+  tasks       ProjectTask[]   @relation("BacklogTasks")
+
+  @@index([pbiId])
+  @@index([status])
+}
+
+model SprintItem {
+  id        String      @id @default(cuid())
+  sprintId  String
+  taskId    String
+  order     Int         @default(0)
+  addedAt   DateTime    @default(now())
+  sprint    Sprint      @relation(fields: [sprintId], references: [id], onDelete: Cascade)
+  task      ProjectTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@unique([sprintId, taskId])
+  @@index([sprintId])
+  @@index([taskId])
+}
+
+// =============================================================================
+// PROJECT MEMBERSHIP & ROLES (Token-Weighted)
+// =============================================================================
+
+model ProjectMember {
+  id           String           @id @default(cuid())
+  projectId    String
+  userId       String
+  role         ProjectRole      @default(OBSERVER)
+  tokenBalance Decimal          @default(0) @db.Decimal(18, 6)
+  votingPower  Decimal          @default(0) @db.Decimal(18, 6)
+  joinedAt     DateTime         @default(now())
+  invitedById  String?
+  project      Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId])
+  @@index([projectId])
+  @@index([userId])
+  @@index([role])
+}
+
+// =============================================================================
+// TASK COMPENSATION & SUBMISSIONS
+// =============================================================================
+
+model TaskCompensation {
+  id              String           @id @default(cuid())
+  taskId          String           @unique
+  model           CompensationModel @default(FIXED_TOKEN)
+  tokenAmount     Decimal?         @db.Decimal(18, 6)
+  hourlyRate      Decimal?         @db.Decimal(18, 6)
+  equityPercent   Decimal?         @db.Decimal(5, 4)
+  stableCoinAmount Decimal?        @db.Decimal(10, 2)
+  vestingMonths   Int?
+  createdAt       DateTime         @default(now())
+  task            ProjectTask      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([taskId])
+}
+
+model TaskSubmission {
+  id            String           @id @default(cuid())
+  taskId        String
+  submittedById String
+  content       String           @db.Text
+  attachments   String?          @db.Text
+  status        SubmissionStatus @default(PENDING)
+  reviewedById  String?
+  feedback      String?          @db.Text
+  submittedAt   DateTime         @default(now())
+  reviewedAt    DateTime?
+  task          ProjectTask      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  submittedBy   User             @relation("TaskSubmitter", fields: [submittedById], references: [id])
+  reviewedBy    User?            @relation("TaskReviewer", fields: [reviewedById], references: [id])
+
+  @@index([taskId])
+  @@index([submittedById])
+  @@index([status])
+}
+
+// =============================================================================
+// GAMIFICATION (XP, Achievements, Leaderboards)
+// =============================================================================
+
+model XPEvent {
+  id        String      @id @default(cuid())
+  userId    String
+  eventType XPEventType
+  amount    Int
+  source    String
+  sourceId  String?
+  metadata  Json?
+  createdAt DateTime    @default(now())
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([eventType])
+  @@index([createdAt])
+}
+
+model Achievement {
+  id          String              @id @default(cuid())
+  name        String              @unique
+  description String
+  category    AchievementCategory
+  criteria    Json
+  xpReward    Int
+  tokenReward Decimal?            @db.Decimal(18, 6)
+  rarity      AchievementRarity   @default(COMMON)
+  icon        String?
+  isActive    Boolean             @default(true)
+  createdAt   DateTime            @default(now())
+  users       UserAchievement[]
+
+  @@index([category])
+  @@index([rarity])
+}
+
+model UserAchievement {
+  id            String      @id @default(cuid())
+  userId        String
+  achievementId String
+  progress      Int         @default(0)
+  earnedAt      DateTime?
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  achievement   Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, achievementId])
+  @@index([userId])
+  @@index([achievementId])
+}
+
+model Leaderboard {
+  id        String             @id @default(cuid())
+  period    LeaderboardPeriod
+  category  LeaderboardCategory
+  startDate DateTime
+  endDate   DateTime
+  createdAt DateTime           @default(now())
+  entries   LeaderboardEntry[]
+
+  @@unique([period, category, startDate])
+  @@index([period])
+  @@index([category])
+}
+
+model LeaderboardEntry {
+  id            String      @id @default(cuid())
+  leaderboardId String
+  userId        String
+  rank          Int
+  score         Int
+  metadata      Json?
+  leaderboard   Leaderboard @relation(fields: [leaderboardId], references: [id], onDelete: Cascade)
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([leaderboardId, userId])
+  @@index([leaderboardId])
+  @@index([userId])
+  @@index([rank])
+}
+
+// =============================================================================
+// GOVERNANCE (DAO Proposals & Voting)
+// =============================================================================
+
+model Proposal {
+  id             String           @id @default(cuid())
+  projectId      String
+  creatorId      String
+  type           ProposalType
+  title          String
+  description    String           @db.Text
+  options        Json
+  quorum         Int
+  threshold      Int
+  status         ProposalStatus   @default(DRAFT)
+  votingStart    DateTime?
+  votingEnd      DateTime?
+  executionDelay Int?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  project        Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  creator        User             @relation("ProposalCreator", fields: [creatorId], references: [id])
+  votes          Vote[]
+  execution      ProposalExecution?
+
+  @@index([projectId])
+  @@index([creatorId])
+  @@index([status])
+  @@index([type])
+}
+
+model Vote {
+  id         String   @id @default(cuid())
+  proposalId String
+  voterId    String
+  choice     Int
+  weight     Decimal  @db.Decimal(18, 6)
+  reason     String?  @db.Text
+  txHash     String?
+  createdAt  DateTime @default(now())
+  proposal   Proposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  voter      User     @relation(fields: [voterId], references: [id], onDelete: Cascade)
+
+  @@unique([proposalId, voterId])
+  @@index([proposalId])
+  @@index([voterId])
+}
+
+model ProposalExecution {
+  id         String   @id @default(cuid())
+  proposalId String   @unique
+  executedAt DateTime @default(now())
+  txHash     String?
+  result     Json?
+  proposal   Proposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+
+  @@index([proposalId])
+}
+
+model Treasury {
+  id           String                @id @default(cuid())
+  projectId    String                @unique
+  balance      Decimal               @default(0) @db.Decimal(18, 6)
+  tokenAssetId String?
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
+  project      Project               @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  transactions TreasuryTransaction[]
+
+  @@index([projectId])
+}
+
+model TreasuryTransaction {
+  id          String          @id @default(cuid())
+  treasuryId  String
+  type        TransactionType
+  amount      Decimal         @db.Decimal(18, 6)
+  description String?
+  txHash      String?
+  proposalId  String?
+  createdAt   DateTime        @default(now())
+  treasury    Treasury        @relation(fields: [treasuryId], references: [id], onDelete: Cascade)
+
+  @@index([treasuryId])
+  @@index([type])
+}
+
+// =============================================================================
+// TOKEN & ICO
+// =============================================================================
+
+model ProjectToken {
+  id              String        @id @default(cuid())
+  projectId       String        @unique
+  assetId         String?
+  name            String
+  symbol          String
+  totalSupply     Decimal       @db.Decimal(18, 6)
+  decimals        Int           @default(6)
+  allocation      Json
+  vestingConfig   Json?
+  isDeployed      Boolean       @default(false)
+  deployedAt      DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  project         Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  holders         TokenHolder[]
+  ico             ICO?
+  // Exchange & escrow
+  escrows         TaskEscrow[]
+  delegatedVotes  DelegatedVote[]
+  swapsFrom       TokenSwap[]   @relation("SwapFrom")
+  swapsTo         TokenSwap[]   @relation("SwapTo")
+  poolsAsToken1   LiquidityPool[] @relation("PoolToken1")
+  poolsAsToken2   LiquidityPool[] @relation("PoolToken2")
+
+  @@index([projectId])
+  @@index([assetId])
+}
+
+model TokenHolder {
+  id             String         @id @default(cuid())
+  tokenId        String
+  userId         String
+  balance        Decimal        @db.Decimal(18, 6)
+  stakedAmount   Decimal        @default(0) @db.Decimal(18, 6)
+  lockedAmount   Decimal        @default(0) @db.Decimal(18, 6)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  token          ProjectToken   @relation(fields: [tokenId], references: [id], onDelete: Cascade)
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  vestingSchedules TokenVesting[]
+
+  @@unique([tokenId, userId])
+  @@index([tokenId])
+  @@index([userId])
+}
+
+model TokenVesting {
+  id               String      @id @default(cuid())
+  holderId         String
+  totalAmount      Decimal     @db.Decimal(18, 6)
+  releasedAmount   Decimal     @default(0) @db.Decimal(18, 6)
+  startDate        DateTime
+  cliffEnd         DateTime
+  vestingEnd       DateTime
+  releaseFrequency VestingFrequency @default(MONTHLY)
+  createdAt        DateTime    @default(now())
+  holder           TokenHolder @relation(fields: [holderId], references: [id], onDelete: Cascade)
+
+  @@index([holderId])
+  @@index([vestingEnd])
+}
+
+model ICO {
+  id             String          @id @default(cuid())
+  tokenId        String          @unique
+  fundingGoal    Decimal         @db.Decimal(18, 6)
+  currentFunding Decimal         @default(0) @db.Decimal(18, 6)
+  minContribution Decimal?       @db.Decimal(18, 6)
+  maxContribution Decimal?       @db.Decimal(18, 6)
+  tokenPrice     Decimal         @db.Decimal(18, 6)
+  startDate      DateTime
+  endDate        DateTime
+  status         ICOStatus       @default(PENDING)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  token          ProjectToken    @relation(fields: [tokenId], references: [id], onDelete: Cascade)
+  contributions  ICOContribution[]
+
+  @@index([tokenId])
+  @@index([status])
+}
+
+model ICOContribution {
+  id            String        @id @default(cuid())
+  icoId         String
+  userId        String
+  amount        Decimal       @db.Decimal(18, 6)
+  tokenAmount   Decimal       @db.Decimal(18, 6)
+  paymentAsset  String
+  txHash        String?
+  status        ContributionStatus @default(PENDING)
+  createdAt     DateTime      @default(now())
+  ico           ICO           @relation(fields: [icoId], references: [id], onDelete: Cascade)
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([icoId])
+  @@index([userId])
+  @@index([status])
+}
+
+// =============================================================================
+// WALLET & BLOCKCHAIN
+// =============================================================================
+
+model Wallet {
+  id            String         @id @default(cuid())
+  userId        String
+  address       String         @unique
+  provider      WalletProvider
+  label         String?
+  isVerified    Boolean        @default(false)
+  isPrimary     Boolean        @default(false)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([address])
+}
+
+// =============================================================================
+// TASK ESCROW (Detailed escrow tracking for token-compensated tasks)
+// =============================================================================
+
+model TaskEscrow {
+  id            String       @id @default(cuid())
+  taskId        String       @unique
+  funderId      String
+  tokenId       String
+  amount        Decimal      @db.Decimal(18, 6)
+  status        EscrowStatus @default(FUNDED)
+  txHashFund    String?
+  txHashRelease String?
+  txHashRefund  String?
+  createdAt     DateTime     @default(now())
+  fundedAt      DateTime?
+  releasedAt    DateTime?
+  refundedAt    DateTime?
+  task          ProjectTask  @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  funder        User         @relation(fields: [funderId], references: [id])
+  token         ProjectToken @relation(fields: [tokenId], references: [id])
+
+  @@index([taskId])
+  @@index([funderId])
+  @@index([status])
+}
+
+// =============================================================================
+// GAMIFICATION (Streaks & Referrals)
+// =============================================================================
+
+model UserStreak {
+  id               String    @id @default(cuid())
+  userId           String    @unique
+  currentStreak    Int       @default(0)
+  longestStreak    Int       @default(0)
+  lastActivityDate DateTime?
+  streakType       StreakType @default(DAILY_LOGIN)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([currentStreak])
+}
+
+model Referral {
+  id            String         @id @default(cuid())
+  referrerId    String
+  referredId    String         @unique
+  referralCode  String?
+  status        ReferralStatus @default(PENDING)
+  rewardClaimed Boolean        @default(false)
+  xpRewarded    Int?
+  tokenRewarded Decimal?       @db.Decimal(18, 6)
+  createdAt     DateTime       @default(now())
+  completedAt   DateTime?
+  referrer      User           @relation("ReferralGiver", fields: [referrerId], references: [id])
+  referred      User           @relation("ReferralReceiver", fields: [referredId], references: [id])
+
+  @@index([referrerId])
+  @@index([referredId])
+  @@index([status])
+}
+
+// =============================================================================
+// NOTIFICATIONS & ACTIVITY
+// =============================================================================
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  type      NotificationType
+  title     String
+  message   String           @db.Text
+  data      Json?
+  isRead    Boolean          @default(false)
+  readAt    DateTime?
+  actionUrl String?
+  createdAt DateTime         @default(now())
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([isRead])
+  @@index([type])
+  @@index([createdAt])
+}
+
+model Activity {
+  id         String       @id @default(cuid())
+  userId     String
+  projectId  String?
+  type       ActivityType
+  entityType String
+  entityId   String
+  action     String
+  metadata   Json?
+  createdAt  DateTime     @default(now())
+  user       User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project    Project?     @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([projectId])
+  @@index([type])
+  @@index([createdAt])
+}
+
+// =============================================================================
+// DAO VOTE DELEGATION
+// =============================================================================
+
+model DelegatedVote {
+  id          String        @id @default(cuid())
+  projectId   String
+  delegatorId String
+  delegateeId String
+  tokenId     String
+  amount      Decimal       @db.Decimal(18, 6)
+  isActive    Boolean       @default(true)
+  createdAt   DateTime      @default(now())
+  expiresAt   DateTime?
+  revokedAt   DateTime?
+  project     Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  delegator   User          @relation("VoteDelegator", fields: [delegatorId], references: [id])
+  delegatee   User          @relation("VoteDelegatee", fields: [delegateeId], references: [id])
+  token       ProjectToken  @relation(fields: [tokenId], references: [id])
+
+  @@unique([projectId, delegatorId, tokenId])
+  @@index([projectId])
+  @@index([delegatorId])
+  @@index([delegateeId])
+  @@index([isActive])
+}
+
+// =============================================================================
+// TOKEN EXCHANGE & LIQUIDITY
+// =============================================================================
+
+model TokenSwap {
+  id            String       @id @default(cuid())
+  userId        String
+  fromTokenId   String
+  toTokenId     String
+  fromAmount    Decimal      @db.Decimal(18, 6)
+  toAmount      Decimal      @db.Decimal(18, 6)
+  exchangeRate  Decimal      @db.Decimal(18, 8)
+  fee           Decimal      @default(0) @db.Decimal(18, 6)
+  txHash        String?
+  status        SwapStatus   @default(PENDING)
+  createdAt     DateTime     @default(now())
+  completedAt   DateTime?
+  user          User         @relation(fields: [userId], references: [id])
+  fromToken     ProjectToken @relation("SwapFrom", fields: [fromTokenId], references: [id])
+  toToken       ProjectToken @relation("SwapTo", fields: [toTokenId], references: [id])
+
+  @@index([userId])
+  @@index([fromTokenId])
+  @@index([toTokenId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model LiquidityPool {
+  id          String              @id @default(cuid())
+  token1Id    String
+  token2Id    String
+  reserve1    Decimal             @default(0) @db.Decimal(18, 6)
+  reserve2    Decimal             @default(0) @db.Decimal(18, 6)
+  totalShares Decimal             @default(0) @db.Decimal(18, 6)
+  feePercent  Decimal             @default(0.003) @db.Decimal(5, 4)
+  isActive    Boolean             @default(true)
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  token1      ProjectToken        @relation("PoolToken1", fields: [token1Id], references: [id])
+  token2      ProjectToken        @relation("PoolToken2", fields: [token2Id], references: [id])
+  providers   LiquidityProvider[]
+
+  @@unique([token1Id, token2Id])
+  @@index([token1Id])
+  @@index([token2Id])
+  @@index([isActive])
+}
+
+model LiquidityProvider {
+  id        String        @id @default(cuid())
+  poolId    String
+  userId    String
+  shares    Decimal       @db.Decimal(18, 6)
+  token1In  Decimal       @default(0) @db.Decimal(18, 6)
+  token2In  Decimal       @default(0) @db.Decimal(18, 6)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  pool      LiquidityPool @relation(fields: [poolId], references: [id], onDelete: Cascade)
+  user      User          @relation(fields: [userId], references: [id])
+
+  @@unique([poolId, userId])
+  @@index([poolId])
+  @@index([userId])
+}
+
+// =============================================================================
+// ENUMS
+// =============================================================================
+
+enum RoadmapStatus {
+  DRAFT
+  ACTIVE
+  COMPLETED
+  ARCHIVED
+}
+
+enum PhaseStatus {
+  PLANNED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum EpicStatus {
+  PLANNED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum SprintStatus {
+  PLANNED
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum PBIType {
+  FEATURE
+  ENHANCEMENT
+  BUG
+  TECHNICAL_DEBT
+  SPIKE
+}
+
+enum PBIStatus {
+  NEW
+  READY
+  IN_PROGRESS
+  DONE
+  CANCELLED
+}
+
+enum BacklogItemType {
+  TASK
+  BUG
+  IMPROVEMENT
+  RESEARCH
+}
+
+enum BacklogStatus {
+  NEW
+  READY
+  IN_PROGRESS
+  DONE
+  BLOCKED
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum ProjectRole {
+  FOUNDER
+  LEADER
+  CORE_CONTRIBUTOR
+  CONTRIBUTOR
+  OBSERVER
+}
+
+enum CompensationModel {
+  FIXED_TOKEN
+  HOURLY_TOKEN
+  EQUITY_PERCENT
+  HYBRID
+  BOUNTY
+  MILESTONE
+}
+
+enum SubmissionStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  REVISION_REQUESTED
+}
+
+enum XPEventType {
+  TASK_COMPLETED
+  PROPOSAL_CREATED
+  PROPOSAL_PASSED
+  VOTE_CAST
+  PROJECT_FUNDED
+  MEMBER_REFERRED
+  ACHIEVEMENT_EARNED
+  STREAK_MAINTAINED
+  LEVEL_UP
+  REVIEW_GIVEN
+  CONTRIBUTION_MADE
+}
+
+enum AchievementCategory {
+  CONTRIBUTOR
+  COLLABORATOR
+  INVESTOR
+  GOVERNANCE
+  COMMUNITY
+  STREAK
+  MILESTONE
+  GAMING
+}
+
+enum AchievementRarity {
+  COMMON
+  UNCOMMON
+  RARE
+  EPIC
+  LEGENDARY
+}
+
+enum LeaderboardPeriod {
+  DAILY
+  WEEKLY
+  MONTHLY
+  QUARTERLY
+  ALL_TIME
+}
+
+enum LeaderboardCategory {
+  XP
+  TASKS_COMPLETED
+  TOKENS_EARNED
+  PROPOSALS_CREATED
+  VOTES_CAST
+  PROJECTS_FUNDED
+}
+
+enum ProposalType {
+  TREASURY
+  GOVERNANCE
+  STRATEGIC
+  OPERATIONAL
+  EMERGENCY
+  CONSTITUTIONAL
+  TOKEN
+}
+
+enum ProposalStatus {
+  DRAFT
+  ACTIVE
+  PASSED
+  REJECTED
+  EXECUTED
+  CANCELLED
+  EXPIRED
+}
+
+enum TransactionType {
+  DEPOSIT
+  WITHDRAWAL
+  TASK_PAYMENT
+  PROPOSAL_EXECUTION
+  DIVIDEND
+  FEE
+}
+
+enum VestingFrequency {
+  DAILY
+  WEEKLY
+  MONTHLY
+  QUARTERLY
+}
+
+enum ICOStatus {
+  PENDING
+  ACTIVE
+  SUCCESSFUL
+  FAILED
+  CANCELLED
+  REFUNDING
+}
+
+enum ContributionStatus {
+  PENDING
+  CONFIRMED
+  REFUNDED
+  FAILED
+}
+
+enum WalletProvider {
+  PERA
+  DEFLY
+  ALGOSIGNER
+  WALLETCONNECT
+  OTHER
+}
+
+enum StreakType {
+  DAILY_LOGIN
+  DAILY_CONTRIBUTION
+  WEEKLY_TASK
+}
+
+enum ReferralStatus {
+  PENDING
+  COMPLETED
+  EXPIRED
+  CANCELLED
+}
+
+enum NotificationType {
+  // Task notifications
+  TASK_ASSIGNED
+  TASK_COMPLETED
+  TASK_REVIEWED
+  TASK_REVISION_REQUESTED
+  // Proposal/governance notifications
+  PROPOSAL_CREATED
+  PROPOSAL_VOTED
+  PROPOSAL_PASSED
+  PROPOSAL_REJECTED
+  PROPOSAL_EXECUTED
+  // Achievement/gamification notifications
+  ACHIEVEMENT_EARNED
+  LEVEL_UP
+  STREAK_MILESTONE
+  // Token notifications
+  TOKEN_RECEIVED
+  TOKEN_VESTED
+  ESCROW_FUNDED
+  ESCROW_RELEASED
+  // Project notifications
+  PROJECT_INVITATION
+  PROJECT_UPDATE
+  PROJECT_FUNDED
+  // Social notifications
+  COMMENT_REPLY
+  MENTION
+  FOLLOWER_NEW
+  // System notifications
+  SYSTEM_ANNOUNCEMENT
+  SECURITY_ALERT
+}
+
+enum ActivityType {
+  CREATED
+  UPDATED
+  DELETED
+  COMPLETED
+  JOINED
+  LEFT
+  COMMENTED
+  VOTED
+  SUBMITTED
+  REVIEWED
+  FUNDED
+  TRANSFERRED
+  SWAPPED
+}
+
+enum SwapStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  CANCELLED
+}

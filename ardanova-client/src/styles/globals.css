@@ -1,0 +1,711 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+/* ============================================
+   ARDANOVA DESIGN SYSTEM
+   Swiss Grid + Brutalist + Cyberpunk
+   ============================================ */
+
+@custom-variant dark (&:is(.dark *));
+
+/* ============================================
+   THEME CONFIGURATION
+   ============================================ */
+
+@theme {
+  /* Typography - Brutalist mono-spaced headers, clean sans body */
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif,
+    "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  --font-mono: "JetBrains Mono", "Fira Code", ui-monospace, SFMono-Regular, "SF Mono",
+    Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+
+  /* Swiss Grid - 12 column base */
+  --grid-columns: 12;
+  --grid-gutter: 1.5rem;
+  --grid-margin: 2rem;
+
+  /* Brutalist spacing scale */
+  --space-unit: 0.25rem;
+}
+
+@theme inline {
+  /* Brutalist: Sharp corners, no radius */
+  --radius: 0;
+  --radius-sm: 0;
+  --radius-md: 0;
+  --radius-lg: 0;
+  --radius-xl: 0;
+
+  /* Semantic color tokens */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  /* Neon accent colors */
+  --color-neon-cyan: var(--neon-cyan);
+  --color-neon-pink: var(--neon-pink);
+  --color-neon-green: var(--neon-green);
+  --color-neon-yellow: var(--neon-yellow);
+  --color-neon-purple: var(--neon-purple);
+
+  /* Chart colors - neon palette */
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
+  /* Sidebar colors */
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+/* ============================================
+   COLOR PALETTE
+   Deep blacks + Electric neons
+   ============================================ */
+
+:root {
+  /* Base - Light mode (kept for accessibility) */
+  --background: #fafafa;
+  --foreground: #0a0a0a;
+
+  --card: #ffffff;
+  --card-foreground: #0a0a0a;
+
+  --popover: #ffffff;
+  --popover-foreground: #0a0a0a;
+
+  --primary: #0a0a0a;
+  --primary-foreground: #fafafa;
+
+  --secondary: #f4f4f5;
+  --secondary-foreground: #18181b;
+
+  --muted: #f4f4f5;
+  --muted-foreground: #71717a;
+
+  --accent: #f4f4f5;
+  --accent-foreground: #18181b;
+
+  --destructive: #ef4444;
+  --destructive-foreground: #fafafa;
+
+  --border: #e4e4e7;
+  --input: #e4e4e7;
+  --ring: #0a0a0a;
+
+  /* Neon accents - always vibrant */
+  --neon-cyan: #00f0ff;
+  --neon-pink: #ff00aa;
+  --neon-green: #00ff88;
+  --neon-yellow: #ffee00;
+  --neon-purple: #aa00ff;
+
+  /* Charts */
+  --chart-1: #00f0ff;
+  --chart-2: #ff00aa;
+  --chart-3: #00ff88;
+  --chart-4: #ffee00;
+  --chart-5: #aa00ff;
+
+  /* Sidebar */
+  --sidebar: #fafafa;
+  --sidebar-foreground: #0a0a0a;
+  --sidebar-primary: #0a0a0a;
+  --sidebar-primary-foreground: #fafafa;
+  --sidebar-accent: #f4f4f5;
+  --sidebar-accent-foreground: #18181b;
+  --sidebar-border: #e4e4e7;
+  --sidebar-ring: #0a0a0a;
+}
+
+.dark {
+  /* Base - Deep void black */
+  --background: #050508;
+  --foreground: #e4e4e7;
+
+  /* Cards - Slightly elevated from void */
+  --card: #0a0a0f;
+  --card-foreground: #e4e4e7;
+
+  /* Popover */
+  --popover: #0a0a0f;
+  --popover-foreground: #e4e4e7;
+
+  /* Primary - Electric cyan */
+  --primary: #00f0ff;
+  --primary-foreground: #050508;
+
+  /* Secondary - Muted surface */
+  --secondary: #18181f;
+  --secondary-foreground: #a1a1aa;
+
+  /* Muted */
+  --muted: #18181f;
+  --muted-foreground: #71717a;
+
+  /* Accent - Neon pink */
+  --accent: #ff00aa;
+  --accent-foreground: #050508;
+
+  /* Destructive - Hot red */
+  --destructive: #ff3355;
+  --destructive-foreground: #050508;
+
+  /* Borders - Subtle grid lines */
+  --border: #1f1f28;
+  --input: #1f1f28;
+  --ring: #00f0ff;
+
+  /* Neon accents */
+  --neon-cyan: #00f0ff;
+  --neon-pink: #ff00aa;
+  --neon-green: #00ff88;
+  --neon-yellow: #ffee00;
+  --neon-purple: #aa00ff;
+
+  /* Charts - Neon palette */
+  --chart-1: #00f0ff;
+  --chart-2: #ff00aa;
+  --chart-3: #00ff88;
+  --chart-4: #ffee00;
+  --chart-5: #aa00ff;
+
+  /* Sidebar */
+  --sidebar: #0a0a0f;
+  --sidebar-foreground: #e4e4e7;
+  --sidebar-primary: #00f0ff;
+  --sidebar-primary-foreground: #050508;
+  --sidebar-accent: #18181f;
+  --sidebar-accent-foreground: #e4e4e7;
+  --sidebar-border: #1f1f28;
+  --sidebar-ring: #00f0ff;
+}
+
+/* ============================================
+   BASE LAYER
+   ============================================ */
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    @apply scroll-smooth;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+
+  /* Brutalist typography */
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-bold tracking-tight;
+    text-wrap: balance;
+  }
+
+  h1 {
+    @apply text-4xl md:text-5xl lg:text-6xl;
+  }
+
+  h2 {
+    @apply text-3xl md:text-4xl;
+  }
+
+  h3 {
+    @apply text-2xl md:text-3xl;
+  }
+
+  h4 {
+    @apply text-xl md:text-2xl;
+  }
+
+  /* Selection highlight */
+  ::selection {
+    @apply bg-neon-cyan/30 text-foreground;
+  }
+
+  /* Focus styles - brutalist ring */
+  :focus-visible {
+    @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
+  }
+
+  /* Scrollbar styling */
+  ::-webkit-scrollbar {
+    @apply w-2 h-2;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-background;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-border hover:bg-muted-foreground;
+  }
+}
+
+/* ============================================
+   SWISS GRID SYSTEM
+   12-column responsive grid
+   ============================================ */
+
+@layer components {
+  .swiss-grid {
+    display: grid;
+    grid-template-columns: repeat(12, 1fr);
+    gap: var(--grid-gutter);
+    padding-inline: var(--grid-margin);
+    max-width: 1440px;
+    margin-inline: auto;
+  }
+
+  .swiss-grid-tight {
+    display: grid;
+    grid-template-columns: repeat(12, 1fr);
+    gap: calc(var(--grid-gutter) / 2);
+    padding-inline: var(--grid-margin);
+    max-width: 1440px;
+    margin-inline: auto;
+  }
+
+  /* Column spans */
+  .col-span-full { grid-column: 1 / -1; }
+  .col-1 { grid-column: span 1; }
+  .col-2 { grid-column: span 2; }
+  .col-3 { grid-column: span 3; }
+  .col-4 { grid-column: span 4; }
+  .col-5 { grid-column: span 5; }
+  .col-6 { grid-column: span 6; }
+  .col-7 { grid-column: span 7; }
+  .col-8 { grid-column: span 8; }
+  .col-9 { grid-column: span 9; }
+  .col-10 { grid-column: span 10; }
+  .col-11 { grid-column: span 11; }
+  .col-12 { grid-column: span 12; }
+
+  /* Column start positions */
+  .col-start-1 { grid-column-start: 1; }
+  .col-start-2 { grid-column-start: 2; }
+  .col-start-3 { grid-column-start: 3; }
+  .col-start-4 { grid-column-start: 4; }
+  .col-start-5 { grid-column-start: 5; }
+  .col-start-6 { grid-column-start: 6; }
+  .col-start-7 { grid-column-start: 7; }
+  .col-start-8 { grid-column-start: 8; }
+  .col-start-9 { grid-column-start: 9; }
+  .col-start-10 { grid-column-start: 10; }
+  .col-start-11 { grid-column-start: 11; }
+  .col-start-12 { grid-column-start: 12; }
+}
+
+/* ============================================
+   BRUTALIST COMPONENTS
+   ============================================ */
+
+@layer components {
+  /* Card with hard edges */
+  .brutalist-card {
+    @apply bg-card border-2 border-border p-6;
+    @apply hover:border-primary transition-colors duration-150;
+  }
+
+  /* Elevated card with shadow */
+  .brutalist-card-elevated {
+    @apply bg-card border-2 border-border p-6;
+    box-shadow: 4px 4px 0 0 var(--border);
+  }
+
+  .brutalist-card-elevated:hover {
+    box-shadow: 6px 6px 0 0 var(--primary);
+    @apply border-primary;
+  }
+
+  /* Section divider */
+  .brutalist-divider {
+    @apply h-px bg-border w-full;
+  }
+
+  .brutalist-divider-thick {
+    @apply h-0.5 bg-border w-full;
+  }
+
+  /* Block quote */
+  .brutalist-quote {
+    @apply border-l-4 border-primary pl-4 py-2 italic;
+  }
+}
+
+/* ============================================
+   NEON EFFECTS
+   Cyberpunk glow & accents
+   ============================================ */
+
+@layer components {
+  /* Neon text glow */
+  .neon-text-cyan {
+    color: var(--neon-cyan);
+    text-shadow:
+      0 0 5px var(--neon-cyan),
+      0 0 10px var(--neon-cyan),
+      0 0 20px var(--neon-cyan);
+  }
+
+  .neon-text-pink {
+    color: var(--neon-pink);
+    text-shadow:
+      0 0 5px var(--neon-pink),
+      0 0 10px var(--neon-pink),
+      0 0 20px var(--neon-pink);
+  }
+
+  .neon-text-green {
+    color: var(--neon-green);
+    text-shadow:
+      0 0 5px var(--neon-green),
+      0 0 10px var(--neon-green),
+      0 0 20px var(--neon-green);
+  }
+
+  /* Neon border glow */
+  .neon-border-cyan {
+    border-color: var(--neon-cyan);
+    box-shadow:
+      0 0 5px var(--neon-cyan),
+      inset 0 0 5px var(--neon-cyan);
+  }
+
+  .neon-border-pink {
+    border-color: var(--neon-pink);
+    box-shadow:
+      0 0 5px var(--neon-pink),
+      inset 0 0 5px var(--neon-pink);
+  }
+
+  .neon-border-green {
+    border-color: var(--neon-green);
+    box-shadow:
+      0 0 5px var(--neon-green),
+      inset 0 0 5px var(--neon-green);
+  }
+
+  /* Subtle neon accents (less intense) */
+  .neon-subtle-cyan {
+    color: var(--neon-cyan);
+    text-shadow: 0 0 10px color-mix(in srgb, var(--neon-cyan) 50%, transparent);
+  }
+
+  .neon-subtle-pink {
+    color: var(--neon-pink);
+    text-shadow: 0 0 10px color-mix(in srgb, var(--neon-pink) 50%, transparent);
+  }
+
+  .neon-subtle-green {
+    color: var(--neon-green);
+    text-shadow: 0 0 10px color-mix(in srgb, var(--neon-green) 50%, transparent);
+  }
+}
+
+/* ============================================
+   CYBERPUNK EFFECTS
+   Scanlines, noise, glitch
+   ============================================ */
+
+@layer components {
+  /* CRT scanlines overlay */
+  .scanlines {
+    position: relative;
+  }
+
+  .scanlines::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 1px,
+      rgba(0, 0, 0, 0.1) 1px,
+      rgba(0, 0, 0, 0.1) 2px
+    );
+    pointer-events: none;
+  }
+
+  /* Noise texture overlay */
+  .noise {
+    position: relative;
+  }
+
+  .noise::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+    opacity: 0.03;
+    pointer-events: none;
+  }
+
+  /* Gradient mesh background */
+  .gradient-mesh {
+    background:
+      radial-gradient(at 40% 20%, color-mix(in srgb, var(--neon-cyan) 15%, transparent) 0px, transparent 50%),
+      radial-gradient(at 80% 0%, color-mix(in srgb, var(--neon-pink) 10%, transparent) 0px, transparent 50%),
+      radial-gradient(at 0% 50%, color-mix(in srgb, var(--neon-purple) 10%, transparent) 0px, transparent 50%),
+      radial-gradient(at 80% 50%, color-mix(in srgb, var(--neon-green) 8%, transparent) 0px, transparent 50%),
+      radial-gradient(at 0% 100%, color-mix(in srgb, var(--neon-pink) 10%, transparent) 0px, transparent 50%),
+      var(--background);
+  }
+}
+
+/* ============================================
+   80s DIVE BAR AESTHETIC
+   Warm accents, worn textures
+   ============================================ */
+
+@layer components {
+  /* Neon sign effect */
+  .neon-sign {
+    @apply font-bold uppercase tracking-widest;
+    animation: neon-flicker 3s infinite alternate;
+  }
+
+  @keyframes neon-flicker {
+    0%, 19%, 21%, 23%, 25%, 54%, 56%, 100% {
+      text-shadow:
+        0 0 4px var(--neon-cyan),
+        0 0 11px var(--neon-cyan),
+        0 0 19px var(--neon-cyan),
+        0 0 40px var(--neon-cyan);
+    }
+    20%, 24%, 55% {
+      text-shadow: none;
+    }
+  }
+
+  /* Warm accent for 80s feel */
+  .warm-glow {
+    box-shadow:
+      0 0 20px color-mix(in srgb, var(--neon-yellow) 20%, transparent),
+      0 0 40px color-mix(in srgb, var(--neon-pink) 10%, transparent);
+  }
+}
+
+/* ============================================
+   UTILITY CLASSES
+   ============================================ */
+
+@layer utilities {
+  /* Line clamp utilities */
+  .line-clamp-1 {
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 1;
+  }
+
+  .line-clamp-2 {
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
+  .line-clamp-3 {
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+  }
+
+  /* Text utilities */
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .text-pretty {
+    text-wrap: pretty;
+  }
+
+  /* Gradient text */
+  .gradient-text {
+    @apply bg-clip-text text-transparent;
+    background-image: linear-gradient(135deg, var(--neon-cyan), var(--neon-pink));
+  }
+
+  .gradient-text-warm {
+    @apply bg-clip-text text-transparent;
+    background-image: linear-gradient(135deg, var(--neon-pink), var(--neon-yellow));
+  }
+
+  .gradient-text-cool {
+    @apply bg-clip-text text-transparent;
+    background-image: linear-gradient(135deg, var(--neon-cyan), var(--neon-green));
+  }
+
+  /* Hide scrollbar but keep functionality */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Aspect ratios */
+  .aspect-golden {
+    aspect-ratio: 1.618 / 1;
+  }
+
+  /* Transition presets */
+  .transition-brutalist {
+    @apply transition-all duration-150 ease-out;
+  }
+
+  .transition-smooth {
+    @apply transition-all duration-300 ease-in-out;
+  }
+}
+
+/* ============================================
+   ANIMATION UTILITIES
+   ============================================ */
+
+@layer utilities {
+  /* Pulse glow animation */
+  .animate-glow {
+    animation: glow 2s ease-in-out infinite alternate;
+  }
+
+  @keyframes glow {
+    from {
+      box-shadow: 0 0 5px var(--neon-cyan), 0 0 10px var(--neon-cyan);
+    }
+    to {
+      box-shadow: 0 0 10px var(--neon-cyan), 0 0 20px var(--neon-cyan), 0 0 30px var(--neon-cyan);
+    }
+  }
+
+  /* Slide in animations */
+  .animate-slide-up {
+    animation: slide-up 0.3s ease-out;
+  }
+
+  @keyframes slide-up {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .animate-slide-down {
+    animation: slide-down 0.3s ease-out;
+  }
+
+  @keyframes slide-down {
+    from {
+      opacity: 0;
+      transform: translateY(-10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* Fade in */
+  .animate-fade-in {
+    animation: fade-in 0.3s ease-out;
+  }
+
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+}
+
+/* ============================================
+   RESPONSIVE GRID OVERRIDES
+   ============================================ */
+
+@media (max-width: 768px) {
+  :root {
+    --grid-gutter: 1rem;
+    --grid-margin: 1rem;
+  }
+
+  .swiss-grid,
+  .swiss-grid-tight {
+    grid-template-columns: repeat(4, 1fr);
+  }
+
+  /* Stack on mobile */
+  .col-1, .col-2, .col-3, .col-4, .col-5, .col-6,
+  .col-7, .col-8, .col-9, .col-10, .col-11, .col-12 {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (min-width: 769px) and (max-width: 1024px) {
+  .swiss-grid,
+  .swiss-grid-tight {
+    grid-template-columns: repeat(8, 1fr);
+  }
+}
+
+/* ============================================
+   PRINT STYLES
+   ============================================ */
+
+@media print {
+  .neon-text-cyan,
+  .neon-text-pink,
+  .neon-text-green,
+  .neon-border-cyan,
+  .neon-border-pink,
+  .neon-border-green {
+    text-shadow: none !important;
+    box-shadow: none !important;
+  }
+
+  .scanlines::after,
+  .noise::before {
+    display: none !important;
+  }
+
+  body {
+    @apply bg-white text-black;
+  }
+}

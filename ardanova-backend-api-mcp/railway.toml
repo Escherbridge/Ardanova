@@ -1,0 +1,15 @@
+[build]
+builder = "dockerfile"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+numReplicas = 1
+healthcheckPath = "/health"
+healthcheckTimeout = 300
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 3
+
+# Railway will inject PORT automatically
+# Set these in Railway dashboard or via CLI:
+# - ConnectionStrings__DefaultConnection (use Railway's Postgres plugin)
+# - ApiKey__Key (your secure API key - share with client service)

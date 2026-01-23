@@ -1,0 +1,416 @@
+namespace ArdaNova.Application.Tests.Services;
+
+using ArdaNova.Application.Common.Interfaces;
+using ArdaNova.Application.Common.Results;
+using ArdaNova.Application.DTOs;
+using ArdaNova.Application.Services.Implementations;
+using ArdaNova.Domain.Models.Entities;
+using ArdaNova.Domain.Models.Enums;
+using AutoMapper;
+using FluentAssertions;
+using Moq;
+
+public class TokenSwapServiceTests
+{
+    private readonly Mock<IRepository<TokenSwap>> _repositoryMock;
+    private readonly Mock<IUnitOfWork> _unitOfWorkMock;
+    private readonly Mock<IMapper> _mapperMock;
+    private readonly TokenSwapService _sut;
+
+    public TokenSwapServiceTests()
+    {
+        _repositoryMock = new Mock<IRepository<TokenSwap>>();
+        _unitOfWorkMock = new Mock<IUnitOfWork>();
+        _mapperMock = new Mock<IMapper>();
+        _sut = new TokenSwapService(_repositoryMock.Object, _unitOfWorkMock.Object, _mapperMock.Object);
+    }
+
+    [Fact]
+    public async Task GetByIdAsync_WhenSwapExists_ReturnsSuccessResult()
+    {
+        // Arrange
+        var swapId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        var fromTokenId = Guid.NewGuid();
+        var toTokenId = Guid.NewGuid();
+        var swap = TokenSwap.Create(userId, fromTokenId, toTokenId, 100m, 95m, 0.95m);
+        var swapDto = new TokenSwapDto { Id = swapId, FromAmount = 100m, ToAmount = 95m };
+
+        _repositoryMock.Setup(r => r.GetByIdAsync(swapId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(swap);
+        _mapperMock.Setup(m => m.Map<TokenSwapDto>(swap)).Returns(swapDto);
+
+        // Act
+        var result = await _sut.GetByIdAsync(swapId);
+
+        // Assert
+        result.IsSuccess.Should().BeTrue();
+        result.Value.Should().NotBeNull();
+        result.Value!.FromAmount.Should().Be(100m);
+    }
+
+    [Fact]
+    public async Task GetByIdAsync_WhenSwapNotExists_ReturnsNotFound()
+    {
+        // Arrange
+        var swapId = Guid.NewGuid();
+        _repositoryMock.Setup(r => r.GetByIdAsync(swapId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((TokenSwap?)null);
+
+        // Act
+        var result = await _sut.GetByIdAsync(swapId);
+
+        // Assert
+        result.IsSuccess.Should().BeFalse();
+        result.Type.Should().Be(ResultType.NotFound);
+    }
+
+    [Fact]
+    public async Task GetByUserIdAsync_ReturnsSwapsForUser()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var swaps = new List<TokenSwap>
+        {
+            TokenSwap.Create(userId, Guid.NewGuid(), Guid.NewGuid(), 100m, 95m, 0.95m),
+            TokenSwap.Create(userId, Guid.NewGuid(), Guid.NewGuid(), 200m, 190m, 0.95m)
+        };
+        var swapDtos = new List<TokenSwapDto>
+        {
+            new TokenSwapDto { UserId = userId, FromAmount = 100m },
+            new TokenSwapDto { UserId = userId, FromAmount = 200m }
+        };
+
+        _repositoryMock.Setup(r => r.FindAsync(It.IsAny<System.Linq.Expressions.Expression<Func<TokenSwap, bool>>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(swaps);
+        _mapperMock.Setup(m => m.Map<IReadOnlyList<TokenSwapDto>>(It.IsAny<IEnumerable<TokenSwap>>())).Returns(swapDtos);
+
+        // Act
+        var result = await _sut.GetByUserIdAsync(userId);
+
+        // Assert
+        result.IsSuccess.Should().BeTrue();
+        result.Value.Should().HaveCount(2);
+    }
+
+    [Fact]
+    public async Task CreateAsync_WithValidDto_ReturnsCreatedSwap()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var dto = new CreateTokenSwapDto
+        {
+            UserId = userId,
+            FromTokenId = Guid.NewGuid(),
+            ToTokenId = Guid.NewGuid(),
+            FromAmount = 1000m,
+            ToAmount = 950m,
+            ExchangeRate = 0.95m,
+            Fee = 5m
+        };
+        var swapDto = new TokenSwapDto { UserId = userId, FromAmount = 1000m, Status = SwapStatus.PENDING };
+
+        _repositoryMock.Setup(r => r.AddAsync(It.IsAny<TokenSwap>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((TokenSwap s, CancellationToken _) => s);
+
+        _unitOfWorkMock.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(1);
+
+        _mapperMock.Setup(m => m.Map<TokenSwapDto>(It.IsAny<TokenSwap>())).Returns(swapDto);
+
+        // Act
+        var result = await _sut.CreateAsync(dto);
+
+        // Assert
+        result.IsSuccess.Should().BeTrue();
+        result.Value.Should().NotBeNull();
+        result.Value!.FromAmount.Should().Be(1000m);
+    }
+
+    [Fact]
+    public async Task CompleteAsync_WhenSwapExists_CompletesSwap()
+    {
+        // Arrange
+        var swapId = Guid.NewGuid();
+        var swap = TokenSwap.Create(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), 100m, 95m, 0.95m);
+        var swapDto = new TokenSwapDto { Id = swapId, Status = SwapStatus.COMPLETED };
+
+        _repositoryMock.Setup(r => r.GetByIdAsync(swapId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(swap);
+
+        _repositoryMock.Setup(r => r.UpdateAsync(It.IsAny<TokenSwap>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        _unitOfWorkMock.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(1);
+
+        _mapperMock.Setup(m => m.Map<TokenSwapDto>(It.IsAny<TokenSwap>())).Returns(swapDto);
+
+        // Act
+        var result = await _sut.CompleteAsync(swapId, new CompleteSwapDto { TxHash = "TX123" });
+
+        // Assert
+        result.IsSuccess.Should().BeTrue();
+        result.Value!.Status.Should().Be(SwapStatus.COMPLETED);
+    }
+
+    [Fact]
+    public async Task CancelAsync_WhenSwapExists_CancelsSwap()
+    {
+        // Arrange
+        var swapId = Guid.NewGuid();
+        var swap = TokenSwap.Create(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), 100m, 95m, 0.95m);
+        var swapDto = new TokenSwapDto { Id = swapId, Status = SwapStatus.CANCELLED };
+
+        _repositoryMock.Setup(r => r.GetByIdAsync(swapId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(swap);
+
+        _repositoryMock.Setup(r => r.UpdateAsync(It.IsAny<TokenSwap>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        _unitOfWorkMock.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(1);
+
+        _mapperMock.Setup(m => m.Map<TokenSwapDto>(It.IsAny<TokenSwap>())).Returns(swapDto);
+
+        // Act
+        var result = await _sut.CancelAsync(swapId);
+
+        // Assert
+        result.IsSuccess.Should().BeTrue();
+        result.Value!.Status.Should().Be(SwapStatus.CANCELLED);
+    }
+}
+
+public class LiquidityPoolServiceTests
+{
+    private readonly Mock<IRepository<LiquidityPool>> _repositoryMock;
+    private readonly Mock<IUnitOfWork> _unitOfWorkMock;
+    private readonly Mock<IMapper> _mapperMock;
+    private readonly LiquidityPoolService _sut;
+
+    public LiquidityPoolServiceTests()
+    {
+        _repositoryMock = new Mock<IRepository<LiquidityPool>>();
+        _unitOfWorkMock = new Mock<IUnitOfWork>();
+        _mapperMock = new Mock<IMapper>();
+        _sut = new LiquidityPoolService(_repositoryMock.Object, _unitOfWorkMock.Object, _mapperMock.Object);
+    }
+
+    [Fact]
+    public async Task GetByIdAsync_WhenPoolExists_ReturnsSuccessResult()
+    {
+        // Arrange
+        var poolId = Guid.NewGuid();
+        var token1Id = Guid.NewGuid();
+        var token2Id = Guid.NewGuid();
+        var pool = LiquidityPool.Create(token1Id, token2Id);
+        var poolDto = new LiquidityPoolDto { Id = poolId, Token1Id = token1Id, Token2Id = token2Id };
+
+        _repositoryMock.Setup(r => r.GetByIdAsync(poolId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(pool);
+        _mapperMock.Setup(m => m.Map<LiquidityPoolDto>(pool)).Returns(poolDto);
+
+        // Act
+        var result = await _sut.GetByIdAsync(poolId);
+
+        // Assert
+        result.IsSuccess.Should().BeTrue();
+        result.Value.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task GetByIdAsync_WhenPoolNotExists_ReturnsNotFound()
+    {
+        // Arrange
+        var poolId = Guid.NewGuid();
+        _repositoryMock.Setup(r => r.GetByIdAsync(poolId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((LiquidityPool?)null);
+
+        // Act
+        var result = await _sut.GetByIdAsync(poolId);
+
+        // Assert
+        result.IsSuccess.Should().BeFalse();
+        result.Type.Should().Be(ResultType.NotFound);
+    }
+
+    [Fact]
+    public async Task GetAllAsync_ReturnsAllPools()
+    {
+        // Arrange
+        var pools = new List<LiquidityPool>
+        {
+            LiquidityPool.Create(Guid.NewGuid(), Guid.NewGuid()),
+            LiquidityPool.Create(Guid.NewGuid(), Guid.NewGuid())
+        };
+        var poolDtos = new List<LiquidityPoolDto>
+        {
+            new LiquidityPoolDto(),
+            new LiquidityPoolDto()
+        };
+
+        _repositoryMock.Setup(r => r.GetAllAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(pools);
+        _mapperMock.Setup(m => m.Map<IReadOnlyList<LiquidityPoolDto>>(It.IsAny<IEnumerable<LiquidityPool>>())).Returns(poolDtos);
+
+        // Act
+        var result = await _sut.GetAllAsync();
+
+        // Assert
+        result.IsSuccess.Should().BeTrue();
+        result.Value.Should().HaveCount(2);
+    }
+
+    [Fact]
+    public async Task CreateAsync_WithValidDto_ReturnsCreatedPool()
+    {
+        // Arrange
+        var token1Id = Guid.NewGuid();
+        var token2Id = Guid.NewGuid();
+        var dto = new CreateLiquidityPoolDto
+        {
+            Token1Id = token1Id,
+            Token2Id = token2Id,
+            FeePercent = 0.003m
+        };
+        var poolDto = new LiquidityPoolDto { Token1Id = token1Id, Token2Id = token2Id, FeePercent = 0.003m };
+
+        _repositoryMock.Setup(r => r.ExistsAsync(It.IsAny<System.Linq.Expressions.Expression<Func<LiquidityPool, bool>>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(false);
+
+        _repositoryMock.Setup(r => r.AddAsync(It.IsAny<LiquidityPool>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((LiquidityPool p, CancellationToken _) => p);
+
+        _unitOfWorkMock.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(1);
+
+        _mapperMock.Setup(m => m.Map<LiquidityPoolDto>(It.IsAny<LiquidityPool>())).Returns(poolDto);
+
+        // Act
+        var result = await _sut.CreateAsync(dto);
+
+        // Assert
+        result.IsSuccess.Should().BeTrue();
+        result.Value.Should().NotBeNull();
+        result.Value!.FeePercent.Should().Be(0.003m);
+    }
+}
+
+public class LiquidityProviderServiceTests
+{
+    private readonly Mock<IRepository<LiquidityProvider>> _repositoryMock;
+    private readonly Mock<IUnitOfWork> _unitOfWorkMock;
+    private readonly Mock<IMapper> _mapperMock;
+    private readonly LiquidityProviderService _sut;
+
+    public LiquidityProviderServiceTests()
+    {
+        _repositoryMock = new Mock<IRepository<LiquidityProvider>>();
+        _unitOfWorkMock = new Mock<IUnitOfWork>();
+        _mapperMock = new Mock<IMapper>();
+        _sut = new LiquidityProviderService(_repositoryMock.Object, _unitOfWorkMock.Object, _mapperMock.Object);
+    }
+
+    [Fact]
+    public async Task GetByIdAsync_WhenProviderExists_ReturnsSuccessResult()
+    {
+        // Arrange
+        var providerId = Guid.NewGuid();
+        var poolId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        var provider = LiquidityProvider.Create(poolId, userId, 100m, 100m, 100m);
+        var providerDto = new LiquidityProviderDto { Id = providerId, PoolId = poolId, UserId = userId };
+
+        _repositoryMock.Setup(r => r.GetByIdAsync(providerId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(provider);
+        _mapperMock.Setup(m => m.Map<LiquidityProviderDto>(provider)).Returns(providerDto);
+
+        // Act
+        var result = await _sut.GetByIdAsync(providerId);
+
+        // Assert
+        result.IsSuccess.Should().BeTrue();
+        result.Value.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task GetByIdAsync_WhenProviderNotExists_ReturnsNotFound()
+    {
+        // Arrange
+        var providerId = Guid.NewGuid();
+        _repositoryMock.Setup(r => r.GetByIdAsync(providerId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((LiquidityProvider?)null);
+
+        // Act
+        var result = await _sut.GetByIdAsync(providerId);
+
+        // Assert
+        result.IsSuccess.Should().BeFalse();
+        result.Type.Should().Be(ResultType.NotFound);
+    }
+
+    [Fact]
+    public async Task GetByPoolIdAsync_ReturnsProvidersForPool()
+    {
+        // Arrange
+        var poolId = Guid.NewGuid();
+        var providers = new List<LiquidityProvider>
+        {
+            LiquidityProvider.Create(poolId, Guid.NewGuid(), 100m, 100m, 100m),
+            LiquidityProvider.Create(poolId, Guid.NewGuid(), 200m, 200m, 200m)
+        };
+        var providerDtos = new List<LiquidityProviderDto>
+        {
+            new LiquidityProviderDto { PoolId = poolId },
+            new LiquidityProviderDto { PoolId = poolId }
+        };
+
+        _repositoryMock.Setup(r => r.FindAsync(It.IsAny<System.Linq.Expressions.Expression<Func<LiquidityProvider, bool>>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(providers);
+        _mapperMock.Setup(m => m.Map<IReadOnlyList<LiquidityProviderDto>>(It.IsAny<IEnumerable<LiquidityProvider>>())).Returns(providerDtos);
+
+        // Act
+        var result = await _sut.GetByPoolIdAsync(poolId);
+
+        // Assert
+        result.IsSuccess.Should().BeTrue();
+        result.Value.Should().HaveCount(2);
+    }
+
+    [Fact]
+    public async Task CreateAsync_WithValidDto_ReturnsCreatedProvider()
+    {
+        // Arrange
+        var poolId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        var dto = new CreateLiquidityProviderDto
+        {
+            PoolId = poolId,
+            UserId = userId,
+            Shares = 500m,
+            Token1In = 500m,
+            Token2In = 500m
+        };
+        var providerDto = new LiquidityProviderDto { PoolId = poolId, UserId = userId, Shares = 500m };
+
+        _repositoryMock.Setup(r => r.ExistsAsync(It.IsAny<System.Linq.Expressions.Expression<Func<LiquidityProvider, bool>>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(false);
+
+        _repositoryMock.Setup(r => r.AddAsync(It.IsAny<LiquidityProvider>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((LiquidityProvider p, CancellationToken _) => p);
+
+        _unitOfWorkMock.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(1);
+
+        _mapperMock.Setup(m => m.Map<LiquidityProviderDto>(It.IsAny<LiquidityProvider>())).Returns(providerDto);
+
+        // Act
+        var result = await _sut.CreateAsync(dto);
+
+        // Assert
+        result.IsSuccess.Should().BeTrue();
+        result.Value.Should().NotBeNull();
+        result.Value!.Shares.Should().Be(500m);
+    }
+}

@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dotnet build:*)",
+      "Bash(dotnet test:*)",
+      "Bash(docker build:*)",
+      "Bash(npm run build:*)",
+      "Bash(npx next:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npx eslint:*)",
+      "Bash(del \"\\\\?\\\\C:\\\\Users\\\\atooz\\\\Documents\\\\Escherbridge\\\\ardanova\\\\ardanova-backend-api-mcp\\\\api-server\\\\nul\")",
+      "Bash(cmd //c \"del \\\\?\\\\C:\\\\Users\\\\atooz\\\\Documents\\\\Escherbridge\\\\ardanova\\\\ardanova-backend-api-mcp\\\\api-server\\\\nul\")",
+      "Bash(git add:*)",
+      "Bash(find:*)"
+    ]
+  }
+}

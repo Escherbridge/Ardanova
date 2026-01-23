@@ -1,0 +1,78 @@
+version: '3.8'
+
+# Uses .env file from root directory
+# Copy .env.example to .env and fill in values
+
+services:
+  # PostgreSQL Database
+  db:
+    image: postgres:16-alpine
+    container_name: ardanova-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: ardanova
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # .NET Backend API
+  api:
+    build:
+      context: ./ardanova-backend-api-mcp
+      dockerfile: Dockerfile
+    container_name: ardanova-api
+    env_file:
+      - .env
+    environment:
+      - ASPNETCORE_ENVIRONMENT=${ASPNETCORE_ENVIRONMENT:-Development}
+      - ASPNETCORE_URLS=http://+:8080
+      # Uses DATABASE_URL and API_KEY directly from .env (auto-converts postgres URL)
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/ardanova
+      - API_KEY=${API_KEY}
+    ports:
+      - "8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+
+  # Next.js Client
+  client:
+    build:
+      context: ./ardanova-client
+      dockerfile: Dockerfile
+      args:
+        - SKIP_ENV_VALIDATION=true
+    container_name: ardanova-client
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=${NODE_ENV:-production}
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/ardanova
+      - API_URL=http://api:8080
+      - API_KEY=${API_KEY}
+      - AUTH_SECRET=${AUTH_SECRET}
+      - AUTH_URL=${AUTH_URL:-http://localhost:3000}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+    ports:
+      - "3000:3000"
+    depends_on:
+      api:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
