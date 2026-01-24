@@ -6,12 +6,12 @@ import { useRouter } from "next/navigation";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "~/components/ui/card";
 import { Badge } from "~/components/ui/badge";
-import { 
-  Calendar, 
-  User, 
-  Target, 
-  Lightbulb, 
-  AlertCircle, 
+import {
+  Calendar,
+  User,
+  Target,
+  Lightbulb,
+  AlertCircle,
   CheckCircle2,
   Edit,
   Trash2,
@@ -34,7 +34,13 @@ import {
   DialogTrigger,
 } from "~/components/ui/dialog";
 
-type Project = RouterOutputs["project"]["getById"];
+type Project = RouterOutputs["project"]["getById"] & {
+  createdBy: {
+    name: string | null;
+    email: string | null;
+    image: string | null;
+  };
+};
 
 interface ProjectDetailProps {
   project: Project;
@@ -77,7 +83,7 @@ export function ProjectDetail({ project }: ProjectDetailProps) {
     }
   };
 
-  const formatDate = (date: Date) => {
+  const formatDate = (date: Date | string) => {
     return new Date(date).toLocaleDateString("en-US", {
       year: "numeric",
       month: "long",
@@ -134,14 +140,14 @@ export function ProjectDetail({ project }: ProjectDetailProps) {
             <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
               <div className="flex-1">
                 <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
-                  <Badge 
-                    variant="secondary" 
-                    className={`text-xs sm:text-sm ${getStatusColor(project.status)}`}
+                  <Badge
+                    variant="secondary"
+                    className={`text-xs sm:text-sm ${getStatusColor(project.status as ProjectStatus)}`}
                   >
                     {project.status.replace("_", " ")}
                   </Badge>
                   <Badge variant="outline" className="text-xs sm:text-sm flex items-center gap-1">
-                    {getCategoryIcon(project.category)}
+                    {getCategoryIcon(project.category as ProjectCategory)}
                     {project.category.replace("_", " ")}
                   </Badge>
                   {project.featured && (
@@ -150,11 +156,11 @@ export function ProjectDetail({ project }: ProjectDetailProps) {
                     </Badge>
                   )}
                 </div>
-                
+
                 <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900 mb-3 sm:mb-4 leading-tight">
                   {project.title}
                 </h1>
-                
+
                 <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6 text-xs sm:text-sm text-gray-600">
                   <div className="flex items-center gap-2">
                     <User className="h-3 w-3 sm:h-4 sm:w-4" />

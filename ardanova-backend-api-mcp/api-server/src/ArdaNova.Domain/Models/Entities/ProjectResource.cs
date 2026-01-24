@@ -1,60 +1,40 @@
+using System;
+using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
+using ArdaNova.Domain.Models.Enums;
+
 namespace ArdaNova.Domain.Models.Entities;
 
+[Table("ProjectResource")]
 public class ProjectResource
 {
-    public Guid Id { get; private set; }
-    public Guid ProjectId { get; private set; }
-    public string Name { get; private set; } = null!;
-    public string? Description { get; private set; }
-    public int Quantity { get; private set; }
-    public decimal? EstimatedCost { get; private set; }
-    public bool IsRequired { get; private set; }
-    public bool IsObtained { get; private set; }
-    public DateTime CreatedAt { get; private set; }
+    [Key]
+    public string id { get; set; }
 
-    // Navigation property
-    public Project Project { get; private set; } = null!;
+    [Required]
+    public string projectId { get; set; }
 
-    private ProjectResource() { }
+    [Required]
+    public string name { get; set; }
 
-    public static ProjectResource Create(
-        Guid projectId,
-        string name,
-        string? description = null,
-        int quantity = 1,
-        decimal? estimatedCost = null,
-        bool isRequired = true)
-    {
-        return new ProjectResource
-        {
-            Id = Guid.NewGuid(),
-            ProjectId = projectId,
-            Name = name,
-            Description = description,
-            Quantity = quantity,
-            EstimatedCost = estimatedCost,
-            IsRequired = isRequired,
-            IsObtained = false,
-            CreatedAt = DateTime.UtcNow
-        };
-    }
+    public string? description { get; set; }
 
-    public void Update(string name, string? description, int quantity, decimal? estimatedCost, bool isRequired)
-    {
-        Name = name;
-        Description = description;
-        Quantity = quantity;
-        EstimatedCost = estimatedCost;
-        IsRequired = isRequired;
-    }
+    [Required]
+    public int quantity { get; set; }
 
-    public void MarkObtained()
-    {
-        IsObtained = true;
-    }
+    public decimal? estimatedCost { get; set; }
 
-    public void MarkNotObtained()
-    {
-        IsObtained = false;
-    }
+    [Required]
+    public bool isRequired { get; set; }
+
+    [Required]
+    public bool isObtained { get; set; }
+
+    [Required]
+    public DateTime createdAt { get; set; }
+
+    [ForeignKey("projectId")]
+    public virtual Project Project { get; set; }
+
 }

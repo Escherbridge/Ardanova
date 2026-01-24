@@ -4,11 +4,11 @@ import { useRouter } from "next/navigation";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "~/components/ui/card";
 import { Badge } from "~/components/ui/badge";
-import { 
-  Clock, 
-  Globe, 
-  Loader2, 
-  CheckCircle, 
+import {
+  Clock,
+  Globe,
+  Loader2,
+  CheckCircle,
   AlertCircle,
   Plus
 } from "lucide-react";
@@ -16,7 +16,12 @@ import { api } from "~/trpc/react";
 import { ProjectStatus } from "@prisma/client";
 import type { RouterOutputs } from "~/trpc/react";
 
-type Project = RouterOutputs["project"]["getMyProjects"]["items"][0];
+type Project = RouterOutputs["project"]["getMyProjects"]["items"][0] & {
+  _count?: {
+    supports: number;
+    comments: number;
+  };
+};
 
 export function DashboardProjectCards() {
   const router = useRouter();
@@ -26,7 +31,7 @@ export function DashboardProjectCards() {
     limit: 3,
   });
 
-  const projects = projectsData?.items || [];
+  const projects = (projectsData?.items || []) as Project[];
 
   const getStatusIcon = (status: ProjectStatus) => {
     switch (status) {
@@ -100,8 +105,8 @@ export function DashboardProjectCards() {
   return (
     <div className="space-y-3">
       {projects.map((project) => (
-        <Card 
-          key={project.id} 
+        <Card
+          key={project.id}
           className="hover:shadow-md transition-shadow cursor-pointer border-l-4 border-l-blue-500"
           onClick={() => router.push(`/projects/${project.slug}`)}
         >
@@ -109,25 +114,25 @@ export function DashboardProjectCards() {
             <div className="flex items-start justify-between">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-2">
-                  <Badge 
-                    variant="secondary" 
-                    className={`text-xs ${getStatusColor(project.status)}`}
+                  <Badge
+                    variant="secondary"
+                    className={`text-xs ${getStatusColor(project.status as ProjectStatus)}`}
                   >
                     <span className="flex items-center gap-1">
-                      {getStatusIcon(project.status)}
-                      {getStatusText(project.status)}
+                      {getStatusIcon(project.status as ProjectStatus)}
+                      {getStatusText(project.status as ProjectStatus)}
                     </span>
                   </Badge>
                 </div>
-                
+
                 <h4 className="font-medium text-sm text-slate-900 mb-1 line-clamp-1">
                   {project.title}
                 </h4>
-                
+
                 <p className="text-xs text-slate-600 line-clamp-2 mb-2">
                   {project.description}
                 </p>
-                
+
                 <div className="flex items-center gap-4 text-xs text-slate-500">
                   <span>{project.category.replace("_", " ")}</span>
                   <span>•</span>
@@ -140,7 +145,7 @@ export function DashboardProjectCards() {
           </CardContent>
         </Card>
       ))}
-      
+
       {projects.length >= 3 && (
         <div className="text-center pt-2">
           <Button variant="outline" size="sm" asChild>

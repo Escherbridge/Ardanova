@@ -11,7 +11,12 @@
       "Bash(del \"\\\\?\\\\C:\\\\Users\\\\atooz\\\\Documents\\\\Escherbridge\\\\ardanova\\\\ardanova-backend-api-mcp\\\\api-server\\\\nul\")",
       "Bash(cmd //c \"del \\\\?\\\\C:\\\\Users\\\\atooz\\\\Documents\\\\Escherbridge\\\\ardanova\\\\ardanova-backend-api-mcp\\\\api-server\\\\nul\")",
       "Bash(git add:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(tree:*)",
+      "Bash(npm install:*)",
+      "Bash(npm ls:*)",
+      "Bash(node -e:*)",
+      "Bash(dir:*)"
     ]
   }
 }

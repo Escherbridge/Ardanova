@@ -1,44 +1,41 @@
+using System;
+using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
+using ArdaNova.Domain.Models.Enums;
+
 namespace ArdaNova.Domain.Models.Entities;
 
+[Table("ProjectComment")]
 public class ProjectComment
 {
-    public Guid Id { get; private set; }
-    public Guid ProjectId { get; private set; }
-    public Guid UserId { get; private set; }
-    public string Content { get; private set; } = null!;
-    public Guid? ParentId { get; private set; }
-    public DateTime CreatedAt { get; private set; }
-    public DateTime UpdatedAt { get; private set; }
+    [Key]
+    public string id { get; set; }
 
-    // Navigation properties
-    public Project Project { get; private set; } = null!;
-    public User User { get; private set; } = null!;
-    public ProjectComment? Parent { get; private set; }
-    public ICollection<ProjectComment> Replies { get; private set; } = new List<ProjectComment>();
+    [Required]
+    public string projectId { get; set; }
 
-    private ProjectComment() { }
+    [Required]
+    public string userId { get; set; }
 
-    public static ProjectComment Create(
-        Guid projectId,
-        Guid userId,
-        string content,
-        Guid? parentId = null)
-    {
-        return new ProjectComment
-        {
-            Id = Guid.NewGuid(),
-            ProjectId = projectId,
-            UserId = userId,
-            Content = content,
-            ParentId = parentId,
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
-        };
-    }
+    [Required]
+    public string content { get; set; }
 
-    public void UpdateContent(string content)
-    {
-        Content = content;
-        UpdatedAt = DateTime.UtcNow;
-    }
+    public string? parentId { get; set; }
+
+    [Required]
+    public DateTime createdAt { get; set; }
+
+    [Required]
+    public DateTime updatedAt { get; set; }
+
+    [ForeignKey("projectId")]
+    public virtual Project Project { get; set; }
+
+    [ForeignKey("userId")]
+    public virtual User User { get; set; }
+
+    [ForeignKey("parentId")]
+    public virtual ProjectComment Parent { get; set; }
+
 }

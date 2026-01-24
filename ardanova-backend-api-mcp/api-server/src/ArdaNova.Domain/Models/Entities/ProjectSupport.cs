@@ -1,71 +1,43 @@
-namespace ArdaNova.Domain.Models.Entities;
-
-using System.Text.Json.Serialization;
+using System;
+using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 using ArdaNova.Domain.Models.Enums;
 
+namespace ArdaNova.Domain.Models.Entities;
+
+[Table("ProjectSupport")]
 public class ProjectSupport
 {
-    public Guid Id { get; private set; }
-    public Guid ProjectId { get; private set; }
-    public Guid UserId { get; private set; }
+    [Key]
+    public string id { get; set; }
 
-    [JsonConverter(typeof(JsonStringEnumConverter))]
-    public SupportType SupportType { get; private set; }
+    [Required]
+    public string projectId { get; set; }
 
-    public decimal? MonthlyAmount { get; private set; }
-    public string? Message { get; private set; }
-    public bool IsActive { get; private set; }
-    public DateTime CreatedAt { get; private set; }
-    public DateTime UpdatedAt { get; private set; }
+    [Required]
+    public string userId { get; set; }
 
-    // Navigation properties
-    public Project Project { get; private set; } = null!;
-    public User User { get; private set; } = null!;
+    [Required]
+    public SupportType supportType { get; set; }
 
-    private ProjectSupport() { }
+    public decimal? monthlyAmount { get; set; }
 
-    public static ProjectSupport Create(
-        Guid projectId,
-        Guid userId,
-        SupportType supportType,
-        decimal? monthlyAmount = null,
-        string? message = null)
-    {
-        return new ProjectSupport
-        {
-            Id = Guid.NewGuid(),
-            ProjectId = projectId,
-            UserId = userId,
-            SupportType = supportType,
-            MonthlyAmount = monthlyAmount,
-            Message = message,
-            IsActive = true,
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
-        };
-    }
+    public string? message { get; set; }
 
-    public void UpdateAmount(decimal? monthlyAmount)
-    {
-        MonthlyAmount = monthlyAmount;
-        UpdatedAt = DateTime.UtcNow;
-    }
+    [Required]
+    public bool isActive { get; set; }
 
-    public void UpdateMessage(string? message)
-    {
-        Message = message;
-        UpdatedAt = DateTime.UtcNow;
-    }
+    [Required]
+    public DateTime createdAt { get; set; }
 
-    public void Deactivate()
-    {
-        IsActive = false;
-        UpdatedAt = DateTime.UtcNow;
-    }
+    [Required]
+    public DateTime updatedAt { get; set; }
 
-    public void Reactivate()
-    {
-        IsActive = true;
-        UpdatedAt = DateTime.UtcNow;
-    }
+    [ForeignKey("projectId")]
+    public virtual Project Project { get; set; }
+
+    [ForeignKey("userId")]
+    public virtual User User { get; set; }
+
 }

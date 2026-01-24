@@ -1,74 +1,38 @@
-namespace ArdaNova.Domain.Models.Entities;
-
-using System.Text.Json.Serialization;
+using System;
+using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 using ArdaNova.Domain.Models.Enums;
 
+namespace ArdaNova.Domain.Models.Entities;
+
+[Table("UserStreak")]
 public class UserStreak
 {
-    public Guid Id { get; private set; }
-    public Guid UserId { get; private set; }
-    public int CurrentStreak { get; private set; }
-    public int LongestStreak { get; private set; }
-    public DateTime? LastActivityDate { get; private set; }
+    [Key]
+    public string id { get; set; }
 
-    [JsonConverter(typeof(JsonStringEnumConverter))]
-    public StreakType StreakType { get; private set; }
+    [Required]
+    public string userId { get; set; }
 
-    public DateTime CreatedAt { get; private set; }
-    public DateTime UpdatedAt { get; private set; }
+    [Required]
+    public int currentStreak { get; set; }
 
-    // Navigation
-    public User User { get; private set; } = null!;
+    [Required]
+    public int longestStreak { get; set; }
 
-    private UserStreak() { }
+    public DateTime? lastActivityDate { get; set; }
 
-    public static UserStreak Create(Guid userId, StreakType streakType = StreakType.DAILY_LOGIN)
-    {
-        return new UserStreak
-        {
-            Id = Guid.NewGuid(),
-            UserId = userId,
-            CurrentStreak = 0,
-            LongestStreak = 0,
-            StreakType = streakType,
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
-        };
-    }
+    [Required]
+    public StreakType streakType { get; set; }
 
-    public void IncrementStreak()
-    {
-        CurrentStreak++;
-        if (CurrentStreak > LongestStreak)
-            LongestStreak = CurrentStreak;
-        LastActivityDate = DateTime.UtcNow;
-        UpdatedAt = DateTime.UtcNow;
-    }
+    [Required]
+    public DateTime createdAt { get; set; }
 
-    public void ResetStreak()
-    {
-        CurrentStreak = 0;
-        UpdatedAt = DateTime.UtcNow;
-    }
+    [Required]
+    public DateTime updatedAt { get; set; }
 
-    public void RecordActivity()
-    {
-        var today = DateTime.UtcNow.Date;
-        var lastActivity = LastActivityDate?.Date;
+    [ForeignKey("userId")]
+    public virtual User User { get; set; }
 
-        if (lastActivity == today)
-            return; // Already recorded today
-
-        if (lastActivity == today.AddDays(-1))
-        {
-            // Consecutive day
-            IncrementStreak();
-        }
-        else
-        {
-            // Streak broken, start fresh
-            ResetStreak();
-            IncrementStreak();
-        }
-    }
 }

@@ -1,30 +1,27 @@
+using System;
+using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
+using ArdaNova.Domain.Models.Enums;
+
 namespace ArdaNova.Domain.Models.Entities;
 
+[Table("UserSkill")]
 public class UserSkill
 {
-    public Guid Id { get; private set; }
-    public Guid UserId { get; private set; }
-    public string Skill { get; private set; } = null!;
-    public int Level { get; private set; }
+    [Key]
+    public string id { get; set; }
 
-    // Navigation property
-    public User User { get; private set; } = null!;
+    [Required]
+    public string userId { get; set; }
 
-    private UserSkill() { }
+    [Required]
+    public string skill { get; set; }
 
-    public static UserSkill Create(Guid userId, string skill, int level = 1)
-    {
-        return new UserSkill
-        {
-            Id = Guid.NewGuid(),
-            UserId = userId,
-            Skill = skill,
-            Level = Math.Clamp(level, 1, 10)
-        };
-    }
+    [Required]
+    public int level { get; set; }
 
-    public void UpdateLevel(int level)
-    {
-        Level = Math.Clamp(level, 1, 10);
-    }
+    [ForeignKey("userId")]
+    public virtual User User { get; set; }
+
 }

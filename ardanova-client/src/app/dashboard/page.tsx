@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { Plus, TrendingUp, Users, Briefcase, Settings } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
@@ -11,7 +12,7 @@ import { DashboardProjectCards } from "~/components/dashboard-project-cards";
 export default async function DashboardPage() {
   const session = await auth();
 
-  if (!session) {
+  if (!session?.user) {
     redirect("/api/auth/signin");
   }
 
@@ -32,7 +33,7 @@ export default async function DashboardPage() {
 
         {/* Quick Actions */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <a href="/dashboard/create" className="block">
+          <Link href="/dashboard/create" className="block">
             <Card className="hover:shadow-md transition-shadow cursor-pointer">
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
@@ -49,7 +50,7 @@ export default async function DashboardPage() {
                 </CardDescription>
               </CardContent>
             </Card>
-          </a>
+          </Link>
 
           <Card className="hover:shadow-md transition-shadow cursor-pointer">
             <CardHeader className="pb-3">
@@ -109,10 +110,10 @@ export default async function DashboardPage() {
                 <div className="flex items-center justify-between">
                   <CardTitle>Your Projects</CardTitle>
                   <Button variant="outline" size="sm" asChild>
-                    <a href="/dashboard/create">
+                    <Link href="/dashboard/create">
                       <Plus className="h-4 w-4 mr-2" />
                       New Project
-                    </a>
+                    </Link>
                   </Button>
                 </div>
                 <CardDescription>
@@ -219,7 +220,7 @@ export default async function DashboardPage() {
                 </div>
                 
                 <Button variant="outline" className="w-full mt-4" size="sm" asChild>
-                  <a href="/projects">View All Projects</a>
+                  <Link href="/projects">View All Projects</Link>
                 </Button>
               </CardContent>
             </Card>
@@ -234,10 +235,10 @@ export default async function DashboardPage() {
               <p className="text-slate-600">Manage and track your project progress</p>
             </div>
             <Button asChild>
-              <a href="/dashboard/create">
+              <Link href="/dashboard/create">
                 <Plus className="h-4 w-4 mr-2" />
                 Create New Project
-              </a>
+              </Link>
             </Button>
           </div>
           

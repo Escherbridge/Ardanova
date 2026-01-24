@@ -5,12 +5,12 @@ import { useSession } from "next-auth/react";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "~/components/ui/card";
 import { Badge } from "~/components/ui/badge";
-import { 
-  Calendar, 
-  User, 
-  Eye, 
-  Users, 
-  MessageCircle, 
+import {
+  Calendar,
+  User,
+  Eye,
+  Users,
+  MessageCircle,
   Heart,
   Edit,
   Trash2,
@@ -20,7 +20,11 @@ import {
 import { ProjectStatus, ProjectCategory } from "@prisma/client";
 import type { RouterOutputs } from "~/trpc/react";
 
-type Project = RouterOutputs["project"]["getAll"]["items"][0] | RouterOutputs["project"]["getMyProjects"]["items"][0];
+type Project = (RouterOutputs["project"]["getAll"]["items"][0] | RouterOutputs["project"]["getMyProjects"]["items"][0]) & {
+  _count?: {
+    comments: number;
+  };
+};
 
 interface ProjectCardProps {
   project: Project;
@@ -30,17 +34,17 @@ interface ProjectCardProps {
   onPublish?: (project: Project) => void;
 }
 
-export function ProjectCard({ 
-  project, 
-  showActions = false, 
-  onEdit, 
-  onDelete, 
-  onPublish 
+export function ProjectCard({
+  project,
+  showActions = false,
+  onEdit,
+  onDelete,
+  onPublish
 }: ProjectCardProps) {
   const { data: session } = useSession();
   const isOwner = session?.user?.id === project.createdById;
 
-  const formatDate = (date: Date) => {
+  const formatDate = (date: Date | string) => {
     return new Date(date).toLocaleDateString("en-US", {
       month: "short",
       day: "numeric",
@@ -99,27 +103,27 @@ export function ProjectCard({
         <div className="flex items-start justify-between">
           <div className="flex-1">
             <div className="flex items-center gap-2 mb-3">
-              <Badge 
-                variant="secondary" 
-                className={`text-xs ${getStatusColor(project.status)}`}
+              <Badge
+                variant="secondary"
+                className={`text-xs ${getStatusColor(project.status as ProjectStatus)}`}
               >
                 {project.status.replace("_", " ")}
               </Badge>
               <Badge variant="outline" className="text-xs flex items-center gap-1">
-                {getCategoryIcon(project.category)}
+                {getCategoryIcon(project.category as ProjectCategory)}
                 {project.category.replace("_", " ")}
               </Badge>
             </div>
-            
+
             <CardTitle className="text-lg leading-tight mb-2">
-              <Link 
+              <Link
                 href={`/projects/${project.slug}`}
                 className="hover:text-blue-600 transition-colors"
               >
                 {truncateText(project.title, 60)}
               </Link>
             </CardTitle>
-            
+
             <CardDescription className="text-sm leading-relaxed">
               {truncateText(project.description, 120)}
             </CardDescription>
@@ -144,7 +148,7 @@ export function ProjectCard({
               <span>{project._count?.comments || 0}</span>
             </div>
           </div>
-          
+
           <div className="flex items-center gap-1">
             <Calendar className="h-4 w-4" />
             <span>{formatDate(project.createdAt)}</span>
@@ -173,7 +177,7 @@ export function ProjectCard({
               <Edit className="h-3 w-3 mr-1" />
               Edit
             </Button>
-            
+
             {project.status === ProjectStatus.DRAFT && (
               <Button
                 variant="default"
@@ -185,7 +189,7 @@ export function ProjectCard({
                 Publish
               </Button>
             )}
-            
+
             <Button
               variant="destructive"
               size="sm"
@@ -201,9 +205,9 @@ export function ProjectCard({
         {/* View Project Button */}
         {!showActions && (
           <div className="pt-3 border-t">
-            <Button 
-              variant="outline" 
-              size="sm" 
+            <Button
+              variant="outline"
+              size="sm"
               className="w-full"
               asChild
             >

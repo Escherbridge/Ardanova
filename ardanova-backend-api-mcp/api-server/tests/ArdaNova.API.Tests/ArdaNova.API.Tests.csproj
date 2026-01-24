@@ -1,0 +1,48 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" Version="6.0.2" />
+    <PackageReference Include="FluentAssertions" Version="6.12.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.0" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
+    <PackageReference Include="Moq" Version="4.20.72" />
+    <PackageReference Include="xunit" Version="2.9.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
+  </ItemGroup>
+
+  <!-- Link EventBus and WebSocket source files, excluding Extensions which have extra ASP.NET dependencies -->
+  <ItemGroup>
+    <Compile Include="..\..\src\ArdaNova.API\EventBus\Abstractions\*.cs" Link="EventBus\Abstractions\%(Filename)%(Extension)" />
+    <Compile Include="..\..\src\ArdaNova.API\EventBus\Events\*.cs" Link="EventBus\Events\%(Filename)%(Extension)" />
+    <Compile Include="..\..\src\ArdaNova.API\EventBus\Implementation\*.cs" Link="EventBus\Implementation\%(Filename)%(Extension)" />
+    <Compile Include="..\..\src\ArdaNova.API\WebSocket\Clients\*.cs" Link="WebSocket\Clients\%(Filename)%(Extension)" />
+    <Compile Include="..\..\src\ArdaNova.API\WebSocket\Handlers\*.cs" Link="WebSocket\Handlers\%(Filename)%(Extension)" />
+    <Compile Include="..\..\src\ArdaNova.API\WebSocket\Hubs\*.cs" Link="WebSocket\Hubs\%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <!-- Add ASP.NET Core framework for SignalR support -->
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+    <Using Include="FluentAssertions" />
+    <Using Include="Moq" />
+    <Using Include="Microsoft.Extensions.Logging" />
+    <Using Include="Microsoft.Extensions.Configuration" />
+    <Using Include="Microsoft.Extensions.DependencyInjection" />
+  </ItemGroup>
+
+</Project>

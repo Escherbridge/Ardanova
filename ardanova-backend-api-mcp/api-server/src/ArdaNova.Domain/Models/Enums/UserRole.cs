@@ -3,6 +3,6 @@ namespace ArdaNova.Domain.Models.Enums;
 public enum UserRole
 {
     INDIVIDUAL,
-    AGENCY,
+    GUILD,
     ADMIN
 }

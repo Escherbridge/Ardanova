@@ -11,7 +11,7 @@ using Microsoft.EntityFrameworkCore;
 ///
 /// When Prisma schema changes:
 /// 1. Update prisma/schema.prisma in ardanova-client
-/// 2. Run: npx prisma migrate dev
+/// 2. Run: npx prisma migrate dev or npx prisma db push
 /// 3. Update corresponding .NET entities in ArdaNova.Domain to match
 /// </summary>
 public class ArdaNovaDbContext : DbContext
@@ -78,6 +78,39 @@ public class ArdaNovaDbContext : DbContext
     public DbSet<TokenSwap> TokenSwaps => Set<TokenSwap>();
     public DbSet<LiquidityPool> LiquidityPools => Set<LiquidityPool>();
     public DbSet<LiquidityProvider> LiquidityProviders => Set<LiquidityProvider>();
+    public DbSet<XPEvent> XPEvents => Set<XPEvent>();
+    public DbSet<Achievement> Achievements => Set<Achievement>();
+    public DbSet<UserAchievement> UserAchievements => Set<UserAchievement>();
+    public DbSet<Leaderboard> Leaderboards => Set<Leaderboard>();
+    public DbSet<LeaderboardEntry> LeaderboardEntrys => Set<LeaderboardEntry>();
+    public DbSet<Roadmap> Roadmaps => Set<Roadmap>();
+    public DbSet<RoadmapPhase> RoadmapPhases => Set<RoadmapPhase>();
+    public DbSet<Epic> Epics => Set<Epic>();
+    public DbSet<Sprint> Sprints => Set<Sprint>();
+    public DbSet<ProductBacklogItem> ProductBacklogItems => Set<ProductBacklogItem>();
+    public DbSet<BacklogItem> BacklogItems => Set<BacklogItem>();
+    public DbSet<SprintItem> SprintItems => Set<SprintItem>();
+    public DbSet<ProjectMember> ProjectMembers => Set<ProjectMember>();
+    public DbSet<TaskCompensation> TaskCompensations => Set<TaskCompensation>();
+    public DbSet<TaskSubmission> TaskSubmissions => Set<TaskSubmission>();
+    public DbSet<Proposal> Proposals => Set<Proposal>();
+    public DbSet<Vote> Votes => Set<Vote>();
+    public DbSet<ProposalExecution> ProposalExecutions => Set<ProposalExecution>();
+    public DbSet<Guild> Guilds => Set<Guild>();
+    public DbSet<GuildMember> GuildMembers => Set<GuildMember>();
+    public DbSet<GuildReview> GuildReviews => Set<GuildReview>();
+    public DbSet<Shop> Shops => Set<Shop>();
+    public DbSet<ShopAnalytics> ShopAnalytics => Set<ShopAnalytics>();
+    public DbSet<ProjectToken> ProjectTokens => Set<ProjectToken>();
+    public DbSet<Treasury> Treasurys => Set<Treasury>();
+    public DbSet<TreasuryTransaction> TreasuryTransactions => Set<TreasuryTransaction>();
+    public DbSet<TokenHolder> TokenHolders => Set<TokenHolder>();
+    public DbSet<TokenVesting> TokenVestings => Set<TokenVesting>();
+    public DbSet<ICO> ICOs => Set<ICO>();
+    public DbSet<ICOContribution> ICOContributions => Set<ICOContribution>();
+    public DbSet<ChatMessage> ChatMessages => Set<ChatMessage>();
+    public DbSet<Attachment> Attachments => Set<Attachment>();
+
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

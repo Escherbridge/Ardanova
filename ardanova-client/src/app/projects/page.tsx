@@ -24,8 +24,19 @@ export default async function ProjectsPage() {
     status: ProjectStatus.PUBLISHED,
     limit: 50,
   });
-  
-  const projects = projectsResult.items;
+
+  type ProjectWithCount = typeof projectsResult.items[0] & {
+    _count?: {
+      supports: number;
+    };
+    createdBy: {
+      name: string | null;
+      email: string | null;
+      image: string | null;
+    };
+  };
+
+  const projects = projectsResult.items as ProjectWithCount[];
 
   const getStatusColor = (status: ProjectStatus) => {
     switch (status) {
@@ -144,10 +155,10 @@ export default async function ProjectsPage() {
             <Card key={project.id} className="hover:shadow-lg transition-shadow cursor-pointer">
               <CardHeader>
                 <div className="flex items-start justify-between mb-2">
-                  <Badge className={getCategoryColor(project.category)}>
+                  <Badge className={getCategoryColor(project.category as ProjectCategory)}>
                     {project.category.replace("_", " ")}
                   </Badge>
-                  <Badge variant="outline" className={getStatusColor(project.status)}>
+                  <Badge variant="outline" className={getStatusColor(project.status as ProjectStatus)}>
                     {project.status.replace("_", " ")}
                   </Badge>
                 </div>

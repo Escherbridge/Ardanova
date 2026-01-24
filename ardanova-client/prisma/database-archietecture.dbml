@@ -1,0 +1,1357 @@
+﻿
+// =================================================================================================
+// 1. Authentication & User Core Module
+// =================================================================================================
+
+Enum UserRole {
+  INDIVIDUAL
+  GUILD
+  ADMIN
+}
+
+Enum UserType {
+  INNOVATOR
+  SUPPORTER
+  VOLUNTEER
+  FREELANCER
+  SME_OWNER
+  GUILD_MEMBER
+}
+
+Enum UserTier {
+  BRONZE
+  SILVER
+  GOLD
+  PLATINUM
+  DIAMOND
+}
+
+Enum VerificationLevel {
+  ANONYMOUS
+  VERIFIED
+  PRO
+  EXPERT
+}
+
+Table Account {
+  id varchar [not null, pk, default: `cuid()`]
+  userId varchar [not null]
+  type varchar [not null]
+  provider varchar [not null]
+  providerAccountId varchar [not null]
+  refresh_token text
+  access_token text
+  expires_at int
+  token_type varchar
+  scope varchar
+  id_token text
+  session_state varchar
+}
+Ref: Account.userId > User.id
+
+Table Session {
+  id varchar [not null, pk, default: `cuid()`]
+  sessionToken varchar [not null, unique]
+  userId varchar [not null]
+  expires datetime [not null]
+}
+Ref: Session.userId > User.id
+
+Table User {
+  id varchar [not null, pk, default: `cuid()`]
+  email varchar [not null, unique]
+  emailVerified datetime
+  name varchar
+  image varchar
+  bio text
+  location varchar
+  phone varchar
+  website varchar
+  linkedIn varchar
+  twitter varchar
+  role UserRole [not null, default: 'INDIVIDUAL']
+  userType UserType [not null, default: 'INNOVATOR']
+  isVerified boolean [not null, default: false]
+  totalXP int [not null, default: 0]
+  level int [not null, default: 1]
+  tier UserTier [not null, default: 'BRONZE']
+  trustScore decimal [not null, default: 0]
+  verificationLevel VerificationLevel [not null, default: 'ANONYMOUS']
+  createdAt datetime [not null, default: `now()`]
+  updatedAt datetime [not null, note: 'Updated at']
+}
+
+Table UserSkill {
+  id varchar [not null, pk, default: `cuid()`]
+  userId varchar [not null]
+  skill varchar [not null]
+  level int [not null, default: 1]
+}
+Ref: UserSkill.userId > User.id
+
+Table UserExperience {
+  id varchar [not null, pk, default: `cuid()`]
+  userId varchar [not null]
+  title varchar [not null]
+  company varchar [not null]
+  description text
+  startDate datetime [not null]
+  endDate datetime
+  isCurrent boolean [not null, default: false]
+}
+Ref: UserExperience.userId > User.id
+
+Table VerificationToken {
+  identifier varchar [not null]
+  token varchar [not null, unique]
+  expires datetime [not null]
+}
+Ref: VerificationToken.identifier > User.id
+
+Table Notification {
+  id varchar [not null, pk, default: `cuid()`]
+  userId varchar [not null]
+  type NotificationType [not null]
+  title varchar [not null]
+  message text [not null]
+  data json
+  isRead boolean [not null, default: false]
+  readAt datetime
+  actionUrl varchar
+  createdAt datetime [not null, default: `now()`]
+}
+Ref: Notification.userId > User.id
+
+Table Activity {
+  id varchar [not null, pk, default: `cuid()`]
+  userId varchar [not null]
+  projectId varchar
+  type ActivityType [not null]
+  entityType varchar [not null]
+  entityId varchar [not null]
+  action varchar [not null]
+  metadata json
+  createdAt datetime [not null, default: `now()`]
+}
+Ref: Activity.userId > User.id
+Ref: Activity.projectId > Project.id
+
+Enum NotificationType {
+  TASK_ASSIGNED
+  TASK_COMPLETED
+  TASK_REVIEWED
+  TASK_REVISION_REQUESTED
+  PROPOSAL_CREATED
+  PROPOSAL_VOTED
+  PROPOSAL_PASSED
+  PROPOSAL_REJECTED
+  PROPOSAL_EXECUTED
+  ACHIEVEMENT_EARNED
+  LEVEL_UP
+  STREAK_MILESTONE
+  TOKEN_RECEIVED
+  TOKEN_VESTED
+  ESCROW_FUNDED
+  ESCROW_RELEASED
+  PROJECT_INVITATION
+  PROJECT_UPDATE
+  PROJECT_FUNDED
+  COMMENT_REPLY
+  MENTION
+  FOLLOWER_NEW
+  SYSTEM_ANNOUNCEMENT
+  SECURITY_ALERT
+}
+
+Enum ActivityType {
+  CREATED
+  UPDATED
+  DELETED
+  COMPLETED
+  JOINED
+  LEFT
+  COMMENTED
+  VOTED
+  SUBMITTED
+  REVIEWED
+  FUNDED
+  TRANSFERRED
+  SWAPPED
+}
+
+// =================================================================================================
+// 2. Gamification & Reputation Module
+// =================================================================================================
+
+Enum XPEventType {
+  TASK_COMPLETED
+  PROPOSAL_CREATED
+  PROPOSAL_PASSED
+  VOTE_CAST
+  PROJECT_FUNDED
+  MEMBER_REFERRED
+  ACHIEVEMENT_EARNED
+  STREAK_MAINTAINED
+  LEVEL_UP
+  REVIEW_GIVEN
+  CONTRIBUTION_MADE
+}
+
+Enum AchievementCategory {
+  CONTRIBUTOR
+  COLLABORATOR
+  INVESTOR
+  GOVERNANCE
+  COMMUNITY
+  STREAK
+  MILESTONE
+  GAMING
+}
+
+Enum AchievementRarity {
+  COMMON
+  UNCOMMON
+  RARE
+  EPIC
+  LEGENDARY
+}
+
+Enum LeaderboardPeriod {
+  DAILY
+  WEEKLY
+  MONTHLY
+  QUARTERLY
+  ALL_TIME
+}
+
+Enum LeaderboardCategory {
+  XP
+  TASKS_COMPLETED
+  TOKENS_EARNED
+  PROPOSALS_CREATED
+  VOTES_CAST
+  PROJECTS_FUNDED
+}
+
+Enum StreakType {
+  DAILY_LOGIN
+  DAILY_CONTRIBUTION
+  WEEKLY_TASK
+}
+
+Enum ReferralStatus {
+  PENDING
+  COMPLETED
+  EXPIRED
+  CANCELLED
+}
+
+Table XPEvent {
+  id varchar [not null, pk, default: `cuid()`]
+  userId varchar [not null]
+  eventType XPEventType [not null]
+  amount int [not null]
+  source varchar [not null]
+  sourceId varchar
+  metadata json
+  createdAt datetime [not null, default: `now()`]
+}
+Ref: XPEvent.userId > User.id
+
+Table Achievement {
+  id varchar [not null, pk, default: `cuid()`]
+  name varchar [not null, unique]
+  description varchar [not null]
+  category AchievementCategory [not null]
+  criteria json [not null]
+  xpReward int [not null]
+  tokenReward decimal
+  rarity AchievementRarity [not null, default: 'COMMON']
+  icon varchar
+  isActive boolean [not null, default: true]
+  createdAt datetime [not null, default: `now()`]
+}
+
+Table UserAchievement {
+  id varchar [not null, pk, default: `cuid()`]
+  userId varchar [not null]
+  achievementId varchar [not null]
+  progress int [not null, default: 0]
+  earnedAt datetime
+}
+Ref: UserAchievement.userId > User.id
+Ref: UserAchievement.achievementId > Achievement.id
+
+Table Leaderboard {
+  id varchar [not null, pk, default: `cuid()`]
+  period LeaderboardPeriod [not null]
+  category LeaderboardCategory [not null]
+  startDate datetime [not null]
+  endDate datetime [not null]
+  createdAt datetime [not null, default: `now()`]
+}
+
+Table LeaderboardEntry {
+  id varchar [not null, pk, default: `cuid()`]
+  leaderboardId varchar [not null]
+  userId varchar [not null]
+  rank int [not null]
+  score int [not null]
+  metadata json
+}
+Ref: LeaderboardEntry.leaderboardId > Leaderboard.id
+Ref: LeaderboardEntry.userId > User.id
+
+Table UserStreak {
+  id varchar [not null, pk, default: `cuid()`]
+  userId varchar [not null, unique]
+  currentStreak int [not null, default: 0]
+  longestStreak int [not null, default: 0]
+  lastActivityDate datetime
+  streakType StreakType [not null, default: 'DAILY_LOGIN']
+  createdAt datetime [not null, default: `now()`]
+  updatedAt datetime [not null, note: 'Updated at']
+}
+Ref: UserStreak.userId > User.id
+
+Table Referral {
+  id varchar [not null, pk, default: `cuid()`]
+  referrerId varchar [not null]
+  referredId varchar [not null, unique]
+  referralCode varchar
+  status ReferralStatus [not null, default: 'PENDING']
+  rewardClaimed boolean [not null, default: false]
+  xpRewarded int
+  tokenRewarded decimal
+  createdAt datetime [not null, default: `now()`]
+  completedAt datetime
+}
+Ref: Referral.referrerId > User.id
+Ref: Referral.referredId > User.id
+
+// =================================================================================================
+// 3. Project Management & Governance Module
+// =================================================================================================
+
+Enum ProjectStatus {
+  DRAFT
+  PUBLISHED
+  SEEKING_SUPPORT
+  FUNDED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+Enum ProjectCategory {
+  TECHNOLOGY
+  HEALTHCARE
+  EDUCATION
+  ENVIRONMENT
+  SOCIAL_IMPACT
+  BUSINESS
+  ARTS_CULTURE
+  AGRICULTURE
+  FINANCE
+  OTHER
+}
+
+Enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  REVIEW
+  COMPLETED
+  BLOCKED
+}
+
+Enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+Enum SupportType {
+  VOTE
+  SUBSCRIPTION
+  VOLUNTEER
+  RESOURCE
+}
+
+Enum ApplicationStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  WITHDRAWN
+}
+
+Enum RoadmapStatus {
+  DRAFT
+  ACTIVE
+  COMPLETED
+  ARCHIVED
+}
+
+Enum PhaseStatus {
+  PLANNED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+Enum EpicStatus {
+  PLANNED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+Enum SprintStatus {
+  PLANNED
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+Enum PBIType {
+  FEATURE
+  ENHANCEMENT
+  BUG
+  TECHNICAL_DEBT
+  SPIKE
+}
+
+Enum PBIStatus {
+  NEW
+  READY
+  IN_PROGRESS
+  DONE
+  CANCELLED
+}
+
+Enum BacklogItemType {
+  TASK
+  BUG
+  IMPROVEMENT
+  RESEARCH
+}
+
+Enum BacklogStatus {
+  NEW
+  READY
+  IN_PROGRESS
+  DONE
+  BLOCKED
+}
+
+Enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+Enum ProjectRole {
+  FOUNDER
+  LEADER
+  CORE_CONTRIBUTOR
+  CONTRIBUTOR
+  OBSERVER
+}
+
+Enum CompensationModel {
+  FIXED_TOKEN
+  HOURLY_TOKEN
+  EQUITY_PERCENT
+  HYBRID
+  BOUNTY
+  MILESTONE
+}
+
+Enum SubmissionStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  REVISION_REQUESTED
+}
+
+Enum ProposalType {
+  TREASURY
+  GOVERNANCE
+  STRATEGIC
+  OPERATIONAL
+  EMERGENCY
+  CONSTITUTIONAL
+  TOKEN
+}
+
+Enum ProposalStatus {
+  DRAFT
+  ACTIVE
+  PASSED
+  REJECTED
+  EXECUTED
+  CANCELLED
+  EXPIRED
+}
+
+Table Project {
+  id varchar [not null, pk, default: `cuid()`]
+  title varchar [not null]
+  slug varchar [not null, unique]
+  description text [not null]
+  problemStatement text [not null]
+  solution text [not null]
+  category ProjectCategory [not null]
+  status ProjectStatus [not null, default: 'DRAFT']
+  fundingGoal decimal
+  currentFunding decimal [not null, default: 0.00]
+  supportersCount int [not null, default: 0]
+  votesCount int [not null, default: 0]
+  viewsCount int [not null, default: 0]
+  featured boolean [not null, default: false]
+  tags text
+  images text
+  videos text
+  documents text
+  targetAudience text
+  expectedImpact text
+  timeline text
+  createdAt datetime [not null, default: `now()`]
+  updatedAt datetime [not null, note: 'Updated at']
+  publishedAt datetime
+  fundedAt datetime
+  completedAt datetime
+  createdById varchar [not null]
+  assignedGuildId varchar
+}
+Ref: Project.createdById > User.id
+Ref: Project.assignedGuildId > Guild.id
+
+Table ProjectTask {
+  id varchar [not null, pk, default: `cuid()`]
+  projectId varchar [not null]
+  backlogItemId varchar
+  title varchar [not null]
+  description text
+  status TaskStatus [not null, default: 'TODO']
+  priority TaskPriority [not null, default: 'MEDIUM']
+  estimatedHours int
+  actualHours int
+  tokenReward decimal
+  escrowStatus EscrowStatus [not null, default: 'NONE']
+  dueDate datetime
+  completedAt datetime
+  createdAt datetime [not null, default: `now()`]
+  updatedAt datetime [not null, note: 'Updated at']
+  assignedToId varchar
+}
+Ref: ProjectTask.projectId > Project.id
+Ref: ProjectTask.assignedToId > User.id
+Ref: ProjectTask.backlogItemId > BacklogItem.id
+
+Table ProjectTaskDependency {
+  id varchar [not null, pk, default: `cuid()`]
+  taskId varchar [not null]
+  dependsOnId varchar [not null]
+}
+Ref: ProjectTaskDependency.taskId > ProjectTask.id
+Ref: ProjectTaskDependency.dependsOnId > ProjectTask.id
+
+Table ProjectResource {
+  id varchar [not null, pk, default: `cuid()`]
+  projectId varchar [not null]
+  name varchar [not null]
+  description text
+  quantity int [not null, default: 1]
+  estimatedCost decimal
+  isRequired boolean [not null, default: true]
+  isObtained boolean [not null, default: false]
+  createdAt datetime [not null, default: `now()`]
+}
+Ref: ProjectResource.projectId > Project.id
+
+Table ProjectMilestone {
+  id varchar [not null, pk, default: `cuid()`]
+  projectId varchar [not null]
+  title varchar [not null]
+  description text
+  targetDate datetime [not null]
+  completedAt datetime
+  isCompleted boolean [not null, default: false]
+  createdAt datetime [not null, default: `now()`]
+}
+Ref: ProjectMilestone.projectId > Project.id
+
+Table ProjectSupport {
+  id varchar [not null, pk, default: `cuid()`]
+  projectId varchar [not null]
+  userId varchar [not null]
+  supportType SupportType [not null]
+  monthlyAmount decimal
+  message text
+  isActive boolean [not null, default: true]
+  createdAt datetime [not null, default: `now()`]
+  updatedAt datetime [not null, note: 'Updated at']
+}
+Ref: ProjectSupport.projectId > Project.id
+Ref: ProjectSupport.userId > User.id
+
+Table ProjectApplication {
+  id varchar [not null, pk, default: `cuid()`]
+  projectId varchar [not null]
+  userId varchar [not null]
+  roleTitle varchar [not null]
+  message text [not null]
+  skills text
+  experience text
+  availability varchar
+  status ApplicationStatus [not null, default: 'PENDING']
+  appliedAt datetime [not null, default: `now()`]
+  reviewedAt datetime
+  reviewMessage text
+}
+Ref: ProjectApplication.projectId > Project.id
+Ref: ProjectApplication.userId > User.id
+
+Table ProjectComment {
+  id varchar [not null, pk, default: `cuid()`]
+  projectId varchar [not null]
+  userId varchar [not null]
+  content text [not null]
+  parentId varchar
+  createdAt datetime [not null, default: `now()`]
+  updatedAt datetime [not null, note: 'Updated at']
+}
+Ref: ProjectComment.projectId > Project.id
+Ref: ProjectComment.userId > User.id
+Ref: ProjectComment.parentId > ProjectComment.id
+
+Table ProjectUpdate {
+  id varchar [not null, pk, default: `cuid()`]
+  projectId varchar [not null]
+  userId varchar [not null]
+  title varchar [not null]
+  content text [not null]
+  images text
+  createdAt datetime [not null, default: `now()`]
+}
+Ref: ProjectUpdate.projectId > Project.id
+Ref: ProjectUpdate.userId > User.id
+
+Table Roadmap {
+  id varchar [not null, pk, default: `cuid()`]
+  projectId varchar [not null, unique]
+  title varchar [not null]
+  vision text
+  status RoadmapStatus [not null, default: 'DRAFT']
+  createdAt datetime [not null, default: `now()`]
+  updatedAt datetime [not null, note: 'Updated at']
+}
+Ref: Roadmap.projectId > Project.id
+
+Table RoadmapPhase {
+  id varchar [not null, pk, default: `cuid()`]
+  roadmapId varchar [not null]
+  name varchar [not null]
+  description text
+  order int [not null]
+  startDate datetime
+  endDate datetime
+  status PhaseStatus [not null, default: 'PLANNED']
+  createdAt datetime [not null, default: `now()`]
+  updatedAt datetime [not null, note: 'Updated at']
+}
+Ref: RoadmapPhase.roadmapId > Roadmap.id
+
+Table Epic {
+  id varchar [not null, pk, default: `cuid()`]
+  phaseId varchar [not null]
+  title varchar [not null]
+  description text
+  status EpicStatus [not null, default: 'PLANNED']
+  priority Priority [not null, default: 'MEDIUM']
+  tokenBudget decimal
+  progress int [not null, default: 0]
+  startDate datetime
+  targetDate datetime
+  createdAt datetime [not null, default: `now()`]
+  updatedAt datetime [not null, note: 'Updated at']
+}
+Ref: Epic.phaseId > RoadmapPhase.id
+
+Table Sprint {
+  id varchar [not null, pk, default: `cuid()`]
+  projectId varchar [not null]
+  name varchar [not null]
+  goal text
+  startDate datetime [not null]
+  endDate datetime [not null]
+  tokenBudget decimal
+  velocity int
+  status SprintStatus [not null, default: 'PLANNED']
+  createdAt datetime [not null, default: `now()`]
+  updatedAt datetime [not null, note: 'Updated at']
+}
+Ref: Sprint.projectId > Project.id
+
+Table ProductBacklogItem {
+  id varchar [not null, pk, default: `cuid()`]
+  epicId varchar [not null]
+  title varchar [not null]
+  description text
+  type PBIType [not null, default: 'FEATURE']
+  storyPoints int
+  status PBIStatus [not null, default: 'NEW']
+  acceptanceCriteria text
+  priority Priority [not null, default: 'MEDIUM']
+  createdAt datetime [not null, default: `now()`]
+  updatedAt datetime [not null, note: 'Updated at']
+}
+Ref: ProductBacklogItem.epicId > Epic.id
+
+Table BacklogItem {
+  id varchar [not null, pk, default: `cuid()`]
+  pbiId varchar [not null]
+  title varchar [not null]
+  description text
+  type BacklogItemType [not null, default: 'TASK']
+  status BacklogStatus [not null, default: 'NEW']
+  estimate int
+  createdAt datetime [not null, default: `now()`]
+  updatedAt datetime [not null, note: 'Updated at']
+}
+Ref: BacklogItem.pbiId > ProductBacklogItem.id
+
+Table SprintItem {
+  id varchar [not null, pk, default: `cuid()`]
+  sprintId varchar [not null]
+  taskId varchar [not null]
+  order int [not null, default: 0]
+  addedAt datetime [not null, default: `now()`]
+}
+Ref: SprintItem.sprintId > Sprint.id
+Ref: SprintItem.taskId > ProjectTask.id
+
+Table ProjectMember {
+  id varchar [not null, pk, default: `cuid()`]
+  projectId varchar [not null]
+  userId varchar [not null]
+  role ProjectRole [not null, default: 'OBSERVER']
+  tokenBalance decimal [not null, default: 0]
+  votingPower decimal [not null, default: 0]
+  joinedAt datetime [not null, default: `now()`]
+  invitedById varchar
+}
+Ref: ProjectMember.projectId > Project.id
+Ref: ProjectMember.userId > User.id
+
+Table TaskCompensation {
+  id varchar [not null, pk, default: `cuid()`]
+  taskId varchar [not null, unique]
+  model CompensationModel [not null, default: 'FIXED_TOKEN']
+  tokenAmount decimal
+  hourlyRate decimal
+  equityPercent decimal
+  stableCoinAmount decimal
+  vestingMonths int
+  createdAt datetime [not null, default: `now()`]
+}
+Ref: TaskCompensation.taskId > ProjectTask.id
+
+Table TaskSubmission {
+  id varchar [not null, pk, default: `cuid()`]
+  taskId varchar [not null]
+  submittedById varchar [not null]
+  content text [not null]
+  attachments text
+  status SubmissionStatus [not null, default: 'PENDING']
+  reviewedById varchar
+  feedback text
+  submittedAt datetime [not null, default: `now()`]
+  reviewedAt datetime
+}
+Ref: TaskSubmission.taskId > ProjectTask.id
+Ref: TaskSubmission.submittedById > User.id
+Ref: TaskSubmission.reviewedById > User.id
+
+Table Proposal {
+  id varchar [not null, pk, default: `cuid()`]
+  projectId varchar [not null]
+  creatorId varchar [not null]
+  type ProposalType [not null]
+  title varchar [not null]
+  description text [not null]
+  options json [not null]
+  quorum int [not null]
+  threshold int [not null]
+  status ProposalStatus [not null, default: 'DRAFT']
+  votingStart datetime
+  votingEnd datetime
+  executionDelay int
+  createdAt datetime [not null, default: `now()`]
+  updatedAt datetime [not null, note: 'Updated at']
+}
+Ref: Proposal.projectId > Project.id
+Ref: Proposal.creatorId > User.id
+
+Table Vote {
+  id varchar [not null, pk, default: `cuid()`]
+  proposalId varchar [not null]
+  voterId varchar [not null]
+  choice int [not null]
+  weight decimal [not null]
+  reason text
+  txHash varchar
+  createdAt datetime [not null, default: `now()`]
+}
+Ref: Vote.proposalId > Proposal.id
+Ref: Vote.voterId > User.id
+
+Table ProposalExecution {
+  id varchar [not null, pk, default: `cuid()`]
+  proposalId varchar [not null, unique]
+  executedAt datetime [not null, default: `now()`]
+  txHash varchar
+  result json
+}
+Ref: ProposalExecution.proposalId > Proposal.id
+
+Table DelegatedVote {
+  id varchar [not null, pk, default: `cuid()`]
+  projectId varchar [not null]
+  delegatorId varchar [not null]
+  delegateeId varchar [not null]
+  tokenId varchar [not null]
+  amount decimal [not null]
+  isActive boolean [not null, default: true]
+  createdAt datetime [not null, default: `now()`]
+  expiresAt datetime
+  revokedAt datetime
+}
+Ref: DelegatedVote.projectId > Project.id
+Ref: DelegatedVote.delegatorId > User.id
+Ref: DelegatedVote.delegateeId > User.id
+Ref: DelegatedVote.tokenId > ProjectToken.id
+
+// =================================================================================================
+// 4. Guild Module
+// =================================================================================================
+
+Enum BidStatus {
+  SUBMITTED
+  UNDER_REVIEW
+  ACCEPTED
+  REJECTED
+  WITHDRAWN
+}
+
+Table Guild {
+  id varchar [not null, pk, default: `cuid()`]
+  name varchar [not null]
+  slug varchar [not null, unique]
+  description text [not null]
+  website varchar
+  email varchar [not null]
+  phone varchar
+  address text
+  logo varchar
+  portfolio text
+  specialties text
+  isVerified boolean [not null, default: false]
+  rating decimal
+  reviewsCount int [not null, default: 0]
+  projectsCount int [not null, default: 0]
+  createdAt datetime [not null, default: `now()`]
+  updatedAt datetime [not null, note: 'Updated at']
+  ownerId varchar [not null, unique]
+}
+Ref: Guild.ownerId > User.id
+
+Table GuildMember {
+  id varchar [not null, pk, default: `cuid()`]
+  guildId varchar [not null]
+  userId varchar [not null]
+  role varchar [not null]
+  joinedAt datetime [not null, default: `now()`]
+}
+Ref: GuildMember.guildId > Guild.id
+Ref: GuildMember.userId > User.id
+
+Table ProjectBid {
+  id varchar [not null, pk, default: `cuid()`]
+  projectId varchar [not null]
+  guildId varchar [not null]
+  userId varchar [not null]
+  proposal text [not null]
+  timeline text
+  budget decimal [not null]
+  deliverables text
+  status BidStatus [not null, default: 'SUBMITTED']
+  submittedAt datetime [not null, default: `now()`]
+  reviewedAt datetime
+}
+Ref: ProjectBid.projectId > Project.id
+Ref: ProjectBid.guildId > Guild.id
+Ref: ProjectBid.userId > User.id
+
+Table GuildReview {
+  id varchar [not null, pk, default: `cuid()`]
+  guildId varchar [not null]
+  projectId varchar
+  userId varchar [not null]
+  rating int [not null]
+  comment text
+  createdAt datetime [not null, default: `now()`]
+}
+Ref: GuildReview.guildId > Guild.id
+Ref: GuildReview.userId > User.id
+
+// =================================================================================================
+// 5. Marketplace & Shop Module
+// =================================================================================================
+
+Enum InvoiceStatus {
+  DRAFT
+  SENT
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+Enum PaymentMethod {
+  BANK_TRANSFER
+  USSD
+  CARD
+  WALLET
+}
+
+
+
+Enum CampaignStatus {
+  DRAFT
+  SCHEDULED
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+Table Shop {
+  id varchar [not null, pk, default: `cuid()`]
+  name varchar [not null]
+  description text
+  address text
+  phone varchar
+  email varchar
+  website varchar
+  logo varchar
+  isActive boolean [not null, default: true]
+  createdAt datetime [not null, default: `now()`]
+  updatedAt datetime [not null, note: 'Updated at']
+  ownerId varchar [not null]
+}
+Ref: Shop.ownerId > User.id
+
+
+
+Table Product {
+  id varchar [not null, pk, default: `cuid()`]
+  shopId varchar [not null]
+  name varchar [not null]
+  description text
+  sku varchar
+  price decimal [not null]
+  cost decimal
+  category varchar
+  isActive boolean [not null, default: true]
+  createdAt datetime [not null, default: `now()`]
+  updatedAt datetime [not null, note: 'Updated at']
+  userId varchar [not null]
+}
+Ref: Product.shopId > Shop.id
+Ref: Product.userId > User.id
+
+Table Invoice {
+  id varchar [not null, pk, default: `cuid()`]
+  shopId varchar [not null]
+  buyerId varchar [not null]
+  invoiceNumber varchar [not null, unique]
+  amount decimal [not null]
+  tax decimal
+  discount decimal
+  total decimal [not null]
+  status InvoiceStatus [not null, default: 'DRAFT']
+  dueDate datetime [not null]
+  paidAt datetime
+  notes text
+  createdAt datetime [not null, default: `now()`]
+  updatedAt datetime [not null, note: 'Updated at']
+  userId varchar [not null]
+}
+Ref: Invoice.shopId > Shop.id
+Ref: Invoice.buyerId > User.id
+Ref: Invoice.userId > User.id
+
+Table Sale {
+  id varchar [not null, pk, default: `cuid()`]
+  shopId varchar [not null]
+  buyerId varchar
+  total decimal [not null]
+  tax decimal
+  discount decimal
+  paymentMethod PaymentMethod [not null]
+  notes text
+  createdAt datetime [not null, default: `now()`]
+  userId varchar [not null]
+}
+Ref: Sale.shopId > Shop.id
+Ref: Sale.buyerId > User.id
+Ref: Sale.userId > User.id
+
+Table SaleItem {
+  id varchar [not null, pk, default: `cuid()`]
+  saleId varchar [not null]
+  productId varchar [not null]
+  quantity int [not null]
+  price decimal [not null]
+  total decimal [not null]
+}
+Ref: SaleItem.saleId > Sale.id
+Ref: SaleItem.productId > Product.id
+
+Table InventoryItem {
+  id varchar [not null, pk, default: `cuid()`]
+  shopId varchar [not null]
+  productId varchar [not null, unique]
+  currentStock int [not null, default: 0]
+  minStock int [not null, default: 0]
+  maxStock int
+  reorderPoint int
+  lastRestocked datetime
+  createdAt datetime [not null, default: `now()`]
+  updatedAt datetime [not null, note: 'Updated at']
+  userId varchar [not null]
+}
+Ref: InventoryItem.shopId > Shop.id
+Ref: InventoryItem.productId > Product.id
+Ref: InventoryItem.userId > User.id
+
+Table MarketingCampaign {
+  id varchar [not null, pk, default: `cuid()`]
+  shopId varchar [not null]
+  name varchar [not null]
+  description text
+  platform varchar [not null]
+  content text [not null]
+  mediaUrls text
+  scheduledAt datetime
+  status CampaignStatus [not null, default: 'DRAFT']
+  createdAt datetime [not null, default: `now()`]
+  updatedAt datetime [not null, note: 'Updated at']
+  userId varchar [not null]
+}
+Ref: MarketingCampaign.shopId > Shop.id
+Ref: MarketingCampaign.userId > User.id
+
+Table ShopAnalytics {
+  id varchar [not null, pk, default: `cuid()`]
+  shopId varchar [not null]
+  date datetime [not null]
+  revenue decimal [not null]
+  expenses decimal [not null]
+  profit decimal [not null]
+  salesCount int [not null]
+  newCustomers int [not null]
+  createdAt datetime [not null, default: `now()`]
+}
+Ref: ShopAnalytics.shopId > Shop.id
+
+// =================================================================================================
+// 6. Finance & Tokenomics Module
+// =================================================================================================
+
+Enum EscrowStatus {
+  NONE
+  FUNDED
+  RELEASED
+  DISPUTED
+  REFUNDED
+}
+
+Enum TransactionType {
+  DEPOSIT
+  WITHDRAWAL
+  TASK_PAYMENT
+  PROPOSAL_EXECUTION
+  DIVIDEND
+  FEE
+}
+
+Enum VestingFrequency {
+  DAILY
+  WEEKLY
+  MONTHLY
+  QUARTERLY
+}
+
+Enum ICOStatus {
+  PENDING
+  ACTIVE
+  SUCCESSFUL
+  FAILED
+  CANCELLED
+  REFUNDING
+}
+
+Enum ContributionStatus {
+  PENDING
+  CONFIRMED
+  REFUNDED
+  FAILED
+}
+
+Enum WalletProvider {
+  PERA
+  DEFLY
+  ALGOSIGNER
+  WALLETCONNECT
+  OTHER
+}
+
+Enum SwapStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+Table ProjectToken {
+  id varchar [not null, pk, default: `cuid()`]
+  projectId varchar [not null, unique]
+  assetId varchar
+  name varchar [not null]
+  symbol varchar [not null]
+  totalSupply decimal [not null]
+  decimals int [not null, default: 6]
+  allocation json [not null]
+  vestingConfig json
+  isDeployed boolean [not null, default: false]
+  deployedAt datetime
+  createdAt datetime [not null, default: `now()`]
+  updatedAt datetime [not null, note: 'Updated at']
+}
+Ref: ProjectToken.projectId > Project.id
+
+Table ProjectEquity {
+  id varchar [not null, pk, default: `cuid()`]
+  projectId varchar [not null]
+  userId varchar [not null]
+  sharePercent decimal [not null]
+  investmentAmount decimal [not null]
+  grantedAt datetime [not null, default: `now()`]
+}
+Ref: ProjectEquity.projectId > Project.id
+Ref: ProjectEquity.userId > User.id
+
+Table Treasury {
+  id varchar [not null, pk, default: `cuid()`]
+  projectId varchar [not null, unique]
+  balance decimal [not null, default: 0]
+  tokenAssetId varchar
+  createdAt datetime [not null, default: `now()`]
+  updatedAt datetime [not null, note: 'Updated at']
+}
+Ref: Treasury.projectId > Project.id
+
+Table TreasuryTransaction {
+  id varchar [not null, pk, default: `cuid()`]
+  treasuryId varchar [not null]
+  type TransactionType [not null]
+  amount decimal [not null]
+  description varchar
+  txHash varchar
+  proposalId varchar
+  createdAt datetime [not null, default: `now()`]
+}
+Ref: TreasuryTransaction.treasuryId > Treasury.id
+
+Table TokenHolder {
+  id varchar [not null, pk, default: `cuid()`]
+  tokenId varchar [not null]
+  userId varchar [not null]
+  balance decimal [not null]
+  stakedAmount decimal [not null, default: 0]
+  lockedAmount decimal [not null, default: 0]
+  createdAt datetime [not null, default: `now()`]
+  updatedAt datetime [not null, note: 'Updated at']
+}
+Ref: TokenHolder.tokenId > ProjectToken.id
+Ref: TokenHolder.userId > User.id
+
+Table TokenVesting {
+  id varchar [not null, pk, default: `cuid()`]
+  holderId varchar [not null]
+  totalAmount decimal [not null]
+  releasedAmount decimal [not null, default: 0]
+  startDate datetime [not null]
+  cliffEnd datetime [not null]
+  vestingEnd datetime [not null]
+  releaseFrequency VestingFrequency [not null, default: 'MONTHLY']
+  createdAt datetime [not null, default: `now()`]
+}
+Ref: TokenVesting.holderId > TokenHolder.id
+
+Table ICO {
+  id varchar [not null, pk, default: `cuid()`]
+  tokenId varchar [not null, unique]
+  fundingGoal decimal [not null]
+  currentFunding decimal [not null, default: 0]
+  minContribution decimal
+  maxContribution decimal
+  tokenPrice decimal [not null]
+  startDate datetime [not null]
+  endDate datetime [not null]
+  status ICOStatus [not null, default: 'PENDING']
+  createdAt datetime [not null, default: `now()`]
+  updatedAt datetime [not null, note: 'Updated at']
+}
+Ref: ICO.tokenId > ProjectToken.id
+
+Table ICOContribution {
+  id varchar [not null, pk, default: `cuid()`]
+  icoId varchar [not null]
+  userId varchar [not null]
+  amount decimal [not null]
+  tokenAmount decimal [not null]
+  paymentAsset varchar [not null]
+  txHash varchar
+  status ContributionStatus [not null, default: 'PENDING']
+  createdAt datetime [not null, default: `now()`]
+}
+Ref: ICOContribution.icoId > ICO.id
+Ref: ICOContribution.userId > User.id
+
+Table Wallet {
+  id varchar [not null, pk, default: `cuid()`]
+  userId varchar [not null]
+  address varchar [not null, unique]
+  provider WalletProvider [not null]
+  label varchar
+  isVerified boolean [not null, default: false]
+  isPrimary boolean [not null, default: false]
+  createdAt datetime [not null, default: `now()`]
+  updatedAt datetime [not null, note: 'Updated at']
+}
+Ref: Wallet.userId > User.id
+
+Table TaskEscrow {
+  id varchar [not null, pk, default: `cuid()`]
+  taskId varchar [not null, unique]
+  funderId varchar [not null]
+  tokenId varchar [not null]
+  amount decimal [not null]
+  status EscrowStatus [not null, default: 'FUNDED']
+  txHashFund varchar
+  txHashRelease varchar
+  txHashRefund varchar
+  createdAt datetime [not null, default: `now()`]
+  fundedAt datetime
+  releasedAt datetime
+  refundedAt datetime
+}
+Ref: TaskEscrow.taskId > ProjectTask.id
+Ref: TaskEscrow.funderId > User.id
+Ref: TaskEscrow.tokenId > ProjectToken.id
+
+Table TokenSwap {
+  id varchar [not null, pk, default: `cuid()`]
+  userId varchar [not null]
+  fromTokenId varchar [not null]
+  toTokenId varchar [not null]
+  fromAmount decimal [not null]
+  toAmount decimal [not null]
+  exchangeRate decimal [not null]
+  fee decimal [not null, default: 0]
+  txHash varchar
+  status SwapStatus [not null, default: 'PENDING']
+  createdAt datetime [not null, default: `now()`]
+  completedAt datetime
+}
+Ref: TokenSwap.userId > User.id
+Ref: TokenSwap.fromTokenId > ProjectToken.id
+Ref: TokenSwap.toTokenId > ProjectToken.id
+
+Table LiquidityPool {
+  id varchar [not null, pk, default: `cuid()`]
+  token1Id varchar [not null]
+  token2Id varchar [not null]
+  reserve1 decimal [not null, default: 0]
+  reserve2 decimal [not null, default: 0]
+  totalShares decimal [not null, default: 0]
+  feePercent decimal [not null, default: 0.003]
+  isActive boolean [not null, default: true]
+  createdAt datetime [not null, default: `now()`]
+  updatedAt datetime [not null, note: 'Updated at']
+}
+Ref: LiquidityPool.token1Id > ProjectToken.id
+Ref: LiquidityPool.token2Id > ProjectToken.id
+
+Table LiquidityProvider {
+  id varchar [not null, pk, default: `cuid()`]
+  poolId varchar [not null]
+  userId varchar [not null]
+  shares decimal [not null]
+  token1In decimal [not null, default: 0]
+  token2In decimal [not null, default: 0]
+  createdAt datetime [not null, default: `now()`]
+  updatedAt datetime [not null, note: 'Updated at']
+}
+Ref: LiquidityProvider.poolId > LiquidityPool.id
+Ref: LiquidityProvider.userId > User.id
+
+// =================================================================================================
+// 7. Engagement & Communication Module
+// =================================================================================================
+
+Enum MessageStatus {
+  SENT
+  DELIVERED
+  READ
+  FAILED
+  NOTSEEN
+}
+
+Enum MimeType {
+  IMAGE
+  VIDEO
+  AUDIO
+  DOCUMENT
+  ARCHIVE
+  OTHER
+}
+
+Table ChatMessage {
+  id varchar [not null, pk, default: `cuid()`]
+  userToId varchar [not null]
+  userFromId varchar [not null]
+  message varchar
+  status MessageStatus [not null, default: 'NOTSEEN']
+  ChatReaction json
+  chatAttachmentId varchar
+  sentAt datetime [not null, default: `now()`]
+  seenAt datetime
+}
+Ref: ChatMessage.userToId > User.id
+Ref: ChatMessage.userFromId > User.id
+Ref: ChatMessage.chatAttachmentId > Attachment.id
+
+Table Attachment {
+  id varchar [not null, pk, default: `cuid()`]
+  uploadedById varchar [not null]
+  bucketPath varchar
+  type MimeType [not null]
+  createdAt datetime [not null, default: `now()`]
+  lastUsedAt datetime
+}
+Ref: Attachment.uploadedById > User.id

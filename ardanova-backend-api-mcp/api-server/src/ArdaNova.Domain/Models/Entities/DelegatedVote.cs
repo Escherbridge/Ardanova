@@ -1,62 +1,52 @@
+using System;
+using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
+using ArdaNova.Domain.Models.Enums;
+
 namespace ArdaNova.Domain.Models.Entities;
 
+[Table("DelegatedVote")]
 public class DelegatedVote
 {
-    public Guid Id { get; private set; }
-    public Guid ProjectId { get; private set; }
-    public Guid DelegatorId { get; private set; }
-    public Guid DelegateeId { get; private set; }
-    public Guid TokenId { get; private set; }
-    public decimal Amount { get; private set; }
-    public bool IsActive { get; private set; }
-    public DateTime CreatedAt { get; private set; }
-    public DateTime? ExpiresAt { get; private set; }
-    public DateTime? RevokedAt { get; private set; }
+    [Key]
+    public string id { get; set; }
 
-    // Navigation
-    public Project Project { get; private set; } = null!;
-    public User Delegator { get; private set; } = null!;
-    public User Delegatee { get; private set; } = null!;
+    [Required]
+    public string projectId { get; set; }
 
-    private DelegatedVote() { }
+    [Required]
+    public string delegatorId { get; set; }
 
-    public static DelegatedVote Create(
-        Guid projectId,
-        Guid delegatorId,
-        Guid delegateeId,
-        Guid tokenId,
-        decimal amount,
-        DateTime? expiresAt = null)
-    {
-        return new DelegatedVote
-        {
-            Id = Guid.NewGuid(),
-            ProjectId = projectId,
-            DelegatorId = delegatorId,
-            DelegateeId = delegateeId,
-            TokenId = tokenId,
-            Amount = amount,
-            IsActive = true,
-            CreatedAt = DateTime.UtcNow,
-            ExpiresAt = expiresAt
-        };
-    }
+    [Required]
+    public string delegateeId { get; set; }
 
-    public void Revoke()
-    {
-        IsActive = false;
-        RevokedAt = DateTime.UtcNow;
-    }
+    [Required]
+    public string tokenId { get; set; }
 
-    public void UpdateAmount(decimal newAmount)
-    {
-        Amount = newAmount;
-    }
+    [Required]
+    public decimal amount { get; set; }
 
-    public void Extend(DateTime newExpiresAt)
-    {
-        ExpiresAt = newExpiresAt;
-    }
+    [Required]
+    public bool isActive { get; set; }
 
-    public bool IsExpired() => ExpiresAt.HasValue && ExpiresAt.Value < DateTime.UtcNow;
+    [Required]
+    public DateTime createdAt { get; set; }
+
+    public DateTime? expiresAt { get; set; }
+
+    public DateTime? revokedAt { get; set; }
+
+    [ForeignKey("projectId")]
+    public virtual Project Project { get; set; }
+
+    [ForeignKey("delegatorId")]
+    public virtual User Delegator { get; set; }
+
+    [ForeignKey("delegateeId")]
+    public virtual User Delegatee { get; set; }
+
+    [ForeignKey("tokenId")]
+    public virtual ProjectToken Token { get; set; }
+
 }

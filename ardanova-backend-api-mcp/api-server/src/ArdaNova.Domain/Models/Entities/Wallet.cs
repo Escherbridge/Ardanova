@@ -1,65 +1,41 @@
-namespace ArdaNova.Domain.Models.Entities;
-
-using System.Text.Json.Serialization;
+using System;
+using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 using ArdaNova.Domain.Models.Enums;
 
+namespace ArdaNova.Domain.Models.Entities;
+
+[Table("Wallet")]
 public class Wallet
 {
-    public Guid Id { get; private set; }
-    public Guid UserId { get; private set; }
-    public string Address { get; private set; } = null!;
+    [Key]
+    public string id { get; set; }
 
-    [JsonConverter(typeof(JsonStringEnumConverter))]
-    public WalletProvider Provider { get; private set; }
+    [Required]
+    public string userId { get; set; }
 
-    public string? Label { get; private set; }
-    public bool IsVerified { get; private set; }
-    public bool IsPrimary { get; private set; }
-    public DateTime CreatedAt { get; private set; }
-    public DateTime UpdatedAt { get; private set; }
+    [Required]
+    public string address { get; set; }
 
-    // Navigation
-    public User User { get; private set; } = null!;
+    [Required]
+    public WalletProvider provider { get; set; }
 
-    private Wallet() { }
+    public string? label { get; set; }
 
-    public static Wallet Create(
-        Guid userId,
-        string address,
-        WalletProvider provider,
-        string? label = null,
-        bool isPrimary = false)
-    {
-        return new Wallet
-        {
-            Id = Guid.NewGuid(),
-            UserId = userId,
-            Address = address,
-            Provider = provider,
-            Label = label,
-            IsVerified = false,
-            IsPrimary = isPrimary,
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
-        };
-    }
+    [Required]
+    public bool isVerified { get; set; }
 
-    public void Update(string? label, bool? isPrimary)
-    {
-        if (label is not null) Label = label;
-        if (isPrimary.HasValue) IsPrimary = isPrimary.Value;
-        UpdatedAt = DateTime.UtcNow;
-    }
+    [Required]
+    public bool isPrimary { get; set; }
 
-    public void Verify()
-    {
-        IsVerified = true;
-        UpdatedAt = DateTime.UtcNow;
-    }
+    [Required]
+    public DateTime createdAt { get; set; }
 
-    public void SetPrimary(bool isPrimary)
-    {
-        IsPrimary = isPrimary;
-        UpdatedAt = DateTime.UtcNow;
-    }
+    [Required]
+    public DateTime updatedAt { get; set; }
+
+    [ForeignKey("userId")]
+    public virtual User User { get; set; }
+
 }

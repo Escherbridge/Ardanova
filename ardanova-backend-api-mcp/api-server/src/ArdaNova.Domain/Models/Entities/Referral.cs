@@ -1,70 +1,44 @@
-namespace ArdaNova.Domain.Models.Entities;
-
-using System.Text.Json.Serialization;
+using System;
+using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 using ArdaNova.Domain.Models.Enums;
 
+namespace ArdaNova.Domain.Models.Entities;
+
+[Table("Referral")]
 public class Referral
 {
-    public Guid Id { get; private set; }
-    public Guid ReferrerId { get; private set; }
-    public Guid ReferredId { get; private set; }
-    public string? ReferralCode { get; private set; }
+    [Key]
+    public string id { get; set; }
 
-    [JsonConverter(typeof(JsonStringEnumConverter))]
-    public ReferralStatus Status { get; private set; }
+    [Required]
+    public string referrerId { get; set; }
 
-    public bool RewardClaimed { get; private set; }
-    public int? XpRewarded { get; private set; }
-    public decimal? TokenRewarded { get; private set; }
-    public DateTime CreatedAt { get; private set; }
-    public DateTime? CompletedAt { get; private set; }
+    [Required]
+    public string referredId { get; set; }
 
-    // Navigation
-    public User Referrer { get; private set; } = null!;
-    public User Referred { get; private set; } = null!;
+    public string? referralCode { get; set; }
 
-    private Referral() { }
+    [Required]
+    public ReferralStatus status { get; set; }
 
-    public static Referral Create(
-        Guid referrerId,
-        Guid referredId,
-        string? referralCode = null)
-    {
-        return new Referral
-        {
-            Id = Guid.NewGuid(),
-            ReferrerId = referrerId,
-            ReferredId = referredId,
-            ReferralCode = referralCode,
-            Status = ReferralStatus.PENDING,
-            RewardClaimed = false,
-            CreatedAt = DateTime.UtcNow
-        };
-    }
+    [Required]
+    public bool rewardClaimed { get; set; }
 
-    public void Complete()
-    {
-        Status = ReferralStatus.COMPLETED;
-        CompletedAt = DateTime.UtcNow;
-    }
+    public int? xpRewarded { get; set; }
 
-    public void Expire()
-    {
-        Status = ReferralStatus.EXPIRED;
-    }
+    public decimal? tokenRewarded { get; set; }
 
-    public void Cancel()
-    {
-        Status = ReferralStatus.CANCELLED;
-    }
+    [Required]
+    public DateTime createdAt { get; set; }
 
-    public void ClaimReward(int xpAmount, decimal? tokenAmount = null)
-    {
-        if (Status != ReferralStatus.COMPLETED)
-            throw new InvalidOperationException("Cannot claim reward for incomplete referral");
+    public DateTime? completedAt { get; set; }
 
-        RewardClaimed = true;
-        XpRewarded = xpAmount;
-        TokenRewarded = tokenAmount;
-    }
+    [ForeignKey("referrerId")]
+    public virtual User Referrer { get; set; }
+
+    [ForeignKey("referredId")]
+    public virtual User Referred { get; set; }
+
 }

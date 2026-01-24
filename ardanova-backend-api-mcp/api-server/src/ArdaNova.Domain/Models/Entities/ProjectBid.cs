@@ -1,84 +1,51 @@
-namespace ArdaNova.Domain.Models.Entities;
-
-using System.Text.Json.Serialization;
+using System;
+using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 using ArdaNova.Domain.Models.Enums;
 
+namespace ArdaNova.Domain.Models.Entities;
+
+[Table("ProjectBid")]
 public class ProjectBid
 {
-    public Guid Id { get; private set; }
-    public Guid ProjectId { get; private set; }
-    public Guid AgencyId { get; private set; }
-    public Guid UserId { get; private set; }
-    public string Proposal { get; private set; } = null!;
-    public string? Timeline { get; private set; }
-    public decimal Budget { get; private set; }
-    public string? Deliverables { get; private set; }
+    [Key]
+    public string id { get; set; }
 
-    [JsonConverter(typeof(JsonStringEnumConverter))]
-    public BidStatus Status { get; private set; }
+    [Required]
+    public string projectId { get; set; }
 
-    public DateTime SubmittedAt { get; private set; }
-    public DateTime? ReviewedAt { get; private set; }
+    [Required]
+    public string guildId { get; set; }
 
-    // Navigation properties
-    public Project Project { get; private set; } = null!;
-    public Agency Agency { get; private set; } = null!;
-    public User User { get; private set; } = null!;
+    [Required]
+    public string userId { get; set; }
 
-    private ProjectBid() { }
+    [Required]
+    public string proposal { get; set; }
 
-    public static ProjectBid Create(
-        Guid projectId,
-        Guid agencyId,
-        Guid userId,
-        string proposal,
-        decimal budget,
-        string? timeline = null,
-        string? deliverables = null)
-    {
-        return new ProjectBid
-        {
-            Id = Guid.NewGuid(),
-            ProjectId = projectId,
-            AgencyId = agencyId,
-            UserId = userId,
-            Proposal = proposal,
-            Budget = budget,
-            Timeline = timeline,
-            Deliverables = deliverables,
-            Status = BidStatus.SUBMITTED,
-            SubmittedAt = DateTime.UtcNow
-        };
-    }
+    public string? timeline { get; set; }
 
-    public void SubmitForReview()
-    {
-        Status = BidStatus.UNDER_REVIEW;
-        ReviewedAt = DateTime.UtcNow;
-    }
+    [Required]
+    public decimal budget { get; set; }
 
-    public void Accept()
-    {
-        Status = BidStatus.ACCEPTED;
-        ReviewedAt = DateTime.UtcNow;
-    }
+    public string? deliverables { get; set; }
 
-    public void Reject()
-    {
-        Status = BidStatus.REJECTED;
-        ReviewedAt = DateTime.UtcNow;
-    }
+    [Required]
+    public BidStatus status { get; set; }
 
-    public void Withdraw()
-    {
-        Status = BidStatus.WITHDRAWN;
-    }
+    [Required]
+    public DateTime submittedAt { get; set; }
 
-    public void UpdateProposal(string proposal, decimal budget, string? timeline, string? deliverables)
-    {
-        Proposal = proposal;
-        Budget = budget;
-        Timeline = timeline;
-        Deliverables = deliverables;
-    }
+    public DateTime? reviewedAt { get; set; }
+
+    [ForeignKey("projectId")]
+    public virtual Project Project { get; set; }
+
+    [ForeignKey("guildId")]
+    public virtual Guild Guild { get; set; }
+
+    [ForeignKey("userId")]
+    public virtual User User { get; set; }
+
 }

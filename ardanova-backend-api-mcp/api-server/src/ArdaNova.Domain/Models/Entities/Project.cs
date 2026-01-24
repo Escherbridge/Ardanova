@@ -1,226 +1,124 @@
-namespace ArdaNova.Domain.Models.Entities;
-
-using System.Text.Json.Serialization;
+using System;
+using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 using ArdaNova.Domain.Models.Enums;
 
+namespace ArdaNova.Domain.Models.Entities;
+
+[Table("Project")]
 public class Project
 {
-    public Guid Id { get; private set; }
-    public string Title { get; private set; } = null!;
-    public string Slug { get; private set; } = null!;
-    public string Description { get; private set; } = null!;
-    public string ProblemStatement { get; private set; } = null!;
-    public string Solution { get; private set; } = null!;
+    [Key]
+    public string id { get; set; }
 
-    [JsonConverter(typeof(JsonStringEnumConverter))]
-    public ProjectCategory Category { get; private set; }
+    [Required]
+    public string title { get; set; }
 
-    [JsonConverter(typeof(JsonStringEnumConverter))]
-    public ProjectStatus Status { get; private set; }
+    [Required]
+    public string slug { get; set; }
 
-    public decimal? FundingGoal { get; private set; }
-    public decimal CurrentFunding { get; private set; }
-    public int SupportersCount { get; private set; }
-    public int VotesCount { get; private set; }
-    public int ViewsCount { get; private set; }
-    public bool Featured { get; private set; }
-    public string? Tags { get; private set; }
-    public string? Images { get; private set; }
-    public string? Videos { get; private set; }
-    public string? Documents { get; private set; }
-    public string? TargetAudience { get; private set; }
-    public string? ExpectedImpact { get; private set; }
-    public string? Timeline { get; private set; }
-    public DateTime CreatedAt { get; private set; }
-    public DateTime UpdatedAt { get; private set; }
-    public DateTime? PublishedAt { get; private set; }
-    public DateTime? FundedAt { get; private set; }
-    public DateTime? CompletedAt { get; private set; }
-    public Guid CreatedById { get; private set; }
-    public Guid? AssignedAgencyId { get; private set; }
+    [Required]
+    public string description { get; set; }
 
-    // Navigation properties
-    public User CreatedBy { get; private set; } = null!;
-    public Agency? AssignedAgency { get; private set; }
-    public ICollection<ProjectTask> Tasks { get; private set; } = new List<ProjectTask>();
-    public ICollection<ProjectResource> Resources { get; private set; } = new List<ProjectResource>();
-    public ICollection<ProjectMilestone> Milestones { get; private set; } = new List<ProjectMilestone>();
-    public ICollection<ProjectSupport> Supports { get; private set; } = new List<ProjectSupport>();
-    public ICollection<ProjectApplication> Applications { get; private set; } = new List<ProjectApplication>();
-    public ICollection<ProjectComment> Comments { get; private set; } = new List<ProjectComment>();
-    public ICollection<ProjectUpdate> Updates { get; private set; } = new List<ProjectUpdate>();
-    public ICollection<ProjectBid> Bids { get; private set; } = new List<ProjectBid>();
-    public ICollection<ProjectEquity> Equity { get; private set; } = new List<ProjectEquity>();
-    public ICollection<Activity> Activities { get; private set; } = new List<Activity>();
-    public ICollection<DelegatedVote> DelegatedVotes { get; private set; } = new List<DelegatedVote>();
+    [Required]
+    public string problemStatement { get; set; }
 
-    private Project() { }
+    [Required]
+    public string solution { get; set; }
 
-    public static Project Create(
-        Guid createdById,
-        string title,
-        string description,
-        string problemStatement,
-        string solution,
-        ProjectCategory category,
-        decimal? fundingGoal = null)
-    {
-        var slug = GenerateSlug(title);
-        return new Project
-        {
-            Id = Guid.NewGuid(),
-            CreatedById = createdById,
-            Title = title,
-            Slug = slug,
-            Description = description,
-            ProblemStatement = problemStatement,
-            Solution = solution,
-            Category = category,
-            Status = ProjectStatus.DRAFT,
-            FundingGoal = fundingGoal,
-            CurrentFunding = 0,
-            SupportersCount = 0,
-            VotesCount = 0,
-            ViewsCount = 0,
-            Featured = false,
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
-        };
-    }
+    [Required]
+    public ProjectCategory category { get; set; }
 
-    private static string GenerateSlug(string title)
-    {
-        return title.ToLowerInvariant()
-            .Replace(" ", "-")
-            .Replace("--", "-")
-            + "-" + Guid.NewGuid().ToString("N")[..8];
-    }
+    [Required]
+    public ProjectStatus status { get; set; }
 
-    public void Update(string title, string description, string problemStatement, string solution, ProjectCategory category)
-    {
-        Title = title;
-        Description = description;
-        ProblemStatement = problemStatement;
-        Solution = solution;
-        Category = category;
-        UpdatedAt = DateTime.UtcNow;
-    }
+    public decimal? fundingGoal { get; set; }
 
-    public void SetMedia(string? images, string? videos, string? documents)
-    {
-        Images = images;
-        Videos = videos;
-        Documents = documents;
-        UpdatedAt = DateTime.UtcNow;
-    }
+    [Required]
+    public decimal currentFunding { get; set; }
 
-    public void SetDetails(string? tags, string? targetAudience, string? expectedImpact, string? timeline)
-    {
-        Tags = tags;
-        TargetAudience = targetAudience;
-        ExpectedImpact = expectedImpact;
-        Timeline = timeline;
-        UpdatedAt = DateTime.UtcNow;
-    }
+    [Required]
+    public int supportersCount { get; set; }
 
-    public void Publish()
-    {
-        Status = ProjectStatus.PUBLISHED;
-        PublishedAt = DateTime.UtcNow;
-        UpdatedAt = DateTime.UtcNow;
-    }
+    [Required]
+    public int votesCount { get; set; }
 
-    public void SeekSupport()
-    {
-        Status = ProjectStatus.SEEKING_SUPPORT;
-        UpdatedAt = DateTime.UtcNow;
-    }
+    [Required]
+    public int viewsCount { get; set; }
 
-    public void MarkFunded()
-    {
-        Status = ProjectStatus.FUNDED;
-        FundedAt = DateTime.UtcNow;
-        UpdatedAt = DateTime.UtcNow;
-    }
+    [Required]
+    public bool featured { get; set; }
 
-    public void StartProgress()
-    {
-        Status = ProjectStatus.IN_PROGRESS;
-        UpdatedAt = DateTime.UtcNow;
-    }
+    public string? tags { get; set; }
 
-    public void Complete()
-    {
-        Status = ProjectStatus.COMPLETED;
-        CompletedAt = DateTime.UtcNow;
-        UpdatedAt = DateTime.UtcNow;
-    }
+    public string? images { get; set; }
 
-    public void Cancel()
-    {
-        Status = ProjectStatus.CANCELLED;
-        UpdatedAt = DateTime.UtcNow;
-    }
+    public string? videos { get; set; }
 
-    public void SetStatus(ProjectStatus status)
-    {
-        switch (status)
-        {
-            case ProjectStatus.PUBLISHED:
-                Publish();
-                break;
-            case ProjectStatus.SEEKING_SUPPORT:
-                SeekSupport();
-                break;
-            case ProjectStatus.FUNDED:
-                MarkFunded();
-                break;
-            case ProjectStatus.IN_PROGRESS:
-                StartProgress();
-                break;
-            case ProjectStatus.COMPLETED:
-                Complete();
-                break;
-            case ProjectStatus.CANCELLED:
-                Cancel();
-                break;
-            default:
-                Status = status;
-                UpdatedAt = DateTime.UtcNow;
-                break;
-        }
-    }
+    public string? documents { get; set; }
 
-    public void SetFeatured(bool featured)
-    {
-        Featured = featured;
-        UpdatedAt = DateTime.UtcNow;
-    }
+    public string? targetAudience { get; set; }
 
-    public void AddFunding(decimal amount)
-    {
-        CurrentFunding += amount;
-        UpdatedAt = DateTime.UtcNow;
-    }
+    public string? expectedImpact { get; set; }
 
-    public void IncrementViews()
-    {
-        ViewsCount++;
-    }
+    public string? timeline { get; set; }
 
-    public void IncrementVotes()
-    {
-        VotesCount++;
-    }
+    [Required]
+    public DateTime createdAt { get; set; }
 
-    public void IncrementSupporters()
-    {
-        SupportersCount++;
-    }
+    [Required]
+    public DateTime updatedAt { get; set; }
 
-    public void AssignAgency(Guid agencyId)
-    {
-        AssignedAgencyId = agencyId;
-        UpdatedAt = DateTime.UtcNow;
-    }
+    public DateTime? publishedAt { get; set; }
+
+    public DateTime? fundedAt { get; set; }
+
+    public DateTime? completedAt { get; set; }
+
+    [Required]
+    public string createdById { get; set; }
+
+    public string? assignedGuildId { get; set; }
+
+    public virtual ICollection<Activity> Activitys { get; set; } = new List<Activity>();
+
+    [ForeignKey("createdById")]
+    public virtual User CreatedBy { get; set; }
+
+    [ForeignKey("assignedGuildId")]
+    public virtual Guild AssignedGuild { get; set; }
+
+    public virtual ICollection<ProjectTask> ProjectTasks { get; set; } = new List<ProjectTask>();
+
+    public virtual ICollection<ProjectResource> ProjectResources { get; set; } = new List<ProjectResource>();
+
+    public virtual ICollection<ProjectMilestone> ProjectMilestones { get; set; } = new List<ProjectMilestone>();
+
+    public virtual ICollection<ProjectSupport> ProjectSupports { get; set; } = new List<ProjectSupport>();
+
+    public virtual ICollection<ProjectApplication> ProjectApplications { get; set; } = new List<ProjectApplication>();
+
+    public virtual ICollection<ProjectComment> ProjectComments { get; set; } = new List<ProjectComment>();
+
+    public virtual ICollection<ProjectUpdate> ProjectUpdates { get; set; } = new List<ProjectUpdate>();
+
+    public virtual ICollection<Roadmap> Roadmaps { get; set; } = new List<Roadmap>();
+
+    public virtual ICollection<Sprint> Sprints { get; set; } = new List<Sprint>();
+
+    public virtual ICollection<ProjectMember> ProjectMembers { get; set; } = new List<ProjectMember>();
+
+    public virtual ICollection<Proposal> Proposals { get; set; } = new List<Proposal>();
+
+    public virtual ICollection<DelegatedVote> DelegatedVotes { get; set; } = new List<DelegatedVote>();
+
+    public virtual ICollection<ProjectBid> ProjectBids { get; set; } = new List<ProjectBid>();
+
+    public virtual ICollection<ProjectToken> ProjectTokens { get; set; } = new List<ProjectToken>();
+
+    public virtual ICollection<ProjectEquity> ProjectEquitys { get; set; } = new List<ProjectEquity>();
+
+    public virtual ICollection<Treasury> Treasurys { get; set; } = new List<Treasury>();
+
 }

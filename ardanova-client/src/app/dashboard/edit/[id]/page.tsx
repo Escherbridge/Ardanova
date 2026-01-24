@@ -4,9 +4,9 @@ import { api } from "~/trpc/server";
 import { ProjectForm } from "~/components/project-form";
 
 interface EditProjectPageProps {
-  params: {
+  params: Promise<{
     id: string;
-  };
+  }>;
 }
 
 export default async function EditProjectPage({ params }: EditProjectPageProps) {
@@ -16,8 +16,10 @@ export default async function EditProjectPage({ params }: EditProjectPageProps) 
     redirect("/api/auth/signin");
   }
 
+  const { id } = await params;
+
   // Fetch the project to edit
-  const project = await api.project.getById({ id: params.id });
+  const project = await api.project.getById({ id });
 
   // Check if user owns the project
   if (project.createdById !== session.user.id) {
@@ -26,9 +28,9 @@ export default async function EditProjectPage({ params }: EditProjectPageProps) 
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <ProjectForm 
-        mode="edit" 
-        project={project} 
+      <ProjectForm
+        mode="edit"
+        project={project}
       />
     </div>
   );

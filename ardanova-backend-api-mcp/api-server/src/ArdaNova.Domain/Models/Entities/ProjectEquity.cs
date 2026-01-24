@@ -1,40 +1,36 @@
+using System;
+using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
+using ArdaNova.Domain.Models.Enums;
+
 namespace ArdaNova.Domain.Models.Entities;
 
+[Table("ProjectEquity")]
 public class ProjectEquity
 {
-    public Guid Id { get; private set; }
-    public Guid ProjectId { get; private set; }
-    public Guid UserId { get; private set; }
-    public decimal SharePercent { get; private set; }
-    public decimal InvestmentAmount { get; private set; }
-    public DateTime GrantedAt { get; private set; }
+    [Key]
+    public string id { get; set; }
 
-    // Navigation properties
-    public Project Project { get; private set; } = null!;
-    public User User { get; private set; } = null!;
+    [Required]
+    public string projectId { get; set; }
 
-    private ProjectEquity() { }
+    [Required]
+    public string userId { get; set; }
 
-    public static ProjectEquity Create(
-        Guid projectId,
-        Guid userId,
-        decimal sharePercent,
-        decimal investmentAmount)
-    {
-        return new ProjectEquity
-        {
-            Id = Guid.NewGuid(),
-            ProjectId = projectId,
-            UserId = userId,
-            SharePercent = sharePercent,
-            InvestmentAmount = investmentAmount,
-            GrantedAt = DateTime.UtcNow
-        };
-    }
+    [Required]
+    public decimal sharePercent { get; set; }
 
-    public void UpdateShare(decimal sharePercent, decimal investmentAmount)
-    {
-        SharePercent = sharePercent;
-        InvestmentAmount = investmentAmount;
-    }
+    [Required]
+    public decimal investmentAmount { get; set; }
+
+    [Required]
+    public DateTime grantedAt { get; set; }
+
+    [ForeignKey("projectId")]
+    public virtual Project Project { get; set; }
+
+    [ForeignKey("userId")]
+    public virtual User User { get; set; }
+
 }

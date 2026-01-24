@@ -1,0 +1,57 @@
+using System;
+using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
+using ArdaNova.Domain.Models.Enums;
+
+namespace ArdaNova.Domain.Models.Entities;
+
+[Table("Shop")]
+public class Shop
+{
+    [Key]
+    public string id { get; set; }
+
+    [Required]
+    public string name { get; set; }
+
+    public string? description { get; set; }
+
+    public string? address { get; set; }
+
+    public string? phone { get; set; }
+
+    public string? email { get; set; }
+
+    public string? website { get; set; }
+
+    public string? logo { get; set; }
+
+    [Required]
+    public bool isActive { get; set; }
+
+    [Required]
+    public DateTime createdAt { get; set; }
+
+    [Required]
+    public DateTime updatedAt { get; set; }
+
+    [Required]
+    public string ownerId { get; set; }
+
+    [ForeignKey("ownerId")]
+    public virtual User Owner { get; set; }
+
+    public virtual ICollection<Product> Products { get; set; } = new List<Product>();
+
+    public virtual ICollection<Invoice> Invoices { get; set; } = new List<Invoice>();
+
+    public virtual ICollection<Sale> Sales { get; set; } = new List<Sale>();
+
+    public virtual ICollection<InventoryItem> InventoryItems { get; set; } = new List<InventoryItem>();
+
+    public virtual ICollection<MarketingCampaign> MarketingCampaigns { get; set; } = new List<MarketingCampaign>();
+
+    public virtual ICollection<ShopAnalytics> ShopAnalytics { get; set; } = new List<ShopAnalytics>();
+
+}

@@ -1,75 +1,54 @@
+using System;
+using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
+using ArdaNova.Domain.Models.Enums;
+
 namespace ArdaNova.Domain.Models.Entities;
 
+[Table("Product")]
 public class Product
 {
-    public Guid Id { get; private set; }
-    public Guid BusinessId { get; private set; }
-    public string Name { get; private set; } = null!;
-    public string? Description { get; private set; }
-    public string? Sku { get; private set; }
-    public decimal Price { get; private set; }
-    public decimal? Cost { get; private set; }
-    public string? Category { get; private set; }
-    public bool IsActive { get; private set; }
-    public DateTime CreatedAt { get; private set; }
-    public DateTime UpdatedAt { get; private set; }
-    public Guid UserId { get; private set; }
+    [Key]
+    public string id { get; set; }
 
-    // Navigation properties
-    public Business Business { get; private set; } = null!;
-    public User User { get; private set; } = null!;
-    public InventoryItem? InventoryItem { get; private set; }
-    public ICollection<SaleItem> SaleItems { get; private set; } = new List<SaleItem>();
+    [Required]
+    public string shopId { get; set; }
 
-    private Product() { }
+    [Required]
+    public string name { get; set; }
 
-    public static Product Create(
-        Guid businessId,
-        Guid userId,
-        string name,
-        decimal price,
-        string? description = null,
-        string? sku = null,
-        decimal? cost = null,
-        string? category = null)
-    {
-        return new Product
-        {
-            Id = Guid.NewGuid(),
-            BusinessId = businessId,
-            UserId = userId,
-            Name = name,
-            Price = price,
-            Description = description,
-            Sku = sku,
-            Cost = cost,
-            Category = category,
-            IsActive = true,
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
-        };
-    }
+    public string? description { get; set; }
 
-    public void Update(string name, string? description, string? sku, decimal price, decimal? cost, string? category)
-    {
-        Name = name;
-        Description = description;
-        Sku = sku;
-        Price = price;
-        Cost = cost;
-        Category = category;
-        UpdatedAt = DateTime.UtcNow;
-    }
+    public string? sku { get; set; }
 
-    public void Activate()
-    {
-        IsActive = true;
-        UpdatedAt = DateTime.UtcNow;
-    }
+    [Required]
+    public decimal price { get; set; }
 
-    public void Deactivate()
-    {
-        IsActive = false;
-        UpdatedAt = DateTime.UtcNow;
-    }
+    public decimal? cost { get; set; }
+
+    public string? category { get; set; }
+
+    [Required]
+    public bool isActive { get; set; }
+
+    [Required]
+    public DateTime createdAt { get; set; }
+
+    [Required]
+    public DateTime updatedAt { get; set; }
+
+    [Required]
+    public string userId { get; set; }
+
+    [ForeignKey("shopId")]
+    public virtual Shop Shop { get; set; }
+
+    [ForeignKey("userId")]
+    public virtual User User { get; set; }
+
+    public virtual ICollection<SaleItem> SaleItems { get; set; } = new List<SaleItem>();
+
+    public virtual ICollection<InventoryItem> InventoryItems { get; set; } = new List<InventoryItem>();
+
 }

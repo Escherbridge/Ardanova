@@ -1,72 +1,49 @@
-namespace ArdaNova.Domain.Models.Entities;
-
-using System.Text.Json.Serialization;
+using System;
+using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 using ArdaNova.Domain.Models.Enums;
 
+namespace ArdaNova.Domain.Models.Entities;
+
+[Table("ProjectApplication")]
 public class ProjectApplication
 {
-    public Guid Id { get; private set; }
-    public Guid ProjectId { get; private set; }
-    public Guid UserId { get; private set; }
-    public string RoleTitle { get; private set; } = null!;
-    public string Message { get; private set; } = null!;
-    public string? Skills { get; private set; }
-    public string? Experience { get; private set; }
-    public string? Availability { get; private set; }
+    [Key]
+    public string id { get; set; }
 
-    [JsonConverter(typeof(JsonStringEnumConverter))]
-    public ApplicationStatus Status { get; private set; }
+    [Required]
+    public string projectId { get; set; }
 
-    public DateTime AppliedAt { get; private set; }
-    public DateTime? ReviewedAt { get; private set; }
-    public string? ReviewMessage { get; private set; }
+    [Required]
+    public string userId { get; set; }
 
-    // Navigation properties
-    public Project Project { get; private set; } = null!;
-    public User User { get; private set; } = null!;
+    [Required]
+    public string roleTitle { get; set; }
 
-    private ProjectApplication() { }
+    [Required]
+    public string message { get; set; }
 
-    public static ProjectApplication Create(
-        Guid projectId,
-        Guid userId,
-        string roleTitle,
-        string message,
-        string? skills = null,
-        string? experience = null,
-        string? availability = null)
-    {
-        return new ProjectApplication
-        {
-            Id = Guid.NewGuid(),
-            ProjectId = projectId,
-            UserId = userId,
-            RoleTitle = roleTitle,
-            Message = message,
-            Skills = skills,
-            Experience = experience,
-            Availability = availability,
-            Status = ApplicationStatus.PENDING,
-            AppliedAt = DateTime.UtcNow
-        };
-    }
+    public string? skills { get; set; }
 
-    public void Accept(string? reviewMessage = null)
-    {
-        Status = ApplicationStatus.ACCEPTED;
-        ReviewMessage = reviewMessage;
-        ReviewedAt = DateTime.UtcNow;
-    }
+    public string? experience { get; set; }
 
-    public void Reject(string? reviewMessage = null)
-    {
-        Status = ApplicationStatus.REJECTED;
-        ReviewMessage = reviewMessage;
-        ReviewedAt = DateTime.UtcNow;
-    }
+    public string? availability { get; set; }
 
-    public void Withdraw()
-    {
-        Status = ApplicationStatus.WITHDRAWN;
-    }
+    [Required]
+    public ApplicationStatus status { get; set; }
+
+    [Required]
+    public DateTime appliedAt { get; set; }
+
+    public DateTime? reviewedAt { get; set; }
+
+    public string? reviewMessage { get; set; }
+
+    [ForeignKey("projectId")]
+    public virtual Project Project { get; set; }
+
+    [ForeignKey("userId")]
+    public virtual User User { get; set; }
+
 }

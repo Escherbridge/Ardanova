@@ -1,32 +1,27 @@
+using System;
+using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
+using ArdaNova.Domain.Models.Enums;
+
 namespace ArdaNova.Domain.Models.Entities;
 
+[Table("Session")]
 public class Session
 {
-    public Guid Id { get; private set; }
-    public string SessionToken { get; private set; } = null!;
-    public Guid UserId { get; private set; }
-    public DateTime Expires { get; private set; }
+    [Key]
+    public string id { get; set; }
 
-    // Navigation property
-    public User User { get; private set; } = null!;
+    [Required]
+    public string sessionToken { get; set; }
 
-    private Session() { }
+    [Required]
+    public string userId { get; set; }
 
-    public static Session Create(Guid userId, string sessionToken, DateTime expires)
-    {
-        return new Session
-        {
-            Id = Guid.NewGuid(),
-            UserId = userId,
-            SessionToken = sessionToken,
-            Expires = expires
-        };
-    }
+    [Required]
+    public DateTime expires { get; set; }
 
-    public void ExtendSession(DateTime newExpires)
-    {
-        Expires = newExpires;
-    }
+    [ForeignKey("userId")]
+    public virtual User User { get; set; }
 
-    public bool IsExpired() => DateTime.UtcNow > Expires;
 }

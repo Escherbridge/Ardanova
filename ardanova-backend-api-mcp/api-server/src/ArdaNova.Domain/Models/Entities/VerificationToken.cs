@@ -1,22 +1,24 @@
+using System;
+using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
+using ArdaNova.Domain.Models.Enums;
+
 namespace ArdaNova.Domain.Models.Entities;
 
+[Table("VerificationToken")]
 public class VerificationToken
 {
-    public string Identifier { get; private set; } = null!;
-    public string Token { get; private set; } = null!;
-    public DateTime Expires { get; private set; }
+    [Required]
+    public string identifier { get; set; }
 
-    private VerificationToken() { }
+    [Required]
+    public string token { get; set; }
 
-    public static VerificationToken Create(string identifier, string token, DateTime expires)
-    {
-        return new VerificationToken
-        {
-            Identifier = identifier,
-            Token = token,
-            Expires = expires
-        };
-    }
+    [Required]
+    public DateTime expires { get; set; }
 
-    public bool IsExpired() => DateTime.UtcNow > Expires;
+    [ForeignKey("identifier")]
+    public virtual User User { get; set; }
+
 }

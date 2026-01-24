@@ -7,5 +7,5 @@ public enum UserType
     VOLUNTEER,
     FREELANCER,
     SME_OWNER,
-    AGENCY_MEMBER
+    GUILD_MEMBER
 }

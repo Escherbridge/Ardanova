@@ -1,40 +1,36 @@
+using System;
+using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
+using ArdaNova.Domain.Models.Enums;
+
 namespace ArdaNova.Domain.Models.Entities;
 
+[Table("SaleItem")]
 public class SaleItem
 {
-    public Guid Id { get; private set; }
-    public Guid SaleId { get; private set; }
-    public Guid ProductId { get; private set; }
-    public int Quantity { get; private set; }
-    public decimal Price { get; private set; }
-    public decimal Total { get; private set; }
+    [Key]
+    public string id { get; set; }
 
-    // Navigation properties
-    public Sale Sale { get; private set; } = null!;
-    public Product Product { get; private set; } = null!;
+    [Required]
+    public string saleId { get; set; }
 
-    private SaleItem() { }
+    [Required]
+    public string productId { get; set; }
 
-    public static SaleItem Create(
-        Guid saleId,
-        Guid productId,
-        int quantity,
-        decimal price)
-    {
-        return new SaleItem
-        {
-            Id = Guid.NewGuid(),
-            SaleId = saleId,
-            ProductId = productId,
-            Quantity = quantity,
-            Price = price,
-            Total = quantity * price
-        };
-    }
+    [Required]
+    public int quantity { get; set; }
 
-    public void UpdateQuantity(int quantity)
-    {
-        Quantity = quantity;
-        Total = Quantity * Price;
-    }
+    [Required]
+    public decimal price { get; set; }
+
+    [Required]
+    public decimal total { get; set; }
+
+    [ForeignKey("saleId")]
+    public virtual Sale Sale { get; set; }
+
+    [ForeignKey("productId")]
+    public virtual Product Product { get; set; }
+
 }

@@ -1,24 +1,27 @@
+using System;
+using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
+using ArdaNova.Domain.Models.Enums;
+
 namespace ArdaNova.Domain.Models.Entities;
 
+[Table("ProjectTaskDependency")]
 public class ProjectTaskDependency
 {
-    public Guid Id { get; private set; }
-    public Guid TaskId { get; private set; }
-    public Guid DependsOnId { get; private set; }
+    [Key]
+    public string id { get; set; }
 
-    // Navigation properties
-    public ProjectTask Task { get; private set; } = null!;
-    public ProjectTask DependsOn { get; private set; } = null!;
+    [Required]
+    public string taskId { get; set; }
 
-    private ProjectTaskDependency() { }
+    [Required]
+    public string dependsOnId { get; set; }
 
-    public static ProjectTaskDependency Create(Guid taskId, Guid dependsOnId)
-    {
-        return new ProjectTaskDependency
-        {
-            Id = Guid.NewGuid(),
-            TaskId = taskId,
-            DependsOnId = dependsOnId
-        };
-    }
+    [ForeignKey("taskId")]
+    public virtual ProjectTask Task { get; set; }
+
+    [ForeignKey("dependsOnId")]
+    public virtual ProjectTask DependsOn { get; set; }
+
 }

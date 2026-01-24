@@ -1,55 +1,42 @@
+using System;
+using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
+using ArdaNova.Domain.Models.Enums;
+
 namespace ArdaNova.Domain.Models.Entities;
 
+[Table("LiquidityProvider")]
 public class LiquidityProvider
 {
-    public Guid Id { get; private set; }
-    public Guid PoolId { get; private set; }
-    public Guid UserId { get; private set; }
-    public decimal Shares { get; private set; }
-    public decimal Token1In { get; private set; }
-    public decimal Token2In { get; private set; }
-    public DateTime CreatedAt { get; private set; }
-    public DateTime UpdatedAt { get; private set; }
+    [Key]
+    public string id { get; set; }
 
-    // Navigation
-    public LiquidityPool Pool { get; private set; } = null!;
-    public User User { get; private set; } = null!;
+    [Required]
+    public string poolId { get; set; }
 
-    private LiquidityProvider() { }
+    [Required]
+    public string userId { get; set; }
 
-    public static LiquidityProvider Create(
-        Guid poolId,
-        Guid userId,
-        decimal shares,
-        decimal token1In,
-        decimal token2In)
-    {
-        return new LiquidityProvider
-        {
-            Id = Guid.NewGuid(),
-            PoolId = poolId,
-            UserId = userId,
-            Shares = shares,
-            Token1In = token1In,
-            Token2In = token2In,
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
-        };
-    }
+    [Required]
+    public decimal shares { get; set; }
 
-    public void AddLiquidity(decimal additionalShares, decimal token1, decimal token2)
-    {
-        Shares += additionalShares;
-        Token1In += token1;
-        Token2In += token2;
-        UpdatedAt = DateTime.UtcNow;
-    }
+    [Required]
+    public decimal token1In { get; set; }
 
-    public void RemoveLiquidity(decimal sharesToRemove, decimal token1, decimal token2)
-    {
-        Shares -= sharesToRemove;
-        Token1In -= token1;
-        Token2In -= token2;
-        UpdatedAt = DateTime.UtcNow;
-    }
+    [Required]
+    public decimal token2In { get; set; }
+
+    [Required]
+    public DateTime createdAt { get; set; }
+
+    [Required]
+    public DateTime updatedAt { get; set; }
+
+    [ForeignKey("poolId")]
+    public virtual LiquidityPool Pool { get; set; }
+
+    [ForeignKey("userId")]
+    public virtual User User { get; set; }
+
 }

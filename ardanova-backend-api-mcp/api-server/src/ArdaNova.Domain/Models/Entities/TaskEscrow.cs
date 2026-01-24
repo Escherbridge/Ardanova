@@ -1,73 +1,54 @@
-namespace ArdaNova.Domain.Models.Entities;
-
-using System.Text.Json.Serialization;
+using System;
+using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 using ArdaNova.Domain.Models.Enums;
 
+namespace ArdaNova.Domain.Models.Entities;
+
+[Table("TaskEscrow")]
 public class TaskEscrow
 {
-    public Guid Id { get; private set; }
-    public Guid TaskId { get; private set; }
-    public Guid FunderId { get; private set; }
-    public Guid TokenId { get; private set; }
-    public decimal Amount { get; private set; }
+    [Key]
+    public string id { get; set; }
 
-    [JsonConverter(typeof(JsonStringEnumConverter))]
-    public EscrowStatus Status { get; private set; }
+    [Required]
+    public string taskId { get; set; }
 
-    public string? TxHashFund { get; private set; }
-    public string? TxHashRelease { get; private set; }
-    public string? TxHashRefund { get; private set; }
-    public DateTime CreatedAt { get; private set; }
-    public DateTime? FundedAt { get; private set; }
-    public DateTime? ReleasedAt { get; private set; }
-    public DateTime? RefundedAt { get; private set; }
+    [Required]
+    public string funderId { get; set; }
 
-    // Navigation
-    public ProjectTask Task { get; private set; } = null!;
-    public User Funder { get; private set; } = null!;
+    [Required]
+    public string tokenId { get; set; }
 
-    private TaskEscrow() { }
+    [Required]
+    public decimal amount { get; set; }
 
-    public static TaskEscrow Create(
-        Guid taskId,
-        Guid funderId,
-        Guid tokenId,
-        decimal amount)
-    {
-        return new TaskEscrow
-        {
-            Id = Guid.NewGuid(),
-            TaskId = taskId,
-            FunderId = funderId,
-            TokenId = tokenId,
-            Amount = amount,
-            Status = EscrowStatus.FUNDED,
-            CreatedAt = DateTime.UtcNow,
-            FundedAt = DateTime.UtcNow
-        };
-    }
+    [Required]
+    public EscrowStatus status { get; set; }
 
-    public void SetFundTxHash(string txHash)
-    {
-        TxHashFund = txHash;
-    }
+    public string? txHashFund { get; set; }
 
-    public void Release(string? txHash = null)
-    {
-        Status = EscrowStatus.RELEASED;
-        TxHashRelease = txHash;
-        ReleasedAt = DateTime.UtcNow;
-    }
+    public string? txHashRelease { get; set; }
 
-    public void Dispute()
-    {
-        Status = EscrowStatus.DISPUTED;
-    }
+    public string? txHashRefund { get; set; }
 
-    public void Refund(string? txHash = null)
-    {
-        Status = EscrowStatus.REFUNDED;
-        TxHashRefund = txHash;
-        RefundedAt = DateTime.UtcNow;
-    }
+    [Required]
+    public DateTime createdAt { get; set; }
+
+    public DateTime? fundedAt { get; set; }
+
+    public DateTime? releasedAt { get; set; }
+
+    public DateTime? refundedAt { get; set; }
+
+    [ForeignKey("taskId")]
+    public virtual ProjectTask Task { get; set; }
+
+    [ForeignKey("funderId")]
+    public virtual User Funder { get; set; }
+
+    [ForeignKey("tokenId")]
+    public virtual ProjectToken Token { get; set; }
+
 }

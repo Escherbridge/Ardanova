@@ -1,139 +1,162 @@
-namespace ArdaNova.Domain.Models.Entities;
-
-using System.Text.Json.Serialization;
+using System;
+using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 using ArdaNova.Domain.Models.Enums;
 
+namespace ArdaNova.Domain.Models.Entities;
+
+[Table("User")]
 public class User
 {
-    public Guid Id { get; private set; }
-    public string Email { get; private set; } = null!;
-    public DateTime? EmailVerified { get; private set; }
-    public string? Name { get; private set; }
-    public string? Image { get; private set; }
-    public string? Bio { get; private set; }
-    public string? Location { get; private set; }
-    public string? Phone { get; private set; }
-    public string? Website { get; private set; }
-    public string? LinkedIn { get; private set; }
-    public string? Twitter { get; private set; }
+    [Key]
+    public string id { get; set; }
 
-    [JsonConverter(typeof(JsonStringEnumConverter))]
-    public UserRole Role { get; private set; }
+    [Required]
+    public string email { get; set; }
 
-    [JsonConverter(typeof(JsonStringEnumConverter))]
-    public UserType UserType { get; private set; }
+    public DateTime? emailVerified { get; set; }
 
-    public bool IsVerified { get; private set; }
-    public DateTime CreatedAt { get; private set; }
-    public DateTime UpdatedAt { get; private set; }
+    public string? name { get; set; }
 
-    // Navigation properties
-    public ICollection<Account> Accounts { get; private set; } = new List<Account>();
-    public ICollection<Session> Sessions { get; private set; } = new List<Session>();
-    public ICollection<UserSkill> Skills { get; private set; } = new List<UserSkill>();
-    public ICollection<UserExperience> Experiences { get; private set; } = new List<UserExperience>();
-    public ICollection<Project> Projects { get; private set; } = new List<Project>();
-    public ICollection<ProjectSupport> ProjectSupports { get; private set; } = new List<ProjectSupport>();
-    public ICollection<ProjectApplication> ProjectApplications { get; private set; } = new List<ProjectApplication>();
-    public ICollection<ProjectComment> ProjectComments { get; private set; } = new List<ProjectComment>();
-    public ICollection<ProjectUpdate> ProjectUpdates { get; private set; } = new List<ProjectUpdate>();
-    public ICollection<ProjectTask> AssignedTasks { get; private set; } = new List<ProjectTask>();
-    public Agency? Agency { get; private set; }
-    public ICollection<AgencyMember> AgencyMembers { get; private set; } = new List<AgencyMember>();
-    public ICollection<ProjectBid> Bids { get; private set; } = new List<ProjectBid>();
-    public ICollection<AgencyReview> GivenReviews { get; private set; } = new List<AgencyReview>();
-    public ICollection<ProjectEquity> ProjectEquity { get; private set; } = new List<ProjectEquity>();
-    public ICollection<Business> Businesses { get; private set; } = new List<Business>();
-    public ICollection<Invoice> Invoices { get; private set; } = new List<Invoice>();
-    public ICollection<Customer> Customers { get; private set; } = new List<Customer>();
-    public ICollection<Product> Products { get; private set; } = new List<Product>();
-    public ICollection<Sale> Sales { get; private set; } = new List<Sale>();
-    public ICollection<InventoryItem> InventoryItems { get; private set; } = new List<InventoryItem>();
-    public ICollection<MarketingCampaign> MarketingCampaigns { get; private set; } = new List<MarketingCampaign>();
+    public string? image { get; set; }
 
-    // Wallet relations
-    public ICollection<Wallet> Wallets { get; private set; } = new List<Wallet>();
+    public string? bio { get; set; }
 
-    // Task Escrow relations
-    public ICollection<TaskEscrow> FundedEscrows { get; private set; } = new List<TaskEscrow>();
+    public string? location { get; set; }
 
-    // Gamification extended relations
-    public ICollection<UserStreak> Streaks { get; private set; } = new List<UserStreak>();
-    public ICollection<Referral> Referrals { get; private set; } = new List<Referral>();
-    public ICollection<Referral> ReferredBy { get; private set; } = new List<Referral>();
+    public string? phone { get; set; }
 
-    // Notification & Activity relations
-    public ICollection<Notification> Notifications { get; private set; } = new List<Notification>();
-    public ICollection<Activity> Activities { get; private set; } = new List<Activity>();
+    public string? website { get; set; }
 
-    // Governance relations
-    public ICollection<DelegatedVote> DelegatedVotesGiven { get; private set; } = new List<DelegatedVote>();
-    public ICollection<DelegatedVote> DelegatedVotesReceived { get; private set; } = new List<DelegatedVote>();
+    public string? linkedIn { get; set; }
 
-    // Exchange relations
-    public ICollection<TokenSwap> TokenSwaps { get; private set; } = new List<TokenSwap>();
-    public ICollection<LiquidityProvider> LiquidityProvisions { get; private set; } = new List<LiquidityProvider>();
+    public string? twitter { get; set; }
 
-    private User() { }
+    [Required]
+    public UserRole role { get; set; }
 
-    public static User Create(
-        string email,
-        UserRole role = UserRole.INDIVIDUAL,
-        UserType userType = UserType.INNOVATOR,
-        string? name = null)
-    {
-        return new User
-        {
-            Id = Guid.NewGuid(),
-            Email = email,
-            Role = role,
-            UserType = userType,
-            Name = name,
-            IsVerified = false,
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
-        };
-    }
+    [Required]
+    public UserType userType { get; set; }
 
-    public void UpdateProfile(string? name, string? bio, string? location, string? phone, string? website)
-    {
-        Name = name;
-        Bio = bio;
-        Location = location;
-        Phone = phone;
-        Website = website;
-        UpdatedAt = DateTime.UtcNow;
-    }
+    [Required]
+    public bool isVerified { get; set; }
 
-    public void UpdateSocialLinks(string? linkedIn, string? twitter)
-    {
-        LinkedIn = linkedIn;
-        Twitter = twitter;
-        UpdatedAt = DateTime.UtcNow;
-    }
+    [Required]
+    public int totalXP { get; set; }
 
-    public void SetImage(string? image)
-    {
-        Image = image;
-        UpdatedAt = DateTime.UtcNow;
-    }
+    [Required]
+    public int level { get; set; }
 
-    public void Verify()
-    {
-        IsVerified = true;
-        EmailVerified = DateTime.UtcNow;
-        UpdatedAt = DateTime.UtcNow;
-    }
+    [Required]
+    public UserTier tier { get; set; }
 
-    public void ChangeRole(UserRole role)
-    {
-        Role = role;
-        UpdatedAt = DateTime.UtcNow;
-    }
+    [Required]
+    public decimal trustScore { get; set; }
 
-    public void ChangeUserType(UserType userType)
-    {
-        UserType = userType;
-        UpdatedAt = DateTime.UtcNow;
-    }
+    [Required]
+    public VerificationLevel verificationLevel { get; set; }
+
+    [Required]
+    public DateTime createdAt { get; set; }
+
+    [Required]
+    public DateTime updatedAt { get; set; }
+
+    public virtual ICollection<Account> Accounts { get; set; } = new List<Account>();
+
+    public virtual ICollection<Session> Sessions { get; set; } = new List<Session>();
+
+    public virtual ICollection<UserSkill> UserSkills { get; set; } = new List<UserSkill>();
+
+    public virtual ICollection<UserExperience> UserExperiences { get; set; } = new List<UserExperience>();
+
+    public virtual ICollection<VerificationToken> VerificationTokens { get; set; } = new List<VerificationToken>();
+
+    public virtual ICollection<Notification> Notifications { get; set; } = new List<Notification>();
+
+    public virtual ICollection<Activity> Activitys { get; set; } = new List<Activity>();
+
+    public virtual ICollection<XPEvent> XPEvents { get; set; } = new List<XPEvent>();
+
+    public virtual ICollection<UserAchievement> UserAchievements { get; set; } = new List<UserAchievement>();
+
+    public virtual ICollection<LeaderboardEntry> LeaderboardEntrys { get; set; } = new List<LeaderboardEntry>();
+
+    public virtual ICollection<UserStreak> UserStreaks { get; set; } = new List<UserStreak>();
+
+    public virtual ICollection<Referral> ReferralsMade { get; set; } = new List<Referral>();
+
+    public virtual ICollection<Referral> ReferralsReceived { get; set; } = new List<Referral>();
+
+    public virtual ICollection<Project> Projects { get; set; } = new List<Project>();
+
+    public virtual ICollection<ProjectTask> ProjectTasks { get; set; } = new List<ProjectTask>();
+
+    public virtual ICollection<ProjectSupport> ProjectSupports { get; set; } = new List<ProjectSupport>();
+
+    public virtual ICollection<ProjectApplication> ProjectApplications { get; set; } = new List<ProjectApplication>();
+
+    public virtual ICollection<ProjectComment> ProjectComments { get; set; } = new List<ProjectComment>();
+
+    public virtual ICollection<ProjectUpdate> ProjectUpdates { get; set; } = new List<ProjectUpdate>();
+
+    public virtual ICollection<ProjectMember> ProjectMembers { get; set; } = new List<ProjectMember>();
+
+    public virtual ICollection<TaskSubmission> TaskSubmissions { get; set; } = new List<TaskSubmission>();
+
+    public virtual ICollection<TaskSubmission> ReviewedTaskSubmissions { get; set; } = new List<TaskSubmission>();
+
+    public virtual ICollection<Proposal> Proposals { get; set; } = new List<Proposal>();
+
+    public virtual ICollection<Vote> Votes { get; set; } = new List<Vote>();
+
+    public virtual ICollection<DelegatedVote> DelegatedVotesGiven { get; set; } = new List<DelegatedVote>();
+
+    public virtual ICollection<DelegatedVote> DelegatedVotesReceived { get; set; } = new List<DelegatedVote>();
+
+    public virtual ICollection<Guild> Guilds { get; set; } = new List<Guild>();
+
+    public virtual ICollection<GuildMember> GuildMembers { get; set; } = new List<GuildMember>();
+
+    public virtual ICollection<ProjectBid> ProjectBids { get; set; } = new List<ProjectBid>();
+
+    public virtual ICollection<GuildReview> GuildReviews { get; set; } = new List<GuildReview>();
+
+    public virtual ICollection<Shop> Shops { get; set; } = new List<Shop>();
+
+    public virtual ICollection<Product> Products { get; set; } = new List<Product>();
+
+    public virtual ICollection<Invoice> InvoicesCreated { get; set; } = new List<Invoice>();
+
+    public virtual ICollection<Invoice> InvoicesReceived { get; set; } = new List<Invoice>();
+
+    public virtual ICollection<Sale> SalesAsSeller { get; set; } = new List<Sale>();
+
+    public virtual ICollection<Sale> SalesAsBuyer { get; set; } = new List<Sale>();
+
+    public virtual ICollection<InventoryItem> InventoryItems { get; set; } = new List<InventoryItem>();
+
+    public virtual ICollection<MarketingCampaign> MarketingCampaigns { get; set; } = new List<MarketingCampaign>();
+
+    public virtual ICollection<ProjectEquity> ProjectEquitys { get; set; } = new List<ProjectEquity>();
+
+    public virtual ICollection<TokenHolder> TokenHolders { get; set; } = new List<TokenHolder>();
+
+    public virtual ICollection<ICOContribution> ICOContributions { get; set; } = new List<ICOContribution>();
+
+    public virtual ICollection<Wallet> Wallets { get; set; } = new List<Wallet>();
+
+    public virtual ICollection<TaskEscrow> TaskEscrows { get; set; } = new List<TaskEscrow>();
+
+    public virtual ICollection<TokenSwap> TokenSwaps { get; set; } = new List<TokenSwap>();
+
+    public virtual ICollection<LiquidityProvider> LiquidityProviders { get; set; } = new List<LiquidityProvider>();
+
+    public virtual ICollection<ChatMessage> SentChatMessages { get; set; } = new List<ChatMessage>();
+
+    public virtual ICollection<ChatMessage> ReceivedChatMessages { get; set; } = new List<ChatMessage>();
+
+    public virtual ICollection<Attachment> Attachments { get; set; } = new List<Attachment>();
+
 }

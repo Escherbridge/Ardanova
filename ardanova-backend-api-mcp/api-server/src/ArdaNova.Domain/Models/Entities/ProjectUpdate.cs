@@ -1,37 +1,38 @@
+using System;
+using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
+using ArdaNova.Domain.Models.Enums;
+
 namespace ArdaNova.Domain.Models.Entities;
 
+[Table("ProjectUpdate")]
 public class ProjectUpdate
 {
-    public Guid Id { get; private set; }
-    public Guid ProjectId { get; private set; }
-    public Guid UserId { get; private set; }
-    public string Title { get; private set; } = null!;
-    public string Content { get; private set; } = null!;
-    public string? Images { get; private set; }
-    public DateTime CreatedAt { get; private set; }
+    [Key]
+    public string id { get; set; }
 
-    // Navigation properties
-    public Project Project { get; private set; } = null!;
-    public User User { get; private set; } = null!;
+    [Required]
+    public string projectId { get; set; }
 
-    private ProjectUpdate() { }
+    [Required]
+    public string userId { get; set; }
 
-    public static ProjectUpdate Create(
-        Guid projectId,
-        Guid userId,
-        string title,
-        string content,
-        string? images = null)
-    {
-        return new ProjectUpdate
-        {
-            Id = Guid.NewGuid(),
-            ProjectId = projectId,
-            UserId = userId,
-            Title = title,
-            Content = content,
-            Images = images,
-            CreatedAt = DateTime.UtcNow
-        };
-    }
+    [Required]
+    public string title { get; set; }
+
+    [Required]
+    public string content { get; set; }
+
+    public string? images { get; set; }
+
+    [Required]
+    public DateTime createdAt { get; set; }
+
+    [ForeignKey("projectId")]
+    public virtual Project Project { get; set; }
+
+    [ForeignKey("userId")]
+    public virtual User User { get; set; }
+
 }

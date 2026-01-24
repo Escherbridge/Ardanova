@@ -1,55 +1,37 @@
+using System;
+using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
+using ArdaNova.Domain.Models.Enums;
+
 namespace ArdaNova.Domain.Models.Entities;
 
+[Table("ProjectMilestone")]
 public class ProjectMilestone
 {
-    public Guid Id { get; private set; }
-    public Guid ProjectId { get; private set; }
-    public string Title { get; private set; } = null!;
-    public string? Description { get; private set; }
-    public DateTime TargetDate { get; private set; }
-    public DateTime? CompletedAt { get; private set; }
-    public bool IsCompleted { get; private set; }
-    public DateTime CreatedAt { get; private set; }
+    [Key]
+    public string id { get; set; }
 
-    // Navigation property
-    public Project Project { get; private set; } = null!;
+    [Required]
+    public string projectId { get; set; }
 
-    private ProjectMilestone() { }
+    [Required]
+    public string title { get; set; }
 
-    public static ProjectMilestone Create(
-        Guid projectId,
-        string title,
-        DateTime targetDate,
-        string? description = null)
-    {
-        return new ProjectMilestone
-        {
-            Id = Guid.NewGuid(),
-            ProjectId = projectId,
-            Title = title,
-            Description = description,
-            TargetDate = targetDate,
-            IsCompleted = false,
-            CreatedAt = DateTime.UtcNow
-        };
-    }
+    public string? description { get; set; }
 
-    public void Update(string title, string? description, DateTime targetDate)
-    {
-        Title = title;
-        Description = description;
-        TargetDate = targetDate;
-    }
+    [Required]
+    public DateTime targetDate { get; set; }
 
-    public void Complete()
-    {
-        IsCompleted = true;
-        CompletedAt = DateTime.UtcNow;
-    }
+    public DateTime? completedAt { get; set; }
 
-    public void Reopen()
-    {
-        IsCompleted = false;
-        CompletedAt = null;
-    }
+    [Required]
+    public bool isCompleted { get; set; }
+
+    [Required]
+    public DateTime createdAt { get; set; }
+
+    [ForeignKey("projectId")]
+    public virtual Project Project { get; set; }
+
 }

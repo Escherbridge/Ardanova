@@ -1,62 +1,37 @@
+using System;
+using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
+using ArdaNova.Domain.Models.Enums;
+
 namespace ArdaNova.Domain.Models.Entities;
 
+[Table("UserExperience")]
 public class UserExperience
 {
-    public Guid Id { get; private set; }
-    public Guid UserId { get; private set; }
-    public string Title { get; private set; } = null!;
-    public string Company { get; private set; } = null!;
-    public string? Description { get; private set; }
-    public DateTime StartDate { get; private set; }
-    public DateTime? EndDate { get; private set; }
-    public bool IsCurrent { get; private set; }
+    [Key]
+    public string id { get; set; }
 
-    // Navigation property
-    public User User { get; private set; } = null!;
+    [Required]
+    public string userId { get; set; }
 
-    private UserExperience() { }
+    [Required]
+    public string title { get; set; }
 
-    public static UserExperience Create(
-        Guid userId,
-        string title,
-        string company,
-        DateTime startDate,
-        string? description = null,
-        DateTime? endDate = null,
-        bool isCurrent = false)
-    {
-        return new UserExperience
-        {
-            Id = Guid.NewGuid(),
-            UserId = userId,
-            Title = title,
-            Company = company,
-            Description = description,
-            StartDate = startDate,
-            EndDate = endDate,
-            IsCurrent = isCurrent
-        };
-    }
+    [Required]
+    public string company { get; set; }
 
-    public void Update(string title, string company, string? description, DateTime startDate, DateTime? endDate, bool isCurrent)
-    {
-        Title = title;
-        Company = company;
-        Description = description;
-        StartDate = startDate;
-        EndDate = endDate;
-        IsCurrent = isCurrent;
-    }
+    public string? description { get; set; }
 
-    public void MarkAsCurrent()
-    {
-        IsCurrent = true;
-        EndDate = null;
-    }
+    [Required]
+    public DateTime startDate { get; set; }
 
-    public void EndPosition(DateTime endDate)
-    {
-        IsCurrent = false;
-        EndDate = endDate;
-    }
+    public DateTime? endDate { get; set; }
+
+    [Required]
+    public bool isCurrent { get; set; }
+
+    [ForeignKey("userId")]
+    public virtual User User { get; set; }
+
 }

@@ -1,51 +1,44 @@
+using System;
+using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
+using ArdaNova.Domain.Models.Enums;
+
 namespace ArdaNova.Domain.Models.Entities;
 
+[Table("Account")]
 public class Account
 {
-    public Guid Id { get; private set; }
-    public Guid UserId { get; private set; }
-    public string Type { get; private set; } = null!;
-    public string Provider { get; private set; } = null!;
-    public string ProviderAccountId { get; private set; } = null!;
-    public string? RefreshToken { get; private set; }
-    public string? AccessToken { get; private set; }
-    public int? ExpiresAt { get; private set; }
-    public string? TokenType { get; private set; }
-    public string? Scope { get; private set; }
-    public string? IdToken { get; private set; }
-    public string? SessionState { get; private set; }
+    [Key]
+    public string id { get; set; }
 
-    // Navigation property
-    public User User { get; private set; } = null!;
+    [Required]
+    public string userId { get; set; }
 
-    private Account() { }
+    [Required]
+    public string type { get; set; }
 
-    public static Account Create(
-        Guid userId,
-        string type,
-        string provider,
-        string providerAccountId,
-        string? refreshToken = null,
-        string? accessToken = null,
-        int? expiresAt = null)
-    {
-        return new Account
-        {
-            Id = Guid.NewGuid(),
-            UserId = userId,
-            Type = type,
-            Provider = provider,
-            ProviderAccountId = providerAccountId,
-            RefreshToken = refreshToken,
-            AccessToken = accessToken,
-            ExpiresAt = expiresAt
-        };
-    }
+    [Required]
+    public string provider { get; set; }
 
-    public void UpdateTokens(string? accessToken, string? refreshToken, int? expiresAt)
-    {
-        AccessToken = accessToken;
-        RefreshToken = refreshToken;
-        ExpiresAt = expiresAt;
-    }
+    [Required]
+    public string providerAccountId { get; set; }
+
+    public string? refresh_token { get; set; }
+
+    public string? access_token { get; set; }
+
+    public int? expires_at { get; set; }
+
+    public string? token_type { get; set; }
+
+    public string? scope { get; set; }
+
+    public string? id_token { get; set; }
+
+    public string? session_state { get; set; }
+
+    [ForeignKey("userId")]
+    public virtual User User { get; set; }
+
 }

@@ -1,74 +1,55 @@
-namespace ArdaNova.Domain.Models.Entities;
-
-using System.Text.Json.Serialization;
+using System;
+using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 using ArdaNova.Domain.Models.Enums;
 
+namespace ArdaNova.Domain.Models.Entities;
+
+[Table("TokenSwap")]
 public class TokenSwap
 {
-    public Guid Id { get; private set; }
-    public Guid UserId { get; private set; }
-    public Guid FromTokenId { get; private set; }
-    public Guid ToTokenId { get; private set; }
-    public decimal FromAmount { get; private set; }
-    public decimal ToAmount { get; private set; }
-    public decimal ExchangeRate { get; private set; }
-    public decimal Fee { get; private set; }
-    public string? TxHash { get; private set; }
+    [Key]
+    public string id { get; set; }
 
-    [JsonConverter(typeof(JsonStringEnumConverter))]
-    public SwapStatus Status { get; private set; }
+    [Required]
+    public string userId { get; set; }
 
-    public DateTime CreatedAt { get; private set; }
-    public DateTime? CompletedAt { get; private set; }
+    [Required]
+    public string fromTokenId { get; set; }
 
-    // Navigation
-    public User User { get; private set; } = null!;
+    [Required]
+    public string toTokenId { get; set; }
 
-    private TokenSwap() { }
+    [Required]
+    public decimal fromAmount { get; set; }
 
-    public static TokenSwap Create(
-        Guid userId,
-        Guid fromTokenId,
-        Guid toTokenId,
-        decimal fromAmount,
-        decimal toAmount,
-        decimal exchangeRate,
-        decimal fee = 0)
-    {
-        return new TokenSwap
-        {
-            Id = Guid.NewGuid(),
-            UserId = userId,
-            FromTokenId = fromTokenId,
-            ToTokenId = toTokenId,
-            FromAmount = fromAmount,
-            ToAmount = toAmount,
-            ExchangeRate = exchangeRate,
-            Fee = fee,
-            Status = SwapStatus.PENDING,
-            CreatedAt = DateTime.UtcNow
-        };
-    }
+    [Required]
+    public decimal toAmount { get; set; }
 
-    public void StartProcessing()
-    {
-        Status = SwapStatus.PROCESSING;
-    }
+    [Required]
+    public decimal exchangeRate { get; set; }
 
-    public void Complete(string? txHash = null)
-    {
-        Status = SwapStatus.COMPLETED;
-        TxHash = txHash;
-        CompletedAt = DateTime.UtcNow;
-    }
+    [Required]
+    public decimal fee { get; set; }
 
-    public void Fail()
-    {
-        Status = SwapStatus.FAILED;
-    }
+    public string? txHash { get; set; }
 
-    public void Cancel()
-    {
-        Status = SwapStatus.CANCELLED;
-    }
+    [Required]
+    public SwapStatus status { get; set; }
+
+    [Required]
+    public DateTime createdAt { get; set; }
+
+    public DateTime? completedAt { get; set; }
+
+    [ForeignKey("userId")]
+    public virtual User User { get; set; }
+
+    [ForeignKey("fromTokenId")]
+    public virtual ProjectToken FromToken { get; set; }
+
+    [ForeignKey("toTokenId")]
+    public virtual ProjectToken ToToken { get; set; }
+
 }

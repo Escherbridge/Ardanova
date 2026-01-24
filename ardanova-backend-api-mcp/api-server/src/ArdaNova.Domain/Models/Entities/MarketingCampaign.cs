@@ -1,91 +1,51 @@
-namespace ArdaNova.Domain.Models.Entities;
-
-using System.Text.Json.Serialization;
+using System;
+using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 using ArdaNova.Domain.Models.Enums;
 
+namespace ArdaNova.Domain.Models.Entities;
+
+[Table("MarketingCampaign")]
 public class MarketingCampaign
 {
-    public Guid Id { get; private set; }
-    public Guid BusinessId { get; private set; }
-    public string Name { get; private set; } = null!;
-    public string? Description { get; private set; }
-    public string Platform { get; private set; } = null!;
-    public string Content { get; private set; } = null!;
-    public string? MediaUrls { get; private set; }
-    public DateTime? ScheduledAt { get; private set; }
+    [Key]
+    public string id { get; set; }
 
-    [JsonConverter(typeof(JsonStringEnumConverter))]
-    public CampaignStatus Status { get; private set; }
+    [Required]
+    public string shopId { get; set; }
 
-    public DateTime CreatedAt { get; private set; }
-    public DateTime UpdatedAt { get; private set; }
-    public Guid UserId { get; private set; }
+    [Required]
+    public string name { get; set; }
 
-    // Navigation properties
-    public Business Business { get; private set; } = null!;
-    public User User { get; private set; } = null!;
+    public string? description { get; set; }
 
-    private MarketingCampaign() { }
+    [Required]
+    public string platform { get; set; }
 
-    public static MarketingCampaign Create(
-        Guid businessId,
-        Guid userId,
-        string name,
-        string platform,
-        string content,
-        string? description = null,
-        string? mediaUrls = null,
-        DateTime? scheduledAt = null)
-    {
-        return new MarketingCampaign
-        {
-            Id = Guid.NewGuid(),
-            BusinessId = businessId,
-            UserId = userId,
-            Name = name,
-            Description = description,
-            Platform = platform,
-            Content = content,
-            MediaUrls = mediaUrls,
-            ScheduledAt = scheduledAt,
-            Status = CampaignStatus.DRAFT,
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
-        };
-    }
+    [Required]
+    public string content { get; set; }
 
-    public void Update(string name, string? description, string platform, string content, string? mediaUrls)
-    {
-        Name = name;
-        Description = description;
-        Platform = platform;
-        Content = content;
-        MediaUrls = mediaUrls;
-        UpdatedAt = DateTime.UtcNow;
-    }
+    public string? mediaUrls { get; set; }
 
-    public void Schedule(DateTime scheduledAt)
-    {
-        ScheduledAt = scheduledAt;
-        Status = CampaignStatus.SCHEDULED;
-        UpdatedAt = DateTime.UtcNow;
-    }
+    public DateTime? scheduledAt { get; set; }
 
-    public void Activate()
-    {
-        Status = CampaignStatus.ACTIVE;
-        UpdatedAt = DateTime.UtcNow;
-    }
+    [Required]
+    public CampaignStatus status { get; set; }
 
-    public void Complete()
-    {
-        Status = CampaignStatus.COMPLETED;
-        UpdatedAt = DateTime.UtcNow;
-    }
+    [Required]
+    public DateTime createdAt { get; set; }
 
-    public void Cancel()
-    {
-        Status = CampaignStatus.CANCELLED;
-        UpdatedAt = DateTime.UtcNow;
-    }
+    [Required]
+    public DateTime updatedAt { get; set; }
+
+    [Required]
+    public string userId { get; set; }
+
+    [ForeignKey("shopId")]
+    public virtual Shop Shop { get; set; }
+
+    [ForeignKey("userId")]
+    public virtual User User { get; set; }
+
 }

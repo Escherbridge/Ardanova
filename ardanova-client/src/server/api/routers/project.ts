@@ -71,7 +71,7 @@ export const projectRouter = createTRPCRouter({
       const response = await apiClient.projects.create({
         ...input,
         createdById: userId,
-      });
+      } as any);
 
       if (response.error || !response.data) {
         throw new Error(response.error ?? "Failed to create project");
@@ -200,7 +200,7 @@ export const projectRouter = createTRPCRouter({
         throw new Error("Access denied");
       }
 
-      const response = await apiClient.projects.update(id, data);
+      const response = await apiClient.projects.update(id, data as any);
 
       if (response.error || !response.data) {
         throw new Error(response.error ?? "Failed to update project");
