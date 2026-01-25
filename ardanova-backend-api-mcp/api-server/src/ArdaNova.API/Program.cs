@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using ArdaNova.API.Middleware;
 using ArdaNova.API.EventBus.Extensions;
 using ArdaNova.API.WebSocket.Extensions;
@@ -43,7 +44,11 @@ builder.Services.AddCors(options =>
     });
 });
 
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+    });
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {

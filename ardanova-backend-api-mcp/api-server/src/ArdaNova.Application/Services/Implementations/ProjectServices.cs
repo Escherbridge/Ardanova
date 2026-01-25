@@ -12,12 +12,14 @@ using TaskStatus = ArdaNova.Domain.Models.Enums.TaskStatus;
 public class ProjectService : IProjectService
 {
     private readonly IRepository<Project> _repository;
+    private readonly IRepository<User> _userRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IMapper _mapper;
 
-    public ProjectService(IRepository<Project> repository, IUnitOfWork unitOfWork, IMapper mapper)
+    public ProjectService(IRepository<Project> repository, IRepository<User> userRepository, IUnitOfWork unitOfWork, IMapper mapper)
     {
         _repository = repository;
+        _userRepository = userRepository;
         _unitOfWork = unitOfWork;
         _mapper = mapper;
     }
@@ -27,7 +29,13 @@ public class ProjectService : IProjectService
         var project = await _repository.GetByIdAsync(id, ct);
         if (project is null)
             return Result<ProjectDto>.NotFound($"Project with id {id} not found");
-        return Result<ProjectDto>.Success(_mapper.Map<ProjectDto>(project));
+
+        var dto = _mapper.Map<ProjectDto>(project);
+        var user = await _userRepository.GetByIdAsync(project.createdById, ct);
+        if (user is not null)
+            dto = dto with { CreatedBy = _mapper.Map<ProjectCreatorDto>(user) };
+
+        return Result<ProjectDto>.Success(dto);
     }
 
     public async Task<Result<ProjectDto>> GetBySlugAsync(string slug, CancellationToken ct = default)
@@ -35,50 +43,90 @@ public class ProjectService : IProjectService
         var project = await _repository.FindOneAsync(p => p.slug == slug, ct);
         if (project is null)
             return Result<ProjectDto>.NotFound($"Project with slug {slug} not found");
-        return Result<ProjectDto>.Success(_mapper.Map<ProjectDto>(project));
+
+        var dto = _mapper.Map<ProjectDto>(project);
+        var user = await _userRepository.GetByIdAsync(project.createdById, ct);
+        if (user is not null)
+            dto = dto with { CreatedBy = _mapper.Map<ProjectCreatorDto>(user) };
+
+        return Result<ProjectDto>.Success(dto);
+    }
+
+    // Helper method to enrich project DTOs with user data
+    private async Task<IReadOnlyList<ProjectDto>> EnrichWithUserDataAsync(IEnumerable<Project> projects, CancellationToken ct)
+    {
+        var dtos = _mapper.Map<List<ProjectDto>>(projects);
+        var userIds = projects.Select(p => p.createdById).Distinct().ToList();
+        var users = new Dictionary<string, User>();
+
+        foreach (var userId in userIds)
+        {
+            var user = await _userRepository.GetByIdAsync(userId, ct);
+            if (user is not null)
+                users[userId] = user;
+        }
+
+        return dtos.Select(dto =>
+        {
+            var project = projects.First(p => p.id == dto.Id);
+            if (users.TryGetValue(project.createdById, out var user))
+                return dto with { CreatedBy = _mapper.Map<ProjectCreatorDto>(user) };
+            return dto;
+        }).ToList();
     }
 
     public async Task<Result<IReadOnlyList<ProjectDto>>> GetAllAsync(CancellationToken ct = default)
     {
         var projects = await _repository.GetAllAsync(ct);
-        return Result<IReadOnlyList<ProjectDto>>.Success(_mapper.Map<IReadOnlyList<ProjectDto>>(projects));
+        var enrichedDtos = await EnrichWithUserDataAsync(projects, ct);
+        return Result<IReadOnlyList<ProjectDto>>.Success(enrichedDtos);
     }
 
     public async Task<Result<PagedResult<ProjectDto>>> GetPagedAsync(int page, int pageSize, CancellationToken ct = default)
     {
         var result = await _repository.GetPagedAsync(page, pageSize, null, ct);
-        return Result<PagedResult<ProjectDto>>.Success(result.Map(_mapper.Map<ProjectDto>));
+        var enrichedItems = await EnrichWithUserDataAsync(result.Items, ct);
+        return Result<PagedResult<ProjectDto>>.Success(new PagedResult<ProjectDto>(
+            enrichedItems.ToList(),
+            result.TotalCount,
+            result.Page,
+            result.PageSize
+        ));
     }
 
     public async Task<Result<IReadOnlyList<ProjectDto>>> GetByUserIdAsync(string userId, CancellationToken ct = default)
     {
         var projects = await _repository.FindAsync(p => p.createdById == userId, ct);
-        return Result<IReadOnlyList<ProjectDto>>.Success(_mapper.Map<IReadOnlyList<ProjectDto>>(projects));
+        var enrichedDtos = await EnrichWithUserDataAsync(projects, ct);
+        return Result<IReadOnlyList<ProjectDto>>.Success(enrichedDtos);
     }
 
     public async Task<Result<IReadOnlyList<ProjectDto>>> GetByStatusAsync(ProjectStatus status, CancellationToken ct = default)
     {
         var projects = await _repository.FindAsync(p => p.status == status, ct);
-        return Result<IReadOnlyList<ProjectDto>>.Success(_mapper.Map<IReadOnlyList<ProjectDto>>(projects));
+        var enrichedDtos = await EnrichWithUserDataAsync(projects, ct);
+        return Result<IReadOnlyList<ProjectDto>>.Success(enrichedDtos);
     }
 
     public async Task<Result<IReadOnlyList<ProjectDto>>> GetByCategory(ProjectCategory category, CancellationToken ct = default)
     {
         var projects = await _repository.FindAsync(p => p.category == category, ct);
-        return Result<IReadOnlyList<ProjectDto>>.Success(_mapper.Map<IReadOnlyList<ProjectDto>>(projects));
+        var enrichedDtos = await EnrichWithUserDataAsync(projects, ct);
+        return Result<IReadOnlyList<ProjectDto>>.Success(enrichedDtos);
     }
 
     public async Task<Result<IReadOnlyList<ProjectDto>>> GetFeaturedAsync(CancellationToken ct = default)
     {
         var projects = await _repository.FindAsync(p => p.featured, ct);
-        return Result<IReadOnlyList<ProjectDto>>.Success(_mapper.Map<IReadOnlyList<ProjectDto>>(projects));
+        var enrichedDtos = await EnrichWithUserDataAsync(projects, ct);
+        return Result<IReadOnlyList<ProjectDto>>.Success(enrichedDtos);
     }
 
     public async Task<Result<ProjectDto>> CreateAsync(CreateProjectDto dto, CancellationToken ct = default)
     {
         var project = new Project
         {
-            id = new Guid().ToString(),
+            id = Guid.NewGuid().ToString(),
             createdById = dto.CreatedById,
             title = dto.Title,
             slug = GenerateSlug(dto.Title),
@@ -180,7 +228,7 @@ public class ProjectService : IProjectService
         return title.ToLowerInvariant()
             .Replace(" ", "-")
             .Replace("--", "-")
-            + "-" + new Guid().ToString("N")[..8];
+            + "-" + Guid.NewGuid().ToString("N")[..8];
     }
 }
 
@@ -221,7 +269,7 @@ public class ProjectTaskService : IProjectTaskService
     {
         var task = new ProjectTask
         {
-            id = new Guid().ToString(),
+            id = Guid.NewGuid().ToString(),
             projectId = dto.ProjectId,
             title = dto.Title,
             description = dto.Description,
@@ -332,7 +380,7 @@ public class ProjectTaskDependencyService : IProjectTaskDependencyService
     {
         var dep = new ProjectTaskDependency
         {
-            id = new Guid().ToString(),
+            id = Guid.NewGuid().ToString(),
             taskId = dto.TaskId,
             dependsOnId = dto.DependsOnId
         };
@@ -384,7 +432,7 @@ public class ProjectResourceService : IProjectResourceService
     {
         var resource = new ProjectResource
         {
-            id = new Guid().ToString(),
+            id = Guid.NewGuid().ToString(),
             projectId = dto.ProjectId,
             name = dto.Name,
             description = dto.Description,
@@ -473,7 +521,7 @@ public class ProjectMilestoneService : IProjectMilestoneService
     {
         var milestone = new ProjectMilestone
         {
-            id = new Guid().ToString(),
+            id = Guid.NewGuid().ToString(),
             projectId = dto.ProjectId,
             title = dto.Title,
             description = dto.Description,
@@ -564,7 +612,7 @@ public class ProjectSupportService : IProjectSupportService
     {
         var support = new ProjectSupport
         {
-            id = new Guid().ToString(),
+            id = Guid.NewGuid().ToString(),
             projectId = dto.ProjectId,
             userId = dto.UserId,
             supportType = dto.SupportType,
@@ -642,7 +690,7 @@ public class ProjectApplicationService : IProjectApplicationService
     {
         var app = new ProjectApplication
         {
-            id = new Guid().ToString(),
+            id = Guid.NewGuid().ToString(),
             projectId = dto.ProjectId,
             userId = dto.UserId,
             roleTitle = dto.RoleTitle,
@@ -744,7 +792,7 @@ public class ProjectCommentService : IProjectCommentService
     {
         var comment = new ProjectComment
         {
-            id = new Guid().ToString(),
+            id = Guid.NewGuid().ToString(),
             projectId = dto.ProjectId,
             userId = dto.UserId,
             content = dto.Content,
@@ -814,7 +862,7 @@ public class ProjectUpdateService : IProjectUpdateService
     {
         var update = new ProjectUpdate
         {
-            id = new Guid().ToString(),
+            id = Guid.NewGuid().ToString(),
             projectId = dto.ProjectId,
             userId = dto.UserId,
             title = dto.Title,
@@ -876,7 +924,7 @@ public class ProjectEquityService : IProjectEquityService
     {
         var equity = new ProjectEquity
         {
-            id = new Guid().ToString(),
+            id = Guid.NewGuid().ToString(),
             projectId = dto.ProjectId,
             userId = dto.UserId,
             sharePercent = dto.SharePercent,

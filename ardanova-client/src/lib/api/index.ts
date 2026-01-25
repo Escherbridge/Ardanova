@@ -12,16 +12,29 @@ export {
 export {
   ArdaNovaApiClient,
   apiClient,
+  // User types
   type User,
   type CreateUserDto,
   type UpdateUserDto,
+  // Project types
   type Project,
   type CreateProjectDto,
   type UpdateProjectDto,
-  type Agency,
-  type CreateAgencyDto,
-  type UpdateAgencyDto,
-  type Business,
-  type CreateBusinessDto,
-  type UpdateBusinessDto,
+  // Guild types
+  type Guild,
+  type CreateGuildDto,
+  type UpdateGuildDto,
+  type GuildMember,
+  type CreateGuildMemberDto,
+  type GuildReview,
+  type CreateGuildReviewDto,
+  type ProjectBid,
+  // Guild schemas for validation
+  GuildApiSchema,
+  CreateGuildSchema,
+  UpdateGuildSchema,
+  GuildMemberApiSchema,
+  CreateGuildMemberSchema,
+  GuildReviewApiSchema,
+  CreateGuildReviewSchema,
 } from "./ardanova";

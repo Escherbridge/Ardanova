@@ -462,7 +462,7 @@ model User {
   totalXP Int @default(0)
   level Int @default(1)
   tier UserTier @default(BRONZE)
-  trustScore Decimal @default(0)
+  trustScore Decimal @default(0) @db.Decimal(18, 8)
   verificationLevel VerificationLevel @default(ANONYMOUS)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -591,7 +591,7 @@ model Achievement {
   category AchievementCategory
   criteria Json
   xpReward Int
-  tokenReward Decimal?
+  tokenReward Decimal? @db.Decimal(18, 8)
   rarity AchievementRarity @default(COMMON)
   icon String?
   isActive Boolean @default(true)
@@ -650,7 +650,7 @@ model Referral {
   status ReferralStatus @default(PENDING)
   rewardClaimed Boolean @default(false)
   xpRewarded Int?
-  tokenRewarded Decimal?
+  tokenRewarded Decimal? @db.Decimal(18, 8)
   createdAt DateTime @default(now())
   completedAt DateTime?
   referrer User @relation("Referral_referrerId", fields: [referrerId], references: [id])
@@ -666,8 +666,8 @@ model Project {
   solution String @db.Text
   category ProjectCategory
   status ProjectStatus @default(DRAFT)
-  fundingGoal Decimal?
-  currentFunding Decimal @default(0)
+  fundingGoal Decimal? @db.Decimal(18, 8)
+  currentFunding Decimal @default(0) @db.Decimal(18, 8)
   supportersCount Int @default(0)
   votesCount Int @default(0)
   viewsCount Int @default(0)
@@ -717,7 +717,7 @@ model ProjectTask {
   priority TaskPriority @default(MEDIUM)
   estimatedHours Int?
   actualHours Int?
-  tokenReward Decimal?
+  tokenReward Decimal? @db.Decimal(18, 8)
   escrowStatus EscrowStatus @default(NONE)
   dueDate DateTime?
   completedAt DateTime?
@@ -749,7 +749,7 @@ model ProjectResource {
   name String
   description String? @db.Text
   quantity Int @default(1)
-  estimatedCost Decimal?
+  estimatedCost Decimal? @db.Decimal(18, 8)
   isRequired Boolean @default(true)
   isObtained Boolean @default(false)
   createdAt DateTime @default(now())
@@ -773,7 +773,7 @@ model ProjectSupport {
   projectId String
   userId String
   supportType SupportType
-  monthlyAmount Decimal?
+  monthlyAmount Decimal? @db.Decimal(18, 8)
   message String? @db.Text
   isActive Boolean @default(true)
   createdAt DateTime @default(now())
@@ -859,7 +859,7 @@ model Epic {
   description String? @db.Text
   status EpicStatus @default(PLANNED)
   priority Priority @default(MEDIUM)
-  tokenBudget Decimal?
+  tokenBudget Decimal? @db.Decimal(18, 8)
   progress Int @default(0)
   startDate DateTime?
   targetDate DateTime?
@@ -876,7 +876,7 @@ model Sprint {
   goal String? @db.Text
   startDate DateTime
   endDate DateTime
-  tokenBudget Decimal?
+  tokenBudget Decimal? @db.Decimal(18, 8)
   velocity Int?
   status SprintStatus @default(PLANNED)
   createdAt DateTime @default(now())
@@ -930,8 +930,8 @@ model ProjectMember {
   projectId String
   userId String
   role ProjectRole @default(OBSERVER)
-  tokenBalance Decimal @default(0)
-  votingPower Decimal @default(0)
+  tokenBalance Decimal @default(0) @db.Decimal(18, 8)
+  votingPower Decimal @default(0) @db.Decimal(18, 8)
   joinedAt DateTime @default(now())
   invitedById String?
   project Project @relation("ProjectMember_projectId", fields: [projectId], references: [id])
@@ -942,10 +942,10 @@ model TaskCompensation {
   id String @id @default(cuid())
   taskId String @unique
   model CompensationModel @default(FIXED_TOKEN)
-  tokenAmount Decimal?
-  hourlyRate Decimal?
-  equityPercent Decimal?
-  stableCoinAmount Decimal?
+  tokenAmount Decimal? @db.Decimal(18, 8)
+  hourlyRate Decimal? @db.Decimal(18, 8)
+  equityPercent Decimal? @db.Decimal(18, 8)
+  stableCoinAmount Decimal? @db.Decimal(18, 8)
   vestingMonths Int?
   createdAt DateTime @default(now())
   task ProjectTask @relation("TaskCompensation_taskId", fields: [taskId], references: [id])
@@ -994,7 +994,7 @@ model Vote {
   proposalId String
   voterId String
   choice Int
-  weight Decimal
+  weight Decimal @db.Decimal(18, 8)
   reason String? @db.Text
   txHash String?
   createdAt DateTime @default(now())
@@ -1017,7 +1017,7 @@ model DelegatedVote {
   delegatorId String
   delegateeId String
   tokenId String
-  amount Decimal
+  amount Decimal @db.Decimal(18, 8)
   isActive Boolean @default(true)
   createdAt DateTime @default(now())
   expiresAt DateTime?
@@ -1041,7 +1041,7 @@ model Guild {
   portfolio String? @db.Text
   specialties String? @db.Text
   isVerified Boolean @default(false)
-  rating Decimal?
+  rating Decimal? @db.Decimal(18, 8)
   reviewsCount Int @default(0)
   projectsCount Int @default(0)
   createdAt DateTime @default(now())
@@ -1071,7 +1071,7 @@ model ProjectBid {
   userId String
   proposal String @db.Text
   timeline String? @db.Text
-  budget Decimal
+  budget Decimal @db.Decimal(18, 8)
   deliverables String? @db.Text
   status BidStatus @default(SUBMITTED)
   submittedAt DateTime @default(now())
@@ -1121,8 +1121,8 @@ model Product {
   name String
   description String? @db.Text
   sku String?
-  price Decimal
-  cost Decimal?
+  price Decimal @db.Decimal(18, 8)
+  cost Decimal? @db.Decimal(18, 8)
   category String?
   isActive Boolean @default(true)
   createdAt DateTime @default(now())
@@ -1139,10 +1139,10 @@ model Invoice {
   shopId String
   buyerId String
   invoiceNumber String @unique
-  amount Decimal
-  tax Decimal?
-  discount Decimal?
-  total Decimal
+  amount Decimal @db.Decimal(18, 8)
+  tax Decimal? @db.Decimal(18, 8)
+  discount Decimal? @db.Decimal(18, 8)
+  total Decimal @db.Decimal(18, 8)
   status InvoiceStatus @default(DRAFT)
   dueDate DateTime
   paidAt DateTime?
@@ -1159,9 +1159,9 @@ model Sale {
   id String @id @default(cuid())
   shopId String
   buyerId String?
-  total Decimal
-  tax Decimal?
-  discount Decimal?
+  total Decimal @db.Decimal(18, 8)
+  tax Decimal? @db.Decimal(18, 8)
+  discount Decimal? @db.Decimal(18, 8)
   paymentMethod PaymentMethod
   notes String? @db.Text
   createdAt DateTime @default(now())
@@ -1177,8 +1177,8 @@ model SaleItem {
   saleId String
   productId String
   quantity Int
-  price Decimal
-  total Decimal
+  price Decimal @db.Decimal(18, 8)
+  total Decimal @db.Decimal(18, 8)
   sale Sale @relation("SaleItem_saleId", fields: [saleId], references: [id])
   product Product @relation("SaleItem_productId", fields: [productId], references: [id])
 }
@@ -1221,9 +1221,9 @@ model ShopAnalytics {
   id String @id @default(cuid())
   shopId String
   date DateTime
-  revenue Decimal
-  expenses Decimal
-  profit Decimal
+  revenue Decimal @db.Decimal(18, 8)
+  expenses Decimal @db.Decimal(18, 8)
+  profit Decimal @db.Decimal(18, 8)
   salesCount Int
   newCustomers Int
   createdAt DateTime @default(now())
@@ -1236,7 +1236,7 @@ model ProjectToken {
   assetId String?
   name String
   symbol String
-  totalSupply Decimal
+  totalSupply Decimal @db.Decimal(18, 8)
   decimals Int @default(6)
   allocation Json
   vestingConfig Json?
@@ -1259,8 +1259,8 @@ model ProjectEquity {
   id String @id @default(cuid())
   projectId String
   userId String
-  sharePercent Decimal
-  investmentAmount Decimal
+  sharePercent Decimal @db.Decimal(18, 8)
+  investmentAmount Decimal @db.Decimal(18, 8)
   grantedAt DateTime @default(now())
   project Project @relation("ProjectEquity_projectId", fields: [projectId], references: [id])
   user User @relation("ProjectEquity_userId", fields: [userId], references: [id])
@@ -1269,7 +1269,7 @@ model ProjectEquity {
 model Treasury {
   id String @id @default(cuid())
   projectId String @unique
-  balance Decimal @default(0)
+  balance Decimal @default(0) @db.Decimal(18, 8)
   tokenAssetId String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1281,7 +1281,7 @@ model TreasuryTransaction {
   id String @id @default(cuid())
   treasuryId String
   type TransactionType
-  amount Decimal
+  amount Decimal @db.Decimal(18, 8)
   description String?
   txHash String?
   proposalId String?
@@ -1293,9 +1293,9 @@ model TokenHolder {
   id String @id @default(cuid())
   tokenId String
   userId String
-  balance Decimal
-  stakedAmount Decimal @default(0)
-  lockedAmount Decimal @default(0)
+  balance Decimal @db.Decimal(18, 8)
+  stakedAmount Decimal @default(0) @db.Decimal(18, 8)
+  lockedAmount Decimal @default(0) @db.Decimal(18, 8)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   token ProjectToken @relation("TokenHolder_tokenId", fields: [tokenId], references: [id])
@@ -1306,8 +1306,8 @@ model TokenHolder {
 model TokenVesting {
   id String @id @default(cuid())
   holderId String
-  totalAmount Decimal
-  releasedAmount Decimal @default(0)
+  totalAmount Decimal @db.Decimal(18, 8)
+  releasedAmount Decimal @default(0) @db.Decimal(18, 8)
   startDate DateTime
   cliffEnd DateTime
   vestingEnd DateTime
@@ -1319,11 +1319,11 @@ model TokenVesting {
 model ICO {
   id String @id @default(cuid())
   tokenId String @unique
-  fundingGoal Decimal
-  currentFunding Decimal @default(0)
-  minContribution Decimal?
-  maxContribution Decimal?
-  tokenPrice Decimal
+  fundingGoal Decimal @db.Decimal(18, 8)
+  currentFunding Decimal @default(0) @db.Decimal(18, 8)
+  minContribution Decimal? @db.Decimal(18, 8)
+  maxContribution Decimal? @db.Decimal(18, 8)
+  tokenPrice Decimal @db.Decimal(18, 8)
   startDate DateTime
   endDate DateTime
   status ICOStatus @default(PENDING)
@@ -1337,8 +1337,8 @@ model ICOContribution {
   id String @id @default(cuid())
   icoId String
   userId String
-  amount Decimal
-  tokenAmount Decimal
+  amount Decimal @db.Decimal(18, 8)
+  tokenAmount Decimal @db.Decimal(18, 8)
   paymentAsset String
   txHash String?
   status ContributionStatus @default(PENDING)
@@ -1365,7 +1365,7 @@ model TaskEscrow {
   taskId String @unique
   funderId String
   tokenId String
-  amount Decimal
+  amount Decimal @db.Decimal(18, 8)
   status EscrowStatus @default(FUNDED)
   txHashFund String?
   txHashRelease String?
@@ -1384,10 +1384,10 @@ model TokenSwap {
   userId String
   fromTokenId String
   toTokenId String
-  fromAmount Decimal
-  toAmount Decimal
-  exchangeRate Decimal
-  fee Decimal @default(0)
+  fromAmount Decimal @db.Decimal(18, 8)
+  toAmount Decimal @db.Decimal(18, 8)
+  exchangeRate Decimal @db.Decimal(18, 8)
+  fee Decimal @default(0) @db.Decimal(18, 8)
   txHash String?
   status SwapStatus @default(PENDING)
   createdAt DateTime @default(now())
@@ -1401,10 +1401,10 @@ model LiquidityPool {
   id String @id @default(cuid())
   token1Id String
   token2Id String
-  reserve1 Decimal @default(0)
-  reserve2 Decimal @default(0)
-  totalShares Decimal @default(0)
-  feePercent Decimal @default(0.003)
+  reserve1 Decimal @default(0) @db.Decimal(18, 8)
+  reserve2 Decimal @default(0) @db.Decimal(18, 8)
+  totalShares Decimal @default(0) @db.Decimal(18, 8)
+  feePercent Decimal @default(0.003) @db.Decimal(18, 8)
   isActive Boolean @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1417,9 +1417,9 @@ model LiquidityProvider {
   id String @id @default(cuid())
   poolId String
   userId String
-  shares Decimal
-  token1In Decimal @default(0)
-  token2In Decimal @default(0)
+  shares Decimal @db.Decimal(18, 8)
+  token1In Decimal @default(0) @db.Decimal(18, 8)
+  token2In Decimal @default(0) @db.Decimal(18, 8)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   pool LiquidityPool @relation("LiquidityProvider_poolId", fields: [poolId], references: [id])

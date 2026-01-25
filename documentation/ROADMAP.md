@@ -1294,15 +1294,26 @@ const agentCommands = {
    - ✅ 40+ MCP tools implemented
    - ✅ PostgreSQL with EF Core
    - ✅ API Key authentication
+   - ✅ Event Bus for domain events
+   - ✅ SignalR WebSocket for real-time updates
+   - ✅ S3/Local file storage service
    - 🔄 CI/CD pipeline setup
 
-2. **Python AI Orchestrator** (`ardanova-ai-client/`)
+2. **C# Model Generator** ✅ COMPLETE
+   - ✅ DBML → C# entity generation (`scripts/generate-csharp-models.ts`)
+   - ✅ Attribute-based EF Core configuration (`[Table]`, `[Key]`, `[Precision]`, `[Index]`)
+   - ✅ Multi-FK handling with `[InverseProperty]` attributes
+   - ✅ EnumStringConvention for all enums stored as strings
+   - ✅ DbContext simplified from 682 → 120 lines (OnModelCreating: 570+ → 9 lines)
+
+3. **Python AI Orchestrator** (`ardanova-ai-client/`) 🔄 STUBBED
+   - ✅ Directory structure created
    - FastAPI service setup
    - MCP client connection to .NET backend
    - Agent framework (routing, context, streaming)
    - Initial agents: Project Manager, Code Assistant
 
-3. **Main Platform Consolidation** (`ardanova-client/`)
+4. **Main Platform Consolidation** (`ardanova-client/`)
    - Integrate DAO governance UI (proposals, voting)
    - Integrate Pitch Studio (Gamma API)
    - Integrate Exchange UI (swap, liquidity)
@@ -1431,4 +1442,4 @@ Join us in building the future of work.
 **Website**: [ardanova.com](https://ardanova.com)
 
 **Last Updated**: January 2025
-**Version**: 3.0.0 (Simplified Architecture)
+**Version**: 4.2.0 (C# Generator & EF Core Conventions)

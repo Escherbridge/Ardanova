@@ -5,12 +5,14 @@ import { apiClient } from "~/lib/api";
 // Project category enum (matches .NET backend)
 const ProjectCategory = z.enum([
   "TECHNOLOGY",
-  "HEALTH",
+  "HEALTHCARE",
   "EDUCATION",
   "ENVIRONMENT",
-  "SOCIAL",
-  "ARTS",
+  "SOCIAL_IMPACT",
   "BUSINESS",
+  "ARTS_CULTURE",
+  "AGRICULTURE",
+  "FINANCE",
   "OTHER",
 ]);
 

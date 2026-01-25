@@ -31,7 +31,7 @@ const TYPE_MAP: Record<string, string> = {
 
 interface FieldType {
     type_name: string;
-    args?: string[];
+    args?: string | string[]; // Can be a string like "18,8" or an array
 }
 
 interface Field {
@@ -83,16 +83,41 @@ interface Schema {
 }
 
 const mapType = (dbmlType: string): string => {
-    const normalized = dbmlType.toLowerCase();
-    return TYPE_MAP[normalized] || dbmlType; // Fallback to original (for enums)
+    // Strip precision/args from type name: "decimal(18,8)" -> "decimal"
+    const baseType = dbmlType.toLowerCase().split('(')[0];
+    return TYPE_MAP[baseType] || dbmlType; // Fallback to original (for enums)
 };
 
+// Default precision for decimal fields when not specified in DBML
+const DEFAULT_DECIMAL_PRECISION: [number, number] = [18, 8];
+
 const parseTypeArgs = (field: Field): string => {
-    const typeName = field.type.type_name.toLowerCase();
+    const typeName = field.type.type_name.toLowerCase().split('(')[0]; // Handle "decimal(18,8)" format
     const args = field.type.args;
 
-    if (typeName === 'decimal' && args && args.length >= 2) {
-        return `@db.Decimal(${args[0]}, ${args[1]})`;
+    if (typeName === 'decimal') {
+        // Check if precision was provided in the type_name itself (e.g., "decimal(18,8)")
+        const decimalRegex = /decimal\((\d+),\s*(\d+)\)/i;
+        const match = decimalRegex.exec(field.type.type_name);
+        if (match) {
+            return `@db.Decimal(${match[1]}, ${match[2]})`;
+        }
+
+        // Check if args is a string with comma-separated precision values (e.g., "18,8")
+        if (typeof args === 'string' && args.includes(',')) {
+            const parts = args.split(',').map(s => s.trim());
+            if (parts.length >= 2) {
+                return `@db.Decimal(${parts[0]}, ${parts[1]})`;
+            }
+        }
+
+        // Check if args is an array with precision values
+        if (Array.isArray(args) && args.length >= 2) {
+            return `@db.Decimal(${args[0]}, ${args[1]})`;
+        }
+
+        // Use default precision
+        return `@db.Decimal(${DEFAULT_DECIMAL_PRECISION[0]}, ${DEFAULT_DECIMAL_PRECISION[1]})`;
     }
     if (typeName === 'varchar' && args && args.length >= 1) {
         return `@db.VarChar(${args[0]})`;

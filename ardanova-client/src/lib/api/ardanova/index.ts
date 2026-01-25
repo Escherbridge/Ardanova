@@ -2,14 +2,42 @@ import { env } from "~/env";
 import { BaseApiClient, type BaseApiClientConfig } from "../base-client";
 import { UsersEndpoint } from "./endpoints/users";
 import { ProjectsEndpoint } from "./endpoints/projects";
-import { AgenciesEndpoint } from "./endpoints/agencies";
-import { BusinessesEndpoint } from "./endpoints/businesses";
+import { GuildsEndpoint } from "./endpoints/guilds";
 
 // Re-export types from endpoints
 export type { User, CreateUserDto, UpdateUserDto } from "./endpoints/users";
 export type { Project, CreateProjectDto, UpdateProjectDto } from "./endpoints/projects";
-export type { Agency, CreateAgencyDto, UpdateAgencyDto } from "./endpoints/agencies";
-export type { Business, CreateBusinessDto, UpdateBusinessDto } from "./endpoints/businesses";
+export type {
+  Guild,
+  CreateGuildDto,
+  UpdateGuildDto,
+  GuildMember,
+  CreateGuildMemberDto,
+  UpdateGuildMemberDto,
+  ProjectBid,
+  CreateProjectBidDto,
+  UpdateProjectBidDto,
+  GuildReview,
+  CreateGuildReviewDto,
+  UpdateGuildReviewDto,
+  BidStatus,
+} from "./endpoints/guilds";
+
+// Re-export schemas for validation
+export {
+  GuildApiSchema,
+  CreateGuildSchema,
+  UpdateGuildSchema,
+  GuildMemberApiSchema,
+  CreateGuildMemberSchema,
+  UpdateGuildMemberSchema,
+  ProjectBidApiSchema,
+  CreateProjectBidSchema,
+  UpdateProjectBidSchema,
+  GuildReviewApiSchema,
+  CreateGuildReviewSchema,
+  UpdateGuildReviewSchema,
+} from "./endpoints/guilds";
 
 /**
  * ArdaNova API Client
@@ -18,15 +46,13 @@ export type { Business, CreateBusinessDto, UpdateBusinessDto } from "./endpoints
 export class ArdaNovaApiClient extends BaseApiClient {
   readonly users: UsersEndpoint;
   readonly projects: ProjectsEndpoint;
-  readonly agencies: AgenciesEndpoint;
-  readonly businesses: BusinessesEndpoint;
+  readonly guilds: GuildsEndpoint;
 
   constructor(config: BaseApiClientConfig) {
     super(config);
     this.users = new UsersEndpoint(this);
     this.projects = new ProjectsEndpoint(this);
-    this.agencies = new AgenciesEndpoint(this);
-    this.businesses = new BusinessesEndpoint(this);
+    this.guilds = new GuildsEndpoint(this);
   }
 
   health() {

@@ -17,7 +17,12 @@ public class MappingProfile : Profile
         CreateMap<UserExperience, UserExperienceDto>();
 
         // Project mappings
-        CreateMap<Project, ProjectDto>();
+        CreateMap<User, ProjectCreatorDto>()
+            .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.id))
+            .ForMember(dest => dest.Name, opt => opt.MapFrom(src => src.name))
+            .ForMember(dest => dest.Image, opt => opt.MapFrom(src => src.image));
+        CreateMap<Project, ProjectDto>()
+            .ForMember(dest => dest.CreatedBy, opt => opt.MapFrom(src => src.CreatedBy));
         CreateMap<ProjectTask, ProjectTaskDto>();
         CreateMap<ProjectTaskDependency, ProjectTaskDependencyDto>();
         CreateMap<ProjectResource, ProjectResourceDto>();

@@ -16,6 +16,7 @@ This document provides a detailed technical architecture for the ArdaNova platfo
 | `WebSocket/SignalR` | ✅ Complete | Real-time updates via SignalR hubs |
 | `File Storage` | ✅ Complete | S3/Local storage with env var binding |
 | `Dev Scripts` | ✅ Complete | Bash & PowerShell scripts (Docker/Podman) |
+| `C# Generator` | ✅ Complete | Attribute-based EF Core configuration |
 | `ardanova-ai-client` | 🔄 Stubbed | Python AI orchestrator (structure ready) |
 | `ardanova-game-sdk` | 🔄 TODO | Unity & Godot SDKs (NuGet) |
 | `contracts` | 🔄 Stubbed | Algorand smart contracts (structure ready) |
@@ -29,6 +30,8 @@ This document provides a detailed technical architecture for the ArdaNova platfo
 - AI client structure with MCP client stubs
 - Smart contract directory structure with PyTeal stubs
 - EF Core relationship fixes for multi-FK entities
+- **C# Generator enhanced with attribute-based EF Core configuration**
+- DbContext simplified from 682 lines to ~120 lines (OnModelCreating: 570+ → 9 lines)
 
 ---
 
@@ -744,45 +747,80 @@ The main platform is a Next.js 15 application using the App Router pattern.
 
 ### Prisma to C# Entity Generation
 
-The database schema is defined in Prisma (`ardanova-client/prisma/schema.prisma`) and entities are generated for C#.
+The database schema is defined in DBML (`ardanova-client/prisma/database-archietecture.dbml`) which generates Prisma schema, and C# entities are generated from DBML.
 
 **Source of Truth:** `prisma/database-archietecture.dbml` → `prisma/schema.prisma` → C# Entities
 
-### Multi-FK Relationship Configuration
+**Generator:** `ardanova-client/scripts/generate-csharp-models.ts`
 
-When entities have multiple foreign keys pointing to the same entity type (e.g., two `User` references), EF Core cannot automatically determine the inverse navigation. These require explicit Fluent API configuration in `ArdaNovaDbContext`.
+### Attribute-Based EF Core Configuration
 
-**Entities Requiring Explicit Configuration:**
+The generator uses EF Core data annotations (attributes) for all model configuration, eliminating manual Fluent API in DbContext.
 
-| Entity | Foreign Keys | Target |
-|--------|--------------|--------|
-| `ChatMessage` | `userToId`, `userFromId` | `User` |
-| `DelegatedVote` | `delegatorId`, `delegateeId` | `User` |
-| `Referral` | `referrerId`, `referredId` | `User` |
-| `Invoice` | `buyerId`, `userId` | `User` |
-| `Sale` | `buyerId`, `userId` | `User` |
-| `TaskSubmission` | `submittedById`, `reviewedById` | `User` |
-| `LiquidityPool` | `token1Id`, `token2Id` | `ProjectToken` |
-| `TokenSwap` | `fromTokenId`, `toTokenId` | `ProjectToken` |
-| `ProjectTaskDependency` | `taskId`, `dependsOnId` | `ProjectTask` |
+**Generated Attributes:**
 
-**Configuration Pattern:**
+| Attribute | Source | Purpose |
+|-----------|--------|---------|
+| `[Table("Name")]` | DBML table name | Table mapping |
+| `[Key]` | DBML `pk` | Primary key |
+| `[Required]` | DBML `not null` | Required field |
+| `[Column(TypeName = "text")]` | DBML `text` type | Text column type |
+| `[Precision(18, 8)]` | DBML `decimal(x,y)` or default | Decimal precision |
+| `[Index(nameof(field), IsUnique = true)]` | DBML `unique` | Unique index |
+| `[ForeignKey("fieldId")]` | DBML references | Foreign key |
+| `[InverseProperty("Collection")]` | Multi-FK detection | Relationship disambiguation |
+
+**Example Generated Entity:**
 
 ```csharp
-modelBuilder.Entity<ChatMessage>(entity =>
+[Index(nameof(email), IsUnique = true)]
+[Table("User")]
+public class User
 {
-    // Configure multiple relationships to User explicitly
-    entity.HasOne(e => e.UserTo)
-        .WithMany()
-        .HasForeignKey(e => e.userToId)
-        .OnDelete(DeleteBehavior.Restrict);
+    [Key]
+    [Required]
+    public string id { get; set; } = string.Empty;
 
-    entity.HasOne(e => e.UserFrom)
-        .WithMany()
-        .HasForeignKey(e => e.userFromId)
-        .OnDelete(DeleteBehavior.Restrict);
-});
+    [Required]
+    public string email { get; set; } = string.Empty;
+
+    [Column(TypeName = "text")]
+    public string? bio { get; set; }
+
+    [Required]
+    [Precision(18, 8)]
+    public decimal trustScore { get; set; }
+
+    // Multi-FK collections with descriptive names
+    public virtual ICollection<Referral> ReferralsAsReferrer { get; set; } = new List<Referral>();
+    public virtual ICollection<Referral> ReferralsAsReferred { get; set; } = new List<Referral>();
+}
 ```
+
+### Convention-Based DbContext
+
+The DbContext uses two conventions instead of manual Fluent API configuration:
+
+```csharp
+protected override void OnModelCreating(ModelBuilder modelBuilder)
+{
+    base.OnModelCreating(modelBuilder);
+
+    // All enums stored as strings in the database
+    modelBuilder.ApplyEnumStringConvention();
+
+    // Composite indexes and other generated configurations
+    modelBuilder.ApplyGeneratedConfigurations();
+}
+```
+
+**Key Files:**
+
+| File | Purpose |
+|------|---------|
+| `ArdaNova.Infrastructure/Conventions/EnumStringConvention.cs` | Converts all enum properties to strings |
+| `ArdaNova.Infrastructure/Data/GeneratedModelConfigurations.cs` | Generated composite index configurations |
+| `ArdaNova.Domain/ArdaNova.Domain.csproj` | References `Microsoft.EntityFrameworkCore.Abstractions` |
 
 ### Multi-FK Handling with `[InverseProperty]` Attributes
 
@@ -792,16 +830,13 @@ The generator automatically handles entities with multiple foreign keys to the s
 
 1. **Detection**: The generator detects when multiple FKs from one entity point to the same target entity
 2. **Descriptive Collections**: Generates named collections on the target entity (e.g., `ReferralsAsReferrer`, `ReferralsAsReferred`)
-3. **InverseProperty**: Adds `[InverseProperty]` attribute to both sides to link navigation properties with their corresponding collections
+3. **InverseProperty**: Adds `[InverseProperty]` attribute on the many-side to link navigation properties with their corresponding collections
 
 **Example Generated Code:**
 
 ```csharp
 // User.cs (the "one" side - target entity)
-[InverseProperty("Referrer")]
 public virtual ICollection<Referral> ReferralsAsReferrer { get; set; } = new List<Referral>();
-
-[InverseProperty("Referred")]
 public virtual ICollection<Referral> ReferralsAsReferred { get; set; } = new List<Referral>();
 
 // Referral.cs (the "many" side - source entity)
@@ -826,6 +861,24 @@ public virtual User? Referred { get; set; }
 - `ProjectTaskDependency` → ProjectTask (taskId, dependsOnId)
 
 **Delete Behavior:** Uses EF Core defaults (Cascade for required FKs, ClientSetNull for optional). Override at database level if Restrict behavior is needed
+
+### Running the Generator
+
+```bash
+cd ardanova-client
+node --import tsx scripts/generate-csharp-models.ts
+
+# Options:
+# --dry-run    Preview changes without writing files
+# --no-remove  Don't remove stale DbSets from DbContext
+```
+
+The generator:
+1. Reads `prisma/database-archietecture.dbml`
+2. Generates C# entities in `ArdaNova.Domain/Models/Entities/`
+3. Generates C# enums in `ArdaNova.Domain/Models/Enums/`
+4. Generates `GeneratedModelConfigurations.cs` for composite indexes
+5. Updates `ArdaNovaDbContext.cs` with new/removed DbSets
 
 ---
 
@@ -1084,7 +1137,8 @@ lib/blockchain/
 | S3 File Storage | ✅ Complete | `ArdaNova.Infrastructure/Storage/` |
 | Env Var Config Binding | ✅ Complete | `StorageServiceExtensions.cs` |
 | Attachment Controller | ✅ Complete | `ArdaNova.API/Controllers/AttachmentsController.cs` |
-| EF Core Multi-FK Config | ✅ Complete | `ArdaNovaDbContext.cs` |
+| C# Model Generator | ✅ Complete | `ardanova-client/scripts/generate-csharp-models.ts` |
+| EF Core Conventions | ✅ Complete | `ArdaNova.Infrastructure/Conventions/` |
 | Dev Scripts (Bash/PS) | ✅ Complete | `scripts/` |
 | Docker Compose (Dev) | ✅ Complete | `docker-compose.dev.yml` |
 | AI Client Stub | ✅ Stubbed | `ardanova-ai-client/` |
@@ -1094,7 +1148,6 @@ lib/blockchain/
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| Prisma→C# Generator | 🔄 TODO | Handle multi-FK navigation properties |
 | DAO UI | 🔄 TODO | Governance proposals, voting |
 | Studio UI | 🔄 TODO | Gamma API integration |
 | Exchange UI | 🔄 TODO | Token swap, liquidity |
@@ -1106,7 +1159,7 @@ lib/blockchain/
 
 | Issue | Workaround | Status |
 |-------|------------|--------|
-| Multi-FK EF Core relationships | Manual Fluent API config | ✅ Fixed |
+| Multi-FK EF Core relationships | `[InverseProperty]` attributes | ✅ Fixed |
 | Next.js Turbopack/Alpine WASM | Use standard Node image | 🔄 Open |
 | Port 8080 conflicts (local) | Stop conflicting services | 🔄 Open |
 
@@ -1130,4 +1183,4 @@ See [ROADMAP.md](./ROADMAP.md) for detailed timelines.
 ---
 
 **Last Updated**: January 2025
-**Version**: 4.1.0 (Dev Scripts, Storage Env Binding, EF Core Fixes)
+**Version**: 4.2.0 (Attribute-Based EF Core, Convention DbContext, Enhanced Generator)

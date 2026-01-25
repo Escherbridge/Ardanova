@@ -1,7 +1,6 @@
 namespace ArdaNova.Infrastructure.Data;
 
 using ArdaNova.Domain.Models.Entities;
-using ArdaNova.Infrastructure.Conventions;
 using Microsoft.EntityFrameworkCore;
 
 /// <summary>
@@ -111,8 +110,8 @@ public class ArdaNovaDbContext : DbContext
     {
         base.OnModelCreating(modelBuilder);
 
-        // All enums stored as strings in the database
-        modelBuilder.ApplyEnumStringConvention();
+        // Note: Enums are mapped to PostgreSQL native enums via NpgsqlDataSourceBuilder
+        // in DependencyInjection.cs (no string conversion needed)
 
         // Composite indexes and other generated configurations
         modelBuilder.ApplyGeneratedConfigurations();

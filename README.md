@@ -78,10 +78,14 @@ ArdaNova unifies project management with blockchain infrastructure:
 | **Google OAuth** | Secure authentication with NextAuth | Complete |
 | **User Profiles** | Roles, types, skills, and verification levels | Complete |
 | **Community Support** | Voting, subscriptions, volunteering, applications | Complete |
-| **Agency System** | Agency profiles, bidding, and reviews | Complete |
+| **Guild System** | Professional guilds, membership, bidding, and reviews | Complete |
+| **Shop System** | Shop management, products, inventory, analytics | Complete |
 | **Equity Tracking** | Share allocation to supporters and contributors | Complete |
-| **Business Tools** | Invoicing, inventory, sales, marketing (schema ready) | In Progress |
-| **.NET Backend API** | Clean Architecture API with 6 projects, 40+ MCP tools, 33 tests | Complete |
+| **.NET Backend API** | Clean Architecture API with 6 projects, 40+ MCP tools | Complete |
+| **Event Bus** | In-memory domain event publishing and handling | Complete |
+| **SignalR WebSocket** | Real-time updates for activities, notifications, projects | Complete |
+| **S3/Local Storage** | File attachments with S3 or local filesystem support | Complete |
+| **C# Model Generator** | DBML → C# entities with EF Core attributes | Complete |
 
 ### Roadmap (v2.0+)
 
@@ -131,8 +135,8 @@ ardanova/
 │   │   │       └── endpoints/
 │   │   │           ├── users.ts
 │   │   │           ├── projects.ts
-│   │   │           ├── agencies.ts
-│   │   │           └── businesses.ts
+│   │   │           ├── guilds.ts
+│   │   │           └── shops.ts
 │   │   └── server/api/routers/   # tRPC routers (thin layer)
 │   └── prisma/schema.prisma      # Schema source of truth
 │
@@ -152,8 +156,11 @@ ardanova/
 |-------|------------|---------|
 | **Frontend** | Next.js + tRPC | UI, validation, session |
 | **API Client** | TypeScript | Typed backend communication |
-| **Backend** | .NET 8 | Business logic, data access |
+| **Backend** | .NET 8 Clean Architecture | Business logic, data access |
+| **Real-time** | SignalR | WebSocket for live updates |
+| **Events** | In-Memory Event Bus | Domain event publishing |
 | **Auth** | NextAuth + Prisma | Authentication only |
+| **Storage** | S3 / Local filesystem | File attachments |
 | **Database** | PostgreSQL | Persistent storage |
 
 See [ARCHITECTURE.md](./ARCHITECTURE.md) for detailed technical documentation.
@@ -170,7 +177,7 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for detailed technical documentation.
 | **UI** | Radix UI, Tailwind CSS 4.0 |
 | **API Layer** | tRPC (frontend) → .NET 8 (backend) |
 | **Database** | PostgreSQL |
-| **Schema** | Prisma (migrations) + EF Core (read/write) |
+| **Schema** | DBML → Prisma (migrations) + EF Core (C# entities via generator) |
 | **Auth** | NextAuth 5 + Prisma Adapter |
 | **State** | TanStack Query 5 |
 | **Deployment** | Railway (API, DB) + Vercel (Web) |
@@ -186,19 +193,35 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for detailed technical documentation.
 | **Indexer** | Algorand Indexer API |
 | **Node** | AlgoNode / Self-hosted |
 
+### Code Generation Pipeline
+
+```
+DBML Schema (source of truth)
+    │
+    ├──► Prisma Schema (dbml-to-prisma.ts)
+    │         │
+    │         └──► PostgreSQL migrations (prisma migrate)
+    │
+    └──► C# Entities (generate-csharp-models.ts)
+              │
+              ├── [Table], [Key], [Column], [Precision], [Index]
+              ├── [ForeignKey], [InverseProperty] for relationships
+              └── EnumStringConvention for all enums
+```
+
 ### Planned Additions
 
-| Layer | Technology |
-|-------|------------|
-| **Monorepo** | Turborepo |
-| **Backend Services** | Rust (Warp API) for high-performance services |
-| **AI/LLM** | Gamma API, Claude MCP |
-| **Mobile** | React Native / Expo (Wallet App) |
-| **Real-time** | WebSockets / Pusher |
-| **Payments** | Stable coin (USDC-pegged), Direct ALGO |
-| **Storage** | S3-compatible (media, documents) |
-| **Search** | Meilisearch / Algolia |
-| **Game SDK** | C# for Unity & Godot |
+| Layer | Technology | Status |
+|-------|------------|--------|
+| **Monorepo** | Turborepo | Planned |
+| **Backend Services** | Rust (Warp API) for high-performance services | Planned |
+| **AI/LLM** | Gamma API, Claude MCP | In Progress |
+| **Mobile** | React Native / Expo (Wallet App) | Planned |
+| **Real-time** | SignalR WebSocket | ✅ Complete |
+| **Payments** | Stable coin (USDC-pegged), Direct ALGO | Planned |
+| **Storage** | S3/Local file storage | ✅ Complete |
+| **Search** | Meilisearch / Algolia | Planned |
+| **Game SDK** | C# for Unity & Godot | Planned |
 
 ---
 
@@ -453,8 +476,15 @@ The Model Context Protocol server enables AI-assisted project management. The .N
 **Implemented MCP Tools** (in `ArdaNova.MCP/Tools/`):
 - `UserTools` - user_get_by_id, user_get_by_email, user_get_paged, user_create, user_verify
 - `ProjectTools` - project_get_by_id, project_get_by_slug, project_get_all, project_create, project_publish, project_delete
-- `AgencyTools` - agency_get_by_id, agency_get_by_slug, agency_create, agency_verify, agency_delete
-- `BusinessTools` - business_get_by_id, business_get_by_owner, business_create, business_upgrade_plan, business_toggle_active
+- `GuildTools` - guild_get_by_id, guild_get_by_slug, guild_create, guild_add_member, guild_delete
+- `ShopTools` - shop_get_by_id, shop_get_by_owner, shop_create, shop_update, shop_toggle_active
+- `ActivityTools` - activity_get_by_id, activity_get_paged, activity_create
+- `NotificationTools` - notification_get_by_id, notification_get_paged, notification_mark_read
+- `WalletTools` - wallet_get_by_id, wallet_get_by_user, wallet_create, wallet_update_balance
+- `ExchangeTools` - swap_create, swap_get_by_id, liquidity_pool_get
+- `TaskEscrowTools` - escrow_create, escrow_release, escrow_get_by_task
+- `DelegatedVoteTools` - vote_delegate, vote_revoke, vote_get_delegations
+- `GamificationExtendedTools` - streak_get, referral_create, achievement_award
 
 **Future Tools (Planned)**:
 - `generate_epic` - Create epics from descriptions
@@ -614,10 +644,13 @@ We welcome contributions from the community! See our [Contributing Guide](./CONT
 
 ## Documentation
 
-- [Architecture](./ARCHITECTURE.md) - Technical architecture and data flow
-- [Database Schema](./ardanova-client/prisma/schema.prisma) - Prisma schema (source of truth)
+- [Roadmap](./documentation/ROADMAP.md) - Platform vision and implementation timeline
+- [Architecture](./documentation/ARCHITECTURE.md) - Technical architecture and data flow
+- [Database Schema (DBML)](./ardanova-client/prisma/database-architecture.dbml) - DBML schema (source of truth)
+- [Prisma Schema](./ardanova-client/prisma/schema.prisma) - Generated Prisma schema
+- [C# Generator](./ardanova-client/scripts/generate-csharp-models.ts) - DBML to C# entity generator
 - [API Client](./ardanova-client/src/lib/api/) - Modular TypeScript API client
-- [.NET Backend](./ardanova-backend-api-mcp/) - Clean Architecture .NET 8 API
+- [.NET Backend](./ardanova-backend-api-mcp/) - Clean Architecture .NET 8 API with MCP tools
 
 ---
 

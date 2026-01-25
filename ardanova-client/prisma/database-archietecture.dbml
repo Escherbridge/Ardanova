@@ -75,7 +75,7 @@ Table User {
   totalXP int [not null, default: 0]
   level int [not null, default: 1]
   tier UserTier [not null, default: 'BRONZE']
-  trustScore decimal [not null, default: 0]
+  trustScore decimal(18,8) [not null, default: 0]
   verificationLevel VerificationLevel [not null, default: 'ANONYMOUS']
   createdAt datetime [not null, default: `now()`]
   updatedAt datetime [not null, note: 'Updated at']
@@ -266,7 +266,7 @@ Table Achievement {
   category AchievementCategory [not null]
   criteria json [not null]
   xpReward int [not null]
-  tokenReward decimal
+  tokenReward decimal(18,8)
   rarity AchievementRarity [not null, default: 'COMMON']
   icon varchar
   isActive boolean [not null, default: true]
@@ -323,7 +323,7 @@ Table Referral {
   status ReferralStatus [not null, default: 'PENDING']
   rewardClaimed boolean [not null, default: false]
   xpRewarded int
-  tokenRewarded decimal
+  tokenRewarded decimal(18,8)
   createdAt datetime [not null, default: `now()`]
   completedAt datetime
 }
@@ -505,8 +505,8 @@ Table Project {
   solution text [not null]
   category ProjectCategory [not null]
   status ProjectStatus [not null, default: 'DRAFT']
-  fundingGoal decimal
-  currentFunding decimal [not null, default: 0.00]
+  fundingGoal decimal(18,8)
+  currentFunding decimal(18,8) [not null, default: 0.00]
   supportersCount int [not null, default: 0]
   votesCount int [not null, default: 0]
   viewsCount int [not null, default: 0]
@@ -539,7 +539,7 @@ Table ProjectTask {
   priority TaskPriority [not null, default: 'MEDIUM']
   estimatedHours int
   actualHours int
-  tokenReward decimal
+  tokenReward decimal(18,8)
   escrowStatus EscrowStatus [not null, default: 'NONE']
   dueDate datetime
   completedAt datetime

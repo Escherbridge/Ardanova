@@ -2,6 +2,13 @@ namespace ArdaNova.Application.DTOs;
 
 using ArdaNova.Domain.Models.Enums;
 
+public record ProjectCreatorDto
+{
+    public string Id { get; init; } = null!;
+    public string? Name { get; init; }
+    public string? Image { get; init; }
+}
+
 public record ProjectDto
 {
     public string Id { get; init; } = null!;
@@ -31,6 +38,7 @@ public record ProjectDto
     public DateTime? FundedAt { get; init; }
     public DateTime? CompletedAt { get; init; }
     public string CreatedById { get; init; } = null!;
+    public ProjectCreatorDto? CreatedBy { get; init; }
     public string? AssignedGuildId { get; init; }
 }
 

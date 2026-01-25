@@ -33,7 +33,21 @@
       "Bash(npx tsx:*)",
       "Bash(node --loader tsx:*)",
       "Bash(node --import tsx scripts/generate-csharp-models.ts:*)",
-      "Bash(dotnet restore:*)"
+      "Bash(dotnet restore:*)",
+      "Bash(del \"c:\\\\Users\\\\atooz\\\\Documents\\\\Escherbridge\\\\ardanova\\\\ardanova-client\\\\src\\\\lib\\\\api\\\\ardanova\\\\endpoints\\\\agencies.ts\" \"c:\\\\Users\\\\atooz\\\\Documents\\\\Escherbridge\\\\ardanova\\\\ardanova-client\\\\src\\\\lib\\\\api\\\\ardanova\\\\endpoints\\\\businesses.ts\")",
+      "Bash(npm run lint)",
+      "Bash(bash scripts/dev-up.sh:*)",
+      "Bash(powershell.exe -Command \"docker ps\")",
+      "Bash(powershell.exe -Command \"podman ps\")",
+      "Bash(powershell.exe -Command \"podman ps -a\")",
+      "Bash(powershell.exe -Command \"podman logs ardanova-api-dev --tail 50\")",
+      "Bash(powershell.exe -Command:*)",
+      "Bash(docker ps:*)",
+      "Bash(powershell -Command \"docker ps --format ''table {{.Names}}\\\\t{{.Status}}'' 2>$null; if \\($LASTEXITCODE -ne 0\\) { Get-Process -Name dotnet -ErrorAction SilentlyContinue | Select-Object Id, ProcessName, MainWindowTitle }\")",
+      "Bash(powershell -Command \"docker ps 2>&1\")",
+      "Bash(powershell -Command \"cd ''c:\\\\Users\\\\atooz\\\\Documents\\\\Escherbridge\\\\ardanova''; podman compose -f docker-compose.dev.yml restart api\")",
+      "Bash(powershell -Command \"podman logs ardanova-api-dev --tail 50 2>&1\")",
+      "Bash(powershell:*)"
     ]
   }
 }

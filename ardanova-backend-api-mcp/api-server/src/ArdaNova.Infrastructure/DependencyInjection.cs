@@ -1,12 +1,15 @@
 namespace ArdaNova.Infrastructure;
 
 using ArdaNova.Application.Common.Interfaces;
+using ArdaNova.Domain.Models.Enums;
 using ArdaNova.Infrastructure.Data;
 using ArdaNova.Infrastructure.Repositories;
 using ArdaNova.Infrastructure.UnitOfWork;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Npgsql;
+using Npgsql.NameTranslation;
 
 public static class DependencyInjection
 {
@@ -17,9 +20,66 @@ public static class DependencyInjection
         // Get connection string - prefer DATABASE_URL env var, fallback to config
         var connectionString = GetConnectionString(configuration);
 
+        // Build Npgsql data source with enum mappings for PostgreSQL native enums
+        var dataSourceBuilder = new NpgsqlDataSourceBuilder(connectionString);
+
+        // Map all .NET enums to PostgreSQL native enums (created by Prisma)
+        // Prisma uses PascalCase type names and SCREAMING_SNAKE_CASE values
+        // INpgsqlNameTranslator.IdentityTranslation preserves the original names
+        var translator = new NpgsqlNullNameTranslator();
+        dataSourceBuilder.MapEnum<AchievementCategory>("AchievementCategory", translator);
+        dataSourceBuilder.MapEnum<AchievementRarity>("AchievementRarity", translator);
+        dataSourceBuilder.MapEnum<ActivityType>("ActivityType", translator);
+        dataSourceBuilder.MapEnum<ApplicationStatus>("ApplicationStatus", translator);
+        dataSourceBuilder.MapEnum<BacklogItemType>("BacklogItemType", translator);
+        dataSourceBuilder.MapEnum<BacklogStatus>("BacklogStatus", translator);
+        dataSourceBuilder.MapEnum<BidStatus>("BidStatus", translator);
+        dataSourceBuilder.MapEnum<CampaignStatus>("CampaignStatus", translator);
+        dataSourceBuilder.MapEnum<CompensationModel>("CompensationModel", translator);
+        dataSourceBuilder.MapEnum<ContributionStatus>("ContributionStatus", translator);
+        dataSourceBuilder.MapEnum<EpicStatus>("EpicStatus", translator);
+        dataSourceBuilder.MapEnum<EscrowStatus>("EscrowStatus", translator);
+        dataSourceBuilder.MapEnum<ICOStatus>("ICOStatus", translator);
+        dataSourceBuilder.MapEnum<InvoiceStatus>("InvoiceStatus", translator);
+        dataSourceBuilder.MapEnum<LeaderboardCategory>("LeaderboardCategory", translator);
+        dataSourceBuilder.MapEnum<LeaderboardPeriod>("LeaderboardPeriod", translator);
+        dataSourceBuilder.MapEnum<MessageStatus>("MessageStatus", translator);
+        dataSourceBuilder.MapEnum<MimeType>("MimeType", translator);
+        dataSourceBuilder.MapEnum<NotificationType>("NotificationType", translator);
+        dataSourceBuilder.MapEnum<PaymentMethod>("PaymentMethod", translator);
+        dataSourceBuilder.MapEnum<PBIStatus>("PBIStatus", translator);
+        dataSourceBuilder.MapEnum<PBIType>("PBIType", translator);
+        dataSourceBuilder.MapEnum<PhaseStatus>("PhaseStatus", translator);
+        dataSourceBuilder.MapEnum<Priority>("Priority", translator);
+        dataSourceBuilder.MapEnum<ProjectCategory>("ProjectCategory", translator);
+        dataSourceBuilder.MapEnum<ProjectRole>("ProjectRole", translator);
+        dataSourceBuilder.MapEnum<ProjectStatus>("ProjectStatus", translator);
+        dataSourceBuilder.MapEnum<ProposalStatus>("ProposalStatus", translator);
+        dataSourceBuilder.MapEnum<ProposalType>("ProposalType", translator);
+        dataSourceBuilder.MapEnum<ReferralStatus>("ReferralStatus", translator);
+        dataSourceBuilder.MapEnum<RoadmapStatus>("RoadmapStatus", translator);
+        dataSourceBuilder.MapEnum<SprintStatus>("SprintStatus", translator);
+        dataSourceBuilder.MapEnum<StreakType>("StreakType", translator);
+        dataSourceBuilder.MapEnum<SubmissionStatus>("SubmissionStatus", translator);
+        dataSourceBuilder.MapEnum<SubscriptionPlan>("SubscriptionPlan", translator);
+        dataSourceBuilder.MapEnum<SupportType>("SupportType", translator);
+        dataSourceBuilder.MapEnum<SwapStatus>("SwapStatus", translator);
+        dataSourceBuilder.MapEnum<TaskPriority>("TaskPriority", translator);
+        dataSourceBuilder.MapEnum<TaskStatus>("TaskStatus", translator);
+        dataSourceBuilder.MapEnum<TransactionType>("TransactionType", translator);
+        dataSourceBuilder.MapEnum<UserRole>("UserRole", translator);
+        dataSourceBuilder.MapEnum<UserTier>("UserTier", translator);
+        dataSourceBuilder.MapEnum<UserType>("UserType", translator);
+        dataSourceBuilder.MapEnum<VerificationLevel>("VerificationLevel", translator);
+        dataSourceBuilder.MapEnum<VestingFrequency>("VestingFrequency", translator);
+        dataSourceBuilder.MapEnum<WalletProvider>("WalletProvider", translator);
+        dataSourceBuilder.MapEnum<XPEventType>("XPEventType", translator);
+
+        var dataSource = dataSourceBuilder.Build();
+
         // DbContext - Note: Prisma manages schema/migrations, EF Core only reads/writes
         services.AddDbContext<ArdaNovaDbContext>(options =>
-            options.UseNpgsql(connectionString));
+            options.UseNpgsql(dataSource));
 
         // Generic Repository
         services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
