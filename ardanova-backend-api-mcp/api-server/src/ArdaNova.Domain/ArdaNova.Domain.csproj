@@ -7,4 +7,9 @@
     <Description>Shared domain models and business logic for the ArdaNova ecosystem. Can be packaged and consumed by the API server and Game SDKs.</Description>
   </PropertyGroup>
 
+  <ItemGroup>
+    <!-- Lightweight EF Core attributes ([Index], [Precision]) without full EF Core runtime -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Abstractions" Version="8.0.0" />
+  </ItemGroup>
+
 </Project>
