@@ -1,0 +1,1796 @@
+npx : Environment 
+variables loaded from 
+.env
+At line:1 char:12
++ $errors = (npx 
+prisma validate 2>&1) 
+| Out-String; $errors 
+-replace " ...
++            ~~~~~~~~~
+~~~~~~~~~~~~~~~
+    + CategoryInfo    
+          : NotSpeci  
+  fied: (Environmen   
+ t variables loade    
+d from .env:Strin    
+g) [], RemoteExce    
+ption
+    + FullyQualifiedE 
+   rrorId : NativeCo  
+  mmandError
+ 
+Prisma schema loaded from prisma\schema.prisma
+
+Prisma schema 
+warnings:
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+- With `relationMode 
+= "prisma"`, no 
+foreign keys are 
+used, so relation 
+fields will not 
+benefit from the 
+index usually created 
+by the relational 
+database under the 
+hood. This can lead 
+to poor performance 
+when querying these 
+fields. We recommend 
+adding an index 
+manually. Learn more 
+at https://pris.ly/d/r
+elation-mode-prisma-in
+dexes" 
+
+Error: Prisma schema 
+validation - 
+(validate wasm)
+Error code: P1012
+error: Error 
+validating field 
+`parent` in model 
+`ProjectComment`: The 
+relation field 
+`parent` on model 
+`ProjectComment` is 
+missing an opposite 
+relation field on the 
+model 
+`ProjectComment`. 
+Either run `prisma 
+format` or add it 
+manually.
+  -->  prisma\schema.p
+risma:814
+   | 
+813 |   user User @rel
+ation("ProjectComment_
+userId", fields: 
+[userId], references: 
+[id])
+814 |   parent 
+ProjectComment? @relat
+ion("ProjectComment_pa
+rentId", fields: 
+[parentId], 
+references: [id])
+815 | }
+   | 
+
+Validation Error 
+Count: 1
+[Context: validate]
+
+Prisma CLI Version : 
+6.13.0
+

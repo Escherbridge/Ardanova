@@ -10,10 +10,11 @@ namespace ArdaNova.Domain.Models.Entities;
 public class ICO
 {
     [Key]
-    public string id { get; set; }
+    [Required]
+    public string id { get; set; } = string.Empty;
 
     [Required]
-    public string tokenId { get; set; }
+    public string tokenId { get; set; } = string.Empty;
 
     [Required]
     public decimal fundingGoal { get; set; }
@@ -44,7 +45,7 @@ public class ICO
     public DateTime updatedAt { get; set; }
 
     [ForeignKey("tokenId")]
-    public virtual ProjectToken Token { get; set; }
+    public virtual ProjectToken? Token { get; set; }
 
     public virtual ICollection<ICOContribution> ICOContributions { get; set; } = new List<ICOContribution>();
 

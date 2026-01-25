@@ -10,10 +10,11 @@ namespace ArdaNova.Domain.Models.Entities;
 public class TaskCompensation
 {
     [Key]
-    public string id { get; set; }
+    [Required]
+    public string id { get; set; } = string.Empty;
 
     [Required]
-    public string taskId { get; set; }
+    public string taskId { get; set; } = string.Empty;
 
     [Required]
     public CompensationModel model { get; set; }
@@ -32,6 +33,6 @@ public class TaskCompensation
     public DateTime createdAt { get; set; }
 
     [ForeignKey("taskId")]
-    public virtual ProjectTask Task { get; set; }
+    public virtual ProjectTask? Task { get; set; }
 
 }

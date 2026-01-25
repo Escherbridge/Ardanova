@@ -10,20 +10,21 @@ namespace ArdaNova.Domain.Models.Entities;
 public class ProjectTask
 {
     [Key]
-    public string id { get; set; }
+    [Required]
+    public string id { get; set; } = string.Empty;
 
     [Required]
-    public string projectId { get; set; }
+    public string projectId { get; set; } = string.Empty;
 
     public string? backlogItemId { get; set; }
 
     [Required]
-    public string title { get; set; }
+    public string title { get; set; } = string.Empty;
 
     public string? description { get; set; }
 
     [Required]
-    public Enums.TaskStatus status { get; set; }
+    public TaskStatus status { get; set; }
 
     [Required]
     public TaskPriority priority { get; set; }
@@ -50,17 +51,17 @@ public class ProjectTask
     public string? assignedToId { get; set; }
 
     [ForeignKey("projectId")]
-    public virtual Project Project { get; set; }
+    public virtual Project? Project { get; set; }
 
     [ForeignKey("assignedToId")]
-    public virtual User AssignedTo { get; set; }
+    public virtual User? AssignedTo { get; set; }
 
     [ForeignKey("backlogItemId")]
-    public virtual BacklogItem BacklogItem { get; set; }
+    public virtual BacklogItem? BacklogItem { get; set; }
 
-    public virtual ICollection<ProjectTaskDependency> DependsOn { get; set; } = new List<ProjectTaskDependency>();
+    public virtual ICollection<ProjectTaskDependency> ProjectTaskDependencies { get; set; } = new List<ProjectTaskDependency>();
 
-    public virtual ICollection<ProjectTaskDependency> DependedOnBy { get; set; } = new List<ProjectTaskDependency>();
+    public virtual ICollection<ProjectTaskDependency> ProjectTaskDependencies1 { get; set; } = new List<ProjectTaskDependency>();
 
     public virtual ICollection<SprintItem> SprintItems { get; set; } = new List<SprintItem>();
 

@@ -10,10 +10,11 @@ namespace ArdaNova.Domain.Models.Entities;
 public class Attachment
 {
     [Key]
-    public string id { get; set; }
+    [Required]
+    public string id { get; set; } = string.Empty;
 
     [Required]
-    public string uploadedById { get; set; }
+    public string uploadedById { get; set; } = string.Empty;
 
     public string? bucketPath { get; set; }
 
@@ -28,6 +29,6 @@ public class Attachment
     public virtual ICollection<ChatMessage> ChatMessages { get; set; } = new List<ChatMessage>();
 
     [ForeignKey("uploadedById")]
-    public virtual User UploadedBy { get; set; }
+    public virtual User? UploadedBy { get; set; }
 
 }

@@ -10,13 +10,14 @@ namespace ArdaNova.Domain.Models.Entities;
 public class Vote
 {
     [Key]
-    public string id { get; set; }
+    [Required]
+    public string id { get; set; } = string.Empty;
 
     [Required]
-    public string proposalId { get; set; }
+    public string proposalId { get; set; } = string.Empty;
 
     [Required]
-    public string voterId { get; set; }
+    public string voterId { get; set; } = string.Empty;
 
     [Required]
     public int choice { get; set; }
@@ -32,9 +33,9 @@ public class Vote
     public DateTime createdAt { get; set; }
 
     [ForeignKey("proposalId")]
-    public virtual Proposal Proposal { get; set; }
+    public virtual Proposal? Proposal { get; set; }
 
     [ForeignKey("voterId")]
-    public virtual User Voter { get; set; }
+    public virtual User? Voter { get; set; }
 
 }

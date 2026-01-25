@@ -10,10 +10,11 @@ namespace ArdaNova.Domain.Models.Entities;
 public class ShopAnalytics
 {
     [Key]
-    public string id { get; set; }
+    [Required]
+    public string id { get; set; } = string.Empty;
 
     [Required]
-    public string shopId { get; set; }
+    public string shopId { get; set; } = string.Empty;
 
     [Required]
     public DateTime date { get; set; }
@@ -37,6 +38,6 @@ public class ShopAnalytics
     public DateTime createdAt { get; set; }
 
     [ForeignKey("shopId")]
-    public virtual Shop Shop { get; set; }
+    public virtual Shop? Shop { get; set; }
 
 }

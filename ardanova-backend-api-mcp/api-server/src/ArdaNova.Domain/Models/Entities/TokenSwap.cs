@@ -10,16 +10,17 @@ namespace ArdaNova.Domain.Models.Entities;
 public class TokenSwap
 {
     [Key]
-    public string id { get; set; }
+    [Required]
+    public string id { get; set; } = string.Empty;
 
     [Required]
-    public string userId { get; set; }
+    public string userId { get; set; } = string.Empty;
 
     [Required]
-    public string fromTokenId { get; set; }
+    public string fromTokenId { get; set; } = string.Empty;
 
     [Required]
-    public string toTokenId { get; set; }
+    public string toTokenId { get; set; } = string.Empty;
 
     [Required]
     public decimal fromAmount { get; set; }
@@ -44,12 +45,12 @@ public class TokenSwap
     public DateTime? completedAt { get; set; }
 
     [ForeignKey("userId")]
-    public virtual User User { get; set; }
+    public virtual User? User { get; set; }
 
     [ForeignKey("fromTokenId")]
-    public virtual ProjectToken FromToken { get; set; }
+    public virtual ProjectToken? FromToken { get; set; }
 
     [ForeignKey("toTokenId")]
-    public virtual ProjectToken ToToken { get; set; }
+    public virtual ProjectToken? ToToken { get; set; }
 
 }

@@ -10,10 +10,11 @@ namespace ArdaNova.Domain.Models.Entities;
 public class Treasury
 {
     [Key]
-    public string id { get; set; }
+    [Required]
+    public string id { get; set; } = string.Empty;
 
     [Required]
-    public string projectId { get; set; }
+    public string projectId { get; set; } = string.Empty;
 
     [Required]
     public decimal balance { get; set; }
@@ -27,7 +28,7 @@ public class Treasury
     public DateTime updatedAt { get; set; }
 
     [ForeignKey("projectId")]
-    public virtual Project Project { get; set; }
+    public virtual Project? Project { get; set; }
 
     public virtual ICollection<TreasuryTransaction> TreasuryTransactions { get; set; } = new List<TreasuryTransaction>();
 

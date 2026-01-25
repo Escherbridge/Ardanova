@@ -1,0 +1,27 @@
+import { z } from 'zod';
+import { Prisma } from '@prisma/client'
+import { EpicStatusSchema } from '../inputTypeSchemas/EpicStatusSchema'
+import { PrioritySchema } from '../inputTypeSchemas/PrioritySchema'
+
+/////////////////////////////////////////
+// EPIC SCHEMA
+/////////////////////////////////////////
+
+export const EpicSchema = z.object({
+  status: EpicStatusSchema,
+  priority: PrioritySchema,
+  id: z.string().cuid(),
+  phaseId: z.string(),
+  title: z.string(),
+  description: z.string().nullable(),
+  tokenBudget: z.instanceof(Prisma.Decimal, { message: "Field 'tokenBudget' must be a Decimal. Location: ['Models', 'Epic']"}).nullable(),
+  progress: z.number().int(),
+  startDate: z.coerce.date().nullable(),
+  targetDate: z.coerce.date().nullable(),
+  createdAt: z.coerce.date(),
+  updatedAt: z.coerce.date(),
+})
+
+export type Epic = z.infer<typeof EpicSchema>
+
+export default EpicSchema;

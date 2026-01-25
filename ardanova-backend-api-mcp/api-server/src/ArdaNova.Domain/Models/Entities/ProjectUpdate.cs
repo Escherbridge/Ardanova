@@ -10,19 +10,20 @@ namespace ArdaNova.Domain.Models.Entities;
 public class ProjectUpdate
 {
     [Key]
-    public string id { get; set; }
+    [Required]
+    public string id { get; set; } = string.Empty;
 
     [Required]
-    public string projectId { get; set; }
+    public string projectId { get; set; } = string.Empty;
 
     [Required]
-    public string userId { get; set; }
+    public string userId { get; set; } = string.Empty;
 
     [Required]
-    public string title { get; set; }
+    public string title { get; set; } = string.Empty;
 
     [Required]
-    public string content { get; set; }
+    public string content { get; set; } = string.Empty;
 
     public string? images { get; set; }
 
@@ -30,9 +31,9 @@ public class ProjectUpdate
     public DateTime createdAt { get; set; }
 
     [ForeignKey("projectId")]
-    public virtual Project Project { get; set; }
+    public virtual Project? Project { get; set; }
 
     [ForeignKey("userId")]
-    public virtual User User { get; set; }
+    public virtual User? User { get; set; }
 
 }

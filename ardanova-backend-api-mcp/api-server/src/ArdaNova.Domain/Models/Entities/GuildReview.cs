@@ -10,15 +10,16 @@ namespace ArdaNova.Domain.Models.Entities;
 public class GuildReview
 {
     [Key]
-    public string id { get; set; }
+    [Required]
+    public string id { get; set; } = string.Empty;
 
     [Required]
-    public string guildId { get; set; }
+    public string guildId { get; set; } = string.Empty;
 
     public string? projectId { get; set; }
 
     [Required]
-    public string userId { get; set; }
+    public string userId { get; set; } = string.Empty;
 
     [Required]
     public int rating { get; set; }
@@ -29,9 +30,9 @@ public class GuildReview
     public DateTime createdAt { get; set; }
 
     [ForeignKey("guildId")]
-    public virtual Guild Guild { get; set; }
+    public virtual Guild? Guild { get; set; }
 
     [ForeignKey("userId")]
-    public virtual User User { get; set; }
+    public virtual User? User { get; set; }
 
 }

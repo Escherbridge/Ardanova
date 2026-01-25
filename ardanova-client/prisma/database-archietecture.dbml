@@ -105,6 +105,10 @@ Table VerificationToken {
   identifier varchar [not null]
   token varchar [not null, unique]
   expires datetime [not null]
+  
+  indexes {
+    (identifier, token) [pk]
+  }
 }
 Ref: VerificationToken.identifier > User.id
 

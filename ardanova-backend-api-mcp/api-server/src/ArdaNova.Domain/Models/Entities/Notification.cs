@@ -10,19 +10,20 @@ namespace ArdaNova.Domain.Models.Entities;
 public class Notification
 {
     [Key]
-    public string id { get; set; }
+    [Required]
+    public string id { get; set; } = string.Empty;
 
     [Required]
-    public string userId { get; set; }
+    public string userId { get; set; } = string.Empty;
 
     [Required]
     public NotificationType type { get; set; }
 
     [Required]
-    public string title { get; set; }
+    public string title { get; set; } = string.Empty;
 
     [Required]
-    public string message { get; set; }
+    public string message { get; set; } = string.Empty;
 
     public string? data { get; set; }
 
@@ -37,6 +38,6 @@ public class Notification
     public DateTime createdAt { get; set; }
 
     [ForeignKey("userId")]
-    public virtual User User { get; set; }
+    public virtual User? User { get; set; }
 
 }

@@ -10,13 +10,14 @@ namespace ArdaNova.Domain.Models.Entities;
 public class Sprint
 {
     [Key]
-    public string id { get; set; }
+    [Required]
+    public string id { get; set; } = string.Empty;
 
     [Required]
-    public string projectId { get; set; }
+    public string projectId { get; set; } = string.Empty;
 
     [Required]
-    public string name { get; set; }
+    public string name { get; set; } = string.Empty;
 
     public string? goal { get; set; }
 
@@ -40,7 +41,7 @@ public class Sprint
     public DateTime updatedAt { get; set; }
 
     [ForeignKey("projectId")]
-    public virtual Project Project { get; set; }
+    public virtual Project? Project { get; set; }
 
     public virtual ICollection<SprintItem> SprintItems { get; set; } = new List<SprintItem>();
 

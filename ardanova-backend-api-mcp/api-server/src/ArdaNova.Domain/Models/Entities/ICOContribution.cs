@@ -10,13 +10,14 @@ namespace ArdaNova.Domain.Models.Entities;
 public class ICOContribution
 {
     [Key]
-    public string id { get; set; }
+    [Required]
+    public string id { get; set; } = string.Empty;
 
     [Required]
-    public string icoId { get; set; }
+    public string icoId { get; set; } = string.Empty;
 
     [Required]
-    public string userId { get; set; }
+    public string userId { get; set; } = string.Empty;
 
     [Required]
     public decimal amount { get; set; }
@@ -25,7 +26,7 @@ public class ICOContribution
     public decimal tokenAmount { get; set; }
 
     [Required]
-    public string paymentAsset { get; set; }
+    public string paymentAsset { get; set; } = string.Empty;
 
     public string? txHash { get; set; }
 
@@ -36,9 +37,9 @@ public class ICOContribution
     public DateTime createdAt { get; set; }
 
     [ForeignKey("icoId")]
-    public virtual ICO Ico { get; set; }
+    public virtual ICO? Ico { get; set; }
 
     [ForeignKey("userId")]
-    public virtual User User { get; set; }
+    public virtual User? User { get; set; }
 
 }

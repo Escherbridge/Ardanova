@@ -10,13 +10,14 @@ namespace ArdaNova.Domain.Models.Entities;
 public class LiquidityPool
 {
     [Key]
-    public string id { get; set; }
+    [Required]
+    public string id { get; set; } = string.Empty;
 
     [Required]
-    public string token1Id { get; set; }
+    public string token1Id { get; set; } = string.Empty;
 
     [Required]
-    public string token2Id { get; set; }
+    public string token2Id { get; set; } = string.Empty;
 
     [Required]
     public decimal reserve1 { get; set; }
@@ -40,10 +41,10 @@ public class LiquidityPool
     public DateTime updatedAt { get; set; }
 
     [ForeignKey("token1Id")]
-    public virtual ProjectToken Token1 { get; set; }
+    public virtual ProjectToken? Token1 { get; set; }
 
     [ForeignKey("token2Id")]
-    public virtual ProjectToken Token2 { get; set; }
+    public virtual ProjectToken? Token2 { get; set; }
 
     public virtual ICollection<LiquidityProvider> LiquidityProviders { get; set; } = new List<LiquidityProvider>();
 

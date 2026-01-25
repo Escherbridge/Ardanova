@@ -10,19 +10,20 @@ namespace ArdaNova.Domain.Models.Entities;
 public class ProjectBid
 {
     [Key]
-    public string id { get; set; }
+    [Required]
+    public string id { get; set; } = string.Empty;
 
     [Required]
-    public string projectId { get; set; }
+    public string projectId { get; set; } = string.Empty;
 
     [Required]
-    public string guildId { get; set; }
+    public string guildId { get; set; } = string.Empty;
 
     [Required]
-    public string userId { get; set; }
+    public string userId { get; set; } = string.Empty;
 
     [Required]
-    public string proposal { get; set; }
+    public string proposal { get; set; } = string.Empty;
 
     public string? timeline { get; set; }
 
@@ -40,12 +41,12 @@ public class ProjectBid
     public DateTime? reviewedAt { get; set; }
 
     [ForeignKey("projectId")]
-    public virtual Project Project { get; set; }
+    public virtual Project? Project { get; set; }
 
     [ForeignKey("guildId")]
-    public virtual Guild Guild { get; set; }
+    public virtual Guild? Guild { get; set; }
 
     [ForeignKey("userId")]
-    public virtual User User { get; set; }
+    public virtual User? User { get; set; }
 
 }

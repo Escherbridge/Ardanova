@@ -10,22 +10,23 @@ namespace ArdaNova.Domain.Models.Entities;
 public class Project
 {
     [Key]
-    public string id { get; set; }
+    [Required]
+    public string id { get; set; } = string.Empty;
 
     [Required]
-    public string title { get; set; }
+    public string title { get; set; } = string.Empty;
 
     [Required]
-    public string slug { get; set; }
+    public string slug { get; set; } = string.Empty;
 
     [Required]
-    public string description { get; set; }
+    public string description { get; set; } = string.Empty;
 
     [Required]
-    public string problemStatement { get; set; }
+    public string problemStatement { get; set; } = string.Empty;
 
     [Required]
-    public string solution { get; set; }
+    public string solution { get; set; } = string.Empty;
 
     [Required]
     public ProjectCategory category { get; set; }
@@ -77,17 +78,17 @@ public class Project
     public DateTime? completedAt { get; set; }
 
     [Required]
-    public string createdById { get; set; }
+    public string createdById { get; set; } = string.Empty;
 
     public string? assignedGuildId { get; set; }
 
-    public virtual ICollection<Activity> Activitys { get; set; } = new List<Activity>();
+    public virtual ICollection<Activity> Activities { get; set; } = new List<Activity>();
 
     [ForeignKey("createdById")]
-    public virtual User CreatedBy { get; set; }
+    public virtual User? CreatedBy { get; set; }
 
     [ForeignKey("assignedGuildId")]
-    public virtual Guild AssignedGuild { get; set; }
+    public virtual Guild? AssignedGuild { get; set; }
 
     public virtual ICollection<ProjectTask> ProjectTasks { get; set; } = new List<ProjectTask>();
 
@@ -117,8 +118,8 @@ public class Project
 
     public virtual ICollection<ProjectToken> ProjectTokens { get; set; } = new List<ProjectToken>();
 
-    public virtual ICollection<ProjectEquity> ProjectEquitys { get; set; } = new List<ProjectEquity>();
+    public virtual ICollection<ProjectEquity> ProjectEquities { get; set; } = new List<ProjectEquity>();
 
-    public virtual ICollection<Treasury> Treasurys { get; set; } = new List<Treasury>();
+    public virtual ICollection<Treasury> Treasuries { get; set; } = new List<Treasury>();
 
 }

@@ -10,13 +10,14 @@ namespace ArdaNova.Domain.Models.Entities;
 public class SaleItem
 {
     [Key]
-    public string id { get; set; }
+    [Required]
+    public string id { get; set; } = string.Empty;
 
     [Required]
-    public string saleId { get; set; }
+    public string saleId { get; set; } = string.Empty;
 
     [Required]
-    public string productId { get; set; }
+    public string productId { get; set; } = string.Empty;
 
     [Required]
     public int quantity { get; set; }
@@ -28,9 +29,9 @@ public class SaleItem
     public decimal total { get; set; }
 
     [ForeignKey("saleId")]
-    public virtual Sale Sale { get; set; }
+    public virtual Sale? Sale { get; set; }
 
     [ForeignKey("productId")]
-    public virtual Product Product { get; set; }
+    public virtual Product? Product { get; set; }
 
 }

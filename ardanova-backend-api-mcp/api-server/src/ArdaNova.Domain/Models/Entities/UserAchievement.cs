@@ -10,13 +10,14 @@ namespace ArdaNova.Domain.Models.Entities;
 public class UserAchievement
 {
     [Key]
-    public string id { get; set; }
+    [Required]
+    public string id { get; set; } = string.Empty;
 
     [Required]
-    public string userId { get; set; }
+    public string userId { get; set; } = string.Empty;
 
     [Required]
-    public string achievementId { get; set; }
+    public string achievementId { get; set; } = string.Empty;
 
     [Required]
     public int progress { get; set; }
@@ -24,9 +25,9 @@ public class UserAchievement
     public DateTime? earnedAt { get; set; }
 
     [ForeignKey("userId")]
-    public virtual User User { get; set; }
+    public virtual User? User { get; set; }
 
     [ForeignKey("achievementId")]
-    public virtual Achievement Achievement { get; set; }
+    public virtual Achievement? Achievement { get; set; }
 
 }

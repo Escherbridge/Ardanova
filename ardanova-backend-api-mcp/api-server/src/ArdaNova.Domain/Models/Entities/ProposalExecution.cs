@@ -10,10 +10,11 @@ namespace ArdaNova.Domain.Models.Entities;
 public class ProposalExecution
 {
     [Key]
-    public string id { get; set; }
+    [Required]
+    public string id { get; set; } = string.Empty;
 
     [Required]
-    public string proposalId { get; set; }
+    public string proposalId { get; set; } = string.Empty;
 
     [Required]
     public DateTime executedAt { get; set; }
@@ -23,6 +24,6 @@ public class ProposalExecution
     public string? result { get; set; }
 
     [ForeignKey("proposalId")]
-    public virtual Proposal Proposal { get; set; }
+    public virtual Proposal? Proposal { get; set; }
 
 }

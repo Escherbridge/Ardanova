@@ -10,16 +10,17 @@ namespace ArdaNova.Domain.Models.Entities;
 public class Invoice
 {
     [Key]
-    public string id { get; set; }
+    [Required]
+    public string id { get; set; } = string.Empty;
 
     [Required]
-    public string shopId { get; set; }
+    public string shopId { get; set; } = string.Empty;
 
     [Required]
-    public string buyerId { get; set; }
+    public string buyerId { get; set; } = string.Empty;
 
     [Required]
-    public string invoiceNumber { get; set; }
+    public string invoiceNumber { get; set; } = string.Empty;
 
     [Required]
     public decimal amount { get; set; }
@@ -48,15 +49,15 @@ public class Invoice
     public DateTime updatedAt { get; set; }
 
     [Required]
-    public string userId { get; set; }
+    public string userId { get; set; } = string.Empty;
 
     [ForeignKey("shopId")]
-    public virtual Shop Shop { get; set; }
+    public virtual Shop? Shop { get; set; }
 
     [ForeignKey("buyerId")]
-    public virtual User Buyer { get; set; }
+    public virtual User? Buyer { get; set; }
 
     [ForeignKey("userId")]
-    public virtual User User { get; set; }
+    public virtual User? User { get; set; }
 
 }

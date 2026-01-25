@@ -41,21 +41,19 @@ public class ArdaNovaDbContext : DbContext
     public DbSet<ProjectEquity> ProjectEquities => Set<ProjectEquity>();
 
     // Agency entities
-    public DbSet<Agency> Agencies => Set<Agency>();
-    public DbSet<AgencyMember> AgencyMembers => Set<AgencyMember>();
+
     public DbSet<ProjectBid> ProjectBids => Set<ProjectBid>();
-    public DbSet<AgencyReview> AgencyReviews => Set<AgencyReview>();
+
 
     // Business entities
-    public DbSet<Business> Businesses => Set<Business>();
-    public DbSet<Customer> Customers => Set<Customer>();
+
     public DbSet<Product> Products => Set<Product>();
     public DbSet<Invoice> Invoices => Set<Invoice>();
     public DbSet<Sale> Sales => Set<Sale>();
     public DbSet<SaleItem> SaleItems => Set<SaleItem>();
     public DbSet<InventoryItem> InventoryItems => Set<InventoryItem>();
     public DbSet<MarketingCampaign> MarketingCampaigns => Set<MarketingCampaign>();
-    public DbSet<BusinessAnalytics> BusinessAnalytics => Set<BusinessAnalytics>();
+
 
     // Wallet entities
     public DbSet<Wallet> Wallets => Set<Wallet>();

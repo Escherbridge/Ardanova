@@ -10,21 +10,22 @@ namespace ArdaNova.Domain.Models.Entities;
 public class Guild
 {
     [Key]
-    public string id { get; set; }
+    [Required]
+    public string id { get; set; } = string.Empty;
 
     [Required]
-    public string name { get; set; }
+    public string name { get; set; } = string.Empty;
 
     [Required]
-    public string slug { get; set; }
+    public string slug { get; set; } = string.Empty;
 
     [Required]
-    public string description { get; set; }
+    public string description { get; set; } = string.Empty;
 
     public string? website { get; set; }
 
     [Required]
-    public string email { get; set; }
+    public string email { get; set; } = string.Empty;
 
     public string? phone { get; set; }
 
@@ -54,12 +55,12 @@ public class Guild
     public DateTime updatedAt { get; set; }
 
     [Required]
-    public string ownerId { get; set; }
+    public string ownerId { get; set; } = string.Empty;
 
     public virtual ICollection<Project> Projects { get; set; } = new List<Project>();
 
     [ForeignKey("ownerId")]
-    public virtual User Owner { get; set; }
+    public virtual User? Owner { get; set; }
 
     public virtual ICollection<GuildMember> GuildMembers { get; set; } = new List<GuildMember>();
 

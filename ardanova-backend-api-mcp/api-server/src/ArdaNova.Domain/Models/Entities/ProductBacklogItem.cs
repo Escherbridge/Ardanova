@@ -10,13 +10,14 @@ namespace ArdaNova.Domain.Models.Entities;
 public class ProductBacklogItem
 {
     [Key]
-    public string id { get; set; }
+    [Required]
+    public string id { get; set; } = string.Empty;
 
     [Required]
-    public string epicId { get; set; }
+    public string epicId { get; set; } = string.Empty;
 
     [Required]
-    public string title { get; set; }
+    public string title { get; set; } = string.Empty;
 
     public string? description { get; set; }
 
@@ -40,7 +41,7 @@ public class ProductBacklogItem
     public DateTime updatedAt { get; set; }
 
     [ForeignKey("epicId")]
-    public virtual Epic Epic { get; set; }
+    public virtual Epic? Epic { get; set; }
 
     public virtual ICollection<BacklogItem> BacklogItems { get; set; } = new List<BacklogItem>();
 

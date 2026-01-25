@@ -10,7 +10,8 @@ namespace ArdaNova.Domain.Models.Entities;
 public class Leaderboard
 {
     [Key]
-    public string id { get; set; }
+    [Required]
+    public string id { get; set; } = string.Empty;
 
     [Required]
     public LeaderboardPeriod period { get; set; }
@@ -27,6 +28,6 @@ public class Leaderboard
     [Required]
     public DateTime createdAt { get; set; }
 
-    public virtual ICollection<LeaderboardEntry> LeaderboardEntrys { get; set; } = new List<LeaderboardEntry>();
+    public virtual ICollection<LeaderboardEntry> LeaderboardEntries { get; set; } = new List<LeaderboardEntry>();
 
 }

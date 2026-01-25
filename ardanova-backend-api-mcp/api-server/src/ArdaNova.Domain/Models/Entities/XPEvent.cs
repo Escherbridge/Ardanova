@@ -10,10 +10,11 @@ namespace ArdaNova.Domain.Models.Entities;
 public class XPEvent
 {
     [Key]
-    public string id { get; set; }
+    [Required]
+    public string id { get; set; } = string.Empty;
 
     [Required]
-    public string userId { get; set; }
+    public string userId { get; set; } = string.Empty;
 
     [Required]
     public XPEventType eventType { get; set; }
@@ -22,7 +23,7 @@ public class XPEvent
     public int amount { get; set; }
 
     [Required]
-    public string source { get; set; }
+    public string source { get; set; } = string.Empty;
 
     public string? sourceId { get; set; }
 
@@ -32,6 +33,6 @@ public class XPEvent
     public DateTime createdAt { get; set; }
 
     [ForeignKey("userId")]
-    public virtual User User { get; set; }
+    public virtual User? User { get; set; }
 
 }

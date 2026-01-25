@@ -46,8 +46,8 @@ interface Field {
 
 interface Index {
     columns: { value: string }[];
-    unique?: boolean;
-    pk?: boolean;
+    unique?: boolean | string;
+    pk?: boolean | string;
     name?: string;
 }
 
@@ -127,9 +127,8 @@ generator zod {
 }
 
 datasource db {
-  provider     = "postgresql"
-  url          = env("DATABASE_URL")
-  relationMode = "prisma"
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 `;
@@ -198,6 +197,9 @@ datasource db {
                 let def = field.dbdefault.value;
                 const defType = field.dbdefault.type;
 
+                // Check if field type is an enum (not in TYPE_MAP means it's likely an enum or model)
+                const isEnumType = !TYPE_MAP[field.type.type_name.toLowerCase()];
+
                 if (defType === 'expression') {
                     // Handle expressions like now(), cuid(), uuid()
                     if (def.includes('now')) def = 'now()';
@@ -208,6 +210,9 @@ datasource db {
                     def = def === 'true' ? 'true' : 'false';
                 } else if (defType === 'number') {
                     // Keep as is
+                } else if (isEnumType) {
+                    // Enum values should NOT be quoted in Prisma
+                    // def stays as is (e.g., INDIVIDUAL, not "INDIVIDUAL")
                 } else if (defType === 'string') {
                     def = `"${def}"`;
                 }
@@ -249,33 +254,53 @@ datasource db {
             const pkField = remoteEp.fieldNames[0];
 
             // Generate relation name from FK field
-            let relationName = fkField.endsWith('Id')
+            let relationFieldName = fkField.endsWith('Id')
                 ? fkField.slice(0, -2)
                 : remoteModel.charAt(0).toLowerCase() + remoteModel.slice(1);
+
+            // Create a unique relation name for Prisma disambiguation
+            // Use format: ModelName_FieldName to ensure uniqueness
+            const relationDbName = `${table.name}_${fkField}`;
 
             // Handle onDelete
             const onDelete = ref.onDelete ? `, onDelete: ${ref.onDelete}` : '';
 
             if (localEp.relation === '*' && remoteEp.relation === '1') {
                 // Many-to-One: This table holds the FK
-                relationName = getUniqueRelationName(table.name, relationName);
-                output += `  ${relationName} ${remoteModel} @relation(fields: [${fkField}], references: [${pkField}]${onDelete})\n`;
+                relationFieldName = getUniqueRelationName(table.name, relationFieldName);
+
+                // Check if FK field is nullable (not marked as not_null)
+                const fkFieldDef = table.fields.find((f) => f.name === fkField);
+                const isOptional = fkFieldDef && !fkFieldDef.not_null;
+                const optionalMarker = isOptional ? '?' : '';
+
+                output += `  ${relationFieldName} ${remoteModel}${optionalMarker} @relation("${relationDbName}", fields: [${fkField}], references: [${pkField}]${onDelete})\n`;
+
+                // For self-referential relations, also generate the back-reference array
+                if (ep1.tableName === ep2.tableName) {
+                    const childrenFieldName = getUniqueRelationName(table.name, relationFieldName + 'Children');
+                    output += `  ${childrenFieldName} ${table.name}[] @relation("${relationDbName}")\n`;
+                }
 
             } else if (localEp.relation === '1' && remoteEp.relation === '*') {
                 // One-to-Many: This table is referenced by many
                 const pluralName = pluralize(remoteEp.tableName.charAt(0).toLowerCase() + remoteEp.tableName.slice(1));
                 const listName = getUniqueRelationName(table.name, pluralName);
-                output += `  ${listName} ${remoteEp.tableName}[]\n`;
+                // Use the FK field from the remote side for the relation name
+                const remoteRefKey = `${remoteEp.tableName}_${remoteEp.fieldNames[0]}`;
+                output += `  ${listName} ${remoteEp.tableName}[] @relation("${remoteRefKey}")\n`;
 
             } else if (localEp.relation === '1' && remoteEp.relation === '1') {
                 // One-to-One
                 const hasFk = table.fields.some((f) => f.name === fkField);
-                relationName = getUniqueRelationName(table.name, relationName);
+                relationFieldName = getUniqueRelationName(table.name, relationFieldName);
 
                 if (hasFk) {
-                    output += `  ${relationName} ${remoteModel}? @relation(fields: [${fkField}], references: [${pkField}]${onDelete})\n`;
+                    output += `  ${relationFieldName} ${remoteModel}? @relation("${relationDbName}", fields: [${fkField}], references: [${pkField}]${onDelete})\n`;
                 } else {
-                    output += `  ${relationName} ${remoteModel}?\n`;
+                    // Inverse side of one-to-one
+                    const remoteRefKey = `${remoteModel}_${remoteEp.fieldNames[0]}`;
+                    output += `  ${relationFieldName} ${remoteModel}? @relation("${remoteRefKey}")\n`;
                 }
             }
         });

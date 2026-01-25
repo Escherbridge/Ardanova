@@ -10,16 +10,17 @@ namespace ArdaNova.Domain.Models.Entities;
 public class TaskSubmission
 {
     [Key]
-    public string id { get; set; }
+    [Required]
+    public string id { get; set; } = string.Empty;
 
     [Required]
-    public string taskId { get; set; }
+    public string taskId { get; set; } = string.Empty;
 
     [Required]
-    public string submittedById { get; set; }
+    public string submittedById { get; set; } = string.Empty;
 
     [Required]
-    public string content { get; set; }
+    public string content { get; set; } = string.Empty;
 
     public string? attachments { get; set; }
 
@@ -36,12 +37,12 @@ public class TaskSubmission
     public DateTime? reviewedAt { get; set; }
 
     [ForeignKey("taskId")]
-    public virtual ProjectTask Task { get; set; }
+    public virtual ProjectTask? Task { get; set; }
 
     [ForeignKey("submittedById")]
-    public virtual User SubmittedBy { get; set; }
+    public virtual User? SubmittedBy { get; set; }
 
     [ForeignKey("reviewedById")]
-    public virtual User ReviewedBy { get; set; }
+    public virtual User? ReviewedBy { get; set; }
 
 }

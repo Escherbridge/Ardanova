@@ -10,25 +10,26 @@ namespace ArdaNova.Domain.Models.Entities;
 public class Proposal
 {
     [Key]
-    public string id { get; set; }
+    [Required]
+    public string id { get; set; } = string.Empty;
 
     [Required]
-    public string projectId { get; set; }
+    public string projectId { get; set; } = string.Empty;
 
     [Required]
-    public string creatorId { get; set; }
+    public string creatorId { get; set; } = string.Empty;
 
     [Required]
     public ProposalType type { get; set; }
 
     [Required]
-    public string title { get; set; }
+    public string title { get; set; } = string.Empty;
 
     [Required]
-    public string description { get; set; }
+    public string description { get; set; } = string.Empty;
 
     [Required]
-    public string options { get; set; }
+    public string options { get; set; } = string.Empty;
 
     [Required]
     public int quorum { get; set; }
@@ -52,10 +53,10 @@ public class Proposal
     public DateTime updatedAt { get; set; }
 
     [ForeignKey("projectId")]
-    public virtual Project Project { get; set; }
+    public virtual Project? Project { get; set; }
 
     [ForeignKey("creatorId")]
-    public virtual User Creator { get; set; }
+    public virtual User? Creator { get; set; }
 
     public virtual ICollection<Vote> Votes { get; set; } = new List<Vote>();
 

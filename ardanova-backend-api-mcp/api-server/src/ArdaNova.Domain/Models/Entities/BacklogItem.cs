@@ -10,13 +10,14 @@ namespace ArdaNova.Domain.Models.Entities;
 public class BacklogItem
 {
     [Key]
-    public string id { get; set; }
+    [Required]
+    public string id { get; set; } = string.Empty;
 
     [Required]
-    public string pbiId { get; set; }
+    public string pbiId { get; set; } = string.Empty;
 
     [Required]
-    public string title { get; set; }
+    public string title { get; set; } = string.Empty;
 
     public string? description { get; set; }
 
@@ -37,6 +38,6 @@ public class BacklogItem
     public virtual ICollection<ProjectTask> ProjectTasks { get; set; } = new List<ProjectTask>();
 
     [ForeignKey("pbiId")]
-    public virtual ProductBacklogItem Pbi { get; set; }
+    public virtual ProductBacklogItem? Pbi { get; set; }
 
 }

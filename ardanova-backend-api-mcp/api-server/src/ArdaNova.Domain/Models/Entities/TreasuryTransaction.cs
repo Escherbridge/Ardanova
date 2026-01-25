@@ -10,10 +10,11 @@ namespace ArdaNova.Domain.Models.Entities;
 public class TreasuryTransaction
 {
     [Key]
-    public string id { get; set; }
+    [Required]
+    public string id { get; set; } = string.Empty;
 
     [Required]
-    public string treasuryId { get; set; }
+    public string treasuryId { get; set; } = string.Empty;
 
     [Required]
     public TransactionType type { get; set; }
@@ -31,6 +32,6 @@ public class TreasuryTransaction
     public DateTime createdAt { get; set; }
 
     [ForeignKey("treasuryId")]
-    public virtual Treasury Treasury { get; set; }
+    public virtual Treasury? Treasury { get; set; }
 
 }

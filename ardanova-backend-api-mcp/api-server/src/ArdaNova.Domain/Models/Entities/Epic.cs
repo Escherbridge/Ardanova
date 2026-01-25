@@ -10,13 +10,14 @@ namespace ArdaNova.Domain.Models.Entities;
 public class Epic
 {
     [Key]
-    public string id { get; set; }
+    [Required]
+    public string id { get; set; } = string.Empty;
 
     [Required]
-    public string phaseId { get; set; }
+    public string phaseId { get; set; } = string.Empty;
 
     [Required]
-    public string title { get; set; }
+    public string title { get; set; } = string.Empty;
 
     public string? description { get; set; }
 
@@ -42,7 +43,7 @@ public class Epic
     public DateTime updatedAt { get; set; }
 
     [ForeignKey("phaseId")]
-    public virtual RoadmapPhase Phase { get; set; }
+    public virtual RoadmapPhase? Phase { get; set; }
 
     public virtual ICollection<ProductBacklogItem> ProductBacklogItems { get; set; } = new List<ProductBacklogItem>();
 

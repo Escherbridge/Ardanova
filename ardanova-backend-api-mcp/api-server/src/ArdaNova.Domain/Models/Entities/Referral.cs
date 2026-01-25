@@ -10,13 +10,14 @@ namespace ArdaNova.Domain.Models.Entities;
 public class Referral
 {
     [Key]
-    public string id { get; set; }
+    [Required]
+    public string id { get; set; } = string.Empty;
 
     [Required]
-    public string referrerId { get; set; }
+    public string referrerId { get; set; } = string.Empty;
 
     [Required]
-    public string referredId { get; set; }
+    public string referredId { get; set; } = string.Empty;
 
     public string? referralCode { get; set; }
 
@@ -36,9 +37,9 @@ public class Referral
     public DateTime? completedAt { get; set; }
 
     [ForeignKey("referrerId")]
-    public virtual User Referrer { get; set; }
+    public virtual User? Referrer { get; set; }
 
     [ForeignKey("referredId")]
-    public virtual User Referred { get; set; }
+    public virtual User? Referred { get; set; }
 
 }

@@ -10,13 +10,14 @@ namespace ArdaNova.Domain.Models.Entities;
 public class LiquidityProvider
 {
     [Key]
-    public string id { get; set; }
+    [Required]
+    public string id { get; set; } = string.Empty;
 
     [Required]
-    public string poolId { get; set; }
+    public string poolId { get; set; } = string.Empty;
 
     [Required]
-    public string userId { get; set; }
+    public string userId { get; set; } = string.Empty;
 
     [Required]
     public decimal shares { get; set; }
@@ -34,9 +35,9 @@ public class LiquidityProvider
     public DateTime updatedAt { get; set; }
 
     [ForeignKey("poolId")]
-    public virtual LiquidityPool Pool { get; set; }
+    public virtual LiquidityPool? Pool { get; set; }
 
     [ForeignKey("userId")]
-    public virtual User User { get; set; }
+    public virtual User? User { get; set; }
 
 }

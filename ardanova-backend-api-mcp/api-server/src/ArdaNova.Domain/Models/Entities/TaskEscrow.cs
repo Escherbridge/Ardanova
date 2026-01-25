@@ -10,16 +10,17 @@ namespace ArdaNova.Domain.Models.Entities;
 public class TaskEscrow
 {
     [Key]
-    public string id { get; set; }
+    [Required]
+    public string id { get; set; } = string.Empty;
 
     [Required]
-    public string taskId { get; set; }
+    public string taskId { get; set; } = string.Empty;
 
     [Required]
-    public string funderId { get; set; }
+    public string funderId { get; set; } = string.Empty;
 
     [Required]
-    public string tokenId { get; set; }
+    public string tokenId { get; set; } = string.Empty;
 
     [Required]
     public decimal amount { get; set; }
@@ -43,12 +44,12 @@ public class TaskEscrow
     public DateTime? refundedAt { get; set; }
 
     [ForeignKey("taskId")]
-    public virtual ProjectTask Task { get; set; }
+    public virtual ProjectTask? Task { get; set; }
 
     [ForeignKey("funderId")]
-    public virtual User Funder { get; set; }
+    public virtual User? Funder { get; set; }
 
     [ForeignKey("tokenId")]
-    public virtual ProjectToken Token { get; set; }
+    public virtual ProjectToken? Token { get; set; }
 
 }

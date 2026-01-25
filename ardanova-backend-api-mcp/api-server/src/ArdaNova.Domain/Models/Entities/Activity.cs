@@ -10,10 +10,11 @@ namespace ArdaNova.Domain.Models.Entities;
 public class Activity
 {
     [Key]
-    public string id { get; set; }
+    [Required]
+    public string id { get; set; } = string.Empty;
 
     [Required]
-    public string userId { get; set; }
+    public string userId { get; set; } = string.Empty;
 
     public string? projectId { get; set; }
 
@@ -21,13 +22,13 @@ public class Activity
     public ActivityType type { get; set; }
 
     [Required]
-    public string entityType { get; set; }
+    public string entityType { get; set; } = string.Empty;
 
     [Required]
-    public string entityId { get; set; }
+    public string entityId { get; set; } = string.Empty;
 
     [Required]
-    public string action { get; set; }
+    public string action { get; set; } = string.Empty;
 
     public string? metadata { get; set; }
 
@@ -35,9 +36,9 @@ public class Activity
     public DateTime createdAt { get; set; }
 
     [ForeignKey("userId")]
-    public virtual User User { get; set; }
+    public virtual User? User { get; set; }
 
     [ForeignKey("projectId")]
-    public virtual Project Project { get; set; }
+    public virtual Project? Project { get; set; }
 
 }

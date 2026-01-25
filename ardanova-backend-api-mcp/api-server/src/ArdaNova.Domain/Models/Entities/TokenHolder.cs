@@ -10,13 +10,14 @@ namespace ArdaNova.Domain.Models.Entities;
 public class TokenHolder
 {
     [Key]
-    public string id { get; set; }
+    [Required]
+    public string id { get; set; } = string.Empty;
 
     [Required]
-    public string tokenId { get; set; }
+    public string tokenId { get; set; } = string.Empty;
 
     [Required]
-    public string userId { get; set; }
+    public string userId { get; set; } = string.Empty;
 
     [Required]
     public decimal balance { get; set; }
@@ -34,10 +35,10 @@ public class TokenHolder
     public DateTime updatedAt { get; set; }
 
     [ForeignKey("tokenId")]
-    public virtual ProjectToken Token { get; set; }
+    public virtual ProjectToken? Token { get; set; }
 
     [ForeignKey("userId")]
-    public virtual User User { get; set; }
+    public virtual User? User { get; set; }
 
     public virtual ICollection<TokenVesting> TokenVestings { get; set; } = new List<TokenVesting>();
 

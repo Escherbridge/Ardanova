@@ -10,18 +10,19 @@ namespace ArdaNova.Domain.Models.Entities;
 public class ProjectTaskDependency
 {
     [Key]
-    public string id { get; set; }
+    [Required]
+    public string id { get; set; } = string.Empty;
 
     [Required]
-    public string taskId { get; set; }
+    public string taskId { get; set; } = string.Empty;
 
     [Required]
-    public string dependsOnId { get; set; }
+    public string dependsOnId { get; set; } = string.Empty;
 
     [ForeignKey("taskId")]
-    public virtual ProjectTask Task { get; set; }
+    public virtual ProjectTask? Task { get; set; }
 
     [ForeignKey("dependsOnId")]
-    public virtual ProjectTask DependsOn { get; set; }
+    public virtual ProjectTask? DependsOn { get; set; }
 
 }

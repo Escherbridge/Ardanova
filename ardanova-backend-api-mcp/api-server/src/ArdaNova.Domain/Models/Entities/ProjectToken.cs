@@ -10,18 +10,19 @@ namespace ArdaNova.Domain.Models.Entities;
 public class ProjectToken
 {
     [Key]
-    public string id { get; set; }
+    [Required]
+    public string id { get; set; } = string.Empty;
 
     [Required]
-    public string projectId { get; set; }
+    public string projectId { get; set; } = string.Empty;
 
     public string? assetId { get; set; }
 
     [Required]
-    public string name { get; set; }
+    public string name { get; set; } = string.Empty;
 
     [Required]
-    public string symbol { get; set; }
+    public string symbol { get; set; } = string.Empty;
 
     [Required]
     public decimal totalSupply { get; set; }
@@ -30,7 +31,7 @@ public class ProjectToken
     public int decimals { get; set; }
 
     [Required]
-    public string allocation { get; set; }
+    public string allocation { get; set; } = string.Empty;
 
     public string? vestingConfig { get; set; }
 
@@ -48,16 +49,20 @@ public class ProjectToken
     public virtual ICollection<DelegatedVote> DelegatedVotes { get; set; } = new List<DelegatedVote>();
 
     [ForeignKey("projectId")]
-    public virtual Project Project { get; set; }
+    public virtual Project? Project { get; set; }
 
     public virtual ICollection<TokenHolder> TokenHolders { get; set; } = new List<TokenHolder>();
 
-    public virtual ICollection<ICO> ICOs { get; set; } = new List<ICO>();
+    public virtual ICollection<ICO> ICOS { get; set; } = new List<ICO>();
 
     public virtual ICollection<TaskEscrow> TaskEscrows { get; set; } = new List<TaskEscrow>();
 
     public virtual ICollection<TokenSwap> TokenSwaps { get; set; } = new List<TokenSwap>();
 
+    public virtual ICollection<TokenSwap> TokenSwaps1 { get; set; } = new List<TokenSwap>();
+
     public virtual ICollection<LiquidityPool> LiquidityPools { get; set; } = new List<LiquidityPool>();
+
+    public virtual ICollection<LiquidityPool> LiquidityPools1 { get; set; } = new List<LiquidityPool>();
 
 }

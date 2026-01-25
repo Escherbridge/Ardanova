@@ -10,10 +10,11 @@ namespace ArdaNova.Domain.Models.Entities;
 public class User
 {
     [Key]
-    public string id { get; set; }
+    [Required]
+    public string id { get; set; } = string.Empty;
 
     [Required]
-    public string email { get; set; }
+    public string email { get; set; } = string.Empty;
 
     public DateTime? emailVerified { get; set; }
 
@@ -75,19 +76,19 @@ public class User
 
     public virtual ICollection<Notification> Notifications { get; set; } = new List<Notification>();
 
-    public virtual ICollection<Activity> Activitys { get; set; } = new List<Activity>();
+    public virtual ICollection<Activity> Activities { get; set; } = new List<Activity>();
 
     public virtual ICollection<XPEvent> XPEvents { get; set; } = new List<XPEvent>();
 
     public virtual ICollection<UserAchievement> UserAchievements { get; set; } = new List<UserAchievement>();
 
-    public virtual ICollection<LeaderboardEntry> LeaderboardEntrys { get; set; } = new List<LeaderboardEntry>();
+    public virtual ICollection<LeaderboardEntry> LeaderboardEntries { get; set; } = new List<LeaderboardEntry>();
 
     public virtual ICollection<UserStreak> UserStreaks { get; set; } = new List<UserStreak>();
 
-    public virtual ICollection<Referral> ReferralsMade { get; set; } = new List<Referral>();
+    public virtual ICollection<Referral> Referrals { get; set; } = new List<Referral>();
 
-    public virtual ICollection<Referral> ReferralsReceived { get; set; } = new List<Referral>();
+    public virtual ICollection<Referral> Referrals1 { get; set; } = new List<Referral>();
 
     public virtual ICollection<Project> Projects { get; set; } = new List<Project>();
 
@@ -105,15 +106,15 @@ public class User
 
     public virtual ICollection<TaskSubmission> TaskSubmissions { get; set; } = new List<TaskSubmission>();
 
-    public virtual ICollection<TaskSubmission> ReviewedTaskSubmissions { get; set; } = new List<TaskSubmission>();
+    public virtual ICollection<TaskSubmission> TaskSubmissions1 { get; set; } = new List<TaskSubmission>();
 
     public virtual ICollection<Proposal> Proposals { get; set; } = new List<Proposal>();
 
     public virtual ICollection<Vote> Votes { get; set; } = new List<Vote>();
 
-    public virtual ICollection<DelegatedVote> DelegatedVotesGiven { get; set; } = new List<DelegatedVote>();
+    public virtual ICollection<DelegatedVote> DelegatedVotes { get; set; } = new List<DelegatedVote>();
 
-    public virtual ICollection<DelegatedVote> DelegatedVotesReceived { get; set; } = new List<DelegatedVote>();
+    public virtual ICollection<DelegatedVote> DelegatedVotes1 { get; set; } = new List<DelegatedVote>();
 
     public virtual ICollection<Guild> Guilds { get; set; } = new List<Guild>();
 
@@ -127,19 +128,19 @@ public class User
 
     public virtual ICollection<Product> Products { get; set; } = new List<Product>();
 
-    public virtual ICollection<Invoice> InvoicesCreated { get; set; } = new List<Invoice>();
+    public virtual ICollection<Invoice> Invoices { get; set; } = new List<Invoice>();
 
-    public virtual ICollection<Invoice> InvoicesReceived { get; set; } = new List<Invoice>();
+    public virtual ICollection<Invoice> Invoices1 { get; set; } = new List<Invoice>();
 
-    public virtual ICollection<Sale> SalesAsSeller { get; set; } = new List<Sale>();
+    public virtual ICollection<Sale> Sales { get; set; } = new List<Sale>();
 
-    public virtual ICollection<Sale> SalesAsBuyer { get; set; } = new List<Sale>();
+    public virtual ICollection<Sale> Sales1 { get; set; } = new List<Sale>();
 
     public virtual ICollection<InventoryItem> InventoryItems { get; set; } = new List<InventoryItem>();
 
     public virtual ICollection<MarketingCampaign> MarketingCampaigns { get; set; } = new List<MarketingCampaign>();
 
-    public virtual ICollection<ProjectEquity> ProjectEquitys { get; set; } = new List<ProjectEquity>();
+    public virtual ICollection<ProjectEquity> ProjectEquities { get; set; } = new List<ProjectEquity>();
 
     public virtual ICollection<TokenHolder> TokenHolders { get; set; } = new List<TokenHolder>();
 
@@ -153,9 +154,9 @@ public class User
 
     public virtual ICollection<LiquidityProvider> LiquidityProviders { get; set; } = new List<LiquidityProvider>();
 
-    public virtual ICollection<ChatMessage> SentChatMessages { get; set; } = new List<ChatMessage>();
+    public virtual ICollection<ChatMessage> ChatMessages { get; set; } = new List<ChatMessage>();
 
-    public virtual ICollection<ChatMessage> ReceivedChatMessages { get; set; } = new List<ChatMessage>();
+    public virtual ICollection<ChatMessage> ChatMessages1 { get; set; } = new List<ChatMessage>();
 
     public virtual ICollection<Attachment> Attachments { get; set; } = new List<Attachment>();
 

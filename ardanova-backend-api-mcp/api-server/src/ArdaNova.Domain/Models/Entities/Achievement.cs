@@ -10,19 +10,20 @@ namespace ArdaNova.Domain.Models.Entities;
 public class Achievement
 {
     [Key]
-    public string id { get; set; }
+    [Required]
+    public string id { get; set; } = string.Empty;
 
     [Required]
-    public string name { get; set; }
+    public string name { get; set; } = string.Empty;
 
     [Required]
-    public string description { get; set; }
+    public string description { get; set; } = string.Empty;
 
     [Required]
     public AchievementCategory category { get; set; }
 
     [Required]
-    public string criteria { get; set; }
+    public string criteria { get; set; } = string.Empty;
 
     [Required]
     public int xpReward { get; set; }

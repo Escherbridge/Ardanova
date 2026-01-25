@@ -10,18 +10,19 @@ namespace ArdaNova.Domain.Models.Entities;
 public class UserSkill
 {
     [Key]
-    public string id { get; set; }
+    [Required]
+    public string id { get; set; } = string.Empty;
 
     [Required]
-    public string userId { get; set; }
+    public string userId { get; set; } = string.Empty;
 
     [Required]
-    public string skill { get; set; }
+    public string skill { get; set; } = string.Empty;
 
     [Required]
     public int level { get; set; }
 
     [ForeignKey("userId")]
-    public virtual User User { get; set; }
+    public virtual User? User { get; set; }
 
 }

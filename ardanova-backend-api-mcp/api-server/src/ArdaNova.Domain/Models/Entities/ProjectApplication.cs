@@ -10,19 +10,20 @@ namespace ArdaNova.Domain.Models.Entities;
 public class ProjectApplication
 {
     [Key]
-    public string id { get; set; }
+    [Required]
+    public string id { get; set; } = string.Empty;
 
     [Required]
-    public string projectId { get; set; }
+    public string projectId { get; set; } = string.Empty;
 
     [Required]
-    public string userId { get; set; }
+    public string userId { get; set; } = string.Empty;
 
     [Required]
-    public string roleTitle { get; set; }
+    public string roleTitle { get; set; } = string.Empty;
 
     [Required]
-    public string message { get; set; }
+    public string message { get; set; } = string.Empty;
 
     public string? skills { get; set; }
 
@@ -41,9 +42,9 @@ public class ProjectApplication
     public string? reviewMessage { get; set; }
 
     [ForeignKey("projectId")]
-    public virtual Project Project { get; set; }
+    public virtual Project? Project { get; set; }
 
     [ForeignKey("userId")]
-    public virtual User User { get; set; }
+    public virtual User? User { get; set; }
 
 }

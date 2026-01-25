@@ -10,13 +10,14 @@ namespace ArdaNova.Domain.Models.Entities;
 public class Wallet
 {
     [Key]
-    public string id { get; set; }
+    [Required]
+    public string id { get; set; } = string.Empty;
 
     [Required]
-    public string userId { get; set; }
+    public string userId { get; set; } = string.Empty;
 
     [Required]
-    public string address { get; set; }
+    public string address { get; set; } = string.Empty;
 
     [Required]
     public WalletProvider provider { get; set; }
@@ -36,6 +37,6 @@ public class Wallet
     public DateTime updatedAt { get; set; }
 
     [ForeignKey("userId")]
-    public virtual User User { get; set; }
+    public virtual User? User { get; set; }
 
 }

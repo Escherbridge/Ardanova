@@ -10,10 +10,11 @@ namespace ArdaNova.Domain.Models.Entities;
 public class Sale
 {
     [Key]
-    public string id { get; set; }
+    [Required]
+    public string id { get; set; } = string.Empty;
 
     [Required]
-    public string shopId { get; set; }
+    public string shopId { get; set; } = string.Empty;
 
     public string? buyerId { get; set; }
 
@@ -33,16 +34,16 @@ public class Sale
     public DateTime createdAt { get; set; }
 
     [Required]
-    public string userId { get; set; }
+    public string userId { get; set; } = string.Empty;
 
     [ForeignKey("shopId")]
-    public virtual Shop Shop { get; set; }
+    public virtual Shop? Shop { get; set; }
 
     [ForeignKey("buyerId")]
-    public virtual User Buyer { get; set; }
+    public virtual User? Buyer { get; set; }
 
     [ForeignKey("userId")]
-    public virtual User User { get; set; }
+    public virtual User? User { get; set; }
 
     public virtual ICollection<SaleItem> SaleItems { get; set; } = new List<SaleItem>();
 

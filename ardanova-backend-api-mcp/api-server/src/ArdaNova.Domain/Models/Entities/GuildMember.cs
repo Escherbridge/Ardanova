@@ -10,24 +10,25 @@ namespace ArdaNova.Domain.Models.Entities;
 public class GuildMember
 {
     [Key]
-    public string id { get; set; }
+    [Required]
+    public string id { get; set; } = string.Empty;
 
     [Required]
-    public string guildId { get; set; }
+    public string guildId { get; set; } = string.Empty;
 
     [Required]
-    public string userId { get; set; }
+    public string userId { get; set; } = string.Empty;
 
     [Required]
-    public string role { get; set; }
+    public string role { get; set; } = string.Empty;
 
     [Required]
     public DateTime joinedAt { get; set; }
 
     [ForeignKey("guildId")]
-    public virtual Guild Guild { get; set; }
+    public virtual Guild? Guild { get; set; }
 
     [ForeignKey("userId")]
-    public virtual User User { get; set; }
+    public virtual User? User { get; set; }
 
 }

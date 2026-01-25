@@ -10,15 +10,15 @@ namespace ArdaNova.Domain.Models.Entities;
 public class VerificationToken
 {
     [Required]
-    public string identifier { get; set; }
+    public string identifier { get; set; } = string.Empty;
 
     [Required]
-    public string token { get; set; }
+    public string token { get; set; } = string.Empty;
 
     [Required]
     public DateTime expires { get; set; }
 
     [ForeignKey("identifier")]
-    public virtual User User { get; set; }
+    public virtual User? User { get; set; }
 
 }

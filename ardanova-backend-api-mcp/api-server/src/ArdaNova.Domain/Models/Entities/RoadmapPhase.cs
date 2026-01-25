@@ -10,13 +10,14 @@ namespace ArdaNova.Domain.Models.Entities;
 public class RoadmapPhase
 {
     [Key]
-    public string id { get; set; }
+    [Required]
+    public string id { get; set; } = string.Empty;
 
     [Required]
-    public string roadmapId { get; set; }
+    public string roadmapId { get; set; } = string.Empty;
 
     [Required]
-    public string name { get; set; }
+    public string name { get; set; } = string.Empty;
 
     public string? description { get; set; }
 
@@ -37,7 +38,7 @@ public class RoadmapPhase
     public DateTime updatedAt { get; set; }
 
     [ForeignKey("roadmapId")]
-    public virtual Roadmap Roadmap { get; set; }
+    public virtual Roadmap? Roadmap { get; set; }
 
     public virtual ICollection<Epic> Epics { get; set; } = new List<Epic>();
 

@@ -10,10 +10,11 @@ namespace ArdaNova.Domain.Models.Entities;
 public class TokenVesting
 {
     [Key]
-    public string id { get; set; }
+    [Required]
+    public string id { get; set; } = string.Empty;
 
     [Required]
-    public string holderId { get; set; }
+    public string holderId { get; set; } = string.Empty;
 
     [Required]
     public decimal totalAmount { get; set; }
@@ -37,6 +38,6 @@ public class TokenVesting
     public DateTime createdAt { get; set; }
 
     [ForeignKey("holderId")]
-    public virtual TokenHolder Holder { get; set; }
+    public virtual TokenHolder? Holder { get; set; }
 
 }

@@ -10,19 +10,20 @@ namespace ArdaNova.Domain.Models.Entities;
 public class DelegatedVote
 {
     [Key]
-    public string id { get; set; }
+    [Required]
+    public string id { get; set; } = string.Empty;
 
     [Required]
-    public string projectId { get; set; }
+    public string projectId { get; set; } = string.Empty;
 
     [Required]
-    public string delegatorId { get; set; }
+    public string delegatorId { get; set; } = string.Empty;
 
     [Required]
-    public string delegateeId { get; set; }
+    public string delegateeId { get; set; } = string.Empty;
 
     [Required]
-    public string tokenId { get; set; }
+    public string tokenId { get; set; } = string.Empty;
 
     [Required]
     public decimal amount { get; set; }
@@ -38,15 +39,15 @@ public class DelegatedVote
     public DateTime? revokedAt { get; set; }
 
     [ForeignKey("projectId")]
-    public virtual Project Project { get; set; }
+    public virtual Project? Project { get; set; }
 
     [ForeignKey("delegatorId")]
-    public virtual User Delegator { get; set; }
+    public virtual User? Delegator { get; set; }
 
     [ForeignKey("delegateeId")]
-    public virtual User Delegatee { get; set; }
+    public virtual User? Delegatee { get; set; }
 
     [ForeignKey("tokenId")]
-    public virtual ProjectToken Token { get; set; }
+    public virtual ProjectToken? Token { get; set; }
 
 }

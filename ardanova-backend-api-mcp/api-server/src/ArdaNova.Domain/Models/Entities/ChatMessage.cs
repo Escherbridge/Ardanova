@@ -10,13 +10,14 @@ namespace ArdaNova.Domain.Models.Entities;
 public class ChatMessage
 {
     [Key]
-    public string id { get; set; }
+    [Required]
+    public string id { get; set; } = string.Empty;
 
     [Required]
-    public string userToId { get; set; }
+    public string userToId { get; set; } = string.Empty;
 
     [Required]
-    public string userFromId { get; set; }
+    public string userFromId { get; set; } = string.Empty;
 
     public string? message { get; set; }
 
@@ -33,12 +34,12 @@ public class ChatMessage
     public DateTime? seenAt { get; set; }
 
     [ForeignKey("userToId")]
-    public virtual User UserTo { get; set; }
+    public virtual User? UserTo { get; set; }
 
     [ForeignKey("userFromId")]
-    public virtual User UserFrom { get; set; }
+    public virtual User? UserFrom { get; set; }
 
     [ForeignKey("chatAttachmentId")]
-    public virtual Attachment ChatAttachment { get; set; }
+    public virtual Attachment? ChatAttachment { get; set; }
 
 }

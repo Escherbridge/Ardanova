@@ -10,13 +10,14 @@ namespace ArdaNova.Domain.Models.Entities;
 public class Product
 {
     [Key]
-    public string id { get; set; }
+    [Required]
+    public string id { get; set; } = string.Empty;
 
     [Required]
-    public string shopId { get; set; }
+    public string shopId { get; set; } = string.Empty;
 
     [Required]
-    public string name { get; set; }
+    public string name { get; set; } = string.Empty;
 
     public string? description { get; set; }
 
@@ -39,13 +40,13 @@ public class Product
     public DateTime updatedAt { get; set; }
 
     [Required]
-    public string userId { get; set; }
+    public string userId { get; set; } = string.Empty;
 
     [ForeignKey("shopId")]
-    public virtual Shop Shop { get; set; }
+    public virtual Shop? Shop { get; set; }
 
     [ForeignKey("userId")]
-    public virtual User User { get; set; }
+    public virtual User? User { get; set; }
 
     public virtual ICollection<SaleItem> SaleItems { get; set; } = new List<SaleItem>();
 

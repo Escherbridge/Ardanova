@@ -10,13 +10,14 @@ namespace ArdaNova.Domain.Models.Entities;
 public class ProjectMilestone
 {
     [Key]
-    public string id { get; set; }
+    [Required]
+    public string id { get; set; } = string.Empty;
 
     [Required]
-    public string projectId { get; set; }
+    public string projectId { get; set; } = string.Empty;
 
     [Required]
-    public string title { get; set; }
+    public string title { get; set; } = string.Empty;
 
     public string? description { get; set; }
 
@@ -32,6 +33,6 @@ public class ProjectMilestone
     public DateTime createdAt { get; set; }
 
     [ForeignKey("projectId")]
-    public virtual Project Project { get; set; }
+    public virtual Project? Project { get; set; }
 
 }

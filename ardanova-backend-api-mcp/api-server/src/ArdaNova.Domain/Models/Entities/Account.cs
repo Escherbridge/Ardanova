@@ -10,19 +10,20 @@ namespace ArdaNova.Domain.Models.Entities;
 public class Account
 {
     [Key]
-    public string id { get; set; }
+    [Required]
+    public string id { get; set; } = string.Empty;
 
     [Required]
-    public string userId { get; set; }
+    public string userId { get; set; } = string.Empty;
 
     [Required]
-    public string type { get; set; }
+    public string type { get; set; } = string.Empty;
 
     [Required]
-    public string provider { get; set; }
+    public string provider { get; set; } = string.Empty;
 
     [Required]
-    public string providerAccountId { get; set; }
+    public string providerAccountId { get; set; } = string.Empty;
 
     public string? refresh_token { get; set; }
 
@@ -39,6 +40,6 @@ public class Account
     public string? session_state { get; set; }
 
     [ForeignKey("userId")]
-    public virtual User User { get; set; }
+    public virtual User? User { get; set; }
 
 }

@@ -10,16 +10,17 @@ namespace ArdaNova.Domain.Models.Entities;
 public class UserExperience
 {
     [Key]
-    public string id { get; set; }
+    [Required]
+    public string id { get; set; } = string.Empty;
 
     [Required]
-    public string userId { get; set; }
+    public string userId { get; set; } = string.Empty;
 
     [Required]
-    public string title { get; set; }
+    public string title { get; set; } = string.Empty;
 
     [Required]
-    public string company { get; set; }
+    public string company { get; set; } = string.Empty;
 
     public string? description { get; set; }
 
@@ -32,6 +33,6 @@ public class UserExperience
     public bool isCurrent { get; set; }
 
     [ForeignKey("userId")]
-    public virtual User User { get; set; }
+    public virtual User? User { get; set; }
 
 }

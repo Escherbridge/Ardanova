@@ -10,13 +10,14 @@ namespace ArdaNova.Domain.Models.Entities;
 public class ProjectResource
 {
     [Key]
-    public string id { get; set; }
+    [Required]
+    public string id { get; set; } = string.Empty;
 
     [Required]
-    public string projectId { get; set; }
+    public string projectId { get; set; } = string.Empty;
 
     [Required]
-    public string name { get; set; }
+    public string name { get; set; } = string.Empty;
 
     public string? description { get; set; }
 
@@ -35,6 +36,6 @@ public class ProjectResource
     public DateTime createdAt { get; set; }
 
     [ForeignKey("projectId")]
-    public virtual Project Project { get; set; }
+    public virtual Project? Project { get; set; }
 
 }
