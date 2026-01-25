@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using Microsoft.EntityFrameworkCore;
 using ArdaNova.Domain.Models.Enums;
 
 namespace ArdaNova.Domain.Models.Entities;
@@ -20,6 +21,7 @@ public class ProjectComment
     public string userId { get; set; } = string.Empty;
 
     [Required]
+    [Column(TypeName = "text")]
     public string content { get; set; } = string.Empty;
 
     public string? parentId { get; set; }

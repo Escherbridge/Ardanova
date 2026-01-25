@@ -16,22 +16,22 @@ public class ReferralsController : ControllerBase
         _referralService = referralService;
     }
 
-    [HttpGet("{id:guid}")]
-    public async Task<IActionResult> GetById(Guid id, CancellationToken ct)
+    [HttpGet("{id}")]
+    public async Task<IActionResult> GetById(string id, CancellationToken ct)
     {
         var result = await _referralService.GetByIdAsync(id, ct);
         return ToActionResult(result);
     }
 
-    [HttpGet("referrer/{referrerId:guid}")]
-    public async Task<IActionResult> GetByReferrerId(Guid referrerId, CancellationToken ct)
+    [HttpGet("referrer/{referrerId}")]
+    public async Task<IActionResult> GetByReferrerId(string referrerId, CancellationToken ct)
     {
         var result = await _referralService.GetByReferrerIdAsync(referrerId, ct);
         return ToActionResult(result);
     }
 
-    [HttpGet("referred/{referredId:guid}")]
-    public async Task<IActionResult> GetByReferredId(Guid referredId, CancellationToken ct)
+    [HttpGet("referred/{referredId}")]
+    public async Task<IActionResult> GetByReferredId(string referredId, CancellationToken ct)
     {
         var result = await _referralService.GetByReferredIdAsync(referredId, ct);
         return ToActionResult(result);
@@ -53,29 +53,29 @@ public class ReferralsController : ControllerBase
             : ToActionResult(result);
     }
 
-    [HttpPost("{id:guid}/complete")]
-    public async Task<IActionResult> Complete(Guid id, CancellationToken ct)
+    [HttpPost("{id}/complete")]
+    public async Task<IActionResult> Complete(string id, CancellationToken ct)
     {
         var result = await _referralService.CompleteAsync(id, ct);
         return ToActionResult(result);
     }
 
-    [HttpPost("{id:guid}/claim")]
-    public async Task<IActionResult> ClaimReward(Guid id, [FromBody] ClaimReferralRewardDto dto, CancellationToken ct)
+    [HttpPost("{id}/claim")]
+    public async Task<IActionResult> ClaimReward(string id, [FromBody] ClaimReferralRewardDto dto, CancellationToken ct)
     {
         var result = await _referralService.ClaimRewardAsync(id, dto, ct);
         return ToActionResult(result);
     }
 
-    [HttpPost("{id:guid}/expire")]
-    public async Task<IActionResult> Expire(Guid id, CancellationToken ct)
+    [HttpPost("{id}/expire")]
+    public async Task<IActionResult> Expire(string id, CancellationToken ct)
     {
         var result = await _referralService.ExpireAsync(id, ct);
         return ToActionResult(result);
     }
 
-    [HttpPost("{id:guid}/cancel")]
-    public async Task<IActionResult> Cancel(Guid id, CancellationToken ct)
+    [HttpPost("{id}/cancel")]
+    public async Task<IActionResult> Cancel(string id, CancellationToken ct)
     {
         var result = await _referralService.CancelAsync(id, ct);
         return ToActionResult(result);

@@ -4,8 +4,8 @@ using ArdaNova.Domain.Models.Enums;
 
 public record WalletDto
 {
-    public Guid Id { get; init; }
-    public Guid UserId { get; init; }
+    public string Id { get; init; }
+    public string UserId { get; init; }
     public string Address { get; init; } = null!;
     public WalletProvider Provider { get; init; }
     public string? Label { get; init; }
@@ -17,7 +17,7 @@ public record WalletDto
 
 public record CreateWalletDto
 {
-    public required Guid UserId { get; init; }
+    public required string UserId { get; init; }
     public required string Address { get; init; }
     public WalletProvider Provider { get; init; } = WalletProvider.PERA;
     public string? Label { get; init; }

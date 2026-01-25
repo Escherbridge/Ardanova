@@ -28,12 +28,22 @@ public class DelegatedVoteServiceTests
     public async Task GetByIdAsync_WhenDelegationExists_ReturnsSuccessResult()
     {
         // Arrange
-        var delegationId = Guid.NewGuid();
-        var projectId = Guid.NewGuid();
-        var delegatorId = Guid.NewGuid();
-        var delegateeId = Guid.NewGuid();
-        var tokenId = Guid.NewGuid();
-        var delegation = DelegatedVote.Create(projectId, delegatorId, delegateeId, tokenId, 100m);
+        var delegationId = Guid.NewGuid().ToString();
+        var projectId = Guid.NewGuid().ToString();
+        var delegatorId = Guid.NewGuid().ToString();
+        var delegateeId = Guid.NewGuid().ToString();
+        var tokenId = Guid.NewGuid().ToString();
+        var delegation = new DelegatedVote
+        {
+            id = delegationId,
+            projectId = projectId,
+            delegatorId = delegatorId,
+            delegateeId = delegateeId,
+            tokenId = tokenId,
+            amount = 100m,
+            isActive = true,
+            createdAt = DateTime.UtcNow
+        };
         var delegationDto = new DelegatedVoteDto { Id = delegationId, Amount = 100m };
 
         _repositoryMock.Setup(r => r.GetByIdAsync(delegationId, It.IsAny<CancellationToken>()))
@@ -53,7 +63,7 @@ public class DelegatedVoteServiceTests
     public async Task GetByIdAsync_WhenDelegationNotExists_ReturnsNotFound()
     {
         // Arrange
-        var delegationId = Guid.NewGuid();
+        var delegationId = Guid.NewGuid().ToString();
         _repositoryMock.Setup(r => r.GetByIdAsync(delegationId, It.IsAny<CancellationToken>()))
             .ReturnsAsync((DelegatedVote?)null);
 
@@ -69,11 +79,11 @@ public class DelegatedVoteServiceTests
     public async Task GetByDelegatorIdAsync_ReturnsDelegationsForDelegator()
     {
         // Arrange
-        var delegatorId = Guid.NewGuid();
+        var delegatorId = Guid.NewGuid().ToString();
         var delegations = new List<DelegatedVote>
         {
-            DelegatedVote.Create(Guid.NewGuid(), delegatorId, Guid.NewGuid(), Guid.NewGuid(), 100m),
-            DelegatedVote.Create(Guid.NewGuid(), delegatorId, Guid.NewGuid(), Guid.NewGuid(), 200m)
+            new DelegatedVote { id = Guid.NewGuid().ToString(), projectId = Guid.NewGuid().ToString(), delegatorId = delegatorId, delegateeId = Guid.NewGuid().ToString(), tokenId = Guid.NewGuid().ToString(), amount = 100m, isActive = true, createdAt = DateTime.UtcNow },
+            new DelegatedVote { id = Guid.NewGuid().ToString(), projectId = Guid.NewGuid().ToString(), delegatorId = delegatorId, delegateeId = Guid.NewGuid().ToString(), tokenId = Guid.NewGuid().ToString(), amount = 200m, isActive = true, createdAt = DateTime.UtcNow }
         };
         var delegationDtos = new List<DelegatedVoteDto>
         {
@@ -97,10 +107,10 @@ public class DelegatedVoteServiceTests
     public async Task GetByDelegateeIdAsync_ReturnsDelegationsToDelegatee()
     {
         // Arrange
-        var delegateeId = Guid.NewGuid();
+        var delegateeId = Guid.NewGuid().ToString();
         var delegations = new List<DelegatedVote>
         {
-            DelegatedVote.Create(Guid.NewGuid(), Guid.NewGuid(), delegateeId, Guid.NewGuid(), 150m)
+            new DelegatedVote { id = Guid.NewGuid().ToString(), projectId = Guid.NewGuid().ToString(), delegatorId = Guid.NewGuid().ToString(), delegateeId = delegateeId, tokenId = Guid.NewGuid().ToString(), amount = 150m, isActive = true, createdAt = DateTime.UtcNow }
         };
         var delegationDtos = new List<DelegatedVoteDto>
         {
@@ -123,10 +133,10 @@ public class DelegatedVoteServiceTests
     public async Task GetActiveByProjectIdAsync_ReturnsOnlyActiveAndNonExpiredDelegations()
     {
         // Arrange
-        var projectId = Guid.NewGuid();
+        var projectId = Guid.NewGuid().ToString();
         var delegations = new List<DelegatedVote>
         {
-            DelegatedVote.Create(projectId, Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), 100m)
+            new DelegatedVote { id = Guid.NewGuid().ToString(), projectId = projectId, delegatorId = Guid.NewGuid().ToString(), delegateeId = Guid.NewGuid().ToString(), tokenId = Guid.NewGuid().ToString(), amount = 100m, isActive = true, createdAt = DateTime.UtcNow }
         };
         var delegationDtos = new List<DelegatedVoteDto>
         {
@@ -149,12 +159,12 @@ public class DelegatedVoteServiceTests
     public async Task GetTotalDelegatedPowerAsync_ReturnsSumOfActiveDelegations()
     {
         // Arrange
-        var delegateeId = Guid.NewGuid();
-        var projectId = Guid.NewGuid();
+        var delegateeId = Guid.NewGuid().ToString();
+        var projectId = Guid.NewGuid().ToString();
         var delegations = new List<DelegatedVote>
         {
-            DelegatedVote.Create(projectId, Guid.NewGuid(), delegateeId, Guid.NewGuid(), 100m),
-            DelegatedVote.Create(projectId, Guid.NewGuid(), delegateeId, Guid.NewGuid(), 200m)
+            new DelegatedVote { id = Guid.NewGuid().ToString(), projectId = projectId, delegatorId = Guid.NewGuid().ToString(), delegateeId = delegateeId, tokenId = Guid.NewGuid().ToString(), amount = 100m, isActive = true, createdAt = DateTime.UtcNow },
+            new DelegatedVote { id = Guid.NewGuid().ToString(), projectId = projectId, delegatorId = Guid.NewGuid().ToString(), delegateeId = delegateeId, tokenId = Guid.NewGuid().ToString(), amount = 200m, isActive = true, createdAt = DateTime.UtcNow }
         };
 
         _repositoryMock.Setup(r => r.FindAsync(It.IsAny<System.Linq.Expressions.Expression<Func<DelegatedVote, bool>>>(), It.IsAny<CancellationToken>()))
@@ -172,10 +182,10 @@ public class DelegatedVoteServiceTests
     public async Task CreateAsync_WithValidDto_ReturnsCreatedDelegation()
     {
         // Arrange
-        var projectId = Guid.NewGuid();
-        var delegatorId = Guid.NewGuid();
-        var delegateeId = Guid.NewGuid();
-        var tokenId = Guid.NewGuid();
+        var projectId = Guid.NewGuid().ToString();
+        var delegatorId = Guid.NewGuid().ToString();
+        var delegateeId = Guid.NewGuid().ToString();
+        var tokenId = Guid.NewGuid().ToString();
         var dto = new CreateDelegatedVoteDto
         {
             ProjectId = projectId,
@@ -212,10 +222,10 @@ public class DelegatedVoteServiceTests
         // Arrange
         var dto = new CreateDelegatedVoteDto
         {
-            ProjectId = Guid.NewGuid(),
-            DelegatorId = Guid.NewGuid(),
-            DelegateeId = Guid.NewGuid(),
-            TokenId = Guid.NewGuid(),
+            ProjectId = Guid.NewGuid().ToString(),
+            DelegatorId = Guid.NewGuid().ToString(),
+            DelegateeId = Guid.NewGuid().ToString(),
+            TokenId = Guid.NewGuid().ToString(),
             Amount = 100m
         };
 
@@ -234,8 +244,18 @@ public class DelegatedVoteServiceTests
     public async Task RevokeAsync_WhenDelegationExists_RevokesDelegation()
     {
         // Arrange
-        var delegationId = Guid.NewGuid();
-        var delegation = DelegatedVote.Create(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), 100m);
+        var delegationId = Guid.NewGuid().ToString();
+        var delegation = new DelegatedVote
+        {
+            id = delegationId,
+            projectId = Guid.NewGuid().ToString(),
+            delegatorId = Guid.NewGuid().ToString(),
+            delegateeId = Guid.NewGuid().ToString(),
+            tokenId = Guid.NewGuid().ToString(),
+            amount = 100m,
+            isActive = true,
+            createdAt = DateTime.UtcNow
+        };
         var delegationDto = new DelegatedVoteDto { Id = delegationId, IsActive = false };
 
         _repositoryMock.Setup(r => r.GetByIdAsync(delegationId, It.IsAny<CancellationToken>()))

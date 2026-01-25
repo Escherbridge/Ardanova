@@ -22,7 +22,7 @@ public class ProjectService : IProjectService
         _mapper = mapper;
     }
 
-    public async Task<Result<ProjectDto>> GetByIdAsync(Guid id, CancellationToken ct = default)
+    public async Task<Result<ProjectDto>> GetByIdAsync(string id, CancellationToken ct = default)
     {
         var project = await _repository.GetByIdAsync(id, ct);
         if (project is null)
@@ -32,7 +32,7 @@ public class ProjectService : IProjectService
 
     public async Task<Result<ProjectDto>> GetBySlugAsync(string slug, CancellationToken ct = default)
     {
-        var project = await _repository.FindOneAsync(p => p.Slug == slug, ct);
+        var project = await _repository.FindOneAsync(p => p.slug == slug, ct);
         if (project is null)
             return Result<ProjectDto>.NotFound($"Project with slug {slug} not found");
         return Result<ProjectDto>.Success(_mapper.Map<ProjectDto>(project));
@@ -50,71 +50,92 @@ public class ProjectService : IProjectService
         return Result<PagedResult<ProjectDto>>.Success(result.Map(_mapper.Map<ProjectDto>));
     }
 
-    public async Task<Result<IReadOnlyList<ProjectDto>>> GetByUserIdAsync(Guid userId, CancellationToken ct = default)
+    public async Task<Result<IReadOnlyList<ProjectDto>>> GetByUserIdAsync(string userId, CancellationToken ct = default)
     {
-        var projects = await _repository.FindAsync(p => p.CreatedById == userId, ct);
+        var projects = await _repository.FindAsync(p => p.createdById == userId, ct);
         return Result<IReadOnlyList<ProjectDto>>.Success(_mapper.Map<IReadOnlyList<ProjectDto>>(projects));
     }
 
     public async Task<Result<IReadOnlyList<ProjectDto>>> GetByStatusAsync(ProjectStatus status, CancellationToken ct = default)
     {
-        var projects = await _repository.FindAsync(p => p.Status == status, ct);
+        var projects = await _repository.FindAsync(p => p.status == status, ct);
         return Result<IReadOnlyList<ProjectDto>>.Success(_mapper.Map<IReadOnlyList<ProjectDto>>(projects));
     }
 
     public async Task<Result<IReadOnlyList<ProjectDto>>> GetByCategory(ProjectCategory category, CancellationToken ct = default)
     {
-        var projects = await _repository.FindAsync(p => p.Category == category, ct);
+        var projects = await _repository.FindAsync(p => p.category == category, ct);
         return Result<IReadOnlyList<ProjectDto>>.Success(_mapper.Map<IReadOnlyList<ProjectDto>>(projects));
     }
 
     public async Task<Result<IReadOnlyList<ProjectDto>>> GetFeaturedAsync(CancellationToken ct = default)
     {
-        var projects = await _repository.FindAsync(p => p.Featured, ct);
+        var projects = await _repository.FindAsync(p => p.featured, ct);
         return Result<IReadOnlyList<ProjectDto>>.Success(_mapper.Map<IReadOnlyList<ProjectDto>>(projects));
     }
 
     public async Task<Result<ProjectDto>> CreateAsync(CreateProjectDto dto, CancellationToken ct = default)
     {
-        var project = Project.Create(dto.CreatedById, dto.Title, dto.Description, dto.ProblemStatement, dto.Solution, dto.Category, dto.FundingGoal);
-        project.SetDetails(dto.Tags, dto.TargetAudience, dto.ExpectedImpact, dto.Timeline);
-        project.SetMedia(dto.Images, dto.Videos, dto.Documents);
+        var project = new Project
+        {
+            id = new Guid().ToString(),
+            createdById = dto.CreatedById,
+            title = dto.Title,
+            slug = GenerateSlug(dto.Title),
+            description = dto.Description,
+            problemStatement = dto.ProblemStatement,
+            solution = dto.Solution,
+            category = dto.Category,
+            status = ProjectStatus.DRAFT,
+            fundingGoal = dto.FundingGoal,
+            currentFunding = 0,
+            supportersCount = 0,
+            votesCount = 0,
+            viewsCount = 0,
+            featured = false,
+            tags = dto.Tags,
+            targetAudience = dto.TargetAudience,
+            expectedImpact = dto.ExpectedImpact,
+            timeline = dto.Timeline,
+            images = dto.Images,
+            videos = dto.Videos,
+            documents = dto.Documents,
+            createdAt = DateTime.UtcNow,
+            updatedAt = DateTime.UtcNow
+        };
         await _repository.AddAsync(project, ct);
         await _unitOfWork.SaveChangesAsync(ct);
         return Result<ProjectDto>.Success(_mapper.Map<ProjectDto>(project));
     }
 
-    public async Task<Result<ProjectDto>> UpdateAsync(Guid id, UpdateProjectDto dto, CancellationToken ct = default)
+    public async Task<Result<ProjectDto>> UpdateAsync(string id, UpdateProjectDto dto, CancellationToken ct = default)
     {
         var project = await _repository.GetByIdAsync(id, ct);
         if (project is null)
             return Result<ProjectDto>.NotFound($"Project with id {id} not found");
 
-        if (dto.Title is not null || dto.Description is not null || dto.ProblemStatement is not null || dto.Solution is not null || dto.Category.HasValue)
-        {
-            project.Update(
-                dto.Title ?? project.Title,
-                dto.Description ?? project.Description,
-                dto.ProblemStatement ?? project.ProblemStatement,
-                dto.Solution ?? project.Solution,
-                dto.Category ?? project.Category
-            );
-        }
+        if (dto.Title is not null) project.title = dto.Title;
+        if (dto.Description is not null) project.description = dto.Description;
+        if (dto.ProblemStatement is not null) project.problemStatement = dto.ProblemStatement;
+        if (dto.Solution is not null) project.solution = dto.Solution;
+        if (dto.Category.HasValue) project.category = dto.Category.Value;
+        if (dto.Status.HasValue) project.status = dto.Status.Value;
+        if (dto.Tags is not null) project.tags = dto.Tags;
+        if (dto.TargetAudience is not null) project.targetAudience = dto.TargetAudience;
+        if (dto.ExpectedImpact is not null) project.expectedImpact = dto.ExpectedImpact;
+        if (dto.Timeline is not null) project.timeline = dto.Timeline;
+        if (dto.Images is not null) project.images = dto.Images;
+        if (dto.Videos is not null) project.videos = dto.Videos;
+        if (dto.Documents is not null) project.documents = dto.Documents;
 
-        if (dto.Status.HasValue)
-        {
-            project.SetStatus(dto.Status.Value);
-        }
-
-        project.SetMedia(dto.Images ?? project.Images, dto.Videos ?? project.Videos, dto.Documents ?? project.Documents);
-        project.SetDetails(dto.Tags ?? project.Tags, dto.TargetAudience ?? project.TargetAudience, dto.ExpectedImpact ?? project.ExpectedImpact, dto.Timeline ?? project.Timeline);
+        project.updatedAt = DateTime.UtcNow;
 
         await _repository.UpdateAsync(project, ct);
         await _unitOfWork.SaveChangesAsync(ct);
         return Result<ProjectDto>.Success(_mapper.Map<ProjectDto>(project));
     }
 
-    public async Task<Result<bool>> DeleteAsync(Guid id, CancellationToken ct = default)
+    public async Task<Result<bool>> DeleteAsync(string id, CancellationToken ct = default)
     {
         var project = await _repository.GetByIdAsync(id, ct);
         if (project is null)
@@ -125,28 +146,41 @@ public class ProjectService : IProjectService
         return Result<bool>.Success(true);
     }
 
-    public async Task<Result<ProjectDto>> PublishAsync(Guid id, CancellationToken ct = default)
+    public async Task<Result<ProjectDto>> PublishAsync(string id, CancellationToken ct = default)
     {
         var project = await _repository.GetByIdAsync(id, ct);
         if (project is null)
             return Result<ProjectDto>.NotFound($"Project with id {id} not found");
 
-        project.Publish();
+        project.status = ProjectStatus.PUBLISHED;
+        project.publishedAt = DateTime.UtcNow;
+        project.updatedAt = DateTime.UtcNow;
+
         await _repository.UpdateAsync(project, ct);
         await _unitOfWork.SaveChangesAsync(ct);
         return Result<ProjectDto>.Success(_mapper.Map<ProjectDto>(project));
     }
 
-    public async Task<Result<ProjectDto>> SetFeaturedAsync(Guid id, bool featured, CancellationToken ct = default)
+    public async Task<Result<ProjectDto>> SetFeaturedAsync(string id, bool featured, CancellationToken ct = default)
     {
         var project = await _repository.GetByIdAsync(id, ct);
         if (project is null)
             return Result<ProjectDto>.NotFound($"Project with id {id} not found");
 
-        project.SetFeatured(featured);
+        project.featured = featured;
+        project.updatedAt = DateTime.UtcNow;
+
         await _repository.UpdateAsync(project, ct);
         await _unitOfWork.SaveChangesAsync(ct);
         return Result<ProjectDto>.Success(_mapper.Map<ProjectDto>(project));
+    }
+
+    private static string GenerateSlug(string title)
+    {
+        return title.ToLowerInvariant()
+            .Replace(" ", "-")
+            .Replace("--", "-")
+            + "-" + new Guid().ToString("N")[..8];
     }
 }
 
@@ -163,7 +197,7 @@ public class ProjectTaskService : IProjectTaskService
         _mapper = mapper;
     }
 
-    public async Task<Result<ProjectTaskDto>> GetByIdAsync(Guid id, CancellationToken ct = default)
+    public async Task<Result<ProjectTaskDto>> GetByIdAsync(string id, CancellationToken ct = default)
     {
         var task = await _repository.GetByIdAsync(id, ct);
         if (task is null)
@@ -171,49 +205,61 @@ public class ProjectTaskService : IProjectTaskService
         return Result<ProjectTaskDto>.Success(_mapper.Map<ProjectTaskDto>(task));
     }
 
-    public async Task<Result<IReadOnlyList<ProjectTaskDto>>> GetByProjectIdAsync(Guid projectId, CancellationToken ct = default)
+    public async Task<Result<IReadOnlyList<ProjectTaskDto>>> GetByProjectIdAsync(string projectId, CancellationToken ct = default)
     {
-        var tasks = await _repository.FindAsync(t => t.ProjectId == projectId, ct);
+        var tasks = await _repository.FindAsync(t => t.projectId == projectId, ct);
         return Result<IReadOnlyList<ProjectTaskDto>>.Success(_mapper.Map<IReadOnlyList<ProjectTaskDto>>(tasks));
     }
 
-    public async Task<Result<IReadOnlyList<ProjectTaskDto>>> GetByAssigneeIdAsync(Guid userId, CancellationToken ct = default)
+    public async Task<Result<IReadOnlyList<ProjectTaskDto>>> GetByAssigneeIdAsync(string userId, CancellationToken ct = default)
     {
-        var tasks = await _repository.FindAsync(t => t.AssignedToId == userId, ct);
+        var tasks = await _repository.FindAsync(t => t.assignedToId == userId, ct);
         return Result<IReadOnlyList<ProjectTaskDto>>.Success(_mapper.Map<IReadOnlyList<ProjectTaskDto>>(tasks));
     }
 
     public async Task<Result<ProjectTaskDto>> CreateAsync(CreateProjectTaskDto dto, CancellationToken ct = default)
     {
-        var task = ProjectTask.Create(dto.ProjectId, dto.Title, dto.Description, dto.Priority, dto.EstimatedHours, dto.DueDate, dto.AssignedToId);
+        var task = new ProjectTask
+        {
+            id = new Guid().ToString(),
+            projectId = dto.ProjectId,
+            title = dto.Title,
+            description = dto.Description,
+            status = TaskStatus.TODO,
+            priority = dto.Priority,
+            estimatedHours = dto.EstimatedHours,
+            dueDate = dto.DueDate,
+            assignedToId = dto.AssignedToId,
+            escrowStatus = EscrowStatus.NONE,
+            createdAt = DateTime.UtcNow,
+            updatedAt = DateTime.UtcNow
+        };
         await _repository.AddAsync(task, ct);
         await _unitOfWork.SaveChangesAsync(ct);
         return Result<ProjectTaskDto>.Success(_mapper.Map<ProjectTaskDto>(task));
     }
 
-    public async Task<Result<ProjectTaskDto>> UpdateAsync(Guid id, UpdateProjectTaskDto dto, CancellationToken ct = default)
+    public async Task<Result<ProjectTaskDto>> UpdateAsync(string id, UpdateProjectTaskDto dto, CancellationToken ct = default)
     {
         var task = await _repository.GetByIdAsync(id, ct);
         if (task is null)
             return Result<ProjectTaskDto>.NotFound($"Task with id {id} not found");
 
-        task.Update(
-            dto.Title ?? task.Title,
-            dto.Description ?? task.Description,
-            dto.Priority ?? task.Priority,
-            dto.EstimatedHours ?? task.EstimatedHours,
-            dto.DueDate ?? task.DueDate
-        );
+        if (dto.Title is not null) task.title = dto.Title;
+        if (dto.Description is not null) task.description = dto.Description;
+        if (dto.Priority.HasValue) task.priority = dto.Priority.Value;
+        if (dto.EstimatedHours.HasValue) task.estimatedHours = dto.EstimatedHours;
+        if (dto.DueDate.HasValue) task.dueDate = dto.DueDate;
+        if (dto.AssignedToId is not null) task.assignedToId = dto.AssignedToId;
 
-        if (dto.AssignedToId.HasValue)
-            task.AssignTo(dto.AssignedToId);
+        task.updatedAt = DateTime.UtcNow;
 
         await _repository.UpdateAsync(task, ct);
         await _unitOfWork.SaveChangesAsync(ct);
         return Result<ProjectTaskDto>.Success(_mapper.Map<ProjectTaskDto>(task));
     }
 
-    public async Task<Result<bool>> DeleteAsync(Guid id, CancellationToken ct = default)
+    public async Task<Result<bool>> DeleteAsync(string id, CancellationToken ct = default)
     {
         var task = await _repository.GetByIdAsync(id, ct);
         if (task is null)
@@ -224,32 +270,30 @@ public class ProjectTaskService : IProjectTaskService
         return Result<bool>.Success(true);
     }
 
-    public async Task<Result<ProjectTaskDto>> AssignAsync(Guid id, Guid? userId, CancellationToken ct = default)
+    public async Task<Result<ProjectTaskDto>> AssignAsync(string id, string? userId, CancellationToken ct = default)
     {
         var task = await _repository.GetByIdAsync(id, ct);
         if (task is null)
             return Result<ProjectTaskDto>.NotFound($"Task with id {id} not found");
 
-        task.AssignTo(userId);
+        task.assignedToId = userId;
+        task.updatedAt = DateTime.UtcNow;
+
         await _repository.UpdateAsync(task, ct);
         await _unitOfWork.SaveChangesAsync(ct);
         return Result<ProjectTaskDto>.Success(_mapper.Map<ProjectTaskDto>(task));
     }
 
-    public async Task<Result<ProjectTaskDto>> UpdateStatusAsync(Guid id, TaskStatus status, CancellationToken ct = default)
+    public async Task<Result<ProjectTaskDto>> UpdateStatusAsync(string id, TaskStatus status, CancellationToken ct = default)
     {
         var task = await _repository.GetByIdAsync(id, ct);
         if (task is null)
             return Result<ProjectTaskDto>.NotFound($"Task with id {id} not found");
 
-        switch (status)
-        {
-            case TaskStatus.IN_PROGRESS: task.StartProgress(); break;
-            case TaskStatus.REVIEW: task.SubmitForReview(); break;
-            case TaskStatus.COMPLETED: task.Complete(); break;
-            case TaskStatus.BLOCKED: task.Block(); break;
-            case TaskStatus.TODO: task.Reopen(); break;
-        }
+        task.status = status;
+        if (status == TaskStatus.COMPLETED)
+            task.completedAt = DateTime.UtcNow;
+        task.updatedAt = DateTime.UtcNow;
 
         await _repository.UpdateAsync(task, ct);
         await _unitOfWork.SaveChangesAsync(ct);
@@ -270,7 +314,7 @@ public class ProjectTaskDependencyService : IProjectTaskDependencyService
         _mapper = mapper;
     }
 
-    public async Task<Result<ProjectTaskDependencyDto>> GetByIdAsync(Guid id, CancellationToken ct = default)
+    public async Task<Result<ProjectTaskDependencyDto>> GetByIdAsync(string id, CancellationToken ct = default)
     {
         var dep = await _repository.GetByIdAsync(id, ct);
         if (dep is null)
@@ -278,21 +322,26 @@ public class ProjectTaskDependencyService : IProjectTaskDependencyService
         return Result<ProjectTaskDependencyDto>.Success(_mapper.Map<ProjectTaskDependencyDto>(dep));
     }
 
-    public async Task<Result<IReadOnlyList<ProjectTaskDependencyDto>>> GetByTaskIdAsync(Guid taskId, CancellationToken ct = default)
+    public async Task<Result<IReadOnlyList<ProjectTaskDependencyDto>>> GetByTaskIdAsync(string taskId, CancellationToken ct = default)
     {
-        var deps = await _repository.FindAsync(d => d.TaskId == taskId, ct);
+        var deps = await _repository.FindAsync(d => d.taskId == taskId, ct);
         return Result<IReadOnlyList<ProjectTaskDependencyDto>>.Success(_mapper.Map<IReadOnlyList<ProjectTaskDependencyDto>>(deps));
     }
 
     public async Task<Result<ProjectTaskDependencyDto>> CreateAsync(CreateProjectTaskDependencyDto dto, CancellationToken ct = default)
     {
-        var dep = ProjectTaskDependency.Create(dto.TaskId, dto.DependsOnId);
+        var dep = new ProjectTaskDependency
+        {
+            id = new Guid().ToString(),
+            taskId = dto.TaskId,
+            dependsOnId = dto.DependsOnId
+        };
         await _repository.AddAsync(dep, ct);
         await _unitOfWork.SaveChangesAsync(ct);
         return Result<ProjectTaskDependencyDto>.Success(_mapper.Map<ProjectTaskDependencyDto>(dep));
     }
 
-    public async Task<Result<bool>> DeleteAsync(Guid id, CancellationToken ct = default)
+    public async Task<Result<bool>> DeleteAsync(string id, CancellationToken ct = default)
     {
         var dep = await _repository.GetByIdAsync(id, ct);
         if (dep is null)
@@ -317,7 +366,7 @@ public class ProjectResourceService : IProjectResourceService
         _mapper = mapper;
     }
 
-    public async Task<Result<ProjectResourceDto>> GetByIdAsync(Guid id, CancellationToken ct = default)
+    public async Task<Result<ProjectResourceDto>> GetByIdAsync(string id, CancellationToken ct = default)
     {
         var resource = await _repository.GetByIdAsync(id, ct);
         if (resource is null)
@@ -325,46 +374,50 @@ public class ProjectResourceService : IProjectResourceService
         return Result<ProjectResourceDto>.Success(_mapper.Map<ProjectResourceDto>(resource));
     }
 
-    public async Task<Result<IReadOnlyList<ProjectResourceDto>>> GetByProjectIdAsync(Guid projectId, CancellationToken ct = default)
+    public async Task<Result<IReadOnlyList<ProjectResourceDto>>> GetByProjectIdAsync(string projectId, CancellationToken ct = default)
     {
-        var resources = await _repository.FindAsync(r => r.ProjectId == projectId, ct);
+        var resources = await _repository.FindAsync(r => r.projectId == projectId, ct);
         return Result<IReadOnlyList<ProjectResourceDto>>.Success(_mapper.Map<IReadOnlyList<ProjectResourceDto>>(resources));
     }
 
     public async Task<Result<ProjectResourceDto>> CreateAsync(CreateProjectResourceDto dto, CancellationToken ct = default)
     {
-        var resource = ProjectResource.Create(dto.ProjectId, dto.Name, dto.Description, dto.Quantity, dto.EstimatedCost, dto.IsRequired);
+        var resource = new ProjectResource
+        {
+            id = new Guid().ToString(),
+            projectId = dto.ProjectId,
+            name = dto.Name,
+            description = dto.Description,
+            quantity = dto.Quantity,
+            estimatedCost = dto.EstimatedCost,
+            isRequired = dto.IsRequired,
+            isObtained = false,
+            createdAt = DateTime.UtcNow
+        };
         await _repository.AddAsync(resource, ct);
         await _unitOfWork.SaveChangesAsync(ct);
         return Result<ProjectResourceDto>.Success(_mapper.Map<ProjectResourceDto>(resource));
     }
 
-    public async Task<Result<ProjectResourceDto>> UpdateAsync(Guid id, UpdateProjectResourceDto dto, CancellationToken ct = default)
+    public async Task<Result<ProjectResourceDto>> UpdateAsync(string id, UpdateProjectResourceDto dto, CancellationToken ct = default)
     {
         var resource = await _repository.GetByIdAsync(id, ct);
         if (resource is null)
             return Result<ProjectResourceDto>.NotFound($"Resource with id {id} not found");
 
-        resource.Update(
-            dto.Name ?? resource.Name,
-            dto.Description ?? resource.Description,
-            dto.Quantity ?? resource.Quantity,
-            dto.EstimatedCost ?? resource.EstimatedCost,
-            dto.IsRequired ?? resource.IsRequired
-        );
-
-        if (dto.IsObtained.HasValue)
-        {
-            if (dto.IsObtained.Value) resource.MarkObtained();
-            else resource.MarkNotObtained();
-        }
+        if (dto.Name is not null) resource.name = dto.Name;
+        if (dto.Description is not null) resource.description = dto.Description;
+        if (dto.Quantity.HasValue) resource.quantity = dto.Quantity.Value;
+        if (dto.EstimatedCost.HasValue) resource.estimatedCost = dto.EstimatedCost;
+        if (dto.IsRequired.HasValue) resource.isRequired = dto.IsRequired.Value;
+        if (dto.IsObtained.HasValue) resource.isObtained = dto.IsObtained.Value;
 
         await _repository.UpdateAsync(resource, ct);
         await _unitOfWork.SaveChangesAsync(ct);
         return Result<ProjectResourceDto>.Success(_mapper.Map<ProjectResourceDto>(resource));
     }
 
-    public async Task<Result<bool>> DeleteAsync(Guid id, CancellationToken ct = default)
+    public async Task<Result<bool>> DeleteAsync(string id, CancellationToken ct = default)
     {
         var resource = await _repository.GetByIdAsync(id, ct);
         if (resource is null)
@@ -375,14 +428,13 @@ public class ProjectResourceService : IProjectResourceService
         return Result<bool>.Success(true);
     }
 
-    public async Task<Result<ProjectResourceDto>> MarkObtainedAsync(Guid id, bool obtained, CancellationToken ct = default)
+    public async Task<Result<ProjectResourceDto>> MarkObtainedAsync(string id, bool obtained, CancellationToken ct = default)
     {
         var resource = await _repository.GetByIdAsync(id, ct);
         if (resource is null)
             return Result<ProjectResourceDto>.NotFound($"Resource with id {id} not found");
 
-        if (obtained) resource.MarkObtained();
-        else resource.MarkNotObtained();
+        resource.isObtained = obtained;
 
         await _repository.UpdateAsync(resource, ct);
         await _unitOfWork.SaveChangesAsync(ct);
@@ -403,7 +455,7 @@ public class ProjectMilestoneService : IProjectMilestoneService
         _mapper = mapper;
     }
 
-    public async Task<Result<ProjectMilestoneDto>> GetByIdAsync(Guid id, CancellationToken ct = default)
+    public async Task<Result<ProjectMilestoneDto>> GetByIdAsync(string id, CancellationToken ct = default)
     {
         var milestone = await _repository.GetByIdAsync(id, ct);
         if (milestone is null)
@@ -411,38 +463,45 @@ public class ProjectMilestoneService : IProjectMilestoneService
         return Result<ProjectMilestoneDto>.Success(_mapper.Map<ProjectMilestoneDto>(milestone));
     }
 
-    public async Task<Result<IReadOnlyList<ProjectMilestoneDto>>> GetByProjectIdAsync(Guid projectId, CancellationToken ct = default)
+    public async Task<Result<IReadOnlyList<ProjectMilestoneDto>>> GetByProjectIdAsync(string projectId, CancellationToken ct = default)
     {
-        var milestones = await _repository.FindAsync(m => m.ProjectId == projectId, ct);
+        var milestones = await _repository.FindAsync(m => m.projectId == projectId, ct);
         return Result<IReadOnlyList<ProjectMilestoneDto>>.Success(_mapper.Map<IReadOnlyList<ProjectMilestoneDto>>(milestones));
     }
 
     public async Task<Result<ProjectMilestoneDto>> CreateAsync(CreateProjectMilestoneDto dto, CancellationToken ct = default)
     {
-        var milestone = ProjectMilestone.Create(dto.ProjectId, dto.Title, dto.TargetDate, dto.Description);
+        var milestone = new ProjectMilestone
+        {
+            id = new Guid().ToString(),
+            projectId = dto.ProjectId,
+            title = dto.Title,
+            description = dto.Description,
+            targetDate = dto.TargetDate,
+            isCompleted = false,
+            createdAt = DateTime.UtcNow
+        };
         await _repository.AddAsync(milestone, ct);
         await _unitOfWork.SaveChangesAsync(ct);
         return Result<ProjectMilestoneDto>.Success(_mapper.Map<ProjectMilestoneDto>(milestone));
     }
 
-    public async Task<Result<ProjectMilestoneDto>> UpdateAsync(Guid id, UpdateProjectMilestoneDto dto, CancellationToken ct = default)
+    public async Task<Result<ProjectMilestoneDto>> UpdateAsync(string id, UpdateProjectMilestoneDto dto, CancellationToken ct = default)
     {
         var milestone = await _repository.GetByIdAsync(id, ct);
         if (milestone is null)
             return Result<ProjectMilestoneDto>.NotFound($"Milestone with id {id} not found");
 
-        milestone.Update(
-            dto.Title ?? milestone.Title,
-            dto.Description ?? milestone.Description,
-            dto.TargetDate ?? milestone.TargetDate
-        );
+        if (dto.Title is not null) milestone.title = dto.Title;
+        if (dto.Description is not null) milestone.description = dto.Description;
+        if (dto.TargetDate.HasValue) milestone.targetDate = dto.TargetDate.Value;
 
         await _repository.UpdateAsync(milestone, ct);
         await _unitOfWork.SaveChangesAsync(ct);
         return Result<ProjectMilestoneDto>.Success(_mapper.Map<ProjectMilestoneDto>(milestone));
     }
 
-    public async Task<Result<bool>> DeleteAsync(Guid id, CancellationToken ct = default)
+    public async Task<Result<bool>> DeleteAsync(string id, CancellationToken ct = default)
     {
         var milestone = await _repository.GetByIdAsync(id, ct);
         if (milestone is null)
@@ -453,13 +512,15 @@ public class ProjectMilestoneService : IProjectMilestoneService
         return Result<bool>.Success(true);
     }
 
-    public async Task<Result<ProjectMilestoneDto>> CompleteAsync(Guid id, CancellationToken ct = default)
+    public async Task<Result<ProjectMilestoneDto>> CompleteAsync(string id, CancellationToken ct = default)
     {
         var milestone = await _repository.GetByIdAsync(id, ct);
         if (milestone is null)
             return Result<ProjectMilestoneDto>.NotFound($"Milestone with id {id} not found");
 
-        milestone.Complete();
+        milestone.isCompleted = true;
+        milestone.completedAt = DateTime.UtcNow;
+
         await _repository.UpdateAsync(milestone, ct);
         await _unitOfWork.SaveChangesAsync(ct);
         return Result<ProjectMilestoneDto>.Success(_mapper.Map<ProjectMilestoneDto>(milestone));
@@ -479,7 +540,7 @@ public class ProjectSupportService : IProjectSupportService
         _mapper = mapper;
     }
 
-    public async Task<Result<ProjectSupportDto>> GetByIdAsync(Guid id, CancellationToken ct = default)
+    public async Task<Result<ProjectSupportDto>> GetByIdAsync(string id, CancellationToken ct = default)
     {
         var support = await _repository.GetByIdAsync(id, ct);
         if (support is null)
@@ -487,27 +548,38 @@ public class ProjectSupportService : IProjectSupportService
         return Result<ProjectSupportDto>.Success(_mapper.Map<ProjectSupportDto>(support));
     }
 
-    public async Task<Result<IReadOnlyList<ProjectSupportDto>>> GetByProjectIdAsync(Guid projectId, CancellationToken ct = default)
+    public async Task<Result<IReadOnlyList<ProjectSupportDto>>> GetByProjectIdAsync(string projectId, CancellationToken ct = default)
     {
-        var supports = await _repository.FindAsync(s => s.ProjectId == projectId, ct);
+        var supports = await _repository.FindAsync(s => s.projectId == projectId, ct);
         return Result<IReadOnlyList<ProjectSupportDto>>.Success(_mapper.Map<IReadOnlyList<ProjectSupportDto>>(supports));
     }
 
-    public async Task<Result<IReadOnlyList<ProjectSupportDto>>> GetByUserIdAsync(Guid userId, CancellationToken ct = default)
+    public async Task<Result<IReadOnlyList<ProjectSupportDto>>> GetByUserIdAsync(string userId, CancellationToken ct = default)
     {
-        var supports = await _repository.FindAsync(s => s.UserId == userId, ct);
+        var supports = await _repository.FindAsync(s => s.userId == userId, ct);
         return Result<IReadOnlyList<ProjectSupportDto>>.Success(_mapper.Map<IReadOnlyList<ProjectSupportDto>>(supports));
     }
 
     public async Task<Result<ProjectSupportDto>> CreateAsync(CreateProjectSupportDto dto, CancellationToken ct = default)
     {
-        var support = ProjectSupport.Create(dto.ProjectId, dto.UserId, dto.SupportType, dto.MonthlyAmount, dto.Message);
+        var support = new ProjectSupport
+        {
+            id = new Guid().ToString(),
+            projectId = dto.ProjectId,
+            userId = dto.UserId,
+            supportType = dto.SupportType,
+            monthlyAmount = dto.MonthlyAmount,
+            message = dto.Message,
+            isActive = true,
+            createdAt = DateTime.UtcNow,
+            updatedAt = DateTime.UtcNow
+        };
         await _repository.AddAsync(support, ct);
         await _unitOfWork.SaveChangesAsync(ct);
         return Result<ProjectSupportDto>.Success(_mapper.Map<ProjectSupportDto>(support));
     }
 
-    public async Task<Result<bool>> DeleteAsync(Guid id, CancellationToken ct = default)
+    public async Task<Result<bool>> DeleteAsync(string id, CancellationToken ct = default)
     {
         var support = await _repository.GetByIdAsync(id, ct);
         if (support is null)
@@ -518,14 +590,14 @@ public class ProjectSupportService : IProjectSupportService
         return Result<bool>.Success(true);
     }
 
-    public async Task<Result<ProjectSupportDto>> ToggleActiveAsync(Guid id, CancellationToken ct = default)
+    public async Task<Result<ProjectSupportDto>> ToggleActiveAsync(string id, CancellationToken ct = default)
     {
         var support = await _repository.GetByIdAsync(id, ct);
         if (support is null)
             return Result<ProjectSupportDto>.NotFound($"Support with id {id} not found");
 
-        if (support.IsActive) support.Deactivate();
-        else support.Reactivate();
+        support.isActive = !support.isActive;
+        support.updatedAt = DateTime.UtcNow;
 
         await _repository.UpdateAsync(support, ct);
         await _unitOfWork.SaveChangesAsync(ct);
@@ -546,7 +618,7 @@ public class ProjectApplicationService : IProjectApplicationService
         _mapper = mapper;
     }
 
-    public async Task<Result<ProjectApplicationDto>> GetByIdAsync(Guid id, CancellationToken ct = default)
+    public async Task<Result<ProjectApplicationDto>> GetByIdAsync(string id, CancellationToken ct = default)
     {
         var app = await _repository.GetByIdAsync(id, ct);
         if (app is null)
@@ -554,27 +626,39 @@ public class ProjectApplicationService : IProjectApplicationService
         return Result<ProjectApplicationDto>.Success(_mapper.Map<ProjectApplicationDto>(app));
     }
 
-    public async Task<Result<IReadOnlyList<ProjectApplicationDto>>> GetByProjectIdAsync(Guid projectId, CancellationToken ct = default)
+    public async Task<Result<IReadOnlyList<ProjectApplicationDto>>> GetByProjectIdAsync(string projectId, CancellationToken ct = default)
     {
-        var apps = await _repository.FindAsync(a => a.ProjectId == projectId, ct);
+        var apps = await _repository.FindAsync(a => a.projectId == projectId, ct);
         return Result<IReadOnlyList<ProjectApplicationDto>>.Success(_mapper.Map<IReadOnlyList<ProjectApplicationDto>>(apps));
     }
 
-    public async Task<Result<IReadOnlyList<ProjectApplicationDto>>> GetByUserIdAsync(Guid userId, CancellationToken ct = default)
+    public async Task<Result<IReadOnlyList<ProjectApplicationDto>>> GetByUserIdAsync(string userId, CancellationToken ct = default)
     {
-        var apps = await _repository.FindAsync(a => a.UserId == userId, ct);
+        var apps = await _repository.FindAsync(a => a.userId == userId, ct);
         return Result<IReadOnlyList<ProjectApplicationDto>>.Success(_mapper.Map<IReadOnlyList<ProjectApplicationDto>>(apps));
     }
 
     public async Task<Result<ProjectApplicationDto>> CreateAsync(CreateProjectApplicationDto dto, CancellationToken ct = default)
     {
-        var app = ProjectApplication.Create(dto.ProjectId, dto.UserId, dto.RoleTitle, dto.Message, dto.Skills, dto.Experience, dto.Availability);
+        var app = new ProjectApplication
+        {
+            id = new Guid().ToString(),
+            projectId = dto.ProjectId,
+            userId = dto.UserId,
+            roleTitle = dto.RoleTitle,
+            message = dto.Message,
+            skills = dto.Skills,
+            experience = dto.Experience,
+            availability = dto.Availability,
+            status = ApplicationStatus.PENDING,
+            appliedAt = DateTime.UtcNow
+        };
         await _repository.AddAsync(app, ct);
         await _unitOfWork.SaveChangesAsync(ct);
         return Result<ProjectApplicationDto>.Success(_mapper.Map<ProjectApplicationDto>(app));
     }
 
-    public async Task<Result<bool>> DeleteAsync(Guid id, CancellationToken ct = default)
+    public async Task<Result<bool>> DeleteAsync(string id, CancellationToken ct = default)
     {
         var app = await _repository.GetByIdAsync(id, ct);
         if (app is null)
@@ -585,37 +669,44 @@ public class ProjectApplicationService : IProjectApplicationService
         return Result<bool>.Success(true);
     }
 
-    public async Task<Result<ProjectApplicationDto>> AcceptAsync(Guid id, string? reviewMessage, CancellationToken ct = default)
+    public async Task<Result<ProjectApplicationDto>> AcceptAsync(string id, string? reviewMessage, CancellationToken ct = default)
     {
         var app = await _repository.GetByIdAsync(id, ct);
         if (app is null)
             return Result<ProjectApplicationDto>.NotFound($"Application with id {id} not found");
 
-        app.Accept(reviewMessage);
+        app.status = ApplicationStatus.ACCEPTED;
+        app.reviewMessage = reviewMessage;
+        app.reviewedAt = DateTime.UtcNow;
+
         await _repository.UpdateAsync(app, ct);
         await _unitOfWork.SaveChangesAsync(ct);
         return Result<ProjectApplicationDto>.Success(_mapper.Map<ProjectApplicationDto>(app));
     }
 
-    public async Task<Result<ProjectApplicationDto>> RejectAsync(Guid id, string? reviewMessage, CancellationToken ct = default)
+    public async Task<Result<ProjectApplicationDto>> RejectAsync(string id, string? reviewMessage, CancellationToken ct = default)
     {
         var app = await _repository.GetByIdAsync(id, ct);
         if (app is null)
             return Result<ProjectApplicationDto>.NotFound($"Application with id {id} not found");
 
-        app.Reject(reviewMessage);
+        app.status = ApplicationStatus.REJECTED;
+        app.reviewMessage = reviewMessage;
+        app.reviewedAt = DateTime.UtcNow;
+
         await _repository.UpdateAsync(app, ct);
         await _unitOfWork.SaveChangesAsync(ct);
         return Result<ProjectApplicationDto>.Success(_mapper.Map<ProjectApplicationDto>(app));
     }
 
-    public async Task<Result<ProjectApplicationDto>> WithdrawAsync(Guid id, CancellationToken ct = default)
+    public async Task<Result<ProjectApplicationDto>> WithdrawAsync(string id, CancellationToken ct = default)
     {
         var app = await _repository.GetByIdAsync(id, ct);
         if (app is null)
             return Result<ProjectApplicationDto>.NotFound($"Application with id {id} not found");
 
-        app.Withdraw();
+        app.status = ApplicationStatus.WITHDRAWN;
+
         await _repository.UpdateAsync(app, ct);
         await _unitOfWork.SaveChangesAsync(ct);
         return Result<ProjectApplicationDto>.Success(_mapper.Map<ProjectApplicationDto>(app));
@@ -635,7 +726,7 @@ public class ProjectCommentService : IProjectCommentService
         _mapper = mapper;
     }
 
-    public async Task<Result<ProjectCommentDto>> GetByIdAsync(Guid id, CancellationToken ct = default)
+    public async Task<Result<ProjectCommentDto>> GetByIdAsync(string id, CancellationToken ct = default)
     {
         var comment = await _repository.GetByIdAsync(id, ct);
         if (comment is null)
@@ -643,33 +734,44 @@ public class ProjectCommentService : IProjectCommentService
         return Result<ProjectCommentDto>.Success(_mapper.Map<ProjectCommentDto>(comment));
     }
 
-    public async Task<Result<IReadOnlyList<ProjectCommentDto>>> GetByProjectIdAsync(Guid projectId, CancellationToken ct = default)
+    public async Task<Result<IReadOnlyList<ProjectCommentDto>>> GetByProjectIdAsync(string projectId, CancellationToken ct = default)
     {
-        var comments = await _repository.FindAsync(c => c.ProjectId == projectId, ct);
+        var comments = await _repository.FindAsync(c => c.projectId == projectId, ct);
         return Result<IReadOnlyList<ProjectCommentDto>>.Success(_mapper.Map<IReadOnlyList<ProjectCommentDto>>(comments));
     }
 
     public async Task<Result<ProjectCommentDto>> CreateAsync(CreateProjectCommentDto dto, CancellationToken ct = default)
     {
-        var comment = ProjectComment.Create(dto.ProjectId, dto.UserId, dto.Content, dto.ParentId);
+        var comment = new ProjectComment
+        {
+            id = new Guid().ToString(),
+            projectId = dto.ProjectId,
+            userId = dto.UserId,
+            content = dto.Content,
+            parentId = dto.ParentId,
+            createdAt = DateTime.UtcNow,
+            updatedAt = DateTime.UtcNow
+        };
         await _repository.AddAsync(comment, ct);
         await _unitOfWork.SaveChangesAsync(ct);
         return Result<ProjectCommentDto>.Success(_mapper.Map<ProjectCommentDto>(comment));
     }
 
-    public async Task<Result<ProjectCommentDto>> UpdateAsync(Guid id, string content, CancellationToken ct = default)
+    public async Task<Result<ProjectCommentDto>> UpdateAsync(string id, string content, CancellationToken ct = default)
     {
         var comment = await _repository.GetByIdAsync(id, ct);
         if (comment is null)
             return Result<ProjectCommentDto>.NotFound($"Comment with id {id} not found");
 
-        comment.UpdateContent(content);
+        comment.content = content;
+        comment.updatedAt = DateTime.UtcNow;
+
         await _repository.UpdateAsync(comment, ct);
         await _unitOfWork.SaveChangesAsync(ct);
         return Result<ProjectCommentDto>.Success(_mapper.Map<ProjectCommentDto>(comment));
     }
 
-    public async Task<Result<bool>> DeleteAsync(Guid id, CancellationToken ct = default)
+    public async Task<Result<bool>> DeleteAsync(string id, CancellationToken ct = default)
     {
         var comment = await _repository.GetByIdAsync(id, ct);
         if (comment is null)
@@ -694,7 +796,7 @@ public class ProjectUpdateService : IProjectUpdateService
         _mapper = mapper;
     }
 
-    public async Task<Result<ProjectUpdateDto>> GetByIdAsync(Guid id, CancellationToken ct = default)
+    public async Task<Result<ProjectUpdateDto>> GetByIdAsync(string id, CancellationToken ct = default)
     {
         var update = await _repository.GetByIdAsync(id, ct);
         if (update is null)
@@ -702,21 +804,30 @@ public class ProjectUpdateService : IProjectUpdateService
         return Result<ProjectUpdateDto>.Success(_mapper.Map<ProjectUpdateDto>(update));
     }
 
-    public async Task<Result<IReadOnlyList<ProjectUpdateDto>>> GetByProjectIdAsync(Guid projectId, CancellationToken ct = default)
+    public async Task<Result<IReadOnlyList<ProjectUpdateDto>>> GetByProjectIdAsync(string projectId, CancellationToken ct = default)
     {
-        var updates = await _repository.FindAsync(u => u.ProjectId == projectId, ct);
+        var updates = await _repository.FindAsync(u => u.projectId == projectId, ct);
         return Result<IReadOnlyList<ProjectUpdateDto>>.Success(_mapper.Map<IReadOnlyList<ProjectUpdateDto>>(updates));
     }
 
     public async Task<Result<ProjectUpdateDto>> CreateAsync(CreateProjectUpdateDto dto, CancellationToken ct = default)
     {
-        var update = ProjectUpdate.Create(dto.ProjectId, dto.UserId, dto.Title, dto.Content, dto.Images);
+        var update = new ProjectUpdate
+        {
+            id = new Guid().ToString(),
+            projectId = dto.ProjectId,
+            userId = dto.UserId,
+            title = dto.Title,
+            content = dto.Content,
+            images = dto.Images,
+            createdAt = DateTime.UtcNow
+        };
         await _repository.AddAsync(update, ct);
         await _unitOfWork.SaveChangesAsync(ct);
         return Result<ProjectUpdateDto>.Success(_mapper.Map<ProjectUpdateDto>(update));
     }
 
-    public async Task<Result<bool>> DeleteAsync(Guid id, CancellationToken ct = default)
+    public async Task<Result<bool>> DeleteAsync(string id, CancellationToken ct = default)
     {
         var update = await _repository.GetByIdAsync(id, ct);
         if (update is null)
@@ -741,7 +852,7 @@ public class ProjectEquityService : IProjectEquityService
         _mapper = mapper;
     }
 
-    public async Task<Result<ProjectEquityDto>> GetByIdAsync(Guid id, CancellationToken ct = default)
+    public async Task<Result<ProjectEquityDto>> GetByIdAsync(string id, CancellationToken ct = default)
     {
         var equity = await _repository.GetByIdAsync(id, ct);
         if (equity is null)
@@ -749,39 +860,49 @@ public class ProjectEquityService : IProjectEquityService
         return Result<ProjectEquityDto>.Success(_mapper.Map<ProjectEquityDto>(equity));
     }
 
-    public async Task<Result<IReadOnlyList<ProjectEquityDto>>> GetByProjectIdAsync(Guid projectId, CancellationToken ct = default)
+    public async Task<Result<IReadOnlyList<ProjectEquityDto>>> GetByProjectIdAsync(string projectId, CancellationToken ct = default)
     {
-        var equities = await _repository.FindAsync(e => e.ProjectId == projectId, ct);
+        var equities = await _repository.FindAsync(e => e.projectId == projectId, ct);
         return Result<IReadOnlyList<ProjectEquityDto>>.Success(_mapper.Map<IReadOnlyList<ProjectEquityDto>>(equities));
     }
 
-    public async Task<Result<IReadOnlyList<ProjectEquityDto>>> GetByUserIdAsync(Guid userId, CancellationToken ct = default)
+    public async Task<Result<IReadOnlyList<ProjectEquityDto>>> GetByUserIdAsync(string userId, CancellationToken ct = default)
     {
-        var equities = await _repository.FindAsync(e => e.UserId == userId, ct);
+        var equities = await _repository.FindAsync(e => e.userId == userId, ct);
         return Result<IReadOnlyList<ProjectEquityDto>>.Success(_mapper.Map<IReadOnlyList<ProjectEquityDto>>(equities));
     }
 
     public async Task<Result<ProjectEquityDto>> CreateAsync(CreateProjectEquityDto dto, CancellationToken ct = default)
     {
-        var equity = ProjectEquity.Create(dto.ProjectId, dto.UserId, dto.SharePercent, dto.InvestmentAmount);
+        var equity = new ProjectEquity
+        {
+            id = new Guid().ToString(),
+            projectId = dto.ProjectId,
+            userId = dto.UserId,
+            sharePercent = dto.SharePercent,
+            investmentAmount = dto.InvestmentAmount,
+            grantedAt = DateTime.UtcNow
+        };
         await _repository.AddAsync(equity, ct);
         await _unitOfWork.SaveChangesAsync(ct);
         return Result<ProjectEquityDto>.Success(_mapper.Map<ProjectEquityDto>(equity));
     }
 
-    public async Task<Result<ProjectEquityDto>> UpdateAsync(Guid id, UpdateProjectEquityDto dto, CancellationToken ct = default)
+    public async Task<Result<ProjectEquityDto>> UpdateAsync(string id, UpdateProjectEquityDto dto, CancellationToken ct = default)
     {
         var equity = await _repository.GetByIdAsync(id, ct);
         if (equity is null)
             return Result<ProjectEquityDto>.NotFound($"Equity with id {id} not found");
 
-        equity.UpdateShare(dto.SharePercent ?? equity.SharePercent, dto.InvestmentAmount ?? equity.InvestmentAmount);
+        if (dto.SharePercent.HasValue) equity.sharePercent = dto.SharePercent.Value;
+        if (dto.InvestmentAmount.HasValue) equity.investmentAmount = dto.InvestmentAmount.Value;
+
         await _repository.UpdateAsync(equity, ct);
         await _unitOfWork.SaveChangesAsync(ct);
         return Result<ProjectEquityDto>.Success(_mapper.Map<ProjectEquityDto>(equity));
     }
 
-    public async Task<Result<bool>> DeleteAsync(Guid id, CancellationToken ct = default)
+    public async Task<Result<bool>> DeleteAsync(string id, CancellationToken ct = default)
     {
         var equity = await _repository.GetByIdAsync(id, ct);
         if (equity is null)

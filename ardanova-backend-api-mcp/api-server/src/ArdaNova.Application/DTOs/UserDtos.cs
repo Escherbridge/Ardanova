@@ -4,7 +4,7 @@ using ArdaNova.Domain.Models.Enums;
 
 public record UserDto
 {
-    public Guid Id { get; init; }
+    public string Id { get; init; }
     public string Email { get; init; } = null!;
     public DateTime? EmailVerified { get; init; }
     public string? Name { get; init; }
@@ -44,28 +44,28 @@ public record UpdateUserDto
 
 public record UserSkillDto
 {
-    public Guid Id { get; init; }
-    public Guid UserId { get; init; }
+    public string Id { get; init; }
+    public string UserId { get; init; }
     public string Skill { get; init; } = null!;
     public int Level { get; init; }
 }
 
 public record CreateUserSkillDto
 {
-    public required Guid UserId { get; init; }
+    public required string UserId { get; init; }
     public required string Skill { get; init; }
     public int Level { get; init; } = 1;
 }
 
 public record UpdateUserSkillDto
 {
-    public int Level { get; init; }
+    public int? Level { get; init; }
 }
 
 public record UserExperienceDto
 {
-    public Guid Id { get; init; }
-    public Guid UserId { get; init; }
+    public string Id { get; init; }
+    public string UserId { get; init; }
     public string Title { get; init; } = null!;
     public string Company { get; init; } = null!;
     public string? Description { get; init; }
@@ -76,7 +76,7 @@ public record UserExperienceDto
 
 public record CreateUserExperienceDto
 {
-    public required Guid UserId { get; init; }
+    public required string UserId { get; init; }
     public required string Title { get; init; }
     public required string Company { get; init; }
     public string? Description { get; init; }
@@ -97,8 +97,8 @@ public record UpdateUserExperienceDto
 
 public record AccountDto
 {
-    public Guid Id { get; init; }
-    public Guid UserId { get; init; }
+    public string Id { get; init; }
+    public string UserId { get; init; }
     public string Type { get; init; } = null!;
     public string Provider { get; init; } = null!;
     public string ProviderAccountId { get; init; } = null!;
@@ -106,9 +106,9 @@ public record AccountDto
 
 public record SessionDto
 {
-    public Guid Id { get; init; }
+    public string Id { get; init; }
     public string SessionToken { get; init; } = null!;
-    public Guid UserId { get; init; }
+    public string UserId { get; init; }
     public DateTime Expires { get; init; }
 }
 

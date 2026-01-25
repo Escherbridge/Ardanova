@@ -30,8 +30,8 @@ public class UsersController : ControllerBase
         return ToActionResult(result);
     }
 
-    [HttpGet("{id:guid}")]
-    public async Task<IActionResult> GetById(Guid id, CancellationToken ct)
+    [HttpGet("{id}")]
+    public async Task<IActionResult> GetById(string id, CancellationToken ct)
     {
         var result = await _userService.GetByIdAsync(id, ct);
         return ToActionResult(result);
@@ -53,22 +53,22 @@ public class UsersController : ControllerBase
             : ToActionResult(result);
     }
 
-    [HttpPut("{id:guid}")]
-    public async Task<IActionResult> Update(Guid id, [FromBody] UpdateUserDto dto, CancellationToken ct)
+    [HttpPut("{id}")]
+    public async Task<IActionResult> Update(string id, [FromBody] UpdateUserDto dto, CancellationToken ct)
     {
         var result = await _userService.UpdateAsync(id, dto, ct);
         return ToActionResult(result);
     }
 
-    [HttpDelete("{id:guid}")]
-    public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
+    [HttpDelete("{id}")]
+    public async Task<IActionResult> Delete(string id, CancellationToken ct)
     {
         var result = await _userService.DeleteAsync(id, ct);
         return result.IsSuccess ? NoContent() : ToActionResult(result);
     }
 
-    [HttpPost("{id:guid}/verify")]
-    public async Task<IActionResult> Verify(Guid id, CancellationToken ct)
+    [HttpPost("{id}/verify")]
+    public async Task<IActionResult> Verify(string id, CancellationToken ct)
     {
         var result = await _userService.VerifyAsync(id, ct);
         return ToActionResult(result);

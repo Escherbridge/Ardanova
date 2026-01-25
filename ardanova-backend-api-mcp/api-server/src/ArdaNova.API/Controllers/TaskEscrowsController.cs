@@ -16,22 +16,22 @@ public class TaskEscrowsController : ControllerBase
         _taskEscrowService = taskEscrowService;
     }
 
-    [HttpGet("{id:guid}")]
-    public async Task<IActionResult> GetById(Guid id, CancellationToken ct)
+    [HttpGet("{id}")]
+    public async Task<IActionResult> GetById(string id, CancellationToken ct)
     {
         var result = await _taskEscrowService.GetByIdAsync(id, ct);
         return ToActionResult(result);
     }
 
-    [HttpGet("task/{taskId:guid}")]
-    public async Task<IActionResult> GetByTaskId(Guid taskId, CancellationToken ct)
+    [HttpGet("task/{taskId}")]
+    public async Task<IActionResult> GetByTaskId(string taskId, CancellationToken ct)
     {
         var result = await _taskEscrowService.GetByTaskIdAsync(taskId, ct);
         return ToActionResult(result);
     }
 
-    [HttpGet("funder/{funderId:guid}")]
-    public async Task<IActionResult> GetByFunderId(Guid funderId, CancellationToken ct)
+    [HttpGet("funder/{funderId}")]
+    public async Task<IActionResult> GetByFunderId(string funderId, CancellationToken ct)
     {
         var result = await _taskEscrowService.GetByFunderIdAsync(funderId, ct);
         return ToActionResult(result);
@@ -46,22 +46,22 @@ public class TaskEscrowsController : ControllerBase
             : ToActionResult(result);
     }
 
-    [HttpPost("{id:guid}/release")]
-    public async Task<IActionResult> Release(Guid id, [FromBody] ReleaseEscrowDto dto, CancellationToken ct)
+    [HttpPost("{id}/release")]
+    public async Task<IActionResult> Release(string id, [FromBody] ReleaseEscrowDto dto, CancellationToken ct)
     {
         var result = await _taskEscrowService.ReleaseAsync(id, dto, ct);
         return ToActionResult(result);
     }
 
-    [HttpPost("{id:guid}/dispute")]
-    public async Task<IActionResult> Dispute(Guid id, CancellationToken ct)
+    [HttpPost("{id}/dispute")]
+    public async Task<IActionResult> Dispute(string id, CancellationToken ct)
     {
         var result = await _taskEscrowService.DisputeAsync(id, ct);
         return ToActionResult(result);
     }
 
-    [HttpPost("{id:guid}/refund")]
-    public async Task<IActionResult> Refund(Guid id, [FromBody] RefundEscrowDto dto, CancellationToken ct)
+    [HttpPost("{id}/refund")]
+    public async Task<IActionResult> Refund(string id, [FromBody] RefundEscrowDto dto, CancellationToken ct)
     {
         var result = await _taskEscrowService.RefundAsync(id, dto, ct);
         return ToActionResult(result);

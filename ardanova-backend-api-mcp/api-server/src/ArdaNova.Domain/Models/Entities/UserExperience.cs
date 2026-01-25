@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using Microsoft.EntityFrameworkCore;
 using ArdaNova.Domain.Models.Enums;
 
 namespace ArdaNova.Domain.Models.Entities;
@@ -22,6 +23,7 @@ public class UserExperience
     [Required]
     public string company { get; set; } = string.Empty;
 
+    [Column(TypeName = "text")]
     public string? description { get; set; }
 
     [Required]

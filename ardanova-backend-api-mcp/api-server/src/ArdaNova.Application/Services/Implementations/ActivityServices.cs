@@ -20,7 +20,7 @@ public class ActivityService : IActivityService
         _mapper = mapper;
     }
 
-    public async Task<Result<ActivityDto>> GetByIdAsync(Guid id, CancellationToken ct = default)
+    public async Task<Result<ActivityDto>> GetByIdAsync(string id, CancellationToken ct = default)
     {
         var activity = await _repository.GetByIdAsync(id, ct);
         if (activity is null)
@@ -28,50 +28,53 @@ public class ActivityService : IActivityService
         return Result<ActivityDto>.Success(_mapper.Map<ActivityDto>(activity));
     }
 
-    public async Task<Result<IReadOnlyList<ActivityDto>>> GetByUserIdAsync(Guid userId, CancellationToken ct = default)
+    public async Task<Result<IReadOnlyList<ActivityDto>>> GetByUserIdAsync(string userId, CancellationToken ct = default)
     {
-        var activities = await _repository.FindAsync(a => a.UserId == userId, ct);
-        var ordered = activities.OrderByDescending(a => a.CreatedAt).ToList();
+        var activities = await _repository.FindAsync(a => a.userId == userId, ct);
+        var ordered = activities.OrderByDescending(a => a.createdAt).ToList();
         return Result<IReadOnlyList<ActivityDto>>.Success(_mapper.Map<IReadOnlyList<ActivityDto>>(ordered));
     }
 
-    public async Task<Result<PagedResult<ActivityDto>>> GetByUserIdPagedAsync(Guid userId, int page, int pageSize, CancellationToken ct = default)
+    public async Task<Result<PagedResult<ActivityDto>>> GetByUserIdPagedAsync(string userId, int page, int pageSize, CancellationToken ct = default)
     {
-        var result = await _repository.GetPagedAsync(page, pageSize, a => a.UserId == userId, ct);
+        var result = await _repository.GetPagedAsync(page, pageSize, a => a.userId == userId, ct);
         return Result<PagedResult<ActivityDto>>.Success(result.Map(_mapper.Map<ActivityDto>));
     }
 
-    public async Task<Result<IReadOnlyList<ActivityDto>>> GetByProjectIdAsync(Guid projectId, CancellationToken ct = default)
+    public async Task<Result<IReadOnlyList<ActivityDto>>> GetByProjectIdAsync(string projectId, CancellationToken ct = default)
     {
-        var activities = await _repository.FindAsync(a => a.ProjectId == projectId, ct);
-        var ordered = activities.OrderByDescending(a => a.CreatedAt).ToList();
+        var activities = await _repository.FindAsync(a => a.projectId == projectId, ct);
+        var ordered = activities.OrderByDescending(a => a.createdAt).ToList();
         return Result<IReadOnlyList<ActivityDto>>.Success(_mapper.Map<IReadOnlyList<ActivityDto>>(ordered));
     }
 
-    public async Task<Result<PagedResult<ActivityDto>>> GetByProjectIdPagedAsync(Guid projectId, int page, int pageSize, CancellationToken ct = default)
+    public async Task<Result<PagedResult<ActivityDto>>> GetByProjectIdPagedAsync(string projectId, int page, int pageSize, CancellationToken ct = default)
     {
-        var result = await _repository.GetPagedAsync(page, pageSize, a => a.ProjectId == projectId, ct);
+        var result = await _repository.GetPagedAsync(page, pageSize, a => a.projectId == projectId, ct);
         return Result<PagedResult<ActivityDto>>.Success(result.Map(_mapper.Map<ActivityDto>));
     }
 
     public async Task<Result<ActivityDto>> CreateAsync(CreateActivityDto dto, CancellationToken ct = default)
     {
-        var activity = Activity.Create(
-            dto.UserId,
-            dto.Type,
-            dto.EntityType,
-            dto.EntityId,
-            dto.Action,
-            dto.ProjectId,
-            dto.Metadata
-        );
+        var activity = new Activity
+        {
+            id = Guid.NewGuid().ToString(),
+            userId = dto.UserId,
+            type = dto.Type,
+            entityType = dto.EntityType,
+            entityId = dto.EntityId,
+            action = dto.Action,
+            projectId = dto.ProjectId,
+            metadata = dto.Metadata,
+            createdAt = DateTime.UtcNow
+        };
 
         await _repository.AddAsync(activity, ct);
         await _unitOfWork.SaveChangesAsync(ct);
         return Result<ActivityDto>.Success(_mapper.Map<ActivityDto>(activity));
     }
 
-    public async Task<Result<bool>> DeleteAsync(Guid id, CancellationToken ct = default)
+    public async Task<Result<bool>> DeleteAsync(string id, CancellationToken ct = default)
     {
         var activity = await _repository.GetByIdAsync(id, ct);
         if (activity is null)

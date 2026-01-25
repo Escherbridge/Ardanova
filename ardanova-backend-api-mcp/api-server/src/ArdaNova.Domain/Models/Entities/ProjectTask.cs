@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using Microsoft.EntityFrameworkCore;
 using ArdaNova.Domain.Models.Enums;
 
 namespace ArdaNova.Domain.Models.Entities;
@@ -21,10 +22,11 @@ public class ProjectTask
     [Required]
     public string title { get; set; } = string.Empty;
 
+    [Column(TypeName = "text")]
     public string? description { get; set; }
 
     [Required]
-    public TaskStatus status { get; set; }
+    public ArdaNova.Domain.Models.Enums.TaskStatus status { get; set; }
 
     [Required]
     public TaskPriority priority { get; set; }
@@ -33,6 +35,7 @@ public class ProjectTask
 
     public int? actualHours { get; set; }
 
+    [Precision(18, 8)]
     public decimal? tokenReward { get; set; }
 
     [Required]
@@ -59,10 +62,6 @@ public class ProjectTask
     [ForeignKey("backlogItemId")]
     public virtual BacklogItem? BacklogItem { get; set; }
 
-    public virtual ICollection<ProjectTaskDependency> ProjectTaskDependencies { get; set; } = new List<ProjectTaskDependency>();
-
-    public virtual ICollection<ProjectTaskDependency> ProjectTaskDependencies1 { get; set; } = new List<ProjectTaskDependency>();
-
     public virtual ICollection<SprintItem> SprintItems { get; set; } = new List<SprintItem>();
 
     public virtual ICollection<TaskCompensation> TaskCompensations { get; set; } = new List<TaskCompensation>();
@@ -70,5 +69,9 @@ public class ProjectTask
     public virtual ICollection<TaskSubmission> TaskSubmissions { get; set; } = new List<TaskSubmission>();
 
     public virtual ICollection<TaskEscrow> TaskEscrows { get; set; } = new List<TaskEscrow>();
+
+    public virtual ICollection<ProjectTaskDependency> ProjectTaskDependenciesAsTask { get; set; } = new List<ProjectTaskDependency>();
+
+    public virtual ICollection<ProjectTaskDependency> ProjectTaskDependenciesAsDependsOn { get; set; } = new List<ProjectTaskDependency>();
 
 }

@@ -29,11 +29,23 @@ public class TokenSwapServiceTests
     public async Task GetByIdAsync_WhenSwapExists_ReturnsSuccessResult()
     {
         // Arrange
-        var swapId = Guid.NewGuid();
-        var userId = Guid.NewGuid();
-        var fromTokenId = Guid.NewGuid();
-        var toTokenId = Guid.NewGuid();
-        var swap = TokenSwap.Create(userId, fromTokenId, toTokenId, 100m, 95m, 0.95m);
+        var swapId = Guid.NewGuid().ToString();
+        var userId = Guid.NewGuid().ToString();
+        var fromTokenId = Guid.NewGuid().ToString();
+        var toTokenId = Guid.NewGuid().ToString();
+        var swap = new TokenSwap
+        {
+            id = swapId,
+            userId = userId,
+            fromTokenId = fromTokenId,
+            toTokenId = toTokenId,
+            fromAmount = 100m,
+            toAmount = 95m,
+            exchangeRate = 0.95m,
+            fee = 0m,
+            status = SwapStatus.PENDING,
+            createdAt = DateTime.UtcNow
+        };
         var swapDto = new TokenSwapDto { Id = swapId, FromAmount = 100m, ToAmount = 95m };
 
         _repositoryMock.Setup(r => r.GetByIdAsync(swapId, It.IsAny<CancellationToken>()))
@@ -53,7 +65,7 @@ public class TokenSwapServiceTests
     public async Task GetByIdAsync_WhenSwapNotExists_ReturnsNotFound()
     {
         // Arrange
-        var swapId = Guid.NewGuid();
+        var swapId = Guid.NewGuid().ToString();
         _repositoryMock.Setup(r => r.GetByIdAsync(swapId, It.IsAny<CancellationToken>()))
             .ReturnsAsync((TokenSwap?)null);
 
@@ -69,11 +81,11 @@ public class TokenSwapServiceTests
     public async Task GetByUserIdAsync_ReturnsSwapsForUser()
     {
         // Arrange
-        var userId = Guid.NewGuid();
+        var userId = Guid.NewGuid().ToString();
         var swaps = new List<TokenSwap>
         {
-            TokenSwap.Create(userId, Guid.NewGuid(), Guid.NewGuid(), 100m, 95m, 0.95m),
-            TokenSwap.Create(userId, Guid.NewGuid(), Guid.NewGuid(), 200m, 190m, 0.95m)
+            new TokenSwap { id = Guid.NewGuid().ToString(), userId = userId, fromTokenId = Guid.NewGuid().ToString(), toTokenId = Guid.NewGuid().ToString(), fromAmount = 100m, toAmount = 95m, exchangeRate = 0.95m, fee = 0m, status = SwapStatus.PENDING, createdAt = DateTime.UtcNow },
+            new TokenSwap { id = Guid.NewGuid().ToString(), userId = userId, fromTokenId = Guid.NewGuid().ToString(), toTokenId = Guid.NewGuid().ToString(), fromAmount = 200m, toAmount = 190m, exchangeRate = 0.95m, fee = 0m, status = SwapStatus.PENDING, createdAt = DateTime.UtcNow }
         };
         var swapDtos = new List<TokenSwapDto>
         {
@@ -97,12 +109,12 @@ public class TokenSwapServiceTests
     public async Task CreateAsync_WithValidDto_ReturnsCreatedSwap()
     {
         // Arrange
-        var userId = Guid.NewGuid();
+        var userId = Guid.NewGuid().ToString();
         var dto = new CreateTokenSwapDto
         {
             UserId = userId,
-            FromTokenId = Guid.NewGuid(),
-            ToTokenId = Guid.NewGuid(),
+            FromTokenId = Guid.NewGuid().ToString(),
+            ToTokenId = Guid.NewGuid().ToString(),
             FromAmount = 1000m,
             ToAmount = 950m,
             ExchangeRate = 0.95m,
@@ -131,8 +143,20 @@ public class TokenSwapServiceTests
     public async Task CompleteAsync_WhenSwapExists_CompletesSwap()
     {
         // Arrange
-        var swapId = Guid.NewGuid();
-        var swap = TokenSwap.Create(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), 100m, 95m, 0.95m);
+        var swapId = Guid.NewGuid().ToString();
+        var swap = new TokenSwap
+        {
+            id = swapId,
+            userId = Guid.NewGuid().ToString(),
+            fromTokenId = Guid.NewGuid().ToString(),
+            toTokenId = Guid.NewGuid().ToString(),
+            fromAmount = 100m,
+            toAmount = 95m,
+            exchangeRate = 0.95m,
+            fee = 0m,
+            status = SwapStatus.PENDING,
+            createdAt = DateTime.UtcNow
+        };
         var swapDto = new TokenSwapDto { Id = swapId, Status = SwapStatus.COMPLETED };
 
         _repositoryMock.Setup(r => r.GetByIdAsync(swapId, It.IsAny<CancellationToken>()))
@@ -158,8 +182,20 @@ public class TokenSwapServiceTests
     public async Task CancelAsync_WhenSwapExists_CancelsSwap()
     {
         // Arrange
-        var swapId = Guid.NewGuid();
-        var swap = TokenSwap.Create(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), 100m, 95m, 0.95m);
+        var swapId = Guid.NewGuid().ToString();
+        var swap = new TokenSwap
+        {
+            id = swapId,
+            userId = Guid.NewGuid().ToString(),
+            fromTokenId = Guid.NewGuid().ToString(),
+            toTokenId = Guid.NewGuid().ToString(),
+            fromAmount = 100m,
+            toAmount = 95m,
+            exchangeRate = 0.95m,
+            fee = 0m,
+            status = SwapStatus.PENDING,
+            createdAt = DateTime.UtcNow
+        };
         var swapDto = new TokenSwapDto { Id = swapId, Status = SwapStatus.CANCELLED };
 
         _repositoryMock.Setup(r => r.GetByIdAsync(swapId, It.IsAny<CancellationToken>()))
@@ -201,10 +237,21 @@ public class LiquidityPoolServiceTests
     public async Task GetByIdAsync_WhenPoolExists_ReturnsSuccessResult()
     {
         // Arrange
-        var poolId = Guid.NewGuid();
-        var token1Id = Guid.NewGuid();
-        var token2Id = Guid.NewGuid();
-        var pool = LiquidityPool.Create(token1Id, token2Id);
+        var poolId = Guid.NewGuid().ToString();
+        var token1Id = Guid.NewGuid().ToString();
+        var token2Id = Guid.NewGuid().ToString();
+        var pool = new LiquidityPool
+        {
+            id = poolId,
+            token1Id = token1Id,
+            token2Id = token2Id,
+            reserve1 = 0m,
+            reserve2 = 0m,
+            totalShares = 0m,
+            feePercent = 0.003m,
+            isActive = true,
+            createdAt = DateTime.UtcNow
+        };
         var poolDto = new LiquidityPoolDto { Id = poolId, Token1Id = token1Id, Token2Id = token2Id };
 
         _repositoryMock.Setup(r => r.GetByIdAsync(poolId, It.IsAny<CancellationToken>()))
@@ -223,7 +270,7 @@ public class LiquidityPoolServiceTests
     public async Task GetByIdAsync_WhenPoolNotExists_ReturnsNotFound()
     {
         // Arrange
-        var poolId = Guid.NewGuid();
+        var poolId = Guid.NewGuid().ToString();
         _repositoryMock.Setup(r => r.GetByIdAsync(poolId, It.IsAny<CancellationToken>()))
             .ReturnsAsync((LiquidityPool?)null);
 
@@ -241,8 +288,8 @@ public class LiquidityPoolServiceTests
         // Arrange
         var pools = new List<LiquidityPool>
         {
-            LiquidityPool.Create(Guid.NewGuid(), Guid.NewGuid()),
-            LiquidityPool.Create(Guid.NewGuid(), Guid.NewGuid())
+            new LiquidityPool { id = Guid.NewGuid().ToString(), token1Id = Guid.NewGuid().ToString(), token2Id = Guid.NewGuid().ToString(), reserve1 = 0m, reserve2 = 0m, totalShares = 0m, feePercent = 0.003m, isActive = true, createdAt = DateTime.UtcNow },
+            new LiquidityPool { id = Guid.NewGuid().ToString(), token1Id = Guid.NewGuid().ToString(), token2Id = Guid.NewGuid().ToString(), reserve1 = 0m, reserve2 = 0m, totalShares = 0m, feePercent = 0.003m, isActive = true, createdAt = DateTime.UtcNow }
         };
         var poolDtos = new List<LiquidityPoolDto>
         {
@@ -266,8 +313,8 @@ public class LiquidityPoolServiceTests
     public async Task CreateAsync_WithValidDto_ReturnsCreatedPool()
     {
         // Arrange
-        var token1Id = Guid.NewGuid();
-        var token2Id = Guid.NewGuid();
+        var token1Id = Guid.NewGuid().ToString();
+        var token2Id = Guid.NewGuid().ToString();
         var dto = new CreateLiquidityPoolDto
         {
             Token1Id = token1Id,
@@ -316,10 +363,19 @@ public class LiquidityProviderServiceTests
     public async Task GetByIdAsync_WhenProviderExists_ReturnsSuccessResult()
     {
         // Arrange
-        var providerId = Guid.NewGuid();
-        var poolId = Guid.NewGuid();
-        var userId = Guid.NewGuid();
-        var provider = LiquidityProvider.Create(poolId, userId, 100m, 100m, 100m);
+        var providerId = Guid.NewGuid().ToString();
+        var poolId = Guid.NewGuid().ToString();
+        var userId = Guid.NewGuid().ToString();
+        var provider = new LiquidityProvider
+        {
+            id = providerId,
+            poolId = poolId,
+            userId = userId,
+            shares = 100m,
+            token1In = 100m,
+            token2In = 100m,
+            createdAt = DateTime.UtcNow
+        };
         var providerDto = new LiquidityProviderDto { Id = providerId, PoolId = poolId, UserId = userId };
 
         _repositoryMock.Setup(r => r.GetByIdAsync(providerId, It.IsAny<CancellationToken>()))
@@ -338,7 +394,7 @@ public class LiquidityProviderServiceTests
     public async Task GetByIdAsync_WhenProviderNotExists_ReturnsNotFound()
     {
         // Arrange
-        var providerId = Guid.NewGuid();
+        var providerId = Guid.NewGuid().ToString();
         _repositoryMock.Setup(r => r.GetByIdAsync(providerId, It.IsAny<CancellationToken>()))
             .ReturnsAsync((LiquidityProvider?)null);
 
@@ -354,11 +410,11 @@ public class LiquidityProviderServiceTests
     public async Task GetByPoolIdAsync_ReturnsProvidersForPool()
     {
         // Arrange
-        var poolId = Guid.NewGuid();
+        var poolId = Guid.NewGuid().ToString();
         var providers = new List<LiquidityProvider>
         {
-            LiquidityProvider.Create(poolId, Guid.NewGuid(), 100m, 100m, 100m),
-            LiquidityProvider.Create(poolId, Guid.NewGuid(), 200m, 200m, 200m)
+            new LiquidityProvider { id = Guid.NewGuid().ToString(), poolId = poolId, userId = Guid.NewGuid().ToString(), shares = 100m, token1In = 100m, token2In = 100m, createdAt = DateTime.UtcNow },
+            new LiquidityProvider { id = Guid.NewGuid().ToString(), poolId = poolId, userId = Guid.NewGuid().ToString(), shares = 200m, token1In = 200m, token2In = 200m, createdAt = DateTime.UtcNow }
         };
         var providerDtos = new List<LiquidityProviderDto>
         {
@@ -382,8 +438,8 @@ public class LiquidityProviderServiceTests
     public async Task CreateAsync_WithValidDto_ReturnsCreatedProvider()
     {
         // Arrange
-        var poolId = Guid.NewGuid();
-        var userId = Guid.NewGuid();
+        var poolId = Guid.NewGuid().ToString();
+        var userId = Guid.NewGuid().ToString();
         var dto = new CreateLiquidityProviderDto
         {
             PoolId = poolId,

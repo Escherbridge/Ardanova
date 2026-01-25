@@ -6,14 +6,14 @@ using ArdaNova.Domain.Models.Enums;
 
 public interface INotificationService
 {
-    Task<Result<NotificationDto>> GetByIdAsync(Guid id, CancellationToken ct = default);
-    Task<Result<IReadOnlyList<NotificationDto>>> GetByUserIdAsync(Guid userId, CancellationToken ct = default);
-    Task<Result<PagedResult<NotificationDto>>> GetByUserIdPagedAsync(Guid userId, int page, int pageSize, CancellationToken ct = default);
-    Task<Result<IReadOnlyList<NotificationDto>>> GetUnreadByUserIdAsync(Guid userId, CancellationToken ct = default);
-    Task<Result<NotificationSummaryDto>> GetSummaryAsync(Guid userId, CancellationToken ct = default);
+    Task<Result<NotificationDto>> GetByIdAsync(string id, CancellationToken ct = default);
+    Task<Result<IReadOnlyList<NotificationDto>>> GetByUserIdAsync(string userId, CancellationToken ct = default);
+    Task<Result<PagedResult<NotificationDto>>> GetByUserIdPagedAsync(string userId, int page, int pageSize, CancellationToken ct = default);
+    Task<Result<IReadOnlyList<NotificationDto>>> GetUnreadByUserIdAsync(string userId, CancellationToken ct = default);
+    Task<Result<NotificationSummaryDto>> GetSummaryAsync(string userId, CancellationToken ct = default);
     Task<Result<NotificationDto>> CreateAsync(CreateNotificationDto dto, CancellationToken ct = default);
-    Task<Result<NotificationDto>> MarkAsReadAsync(Guid id, CancellationToken ct = default);
-    Task<Result<bool>> MarkAllAsReadAsync(Guid userId, CancellationToken ct = default);
-    Task<Result<bool>> DeleteAsync(Guid id, CancellationToken ct = default);
-    Task<Result<bool>> DeleteAllByUserIdAsync(Guid userId, CancellationToken ct = default);
+    Task<Result<NotificationDto>> MarkAsReadAsync(string id, CancellationToken ct = default);
+    Task<Result<bool>> MarkAllAsReadAsync(string userId, CancellationToken ct = default);
+    Task<Result<bool>> DeleteAsync(string id, CancellationToken ct = default);
+    Task<Result<bool>> DeleteAllByUserIdAsync(string userId, CancellationToken ct = default);
 }

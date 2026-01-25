@@ -4,8 +4,8 @@ using ArdaNova.Domain.Models.Enums;
 
 public record NotificationDto
 {
-    public Guid Id { get; init; }
-    public Guid UserId { get; init; }
+    public string Id { get; init; }
+    public string UserId { get; init; }
     public NotificationType Type { get; init; }
     public string Title { get; init; } = null!;
     public string Message { get; init; } = null!;
@@ -18,7 +18,7 @@ public record NotificationDto
 
 public record CreateNotificationDto
 {
-    public required Guid UserId { get; init; }
+    public required string UserId { get; init; }
     public required NotificationType Type { get; init; }
     public required string Title { get; init; }
     public required string Message { get; init; }

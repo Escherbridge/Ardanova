@@ -16,22 +16,22 @@ public class TokenSwapsController : ControllerBase
         _swapService = swapService;
     }
 
-    [HttpGet("{id:guid}")]
-    public async Task<IActionResult> GetById(Guid id, CancellationToken ct)
+    [HttpGet("{id}")]
+    public async Task<IActionResult> GetById(string id, CancellationToken ct)
     {
         var result = await _swapService.GetByIdAsync(id, ct);
         return ToActionResult(result);
     }
 
-    [HttpGet("user/{userId:guid}")]
-    public async Task<IActionResult> GetByUserId(Guid userId, CancellationToken ct)
+    [HttpGet("user/{userId}")]
+    public async Task<IActionResult> GetByUserId(string userId, CancellationToken ct)
     {
         var result = await _swapService.GetByUserIdAsync(userId, ct);
         return ToActionResult(result);
     }
 
-    [HttpGet("user/{userId:guid}/paged")]
-    public async Task<IActionResult> GetByUserIdPaged(Guid userId, [FromQuery] int page = 1, [FromQuery] int pageSize = 10, CancellationToken ct = default)
+    [HttpGet("user/{userId}/paged")]
+    public async Task<IActionResult> GetByUserIdPaged(string userId, [FromQuery] int page = 1, [FromQuery] int pageSize = 10, CancellationToken ct = default)
     {
         var result = await _swapService.GetByUserIdPagedAsync(userId, page, pageSize, ct);
         return ToActionResult(result);
@@ -46,29 +46,29 @@ public class TokenSwapsController : ControllerBase
             : ToActionResult(result);
     }
 
-    [HttpPost("{id:guid}/process")]
-    public async Task<IActionResult> StartProcessing(Guid id, CancellationToken ct)
+    [HttpPost("{id}/process")]
+    public async Task<IActionResult> StartProcessing(string id, CancellationToken ct)
     {
         var result = await _swapService.StartProcessingAsync(id, ct);
         return ToActionResult(result);
     }
 
-    [HttpPost("{id:guid}/complete")]
-    public async Task<IActionResult> Complete(Guid id, [FromBody] CompleteSwapDto dto, CancellationToken ct)
+    [HttpPost("{id}/complete")]
+    public async Task<IActionResult> Complete(string id, [FromBody] CompleteSwapDto dto, CancellationToken ct)
     {
         var result = await _swapService.CompleteAsync(id, dto, ct);
         return ToActionResult(result);
     }
 
-    [HttpPost("{id:guid}/fail")]
-    public async Task<IActionResult> Fail(Guid id, CancellationToken ct)
+    [HttpPost("{id}/fail")]
+    public async Task<IActionResult> Fail(string id, CancellationToken ct)
     {
         var result = await _swapService.FailAsync(id, ct);
         return ToActionResult(result);
     }
 
-    [HttpPost("{id:guid}/cancel")]
-    public async Task<IActionResult> Cancel(Guid id, CancellationToken ct)
+    [HttpPost("{id}/cancel")]
+    public async Task<IActionResult> Cancel(string id, CancellationToken ct)
     {
         var result = await _swapService.CancelAsync(id, ct);
         return ToActionResult(result);
@@ -115,15 +115,15 @@ public class LiquidityPoolsController : ControllerBase
         return ToActionResult(result);
     }
 
-    [HttpGet("{id:guid}")]
-    public async Task<IActionResult> GetById(Guid id, CancellationToken ct)
+    [HttpGet("{id}")]
+    public async Task<IActionResult> GetById(string id, CancellationToken ct)
     {
         var result = await _poolService.GetByIdAsync(id, ct);
         return ToActionResult(result);
     }
 
-    [HttpGet("pair/{token1Id:guid}/{token2Id:guid}")]
-    public async Task<IActionResult> GetByTokenPair(Guid token1Id, Guid token2Id, CancellationToken ct)
+    [HttpGet("pair/{token1Id}/{token2Id}")]
+    public async Task<IActionResult> GetByTokenPair(string token1Id, string token2Id, CancellationToken ct)
     {
         var result = await _poolService.GetByTokenPairAsync(token1Id, token2Id, ct);
         return ToActionResult(result);
@@ -138,29 +138,29 @@ public class LiquidityPoolsController : ControllerBase
             : ToActionResult(result);
     }
 
-    [HttpPost("{id:guid}/add-liquidity")]
-    public async Task<IActionResult> AddLiquidity(Guid id, [FromBody] AddLiquidityDto dto, CancellationToken ct)
+    [HttpPost("{id}/add-liquidity")]
+    public async Task<IActionResult> AddLiquidity(string id, [FromBody] AddLiquidityDto dto, CancellationToken ct)
     {
         var result = await _poolService.AddLiquidityAsync(id, dto, ct);
         return ToActionResult(result);
     }
 
-    [HttpPost("{id:guid}/remove-liquidity")]
-    public async Task<IActionResult> RemoveLiquidity(Guid id, [FromBody] RemoveLiquidityDto dto, CancellationToken ct)
+    [HttpPost("{id}/remove-liquidity")]
+    public async Task<IActionResult> RemoveLiquidity(string id, [FromBody] RemoveLiquidityDto dto, CancellationToken ct)
     {
         var result = await _poolService.RemoveLiquidityAsync(id, dto, ct);
         return ToActionResult(result);
     }
 
-    [HttpPost("{id:guid}/activate")]
-    public async Task<IActionResult> Activate(Guid id, CancellationToken ct)
+    [HttpPost("{id}/activate")]
+    public async Task<IActionResult> Activate(string id, CancellationToken ct)
     {
         var result = await _poolService.ActivateAsync(id, ct);
         return ToActionResult(result);
     }
 
-    [HttpPost("{id:guid}/deactivate")]
-    public async Task<IActionResult> Deactivate(Guid id, CancellationToken ct)
+    [HttpPost("{id}/deactivate")]
+    public async Task<IActionResult> Deactivate(string id, CancellationToken ct)
     {
         var result = await _poolService.DeactivateAsync(id, ct);
         return ToActionResult(result);
@@ -193,29 +193,29 @@ public class LiquidityProvidersController : ControllerBase
         _providerService = providerService;
     }
 
-    [HttpGet("{id:guid}")]
-    public async Task<IActionResult> GetById(Guid id, CancellationToken ct)
+    [HttpGet("{id}")]
+    public async Task<IActionResult> GetById(string id, CancellationToken ct)
     {
         var result = await _providerService.GetByIdAsync(id, ct);
         return ToActionResult(result);
     }
 
-    [HttpGet("pool/{poolId:guid}")]
-    public async Task<IActionResult> GetByPoolId(Guid poolId, CancellationToken ct)
+    [HttpGet("pool/{poolId}")]
+    public async Task<IActionResult> GetByPoolId(string poolId, CancellationToken ct)
     {
         var result = await _providerService.GetByPoolIdAsync(poolId, ct);
         return ToActionResult(result);
     }
 
-    [HttpGet("user/{userId:guid}")]
-    public async Task<IActionResult> GetByUserId(Guid userId, CancellationToken ct)
+    [HttpGet("user/{userId}")]
+    public async Task<IActionResult> GetByUserId(string userId, CancellationToken ct)
     {
         var result = await _providerService.GetByUserIdAsync(userId, ct);
         return ToActionResult(result);
     }
 
-    [HttpGet("pool/{poolId:guid}/user/{userId:guid}")]
-    public async Task<IActionResult> GetByPoolAndUser(Guid poolId, Guid userId, CancellationToken ct)
+    [HttpGet("pool/{poolId}/user/{userId}")]
+    public async Task<IActionResult> GetByPoolAndUser(string poolId, string userId, CancellationToken ct)
     {
         var result = await _providerService.GetByPoolAndUserAsync(poolId, userId, ct);
         return ToActionResult(result);
@@ -230,8 +230,8 @@ public class LiquidityProvidersController : ControllerBase
             : ToActionResult(result);
     }
 
-    [HttpDelete("{id:guid}")]
-    public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
+    [HttpDelete("{id}")]
+    public async Task<IActionResult> Delete(string id, CancellationToken ct)
     {
         var result = await _providerService.DeleteAsync(id, ct);
         return result.IsSuccess ? NoContent() : ToActionResult(result);

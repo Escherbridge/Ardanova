@@ -29,9 +29,21 @@ public class ProjectServiceTests
     public async Task GetByIdAsync_WhenProjectExists_ReturnsSuccessResult()
     {
         // Arrange
-        var projectId = Guid.NewGuid();
-        var userId = Guid.NewGuid();
-        var project = Project.Create(userId, "Test Project", "A test project description", "Problem statement", "Solution description", ProjectCategory.TECHNOLOGY);
+        var projectId = Guid.NewGuid().ToString();
+        var userId = Guid.NewGuid().ToString();
+        var project = new Project
+        {
+            id = projectId,
+            createdById = userId,
+            title = "Test Project",
+            description = "A test project description",
+            problemStatement = "Problem statement",
+            solution = "Solution description",
+            category = ProjectCategory.TECHNOLOGY,
+            status = ProjectStatus.DRAFT,
+            createdAt = DateTime.UtcNow,
+            updatedAt = DateTime.UtcNow
+        };
         var projectDto = new ProjectDto { Id = projectId, Title = "Test Project" };
 
         _repositoryMock.Setup(r => r.GetByIdAsync(projectId, It.IsAny<CancellationToken>()))
@@ -51,7 +63,7 @@ public class ProjectServiceTests
     public async Task GetByIdAsync_WhenProjectNotExists_ReturnsNotFound()
     {
         // Arrange
-        var projectId = Guid.NewGuid();
+        var projectId = Guid.NewGuid().ToString();
         _repositoryMock.Setup(r => r.GetByIdAsync(projectId, It.IsAny<CancellationToken>()))
             .ReturnsAsync((Project?)null);
 
@@ -67,11 +79,11 @@ public class ProjectServiceTests
     public async Task GetAllAsync_ReturnsAllProjects()
     {
         // Arrange
-        var userId = Guid.NewGuid();
+        var userId = Guid.NewGuid().ToString();
         var projects = new List<Project>
         {
-            Project.Create(userId, "Project 1", "Desc 1", "Problem 1", "Solution 1", ProjectCategory.TECHNOLOGY),
-            Project.Create(userId, "Project 2", "Desc 2", "Problem 2", "Solution 2", ProjectCategory.HEALTHCARE)
+            new Project { id = Guid.NewGuid().ToString(), createdById = userId, title = "Project 1", description = "Desc 1", problemStatement = "Problem 1", solution = "Solution 1", category = ProjectCategory.TECHNOLOGY, status = ProjectStatus.DRAFT, createdAt = DateTime.UtcNow, updatedAt = DateTime.UtcNow },
+            new Project { id = Guid.NewGuid().ToString(), createdById = userId, title = "Project 2", description = "Desc 2", problemStatement = "Problem 2", solution = "Solution 2", category = ProjectCategory.HEALTHCARE, status = ProjectStatus.DRAFT, createdAt = DateTime.UtcNow, updatedAt = DateTime.UtcNow }
         };
         var projectDtos = new List<ProjectDto>
         {
@@ -95,7 +107,7 @@ public class ProjectServiceTests
     public async Task CreateAsync_WithValidDto_ReturnsCreatedProject()
     {
         // Arrange
-        var userId = Guid.NewGuid();
+        var userId = Guid.NewGuid().ToString();
         var dto = new CreateProjectDto
         {
             Title = "New Project",
@@ -129,8 +141,8 @@ public class ProjectServiceTests
     {
         // Arrange
         var slug = "test-project";
-        var userId = Guid.NewGuid();
-        var project = Project.Create(userId, "Test Project", "Description", "Problem", "Solution", ProjectCategory.TECHNOLOGY);
+        var userId = Guid.NewGuid().ToString();
+        var project = new Project { id = Guid.NewGuid().ToString(), createdById = userId, title = "Test Project", description = "Description", problemStatement = "Problem", solution = "Solution", category = ProjectCategory.TECHNOLOGY, slug = slug, status = ProjectStatus.DRAFT, createdAt = DateTime.UtcNow, updatedAt = DateTime.UtcNow };
         var projectDto = new ProjectDto { Title = "Test Project" };
 
         _repositoryMock.Setup(r => r.FindOneAsync(It.IsAny<System.Linq.Expressions.Expression<Func<Project, bool>>>(), It.IsAny<CancellationToken>()))
@@ -149,10 +161,10 @@ public class ProjectServiceTests
     public async Task GetByStatusAsync_ReturnsProjectsWithMatchingStatus()
     {
         // Arrange
-        var userId = Guid.NewGuid();
+        var userId = Guid.NewGuid().ToString();
         var projects = new List<Project>
         {
-            Project.Create(userId, "Draft Project", "Desc", "Problem", "Solution", ProjectCategory.TECHNOLOGY)
+            new Project { id = Guid.NewGuid().ToString(), createdById = userId, title = "Draft Project", description = "Desc", problemStatement = "Problem", solution = "Solution", category = ProjectCategory.TECHNOLOGY, status = ProjectStatus.DRAFT, createdAt = DateTime.UtcNow, updatedAt = DateTime.UtcNow }
         };
         var projectDtos = new List<ProjectDto> { new ProjectDto { Title = "Draft Project" } };
 
@@ -172,9 +184,9 @@ public class ProjectServiceTests
     public async Task DeleteAsync_WhenProjectExists_ReturnsSuccess()
     {
         // Arrange
-        var projectId = Guid.NewGuid();
-        var userId = Guid.NewGuid();
-        var project = Project.Create(userId, "Test Project", "Desc", "Problem", "Solution", ProjectCategory.TECHNOLOGY);
+        var projectId = Guid.NewGuid().ToString();
+        var userId = Guid.NewGuid().ToString();
+        var project = new Project { id = projectId, createdById = userId, title = "Test Project", description = "Desc", problemStatement = "Problem", solution = "Solution", category = ProjectCategory.TECHNOLOGY, status = ProjectStatus.DRAFT, createdAt = DateTime.UtcNow, updatedAt = DateTime.UtcNow };
 
         _repositoryMock.Setup(r => r.GetByIdAsync(projectId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(project);
@@ -196,9 +208,9 @@ public class ProjectServiceTests
     public async Task PublishAsync_WhenProjectExists_PublishesProject()
     {
         // Arrange
-        var projectId = Guid.NewGuid();
-        var userId = Guid.NewGuid();
-        var project = Project.Create(userId, "Test Project", "Desc", "Problem", "Solution", ProjectCategory.TECHNOLOGY);
+        var projectId = Guid.NewGuid().ToString();
+        var userId = Guid.NewGuid().ToString();
+        var project = new Project { id = projectId, createdById = userId, title = "Test Project", description = "Desc", problemStatement = "Problem", solution = "Solution", category = ProjectCategory.TECHNOLOGY, status = ProjectStatus.DRAFT, createdAt = DateTime.UtcNow, updatedAt = DateTime.UtcNow };
         var projectDto = new ProjectDto { Title = "Test Project", Status = ProjectStatus.PUBLISHED };
 
         _repositoryMock.Setup(r => r.GetByIdAsync(projectId, It.IsAny<CancellationToken>()))

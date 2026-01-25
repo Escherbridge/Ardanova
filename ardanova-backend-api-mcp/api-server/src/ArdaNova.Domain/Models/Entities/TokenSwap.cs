@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using Microsoft.EntityFrameworkCore;
 using ArdaNova.Domain.Models.Enums;
 
 namespace ArdaNova.Domain.Models.Entities;
@@ -23,15 +24,19 @@ public class TokenSwap
     public string toTokenId { get; set; } = string.Empty;
 
     [Required]
+    [Precision(18, 8)]
     public decimal fromAmount { get; set; }
 
     [Required]
+    [Precision(18, 8)]
     public decimal toAmount { get; set; }
 
     [Required]
+    [Precision(18, 8)]
     public decimal exchangeRate { get; set; }
 
     [Required]
+    [Precision(18, 8)]
     public decimal fee { get; set; }
 
     public string? txHash { get; set; }
@@ -48,9 +53,11 @@ public class TokenSwap
     public virtual User? User { get; set; }
 
     [ForeignKey("fromTokenId")]
+    [InverseProperty("TokenSwapsAsFromToken")]
     public virtual ProjectToken? FromToken { get; set; }
 
     [ForeignKey("toTokenId")]
+    [InverseProperty("TokenSwapsAsToToken")]
     public virtual ProjectToken? ToToken { get; set; }
 
 }

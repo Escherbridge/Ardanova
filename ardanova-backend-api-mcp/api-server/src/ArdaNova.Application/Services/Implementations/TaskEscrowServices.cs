@@ -21,7 +21,7 @@ public class TaskEscrowService : ITaskEscrowService
         _mapper = mapper;
     }
 
-    public async Task<Result<TaskEscrowDto>> GetByIdAsync(Guid id, CancellationToken ct = default)
+    public async Task<Result<TaskEscrowDto>> GetByIdAsync(string id, CancellationToken ct = default)
     {
         var escrow = await _repository.GetByIdAsync(id, ct);
         if (escrow is null)
@@ -29,75 +29,90 @@ public class TaskEscrowService : ITaskEscrowService
         return Result<TaskEscrowDto>.Success(_mapper.Map<TaskEscrowDto>(escrow));
     }
 
-    public async Task<Result<TaskEscrowDto>> GetByTaskIdAsync(Guid taskId, CancellationToken ct = default)
+    public async Task<Result<TaskEscrowDto>> GetByTaskIdAsync(string taskId, CancellationToken ct = default)
     {
-        var escrow = await _repository.FindOneAsync(e => e.TaskId == taskId, ct);
+        var escrow = await _repository.FindOneAsync(e => e.taskId == taskId, ct);
         if (escrow is null)
             return Result<TaskEscrowDto>.NotFound($"TaskEscrow for task {taskId} not found");
         return Result<TaskEscrowDto>.Success(_mapper.Map<TaskEscrowDto>(escrow));
     }
 
-    public async Task<Result<IReadOnlyList<TaskEscrowDto>>> GetByFunderIdAsync(Guid funderId, CancellationToken ct = default)
+    public async Task<Result<IReadOnlyList<TaskEscrowDto>>> GetByFunderIdAsync(string funderId, CancellationToken ct = default)
     {
-        var escrows = await _repository.FindAsync(e => e.FunderId == funderId, ct);
+        var escrows = await _repository.FindAsync(e => e.funderId == funderId, ct);
         return Result<IReadOnlyList<TaskEscrowDto>>.Success(_mapper.Map<IReadOnlyList<TaskEscrowDto>>(escrows));
     }
 
     public async Task<Result<TaskEscrowDto>> CreateAsync(CreateTaskEscrowDto dto, CancellationToken ct = default)
     {
-        var exists = await _repository.ExistsAsync(e => e.TaskId == dto.TaskId, ct);
+        var exists = await _repository.ExistsAsync(e => e.taskId == dto.TaskId, ct);
         if (exists)
             return Result<TaskEscrowDto>.ValidationError($"Escrow already exists for task {dto.TaskId}");
 
-        var escrow = TaskEscrow.Create(dto.TaskId, dto.FunderId, dto.TokenId, dto.Amount);
-        if (dto.TxHashFund is not null)
-            escrow.SetFundTxHash(dto.TxHashFund);
+        var escrow = new TaskEscrow
+        {
+            id = Guid.NewGuid().ToString(),
+            taskId = dto.TaskId,
+            funderId = dto.FunderId,
+            tokenId = dto.TokenId,
+            amount = dto.Amount,
+            status = EscrowStatus.NONE,
+            txHashFund = dto.TxHashFund,
+            createdAt = DateTime.UtcNow
+        };
 
         await _repository.AddAsync(escrow, ct);
         await _unitOfWork.SaveChangesAsync(ct);
         return Result<TaskEscrowDto>.Success(_mapper.Map<TaskEscrowDto>(escrow));
     }
 
-    public async Task<Result<TaskEscrowDto>> ReleaseAsync(Guid id, ReleaseEscrowDto dto, CancellationToken ct = default)
+    public async Task<Result<TaskEscrowDto>> ReleaseAsync(string id, ReleaseEscrowDto dto, CancellationToken ct = default)
     {
         var escrow = await _repository.GetByIdAsync(id, ct);
         if (escrow is null)
             return Result<TaskEscrowDto>.NotFound($"TaskEscrow with id {id} not found");
 
-        if (escrow.Status != EscrowStatus.FUNDED)
-            return Result<TaskEscrowDto>.ValidationError($"Cannot release escrow in status {escrow.Status}");
+        if (escrow.status != EscrowStatus.FUNDED)
+            return Result<TaskEscrowDto>.ValidationError($"Cannot release escrow in status {escrow.status}");
 
-        escrow.Release(dto.TxHash);
+        escrow.status = EscrowStatus.RELEASED;
+        escrow.txHashRelease = dto.TxHash;
+        escrow.releasedAt = DateTime.UtcNow;
+
         await _repository.UpdateAsync(escrow, ct);
         await _unitOfWork.SaveChangesAsync(ct);
         return Result<TaskEscrowDto>.Success(_mapper.Map<TaskEscrowDto>(escrow));
     }
 
-    public async Task<Result<TaskEscrowDto>> DisputeAsync(Guid id, CancellationToken ct = default)
+    public async Task<Result<TaskEscrowDto>> DisputeAsync(string id, CancellationToken ct = default)
     {
         var escrow = await _repository.GetByIdAsync(id, ct);
         if (escrow is null)
             return Result<TaskEscrowDto>.NotFound($"TaskEscrow with id {id} not found");
 
-        if (escrow.Status != EscrowStatus.FUNDED)
-            return Result<TaskEscrowDto>.ValidationError($"Cannot dispute escrow in status {escrow.Status}");
+        if (escrow.status != EscrowStatus.FUNDED)
+            return Result<TaskEscrowDto>.ValidationError($"Cannot dispute escrow in status {escrow.status}");
 
-        escrow.Dispute();
+        escrow.status = EscrowStatus.DISPUTED;
+
         await _repository.UpdateAsync(escrow, ct);
         await _unitOfWork.SaveChangesAsync(ct);
         return Result<TaskEscrowDto>.Success(_mapper.Map<TaskEscrowDto>(escrow));
     }
 
-    public async Task<Result<TaskEscrowDto>> RefundAsync(Guid id, RefundEscrowDto dto, CancellationToken ct = default)
+    public async Task<Result<TaskEscrowDto>> RefundAsync(string id, RefundEscrowDto dto, CancellationToken ct = default)
     {
         var escrow = await _repository.GetByIdAsync(id, ct);
         if (escrow is null)
             return Result<TaskEscrowDto>.NotFound($"TaskEscrow with id {id} not found");
 
-        if (escrow.Status != EscrowStatus.FUNDED && escrow.Status != EscrowStatus.DISPUTED)
-            return Result<TaskEscrowDto>.ValidationError($"Cannot refund escrow in status {escrow.Status}");
+        if (escrow.status != EscrowStatus.FUNDED && escrow.status != EscrowStatus.DISPUTED)
+            return Result<TaskEscrowDto>.ValidationError($"Cannot refund escrow in status {escrow.status}");
 
-        escrow.Refund(dto.TxHash);
+        escrow.status = EscrowStatus.REFUNDED;
+        escrow.txHashRefund = dto.TxHash;
+        escrow.refundedAt = DateTime.UtcNow;
+
         await _repository.UpdateAsync(escrow, ct);
         await _unitOfWork.SaveChangesAsync(ct);
         return Result<TaskEscrowDto>.Success(_mapper.Map<TaskEscrowDto>(escrow));

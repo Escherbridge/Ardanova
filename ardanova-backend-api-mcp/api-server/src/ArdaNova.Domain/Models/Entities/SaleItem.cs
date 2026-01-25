@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using Microsoft.EntityFrameworkCore;
 using ArdaNova.Domain.Models.Enums;
 
 namespace ArdaNova.Domain.Models.Entities;
@@ -23,9 +24,11 @@ public class SaleItem
     public int quantity { get; set; }
 
     [Required]
+    [Precision(18, 8)]
     public decimal price { get; set; }
 
     [Required]
+    [Precision(18, 8)]
     public decimal total { get; set; }
 
     [ForeignKey("saleId")]

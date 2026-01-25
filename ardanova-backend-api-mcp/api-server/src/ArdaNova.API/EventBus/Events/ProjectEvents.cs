@@ -6,8 +6,8 @@ namespace ArdaNova.API.EventBus.Events;
 /// Event raised when a new project is created.
 /// </summary>
 public sealed record ProjectCreatedEvent(
-    Guid ProjectId,
-    Guid OwnerId,
+    string ProjectId,
+    string OwnerId,
     string Title,
     string? Slug
 ) : DomainEvent
@@ -19,7 +19,7 @@ public sealed record ProjectCreatedEvent(
 /// Event raised when a project is updated.
 /// </summary>
 public sealed record ProjectUpdatedEvent(
-    Guid ProjectId,
+    string ProjectId,
     string Title
 ) : DomainEvent
 {
@@ -30,7 +30,7 @@ public sealed record ProjectUpdatedEvent(
 /// Event raised when a project's status changes.
 /// </summary>
 public sealed record ProjectStatusChangedEvent(
-    Guid ProjectId,
+    string ProjectId,
     string OldStatus,
     string NewStatus
 ) : DomainEvent
@@ -42,7 +42,7 @@ public sealed record ProjectStatusChangedEvent(
 /// Event raised when a project is deleted.
 /// </summary>
 public sealed record ProjectDeletedEvent(
-    Guid ProjectId
+    string ProjectId
 ) : DomainEvent
 {
     public override string EventType => "project.deleted";
@@ -52,9 +52,9 @@ public sealed record ProjectDeletedEvent(
 /// Event raised when a task within a project is completed.
 /// </summary>
 public sealed record ProjectTaskCompletedEvent(
-    Guid ProjectId,
-    Guid TaskId,
-    Guid? AssigneeId,
+    string ProjectId,
+    string TaskId,
+    string? AssigneeId,
     string TaskTitle
 ) : DomainEvent
 {
@@ -65,8 +65,8 @@ public sealed record ProjectTaskCompletedEvent(
 /// Event raised when a new member joins a project.
 /// </summary>
 public sealed record ProjectMemberAddedEvent(
-    Guid ProjectId,
-    Guid UserId,
+    string ProjectId,
+    string UserId,
     string Role
 ) : DomainEvent
 {
@@ -77,8 +77,8 @@ public sealed record ProjectMemberAddedEvent(
 /// Event raised when a member leaves a project.
 /// </summary>
 public sealed record ProjectMemberRemovedEvent(
-    Guid ProjectId,
-    Guid UserId
+    string ProjectId,
+    string UserId
 ) : DomainEvent
 {
     public override string EventType => "project.member_removed";

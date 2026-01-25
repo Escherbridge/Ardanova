@@ -29,10 +29,19 @@ public class ReferralServiceTests
     public async Task GetByIdAsync_WhenReferralExists_ReturnsSuccessResult()
     {
         // Arrange
-        var referralId = Guid.NewGuid();
-        var referrerId = Guid.NewGuid();
-        var referredId = Guid.NewGuid();
-        var referral = Referral.Create(referrerId, referredId);
+        var referralId = Guid.NewGuid().ToString();
+        var referrerId = Guid.NewGuid().ToString();
+        var referredId = Guid.NewGuid().ToString();
+        var referral = new Referral
+        {
+            id = referralId,
+            referrerId = referrerId,
+            referredId = referredId,
+            referralCode = "REF123",
+            status = ReferralStatus.PENDING,
+            rewardClaimed = false,
+            createdAt = DateTime.UtcNow
+        };
         var referralDto = new ReferralDto { Id = referralId, ReferrerId = referrerId, ReferredId = referredId };
 
         _repositoryMock.Setup(r => r.GetByIdAsync(referralId, It.IsAny<CancellationToken>()))
@@ -51,7 +60,7 @@ public class ReferralServiceTests
     public async Task GetByIdAsync_WhenReferralNotExists_ReturnsNotFound()
     {
         // Arrange
-        var referralId = Guid.NewGuid();
+        var referralId = Guid.NewGuid().ToString();
         _repositoryMock.Setup(r => r.GetByIdAsync(referralId, It.IsAny<CancellationToken>()))
             .ReturnsAsync((Referral?)null);
 
@@ -67,11 +76,11 @@ public class ReferralServiceTests
     public async Task GetByReferrerIdAsync_ReturnsReferralsForReferrer()
     {
         // Arrange
-        var referrerId = Guid.NewGuid();
+        var referrerId = Guid.NewGuid().ToString();
         var referrals = new List<Referral>
         {
-            Referral.Create(referrerId, Guid.NewGuid()),
-            Referral.Create(referrerId, Guid.NewGuid())
+            new Referral { id = Guid.NewGuid().ToString(), referrerId = referrerId, referredId = Guid.NewGuid().ToString(), referralCode = "REF1", status = ReferralStatus.PENDING, rewardClaimed = false, createdAt = DateTime.UtcNow },
+            new Referral { id = Guid.NewGuid().ToString(), referrerId = referrerId, referredId = Guid.NewGuid().ToString(), referralCode = "REF2", status = ReferralStatus.PENDING, rewardClaimed = false, createdAt = DateTime.UtcNow }
         };
         var referralDtos = new List<ReferralDto>
         {
@@ -95,8 +104,8 @@ public class ReferralServiceTests
     public async Task CreateAsync_WithValidDto_ReturnsCreatedReferral()
     {
         // Arrange
-        var referrerId = Guid.NewGuid();
-        var referredId = Guid.NewGuid();
+        var referrerId = Guid.NewGuid().ToString();
+        var referredId = Guid.NewGuid().ToString();
         var dto = new CreateReferralDto
         {
             ReferrerId = referrerId,
@@ -128,10 +137,19 @@ public class ReferralServiceTests
     public async Task CompleteAsync_WhenReferralExists_CompletesReferral()
     {
         // Arrange
-        var referralId = Guid.NewGuid();
-        var referrerId = Guid.NewGuid();
-        var referredId = Guid.NewGuid();
-        var referral = Referral.Create(referrerId, referredId);
+        var referralId = Guid.NewGuid().ToString();
+        var referrerId = Guid.NewGuid().ToString();
+        var referredId = Guid.NewGuid().ToString();
+        var referral = new Referral
+        {
+            id = referralId,
+            referrerId = referrerId,
+            referredId = referredId,
+            referralCode = "REF123",
+            status = ReferralStatus.PENDING,
+            rewardClaimed = false,
+            createdAt = DateTime.UtcNow
+        };
         var referralDto = new ReferralDto { Id = referralId, Status = ReferralStatus.COMPLETED };
 
         _repositoryMock.Setup(r => r.GetByIdAsync(referralId, It.IsAny<CancellationToken>()))
@@ -157,11 +175,19 @@ public class ReferralServiceTests
     public async Task ClaimRewardAsync_WhenReferralCompleted_ClaimsReward()
     {
         // Arrange
-        var referralId = Guid.NewGuid();
-        var referrerId = Guid.NewGuid();
-        var referredId = Guid.NewGuid();
-        var referral = Referral.Create(referrerId, referredId);
-        referral.Complete();
+        var referralId = Guid.NewGuid().ToString();
+        var referrerId = Guid.NewGuid().ToString();
+        var referredId = Guid.NewGuid().ToString();
+        var referral = new Referral
+        {
+            id = referralId,
+            referrerId = referrerId,
+            referredId = referredId,
+            referralCode = "REF123",
+            status = ReferralStatus.COMPLETED,
+            rewardClaimed = false,
+            createdAt = DateTime.UtcNow
+        };
         var referralDto = new ReferralDto { Id = referralId, RewardClaimed = true };
 
         _repositoryMock.Setup(r => r.GetByIdAsync(referralId, It.IsAny<CancellationToken>()))

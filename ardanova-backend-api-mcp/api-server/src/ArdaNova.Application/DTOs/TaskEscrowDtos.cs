@@ -4,10 +4,10 @@ using ArdaNova.Domain.Models.Enums;
 
 public record TaskEscrowDto
 {
-    public Guid Id { get; init; }
-    public Guid TaskId { get; init; }
-    public Guid FunderId { get; init; }
-    public Guid TokenId { get; init; }
+    public string Id { get; init; }
+    public string TaskId { get; init; }
+    public string FunderId { get; init; }
+    public string TokenId { get; init; }
     public decimal Amount { get; init; }
     public EscrowStatus Status { get; init; }
     public string? TxHashFund { get; init; }
@@ -21,9 +21,9 @@ public record TaskEscrowDto
 
 public record CreateTaskEscrowDto
 {
-    public required Guid TaskId { get; init; }
-    public required Guid FunderId { get; init; }
-    public required Guid TokenId { get; init; }
+    public required string TaskId { get; init; }
+    public required string FunderId { get; init; }
+    public required string TokenId { get; init; }
     public required decimal Amount { get; init; }
     public string? TxHashFund { get; init; }
 }

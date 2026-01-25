@@ -43,7 +43,7 @@ public class ActivityHubHandler : IEventHandler<ActivityLoggedEvent>
         };
 
         // Notify the user who performed the activity (if known)
-        if (@event.UserId.HasValue)
+        if (!string.IsNullOrEmpty(@event.UserId))
         {
             await _hubContext.Clients.Group($"user:{@event.UserId}").ActivityLogged(payload);
         }

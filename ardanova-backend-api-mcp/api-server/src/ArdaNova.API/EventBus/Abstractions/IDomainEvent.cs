@@ -8,7 +8,7 @@ public interface IDomainEvent
     /// <summary>
     /// Unique identifier for this event instance.
     /// </summary>
-    Guid EventId { get; }
+    string EventId { get; }
 
     /// <summary>
     /// The type of event (e.g., "user.created", "project.updated").
@@ -27,7 +27,7 @@ public interface IDomainEvent
 /// </summary>
 public abstract record DomainEvent : IDomainEvent
 {
-    public Guid EventId { get; init; } = Guid.NewGuid();
+    public string EventId { get; init; } = Guid.NewGuid().ToString();
     public DateTime OccurredAt { get; init; } = DateTime.UtcNow;
     public abstract string EventType { get; }
 }

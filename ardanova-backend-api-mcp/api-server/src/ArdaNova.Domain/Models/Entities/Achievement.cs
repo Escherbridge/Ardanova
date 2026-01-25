@@ -2,10 +2,12 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using Microsoft.EntityFrameworkCore;
 using ArdaNova.Domain.Models.Enums;
 
 namespace ArdaNova.Domain.Models.Entities;
 
+[Index(nameof(name), IsUnique = true)]
 [Table("Achievement")]
 public class Achievement
 {
@@ -28,6 +30,7 @@ public class Achievement
     [Required]
     public int xpReward { get; set; }
 
+    [Precision(18, 8)]
     public decimal? tokenReward { get; set; }
 
     [Required]

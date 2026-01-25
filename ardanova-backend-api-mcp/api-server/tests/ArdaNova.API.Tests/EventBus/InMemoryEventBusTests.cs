@@ -171,8 +171,8 @@ public class InMemoryEventBusTests
         var event2 = new TestEvent("Event 2");
 
         // Assert
-        event1.EventId.Should().NotBe(Guid.Empty);
-        event2.EventId.Should().NotBe(Guid.Empty);
+        event1.EventId.Should().NotBeNullOrEmpty();
+        event2.EventId.Should().NotBeNullOrEmpty();
         event1.EventId.Should().NotBe(event2.EventId);
     }
 

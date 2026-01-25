@@ -2,10 +2,12 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using Microsoft.EntityFrameworkCore;
 using ArdaNova.Domain.Models.Enums;
 
 namespace ArdaNova.Domain.Models.Entities;
 
+[Index(nameof(projectId), IsUnique = true)]
 [Table("Roadmap")]
 public class Roadmap
 {
@@ -19,6 +21,7 @@ public class Roadmap
     [Required]
     public string title { get; set; } = string.Empty;
 
+    [Column(TypeName = "text")]
     public string? vision { get; set; }
 
     [Required]

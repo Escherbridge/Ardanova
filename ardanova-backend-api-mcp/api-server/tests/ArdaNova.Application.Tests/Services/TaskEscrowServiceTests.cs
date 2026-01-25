@@ -29,11 +29,20 @@ public class TaskEscrowServiceTests
     public async Task GetByIdAsync_WhenEscrowExists_ReturnsSuccessResult()
     {
         // Arrange
-        var escrowId = Guid.NewGuid();
-        var taskId = Guid.NewGuid();
-        var funderId = Guid.NewGuid();
-        var tokenId = Guid.NewGuid();
-        var escrow = TaskEscrow.Create(taskId, funderId, tokenId, 100m);
+        var escrowId = Guid.NewGuid().ToString();
+        var taskId = Guid.NewGuid().ToString();
+        var funderId = Guid.NewGuid().ToString();
+        var tokenId = Guid.NewGuid().ToString();
+        var escrow = new TaskEscrow
+        {
+            id = escrowId,
+            taskId = taskId,
+            funderId = funderId,
+            tokenId = tokenId,
+            amount = 100m,
+            status = EscrowStatus.FUNDED,
+            createdAt = DateTime.UtcNow
+        };
         var escrowDto = new TaskEscrowDto { Id = escrowId, TaskId = taskId, FunderId = funderId, Amount = 100m };
 
         _repositoryMock.Setup(r => r.GetByIdAsync(escrowId, It.IsAny<CancellationToken>()))
@@ -53,7 +62,7 @@ public class TaskEscrowServiceTests
     public async Task GetByIdAsync_WhenEscrowNotExists_ReturnsNotFound()
     {
         // Arrange
-        var escrowId = Guid.NewGuid();
+        var escrowId = Guid.NewGuid().ToString();
         _repositoryMock.Setup(r => r.GetByIdAsync(escrowId, It.IsAny<CancellationToken>()))
             .ReturnsAsync((TaskEscrow?)null);
 
@@ -69,10 +78,19 @@ public class TaskEscrowServiceTests
     public async Task GetByTaskIdAsync_WhenEscrowExists_ReturnsEscrow()
     {
         // Arrange
-        var taskId = Guid.NewGuid();
-        var funderId = Guid.NewGuid();
-        var tokenId = Guid.NewGuid();
-        var escrow = TaskEscrow.Create(taskId, funderId, tokenId, 200m);
+        var taskId = Guid.NewGuid().ToString();
+        var funderId = Guid.NewGuid().ToString();
+        var tokenId = Guid.NewGuid().ToString();
+        var escrow = new TaskEscrow
+        {
+            id = Guid.NewGuid().ToString(),
+            taskId = taskId,
+            funderId = funderId,
+            tokenId = tokenId,
+            amount = 200m,
+            status = EscrowStatus.FUNDED,
+            createdAt = DateTime.UtcNow
+        };
         var escrowDto = new TaskEscrowDto { TaskId = taskId, Amount = 200m };
 
         _repositoryMock.Setup(r => r.FindOneAsync(It.IsAny<System.Linq.Expressions.Expression<Func<TaskEscrow, bool>>>(), It.IsAny<CancellationToken>()))
@@ -91,9 +109,9 @@ public class TaskEscrowServiceTests
     public async Task CreateAsync_WithValidDto_ReturnsCreatedEscrow()
     {
         // Arrange
-        var taskId = Guid.NewGuid();
-        var funderId = Guid.NewGuid();
-        var tokenId = Guid.NewGuid();
+        var taskId = Guid.NewGuid().ToString();
+        var funderId = Guid.NewGuid().ToString();
+        var tokenId = Guid.NewGuid().ToString();
         var dto = new CreateTaskEscrowDto
         {
             TaskId = taskId,
@@ -101,7 +119,7 @@ public class TaskEscrowServiceTests
             TokenId = tokenId,
             Amount = 500m
         };
-        var escrowDto = new TaskEscrowDto { TaskId = taskId, Amount = 500m, Status = EscrowStatus.PENDING };
+        var escrowDto = new TaskEscrowDto { TaskId = taskId, Amount = 500m, Status = EscrowStatus.FUNDED };
 
         _repositoryMock.Setup(r => r.ExistsAsync(It.IsAny<System.Linq.Expressions.Expression<Func<TaskEscrow, bool>>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(false);
@@ -127,12 +145,12 @@ public class TaskEscrowServiceTests
     public async Task CreateAsync_WithDuplicateTaskEscrow_ReturnsValidationError()
     {
         // Arrange
-        var taskId = Guid.NewGuid();
+        var taskId = Guid.NewGuid().ToString();
         var dto = new CreateTaskEscrowDto
         {
             TaskId = taskId,
-            FunderId = Guid.NewGuid(),
-            TokenId = Guid.NewGuid(),
+            FunderId = Guid.NewGuid().ToString(),
+            TokenId = Guid.NewGuid().ToString(),
             Amount = 100m
         };
 
@@ -151,11 +169,20 @@ public class TaskEscrowServiceTests
     public async Task ReleaseAsync_WhenEscrowExists_ReleasesEscrow()
     {
         // Arrange
-        var escrowId = Guid.NewGuid();
-        var taskId = Guid.NewGuid();
-        var funderId = Guid.NewGuid();
-        var tokenId = Guid.NewGuid();
-        var escrow = TaskEscrow.Create(taskId, funderId, tokenId, 100m);
+        var escrowId = Guid.NewGuid().ToString();
+        var taskId = Guid.NewGuid().ToString();
+        var funderId = Guid.NewGuid().ToString();
+        var tokenId = Guid.NewGuid().ToString();
+        var escrow = new TaskEscrow
+        {
+            id = escrowId,
+            taskId = taskId,
+            funderId = funderId,
+            tokenId = tokenId,
+            amount = 100m,
+            status = EscrowStatus.FUNDED,
+            createdAt = DateTime.UtcNow
+        };
         var escrowDto = new TaskEscrowDto { Id = escrowId, Status = EscrowStatus.RELEASED };
 
         _repositoryMock.Setup(r => r.GetByIdAsync(escrowId, It.IsAny<CancellationToken>()))
@@ -181,11 +208,20 @@ public class TaskEscrowServiceTests
     public async Task DisputeAsync_WhenEscrowExists_DisputesEscrow()
     {
         // Arrange
-        var escrowId = Guid.NewGuid();
-        var taskId = Guid.NewGuid();
-        var funderId = Guid.NewGuid();
-        var tokenId = Guid.NewGuid();
-        var escrow = TaskEscrow.Create(taskId, funderId, tokenId, 100m);
+        var escrowId = Guid.NewGuid().ToString();
+        var taskId = Guid.NewGuid().ToString();
+        var funderId = Guid.NewGuid().ToString();
+        var tokenId = Guid.NewGuid().ToString();
+        var escrow = new TaskEscrow
+        {
+            id = escrowId,
+            taskId = taskId,
+            funderId = funderId,
+            tokenId = tokenId,
+            amount = 100m,
+            status = EscrowStatus.FUNDED,
+            createdAt = DateTime.UtcNow
+        };
         var escrowDto = new TaskEscrowDto { Id = escrowId, Status = EscrowStatus.DISPUTED };
 
         _repositoryMock.Setup(r => r.GetByIdAsync(escrowId, It.IsAny<CancellationToken>()))
@@ -211,11 +247,20 @@ public class TaskEscrowServiceTests
     public async Task RefundAsync_WhenEscrowExists_RefundsEscrow()
     {
         // Arrange
-        var escrowId = Guid.NewGuid();
-        var taskId = Guid.NewGuid();
-        var funderId = Guid.NewGuid();
-        var tokenId = Guid.NewGuid();
-        var escrow = TaskEscrow.Create(taskId, funderId, tokenId, 100m);
+        var escrowId = Guid.NewGuid().ToString();
+        var taskId = Guid.NewGuid().ToString();
+        var funderId = Guid.NewGuid().ToString();
+        var tokenId = Guid.NewGuid().ToString();
+        var escrow = new TaskEscrow
+        {
+            id = escrowId,
+            taskId = taskId,
+            funderId = funderId,
+            tokenId = tokenId,
+            amount = 100m,
+            status = EscrowStatus.FUNDED,
+            createdAt = DateTime.UtcNow
+        };
         var escrowDto = new TaskEscrowDto { Id = escrowId, Status = EscrowStatus.REFUNDED };
 
         _repositoryMock.Setup(r => r.GetByIdAsync(escrowId, It.IsAny<CancellationToken>()))

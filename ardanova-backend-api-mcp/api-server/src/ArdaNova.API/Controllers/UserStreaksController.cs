@@ -16,15 +16,15 @@ public class UserStreaksController : ControllerBase
         _streakService = streakService;
     }
 
-    [HttpGet("{id:guid}")]
-    public async Task<IActionResult> GetById(Guid id, CancellationToken ct)
+    [HttpGet("{id}")]
+    public async Task<IActionResult> GetById(string id, CancellationToken ct)
     {
         var result = await _streakService.GetByIdAsync(id, ct);
         return ToActionResult(result);
     }
 
-    [HttpGet("user/{userId:guid}")]
-    public async Task<IActionResult> GetByUserId(Guid userId, CancellationToken ct)
+    [HttpGet("user/{userId}")]
+    public async Task<IActionResult> GetByUserId(string userId, CancellationToken ct)
     {
         var result = await _streakService.GetByUserIdAsync(userId, ct);
         return ToActionResult(result);
@@ -39,22 +39,22 @@ public class UserStreaksController : ControllerBase
             : ToActionResult(result);
     }
 
-    [HttpPost("user/{userId:guid}/record")]
-    public async Task<IActionResult> RecordActivity(Guid userId, CancellationToken ct)
+    [HttpPost("user/{userId}/record")]
+    public async Task<IActionResult> RecordActivity(string userId, CancellationToken ct)
     {
         var result = await _streakService.RecordActivityAsync(userId, ct);
         return ToActionResult(result);
     }
 
-    [HttpPost("user/{userId:guid}/reset")]
-    public async Task<IActionResult> ResetStreak(Guid userId, CancellationToken ct)
+    [HttpPost("user/{userId}/reset")]
+    public async Task<IActionResult> ResetStreak(string userId, CancellationToken ct)
     {
         var result = await _streakService.ResetStreakAsync(userId, ct);
         return ToActionResult(result);
     }
 
-    [HttpDelete("{id:guid}")]
-    public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
+    [HttpDelete("{id}")]
+    public async Task<IActionResult> Delete(string id, CancellationToken ct)
     {
         var result = await _streakService.DeleteAsync(id, ct);
         return result.IsSuccess ? NoContent() : ToActionResult(result);

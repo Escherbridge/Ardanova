@@ -2,10 +2,12 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using Microsoft.EntityFrameworkCore;
 using ArdaNova.Domain.Models.Enums;
 
 namespace ArdaNova.Domain.Models.Entities;
 
+[Index(nameof(projectId), IsUnique = true)]
 [Table("ProjectToken")]
 public class ProjectToken
 {
@@ -25,6 +27,7 @@ public class ProjectToken
     public string symbol { get; set; } = string.Empty;
 
     [Required]
+    [Precision(18, 8)]
     public decimal totalSupply { get; set; }
 
     [Required]
@@ -57,12 +60,12 @@ public class ProjectToken
 
     public virtual ICollection<TaskEscrow> TaskEscrows { get; set; } = new List<TaskEscrow>();
 
-    public virtual ICollection<TokenSwap> TokenSwaps { get; set; } = new List<TokenSwap>();
+    public virtual ICollection<TokenSwap> TokenSwapsAsFromToken { get; set; } = new List<TokenSwap>();
 
-    public virtual ICollection<TokenSwap> TokenSwaps1 { get; set; } = new List<TokenSwap>();
+    public virtual ICollection<TokenSwap> TokenSwapsAsToToken { get; set; } = new List<TokenSwap>();
 
-    public virtual ICollection<LiquidityPool> LiquidityPools { get; set; } = new List<LiquidityPool>();
+    public virtual ICollection<LiquidityPool> LiquidityPoolsAsToken1 { get; set; } = new List<LiquidityPool>();
 
-    public virtual ICollection<LiquidityPool> LiquidityPools1 { get; set; } = new List<LiquidityPool>();
+    public virtual ICollection<LiquidityPool> LiquidityPoolsAsToken2 { get; set; } = new List<LiquidityPool>();
 
 }

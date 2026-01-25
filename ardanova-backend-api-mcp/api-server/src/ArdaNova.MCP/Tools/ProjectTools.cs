@@ -19,7 +19,7 @@ public class ProjectTools
     [McpServerTool(Name = "project_get_by_id")]
     [Description("Retrieves a project by its unique identifier")]
     public async Task<ProjectDto?> GetProjectById(
-        [Description("The unique identifier of the project")] Guid id,
+        [Description("The unique identifier of the project")] string id,
         CancellationToken ct = default)
     {
         var result = await _projectService.GetByIdAsync(id, ct);
@@ -58,7 +58,7 @@ public class ProjectTools
     [McpServerTool(Name = "project_get_by_user")]
     [Description("Retrieves all projects for a specific user")]
     public async Task<IReadOnlyList<ProjectDto>?> GetProjectsByUser(
-        [Description("The unique identifier of the user")] Guid userId,
+        [Description("The unique identifier of the user")] string userId,
         CancellationToken ct = default)
     {
         var result = await _projectService.GetByUserIdAsync(userId, ct);

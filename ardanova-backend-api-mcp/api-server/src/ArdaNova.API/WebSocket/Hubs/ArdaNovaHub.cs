@@ -5,7 +5,7 @@ namespace ArdaNova.API.WebSocket.Hubs;
 
 /// <summary>
 /// Main SignalR hub for real-time communication with ArdaNova clients.
-/// Supports subscription to user-specific, project-specific, and agency-specific events.
+/// Supports subscription to user-specific, project-specific, and guild-specific events.
 /// </summary>
 public class ArdaNovaHub : Hub<IArdaNovaHubClient>
 {
@@ -103,7 +103,7 @@ public class ArdaNovaHub : Hub<IArdaNovaHubClient>
     /// Subscribes the client to receive events for a specific project.
     /// </summary>
     /// <param name="projectId">The project ID to subscribe to.</param>
-    public async Task SubscribeToProject(Guid projectId)
+    public async Task SubscribeToProject(string projectId)
     {
         var userId = GetUserId();
         var connectionId = Context.ConnectionId;
@@ -125,7 +125,7 @@ public class ArdaNovaHub : Hub<IArdaNovaHubClient>
     /// Unsubscribes the client from a specific project's events.
     /// </summary>
     /// <param name="projectId">The project ID to unsubscribe from.</param>
-    public async Task UnsubscribeFromProject(Guid projectId)
+    public async Task UnsubscribeFromProject(string projectId)
     {
         var connectionId = Context.ConnectionId;
         var groupName = $"project:{projectId}";
@@ -139,41 +139,41 @@ public class ArdaNovaHub : Hub<IArdaNovaHubClient>
     }
 
     /// <summary>
-    /// Subscribes the client to receive events for a specific agency.
+    /// Subscribes the client to receive events for a specific guild.
     /// </summary>
-    /// <param name="agencyId">The agency ID to subscribe to.</param>
-    public async Task SubscribeToAgency(Guid agencyId)
+    /// <param name="guildId">The guild ID to subscribe to.</param>
+    public async Task SubscribeToGuild(string guildId)
     {
         var userId = GetUserId();
         var connectionId = Context.ConnectionId;
-        var groupName = $"agency:{agencyId}";
+        var groupName = $"guild:{guildId}";
 
-        // TODO: Optionally validate that the user is a member of this agency
+        // TODO: Optionally validate that the user is a member of this guild
 
         await Groups.AddToGroupAsync(connectionId, groupName);
 
         _logger.LogInformation(
-            "Client {ConnectionId} (User: {UserId}) subscribed to agency {AgencyId}",
+            "Client {ConnectionId} (User: {UserId}) subscribed to guild {GuildId}",
             connectionId,
             userId ?? "anonymous",
-            agencyId);
+            guildId);
     }
 
     /// <summary>
-    /// Unsubscribes the client from a specific agency's events.
+    /// Unsubscribes the client from a specific guild's events.
     /// </summary>
-    /// <param name="agencyId">The agency ID to unsubscribe from.</param>
-    public async Task UnsubscribeFromAgency(Guid agencyId)
+    /// <param name="guildId">The guild ID to unsubscribe from.</param>
+    public async Task UnsubscribeFromGuild(string guildId)
     {
         var connectionId = Context.ConnectionId;
-        var groupName = $"agency:{agencyId}";
+        var groupName = $"guild:{guildId}";
 
         await Groups.RemoveFromGroupAsync(connectionId, groupName);
 
         _logger.LogInformation(
-            "Client {ConnectionId} unsubscribed from agency {AgencyId}",
+            "Client {ConnectionId} unsubscribed from guild {GuildId}",
             connectionId,
-            agencyId);
+            guildId);
     }
 
     /// <summary>
@@ -181,7 +181,7 @@ public class ArdaNovaHub : Hub<IArdaNovaHubClient>
     /// Only allows subscribing to own user events by default.
     /// </summary>
     /// <param name="targetUserId">The user ID to subscribe to.</param>
-    public async Task SubscribeToUser(Guid targetUserId)
+    public async Task SubscribeToUser(string targetUserId)
     {
         var currentUserId = GetUserId();
         var connectionId = Context.ConnectionId;
@@ -210,7 +210,7 @@ public class ArdaNovaHub : Hub<IArdaNovaHubClient>
     /// Unsubscribes from a user's events.
     /// </summary>
     /// <param name="targetUserId">The user ID to unsubscribe from.</param>
-    public async Task UnsubscribeFromUser(Guid targetUserId)
+    public async Task UnsubscribeFromUser(string targetUserId)
     {
         var connectionId = Context.ConnectionId;
         var groupName = $"user:{targetUserId}";

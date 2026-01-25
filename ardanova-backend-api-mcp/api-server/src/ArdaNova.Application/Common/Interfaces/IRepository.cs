@@ -5,7 +5,7 @@ using ArdaNova.Application.Common.Results;
 
 public interface IRepository<T> where T : class
 {
-    Task<T?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
+    Task<T?> GetByIdAsync(string id, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<T>> GetAllAsync(CancellationToken cancellationToken = default);
     Task<IReadOnlyList<T>> FindAsync(
         Expression<Func<T, bool>> predicate,

@@ -17,7 +17,23 @@
       "Bash(npm ls:*)",
       "Bash(node -e:*)",
       "Bash(dir:*)",
-      "Bash(git remote:*)"
+      "Bash(git remote:*)",
+      "Bash(xargs cat:*)",
+      "Bash(powershell -ExecutionPolicy Bypass -File ./scripts/dev-up.ps1)",
+      "Bash(podman logs:*)",
+      "Bash(curl:*)",
+      "Bash(podman exec:*)",
+      "Bash(netstat:*)",
+      "Bash(findstr:*)",
+      "Bash(tasklist /FI \"PID eq 5032\")",
+      "Bash(powershell -Command \"Get-Process -Id 5032 | Select-Object Name, Path\")",
+      "Bash(podman-compose:*)",
+      "Bash(npx ts-node:*)",
+      "Bash(npm run generate:csharp:*)",
+      "Bash(npx tsx:*)",
+      "Bash(node --loader tsx:*)",
+      "Bash(node --import tsx scripts/generate-csharp-models.ts:*)",
+      "Bash(dotnet restore:*)"
     ]
   }
 }

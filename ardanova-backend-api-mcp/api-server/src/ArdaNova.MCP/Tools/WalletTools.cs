@@ -18,7 +18,7 @@ public class WalletTools
     [McpServerTool(Name = "wallet_get_by_id")]
     [Description("Retrieves a wallet by its unique identifier")]
     public async Task<WalletDto?> GetWalletById(
-        [Description("The unique identifier of the wallet")] Guid id,
+        [Description("The unique identifier of the wallet")] string id,
         CancellationToken ct = default)
     {
         var result = await _walletService.GetByIdAsync(id, ct);
@@ -28,7 +28,7 @@ public class WalletTools
     [McpServerTool(Name = "wallet_get_by_user_id")]
     [Description("Retrieves all wallets for a user")]
     public async Task<IReadOnlyList<WalletDto>?> GetWalletsByUserId(
-        [Description("The user ID")] Guid userId,
+        [Description("The user ID")] string userId,
         CancellationToken ct = default)
     {
         var result = await _walletService.GetByUserIdAsync(userId, ct);
@@ -48,7 +48,7 @@ public class WalletTools
     [McpServerTool(Name = "wallet_get_primary")]
     [Description("Retrieves the primary wallet for a user")]
     public async Task<WalletDto?> GetPrimaryWallet(
-        [Description("The user ID")] Guid userId,
+        [Description("The user ID")] string userId,
         CancellationToken ct = default)
     {
         var result = await _walletService.GetPrimaryWalletAsync(userId, ct);
@@ -58,7 +58,7 @@ public class WalletTools
     [McpServerTool(Name = "wallet_verify")]
     [Description("Marks a wallet as verified")]
     public async Task<WalletDto?> VerifyWallet(
-        [Description("The wallet ID to verify")] Guid id,
+        [Description("The wallet ID to verify")] string id,
         CancellationToken ct = default)
     {
         var result = await _walletService.VerifyAsync(id, ct);

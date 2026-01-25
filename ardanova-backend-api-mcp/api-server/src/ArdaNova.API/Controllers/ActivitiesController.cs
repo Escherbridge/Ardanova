@@ -16,36 +16,36 @@ public class ActivitiesController : ControllerBase
         _activityService = activityService;
     }
 
-    [HttpGet("{id:guid}")]
-    public async Task<IActionResult> GetById(Guid id, CancellationToken ct)
+    [HttpGet("{id}")]
+    public async Task<IActionResult> GetById(string id, CancellationToken ct)
     {
         var result = await _activityService.GetByIdAsync(id, ct);
         return ToActionResult(result);
     }
 
-    [HttpGet("user/{userId:guid}")]
-    public async Task<IActionResult> GetByUserId(Guid userId, CancellationToken ct)
+    [HttpGet("user/{userId}")]
+    public async Task<IActionResult> GetByUserId(string userId, CancellationToken ct)
     {
         var result = await _activityService.GetByUserIdAsync(userId, ct);
         return ToActionResult(result);
     }
 
-    [HttpGet("user/{userId:guid}/paged")]
-    public async Task<IActionResult> GetByUserIdPaged(Guid userId, [FromQuery] int page = 1, [FromQuery] int pageSize = 10, CancellationToken ct = default)
+    [HttpGet("user/{userId}/paged")]
+    public async Task<IActionResult> GetByUserIdPaged(string userId, [FromQuery] int page = 1, [FromQuery] int pageSize = 10, CancellationToken ct = default)
     {
         var result = await _activityService.GetByUserIdPagedAsync(userId, page, pageSize, ct);
         return ToActionResult(result);
     }
 
-    [HttpGet("project/{projectId:guid}")]
-    public async Task<IActionResult> GetByProjectId(Guid projectId, CancellationToken ct)
+    [HttpGet("project/{projectId}")]
+    public async Task<IActionResult> GetByProjectId(string projectId, CancellationToken ct)
     {
         var result = await _activityService.GetByProjectIdAsync(projectId, ct);
         return ToActionResult(result);
     }
 
-    [HttpGet("project/{projectId:guid}/paged")]
-    public async Task<IActionResult> GetByProjectIdPaged(Guid projectId, [FromQuery] int page = 1, [FromQuery] int pageSize = 10, CancellationToken ct = default)
+    [HttpGet("project/{projectId}/paged")]
+    public async Task<IActionResult> GetByProjectIdPaged(string projectId, [FromQuery] int page = 1, [FromQuery] int pageSize = 10, CancellationToken ct = default)
     {
         var result = await _activityService.GetByProjectIdPagedAsync(projectId, page, pageSize, ct);
         return ToActionResult(result);
@@ -60,8 +60,8 @@ public class ActivitiesController : ControllerBase
             : ToActionResult(result);
     }
 
-    [HttpDelete("{id:guid}")]
-    public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
+    [HttpDelete("{id}")]
+    public async Task<IActionResult> Delete(string id, CancellationToken ct)
     {
         var result = await _activityService.DeleteAsync(id, ct);
         return result.IsSuccess ? NoContent() : ToActionResult(result);

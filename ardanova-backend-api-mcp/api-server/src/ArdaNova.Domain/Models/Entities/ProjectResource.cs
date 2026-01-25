@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using Microsoft.EntityFrameworkCore;
 using ArdaNova.Domain.Models.Enums;
 
 namespace ArdaNova.Domain.Models.Entities;
@@ -19,11 +20,13 @@ public class ProjectResource
     [Required]
     public string name { get; set; } = string.Empty;
 
+    [Column(TypeName = "text")]
     public string? description { get; set; }
 
     [Required]
     public int quantity { get; set; }
 
+    [Precision(18, 8)]
     public decimal? estimatedCost { get; set; }
 
     [Required]

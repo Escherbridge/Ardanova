@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using Microsoft.EntityFrameworkCore;
 using ArdaNova.Domain.Models.Enums;
 
 namespace ArdaNova.Domain.Models.Entities;
@@ -23,6 +24,7 @@ public class Notification
     public string title { get; set; } = string.Empty;
 
     [Required]
+    [Column(TypeName = "text")]
     public string message { get; set; } = string.Empty;
 
     public string? data { get; set; }

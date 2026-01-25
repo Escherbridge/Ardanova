@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using Microsoft.EntityFrameworkCore;
 using ArdaNova.Domain.Models.Enums;
 
 namespace ArdaNova.Domain.Models.Entities;
@@ -26,6 +27,7 @@ public class Proposal
     public string title { get; set; } = string.Empty;
 
     [Required]
+    [Column(TypeName = "text")]
     public string description { get; set; } = string.Empty;
 
     [Required]

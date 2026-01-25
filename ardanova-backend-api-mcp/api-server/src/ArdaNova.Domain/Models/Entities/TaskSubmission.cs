@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using Microsoft.EntityFrameworkCore;
 using ArdaNova.Domain.Models.Enums;
 
 namespace ArdaNova.Domain.Models.Entities;
@@ -20,8 +21,10 @@ public class TaskSubmission
     public string submittedById { get; set; } = string.Empty;
 
     [Required]
+    [Column(TypeName = "text")]
     public string content { get; set; } = string.Empty;
 
+    [Column(TypeName = "text")]
     public string? attachments { get; set; }
 
     [Required]
@@ -29,6 +32,7 @@ public class TaskSubmission
 
     public string? reviewedById { get; set; }
 
+    [Column(TypeName = "text")]
     public string? feedback { get; set; }
 
     [Required]
@@ -40,9 +44,11 @@ public class TaskSubmission
     public virtual ProjectTask? Task { get; set; }
 
     [ForeignKey("submittedById")]
+    [InverseProperty("TaskSubmissionsAsSubmittedBy")]
     public virtual User? SubmittedBy { get; set; }
 
     [ForeignKey("reviewedById")]
+    [InverseProperty("TaskSubmissionsAsReviewedBy")]
     public virtual User? ReviewedBy { get; set; }
 
 }

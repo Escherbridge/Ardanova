@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using Microsoft.EntityFrameworkCore;
 using ArdaNova.Domain.Models.Enums;
 
 namespace ArdaNova.Domain.Models.Entities;
@@ -25,8 +26,10 @@ public class Account
     [Required]
     public string providerAccountId { get; set; } = string.Empty;
 
+    [Column(TypeName = "text")]
     public string? refresh_token { get; set; }
 
+    [Column(TypeName = "text")]
     public string? access_token { get; set; }
 
     public int? expires_at { get; set; }
@@ -35,6 +38,7 @@ public class Account
 
     public string? scope { get; set; }
 
+    [Column(TypeName = "text")]
     public string? id_token { get; set; }
 
     public string? session_state { get; set; }

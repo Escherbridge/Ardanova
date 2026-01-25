@@ -6,8 +6,8 @@ namespace ArdaNova.API.EventBus.Events;
 /// Event raised when a notification is created for a user.
 /// </summary>
 public sealed record NotificationCreatedEvent(
-    Guid NotificationId,
-    Guid UserId,
+    string NotificationId,
+    string UserId,
     string Type,
     string Title,
     string Message,
@@ -21,8 +21,8 @@ public sealed record NotificationCreatedEvent(
 /// Event raised when a notification is marked as read.
 /// </summary>
 public sealed record NotificationReadEvent(
-    Guid NotificationId,
-    Guid UserId
+    string NotificationId,
+    string UserId
 ) : DomainEvent
 {
     public override string EventType => "notification.read";
@@ -32,7 +32,7 @@ public sealed record NotificationReadEvent(
 /// Event raised when all notifications for a user are marked as read.
 /// </summary>
 public sealed record NotificationsMarkedAllReadEvent(
-    Guid UserId
+    string UserId
 ) : DomainEvent
 {
     public override string EventType => "notification.all_read";

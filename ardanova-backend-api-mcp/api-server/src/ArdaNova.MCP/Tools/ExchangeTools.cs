@@ -18,7 +18,7 @@ public class TokenSwapTools
     [McpServerTool(Name = "swap_get_by_id")]
     [Description("Retrieves a token swap by its unique identifier")]
     public async Task<TokenSwapDto?> GetSwapById(
-        [Description("The swap ID")] Guid id,
+        [Description("The swap ID")] string id,
         CancellationToken ct = default)
     {
         var result = await _swapService.GetByIdAsync(id, ct);
@@ -28,7 +28,7 @@ public class TokenSwapTools
     [McpServerTool(Name = "swap_get_by_user_id")]
     [Description("Retrieves all swaps for a user")]
     public async Task<IReadOnlyList<TokenSwapDto>?> GetSwapsByUserId(
-        [Description("The user ID")] Guid userId,
+        [Description("The user ID")] string userId,
         CancellationToken ct = default)
     {
         var result = await _swapService.GetByUserIdAsync(userId, ct);
@@ -38,9 +38,9 @@ public class TokenSwapTools
     [McpServerTool(Name = "swap_create")]
     [Description("Creates a new token swap request")]
     public async Task<TokenSwapDto?> CreateSwap(
-        [Description("The user ID")] Guid userId,
-        [Description("The source token ID")] Guid fromTokenId,
-        [Description("The destination token ID")] Guid toTokenId,
+        [Description("The user ID")] string userId,
+        [Description("The source token ID")] string fromTokenId,
+        [Description("The destination token ID")] string toTokenId,
         [Description("The amount to swap from")] decimal fromAmount,
         [Description("The amount to receive")] decimal toAmount,
         [Description("The exchange rate")] decimal exchangeRate,
@@ -64,7 +64,7 @@ public class TokenSwapTools
     [McpServerTool(Name = "swap_complete")]
     [Description("Completes a token swap")]
     public async Task<TokenSwapDto?> CompleteSwap(
-        [Description("The swap ID")] Guid id,
+        [Description("The swap ID")] string id,
         [Description("Optional transaction hash")] string? txHash = null,
         CancellationToken ct = default)
     {
@@ -75,7 +75,7 @@ public class TokenSwapTools
     [McpServerTool(Name = "swap_cancel")]
     [Description("Cancels a pending token swap")]
     public async Task<TokenSwapDto?> CancelSwap(
-        [Description("The swap ID")] Guid id,
+        [Description("The swap ID")] string id,
         CancellationToken ct = default)
     {
         var result = await _swapService.CancelAsync(id, ct);
@@ -114,7 +114,7 @@ public class LiquidityPoolTools
     [McpServerTool(Name = "pool_get_by_id")]
     [Description("Retrieves a liquidity pool by its unique identifier")]
     public async Task<LiquidityPoolDto?> GetPoolById(
-        [Description("The pool ID")] Guid id,
+        [Description("The pool ID")] string id,
         CancellationToken ct = default)
     {
         var result = await _poolService.GetByIdAsync(id, ct);
@@ -124,8 +124,8 @@ public class LiquidityPoolTools
     [McpServerTool(Name = "pool_get_by_token_pair")]
     [Description("Retrieves a liquidity pool by token pair")]
     public async Task<LiquidityPoolDto?> GetPoolByTokenPair(
-        [Description("The first token ID")] Guid token1Id,
-        [Description("The second token ID")] Guid token2Id,
+        [Description("The first token ID")] string token1Id,
+        [Description("The second token ID")] string token2Id,
         CancellationToken ct = default)
     {
         var result = await _poolService.GetByTokenPairAsync(token1Id, token2Id, ct);
@@ -135,8 +135,8 @@ public class LiquidityPoolTools
     [McpServerTool(Name = "pool_create")]
     [Description("Creates a new liquidity pool")]
     public async Task<LiquidityPoolDto?> CreatePool(
-        [Description("The first token ID")] Guid token1Id,
-        [Description("The second token ID")] Guid token2Id,
+        [Description("The first token ID")] string token1Id,
+        [Description("The second token ID")] string token2Id,
         [Description("The fee percentage (default 0.3%)")] decimal feePercent = 0.003m,
         CancellationToken ct = default)
     {

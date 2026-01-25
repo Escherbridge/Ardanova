@@ -3,12 +3,16 @@ using ArdaNova.API.EventBus.Extensions;
 using ArdaNova.API.WebSocket.Extensions;
 using ArdaNova.Application;
 using ArdaNova.Infrastructure;
+using ArdaNova.Infrastructure.Storage;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
+
+// Add Storage services (S3, Local, etc.)
+builder.Services.AddStorageServices(builder.Configuration);
 
 // Add EventBus and WebSocket services
 builder.Services.AddEventBus();

@@ -20,7 +20,7 @@ public class WalletService : IWalletService
         _mapper = mapper;
     }
 
-    public async Task<Result<WalletDto>> GetByIdAsync(Guid id, CancellationToken ct = default)
+    public async Task<Result<WalletDto>> GetByIdAsync(string id, CancellationToken ct = default)
     {
         var wallet = await _repository.GetByIdAsync(id, ct);
         if (wallet is null)
@@ -28,23 +28,23 @@ public class WalletService : IWalletService
         return Result<WalletDto>.Success(_mapper.Map<WalletDto>(wallet));
     }
 
-    public async Task<Result<IReadOnlyList<WalletDto>>> GetByUserIdAsync(Guid userId, CancellationToken ct = default)
+    public async Task<Result<IReadOnlyList<WalletDto>>> GetByUserIdAsync(string userId, CancellationToken ct = default)
     {
-        var wallets = await _repository.FindAsync(w => w.UserId == userId, ct);
+        var wallets = await _repository.FindAsync(w => w.userId == userId, ct);
         return Result<IReadOnlyList<WalletDto>>.Success(_mapper.Map<IReadOnlyList<WalletDto>>(wallets));
     }
 
     public async Task<Result<WalletDto>> GetByAddressAsync(string address, CancellationToken ct = default)
     {
-        var wallet = await _repository.FindOneAsync(w => w.Address == address, ct);
+        var wallet = await _repository.FindOneAsync(w => w.address == address, ct);
         if (wallet is null)
             return Result<WalletDto>.NotFound($"Wallet with address {address} not found");
         return Result<WalletDto>.Success(_mapper.Map<WalletDto>(wallet));
     }
 
-    public async Task<Result<WalletDto>> GetPrimaryWalletAsync(Guid userId, CancellationToken ct = default)
+    public async Task<Result<WalletDto>> GetPrimaryWalletAsync(string userId, CancellationToken ct = default)
     {
-        var wallet = await _repository.FindOneAsync(w => w.UserId == userId && w.IsPrimary, ct);
+        var wallet = await _repository.FindOneAsync(w => w.userId == userId && w.isPrimary, ct);
         if (wallet is null)
             return Result<WalletDto>.NotFound($"No primary wallet found for user {userId}");
         return Result<WalletDto>.Success(_mapper.Map<WalletDto>(wallet));
@@ -52,19 +52,30 @@ public class WalletService : IWalletService
 
     public async Task<Result<WalletDto>> CreateAsync(CreateWalletDto dto, CancellationToken ct = default)
     {
-        var exists = await _repository.ExistsAsync(w => w.Address == dto.Address, ct);
+        var exists = await _repository.ExistsAsync(w => w.address == dto.Address, ct);
         if (exists)
             return Result<WalletDto>.ValidationError($"Wallet with address {dto.Address} already exists");
 
-        var wallet = Wallet.Create(dto.UserId, dto.Address, dto.Provider, dto.Label, dto.IsPrimary);
+        var wallet = new Wallet
+        {
+            id = Guid.NewGuid().ToString(),
+            userId = dto.UserId,
+            address = dto.Address,
+            provider = dto.Provider,
+            label = dto.Label,
+            isPrimary = dto.IsPrimary,
+            isVerified = false,
+            createdAt = DateTime.UtcNow,
+            updatedAt = DateTime.UtcNow
+        };
 
         // If this is marked as primary, unset other primary wallets
         if (dto.IsPrimary)
         {
-            var existingPrimary = await _repository.FindAsync(w => w.UserId == dto.UserId && w.IsPrimary, ct);
+            var existingPrimary = await _repository.FindAsync(w => w.userId == dto.UserId && w.isPrimary, ct);
             foreach (var w in existingPrimary)
             {
-                w.SetPrimary(false);
+                w.isPrimary = false;
                 await _repository.UpdateAsync(w, ct);
             }
         }
@@ -74,51 +85,56 @@ public class WalletService : IWalletService
         return Result<WalletDto>.Success(_mapper.Map<WalletDto>(wallet));
     }
 
-    public async Task<Result<WalletDto>> UpdateAsync(Guid id, UpdateWalletDto dto, CancellationToken ct = default)
+    public async Task<Result<WalletDto>> UpdateAsync(string id, UpdateWalletDto dto, CancellationToken ct = default)
     {
         var wallet = await _repository.GetByIdAsync(id, ct);
         if (wallet is null)
             return Result<WalletDto>.NotFound($"Wallet with id {id} not found");
 
-        wallet.Update(dto.Label, dto.IsPrimary);
+        if (dto.Label is not null) wallet.label = dto.Label;
+        if (dto.IsPrimary.HasValue) wallet.isPrimary = dto.IsPrimary.Value;
+        wallet.updatedAt = DateTime.UtcNow;
+
         await _repository.UpdateAsync(wallet, ct);
         await _unitOfWork.SaveChangesAsync(ct);
         return Result<WalletDto>.Success(_mapper.Map<WalletDto>(wallet));
     }
 
-    public async Task<Result<WalletDto>> VerifyAsync(Guid id, CancellationToken ct = default)
+    public async Task<Result<WalletDto>> VerifyAsync(string id, CancellationToken ct = default)
     {
         var wallet = await _repository.GetByIdAsync(id, ct);
         if (wallet is null)
             return Result<WalletDto>.NotFound($"Wallet with id {id} not found");
 
-        wallet.Verify();
+        wallet.isVerified = true;
+        wallet.updatedAt = DateTime.UtcNow;
         await _repository.UpdateAsync(wallet, ct);
         await _unitOfWork.SaveChangesAsync(ct);
         return Result<WalletDto>.Success(_mapper.Map<WalletDto>(wallet));
     }
 
-    public async Task<Result<WalletDto>> SetPrimaryAsync(Guid id, CancellationToken ct = default)
+    public async Task<Result<WalletDto>> SetPrimaryAsync(string id, CancellationToken ct = default)
     {
         var wallet = await _repository.GetByIdAsync(id, ct);
         if (wallet is null)
             return Result<WalletDto>.NotFound($"Wallet with id {id} not found");
 
         // Unset other primary wallets for this user
-        var existingPrimary = await _repository.FindAsync(w => w.UserId == wallet.UserId && w.IsPrimary && w.Id != id, ct);
+        var existingPrimary = await _repository.FindAsync(w => w.userId == wallet.userId && w.isPrimary && w.id != id, ct);
         foreach (var w in existingPrimary)
         {
-            w.SetPrimary(false);
+            w.isPrimary = false;
             await _repository.UpdateAsync(w, ct);
         }
 
-        wallet.SetPrimary(true);
+        wallet.isPrimary = true;
+        wallet.updatedAt = DateTime.UtcNow;
         await _repository.UpdateAsync(wallet, ct);
         await _unitOfWork.SaveChangesAsync(ct);
         return Result<WalletDto>.Success(_mapper.Map<WalletDto>(wallet));
     }
 
-    public async Task<Result<bool>> DeleteAsync(Guid id, CancellationToken ct = default)
+    public async Task<Result<bool>> DeleteAsync(string id, CancellationToken ct = default)
     {
         var wallet = await _repository.GetByIdAsync(id, ct);
         if (wallet is null)

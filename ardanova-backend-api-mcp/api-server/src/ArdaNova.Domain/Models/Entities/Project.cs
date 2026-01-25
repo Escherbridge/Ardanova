@@ -2,10 +2,12 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using Microsoft.EntityFrameworkCore;
 using ArdaNova.Domain.Models.Enums;
 
 namespace ArdaNova.Domain.Models.Entities;
 
+[Index(nameof(slug), IsUnique = true)]
 [Table("Project")]
 public class Project
 {
@@ -20,12 +22,15 @@ public class Project
     public string slug { get; set; } = string.Empty;
 
     [Required]
+    [Column(TypeName = "text")]
     public string description { get; set; } = string.Empty;
 
     [Required]
+    [Column(TypeName = "text")]
     public string problemStatement { get; set; } = string.Empty;
 
     [Required]
+    [Column(TypeName = "text")]
     public string solution { get; set; } = string.Empty;
 
     [Required]
@@ -34,9 +39,11 @@ public class Project
     [Required]
     public ProjectStatus status { get; set; }
 
+    [Precision(18, 8)]
     public decimal? fundingGoal { get; set; }
 
     [Required]
+    [Precision(18, 8)]
     public decimal currentFunding { get; set; }
 
     [Required]
@@ -51,18 +58,25 @@ public class Project
     [Required]
     public bool featured { get; set; }
 
+    [Column(TypeName = "text")]
     public string? tags { get; set; }
 
+    [Column(TypeName = "text")]
     public string? images { get; set; }
 
+    [Column(TypeName = "text")]
     public string? videos { get; set; }
 
+    [Column(TypeName = "text")]
     public string? documents { get; set; }
 
+    [Column(TypeName = "text")]
     public string? targetAudience { get; set; }
 
+    [Column(TypeName = "text")]
     public string? expectedImpact { get; set; }
 
+    [Column(TypeName = "text")]
     public string? timeline { get; set; }
 
     [Required]

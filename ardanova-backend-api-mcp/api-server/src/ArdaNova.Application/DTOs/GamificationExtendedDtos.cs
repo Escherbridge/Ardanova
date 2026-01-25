@@ -5,8 +5,8 @@ using ArdaNova.Domain.Models.Enums;
 // UserStreak DTOs
 public record UserStreakDto
 {
-    public Guid Id { get; init; }
-    public Guid UserId { get; init; }
+    public string Id { get; init; }
+    public string UserId { get; init; }
     public int CurrentStreak { get; init; }
     public int LongestStreak { get; init; }
     public DateTime? LastActivityDate { get; init; }
@@ -17,16 +17,16 @@ public record UserStreakDto
 
 public record CreateUserStreakDto
 {
-    public required Guid UserId { get; init; }
+    public required string UserId { get; init; }
     public StreakType StreakType { get; init; } = StreakType.DAILY_LOGIN;
 }
 
 // Referral DTOs
 public record ReferralDto
 {
-    public Guid Id { get; init; }
-    public Guid ReferrerId { get; init; }
-    public Guid ReferredId { get; init; }
+    public string Id { get; init; }
+    public string ReferrerId { get; init; }
+    public string ReferredId { get; init; }
     public string? ReferralCode { get; init; }
     public ReferralStatus Status { get; init; }
     public bool RewardClaimed { get; init; }
@@ -38,8 +38,8 @@ public record ReferralDto
 
 public record CreateReferralDto
 {
-    public required Guid ReferrerId { get; init; }
-    public required Guid ReferredId { get; init; }
+    public required string ReferrerId { get; init; }
+    public required string ReferredId { get; init; }
     public string? ReferralCode { get; init; }
 }
 

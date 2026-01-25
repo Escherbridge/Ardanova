@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using Microsoft.EntityFrameworkCore;
 using ArdaNova.Domain.Models.Enums;
 
 namespace ArdaNova.Domain.Models.Entities;
@@ -26,6 +27,7 @@ public class DelegatedVote
     public string tokenId { get; set; } = string.Empty;
 
     [Required]
+    [Precision(18, 8)]
     public decimal amount { get; set; }
 
     [Required]
@@ -42,9 +44,11 @@ public class DelegatedVote
     public virtual Project? Project { get; set; }
 
     [ForeignKey("delegatorId")]
+    [InverseProperty("DelegatedVotesAsDelegator")]
     public virtual User? Delegator { get; set; }
 
     [ForeignKey("delegateeId")]
+    [InverseProperty("DelegatedVotesAsDelegatee")]
     public virtual User? Delegatee { get; set; }
 
     [ForeignKey("tokenId")]

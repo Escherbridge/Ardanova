@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using Microsoft.EntityFrameworkCore;
 using ArdaNova.Domain.Models.Enums;
 
 namespace ArdaNova.Domain.Models.Entities;
@@ -20,6 +21,7 @@ public class TreasuryTransaction
     public TransactionType type { get; set; }
 
     [Required]
+    [Precision(18, 8)]
     public decimal amount { get; set; }
 
     public string? description { get; set; }

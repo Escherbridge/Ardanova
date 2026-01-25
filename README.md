@@ -208,7 +208,7 @@ Projects on ArdaNova follow a tokenized lifecycle powered by Algorand:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                      ICO LIFECYCLE ON DOSO                       │
+│                      ICO LIFECYCLE ON ArdaNova                       │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                  │
 │  PHASE 1: CREATION                                              │

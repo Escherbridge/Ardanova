@@ -1,7 +1,7 @@
-# DoSo Authentication Setup Guide
+# ArdaNova Authentication Setup Guide
 
 ## Overview
-This guide will help you set up authentication for the DoSo platform using Google, GitHub, and Discord OAuth providers.
+This guide will help you set up authentication for the ArdaNova platform using Google, GitHub, and Discord OAuth providers.
 
 ## Prerequisites
 - Node.js and npm installed
@@ -49,7 +49,7 @@ GOOGLE_CLIENT_SECRET=your-google-client-secret
 1. Go to [GitHub Settings → Developer settings → OAuth Apps](https://github.com/settings/developers)
 2. Click "New OAuth App"
 3. Fill in the details:
-   - Application name: "DoSo"
+   - Application name: "ArdaNova"
    - Homepage URL: `http://localhost:3000` (development)
    - Authorization callback URL: `http://localhost:3000/api/auth/callback/github`
 4. Copy the Client ID and Client Secret

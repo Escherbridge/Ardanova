@@ -29,9 +29,18 @@ public class NotificationServiceTests
     public async Task GetByIdAsync_WhenNotificationExists_ReturnsSuccessResult()
     {
         // Arrange
-        var notificationId = Guid.NewGuid();
-        var userId = Guid.NewGuid();
-        var notification = Notification.Create(userId, NotificationType.PROJECT_UPDATE, "Title", "Test Message");
+        var notificationId = Guid.NewGuid().ToString();
+        var userId = Guid.NewGuid().ToString();
+        var notification = new Notification
+        {
+            id = notificationId,
+            userId = userId,
+            type = NotificationType.PROJECT_UPDATE,
+            title = "Title",
+            message = "Test Message",
+            isRead = false,
+            createdAt = DateTime.UtcNow
+        };
         var notificationDto = new NotificationDto { Id = notificationId, UserId = userId, Message = "Test Message" };
 
         _repositoryMock.Setup(r => r.GetByIdAsync(notificationId, It.IsAny<CancellationToken>()))
@@ -51,7 +60,7 @@ public class NotificationServiceTests
     public async Task GetByIdAsync_WhenNotificationNotExists_ReturnsNotFound()
     {
         // Arrange
-        var notificationId = Guid.NewGuid();
+        var notificationId = Guid.NewGuid().ToString();
         _repositoryMock.Setup(r => r.GetByIdAsync(notificationId, It.IsAny<CancellationToken>()))
             .ReturnsAsync((Notification?)null);
 
@@ -67,11 +76,11 @@ public class NotificationServiceTests
     public async Task GetByUserIdAsync_ReturnsNotificationsForUser()
     {
         // Arrange
-        var userId = Guid.NewGuid();
+        var userId = Guid.NewGuid().ToString();
         var notifications = new List<Notification>
         {
-            Notification.Create(userId, NotificationType.TASK_ASSIGNED, "Task", "Task assigned"),
-            Notification.Create(userId, NotificationType.COMMENT_REPLY, "Reply", "New reply")
+            new Notification { id = Guid.NewGuid().ToString(), userId = userId, type = NotificationType.TASK_ASSIGNED, title = "Task", message = "Task assigned", isRead = false, createdAt = DateTime.UtcNow },
+            new Notification { id = Guid.NewGuid().ToString(), userId = userId, type = NotificationType.COMMENT_REPLY, title = "Reply", message = "New reply", isRead = false, createdAt = DateTime.UtcNow }
         };
         var notificationDtos = new List<NotificationDto>
         {
@@ -95,7 +104,7 @@ public class NotificationServiceTests
     public async Task CreateAsync_WithValidDto_ReturnsCreatedNotification()
     {
         // Arrange
-        var userId = Guid.NewGuid();
+        var userId = Guid.NewGuid().ToString();
         var dto = new CreateNotificationDto
         {
             UserId = userId,
@@ -126,9 +135,18 @@ public class NotificationServiceTests
     public async Task MarkAsReadAsync_WhenNotificationExists_MarksAsRead()
     {
         // Arrange
-        var notificationId = Guid.NewGuid();
-        var userId = Guid.NewGuid();
-        var notification = Notification.Create(userId, NotificationType.PROJECT_UPDATE, "Title", "Test");
+        var notificationId = Guid.NewGuid().ToString();
+        var userId = Guid.NewGuid().ToString();
+        var notification = new Notification
+        {
+            id = notificationId,
+            userId = userId,
+            type = NotificationType.PROJECT_UPDATE,
+            title = "Title",
+            message = "Test",
+            isRead = false,
+            createdAt = DateTime.UtcNow
+        };
         var notificationDto = new NotificationDto { Id = notificationId, IsRead = true };
 
         _repositoryMock.Setup(r => r.GetByIdAsync(notificationId, It.IsAny<CancellationToken>()))
@@ -154,9 +172,18 @@ public class NotificationServiceTests
     public async Task DeleteAsync_WhenNotificationExists_ReturnsSuccess()
     {
         // Arrange
-        var notificationId = Guid.NewGuid();
-        var userId = Guid.NewGuid();
-        var notification = Notification.Create(userId, NotificationType.PROJECT_UPDATE, "Title", "Test");
+        var notificationId = Guid.NewGuid().ToString();
+        var userId = Guid.NewGuid().ToString();
+        var notification = new Notification
+        {
+            id = notificationId,
+            userId = userId,
+            type = NotificationType.PROJECT_UPDATE,
+            title = "Title",
+            message = "Test",
+            isRead = false,
+            createdAt = DateTime.UtcNow
+        };
 
         _repositoryMock.Setup(r => r.GetByIdAsync(notificationId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(notification);

@@ -44,8 +44,8 @@ public class ProjectEventHubHandlerTests
     public async Task HandleAsync_ProjectCreatedEvent_NotifiesOwnerAndAllGroups()
     {
         // Arrange
-        var ownerId = Guid.NewGuid();
-        var projectId = Guid.NewGuid();
+        var ownerId = Guid.NewGuid().ToString();
+        var projectId = Guid.NewGuid().ToString();
         var @event = new ProjectCreatedEvent(projectId, ownerId, "Test Project", "test-project");
 
         // Act
@@ -66,7 +66,7 @@ public class ProjectEventHubHandlerTests
     public async Task HandleAsync_ProjectUpdatedEvent_NotifiesProjectGroup()
     {
         // Arrange
-        var projectId = Guid.NewGuid();
+        var projectId = Guid.NewGuid().ToString();
         var @event = new ProjectUpdatedEvent(projectId, "Updated Title");
 
         // Act
@@ -84,7 +84,7 @@ public class ProjectEventHubHandlerTests
     public async Task HandleAsync_ProjectStatusChangedEvent_NotifiesProjectGroup()
     {
         // Arrange
-        var projectId = Guid.NewGuid();
+        var projectId = Guid.NewGuid().ToString();
         var @event = new ProjectStatusChangedEvent(projectId, "DRAFT", "ACTIVE");
 
         // Act
@@ -102,7 +102,7 @@ public class ProjectEventHubHandlerTests
     public async Task HandleAsync_ProjectDeletedEvent_NotifiesProjectGroup()
     {
         // Arrange
-        var projectId = Guid.NewGuid();
+        var projectId = Guid.NewGuid().ToString();
         var @event = new ProjectDeletedEvent(projectId);
 
         // Act
@@ -117,9 +117,9 @@ public class ProjectEventHubHandlerTests
     public async Task HandleAsync_ProjectTaskCompletedEvent_NotifiesProjectAndAssignee()
     {
         // Arrange
-        var projectId = Guid.NewGuid();
-        var taskId = Guid.NewGuid();
-        var assigneeId = Guid.NewGuid();
+        var projectId = Guid.NewGuid().ToString();
+        var taskId = Guid.NewGuid().ToString();
+        var assigneeId = Guid.NewGuid().ToString();
         var @event = new ProjectTaskCompletedEvent(projectId, taskId, assigneeId, "Complete Feature X");
 
         // Act
@@ -141,8 +141,8 @@ public class ProjectEventHubHandlerTests
     public async Task HandleAsync_ProjectTaskCompletedEvent_WithNoAssignee_DoesNotNotifyUserGroup()
     {
         // Arrange
-        var projectId = Guid.NewGuid();
-        var taskId = Guid.NewGuid();
+        var projectId = Guid.NewGuid().ToString();
+        var taskId = Guid.NewGuid().ToString();
         var @event = new ProjectTaskCompletedEvent(projectId, taskId, null, "Unassigned Task");
 
         // Act
@@ -156,8 +156,8 @@ public class ProjectEventHubHandlerTests
     public async Task HandleAsync_ProjectMemberAddedEvent_NotifiesProjectAndNewMember()
     {
         // Arrange
-        var projectId = Guid.NewGuid();
-        var userId = Guid.NewGuid();
+        var projectId = Guid.NewGuid().ToString();
+        var userId = Guid.NewGuid().ToString();
         var @event = new ProjectMemberAddedEvent(projectId, userId, "CONTRIBUTOR");
 
         // Act
@@ -176,8 +176,8 @@ public class ProjectEventHubHandlerTests
     public async Task HandleAsync_ProjectMemberRemovedEvent_NotifiesProjectAndRemovedMember()
     {
         // Arrange
-        var projectId = Guid.NewGuid();
-        var userId = Guid.NewGuid();
+        var projectId = Guid.NewGuid().ToString();
+        var userId = Guid.NewGuid().ToString();
         var @event = new ProjectMemberRemovedEvent(projectId, userId);
 
         // Act
@@ -196,7 +196,7 @@ public class ProjectEventHubHandlerTests
     public void ProjectCreatedEvent_HasCorrectEventType()
     {
         // Arrange & Act
-        var @event = new ProjectCreatedEvent(Guid.NewGuid(), Guid.NewGuid(), "Test", null);
+        var @event = new ProjectCreatedEvent(Guid.NewGuid().ToString(), Guid.NewGuid().ToString(), "Test", null);
 
         // Assert
         @event.EventType.Should().Be("project.created");
@@ -206,7 +206,7 @@ public class ProjectEventHubHandlerTests
     public void ProjectUpdatedEvent_HasCorrectEventType()
     {
         // Arrange & Act
-        var @event = new ProjectUpdatedEvent(Guid.NewGuid(), "Test");
+        var @event = new ProjectUpdatedEvent(Guid.NewGuid().ToString(), "Test");
 
         // Assert
         @event.EventType.Should().Be("project.updated");
@@ -216,7 +216,7 @@ public class ProjectEventHubHandlerTests
     public void ProjectStatusChangedEvent_HasCorrectEventType()
     {
         // Arrange & Act
-        var @event = new ProjectStatusChangedEvent(Guid.NewGuid(), "OLD", "NEW");
+        var @event = new ProjectStatusChangedEvent(Guid.NewGuid().ToString(), "OLD", "NEW");
 
         // Assert
         @event.EventType.Should().Be("project.status_changed");
@@ -226,7 +226,7 @@ public class ProjectEventHubHandlerTests
     public void ProjectDeletedEvent_HasCorrectEventType()
     {
         // Arrange & Act
-        var @event = new ProjectDeletedEvent(Guid.NewGuid());
+        var @event = new ProjectDeletedEvent(Guid.NewGuid().ToString());
 
         // Assert
         @event.EventType.Should().Be("project.deleted");
@@ -236,7 +236,7 @@ public class ProjectEventHubHandlerTests
     public void ProjectTaskCompletedEvent_HasCorrectEventType()
     {
         // Arrange & Act
-        var @event = new ProjectTaskCompletedEvent(Guid.NewGuid(), Guid.NewGuid(), null, "Test");
+        var @event = new ProjectTaskCompletedEvent(Guid.NewGuid().ToString(), Guid.NewGuid().ToString(), null, "Test");
 
         // Assert
         @event.EventType.Should().Be("project.task_completed");
@@ -246,7 +246,7 @@ public class ProjectEventHubHandlerTests
     public void ProjectMemberAddedEvent_HasCorrectEventType()
     {
         // Arrange & Act
-        var @event = new ProjectMemberAddedEvent(Guid.NewGuid(), Guid.NewGuid(), "CONTRIBUTOR");
+        var @event = new ProjectMemberAddedEvent(Guid.NewGuid().ToString(), Guid.NewGuid().ToString(), "CONTRIBUTOR");
 
         // Assert
         @event.EventType.Should().Be("project.member_added");
@@ -256,7 +256,7 @@ public class ProjectEventHubHandlerTests
     public void ProjectMemberRemovedEvent_HasCorrectEventType()
     {
         // Arrange & Act
-        var @event = new ProjectMemberRemovedEvent(Guid.NewGuid(), Guid.NewGuid());
+        var @event = new ProjectMemberRemovedEvent(Guid.NewGuid().ToString(), Guid.NewGuid().ToString());
 
         // Assert
         @event.EventType.Should().Be("project.member_removed");

@@ -29,9 +29,9 @@ public class WalletServiceTests
     public async Task GetByIdAsync_WhenWalletExists_ReturnsSuccessResult()
     {
         // Arrange
-        var walletId = Guid.NewGuid();
-        var userId = Guid.NewGuid();
-        var wallet = Wallet.Create(userId, "ALGO123456789", WalletProvider.PERA);
+        var walletId = Guid.NewGuid().ToString();
+        var userId = Guid.NewGuid().ToString();
+        var wallet = new Wallet { id = walletId, userId = userId, address = "ALGO123456789", provider = WalletProvider.PERA, isVerified = false, isPrimary = false, createdAt = DateTime.UtcNow, updatedAt = DateTime.UtcNow };
         var walletDto = new WalletDto { Id = walletId, UserId = userId, Address = "ALGO123456789", Provider = WalletProvider.PERA };
 
         _repositoryMock.Setup(r => r.GetByIdAsync(walletId, It.IsAny<CancellationToken>()))
@@ -51,7 +51,7 @@ public class WalletServiceTests
     public async Task GetByIdAsync_WhenWalletNotExists_ReturnsNotFound()
     {
         // Arrange
-        var walletId = Guid.NewGuid();
+        var walletId = Guid.NewGuid().ToString();
         _repositoryMock.Setup(r => r.GetByIdAsync(walletId, It.IsAny<CancellationToken>()))
             .ReturnsAsync((Wallet?)null);
 
@@ -67,11 +67,11 @@ public class WalletServiceTests
     public async Task GetByUserIdAsync_ReturnsWalletsForUser()
     {
         // Arrange
-        var userId = Guid.NewGuid();
+        var userId = Guid.NewGuid().ToString();
         var wallets = new List<Wallet>
         {
-            Wallet.Create(userId, "ALGO111111111", WalletProvider.PERA),
-            Wallet.Create(userId, "ALGO222222222", WalletProvider.DEFLY)
+            new Wallet { id = Guid.NewGuid().ToString(), userId = userId, address = "ALGO111111111", provider = WalletProvider.PERA, isVerified = false, isPrimary = true, createdAt = DateTime.UtcNow, updatedAt = DateTime.UtcNow },
+            new Wallet { id = Guid.NewGuid().ToString(), userId = userId, address = "ALGO222222222", provider = WalletProvider.DEFLY, isVerified = false, isPrimary = false, createdAt = DateTime.UtcNow, updatedAt = DateTime.UtcNow }
         };
         var walletDtos = new List<WalletDto>
         {
@@ -95,7 +95,7 @@ public class WalletServiceTests
     public async Task CreateAsync_WithValidDto_ReturnsCreatedWallet()
     {
         // Arrange
-        var userId = Guid.NewGuid();
+        var userId = Guid.NewGuid().ToString();
         var dto = new CreateWalletDto
         {
             UserId = userId,
@@ -128,7 +128,7 @@ public class WalletServiceTests
     public async Task CreateAsync_WithDuplicateAddress_ReturnsValidationError()
     {
         // Arrange
-        var userId = Guid.NewGuid();
+        var userId = Guid.NewGuid().ToString();
         var dto = new CreateWalletDto
         {
             UserId = userId,
@@ -151,9 +151,9 @@ public class WalletServiceTests
     public async Task VerifyAsync_WhenWalletExists_VerifiesWallet()
     {
         // Arrange
-        var walletId = Guid.NewGuid();
-        var userId = Guid.NewGuid();
-        var wallet = Wallet.Create(userId, "ALGO123456789", WalletProvider.PERA);
+        var walletId = Guid.NewGuid().ToString();
+        var userId = Guid.NewGuid().ToString();
+        var wallet = new Wallet { id = walletId, userId = userId, address = "ALGO123456789", provider = WalletProvider.PERA, isVerified = false, isPrimary = false, createdAt = DateTime.UtcNow, updatedAt = DateTime.UtcNow };
         var walletDto = new WalletDto { Id = walletId, IsVerified = true };
 
         _repositoryMock.Setup(r => r.GetByIdAsync(walletId, It.IsAny<CancellationToken>()))
@@ -179,9 +179,9 @@ public class WalletServiceTests
     public async Task DeleteAsync_WhenWalletExists_ReturnsSuccess()
     {
         // Arrange
-        var walletId = Guid.NewGuid();
-        var userId = Guid.NewGuid();
-        var wallet = Wallet.Create(userId, "ALGO123456789", WalletProvider.PERA);
+        var walletId = Guid.NewGuid().ToString();
+        var userId = Guid.NewGuid().ToString();
+        var wallet = new Wallet { id = walletId, userId = userId, address = "ALGO123456789", provider = WalletProvider.PERA, isVerified = false, isPrimary = false, createdAt = DateTime.UtcNow, updatedAt = DateTime.UtcNow };
 
         _repositoryMock.Setup(r => r.GetByIdAsync(walletId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(wallet);
@@ -203,7 +203,7 @@ public class WalletServiceTests
     public async Task DeleteAsync_WhenWalletNotExists_ReturnsNotFound()
     {
         // Arrange
-        var walletId = Guid.NewGuid();
+        var walletId = Guid.NewGuid().ToString();
         _repositoryMock.Setup(r => r.GetByIdAsync(walletId, It.IsAny<CancellationToken>()))
             .ReturnsAsync((Wallet?)null);
 

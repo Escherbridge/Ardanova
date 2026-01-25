@@ -1,0 +1,1 @@
+# File Storage\nThis directory is used for local file storage during development.\nFiles uploaded through the API will be stored here when using the Local storage provider.\n\n# In Production\nUse S3-compatible storage (AWS S3, MinIO, Cloudflare R2, etc.) for production deployments.

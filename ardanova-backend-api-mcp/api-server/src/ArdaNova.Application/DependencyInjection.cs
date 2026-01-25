@@ -31,22 +31,17 @@ public static class DependencyInjection
         services.AddScoped<IProjectUpdateService, ProjectUpdateService>();
         services.AddScoped<IProjectEquityService, ProjectEquityService>();
 
-        // Agency services
-        services.AddScoped<IAgencyService, AgencyService>();
-        services.AddScoped<IAgencyMemberService, AgencyMemberService>();
+        // Guild services (formerly Agency)
+        services.AddScoped<IGuildService, GuildService>();
+        services.AddScoped<IGuildMemberService, GuildMemberService>();
         services.AddScoped<IProjectBidService, ProjectBidService>();
-        services.AddScoped<IAgencyReviewService, AgencyReviewService>();
+        services.AddScoped<IGuildReviewService, GuildReviewService>();
 
-        // Business services
-        services.AddScoped<IBusinessService, BusinessService>();
-        services.AddScoped<ICustomerService, CustomerService>();
-        services.AddScoped<IProductService, ProductService>();
-        services.AddScoped<IInvoiceService, InvoiceService>();
-        services.AddScoped<ISaleService, SaleService>();
-        services.AddScoped<ISaleItemService, SaleItemService>();
-        services.AddScoped<IInventoryItemService, InventoryItemService>();
-        services.AddScoped<IMarketingCampaignService, MarketingCampaignService>();
-        services.AddScoped<IBusinessAnalyticsService, BusinessAnalyticsService>();
+        // Shop services (formerly Business)
+        services.AddScoped<IShopService, ShopService>();
+        services.AddScoped<IShopCustomerService, ShopCustomerService>();
+        services.AddScoped<IShopProductService, ShopProductService>();
+        services.AddScoped<IShopAnalyticsService, ShopAnalyticsService>();
 
         // Wallet services
         services.AddScoped<IWalletService, WalletService>();
@@ -69,6 +64,9 @@ public static class DependencyInjection
         services.AddScoped<ITokenSwapService, TokenSwapService>();
         services.AddScoped<ILiquidityPoolService, LiquidityPoolService>();
         services.AddScoped<ILiquidityProviderService, LiquidityProviderService>();
+
+        // Attachment services
+        services.AddScoped<IAttachmentService, AttachmentService>();
 
         return services;
     }

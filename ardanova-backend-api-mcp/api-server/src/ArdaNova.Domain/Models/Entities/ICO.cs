@@ -2,10 +2,12 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using Microsoft.EntityFrameworkCore;
 using ArdaNova.Domain.Models.Enums;
 
 namespace ArdaNova.Domain.Models.Entities;
 
+[Index(nameof(tokenId), IsUnique = true)]
 [Table("ICO")]
 public class ICO
 {
@@ -17,16 +19,21 @@ public class ICO
     public string tokenId { get; set; } = string.Empty;
 
     [Required]
+    [Precision(18, 8)]
     public decimal fundingGoal { get; set; }
 
     [Required]
+    [Precision(18, 8)]
     public decimal currentFunding { get; set; }
 
+    [Precision(18, 8)]
     public decimal? minContribution { get; set; }
 
+    [Precision(18, 8)]
     public decimal? maxContribution { get; set; }
 
     [Required]
+    [Precision(18, 8)]
     public decimal tokenPrice { get; set; }
 
     [Required]

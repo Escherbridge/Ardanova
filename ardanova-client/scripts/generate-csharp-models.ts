@@ -8,6 +8,15 @@ import { Parser } from '@dbml/core';
 const DBML_PATH = path.join(process.cwd(), 'prisma/database-archietecture.dbml');
 const DOMAIN_PATH = path.join(process.cwd(), '../ardanova-backend-api-mcp/api-server/src/ArdaNova.Domain/Models');
 const DB_CONTEXT_PATH = path.join(process.cwd(), '../ardanova-backend-api-mcp/api-server/src/ArdaNova.Infrastructure/Data/ArdaNovaDbContext.cs');
+const GENERATED_CONFIG_PATH = path.join(process.cwd(), '../ardanova-backend-api-mcp/api-server/src/ArdaNova.Infrastructure/Data/GeneratedModelConfigurations.cs');
+
+// =============================================================================
+// GENERATOR CONFIGURATION
+// =============================================================================
+const CONFIG = {
+    // Default precision for decimal fields when not specified in DBML
+    DEFAULT_DECIMAL_PRECISION: [18, 8] as [number, number],
+};
 
 // CLI flags
 const args = process.argv.slice(2);
@@ -47,11 +56,17 @@ const TYPE_MAP: Record<string, string> = {
 
 interface Field {
     name: string;
-    type: { type_name: string; args?: string[] };
+    type: { type_name: string; args?: string };
     pk: boolean;
     unique: boolean;
     not_null: boolean;
     dbdefault?: { value: string };
+}
+
+interface Index {
+    columns: { value: string }[];
+    unique?: boolean;
+    pk?: boolean;
 }
 
 interface Endpoint {
@@ -67,6 +82,7 @@ interface Ref {
 interface Table {
     name: string;
     fields: Field[];
+    indexes?: Index[];
 }
 
 interface Enum {
@@ -80,9 +96,117 @@ interface Schema {
     refs: Ref[];
 }
 
+// Multi-FK tracking for [InverseProperty] generation
+interface MultiFKRelation {
+    sourceTable: string;      // e.g., "Referral"
+    targetTable: string;      // e.g., "User"
+    fkField: string;          // e.g., "referrerId"
+    navPropertyName: string;  // e.g., "Referrer"
+    collectionName: string;   // e.g., "ReferralsAsReferrer"
+}
+
 const mapType = (dbmlType: string): string => {
-    const normalized = dbmlType.toLowerCase();
-    return TYPE_MAP[normalized] || dbmlType;
+    // Handle types with args like "decimal(18,8)" -> extract base type
+    const baseType = dbmlType.toLowerCase().split('(')[0];
+    return TYPE_MAP[baseType] || dbmlType;
+};
+
+// Helper to get decimal precision from field type args
+const getDecimalPrecision = (field: Field): [number, number] => {
+    if (field.type.args) {
+        const parts = field.type.args.split(',').map(s => parseInt(s.trim(), 10));
+        if (parts.length >= 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+            return [parts[0], parts[1]];
+        }
+    }
+    return CONFIG.DEFAULT_DECIMAL_PRECISION;
+};
+
+// Types that conflict with System namespace types and need full qualification
+const CONFLICTING_TYPES = new Set(['TaskStatus']);
+
+const getFullyQualifiedType = (typeName: string): string => {
+    if (CONFLICTING_TYPES.has(typeName)) {
+        return `ArdaNova.Domain.Models.Enums.${typeName}`;
+    }
+    return typeName;
+};
+
+// Helper to derive navigation property name from FK field
+const getNavPropertyName = (fkField: string, remoteModel: string): string => {
+    let name = fkField.endsWith('Id')
+        ? fkField.slice(0, -2)
+        : remoteModel;
+    return name.charAt(0).toUpperCase() + name.slice(1);
+};
+
+// Build map of multi-FK relationships for [InverseProperty] generation
+const buildMultiFKMap = (schema: Schema): Map<string, MultiFKRelation[]> => {
+    // First pass: collect all many-to-one refs grouped by (sourceTable, targetTable)
+    const refsByPair: Map<string, { fkField: string; navName: string }[]> = new Map();
+
+    schema.refs.forEach((ref) => {
+        const [ep1, ep2] = ref.endpoints;
+
+        // Find the many side (FK holder) and one side (target)
+        let manyEp: Endpoint, oneEp: Endpoint;
+        if (ep1.relation === '*' && ep2.relation === '1') {
+            manyEp = ep1;
+            oneEp = ep2;
+        } else if (ep1.relation === '1' && ep2.relation === '*') {
+            manyEp = ep2;
+            oneEp = ep1;
+        } else {
+            return; // Skip one-to-one for now
+        }
+
+        const pairKey = `${manyEp.tableName}->${oneEp.tableName}`;
+        const fkField = manyEp.fieldNames[0];
+        const navName = getNavPropertyName(fkField, oneEp.tableName);
+
+        if (!refsByPair.has(pairKey)) {
+            refsByPair.set(pairKey, []);
+        }
+        refsByPair.get(pairKey)!.push({ fkField, navName });
+    });
+
+    // Second pass: identify pairs with multiple FKs (multi-FK scenarios)
+    const multiFKMap: Map<string, MultiFKRelation[]> = new Map();
+
+    refsByPair.forEach((relations, pairKey) => {
+        if (relations.length > 1) {
+            // This is a multi-FK scenario - all relations need [InverseProperty]
+            const [sourceTable, targetTable] = pairKey.split('->');
+
+            relations.forEach(({ fkField, navName }) => {
+                const collectionName = `${pluralize(sourceTable)}As${navName}`;
+
+                const relation: MultiFKRelation = {
+                    sourceTable,
+                    targetTable,
+                    fkField,
+                    navPropertyName: navName,
+                    collectionName
+                };
+
+                // Index by sourceTable for quick lookup when generating many-side
+                const sourceKey = sourceTable;
+                if (!multiFKMap.has(sourceKey)) {
+                    multiFKMap.set(sourceKey, []);
+                }
+                multiFKMap.get(sourceKey)!.push(relation);
+
+                // Also index by targetTable for quick lookup when generating one-side collections
+                const targetKey = `target:${targetTable}`;
+                if (!multiFKMap.has(targetKey)) {
+                    multiFKMap.set(targetKey, []);
+                }
+                multiFKMap.get(targetKey)!.push(relation);
+            });
+        }
+    });
+
+    return multiFKMap;
 };
 
 const generateCSharp = async () => {
@@ -90,6 +214,10 @@ const generateCSharp = async () => {
     const dbml = fs.readFileSync(DBML_PATH, 'utf-8').replace(/^\uFEFF/, '');
     const database = Parser.parse(dbml, 'dbml');
     const schema: Schema = database.schemas[0];
+
+    // Build multi-FK map for [InverseProperty] generation
+    const multiFKMap = buildMultiFKMap(schema);
+    console.log(`Detected ${multiFKMap.size / 2} multi-FK relationship groups`);
 
     const generatedModels: string[] = [];
     const relationNamesPerModel: Map<string, Set<string>> = new Map();
@@ -145,15 +273,25 @@ public enum ${en.name}
     schema.tables.forEach((table) => {
         generatedModels.push(table.name);
 
+        // Collect simple unique indexes (single field) for [Index] attributes
+        const simpleUniqueFields = table.fields.filter(f => f.unique && !f.pk);
+
         let content = `using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using Microsoft.EntityFrameworkCore;
 using ArdaNova.Domain.Models.Enums;
 
 namespace ArdaNova.Domain.Models.Entities;
 
-[Table("${table.name}")]
+`;
+        // Add [Index] attributes for simple unique fields
+        simpleUniqueFields.forEach(field => {
+            content += `[Index(nameof(${field.name}), IsUnique = true)]\n`;
+        });
+
+        content += `[Table("${table.name}")]
 public class ${table.name}
 {
 `;
@@ -162,7 +300,11 @@ public class ${table.name}
         table.fields.forEach((field) => {
             const isId = field.pk;
             const isNullable = !field.not_null && !isId;
+            const baseTypeName = field.type.type_name.toLowerCase().split('(')[0];
             let csharpType = mapType(field.type.type_name);
+
+            // Handle types that conflict with System namespace
+            csharpType = getFullyQualifiedType(csharpType);
 
             // Handle nullability
             if (isNullable && csharpType !== 'string' && csharpType !== 'byte[]') {
@@ -179,8 +321,16 @@ public class ${table.name}
             if (field.not_null && csharpType === 'string') {
                 content += `    [Required]\n`;
             }
-            if (field.unique) {
-                // Note: EF Core uses Fluent API for unique, but we can add a comment
+
+            // [Column(TypeName = "text")] for text fields
+            if (baseTypeName === 'text') {
+                content += `    [Column(TypeName = "text")]\n`;
+            }
+
+            // [Precision(x, y)] for decimal fields
+            if (baseTypeName === 'decimal') {
+                const [precision, scale] = getDecimalPrecision(field);
+                content += `    [Precision(${precision}, ${scale})]\n`;
             }
 
             // Handle string defaults to avoid CS8618
@@ -219,11 +369,31 @@ public class ${table.name}
 
                 if (relationName === table.name) relationName += 'Ref';
 
+                // Check if this is a multi-FK scenario requiring [InverseProperty]
+                const multiFKRelations = multiFKMap.get(table.name);
+                const multiFKRelation = multiFKRelations?.find(r => r.fkField === fkField);
+
                 content += `    [ForeignKey("${fkField}")]\n`;
+                if (multiFKRelation) {
+                    content += `    [InverseProperty("${multiFKRelation.collectionName}")]\n`;
+                }
                 content += `    public virtual ${remoteModel}? ${relationName} { get; set; }\n\n`;
 
             } else if (localEp.relation === '1' && remoteEp.relation === '*') {
                 // One-to-Many
+                // Check if this target entity has multi-FK relations pointing to it
+                const multiFKRelationsToThis = multiFKMap.get(`target:${table.name}`);
+                const multiFKForThisRef = multiFKRelationsToThis?.find(
+                    r => r.sourceTable === remoteEp.tableName && r.targetTable === table.name
+                );
+
+                if (multiFKForThisRef) {
+                    // Multi-FK scenario: use the specific collection name from the map
+                    // Skip generation here - we'll generate all multi-FK collections together below
+                    return;
+                }
+
+                // Normal one-to-many: use pluralized name
                 let relationName = pluralize(remoteEp.tableName);
                 relationName = getUniqueRelationName(table.name, relationName);
 
@@ -247,6 +417,22 @@ public class ${table.name}
             }
         });
 
+        // Generate multi-FK collections with descriptive names
+        // Note: [InverseProperty] only needs to be on ONE side - we put it on the many-side (FK holder)
+        const multiFKRelationsToThis = multiFKMap.get(`target:${table.name}`);
+        if (multiFKRelationsToThis) {
+            // Group by source table to avoid duplicate collections
+            const generatedCollections = new Set<string>();
+
+            multiFKRelationsToThis.forEach(relation => {
+                if (!generatedCollections.has(relation.collectionName)) {
+                    generatedCollections.add(relation.collectionName);
+
+                    content += `    public virtual ICollection<${relation.sourceTable}> ${relation.collectionName} { get; set; } = new List<${relation.sourceTable}>();\n\n`;
+                }
+            });
+        }
+
         content += `}\n`;
 
         const filePath = path.join(DOMAIN_PATH, 'Entities', `${table.name}.cs`);
@@ -257,7 +443,61 @@ public class ${table.name}
         }
     });
 
-    // 3. Update DbContext with Reconciliation
+    // 3. Generate Model Configurations file (for composite indexes)
+    console.log('Generating model configurations...');
+    const compositeIndexes: { table: string; fields: string[]; unique: boolean }[] = [];
+
+    // Collect composite indexes from table.indexes
+    schema.tables.forEach((table) => {
+        if (table.indexes) {
+            table.indexes.forEach((idx) => {
+                if (idx.columns.length > 1) {
+                    compositeIndexes.push({
+                        table: table.name,
+                        fields: idx.columns.map(c => c.value),
+                        unique: idx.unique === true
+                    });
+                }
+            });
+        }
+    });
+
+    // Generate the configuration file
+    let configContent = `// Auto-generated by generate-csharp-models.ts - DO NOT EDIT manually
+// Contains composite index configurations that require Fluent API
+using Microsoft.EntityFrameworkCore;
+using ArdaNova.Domain.Models.Entities;
+
+namespace ArdaNova.Infrastructure.Data;
+
+public static class GeneratedModelConfigurations
+{
+    /// <summary>
+    /// Applies generated model configurations (composite indexes).
+    /// </summary>
+    public static void ApplyGeneratedConfigurations(this ModelBuilder modelBuilder)
+    {
+`;
+
+    compositeIndexes.forEach(idx => {
+        const fields = idx.fields.map(f => `e.${f}`).join(', ');
+        const uniqueSuffix = idx.unique ? '.IsUnique()' : '';
+        configContent += `        modelBuilder.Entity<${idx.table}>().HasIndex(e => new { ${fields} })${uniqueSuffix};\n`;
+    });
+
+    configContent += `    }
+}
+`;
+
+    if (!dryRun) {
+        fs.writeFileSync(GENERATED_CONFIG_PATH, configContent);
+        console.log(`Generated ${compositeIndexes.length} composite index configurations`);
+    } else {
+        console.log(`[DRY-RUN] Would write: ${GENERATED_CONFIG_PATH}`);
+        console.log(`[DRY-RUN] ${compositeIndexes.length} composite indexes`);
+    }
+
+    // 4. Update DbContext with Reconciliation
     console.log(`Updating DbContext at ${DB_CONTEXT_PATH}...`);
     if (fs.existsSync(DB_CONTEXT_PATH)) {
         let dbContext = fs.readFileSync(DB_CONTEXT_PATH, 'utf-8');

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using Microsoft.EntityFrameworkCore;
 using ArdaNova.Domain.Models.Enums;
 
 namespace ArdaNova.Domain.Models.Entities;
@@ -20,12 +21,15 @@ public class ShopAnalytics
     public DateTime date { get; set; }
 
     [Required]
+    [Precision(18, 8)]
     public decimal revenue { get; set; }
 
     [Required]
+    [Precision(18, 8)]
     public decimal expenses { get; set; }
 
     [Required]
+    [Precision(18, 8)]
     public decimal profit { get; set; }
 
     [Required]

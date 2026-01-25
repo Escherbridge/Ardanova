@@ -1,0 +1,138 @@
+version: '3.8'
+
+# ===========================================
+# ArdaNova Platform - Development Compose
+# ===========================================
+# Hot-reload enabled - no rebuild needed for code changes
+# Uses .env file from root directory
+
+services:
+
+  # ===========================================
+  # .NET Backend API (Development - Hot Reload)
+  # ===========================================
+  api:
+    image: mcr.microsoft.com/dotnet/sdk:8.0
+    container_name: ardanova-api-dev
+    working_dir: /src/api-server/src/ArdaNova.API
+    command: dotnet watch run --no-launch-profile
+    env_file:
+      - .env
+    environment:
+      # ASP.NET Core
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:8080
+      - DOTNET_USE_POLLING_FILE_WATCHER=1
+      - DOTNET_WATCH_RESTART_ON_RUDE_EDIT=1
+      # Database
+      - DATABASE_URL=${DATABASE_URL}
+      # API Security
+      - API_KEY=${API_KEY}
+      # Storage Configuration
+      - STORAGE_PROVIDER=${STORAGE_PROVIDER:-Local}
+      - S3_ACCESS_KEY=${S3_ACCESS_KEY:-}
+      - S3_SECRET_KEY=${S3_SECRET_KEY:-}
+      - S3_BUCKET_NAME=${S3_BUCKET_NAME:-ardanova-files}
+      - S3_REGION=${S3_REGION:-us-east-1}
+      - S3_SERVICE_URL=${S3_SERVICE_URL:-}
+      - S3_USE_PATH_STYLE=${S3_USE_PATH_STYLE:-false}
+      - LOCAL_STORAGE_PATH=/app/uploads
+      - LOCAL_STORAGE_BASE_URL=${LOCAL_STORAGE_BASE_URL:-http://localhost:8080/files}
+    ports:
+      - "8080:8080"
+    volumes:
+      # Mount source code for hot-reload
+      - ./ardanova-backend-api-mcp:/src
+      # Mount local uploads directory
+      - ./uploads:/app/uploads
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  # ===========================================
+  # Next.js Client (Development - Hot Reload)
+  # ===========================================
+  client:
+    image: node:20-alpine
+    container_name: ardanova-client-dev
+    working_dir: /app
+    command: sh -c "npm install && npx prisma generate && npm run dev"
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=${DATABASE_URL}
+      - API_URL=http://api:8080
+      - API_KEY=${API_KEY}
+      - AUTH_SECRET=${AUTH_SECRET}
+      - AUTH_URL=${AUTH_URL:-http://localhost:3000}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - WATCHPACK_POLLING=true
+    ports:
+      - "3000:3000"
+    volumes:
+      # Mount source code for hot-reload
+      - ./ardanova-client:/app
+      # Anonymous volume for node_modules to prevent override
+      - /app/node_modules
+      - /app/.next
+    depends_on:
+      api:
+        condition: service_healthy
+
+  # ===========================================
+  # AI Orchestrator Service (Development)
+  # ===========================================
+  ai-orchestrator:
+    image: python:3.11-slim
+    container_name: ardanova-ai-dev
+    working_dir: /app
+    command: sh -c "pip install -r requirements.txt && uvicorn src.api.main:app --host 0.0.0.0 --port 8081 --reload"
+    env_file:
+      - .env
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - MCP_SERVER_URL=http://api:8080
+      - API_KEY=${API_KEY}
+      - PORT=8081
+      - DEBUG=true
+      - PYTHONPATH=/app
+    ports:
+      - "8081:8081"
+    volumes:
+      - ./ardanova-ai-client:/app
+    depends_on:
+      api:
+        condition: service_healthy
+
+  # ===========================================
+  # MinIO (Local S3-Compatible Storage)
+  # ===========================================
+  # Uncomment to use MinIO for local S3 development
+  # minio:
+  #   image: minio/minio:latest
+  #   container_name: ardanova-minio
+  #   command: server /data --console-address ":9001"
+  #   environment:
+  #     - MINIO_ROOT_USER=${S3_ACCESS_KEY:-minioadmin}
+  #     - MINIO_ROOT_PASSWORD=${S3_SECRET_KEY:-minioadmin}
+  #   ports:
+  #     - "9000:9000"
+  #     - "9001:9001"
+  #   volumes:
+  #     - minio_data:/data
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+  #     interval: 30s
+  #     timeout: 20s
+  #     retries: 3
+
+# ===========================================
+# Volumes
+# ===========================================
+# volumes:
+#   minio_data:

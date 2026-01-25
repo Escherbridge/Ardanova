@@ -127,7 +127,7 @@ public class ProjectEventHubHandler :
         await _hubContext.Clients.Group($"project:{@event.ProjectId}").ReceiveEvent(@event.EventType, payload);
 
         // Also notify the assignee if present
-        if (@event.AssigneeId.HasValue)
+        if (!string.IsNullOrEmpty(@event.AssigneeId))
         {
             await _hubContext.Clients.Group($"user:{@event.AssigneeId}").TaskCompleted(payload);
         }

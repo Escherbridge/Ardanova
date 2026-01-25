@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using Microsoft.EntityFrameworkCore;
 using ArdaNova.Domain.Models.Enums;
 
 namespace ArdaNova.Domain.Models.Entities;
@@ -23,13 +24,17 @@ public class ProjectBid
     public string userId { get; set; } = string.Empty;
 
     [Required]
+    [Column(TypeName = "text")]
     public string proposal { get; set; } = string.Empty;
 
+    [Column(TypeName = "text")]
     public string? timeline { get; set; }
 
     [Required]
+    [Precision(18, 8)]
     public decimal budget { get; set; }
 
+    [Column(TypeName = "text")]
     public string? deliverables { get; set; }
 
     [Required]

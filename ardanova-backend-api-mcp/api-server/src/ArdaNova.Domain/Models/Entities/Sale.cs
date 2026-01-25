@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using Microsoft.EntityFrameworkCore;
 using ArdaNova.Domain.Models.Enums;
 
 namespace ArdaNova.Domain.Models.Entities;
@@ -19,15 +20,19 @@ public class Sale
     public string? buyerId { get; set; }
 
     [Required]
+    [Precision(18, 8)]
     public decimal total { get; set; }
 
+    [Precision(18, 8)]
     public decimal? tax { get; set; }
 
+    [Precision(18, 8)]
     public decimal? discount { get; set; }
 
     [Required]
     public PaymentMethod paymentMethod { get; set; }
 
+    [Column(TypeName = "text")]
     public string? notes { get; set; }
 
     [Required]
@@ -40,9 +45,11 @@ public class Sale
     public virtual Shop? Shop { get; set; }
 
     [ForeignKey("buyerId")]
+    [InverseProperty("SalesAsBuyer")]
     public virtual User? Buyer { get; set; }
 
     [ForeignKey("userId")]
+    [InverseProperty("SalesAsUser")]
     public virtual User? User { get; set; }
 
     public virtual ICollection<SaleItem> SaleItems { get; set; } = new List<SaleItem>();

@@ -4,7 +4,7 @@ using ArdaNova.Domain.Models.Enums;
 
 public record ProjectDto
 {
-    public Guid Id { get; init; }
+    public string Id { get; init; } = null!;
     public string Title { get; init; } = null!;
     public string Slug { get; init; } = null!;
     public string Description { get; init; } = null!;
@@ -30,13 +30,13 @@ public record ProjectDto
     public DateTime? PublishedAt { get; init; }
     public DateTime? FundedAt { get; init; }
     public DateTime? CompletedAt { get; init; }
-    public Guid CreatedById { get; init; }
-    public Guid? AssignedAgencyId { get; init; }
+    public string CreatedById { get; init; } = null!;
+    public string? AssignedGuildId { get; init; }
 }
 
 public record CreateProjectDto
 {
-    public required Guid CreatedById { get; init; }
+    public required string CreatedById { get; init; }
     public required string Title { get; init; }
     public required string Description { get; init; }
     public required string ProblemStatement { get; init; }
@@ -72,8 +72,8 @@ public record UpdateProjectDto
 
 public record ProjectTaskDto
 {
-    public Guid Id { get; init; }
-    public Guid ProjectId { get; init; }
+    public string Id { get; init; } = null!;
+    public string ProjectId { get; init; } = null!;
     public string Title { get; init; } = null!;
     public string? Description { get; init; }
     public TaskStatus Status { get; init; }
@@ -84,18 +84,18 @@ public record ProjectTaskDto
     public DateTime? CompletedAt { get; init; }
     public DateTime CreatedAt { get; init; }
     public DateTime UpdatedAt { get; init; }
-    public Guid? AssignedToId { get; init; }
+    public string? AssignedToId { get; init; }
 }
 
 public record CreateProjectTaskDto
 {
-    public required Guid ProjectId { get; init; }
+    public required string ProjectId { get; init; }
     public required string Title { get; init; }
     public string? Description { get; init; }
     public TaskPriority Priority { get; init; } = TaskPriority.MEDIUM;
     public int? EstimatedHours { get; init; }
     public DateTime? DueDate { get; init; }
-    public Guid? AssignedToId { get; init; }
+    public string? AssignedToId { get; init; }
 }
 
 public record UpdateProjectTaskDto
@@ -105,13 +105,13 @@ public record UpdateProjectTaskDto
     public TaskPriority? Priority { get; init; }
     public int? EstimatedHours { get; init; }
     public DateTime? DueDate { get; init; }
-    public Guid? AssignedToId { get; init; }
+    public string? AssignedToId { get; init; }
 }
 
 public record ProjectResourceDto
 {
-    public Guid Id { get; init; }
-    public Guid ProjectId { get; init; }
+    public string Id { get; init; } = null!;
+    public string ProjectId { get; init; } = null!;
     public string Name { get; init; } = null!;
     public string? Description { get; init; }
     public int Quantity { get; init; }
@@ -123,7 +123,7 @@ public record ProjectResourceDto
 
 public record CreateProjectResourceDto
 {
-    public required Guid ProjectId { get; init; }
+    public required string ProjectId { get; init; }
     public required string Name { get; init; }
     public string? Description { get; init; }
     public int Quantity { get; init; } = 1;
@@ -143,8 +143,8 @@ public record UpdateProjectResourceDto
 
 public record ProjectMilestoneDto
 {
-    public Guid Id { get; init; }
-    public Guid ProjectId { get; init; }
+    public string Id { get; init; } = null!;
+    public string ProjectId { get; init; } = null!;
     public string Title { get; init; } = null!;
     public string? Description { get; init; }
     public DateTime TargetDate { get; init; }
@@ -155,7 +155,7 @@ public record ProjectMilestoneDto
 
 public record CreateProjectMilestoneDto
 {
-    public required Guid ProjectId { get; init; }
+    public required string ProjectId { get; init; }
     public required string Title { get; init; }
     public string? Description { get; init; }
     public required DateTime TargetDate { get; init; }
@@ -170,9 +170,9 @@ public record UpdateProjectMilestoneDto
 
 public record ProjectSupportDto
 {
-    public Guid Id { get; init; }
-    public Guid ProjectId { get; init; }
-    public Guid UserId { get; init; }
+    public string Id { get; init; } = null!;
+    public string ProjectId { get; init; } = null!;
+    public string UserId { get; init; } = null!;
     public SupportType SupportType { get; init; }
     public decimal? MonthlyAmount { get; init; }
     public string? Message { get; init; }
@@ -183,8 +183,8 @@ public record ProjectSupportDto
 
 public record CreateProjectSupportDto
 {
-    public required Guid ProjectId { get; init; }
-    public required Guid UserId { get; init; }
+    public required string ProjectId { get; init; }
+    public required string UserId { get; init; }
     public required SupportType SupportType { get; init; }
     public decimal? MonthlyAmount { get; init; }
     public string? Message { get; init; }
@@ -192,9 +192,9 @@ public record CreateProjectSupportDto
 
 public record ProjectApplicationDto
 {
-    public Guid Id { get; init; }
-    public Guid ProjectId { get; init; }
-    public Guid UserId { get; init; }
+    public string Id { get; init; } = null!;
+    public string ProjectId { get; init; } = null!;
+    public string UserId { get; init; } = null!;
     public string RoleTitle { get; init; } = null!;
     public string Message { get; init; } = null!;
     public string? Skills { get; init; }
@@ -208,8 +208,8 @@ public record ProjectApplicationDto
 
 public record CreateProjectApplicationDto
 {
-    public required Guid ProjectId { get; init; }
-    public required Guid UserId { get; init; }
+    public required string ProjectId { get; init; }
+    public required string UserId { get; init; }
     public required string RoleTitle { get; init; }
     public required string Message { get; init; }
     public string? Skills { get; init; }
@@ -219,28 +219,28 @@ public record CreateProjectApplicationDto
 
 public record ProjectCommentDto
 {
-    public Guid Id { get; init; }
-    public Guid ProjectId { get; init; }
-    public Guid UserId { get; init; }
+    public string Id { get; init; } = null!;
+    public string ProjectId { get; init; } = null!;
+    public string UserId { get; init; } = null!;
     public string Content { get; init; } = null!;
-    public Guid? ParentId { get; init; }
+    public string? ParentId { get; init; }
     public DateTime CreatedAt { get; init; }
     public DateTime UpdatedAt { get; init; }
 }
 
 public record CreateProjectCommentDto
 {
-    public required Guid ProjectId { get; init; }
-    public required Guid UserId { get; init; }
+    public required string ProjectId { get; init; }
+    public required string UserId { get; init; }
     public required string Content { get; init; }
-    public Guid? ParentId { get; init; }
+    public string? ParentId { get; init; }
 }
 
 public record ProjectUpdateDto
 {
-    public Guid Id { get; init; }
-    public Guid ProjectId { get; init; }
-    public Guid UserId { get; init; }
+    public string Id { get; init; } = null!;
+    public string ProjectId { get; init; } = null!;
+    public string UserId { get; init; } = null!;
     public string Title { get; init; } = null!;
     public string Content { get; init; } = null!;
     public string? Images { get; init; }
@@ -249,8 +249,8 @@ public record ProjectUpdateDto
 
 public record CreateProjectUpdateDto
 {
-    public required Guid ProjectId { get; init; }
-    public required Guid UserId { get; init; }
+    public required string ProjectId { get; init; }
+    public required string UserId { get; init; }
     public required string Title { get; init; }
     public required string Content { get; init; }
     public string? Images { get; init; }
@@ -258,22 +258,22 @@ public record CreateProjectUpdateDto
 
 public record ProjectTaskDependencyDto
 {
-    public Guid Id { get; init; }
-    public Guid TaskId { get; init; }
-    public Guid DependsOnId { get; init; }
+    public string Id { get; init; } = null!;
+    public string TaskId { get; init; } = null!;
+    public string DependsOnId { get; init; } = null!;
 }
 
 public record CreateProjectTaskDependencyDto
 {
-    public required Guid TaskId { get; init; }
-    public required Guid DependsOnId { get; init; }
+    public required string TaskId { get; init; }
+    public required string DependsOnId { get; init; }
 }
 
 public record ProjectEquityDto
 {
-    public Guid Id { get; init; }
-    public Guid ProjectId { get; init; }
-    public Guid UserId { get; init; }
+    public string Id { get; init; } = null!;
+    public string ProjectId { get; init; } = null!;
+    public string UserId { get; init; } = null!;
     public decimal SharePercent { get; init; }
     public decimal InvestmentAmount { get; init; }
     public DateTime GrantedAt { get; init; }
@@ -281,8 +281,8 @@ public record ProjectEquityDto
 
 public record CreateProjectEquityDto
 {
-    public required Guid ProjectId { get; init; }
-    public required Guid UserId { get; init; }
+    public required string ProjectId { get; init; }
+    public required string UserId { get; init; }
     public required decimal SharePercent { get; init; }
     public required decimal InvestmentAmount { get; init; }
 }

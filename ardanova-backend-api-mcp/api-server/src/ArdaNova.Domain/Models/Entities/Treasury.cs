@@ -2,10 +2,12 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using Microsoft.EntityFrameworkCore;
 using ArdaNova.Domain.Models.Enums;
 
 namespace ArdaNova.Domain.Models.Entities;
 
+[Index(nameof(projectId), IsUnique = true)]
 [Table("Treasury")]
 public class Treasury
 {
@@ -17,6 +19,7 @@ public class Treasury
     public string projectId { get; set; } = string.Empty;
 
     [Required]
+    [Precision(18, 8)]
     public decimal balance { get; set; }
 
     public string? tokenAssetId { get; set; }

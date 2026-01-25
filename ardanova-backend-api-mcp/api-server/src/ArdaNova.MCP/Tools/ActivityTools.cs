@@ -19,7 +19,7 @@ public class ActivityTools
     [McpServerTool(Name = "activity_get_by_id")]
     [Description("Retrieves an activity by its unique identifier")]
     public async Task<ActivityDto?> GetActivityById(
-        [Description("The activity ID")] Guid id,
+        [Description("The activity ID")] string id,
         CancellationToken ct = default)
     {
         var result = await _activityService.GetByIdAsync(id, ct);
@@ -29,7 +29,7 @@ public class ActivityTools
     [McpServerTool(Name = "activity_get_by_user_id")]
     [Description("Retrieves all activities for a user")]
     public async Task<IReadOnlyList<ActivityDto>?> GetActivitiesByUserId(
-        [Description("The user ID")] Guid userId,
+        [Description("The user ID")] string userId,
         CancellationToken ct = default)
     {
         var result = await _activityService.GetByUserIdAsync(userId, ct);
@@ -39,7 +39,7 @@ public class ActivityTools
     [McpServerTool(Name = "activity_get_by_project_id")]
     [Description("Retrieves all activities for a project")]
     public async Task<IReadOnlyList<ActivityDto>?> GetActivitiesByProjectId(
-        [Description("The project ID")] Guid projectId,
+        [Description("The project ID")] string projectId,
         CancellationToken ct = default)
     {
         var result = await _activityService.GetByProjectIdAsync(projectId, ct);
@@ -49,12 +49,12 @@ public class ActivityTools
     [McpServerTool(Name = "activity_create")]
     [Description("Creates a new activity record")]
     public async Task<ActivityDto?> CreateActivity(
-        [Description("The user who performed the action")] Guid userId,
+        [Description("The user who performed the action")] string userId,
         [Description("The type of activity")] ActivityType type,
         [Description("The entity type (e.g., 'Project', 'Task')")] string entityType,
         [Description("The entity ID")] string entityId,
         [Description("Description of the action")] string action,
-        [Description("Optional project ID")] Guid? projectId = null,
+        [Description("Optional project ID")] string? projectId = null,
         CancellationToken ct = default)
     {
         var dto = new CreateActivityDto

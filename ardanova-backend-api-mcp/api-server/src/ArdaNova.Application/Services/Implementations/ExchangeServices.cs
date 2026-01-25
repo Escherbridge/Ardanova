@@ -21,7 +21,7 @@ public class TokenSwapService : ITokenSwapService
         _mapper = mapper;
     }
 
-    public async Task<Result<TokenSwapDto>> GetByIdAsync(Guid id, CancellationToken ct = default)
+    public async Task<Result<TokenSwapDto>> GetByIdAsync(string id, CancellationToken ct = default)
     {
         var swap = await _repository.GetByIdAsync(id, ct);
         if (swap is null)
@@ -29,88 +29,94 @@ public class TokenSwapService : ITokenSwapService
         return Result<TokenSwapDto>.Success(_mapper.Map<TokenSwapDto>(swap));
     }
 
-    public async Task<Result<IReadOnlyList<TokenSwapDto>>> GetByUserIdAsync(Guid userId, CancellationToken ct = default)
+    public async Task<Result<IReadOnlyList<TokenSwapDto>>> GetByUserIdAsync(string userId, CancellationToken ct = default)
     {
-        var swaps = await _repository.FindAsync(s => s.UserId == userId, ct);
-        var ordered = swaps.OrderByDescending(s => s.CreatedAt).ToList();
+        var swaps = await _repository.FindAsync(s => s.userId == userId, ct);
+        var ordered = swaps.OrderByDescending(s => s.createdAt).ToList();
         return Result<IReadOnlyList<TokenSwapDto>>.Success(_mapper.Map<IReadOnlyList<TokenSwapDto>>(ordered));
     }
 
-    public async Task<Result<PagedResult<TokenSwapDto>>> GetByUserIdPagedAsync(Guid userId, int page, int pageSize, CancellationToken ct = default)
+    public async Task<Result<PagedResult<TokenSwapDto>>> GetByUserIdPagedAsync(string userId, int page, int pageSize, CancellationToken ct = default)
     {
-        var result = await _repository.GetPagedAsync(page, pageSize, s => s.UserId == userId, ct);
+        var result = await _repository.GetPagedAsync(page, pageSize, s => s.userId == userId, ct);
         return Result<PagedResult<TokenSwapDto>>.Success(result.Map(_mapper.Map<TokenSwapDto>));
     }
 
     public async Task<Result<TokenSwapDto>> CreateAsync(CreateTokenSwapDto dto, CancellationToken ct = default)
     {
-        var swap = TokenSwap.Create(
-            dto.UserId,
-            dto.FromTokenId,
-            dto.ToTokenId,
-            dto.FromAmount,
-            dto.ToAmount,
-            dto.ExchangeRate,
-            dto.Fee
-        );
+        var swap = new TokenSwap
+        {
+            id = Guid.NewGuid().ToString(),
+            userId = dto.UserId,
+            fromTokenId = dto.FromTokenId,
+            toTokenId = dto.ToTokenId,
+            fromAmount = dto.FromAmount,
+            toAmount = dto.ToAmount,
+            exchangeRate = dto.ExchangeRate,
+            fee = dto.Fee,
+            status = SwapStatus.PENDING,
+            createdAt = DateTime.UtcNow
+        };
 
         await _repository.AddAsync(swap, ct);
         await _unitOfWork.SaveChangesAsync(ct);
         return Result<TokenSwapDto>.Success(_mapper.Map<TokenSwapDto>(swap));
     }
 
-    public async Task<Result<TokenSwapDto>> StartProcessingAsync(Guid id, CancellationToken ct = default)
+    public async Task<Result<TokenSwapDto>> StartProcessingAsync(string id, CancellationToken ct = default)
     {
         var swap = await _repository.GetByIdAsync(id, ct);
         if (swap is null)
             return Result<TokenSwapDto>.NotFound($"TokenSwap with id {id} not found");
 
-        if (swap.Status != SwapStatus.PENDING)
-            return Result<TokenSwapDto>.ValidationError($"Cannot process swap in status {swap.Status}");
+        if (swap.status != SwapStatus.PENDING)
+            return Result<TokenSwapDto>.ValidationError($"Cannot process swap in status {swap.status}");
 
-        swap.StartProcessing();
+        swap.status = SwapStatus.PROCESSING;
         await _repository.UpdateAsync(swap, ct);
         await _unitOfWork.SaveChangesAsync(ct);
         return Result<TokenSwapDto>.Success(_mapper.Map<TokenSwapDto>(swap));
     }
 
-    public async Task<Result<TokenSwapDto>> CompleteAsync(Guid id, CompleteSwapDto dto, CancellationToken ct = default)
+    public async Task<Result<TokenSwapDto>> CompleteAsync(string id, CompleteSwapDto dto, CancellationToken ct = default)
     {
         var swap = await _repository.GetByIdAsync(id, ct);
         if (swap is null)
             return Result<TokenSwapDto>.NotFound($"TokenSwap with id {id} not found");
 
-        if (swap.Status != SwapStatus.PROCESSING && swap.Status != SwapStatus.PENDING)
-            return Result<TokenSwapDto>.ValidationError($"Cannot complete swap in status {swap.Status}");
+        if (swap.status != SwapStatus.PROCESSING && swap.status != SwapStatus.PENDING)
+            return Result<TokenSwapDto>.ValidationError($"Cannot complete swap in status {swap.status}");
 
-        swap.Complete(dto.TxHash);
+        swap.status = SwapStatus.COMPLETED;
+        swap.txHash = dto.TxHash;
+        swap.completedAt = DateTime.UtcNow;
         await _repository.UpdateAsync(swap, ct);
         await _unitOfWork.SaveChangesAsync(ct);
         return Result<TokenSwapDto>.Success(_mapper.Map<TokenSwapDto>(swap));
     }
 
-    public async Task<Result<TokenSwapDto>> FailAsync(Guid id, CancellationToken ct = default)
+    public async Task<Result<TokenSwapDto>> FailAsync(string id, CancellationToken ct = default)
     {
         var swap = await _repository.GetByIdAsync(id, ct);
         if (swap is null)
             return Result<TokenSwapDto>.NotFound($"TokenSwap with id {id} not found");
 
-        swap.Fail();
+        swap.status = SwapStatus.FAILED;
         await _repository.UpdateAsync(swap, ct);
         await _unitOfWork.SaveChangesAsync(ct);
         return Result<TokenSwapDto>.Success(_mapper.Map<TokenSwapDto>(swap));
     }
 
-    public async Task<Result<TokenSwapDto>> CancelAsync(Guid id, CancellationToken ct = default)
+    public async Task<Result<TokenSwapDto>> CancelAsync(string id, CancellationToken ct = default)
     {
         var swap = await _repository.GetByIdAsync(id, ct);
         if (swap is null)
             return Result<TokenSwapDto>.NotFound($"TokenSwap with id {id} not found");
 
-        if (swap.Status != SwapStatus.PENDING)
+        if (swap.status != SwapStatus.PENDING)
             return Result<TokenSwapDto>.ValidationError($"Can only cancel pending swaps");
 
-        swap.Cancel();
+        swap.status = SwapStatus.CANCELLED;
         await _repository.UpdateAsync(swap, ct);
         await _unitOfWork.SaveChangesAsync(ct);
         return Result<TokenSwapDto>.Success(_mapper.Map<TokenSwapDto>(swap));
@@ -130,7 +136,7 @@ public class LiquidityPoolService : ILiquidityPoolService
         _mapper = mapper;
     }
 
-    public async Task<Result<LiquidityPoolDto>> GetByIdAsync(Guid id, CancellationToken ct = default)
+    public async Task<Result<LiquidityPoolDto>> GetByIdAsync(string id, CancellationToken ct = default)
     {
         var pool = await _repository.GetByIdAsync(id, ct);
         if (pool is null)
@@ -146,15 +152,15 @@ public class LiquidityPoolService : ILiquidityPoolService
 
     public async Task<Result<IReadOnlyList<LiquidityPoolDto>>> GetActivePoolsAsync(CancellationToken ct = default)
     {
-        var pools = await _repository.FindAsync(p => p.IsActive, ct);
+        var pools = await _repository.FindAsync(p => p.isActive, ct);
         return Result<IReadOnlyList<LiquidityPoolDto>>.Success(_mapper.Map<IReadOnlyList<LiquidityPoolDto>>(pools));
     }
 
-    public async Task<Result<LiquidityPoolDto>> GetByTokenPairAsync(Guid token1Id, Guid token2Id, CancellationToken ct = default)
+    public async Task<Result<LiquidityPoolDto>> GetByTokenPairAsync(string token1Id, string token2Id, CancellationToken ct = default)
     {
         var pool = await _repository.FindOneAsync(p =>
-            (p.Token1Id == token1Id && p.Token2Id == token2Id) ||
-            (p.Token1Id == token2Id && p.Token2Id == token1Id), ct);
+            (p.token1Id == token1Id && p.token2Id == token2Id) ||
+            (p.token1Id == token2Id && p.token2Id == token1Id), ct);
 
         if (pool is null)
             return Result<LiquidityPoolDto>.NotFound($"LiquidityPool for token pair not found");
@@ -164,61 +170,86 @@ public class LiquidityPoolService : ILiquidityPoolService
     public async Task<Result<LiquidityPoolDto>> CreateAsync(CreateLiquidityPoolDto dto, CancellationToken ct = default)
     {
         var exists = await _repository.ExistsAsync(p =>
-            (p.Token1Id == dto.Token1Id && p.Token2Id == dto.Token2Id) ||
-            (p.Token1Id == dto.Token2Id && p.Token2Id == dto.Token1Id), ct);
+            (p.token1Id == dto.Token1Id && p.token2Id == dto.Token2Id) ||
+            (p.token1Id == dto.Token2Id && p.token2Id == dto.Token1Id), ct);
 
         if (exists)
             return Result<LiquidityPoolDto>.ValidationError("Pool already exists for this token pair");
 
-        var pool = LiquidityPool.Create(dto.Token1Id, dto.Token2Id, dto.FeePercent);
+        var pool = new LiquidityPool
+        {
+            id = Guid.NewGuid().ToString(),
+            token1Id = dto.Token1Id,
+            token2Id = dto.Token2Id,
+            reserve1 = 0,
+            reserve2 = 0,
+            totalShares = 0,
+            feePercent = dto.FeePercent,
+            isActive = true,
+            createdAt = DateTime.UtcNow,
+            updatedAt = DateTime.UtcNow
+        };
+
         await _repository.AddAsync(pool, ct);
         await _unitOfWork.SaveChangesAsync(ct);
         return Result<LiquidityPoolDto>.Success(_mapper.Map<LiquidityPoolDto>(pool));
     }
 
-    public async Task<Result<LiquidityPoolDto>> AddLiquidityAsync(Guid id, AddLiquidityDto dto, CancellationToken ct = default)
+    public async Task<Result<LiquidityPoolDto>> AddLiquidityAsync(string id, AddLiquidityDto dto, CancellationToken ct = default)
     {
         var pool = await _repository.GetByIdAsync(id, ct);
         if (pool is null)
             return Result<LiquidityPoolDto>.NotFound($"LiquidityPool with id {id} not found");
 
-        pool.AddLiquidity(dto.Amount1, dto.Amount2, dto.Shares);
+        pool.reserve1 += dto.Amount1;
+        pool.reserve2 += dto.Amount2;
+        pool.totalShares += dto.Shares;
+        pool.updatedAt = DateTime.UtcNow;
+
         await _repository.UpdateAsync(pool, ct);
         await _unitOfWork.SaveChangesAsync(ct);
         return Result<LiquidityPoolDto>.Success(_mapper.Map<LiquidityPoolDto>(pool));
     }
 
-    public async Task<Result<LiquidityPoolDto>> RemoveLiquidityAsync(Guid id, RemoveLiquidityDto dto, CancellationToken ct = default)
+    public async Task<Result<LiquidityPoolDto>> RemoveLiquidityAsync(string id, RemoveLiquidityDto dto, CancellationToken ct = default)
     {
         var pool = await _repository.GetByIdAsync(id, ct);
         if (pool is null)
             return Result<LiquidityPoolDto>.NotFound($"LiquidityPool with id {id} not found");
 
-        pool.RemoveLiquidity(dto.Amount1, dto.Amount2, dto.Shares);
+        pool.reserve1 -= dto.Amount1;
+        pool.reserve2 -= dto.Amount2;
+        pool.totalShares -= dto.Shares;
+        pool.updatedAt = DateTime.UtcNow;
+
         await _repository.UpdateAsync(pool, ct);
         await _unitOfWork.SaveChangesAsync(ct);
         return Result<LiquidityPoolDto>.Success(_mapper.Map<LiquidityPoolDto>(pool));
     }
 
-    public async Task<Result<LiquidityPoolDto>> ActivateAsync(Guid id, CancellationToken ct = default)
+    public async Task<Result<LiquidityPoolDto>> ActivateAsync(string id, CancellationToken ct = default)
     {
         var pool = await _repository.GetByIdAsync(id, ct);
         if (pool is null)
             return Result<LiquidityPoolDto>.NotFound($"LiquidityPool with id {id} not found");
 
-        pool.Activate();
+        pool.isActive = true;
+        pool.updatedAt = DateTime.UtcNow;
+
         await _repository.UpdateAsync(pool, ct);
         await _unitOfWork.SaveChangesAsync(ct);
         return Result<LiquidityPoolDto>.Success(_mapper.Map<LiquidityPoolDto>(pool));
     }
 
-    public async Task<Result<LiquidityPoolDto>> DeactivateAsync(Guid id, CancellationToken ct = default)
+    public async Task<Result<LiquidityPoolDto>> DeactivateAsync(string id, CancellationToken ct = default)
     {
         var pool = await _repository.GetByIdAsync(id, ct);
         if (pool is null)
             return Result<LiquidityPoolDto>.NotFound($"LiquidityPool with id {id} not found");
 
-        pool.Deactivate();
+        pool.isActive = false;
+        pool.updatedAt = DateTime.UtcNow;
+
         await _repository.UpdateAsync(pool, ct);
         await _unitOfWork.SaveChangesAsync(ct);
         return Result<LiquidityPoolDto>.Success(_mapper.Map<LiquidityPoolDto>(pool));
@@ -238,7 +269,7 @@ public class LiquidityProviderService : ILiquidityProviderService
         _mapper = mapper;
     }
 
-    public async Task<Result<LiquidityProviderDto>> GetByIdAsync(Guid id, CancellationToken ct = default)
+    public async Task<Result<LiquidityProviderDto>> GetByIdAsync(string id, CancellationToken ct = default)
     {
         var provider = await _repository.GetByIdAsync(id, ct);
         if (provider is null)
@@ -246,21 +277,21 @@ public class LiquidityProviderService : ILiquidityProviderService
         return Result<LiquidityProviderDto>.Success(_mapper.Map<LiquidityProviderDto>(provider));
     }
 
-    public async Task<Result<IReadOnlyList<LiquidityProviderDto>>> GetByPoolIdAsync(Guid poolId, CancellationToken ct = default)
+    public async Task<Result<IReadOnlyList<LiquidityProviderDto>>> GetByPoolIdAsync(string poolId, CancellationToken ct = default)
     {
-        var providers = await _repository.FindAsync(p => p.PoolId == poolId, ct);
+        var providers = await _repository.FindAsync(p => p.poolId == poolId, ct);
         return Result<IReadOnlyList<LiquidityProviderDto>>.Success(_mapper.Map<IReadOnlyList<LiquidityProviderDto>>(providers));
     }
 
-    public async Task<Result<IReadOnlyList<LiquidityProviderDto>>> GetByUserIdAsync(Guid userId, CancellationToken ct = default)
+    public async Task<Result<IReadOnlyList<LiquidityProviderDto>>> GetByUserIdAsync(string userId, CancellationToken ct = default)
     {
-        var providers = await _repository.FindAsync(p => p.UserId == userId, ct);
+        var providers = await _repository.FindAsync(p => p.userId == userId, ct);
         return Result<IReadOnlyList<LiquidityProviderDto>>.Success(_mapper.Map<IReadOnlyList<LiquidityProviderDto>>(providers));
     }
 
-    public async Task<Result<LiquidityProviderDto>> GetByPoolAndUserAsync(Guid poolId, Guid userId, CancellationToken ct = default)
+    public async Task<Result<LiquidityProviderDto>> GetByPoolAndUserAsync(string poolId, string userId, CancellationToken ct = default)
     {
-        var provider = await _repository.FindOneAsync(p => p.PoolId == poolId && p.UserId == userId, ct);
+        var provider = await _repository.FindOneAsync(p => p.poolId == poolId && p.userId == userId, ct);
         if (provider is null)
             return Result<LiquidityProviderDto>.NotFound($"LiquidityProvider not found for pool {poolId} and user {userId}");
         return Result<LiquidityProviderDto>.Success(_mapper.Map<LiquidityProviderDto>(provider));
@@ -268,41 +299,60 @@ public class LiquidityProviderService : ILiquidityProviderService
 
     public async Task<Result<LiquidityProviderDto>> CreateAsync(CreateLiquidityProviderDto dto, CancellationToken ct = default)
     {
-        var exists = await _repository.ExistsAsync(p => p.PoolId == dto.PoolId && p.UserId == dto.UserId, ct);
+        var exists = await _repository.ExistsAsync(p => p.poolId == dto.PoolId && p.userId == dto.UserId, ct);
         if (exists)
             return Result<LiquidityProviderDto>.ValidationError("Provider position already exists for this pool and user");
 
-        var provider = LiquidityProvider.Create(dto.PoolId, dto.UserId, dto.Shares, dto.Token1In, dto.Token2In);
+        var provider = new LiquidityProvider
+        {
+            id = Guid.NewGuid().ToString(),
+            poolId = dto.PoolId,
+            userId = dto.UserId,
+            shares = dto.Shares,
+            token1In = dto.Token1In,
+            token2In = dto.Token2In,
+            createdAt = DateTime.UtcNow,
+            updatedAt = DateTime.UtcNow
+        };
+
         await _repository.AddAsync(provider, ct);
         await _unitOfWork.SaveChangesAsync(ct);
         return Result<LiquidityProviderDto>.Success(_mapper.Map<LiquidityProviderDto>(provider));
     }
 
-    public async Task<Result<LiquidityProviderDto>> AddLiquidityAsync(Guid id, decimal shares, decimal token1, decimal token2, CancellationToken ct = default)
+    public async Task<Result<LiquidityProviderDto>> AddLiquidityAsync(string id, decimal shares, decimal token1, decimal token2, CancellationToken ct = default)
     {
         var provider = await _repository.GetByIdAsync(id, ct);
         if (provider is null)
             return Result<LiquidityProviderDto>.NotFound($"LiquidityProvider with id {id} not found");
 
-        provider.AddLiquidity(shares, token1, token2);
+        provider.shares += shares;
+        provider.token1In += token1;
+        provider.token2In += token2;
+        provider.updatedAt = DateTime.UtcNow;
+
         await _repository.UpdateAsync(provider, ct);
         await _unitOfWork.SaveChangesAsync(ct);
         return Result<LiquidityProviderDto>.Success(_mapper.Map<LiquidityProviderDto>(provider));
     }
 
-    public async Task<Result<LiquidityProviderDto>> RemoveLiquidityAsync(Guid id, decimal shares, decimal token1, decimal token2, CancellationToken ct = default)
+    public async Task<Result<LiquidityProviderDto>> RemoveLiquidityAsync(string id, decimal shares, decimal token1, decimal token2, CancellationToken ct = default)
     {
         var provider = await _repository.GetByIdAsync(id, ct);
         if (provider is null)
             return Result<LiquidityProviderDto>.NotFound($"LiquidityProvider with id {id} not found");
 
-        provider.RemoveLiquidity(shares, token1, token2);
+        provider.shares -= shares;
+        provider.token1In -= token1;
+        provider.token2In -= token2;
+        provider.updatedAt = DateTime.UtcNow;
+
         await _repository.UpdateAsync(provider, ct);
         await _unitOfWork.SaveChangesAsync(ct);
         return Result<LiquidityProviderDto>.Success(_mapper.Map<LiquidityProviderDto>(provider));
     }
 
-    public async Task<Result<bool>> DeleteAsync(Guid id, CancellationToken ct = default)
+    public async Task<Result<bool>> DeleteAsync(string id, CancellationToken ct = default)
     {
         var provider = await _repository.GetByIdAsync(id, ct);
         if (provider is null)

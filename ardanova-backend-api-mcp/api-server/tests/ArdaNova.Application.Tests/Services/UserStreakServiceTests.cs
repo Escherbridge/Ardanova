@@ -29,9 +29,18 @@ public class UserStreakServiceTests
     public async Task GetByIdAsync_WhenStreakExists_ReturnsSuccessResult()
     {
         // Arrange
-        var streakId = Guid.NewGuid();
-        var userId = Guid.NewGuid();
-        var streak = UserStreak.Create(userId, StreakType.DAILY_LOGIN);
+        var streakId = Guid.NewGuid().ToString();
+        var userId = Guid.NewGuid().ToString();
+        var streak = new UserStreak
+        {
+            id = streakId,
+            userId = userId,
+            streakType = StreakType.DAILY_LOGIN,
+            currentStreak = 0,
+            longestStreak = 0,
+            createdAt = DateTime.UtcNow,
+            updatedAt = DateTime.UtcNow
+        };
         var streakDto = new UserStreakDto { Id = streakId, UserId = userId, StreakType = StreakType.DAILY_LOGIN };
 
         _repositoryMock.Setup(r => r.GetByIdAsync(streakId, It.IsAny<CancellationToken>()))
@@ -51,7 +60,7 @@ public class UserStreakServiceTests
     public async Task GetByIdAsync_WhenStreakNotExists_ReturnsNotFound()
     {
         // Arrange
-        var streakId = Guid.NewGuid();
+        var streakId = Guid.NewGuid().ToString();
         _repositoryMock.Setup(r => r.GetByIdAsync(streakId, It.IsAny<CancellationToken>()))
             .ReturnsAsync((UserStreak?)null);
 
@@ -67,8 +76,17 @@ public class UserStreakServiceTests
     public async Task GetByUserIdAsync_ReturnsStreakForUser()
     {
         // Arrange
-        var userId = Guid.NewGuid();
-        var streak = UserStreak.Create(userId, StreakType.DAILY_LOGIN);
+        var userId = Guid.NewGuid().ToString();
+        var streak = new UserStreak
+        {
+            id = Guid.NewGuid().ToString(),
+            userId = userId,
+            streakType = StreakType.DAILY_LOGIN,
+            currentStreak = 0,
+            longestStreak = 0,
+            createdAt = DateTime.UtcNow,
+            updatedAt = DateTime.UtcNow
+        };
         var streakDto = new UserStreakDto { UserId = userId, StreakType = StreakType.DAILY_LOGIN };
 
         _repositoryMock.Setup(r => r.FindOneAsync(It.IsAny<System.Linq.Expressions.Expression<Func<UserStreak, bool>>>(), It.IsAny<CancellationToken>()))
@@ -87,7 +105,7 @@ public class UserStreakServiceTests
     public async Task CreateAsync_WithValidDto_ReturnsCreatedStreak()
     {
         // Arrange
-        var userId = Guid.NewGuid();
+        var userId = Guid.NewGuid().ToString();
         var dto = new CreateUserStreakDto
         {
             UserId = userId,
@@ -118,8 +136,17 @@ public class UserStreakServiceTests
     public async Task RecordActivityAsync_WhenStreakExists_UpdatesStreak()
     {
         // Arrange
-        var userId = Guid.NewGuid();
-        var streak = UserStreak.Create(userId, StreakType.DAILY_LOGIN);
+        var userId = Guid.NewGuid().ToString();
+        var streak = new UserStreak
+        {
+            id = Guid.NewGuid().ToString(),
+            userId = userId,
+            streakType = StreakType.DAILY_LOGIN,
+            currentStreak = 0,
+            longestStreak = 0,
+            createdAt = DateTime.UtcNow,
+            updatedAt = DateTime.UtcNow
+        };
         var streakDto = new UserStreakDto { UserId = userId, CurrentStreak = 1 };
 
         _repositoryMock.Setup(r => r.FindOneAsync(It.IsAny<System.Linq.Expressions.Expression<Func<UserStreak, bool>>>(), It.IsAny<CancellationToken>()))

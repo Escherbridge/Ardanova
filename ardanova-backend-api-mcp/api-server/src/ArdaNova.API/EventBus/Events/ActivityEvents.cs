@@ -6,11 +6,11 @@ namespace ArdaNova.API.EventBus.Events;
 /// Event raised when an activity is logged.
 /// </summary>
 public sealed record ActivityLoggedEvent(
-    Guid ActivityId,
-    Guid? UserId,
+    string ActivityId,
+    string? UserId,
     string ActivityType,
     string Description,
-    Guid? EntityId,
+    string? EntityId,
     string? EntityType
 ) : DomainEvent
 {

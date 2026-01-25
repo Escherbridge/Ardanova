@@ -31,8 +31,8 @@ public class ProjectsController : ControllerBase
         return ToActionResult(result);
     }
 
-    [HttpGet("{id:guid}")]
-    public async Task<IActionResult> GetById(Guid id, CancellationToken ct)
+    [HttpGet("{id}")]
+    public async Task<IActionResult> GetById(string id, CancellationToken ct)
     {
         var result = await _projectService.GetByIdAsync(id, ct);
         return ToActionResult(result);
@@ -45,8 +45,8 @@ public class ProjectsController : ControllerBase
         return ToActionResult(result);
     }
 
-    [HttpGet("user/{userId:guid}")]
-    public async Task<IActionResult> GetByUserId(Guid userId, CancellationToken ct)
+    [HttpGet("user/{userId}")]
+    public async Task<IActionResult> GetByUserId(string userId, CancellationToken ct)
     {
         var result = await _projectService.GetByUserIdAsync(userId, ct);
         return ToActionResult(result);
@@ -82,29 +82,29 @@ public class ProjectsController : ControllerBase
             : ToActionResult(result);
     }
 
-    [HttpPut("{id:guid}")]
-    public async Task<IActionResult> Update(Guid id, [FromBody] UpdateProjectDto dto, CancellationToken ct)
+    [HttpPut("{id}")]
+    public async Task<IActionResult> Update(string id, [FromBody] UpdateProjectDto dto, CancellationToken ct)
     {
         var result = await _projectService.UpdateAsync(id, dto, ct);
         return ToActionResult(result);
     }
 
-    [HttpDelete("{id:guid}")]
-    public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
+    [HttpDelete("{id}")]
+    public async Task<IActionResult> Delete(string id, CancellationToken ct)
     {
         var result = await _projectService.DeleteAsync(id, ct);
         return result.IsSuccess ? NoContent() : ToActionResult(result);
     }
 
-    [HttpPost("{id:guid}/publish")]
-    public async Task<IActionResult> Publish(Guid id, CancellationToken ct)
+    [HttpPost("{id}/publish")]
+    public async Task<IActionResult> Publish(string id, CancellationToken ct)
     {
         var result = await _projectService.PublishAsync(id, ct);
         return ToActionResult(result);
     }
 
-    [HttpPost("{id:guid}/featured")]
-    public async Task<IActionResult> SetFeatured(Guid id, [FromQuery] bool featured, CancellationToken ct)
+    [HttpPost("{id}/featured")]
+    public async Task<IActionResult> SetFeatured(string id, [FromQuery] bool featured, CancellationToken ct)
     {
         var result = await _projectService.SetFeaturedAsync(id, featured, ct);
         return ToActionResult(result);

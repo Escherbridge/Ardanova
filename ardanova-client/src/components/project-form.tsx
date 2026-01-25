@@ -305,7 +305,7 @@ export function ProjectForm({ mode = "create", project }: ProjectFormProps) {
         <p className="text-sm sm:text-base text-gray-600 mt-2">
           {mode === "edit" 
             ? "Update your project details and make changes as needed"
-            : "Define your problem and solution to get started on your DoSo project"
+            : "Define your problem and solution to get started on your ArdaNova project"
           }
         </p>
       </div>

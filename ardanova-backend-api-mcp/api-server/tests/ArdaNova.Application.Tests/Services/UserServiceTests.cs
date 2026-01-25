@@ -29,8 +29,8 @@ public class UserServiceTests
     public async Task GetByIdAsync_WhenUserExists_ReturnsSuccessResult()
     {
         // Arrange
-        var userId = Guid.NewGuid();
-        var user = User.Create("test@example.com", name: "Test User");
+        var userId = Guid.NewGuid().ToString();
+        var user = new User { id = userId, email = "test@example.com", name = "Test User", verificationLevel = VerificationLevel.ANONYMOUS, createdAt = DateTime.UtcNow, updatedAt = DateTime.UtcNow };
         var userDto = new UserDto { Id = userId, Email = "test@example.com", Name = "Test User" };
 
         _repositoryMock.Setup(r => r.GetByIdAsync(userId, It.IsAny<CancellationToken>()))
@@ -50,7 +50,7 @@ public class UserServiceTests
     public async Task GetByIdAsync_WhenUserNotExists_ReturnsNotFound()
     {
         // Arrange
-        var userId = Guid.NewGuid();
+        var userId = Guid.NewGuid().ToString();
         _repositoryMock.Setup(r => r.GetByIdAsync(userId, It.IsAny<CancellationToken>()))
             .ReturnsAsync((User?)null);
 
@@ -68,8 +68,8 @@ public class UserServiceTests
         // Arrange
         var users = new List<User>
         {
-            User.Create("user1@example.com", name: "User 1"),
-            User.Create("user2@example.com", name: "User 2")
+            new User { id = Guid.NewGuid().ToString(), email = "user1@example.com", name = "User 1", verificationLevel = VerificationLevel.ANONYMOUS, createdAt = DateTime.UtcNow, updatedAt = DateTime.UtcNow },
+            new User { id = Guid.NewGuid().ToString(), email = "user2@example.com", name = "User 2", verificationLevel = VerificationLevel.ANONYMOUS, createdAt = DateTime.UtcNow, updatedAt = DateTime.UtcNow }
         };
         var userDtos = new List<UserDto>
         {
@@ -145,8 +145,8 @@ public class UserServiceTests
     public async Task DeleteAsync_WhenUserExists_ReturnsSuccess()
     {
         // Arrange
-        var userId = Guid.NewGuid();
-        var user = User.Create("test@example.com", name: "Test User");
+        var userId = Guid.NewGuid().ToString();
+        var user = new User { id = userId, email = "test@example.com", name = "Test User", verificationLevel = VerificationLevel.ANONYMOUS, createdAt = DateTime.UtcNow, updatedAt = DateTime.UtcNow };
 
         _repositoryMock.Setup(r => r.GetByIdAsync(userId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(user);
@@ -168,7 +168,7 @@ public class UserServiceTests
     public async Task DeleteAsync_WhenUserNotExists_ReturnsNotFound()
     {
         // Arrange
-        var userId = Guid.NewGuid();
+        var userId = Guid.NewGuid().ToString();
         _repositoryMock.Setup(r => r.GetByIdAsync(userId, It.IsAny<CancellationToken>()))
             .ReturnsAsync((User?)null);
 
@@ -185,7 +185,7 @@ public class UserServiceTests
     {
         // Arrange
         var email = "test@example.com";
-        var user = User.Create(email, name: "Test User");
+        var user = new User { id = Guid.NewGuid().ToString(), email = email, name = "Test User", verificationLevel = VerificationLevel.ANONYMOUS, createdAt = DateTime.UtcNow, updatedAt = DateTime.UtcNow };
         var userDto = new UserDto { Email = email, Name = "Test User" };
 
         _repositoryMock.Setup(r => r.FindOneAsync(It.IsAny<System.Linq.Expressions.Expression<Func<User, bool>>>(), It.IsAny<CancellationToken>()))
@@ -205,8 +205,8 @@ public class UserServiceTests
     public async Task VerifyAsync_WhenUserExists_VerifiesUser()
     {
         // Arrange
-        var userId = Guid.NewGuid();
-        var user = User.Create("test@example.com", name: "Test User");
+        var userId = Guid.NewGuid().ToString();
+        var user = new User { id = userId, email = "test@example.com", name = "Test User", verificationLevel = VerificationLevel.ANONYMOUS, createdAt = DateTime.UtcNow, updatedAt = DateTime.UtcNow };
         var userDto = new UserDto { Email = "test@example.com", IsVerified = true };
 
         _repositoryMock.Setup(r => r.GetByIdAsync(userId, It.IsAny<CancellationToken>()))

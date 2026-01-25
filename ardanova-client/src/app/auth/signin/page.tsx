@@ -18,7 +18,7 @@ export default async function SignInPage() {
           <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-lg bg-gradient-to-br from-blue-600 to-purple-600">
             <span className="text-2xl font-bold text-white">D</span>
           </div>
-          <CardTitle className="text-2xl">Welcome to DoSo</CardTitle>
+          <CardTitle className="text-2xl">Welcome to ArdaNova</CardTitle>
           <CardDescription>
             Sign in to continue to your dashboard
           </CardDescription>
@@ -43,7 +43,7 @@ export default async function SignInPage() {
             </Button>
           </div>
           <div className="text-center text-sm text-muted-foreground">
-            <p>Sign in with your Google account to access DoSo</p>
+            <p>Sign in with your Google account to access ArdaNova</p>
           </div>
         </CardContent>
       </Card>

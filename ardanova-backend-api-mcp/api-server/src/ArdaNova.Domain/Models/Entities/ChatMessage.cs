@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using Microsoft.EntityFrameworkCore;
 using ArdaNova.Domain.Models.Enums;
 
 namespace ArdaNova.Domain.Models.Entities;
@@ -34,9 +35,11 @@ public class ChatMessage
     public DateTime? seenAt { get; set; }
 
     [ForeignKey("userToId")]
+    [InverseProperty("ChatMessagesAsUserTo")]
     public virtual User? UserTo { get; set; }
 
     [ForeignKey("userFromId")]
+    [InverseProperty("ChatMessagesAsUserFrom")]
     public virtual User? UserFrom { get; set; }
 
     [ForeignKey("chatAttachmentId")]

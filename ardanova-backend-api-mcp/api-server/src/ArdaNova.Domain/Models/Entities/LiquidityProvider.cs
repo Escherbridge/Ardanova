@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using Microsoft.EntityFrameworkCore;
 using ArdaNova.Domain.Models.Enums;
 
 namespace ArdaNova.Domain.Models.Entities;
@@ -20,12 +21,15 @@ public class LiquidityProvider
     public string userId { get; set; } = string.Empty;
 
     [Required]
+    [Precision(18, 8)]
     public decimal shares { get; set; }
 
     [Required]
+    [Precision(18, 8)]
     public decimal token1In { get; set; }
 
     [Required]
+    [Precision(18, 8)]
     public decimal token2In { get; set; }
 
     [Required]

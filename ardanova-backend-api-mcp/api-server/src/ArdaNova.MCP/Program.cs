@@ -24,8 +24,8 @@ builder.Services
 // Register tool types for DI
 builder.Services.AddScoped<UserTools>();
 builder.Services.AddScoped<ProjectTools>();
-builder.Services.AddScoped<AgencyTools>();
-builder.Services.AddScoped<BusinessTools>();
+builder.Services.AddScoped<GuildTools>();
+builder.Services.AddScoped<ShopTools>();
 
 var app = builder.Build();
 

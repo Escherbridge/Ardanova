@@ -26,8 +26,8 @@ public class ArdaNovaApiClient : IDisposable
 
     public UserClient Users => new(_httpClient, _jsonOptions);
     public ProjectClient Projects => new(_httpClient, _jsonOptions);
-    public AgencyClient Agencies => new(_httpClient, _jsonOptions);
-    public BusinessClient Businesses => new(_httpClient, _jsonOptions);
+    public GuildClient Guilds => new(_httpClient, _jsonOptions);
+    public ShopClient Shops => new(_httpClient, _jsonOptions);
 
     public void Dispose()
     {
@@ -46,7 +46,7 @@ public class UserClient
         _json = json;
     }
 
-    public async Task<UserDto?> GetByIdAsync(Guid id) =>
+    public async Task<UserDto?> GetByIdAsync(string id) =>
         await _http.GetFromJsonAsync<UserDto>($"api/users/{id}", _json);
 
     public async Task<IReadOnlyList<UserDto>?> GetAllAsync() =>
@@ -65,20 +65,20 @@ public class UserClient
         return await response.Content.ReadFromJsonAsync<UserDto>(_json);
     }
 
-    public async Task<UserDto?> UpdateAsync(Guid id, UpdateUserDto dto)
+    public async Task<UserDto?> UpdateAsync(string id, UpdateUserDto dto)
     {
         var response = await _http.PutAsJsonAsync($"api/users/{id}", dto, _json);
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadFromJsonAsync<UserDto>(_json);
     }
 
-    public async Task DeleteAsync(Guid id)
+    public async Task DeleteAsync(string id)
     {
         var response = await _http.DeleteAsync($"api/users/{id}");
         response.EnsureSuccessStatusCode();
     }
 
-    public async Task<UserDto?> VerifyAsync(Guid id)
+    public async Task<UserDto?> VerifyAsync(string id)
     {
         var response = await _http.PostAsync($"api/users/{id}/verify", null);
         response.EnsureSuccessStatusCode();
@@ -97,7 +97,7 @@ public class ProjectClient
         _json = json;
     }
 
-    public async Task<ProjectDto?> GetByIdAsync(Guid id) =>
+    public async Task<ProjectDto?> GetByIdAsync(string id) =>
         await _http.GetFromJsonAsync<ProjectDto>($"api/projects/{id}", _json);
 
     public async Task<IReadOnlyList<ProjectDto>?> GetAllAsync() =>
@@ -119,20 +119,20 @@ public class ProjectClient
         return await response.Content.ReadFromJsonAsync<ProjectDto>(_json);
     }
 
-    public async Task<ProjectDto?> UpdateAsync(Guid id, UpdateProjectDto dto)
+    public async Task<ProjectDto?> UpdateAsync(string id, UpdateProjectDto dto)
     {
         var response = await _http.PutAsJsonAsync($"api/projects/{id}", dto, _json);
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadFromJsonAsync<ProjectDto>(_json);
     }
 
-    public async Task DeleteAsync(Guid id)
+    public async Task DeleteAsync(string id)
     {
         var response = await _http.DeleteAsync($"api/projects/{id}");
         response.EnsureSuccessStatusCode();
     }
 
-    public async Task<ProjectDto?> PublishAsync(Guid id)
+    public async Task<ProjectDto?> PublishAsync(string id)
     {
         var response = await _http.PostAsync($"api/projects/{id}/publish", null);
         response.EnsureSuccessStatusCode();
@@ -140,84 +140,90 @@ public class ProjectClient
     }
 }
 
-public class AgencyClient
+public class GuildClient
 {
     private readonly HttpClient _http;
     private readonly JsonSerializerOptions _json;
 
-    public AgencyClient(HttpClient http, JsonSerializerOptions json)
+    public GuildClient(HttpClient http, JsonSerializerOptions json)
     {
         _http = http;
         _json = json;
     }
 
-    public async Task<AgencyDto?> GetByIdAsync(Guid id) =>
-        await _http.GetFromJsonAsync<AgencyDto>($"api/agencies/{id}", _json);
+    public async Task<GuildDto?> GetByIdAsync(string id) =>
+        await _http.GetFromJsonAsync<GuildDto>($"api/guilds/{id}", _json);
 
-    public async Task<IReadOnlyList<AgencyDto>?> GetAllAsync() =>
-        await _http.GetFromJsonAsync<IReadOnlyList<AgencyDto>>("api/agencies", _json);
+    public async Task<IReadOnlyList<GuildDto>?> GetAllAsync() =>
+        await _http.GetFromJsonAsync<IReadOnlyList<GuildDto>>("api/guilds", _json);
 
-    public async Task<PagedResult<AgencyDto>?> GetPagedAsync(int page = 1, int pageSize = 10) =>
-        await _http.GetFromJsonAsync<PagedResult<AgencyDto>>($"api/agencies/paged?page={page}&pageSize={pageSize}", _json);
+    public async Task<PagedResult<GuildDto>?> GetPagedAsync(int page = 1, int pageSize = 10) =>
+        await _http.GetFromJsonAsync<PagedResult<GuildDto>>($"api/guilds/paged?page={page}&pageSize={pageSize}", _json);
 
-    public async Task<AgencyDto?> CreateAsync(CreateAgencyDto dto)
+    public async Task<GuildDto?> GetBySlugAsync(string slug) =>
+        await _http.GetFromJsonAsync<GuildDto>($"api/guilds/slug/{slug}", _json);
+
+    public async Task<GuildDto?> CreateAsync(CreateGuildDto dto)
     {
-        var response = await _http.PostAsJsonAsync("api/agencies", dto, _json);
+        var response = await _http.PostAsJsonAsync("api/guilds", dto, _json);
         response.EnsureSuccessStatusCode();
-        return await response.Content.ReadFromJsonAsync<AgencyDto>(_json);
+        return await response.Content.ReadFromJsonAsync<GuildDto>(_json);
     }
 
-    public async Task<AgencyDto?> UpdateAsync(Guid id, UpdateAgencyDto dto)
+    public async Task<GuildDto?> UpdateAsync(string id, UpdateGuildDto dto)
     {
-        var response = await _http.PutAsJsonAsync($"api/agencies/{id}", dto, _json);
+        var response = await _http.PutAsJsonAsync($"api/guilds/{id}", dto, _json);
         response.EnsureSuccessStatusCode();
-        return await response.Content.ReadFromJsonAsync<AgencyDto>(_json);
+        return await response.Content.ReadFromJsonAsync<GuildDto>(_json);
     }
 
-    public async Task DeleteAsync(Guid id)
+    public async Task DeleteAsync(string id)
     {
-        var response = await _http.DeleteAsync($"api/agencies/{id}");
+        var response = await _http.DeleteAsync($"api/guilds/{id}");
         response.EnsureSuccessStatusCode();
     }
 }
 
-public class BusinessClient
+public class ShopClient
 {
     private readonly HttpClient _http;
     private readonly JsonSerializerOptions _json;
 
-    public BusinessClient(HttpClient http, JsonSerializerOptions json)
+    public ShopClient(HttpClient http, JsonSerializerOptions json)
     {
         _http = http;
         _json = json;
     }
 
-    public async Task<BusinessDto?> GetByIdAsync(Guid id) =>
-        await _http.GetFromJsonAsync<BusinessDto>($"api/businesses/{id}", _json);
+    public async Task<ShopDto?> GetByIdAsync(string id) =>
+        await _http.GetFromJsonAsync<ShopDto>($"api/shops/{id}", _json);
 
-    public async Task<IReadOnlyList<BusinessDto>?> GetAllAsync() =>
-        await _http.GetFromJsonAsync<IReadOnlyList<BusinessDto>>("api/businesses", _json);
+    public async Task<IReadOnlyList<ShopDto>?> GetAllAsync() =>
+        await _http.GetFromJsonAsync<IReadOnlyList<ShopDto>>("api/shops", _json);
 
-    public async Task<PagedResult<BusinessDto>?> GetPagedAsync(int page = 1, int pageSize = 10) =>
-        await _http.GetFromJsonAsync<PagedResult<BusinessDto>>($"api/businesses/paged?page={page}&pageSize={pageSize}", _json);
+    public async Task<PagedResult<ShopDto>?> GetPagedAsync(int page = 1, int pageSize = 10) =>
+        await _http.GetFromJsonAsync<PagedResult<ShopDto>>($"api/shops/paged?page={page}&pageSize={pageSize}", _json);
 
-    public async Task<BusinessDto?> CreateAsync(CreateBusinessDto dto)
+    public async Task<IReadOnlyList<ShopDto>?> GetByOwnerIdAsync(string ownerId) =>
+        await _http.GetFromJsonAsync<IReadOnlyList<ShopDto>>($"api/shops/owner/{ownerId}", _json);
+
+    public async Task<ShopDto?> CreateAsync(CreateShopDto dto)
     {
-        var response = await _http.PostAsJsonAsync("api/businesses", dto, _json);
+        var response = await _http.PostAsJsonAsync("api/shops", dto, _json);
         response.EnsureSuccessStatusCode();
-        return await response.Content.ReadFromJsonAsync<BusinessDto>(_json);
+        return await response.Content.ReadFromJsonAsync<ShopDto>(_json);
     }
 
-    public async Task<BusinessDto?> UpdateAsync(Guid id, UpdateBusinessDto dto)
+    public async Task<ShopDto?> UpdateAsync(string id, UpdateShopDto dto)
     {
-        var response = await _http.PutAsJsonAsync($"api/businesses/{id}", dto, _json);
+        var response = await _http.PutAsJsonAsync($"api/shops/{id}", dto, _json);
         response.EnsureSuccessStatusCode();
-        return await response.Content.ReadFromJsonAsync<BusinessDto>(_json);
+        return await response.Content.ReadFromJsonAsync<ShopDto>(_json);
     }
 
-    public async Task DeleteAsync(Guid id)
+    public async Task DeleteAsync(string id)
     {
-        var response = await _http.DeleteAsync($"api/businesses/{id}");
+        var response = await _http.DeleteAsync($"api/shops/{id}");
         response.EnsureSuccessStatusCode();
     }
 }

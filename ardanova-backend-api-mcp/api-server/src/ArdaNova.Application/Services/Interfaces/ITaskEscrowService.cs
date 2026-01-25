@@ -5,11 +5,11 @@ using ArdaNova.Application.DTOs;
 
 public interface ITaskEscrowService
 {
-    Task<Result<TaskEscrowDto>> GetByIdAsync(Guid id, CancellationToken ct = default);
-    Task<Result<TaskEscrowDto>> GetByTaskIdAsync(Guid taskId, CancellationToken ct = default);
-    Task<Result<IReadOnlyList<TaskEscrowDto>>> GetByFunderIdAsync(Guid funderId, CancellationToken ct = default);
+    Task<Result<TaskEscrowDto>> GetByIdAsync(string id, CancellationToken ct = default);
+    Task<Result<TaskEscrowDto>> GetByTaskIdAsync(string taskId, CancellationToken ct = default);
+    Task<Result<IReadOnlyList<TaskEscrowDto>>> GetByFunderIdAsync(string funderId, CancellationToken ct = default);
     Task<Result<TaskEscrowDto>> CreateAsync(CreateTaskEscrowDto dto, CancellationToken ct = default);
-    Task<Result<TaskEscrowDto>> ReleaseAsync(Guid id, ReleaseEscrowDto dto, CancellationToken ct = default);
-    Task<Result<TaskEscrowDto>> DisputeAsync(Guid id, CancellationToken ct = default);
-    Task<Result<TaskEscrowDto>> RefundAsync(Guid id, RefundEscrowDto dto, CancellationToken ct = default);
+    Task<Result<TaskEscrowDto>> ReleaseAsync(string id, ReleaseEscrowDto dto, CancellationToken ct = default);
+    Task<Result<TaskEscrowDto>> DisputeAsync(string id, CancellationToken ct = default);
+    Task<Result<TaskEscrowDto>> RefundAsync(string id, RefundEscrowDto dto, CancellationToken ct = default);
 }

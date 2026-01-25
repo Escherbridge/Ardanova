@@ -6,7 +6,7 @@ namespace ArdaNova.API.EventBus.Events;
 /// Event raised when a new user is created.
 /// </summary>
 public sealed record UserCreatedEvent(
-    Guid UserId,
+    string UserId,
     string Email,
     string? Name
 ) : DomainEvent
@@ -18,7 +18,7 @@ public sealed record UserCreatedEvent(
 /// Event raised when a user's profile is updated.
 /// </summary>
 public sealed record UserUpdatedEvent(
-    Guid UserId,
+    string UserId,
     string? Name,
     string? Email
 ) : DomainEvent
@@ -30,7 +30,7 @@ public sealed record UserUpdatedEvent(
 /// Event raised when a user is verified.
 /// </summary>
 public sealed record UserVerifiedEvent(
-    Guid UserId
+    string UserId
 ) : DomainEvent
 {
     public override string EventType => "user.verified";
@@ -40,7 +40,7 @@ public sealed record UserVerifiedEvent(
 /// Event raised when a user is deleted.
 /// </summary>
 public sealed record UserDeletedEvent(
-    Guid UserId
+    string UserId
 ) : DomainEvent
 {
     public override string EventType => "user.deleted";

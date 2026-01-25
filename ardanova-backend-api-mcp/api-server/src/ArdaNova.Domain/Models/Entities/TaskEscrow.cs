@@ -2,10 +2,12 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using Microsoft.EntityFrameworkCore;
 using ArdaNova.Domain.Models.Enums;
 
 namespace ArdaNova.Domain.Models.Entities;
 
+[Index(nameof(taskId), IsUnique = true)]
 [Table("TaskEscrow")]
 public class TaskEscrow
 {
@@ -23,6 +25,7 @@ public class TaskEscrow
     public string tokenId { get; set; } = string.Empty;
 
     [Required]
+    [Precision(18, 8)]
     public decimal amount { get; set; }
 
     [Required]

@@ -16,15 +16,15 @@ public class WalletsController : ControllerBase
         _walletService = walletService;
     }
 
-    [HttpGet("{id:guid}")]
-    public async Task<IActionResult> GetById(Guid id, CancellationToken ct)
+    [HttpGet("{id}")]
+    public async Task<IActionResult> GetById(string id, CancellationToken ct)
     {
         var result = await _walletService.GetByIdAsync(id, ct);
         return ToActionResult(result);
     }
 
-    [HttpGet("user/{userId:guid}")]
-    public async Task<IActionResult> GetByUserId(Guid userId, CancellationToken ct)
+    [HttpGet("user/{userId}")]
+    public async Task<IActionResult> GetByUserId(string userId, CancellationToken ct)
     {
         var result = await _walletService.GetByUserIdAsync(userId, ct);
         return ToActionResult(result);
@@ -37,8 +37,8 @@ public class WalletsController : ControllerBase
         return ToActionResult(result);
     }
 
-    [HttpGet("user/{userId:guid}/primary")]
-    public async Task<IActionResult> GetPrimaryWallet(Guid userId, CancellationToken ct)
+    [HttpGet("user/{userId}/primary")]
+    public async Task<IActionResult> GetPrimaryWallet(string userId, CancellationToken ct)
     {
         var result = await _walletService.GetPrimaryWalletAsync(userId, ct);
         return ToActionResult(result);
@@ -53,29 +53,29 @@ public class WalletsController : ControllerBase
             : ToActionResult(result);
     }
 
-    [HttpPut("{id:guid}")]
-    public async Task<IActionResult> Update(Guid id, [FromBody] UpdateWalletDto dto, CancellationToken ct)
+    [HttpPut("{id}")]
+    public async Task<IActionResult> Update(string id, [FromBody] UpdateWalletDto dto, CancellationToken ct)
     {
         var result = await _walletService.UpdateAsync(id, dto, ct);
         return ToActionResult(result);
     }
 
-    [HttpPost("{id:guid}/verify")]
-    public async Task<IActionResult> Verify(Guid id, CancellationToken ct)
+    [HttpPost("{id}/verify")]
+    public async Task<IActionResult> Verify(string id, CancellationToken ct)
     {
         var result = await _walletService.VerifyAsync(id, ct);
         return ToActionResult(result);
     }
 
-    [HttpPost("{id:guid}/set-primary")]
-    public async Task<IActionResult> SetPrimary(Guid id, CancellationToken ct)
+    [HttpPost("{id}/set-primary")]
+    public async Task<IActionResult> SetPrimary(string id, CancellationToken ct)
     {
         var result = await _walletService.SetPrimaryAsync(id, ct);
         return ToActionResult(result);
     }
 
-    [HttpDelete("{id:guid}")]
-    public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
+    [HttpDelete("{id}")]
+    public async Task<IActionResult> Delete(string id, CancellationToken ct)
     {
         var result = await _walletService.DeleteAsync(id, ct);
         return result.IsSuccess ? NoContent() : ToActionResult(result);

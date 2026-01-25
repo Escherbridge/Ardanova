@@ -2,10 +2,12 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using Microsoft.EntityFrameworkCore;
 using ArdaNova.Domain.Models.Enums;
 
 namespace ArdaNova.Domain.Models.Entities;
 
+[Index(nameof(taskId), IsUnique = true)]
 [Table("TaskCompensation")]
 public class TaskCompensation
 {
@@ -19,12 +21,16 @@ public class TaskCompensation
     [Required]
     public CompensationModel model { get; set; }
 
+    [Precision(18, 8)]
     public decimal? tokenAmount { get; set; }
 
+    [Precision(18, 8)]
     public decimal? hourlyRate { get; set; }
 
+    [Precision(18, 8)]
     public decimal? equityPercent { get; set; }
 
+    [Precision(18, 8)]
     public decimal? stableCoinAmount { get; set; }
 
     public int? vestingMonths { get; set; }

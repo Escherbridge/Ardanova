@@ -18,7 +18,7 @@ public class DelegatedVoteTools
     [McpServerTool(Name = "delegation_get_by_id")]
     [Description("Retrieves a vote delegation by its unique identifier")]
     public async Task<DelegatedVoteDto?> GetDelegationById(
-        [Description("The delegation ID")] Guid id,
+        [Description("The delegation ID")] string id,
         CancellationToken ct = default)
     {
         var result = await _delegatedVoteService.GetByIdAsync(id, ct);
@@ -28,7 +28,7 @@ public class DelegatedVoteTools
     [McpServerTool(Name = "delegation_get_by_delegator")]
     [Description("Retrieves all vote delegations from a user")]
     public async Task<IReadOnlyList<DelegatedVoteDto>?> GetDelegationsByDelegator(
-        [Description("The delegator user ID")] Guid delegatorId,
+        [Description("The delegator user ID")] string delegatorId,
         CancellationToken ct = default)
     {
         var result = await _delegatedVoteService.GetByDelegatorIdAsync(delegatorId, ct);
@@ -38,7 +38,7 @@ public class DelegatedVoteTools
     [McpServerTool(Name = "delegation_get_by_delegatee")]
     [Description("Retrieves all vote delegations to a user")]
     public async Task<IReadOnlyList<DelegatedVoteDto>?> GetDelegationsByDelegatee(
-        [Description("The delegatee user ID")] Guid delegateeId,
+        [Description("The delegatee user ID")] string delegateeId,
         CancellationToken ct = default)
     {
         var result = await _delegatedVoteService.GetByDelegateeIdAsync(delegateeId, ct);
@@ -48,7 +48,7 @@ public class DelegatedVoteTools
     [McpServerTool(Name = "delegation_get_active_by_project")]
     [Description("Retrieves all active vote delegations for a project")]
     public async Task<IReadOnlyList<DelegatedVoteDto>?> GetActiveDelegationsByProject(
-        [Description("The project ID")] Guid projectId,
+        [Description("The project ID")] string projectId,
         CancellationToken ct = default)
     {
         var result = await _delegatedVoteService.GetActiveByProjectIdAsync(projectId, ct);
@@ -58,8 +58,8 @@ public class DelegatedVoteTools
     [McpServerTool(Name = "delegation_get_total_power")]
     [Description("Gets the total delegated voting power for a user in a project")]
     public async Task<decimal> GetTotalDelegatedPower(
-        [Description("The delegatee user ID")] Guid delegateeId,
-        [Description("The project ID")] Guid projectId,
+        [Description("The delegatee user ID")] string delegateeId,
+        [Description("The project ID")] string projectId,
         CancellationToken ct = default)
     {
         var result = await _delegatedVoteService.GetTotalDelegatedPowerAsync(delegateeId, projectId, ct);
@@ -69,10 +69,10 @@ public class DelegatedVoteTools
     [McpServerTool(Name = "delegation_create")]
     [Description("Creates a new vote delegation")]
     public async Task<DelegatedVoteDto?> CreateDelegation(
-        [Description("The project ID")] Guid projectId,
-        [Description("The delegator user ID")] Guid delegatorId,
-        [Description("The delegatee user ID")] Guid delegateeId,
-        [Description("The token ID")] Guid tokenId,
+        [Description("The project ID")] string projectId,
+        [Description("The delegator user ID")] string delegatorId,
+        [Description("The delegatee user ID")] string delegateeId,
+        [Description("The token ID")] string tokenId,
         [Description("The amount to delegate")] decimal amount,
         [Description("Optional expiration date")] DateTime? expiresAt = null,
         CancellationToken ct = default)
@@ -93,7 +93,7 @@ public class DelegatedVoteTools
     [McpServerTool(Name = "delegation_revoke")]
     [Description("Revokes a vote delegation")]
     public async Task<DelegatedVoteDto?> RevokeDelegation(
-        [Description("The delegation ID")] Guid id,
+        [Description("The delegation ID")] string id,
         CancellationToken ct = default)
     {
         var result = await _delegatedVoteService.RevokeAsync(id, ct);

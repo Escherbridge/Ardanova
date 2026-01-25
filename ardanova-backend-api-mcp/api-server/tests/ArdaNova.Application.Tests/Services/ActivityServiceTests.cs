@@ -29,9 +29,18 @@ public class ActivityServiceTests
     public async Task GetByIdAsync_WhenActivityExists_ReturnsSuccessResult()
     {
         // Arrange
-        var activityId = Guid.NewGuid();
-        var userId = Guid.NewGuid();
-        var activity = Activity.Create(userId, ActivityType.CREATED, "Project", "1", "Created a new project");
+        var activityId = Guid.NewGuid().ToString();
+        var userId = Guid.NewGuid().ToString();
+        var activity = new Activity
+        {
+            id = activityId,
+            userId = userId,
+            type = ActivityType.CREATED,
+            entityType = "Project",
+            entityId = "1",
+            action = "Created a new project",
+            createdAt = DateTime.UtcNow
+        };
         var activityDto = new ActivityDto { Id = activityId, UserId = userId, Action = "Created a new project" };
 
         _repositoryMock.Setup(r => r.GetByIdAsync(activityId, It.IsAny<CancellationToken>()))
@@ -51,7 +60,7 @@ public class ActivityServiceTests
     public async Task GetByIdAsync_WhenActivityNotExists_ReturnsNotFound()
     {
         // Arrange
-        var activityId = Guid.NewGuid();
+        var activityId = Guid.NewGuid().ToString();
         _repositoryMock.Setup(r => r.GetByIdAsync(activityId, It.IsAny<CancellationToken>()))
             .ReturnsAsync((Activity?)null);
 
@@ -67,11 +76,11 @@ public class ActivityServiceTests
     public async Task GetByUserIdAsync_ReturnsActivitiesForUser()
     {
         // Arrange
-        var userId = Guid.NewGuid();
+        var userId = Guid.NewGuid().ToString();
         var activities = new List<Activity>
         {
-            Activity.Create(userId, ActivityType.CREATED, "Project", "1", "Created project"),
-            Activity.Create(userId, ActivityType.COMPLETED, "Task", "2", "Completed task")
+            new Activity { id = Guid.NewGuid().ToString(), userId = userId, type = ActivityType.CREATED, entityType = "Project", entityId = "1", action = "Created project", createdAt = DateTime.UtcNow },
+            new Activity { id = Guid.NewGuid().ToString(), userId = userId, type = ActivityType.COMPLETED, entityType = "Task", entityId = "2", action = "Completed task", createdAt = DateTime.UtcNow }
         };
         var activityDtos = new List<ActivityDto>
         {
@@ -95,12 +104,12 @@ public class ActivityServiceTests
     public async Task GetByProjectIdAsync_ReturnsActivitiesForProject()
     {
         // Arrange
-        var projectId = Guid.NewGuid();
-        var userId = Guid.NewGuid();
+        var projectId = Guid.NewGuid().ToString();
+        var userId = Guid.NewGuid().ToString();
         var activities = new List<Activity>
         {
-            Activity.Create(userId, ActivityType.CREATED, "Project", projectId.ToString(), "Created", projectId),
-            Activity.Create(userId, ActivityType.UPDATED, "Task", "1", "Assigned", projectId)
+            new Activity { id = Guid.NewGuid().ToString(), userId = userId, type = ActivityType.CREATED, entityType = "Project", entityId = projectId, action = "Created", projectId = projectId, createdAt = DateTime.UtcNow },
+            new Activity { id = Guid.NewGuid().ToString(), userId = userId, type = ActivityType.UPDATED, entityType = "Task", entityId = "1", action = "Assigned", projectId = projectId, createdAt = DateTime.UtcNow }
         };
         var activityDtos = new List<ActivityDto>
         {
@@ -124,7 +133,7 @@ public class ActivityServiceTests
     public async Task CreateAsync_WithValidDto_ReturnsCreatedActivity()
     {
         // Arrange
-        var userId = Guid.NewGuid();
+        var userId = Guid.NewGuid().ToString();
         var dto = new CreateActivityDto
         {
             UserId = userId,

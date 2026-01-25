@@ -2,10 +2,13 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using Microsoft.EntityFrameworkCore;
 using ArdaNova.Domain.Models.Enums;
 
 namespace ArdaNova.Domain.Models.Entities;
 
+[Index(nameof(slug), IsUnique = true)]
+[Index(nameof(ownerId), IsUnique = true)]
 [Table("Guild")]
 public class Guild
 {
@@ -20,6 +23,7 @@ public class Guild
     public string slug { get; set; } = string.Empty;
 
     [Required]
+    [Column(TypeName = "text")]
     public string description { get; set; } = string.Empty;
 
     public string? website { get; set; }
@@ -29,17 +33,21 @@ public class Guild
 
     public string? phone { get; set; }
 
+    [Column(TypeName = "text")]
     public string? address { get; set; }
 
     public string? logo { get; set; }
 
+    [Column(TypeName = "text")]
     public string? portfolio { get; set; }
 
+    [Column(TypeName = "text")]
     public string? specialties { get; set; }
 
     [Required]
     public bool isVerified { get; set; }
 
+    [Precision(18, 8)]
     public decimal? rating { get; set; }
 
     [Required]

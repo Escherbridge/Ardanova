@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using Microsoft.EntityFrameworkCore;
 using ArdaNova.Domain.Models.Enums;
 
 namespace ArdaNova.Domain.Models.Entities;
@@ -23,8 +24,10 @@ public class Vote
     public int choice { get; set; }
 
     [Required]
+    [Precision(18, 8)]
     public decimal weight { get; set; }
 
+    [Column(TypeName = "text")]
     public string? reason { get; set; }
 
     public string? txHash { get; set; }

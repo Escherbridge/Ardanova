@@ -1190,7 +1190,7 @@ const agentCommands = {
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    DOSO PLATFORM DAO                             │
+│                    ArdaNova PLATFORM DAO                             │
 │           (Governs the platform itself)                          │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                  │

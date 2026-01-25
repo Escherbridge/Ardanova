@@ -18,7 +18,7 @@ public class UserTools
     [McpServerTool(Name = "user_get_by_id")]
     [Description("Retrieves a user by their unique identifier")]
     public async Task<UserDto?> GetUserById(
-        [Description("The unique identifier of the user")] Guid id,
+        [Description("The unique identifier of the user")] string id,
         CancellationToken ct = default)
     {
         var result = await _userService.GetByIdAsync(id, ct);

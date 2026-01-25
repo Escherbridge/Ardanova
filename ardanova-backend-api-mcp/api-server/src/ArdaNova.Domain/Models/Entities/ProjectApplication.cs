@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using Microsoft.EntityFrameworkCore;
 using ArdaNova.Domain.Models.Enums;
 
 namespace ArdaNova.Domain.Models.Entities;
@@ -23,10 +24,13 @@ public class ProjectApplication
     public string roleTitle { get; set; } = string.Empty;
 
     [Required]
+    [Column(TypeName = "text")]
     public string message { get; set; } = string.Empty;
 
+    [Column(TypeName = "text")]
     public string? skills { get; set; }
 
+    [Column(TypeName = "text")]
     public string? experience { get; set; }
 
     public string? availability { get; set; }
@@ -39,6 +43,7 @@ public class ProjectApplication
 
     public DateTime? reviewedAt { get; set; }
 
+    [Column(TypeName = "text")]
     public string? reviewMessage { get; set; }
 
     [ForeignKey("projectId")]

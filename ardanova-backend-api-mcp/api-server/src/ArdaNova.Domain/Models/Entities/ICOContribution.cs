@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using Microsoft.EntityFrameworkCore;
 using ArdaNova.Domain.Models.Enums;
 
 namespace ArdaNova.Domain.Models.Entities;
@@ -20,9 +21,11 @@ public class ICOContribution
     public string userId { get; set; } = string.Empty;
 
     [Required]
+    [Precision(18, 8)]
     public decimal amount { get; set; }
 
     [Required]
+    [Precision(18, 8)]
     public decimal tokenAmount { get; set; }
 
     [Required]
