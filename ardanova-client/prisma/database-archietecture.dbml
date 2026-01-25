@@ -102,13 +102,10 @@ Table UserExperience {
 Ref: UserExperience.userId > User.id
 
 Table VerificationToken {
+  id varchar [not null, pk, default: `cuid()`]
   identifier varchar [not null]
   token varchar [not null, unique]
   expires datetime [not null]
-  
-  indexes {
-    (identifier, token) [pk]
-  }
 }
 Ref: VerificationToken.identifier > User.id
 

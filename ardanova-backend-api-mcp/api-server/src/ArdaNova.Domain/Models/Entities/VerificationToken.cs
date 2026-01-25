@@ -9,6 +9,10 @@ namespace ArdaNova.Domain.Models.Entities;
 [Table("VerificationToken")]
 public class VerificationToken
 {
+    [Key]
+    [Required]
+    public string id { get; set; } = string.Empty;
+
     [Required]
     public string identifier { get; set; } = string.Empty;
 

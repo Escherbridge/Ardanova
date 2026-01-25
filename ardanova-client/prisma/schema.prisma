@@ -537,12 +537,11 @@ model UserExperience {
 }
 
 model VerificationToken {
+  id String @id @default(cuid())
   identifier String
   token String @unique
   expires DateTime
   user User @relation("VerificationToken_identifier", fields: [identifier], references: [id])
-
-  @@id([identifier, token])
 }
 
 model Notification {
