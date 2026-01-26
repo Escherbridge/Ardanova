@@ -3,6 +3,11 @@ import { BaseApiClient, type BaseApiClientConfig } from "../base-client";
 import { UsersEndpoint } from "./endpoints/users";
 import { ProjectsEndpoint } from "./endpoints/projects";
 import { GuildsEndpoint } from "./endpoints/guilds";
+import { ShopsEndpoint } from "./endpoints/shops";
+import { TasksEndpoint } from "./endpoints/tasks";
+import { EventsEndpoint } from "./endpoints/events";
+import { OpportunitiesEndpoint } from "./endpoints/opportunities";
+import { GovernanceEndpoint } from "./endpoints/governance";
 
 // Re-export types from endpoints
 export type { User, CreateUserDto, UpdateUserDto } from "./endpoints/users";
@@ -22,6 +27,11 @@ export type {
   UpdateGuildReviewDto,
   BidStatus,
 } from "./endpoints/guilds";
+export type { Shop, CreateShopDto, UpdateShopDto, SearchShopsParams } from "./endpoints/shops";
+export type { Task, TaskUser, TaskProject, CreateTaskDto, UpdateTaskDto, SearchTasksParams } from "./endpoints/tasks";
+export type { Event, EventOrganizer, EventAttendee, CreateEventDto, UpdateEventDto, RegisterEventDto, SearchEventsParams } from "./endpoints/events";
+export type { Opportunity, OpportunityApplication, CreateOpportunityDto, UpdateOpportunityDto, ApplyToOpportunityDto, SearchOpportunitiesParams } from "./endpoints/opportunities";
+export type { Proposal, Vote, ProposalVoteSummary, CreateProposalDto, UpdateProposalDto, CastVoteDto, SearchProposalsParams } from "./endpoints/governance";
 
 // Re-export schemas for validation
 export {
@@ -47,12 +57,22 @@ export class ArdaNovaApiClient extends BaseApiClient {
   readonly users: UsersEndpoint;
   readonly projects: ProjectsEndpoint;
   readonly guilds: GuildsEndpoint;
+  readonly shops: ShopsEndpoint;
+  readonly tasks: TasksEndpoint;
+  readonly events: EventsEndpoint;
+  readonly opportunities: OpportunitiesEndpoint;
+  readonly governance: GovernanceEndpoint;
 
   constructor(config: BaseApiClientConfig) {
     super(config);
     this.users = new UsersEndpoint(this);
     this.projects = new ProjectsEndpoint(this);
     this.guilds = new GuildsEndpoint(this);
+    this.shops = new ShopsEndpoint(this);
+    this.tasks = new TasksEndpoint(this);
+    this.events = new EventsEndpoint(this);
+    this.opportunities = new OpportunitiesEndpoint(this);
+    this.governance = new GovernanceEndpoint(this);
   }
 
   health() {

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { createTRPCRouter, protectedProcedure, publicProcedure } from "~/server/api/trpc";
+import { apiClient } from "~/lib/api";
 
 // Shop category enum
 const ShopCategory = z.enum([
@@ -43,57 +44,140 @@ export const shopRouter = createTRPCRouter({
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user.id;
 
-      // TODO: Implement API call when backend endpoint is ready
-      // For now, return a mock response
-      return {
-        id: crypto.randomUUID(),
-        slug: input.name.toLowerCase().replace(/\s+/g, "-"),
-        ...input,
+      const response = await apiClient.shops.create({
         ownerId: userId,
-        createdAt: new Date().toISOString(),
-      };
+        name: input.name,
+        description: input.description,
+        category: input.category,
+        contactEmail: input.email,
+        website: input.website,
+        logoUrl: input.logo,
+        tags: input.tags,
+      });
+
+      if (response.error || !response.data) {
+        throw new Error(response.error ?? "Failed to create shop");
+      }
+
+      return response.data;
     }),
 
-  // Get all shops with pagination
+  // Get all shops with pagination and search
   getAll: publicProcedure
     .input(
       z.object({
         limit: z.number().min(1).max(100).default(20),
         page: z.number().min(1).default(1),
+        search: z.string().optional(),
         category: ShopCategory.optional(),
       })
     )
     .query(async ({ input }) => {
-      // TODO: Implement API call when backend endpoint is ready
+      const response = await apiClient.shops.search({
+        searchTerm: input.search,
+        category: input.category,
+        page: input.page,
+        pageSize: input.limit,
+      });
+
+      if (response.error) {
+        throw new Error(response.error);
+      }
+
       return {
-        items: [],
-        nextCursor: undefined,
-        totalCount: 0,
-        totalPages: 0,
+        items: response.data?.items ?? [],
+        nextCursor: response.data?.hasNextPage ? String(input.page + 1) : undefined,
+        totalCount: response.data?.totalCount ?? 0,
+        totalPages: response.data?.totalPages ?? 0,
       };
     }),
 
-  // Get shop by ID
+  // Get user's shops
+  getMyShops: protectedProcedure.query(async ({ ctx }) => {
+    const userId = ctx.session.user.id;
+    const response = await apiClient.shops.getByOwnerId(userId);
+
+    if (response.error) {
+      throw new Error(response.error);
+    }
+
+    return response.data ?? [];
+  }),
+
+  // Get shop by ID or slug
   getById: publicProcedure
     .input(z.object({ id: z.string() }))
     .query(async ({ input }) => {
-      // TODO: Implement API call when backend endpoint is ready
-      throw new Error("Shop not found");
+      let response = await apiClient.shops.getById(input.id);
+
+      // Fallback to slug lookup
+      if (response.status === 404 || !response.data) {
+        response = await apiClient.shops.getBySlug(input.id);
+      }
+
+      if (!response.data) {
+        throw new Error("Shop not found");
+      }
+
+      return response.data;
     }),
 
   // Update shop
   update: protectedProcedure
     .input(updateShopSchema)
     .mutation(async ({ input, ctx }) => {
-      // TODO: Implement API call when backend endpoint is ready
-      throw new Error("Not implemented");
+      const { id, ...data } = input;
+      const userId = ctx.session.user.id;
+
+      // Verify ownership
+      const existing = await apiClient.shops.getById(id);
+      if (existing.error || !existing.data) {
+        throw new Error("Shop not found");
+      }
+
+      if (existing.data.ownerId !== userId) {
+        throw new Error("Access denied: You do not own this shop");
+      }
+
+      const response = await apiClient.shops.update(id, {
+        name: data.name,
+        description: data.description,
+        category: data.category,
+        contactEmail: data.email,
+        website: data.website,
+        logoUrl: data.logo,
+        tags: data.tags,
+      });
+
+      if (response.error || !response.data) {
+        throw new Error(response.error ?? "Failed to update shop");
+      }
+
+      return response.data;
     }),
 
   // Delete shop
   delete: protectedProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ input, ctx }) => {
-      // TODO: Implement API call when backend endpoint is ready
+      const userId = ctx.session.user.id;
+
+      // Verify ownership
+      const existing = await apiClient.shops.getById(input.id);
+      if (existing.error || !existing.data) {
+        throw new Error("Shop not found");
+      }
+
+      if (existing.data.ownerId !== userId) {
+        throw new Error("Access denied: You do not own this shop");
+      }
+
+      const response = await apiClient.shops.delete(input.id);
+
+      if (response.error) {
+        throw new Error(response.error);
+      }
+
       return { success: true };
     }),
 });
