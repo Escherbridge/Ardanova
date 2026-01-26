@@ -1,45 +1,117 @@
-# ArdaNova Brand Language Guide
+# ArdaNova Brand Guidelines
 
 ## Purpose
 
-This guide establishes language that accurately describes ArdaNova's platform while remaining accessible and appealing to all audiences—including those skeptical of emerging technologies. The goal is to lead with **values and outcomes**, not technical implementation.
+This guide establishes ArdaNova's visual identity and language principles. Our design philosophy prioritizes clarity, accessibility, and trust—leading with values and outcomes rather than technical implementation.
 
 ---
 
-## Core Principle
+## Brand Philosophy
+
+### Core Principle
 
 **Lead with the "why" and "what," not the "how."**
 
-People care about worker ownership, fair compensation, and democratic governance. They don't need to know (or care) whether that's enabled by a distributed ledger or a traditional database. Be honest, but focus on what matters to users.
+People care about worker ownership, fair compensation, and democratic governance. Technology serves these goals—it isn't the story we tell. Be honest, but focus on what matters to users.
+
+### Design Philosophy
+
+**Swiss Brutalism with Electric Accents**
+
+Our visual identity combines the clarity and precision of Swiss design with brutalist confidence and subtle electric highlights. The result is professional, modern, and distinctive without being overwhelming.
+
+- **Clarity over decoration** — Every element serves a purpose
+- **Hierarchy through typography** — Bold, confident type speaks volumes
+- **Restrained color** — Dark foundations with strategic accent pops
+- **Sharp edges** — Brutalist geometry, no rounded softness
 
 ---
 
-## Language Substitutions
+## Visual Identity
+
+### Color System
+
+#### Foundation Colors
+
+| Role | Light Mode | Dark Mode | Usage |
+|------|------------|-----------|-------|
+| Background | `#fafafa` | `#1a1d23` (Slate) | Primary surfaces |
+| Foreground | `#0a0a0a` | `#ffffff` (White) | Primary text |
+| Card | `#ffffff` | `#22262e` | Elevated surfaces |
+| Muted | `#71717a` | `#94a3b8` | Secondary text |
+| Border | `#e4e4e7` | `#334155` | Dividers, outlines |
+
+#### Accent Colors
+
+Use sparingly for emphasis and interaction states.
+
+| Name | Hex | Usage |
+|------|-----|-------|
+| Electric Cyan | `#00d4ff` | Primary actions, links, focus states |
+| Neon Green | `#00ff88` | Success, positive states, growth |
+| Hot Pink | `#ff0080` | Highlights, notifications, secondary accent |
+| Electric Purple | `#8b5cf6` | Tertiary accent, charts |
+| Warning Yellow | `#fbbf24` | Caution states |
+
+#### Accent Usage Guidelines
+
+- **Headlines & Buttons**: Electric Cyan for primary CTAs
+- **Success States**: Neon Green for confirmations, positive metrics
+- **Highlights**: Hot Pink for badges, notifications, featured items
+- **Backgrounds**: Use at 5-15% opacity for subtle tints
+- **Text**: Accents on dark backgrounds only, never on light backgrounds
+
+### Typography
+
+| Element | Font | Weight | Style |
+|---------|------|--------|-------|
+| Headlines | JetBrains Mono / System Mono | Bold (700) | Uppercase optional |
+| Body | Inter / System Sans | Regular (400) | Sentence case |
+| UI Labels | Inter / System Sans | Medium (500) | Sentence case |
+| Code/Data | JetBrains Mono | Regular (400) | Monospace |
+
+### Spacing & Layout
+
+- **Grid**: 12-column Swiss grid system
+- **Gutter**: 1.5rem (24px)
+- **Margins**: 2rem (32px)
+- **Border radius**: 0 (sharp brutalist corners)
+- **Max content width**: 1440px
+
+### Iconography
+
+- Minimal, geometric icons
+- 1.5-2px stroke weight
+- Consistent with brutalist aesthetic
+- Avoid decorative or playful styles
+
+---
+
+## Language Guidelines
 
 ### Technology Terms → Values-Based Alternatives
 
 | Avoid | Use Instead | Rationale |
 |-------|-------------|-----------|
-| Blockchain | Transparent record-keeping / Secure ledger | Focus on the benefit, not the tech |
-| Crypto / Cryptocurrency | Digital payments / Online transfers | Familiar, non-loaded terms |
-| Tokens | Ownership shares / Equity credits / Stakes | Emphasizes ownership, not speculation |
-| ICO / Initial Coin Offering | Community fundraising / Crowdfunding campaign | Familiar crowdfunding language |
-| DAO | Member-led governance / Democratic cooperative / Worker council | Emphasizes democracy and participation |
-| Smart contracts | Automated agreements / Transparent rules | Focus on fairness and clarity |
-| AI / Artificial Intelligence | Automated tools / Digital assistants / Smart templates | Removes the "AI" trigger word |
-| Machine learning | Pattern recognition / Intelligent matching | Descriptive without buzzwords |
-| Play-to-earn | Earn rewards through engagement / Rewarded participation | Focus on the outcome |
+| Blockchain | Transparent record-keeping / Secure ledger | Focus on benefit |
+| Crypto / Cryptocurrency | Digital payments / Online transfers | Familiar terms |
+| Tokens | Ownership shares / Equity credits / Stakes | Emphasizes ownership |
+| ICO | Community fundraising / Crowdfunding | Familiar language |
+| DAO | Member-led governance / Democratic cooperative | Emphasizes democracy |
+| Smart contracts | Automated agreements / Transparent rules | Focus on fairness |
+| AI / Artificial Intelligence | Automated tools / Smart templates | Removes trigger words |
+| Machine learning | Pattern recognition / Intelligent matching | Descriptive |
 | Wallet | Account / Portfolio | Familiar financial terms |
 | Mint / Minting | Create / Issue / Generate | Standard language |
 | Gas fees | Transaction costs / Processing fees | Standard language |
-| On-chain | Permanently recorded / Verified / Auditable | Focus on the benefit |
-| Decentralized | Distributed / Community-owned / No single point of control | Explain the benefit |
-| Web3 | Modern internet / Next-generation platform | Or just don't use it |
-| NFT | Digital certificate / Verified ownership record | Or avoid entirely |
+| On-chain | Permanently recorded / Verified / Auditable | Focus on benefit |
+| Decentralized | Distributed / Community-owned | Explain the benefit |
+| Web3 | Modern platform | Or just don't use it |
+| NFT | Digital certificate / Verified ownership | Or avoid entirely |
 
 ---
 
-## Framing by Audience Value
+## Audience Framing
 
 ### For Worker-Rights Advocates
 
@@ -91,7 +163,7 @@ People care about worker ownership, fair compensation, and democratic governance
 
 ---
 
-## Topics to Handle Carefully
+## Handling Sensitive Topics
 
 ### When Asked About Blockchain
 
@@ -133,7 +205,7 @@ People care about worker ownership, fair compensation, and democratic governance
 
 ---
 
-## Taglines (Neutral Framing)
+## Taglines
 
 - "Own what you build."
 - "Work that works for workers."
@@ -145,13 +217,13 @@ People care about worker ownership, fair compensation, and democratic governance
 
 ---
 
-## Sample Elevator Pitch
+## Elevator Pitch
 
 > "ArdaNova is a platform where anyone can turn an idea into a community-owned project. You design your solution, rally support through crowdfunding, and build it with contributors who earn ownership shares—not just paychecks. Every project is governed democratically by its members, with transparent record-keeping and fair profit-sharing. It's the infrastructure for a more cooperative economy."
 
 ---
 
-## What We Don't Hide
+## Transparency Commitment
 
 This guide is about **emphasis and framing**, not deception. If someone asks directly:
 

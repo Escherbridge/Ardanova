@@ -58,6 +58,17 @@ public class Project
     [Required]
     public bool featured { get; set; }
 
+    [Required]
+    public bool isTrending { get; set; }
+
+    [Required]
+    [Precision(18, 8)]
+    public decimal trendingScore { get; set; }
+
+    public int? trendingRank { get; set; }
+
+    public DateTime? trendingAt { get; set; }
+
     [Column(TypeName = "text")]
     public string? tags { get; set; }
 
@@ -114,6 +125,10 @@ public class Project
 
     public virtual ICollection<ProjectApplication> ProjectApplications { get; set; } = new List<ProjectApplication>();
 
+    public virtual ICollection<ProjectInvitation> ProjectInvitations { get; set; } = new List<ProjectInvitation>();
+
+    public virtual ICollection<ProjectMembershipRequest> ProjectMembershipRequests { get; set; } = new List<ProjectMembershipRequest>();
+
     public virtual ICollection<ProjectComment> ProjectComments { get; set; } = new List<ProjectComment>();
 
     public virtual ICollection<ProjectUpdate> ProjectUpdates { get; set; } = new List<ProjectUpdate>();
@@ -135,5 +150,13 @@ public class Project
     public virtual ICollection<ProjectEquity> ProjectEquities { get; set; } = new List<ProjectEquity>();
 
     public virtual ICollection<Treasury> Treasuries { get; set; } = new List<Treasury>();
+
+    public virtual ICollection<Post> Posts { get; set; } = new List<Post>();
+
+    public virtual ICollection<PostShare> PostShares { get; set; } = new List<PostShare>();
+
+    public virtual ICollection<Event> Events { get; set; } = new List<Event>();
+
+    public virtual ICollection<ProjectFollow> ProjectFollows { get; set; } = new List<ProjectFollow>();
 
 }

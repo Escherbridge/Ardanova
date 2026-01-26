@@ -66,8 +66,27 @@ enum NotificationType {
   ESCROW_FUNDED
   ESCROW_RELEASED
   PROJECT_INVITATION
+  PROJECT_INVITATION_ACCEPTED
+  PROJECT_INVITATION_DECLINED
+  PROJECT_MEMBERSHIP_REQUEST
+  PROJECT_MEMBERSHIP_APPROVED
+  PROJECT_MEMBERSHIP_REJECTED
   PROJECT_UPDATE
   PROJECT_FUNDED
+  GUILD_INVITATION
+  GUILD_INVITATION_ACCEPTED
+  GUILD_INVITATION_DECLINED
+  GUILD_APPLICATION
+  GUILD_APPLICATION_APPROVED
+  GUILD_APPLICATION_REJECTED
+  EVENT_INVITATION
+  EVENT_REMINDER
+  EVENT_STARTING_SOON
+  EVENT_CANCELLED
+  EVENT_UPDATED
+  USER_FOLLOWED
+  PROJECT_FOLLOWED
+  GUILD_FOLLOWED
   COMMENT_REPLY
   MENTION
   FOLLOWER_NEW
@@ -206,6 +225,21 @@ enum ApplicationStatus {
   WITHDRAWN
 }
 
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  EXPIRED
+  CANCELLED
+}
+
+enum MembershipRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  WITHDRAWN
+}
+
 enum RoadmapStatus {
   DRAFT
   ACTIVE
@@ -324,6 +358,14 @@ enum BidStatus {
   WITHDRAWN
 }
 
+enum GuildMemberRole {
+  OWNER
+  ADMIN
+  MANAGER
+  MEMBER
+  APPRENTICE
+}
+
 enum InvoiceStatus {
   DRAFT
   SENT
@@ -403,6 +445,23 @@ enum SwapStatus {
   CANCELLED
 }
 
+enum PostType {
+  POST
+  PROJECT_UPDATE
+  GUILD_ACTIVITY
+  TASK_COMPLETED
+  MILESTONE
+  PROPOSAL
+  SHOP_ITEM
+}
+
+enum PostVisibility {
+  PUBLIC
+  PROJECT_MEMBERS
+  GUILD_MEMBERS
+  PRIVATE
+}
+
 enum MessageStatus {
   SENT
   DELIVERED
@@ -418,6 +477,40 @@ enum MimeType {
   DOCUMENT
   ARCHIVE
   OTHER
+}
+
+enum EventStatus {
+  DRAFT
+  SCHEDULED
+  LIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum EventType {
+  MEETING
+  WORKSHOP
+  WEBINAR
+  TOWN_HALL
+  CRITIQUE
+  HACKATHON
+  SOCIAL
+  OTHER
+}
+
+enum EventVisibility {
+  PUBLIC
+  PROJECT_MEMBERS
+  GUILD_MEMBERS
+  INVITE_ONLY
+}
+
+enum AttendeeStatus {
+  INVITED
+  GOING
+  MAYBE
+  NOT_GOING
+  ATTENDED
 }
 
 model Account {
@@ -483,6 +576,10 @@ model User {
   projectTasks ProjectTask[] @relation("ProjectTask_assignedToId")
   projectSupports ProjectSupport[] @relation("ProjectSupport_userId")
   projectApplications ProjectApplication[] @relation("ProjectApplication_userId")
+  projectInvitations ProjectInvitation[] @relation("ProjectInvitation_invitedById")
+  projectInvitations1 ProjectInvitation[] @relation("ProjectInvitation_invitedUserId")
+  projectMembershipRequests ProjectMembershipRequest[] @relation("ProjectMembershipRequest_userId")
+  projectMembershipRequests1 ProjectMembershipRequest[] @relation("ProjectMembershipRequest_reviewedById")
   projectComments ProjectComment[] @relation("ProjectComment_userId")
   projectUpdates ProjectUpdate[] @relation("ProjectUpdate_userId")
   projectMembers ProjectMember[] @relation("ProjectMember_userId")
@@ -494,6 +591,10 @@ model User {
   delegatedVotes1 DelegatedVote[] @relation("DelegatedVote_delegateeId")
   guilds Guild[] @relation("Guild_ownerId")
   guildMembers GuildMember[] @relation("GuildMember_userId")
+  guildInvitations GuildInvitation[] @relation("GuildInvitation_invitedById")
+  guildInvitations1 GuildInvitation[] @relation("GuildInvitation_invitedUserId")
+  guildApplications GuildApplication[] @relation("GuildApplication_userId")
+  guildApplications1 GuildApplication[] @relation("GuildApplication_reviewedById")
   projectBids ProjectBid[] @relation("ProjectBid_userId")
   guildReviews GuildReview[] @relation("GuildReview_userId")
   shops Shop[] @relation("Shop_ownerId")
@@ -511,9 +612,22 @@ model User {
   taskEscrows TaskEscrow[] @relation("TaskEscrow_funderId")
   tokenSwaps TokenSwap[] @relation("TokenSwap_userId")
   liquidityProviders LiquidityProvider[] @relation("LiquidityProvider_userId")
+  posts Post[] @relation("Post_authorId")
+  postLikes PostLike[] @relation("PostLike_userId")
+  postComments PostComment[] @relation("PostComment_authorId")
+  postBookmarks PostBookmark[] @relation("PostBookmark_userId")
+  postShares PostShare[] @relation("PostShare_userId")
   chatMessages ChatMessage[] @relation("ChatMessage_userToId")
   chatMessages1 ChatMessage[] @relation("ChatMessage_userFromId")
   attachments Attachment[] @relation("Attachment_uploadedById")
+  events Event[] @relation("Event_organizerId")
+  eventAttendees EventAttendee[] @relation("EventAttendee_userId")
+  eventCoHosts EventCoHost[] @relation("EventCoHost_userId")
+  eventReminders EventReminder[] @relation("EventReminder_userId")
+  userFollows UserFollow[] @relation("UserFollow_followerId")
+  userFollows1 UserFollow[] @relation("UserFollow_followingId")
+  projectFollows ProjectFollow[] @relation("ProjectFollow_userId")
+  guildFollows GuildFollow[] @relation("GuildFollow_userId")
 }
 
 model UserSkill {
@@ -672,6 +786,10 @@ model Project {
   votesCount Int @default(0)
   viewsCount Int @default(0)
   featured Boolean @default(false)
+  isTrending Boolean @default(false)
+  trendingScore Decimal @default(0) @db.Decimal(18, 8)
+  trendingRank Int?
+  trendingAt DateTime?
   tags String? @db.Text
   images String? @db.Text
   videos String? @db.Text
@@ -694,6 +812,8 @@ model Project {
   projectMilestones ProjectMilestone[] @relation("ProjectMilestone_projectId")
   projectSupports ProjectSupport[] @relation("ProjectSupport_projectId")
   projectApplications ProjectApplication[] @relation("ProjectApplication_projectId")
+  projectInvitations ProjectInvitation[] @relation("ProjectInvitation_projectId")
+  projectMembershipRequests ProjectMembershipRequest[] @relation("ProjectMembershipRequest_projectId")
   projectComments ProjectComment[] @relation("ProjectComment_projectId")
   projectUpdates ProjectUpdate[] @relation("ProjectUpdate_projectId")
   roadmaps Roadmap[] @relation("Roadmap_projectId")
@@ -705,6 +825,10 @@ model Project {
   projectTokens ProjectToken[] @relation("ProjectToken_projectId")
   projectEquities ProjectEquity[] @relation("ProjectEquity_projectId")
   treasuries Treasury[] @relation("Treasury_projectId")
+  posts Post[] @relation("Post_projectId")
+  postShares PostShare[] @relation("PostShare_sharedToProjectId")
+  events Event[] @relation("Event_projectId")
+  projectFollows ProjectFollow[] @relation("ProjectFollow_projectId")
 }
 
 model ProjectTask {
@@ -797,6 +921,43 @@ model ProjectApplication {
   reviewMessage String? @db.Text
   project Project @relation("ProjectApplication_projectId", fields: [projectId], references: [id])
   user User @relation("ProjectApplication_userId", fields: [userId], references: [id])
+}
+
+model ProjectInvitation {
+  id String @id @default(cuid())
+  projectId String
+  invitedById String
+  invitedUserId String?
+  invitedEmail String?
+  role ProjectRole @default(CONTRIBUTOR)
+  message String? @db.Text
+  status InvitationStatus @default(PENDING)
+  token String? @unique
+  expiresAt DateTime?
+  createdAt DateTime @default(now())
+  respondedAt DateTime?
+  project Project @relation("ProjectInvitation_projectId", fields: [projectId], references: [id])
+  invitedBy User @relation("ProjectInvitation_invitedById", fields: [invitedById], references: [id])
+  invitedUser User? @relation("ProjectInvitation_invitedUserId", fields: [invitedUserId], references: [id])
+}
+
+model ProjectMembershipRequest {
+  id String @id @default(cuid())
+  projectId String
+  userId String
+  requestedRole ProjectRole @default(CONTRIBUTOR)
+  message String @db.Text
+  skills String? @db.Text
+  motivation String? @db.Text
+  portfolio String? @db.Text
+  status MembershipRequestStatus @default(PENDING)
+  reviewedById String?
+  reviewMessage String? @db.Text
+  createdAt DateTime @default(now())
+  reviewedAt DateTime?
+  project Project @relation("ProjectMembershipRequest_projectId", fields: [projectId], references: [id])
+  user User @relation("ProjectMembershipRequest_userId", fields: [userId], references: [id])
+  reviewedBy User? @relation("ProjectMembershipRequest_reviewedById", fields: [reviewedById], references: [id])
 }
 
 model ProjectComment {
@@ -1044,14 +1205,25 @@ model Guild {
   rating Decimal? @db.Decimal(18, 8)
   reviewsCount Int @default(0)
   projectsCount Int @default(0)
+  membersCount Int @default(0)
+  isTrending Boolean @default(false)
+  trendingScore Decimal @default(0) @db.Decimal(18, 8)
+  trendingRank Int?
+  trendingAt DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   ownerId String @unique
   projects Project[] @relation("Project_assignedGuildId")
   owner User @relation("Guild_ownerId", fields: [ownerId], references: [id])
   guildMembers GuildMember[] @relation("GuildMember_guildId")
+  guildInvitations GuildInvitation[] @relation("GuildInvitation_guildId")
+  guildApplications GuildApplication[] @relation("GuildApplication_guildId")
   projectBids ProjectBid[] @relation("ProjectBid_guildId")
   guildReviews GuildReview[] @relation("GuildReview_guildId")
+  posts Post[] @relation("Post_guildId")
+  postShares PostShare[] @relation("PostShare_sharedToGuildId")
+  events Event[] @relation("Event_guildId")
+  guildFollows GuildFollow[] @relation("GuildFollow_guildId")
 }
 
 model GuildMember {
@@ -1062,6 +1234,44 @@ model GuildMember {
   joinedAt DateTime @default(now())
   guild Guild @relation("GuildMember_guildId", fields: [guildId], references: [id])
   user User @relation("GuildMember_userId", fields: [userId], references: [id])
+}
+
+model GuildInvitation {
+  id String @id @default(cuid())
+  guildId String
+  invitedById String
+  invitedUserId String?
+  invitedEmail String?
+  role GuildMemberRole @default(MEMBER)
+  message String? @db.Text
+  status InvitationStatus @default(PENDING)
+  token String? @unique
+  expiresAt DateTime?
+  createdAt DateTime @default(now())
+  respondedAt DateTime?
+  guild Guild @relation("GuildInvitation_guildId", fields: [guildId], references: [id])
+  invitedBy User @relation("GuildInvitation_invitedById", fields: [invitedById], references: [id])
+  invitedUser User? @relation("GuildInvitation_invitedUserId", fields: [invitedUserId], references: [id])
+}
+
+model GuildApplication {
+  id String @id @default(cuid())
+  guildId String
+  userId String
+  requestedRole GuildMemberRole @default(MEMBER)
+  message String @db.Text
+  skills String? @db.Text
+  experience String? @db.Text
+  portfolio String? @db.Text
+  availability String?
+  status MembershipRequestStatus @default(PENDING)
+  reviewedById String?
+  reviewMessage String? @db.Text
+  appliedAt DateTime @default(now())
+  reviewedAt DateTime?
+  guild Guild @relation("GuildApplication_guildId", fields: [guildId], references: [id])
+  user User @relation("GuildApplication_userId", fields: [userId], references: [id])
+  reviewedBy User? @relation("GuildApplication_reviewedById", fields: [reviewedById], references: [id])
 }
 
 model ProjectBid {
@@ -1113,6 +1323,7 @@ model Shop {
   inventoryItems InventoryItem[] @relation("InventoryItem_shopId")
   marketingCampaigns MarketingCampaign[] @relation("MarketingCampaign_shopId")
   shopAnalytics ShopAnalytics[] @relation("ShopAnalytics_shopId")
+  posts Post[] @relation("Post_shopId")
 }
 
 model Product {
@@ -1426,6 +1637,98 @@ model LiquidityProvider {
   user User @relation("LiquidityProvider_userId", fields: [userId], references: [id])
 }
 
+model Post {
+  id String @id @default(cuid())
+  authorId String
+  projectId String?
+  guildId String?
+  shopId String?
+  type PostType @default(POST)
+  visibility PostVisibility @default(PUBLIC)
+  title String?
+  content String @db.Text
+  metadata Json?
+  likesCount Int @default(0)
+  commentsCount Int @default(0)
+  sharesCount Int @default(0)
+  viewsCount Int @default(0)
+  isPinned Boolean @default(false)
+  isTrending Boolean @default(false)
+  trendingScore Decimal @default(0) @db.Decimal(18, 8)
+  trendingRank Int?
+  trendingAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  author User @relation("Post_authorId", fields: [authorId], references: [id])
+  project Project? @relation("Post_projectId", fields: [projectId], references: [id])
+  guild Guild? @relation("Post_guildId", fields: [guildId], references: [id])
+  shop Shop? @relation("Post_shopId", fields: [shopId], references: [id])
+  postMedias PostMedia[] @relation("PostMedia_postId")
+  postLikes PostLike[] @relation("PostLike_postId")
+  postComments PostComment[] @relation("PostComment_postId")
+  postBookmarks PostBookmark[] @relation("PostBookmark_postId")
+  postShares PostShare[] @relation("PostShare_postId")
+}
+
+model PostMedia {
+  id String @id @default(cuid())
+  postId String
+  type MimeType
+  url String
+  thumbnailUrl String?
+  altText String?
+  order Int @default(0)
+  createdAt DateTime @default(now())
+  post Post @relation("PostMedia_postId", fields: [postId], references: [id])
+}
+
+model PostLike {
+  id String @id @default(cuid())
+  postId String
+  userId String
+  createdAt DateTime @default(now())
+  post Post @relation("PostLike_postId", fields: [postId], references: [id])
+  user User @relation("PostLike_userId", fields: [userId], references: [id])
+}
+
+model PostComment {
+  id String @id @default(cuid())
+  postId String
+  authorId String
+  parentId String?
+  content String @db.Text
+  likesCount Int @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  post Post @relation("PostComment_postId", fields: [postId], references: [id])
+  author User @relation("PostComment_authorId", fields: [authorId], references: [id])
+  parent PostComment? @relation("PostComment_parentId", fields: [parentId], references: [id])
+  parentChildren PostComment[] @relation("PostComment_parentId")
+}
+
+model PostBookmark {
+  id String @id @default(cuid())
+  postId String
+  userId String
+  createdAt DateTime @default(now())
+  post Post @relation("PostBookmark_postId", fields: [postId], references: [id])
+  user User @relation("PostBookmark_userId", fields: [userId], references: [id])
+}
+
+model PostShare {
+  id String @id @default(cuid())
+  postId String
+  userId String
+  sharedToProjectId String?
+  sharedToGuildId String?
+  comment String? @db.Text
+  createdAt DateTime @default(now())
+  post Post @relation("PostShare_postId", fields: [postId], references: [id])
+  user User @relation("PostShare_userId", fields: [userId], references: [id])
+  sharedToProject Project? @relation("PostShare_sharedToProjectId", fields: [sharedToProjectId], references: [id])
+  sharedToGuild Guild? @relation("PostShare_sharedToGuildId", fields: [sharedToGuildId], references: [id])
+}
+
 model ChatMessage {
   id String @id @default(cuid())
   userToId String
@@ -1450,5 +1753,102 @@ model Attachment {
   lastUsedAt DateTime?
   chatMessages ChatMessage[] @relation("ChatMessage_chatAttachmentId")
   uploadedBy User @relation("Attachment_uploadedById", fields: [uploadedById], references: [id])
+}
+
+model Event {
+  id String @id @default(cuid())
+  title String
+  slug String @unique
+  description String? @db.Text
+  type EventType @default(MEETING)
+  visibility EventVisibility @default(PUBLIC)
+  status EventStatus @default(SCHEDULED)
+  location String?
+  locationUrl String?
+  isOnline Boolean @default(false)
+  meetingUrl String?
+  timezone String @default("UTC")
+  startDate DateTime
+  endDate DateTime
+  maxAttendees Int?
+  attendeesCount Int @default(0)
+  coverImage String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  organizerId String
+  projectId String?
+  guildId String?
+  organizer User @relation("Event_organizerId", fields: [organizerId], references: [id])
+  project Project? @relation("Event_projectId", fields: [projectId], references: [id])
+  guild Guild? @relation("Event_guildId", fields: [guildId], references: [id])
+  eventAttendees EventAttendee[] @relation("EventAttendee_eventId")
+  eventCoHosts EventCoHost[] @relation("EventCoHost_eventId")
+  eventReminders EventReminder[] @relation("EventReminder_eventId")
+}
+
+model EventAttendee {
+  id String @id @default(cuid())
+  eventId String
+  userId String
+  status AttendeeStatus @default(GOING)
+  rsvpAt DateTime @default(now())
+  attendedAt DateTime?
+  notes String? @db.Text
+  event Event @relation("EventAttendee_eventId", fields: [eventId], references: [id])
+  user User @relation("EventAttendee_userId", fields: [userId], references: [id])
+}
+
+model EventCoHost {
+  id String @id @default(cuid())
+  eventId String
+  userId String
+  addedAt DateTime @default(now())
+  event Event @relation("EventCoHost_eventId", fields: [eventId], references: [id])
+  user User @relation("EventCoHost_userId", fields: [userId], references: [id])
+}
+
+model EventReminder {
+  id String @id @default(cuid())
+  eventId String
+  userId String
+  remindAt DateTime
+  isSent Boolean @default(false)
+  sentAt DateTime?
+  createdAt DateTime @default(now())
+  event Event @relation("EventReminder_eventId", fields: [eventId], references: [id])
+  user User @relation("EventReminder_userId", fields: [userId], references: [id])
+}
+
+model UserFollow {
+  id String @id @default(cuid())
+  followerId String
+  followingId String
+  createdAt DateTime @default(now())
+  follower User @relation("UserFollow_followerId", fields: [followerId], references: [id])
+  following User @relation("UserFollow_followingId", fields: [followingId], references: [id])
+}
+
+model ProjectFollow {
+  id String @id @default(cuid())
+  userId String
+  projectId String
+  notifyUpdates Boolean @default(true)
+  notifyMilestones Boolean @default(true)
+  notifyProposals Boolean @default(false)
+  createdAt DateTime @default(now())
+  user User @relation("ProjectFollow_userId", fields: [userId], references: [id])
+  project Project @relation("ProjectFollow_projectId", fields: [projectId], references: [id])
+}
+
+model GuildFollow {
+  id String @id @default(cuid())
+  userId String
+  guildId String
+  notifyUpdates Boolean @default(true)
+  notifyEvents Boolean @default(true)
+  notifyProjects Boolean @default(false)
+  createdAt DateTime @default(now())
+  user User @relation("GuildFollow_userId", fields: [userId], references: [id])
+  guild Guild @relation("GuildFollow_guildId", fields: [guildId], references: [id])
 }
 

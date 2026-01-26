@@ -110,16 +110,31 @@ if [ -n "$COMPOSE_CMD" ]; then
     # Try development compose first, then regular
     if [ -f "docker-compose.dev.yml" ]; then
         echo -e "${YELLOW}Stopping development containers...${NC}"
-        $COMPOSE_CMD -f docker-compose.dev.yml down || true
+        $COMPOSE_CMD -f docker-compose.dev.yml down --remove-orphans || true
     fi
 
     echo -e "${YELLOW}Stopping production containers...${NC}"
-    $COMPOSE_CMD down || true
+    $COMPOSE_CMD down --remove-orphans || true
 else
     # Manual container removal for podman without compose
     echo -e "${YELLOW}Stopping containers manually...${NC}"
     $RUNTIME stop ardanova-api ardanova-client ardanova-ai 2>/dev/null || true
-    $RUNTIME rm ardanova-api ardanova-client ardanova-ai 2>/dev/null || true
+    $RUNTIME rm -f ardanova-api ardanova-client ardanova-ai 2>/dev/null || true
+fi
+
+# Force remove containers by name (handles Podman edge cases)
+echo -e "${YELLOW}Cleaning up any remaining containers...${NC}"
+$RUNTIME rm -f ardanova-api-dev ardanova-client-dev ardanova-ai-dev 2>/dev/null || true
+
+# For Podman: clean up pods and networks
+if [ "$RUNTIME" = "podman" ]; then
+    echo -e "${YELLOW}Cleaning up Podman pods...${NC}"
+    for pod in $(podman pod ls --format "{{.Name}}" 2>/dev/null | grep -i ardanova); do
+        podman pod rm -f "$pod" 2>/dev/null || true
+    done
+
+    echo -e "${YELLOW}Cleaning up networks...${NC}"
+    podman network rm -f ardanova_default 2>/dev/null || true
 fi
 
 # Remove volumes if requested

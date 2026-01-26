@@ -35,6 +35,7 @@ if ($Help) {
     Write-Host "Development mode (default):"
     Write-Host "  - Mounts source code for hot-reload"
     Write-Host "  - .NET backend uses 'dotnet watch' for live changes"
+    Write-Host "  - Next.js client uses 'npm run dev' with Turbopack"
     Write-Host "  - No need to rebuild for code changes"
     Write-Host ""
     Write-Host "Production mode (-Prod):"
@@ -176,6 +177,7 @@ if (-not $Foreground) {
         Write-Host ""
         Write-ColorOutput $Green "Development mode active:"
         Write-Host "  - .NET backend changes will auto-reload (dotnet watch)"
-        Write-Host "  - No rebuild needed for backend code changes"
+        Write-Host "  - Next.js client changes will auto-reload (Turbopack)"
+        Write-Host "  - No rebuild needed for code changes"
     }
 }

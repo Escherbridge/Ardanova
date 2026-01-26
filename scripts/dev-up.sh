@@ -98,6 +98,7 @@ while [[ $# -gt 0 ]]; do
             echo "Development mode (default):"
             echo "  - Mounts source code for hot-reload"
             echo "  - .NET backend uses 'dotnet watch' for live changes"
+            echo "  - Next.js client uses 'npm run dev' with Turbopack"
             echo "  - No need to rebuild for code changes"
             echo ""
             echo "Production mode (-p):"
@@ -178,6 +179,7 @@ if [ "$DETACHED" = true ]; then
         echo ""
         echo -e "${GREEN}Development mode active:${NC}"
         echo -e "  - .NET backend changes will auto-reload (dotnet watch)"
-        echo -e "  - No rebuild needed for backend code changes"
+        echo -e "  - Next.js client changes will auto-reload (Turbopack)"
+        echo -e "  - No rebuild needed for code changes"
     fi
 fi

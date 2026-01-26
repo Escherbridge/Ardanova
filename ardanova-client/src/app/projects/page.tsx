@@ -1,251 +1,724 @@
-import { redirect } from "next/navigation";
-import { Search, Filter, Heart, Users, Calendar, TrendingUp } from "lucide-react";
+"use client";
+
+import { useState } from "react";
+import Link from "next/link";
+import {
+  Search,
+  Filter,
+  Heart,
+  Users,
+  TrendingUp,
+  FolderKanban,
+  Plus,
+  MessageCircle,
+  Share2,
+  Bookmark,
+  MoreHorizontal,
+  Sparkles,
+  Clock,
+  SlidersHorizontal,
+  X,
+} from "lucide-react";
 
 import { Button } from "~/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "~/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Badge } from "~/components/ui/badge";
-import { Input } from "~/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "~/components/ui/select";
-import { auth } from "~/server/auth";
-import { api } from "~/trpc/server";
-import { ProjectStatus, ProjectCategory } from "@prisma/client";
+import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
+import { Progress } from "~/components/ui/progress";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "~/components/ui/dropdown-menu";
+import { cn } from "~/lib/utils";
+import { api } from "~/trpc/react";
 
-export default async function ProjectsPage() {
-  const session = await auth();
+// Feed tabs for projects
+const projectTabs = [
+  { id: "all", label: "All Projects", icon: FolderKanban },
+  { id: "trending", label: "Trending", icon: TrendingUp },
+  { id: "newest", label: "Newest", icon: Clock },
+  { id: "funded", label: "Funded", icon: Sparkles },
+];
 
-  if (!session) {
-    redirect("/api/auth/signin");
-  }
+// Category badge variants
+const categoryVariants: Record<string, "neon" | "neon-pink" | "neon-green" | "neon-purple" | "warning" | "secondary"> = {
+  TECHNOLOGY: "neon",
+  HEALTHCARE: "neon-pink",
+  EDUCATION: "neon-purple",
+  ENVIRONMENT: "neon-green",
+  SOCIAL_IMPACT: "neon-pink",
+  BUSINESS: "secondary",
+  ARTS_CULTURE: "neon-purple",
+  AGRICULTURE: "neon-green",
+  FINANCE: "warning",
+  OTHER: "secondary",
+};
 
-  const user = session.user;
+// Status badge variants
+const statusVariants: Record<string, "neon" | "neon-pink" | "neon-green" | "neon-purple" | "warning" | "secondary" | "destructive"> = {
+  DRAFT: "secondary",
+  PUBLISHED: "neon",
+  SEEKING_SUPPORT: "warning",
+  FUNDED: "neon-green",
+  IN_PROGRESS: "neon-purple",
+  COMPLETED: "neon-green",
+  CANCELLED: "destructive",
+};
 
-  // Fetch real projects from database - only published projects
-  const projectsResult = await api.project.getAll({
-    status: ProjectStatus.PUBLISHED,
+function formatRelativeTime(date: Date): string {
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffSec = Math.floor(diffMs / 1000);
+  const diffMin = Math.floor(diffSec / 60);
+  const diffHour = Math.floor(diffMin / 60);
+  const diffDay = Math.floor(diffHour / 24);
+
+  if (diffSec < 60) return "just now";
+  if (diffMin < 60) return `${diffMin}m ago`;
+  if (diffHour < 24) return `${diffHour}h ago`;
+  if (diffDay < 7) return `${diffDay}d ago`;
+  return date.toLocaleDateString();
+}
+
+// Filter options
+const categoryFilters = [
+  { id: "all", label: "All Categories" },
+  { id: "TECHNOLOGY", label: "Technology" },
+  { id: "HEALTHCARE", label: "Healthcare" },
+  { id: "EDUCATION", label: "Education" },
+  { id: "ENVIRONMENT", label: "Environment" },
+  { id: "SOCIAL_IMPACT", label: "Social Impact" },
+  { id: "BUSINESS", label: "Business" },
+  { id: "ARTS_CULTURE", label: "Arts & Culture" },
+  { id: "AGRICULTURE", label: "Agriculture" },
+  { id: "FINANCE", label: "Finance" },
+];
+
+const statusFilters = [
+  { id: "all", label: "All Statuses" },
+  { id: "PUBLISHED", label: "Published" },
+  { id: "SEEKING_SUPPORT", label: "Seeking Support" },
+  { id: "FUNDED", label: "Funded" },
+  { id: "IN_PROGRESS", label: "In Progress" },
+  { id: "COMPLETED", label: "Completed" },
+];
+
+const fundingFilters = [
+  { id: "all", label: "Any Funding" },
+  { id: "0-1000", label: "Under $1,000" },
+  { id: "1000-10000", label: "$1,000 - $10,000" },
+  { id: "10000-50000", label: "$10,000 - $50,000" },
+  { id: "50000+", label: "Over $50,000" },
+];
+
+const timeFilters = [
+  { id: "all", label: "All Time" },
+  { id: "today", label: "Today" },
+  { id: "week", label: "This Week" },
+  { id: "month", label: "This Month" },
+  { id: "year", label: "This Year" },
+];
+
+export default function ProjectsPage() {
+  const [activeTab, setActiveTab] = useState("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [showFilters, setShowFilters] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState("all");
+  const [selectedStatus, setSelectedStatus] = useState("all");
+  const [selectedFunding, setSelectedFunding] = useState("all");
+  const [selectedTime, setSelectedTime] = useState("all");
+
+  // Fetch projects from API
+  const { data: projectsResult, isLoading } = api.project.getAll.useQuery({
     limit: 50,
   });
 
-  type ProjectWithCount = typeof projectsResult.items[0] & {
-    _count?: {
-      supports: number;
-    };
-    createdBy: {
-      name: string | null;
-      email: string | null;
-      image: string | null;
-    };
-  };
+  const projects = projectsResult?.items || [];
 
-  const projects = projectsResult.items as ProjectWithCount[];
+  // Filter projects based on all criteria
+  const filteredProjects = projects.filter((project) => {
+    // Tab filter
+    if (activeTab === "trending" && (project.votesCount ?? 0) === 0) return false;
+    if (activeTab === "funded" && project.status !== "FUNDED" && project.status !== "COMPLETED") return false;
 
-  const getStatusColor = (status: ProjectStatus) => {
-    switch (status) {
-      case ProjectStatus.PUBLISHED:
-        return "bg-yellow-100 text-yellow-800";
-      case ProjectStatus.COMPLETED:
-        return "bg-green-100 text-green-800";
-      case ProjectStatus.IN_PROGRESS:
-        return "bg-blue-100 text-blue-800";
-      default:
-        return "bg-gray-100 text-gray-800";
+    // Search query
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      const matchesTitle = project.title.toLowerCase().includes(query);
+      const matchesDescription = project.description?.toLowerCase().includes(query);
+      const matchesTags = project.tags?.toLowerCase().includes(query);
+      if (!matchesTitle && !matchesDescription && !matchesTags) return false;
     }
+
+    // Category filter
+    if (selectedCategory !== "all" && project.category !== selectedCategory) return false;
+
+    // Status filter
+    if (selectedStatus !== "all" && project.status !== selectedStatus) return false;
+
+    // Funding filter
+    if (selectedFunding !== "all") {
+      const funding = Number(project.currentFunding || 0);
+      if (selectedFunding === "0-1000" && funding >= 1000) return false;
+      if (selectedFunding === "1000-10000" && (funding < 1000 || funding >= 10000)) return false;
+      if (selectedFunding === "10000-50000" && (funding < 10000 || funding >= 50000)) return false;
+      if (selectedFunding === "50000+" && funding < 50000) return false;
+    }
+
+    // Time filter
+    if (selectedTime !== "all") {
+      const now = new Date();
+      const projectDate = new Date(project.createdAt);
+      const diffDays = (now.getTime() - projectDate.getTime()) / (1000 * 60 * 60 * 24);
+
+      if (selectedTime === "today" && diffDays > 1) return false;
+      if (selectedTime === "week" && diffDays > 7) return false;
+      if (selectedTime === "month" && diffDays > 30) return false;
+      if (selectedTime === "year" && diffDays > 365) return false;
+    }
+
+    return true;
+  });
+
+  const hasActiveFilters =
+    searchQuery ||
+    selectedCategory !== "all" ||
+    selectedStatus !== "all" ||
+    selectedFunding !== "all" ||
+    selectedTime !== "all";
+
+  const clearFilters = () => {
+    setSearchQuery("");
+    setSelectedCategory("all");
+    setSelectedStatus("all");
+    setSelectedFunding("all");
+    setSelectedTime("all");
   };
 
-  const getCategoryColor = (category: ProjectCategory) => {
-    const colors: Record<ProjectCategory, string> = {
-      [ProjectCategory.ENVIRONMENT]: "bg-green-100 text-green-700",
-      [ProjectCategory.HEALTHCARE]: "bg-red-100 text-red-700",
-      [ProjectCategory.EDUCATION]: "bg-blue-100 text-blue-700",
-      [ProjectCategory.AGRICULTURE]: "bg-yellow-100 text-yellow-700",
-      [ProjectCategory.ARTS_CULTURE]: "bg-purple-100 text-purple-700",
-      [ProjectCategory.TECHNOLOGY]: "bg-indigo-100 text-indigo-700",
-      [ProjectCategory.SOCIAL_IMPACT]: "bg-purple-100 text-purple-700",
-      [ProjectCategory.BUSINESS]: "bg-indigo-100 text-indigo-700",
-      [ProjectCategory.FINANCE]: "bg-green-100 text-green-700",
-      [ProjectCategory.OTHER]: "bg-gray-100 text-gray-700",
-    };
-    return colors[category] ?? "bg-gray-100 text-gray-700";
+  const activeFilterCount =
+    (selectedCategory !== "all" ? 1 : 0) +
+    (selectedStatus !== "all" ? 1 : 0) +
+    (selectedFunding !== "all" ? 1 : 0) +
+    (selectedTime !== "all" ? 1 : 0);
+
+  // Stats for sidebar
+  const stats = {
+    total: projects.length,
+    funded: projects.filter((p) => p.status === "FUNDED" || p.status === "COMPLETED").length,
+    totalFunding: projects.reduce((sum, p) => sum + Number(p.currentFunding || 0), 0),
+    totalSupporters: projects.reduce((sum, p) => sum + (p.supportersCount || 0), 0),
   };
+
+  // Trending projects for sidebar
+  const trendingProjects = [...projects]
+    .sort((a, b) => (b.votesCount || 0) - (a.votesCount || 0))
+    .slice(0, 3);
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      <div className="container mx-auto px-4 py-8">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-slate-900 mb-2">Discover Projects</h1>
-          <p className="text-slate-600">
-            Explore innovative projects and support the ones that inspire you
-          </p>
-        </div>
+    <div className="min-h-screen bg-background">
+      <div className="flex justify-center">
+        {/* Main Feed Column - Centered */}
+        <div className="w-full max-w-2xl border-x-2 border-border">
+          {/* Header */}
+          <div className="sticky top-0 z-10 bg-background/95 backdrop-blur border-b-2 border-border">
+            <div className="p-4 flex items-center justify-between">
+              <h1 className="text-xl font-bold text-foreground flex items-center gap-2">
+                <FolderKanban className="size-5 text-primary" />
+                Projects
+              </h1>
+              <Button variant="neon" size="sm" asChild>
+                <Link href="/projects/create">
+                  <Plus className="size-4 mr-2" />
+                  New Project
+                </Link>
+              </Button>
+            </div>
 
-        {/* Filters and Search */}
-        <div className="mb-8">
-          <div className="flex flex-col sm:flex-row gap-4 mb-6">
-            <div className="flex-1">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 h-4 w-4" />
-                <Input
+            {/* Search */}
+            <div className="px-4 pb-3 flex items-center gap-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search projects..."
-                  className="pl-10"
+                  className="w-full pl-10 pr-4 py-2 bg-card border-2 border-border text-foreground text-sm placeholder:text-muted-foreground focus:border-primary focus:outline-none"
                 />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery("")}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  >
+                    <X className="size-4" />
+                  </button>
+                )}
               </div>
-            </div>
-            <Select>
-              <SelectTrigger className="w-full sm:w-48">
-                <SelectValue placeholder="Category" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Categories</SelectItem>
-                <SelectItem value="technology">Technology</SelectItem>
-                <SelectItem value="healthcare">Healthcare</SelectItem>
-                <SelectItem value="education">Education</SelectItem>
-                <SelectItem value="environment">Environment</SelectItem>
-                <SelectItem value="agriculture">Agriculture</SelectItem>
-                <SelectItem value="arts">Arts & Culture</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select>
-              <SelectTrigger className="w-full sm:w-48">
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="seeking">Seeking Support</SelectItem>
-                <SelectItem value="funded">Funded</SelectItem>
-                <SelectItem value="progress">In Progress</SelectItem>
-                <SelectItem value="completed">Completed</SelectItem>
-              </SelectContent>
-            </Select>
-            <Button variant="outline">
-              <Filter className="h-4 w-4 mr-2" />
-              More Filters
-            </Button>
-          </div>
-
-          {/* Quick Stats */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-            <div className="text-center">
-              <div className="text-2xl font-bold text-slate-900">{projects.length}</div>
-              <div className="text-sm text-slate-600">Published Projects</div>
-            </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-slate-900">
-                {projects.reduce((sum, p) => sum + (p._count?.supports || 0), 0)}
-              </div>
-              <div className="text-sm text-slate-600">Total Supporters</div>
-            </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-slate-900">
-                ${projects.reduce((sum, p) => sum + (Number(p.currentFunding || 0)), 0).toLocaleString()}
-              </div>
-              <div className="text-sm text-slate-600">Funds Raised</div>
-            </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-slate-900">
-                {projects.filter(p => p.status === ProjectStatus.COMPLETED).length}
-              </div>
-              <div className="text-sm text-slate-600">Completed Projects</div>
-            </div>
-          </div>
-        </div>
-
-        {/* Projects Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {projects.map((project) => (
-            <Card key={project.id} className="hover:shadow-lg transition-shadow cursor-pointer">
-              <CardHeader>
-                <div className="flex items-start justify-between mb-2">
-                  <Badge className={getCategoryColor(project.category as ProjectCategory)}>
-                    {project.category.replace("_", " ")}
+              <Button
+                variant={showFilters ? "neon" : "outline"}
+                size="sm"
+                onClick={() => setShowFilters(!showFilters)}
+                className="gap-1.5"
+              >
+                <SlidersHorizontal className="size-4" />
+                Filters
+                {activeFilterCount > 0 && !showFilters && (
+                  <Badge variant="neon" size="sm" className="ml-1">
+                    {activeFilterCount}
                   </Badge>
-                  <Badge variant="outline" className={getStatusColor(project.status as ProjectStatus)}>
-                    {project.status.replace("_", " ")}
-                  </Badge>
-                </div>
-                <CardTitle className="text-lg line-clamp-2">{project.title}</CardTitle>
-                <CardDescription className="line-clamp-3">
-                  {project.description}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {/* Progress Bar */}
-                  {project.fundingGoal && project.currentFunding && (
-                    <div>
-                      <div className="flex justify-between text-sm mb-1">
-                        <span className="text-slate-600">Funding Progress</span>
-                        <span className="font-medium">
-                          ${Number(project.currentFunding).toLocaleString()} / ${Number(project.fundingGoal).toLocaleString()}
-                        </span>
-                      </div>
-                      <div className="w-full bg-slate-200 rounded-full h-2">
-                        <div
-                          className="bg-blue-600 h-2 rounded-full"
-                          style={{
-                            width: `${Math.min((Number(project.currentFunding) / Number(project.fundingGoal)) * 100, 100)}%`
-                          }}
-                        ></div>
-                      </div>
-                    </div>
-                  )}
+                )}
+              </Button>
+            </div>
 
-                  {/* Stats */}
-                  <div className="flex items-center justify-between text-sm text-slate-600">
-                    <div className="flex items-center">
-                      <Users className="h-4 w-4 mr-1" />
-                      {project._count?.supports || 0} supporters
-                    </div>
-                    <div className="flex items-center">
-                      <Heart className="h-4 w-4 mr-1" />
-                      {project.votesCount || 0} votes
-                    </div>
-                  </div>
-
-                  {/* Tags */}
-                  {project.tags && (
-                    <div className="flex flex-wrap gap-1">
-                      {project.tags.split(',').slice(0, 3).map((tag: string, index: number) => (
-                        <Badge key={index} variant="secondary" className="text-xs">
-                          {tag.trim()}
-                        </Badge>
+            {/* Expanded Filters */}
+            {showFilters && (
+              <div className="px-4 pb-4 space-y-3 border-t border-border pt-3">
+                <div className="grid grid-cols-2 gap-3">
+                  {/* Category Filter */}
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1.5 block">
+                      Category
+                    </label>
+                    <select
+                      value={selectedCategory}
+                      onChange={(e) => setSelectedCategory(e.target.value)}
+                      className="w-full px-3 py-2 bg-card border-2 border-border text-foreground text-sm focus:border-primary focus:outline-none appearance-none cursor-pointer"
+                    >
+                      {categoryFilters.map((filter) => (
+                        <option key={filter.id} value={filter.id}>
+                          {filter.label}
+                        </option>
                       ))}
-                    </div>
-                  )}
-
-                  {/* Creator and Date */}
-                  <div className="flex items-center justify-between pt-2 border-t">
-                    <div className="flex items-center text-sm text-slate-600">
-                      <div className="w-6 h-6 bg-slate-300 rounded-full mr-2 flex items-center justify-center">
-                        {project.createdBy.name?.charAt(0) || 'U'}
-                      </div>
-                      {project.createdBy.name || 'Unknown User'}
-                    </div>
-                    <div className="flex items-center text-xs text-slate-500">
-                      <Calendar className="h-3 w-3 mr-1" />
-                      {new Date(project.createdAt).toLocaleDateString()}
-                    </div>
+                    </select>
                   </div>
 
-                  {/* Action Buttons */}
-                  <div className="flex gap-2 pt-2">
-                    <Button className="flex-1" size="sm">
-                      Support Project
-                    </Button>
-                    <Button variant="outline" size="sm">
-                      <Heart className="h-4 w-4" />
-                    </Button>
+                  {/* Status Filter */}
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1.5 block">
+                      Status
+                    </label>
+                    <select
+                      value={selectedStatus}
+                      onChange={(e) => setSelectedStatus(e.target.value)}
+                      className="w-full px-3 py-2 bg-card border-2 border-border text-foreground text-sm focus:border-primary focus:outline-none appearance-none cursor-pointer"
+                    >
+                      {statusFilters.map((filter) => (
+                        <option key={filter.id} value={filter.id}>
+                          {filter.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Funding Filter */}
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1.5 block">
+                      Funding Range
+                    </label>
+                    <select
+                      value={selectedFunding}
+                      onChange={(e) => setSelectedFunding(e.target.value)}
+                      className="w-full px-3 py-2 bg-card border-2 border-border text-foreground text-sm focus:border-primary focus:outline-none appearance-none cursor-pointer"
+                    >
+                      {fundingFilters.map((filter) => (
+                        <option key={filter.id} value={filter.id}>
+                          {filter.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Time Filter */}
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1.5 block">
+                      Time Period
+                    </label>
+                    <select
+                      value={selectedTime}
+                      onChange={(e) => setSelectedTime(e.target.value)}
+                      className="w-full px-3 py-2 bg-card border-2 border-border text-foreground text-sm focus:border-primary focus:outline-none appearance-none cursor-pointer"
+                    >
+                      {timeFilters.map((filter) => (
+                        <option key={filter.id} value={filter.id}>
+                          {filter.label}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 </div>
-              </CardContent>
-            </Card>
-          ))}
+
+                {hasActiveFilters && (
+                  <div className="flex items-center justify-between pt-2">
+                    <div className="flex flex-wrap gap-2">
+                      {searchQuery && (
+                        <Badge variant="secondary" size="sm" className="gap-1">
+                          Search: {searchQuery}
+                          <button onClick={() => setSearchQuery("")}>
+                            <X className="size-3" />
+                          </button>
+                        </Badge>
+                      )}
+                      {selectedCategory !== "all" && (
+                        <Badge variant="secondary" size="sm" className="gap-1">
+                          {categoryFilters.find((f) => f.id === selectedCategory)?.label}
+                          <button onClick={() => setSelectedCategory("all")}>
+                            <X className="size-3" />
+                          </button>
+                        </Badge>
+                      )}
+                      {selectedStatus !== "all" && (
+                        <Badge variant="secondary" size="sm" className="gap-1">
+                          {statusFilters.find((f) => f.id === selectedStatus)?.label}
+                          <button onClick={() => setSelectedStatus("all")}>
+                            <X className="size-3" />
+                          </button>
+                        </Badge>
+                      )}
+                      {selectedFunding !== "all" && (
+                        <Badge variant="secondary" size="sm" className="gap-1">
+                          {fundingFilters.find((f) => f.id === selectedFunding)?.label}
+                          <button onClick={() => setSelectedFunding("all")}>
+                            <X className="size-3" />
+                          </button>
+                        </Badge>
+                      )}
+                      {selectedTime !== "all" && (
+                        <Badge variant="secondary" size="sm" className="gap-1">
+                          {timeFilters.find((f) => f.id === selectedTime)?.label}
+                          <button onClick={() => setSelectedTime("all")}>
+                            <X className="size-3" />
+                          </button>
+                        </Badge>
+                      )}
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={clearFilters}
+                      className="text-muted-foreground"
+                    >
+                      Clear all
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Tabs */}
+            <div className="flex border-b-2 border-border">
+              {projectTabs.map((tab) => {
+                const Icon = tab.icon;
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={cn(
+                      "flex-1 flex items-center justify-center gap-2 py-3 text-sm font-medium transition-colors relative",
+                      activeTab === tab.id
+                        ? "text-primary"
+                        : "text-muted-foreground hover:text-foreground hover:bg-card"
+                    )}
+                  >
+                    <Icon className="size-4" />
+                    <span className="hidden sm:inline">{tab.label}</span>
+                    {activeTab === tab.id && (
+                      <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Projects Feed */}
+          <div>
+            {isLoading ? (
+              <div className="flex items-center justify-center py-20">
+                <div className="size-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+              </div>
+            ) : filteredProjects.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-20 px-4">
+                <FolderKanban className="size-12 text-muted-foreground mb-4" />
+                <p className="text-lg font-medium text-foreground">No projects found</p>
+                <p className="text-muted-foreground mt-1">Be the first to create one!</p>
+                <Button variant="neon" className="mt-4" asChild>
+                  <Link href="/projects/create">
+                    <Plus className="size-4 mr-2" />
+                    Create Project
+                  </Link>
+                </Button>
+              </div>
+            ) : (
+              filteredProjects.map((project) => (
+                <article
+                  key={project.id}
+                  className="border-b-2 border-border bg-card hover:bg-card/80 transition-colors"
+                >
+                  <div className="p-4">
+                    {/* Header */}
+                    <div className="flex items-start gap-3">
+                      <Link
+                        href={`/dashboard/profile/${project.createdById}`}
+                        className="shrink-0"
+                      >
+                        <Avatar className="size-10 border-2 border-border hover:border-primary transition-colors">
+                          <AvatarImage src={(project as any).createdBy?.image || undefined} />
+                          <AvatarFallback>
+                            {(project as any).createdBy?.name?.charAt(0) || "U"}
+                          </AvatarFallback>
+                        </Avatar>
+                      </Link>
+
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <Link
+                            href={`/dashboard/profile/${project.createdById}`}
+                            className="font-medium text-foreground hover:text-primary transition-colors"
+                          >
+                            {(project as any).createdBy?.name || "Unknown User"}
+                          </Link>
+                          <Badge variant="secondary" size="sm">Founder</Badge>
+                          <span className="text-muted-foreground text-sm">·</span>
+                          <span className="text-muted-foreground text-sm">
+                            {formatRelativeTime(new Date(project.createdAt))}
+                          </span>
+                        </div>
+                        <p className="text-sm text-muted-foreground mt-0.5">
+                          created a new project
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <Badge
+                          variant={statusVariants[project.status] || "secondary"}
+                          size="sm"
+                        >
+                          {project.status.replace("_", " ")}
+                        </Badge>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon-sm">
+                              <MoreHorizontal className="size-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem>Copy link</DropdownMenuItem>
+                            <DropdownMenuItem>Report</DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    </div>
+
+                    {/* Project Content */}
+                    <Link href={`/projects/${project.id}`} className="block mt-3 pl-13">
+                      <h3 className="font-semibold text-lg text-foreground hover:text-primary transition-colors">
+                        {project.title}
+                      </h3>
+                      <p className="text-foreground mt-2 line-clamp-3">
+                        {project.description}
+                      </p>
+
+                      {/* Category & Tags */}
+                      <div className="flex flex-wrap gap-2 mt-3">
+                        <Badge
+                          variant={categoryVariants[project.category] || "secondary"}
+                          size="sm"
+                        >
+                          {project.category.replace("_", " ")}
+                        </Badge>
+                        {project.tags?.split(",").slice(0, 2).map((tag, i) => (
+                          <Badge key={i} variant="secondary" size="sm">
+                            {tag.trim()}
+                          </Badge>
+                        ))}
+                      </div>
+
+                      {/* Funding Progress */}
+                      {project.fundingGoal && Number(project.fundingGoal) > 0 && (
+                        <div className="mt-4">
+                          <div className="flex justify-between text-sm mb-1">
+                            <span className="text-muted-foreground">Funding Progress</span>
+                            <span className="font-medium text-foreground">
+                              ${Number(project.currentFunding || 0).toLocaleString()} / ${Number(project.fundingGoal).toLocaleString()}
+                            </span>
+                          </div>
+                          <Progress
+                            value={Math.min((Number(project.currentFunding || 0) / Number(project.fundingGoal)) * 100, 100)}
+                            variant="neon"
+                            className="h-2"
+                          />
+                        </div>
+                      )}
+
+                      {/* Stats */}
+                      <div className="flex items-center gap-4 mt-3 text-sm text-muted-foreground">
+                        <div className="flex items-center gap-1">
+                          <Users className="size-4" />
+                          <span>{project.supportersCount || 0} supporters</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Heart className="size-4" />
+                          <span>{project.votesCount || 0} votes</span>
+                        </div>
+                      </div>
+                    </Link>
+
+                    {/* Actions */}
+                    <div className="mt-4 pl-13 flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="gap-1.5 text-muted-foreground hover:text-neon-pink"
+                      >
+                        <Heart className="size-4" />
+                        <span className="text-xs">{project.votesCount || ""}</span>
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="gap-1.5 text-muted-foreground hover:text-primary"
+                      >
+                        <MessageCircle className="size-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="gap-1.5 text-muted-foreground hover:text-neon-green"
+                      >
+                        <Share2 className="size-4" />
+                      </Button>
+                      <div className="flex-1" />
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        className="text-muted-foreground hover:text-neon-yellow"
+                      >
+                        <Bookmark className="size-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </article>
+              ))
+            )}
+
+            {/* Load More */}
+            {filteredProjects.length > 0 && (
+              <div className="flex justify-center py-6">
+                <Button variant="outline">Load more projects</Button>
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* Load More */}
-        <div className="text-center mt-12">
-          <Button variant="outline" size="lg">
-            Load More Projects
-          </Button>
+        {/* Right Sidebar - Fixed to right edge */}
+        <div className="hidden xl:block fixed right-0 top-0 w-80 p-4 space-y-4 h-screen overflow-y-auto border-l-2 border-border bg-background">
+          {/* Stats */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Sparkles className="size-4 text-neon-yellow" />
+                Platform Stats
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex justify-between">
+                <span className="text-sm text-muted-foreground">Total Projects</span>
+                <span className="font-medium text-foreground">{stats.total}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-sm text-muted-foreground">Funded Projects</span>
+                <span className="font-medium text-neon-green">{stats.funded}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-sm text-muted-foreground">Total Raised</span>
+                <span className="font-medium text-foreground">${stats.totalFunding.toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-sm text-muted-foreground">Total Supporters</span>
+                <span className="font-medium text-foreground">{stats.totalSupporters}</span>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Trending Projects */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <TrendingUp className="size-4 text-primary" />
+                Trending Projects
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {trendingProjects.map((project) => (
+                <Link
+                  key={project.id}
+                  href={`/projects/${project.id}`}
+                  className="block"
+                >
+                  <div className="flex items-start justify-between mb-2">
+                    <div>
+                      <p className="font-medium text-sm text-foreground hover:text-primary transition-colors line-clamp-1">
+                        {project.title}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {project.supportersCount || 0} supporters
+                      </p>
+                    </div>
+                    <Badge
+                      variant={categoryVariants[project.category] || "secondary"}
+                      size="sm"
+                    >
+                      {project.category.replace("_", " ")}
+                    </Badge>
+                  </div>
+                  {project.fundingGoal && Number(project.fundingGoal) > 0 && (
+                    <Progress
+                      value={Math.min((Number(project.currentFunding || 0) / Number(project.fundingGoal)) * 100, 100)}
+                      variant="neon"
+                      className="h-1"
+                    />
+                  )}
+                </Link>
+              ))}
+              <Button variant="ghost" className="w-full text-sm" asChild>
+                <Link href="/projects?tab=trending">View all trending</Link>
+              </Button>
+            </CardContent>
+          </Card>
+
+          {/* Categories */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Filter className="size-4 text-neon-pink" />
+                Categories
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-wrap gap-2">
+              {Object.keys(categoryVariants).map((category) => (
+                <Badge
+                  key={category}
+                  variant={categoryVariants[category]}
+                  size="sm"
+                  className="cursor-pointer hover:opacity-80"
+                >
+                  {category.replace("_", " ")}
+                </Badge>
+              ))}
+            </CardContent>
+          </Card>
+
+          {/* Footer */}
+          <div className="text-xs text-muted-foreground space-x-2 px-2">
+            <Link href="/terms" className="hover:underline">Terms</Link>
+            <span>·</span>
+            <Link href="/privacy" className="hover:underline">Privacy</Link>
+            <span>·</span>
+            <Link href="/help" className="hover:underline">Help</Link>
+            <p className="mt-2">&copy; 2024 ArdaNova</p>
+          </div>
         </div>
       </div>
     </div>

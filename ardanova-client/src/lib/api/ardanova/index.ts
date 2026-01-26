@@ -6,7 +6,7 @@ import { GuildsEndpoint } from "./endpoints/guilds";
 
 // Re-export types from endpoints
 export type { User, CreateUserDto, UpdateUserDto } from "./endpoints/users";
-export type { Project, CreateProjectDto, UpdateProjectDto } from "./endpoints/projects";
+export type { Project, CreateProjectDto, UpdateProjectDto, SearchProjectsParams } from "./endpoints/projects";
 export type {
   Guild,
   CreateGuildDto,

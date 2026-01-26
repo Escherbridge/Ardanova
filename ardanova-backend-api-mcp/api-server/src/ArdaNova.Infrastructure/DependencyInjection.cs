@@ -1,6 +1,7 @@
 namespace ArdaNova.Infrastructure;
 
 using ArdaNova.Application.Common.Interfaces;
+using ArdaNova.Domain.Models.Entities;
 using ArdaNova.Domain.Models.Enums;
 using ArdaNova.Infrastructure.Data;
 using ArdaNova.Infrastructure.Repositories;
@@ -83,6 +84,9 @@ public static class DependencyInjection
 
         // Generic Repository
         services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
+
+        // Entity-specific Repositories
+        services.AddScoped<IProjectRepository, ProjectRepository>();
 
         // Unit of Work
         services.AddScoped<IUnitOfWork, UnitOfWork.UnitOfWork>();

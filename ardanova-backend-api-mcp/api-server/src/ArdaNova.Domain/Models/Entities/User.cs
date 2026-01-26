@@ -138,11 +138,41 @@ public class User
 
     public virtual ICollection<LiquidityProvider> LiquidityProviders { get; set; } = new List<LiquidityProvider>();
 
+    public virtual ICollection<Post> Posts { get; set; } = new List<Post>();
+
+    public virtual ICollection<PostLike> PostLikes { get; set; } = new List<PostLike>();
+
+    public virtual ICollection<PostComment> PostComments { get; set; } = new List<PostComment>();
+
+    public virtual ICollection<PostBookmark> PostBookmarks { get; set; } = new List<PostBookmark>();
+
+    public virtual ICollection<PostShare> PostShares { get; set; } = new List<PostShare>();
+
     public virtual ICollection<Attachment> Attachments { get; set; } = new List<Attachment>();
+
+    public virtual ICollection<Event> Events { get; set; } = new List<Event>();
+
+    public virtual ICollection<EventAttendee> EventAttendees { get; set; } = new List<EventAttendee>();
+
+    public virtual ICollection<EventCoHost> EventCoHosts { get; set; } = new List<EventCoHost>();
+
+    public virtual ICollection<EventReminder> EventReminders { get; set; } = new List<EventReminder>();
+
+    public virtual ICollection<ProjectFollow> ProjectFollows { get; set; } = new List<ProjectFollow>();
+
+    public virtual ICollection<GuildFollow> GuildFollows { get; set; } = new List<GuildFollow>();
 
     public virtual ICollection<Referral> ReferralsAsReferrer { get; set; } = new List<Referral>();
 
     public virtual ICollection<Referral> ReferralsAsReferred { get; set; } = new List<Referral>();
+
+    public virtual ICollection<ProjectInvitation> ProjectInvitationsAsInvitedBy { get; set; } = new List<ProjectInvitation>();
+
+    public virtual ICollection<ProjectInvitation> ProjectInvitationsAsInvitedUser { get; set; } = new List<ProjectInvitation>();
+
+    public virtual ICollection<ProjectMembershipRequest> ProjectMembershipRequestsAsUser { get; set; } = new List<ProjectMembershipRequest>();
+
+    public virtual ICollection<ProjectMembershipRequest> ProjectMembershipRequestsAsReviewedBy { get; set; } = new List<ProjectMembershipRequest>();
 
     public virtual ICollection<TaskSubmission> TaskSubmissionsAsSubmittedBy { get; set; } = new List<TaskSubmission>();
 
@@ -151,6 +181,14 @@ public class User
     public virtual ICollection<DelegatedVote> DelegatedVotesAsDelegator { get; set; } = new List<DelegatedVote>();
 
     public virtual ICollection<DelegatedVote> DelegatedVotesAsDelegatee { get; set; } = new List<DelegatedVote>();
+
+    public virtual ICollection<GuildInvitation> GuildInvitationsAsInvitedBy { get; set; } = new List<GuildInvitation>();
+
+    public virtual ICollection<GuildInvitation> GuildInvitationsAsInvitedUser { get; set; } = new List<GuildInvitation>();
+
+    public virtual ICollection<GuildApplication> GuildApplicationsAsUser { get; set; } = new List<GuildApplication>();
+
+    public virtual ICollection<GuildApplication> GuildApplicationsAsReviewedBy { get; set; } = new List<GuildApplication>();
 
     public virtual ICollection<Invoice> InvoicesAsBuyer { get; set; } = new List<Invoice>();
 
@@ -163,5 +201,9 @@ public class User
     public virtual ICollection<ChatMessage> ChatMessagesAsUserTo { get; set; } = new List<ChatMessage>();
 
     public virtual ICollection<ChatMessage> ChatMessagesAsUserFrom { get; set; } = new List<ChatMessage>();
+
+    public virtual ICollection<UserFollow> UserFollowsAsFollower { get; set; } = new List<UserFollow>();
+
+    public virtual ICollection<UserFollow> UserFollowsAsFollowing { get; set; } = new List<UserFollow>();
 
 }

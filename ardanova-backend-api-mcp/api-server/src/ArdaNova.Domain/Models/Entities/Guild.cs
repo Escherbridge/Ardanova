@@ -57,6 +57,20 @@ public class Guild
     public int projectsCount { get; set; }
 
     [Required]
+    public int membersCount { get; set; }
+
+    [Required]
+    public bool isTrending { get; set; }
+
+    [Required]
+    [Precision(18, 8)]
+    public decimal trendingScore { get; set; }
+
+    public int? trendingRank { get; set; }
+
+    public DateTime? trendingAt { get; set; }
+
+    [Required]
     public DateTime createdAt { get; set; }
 
     [Required]
@@ -72,8 +86,20 @@ public class Guild
 
     public virtual ICollection<GuildMember> GuildMembers { get; set; } = new List<GuildMember>();
 
+    public virtual ICollection<GuildInvitation> GuildInvitations { get; set; } = new List<GuildInvitation>();
+
+    public virtual ICollection<GuildApplication> GuildApplications { get; set; } = new List<GuildApplication>();
+
     public virtual ICollection<ProjectBid> ProjectBids { get; set; } = new List<ProjectBid>();
 
     public virtual ICollection<GuildReview> GuildReviews { get; set; } = new List<GuildReview>();
+
+    public virtual ICollection<Post> Posts { get; set; } = new List<Post>();
+
+    public virtual ICollection<PostShare> PostShares { get; set; } = new List<PostShare>();
+
+    public virtual ICollection<Event> Events { get; set; } = new List<Event>();
+
+    public virtual ICollection<GuildFollow> GuildFollows { get; set; } = new List<GuildFollow>();
 
 }

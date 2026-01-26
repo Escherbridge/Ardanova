@@ -17,6 +17,10 @@ This document provides a detailed technical architecture for the ArdaNova platfo
 | `File Storage` | ✅ Complete | S3/Local storage with env var binding |
 | `Dev Scripts` | ✅ Complete | Bash & PowerShell scripts (Docker/Podman) |
 | `C# Generator` | ✅ Complete | Attribute-based EF Core configuration |
+| `Membership Management` | ✅ Complete | Project & Guild invitations/applications |
+| `Events System` | ✅ Complete | Events, attendees, reminders, co-hosts |
+| `Social Features` | ✅ Complete | User/Project/Guild following system |
+| `Trending System` | ✅ Complete | Analytics-driven trending for discovery |
 | `ardanova-ai-client` | 🔄 Stubbed | Python AI orchestrator (structure ready) |
 | `ardanova-game-sdk` | 🔄 TODO | Unity & Godot SDKs (NuGet) |
 | `contracts` | 🔄 Stubbed | Algorand smart contracts (structure ready) |
@@ -32,6 +36,10 @@ This document provides a detailed technical architecture for the ArdaNova platfo
 - EF Core relationship fixes for multi-FK entities
 - **C# Generator enhanced with attribute-based EF Core configuration**
 - DbContext simplified from 682 lines to ~120 lines (OnModelCreating: 570+ → 9 lines)
+- **Project & Guild membership management** (invitations, applications, requests)
+- **Events system** with attendees, co-hosts, reminders, and multiple event types
+- **Social following system** for users, projects, and guilds with notification preferences
+- **Trending system** with score-based ranking for projects, guilds, and posts
 
 ---
 
@@ -722,6 +730,20 @@ The main platform is a Next.js 15 application using the App Router pattern.
 
 ## Database Design
 
+### Schema Overview
+
+The database schema is organized into 9 modules with 70+ entities:
+
+1. **Authentication & User Core** - Users, accounts, sessions, verification
+2. **Gamification & Reputation** - XP, achievements, streaks, leaderboards
+3. **Project Management & Governance** - Projects, tasks, roadmaps, proposals
+4. **Guild Module** - Guilds, members, bids, reviews
+5. **Marketplace & Shop** - Shops, products, invoices, sales
+6. **Finance & Tokenomics** - Tokens, treasury, escrow, ICO, liquidity
+7. **Engagement & Communication** - Posts, comments, chat, attachments
+8. **Events Module** - Events, attendees, co-hosts, reminders
+9. **Social & Follow Module** - User/Project/Guild following
+
 ### Key Schema Relationships
 
 | Parent | Child | Relationship |
@@ -734,12 +756,353 @@ The main platform is a Next.js 15 application using the App Router pattern.
 | BacklogItem | ProjectTask | 1:N |
 | Sprint | ProjectTask | N:M (via SprintItem) |
 | Project | ProjectMember | 1:N |
+| Project | ProjectInvitation | 1:N |
+| Project | ProjectMembershipRequest | 1:N |
+| Project | ProjectFollow | 1:N |
 | Project | Proposal | 1:N |
 | Project | ProjectToken | 1:1 |
+| Project | Event | 1:N |
 | ProjectToken | ICO | 1:1 |
+| Guild | GuildMember | 1:N |
+| Guild | GuildInvitation | 1:N |
+| Guild | GuildApplication | 1:N |
+| Guild | GuildFollow | 1:N |
+| Guild | Event | 1:N |
+| Event | EventAttendee | 1:N |
+| Event | EventCoHost | 1:N |
+| Event | EventReminder | 1:N |
+| User | UserFollow (as follower) | 1:N |
+| User | UserFollow (as following) | 1:N |
 | User | XPEvent | 1:N |
 | User | UserAchievement | 1:N |
 | User | Attachment | 1:N |
+
+### Membership Management Models
+
+#### Project Membership
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                  PROJECT MEMBERSHIP FLOW                         │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  INVITATION FLOW (Project → User):                              │
+│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐      │
+│  │   Project    │───>│  Invitation  │───>│    User      │      │
+│  │   Leader     │    │   Created    │    │   Invited    │      │
+│  └──────────────┘    └──────────────┘    └──────┬───────┘      │
+│                                                  │               │
+│                           ┌──────────────────────┼──────────┐   │
+│                           │                      │          │   │
+│                           ▼                      ▼          ▼   │
+│                    ┌──────────┐          ┌──────────┐ ┌────────┐│
+│                    │ ACCEPTED │          │ DECLINED │ │EXPIRED ││
+│                    └────┬─────┘          └──────────┘ └────────┘│
+│                         │                                       │
+│                         ▼                                       │
+│                  ┌──────────────┐                               │
+│                  │ProjectMember │                               │
+│                  │   Created    │                               │
+│                  └──────────────┘                               │
+│                                                                  │
+│  APPLICATION FLOW (User → Project):                             │
+│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐      │
+│  │    User      │───>│ Application  │───>│   Project    │      │
+│  │   Applies    │    │   Created    │    │   Leader     │      │
+│  └──────────────┘    └──────────────┘    └──────┬───────┘      │
+│                                                  │               │
+│                           ┌──────────────────────┼──────────┐   │
+│                           │                      │          │   │
+│                           ▼                      ▼          ▼   │
+│                    ┌──────────┐          ┌──────────┐ ┌────────┐│
+│                    │ APPROVED │          │ REJECTED │ │WITHDRAWN│
+│                    └────┬─────┘          └──────────┘ └────────┘│
+│                         │                                       │
+│                         ▼                                       │
+│                  ┌──────────────┐                               │
+│                  │ProjectMember │                               │
+│                  │   Created    │                               │
+│                  └──────────────┘                               │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**ProjectInvitation Table:**
+| Field | Type | Description |
+|-------|------|-------------|
+| id | string | Primary key (cuid) |
+| projectId | string | FK to Project |
+| invitedById | string | FK to User (inviter) |
+| invitedUserId | string? | FK to User (if registered) |
+| invitedEmail | string? | Email (for non-registered users) |
+| role | ProjectRole | Role being offered |
+| message | text? | Personal message |
+| status | InvitationStatus | PENDING, ACCEPTED, DECLINED, EXPIRED, CANCELLED |
+| token | string? | Unique invitation token |
+| expiresAt | datetime? | Expiration timestamp |
+| createdAt | datetime | Created timestamp |
+| respondedAt | datetime? | When user responded |
+
+**ProjectMembershipRequest Table:**
+| Field | Type | Description |
+|-------|------|-------------|
+| id | string | Primary key (cuid) |
+| projectId | string | FK to Project |
+| userId | string | FK to User (applicant) |
+| requestedRole | ProjectRole | Desired role |
+| message | text | Application message |
+| skills | text? | Relevant skills |
+| motivation | text? | Why they want to join |
+| portfolio | text? | Portfolio links |
+| status | MembershipRequestStatus | PENDING, APPROVED, REJECTED, WITHDRAWN |
+| reviewedById | string? | FK to User (reviewer) |
+| reviewMessage | text? | Feedback from reviewer |
+| createdAt | datetime | Created timestamp |
+| reviewedAt | datetime? | When reviewed |
+
+#### Guild Membership
+
+**GuildInvitation Table:**
+| Field | Type | Description |
+|-------|------|-------------|
+| id | string | Primary key (cuid) |
+| guildId | string | FK to Guild |
+| invitedById | string | FK to User (inviter) |
+| invitedUserId | string? | FK to User (if registered) |
+| invitedEmail | string? | Email (for non-registered users) |
+| role | GuildMemberRole | OWNER, ADMIN, MANAGER, MEMBER, APPRENTICE |
+| message | text? | Personal message |
+| status | InvitationStatus | PENDING, ACCEPTED, DECLINED, EXPIRED, CANCELLED |
+| token | string? | Unique invitation token |
+| expiresAt | datetime? | Expiration timestamp |
+| createdAt | datetime | Created timestamp |
+| respondedAt | datetime? | When user responded |
+
+**GuildApplication Table:**
+| Field | Type | Description |
+|-------|------|-------------|
+| id | string | Primary key (cuid) |
+| guildId | string | FK to Guild |
+| userId | string | FK to User (applicant) |
+| requestedRole | GuildMemberRole | Desired role |
+| message | text | Application message |
+| skills | text? | Relevant skills |
+| experience | text? | Work experience |
+| portfolio | text? | Portfolio links |
+| availability | string? | Time availability |
+| status | MembershipRequestStatus | PENDING, APPROVED, REJECTED, WITHDRAWN |
+| reviewedById | string? | FK to User (reviewer) |
+| reviewMessage | text? | Feedback from reviewer |
+| appliedAt | datetime | Created timestamp |
+| reviewedAt | datetime? | When reviewed |
+
+### Events System
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                      EVENTS ARCHITECTURE                         │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  ┌─────────────────────────────────────────────────────────┐    │
+│  │                        EVENT                             │    │
+│  │  • title, slug, description                             │    │
+│  │  • type: MEETING, WORKSHOP, WEBINAR, TOWN_HALL,        │    │
+│  │          CRITIQUE, HACKATHON, SOCIAL, OTHER            │    │
+│  │  • visibility: PUBLIC, PROJECT_MEMBERS, GUILD_MEMBERS, │    │
+│  │                 INVITE_ONLY                             │    │
+│  │  • status: DRAFT, SCHEDULED, LIVE, COMPLETED, CANCELLED│    │
+│  │  • location, locationUrl (physical)                     │    │
+│  │  • isOnline, meetingUrl (virtual)                       │    │
+│  │  • timezone, startDate, endDate                         │    │
+│  │  • maxAttendees, attendeesCount                         │    │
+│  │  • organizerId → User                                   │    │
+│  │  • projectId → Project (optional)                       │    │
+│  │  • guildId → Guild (optional)                          │    │
+│  └─────────────────────────────────────────────────────────┘    │
+│                              │                                   │
+│         ┌────────────────────┼────────────────────┐             │
+│         ▼                    ▼                    ▼             │
+│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐      │
+│  │EventAttendee │    │ EventCoHost  │    │EventReminder │      │
+│  ├──────────────┤    ├──────────────┤    ├──────────────┤      │
+│  │ eventId      │    │ eventId      │    │ eventId      │      │
+│  │ userId       │    │ userId       │    │ userId       │      │
+│  │ status:      │    │ addedAt      │    │ remindAt     │      │
+│  │  INVITED     │    └──────────────┘    │ isSent       │      │
+│  │  GOING       │                        │ sentAt       │      │
+│  │  MAYBE       │                        └──────────────┘      │
+│  │  NOT_GOING   │                                               │
+│  │  ATTENDED    │                                               │
+│  │ rsvpAt       │                                               │
+│  │ attendedAt   │                                               │
+│  │ notes        │                                               │
+│  └──────────────┘                                               │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Event Types:**
+| Type | Description |
+|------|-------------|
+| MEETING | General meetings, stand-ups |
+| WORKSHOP | Hands-on learning sessions |
+| WEBINAR | Presentation-style online events |
+| TOWN_HALL | Community-wide discussions |
+| CRITIQUE | Design/code review sessions |
+| HACKATHON | Coding competitions |
+| SOCIAL | Casual gatherings |
+| OTHER | Custom event types |
+
+### Social & Following System
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    SOCIAL FOLLOW SYSTEM                          │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  USER FOLLOW (User → User):                                     │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │ UserFollow                                                │   │
+│  │ • followerId → User (who is following)                   │   │
+│  │ • followingId → User (who is being followed)             │   │
+│  │ • createdAt                                               │   │
+│  └──────────────────────────────────────────────────────────┘   │
+│                                                                  │
+│  PROJECT FOLLOW (User → Project):                               │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │ ProjectFollow                                             │   │
+│  │ • userId → User                                           │   │
+│  │ • projectId → Project                                     │   │
+│  │ • notifyUpdates: boolean (project news)                  │   │
+│  │ • notifyMilestones: boolean (milestone completions)      │   │
+│  │ • notifyProposals: boolean (governance proposals)        │   │
+│  │ • createdAt                                               │   │
+│  └──────────────────────────────────────────────────────────┘   │
+│                                                                  │
+│  GUILD FOLLOW (User → Guild):                                   │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │ GuildFollow                                               │   │
+│  │ • userId → User                                           │   │
+│  │ • guildId → Guild                                         │   │
+│  │ • notifyUpdates: boolean (guild news)                    │   │
+│  │ • notifyEvents: boolean (new events)                     │   │
+│  │ • notifyProjects: boolean (new project assignments)      │   │
+│  │ • createdAt                                               │   │
+│  └──────────────────────────────────────────────────────────┘   │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Trending System
+
+The platform uses an analytics-driven trending system for content discovery.
+
+**Trending Fields (on Project, Guild, Post):**
+| Field | Type | Description |
+|-------|------|-------------|
+| isTrending | boolean | Quick filter flag (set by analytics job) |
+| trendingScore | decimal(18,8) | Calculated score for ranking |
+| trendingRank | int? | Display position (1st, 2nd, 3rd, etc.) |
+| trendingAt | datetime? | When item became trending |
+
+**Trending Score Factors:**
+- **Views** - Page/profile views
+- **Engagement** - Likes, comments, shares
+- **Recency** - Time decay for freshness
+- **Growth Rate** - Velocity of engagement
+- **Quality Signals** - Completion rate, verification status
+
+**Analytics Job Workflow:**
+```
+┌──────────────┐    ┌──────────────┐    ┌──────────────┐
+│  Calculate   │───>│   Rank Top   │───>│  Update DB   │
+│   Scores     │    │   N Items    │    │   Fields     │
+└──────────────┘    └──────────────┘    └──────────────┘
+       │                   │                   │
+       ▼                   ▼                   ▼
+  Views + Likes +    Set trendingRank    isTrending = true
+  Comments + Shares   1, 2, 3, ...       trendingScore = X
+  + Recency Factor                       trendingAt = now()
+```
+
+### New Enums
+
+**InvitationStatus:**
+| Value | Description |
+|-------|-------------|
+| PENDING | Awaiting response |
+| ACCEPTED | User accepted |
+| DECLINED | User declined |
+| EXPIRED | Invitation expired |
+| CANCELLED | Inviter cancelled |
+
+**MembershipRequestStatus:**
+| Value | Description |
+|-------|-------------|
+| PENDING | Awaiting review |
+| APPROVED | Application approved |
+| REJECTED | Application rejected |
+| WITHDRAWN | User withdrew application |
+
+**GuildMemberRole:**
+| Value | Level | Description |
+|-------|-------|-------------|
+| OWNER | 100 | Guild owner (creator) |
+| ADMIN | 80 | Full administrative access |
+| MANAGER | 60 | Project/member management |
+| MEMBER | 40 | Standard member |
+| APPRENTICE | 20 | New/learning member |
+
+**EventStatus:**
+| Value | Description |
+|-------|-------------|
+| DRAFT | Not yet published |
+| SCHEDULED | Published, upcoming |
+| LIVE | Currently happening |
+| COMPLETED | Event finished |
+| CANCELLED | Event cancelled |
+
+**EventVisibility:**
+| Value | Description |
+|-------|-------------|
+| PUBLIC | Anyone can see |
+| PROJECT_MEMBERS | Project members only |
+| GUILD_MEMBERS | Guild members only |
+| INVITE_ONLY | Invited users only |
+
+**AttendeeStatus:**
+| Value | Description |
+|-------|-------------|
+| INVITED | Invited, no response |
+| GOING | Confirmed attending |
+| MAYBE | Tentative |
+| NOT_GOING | Declined |
+| ATTENDED | Marked as attended |
+
+### New Notification Types
+
+| Notification Type | Trigger |
+|-------------------|---------|
+| PROJECT_INVITATION | User invited to project |
+| PROJECT_INVITATION_ACCEPTED | Invitee accepted |
+| PROJECT_INVITATION_DECLINED | Invitee declined |
+| PROJECT_MEMBERSHIP_REQUEST | User applied to project |
+| PROJECT_MEMBERSHIP_APPROVED | Application approved |
+| PROJECT_MEMBERSHIP_REJECTED | Application rejected |
+| GUILD_INVITATION | User invited to guild |
+| GUILD_INVITATION_ACCEPTED | Invitee accepted |
+| GUILD_INVITATION_DECLINED | Invitee declined |
+| GUILD_APPLICATION | User applied to guild |
+| GUILD_APPLICATION_APPROVED | Application approved |
+| GUILD_APPLICATION_REJECTED | Application rejected |
+| EVENT_INVITATION | Invited to event |
+| EVENT_REMINDER | Upcoming event reminder |
+| EVENT_STARTING_SOON | Event starting shortly |
+| EVENT_CANCELLED | Event was cancelled |
+| EVENT_UPDATED | Event details changed |
+| USER_FOLLOWED | Someone followed you |
+| PROJECT_FOLLOWED | Someone followed your project |
+| GUILD_FOLLOWED | Someone followed your guild |
 
 ---
 
@@ -908,13 +1271,17 @@ The generator:
 |----------|----------|
 | **User** | UserService, AccountService, SessionService, UserSkillService, UserExperienceService |
 | **Project** | ProjectService, ProjectTaskService, ProjectResourceService, ProjectMilestoneService, ProjectSupportService, ProjectApplicationService, ProjectCommentService, ProjectUpdateService, ProjectEquityService |
-| **Agency** | AgencyService, AgencyMemberService, ProjectBidService, AgencyReviewService |
+| **Project Membership** | ProjectInvitationService (TODO), ProjectMembershipRequestService (TODO) |
+| **Guild** | GuildService, GuildMemberService, ProjectBidService, GuildReviewService |
+| **Guild Membership** | GuildInvitationService (TODO), GuildApplicationService (TODO) |
+| **Events** | EventService (TODO), EventAttendeeService (TODO), EventReminderService (TODO) |
+| **Social** | UserFollowService (TODO), ProjectFollowService (TODO), GuildFollowService (TODO) |
 | **Business** | BusinessService, CustomerService, ProductService, InvoiceService, SaleService, InventoryItemService, MarketingCampaignService |
 | **Financial** | WalletService, TaskEscrowService, TokenSwapService, LiquidityPoolService |
 | **Gamification** | UserStreakService, ReferralService |
 | **Communication** | NotificationService, ActivityService |
 | **Governance** | DelegatedVoteService |
-| **Storage** | AttachmentService ✅ NEW |
+| **Storage** | AttachmentService |
 
 ---
 
@@ -1143,11 +1510,37 @@ lib/blockchain/
 | Docker Compose (Dev) | ✅ Complete | `docker-compose.dev.yml` |
 | AI Client Stub | ✅ Stubbed | `ardanova-ai-client/` |
 | Smart Contracts Stub | ✅ Stubbed | `contracts/` |
+| **Project Invitations** | ✅ Complete | `ArdaNova.Domain/Models/Entities/ProjectInvitation.cs` |
+| **Project Membership Requests** | ✅ Complete | `ArdaNova.Domain/Models/Entities/ProjectMembershipRequest.cs` |
+| **Guild Invitations** | ✅ Complete | `ArdaNova.Domain/Models/Entities/GuildInvitation.cs` |
+| **Guild Applications** | ✅ Complete | `ArdaNova.Domain/Models/Entities/GuildApplication.cs` |
+| **Events System** | ✅ Complete | `ArdaNova.Domain/Models/Entities/Event.cs` |
+| **Event Attendees** | ✅ Complete | `ArdaNova.Domain/Models/Entities/EventAttendee.cs` |
+| **Event Co-Hosts** | ✅ Complete | `ArdaNova.Domain/Models/Entities/EventCoHost.cs` |
+| **Event Reminders** | ✅ Complete | `ArdaNova.Domain/Models/Entities/EventReminder.cs` |
+| **User Following** | ✅ Complete | `ArdaNova.Domain/Models/Entities/UserFollow.cs` |
+| **Project Following** | ✅ Complete | `ArdaNova.Domain/Models/Entities/ProjectFollow.cs` |
+| **Guild Following** | ✅ Complete | `ArdaNova.Domain/Models/Entities/GuildFollow.cs` |
+| **Trending System** | ✅ Complete | Added to Project, Guild, Post entities |
+
+### Database Schema Stats
+
+| Metric | Count |
+|--------|-------|
+| Total Entities | 70+ |
+| Total Enums | 45+ |
+| Schema Modules | 9 |
+| New Tables (Jan 2025) | 11 |
+| New Enums (Jan 2025) | 6 |
 
 ### In Progress 🔄
 
 | Feature | Status | Notes |
 |---------|--------|-------|
+| Membership Services | 🔄 TODO | CRUD services for invitations/applications |
+| Events Services | 🔄 TODO | CRUD services for events system |
+| Following Services | 🔄 TODO | CRUD services for social following |
+| Trending Analytics Job | 🔄 TODO | Background job to calculate trending scores |
 | DAO UI | 🔄 TODO | Governance proposals, voting |
 | Studio UI | 🔄 TODO | Gamma API integration |
 | Exchange UI | 🔄 TODO | Token swap, liquidity |
@@ -1159,9 +1552,7 @@ lib/blockchain/
 
 | Issue | Workaround | Status |
 |-------|------------|--------|
-| Multi-FK EF Core relationships | `[InverseProperty]` attributes | ✅ Fixed |
-| Next.js Turbopack/Alpine WASM | Use standard Node image | 🔄 Open |
-| Port 8080 conflicts (local) | Stop conflicting services | 🔄 Open |
+
 
 ---
 
@@ -1173,14 +1564,19 @@ lib/blockchain/
 4. ✅ **Phase 4**: File Storage Service - **COMPLETE**
 5. ✅ **Phase 5**: AI Client & Contracts Stubs - **COMPLETE**
 6. ✅ **Phase 5.1**: Dev Scripts & Docker Hot-Reload - **COMPLETE**
-7. 🔄 **Phase 6**: Consolidate DAO, Studio, Exchange, Explorer into client
-8. **Phase 7**: Blockchain integration (Algorand)
-9. **Phase 8**: Smart contract development (PyTeal)
-10. **Phase 9**: Game SDK (Unity, Godot)
+7. ✅ **Phase 5.2**: Membership Management (Invitations/Applications) - **COMPLETE**
+8. ✅ **Phase 5.3**: Events System - **COMPLETE**
+9. ✅ **Phase 5.4**: Social Following System - **COMPLETE**
+10. ✅ **Phase 5.5**: Trending System - **COMPLETE**
+11. 🔄 **Phase 6**: Backend Services for new entities (invitations, events, follows)
+12. 🔄 **Phase 7**: Consolidate DAO, Studio, Exchange, Explorer into client
+13. **Phase 8**: Blockchain integration (Algorand)
+14. **Phase 9**: Smart contract development (PyTeal)
+15. **Phase 10**: Game SDK (Unity, Godot)
 
 See [ROADMAP.md](./ROADMAP.md) for detailed timelines.
 
 ---
 
 **Last Updated**: January 2025
-**Version**: 4.2.0 (Attribute-Based EF Core, Convention DbContext, Enhanced Generator)
+**Version**: 4.3.0 (Membership Management, Events, Social Following, Trending System)

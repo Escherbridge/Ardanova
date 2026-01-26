@@ -57,13 +57,13 @@ const badgeVariants = cva(
 
         // Solid Neon variants
         "neon-solid":
-          "border-transparent bg-neon-cyan text-black font-bold",
+          "border-transparent bg-neon-cyan text-background font-medium",
 
         "neon-pink-solid":
-          "border-transparent bg-neon-pink text-black font-bold",
+          "border-transparent bg-neon-pink text-background font-medium",
 
         "neon-green-solid":
-          "border-transparent bg-neon-green text-black font-bold",
+          "border-transparent bg-neon-green text-background font-medium",
       },
       size: {
         default: "px-2.5 py-0.5 text-xs",

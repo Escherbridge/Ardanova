@@ -1,250 +1,635 @@
-import { redirect } from "next/navigation";
+"use client";
+
+import { useState } from "react";
 import Link from "next/link";
-import { Plus, TrendingUp, Users, Briefcase, Settings } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
+import {
+  TrendingUp,
+  Users,
+  Calendar,
+  Home,
+  Search,
+  SlidersHorizontal,
+  X,
+  ChevronDown,
+} from "lucide-react";
 
 import { Button } from "~/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "~/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Badge } from "~/components/ui/badge";
-import { auth } from "~/server/auth";
-import { DashboardProjects } from "~/components/dashboard-projects";
-import { DashboardProjectCards } from "~/components/dashboard-project-cards";
+import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
+import { Progress } from "~/components/ui/progress";
+import {
+  Feed,
+  ComposeBox,
+  EntityPreview,
+  type FeedCardProps,
+  type EntityData,
+  type FeedTab,
+} from "~/components/feed";
+import { useSession } from "next-auth/react";
+import { cn } from "~/lib/utils";
 
-export default async function DashboardPage() {
-  const session = await auth();
+// Sample feed data - in production this would come from API
+const sampleFeedItems: FeedCardProps[] = [
+  {
+    id: "1",
+    type: "project_update",
+    author: {
+      id: "u1",
+      name: "Sarah Chen",
+      avatar: "https://i.pravatar.cc/150?u=sarah",
+      badge: "Founder",
+    },
+    entity: {
+      id: "p1",
+      type: "project",
+      name: "EcoWaste Solutions",
+      slug: "ecowaste-solutions",
+    },
+    content: {
+      title: "Milestone Reached: 100 Co-owners!",
+      text: "We just hit 100 co-owners on our sustainable waste management platform. Thank you to everyone who believes in building a cleaner future together. Next up: launching our pilot program in three cities.",
+    },
+    engagement: { likes: 47, comments: 12, shares: 8 },
+    timestamp: new Date(Date.now() - 1000 * 60 * 30),
+  },
+  {
+    id: "2",
+    type: "task_completed",
+    author: {
+      id: "u2",
+      name: "Marcus Rodriguez",
+      avatar: "https://i.pravatar.cc/150?u=marcus",
+    },
+    entity: {
+      id: "p2",
+      type: "project",
+      name: "HealthTrack",
+      slug: "healthtrack",
+    },
+    content: {
+      text: "Just completed the mobile app redesign. The new interface is much more accessible and works better on older devices. Ready for community review!",
+      metadata: {
+        "Task": "Mobile App Redesign",
+        "Reward": "250 shares",
+      },
+    },
+    engagement: { likes: 23, comments: 5, shares: 2 },
+    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2),
+  },
+  {
+    id: "3",
+    type: "guild_activity",
+    author: {
+      id: "u3",
+      name: "Design Guild",
+      avatar: "https://i.pravatar.cc/150?u=guild",
+      badge: "Guild",
+    },
+    entity: {
+      id: "g1",
+      type: "guild",
+      name: "Design Guild",
+      slug: "design-guild",
+    },
+    content: {
+      title: "Weekly Design Critique Session",
+      text: "Join us this Friday at 3pm EST for our weekly design critique. Bring your work-in-progress and get feedback from fellow designers. All skill levels welcome!",
+    },
+    engagement: { likes: 15, comments: 8, shares: 4 },
+    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 5),
+  },
+  {
+    id: "4",
+    type: "proposal",
+    author: {
+      id: "u4",
+      name: "Alex Kim",
+      avatar: "https://i.pravatar.cc/150?u=alex",
+    },
+    entity: {
+      id: "p1",
+      type: "project",
+      name: "EcoWaste Solutions",
+      slug: "ecowaste-solutions",
+    },
+    content: {
+      title: "Proposal: Expand to European Markets",
+      text: "I'm proposing we allocate 15% of our next funding round to expand operations to Germany and Netherlands. Both countries have strong environmental policies and receptive markets.",
+      metadata: {
+        "Voting ends": "in 5 days",
+        "Current votes": "67% in favor",
+      },
+    },
+    engagement: { likes: 34, comments: 28, shares: 12 },
+    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 12),
+  },
+  {
+    id: "5",
+    type: "milestone",
+    author: {
+      id: "u5",
+      name: "Jordan Lee",
+      avatar: "https://i.pravatar.cc/150?u=jordan",
+    },
+    entity: {
+      id: "p3",
+      type: "project",
+      name: "EduConnect",
+      slug: "educonnect",
+    },
+    content: {
+      title: "1,000 Students Matched with Mentors!",
+      text: "Our mentorship platform just crossed a major milestone. Over 1,000 students have now been connected with experienced mentors in their fields. The impact stories coming in are incredible.",
+    },
+    engagement: { likes: 89, comments: 24, shares: 31 },
+    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24),
+  },
+];
 
-  if (!session?.user) {
-    redirect("/api/auth/signin");
-  }
+// Sample trending projects
+const trendingProjects = [
+  {
+    id: "p1",
+    name: "EcoWaste Solutions",
+    category: "Environment",
+    coOwners: 124,
+    progress: 78,
+  },
+  {
+    id: "p2",
+    name: "HealthTrack",
+    category: "Healthcare",
+    coOwners: 89,
+    progress: 45,
+  },
+  {
+    id: "p3",
+    name: "EduConnect",
+    category: "Education",
+    coOwners: 67,
+    progress: 92,
+  },
+];
 
-  const user = session.user;
+// Sample suggested users
+const suggestedUsers = [
+  {
+    id: "u6",
+    name: "Emma Watson",
+    avatar: "https://i.pravatar.cc/150?u=emma",
+    bio: "UX Designer | 12 projects",
+  },
+  {
+    id: "u7",
+    name: "David Park",
+    avatar: "https://i.pravatar.cc/150?u=david",
+    bio: "Full-stack Dev | Builder",
+  },
+  {
+    id: "u8",
+    name: "Lisa Chen",
+    avatar: "https://i.pravatar.cc/150?u=lisa",
+    bio: "Product Manager | 8 projects",
+  },
+];
+
+// Dashboard-specific tabs (simplified)
+const dashboardTabs: FeedTab[] = [
+  { id: "feed", label: "Feed", icon: Home },
+  { id: "trending", label: "Trending", icon: TrendingUp },
+];
+
+// Search filter options
+const postTypeFilters = [
+  { id: "all", label: "All Types" },
+  { id: "project_update", label: "Project Updates" },
+  { id: "task_completed", label: "Task Completions" },
+  { id: "guild_activity", label: "Guild Activity" },
+  { id: "proposal", label: "Proposals" },
+  { id: "milestone", label: "Milestones" },
+];
+
+const timeRangeFilters = [
+  { id: "all", label: "All Time" },
+  { id: "today", label: "Today" },
+  { id: "week", label: "This Week" },
+  { id: "month", label: "This Month" },
+];
+
+export default function DashboardPage() {
+  const { data: session } = useSession();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [feedItems, setFeedItems] = useState(sampleFeedItems);
+  const [selectedEntity, setSelectedEntity] = useState<EntityData | null>(null);
+  const [isEntityPreviewOpen, setIsEntityPreviewOpen] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedType, setSelectedType] = useState("all");
+  const [selectedTimeRange, setSelectedTimeRange] = useState("all");
+
+  const user = session?.user;
+
+  const handleAuthorClick = (author: { id: string; name: string }) => {
+    // Navigate to user's own profile if clicking on themselves, otherwise to the author's profile
+    if (user?.id === author.id) {
+      router.push("/dashboard/profile");
+    } else {
+      router.push(`/dashboard/profile/${author.id}`);
+    }
+  };
+
+  const handleEntityClick = (entity: FeedCardProps["entity"]) => {
+    if (entity) {
+      setSelectedEntity({
+        id: entity.id,
+        type: entity.type,
+        name: entity.name,
+        slug: entity.slug,
+        description:
+          "A community-owned project building sustainable solutions for the future.",
+        stats: {
+          members: 124,
+          tasks: 15,
+          completed: 89,
+          funding: 45000,
+          fundingGoal: 100000,
+        },
+        tags: ["Sustainability", "Community", "Impact"],
+        recentMembers: [
+          { id: "u1", name: "Sarah Chen", avatar: "https://i.pravatar.cc/150?u=sarah" },
+          { id: "u2", name: "Marcus Rodriguez", avatar: "https://i.pravatar.cc/150?u=marcus" },
+          { id: "u4", name: "Alex Kim", avatar: "https://i.pravatar.cc/150?u=alex" },
+        ],
+        createdAt: new Date(2024, 0, 15),
+      });
+      setIsEntityPreviewOpen(true);
+    }
+  };
+
+  const handlePostSubmit = (post: {
+    text: string;
+    scope: { type: string; id?: string; name?: string };
+  }) => {
+    const newPost: FeedCardProps = {
+      id: `new-${Date.now()}`,
+      type: "post",
+      author: {
+        id: user?.id || "current-user",
+        name: user?.name || "You",
+        avatar: user?.image || undefined,
+      },
+      content: {
+        text: post.text,
+      },
+      engagement: { likes: 0, comments: 0, shares: 0 },
+      timestamp: new Date(),
+    };
+    setFeedItems([newPost, ...feedItems]);
+  };
+
+  // Filter feed items based on search and filters
+  const filteredFeedItems = feedItems.filter((item) => {
+    // Search query filter
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      const matchesContent =
+        item.content.text?.toLowerCase().includes(query) ||
+        item.content.title?.toLowerCase().includes(query);
+      const matchesAuthor = item.author.name.toLowerCase().includes(query);
+      const matchesEntity = item.entity?.name.toLowerCase().includes(query);
+      if (!matchesContent && !matchesAuthor && !matchesEntity) return false;
+    }
+
+    // Type filter
+    if (selectedType !== "all" && item.type !== selectedType) return false;
+
+    // Time range filter
+    if (selectedTimeRange !== "all") {
+      const now = new Date();
+      const itemDate = new Date(item.timestamp);
+      const diffMs = now.getTime() - itemDate.getTime();
+      const diffDays = diffMs / (1000 * 60 * 60 * 24);
+
+      if (selectedTimeRange === "today" && diffDays > 1) return false;
+      if (selectedTimeRange === "week" && diffDays > 7) return false;
+      if (selectedTimeRange === "month" && diffDays > 30) return false;
+    }
+
+    return true;
+  });
+
+  const hasActiveFilters =
+    searchQuery || selectedType !== "all" || selectedTimeRange !== "all";
+
+  const clearFilters = () => {
+    setSearchQuery("");
+    setSelectedType("all");
+    setSelectedTimeRange("all");
+  };
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      <div className="container mx-auto px-4 py-8">
-        {/* Welcome Section */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-slate-900 mb-2">
-            Welcome back, {user.name}!
-          </h1>
-          <p className="text-slate-600">
-            Ready to turn your ideas into reality? Let&apos;s get started.
-          </p>
-        </div>
-
-        {/* Quick Actions */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <Link href="/dashboard/create" className="block">
-            <Card className="hover:shadow-md transition-shadow cursor-pointer">
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <div className="p-2 bg-blue-100 rounded-lg">
-                    <Plus className="h-5 w-5 text-blue-600" />
-                  </div>
-                  <Badge variant="secondary">New</Badge>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <CardTitle className="text-lg mb-1">Create Project</CardTitle>
-                <CardDescription>
-                  Start a new project and get community support
-                </CardDescription>
-              </CardContent>
-            </Card>
-          </Link>
-
-          <Card className="hover:shadow-md transition-shadow cursor-pointer">
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <div className="p-2 bg-green-100 rounded-lg">
-                  <Users className="h-5 w-5 text-green-600" />
-                </div>
+    <div className="min-h-screen bg-background">
+      <div className="flex justify-center">
+        {/* Main Feed Column - Centered */}
+        <div className="w-full max-w-2xl border-x-2 border-border">
+          {/* Search Parameters Section */}
+          <div className="sticky top-0 z-20 bg-background border-b-2 border-border">
+            {/* Search Bar */}
+            <div className="p-4 flex items-center gap-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search posts, projects, people..."
+                  className="w-full pl-10 pr-4 py-2 bg-card border-2 border-border text-foreground text-sm placeholder:text-muted-foreground focus:border-primary focus:outline-none"
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery("")}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  >
+                    <X className="size-4" />
+                  </button>
+                )}
               </div>
-            </CardHeader>
-            <CardContent>
-              <CardTitle className="text-lg mb-1">Browse Projects</CardTitle>
-              <CardDescription>
-                Discover and support innovative projects
-              </CardDescription>
-            </CardContent>
-          </Card>
-
-          <Card className="hover:shadow-md transition-shadow cursor-pointer">
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <div className="p-2 bg-purple-100 rounded-lg">
-                  <Briefcase className="h-5 w-5 text-purple-600" />
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <CardTitle className="text-lg mb-1">Business Tools</CardTitle>
-              <CardDescription>
-                Manage invoices, inventory, and marketing
-              </CardDescription>
-            </CardContent>
-          </Card>
-
-          <Card className="hover:shadow-md transition-shadow cursor-pointer">
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <div className="p-2 bg-orange-100 rounded-lg">
-                  <Settings className="h-5 w-5 text-orange-600" />
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <CardTitle className="text-lg mb-1">Profile Setup</CardTitle>
-              <CardDescription>
-                Complete your profile and skills
-              </CardDescription>
-            </CardContent>
-          </Card>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Main Content */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Your Projects */}
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle>Your Projects</CardTitle>
-                  <Button variant="outline" size="sm" asChild>
-                    <Link href="/dashboard/create">
-                      <Plus className="h-4 w-4 mr-2" />
-                      New Project
-                    </Link>
-                  </Button>
-                </div>
-                <CardDescription>
-                  Projects you&apos;ve created or are working on
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <DashboardProjectCards />
-              </CardContent>
-            </Card>
-
-            {/* Recent Activity */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Recent Activity</CardTitle>
-                <CardDescription>
-                  Latest updates from projects you&apos;re following
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="text-center py-8 text-slate-500">
-                  <p className="text-sm">No recent activity</p>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Sidebar */}
-          <div className="space-y-6">
-            {/* Profile Completion */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Profile Completion</CardTitle>
-                <CardDescription>
-                  Complete your profile to get better project matches
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between text-sm">
-                    <span>Basic Info</span>
-                    <Badge variant="secondary">Complete</Badge>
-                  </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span>Skills & Experience</span>
-                    <Badge variant="outline">Pending</Badge>
-                  </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span>Portfolio</span>
-                    <Badge variant="outline">Pending</Badge>
-                  </div>
-                  <Button className="w-full mt-4" size="sm">
-                    Complete Profile
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Trending Projects */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg flex items-center">
-                  <TrendingUp className="h-4 w-4 mr-2" />
-                  Trending Projects
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="flex items-start space-x-3">
-                    <div className="w-2 h-2 bg-blue-500 rounded-full mt-2"></div>
-                    <div>
-                      <h4 className="font-medium text-sm">EcoWaste Solutions</h4>
-                      <p className="text-xs text-slate-600">Sustainable waste management platform</p>
-                      <div className="flex items-center mt-1">
-                        <Badge variant="secondary" className="text-xs">Environment</Badge>
-                        <span className="text-xs text-slate-500 ml-2">124 supporters</span>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-start space-x-3">
-                    <div className="w-2 h-2 bg-green-500 rounded-full mt-2"></div>
-                    <div>
-                      <h4 className="font-medium text-sm">HealthTrack AI</h4>
-                      <p className="text-xs text-slate-600">AI-powered health monitoring system</p>
-                      <div className="flex items-center mt-1">
-                        <Badge variant="secondary" className="text-xs">Healthcare</Badge>
-                        <span className="text-xs text-slate-500 ml-2">89 supporters</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-start space-x-3">
-                    <div className="w-2 h-2 bg-purple-500 rounded-full mt-2"></div>
-                    <div>
-                      <h4 className="font-medium text-sm">EduConnect</h4>
-                      <p className="text-xs text-slate-600">Connecting students with mentors</p>
-                      <div className="flex items-center mt-1">
-                        <Badge variant="secondary" className="text-xs">Education</Badge>
-                        <span className="text-xs text-slate-500 ml-2">67 supporters</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                
-                <Button variant="outline" className="w-full mt-4" size="sm" asChild>
-                  <Link href="/projects">View All Projects</Link>
-                </Button>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-
-        {/* My Projects Section */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h2 className="text-2xl font-bold text-slate-900">My Projects</h2>
-              <p className="text-slate-600">Manage and track your project progress</p>
+              <Button
+                variant={showFilters ? "neon" : "outline"}
+                size="sm"
+                onClick={() => setShowFilters(!showFilters)}
+                className="gap-1.5"
+              >
+                <SlidersHorizontal className="size-4" />
+                Filters
+                {hasActiveFilters && !showFilters && (
+                  <Badge variant="neon" size="sm" className="ml-1">
+                    {(selectedType !== "all" ? 1 : 0) +
+                      (selectedTimeRange !== "all" ? 1 : 0)}
+                  </Badge>
+                )}
+              </Button>
             </div>
-            <Button asChild>
-              <Link href="/dashboard/create">
-                <Plus className="h-4 w-4 mr-2" />
-                Create New Project
-              </Link>
-            </Button>
+
+            {/* Expanded Filters */}
+            {showFilters && (
+              <div className="px-4 pb-4 space-y-3 border-t border-border pt-3">
+                <div className="flex flex-wrap gap-4">
+                  {/* Post Type Filter */}
+                  <div className="flex-1 min-w-[150px]">
+                    <label className="text-xs text-muted-foreground mb-1.5 block">
+                      Post Type
+                    </label>
+                    <select
+                      value={selectedType}
+                      onChange={(e) => setSelectedType(e.target.value)}
+                      className="w-full px-3 py-2 bg-card border-2 border-border text-foreground text-sm focus:border-primary focus:outline-none appearance-none cursor-pointer"
+                    >
+                      {postTypeFilters.map((filter) => (
+                        <option key={filter.id} value={filter.id}>
+                          {filter.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Time Range Filter */}
+                  <div className="flex-1 min-w-[150px]">
+                    <label className="text-xs text-muted-foreground mb-1.5 block">
+                      Time Range
+                    </label>
+                    <select
+                      value={selectedTimeRange}
+                      onChange={(e) => setSelectedTimeRange(e.target.value)}
+                      className="w-full px-3 py-2 bg-card border-2 border-border text-foreground text-sm focus:border-primary focus:outline-none appearance-none cursor-pointer"
+                    >
+                      {timeRangeFilters.map((filter) => (
+                        <option key={filter.id} value={filter.id}>
+                          {filter.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {hasActiveFilters && (
+                  <div className="flex items-center justify-between pt-2">
+                    <div className="flex flex-wrap gap-2">
+                      {searchQuery && (
+                        <Badge variant="secondary" size="sm" className="gap-1">
+                          Search: {searchQuery}
+                          <button onClick={() => setSearchQuery("")}>
+                            <X className="size-3" />
+                          </button>
+                        </Badge>
+                      )}
+                      {selectedType !== "all" && (
+                        <Badge variant="secondary" size="sm" className="gap-1">
+                          {postTypeFilters.find((f) => f.id === selectedType)?.label}
+                          <button onClick={() => setSelectedType("all")}>
+                            <X className="size-3" />
+                          </button>
+                        </Badge>
+                      )}
+                      {selectedTimeRange !== "all" && (
+                        <Badge variant="secondary" size="sm" className="gap-1">
+                          {timeRangeFilters.find((f) => f.id === selectedTimeRange)?.label}
+                          <button onClick={() => setSelectedTimeRange("all")}>
+                            <X className="size-3" />
+                          </button>
+                        </Badge>
+                      )}
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={clearFilters}
+                      className="text-muted-foreground"
+                    >
+                      Clear all
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
-          
-          <DashboardProjects />
+
+          <Feed
+            tabs={dashboardTabs}
+            initialTab="feed"
+            items={filteredFeedItems}
+            onEntityClick={handleEntityClick}
+            onAuthorClick={handleAuthorClick}
+            header={
+              <ComposeBox
+                user={{
+                  name: user?.name || "You",
+                  avatar: user?.image || undefined,
+                }}
+                onSubmit={handlePostSubmit}
+                placeholder="Share an update with the community..."
+                scopes={[
+                  { type: "project", id: "p1", name: "EcoWaste Solutions" },
+                  { type: "guild", id: "g1", name: "Design Guild" },
+                ]}
+              />
+            }
+            hasMore
+            onLoadMore={() => {
+              // Load more items
+            }}
+          />
+        </div>
+
+        {/* Right Sidebar - Fixed to right edge */}
+        <div className="hidden xl:block fixed right-0 top-0 w-80 p-4 space-y-4 h-screen overflow-y-auto border-l-2 border-border bg-background">
+          {/* Trending Projects */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <TrendingUp className="size-4 text-primary" />
+                Trending Projects
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {trendingProjects.map((project) => (
+                <button
+                  key={project.id}
+                  onClick={() =>
+                    handleEntityClick({
+                      id: project.id,
+                      type: "project",
+                      name: project.name,
+                      slug: project.name.toLowerCase().replace(/\s+/g, "-"),
+                    })
+                  }
+                  className="w-full text-left"
+                >
+                  <div className="flex items-start justify-between mb-2">
+                    <div>
+                      <p className="font-medium text-sm text-foreground hover:text-primary transition-colors">
+                        {project.name}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {project.coOwners} co-owners
+                      </p>
+                    </div>
+                    <Badge variant="secondary" size="sm">
+                      {project.category}
+                    </Badge>
+                  </div>
+                  <Progress value={project.progress} variant="neon" className="h-1" />
+                </button>
+              ))}
+              <Button variant="ghost" className="w-full text-sm" asChild>
+                <Link href="/projects">View all projects</Link>
+              </Button>
+            </CardContent>
+          </Card>
+
+          {/* Who to Follow */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Users className="size-4 text-neon-pink" />
+                Who to Follow
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {suggestedUsers.map((suggestedUser) => (
+                <div
+                  key={suggestedUser.id}
+                  className="flex items-center gap-3"
+                >
+                  <button
+                    onClick={() => router.push(`/dashboard/profile/${suggestedUser.id}`)}
+                    className="shrink-0"
+                  >
+                    <Avatar className="size-9 border-2 border-border hover:border-primary transition-colors">
+                      <AvatarImage src={suggestedUser.avatar} />
+                      <AvatarFallback>{suggestedUser.name.charAt(0)}</AvatarFallback>
+                    </Avatar>
+                  </button>
+                  <button
+                    onClick={() => router.push(`/dashboard/profile/${suggestedUser.id}`)}
+                    className="flex-1 min-w-0 text-left"
+                  >
+                    <p className="font-medium text-sm text-foreground truncate hover:text-primary transition-colors">
+                      {suggestedUser.name}
+                    </p>
+                    <p className="text-xs text-muted-foreground truncate">
+                      {suggestedUser.bio}
+                    </p>
+                  </button>
+                  <Button variant="outline" size="sm">
+                    Follow
+                  </Button>
+                </div>
+              ))}
+              <Button variant="ghost" className="w-full text-sm">
+                Show more
+              </Button>
+            </CardContent>
+          </Card>
+
+          {/* Upcoming Events */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Calendar className="size-4 text-neon-green" />
+                Upcoming Events
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="p-2 border-2 border-border hover:border-primary transition-colors cursor-pointer">
+                <p className="font-medium text-sm text-foreground">
+                  Design Guild Critique
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Friday, 3:00 PM EST
+                </p>
+              </div>
+              <div className="p-2 border-2 border-border hover:border-primary transition-colors cursor-pointer">
+                <p className="font-medium text-sm text-foreground">
+                  EcoWaste Town Hall
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Saturday, 2:00 PM EST
+                </p>
+              </div>
+              <Button variant="ghost" className="w-full text-sm">
+                View calendar
+              </Button>
+            </CardContent>
+          </Card>
+
+          {/* Footer Links */}
+          <div className="text-xs text-muted-foreground space-x-2 px-2">
+            <Link href="/terms" className="hover:underline">
+              Terms
+            </Link>
+            <span>·</span>
+            <Link href="/privacy" className="hover:underline">
+              Privacy
+            </Link>
+            <span>·</span>
+            <Link href="/help" className="hover:underline">
+              Help
+            </Link>
+            <p className="mt-2">&copy; 2024 ArdaNova</p>
+          </div>
         </div>
       </div>
+
+      {/* Entity Preview Panel */}
+      <EntityPreview
+        entity={selectedEntity}
+        isOpen={isEntityPreviewOpen}
+        onClose={() => setIsEntityPreviewOpen(false)}
+      />
     </div>
   );
 }

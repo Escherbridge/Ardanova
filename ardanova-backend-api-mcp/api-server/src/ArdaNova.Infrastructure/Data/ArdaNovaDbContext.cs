@@ -104,6 +104,24 @@ public class ArdaNovaDbContext : DbContext
     public DbSet<ChatMessage> ChatMessages => Set<ChatMessage>();
     public DbSet<Attachment> Attachments => Set<Attachment>();
     public DbSet<ShopAnalytics> ShopAnalytics => Set<ShopAnalytics>();
+    public DbSet<ProjectInvitation> ProjectInvitations => Set<ProjectInvitation>();
+    public DbSet<ProjectMembershipRequest> ProjectMembershipRequests => Set<ProjectMembershipRequest>();
+    public DbSet<GuildInvitation> GuildInvitations => Set<GuildInvitation>();
+    public DbSet<GuildApplication> GuildApplications => Set<GuildApplication>();
+    public DbSet<Post> Posts => Set<Post>();
+    public DbSet<PostMedia> PostMedias => Set<PostMedia>();
+    public DbSet<PostLike> PostLikes => Set<PostLike>();
+    public DbSet<PostComment> PostComments => Set<PostComment>();
+    public DbSet<PostBookmark> PostBookmarks => Set<PostBookmark>();
+    public DbSet<PostShare> PostShares => Set<PostShare>();
+    public DbSet<Event> Events => Set<Event>();
+    public DbSet<EventAttendee> EventAttendees => Set<EventAttendee>();
+    public DbSet<EventCoHost> EventCoHosts => Set<EventCoHost>();
+    public DbSet<EventReminder> EventReminders => Set<EventReminder>();
+    public DbSet<UserFollow> UserFollows => Set<UserFollow>();
+    public DbSet<ProjectFollow> ProjectFollows => Set<ProjectFollow>();
+    public DbSet<GuildFollow> GuildFollows => Set<GuildFollow>();
+
 
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)

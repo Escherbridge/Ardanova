@@ -6,6 +6,10 @@ using ArdaNova.Application;
 using ArdaNova.Infrastructure;
 using ArdaNova.Infrastructure.Storage;
 
+// Configure Npgsql to handle DateTime without requiring explicit UTC Kind
+// This allows DateTime.UtcNow and other DateTime values to work with PostgreSQL timestamptz
+AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container

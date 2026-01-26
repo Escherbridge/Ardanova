@@ -58,4 +58,6 @@ public class Shop
 
     public virtual ICollection<ShopAnalytics> ShopAnalytics { get; set; } = new List<ShopAnalytics>();
 
+    public virtual ICollection<Post> Posts { get; set; } = new List<Post>();
+
 }

@@ -55,8 +55,9 @@ services:
   # ===========================================
   # Next.js Client (Development - Hot Reload)
   # ===========================================
+  # Note: Using standard node image instead of Alpine for Turbopack/WASM compatibility
   client:
-    image: node:20-alpine
+    image: node:20
     container_name: ardanova-client-dev
     working_dir: /app
     command: sh -c "npm install && npx prisma generate && npm run dev"

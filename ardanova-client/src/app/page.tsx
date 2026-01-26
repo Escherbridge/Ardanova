@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, Wallet, Vote, Store, Coins, Shield, Zap } from "lucide-react";
+import { ArrowRight, Users, Vote, Briefcase, TrendingUp, Shield, Zap } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "~/components/ui/card";
@@ -29,13 +29,13 @@ export default async function Home() {
                   Projects
                 </Link>
                 <Link href="/marketplace" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-                  Marketplace
+                  Opportunities
                 </Link>
-                <Link href="/dao" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-                  DAO
+                <Link href="/guilds" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+                  Guilds
                 </Link>
-                <Link href="/exchange" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-                  Exchange
+                <Link href="/governance" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+                  Governance
                 </Link>
               </div>
               <div className="flex items-center gap-4">
@@ -54,7 +54,7 @@ export default async function Home() {
                       <Link href="/api/auth/signin">Sign In</Link>
                     </Button>
                     <Button variant="outline-neon" size="sm" asChild>
-                      <Link href="/api/auth/signin">Connect</Link>
+                      <Link href="/api/auth/signin">Get Started</Link>
                     </Button>
                   </div>
                 )}
@@ -67,21 +67,21 @@ export default async function Home() {
         <section className="swiss-grid py-24 md:py-32">
           <div className="col-span-full md:col-6 flex flex-col gap-6">
             <Badge variant="neon" size="lg" className="w-fit">
-              Web3 Native Platform
+              Own What You Build
             </Badge>
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight">
-              <span className="gradient-text">Decentralized</span>
+              <span className="gradient-text">Community-Owned</span>
               <br />
               Project Management
             </h1>
             <p className="text-muted-foreground text-lg max-w-lg">
-              Transform innovative ideas into tangible solutions through decentralized collaboration,
-              on-chain governance, and blockchain-powered tools built on Algorand.
+              Transform ideas into cooperative projects where every contributor becomes a co-owner.
+              Democratic governance, transparent records, and fair profit-sharing for all.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 pt-4">
               <Button variant="neon" size="lg" asChild>
                 <Link href="/api/auth/signin">
-                  Launch App <ArrowRight className="ml-2 size-4" />
+                  Start Building <ArrowRight className="ml-2 size-4" />
                 </Link>
               </Button>
               <Button variant="outline" size="lg" asChild>
@@ -102,7 +102,8 @@ export default async function Home() {
           <div className="col-span-full mb-12">
             <h2 className="text-3xl md:text-4xl font-bold mb-4">Everything You Need</h2>
             <p className="text-muted-foreground text-lg max-w-2xl">
-              From ideation to execution, ArdaNova provides all the tools and community support you need.
+              From ideation to execution, ArdaNova provides all the tools and community support
+              to build projects where workers share in the success.
             </p>
           </div>
 
@@ -110,11 +111,11 @@ export default async function Home() {
             <Card variant="interactive">
               <CardHeader>
                 <div className="size-12 border-2 border-neon-cyan flex items-center justify-center mb-4">
-                  <Wallet className="size-6 text-neon-cyan" />
+                  <Users className="size-6 text-neon-cyan" />
                 </div>
-                <CardTitle>Wallet Integration</CardTitle>
+                <CardTitle>Worker Ownership</CardTitle>
                 <CardDescription>
-                  Connect your Algorand wallet for seamless on-chain interactions and asset management.
+                  Every contributor earns ownership shares. Your work builds equity, not just a paycheck.
                 </CardDescription>
               </CardHeader>
             </Card>
@@ -124,9 +125,9 @@ export default async function Home() {
                 <div className="size-12 border-2 border-neon-pink flex items-center justify-center mb-4">
                   <Vote className="size-6 text-neon-pink" />
                 </div>
-                <CardTitle>DAO Governance</CardTitle>
+                <CardTitle>Democratic Governance</CardTitle>
                 <CardDescription>
-                  Participate in decentralized decision-making with on-chain proposals and voting.
+                  Member-led decision making. Every stakeholder has a voice in how projects are run.
                 </CardDescription>
               </CardHeader>
             </Card>
@@ -134,11 +135,11 @@ export default async function Home() {
             <Card variant="interactive">
               <CardHeader>
                 <div className="size-12 border-2 border-neon-green flex items-center justify-center mb-4">
-                  <Store className="size-6 text-neon-green" />
+                  <Briefcase className="size-6 text-neon-green" />
                 </div>
-                <CardTitle>Task Marketplace</CardTitle>
+                <CardTitle>Skill Marketplace</CardTitle>
                 <CardDescription>
-                  Browse and claim bounties with escrow-protected payments and reputation tracking.
+                  Find meaningful work that matches your skills. Secure payments and reputation tracking.
                 </CardDescription>
               </CardHeader>
             </Card>
@@ -146,11 +147,11 @@ export default async function Home() {
             <Card variant="interactive">
               <CardHeader>
                 <div className="size-12 border-2 border-neon-yellow flex items-center justify-center mb-4">
-                  <Coins className="size-6 text-neon-yellow" />
+                  <TrendingUp className="size-6 text-neon-yellow" />
                 </div>
-                <CardTitle>Token Exchange</CardTitle>
+                <CardTitle>Profit Sharing</CardTitle>
                 <CardDescription>
-                  Swap tokens and provide liquidity in the decentralized exchange with low fees.
+                  When projects succeed, everyone shares in the rewards. Fair distribution built into every project.
                 </CardDescription>
               </CardHeader>
             </Card>
@@ -160,9 +161,9 @@ export default async function Home() {
                 <div className="size-12 border-2 border-neon-purple flex items-center justify-center mb-4">
                   <Shield className="size-6 text-neon-purple" />
                 </div>
-                <CardTitle>Escrow Protection</CardTitle>
+                <CardTitle>Protected Payments</CardTitle>
                 <CardDescription>
-                  Secure funding through smart contract escrows that protect both parties.
+                  Automated agreements ensure fair payment. No more chasing invoices or broken promises.
                 </CardDescription>
               </CardHeader>
             </Card>
@@ -172,9 +173,9 @@ export default async function Home() {
                 <div className="size-12 border-2 border-primary flex items-center justify-center mb-4">
                   <Zap className="size-6 text-primary" />
                 </div>
-                <CardTitle>Gamification</CardTitle>
+                <CardTitle>Recognition & Growth</CardTitle>
                 <CardDescription>
-                  Earn XP, maintain streaks, and unlock achievements as you contribute to projects.
+                  Build your reputation as you contribute. Unlock new opportunities based on proven track record.
                 </CardDescription>
               </CardHeader>
             </Card>
@@ -186,7 +187,7 @@ export default async function Home() {
           <div className="col-span-full mb-12">
             <h2 className="text-3xl md:text-4xl font-bold mb-4">How It Works</h2>
             <p className="text-muted-foreground text-lg max-w-2xl">
-              A simple process to turn your ideas into successful decentralized projects.
+              A simple process to turn your ideas into community-owned projects.
             </p>
           </div>
 
@@ -195,9 +196,9 @@ export default async function Home() {
               <div className="size-16 border-2 border-neon-cyan bg-neon-cyan/10 flex items-center justify-center">
                 <span className="text-2xl font-bold text-neon-cyan">01</span>
               </div>
-              <h3 className="text-xl font-bold">Connect Wallet</h3>
+              <h3 className="text-xl font-bold">Create Account</h3>
               <p className="text-muted-foreground">
-                Link your Algorand wallet to access the full platform features and manage your assets.
+                Sign up to access the full platform. Your identity stays secure while your contributions are tracked.
               </p>
             </div>
 
@@ -207,7 +208,7 @@ export default async function Home() {
               </div>
               <h3 className="text-xl font-bold">Create or Join</h3>
               <p className="text-muted-foreground">
-                Start a new project or join existing ones. Claim tasks from the marketplace.
+                Start your own cooperative project or join existing ones. Find work that matches your skills.
               </p>
             </div>
 
@@ -217,7 +218,7 @@ export default async function Home() {
               </div>
               <h3 className="text-xl font-bold">Collaborate</h3>
               <p className="text-muted-foreground">
-                Work with the community, participate in governance, and earn rewards for contributions.
+                Work with the community, participate in decisions, and build something meaningful together.
               </p>
             </div>
 
@@ -225,9 +226,9 @@ export default async function Home() {
               <div className="size-16 border-2 border-neon-yellow bg-neon-yellow/10 flex items-center justify-center">
                 <span className="text-2xl font-bold text-neon-yellow">04</span>
               </div>
-              <h3 className="text-xl font-bold">Earn & Grow</h3>
+              <h3 className="text-xl font-bold">Own & Grow</h3>
               <p className="text-muted-foreground">
-                Receive tokens for completed work, build reputation, and unlock new opportunities.
+                Earn ownership shares for your work. Build a portfolio of stakes in projects you believe in.
               </p>
             </div>
           </div>
@@ -238,7 +239,7 @@ export default async function Home() {
           <div className="col-span-full grid grid-cols-2 md:grid-cols-4 gap-8">
             <div className="text-center">
               <p className="text-4xl md:text-5xl font-bold gradient-text">$0</p>
-              <p className="text-muted-foreground mt-2">Total Value Locked</p>
+              <p className="text-muted-foreground mt-2">Community Funded</p>
             </div>
             <div className="text-center">
               <p className="text-4xl md:text-5xl font-bold gradient-text-warm">0</p>
@@ -246,7 +247,7 @@ export default async function Home() {
             </div>
             <div className="text-center">
               <p className="text-4xl md:text-5xl font-bold gradient-text-cool">0</p>
-              <p className="text-muted-foreground mt-2">Community Members</p>
+              <p className="text-muted-foreground mt-2">Co-Owners</p>
             </div>
             <div className="text-center">
               <p className="text-4xl md:text-5xl font-bold neon-subtle-cyan">0</p>
@@ -262,10 +263,11 @@ export default async function Home() {
               <div className="flex flex-col md:flex-row items-center justify-between gap-8">
                 <div className="flex-1">
                   <h2 className="text-2xl md:text-3xl font-bold mb-4">
-                    Ready to Build the Future?
+                    Ready to Own What You Build?
                   </h2>
                   <p className="text-muted-foreground max-w-lg">
-                    Join the decentralized revolution. Connect your wallet and start contributing today.
+                    Join a community where workers become owners. Start contributing to projects
+                    that share success with everyone who helped build them.
                   </p>
                 </div>
                 <div className="flex flex-col sm:flex-row gap-4">
@@ -288,7 +290,7 @@ export default async function Home() {
           <div className="col-span-full md:col-6 md:col-start-4 text-center">
             <h3 className="text-xl font-bold mb-4">Stay Updated</h3>
             <p className="text-muted-foreground mb-6">
-              Subscribe to our newsletter for the latest updates and announcements.
+              Subscribe to our newsletter for the latest updates and community news.
             </p>
             <div className="flex gap-3 max-w-md mx-auto">
               <Input
@@ -310,16 +312,16 @@ export default async function Home() {
                 <span className="text-foreground">NOVA</span>
               </span>
               <p className="text-sm text-muted-foreground mt-4 max-w-xs">
-                Decentralized project management for the next generation. Built on Algorand.
+                Community-owned project management. Where contributors become co-owners.
               </p>
             </div>
             <div className="col-span-full md:col-2 md:col-start-7 mt-8 md:mt-0">
               <h4 className="font-bold text-sm mb-4">Platform</h4>
               <ul className="flex flex-col gap-2 text-sm text-muted-foreground">
                 <li><Link href="/projects" className="hover:text-foreground transition-colors">Projects</Link></li>
-                <li><Link href="/marketplace" className="hover:text-foreground transition-colors">Marketplace</Link></li>
-                <li><Link href="/dao" className="hover:text-foreground transition-colors">DAO</Link></li>
-                <li><Link href="/exchange" className="hover:text-foreground transition-colors">Exchange</Link></li>
+                <li><Link href="/marketplace" className="hover:text-foreground transition-colors">Opportunities</Link></li>
+                <li><Link href="/guilds" className="hover:text-foreground transition-colors">Guilds</Link></li>
+                <li><Link href="/governance" className="hover:text-foreground transition-colors">Governance</Link></li>
               </ul>
             </div>
             <div className="col-span-full md:col-2 mt-8 md:mt-0">
@@ -340,7 +342,7 @@ export default async function Home() {
           </div>
           <div className="swiss-grid py-4 border-t border-border">
             <p className="col-span-full text-xs text-muted-foreground text-center">
-              &copy; {new Date().getFullYear()} ArdaNova. Built on Algorand.
+              &copy; {new Date().getFullYear()} ArdaNova. Building the cooperative economy.
             </p>
           </div>
         </footer>

@@ -20,14 +20,14 @@ const cardVariants = cva(
         // Ghost - Minimal
         ghost: "border-transparent bg-transparent hover:bg-card/50 hover:border-border",
 
-        // Neon - Cyberpunk glow
-        neon: "border-neon-cyan/50 hover:border-neon-cyan hover:shadow-[0_0_20px_rgba(0,240,255,0.15)]",
+        // Neon - Subtle glow
+        neon: "border-neon-cyan/40 hover:border-neon-cyan hover:shadow-[0_0_12px_rgba(0,212,255,0.15)]",
 
         // Neon Pink
-        "neon-pink": "border-neon-pink/50 hover:border-neon-pink hover:shadow-[0_0_20px_rgba(255,0,170,0.15)]",
+        "neon-pink": "border-neon-pink/40 hover:border-neon-pink hover:shadow-[0_0_12px_rgba(255,0,128,0.15)]",
 
         // Neon Green
-        "neon-green": "border-neon-green/50 hover:border-neon-green hover:shadow-[0_0_20px_rgba(0,255,136,0.15)]",
+        "neon-green": "border-neon-green/40 hover:border-neon-green hover:shadow-[0_0_12px_rgba(0,255,136,0.15)]",
 
         // Interactive - For clickable cards
         interactive: "border-border cursor-pointer hover:border-primary hover:bg-card/80 active:scale-[0.99]",

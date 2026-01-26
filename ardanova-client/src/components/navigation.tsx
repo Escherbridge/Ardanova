@@ -32,7 +32,7 @@ export function Navigation({ user }: NavigationProps) {
   const navItems = [
     { href: "/dashboard", label: "Dashboard" },
     { href: "/projects", label: "Projects" },
-    { href: "/agencies", label: "Agencies" },
+    { href: "/guilds", label: "Guilds" },
     { href: "/business", label: "Business Tools" },
   ];
 

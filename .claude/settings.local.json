@@ -47,7 +47,11 @@
       "Bash(powershell -Command \"docker ps 2>&1\")",
       "Bash(powershell -Command \"cd ''c:\\\\Users\\\\atooz\\\\Documents\\\\Escherbridge\\\\ardanova''; podman compose -f docker-compose.dev.yml restart api\")",
       "Bash(powershell -Command \"podman logs ardanova-api-dev --tail 50 2>&1\")",
-      "Bash(powershell:*)"
+      "Bash(powershell:*)",
+      "Bash(npm run check:*)",
+      "Bash(npm --version)",
+      "Bash(npm config list:*)",
+      "Bash(npm run generate:prisma:*)"
     ]
   }
 }

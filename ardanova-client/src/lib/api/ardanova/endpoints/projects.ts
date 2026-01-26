@@ -67,6 +67,14 @@ export interface UpdateProjectDto {
   fundingGoal?: number;
 }
 
+export interface SearchProjectsParams {
+  searchTerm?: string;
+  status?: string;
+  category?: string;
+  page?: number;
+  pageSize?: number;
+}
+
 // ============ Projects Endpoint ============
 
 export class ProjectsEndpoint {
@@ -86,6 +94,17 @@ export class ProjectsEndpoint {
 
   getPaged(page = 1, pageSize = 10): Promise<ApiResponse<PagedResult<Project>>> {
     return this.client.get<PagedResult<Project>>(`/api/projects/paged?page=${page}&pageSize=${pageSize}`);
+  }
+
+  search(params: SearchProjectsParams = {}): Promise<ApiResponse<PagedResult<Project>>> {
+    const queryParts: string[] = [];
+    if (params.searchTerm) queryParts.push(`searchTerm=${encodeURIComponent(params.searchTerm)}`);
+    if (params.status) queryParts.push(`status=${encodeURIComponent(params.status)}`);
+    if (params.category) queryParts.push(`category=${encodeURIComponent(params.category)}`);
+    queryParts.push(`page=${params.page ?? 1}`);
+    queryParts.push(`pageSize=${params.pageSize ?? 10}`);
+    const queryString = queryParts.join('&');
+    return this.client.get<PagedResult<Project>>(`/api/projects/search?${queryString}`);
   }
 
   getByUserId(userId: string): Promise<ApiResponse<Project[]>> {

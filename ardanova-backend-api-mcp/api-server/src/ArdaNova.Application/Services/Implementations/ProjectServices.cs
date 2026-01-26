@@ -11,12 +11,12 @@ using TaskStatus = ArdaNova.Domain.Models.Enums.TaskStatus;
 
 public class ProjectService : IProjectService
 {
-    private readonly IRepository<Project> _repository;
+    private readonly IProjectRepository _repository;
     private readonly IRepository<User> _userRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IMapper _mapper;
 
-    public ProjectService(IRepository<Project> repository, IRepository<User> userRepository, IUnitOfWork unitOfWork, IMapper mapper)
+    public ProjectService(IProjectRepository repository, IRepository<User> userRepository, IUnitOfWork unitOfWork, IMapper mapper)
     {
         _repository = repository;
         _userRepository = userRepository;
@@ -85,6 +85,24 @@ public class ProjectService : IProjectService
     public async Task<Result<PagedResult<ProjectDto>>> GetPagedAsync(int page, int pageSize, CancellationToken ct = default)
     {
         var result = await _repository.GetPagedAsync(page, pageSize, null, ct);
+        var enrichedItems = await EnrichWithUserDataAsync(result.Items, ct);
+        return Result<PagedResult<ProjectDto>>.Success(new PagedResult<ProjectDto>(
+            enrichedItems.ToList(),
+            result.TotalCount,
+            result.Page,
+            result.PageSize
+        ));
+    }
+
+    public async Task<Result<PagedResult<ProjectDto>>> SearchAsync(
+        string? searchTerm,
+        ProjectStatus? status,
+        ProjectCategory? category,
+        int page,
+        int pageSize,
+        CancellationToken ct = default)
+    {
+        var result = await _repository.SearchAsync(searchTerm, status, category, page, pageSize, ct);
         var enrichedItems = await EnrichWithUserDataAsync(result.Items, ct);
         return Result<PagedResult<ProjectDto>>.Success(new PagedResult<ProjectDto>(
             enrichedItems.ToList(),

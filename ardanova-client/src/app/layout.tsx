@@ -6,9 +6,9 @@ import { Inter, JetBrains_Mono } from "next/font/google";
 import { TRPCReactProvider } from "~/trpc/react";
 
 export const metadata: Metadata = {
-  title: "ArdaNova - Decentralized Project Management",
-  description: "Transform innovative ideas into tangible solutions. Join the decentralized community that turns dreams into reality through collaboration, governance, and blockchain-powered tools.",
-  keywords: "web3, blockchain, dao, project management, collaboration, algorand, decentralized, governance",
+  title: "ArdaNova - Community-Owned Project Management",
+  description: "Transform ideas into cooperative projects where every contributor becomes a co-owner. Democratic governance, transparent records, and fair profit-sharing for all.",
+  keywords: "cooperative, worker ownership, project management, collaboration, democratic governance, profit sharing, community",
   authors: [{ name: "ArdaNova Team" }],
   creator: "ArdaNova",
   publisher: "ArdaNova",
@@ -17,15 +17,15 @@ export const metadata: Metadata = {
     type: "website",
     locale: "en_US",
     url: "https://ardanova.io",
-    title: "ArdaNova - Decentralized Project Management",
-    description: "Transform innovative ideas into tangible solutions through decentralized collaboration and blockchain-powered tools.",
+    title: "ArdaNova - Community-Owned Project Management",
+    description: "Transform ideas into cooperative projects where every contributor becomes a co-owner. Democratic governance and fair profit-sharing.",
     siteName: "ArdaNova",
   },
   twitter: {
     card: "summary_large_image",
-    title: "ArdaNova - Decentralized Project Management",
-    description: "Transform innovative ideas into tangible solutions through decentralized collaboration and blockchain-powered tools.",
-    creator: "@ArdaNovaDAO",
+    title: "ArdaNova - Community-Owned Project Management",
+    description: "Transform ideas into cooperative projects where every contributor becomes a co-owner. Democratic governance and fair profit-sharing.",
+    creator: "@ArdaNova",
   },
 };
 

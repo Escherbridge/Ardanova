@@ -10,6 +10,13 @@ public interface IProjectService
     Task<Result<ProjectDto>> GetBySlugAsync(string slug, CancellationToken ct = default);
     Task<Result<IReadOnlyList<ProjectDto>>> GetAllAsync(CancellationToken ct = default);
     Task<Result<PagedResult<ProjectDto>>> GetPagedAsync(int page, int pageSize, CancellationToken ct = default);
+    Task<Result<PagedResult<ProjectDto>>> SearchAsync(
+        string? searchTerm,
+        ProjectStatus? status,
+        ProjectCategory? category,
+        int page,
+        int pageSize,
+        CancellationToken ct = default);
     Task<Result<IReadOnlyList<ProjectDto>>> GetByUserIdAsync(string userId, CancellationToken ct = default);
     Task<Result<IReadOnlyList<ProjectDto>>> GetByStatusAsync(ProjectStatus status, CancellationToken ct = default);
     Task<Result<IReadOnlyList<ProjectDto>>> GetByCategory(ProjectCategory category, CancellationToken ct = default);

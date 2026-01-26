@@ -112,24 +112,41 @@ if ($ComposeCmd) {
         Write-ColorOutput $Yellow "Stopping development containers..."
         if ($ComposeCmd -eq "podman compose" -or $ComposeCmd -eq "docker compose") {
             $parts = $ComposeCmd.Split(" ")
-            & $parts[0] $parts[1] -f docker-compose.dev.yml down 2>$null
+            & $parts[0] $parts[1] -f docker-compose.dev.yml down --remove-orphans 2>$null
         } else {
-            & $ComposeCmd -f docker-compose.dev.yml down 2>$null
+            & $ComposeCmd -f docker-compose.dev.yml down --remove-orphans 2>$null
         }
     }
 
     Write-ColorOutput $Yellow "Stopping production containers..."
     if ($ComposeCmd -eq "podman compose" -or $ComposeCmd -eq "docker compose") {
         $parts = $ComposeCmd.Split(" ")
-        & $parts[0] $parts[1] down 2>$null
+        & $parts[0] $parts[1] down --remove-orphans 2>$null
     } else {
-        & $ComposeCmd down 2>$null
+        & $ComposeCmd down --remove-orphans 2>$null
     }
 } else {
     # Manual container removal
     Write-ColorOutput $Yellow "Stopping containers manually..."
     & $Runtime stop ardanova-api ardanova-client ardanova-ai 2>$null
-    & $Runtime rm ardanova-api ardanova-client ardanova-ai 2>$null
+    & $Runtime rm -f ardanova-api ardanova-client ardanova-ai 2>$null
+}
+
+# Force remove containers by name (handles Podman edge cases)
+Write-ColorOutput $Yellow "Cleaning up any remaining containers..."
+& $Runtime rm -f ardanova-api-dev ardanova-client-dev ardanova-ai-dev 2>$null
+
+# For Podman: clean up pods
+if ($Runtime -eq "podman") {
+    Write-ColorOutput $Yellow "Cleaning up Podman pods..."
+    $pods = & podman pod ls --format "{{.Name}}" 2>$null | Where-Object { $_ -match "ardanova" }
+    foreach ($pod in $pods) {
+        & podman pod rm -f $pod 2>$null
+    }
+
+    # Clean up networks
+    Write-ColorOutput $Yellow "Cleaning up networks..."
+    & podman network rm -f ardanova_default 2>$null
 }
 
 # Remove volumes if requested

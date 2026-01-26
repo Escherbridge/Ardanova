@@ -155,8 +155,27 @@ Enum NotificationType {
   ESCROW_FUNDED
   ESCROW_RELEASED
   PROJECT_INVITATION
+  PROJECT_INVITATION_ACCEPTED
+  PROJECT_INVITATION_DECLINED
+  PROJECT_MEMBERSHIP_REQUEST
+  PROJECT_MEMBERSHIP_APPROVED
+  PROJECT_MEMBERSHIP_REJECTED
   PROJECT_UPDATE
   PROJECT_FUNDED
+  GUILD_INVITATION
+  GUILD_INVITATION_ACCEPTED
+  GUILD_INVITATION_DECLINED
+  GUILD_APPLICATION
+  GUILD_APPLICATION_APPROVED
+  GUILD_APPLICATION_REJECTED
+  EVENT_INVITATION
+  EVENT_REMINDER
+  EVENT_STARTING_SOON
+  EVENT_CANCELLED
+  EVENT_UPDATED
+  USER_FOLLOWED
+  PROJECT_FOLLOWED
+  GUILD_FOLLOWED
   COMMENT_REPLY
   MENTION
   FOLLOWER_NEW
@@ -386,6 +405,21 @@ Enum ApplicationStatus {
   WITHDRAWN
 }
 
+Enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  EXPIRED
+  CANCELLED
+}
+
+Enum MembershipRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  WITHDRAWN
+}
+
 Enum RoadmapStatus {
   DRAFT
   ACTIVE
@@ -511,6 +545,10 @@ Table Project {
   votesCount int [not null, default: 0]
   viewsCount int [not null, default: 0]
   featured boolean [not null, default: false]
+  isTrending boolean [not null, default: false]
+  trendingScore decimal(18,8) [not null, default: 0]
+  trendingRank int
+  trendingAt datetime
   tags text
   images text
   videos text
@@ -614,6 +652,43 @@ Table ProjectApplication {
 }
 Ref: ProjectApplication.projectId > Project.id
 Ref: ProjectApplication.userId > User.id
+
+Table ProjectInvitation {
+  id varchar [not null, pk, default: `cuid()`]
+  projectId varchar [not null]
+  invitedById varchar [not null]
+  invitedUserId varchar
+  invitedEmail varchar
+  role ProjectRole [not null, default: 'CONTRIBUTOR']
+  message text
+  status InvitationStatus [not null, default: 'PENDING']
+  token varchar [unique]
+  expiresAt datetime
+  createdAt datetime [not null, default: `now()`]
+  respondedAt datetime
+}
+Ref: ProjectInvitation.projectId > Project.id
+Ref: ProjectInvitation.invitedById > User.id
+Ref: ProjectInvitation.invitedUserId > User.id
+
+Table ProjectMembershipRequest {
+  id varchar [not null, pk, default: `cuid()`]
+  projectId varchar [not null]
+  userId varchar [not null]
+  requestedRole ProjectRole [not null, default: 'CONTRIBUTOR']
+  message text [not null]
+  skills text
+  motivation text
+  portfolio text
+  status MembershipRequestStatus [not null, default: 'PENDING']
+  reviewedById varchar
+  reviewMessage text
+  createdAt datetime [not null, default: `now()`]
+  reviewedAt datetime
+}
+Ref: ProjectMembershipRequest.projectId > Project.id
+Ref: ProjectMembershipRequest.userId > User.id
+Ref: ProjectMembershipRequest.reviewedById > User.id
 
 Table ProjectComment {
   id varchar [not null, pk, default: `cuid()`]
@@ -863,6 +938,11 @@ Table Guild {
   rating decimal
   reviewsCount int [not null, default: 0]
   projectsCount int [not null, default: 0]
+  membersCount int [not null, default: 0]
+  isTrending boolean [not null, default: false]
+  trendingScore decimal(18,8) [not null, default: 0]
+  trendingRank int
+  trendingAt datetime
   createdAt datetime [not null, default: `now()`]
   updatedAt datetime [not null, note: 'Updated at']
   ownerId varchar [not null, unique]
@@ -878,6 +958,52 @@ Table GuildMember {
 }
 Ref: GuildMember.guildId > Guild.id
 Ref: GuildMember.userId > User.id
+
+Enum GuildMemberRole {
+  OWNER
+  ADMIN
+  MANAGER
+  MEMBER
+  APPRENTICE
+}
+
+Table GuildInvitation {
+  id varchar [not null, pk, default: `cuid()`]
+  guildId varchar [not null]
+  invitedById varchar [not null]
+  invitedUserId varchar
+  invitedEmail varchar
+  role GuildMemberRole [not null, default: 'MEMBER']
+  message text
+  status InvitationStatus [not null, default: 'PENDING']
+  token varchar [unique]
+  expiresAt datetime
+  createdAt datetime [not null, default: `now()`]
+  respondedAt datetime
+}
+Ref: GuildInvitation.guildId > Guild.id
+Ref: GuildInvitation.invitedById > User.id
+Ref: GuildInvitation.invitedUserId > User.id
+
+Table GuildApplication {
+  id varchar [not null, pk, default: `cuid()`]
+  guildId varchar [not null]
+  userId varchar [not null]
+  requestedRole GuildMemberRole [not null, default: 'MEMBER']
+  message text [not null]
+  skills text
+  experience text
+  portfolio text
+  availability varchar
+  status MembershipRequestStatus [not null, default: 'PENDING']
+  reviewedById varchar
+  reviewMessage text
+  appliedAt datetime [not null, default: `now()`]
+  reviewedAt datetime
+}
+Ref: GuildApplication.guildId > Guild.id
+Ref: GuildApplication.userId > User.id
+Ref: GuildApplication.reviewedById > User.id
 
 Table ProjectBid {
   id varchar [not null, pk, default: `cuid()`]
@@ -1315,6 +1441,109 @@ Ref: LiquidityProvider.userId > User.id
 // 7. Engagement & Communication Module
 // =================================================================================================
 
+Enum PostType {
+  POST
+  PROJECT_UPDATE
+  GUILD_ACTIVITY
+  TASK_COMPLETED
+  MILESTONE
+  PROPOSAL
+  SHOP_ITEM
+}
+
+Enum PostVisibility {
+  PUBLIC
+  PROJECT_MEMBERS
+  GUILD_MEMBERS
+  PRIVATE
+}
+
+Table Post {
+  id varchar [not null, pk, default: `cuid()`]
+  authorId varchar [not null]
+  projectId varchar
+  guildId varchar
+  shopId varchar
+  type PostType [not null, default: 'POST']
+  visibility PostVisibility [not null, default: 'PUBLIC']
+  title varchar
+  content text [not null]
+  metadata json
+  likesCount int [not null, default: 0]
+  commentsCount int [not null, default: 0]
+  sharesCount int [not null, default: 0]
+  viewsCount int [not null, default: 0]
+  isPinned boolean [not null, default: false]
+  isTrending boolean [not null, default: false]
+  trendingScore decimal(18,8) [not null, default: 0]
+  trendingRank int
+  trendingAt datetime
+  createdAt datetime [not null, default: `now()`]
+  updatedAt datetime [not null, note: 'Updated at']
+}
+Ref: Post.authorId > User.id
+Ref: Post.projectId > Project.id
+Ref: Post.guildId > Guild.id
+Ref: Post.shopId > Shop.id
+
+Table PostMedia {
+  id varchar [not null, pk, default: `cuid()`]
+  postId varchar [not null]
+  type MimeType [not null]
+  url varchar [not null]
+  thumbnailUrl varchar
+  altText varchar
+  order int [not null, default: 0]
+  createdAt datetime [not null, default: `now()`]
+}
+Ref: PostMedia.postId > Post.id
+
+Table PostLike {
+  id varchar [not null, pk, default: `cuid()`]
+  postId varchar [not null]
+  userId varchar [not null]
+  createdAt datetime [not null, default: `now()`]
+}
+Ref: PostLike.postId > Post.id
+Ref: PostLike.userId > User.id
+
+Table PostComment {
+  id varchar [not null, pk, default: `cuid()`]
+  postId varchar [not null]
+  authorId varchar [not null]
+  parentId varchar
+  content text [not null]
+  likesCount int [not null, default: 0]
+  createdAt datetime [not null, default: `now()`]
+  updatedAt datetime [not null, note: 'Updated at']
+}
+Ref: PostComment.postId > Post.id
+Ref: PostComment.authorId > User.id
+Ref: PostComment.parentId > PostComment.id
+
+Table PostBookmark {
+  id varchar [not null, pk, default: `cuid()`]
+  postId varchar [not null]
+  userId varchar [not null]
+  createdAt datetime [not null, default: `now()`]
+}
+Ref: PostBookmark.postId > Post.id
+Ref: PostBookmark.userId > User.id
+
+Table PostShare {
+  id varchar [not null, pk, default: `cuid()`]
+  postId varchar [not null]
+  userId varchar [not null]
+  sharedToProjectId varchar
+  sharedToGuildId varchar
+  comment text
+  createdAt datetime [not null, default: `now()`]
+}
+Ref: PostShare.postId > Post.id
+Ref: PostShare.userId > User.id
+Ref: PostShare.sharedToProjectId > Project.id
+Ref: PostShare.sharedToGuildId > Guild.id
+
 Enum MessageStatus {
   SENT
   DELIVERED
@@ -1356,3 +1585,139 @@ Table Attachment {
   lastUsedAt datetime
 }
 Ref: Attachment.uploadedById > User.id
+
+// =================================================================================================
+// 8. Events Module
+// =================================================================================================
+
+Enum EventStatus {
+  DRAFT
+  SCHEDULED
+  LIVE
+  COMPLETED
+  CANCELLED
+}
+
+Enum EventType {
+  MEETING
+  WORKSHOP
+  WEBINAR
+  TOWN_HALL
+  CRITIQUE
+  HACKATHON
+  SOCIAL
+  OTHER
+}
+
+Enum EventVisibility {
+  PUBLIC
+  PROJECT_MEMBERS
+  GUILD_MEMBERS
+  INVITE_ONLY
+}
+
+Enum AttendeeStatus {
+  INVITED
+  GOING
+  MAYBE
+  NOT_GOING
+  ATTENDED
+}
+
+Table Event {
+  id varchar [not null, pk, default: `cuid()`]
+  title varchar [not null]
+  slug varchar [not null, unique]
+  description text
+  type EventType [not null, default: 'MEETING']
+  visibility EventVisibility [not null, default: 'PUBLIC']
+  status EventStatus [not null, default: 'SCHEDULED']
+  location varchar
+  locationUrl varchar
+  isOnline boolean [not null, default: false]
+  meetingUrl varchar
+  timezone varchar [not null, default: 'UTC']
+  startDate datetime [not null]
+  endDate datetime [not null]
+  maxAttendees int
+  attendeesCount int [not null, default: 0]
+  coverImage varchar
+  createdAt datetime [not null, default: `now()`]
+  updatedAt datetime [not null, note: 'Updated at']
+  organizerId varchar [not null]
+  projectId varchar
+  guildId varchar
+}
+Ref: Event.organizerId > User.id
+Ref: Event.projectId > Project.id
+Ref: Event.guildId > Guild.id
+
+Table EventAttendee {
+  id varchar [not null, pk, default: `cuid()`]
+  eventId varchar [not null]
+  userId varchar [not null]
+  status AttendeeStatus [not null, default: 'GOING']
+  rsvpAt datetime [not null, default: `now()`]
+  attendedAt datetime
+  notes text
+}
+Ref: EventAttendee.eventId > Event.id
+Ref: EventAttendee.userId > User.id
+
+Table EventCoHost {
+  id varchar [not null, pk, default: `cuid()`]
+  eventId varchar [not null]
+  userId varchar [not null]
+  addedAt datetime [not null, default: `now()`]
+}
+Ref: EventCoHost.eventId > Event.id
+Ref: EventCoHost.userId > User.id
+
+Table EventReminder {
+  id varchar [not null, pk, default: `cuid()`]
+  eventId varchar [not null]
+  userId varchar [not null]
+  remindAt datetime [not null]
+  isSent boolean [not null, default: false]
+  sentAt datetime
+  createdAt datetime [not null, default: `now()`]
+}
+Ref: EventReminder.eventId > Event.id
+Ref: EventReminder.userId > User.id
+
+// =================================================================================================
+// 9. Social & Follow Module
+// =================================================================================================
+
+Table UserFollow {
+  id varchar [not null, pk, default: `cuid()`]
+  followerId varchar [not null]
+  followingId varchar [not null]
+  createdAt datetime [not null, default: `now()`]
+}
+Ref: UserFollow.followerId > User.id
+Ref: UserFollow.followingId > User.id
+
+Table ProjectFollow {
+  id varchar [not null, pk, default: `cuid()`]
+  userId varchar [not null]
+  projectId varchar [not null]
+  notifyUpdates boolean [not null, default: true]
+  notifyMilestones boolean [not null, default: true]
+  notifyProposals boolean [not null, default: false]
+  createdAt datetime [not null, default: `now()`]
+}
+Ref: ProjectFollow.userId > User.id
+Ref: ProjectFollow.projectId > Project.id
+
+Table GuildFollow {
+  id varchar [not null, pk, default: `cuid()`]
+  userId varchar [not null]
+  guildId varchar [not null]
+  notifyUpdates boolean [not null, default: true]
+  notifyEvents boolean [not null, default: true]
+  notifyProjects boolean [not null, default: false]
+  createdAt datetime [not null, default: `now()`]
+}
+Ref: GuildFollow.userId > User.id
+Ref: GuildFollow.guildId > Guild.id

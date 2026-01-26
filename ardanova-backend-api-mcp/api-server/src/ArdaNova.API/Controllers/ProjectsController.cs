@@ -31,6 +31,19 @@ public class ProjectsController : ControllerBase
         return ToActionResult(result);
     }
 
+    [HttpGet("search")]
+    public async Task<IActionResult> Search(
+        [FromQuery] string? searchTerm,
+        [FromQuery] ProjectStatus? status,
+        [FromQuery] ProjectCategory? category,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10,
+        CancellationToken ct = default)
+    {
+        var result = await _projectService.SearchAsync(searchTerm, status, category, page, pageSize, ct);
+        return ToActionResult(result);
+    }
+
     [HttpGet("{id}")]
     public async Task<IActionResult> GetById(string id, CancellationToken ct)
     {

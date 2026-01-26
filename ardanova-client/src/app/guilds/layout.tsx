@@ -1,7 +1,8 @@
 import { TRPCReactProvider } from "~/trpc/react";
 import { SessionProvider } from "next-auth/react";
 import { auth } from "~/server/auth";
-import { Navigation } from "~/components/navigation";
+import { redirect } from "next/navigation";
+import { AppSidebar } from "~/components/app-sidebar";
 
 export default async function GuildsLayout({
   children,
@@ -10,11 +11,19 @@ export default async function GuildsLayout({
 }) {
   const session = await auth();
 
+  if (!session) {
+    redirect("/api/auth/signin");
+  }
+
   return (
     <SessionProvider session={session}>
       <TRPCReactProvider>
-        <Navigation user={session?.user} />
-        {children}
+        <div className="flex min-h-screen">
+          <AppSidebar user={session.user} />
+          <main className="flex-1 ml-64 transition-all duration-300">
+            {children}
+          </main>
+        </div>
       </TRPCReactProvider>
     </SessionProvider>
   );

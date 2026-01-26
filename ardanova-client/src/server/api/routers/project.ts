@@ -94,27 +94,17 @@ export const projectRouter = createTRPCRouter({
       })
     )
     .query(async ({ input }) => {
-      const { limit, page, category, status } = input;
+      const { limit, page, category, status, search } = input;
 
-      // Use appropriate endpoint based on filters
-      if (category) {
-        const response = await apiClient.projects.getByCategory(category);
-        if (response.error) {
-          throw new Error(response.error);
-        }
-        return { items: response.data ?? [], nextCursor: undefined };
-      }
+      // Use search endpoint for all queries (handles filters and pagination)
+      const response = await apiClient.projects.search({
+        searchTerm: search,
+        status: status,
+        category: category,
+        page: page,
+        pageSize: limit,
+      });
 
-      if (status) {
-        const response = await apiClient.projects.getByStatus(status);
-        if (response.error) {
-          throw new Error(response.error);
-        }
-        return { items: response.data ?? [], nextCursor: undefined };
-      }
-
-      // Default: get paged results
-      const response = await apiClient.projects.getPaged(page, limit);
       if (response.error) {
         throw new Error(response.error);
       }

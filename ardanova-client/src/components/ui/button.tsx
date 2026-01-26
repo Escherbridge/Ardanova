@@ -33,33 +33,33 @@ const buttonVariants = cva(
         link:
           "text-primary underline-offset-4 hover:underline border-none",
 
-        // === NEON VARIANTS (Cyberpunk aesthetic) ===
+        // === ACCENT VARIANTS ===
 
-        // Neon Cyan - Full glow effect
+        // Neon Cyan - Primary accent with subtle glow
         neon:
-          "bg-neon-cyan text-black border-2 border-neon-cyan font-bold uppercase tracking-wider hover:shadow-[0_0_20px_#00f0ff,0_0_40px_#00f0ff] active:scale-[0.98]",
+          "bg-neon-cyan text-background border-2 border-neon-cyan font-medium tracking-wide hover:shadow-[0_0_12px_rgba(0,212,255,0.4)] active:scale-[0.98]",
 
         // Neon Pink
         "neon-pink":
-          "bg-neon-pink text-black border-2 border-neon-pink font-bold uppercase tracking-wider hover:shadow-[0_0_20px_#ff00aa,0_0_40px_#ff00aa] active:scale-[0.98]",
+          "bg-neon-pink text-background border-2 border-neon-pink font-medium tracking-wide hover:shadow-[0_0_12px_rgba(255,0,128,0.4)] active:scale-[0.98]",
 
         // Neon Green
         "neon-green":
-          "bg-neon-green text-black border-2 border-neon-green font-bold uppercase tracking-wider hover:shadow-[0_0_20px_#00ff88,0_0_40px_#00ff88] active:scale-[0.98]",
+          "bg-neon-green text-background border-2 border-neon-green font-medium tracking-wide hover:shadow-[0_0_12px_rgba(0,255,136,0.4)] active:scale-[0.98]",
 
         // Outline Neon - Border glow only
         "outline-neon":
-          "bg-transparent text-neon-cyan border-2 border-neon-cyan hover:bg-neon-cyan/10 hover:shadow-[0_0_15px_#00f0ff] font-medium uppercase tracking-wider",
+          "bg-transparent text-neon-cyan border-2 border-neon-cyan hover:bg-neon-cyan/10 hover:shadow-[0_0_8px_rgba(0,212,255,0.3)] font-medium",
 
         "outline-neon-pink":
-          "bg-transparent text-neon-pink border-2 border-neon-pink hover:bg-neon-pink/10 hover:shadow-[0_0_15px_#ff00aa] font-medium uppercase tracking-wider",
+          "bg-transparent text-neon-pink border-2 border-neon-pink hover:bg-neon-pink/10 hover:shadow-[0_0_8px_rgba(255,0,128,0.3)] font-medium",
 
         "outline-neon-green":
-          "bg-transparent text-neon-green border-2 border-neon-green hover:bg-neon-green/10 hover:shadow-[0_0_15px_#00ff88] font-medium uppercase tracking-wider",
+          "bg-transparent text-neon-green border-2 border-neon-green hover:bg-neon-green/10 hover:shadow-[0_0_8px_rgba(0,255,136,0.3)] font-medium",
 
         // Ghost Neon - Subtle until hover
         "ghost-neon":
-          "bg-transparent text-neon-cyan border-2 border-transparent hover:border-neon-cyan/50 hover:bg-neon-cyan/5",
+          "bg-transparent text-neon-cyan border-2 border-transparent hover:border-neon-cyan/40 hover:bg-neon-cyan/5",
       },
       size: {
         default: "h-10 px-5 py-2",
