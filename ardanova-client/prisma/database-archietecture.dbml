@@ -391,6 +391,19 @@ Enum TaskPriority {
   URGENT
 }
 
+Enum TaskType {
+  FEATURE
+  BUG
+  ENHANCEMENT
+  DOCUMENTATION
+  RESEARCH
+  DESIGN
+  TESTING
+  REVIEW
+  MAINTENANCE
+  OTHER
+}
+
 Enum SupportType {
   VOTE
   SUBSCRIPTION
@@ -575,6 +588,7 @@ Table ProjectTask {
   description text
   status TaskStatus [not null, default: 'TODO']
   priority TaskPriority [not null, default: 'MEDIUM']
+  taskType TaskType [not null, default: 'FEATURE']
   estimatedHours int
   actualHours int
   tokenReward decimal(18,8)
@@ -1038,6 +1052,20 @@ Ref: GuildReview.userId > User.id
 // 5. Marketplace & Shop Module
 // =================================================================================================
 
+Enum ShopCategory {
+  RETAIL
+  SERVICES
+  DIGITAL_PRODUCTS
+  FOOD_BEVERAGE
+  HEALTH_WELLNESS
+  TECHNOLOGY
+  FASHION
+  HOME_GARDEN
+  ARTS_CRAFTS
+  EDUCATION
+  OTHER
+}
+
 Enum InvoiceStatus {
   DRAFT
   SENT
@@ -1066,7 +1094,9 @@ Enum CampaignStatus {
 Table Shop {
   id varchar [not null, pk, default: `cuid()`]
   name varchar [not null]
+  slug varchar [not null, unique]
   description text
+  category ShopCategory [not null, default: 'OTHER']
   address text
   phone varchar
   email varchar
@@ -1721,3 +1751,85 @@ Table GuildFollow {
 }
 Ref: GuildFollow.userId > User.id
 Ref: GuildFollow.guildId > Guild.id
+
+// =================================================================================================
+// 10. Opportunities Module (Marketplace for Guilds, Projects, Tasks)
+// =================================================================================================
+
+Enum OpportunityType {
+  GUILD_POSITION
+  PROJECT_ROLE
+  TASK_BOUNTY
+  FREELANCE
+  MENTORSHIP
+  COLLABORATION
+}
+
+Enum OpportunityStatus {
+  DRAFT
+  OPEN
+  IN_REVIEW
+  FILLED
+  CLOSED
+  CANCELLED
+}
+
+Enum ExperienceLevel {
+  ENTRY
+  JUNIOR
+  MID
+  SENIOR
+  LEAD
+  EXPERT
+}
+
+Table Opportunity {
+  id varchar [not null, pk, default: `cuid()`]
+  title varchar [not null]
+  slug varchar [not null, unique]
+  description text [not null]
+  type OpportunityType [not null]
+  status OpportunityStatus [not null, default: 'DRAFT']
+  experienceLevel ExperienceLevel [not null, default: 'MID']
+  requirements text
+  skills text
+  benefits text
+  location varchar
+  isRemote boolean [not null, default: true]
+  compensation decimal(18,8)
+  compensationDetails varchar
+  deadline datetime
+  maxApplications int
+  applicationsCount int [not null, default: 0]
+  coverImage varchar
+  createdAt datetime [not null, default: `now()`]
+  updatedAt datetime [not null, note: 'Updated at']
+  closedAt datetime
+  posterId varchar [not null]
+  guildId varchar
+  projectId varchar
+  taskId varchar
+}
+Ref: Opportunity.posterId > User.id
+Ref: Opportunity.guildId > Guild.id
+Ref: Opportunity.projectId > Project.id
+Ref: Opportunity.taskId > ProjectTask.id
+
+Table OpportunityApplication {
+  id varchar [not null, pk, default: `cuid()`]
+  opportunityId varchar [not null]
+  applicantId varchar [not null]
+  coverLetter text [not null]
+  portfolio text
+  additionalInfo text
+  status ApplicationStatus [not null, default: 'PENDING']
+  reviewNotes text
+  appliedAt datetime [not null, default: `now()`]
+  reviewedAt datetime
+
+  indexes {
+    (opportunityId, applicantId) [unique]
+  }
+}
+Ref: OpportunityApplication.opportunityId > Opportunity.id
+Ref: OpportunityApplication.applicantId > User.id

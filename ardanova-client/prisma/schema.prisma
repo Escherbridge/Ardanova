@@ -211,6 +211,19 @@ enum TaskPriority {
   URGENT
 }
 
+enum TaskType {
+  FEATURE
+  BUG
+  ENHANCEMENT
+  DOCUMENTATION
+  RESEARCH
+  DESIGN
+  TESTING
+  REVIEW
+  MAINTENANCE
+  OTHER
+}
+
 enum SupportType {
   VOTE
   SUBSCRIPTION
@@ -366,6 +379,20 @@ enum GuildMemberRole {
   APPRENTICE
 }
 
+enum ShopCategory {
+  RETAIL
+  SERVICES
+  DIGITAL_PRODUCTS
+  FOOD_BEVERAGE
+  HEALTH_WELLNESS
+  TECHNOLOGY
+  FASHION
+  HOME_GARDEN
+  ARTS_CRAFTS
+  EDUCATION
+  OTHER
+}
+
 enum InvoiceStatus {
   DRAFT
   SENT
@@ -513,6 +540,33 @@ enum AttendeeStatus {
   ATTENDED
 }
 
+enum OpportunityType {
+  GUILD_POSITION
+  PROJECT_ROLE
+  TASK_BOUNTY
+  FREELANCE
+  MENTORSHIP
+  COLLABORATION
+}
+
+enum OpportunityStatus {
+  DRAFT
+  OPEN
+  IN_REVIEW
+  FILLED
+  CLOSED
+  CANCELLED
+}
+
+enum ExperienceLevel {
+  ENTRY
+  JUNIOR
+  MID
+  SENIOR
+  LEAD
+  EXPERT
+}
+
 model Account {
   id String @id @default(cuid())
   userId String
@@ -628,6 +682,8 @@ model User {
   userFollows1 UserFollow[] @relation("UserFollow_followingId")
   projectFollows ProjectFollow[] @relation("ProjectFollow_userId")
   guildFollows GuildFollow[] @relation("GuildFollow_userId")
+  opportunities Opportunity[] @relation("Opportunity_posterId")
+  opportunityApplications OpportunityApplication[] @relation("OpportunityApplication_applicantId")
 }
 
 model UserSkill {
@@ -829,6 +885,7 @@ model Project {
   postShares PostShare[] @relation("PostShare_sharedToProjectId")
   events Event[] @relation("Event_projectId")
   projectFollows ProjectFollow[] @relation("ProjectFollow_projectId")
+  opportunities Opportunity[] @relation("Opportunity_projectId")
 }
 
 model ProjectTask {
@@ -839,6 +896,7 @@ model ProjectTask {
   description String? @db.Text
   status TaskStatus @default(TODO)
   priority TaskPriority @default(MEDIUM)
+  taskType TaskType @default(FEATURE)
   estimatedHours Int?
   actualHours Int?
   tokenReward Decimal? @db.Decimal(18, 8)
@@ -857,6 +915,7 @@ model ProjectTask {
   taskCompensations TaskCompensation[] @relation("TaskCompensation_taskId")
   taskSubmissions TaskSubmission[] @relation("TaskSubmission_taskId")
   taskEscrows TaskEscrow[] @relation("TaskEscrow_taskId")
+  opportunities Opportunity[] @relation("Opportunity_taskId")
 }
 
 model ProjectTaskDependency {
@@ -1224,6 +1283,7 @@ model Guild {
   postShares PostShare[] @relation("PostShare_sharedToGuildId")
   events Event[] @relation("Event_guildId")
   guildFollows GuildFollow[] @relation("GuildFollow_guildId")
+  opportunities Opportunity[] @relation("Opportunity_guildId")
 }
 
 model GuildMember {
@@ -1306,7 +1366,9 @@ model GuildReview {
 model Shop {
   id String @id @default(cuid())
   name String
+  slug String @unique
   description String? @db.Text
+  category ShopCategory @default(OTHER)
   address String? @db.Text
   phone String?
   email String?
@@ -1850,5 +1912,55 @@ model GuildFollow {
   createdAt DateTime @default(now())
   user User @relation("GuildFollow_userId", fields: [userId], references: [id])
   guild Guild @relation("GuildFollow_guildId", fields: [guildId], references: [id])
+}
+
+model Opportunity {
+  id String @id @default(cuid())
+  title String
+  slug String @unique
+  description String @db.Text
+  type OpportunityType
+  status OpportunityStatus @default(DRAFT)
+  experienceLevel ExperienceLevel @default(MID)
+  requirements String? @db.Text
+  skills String? @db.Text
+  benefits String? @db.Text
+  location String?
+  isRemote Boolean @default(true)
+  compensation Decimal? @db.Decimal(18, 8)
+  compensationDetails String?
+  deadline DateTime?
+  maxApplications Int?
+  applicationsCount Int @default(0)
+  coverImage String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  closedAt DateTime?
+  posterId String
+  guildId String?
+  projectId String?
+  taskId String?
+  poster User @relation("Opportunity_posterId", fields: [posterId], references: [id])
+  guild Guild? @relation("Opportunity_guildId", fields: [guildId], references: [id])
+  project Project? @relation("Opportunity_projectId", fields: [projectId], references: [id])
+  task ProjectTask? @relation("Opportunity_taskId", fields: [taskId], references: [id])
+  opportunityApplications OpportunityApplication[] @relation("OpportunityApplication_opportunityId")
+}
+
+model OpportunityApplication {
+  id String @id @default(cuid())
+  opportunityId String
+  applicantId String
+  coverLetter String @db.Text
+  portfolio String? @db.Text
+  additionalInfo String? @db.Text
+  status ApplicationStatus @default(PENDING)
+  reviewNotes String? @db.Text
+  appliedAt DateTime @default(now())
+  reviewedAt DateTime?
+  opportunity Opportunity @relation("OpportunityApplication_opportunityId", fields: [opportunityId], references: [id])
+  applicant User @relation("OpportunityApplication_applicantId", fields: [applicantId], references: [id])
+
+  @@unique([opportunityId, applicantId])
 }
 

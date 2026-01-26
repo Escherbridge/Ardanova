@@ -7,6 +7,7 @@ using ArdaNova.Domain.Models.Enums;
 
 namespace ArdaNova.Domain.Models.Entities;
 
+[Index(nameof(slug), IsUnique = true)]
 [Table("Shop")]
 public class Shop
 {
@@ -17,8 +18,14 @@ public class Shop
     [Required]
     public string name { get; set; } = string.Empty;
 
+    [Required]
+    public string slug { get; set; } = string.Empty;
+
     [Column(TypeName = "text")]
     public string? description { get; set; }
+
+    [Required]
+    public ShopCategory category { get; set; }
 
     [Column(TypeName = "text")]
     public string? address { get; set; }

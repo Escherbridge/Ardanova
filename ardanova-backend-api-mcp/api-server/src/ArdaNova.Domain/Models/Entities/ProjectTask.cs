@@ -31,6 +31,9 @@ public class ProjectTask
     [Required]
     public TaskPriority priority { get; set; }
 
+    [Required]
+    public TaskType taskType { get; set; }
+
     public int? estimatedHours { get; set; }
 
     public int? actualHours { get; set; }

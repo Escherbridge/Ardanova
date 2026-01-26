@@ -32,6 +32,7 @@ public static class DependencyInjection
         dataSourceBuilder.MapEnum<AchievementRarity>("AchievementRarity", translator);
         dataSourceBuilder.MapEnum<ActivityType>("ActivityType", translator);
         dataSourceBuilder.MapEnum<ApplicationStatus>("ApplicationStatus", translator);
+        dataSourceBuilder.MapEnum<AttendeeStatus>("AttendeeStatus", translator);
         dataSourceBuilder.MapEnum<BacklogItemType>("BacklogItemType", translator);
         dataSourceBuilder.MapEnum<BacklogStatus>("BacklogStatus", translator);
         dataSourceBuilder.MapEnum<BidStatus>("BidStatus", translator);
@@ -40,6 +41,10 @@ public static class DependencyInjection
         dataSourceBuilder.MapEnum<ContributionStatus>("ContributionStatus", translator);
         dataSourceBuilder.MapEnum<EpicStatus>("EpicStatus", translator);
         dataSourceBuilder.MapEnum<EscrowStatus>("EscrowStatus", translator);
+        dataSourceBuilder.MapEnum<EventStatus>("EventStatus", translator);
+        dataSourceBuilder.MapEnum<EventType>("EventType", translator);
+        dataSourceBuilder.MapEnum<EventVisibility>("EventVisibility", translator);
+        dataSourceBuilder.MapEnum<ExperienceLevel>("ExperienceLevel", translator);
         dataSourceBuilder.MapEnum<ICOStatus>("ICOStatus", translator);
         dataSourceBuilder.MapEnum<InvoiceStatus>("InvoiceStatus", translator);
         dataSourceBuilder.MapEnum<LeaderboardCategory>("LeaderboardCategory", translator);
@@ -47,6 +52,8 @@ public static class DependencyInjection
         dataSourceBuilder.MapEnum<MessageStatus>("MessageStatus", translator);
         dataSourceBuilder.MapEnum<MimeType>("MimeType", translator);
         dataSourceBuilder.MapEnum<NotificationType>("NotificationType", translator);
+        dataSourceBuilder.MapEnum<OpportunityStatus>("OpportunityStatus", translator);
+        dataSourceBuilder.MapEnum<OpportunityType>("OpportunityType", translator);
         dataSourceBuilder.MapEnum<PaymentMethod>("PaymentMethod", translator);
         dataSourceBuilder.MapEnum<PBIStatus>("PBIStatus", translator);
         dataSourceBuilder.MapEnum<PBIType>("PBIType", translator);
@@ -59,6 +66,7 @@ public static class DependencyInjection
         dataSourceBuilder.MapEnum<ProposalType>("ProposalType", translator);
         dataSourceBuilder.MapEnum<ReferralStatus>("ReferralStatus", translator);
         dataSourceBuilder.MapEnum<RoadmapStatus>("RoadmapStatus", translator);
+        dataSourceBuilder.MapEnum<ShopCategory>("ShopCategory", translator);
         dataSourceBuilder.MapEnum<SprintStatus>("SprintStatus", translator);
         dataSourceBuilder.MapEnum<StreakType>("StreakType", translator);
         dataSourceBuilder.MapEnum<SubmissionStatus>("SubmissionStatus", translator);
@@ -67,6 +75,7 @@ public static class DependencyInjection
         dataSourceBuilder.MapEnum<SwapStatus>("SwapStatus", translator);
         dataSourceBuilder.MapEnum<TaskPriority>("TaskPriority", translator);
         dataSourceBuilder.MapEnum<TaskStatus>("TaskStatus", translator);
+        dataSourceBuilder.MapEnum<TaskType>("TaskType", translator);
         dataSourceBuilder.MapEnum<TransactionType>("TransactionType", translator);
         dataSourceBuilder.MapEnum<UserRole>("UserRole", translator);
         dataSourceBuilder.MapEnum<UserTier>("UserTier", translator);

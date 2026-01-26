@@ -21,11 +21,27 @@ public class ShopService : IShopService
         _mapper = mapper;
     }
 
+    private static string GenerateSlug(string name)
+    {
+        return name.ToLowerInvariant()
+            .Replace(" ", "-")
+            .Replace("--", "-")
+            + "-" + Guid.NewGuid().ToString("N")[..8];
+    }
+
     public async Task<Result<ShopDto>> GetByIdAsync(string id, CancellationToken ct = default)
     {
         var shop = await _repository.GetByIdAsync(id, ct);
         if (shop is null)
             return Result<ShopDto>.NotFound($"Shop with id {id} not found");
+        return Result<ShopDto>.Success(_mapper.Map<ShopDto>(shop));
+    }
+
+    public async Task<Result<ShopDto>> GetBySlugAsync(string slug, CancellationToken ct = default)
+    {
+        var shop = await _repository.FindOneAsync(s => s.slug == slug, ct);
+        if (shop is null)
+            return Result<ShopDto>.NotFound($"Shop with slug {slug} not found");
         return Result<ShopDto>.Success(_mapper.Map<ShopDto>(shop));
     }
 
@@ -41,6 +57,32 @@ public class ShopService : IShopService
         return Result<PagedResult<ShopDto>>.Success(result.Map(_mapper.Map<ShopDto>));
     }
 
+    public async Task<Result<PagedResult<ShopDto>>> SearchAsync(string? searchTerm, ShopCategory? category, int page, int pageSize, CancellationToken ct = default)
+    {
+        var query = _repository.Query();
+
+        if (!string.IsNullOrWhiteSpace(searchTerm))
+        {
+            var term = searchTerm.ToLower();
+            query = query.Where(s => s.name.ToLower().Contains(term) ||
+                (s.description != null && s.description.ToLower().Contains(term)));
+        }
+
+        if (category.HasValue)
+            query = query.Where(s => s.category == category.Value);
+
+        query = query.OrderByDescending(s => s.createdAt);
+
+        var totalCount = query.Count();
+        var items = query.Skip((page - 1) * pageSize).Take(pageSize).ToList();
+
+        return Result<PagedResult<ShopDto>>.Success(new PagedResult<ShopDto>(
+            _mapper.Map<List<ShopDto>>(items),
+            totalCount,
+            page,
+            pageSize));
+    }
+
     public async Task<Result<IReadOnlyList<ShopDto>>> GetByOwnerIdAsync(string ownerId, CancellationToken ct = default)
     {
         var shops = await _repository.FindAsync(s => s.ownerId == ownerId, ct);
@@ -54,7 +96,9 @@ public class ShopService : IShopService
             id = Guid.NewGuid().ToString(),
             ownerId = dto.OwnerId,
             name = dto.Name,
+            slug = GenerateSlug(dto.Name),
             description = dto.Description,
+            category = dto.Category,
             isActive = true,
             createdAt = DateTime.UtcNow,
             updatedAt = DateTime.UtcNow

@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { Prisma } from '@prisma/client'
 import { TaskStatusSchema } from '../inputTypeSchemas/TaskStatusSchema'
 import { TaskPrioritySchema } from '../inputTypeSchemas/TaskPrioritySchema'
+import { TaskTypeSchema } from '../inputTypeSchemas/TaskTypeSchema'
 import { EscrowStatusSchema } from '../inputTypeSchemas/EscrowStatusSchema'
 
 /////////////////////////////////////////
@@ -11,6 +12,7 @@ import { EscrowStatusSchema } from '../inputTypeSchemas/EscrowStatusSchema'
 export const ProjectTaskSchema = z.object({
   status: TaskStatusSchema,
   priority: TaskPrioritySchema,
+  taskType: TaskTypeSchema,
   escrowStatus: EscrowStatusSchema,
   id: z.string().cuid(),
   projectId: z.string(),

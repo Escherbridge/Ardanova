@@ -80,3 +80,5 @@ export * from './EventReminderSchema';
 export * from './UserFollowSchema';
 export * from './ProjectFollowSchema';
 export * from './GuildFollowSchema';
+export * from './OpportunitySchema';
+export * from './OpportunityApplicationSchema';

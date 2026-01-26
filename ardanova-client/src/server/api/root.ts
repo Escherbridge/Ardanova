@@ -1,6 +1,11 @@
 import { postRouter } from "~/server/api/routers/post";
 import { projectRouter } from "~/server/api/routers/project";
 import { guildRouter } from "~/server/api/routers/guild";
+import { shopRouter } from "~/server/api/routers/shop";
+import { taskRouter } from "~/server/api/routers/task";
+import { eventRouter } from "~/server/api/routers/event";
+import { opportunityRouter } from "~/server/api/routers/opportunity";
+import { governanceRouter } from "~/server/api/routers/governance";
 import { createCallerFactory, createTRPCRouter } from "~/server/api/trpc";
 
 /**
@@ -12,6 +17,11 @@ export const appRouter = createTRPCRouter({
   post: postRouter,
   project: projectRouter,
   guild: guildRouter,
+  shop: shopRouter,
+  task: taskRouter,
+  event: eventRouter,
+  opportunity: opportunityRouter,
+  governance: governanceRouter,
 });
 
 // export type definition of API

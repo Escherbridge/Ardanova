@@ -12,17 +12,19 @@ using Moq;
 
 public class ProjectServiceTests
 {
-    private readonly Mock<IRepository<Project>> _repositoryMock;
+    private readonly Mock<IProjectRepository> _repositoryMock;
+    private readonly Mock<IRepository<User>> _userRepositoryMock;
     private readonly Mock<IUnitOfWork> _unitOfWorkMock;
     private readonly Mock<IMapper> _mapperMock;
     private readonly ProjectService _sut;
 
     public ProjectServiceTests()
     {
-        _repositoryMock = new Mock<IRepository<Project>>();
+        _repositoryMock = new Mock<IProjectRepository>();
+        _userRepositoryMock = new Mock<IRepository<User>>();
         _unitOfWorkMock = new Mock<IUnitOfWork>();
         _mapperMock = new Mock<IMapper>();
-        _sut = new ProjectService(_repositoryMock.Object, _unitOfWorkMock.Object, _mapperMock.Object);
+        _sut = new ProjectService(_repositoryMock.Object, _userRepositoryMock.Object, _unitOfWorkMock.Object, _mapperMock.Object);
     }
 
     [Fact]

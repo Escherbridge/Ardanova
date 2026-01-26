@@ -109,7 +109,8 @@ public class ShopServiceTests
         {
             Name = "New Shop",
             OwnerId = ownerId,
-            Description = "A new shop"
+            Description = "A new shop",
+            Category = ShopCategory.RETAIL
         };
         var shopDto = new ShopDto { Name = "New Shop" };
 

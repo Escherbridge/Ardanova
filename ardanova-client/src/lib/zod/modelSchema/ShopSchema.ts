@@ -1,12 +1,15 @@
 import { z } from 'zod';
+import { ShopCategorySchema } from '../inputTypeSchemas/ShopCategorySchema'
 
 /////////////////////////////////////////
 // SHOP SCHEMA
 /////////////////////////////////////////
 
 export const ShopSchema = z.object({
+  category: ShopCategorySchema,
   id: z.string().cuid(),
   name: z.string(),
+  slug: z.string(),
   description: z.string().nullable(),
   address: z.string().nullable(),
   phone: z.string().nullable(),

@@ -7,8 +7,10 @@ using ArdaNova.Domain.Models.Enums;
 public interface IShopService
 {
     Task<Result<ShopDto>> GetByIdAsync(string id, CancellationToken ct = default);
+    Task<Result<ShopDto>> GetBySlugAsync(string slug, CancellationToken ct = default);
     Task<Result<IReadOnlyList<ShopDto>>> GetAllAsync(CancellationToken ct = default);
     Task<Result<PagedResult<ShopDto>>> GetPagedAsync(int page, int pageSize, CancellationToken ct = default);
+    Task<Result<PagedResult<ShopDto>>> SearchAsync(string? searchTerm, ShopCategory? category, int page, int pageSize, CancellationToken ct = default);
     Task<Result<IReadOnlyList<ShopDto>>> GetByOwnerIdAsync(string ownerId, CancellationToken ct = default);
     Task<Result<ShopDto>> CreateAsync(CreateShopDto dto, CancellationToken ct = default);
     Task<Result<ShopDto>> UpdateAsync(string id, UpdateShopDto dto, CancellationToken ct = default);

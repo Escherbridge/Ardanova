@@ -57,7 +57,17 @@ public static class DependencyInjection
         services.AddScoped<INotificationService, NotificationService>();
         services.AddScoped<IActivityService, ActivityService>();
 
+        // Task services
+        services.AddScoped<ITaskService, TaskService>();
+
+        // Event services
+        services.AddScoped<IEventService, EventService>();
+
+        // Opportunity services
+        services.AddScoped<IOpportunityService, OpportunityService>();
+
         // Governance services
+        services.AddScoped<IGovernanceService, GovernanceService>();
         services.AddScoped<IDelegatedVoteService, DelegatedVoteService>();
 
         // Exchange services

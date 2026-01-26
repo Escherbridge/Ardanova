@@ -6,7 +6,9 @@ public record ShopDto
 {
     public string Id { get; init; }
     public string Name { get; init; } = null!;
+    public string Slug { get; init; } = null!;
     public string? Description { get; init; }
+    public ShopCategory Category { get; init; }
     public string? Industry { get; init; }
     public string? Address { get; init; }
     public string? Phone { get; init; }
@@ -25,6 +27,7 @@ public record CreateShopDto
     public required string OwnerId { get; init; }
     public required string Name { get; init; }
     public string? Description { get; init; }
+    public required ShopCategory Category { get; init; }
     public string? Industry { get; init; }
 }
 
@@ -32,6 +35,7 @@ public record UpdateShopDto
 {
     public string? Name { get; init; }
     public string? Description { get; init; }
+    public ShopCategory? Category { get; init; }
     public string? Industry { get; init; }
     public string? Address { get; init; }
     public string? Phone { get; init; }

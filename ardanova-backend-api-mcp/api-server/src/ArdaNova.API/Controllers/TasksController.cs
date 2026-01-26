@@ -8,97 +8,93 @@ using Microsoft.AspNetCore.Mvc;
 
 [ApiController]
 [Route("api/[controller]")]
-public class ShopsController : ControllerBase
+public class TasksController : ControllerBase
 {
-    private readonly IShopService _shopService;
+    private readonly ITaskService _taskService;
 
-    public ShopsController(IShopService shopService)
+    public TasksController(ITaskService taskService)
     {
-        _shopService = shopService;
+        _taskService = taskService;
     }
 
     [HttpGet]
     public async Task<IActionResult> GetAll(CancellationToken ct)
     {
-        var result = await _shopService.GetAllAsync(ct);
+        var result = await _taskService.GetAllAsync(ct);
         return ToActionResult(result);
     }
 
     [HttpGet("paged")]
     public async Task<IActionResult> GetPaged([FromQuery] int page = 1, [FromQuery] int pageSize = 10, CancellationToken ct = default)
     {
-        var result = await _shopService.GetPagedAsync(page, pageSize, ct);
+        var result = await _taskService.GetPagedAsync(page, pageSize, ct);
         return ToActionResult(result);
     }
 
     [HttpGet("search")]
     public async Task<IActionResult> Search(
         [FromQuery] string? searchTerm,
-        [FromQuery] ShopCategory? category,
+        [FromQuery] TaskStatus? status,
+        [FromQuery] TaskPriority? priority,
+        [FromQuery] TaskType? taskType,
+        [FromQuery] string? projectId,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 10,
         CancellationToken ct = default)
     {
-        var result = await _shopService.SearchAsync(searchTerm, category, page, pageSize, ct);
+        var result = await _taskService.SearchAsync(searchTerm, status, priority, taskType, projectId, page, pageSize, ct);
         return ToActionResult(result);
     }
 
     [HttpGet("{id}")]
     public async Task<IActionResult> GetById(string id, CancellationToken ct)
     {
-        var result = await _shopService.GetByIdAsync(id, ct);
+        var result = await _taskService.GetByIdAsync(id, ct);
         return ToActionResult(result);
     }
 
-    [HttpGet("slug/{slug}")]
-    public async Task<IActionResult> GetBySlug(string slug, CancellationToken ct)
+    [HttpGet("user/{userId}")]
+    public async Task<IActionResult> GetByUserId(string userId, CancellationToken ct)
     {
-        var result = await _shopService.GetBySlugAsync(slug, ct);
+        var result = await _taskService.GetByUserIdAsync(userId, ct);
         return ToActionResult(result);
     }
 
-    [HttpGet("owner/{ownerId}")]
-    public async Task<IActionResult> GetByOwnerId(string ownerId, CancellationToken ct)
+    [HttpGet("project/{projectId}")]
+    public async Task<IActionResult> GetByProjectId(string projectId, CancellationToken ct)
     {
-        var result = await _shopService.GetByOwnerIdAsync(ownerId, ct);
+        var result = await _taskService.GetByProjectIdAsync(projectId, ct);
         return ToActionResult(result);
     }
 
     [HttpPost]
-    public async Task<IActionResult> Create([FromBody] CreateShopDto dto, CancellationToken ct)
+    public async Task<IActionResult> Create([FromBody] CreateTaskDto dto, CancellationToken ct)
     {
-        var result = await _shopService.CreateAsync(dto, ct);
+        var result = await _taskService.CreateAsync(dto, ct);
         return result.IsSuccess
             ? CreatedAtAction(nameof(GetById), new { id = result.Value!.Id }, result.Value)
             : ToActionResult(result);
     }
 
     [HttpPut("{id}")]
-    public async Task<IActionResult> Update(string id, [FromBody] UpdateShopDto dto, CancellationToken ct)
+    public async Task<IActionResult> Update(string id, [FromBody] UpdateTaskDto dto, CancellationToken ct)
     {
-        var result = await _shopService.UpdateAsync(id, dto, ct);
+        var result = await _taskService.UpdateAsync(id, dto, ct);
+        return ToActionResult(result);
+    }
+
+    [HttpPatch("{id}/status")]
+    public async Task<IActionResult> UpdateStatus(string id, [FromBody] UpdateTaskStatusDto dto, CancellationToken ct)
+    {
+        var result = await _taskService.UpdateStatusAsync(id, dto.Status, ct);
         return ToActionResult(result);
     }
 
     [HttpDelete("{id}")]
     public async Task<IActionResult> Delete(string id, CancellationToken ct)
     {
-        var result = await _shopService.DeleteAsync(id, ct);
+        var result = await _taskService.DeleteAsync(id, ct);
         return result.IsSuccess ? NoContent() : ToActionResult(result);
-    }
-
-    [HttpPost("{id}/upgrade")]
-    public async Task<IActionResult> UpgradePlan(string id, [FromQuery] SubscriptionPlan plan, CancellationToken ct)
-    {
-        var result = await _shopService.UpgradePlanAsync(id, plan, ct);
-        return ToActionResult(result);
-    }
-
-    [HttpPost("{id}/toggle-active")]
-    public async Task<IActionResult> ToggleActive(string id, CancellationToken ct)
-    {
-        var result = await _shopService.ToggleActiveAsync(id, ct);
-        return ToActionResult(result);
     }
 
     private IActionResult ToActionResult<T>(Result<T> result)
