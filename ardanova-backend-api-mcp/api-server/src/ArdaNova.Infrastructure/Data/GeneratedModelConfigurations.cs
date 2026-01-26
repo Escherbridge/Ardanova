@@ -12,5 +12,6 @@ public static class GeneratedModelConfigurations
     /// </summary>
     public static void ApplyGeneratedConfigurations(this ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<OpportunityApplication>().HasIndex(e => new { e.opportunityId, e.applicantId }).IsUnique();
     }
 }

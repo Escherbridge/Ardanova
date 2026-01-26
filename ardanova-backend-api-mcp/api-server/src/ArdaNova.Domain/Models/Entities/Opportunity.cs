@@ -92,4 +92,5 @@ public class Opportunity
     public virtual ProjectTask? Task { get; set; }
 
     public virtual ICollection<OpportunityApplication> OpportunityApplications { get; set; } = new List<OpportunityApplication>();
+
 }

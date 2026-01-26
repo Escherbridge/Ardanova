@@ -159,4 +159,6 @@ public class Project
 
     public virtual ICollection<ProjectFollow> ProjectFollows { get; set; } = new List<ProjectFollow>();
 
+    public virtual ICollection<Opportunity> Opportunities { get; set; } = new List<Opportunity>();
+
 }

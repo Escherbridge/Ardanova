@@ -102,4 +102,6 @@ public class Guild
 
     public virtual ICollection<GuildFollow> GuildFollows { get; set; } = new List<GuildFollow>();
 
+    public virtual ICollection<Opportunity> Opportunities { get; set; } = new List<Opportunity>();
+
 }

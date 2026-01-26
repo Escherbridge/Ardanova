@@ -121,6 +121,9 @@ public class ArdaNovaDbContext : DbContext
     public DbSet<UserFollow> UserFollows => Set<UserFollow>();
     public DbSet<ProjectFollow> ProjectFollows => Set<ProjectFollow>();
     public DbSet<GuildFollow> GuildFollows => Set<GuildFollow>();
+    public DbSet<Opportunity> Opportunities => Set<Opportunity>();
+    public DbSet<OpportunityApplication> OpportunityApplications => Set<OpportunityApplication>();
+
 
 
 

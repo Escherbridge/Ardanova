@@ -162,6 +162,10 @@ public class User
 
     public virtual ICollection<GuildFollow> GuildFollows { get; set; } = new List<GuildFollow>();
 
+    public virtual ICollection<Opportunity> Opportunities { get; set; } = new List<Opportunity>();
+
+    public virtual ICollection<OpportunityApplication> OpportunityApplications { get; set; } = new List<OpportunityApplication>();
+
     public virtual ICollection<Referral> ReferralsAsReferrer { get; set; } = new List<Referral>();
 
     public virtual ICollection<Referral> ReferralsAsReferred { get; set; } = new List<Referral>();
