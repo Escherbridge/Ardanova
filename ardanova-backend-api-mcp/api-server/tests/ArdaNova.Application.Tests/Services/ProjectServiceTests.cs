@@ -82,20 +82,24 @@ public class ProjectServiceTests
     {
         // Arrange
         var userId = Guid.NewGuid().ToString();
+        var projectId1 = Guid.NewGuid().ToString();
+        var projectId2 = Guid.NewGuid().ToString();
         var projects = new List<Project>
         {
-            new Project { id = Guid.NewGuid().ToString(), createdById = userId, title = "Project 1", description = "Desc 1", problemStatement = "Problem 1", solution = "Solution 1", category = ProjectCategory.TECHNOLOGY, status = ProjectStatus.DRAFT, createdAt = DateTime.UtcNow, updatedAt = DateTime.UtcNow },
-            new Project { id = Guid.NewGuid().ToString(), createdById = userId, title = "Project 2", description = "Desc 2", problemStatement = "Problem 2", solution = "Solution 2", category = ProjectCategory.HEALTHCARE, status = ProjectStatus.DRAFT, createdAt = DateTime.UtcNow, updatedAt = DateTime.UtcNow }
+            new Project { id = projectId1, createdById = userId, title = "Project 1", description = "Desc 1", problemStatement = "Problem 1", solution = "Solution 1", category = ProjectCategory.TECHNOLOGY, status = ProjectStatus.DRAFT, createdAt = DateTime.UtcNow, updatedAt = DateTime.UtcNow },
+            new Project { id = projectId2, createdById = userId, title = "Project 2", description = "Desc 2", problemStatement = "Problem 2", solution = "Solution 2", category = ProjectCategory.HEALTHCARE, status = ProjectStatus.DRAFT, createdAt = DateTime.UtcNow, updatedAt = DateTime.UtcNow }
         };
         var projectDtos = new List<ProjectDto>
         {
-            new ProjectDto { Title = "Project 1" },
-            new ProjectDto { Title = "Project 2" }
+            new ProjectDto { Id = projectId1, Title = "Project 1" },
+            new ProjectDto { Id = projectId2, Title = "Project 2" }
         };
 
         _repositoryMock.Setup(r => r.GetAllAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(projects);
-        _mapperMock.Setup(m => m.Map<IReadOnlyList<ProjectDto>>(projects)).Returns(projectDtos);
+        _mapperMock.Setup(m => m.Map<List<ProjectDto>>(It.IsAny<IEnumerable<Project>>())).Returns(projectDtos);
+        _userRepositoryMock.Setup(r => r.GetByIdAsync(userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((User?)null);
 
         // Act
         var result = await _sut.GetAllAsync();
@@ -164,15 +168,18 @@ public class ProjectServiceTests
     {
         // Arrange
         var userId = Guid.NewGuid().ToString();
+        var projectId = Guid.NewGuid().ToString();
         var projects = new List<Project>
         {
-            new Project { id = Guid.NewGuid().ToString(), createdById = userId, title = "Draft Project", description = "Desc", problemStatement = "Problem", solution = "Solution", category = ProjectCategory.TECHNOLOGY, status = ProjectStatus.DRAFT, createdAt = DateTime.UtcNow, updatedAt = DateTime.UtcNow }
+            new Project { id = projectId, createdById = userId, title = "Draft Project", description = "Desc", problemStatement = "Problem", solution = "Solution", category = ProjectCategory.TECHNOLOGY, status = ProjectStatus.DRAFT, createdAt = DateTime.UtcNow, updatedAt = DateTime.UtcNow }
         };
-        var projectDtos = new List<ProjectDto> { new ProjectDto { Title = "Draft Project" } };
+        var projectDtos = new List<ProjectDto> { new ProjectDto { Id = projectId, Title = "Draft Project" } };
 
         _repositoryMock.Setup(r => r.FindAsync(It.IsAny<System.Linq.Expressions.Expression<Func<Project, bool>>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(projects);
-        _mapperMock.Setup(m => m.Map<IReadOnlyList<ProjectDto>>(projects)).Returns(projectDtos);
+        _mapperMock.Setup(m => m.Map<List<ProjectDto>>(It.IsAny<IEnumerable<Project>>())).Returns(projectDtos);
+        _userRepositoryMock.Setup(r => r.GetByIdAsync(userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((User?)null);
 
         // Act
         var result = await _sut.GetByStatusAsync(ProjectStatus.DRAFT);
