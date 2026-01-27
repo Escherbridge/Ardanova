@@ -63,6 +63,167 @@ const updateProjectSchema = z.object({
   fundingGoal: z.number().optional(),
 });
 
+// Member role enum
+const MemberRole = z.enum([
+  "FOUNDER",
+  "LEADER",
+  "CORE_CONTRIBUTOR",
+  "CONTRIBUTOR",
+  "OBSERVER",
+]);
+
+// Application status enum
+const ApplicationStatus = z.enum([
+  "PENDING",
+  "ACCEPTED",
+  "REJECTED",
+  "WITHDRAWN",
+]);
+
+// Bid status enum
+const BidStatus = z.enum([
+  "SUBMITTED",
+  "UNDER_REVIEW",
+  "ACCEPTED",
+  "REJECTED",
+  "WITHDRAWN",
+]);
+
+// Proposal type enum
+const ProposalType = z.enum([
+  "TREASURY",
+  "GOVERNANCE",
+  "STRATEGIC",
+  "OPERATIONAL",
+  "EMERGENCY",
+]);
+
+// Support type enum
+const SupportType = z.enum([
+  "VOTE",
+  "SUBSCRIPTION",
+  "VOLUNTEER",
+  "RESOURCE",
+]);
+
+// Resource schemas
+const addResourceSchema = z.object({
+  projectId: z.string(),
+  name: z.string().min(1),
+  description: z.string().optional(),
+  quantity: z.number().default(1),
+  estimatedCost: z.number().optional(),
+  isRequired: z.boolean().default(true),
+});
+
+const updateResourceSchema = z.object({
+  resourceId: z.string(),
+  name: z.string().min(1).optional(),
+  description: z.string().optional(),
+  quantity: z.number().optional(),
+  estimatedCost: z.number().optional(),
+  isRequired: z.boolean().optional(),
+});
+
+// Milestone schemas
+const addMilestoneSchema = z.object({
+  projectId: z.string(),
+  title: z.string().min(1),
+  description: z.string().optional(),
+  targetDate: z.string(),
+});
+
+const updateMilestoneSchema = z.object({
+  milestoneId: z.string(),
+  title: z.string().min(1).optional(),
+  description: z.string().optional(),
+  targetDate: z.string().optional(),
+});
+
+// Member schemas
+const addMemberSchema = z.object({
+  projectId: z.string(),
+  userId: z.string(),
+  role: MemberRole,
+});
+
+const updateMemberRoleSchema = z.object({
+  memberId: z.string(),
+  role: MemberRole,
+});
+
+// Application schemas
+const applyToProjectSchema = z.object({
+  projectId: z.string(),
+  roleTitle: z.string(),
+  message: z.string().min(20),
+  skills: z.string().optional(),
+  experience: z.string().optional(),
+  availability: z.string().optional(),
+});
+
+const reviewApplicationSchema = z.object({
+  applicationId: z.string(),
+  status: ApplicationStatus,
+  reviewMessage: z.string().optional(),
+});
+
+// Bid schemas
+const submitBidSchema = z.object({
+  projectId: z.string(),
+  guildId: z.string(),
+  proposal: z.string().min(50),
+  timeline: z.string().optional(),
+  budget: z.number().positive(),
+  deliverables: z.string().optional(),
+});
+
+const reviewBidSchema = z.object({
+  bidId: z.string(),
+  status: BidStatus,
+});
+
+// Proposal schemas
+const createProposalSchema = z.object({
+  projectId: z.string(),
+  type: ProposalType,
+  title: z.string().min(1),
+  description: z.string().min(20),
+  options: z.array(z.string()).min(2),
+  quorum: z.number().default(50),
+  threshold: z.number().default(51),
+  votingDays: z.number().default(7),
+});
+
+const castVoteSchema = z.object({
+  proposalId: z.string(),
+  choice: z.number(),
+  reason: z.string().optional(),
+});
+
+// Update schemas
+const createUpdateSchema = z.object({
+  projectId: z.string(),
+  title: z.string().min(1),
+  content: z.string().min(10),
+  images: z.string().optional(),
+});
+
+// Comment schemas
+const addCommentSchema = z.object({
+  projectId: z.string(),
+  content: z.string().min(1),
+  parentId: z.string().optional(),
+});
+
+// Support schemas
+const supportProjectSchema = z.object({
+  projectId: z.string(),
+  supportType: SupportType,
+  monthlyAmount: z.number().optional(),
+  message: z.string().optional(),
+});
+
 export const projectRouter = createTRPCRouter({
   // Create a new project
   create: protectedProcedure
@@ -270,5 +431,875 @@ export const projectRouter = createTRPCRouter({
       }
 
       return response.data;
+    }),
+
+  // ========================================
+  // PROJECT RESOURCES
+  // ========================================
+
+  // Add resource to project
+  addResource: protectedProcedure
+    .input(addResourceSchema)
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.session.user.id;
+
+      // Verify project ownership
+      const project = await apiClient.projects.getById(input.projectId);
+      if (project.error || !project.data) {
+        throw new Error("Project not found");
+      }
+      if (project.data.createdById !== userId) {
+        throw new Error("Access denied");
+      }
+
+      // Call API endpoint
+      const response = await apiClient.projects.addResource(input.projectId, {
+        name: input.name,
+        description: input.description,
+        quantity: input.quantity,
+        estimatedCost: input.estimatedCost,
+        isRequired: input.isRequired,
+      });
+
+      if (response.error || !response.data) {
+        throw new Error(response.error ?? "Failed to add resource");
+      }
+
+      return response.data;
+    }),
+
+  // Update resource
+  updateResource: protectedProcedure
+    .input(updateResourceSchema)
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.session.user.id;
+      const { resourceId, ...data } = input;
+
+      // Get resource to verify ownership
+      const resource = await apiClient.projects.getResourceById(resourceId);
+      if (resource.error || !resource.data) {
+        throw new Error("Resource not found");
+      }
+
+      // Verify project ownership
+      const project = await apiClient.projects.getById(resource.data.projectId);
+      if (project.error || !project.data) {
+        throw new Error("Project not found");
+      }
+      if (project.data.createdById !== userId) {
+        throw new Error("Access denied");
+      }
+
+      const response = await apiClient.projects.updateResource(resourceId, data);
+
+      if (response.error || !response.data) {
+        throw new Error(response.error ?? "Failed to update resource");
+      }
+
+      return response.data;
+    }),
+
+  // Delete resource
+  deleteResource: protectedProcedure
+    .input(z.object({ resourceId: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.session.user.id;
+
+      // Get resource to verify ownership
+      const resource = await apiClient.projects.getResourceById(input.resourceId);
+      if (resource.error || !resource.data) {
+        throw new Error("Resource not found");
+      }
+
+      // Verify project ownership
+      const project = await apiClient.projects.getById(resource.data.projectId);
+      if (project.error || !project.data) {
+        throw new Error("Project not found");
+      }
+      if (project.data.createdById !== userId) {
+        throw new Error("Access denied");
+      }
+
+      const response = await apiClient.projects.deleteResource(input.resourceId);
+
+      if (response.error) {
+        throw new Error(response.error ?? "Failed to delete resource");
+      }
+
+      return { success: true };
+    }),
+
+  // Get resources for project
+  getResources: publicProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(async ({ input }) => {
+      const response = await apiClient.projects.getResources(input.projectId);
+
+      if (response.error) {
+        throw new Error(response.error);
+      }
+
+      return response.data ?? [];
+    }),
+
+  // ========================================
+  // PROJECT MILESTONES
+  // ========================================
+
+  // Add milestone to project
+  addMilestone: protectedProcedure
+    .input(addMilestoneSchema)
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.session.user.id;
+
+      // Verify project ownership
+      const project = await apiClient.projects.getById(input.projectId);
+      if (project.error || !project.data) {
+        throw new Error("Project not found");
+      }
+      if (project.data.createdById !== userId) {
+        throw new Error("Access denied");
+      }
+
+      const response = await apiClient.projects.addMilestone(input.projectId, {
+        title: input.title,
+        description: input.description,
+        targetDate: input.targetDate,
+      });
+
+      if (response.error || !response.data) {
+        throw new Error(response.error ?? "Failed to add milestone");
+      }
+
+      return response.data;
+    }),
+
+  // Update milestone
+  updateMilestone: protectedProcedure
+    .input(updateMilestoneSchema)
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.session.user.id;
+      const { milestoneId, ...data } = input;
+
+      // Get milestone to verify ownership
+      const milestone = await apiClient.projects.getMilestoneById(milestoneId);
+      if (milestone.error || !milestone.data) {
+        throw new Error("Milestone not found");
+      }
+
+      // Verify project ownership
+      const project = await apiClient.projects.getById(milestone.data.projectId);
+      if (project.error || !project.data) {
+        throw new Error("Project not found");
+      }
+      if (project.data.createdById !== userId) {
+        throw new Error("Access denied");
+      }
+
+      const response = await apiClient.projects.updateMilestone(milestoneId, data);
+
+      if (response.error || !response.data) {
+        throw new Error(response.error ?? "Failed to update milestone");
+      }
+
+      return response.data;
+    }),
+
+  // Delete milestone
+  deleteMilestone: protectedProcedure
+    .input(z.object({ milestoneId: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.session.user.id;
+
+      // Get milestone to verify ownership
+      const milestone = await apiClient.projects.getMilestoneById(input.milestoneId);
+      if (milestone.error || !milestone.data) {
+        throw new Error("Milestone not found");
+      }
+
+      // Verify project ownership
+      const project = await apiClient.projects.getById(milestone.data.projectId);
+      if (project.error || !project.data) {
+        throw new Error("Project not found");
+      }
+      if (project.data.createdById !== userId) {
+        throw new Error("Access denied");
+      }
+
+      const response = await apiClient.projects.deleteMilestone(input.milestoneId);
+
+      if (response.error) {
+        throw new Error(response.error ?? "Failed to delete milestone");
+      }
+
+      return { success: true };
+    }),
+
+  // Get milestones for project
+  getMilestones: publicProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(async ({ input }) => {
+      const response = await apiClient.projects.getMilestones(input.projectId);
+
+      if (response.error) {
+        throw new Error(response.error);
+      }
+
+      return response.data ?? [];
+    }),
+
+  // Complete milestone
+  completeMilestone: protectedProcedure
+    .input(z.object({ milestoneId: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.session.user.id;
+
+      // Get milestone to verify ownership
+      const milestone = await apiClient.projects.getMilestoneById(input.milestoneId);
+      if (milestone.error || !milestone.data) {
+        throw new Error("Milestone not found");
+      }
+
+      // Verify project ownership
+      const project = await apiClient.projects.getById(milestone.data.projectId);
+      if (project.error || !project.data) {
+        throw new Error("Project not found");
+      }
+      if (project.data.createdById !== userId) {
+        throw new Error("Access denied");
+      }
+
+      const response = await apiClient.projects.completeMilestone(input.milestoneId);
+
+      if (response.error || !response.data) {
+        throw new Error(response.error ?? "Failed to complete milestone");
+      }
+
+      return response.data;
+    }),
+
+  // ========================================
+  // PROJECT MEMBERS & ROLES
+  // ========================================
+
+  // Add member to project
+  addMember: protectedProcedure
+    .input(addMemberSchema)
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.session.user.id;
+
+      // Verify project ownership
+      const project = await apiClient.projects.getById(input.projectId);
+      if (project.error || !project.data) {
+        throw new Error("Project not found");
+      }
+      if (project.data.createdById !== userId) {
+        throw new Error("Access denied");
+      }
+
+      const response = await apiClient.projects.addMember(input.projectId, {
+        userId: input.userId,
+        role: input.role,
+      });
+
+      if (response.error || !response.data) {
+        throw new Error(response.error ?? "Failed to add member");
+      }
+
+      return response.data;
+    }),
+
+  // Update member role
+  updateMemberRole: protectedProcedure
+    .input(updateMemberRoleSchema)
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.session.user.id;
+
+      // Get member to verify ownership
+      const member = await apiClient.projects.getMemberById(input.memberId);
+      if (member.error || !member.data) {
+        throw new Error("Member not found");
+      }
+
+      // Verify project ownership
+      const project = await apiClient.projects.getById(member.data.projectId);
+      if (project.error || !project.data) {
+        throw new Error("Project not found");
+      }
+      if (project.data.createdById !== userId) {
+        throw new Error("Access denied");
+      }
+
+      const response = await apiClient.projects.updateMemberRole(input.memberId, {
+        role: input.role,
+      });
+
+      if (response.error || !response.data) {
+        throw new Error(response.error ?? "Failed to update member role");
+      }
+
+      return response.data;
+    }),
+
+  // Remove member from project
+  removeMember: protectedProcedure
+    .input(z.object({ memberId: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.session.user.id;
+
+      // Get member to verify ownership
+      const member = await apiClient.projects.getMemberById(input.memberId);
+      if (member.error || !member.data) {
+        throw new Error("Member not found");
+      }
+
+      // Verify project ownership
+      const project = await apiClient.projects.getById(member.data.projectId);
+      if (project.error || !project.data) {
+        throw new Error("Project not found");
+      }
+      if (project.data.createdById !== userId) {
+        throw new Error("Access denied");
+      }
+
+      const response = await apiClient.projects.removeMember(input.memberId);
+
+      if (response.error) {
+        throw new Error(response.error ?? "Failed to remove member");
+      }
+
+      return { success: true };
+    }),
+
+  // Get members of project
+  getMembers: publicProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(async ({ input }) => {
+      const response = await apiClient.projects.getMembers(input.projectId);
+
+      if (response.error) {
+        throw new Error(response.error);
+      }
+
+      return response.data ?? [];
+    }),
+
+  // ========================================
+  // PROJECT APPLICATIONS
+  // ========================================
+
+  // Apply to project
+  applyToProject: protectedProcedure
+    .input(applyToProjectSchema)
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.session.user.id;
+
+      const response = await apiClient.projects.applyToProject(input.projectId, {
+        userId: userId,
+        roleTitle: input.roleTitle,
+        message: input.message,
+        skills: input.skills,
+        experience: input.experience,
+        availability: input.availability,
+      });
+
+      if (response.error || !response.data) {
+        throw new Error(response.error ?? "Failed to submit application");
+      }
+
+      return response.data;
+    }),
+
+  // Get applications for project (owner only)
+  getApplications: protectedProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(async ({ input, ctx }) => {
+      const userId = ctx.session.user.id;
+
+      // Verify project ownership
+      const project = await apiClient.projects.getById(input.projectId);
+      if (project.error || !project.data) {
+        throw new Error("Project not found");
+      }
+      if (project.data.createdById !== userId) {
+        throw new Error("Access denied");
+      }
+
+      const response = await apiClient.projects.getApplications(input.projectId);
+
+      if (response.error) {
+        throw new Error(response.error);
+      }
+
+      return response.data ?? [];
+    }),
+
+  // Review application
+  reviewApplication: protectedProcedure
+    .input(reviewApplicationSchema)
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.session.user.id;
+
+      // Get application to verify ownership
+      const application = await apiClient.projects.getApplicationById(input.applicationId);
+      if (application.error || !application.data) {
+        throw new Error("Application not found");
+      }
+
+      // Verify project ownership
+      const project = await apiClient.projects.getById(application.data.projectId);
+      if (project.error || !project.data) {
+        throw new Error("Project not found");
+      }
+      if (project.data.createdById !== userId) {
+        throw new Error("Access denied");
+      }
+
+      const response = await apiClient.projects.reviewApplication(input.applicationId, {
+        status: input.status,
+        reviewMessage: input.reviewMessage,
+      });
+
+      if (response.error || !response.data) {
+        throw new Error(response.error ?? "Failed to review application");
+      }
+
+      return response.data;
+    }),
+
+  // ========================================
+  // PROJECT BIDS
+  // ========================================
+
+  // Submit bid for project
+  submitBid: protectedProcedure
+    .input(submitBidSchema)
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.session.user.id;
+
+      const response = await apiClient.projects.submitBid(input.projectId, {
+        guildId: input.guildId,
+        userId: userId,
+        proposal: input.proposal,
+        timeline: input.timeline,
+        budget: input.budget,
+        deliverables: input.deliverables,
+      });
+
+      if (response.error || !response.data) {
+        throw new Error(response.error ?? "Failed to submit bid");
+      }
+
+      return response.data;
+    }),
+
+  // Get bids for project
+  getBids: publicProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(async ({ input }) => {
+      const response = await apiClient.projects.getBids(input.projectId);
+
+      if (response.error) {
+        throw new Error(response.error);
+      }
+
+      return response.data ?? [];
+    }),
+
+  // Get bid by ID
+  getBidById: publicProcedure
+    .input(z.object({ bidId: z.string() }))
+    .query(async ({ input }) => {
+      const response = await apiClient.projects.getBidById(input.bidId);
+
+      if (response.error || !response.data) {
+        throw new Error(response.error ?? "Bid not found");
+      }
+
+      return response.data;
+    }),
+
+  // Review bid (owner only)
+  reviewBid: protectedProcedure
+    .input(reviewBidSchema)
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.session.user.id;
+
+      // Get bid to verify ownership
+      const bid = await apiClient.projects.getBidById(input.bidId);
+      if (bid.error || !bid.data) {
+        throw new Error("Bid not found");
+      }
+
+      // Verify project ownership
+      const project = await apiClient.projects.getById(bid.data.projectId);
+      if (project.error || !project.data) {
+        throw new Error("Project not found");
+      }
+      if (project.data.createdById !== userId) {
+        throw new Error("Access denied");
+      }
+
+      const response = await apiClient.projects.reviewBid(input.bidId, {
+        status: input.status,
+      });
+
+      if (response.error || !response.data) {
+        throw new Error(response.error ?? "Failed to review bid");
+      }
+
+      return response.data;
+    }),
+
+  // ========================================
+  // PROPOSALS & VOTING
+  // ========================================
+
+  // Create proposal
+  createProposal: protectedProcedure
+    .input(createProposalSchema)
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.session.user.id;
+
+      // Verify user is a member of the project
+      const members = await apiClient.projects.getMembers(input.projectId);
+      if (members.error || !members.data) {
+        throw new Error("Failed to verify membership");
+      }
+
+      const isMember = members.data.some((m: any) => m.userId === userId);
+      if (!isMember) {
+        throw new Error("Only project members can create proposals");
+      }
+
+      const response = await apiClient.projects.createProposal(input.projectId, {
+        createdById: userId,
+        type: input.type,
+        title: input.title,
+        description: input.description,
+        options: input.options,
+        quorum: input.quorum,
+        threshold: input.threshold,
+        votingDays: input.votingDays,
+      });
+
+      if (response.error || !response.data) {
+        throw new Error(response.error ?? "Failed to create proposal");
+      }
+
+      return response.data;
+    }),
+
+  // Get proposals for project
+  getProposals: publicProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(async ({ input }) => {
+      const response = await apiClient.projects.getProposals(input.projectId);
+
+      if (response.error) {
+        throw new Error(response.error);
+      }
+
+      return response.data ?? [];
+    }),
+
+  // Get proposal by ID
+  getProposalById: publicProcedure
+    .input(z.object({ proposalId: z.string() }))
+    .query(async ({ input }) => {
+      const response = await apiClient.projects.getProposalById(input.proposalId);
+
+      if (response.error || !response.data) {
+        throw new Error(response.error ?? "Proposal not found");
+      }
+
+      return response.data;
+    }),
+
+  // Cast vote on proposal
+  castVote: protectedProcedure
+    .input(castVoteSchema)
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.session.user.id;
+
+      // Get proposal to verify membership
+      const proposal = await apiClient.projects.getProposalById(input.proposalId);
+      if (proposal.error || !proposal.data) {
+        throw new Error("Proposal not found");
+      }
+
+      // Verify user is a member of the project
+      const members = await apiClient.projects.getMembers(proposal.data.projectId);
+      if (members.error || !members.data) {
+        throw new Error("Failed to verify membership");
+      }
+
+      const isMember = members.data.some((m: any) => m.userId === userId);
+      if (!isMember) {
+        throw new Error("Only project members can vote");
+      }
+
+      const response = await apiClient.projects.castVote(input.proposalId, {
+        userId: userId,
+        choice: input.choice,
+        reason: input.reason,
+      });
+
+      if (response.error || !response.data) {
+        throw new Error(response.error ?? "Failed to cast vote");
+      }
+
+      return response.data;
+    }),
+
+  // Close proposal
+  closeProposal: protectedProcedure
+    .input(z.object({ proposalId: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.session.user.id;
+
+      // Get proposal to verify ownership
+      const proposal = await apiClient.projects.getProposalById(input.proposalId);
+      if (proposal.error || !proposal.data) {
+        throw new Error("Proposal not found");
+      }
+
+      // Verify project ownership
+      const project = await apiClient.projects.getById(proposal.data.projectId);
+      if (project.error || !project.data) {
+        throw new Error("Project not found");
+      }
+      if (project.data.createdById !== userId) {
+        throw new Error("Access denied");
+      }
+
+      const response = await apiClient.projects.closeProposal(input.proposalId);
+
+      if (response.error || !response.data) {
+        throw new Error(response.error ?? "Failed to close proposal");
+      }
+
+      return response.data;
+    }),
+
+  // ========================================
+  // PROJECT UPDATES
+  // ========================================
+
+  // Create project update
+  createUpdate: protectedProcedure
+    .input(createUpdateSchema)
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.session.user.id;
+
+      // Verify user is owner or member of the project
+      const project = await apiClient.projects.getById(input.projectId);
+      if (project.error || !project.data) {
+        throw new Error("Project not found");
+      }
+
+      const isOwner = project.data.createdById === userId;
+
+      if (!isOwner) {
+        const members = await apiClient.projects.getMembers(input.projectId);
+        if (members.error || !members.data) {
+          throw new Error("Failed to verify membership");
+        }
+
+        const isMember = members.data.some((m: any) => m.userId === userId);
+        if (!isMember) {
+          throw new Error("Only project owner or members can post updates");
+        }
+      }
+
+      const response = await apiClient.projects.createUpdate(input.projectId, {
+        createdById: userId,
+        title: input.title,
+        content: input.content,
+        images: input.images,
+      });
+
+      if (response.error || !response.data) {
+        throw new Error(response.error ?? "Failed to create update");
+      }
+
+      return response.data;
+    }),
+
+  // Get updates for project
+  getUpdates: publicProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(async ({ input }) => {
+      const response = await apiClient.projects.getUpdates(input.projectId);
+
+      if (response.error) {
+        throw new Error(response.error);
+      }
+
+      return response.data ?? [];
+    }),
+
+  // Delete update
+  deleteUpdate: protectedProcedure
+    .input(z.object({ updateId: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.session.user.id;
+
+      // Get update to verify ownership
+      const update = await apiClient.projects.getUpdateById(input.updateId);
+      if (update.error || !update.data) {
+        throw new Error("Update not found");
+      }
+
+      // Verify update ownership
+      if (update.data.createdById !== userId) {
+        throw new Error("Access denied");
+      }
+
+      const response = await apiClient.projects.deleteUpdate(input.updateId);
+
+      if (response.error) {
+        throw new Error(response.error ?? "Failed to delete update");
+      }
+
+      return { success: true };
+    }),
+
+  // ========================================
+  // PROJECT COMMENTS
+  // ========================================
+
+  // Add comment to project
+  addComment: protectedProcedure
+    .input(addCommentSchema)
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.session.user.id;
+
+      const response = await apiClient.projects.addComment(input.projectId, {
+        userId: userId,
+        content: input.content,
+        parentId: input.parentId,
+      });
+
+      if (response.error || !response.data) {
+        throw new Error(response.error ?? "Failed to add comment");
+      }
+
+      return response.data;
+    }),
+
+  // Get comments for project
+  getComments: publicProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(async ({ input }) => {
+      const response = await apiClient.projects.getComments(input.projectId);
+
+      if (response.error) {
+        throw new Error(response.error);
+      }
+
+      return response.data ?? [];
+    }),
+
+  // Delete comment
+  deleteComment: protectedProcedure
+    .input(z.object({ commentId: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.session.user.id;
+
+      // Get comment to verify ownership
+      const comment = await apiClient.projects.getCommentById(input.commentId);
+      if (comment.error || !comment.data) {
+        throw new Error("Comment not found");
+      }
+
+      // Verify comment ownership
+      if (comment.data.userId !== userId) {
+        throw new Error("Access denied");
+      }
+
+      const response = await apiClient.projects.deleteComment(input.commentId);
+
+      if (response.error) {
+        throw new Error(response.error ?? "Failed to delete comment");
+      }
+
+      return { success: true };
+    }),
+
+  // ========================================
+  // PROJECT SUPPORT
+  // ========================================
+
+  // Support a project
+  supportProject: protectedProcedure
+    .input(supportProjectSchema)
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.session.user.id;
+
+      const response = await apiClient.projects.supportProject(input.projectId, {
+        userId: userId,
+        supportType: input.supportType,
+        monthlyAmount: input.monthlyAmount,
+        message: input.message,
+      });
+
+      if (response.error || !response.data) {
+        throw new Error(response.error ?? "Failed to support project");
+      }
+
+      return response.data;
+    }),
+
+  // Cancel support for project
+  cancelSupport: protectedProcedure
+    .input(z.object({ supportId: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.session.user.id;
+
+      // Get support to verify ownership
+      const support = await apiClient.projects.getSupportById(input.supportId);
+      if (support.error || !support.data) {
+        throw new Error("Support not found");
+      }
+
+      // Verify support ownership
+      if (support.data.userId !== userId) {
+        throw new Error("Access denied");
+      }
+
+      const response = await apiClient.projects.cancelSupport(input.supportId);
+
+      if (response.error) {
+        throw new Error(response.error ?? "Failed to cancel support");
+      }
+
+      return { success: true };
+    }),
+
+  // Get user's supported projects
+  getMySupports: protectedProcedure.query(async ({ ctx }) => {
+    const userId = ctx.session.user.id;
+
+    const response = await apiClient.projects.getUserSupports(userId);
+
+    if (response.error) {
+      throw new Error(response.error);
+    }
+
+    return response.data ?? [];
+  }),
+
+  // Get supporters of a project
+  getSupporters: publicProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(async ({ input }) => {
+      const response = await apiClient.projects.getSupporters(input.projectId);
+
+      if (response.error) {
+        throw new Error(response.error);
+      }
+
+      return response.data ?? [];
     }),
 });

@@ -30,6 +30,7 @@ public static class DependencyInjection
         services.AddScoped<IProjectCommentService, ProjectCommentService>();
         services.AddScoped<IProjectUpdateService, ProjectUpdateService>();
         services.AddScoped<IProjectEquityService, ProjectEquityService>();
+        services.AddScoped<IProjectMemberService, ProjectMemberService>();
 
         // Guild services (formerly Agency)
         services.AddScoped<IGuildService, GuildService>();

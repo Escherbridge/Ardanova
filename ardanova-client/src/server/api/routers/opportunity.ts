@@ -78,7 +78,8 @@ export const opportunityRouter = createTRPCRouter({
       });
 
       if (response.error || !response.data) {
-        throw new Error(response.error ?? "Failed to create opportunity");
+        const errorMessage = typeof response.error === "string" ? response.error : "Failed to create opportunity";
+        throw new Error(errorMessage);
       }
 
       return response.data;

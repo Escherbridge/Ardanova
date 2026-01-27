@@ -11,7 +11,37 @@ import { GovernanceEndpoint } from "./endpoints/governance";
 
 // Re-export types from endpoints
 export type { User, CreateUserDto, UpdateUserDto } from "./endpoints/users";
-export type { Project, CreateProjectDto, UpdateProjectDto, SearchProjectsParams } from "./endpoints/projects";
+export type {
+  Project,
+  CreateProjectDto,
+  UpdateProjectDto,
+  SearchProjectsParams,
+  ProjectResource,
+  CreateResourceDto,
+  UpdateResourceDto,
+  ProjectMilestone,
+  CreateMilestoneDto,
+  UpdateMilestoneDto,
+  ProjectMember,
+  AddMemberDto,
+  UpdateMemberDto,
+  ProjectApplication,
+  CreateApplicationDto,
+  ReviewApplicationDto,
+  ProjectBid as ProjectBidDto,
+  CreateBidDto,
+  ReviewBidDto,
+  Proposal as ProjectProposal,
+  CreateProposalDto as CreateProjectProposalDto,
+  Vote as ProjectVote,
+  CastVoteDto as CastProjectVoteDto,
+  ProjectUpdate,
+  CreateUpdateDto,
+  ProjectComment,
+  CreateCommentDto,
+  ProjectSupport,
+  CreateSupportDto,
+} from "./endpoints/projects";
 export type {
   Guild,
   CreateGuildDto,

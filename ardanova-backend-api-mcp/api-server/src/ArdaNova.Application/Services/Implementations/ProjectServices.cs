@@ -979,3 +979,125 @@ public class ProjectEquityService : IProjectEquityService
         return Result<bool>.Success(true);
     }
 }
+
+public class ProjectMemberService : IProjectMemberService
+{
+    private readonly IRepository<ProjectMember> _repository;
+    private readonly IRepository<User> _userRepository;
+    private readonly IUnitOfWork _unitOfWork;
+    private readonly IMapper _mapper;
+
+    public ProjectMemberService(IRepository<ProjectMember> repository, IRepository<User> userRepository, IUnitOfWork unitOfWork, IMapper mapper)
+    {
+        _repository = repository;
+        _userRepository = userRepository;
+        _unitOfWork = unitOfWork;
+        _mapper = mapper;
+    }
+
+    public async Task<Result<ProjectMemberDto>> GetByIdAsync(string id, CancellationToken ct = default)
+    {
+        var member = await _repository.GetByIdAsync(id, ct);
+        if (member is null)
+            return Result<ProjectMemberDto>.NotFound($"Member with id {id} not found");
+
+        var dto = _mapper.Map<ProjectMemberDto>(member);
+        var user = await _userRepository.GetByIdAsync(member.userId, ct);
+        if (user is not null)
+            dto = dto with { User = _mapper.Map<ProjectMemberUserDto>(user) };
+
+        return Result<ProjectMemberDto>.Success(dto);
+    }
+
+    public async Task<Result<IReadOnlyList<ProjectMemberDto>>> GetByProjectIdAsync(string projectId, CancellationToken ct = default)
+    {
+        var members = await _repository.FindAsync(m => m.projectId == projectId, ct);
+        var dtos = await EnrichWithUserDataAsync(members, ct);
+        return Result<IReadOnlyList<ProjectMemberDto>>.Success(dtos);
+    }
+
+    public async Task<Result<IReadOnlyList<ProjectMemberDto>>> GetByUserIdAsync(string userId, CancellationToken ct = default)
+    {
+        var members = await _repository.FindAsync(m => m.userId == userId, ct);
+        var dtos = await EnrichWithUserDataAsync(members, ct);
+        return Result<IReadOnlyList<ProjectMemberDto>>.Success(dtos);
+    }
+
+    private async Task<IReadOnlyList<ProjectMemberDto>> EnrichWithUserDataAsync(IEnumerable<ProjectMember> members, CancellationToken ct)
+    {
+        var dtos = _mapper.Map<List<ProjectMemberDto>>(members);
+        var userIds = members.Select(m => m.userId).Distinct().ToList();
+        var users = new Dictionary<string, User>();
+
+        foreach (var userId in userIds)
+        {
+            var user = await _userRepository.GetByIdAsync(userId, ct);
+            if (user is not null)
+                users[userId] = user;
+        }
+
+        return dtos.Select(dto =>
+        {
+            var member = members.First(m => m.id == dto.Id);
+            if (users.TryGetValue(member.userId, out var user))
+                return dto with { User = _mapper.Map<ProjectMemberUserDto>(user) };
+            return dto;
+        }).ToList();
+    }
+
+    public async Task<Result<ProjectMemberDto>> CreateAsync(CreateProjectMemberDto dto, CancellationToken ct = default)
+    {
+        var member = new ProjectMember
+        {
+            id = Guid.NewGuid().ToString(),
+            projectId = dto.ProjectId,
+            userId = dto.UserId,
+            role = dto.Role,
+            tokenBalance = 0,
+            votingPower = 0,
+            joinedAt = DateTime.UtcNow,
+            invitedById = dto.InvitedById
+        };
+        await _repository.AddAsync(member, ct);
+        await _unitOfWork.SaveChangesAsync(ct);
+
+        var result = _mapper.Map<ProjectMemberDto>(member);
+        var user = await _userRepository.GetByIdAsync(member.userId, ct);
+        if (user is not null)
+            result = result with { User = _mapper.Map<ProjectMemberUserDto>(user) };
+
+        return Result<ProjectMemberDto>.Success(result);
+    }
+
+    public async Task<Result<ProjectMemberDto>> UpdateAsync(string id, UpdateProjectMemberDto dto, CancellationToken ct = default)
+    {
+        var member = await _repository.GetByIdAsync(id, ct);
+        if (member is null)
+            return Result<ProjectMemberDto>.NotFound($"Member with id {id} not found");
+
+        if (dto.Role.HasValue) member.role = dto.Role.Value;
+        if (dto.TokenBalance.HasValue) member.tokenBalance = dto.TokenBalance.Value;
+        if (dto.VotingPower.HasValue) member.votingPower = dto.VotingPower.Value;
+
+        await _repository.UpdateAsync(member, ct);
+        await _unitOfWork.SaveChangesAsync(ct);
+
+        var result = _mapper.Map<ProjectMemberDto>(member);
+        var user = await _userRepository.GetByIdAsync(member.userId, ct);
+        if (user is not null)
+            result = result with { User = _mapper.Map<ProjectMemberUserDto>(user) };
+
+        return Result<ProjectMemberDto>.Success(result);
+    }
+
+    public async Task<Result<bool>> DeleteAsync(string id, CancellationToken ct = default)
+    {
+        var member = await _repository.GetByIdAsync(id, ct);
+        if (member is null)
+            return Result<bool>.NotFound($"Member with id {id} not found");
+
+        await _repository.DeleteAsync(member, ct);
+        await _unitOfWork.SaveChangesAsync(ct);
+        return Result<bool>.Success(true);
+    }
+}

@@ -116,3 +116,13 @@ public interface IProjectEquityService
     Task<Result<ProjectEquityDto>> UpdateAsync(string id, UpdateProjectEquityDto dto, CancellationToken ct = default);
     Task<Result<bool>> DeleteAsync(string id, CancellationToken ct = default);
 }
+
+public interface IProjectMemberService
+{
+    Task<Result<ProjectMemberDto>> GetByIdAsync(string id, CancellationToken ct = default);
+    Task<Result<IReadOnlyList<ProjectMemberDto>>> GetByProjectIdAsync(string projectId, CancellationToken ct = default);
+    Task<Result<IReadOnlyList<ProjectMemberDto>>> GetByUserIdAsync(string userId, CancellationToken ct = default);
+    Task<Result<ProjectMemberDto>> CreateAsync(CreateProjectMemberDto dto, CancellationToken ct = default);
+    Task<Result<ProjectMemberDto>> UpdateAsync(string id, UpdateProjectMemberDto dto, CancellationToken ct = default);
+    Task<Result<bool>> DeleteAsync(string id, CancellationToken ct = default);
+}

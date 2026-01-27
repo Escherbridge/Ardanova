@@ -300,3 +300,50 @@ public record UpdateProjectEquityDto
     public decimal? SharePercent { get; init; }
     public decimal? InvestmentAmount { get; init; }
 }
+
+public record ProjectMemberDto
+{
+    public string Id { get; init; } = null!;
+    public string ProjectId { get; init; } = null!;
+    public string UserId { get; init; } = null!;
+    public ProjectRole Role { get; init; }
+    public decimal TokenBalance { get; init; }
+    public decimal VotingPower { get; init; }
+    public DateTime JoinedAt { get; init; }
+    public string? InvitedById { get; init; }
+    public ProjectMemberUserDto? User { get; init; }
+}
+
+public record ProjectMemberUserDto
+{
+    public string Id { get; init; } = null!;
+    public string? Name { get; init; }
+    public string? Email { get; init; }
+    public string? Image { get; init; }
+}
+
+public record CreateProjectMemberDto
+{
+    public required string ProjectId { get; init; }
+    public required string UserId { get; init; }
+    public required ProjectRole Role { get; init; }
+    public string? InvitedById { get; init; }
+}
+
+public record UpdateProjectMemberDto
+{
+    public ProjectRole? Role { get; init; }
+    public decimal? TokenBalance { get; init; }
+    public decimal? VotingPower { get; init; }
+}
+
+public record ReviewProjectApplicationDto
+{
+    public required ApplicationStatus Status { get; init; }
+    public string? ReviewMessage { get; init; }
+}
+
+public record ReviewProjectBidDto
+{
+    public required BidStatus Status { get; init; }
+}
