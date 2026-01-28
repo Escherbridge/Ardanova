@@ -5,3 +5,4 @@ export { default as MilestonesTab } from "./milestones-tab";
 export { default as ProposalsTab } from "./proposals-tab";
 export { default as BidsTab } from "./bids-tab";
 export { default as CommentsTab } from "./comments-tab";
+export { default as OpportunitiesTab } from "./opportunities-tab";

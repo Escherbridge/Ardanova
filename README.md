@@ -21,7 +21,7 @@
 **ArdaNova** is a **gamified, decentralized cooperative platform** that combines:
 
 - **Gamified Talent Marketplace** - An Upwork reimagined where contributors earn ownership
-- **Tokenized Crowdfunding (ICO)** - Launch project tokens on Algorand for fractional ownership
+- **Community Fundraising** - Launch project equity for fractional ownership
 - **Multi-Modal Funding** - Fund with capital, labor, resources, crypto, or social capital
 - **DAO-Governed Projects** - Transparent, participatory governance at every level
 - **Worker-Owned Cooperatives** - Every project becomes a tokenized cooperative
@@ -55,12 +55,12 @@
 
 ## Platform Capabilities
 
-ArdaNova unifies project management with blockchain infrastructure:
+ArdaNova unifies project management with transparent ownership infrastructure:
 
-| Application Layer | Blockchain Layer |
+| Application Layer | Ownership Layer |
 |-----------|------------------------|
-| Project management & agile workflows | Algorand blockchain & ASA tokens |
-| DAO governance & worker cooperatives | ICO lifecycle & fractional ownership |
+| Project management & agile workflows | Secure ledger & Ownership Shares |
+| DAO governance & worker cooperatives | Community fundraising & fractional ownership |
 | Crowdfunding (labor, capital, resources) | Stable coin & token exchange |
 | AI/MCP for project generation | Game SDK for Unity/Godot |
 | Gamma API for pitch creation | Play-to-earn token distribution |
@@ -94,10 +94,10 @@ ArdaNova unifies project management with blockchain infrastructure:
 | **Gamification Layer** | XP, levels, achievements, leaderboards, seasons | Q1 2025 |
 | **Project Hierarchy** | Roadmaps → Epics → Sprints → PBIs → Tasks | Q2 2025 |
 | **Task Marketplace** | Bounties, bidding, escrow, multiple compensation models | Q2 2025 |
-| **Algorand Integration** | ASA tokens, wallet connect, stable coin | Q2 2025 |
-| **ICO Lifecycle** | Token creation, funding phases, redemption | Q3 2025 |
+| **Secure Ledger Integration** | Ownership Shares, digital wallet connect, stable payments | Q2 2025 |
+| **Fundraising Lifecycle** | Equity creation, funding phases, redemption | Q3 2025 |
 | **Gamma Integration** | AI-powered pitch generation and presentation builder | Q3 2025 |
-| **DAO Governance** | On-chain proposals, voting, treasury | Q3 2025 |
+| **Cooperative Governance** | Transparent proposals, voting, treasury | Q3 2025 |
 | **Game SDK** | Unity/Godot C# SDK for play-to-earn | Q4 2025 |
 | **MCP Agent** | AI agent for project management with role-based access | Q4 2025 |
 | **Cross-ICO Investment** | Invest completed tokens into new projects | Q1 2026 |
@@ -182,14 +182,14 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for detailed technical documentation.
 | **State** | TanStack Query 5 |
 | **Deployment** | Railway (API, DB) + Vercel (Web) |
 
-### Blockchain Stack (ArdaNova)
+### Secure Ledger Stack (ArdaNova)
 
 | Layer | Technology |
 |-------|------------|
-| **Blockchain** | Algorand (10,000+ TPS, 2.85s finality) |
-| **Tokens** | Algorand Standard Assets (ASAs) |
-| **Smart Contracts** | PyTeal / TEAL |
-| **Wallets** | Pera Wallet, Defly, MyAlgo |
+| **Ledger** | Algorand (10,000+ TPS, 2.85s finality) |
+| **Shares/Equity** | Standard Assets (ASAs) |
+| **Automated Agreements** | PyTeal / TEAL |
+| **Digital Wallets** | Pera Wallet, Defly, MyAlgo |
 | **Indexer** | Algorand Indexer API |
 | **Node** | AlgoNode / Self-hosted |
 
@@ -225,30 +225,30 @@ DBML Schema (source of truth)
 
 ---
 
-## ICO Lifecycle
+## Community Fundraising Lifecycle
 
-Projects on ArdaNova follow a tokenized lifecycle powered by Algorand:
+Projects on ArdaNova follow a transparent lifecycle powered by our secure ledger:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                      ICO LIFECYCLE ON ArdaNova                       │
+│               COMMUNITY FUNDRAISING LIFECYCLE                │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                  │
 │  PHASE 1: CREATION                                              │
 │  ┌──────────────────────────────────────────────────────────┐   │
 │  │ • Project owner creates project on ArdaNova                  │   │
-│  │ • Defines token parameters (supply, allocation, vesting) │   │
-│  │ • ASA (Algorand Standard Asset) created on-chain         │   │
+│  │ • Defines equity parameters (supply, allocation, vesting) │   │
+│  │ • Asset created on secure ledger                         │   │
 │  │ • Pitch generated via Gamma API                          │   │
-│  │ • ICO published for community review                     │   │
+│  │ • Fundraising published for community review             │   │
 │  └──────────────────────────────────────────────────────────┘   │
 │                              │                                   │
 │                              ▼                                   │
 │  PHASE 2: ACTIVE FUNDING                                        │
 │  ┌──────────────────────────────────────────────────────────┐   │
-│  │ • Users purchase tokens via stable coin or ALGO          │   │
-│  │ • Contributors earn tokens for completing tasks          │   │
-│  │ • Players earn tokens through integrated games           │   │
+│  │ • Users purchase shares via digital payments             │   │
+│  │ • Contributors earn equity for completing tasks          │   │
+│  │ • Players earn rewards through integrated games          │   │
 │  │ • Real-time funding progress tracking                    │   │
 │  │ • Transaction fees collected (platform revenue)          │   │
 │  └──────────────────────────────────────────────────────────┘   │
@@ -256,21 +256,21 @@ Projects on ArdaNova follow a tokenized lifecycle powered by Algorand:
 │                              ▼                                   │
 │  PHASE 3: COMPLETION                                            │
 │  ┌──────────────────────────────────────────────────────────┐   │
-│  │ • ICO reaches funding goal or deadline                   │   │
+│  │ • Fundraising reaches goal or deadline                   │   │
 │  │ • Status marked as "funded" on platform                  │   │
-│  │ • Token holders can:                                     │   │
+│  │ • Share holders can:                                     │   │
 │  │   - Redeem for fractional ownership/shares               │   │
 │  │   - Redeem for goods/services from project               │   │
-│  │   - Invest tokens into other active ICOs                 │   │
-│  │   - Exchange for stable coin or other tokens             │   │
+│  │   - Invest shares into other active projects             │   │
+│  │   - Exchange for digital currency or other assets        │   │
 │  └──────────────────────────────────────────────────────────┘   │
 │                              │                                   │
 │                              ▼                                   │
 │  PHASE 4: POST-ICO ECOSYSTEM                                    │
 │  ┌──────────────────────────────────────────────────────────┐   │
-│  │ • Tokens circulate in ecosystem                          │   │
-│  │ • DAO governance active (proposals, voting)              │   │
-│  │ • Revenue sharing to token holders                       │   │
+│  │ • Shares circulate in ecosystem                          │   │
+│  │ • Cooperative governance active (proposals, voting)      │   │
+│  │ • Revenue sharing to share holders                       │   │
 │  │ • Cross-project investment opportunities                 │   │
 │  │ • Analytics track token performance                      │   │
 │  └──────────────────────────────────────────────────────────┘   │
@@ -321,29 +321,29 @@ ROADMAP
 
 ## Token Economics
 
-### Project Tokens (ASAs)
+### Project Equity (ASAs)
 
-Each project on ArdaNova can issue its own token via Algorand Standard Assets:
+Each project on ArdaNova can issue its own equity via Standard Assets:
 
 ```typescript
-interface ProjectTokenAllocation {
+interface ProjectEquityAllocation {
   founders: 20;        // % to founding team (vested over 2 years)
   contributors: 30;    // % for task/bounty rewards
   treasury: 20;        // % held by project DAO
-  investors: 20;       // % for ICO participants
+  investors: 20;       // % for fundraising participants
   community: 5;        // % for airdrops, engagement
   platform: 5;         // % to ArdaNova platform treasury
 }
 ```
 
-### Platform Stable Coin
+### Platform Digital Currency
 
-- Pegged to USDC/USDT for stability
-- All project tokens exchangeable with stable coin
+- Pegged to USDC/USDT for value stability
+- All project equity exchangeable with digital currency
 - Provides liquidity for cross-project transactions
-- Managed by platform smart contracts
+- Managed by platform automated agreements
 
-### Token Utility
+### Ownership Utility
 
 | Utility | Description |
 |---------|-------------|

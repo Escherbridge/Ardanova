@@ -73,7 +73,7 @@ public class ArdaNovaDbContext : DbContext
     public DbSet<DelegatedVote> DelegatedVotes => Set<DelegatedVote>();
 
     // Exchange entities
-    public DbSet<TokenSwap> TokenSwaps => Set<TokenSwap>();
+
     public DbSet<LiquidityPool> LiquidityPools => Set<LiquidityPool>();
     public DbSet<LiquidityProvider> LiquidityProviders => Set<LiquidityProvider>();
     public DbSet<XPEvent> XPEvents => Set<XPEvent>();
@@ -94,13 +94,10 @@ public class ArdaNovaDbContext : DbContext
     public DbSet<Proposal> Proposals => Set<Proposal>();
     public DbSet<Vote> Votes => Set<Vote>();
     public DbSet<ProposalExecution> ProposalExecutions => Set<ProposalExecution>();
-    public DbSet<ProjectToken> ProjectTokens => Set<ProjectToken>();
+
     public DbSet<Treasury> Treasuries => Set<Treasury>();
     public DbSet<TreasuryTransaction> TreasuryTransactions => Set<TreasuryTransaction>();
-    public DbSet<TokenHolder> TokenHolders => Set<TokenHolder>();
-    public DbSet<TokenVesting> TokenVestings => Set<TokenVesting>();
-    public DbSet<ICO> ICOs => Set<ICO>();
-    public DbSet<ICOContribution> ICOContributions => Set<ICOContribution>();
+
     public DbSet<ChatMessage> ChatMessages => Set<ChatMessage>();
     public DbSet<Attachment> Attachments => Set<Attachment>();
     public DbSet<ShopAnalytics> ShopAnalytics => Set<ShopAnalytics>();
@@ -127,6 +124,13 @@ public class ArdaNovaDbContext : DbContext
     public DbSet<OpportunityComment> OpportunityComments => Set<OpportunityComment>();
     public DbSet<GuildUpdate> GuildUpdates => Set<GuildUpdate>();
     public DbSet<TaskBid> TaskBids => Set<TaskBid>();
+    public DbSet<ProjectShare> ProjectShares => Set<ProjectShare>();
+    public DbSet<ShareHolder> ShareHolders => Set<ShareHolder>();
+    public DbSet<ShareVesting> ShareVestings => Set<ShareVesting>();
+    public DbSet<Fundraising> Fundraisings => Set<Fundraising>();
+    public DbSet<FundraisingContribution> FundraisingContributions => Set<FundraisingContribution>();
+    public DbSet<ShareSwap> ShareSwaps => Set<ShareSwap>();
+
 
 
 

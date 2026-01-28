@@ -425,3 +425,535 @@ public class ShopAnalyticsService : IShopAnalyticsService
         return Result<bool>.Success(true);
     }
 }
+
+public class ShopInvoiceService : IShopInvoiceService
+{
+    private readonly IRepository<Invoice> _repository;
+    private readonly IUnitOfWork _unitOfWork;
+    private readonly IMapper _mapper;
+
+    public ShopInvoiceService(IRepository<Invoice> repository, IUnitOfWork unitOfWork, IMapper mapper)
+    {
+        _repository = repository;
+        _unitOfWork = unitOfWork;
+        _mapper = mapper;
+    }
+
+    public async Task<Result<ShopInvoiceDto>> GetByIdAsync(string id, CancellationToken ct = default)
+    {
+        var invoice = await _repository.GetByIdAsync(id, ct);
+        if (invoice is null)
+            return Result<ShopInvoiceDto>.NotFound($"Invoice with id {id} not found");
+        return Result<ShopInvoiceDto>.Success(_mapper.Map<ShopInvoiceDto>(invoice));
+    }
+
+    public async Task<Result<IReadOnlyList<ShopInvoiceDto>>> GetByShopIdAsync(string shopId, CancellationToken ct = default)
+    {
+        var invoices = await _repository.FindAsync(i => i.shopId == shopId, ct);
+        return Result<IReadOnlyList<ShopInvoiceDto>>.Success(_mapper.Map<IReadOnlyList<ShopInvoiceDto>>(invoices));
+    }
+
+    public async Task<Result<IReadOnlyList<ShopInvoiceDto>>> GetByCustomerIdAsync(string customerId, CancellationToken ct = default)
+    {
+        var invoices = await _repository.FindAsync(i => i.buyerId == customerId, ct);
+        return Result<IReadOnlyList<ShopInvoiceDto>>.Success(_mapper.Map<IReadOnlyList<ShopInvoiceDto>>(invoices));
+    }
+
+    public async Task<Result<PagedResult<ShopInvoiceDto>>> GetPagedByShopIdAsync(string shopId, int page, int pageSize, CancellationToken ct = default)
+    {
+        var result = await _repository.GetPagedAsync(page, pageSize, i => i.shopId == shopId, ct);
+        return Result<PagedResult<ShopInvoiceDto>>.Success(result.Map(_mapper.Map<ShopInvoiceDto>));
+    }
+
+    public async Task<Result<ShopInvoiceDto>> GetByNumberAsync(string invoiceNumber, CancellationToken ct = default)
+    {
+        var invoice = await _repository.FindOneAsync(i => i.invoiceNumber == invoiceNumber, ct);
+        if (invoice is null)
+            return Result<ShopInvoiceDto>.NotFound($"Invoice with number {invoiceNumber} not found");
+        return Result<ShopInvoiceDto>.Success(_mapper.Map<ShopInvoiceDto>(invoice));
+    }
+
+    public async Task<Result<ShopInvoiceDto>> CreateAsync(CreateShopInvoiceDto dto, CancellationToken ct = default)
+    {
+        var total = dto.Amount + (dto.Tax ?? 0) - (dto.Discount ?? 0);
+        var invoice = new Invoice
+        {
+            id = Guid.NewGuid().ToString(),
+            shopId = dto.ShopId,
+            buyerId = dto.CustomerId,
+            userId = dto.UserId,
+            invoiceNumber = dto.InvoiceNumber,
+            amount = dto.Amount,
+            tax = dto.Tax,
+            discount = dto.Discount,
+            total = total,
+            status = InvoiceStatus.DRAFT,
+            dueDate = dto.DueDate,
+            notes = dto.Notes,
+            createdAt = DateTime.UtcNow,
+            updatedAt = DateTime.UtcNow
+        };
+
+        await _repository.AddAsync(invoice, ct);
+        await _unitOfWork.SaveChangesAsync(ct);
+        return Result<ShopInvoiceDto>.Success(_mapper.Map<ShopInvoiceDto>(invoice));
+    }
+
+    public async Task<Result<ShopInvoiceDto>> UpdateAsync(string id, UpdateShopInvoiceDto dto, CancellationToken ct = default)
+    {
+        var invoice = await _repository.GetByIdAsync(id, ct);
+        if (invoice is null)
+            return Result<ShopInvoiceDto>.NotFound($"Invoice with id {id} not found");
+
+        if (dto.Amount.HasValue) invoice.amount = dto.Amount.Value;
+        if (dto.Tax.HasValue) invoice.tax = dto.Tax;
+        if (dto.Discount.HasValue) invoice.discount = dto.Discount;
+        if (dto.DueDate.HasValue) invoice.dueDate = dto.DueDate.Value;
+        if (dto.Notes is not null) invoice.notes = dto.Notes;
+        invoice.total = invoice.amount + (invoice.tax ?? 0) - (invoice.discount ?? 0);
+        invoice.updatedAt = DateTime.UtcNow;
+
+        await _repository.UpdateAsync(invoice, ct);
+        await _unitOfWork.SaveChangesAsync(ct);
+        return Result<ShopInvoiceDto>.Success(_mapper.Map<ShopInvoiceDto>(invoice));
+    }
+
+    public async Task<Result<bool>> DeleteAsync(string id, CancellationToken ct = default)
+    {
+        var invoice = await _repository.GetByIdAsync(id, ct);
+        if (invoice is null)
+            return Result<bool>.NotFound($"Invoice with id {id} not found");
+
+        await _repository.DeleteAsync(invoice, ct);
+        await _unitOfWork.SaveChangesAsync(ct);
+        return Result<bool>.Success(true);
+    }
+
+    public async Task<Result<ShopInvoiceDto>> SendAsync(string id, CancellationToken ct = default)
+    {
+        var invoice = await _repository.GetByIdAsync(id, ct);
+        if (invoice is null)
+            return Result<ShopInvoiceDto>.NotFound($"Invoice with id {id} not found");
+
+        invoice.status = InvoiceStatus.SENT;
+        invoice.updatedAt = DateTime.UtcNow;
+
+        await _repository.UpdateAsync(invoice, ct);
+        await _unitOfWork.SaveChangesAsync(ct);
+        return Result<ShopInvoiceDto>.Success(_mapper.Map<ShopInvoiceDto>(invoice));
+    }
+
+    public async Task<Result<ShopInvoiceDto>> MarkPaidAsync(string id, CancellationToken ct = default)
+    {
+        var invoice = await _repository.GetByIdAsync(id, ct);
+        if (invoice is null)
+            return Result<ShopInvoiceDto>.NotFound($"Invoice with id {id} not found");
+
+        invoice.status = InvoiceStatus.PAID;
+        invoice.paidAt = DateTime.UtcNow;
+        invoice.updatedAt = DateTime.UtcNow;
+
+        await _repository.UpdateAsync(invoice, ct);
+        await _unitOfWork.SaveChangesAsync(ct);
+        return Result<ShopInvoiceDto>.Success(_mapper.Map<ShopInvoiceDto>(invoice));
+    }
+
+    public async Task<Result<ShopInvoiceDto>> CancelAsync(string id, CancellationToken ct = default)
+    {
+        var invoice = await _repository.GetByIdAsync(id, ct);
+        if (invoice is null)
+            return Result<ShopInvoiceDto>.NotFound($"Invoice with id {id} not found");
+
+        invoice.status = InvoiceStatus.CANCELLED;
+        invoice.updatedAt = DateTime.UtcNow;
+
+        await _repository.UpdateAsync(invoice, ct);
+        await _unitOfWork.SaveChangesAsync(ct);
+        return Result<ShopInvoiceDto>.Success(_mapper.Map<ShopInvoiceDto>(invoice));
+    }
+}
+
+public class ShopSaleService : IShopSaleService
+{
+    private readonly IRepository<Sale> _saleRepository;
+    private readonly IRepository<SaleItem> _saleItemRepository;
+    private readonly IUnitOfWork _unitOfWork;
+    private readonly IMapper _mapper;
+
+    public ShopSaleService(IRepository<Sale> saleRepository, IRepository<SaleItem> saleItemRepository, IUnitOfWork unitOfWork, IMapper mapper)
+    {
+        _saleRepository = saleRepository;
+        _saleItemRepository = saleItemRepository;
+        _unitOfWork = unitOfWork;
+        _mapper = mapper;
+    }
+
+    public async Task<Result<ShopSaleDto>> GetByIdAsync(string id, CancellationToken ct = default)
+    {
+        var sale = await _saleRepository.GetByIdAsync(id, ct);
+        if (sale is null)
+            return Result<ShopSaleDto>.NotFound($"Sale with id {id} not found");
+        return Result<ShopSaleDto>.Success(_mapper.Map<ShopSaleDto>(sale));
+    }
+
+    public async Task<Result<IReadOnlyList<ShopSaleDto>>> GetByShopIdAsync(string shopId, CancellationToken ct = default)
+    {
+        var sales = await _saleRepository.FindAsync(s => s.shopId == shopId, ct);
+        return Result<IReadOnlyList<ShopSaleDto>>.Success(_mapper.Map<IReadOnlyList<ShopSaleDto>>(sales));
+    }
+
+    public async Task<Result<PagedResult<ShopSaleDto>>> GetPagedByShopIdAsync(string shopId, int page, int pageSize, CancellationToken ct = default)
+    {
+        var result = await _saleRepository.GetPagedAsync(page, pageSize, s => s.shopId == shopId, ct);
+        return Result<PagedResult<ShopSaleDto>>.Success(result.Map(_mapper.Map<ShopSaleDto>));
+    }
+
+    public async Task<Result<IReadOnlyList<ShopSaleDto>>> GetByCustomerIdAsync(string customerId, CancellationToken ct = default)
+    {
+        var sales = await _saleRepository.FindAsync(s => s.buyerId == customerId, ct);
+        return Result<IReadOnlyList<ShopSaleDto>>.Success(_mapper.Map<IReadOnlyList<ShopSaleDto>>(sales));
+    }
+
+    public async Task<Result<ShopSaleDto>> CreateAsync(CreateShopSaleDto dto, CancellationToken ct = default)
+    {
+        var sale = new Sale
+        {
+            id = Guid.NewGuid().ToString(),
+            shopId = dto.ShopId,
+            buyerId = dto.CustomerId,
+            userId = dto.UserId,
+            total = dto.Total,
+            tax = dto.Tax,
+            discount = dto.Discount,
+            paymentMethod = dto.PaymentMethod,
+            notes = dto.Notes,
+            createdAt = DateTime.UtcNow
+        };
+
+        await _saleRepository.AddAsync(sale, ct);
+
+        if (dto.Items is not null)
+        {
+            foreach (var item in dto.Items)
+            {
+                var saleItem = new SaleItem
+                {
+                    id = Guid.NewGuid().ToString(),
+                    saleId = sale.id,
+                    productId = item.ProductId,
+                    quantity = item.Quantity,
+                    price = item.Price,
+                    total = item.Quantity * item.Price
+                };
+                await _saleItemRepository.AddAsync(saleItem, ct);
+            }
+        }
+
+        await _unitOfWork.SaveChangesAsync(ct);
+        return Result<ShopSaleDto>.Success(_mapper.Map<ShopSaleDto>(sale));
+    }
+
+    public async Task<Result<bool>> DeleteAsync(string id, CancellationToken ct = default)
+    {
+        var sale = await _saleRepository.GetByIdAsync(id, ct);
+        if (sale is null)
+            return Result<bool>.NotFound($"Sale with id {id} not found");
+
+        await _saleRepository.DeleteAsync(sale, ct);
+        await _unitOfWork.SaveChangesAsync(ct);
+        return Result<bool>.Success(true);
+    }
+}
+
+public class ShopSaleItemService : IShopSaleItemService
+{
+    private readonly IRepository<SaleItem> _repository;
+    private readonly IMapper _mapper;
+
+    public ShopSaleItemService(IRepository<SaleItem> repository, IMapper mapper)
+    {
+        _repository = repository;
+        _mapper = mapper;
+    }
+
+    public async Task<Result<ShopSaleItemDto>> GetByIdAsync(string id, CancellationToken ct = default)
+    {
+        var item = await _repository.GetByIdAsync(id, ct);
+        if (item is null)
+            return Result<ShopSaleItemDto>.NotFound($"Sale item with id {id} not found");
+        return Result<ShopSaleItemDto>.Success(_mapper.Map<ShopSaleItemDto>(item));
+    }
+
+    public async Task<Result<IReadOnlyList<ShopSaleItemDto>>> GetBySaleIdAsync(string saleId, CancellationToken ct = default)
+    {
+        var items = await _repository.FindAsync(i => i.saleId == saleId, ct);
+        return Result<IReadOnlyList<ShopSaleItemDto>>.Success(_mapper.Map<IReadOnlyList<ShopSaleItemDto>>(items));
+    }
+}
+
+public class ShopInventoryItemService : IShopInventoryItemService
+{
+    private readonly IRepository<InventoryItem> _repository;
+    private readonly IUnitOfWork _unitOfWork;
+    private readonly IMapper _mapper;
+
+    public ShopInventoryItemService(IRepository<InventoryItem> repository, IUnitOfWork unitOfWork, IMapper mapper)
+    {
+        _repository = repository;
+        _unitOfWork = unitOfWork;
+        _mapper = mapper;
+    }
+
+    public async Task<Result<ShopInventoryItemDto>> GetByIdAsync(string id, CancellationToken ct = default)
+    {
+        var item = await _repository.GetByIdAsync(id, ct);
+        if (item is null)
+            return Result<ShopInventoryItemDto>.NotFound($"Inventory item with id {id} not found");
+        return Result<ShopInventoryItemDto>.Success(_mapper.Map<ShopInventoryItemDto>(item));
+    }
+
+    public async Task<Result<IReadOnlyList<ShopInventoryItemDto>>> GetByShopIdAsync(string shopId, CancellationToken ct = default)
+    {
+        var items = await _repository.FindAsync(i => i.shopId == shopId, ct);
+        return Result<IReadOnlyList<ShopInventoryItemDto>>.Success(_mapper.Map<IReadOnlyList<ShopInventoryItemDto>>(items));
+    }
+
+    public async Task<Result<ShopInventoryItemDto>> GetByProductIdAsync(string productId, CancellationToken ct = default)
+    {
+        var item = await _repository.FindOneAsync(i => i.productId == productId, ct);
+        if (item is null)
+            return Result<ShopInventoryItemDto>.NotFound($"Inventory item for product {productId} not found");
+        return Result<ShopInventoryItemDto>.Success(_mapper.Map<ShopInventoryItemDto>(item));
+    }
+
+    public async Task<Result<IReadOnlyList<ShopInventoryItemDto>>> GetLowStockAsync(string shopId, CancellationToken ct = default)
+    {
+        var items = await _repository.FindAsync(i => i.shopId == shopId && i.currentStock <= i.minStock, ct);
+        return Result<IReadOnlyList<ShopInventoryItemDto>>.Success(_mapper.Map<IReadOnlyList<ShopInventoryItemDto>>(items));
+    }
+
+    public async Task<Result<ShopInventoryItemDto>> CreateAsync(CreateShopInventoryItemDto dto, CancellationToken ct = default)
+    {
+        var item = new InventoryItem
+        {
+            id = Guid.NewGuid().ToString(),
+            shopId = dto.ShopId,
+            productId = dto.ProductId,
+            userId = dto.UserId,
+            currentStock = dto.CurrentStock,
+            minStock = dto.MinStock,
+            maxStock = dto.MaxStock,
+            reorderPoint = dto.ReorderPoint,
+            createdAt = DateTime.UtcNow,
+            updatedAt = DateTime.UtcNow
+        };
+
+        await _repository.AddAsync(item, ct);
+        await _unitOfWork.SaveChangesAsync(ct);
+        return Result<ShopInventoryItemDto>.Success(_mapper.Map<ShopInventoryItemDto>(item));
+    }
+
+    public async Task<Result<ShopInventoryItemDto>> UpdateAsync(string id, UpdateShopInventoryItemDto dto, CancellationToken ct = default)
+    {
+        var item = await _repository.GetByIdAsync(id, ct);
+        if (item is null)
+            return Result<ShopInventoryItemDto>.NotFound($"Inventory item with id {id} not found");
+
+        if (dto.CurrentStock.HasValue) item.currentStock = dto.CurrentStock.Value;
+        if (dto.MinStock.HasValue) item.minStock = dto.MinStock.Value;
+        if (dto.MaxStock.HasValue) item.maxStock = dto.MaxStock;
+        if (dto.ReorderPoint.HasValue) item.reorderPoint = dto.ReorderPoint;
+        item.updatedAt = DateTime.UtcNow;
+
+        await _repository.UpdateAsync(item, ct);
+        await _unitOfWork.SaveChangesAsync(ct);
+        return Result<ShopInventoryItemDto>.Success(_mapper.Map<ShopInventoryItemDto>(item));
+    }
+
+    public async Task<Result<bool>> DeleteAsync(string id, CancellationToken ct = default)
+    {
+        var item = await _repository.GetByIdAsync(id, ct);
+        if (item is null)
+            return Result<bool>.NotFound($"Inventory item with id {id} not found");
+
+        await _repository.DeleteAsync(item, ct);
+        await _unitOfWork.SaveChangesAsync(ct);
+        return Result<bool>.Success(true);
+    }
+
+    public async Task<Result<ShopInventoryItemDto>> AddStockAsync(string id, int quantity, CancellationToken ct = default)
+    {
+        var item = await _repository.GetByIdAsync(id, ct);
+        if (item is null)
+            return Result<ShopInventoryItemDto>.NotFound($"Inventory item with id {id} not found");
+
+        item.currentStock += quantity;
+        item.lastRestocked = DateTime.UtcNow;
+        item.updatedAt = DateTime.UtcNow;
+
+        await _repository.UpdateAsync(item, ct);
+        await _unitOfWork.SaveChangesAsync(ct);
+        return Result<ShopInventoryItemDto>.Success(_mapper.Map<ShopInventoryItemDto>(item));
+    }
+
+    public async Task<Result<ShopInventoryItemDto>> RemoveStockAsync(string id, int quantity, CancellationToken ct = default)
+    {
+        var item = await _repository.GetByIdAsync(id, ct);
+        if (item is null)
+            return Result<ShopInventoryItemDto>.NotFound($"Inventory item with id {id} not found");
+
+        if (item.currentStock < quantity)
+            return Result<ShopInventoryItemDto>.Failure("Insufficient stock");
+
+        item.currentStock -= quantity;
+        item.updatedAt = DateTime.UtcNow;
+
+        await _repository.UpdateAsync(item, ct);
+        await _unitOfWork.SaveChangesAsync(ct);
+        return Result<ShopInventoryItemDto>.Success(_mapper.Map<ShopInventoryItemDto>(item));
+    }
+}
+
+public class ShopMarketingCampaignService : IShopMarketingCampaignService
+{
+    private readonly IRepository<MarketingCampaign> _repository;
+    private readonly IUnitOfWork _unitOfWork;
+    private readonly IMapper _mapper;
+
+    public ShopMarketingCampaignService(IRepository<MarketingCampaign> repository, IUnitOfWork unitOfWork, IMapper mapper)
+    {
+        _repository = repository;
+        _unitOfWork = unitOfWork;
+        _mapper = mapper;
+    }
+
+    public async Task<Result<ShopMarketingCampaignDto>> GetByIdAsync(string id, CancellationToken ct = default)
+    {
+        var campaign = await _repository.GetByIdAsync(id, ct);
+        if (campaign is null)
+            return Result<ShopMarketingCampaignDto>.NotFound($"Campaign with id {id} not found");
+        return Result<ShopMarketingCampaignDto>.Success(_mapper.Map<ShopMarketingCampaignDto>(campaign));
+    }
+
+    public async Task<Result<IReadOnlyList<ShopMarketingCampaignDto>>> GetByShopIdAsync(string shopId, CancellationToken ct = default)
+    {
+        var campaigns = await _repository.FindAsync(c => c.shopId == shopId, ct);
+        return Result<IReadOnlyList<ShopMarketingCampaignDto>>.Success(_mapper.Map<IReadOnlyList<ShopMarketingCampaignDto>>(campaigns));
+    }
+
+    public async Task<Result<PagedResult<ShopMarketingCampaignDto>>> GetPagedByShopIdAsync(string shopId, int page, int pageSize, CancellationToken ct = default)
+    {
+        var result = await _repository.GetPagedAsync(page, pageSize, c => c.shopId == shopId, ct);
+        return Result<PagedResult<ShopMarketingCampaignDto>>.Success(result.Map(_mapper.Map<ShopMarketingCampaignDto>));
+    }
+
+    public async Task<Result<ShopMarketingCampaignDto>> CreateAsync(CreateShopMarketingCampaignDto dto, CancellationToken ct = default)
+    {
+        var campaign = new MarketingCampaign
+        {
+            id = Guid.NewGuid().ToString(),
+            shopId = dto.ShopId,
+            userId = dto.UserId,
+            name = dto.Name,
+            description = dto.Description,
+            platform = dto.Platform,
+            content = dto.Content,
+            mediaUrls = dto.MediaUrls,
+            scheduledAt = dto.ScheduledAt,
+            status = CampaignStatus.DRAFT,
+            createdAt = DateTime.UtcNow,
+            updatedAt = DateTime.UtcNow
+        };
+
+        await _repository.AddAsync(campaign, ct);
+        await _unitOfWork.SaveChangesAsync(ct);
+        return Result<ShopMarketingCampaignDto>.Success(_mapper.Map<ShopMarketingCampaignDto>(campaign));
+    }
+
+    public async Task<Result<ShopMarketingCampaignDto>> UpdateAsync(string id, UpdateShopMarketingCampaignDto dto, CancellationToken ct = default)
+    {
+        var campaign = await _repository.GetByIdAsync(id, ct);
+        if (campaign is null)
+            return Result<ShopMarketingCampaignDto>.NotFound($"Campaign with id {id} not found");
+
+        if (dto.Name is not null) campaign.name = dto.Name;
+        if (dto.Description is not null) campaign.description = dto.Description;
+        if (dto.Platform is not null) campaign.platform = dto.Platform;
+        if (dto.Content is not null) campaign.content = dto.Content;
+        if (dto.MediaUrls is not null) campaign.mediaUrls = dto.MediaUrls;
+        if (dto.ScheduledAt.HasValue) campaign.scheduledAt = dto.ScheduledAt;
+        campaign.updatedAt = DateTime.UtcNow;
+
+        await _repository.UpdateAsync(campaign, ct);
+        await _unitOfWork.SaveChangesAsync(ct);
+        return Result<ShopMarketingCampaignDto>.Success(_mapper.Map<ShopMarketingCampaignDto>(campaign));
+    }
+
+    public async Task<Result<bool>> DeleteAsync(string id, CancellationToken ct = default)
+    {
+        var campaign = await _repository.GetByIdAsync(id, ct);
+        if (campaign is null)
+            return Result<bool>.NotFound($"Campaign with id {id} not found");
+
+        await _repository.DeleteAsync(campaign, ct);
+        await _unitOfWork.SaveChangesAsync(ct);
+        return Result<bool>.Success(true);
+    }
+
+    public async Task<Result<ShopMarketingCampaignDto>> ScheduleAsync(string id, DateTime scheduledAt, CancellationToken ct = default)
+    {
+        var campaign = await _repository.GetByIdAsync(id, ct);
+        if (campaign is null)
+            return Result<ShopMarketingCampaignDto>.NotFound($"Campaign with id {id} not found");
+
+        campaign.scheduledAt = scheduledAt;
+        campaign.status = CampaignStatus.SCHEDULED;
+        campaign.updatedAt = DateTime.UtcNow;
+
+        await _repository.UpdateAsync(campaign, ct);
+        await _unitOfWork.SaveChangesAsync(ct);
+        return Result<ShopMarketingCampaignDto>.Success(_mapper.Map<ShopMarketingCampaignDto>(campaign));
+    }
+
+    public async Task<Result<ShopMarketingCampaignDto>> ActivateAsync(string id, CancellationToken ct = default)
+    {
+        var campaign = await _repository.GetByIdAsync(id, ct);
+        if (campaign is null)
+            return Result<ShopMarketingCampaignDto>.NotFound($"Campaign with id {id} not found");
+
+        campaign.status = CampaignStatus.ACTIVE;
+        campaign.updatedAt = DateTime.UtcNow;
+
+        await _repository.UpdateAsync(campaign, ct);
+        await _unitOfWork.SaveChangesAsync(ct);
+        return Result<ShopMarketingCampaignDto>.Success(_mapper.Map<ShopMarketingCampaignDto>(campaign));
+    }
+
+    public async Task<Result<ShopMarketingCampaignDto>> CompleteAsync(string id, CancellationToken ct = default)
+    {
+        var campaign = await _repository.GetByIdAsync(id, ct);
+        if (campaign is null)
+            return Result<ShopMarketingCampaignDto>.NotFound($"Campaign with id {id} not found");
+
+        campaign.status = CampaignStatus.COMPLETED;
+        campaign.updatedAt = DateTime.UtcNow;
+
+        await _repository.UpdateAsync(campaign, ct);
+        await _unitOfWork.SaveChangesAsync(ct);
+        return Result<ShopMarketingCampaignDto>.Success(_mapper.Map<ShopMarketingCampaignDto>(campaign));
+    }
+
+    public async Task<Result<ShopMarketingCampaignDto>> CancelAsync(string id, CancellationToken ct = default)
+    {
+        var campaign = await _repository.GetByIdAsync(id, ct);
+        if (campaign is null)
+            return Result<ShopMarketingCampaignDto>.NotFound($"Campaign with id {id} not found");
+
+        campaign.status = CampaignStatus.CANCELLED;
+        campaign.updatedAt = DateTime.UtcNow;
+
+        await _repository.UpdateAsync(campaign, ct);
+        await _unitOfWork.SaveChangesAsync(ct);
+        return Result<ShopMarketingCampaignDto>.Success(_mapper.Map<ShopMarketingCampaignDto>(campaign));
+    }
+}

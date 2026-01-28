@@ -2,8 +2,8 @@ namespace ArdaNova.Domain.Models.Enums;
 
 public enum CompensationModel
 {
-    FIXED_TOKEN,
-    HOURLY_TOKEN,
+    FIXED_SHARES,
+    HOURLY_SHARES,
     EQUITY_PERCENT,
     HYBRID,
     BOUNTY,

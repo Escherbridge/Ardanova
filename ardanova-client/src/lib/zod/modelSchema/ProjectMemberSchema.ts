@@ -11,7 +11,7 @@ export const ProjectMemberSchema = z.object({
   id: z.string().cuid(),
   projectId: z.string(),
   userId: z.string(),
-  tokenBalance: z.instanceof(Prisma.Decimal, { message: "Field 'tokenBalance' must be a Decimal. Location: ['Models', 'ProjectMember']"}),
+  shareBalance: z.instanceof(Prisma.Decimal, { message: "Field 'shareBalance' must be a Decimal. Location: ['Models', 'ProjectMember']"}),
   votingPower: z.instanceof(Prisma.Decimal, { message: "Field 'votingPower' must be a Decimal. Location: ['Models', 'ProjectMember']"}),
   joinedAt: z.coerce.date(),
   invitedById: z.string().nullable(),

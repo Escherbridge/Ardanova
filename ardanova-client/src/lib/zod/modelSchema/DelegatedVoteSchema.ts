@@ -10,7 +10,7 @@ export const DelegatedVoteSchema = z.object({
   projectId: z.string(),
   delegatorId: z.string(),
   delegateeId: z.string(),
-  tokenId: z.string(),
+  shareId: z.string(),
   amount: z.instanceof(Prisma.Decimal, { message: "Field 'amount' must be a Decimal. Location: ['Models', 'DelegatedVote']"}),
   isActive: z.boolean(),
   createdAt: z.coerce.date(),

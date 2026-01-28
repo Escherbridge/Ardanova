@@ -77,6 +77,8 @@ public class Opportunity
 
     public string? projectId { get; set; }
 
+    public string? shopId { get; set; }
+
     public string? taskId { get; set; }
 
     [ForeignKey("posterId")]
@@ -87,6 +89,9 @@ public class Opportunity
 
     [ForeignKey("projectId")]
     public virtual Project? Project { get; set; }
+
+    [ForeignKey("shopId")]
+    public virtual Shop? Shop { get; set; }
 
     [ForeignKey("taskId")]
     public virtual ProjectTask? Task { get; set; }

@@ -7,8 +7,8 @@ import { Prisma } from '@prisma/client'
 
 export const LiquidityPoolSchema = z.object({
   id: z.string().cuid(),
-  token1Id: z.string(),
-  token2Id: z.string(),
+  share1Id: z.string(),
+  share2Id: z.string(),
   reserve1: z.instanceof(Prisma.Decimal, { message: "Field 'reserve1' must be a Decimal. Location: ['Models', 'LiquidityPool']"}),
   reserve2: z.instanceof(Prisma.Decimal, { message: "Field 'reserve2' must be a Decimal. Location: ['Models', 'LiquidityPool']"}),
   totalShares: z.instanceof(Prisma.Decimal, { message: "Field 'totalShares' must be a Decimal. Location: ['Models', 'LiquidityPool']"}),

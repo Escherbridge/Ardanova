@@ -3,6 +3,7 @@ export { default as OverviewTab } from "./overview-tab";
 export { default as ProductsTab } from "./products-tab";
 export { default as ReviewsTab } from "./reviews-tab";
 export { default as AboutTab } from "./about-tab";
+export { default as OpportunitiesTab } from "./opportunities-tab";
 
 // Shop type matching backend DTO
 export interface Shop {

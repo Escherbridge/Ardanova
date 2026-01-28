@@ -23,7 +23,7 @@ This document provides a detailed technical architecture for the ArdaNova platfo
 | `Trending System` | ✅ Complete | Analytics-driven trending for discovery |
 | `ardanova-ai-client` | 🔄 Stubbed | Python AI orchestrator (structure ready) |
 | `ardanova-game-sdk` | 🔄 TODO | Unity & Godot SDKs (NuGet) |
-| `contracts` | 🔄 Stubbed | Algorand smart contracts (structure ready) |
+| `contracts` | 🔄 Stubbed | Algorand Powered Automated agreements (structure ready) |
 
 **Key Changes:**
 - DAO, Studio, Exchange, Explorer, and Agent UI consolidated into main platform
@@ -32,7 +32,7 @@ This document provides a detailed technical architecture for the ArdaNova platfo
 - S3-compatible file storage service with presigned URLs
 - Development scripts for Docker/Podman (hot-reload support)
 - AI client structure with MCP client stubs
-- Smart contract directory structure with PyTeal stubs
+- Alogrand Powered Automated agreement directory structure with PyTeal stubs
 - EF Core relationship fixes for multi-FK entities
 - **C# Generator enhanced with attribute-based EF Core configuration**
 - DbContext simplified from 682 lines to ~120 lines (OnModelCreating: 570+ → 9 lines)
@@ -58,7 +58,7 @@ This document provides a detailed technical architecture for the ArdaNova platfo
 11. [API Layer](#api-layer)
 12. [Authentication & Authorization](#authentication--authorization)
 13. [AI & MCP Integration](#ai--mcp-integration)
-14. [Blockchain Integration](#blockchain-integration)
+14. [Ledger Integration](#ledger-integration)
 15. [Infrastructure](#infrastructure)
 16. [Security](#security)
 
@@ -123,7 +123,7 @@ This document provides a detailed technical architecture for the ArdaNova platfo
            ▼                         ▼                         ▼
     ┌──────────────┐         ┌──────────────┐         ┌──────────────┐
     │  PostgreSQL  │         │     S3       │         │   Algorand   │
-    │  (Database)  │         │   Storage    │         │  Blockchain  │
+    │  (Database)  │         │   Storage    │         │ Secure Ledger│
     └──────────────┘         └──────────────┘         └──────────────┘
 ```
 
@@ -135,7 +135,7 @@ This document provides a detailed technical architecture for the ArdaNova platfo
 4. **Event-Driven** - Domain events for loose coupling
 5. **Real-Time** - WebSocket for instant updates
 6. **AI-First** - Native AI integration via MCP protocol
-7. **Decentralization** - Progressive decentralization via Algorand DAOs
+7. **Decentralization** - Progressive ownership via Cooperatives / DAOs
 
 ---
 
@@ -209,10 +209,10 @@ ardanova/
 │   ├── game-sdk-unity/                 # C# SDK for Unity
 │   └── game-sdk-godot/                 # C# SDK for Godot
 │
-├── contracts/                          # Algorand smart contracts ✅ STUBBED
-│   ├── governance/                     # DAO governance
-│   ├── tokens/                         # ASA token factories
-│   ├── ico/                            # ICO lifecycle
+├── contracts/                          # Automated agreements ✅ STUBBED
+│   ├── governance/                     # Cooperative governance
+│   ├── tokens/                         # Equity share factories
+│   ├── ico/                            # Fundraising lifecycle
 │   ├── exchange/                       # DEX/swap contracts
 │   └── escrow/                         # Task payment escrow
 │

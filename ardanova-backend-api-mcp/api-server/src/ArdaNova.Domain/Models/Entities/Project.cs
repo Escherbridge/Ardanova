@@ -145,7 +145,7 @@ public class Project
 
     public virtual ICollection<ProjectBid> ProjectBids { get; set; } = new List<ProjectBid>();
 
-    public virtual ICollection<ProjectToken> ProjectTokens { get; set; } = new List<ProjectToken>();
+    public virtual ICollection<ProjectShare> ProjectShares { get; set; } = new List<ProjectShare>();
 
     public virtual ICollection<ProjectEquity> ProjectEquities { get; set; } = new List<ProjectEquity>();
 

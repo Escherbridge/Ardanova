@@ -142,15 +142,15 @@ public class User
 
     public virtual ICollection<ProjectEquity> ProjectEquities { get; set; } = new List<ProjectEquity>();
 
-    public virtual ICollection<TokenHolder> TokenHolders { get; set; } = new List<TokenHolder>();
+    public virtual ICollection<ShareHolder> ShareHolders { get; set; } = new List<ShareHolder>();
 
-    public virtual ICollection<ICOContribution> ICOContributions { get; set; } = new List<ICOContribution>();
+    public virtual ICollection<FundraisingContribution> FundraisingContributions { get; set; } = new List<FundraisingContribution>();
 
     public virtual ICollection<Wallet> Wallets { get; set; } = new List<Wallet>();
 
     public virtual ICollection<TaskEscrow> TaskEscrows { get; set; } = new List<TaskEscrow>();
 
-    public virtual ICollection<TokenSwap> TokenSwaps { get; set; } = new List<TokenSwap>();
+    public virtual ICollection<ShareSwap> ShareSwaps { get; set; } = new List<ShareSwap>();
 
     public virtual ICollection<LiquidityProvider> LiquidityProviders { get; set; } = new List<LiquidityProvider>();
 

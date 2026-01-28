@@ -15,10 +15,10 @@ public class LiquidityPool
     public string id { get; set; } = string.Empty;
 
     [Required]
-    public string token1Id { get; set; } = string.Empty;
+    public string share1Id { get; set; } = string.Empty;
 
     [Required]
-    public string token2Id { get; set; } = string.Empty;
+    public string share2Id { get; set; } = string.Empty;
 
     [Required]
     [Precision(18, 8)]
@@ -45,13 +45,13 @@ public class LiquidityPool
     [Required]
     public DateTime updatedAt { get; set; }
 
-    [ForeignKey("token1Id")]
-    [InverseProperty("LiquidityPoolsAsToken1")]
-    public virtual ProjectToken? Token1 { get; set; }
+    [ForeignKey("share1Id")]
+    [InverseProperty("LiquidityPoolsAsShare1")]
+    public virtual ProjectShare? Share1 { get; set; }
 
-    [ForeignKey("token2Id")]
-    [InverseProperty("LiquidityPoolsAsToken2")]
-    public virtual ProjectToken? Token2 { get; set; }
+    [ForeignKey("share2Id")]
+    [InverseProperty("LiquidityPoolsAsShare2")]
+    public virtual ProjectShare? Share2 { get; set; }
 
     public virtual ICollection<LiquidityProvider> LiquidityProviders { get; set; } = new List<LiquidityProvider>();
 

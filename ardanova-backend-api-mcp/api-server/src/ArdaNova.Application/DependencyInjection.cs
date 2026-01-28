@@ -32,17 +32,44 @@ public static class DependencyInjection
         services.AddScoped<IProjectEquityService, ProjectEquityService>();
         services.AddScoped<IProjectMemberService, ProjectMemberService>();
 
-        // Guild services (formerly Agency)
+        // Guild services 
         services.AddScoped<IGuildService, GuildService>();
         services.AddScoped<IGuildMemberService, GuildMemberService>();
         services.AddScoped<IProjectBidService, ProjectBidService>();
         services.AddScoped<IGuildReviewService, GuildReviewService>();
+        services.AddScoped<IGuildUpdateService, GuildUpdateService>();
+        services.AddScoped<IGuildApplicationService, GuildApplicationService>();
+        services.AddScoped<IGuildInvitationService, GuildInvitationService>();
+        services.AddScoped<IGuildFollowService, GuildFollowService>();
 
-        // Shop services (formerly Business)
+        // Shop services
         services.AddScoped<IShopService, ShopService>();
         services.AddScoped<IShopCustomerService, ShopCustomerService>();
         services.AddScoped<IShopProductService, ShopProductService>();
         services.AddScoped<IShopAnalyticsService, ShopAnalyticsService>();
+        services.AddScoped<IShopInvoiceService, ShopInvoiceService>();
+        services.AddScoped<IShopSaleService, ShopSaleService>();
+        services.AddScoped<IShopSaleItemService, ShopSaleItemService>();
+        services.AddScoped<IShopInventoryItemService, ShopInventoryItemService>();
+        services.AddScoped<IShopMarketingCampaignService, ShopMarketingCampaignService>();
+
+        // Roadmap services
+        services.AddScoped<IRoadmapService, RoadmapService>();
+        services.AddScoped<IRoadmapPhaseService, RoadmapPhaseService>();
+
+        // Sprint services
+        services.AddScoped<ISprintService, SprintService>();
+        services.AddScoped<ISprintItemService, SprintItemService>();
+
+        // Backlog services
+        services.AddScoped<IProductBacklogItemService, ProductBacklogItemService>();
+        services.AddScoped<IBacklogItemService, BacklogItemService>();
+
+        // Epic services
+        services.AddScoped<IEpicService, EpicService>();
+
+        // Task Bid services
+        services.AddScoped<ITaskBidService, TaskBidService>();
 
         // Wallet services
         services.AddScoped<IWalletService, WalletService>();

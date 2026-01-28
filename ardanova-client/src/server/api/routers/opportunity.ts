@@ -32,6 +32,7 @@ const createOpportunitySchema = z.object({
   maxApplications: z.number().positive().optional(),
   projectId: z.string().optional(),
   guildId: z.string().optional(),
+  shopId: z.string().optional(),
   taskId: z.string().optional(),
 });
 
@@ -74,6 +75,7 @@ export const opportunityRouter = createTRPCRouter({
         maxApplications: input.maxApplications,
         projectId: input.projectId,
         guildId: input.guildId,
+        shopId: input.shopId,
         taskId: input.taskId,
       });
 
@@ -95,6 +97,7 @@ export const opportunityRouter = createTRPCRouter({
         type: OpportunityType.optional(),
         experienceLevel: ExperienceLevel.optional(),
         skill: z.string().optional(),
+        sourceType: z.enum(["guild", "project", "shop"]).optional(),
       })
     )
     .query(async ({ input }) => {
@@ -103,6 +106,7 @@ export const opportunityRouter = createTRPCRouter({
         type: input.type,
         experienceLevel: input.experienceLevel ? mapExperienceLevel(input.experienceLevel) : undefined,
         skills: input.skill,
+        sourceType: input.sourceType,
         page: input.page,
         pageSize: input.limit,
       });
@@ -148,6 +152,45 @@ export const opportunityRouter = createTRPCRouter({
 
     return response.data ?? [];
   }),
+
+  // Get opportunities by guild ID
+  getByGuildId: publicProcedure
+    .input(z.object({ guildId: z.string() }))
+    .query(async ({ input }) => {
+      const response = await apiClient.opportunities.getByGuildId(input.guildId);
+
+      if (response.error) {
+        throw new Error(response.error);
+      }
+
+      return response.data ?? [];
+    }),
+
+  // Get opportunities by project ID
+  getByProjectId: publicProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(async ({ input }) => {
+      const response = await apiClient.opportunities.getByProjectId(input.projectId);
+
+      if (response.error) {
+        throw new Error(response.error);
+      }
+
+      return response.data ?? [];
+    }),
+
+  // Get opportunities by shop ID
+  getByShopId: publicProcedure
+    .input(z.object({ shopId: z.string() }))
+    .query(async ({ input }) => {
+      const response = await apiClient.opportunities.getByShopId(input.shopId);
+
+      if (response.error) {
+        throw new Error(response.error);
+      }
+
+      return response.data ?? [];
+    }),
 
   // Apply to an opportunity
   submitApplication: protectedProcedure

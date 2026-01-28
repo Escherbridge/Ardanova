@@ -14,7 +14,7 @@ export const ReferralSchema = z.object({
   referralCode: z.string().nullable(),
   rewardClaimed: z.boolean(),
   xpRewarded: z.number().int().nullable(),
-  tokenRewarded: z.instanceof(Prisma.Decimal, { message: "Field 'tokenRewarded' must be a Decimal. Location: ['Models', 'Referral']"}).nullable(),
+  equityRewarded: z.instanceof(Prisma.Decimal, { message: "Field 'equityRewarded' must be a Decimal. Location: ['Models', 'Referral']"}).nullable(),
   createdAt: z.coerce.date(),
   completedAt: z.coerce.date().nullable(),
 })

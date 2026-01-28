@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -16,6 +16,10 @@ import {
   DollarSign,
   MapPin,
   Calendar,
+  Building2,
+  FolderKanban,
+  Store,
+  RefreshCw,
 } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
@@ -30,6 +34,7 @@ import {
 } from "~/components/ui/select";
 import { cn } from "~/lib/utils";
 import { api } from "~/trpc/react";
+import EntitySelector from "~/components/opportunities/entity-selector";
 
 const opportunityTypes = [
   { id: "Bounty", label: "Bounty" },
@@ -51,6 +56,20 @@ const compensationTypes = [
   { id: "hourly", label: "Hourly Rate" },
   { id: "negotiable", label: "Negotiable" },
 ];
+
+type EntityType = "guild" | "project" | "shop";
+
+interface SelectedEntity {
+  type: EntityType;
+  id: string;
+  slug: string;
+}
+
+const entityConfig = {
+  guild: { icon: Building2, label: "Guild", variant: "neon-purple" as const },
+  project: { icon: FolderKanban, label: "Project", variant: "neon" as const },
+  shop: { icon: Store, label: "Shop", variant: "neon-green" as const },
+};
 
 interface WizardFormData {
   // Step 1: Basic Info
@@ -85,7 +104,18 @@ const steps = [
 
 export default function CreateOpportunityPage() {
   const router = useRouter();
-  const [currentStep, setCurrentStep] = useState(0);
+  const searchParams = useSearchParams();
+
+  // Read entity params from URL
+  const urlEntityType = searchParams.get("entityType") as EntityType | null;
+  const urlEntityId = searchParams.get("entityId");
+  const urlEntitySlug = searchParams.get("entitySlug");
+
+  // Determine if entity was pre-selected via URL
+  const hasUrlEntity = urlEntityType && urlEntityId && urlEntitySlug;
+
+  const [selectedEntity, setSelectedEntity] = useState<SelectedEntity | null>(null);
+  const [currentStep, setCurrentStep] = useState(hasUrlEntity ? 0 : -1);
   const [formData, setFormData] = useState<WizardFormData>({
     title: "",
     description: "",
@@ -104,7 +134,30 @@ export default function CreateOpportunityPage() {
   const [newSkill, setNewSkill] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  // Initialize entity from URL params
+  useEffect(() => {
+    if (hasUrlEntity && !selectedEntity) {
+      setSelectedEntity({
+        type: urlEntityType,
+        id: urlEntityId,
+        slug: urlEntitySlug,
+      });
+    }
+  }, [hasUrlEntity, urlEntityType, urlEntityId, urlEntitySlug, selectedEntity]);
+
   const createMutation = api.opportunity.create.useMutation();
+
+  // Handle entity selection from EntitySelector
+  const handleEntitySelect = (type: EntityType, id: string, slug: string) => {
+    setSelectedEntity({ type, id, slug });
+    setCurrentStep(0); // Move to first form step
+  };
+
+  // Handle changing the selected entity
+  const handleChangeEntity = () => {
+    setSelectedEntity(null);
+    setCurrentStep(-1); // Go back to entity selection
+  };
 
   const handleChange = (field: string, value: string | boolean) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -168,6 +221,11 @@ export default function CreateOpportunityPage() {
   };
 
   const handleSubmit = async (publish: boolean) => {
+    if (!selectedEntity) {
+      setErrors({ submit: "Please select an entity first" });
+      return;
+    }
+
     try {
       const opportunity = await createMutation.mutateAsync({
         title: formData.title,
@@ -181,6 +239,10 @@ export default function CreateOpportunityPage() {
         isRemote: formData.isRemote,
         deadline: formData.deadline || undefined,
         maxApplications: formData.maxApplications ? Number(formData.maxApplications) : undefined,
+        // Include the appropriate entity ID based on selected entity type
+        guildId: selectedEntity.type === "guild" ? selectedEntity.id : undefined,
+        projectId: selectedEntity.type === "project" ? selectedEntity.id : undefined,
+        shopId: selectedEntity.type === "shop" ? selectedEntity.id : undefined,
       });
 
       router.push(`/opportunities/${opportunity.id}`);
@@ -202,61 +264,105 @@ export default function CreateOpportunityPage() {
               Back to Opportunities
             </Link>
           </Button>
-          <h1 className="text-3xl font-bold">Post New Opportunity</h1>
-          <p className="text-muted-foreground mt-2">
-            Complete the wizard to post your opportunity on ArdaNova
-          </p>
-        </div>
-
-        {/* Progress Stepper */}
-        <div className="mb-8 overflow-x-auto">
-          <div className="flex items-center justify-between min-w-[600px]">
-            {steps.map((step, index) => (
-              <div key={step.id} className="flex items-center">
-                <button
-                  onClick={() => goToStep(index)}
-                  className={cn(
-                    "flex flex-col items-center gap-2 transition-opacity",
-                    currentStep < index && "opacity-50"
-                  )}
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <h1 className="text-3xl font-bold">Post New Opportunity</h1>
+              <p className="text-muted-foreground mt-2">
+                Complete the wizard to post your opportunity on ArdaNova
+              </p>
+            </div>
+            {selectedEntity && (
+              <div className="flex items-center gap-2">
+                {(() => {
+                  const config = entityConfig[selectedEntity.type];
+                  const Icon = config.icon;
+                  return (
+                    <Badge variant={config.variant} className="flex items-center gap-1.5 px-3 py-1.5">
+                      <Icon className="size-4" />
+                      <span>For {config.label}: {selectedEntity.slug}</span>
+                    </Badge>
+                  );
+                })()}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleChangeEntity}
+                  className="text-muted-foreground hover:text-foreground"
                 >
-                  <div
-                    className={cn(
-                      "w-10 h-10 rounded-full flex items-center justify-center font-medium transition-colors",
-                      currentStep > index
-                        ? "bg-neon text-black"
-                        : currentStep === index
-                        ? "bg-neon/20 text-neon border-2 border-neon"
-                        : "bg-muted text-muted-foreground"
-                    )}
-                  >
-                    {currentStep > index ? (
-                      <Check className="size-5" />
-                    ) : (
-                      index + 1
-                    )}
-                  </div>
-                  <span className="text-xs font-medium hidden sm:block">
-                    {step.name}
-                  </span>
-                </button>
-                {index < steps.length - 1 && (
-                  <div
-                    className={cn(
-                      "h-0.5 w-12 mx-2 transition-colors",
-                      currentStep > index ? "bg-neon" : "bg-border"
-                    )}
-                  />
-                )}
+                  <RefreshCw className="size-4 mr-1" />
+                  Change
+                </Button>
               </div>
-            ))}
+            )}
           </div>
         </div>
 
+        {/* Progress Stepper - Only show when entity is selected */}
+        {selectedEntity && (
+          <div className="mb-8 overflow-x-auto">
+            <div className="flex items-center justify-between min-w-[600px]">
+              {steps.map((step, index) => (
+                <div key={step.id} className="flex items-center">
+                  <button
+                    onClick={() => goToStep(index)}
+                    className={cn(
+                      "flex flex-col items-center gap-2 transition-opacity",
+                      currentStep < index && "opacity-50"
+                    )}
+                  >
+                    <div
+                      className={cn(
+                        "w-10 h-10 rounded-full flex items-center justify-center font-medium transition-colors",
+                        currentStep > index
+                          ? "bg-neon text-black"
+                          : currentStep === index
+                          ? "bg-neon/20 text-neon border-2 border-neon"
+                          : "bg-muted text-muted-foreground"
+                      )}
+                    >
+                      {currentStep > index ? (
+                        <Check className="size-5" />
+                      ) : (
+                        index + 1
+                      )}
+                    </div>
+                    <span className="text-xs font-medium hidden sm:block">
+                      {step.name}
+                    </span>
+                  </button>
+                  {index < steps.length - 1 && (
+                    <div
+                      className={cn(
+                        "h-0.5 w-12 mx-2 transition-colors",
+                        currentStep > index ? "bg-neon" : "bg-border"
+                      )}
+                    />
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Step Content */}
         <div className="space-y-6">
+          {/* Entity Selection Step */}
+          {currentStep === -1 && !selectedEntity && (
+            <Card className="bg-card border-border">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Building2 className="size-5 text-neon" />
+                  Select Entity
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <EntitySelector onSelect={handleEntitySelect} />
+              </CardContent>
+            </Card>
+          )}
+
           {/* Step 1: Basic Info */}
-          {currentStep === 0 && (
+          {currentStep === 0 && selectedEntity && (
             <>
               <Card className="bg-card border-border">
                 <CardHeader className="pb-3">
@@ -741,56 +847,58 @@ export default function CreateOpportunityPage() {
           )}
         </div>
 
-        {/* Navigation Buttons */}
-        <div className="flex justify-between mt-8">
-          <Button
-            variant="outline"
-            onClick={goToPreviousStep}
-            disabled={currentStep === 0}
-          >
-            <ArrowLeft className="size-4 mr-2" />
-            Previous
-          </Button>
-
-          {currentStep < steps.length - 1 ? (
-            <Button variant="default" onClick={goToNextStep}>
-              Next
-              <ArrowRight className="size-4 ml-2" />
+        {/* Navigation Buttons - Only show when entity is selected */}
+        {selectedEntity && (
+          <div className="flex justify-between mt-8">
+            <Button
+              variant="outline"
+              onClick={goToPreviousStep}
+              disabled={currentStep === 0}
+            >
+              <ArrowLeft className="size-4 mr-2" />
+              Previous
             </Button>
-          ) : (
-            <div className="flex gap-3">
-              <Button
-                variant="outline"
-                onClick={() => handleSubmit(false)}
-                disabled={createMutation.isPending}
-              >
-                {createMutation.isPending ? (
-                  <>
-                    <Loader2 className="size-4 mr-2 animate-spin" />
-                    Saving...
-                  </>
-                ) : (
-                  "Save as Draft"
-                )}
+
+            {currentStep < steps.length - 1 ? (
+              <Button variant="default" onClick={goToNextStep}>
+                Next
+                <ArrowRight className="size-4 ml-2" />
               </Button>
-              <Button
-                variant="default"
-                className="bg-neon hover:bg-neon/90 text-black font-semibold"
-                onClick={() => handleSubmit(true)}
-                disabled={createMutation.isPending}
-              >
-                {createMutation.isPending ? (
-                  <>
-                    <Loader2 className="size-4 mr-2 animate-spin" />
-                    Publishing...
-                  </>
-                ) : (
-                  "Publish Opportunity"
-                )}
-              </Button>
-            </div>
-          )}
-        </div>
+            ) : (
+              <div className="flex gap-3">
+                <Button
+                  variant="outline"
+                  onClick={() => handleSubmit(false)}
+                  disabled={createMutation.isPending}
+                >
+                  {createMutation.isPending ? (
+                    <>
+                      <Loader2 className="size-4 mr-2 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    "Save as Draft"
+                  )}
+                </Button>
+                <Button
+                  variant="default"
+                  className="bg-neon hover:bg-neon/90 text-black font-semibold"
+                  onClick={() => handleSubmit(true)}
+                  disabled={createMutation.isPending}
+                >
+                  {createMutation.isPending ? (
+                    <>
+                      <Loader2 className="size-4 mr-2 animate-spin" />
+                      Publishing...
+                    </>
+                  ) : (
+                    "Publish Opportunity"
+                  )}
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Info Note */}
         {currentStep === 0 && (

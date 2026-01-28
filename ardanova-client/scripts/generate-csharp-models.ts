@@ -5,7 +5,7 @@ import pluralize from 'pluralize';
 // @ts-ignore - @dbml/core lacks types
 import { Parser } from '@dbml/core';
 
-const DBML_PATH = path.join(process.cwd(), 'prisma/database-archietecture.dbml');
+const DBML_PATH = path.join(process.cwd(), 'prisma/database-architecture.dbml');
 const DOMAIN_PATH = path.join(process.cwd(), '../ardanova-backend-api-mcp/api-server/src/ArdaNova.Domain/Models');
 const DB_CONTEXT_PATH = path.join(process.cwd(), '../ardanova-backend-api-mcp/api-server/src/ArdaNova.Infrastructure/Data/ArdaNovaDbContext.cs');
 const GENERATED_CONFIG_PATH = path.join(process.cwd(), '../ardanova-backend-api-mcp/api-server/src/ArdaNova.Infrastructure/Data/GeneratedModelConfigurations.cs');

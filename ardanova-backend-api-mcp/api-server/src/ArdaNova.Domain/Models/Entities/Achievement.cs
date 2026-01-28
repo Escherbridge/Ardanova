@@ -31,7 +31,7 @@ public class Achievement
     public int xpReward { get; set; }
 
     [Precision(18, 8)]
-    public decimal? tokenReward { get; set; }
+    public decimal? equityReward { get; set; }
 
     [Required]
     public AchievementRarity rarity { get; set; }

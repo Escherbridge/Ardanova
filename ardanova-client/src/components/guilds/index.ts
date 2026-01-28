@@ -3,6 +3,7 @@ export { UpdatesTab } from "./updates-tab";
 export { MembersTab } from "./members-tab";
 export { ProjectsTab } from "./projects-tab";
 export { ReviewsTab } from "./reviews-tab";
+export { OpportunitiesTab } from "./opportunities-tab";
 
 // Re-export types
 export * from "./types";

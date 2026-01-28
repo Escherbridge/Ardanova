@@ -11,7 +11,7 @@ export const TaskEscrowSchema = z.object({
   id: z.string().cuid(),
   taskId: z.string(),
   funderId: z.string(),
-  tokenId: z.string(),
+  shareId: z.string(),
   amount: z.instanceof(Prisma.Decimal, { message: "Field 'amount' must be a Decimal. Location: ['Models', 'TaskEscrow']"}),
   txHashFund: z.string().nullable(),
   txHashRelease: z.string().nullable(),

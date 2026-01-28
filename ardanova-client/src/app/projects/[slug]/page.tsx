@@ -44,6 +44,7 @@ import {
   ProposalsTab,
   BidsTab,
   CommentsTab,
+  OpportunitiesTab,
 } from "~/components/projects";
 
 const tabs = [
@@ -53,6 +54,7 @@ const tabs = [
   { id: "milestones", label: "Milestones", icon: Flag },
   { id: "proposals", label: "Proposals", icon: Vote },
   { id: "bids", label: "Bids", icon: Briefcase },
+  { id: "opportunities", label: "Opportunities", icon: Briefcase },
   { id: "comments", label: "Comments", icon: MessageCircle },
 ];
 
@@ -97,6 +99,10 @@ export default function ProjectDetailPage() {
   const currentUserId = session?.user?.id;
   const isOwner = !!currentUserId && project?.createdById === currentUserId;
   const isMember = isOwner || (!!currentUserId && members?.some((m: any) => m.userId === currentUserId));
+
+  // Determine user's role in project from members list
+  const userMember = members?.find((m: any) => m.userId === currentUserId);
+  const userRole = userMember?.role;
 
   if (isLoading) {
     return (
@@ -281,6 +287,7 @@ export default function ProjectDetailPage() {
           />
         )}
         {activeTab === "bids" && <BidsTab projectId={project.id} isOwner={isOwner} />}
+        {activeTab === "opportunities" && <OpportunitiesTab projectId={project.id} projectSlug={slug} isOwner={isOwner} userRole={userRole} />}
         {activeTab === "comments" && <CommentsTab projectId={project.id} />}
       </div>
     </div>

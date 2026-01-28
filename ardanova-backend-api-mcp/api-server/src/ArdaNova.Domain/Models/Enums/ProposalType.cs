@@ -8,5 +8,5 @@ public enum ProposalType
     OPERATIONAL,
     EMERGENCY,
     CONSTITUTIONAL,
-    TOKEN
+    SHARES
 }

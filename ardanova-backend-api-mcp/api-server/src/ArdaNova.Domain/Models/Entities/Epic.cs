@@ -30,7 +30,7 @@ public class Epic
     public Priority priority { get; set; }
 
     [Precision(18, 8)]
-    public decimal? tokenBudget { get; set; }
+    public decimal? equityBudget { get; set; }
 
     [Required]
     public int progress { get; set; }

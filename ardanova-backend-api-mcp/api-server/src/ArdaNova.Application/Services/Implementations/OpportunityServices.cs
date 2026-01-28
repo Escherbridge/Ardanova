@@ -15,6 +15,9 @@ public class OpportunityService : IOpportunityService
     private readonly IRepository<OpportunityUpdate> _updateRepository;
     private readonly IRepository<OpportunityComment> _commentRepository;
     private readonly IRepository<User> _userRepository;
+    private readonly IRepository<Guild> _guildRepository;
+    private readonly IRepository<Project> _projectRepository;
+    private readonly IRepository<Shop> _shopRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IMapper _mapper;
 
@@ -24,6 +27,9 @@ public class OpportunityService : IOpportunityService
         IRepository<OpportunityUpdate> updateRepository,
         IRepository<OpportunityComment> commentRepository,
         IRepository<User> userRepository,
+        IRepository<Guild> guildRepository,
+        IRepository<Project> projectRepository,
+        IRepository<Shop> shopRepository,
         IUnitOfWork unitOfWork,
         IMapper mapper)
     {
@@ -32,6 +38,9 @@ public class OpportunityService : IOpportunityService
         _updateRepository = updateRepository;
         _commentRepository = commentRepository;
         _userRepository = userRepository;
+        _guildRepository = guildRepository;
+        _projectRepository = projectRepository;
+        _shopRepository = shopRepository;
         _unitOfWork = unitOfWork;
         _mapper = mapper;
     }
@@ -84,6 +93,7 @@ public class OpportunityService : IOpportunityService
         OpportunityStatus? status,
         ExperienceLevel? experienceLevel,
         string? skills,
+        string? sourceType,
         int page,
         int pageSize,
         CancellationToken ct = default)
@@ -112,6 +122,18 @@ public class OpportunityService : IOpportunityService
             query = query.Where(o => o.skills != null && o.skills.ToLower().Contains(skillTerm));
         }
 
+        if (!string.IsNullOrWhiteSpace(sourceType))
+        {
+            var sourceTypeLower = sourceType.ToLower();
+            query = sourceTypeLower switch
+            {
+                "guild" => query.Where(o => o.guildId != null),
+                "project" => query.Where(o => o.projectId != null),
+                "shop" => query.Where(o => o.shopId != null),
+                _ => query
+            };
+        }
+
         query = query.OrderByDescending(o => o.createdAt);
 
         var totalCount = query.Count();
@@ -124,6 +146,27 @@ public class OpportunityService : IOpportunityService
     public async Task<Result<IReadOnlyList<OpportunityDto>>> GetByPosterIdAsync(string posterId, CancellationToken ct = default)
     {
         var opportunities = await _repository.FindAsync(o => o.posterId == posterId, ct);
+        var dtos = await EnrichOpportunityDtosAsync(opportunities, ct);
+        return Result<IReadOnlyList<OpportunityDto>>.Success(dtos);
+    }
+
+    public async Task<Result<IReadOnlyList<OpportunityDto>>> GetByGuildIdAsync(string guildId, CancellationToken ct = default)
+    {
+        var opportunities = await _repository.FindAsync(o => o.guildId == guildId, ct);
+        var dtos = await EnrichOpportunityDtosAsync(opportunities, ct);
+        return Result<IReadOnlyList<OpportunityDto>>.Success(dtos);
+    }
+
+    public async Task<Result<IReadOnlyList<OpportunityDto>>> GetByProjectIdAsync(string projectId, CancellationToken ct = default)
+    {
+        var opportunities = await _repository.FindAsync(o => o.projectId == projectId, ct);
+        var dtos = await EnrichOpportunityDtosAsync(opportunities, ct);
+        return Result<IReadOnlyList<OpportunityDto>>.Success(dtos);
+    }
+
+    public async Task<Result<IReadOnlyList<OpportunityDto>>> GetByShopIdAsync(string shopId, CancellationToken ct = default)
+    {
+        var opportunities = await _repository.FindAsync(o => o.shopId == shopId, ct);
         var dtos = await EnrichOpportunityDtosAsync(opportunities, ct);
         return Result<IReadOnlyList<OpportunityDto>>.Success(dtos);
     }
@@ -439,6 +482,58 @@ public class OpportunityService : IOpportunityService
         var poster = await _userRepository.GetByIdAsync(opportunity.posterId, ct);
         if (poster is not null)
             dto = dto with { Poster = _mapper.Map<OpportunityPosterDto>(poster) };
+
+        // Enrich Source property
+        OpportunitySourceDto? source = null;
+
+        if (!string.IsNullOrWhiteSpace(opportunity.guildId))
+        {
+            var guild = await _guildRepository.GetByIdAsync(opportunity.guildId, ct);
+            if (guild is not null)
+            {
+                source = new OpportunitySourceDto
+                {
+                    Type = "guild",
+                    Id = guild.id,
+                    Name = guild.name,
+                    Logo = guild.logo,
+                    Slug = guild.slug
+                };
+            }
+        }
+        else if (!string.IsNullOrWhiteSpace(opportunity.projectId))
+        {
+            var project = await _projectRepository.GetByIdAsync(opportunity.projectId, ct);
+            if (project is not null)
+            {
+                source = new OpportunitySourceDto
+                {
+                    Type = "project",
+                    Id = project.id,
+                    Name = project.title,
+                    Logo = null, // Projects don't have a logo field
+                    Slug = project.slug
+                };
+            }
+        }
+        else if (!string.IsNullOrWhiteSpace(opportunity.shopId))
+        {
+            var shop = await _shopRepository.GetByIdAsync(opportunity.shopId, ct);
+            if (shop is not null)
+            {
+                source = new OpportunitySourceDto
+                {
+                    Type = "shop",
+                    Id = shop.id,
+                    Name = shop.name,
+                    Logo = shop.logo,
+                    Slug = shop.slug
+                };
+            }
+        }
+
+        if (source is not null)
+            dto = dto with { Source = source };
 
         return dto;
     }

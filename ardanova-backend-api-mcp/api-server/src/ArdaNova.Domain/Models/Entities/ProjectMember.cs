@@ -25,7 +25,7 @@ public class ProjectMember
 
     [Required]
     [Precision(18, 8)]
-    public decimal tokenBalance { get; set; }
+    public decimal shareBalance { get; set; }
 
     [Required]
     [Precision(18, 8)]

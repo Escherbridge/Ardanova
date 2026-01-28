@@ -32,7 +32,7 @@ public class Referral
     public int? xpRewarded { get; set; }
 
     [Precision(18, 8)]
-    public decimal? tokenRewarded { get; set; }
+    public decimal? equityRewarded { get; set; }
 
     [Required]
     public DateTime createdAt { get; set; }

@@ -150,8 +150,8 @@ Enum NotificationType {
   ACHIEVEMENT_EARNED
   LEVEL_UP
   STREAK_MILESTONE
-  TOKEN_RECEIVED
-  TOKEN_VESTED
+  SHARES_RECEIVED
+  SHARES_VESTED
   ESCROW_FUNDED
   ESCROW_RELEASED
   PROJECT_INVITATION
@@ -247,7 +247,7 @@ Enum LeaderboardPeriod {
 Enum LeaderboardCategory {
   XP
   TASKS_COMPLETED
-  TOKENS_EARNED
+  SHARES_EARNED
   PROPOSALS_CREATED
   VOTES_CAST
   PROJECTS_FUNDED
@@ -285,7 +285,7 @@ Table Achievement {
   category AchievementCategory [not null]
   criteria json [not null]
   xpReward int [not null]
-  tokenReward decimal(18,8)
+  equityReward decimal(18,8)
   rarity AchievementRarity [not null, default: 'COMMON']
   icon varchar
   isActive boolean [not null, default: true]
@@ -342,7 +342,7 @@ Table Referral {
   status ReferralStatus [not null, default: 'PENDING']
   rewardClaimed boolean [not null, default: false]
   xpRewarded int
-  tokenRewarded decimal(18,8)
+  equityRewarded decimal(18,8)
   createdAt datetime [not null, default: `now()`]
   completedAt datetime
 }
@@ -508,8 +508,8 @@ Enum ProjectRole {
 }
 
 Enum CompensationModel {
-  FIXED_TOKEN
-  HOURLY_TOKEN
+  FIXED_SHARES
+  HOURLY_SHARES
   EQUITY_PERCENT
   HYBRID
   BOUNTY
@@ -530,7 +530,7 @@ Enum ProposalType {
   OPERATIONAL
   EMERGENCY
   CONSTITUTIONAL
-  TOKEN
+  SHARES
 }
 
 Enum ProposalStatus {
@@ -591,7 +591,7 @@ Table ProjectTask {
   taskType TaskType [not null, default: 'FEATURE']
   estimatedHours int
   actualHours int
-  tokenReward decimal(18,8)
+  equityReward decimal(18,8)
   escrowStatus EscrowStatus [not null, default: 'NONE']
   dueDate datetime
   completedAt datetime
@@ -767,7 +767,7 @@ Table Epic {
   description text
   status EpicStatus [not null, default: 'PLANNED']
   priority Priority [not null, default: 'MEDIUM']
-  tokenBudget decimal
+  equityBudget decimal
   progress int [not null, default: 0]
   startDate datetime
   targetDate datetime
@@ -785,7 +785,7 @@ Table Sprint {
   goal text
   startDate datetime [not null]
   endDate datetime [not null]
-  tokenBudget decimal
+  equityBudget decimal
   velocity int
   status SprintStatus [not null, default: 'PLANNED']
   createdAt datetime [not null, default: `now()`]
@@ -842,7 +842,7 @@ Table ProjectMember {
   projectId varchar [not null]
   userId varchar [not null]
   role ProjectRole [not null, default: 'OBSERVER']
-  tokenBalance decimal [not null, default: 0]
+  shareBalance decimal [not null, default: 0]
   votingPower decimal [not null, default: 0]
   joinedAt datetime [not null, default: `now()`]
   invitedById varchar
@@ -853,8 +853,8 @@ Ref: ProjectMember.userId > User.id
 Table TaskCompensation {
   id varchar [not null, pk, default: `cuid()`]
   taskId varchar [not null, unique]
-  model CompensationModel [not null, default: 'FIXED_TOKEN']
-  tokenAmount decimal
+  compensationModel CompensationModel [not null, default: 'FIXED_SHARES']
+  shareAmount decimal
   hourlyRate decimal
   equityPercent decimal
   stableCoinAmount decimal
@@ -926,7 +926,7 @@ Table DelegatedVote {
   projectId varchar [not null]
   delegatorId varchar [not null]
   delegateeId varchar [not null]
-  tokenId varchar [not null]
+  shareId varchar [not null]
   amount decimal [not null]
   isActive boolean [not null, default: true]
   createdAt datetime [not null, default: `now()`]
@@ -936,7 +936,7 @@ Table DelegatedVote {
 Ref: DelegatedVote.projectId > Project.id
 Ref: DelegatedVote.delegatorId > User.id
 Ref: DelegatedVote.delegateeId > User.id
-Ref: DelegatedVote.tokenId > ProjectToken.id
+Ref: DelegatedVote.shareId > ProjectShare.id
 
 // =================================================================================================
 // 4. Guild Module
@@ -1300,7 +1300,7 @@ Enum VestingFrequency {
   QUARTERLY
 }
 
-Enum ICOStatus {
+Enum FundraisingStatus {
   PENDING
   ACTIVE
   SUCCESSFUL
@@ -1332,7 +1332,7 @@ Enum SwapStatus {
   CANCELLED
 }
 
-Table ProjectToken {
+Table ProjectShare {
   id varchar [not null, pk, default: `cuid()`]
   projectId varchar [not null, unique]
   assetId varchar
@@ -1347,7 +1347,7 @@ Table ProjectToken {
   createdAt datetime [not null, default: `now()`]
   updatedAt datetime [not null, note: 'Updated at']
 }
-Ref: ProjectToken.projectId > Project.id
+Ref: ProjectShare.projectId > Project.id
 
 Table ProjectEquity {
   id varchar [not null, pk, default: `cuid()`]
@@ -1364,7 +1364,7 @@ Table Treasury {
   id varchar [not null, pk, default: `cuid()`]
   projectId varchar [not null, unique]
   balance decimal [not null, default: 0]
-  tokenAssetId varchar
+  shareAssetId varchar
   createdAt datetime [not null, default: `now()`]
   updatedAt datetime [not null, note: 'Updated at']
 }
@@ -1382,9 +1382,9 @@ Table TreasuryTransaction {
 }
 Ref: TreasuryTransaction.treasuryId > Treasury.id
 
-Table TokenHolder {
+Table ShareHolder {
   id varchar [not null, pk, default: `cuid()`]
-  tokenId varchar [not null]
+  shareId varchar [not null]
   userId varchar [not null]
   balance decimal [not null]
   stakedAmount decimal [not null, default: 0]
@@ -1392,10 +1392,10 @@ Table TokenHolder {
   createdAt datetime [not null, default: `now()`]
   updatedAt datetime [not null, note: 'Updated at']
 }
-Ref: TokenHolder.tokenId > ProjectToken.id
-Ref: TokenHolder.userId > User.id
+Ref: ShareHolder.shareId > ProjectShare.id
+Ref: ShareHolder.userId > User.id
 
-Table TokenVesting {
+Table ShareVesting {
   id varchar [not null, pk, default: `cuid()`]
   holderId varchar [not null]
   totalAmount decimal [not null]
@@ -1406,37 +1406,37 @@ Table TokenVesting {
   releaseFrequency VestingFrequency [not null, default: 'MONTHLY']
   createdAt datetime [not null, default: `now()`]
 }
-Ref: TokenVesting.holderId > TokenHolder.id
+Ref: ShareVesting.holderId > ShareHolder.id
 
-Table ICO {
+Table Fundraising {
   id varchar [not null, pk, default: `cuid()`]
-  tokenId varchar [not null, unique]
+  shareId varchar [not null, unique]
   fundingGoal decimal [not null]
   currentFunding decimal [not null, default: 0]
   minContribution decimal
   maxContribution decimal
-  tokenPrice decimal [not null]
+  sharePrice decimal [not null]
   startDate datetime [not null]
   endDate datetime [not null]
-  status ICOStatus [not null, default: 'PENDING']
+  status FundraisingStatus [not null, default: 'PENDING']
   createdAt datetime [not null, default: `now()`]
   updatedAt datetime [not null, note: 'Updated at']
 }
-Ref: ICO.tokenId > ProjectToken.id
+Ref: Fundraising.shareId > ProjectShare.id
 
-Table ICOContribution {
+Table FundraisingContribution {
   id varchar [not null, pk, default: `cuid()`]
-  icoId varchar [not null]
+  fundraisingId varchar [not null]
   userId varchar [not null]
   amount decimal [not null]
-  tokenAmount decimal [not null]
+  shareAmount decimal [not null]
   paymentAsset varchar [not null]
   txHash varchar
   status ContributionStatus [not null, default: 'PENDING']
   createdAt datetime [not null, default: `now()`]
 }
-Ref: ICOContribution.icoId > ICO.id
-Ref: ICOContribution.userId > User.id
+Ref: FundraisingContribution.fundraisingId > Fundraising.id
+Ref: FundraisingContribution.userId > User.id
 
 Table Wallet {
   id varchar [not null, pk, default: `cuid()`]
@@ -1455,7 +1455,7 @@ Table TaskEscrow {
   id varchar [not null, pk, default: `cuid()`]
   taskId varchar [not null, unique]
   funderId varchar [not null]
-  tokenId varchar [not null]
+  shareId varchar [not null]
   amount decimal [not null]
   status EscrowStatus [not null, default: 'FUNDED']
   txHashFund varchar
@@ -1468,13 +1468,13 @@ Table TaskEscrow {
 }
 Ref: TaskEscrow.taskId > ProjectTask.id
 Ref: TaskEscrow.funderId > User.id
-Ref: TaskEscrow.tokenId > ProjectToken.id
+Ref: TaskEscrow.shareId > ProjectShare.id
 
-Table TokenSwap {
+Table ShareSwap {
   id varchar [not null, pk, default: `cuid()`]
   userId varchar [not null]
-  fromTokenId varchar [not null]
-  toTokenId varchar [not null]
+  fromShareId varchar [not null]
+  toShareId varchar [not null]
   fromAmount decimal [not null]
   toAmount decimal [not null]
   exchangeRate decimal [not null]
@@ -1484,14 +1484,14 @@ Table TokenSwap {
   createdAt datetime [not null, default: `now()`]
   completedAt datetime
 }
-Ref: TokenSwap.userId > User.id
-Ref: TokenSwap.fromTokenId > ProjectToken.id
-Ref: TokenSwap.toTokenId > ProjectToken.id
+Ref: ShareSwap.userId > User.id
+Ref: ShareSwap.fromShareId > ProjectShare.id
+Ref: ShareSwap.toShareId > ProjectShare.id
 
 Table LiquidityPool {
   id varchar [not null, pk, default: `cuid()`]
-  token1Id varchar [not null]
-  token2Id varchar [not null]
+  share1Id varchar [not null]
+  share2Id varchar [not null]
   reserve1 decimal [not null, default: 0]
   reserve2 decimal [not null, default: 0]
   totalShares decimal [not null, default: 0]
@@ -1500,16 +1500,16 @@ Table LiquidityPool {
   createdAt datetime [not null, default: `now()`]
   updatedAt datetime [not null, note: 'Updated at']
 }
-Ref: LiquidityPool.token1Id > ProjectToken.id
-Ref: LiquidityPool.token2Id > ProjectToken.id
+Ref: LiquidityPool.share1Id > ProjectShare.id
+Ref: LiquidityPool.share2Id > ProjectShare.id
 
 Table LiquidityProvider {
   id varchar [not null, pk, default: `cuid()`]
   poolId varchar [not null]
   userId varchar [not null]
   shares decimal [not null]
-  token1In decimal [not null, default: 0]
-  token2In decimal [not null, default: 0]
+  share1In decimal [not null, default: 0]
+  share2In decimal [not null, default: 0]
   createdAt datetime [not null, default: `now()`]
   updatedAt datetime [not null, note: 'Updated at']
 }
@@ -1857,11 +1857,13 @@ Table Opportunity {
   posterId varchar [not null]
   guildId varchar
   projectId varchar
+  shopId varchar
   taskId varchar
 }
 Ref: Opportunity.posterId > User.id
 Ref: Opportunity.guildId > Guild.id
 Ref: Opportunity.projectId > Project.id
+Ref: Opportunity.shopId > Shop.id
 Ref: Opportunity.taskId > ProjectTask.id
 
 Table OpportunityApplication {

@@ -5,7 +5,7 @@ import pluralize from 'pluralize';
 // @ts-ignore - @dbml/core lacks types
 import { Parser } from '@dbml/core';
 
-const DBML_PATH = path.join(process.cwd(), 'prisma/database-archietecture.dbml');
+const DBML_PATH = path.join(process.cwd(), 'prisma/database-architecture.dbml');
 const PRISMA_PATH = path.join(process.cwd(), 'prisma/schema.prisma');
 
 // Type mapping from DBML to Prisma

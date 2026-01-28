@@ -5,8 +5,8 @@
 **ArdaNova** is a **gamified, decentralized ecosystem** that enables:
 
 - **Gamified Talent Marketplace** (Upwork reimagined with ownership)
-- **Tokenized Crowdfunding (ICO)** on Algorand blockchain
-- **DAO-Governed Projects** with on-chain governance
+- **Community Fundraising** on Algorand ledger
+- **Cooperative Projects** with transparent governance
 - **Worker-Owned Cooperatives** at every level
 - **Play-to-Earn Integration** via Game SDK
 - **AI-Powered Project Generation** via Gamma API + MCP
@@ -27,16 +27,16 @@
 │    CONTRIBUTORS ──────► PROJECTS ──────► VALUE CREATION         │
 │         ▲                                      │                │
 │         │                                      │                │
-│         └──────── ASA TOKENS (OWNERSHIP) ◄─────┘                │
+│         └──────── OWNERSHIP (ASA SHARES) ◄─────┘                │
 │                                                                 │
 │    PLAYERS ─────► GAMES ─────► ENGAGEMENT ─────► TOKENS         │
 │         ▲                                           │           │
 │         │                                           │           │
 │         └──────── INVEST / REDEEM / EXCHANGE ◄─────┘            │
 │                                                                 │
-│  • Workers earn tokens, not just wages                          │
-│  • Supporters become tokenized stakeholders                     │
-│  • Projects become on-chain cooperatives                        │
+│  • Workers earn ownership, not just wages                       │
+│  • Supporters become equity stakeholders                        │
+│  • Projects become digital cooperatives                         │
 │  • Platform is governed by $ARDA holders                        │
 │  • Games distribute value through play-to-earn                  │
 │                                                                 │
@@ -171,20 +171,20 @@ ardanova/
 
 ### Blockchain Integration (in ardanova-client)
 
-Algorand/blockchain functionality lives directly in `ardanova-client/src/lib/blockchain/`:
+Algorand/ledger functionality lives directly in `ardanova-client/src/lib/blockchain/`:
 
 ```
-lib/blockchain/                         # Algorand integration (TODO)
+lib/blockchain/                         # Ledger integration (TODO)
 ├── sdk/                                # Core Algorand SDK wrapper
-├── tokens/                             # ASA token management
-├── ico/                                # ICO lifecycle management
-├── exchange/                           # Token exchange logic
+├── tokens/                             # ASA share management
+├── ico/                                # Fundraising lifecycle management
+├── exchange/                           # Share exchange logic
 ├── wallet/                             # Wallet connection (Pera, Defly)
-├── indexer/                            # Algorand indexer client
-└── contracts/                          # Smart contract ABIs & client interactions
+├── indexer/                            # Ledger indexer client
+└── contracts/                          # Agreement ABIs & client interactions
 ```
 
-Smart contracts source code (PyTeal) is in the root `/contracts/` folder.
+Automated agreements source code (PyTeal) is in the root `/contracts/` folder.
 
 ---
 
@@ -335,10 +335,10 @@ interface EnhancedProfile {
 
 ---
 
-## Phase 2: Algorand Integration & ICO Infrastructure
+## Phase 2: Ledger Integration & Fundraising Infrastructure
 **Timeline: Q2 2025**
 
-### 2.1 Algorand Blockchain Integration
+### 2.1 Algorand Ledger Integration
 
 ```typescript
 // packages/@ardanova/blockchain/src/sdk - Core Algorand integration
@@ -375,23 +375,23 @@ interface ASAToken {
 }
 ```
 
-### 2.2 ICO Lifecycle Implementation
+### 2.2 Fundraising Lifecycle Implementation
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    ICO LIFECYCLE (ALGORAND)                      │
+│                    FUNDRAISING LIFECYCLE                         │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                  │
 │  PHASE 1: CREATION                                              │
 │  ┌──────────────────────────────────────────────────────────┐   │
 │  │ 1. Project owner creates project on ArdaNova                 │   │
-│  │ 2. Defines token parameters:                              │   │
+│  │ 2. Defines equity parameters:                             │   │
 │  │    • Total supply, decimals, symbol                      │   │
 │  │    • Allocation (founders, contributors, investors, etc) │   │
 │  │    • Vesting schedules                                    │   │
 │  │ 3. ASA created on Algorand                                │   │
 │  │ 4. Pitch generated via Gamma API                         │   │
-│  │ 5. ICO published for funding                              │   │
+│  │ 5. Campaign published for funding                         │   │
 │  │                                                           │   │
 │  │ Smart Contract: ICOFactory.py                            │   │
 │  │ • create_ico(params) -> asset_id                         │   │
@@ -402,8 +402,8 @@ interface ASAToken {
 │                              ▼                                   │
 │  PHASE 2: ACTIVE FUNDING                                        │
 │  ┌──────────────────────────────────────────────────────────┐   │
-│  │ 1. Users purchase tokens:                                 │   │
-│  │    • Via stable coin (platform's USDC-pegged token)       │   │
+│  │ 1. Users purchase shares:                                 │   │
+│  │    • Via digital currency (platform's USDC-pegged asset)  │   │
 │  │    • Via direct ALGO                                      │   │
 │  │    • Via other project tokens (cross-investment)         │   │
 │  │ 2. Contributors earn tokens:                              │   │

@@ -38,11 +38,12 @@ public class OpportunitiesController : ControllerBase
         [FromQuery] OpportunityStatus? status,
         [FromQuery] ExperienceLevel? experienceLevel,
         [FromQuery] string? skills,
+        [FromQuery] string? sourceType,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 10,
         CancellationToken ct = default)
     {
-        var result = await _opportunityService.SearchAsync(searchTerm, type, status, experienceLevel, skills, page, pageSize, ct);
+        var result = await _opportunityService.SearchAsync(searchTerm, type, status, experienceLevel, skills, sourceType, page, pageSize, ct);
         return ToActionResult(result);
     }
 
@@ -64,6 +65,27 @@ public class OpportunitiesController : ControllerBase
     public async Task<IActionResult> GetByPosterId(string posterId, CancellationToken ct)
     {
         var result = await _opportunityService.GetByPosterIdAsync(posterId, ct);
+        return ToActionResult(result);
+    }
+
+    [HttpGet("guild/{guildId}")]
+    public async Task<IActionResult> GetByGuildId(string guildId, CancellationToken ct)
+    {
+        var result = await _opportunityService.GetByGuildIdAsync(guildId, ct);
+        return ToActionResult(result);
+    }
+
+    [HttpGet("project/{projectId}")]
+    public async Task<IActionResult> GetByProjectId(string projectId, CancellationToken ct)
+    {
+        var result = await _opportunityService.GetByProjectIdAsync(projectId, ct);
+        return ToActionResult(result);
+    }
+
+    [HttpGet("shop/{shopId}")]
+    public async Task<IActionResult> GetByShopId(string shopId, CancellationToken ct)
+    {
+        var result = await _opportunityService.GetByShopIdAsync(shopId, ct);
         return ToActionResult(result);
     }
 

@@ -30,7 +30,7 @@ public class Sprint
     public DateTime endDate { get; set; }
 
     [Precision(18, 8)]
-    public decimal? tokenBudget { get; set; }
+    public decimal? equityBudget { get; set; }
 
     public int? velocity { get; set; }
 

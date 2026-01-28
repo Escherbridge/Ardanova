@@ -67,4 +67,6 @@ public class Shop
 
     public virtual ICollection<Post> Posts { get; set; } = new List<Post>();
 
+    public virtual ICollection<Opportunity> Opportunities { get; set; } = new List<Opportunity>();
+
 }

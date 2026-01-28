@@ -14,6 +14,7 @@ import {
   ShoppingBag,
   Star,
   Info,
+  Briefcase,
   Loader2,
   Edit,
   Trash2,
@@ -39,11 +40,13 @@ import {
   ProductsTab,
   ReviewsTab,
   AboutTab,
+  OpportunitiesTab,
 } from "~/components/shops";
 
 const tabs = [
   { id: "overview", label: "Overview", icon: Info },
   { id: "products", label: "Products", icon: ShoppingBag },
+  { id: "opportunities", label: "Opportunities", icon: Briefcase },
   { id: "reviews", label: "Reviews", icon: Star },
   { id: "about", label: "About", icon: Store },
 ];
@@ -269,6 +272,7 @@ export default function ShopDetailPage() {
       <div className="max-w-4xl mx-auto px-4 py-6">
         {activeTab === "overview" && <OverviewTab shop={shop} />}
         {activeTab === "products" && <ProductsTab shopId={shop.id} isOwner={isOwner} />}
+        {activeTab === "opportunities" && <OpportunitiesTab shopId={shop.id} shopSlug={slug} isOwner={isOwner} />}
         {activeTab === "reviews" && <ReviewsTab shopId={shop.id} />}
         {activeTab === "about" && <AboutTab shop={shop} />}
       </div>

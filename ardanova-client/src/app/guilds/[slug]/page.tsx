@@ -37,6 +37,7 @@ import {
   MembersTab,
   ProjectsTab,
   ReviewsTab,
+  OpportunitiesTab,
 } from "~/components/guilds";
 
 const tabs = [
@@ -44,6 +45,7 @@ const tabs = [
   { id: "updates", label: "Updates", icon: Bell },
   { id: "members", label: "Members", icon: Users },
   { id: "projects", label: "Projects", icon: Briefcase },
+  { id: "opportunities", label: "Opportunities", icon: Briefcase },
   { id: "reviews", label: "Reviews", icon: Star },
 ];
 
@@ -66,6 +68,10 @@ export default function GuildDetailPage() {
   // Determine if current user is owner
   const currentUserId = session?.user?.id;
   const isOwner = !!currentUserId && guild?.ownerId === currentUserId;
+
+  // Determine user's role in guild from members list
+  const userMember = members?.find((m: any) => m.userId === currentUserId);
+  const userRole = userMember?.role;
 
   if (isLoading) {
     return (
@@ -271,6 +277,7 @@ export default function GuildDetailPage() {
         {activeTab === "updates" && <UpdatesTab guildId={guild.id} isOwner={isOwner} />}
         {activeTab === "members" && <MembersTab guildId={guild.id} isOwner={isOwner} />}
         {activeTab === "projects" && <ProjectsTab guildId={guild.id} />}
+        {activeTab === "opportunities" && <OpportunitiesTab guildId={guild.id} guildSlug={slug} isOwner={isOwner} userRole={userRole} />}
         {activeTab === "reviews" && <ReviewsTab guildId={guild.id} isOwner={isOwner} currentUserId={currentUserId} />}
       </div>
     </div>

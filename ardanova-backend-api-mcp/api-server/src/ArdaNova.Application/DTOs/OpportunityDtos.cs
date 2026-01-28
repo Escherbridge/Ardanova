@@ -30,6 +30,8 @@ public record OpportunityDto
     public string? ProjectId { get; init; }
     public string? TaskId { get; init; }
     public OpportunityPosterDto? Poster { get; init; }
+    public string? ShopId { get; init; }
+    public OpportunitySourceDto? Source { get; init; }
 }
 
 public record OpportunityPosterDto
@@ -37,6 +39,15 @@ public record OpportunityPosterDto
     public string Id { get; init; } = null!;
     public string? Name { get; init; }
     public string? Image { get; init; }
+}
+
+public record OpportunitySourceDto
+{
+    public string Type { get; init; } = null!; // "guild" | "project" | "shop"
+    public string Id { get; init; } = null!;
+    public string Name { get; init; } = null!;
+    public string? Logo { get; init; }
+    public string Slug { get; init; } = null!;
 }
 
 public record CreateOpportunityDto
@@ -59,6 +70,7 @@ public record CreateOpportunityDto
     public string? GuildId { get; init; }
     public string? ProjectId { get; init; }
     public string? TaskId { get; init; }
+    public string? ShopId { get; init; }
 }
 
 public record UpdateOpportunityDto

@@ -24,7 +24,7 @@ public class DelegatedVote
     public string delegateeId { get; set; } = string.Empty;
 
     [Required]
-    public string tokenId { get; set; } = string.Empty;
+    public string shareId { get; set; } = string.Empty;
 
     [Required]
     [Precision(18, 8)]
@@ -51,7 +51,7 @@ public class DelegatedVote
     [InverseProperty("DelegatedVotesAsDelegatee")]
     public virtual User? Delegatee { get; set; }
 
-    [ForeignKey("tokenId")]
-    public virtual ProjectToken? Token { get; set; }
+    [ForeignKey("shareId")]
+    public virtual ProjectShare? Share { get; set; }
 
 }

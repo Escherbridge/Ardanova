@@ -61,8 +61,8 @@ enum NotificationType {
   ACHIEVEMENT_EARNED
   LEVEL_UP
   STREAK_MILESTONE
-  TOKEN_RECEIVED
-  TOKEN_VESTED
+  SHARES_RECEIVED
+  SHARES_VESTED
   ESCROW_FUNDED
   ESCROW_RELEASED
   PROJECT_INVITATION
@@ -154,7 +154,7 @@ enum LeaderboardPeriod {
 enum LeaderboardCategory {
   XP
   TASKS_COMPLETED
-  TOKENS_EARNED
+  SHARES_EARNED
   PROPOSALS_CREATED
   VOTES_CAST
   PROJECTS_FUNDED
@@ -328,8 +328,8 @@ enum ProjectRole {
 }
 
 enum CompensationModel {
-  FIXED_TOKEN
-  HOURLY_TOKEN
+  FIXED_SHARES
+  HOURLY_SHARES
   EQUITY_PERCENT
   HYBRID
   BOUNTY
@@ -350,7 +350,7 @@ enum ProposalType {
   OPERATIONAL
   EMERGENCY
   CONSTITUTIONAL
-  TOKEN
+  SHARES
 }
 
 enum ProposalStatus {
@@ -449,7 +449,7 @@ enum VestingFrequency {
   QUARTERLY
 }
 
-enum ICOStatus {
+enum FundraisingStatus {
   PENDING
   ACTIVE
   SUCCESSFUL
@@ -677,11 +677,11 @@ model User {
   inventoryItems InventoryItem[] @relation("InventoryItem_userId")
   marketingCampaigns MarketingCampaign[] @relation("MarketingCampaign_userId")
   projectEquities ProjectEquity[] @relation("ProjectEquity_userId")
-  tokenHolders TokenHolder[] @relation("TokenHolder_userId")
-  iCOContributions ICOContribution[] @relation("ICOContribution_userId")
+  shareHolders ShareHolder[] @relation("ShareHolder_userId")
+  fundraisingContributions FundraisingContribution[] @relation("FundraisingContribution_userId")
   wallets Wallet[] @relation("Wallet_userId")
   taskEscrows TaskEscrow[] @relation("TaskEscrow_funderId")
-  tokenSwaps TokenSwap[] @relation("TokenSwap_userId")
+  shareSwaps ShareSwap[] @relation("ShareSwap_userId")
   liquidityProviders LiquidityProvider[] @relation("LiquidityProvider_userId")
   posts Post[] @relation("Post_authorId")
   postLikes PostLike[] @relation("PostLike_userId")
@@ -780,7 +780,7 @@ model Achievement {
   category AchievementCategory
   criteria Json
   xpReward Int
-  tokenReward Decimal? @db.Decimal(18, 8)
+  equityReward Decimal? @db.Decimal(18, 8)
   rarity AchievementRarity @default(COMMON)
   icon String?
   isActive Boolean @default(true)
@@ -839,7 +839,7 @@ model Referral {
   status ReferralStatus @default(PENDING)
   rewardClaimed Boolean @default(false)
   xpRewarded Int?
-  tokenRewarded Decimal? @db.Decimal(18, 8)
+  equityRewarded Decimal? @db.Decimal(18, 8)
   createdAt DateTime @default(now())
   completedAt DateTime?
   referrer User @relation("Referral_referrerId", fields: [referrerId], references: [id])
@@ -897,7 +897,7 @@ model Project {
   proposals Proposal[] @relation("Proposal_projectId")
   delegatedVotes DelegatedVote[] @relation("DelegatedVote_projectId")
   projectBids ProjectBid[] @relation("ProjectBid_projectId")
-  projectTokens ProjectToken[] @relation("ProjectToken_projectId")
+  projectShares ProjectShare[] @relation("ProjectShare_projectId")
   projectEquities ProjectEquity[] @relation("ProjectEquity_projectId")
   treasuries Treasury[] @relation("Treasury_projectId")
   posts Post[] @relation("Post_projectId")
@@ -918,7 +918,7 @@ model ProjectTask {
   taskType TaskType @default(FEATURE)
   estimatedHours Int?
   actualHours Int?
-  tokenReward Decimal? @db.Decimal(18, 8)
+  equityReward Decimal? @db.Decimal(18, 8)
   escrowStatus EscrowStatus @default(NONE)
   dueDate DateTime?
   completedAt DateTime?
@@ -1105,7 +1105,7 @@ model Epic {
   description String? @db.Text
   status EpicStatus @default(PLANNED)
   priority Priority @default(MEDIUM)
-  tokenBudget Decimal? @db.Decimal(18, 8)
+  equityBudget Decimal? @db.Decimal(18, 8)
   progress Int @default(0)
   startDate DateTime?
   targetDate DateTime?
@@ -1124,7 +1124,7 @@ model Sprint {
   goal String? @db.Text
   startDate DateTime
   endDate DateTime
-  tokenBudget Decimal? @db.Decimal(18, 8)
+  equityBudget Decimal? @db.Decimal(18, 8)
   velocity Int?
   status SprintStatus @default(PLANNED)
   createdAt DateTime @default(now())
@@ -1184,7 +1184,7 @@ model ProjectMember {
   projectId String
   userId String
   role ProjectRole @default(OBSERVER)
-  tokenBalance Decimal @default(0) @db.Decimal(18, 8)
+  shareBalance Decimal @default(0) @db.Decimal(18, 8)
   votingPower Decimal @default(0) @db.Decimal(18, 8)
   joinedAt DateTime @default(now())
   invitedById String?
@@ -1195,8 +1195,8 @@ model ProjectMember {
 model TaskCompensation {
   id String @id @default(cuid())
   taskId String @unique
-  model CompensationModel @default(FIXED_TOKEN)
-  tokenAmount Decimal? @db.Decimal(18, 8)
+  compensationModel CompensationModel @default(FIXED_SHARES)
+  shareAmount Decimal? @db.Decimal(18, 8)
   hourlyRate Decimal? @db.Decimal(18, 8)
   equityPercent Decimal? @db.Decimal(18, 8)
   stableCoinAmount Decimal? @db.Decimal(18, 8)
@@ -1270,7 +1270,7 @@ model DelegatedVote {
   projectId String
   delegatorId String
   delegateeId String
-  tokenId String
+  shareId String
   amount Decimal @db.Decimal(18, 8)
   isActive Boolean @default(true)
   createdAt DateTime @default(now())
@@ -1279,7 +1279,7 @@ model DelegatedVote {
   project Project @relation("DelegatedVote_projectId", fields: [projectId], references: [id])
   delegator User @relation("DelegatedVote_delegatorId", fields: [delegatorId], references: [id])
   delegatee User @relation("DelegatedVote_delegateeId", fields: [delegateeId], references: [id])
-  token ProjectToken @relation("DelegatedVote_tokenId", fields: [tokenId], references: [id])
+  share ProjectShare @relation("DelegatedVote_shareId", fields: [shareId], references: [id])
 }
 
 model Guild {
@@ -1448,6 +1448,7 @@ model Shop {
   marketingCampaigns MarketingCampaign[] @relation("MarketingCampaign_shopId")
   shopAnalytics ShopAnalytics[] @relation("ShopAnalytics_shopId")
   posts Post[] @relation("Post_shopId")
+  opportunities Opportunity[] @relation("Opportunity_shopId")
 }
 
 model Product {
@@ -1565,7 +1566,7 @@ model ShopAnalytics {
   shop Shop @relation("ShopAnalytics_shopId", fields: [shopId], references: [id])
 }
 
-model ProjectToken {
+model ProjectShare {
   id String @id @default(cuid())
   projectId String @unique
   assetId String?
@@ -1579,15 +1580,15 @@ model ProjectToken {
   deployedAt DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  delegatedVotes DelegatedVote[] @relation("DelegatedVote_tokenId")
-  project Project @relation("ProjectToken_projectId", fields: [projectId], references: [id])
-  tokenHolders TokenHolder[] @relation("TokenHolder_tokenId")
-  iCOS ICO[] @relation("ICO_tokenId")
-  taskEscrows TaskEscrow[] @relation("TaskEscrow_tokenId")
-  tokenSwaps TokenSwap[] @relation("TokenSwap_fromTokenId")
-  tokenSwaps1 TokenSwap[] @relation("TokenSwap_toTokenId")
-  liquidityPools LiquidityPool[] @relation("LiquidityPool_token1Id")
-  liquidityPools1 LiquidityPool[] @relation("LiquidityPool_token2Id")
+  delegatedVotes DelegatedVote[] @relation("DelegatedVote_shareId")
+  project Project @relation("ProjectShare_projectId", fields: [projectId], references: [id])
+  shareHolders ShareHolder[] @relation("ShareHolder_shareId")
+  fundraisings Fundraising[] @relation("Fundraising_shareId")
+  taskEscrows TaskEscrow[] @relation("TaskEscrow_shareId")
+  shareSwaps ShareSwap[] @relation("ShareSwap_fromShareId")
+  shareSwaps1 ShareSwap[] @relation("ShareSwap_toShareId")
+  liquidityPools LiquidityPool[] @relation("LiquidityPool_share1Id")
+  liquidityPools1 LiquidityPool[] @relation("LiquidityPool_share2Id")
 }
 
 model ProjectEquity {
@@ -1605,7 +1606,7 @@ model Treasury {
   id String @id @default(cuid())
   projectId String @unique
   balance Decimal @default(0) @db.Decimal(18, 8)
-  tokenAssetId String?
+  shareAssetId String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   project Project @relation("Treasury_projectId", fields: [projectId], references: [id])
@@ -1624,21 +1625,21 @@ model TreasuryTransaction {
   treasury Treasury @relation("TreasuryTransaction_treasuryId", fields: [treasuryId], references: [id])
 }
 
-model TokenHolder {
+model ShareHolder {
   id String @id @default(cuid())
-  tokenId String
+  shareId String
   userId String
   balance Decimal @db.Decimal(18, 8)
   stakedAmount Decimal @default(0) @db.Decimal(18, 8)
   lockedAmount Decimal @default(0) @db.Decimal(18, 8)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  token ProjectToken @relation("TokenHolder_tokenId", fields: [tokenId], references: [id])
-  user User @relation("TokenHolder_userId", fields: [userId], references: [id])
-  tokenVestings TokenVesting[] @relation("TokenVesting_holderId")
+  share ProjectShare @relation("ShareHolder_shareId", fields: [shareId], references: [id])
+  user User @relation("ShareHolder_userId", fields: [userId], references: [id])
+  shareVestings ShareVesting[] @relation("ShareVesting_holderId")
 }
 
-model TokenVesting {
+model ShareVesting {
   id String @id @default(cuid())
   holderId String
   totalAmount Decimal @db.Decimal(18, 8)
@@ -1648,38 +1649,38 @@ model TokenVesting {
   vestingEnd DateTime
   releaseFrequency VestingFrequency @default(MONTHLY)
   createdAt DateTime @default(now())
-  holder TokenHolder @relation("TokenVesting_holderId", fields: [holderId], references: [id])
+  holder ShareHolder @relation("ShareVesting_holderId", fields: [holderId], references: [id])
 }
 
-model ICO {
+model Fundraising {
   id String @id @default(cuid())
-  tokenId String @unique
+  shareId String @unique
   fundingGoal Decimal @db.Decimal(18, 8)
   currentFunding Decimal @default(0) @db.Decimal(18, 8)
   minContribution Decimal? @db.Decimal(18, 8)
   maxContribution Decimal? @db.Decimal(18, 8)
-  tokenPrice Decimal @db.Decimal(18, 8)
+  sharePrice Decimal @db.Decimal(18, 8)
   startDate DateTime
   endDate DateTime
-  status ICOStatus @default(PENDING)
+  status FundraisingStatus @default(PENDING)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  token ProjectToken @relation("ICO_tokenId", fields: [tokenId], references: [id])
-  iCOContributions ICOContribution[] @relation("ICOContribution_icoId")
+  share ProjectShare @relation("Fundraising_shareId", fields: [shareId], references: [id])
+  fundraisingContributions FundraisingContribution[] @relation("FundraisingContribution_fundraisingId")
 }
 
-model ICOContribution {
+model FundraisingContribution {
   id String @id @default(cuid())
-  icoId String
+  fundraisingId String
   userId String
   amount Decimal @db.Decimal(18, 8)
-  tokenAmount Decimal @db.Decimal(18, 8)
+  shareAmount Decimal @db.Decimal(18, 8)
   paymentAsset String
   txHash String?
   status ContributionStatus @default(PENDING)
   createdAt DateTime @default(now())
-  ico ICO @relation("ICOContribution_icoId", fields: [icoId], references: [id])
-  user User @relation("ICOContribution_userId", fields: [userId], references: [id])
+  fundraising Fundraising @relation("FundraisingContribution_fundraisingId", fields: [fundraisingId], references: [id])
+  user User @relation("FundraisingContribution_userId", fields: [userId], references: [id])
 }
 
 model Wallet {
@@ -1699,7 +1700,7 @@ model TaskEscrow {
   id String @id @default(cuid())
   taskId String @unique
   funderId String
-  tokenId String
+  shareId String
   amount Decimal @db.Decimal(18, 8)
   status EscrowStatus @default(FUNDED)
   txHashFund String?
@@ -1711,14 +1712,14 @@ model TaskEscrow {
   refundedAt DateTime?
   task ProjectTask @relation("TaskEscrow_taskId", fields: [taskId], references: [id])
   funder User @relation("TaskEscrow_funderId", fields: [funderId], references: [id])
-  token ProjectToken @relation("TaskEscrow_tokenId", fields: [tokenId], references: [id])
+  share ProjectShare @relation("TaskEscrow_shareId", fields: [shareId], references: [id])
 }
 
-model TokenSwap {
+model ShareSwap {
   id String @id @default(cuid())
   userId String
-  fromTokenId String
-  toTokenId String
+  fromShareId String
+  toShareId String
   fromAmount Decimal @db.Decimal(18, 8)
   toAmount Decimal @db.Decimal(18, 8)
   exchangeRate Decimal @db.Decimal(18, 8)
@@ -1727,15 +1728,15 @@ model TokenSwap {
   status SwapStatus @default(PENDING)
   createdAt DateTime @default(now())
   completedAt DateTime?
-  user User @relation("TokenSwap_userId", fields: [userId], references: [id])
-  fromToken ProjectToken @relation("TokenSwap_fromTokenId", fields: [fromTokenId], references: [id])
-  toToken ProjectToken @relation("TokenSwap_toTokenId", fields: [toTokenId], references: [id])
+  user User @relation("ShareSwap_userId", fields: [userId], references: [id])
+  fromShare ProjectShare @relation("ShareSwap_fromShareId", fields: [fromShareId], references: [id])
+  toShare ProjectShare @relation("ShareSwap_toShareId", fields: [toShareId], references: [id])
 }
 
 model LiquidityPool {
   id String @id @default(cuid())
-  token1Id String
-  token2Id String
+  share1Id String
+  share2Id String
   reserve1 Decimal @default(0) @db.Decimal(18, 8)
   reserve2 Decimal @default(0) @db.Decimal(18, 8)
   totalShares Decimal @default(0) @db.Decimal(18, 8)
@@ -1743,8 +1744,8 @@ model LiquidityPool {
   isActive Boolean @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  token1 ProjectToken @relation("LiquidityPool_token1Id", fields: [token1Id], references: [id])
-  token2 ProjectToken @relation("LiquidityPool_token2Id", fields: [token2Id], references: [id])
+  share1 ProjectShare @relation("LiquidityPool_share1Id", fields: [share1Id], references: [id])
+  share2 ProjectShare @relation("LiquidityPool_share2Id", fields: [share2Id], references: [id])
   liquidityProviders LiquidityProvider[] @relation("LiquidityProvider_poolId")
 }
 
@@ -1753,8 +1754,8 @@ model LiquidityProvider {
   poolId String
   userId String
   shares Decimal @db.Decimal(18, 8)
-  token1In Decimal @default(0) @db.Decimal(18, 8)
-  token2In Decimal @default(0) @db.Decimal(18, 8)
+  share1In Decimal @default(0) @db.Decimal(18, 8)
+  share2In Decimal @default(0) @db.Decimal(18, 8)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   pool LiquidityPool @relation("LiquidityProvider_poolId", fields: [poolId], references: [id])
@@ -2001,10 +2002,12 @@ model Opportunity {
   posterId String
   guildId String?
   projectId String?
+  shopId String?
   taskId String?
   poster User @relation("Opportunity_posterId", fields: [posterId], references: [id])
   guild Guild? @relation("Opportunity_guildId", fields: [guildId], references: [id])
   project Project? @relation("Opportunity_projectId", fields: [projectId], references: [id])
+  shop Shop? @relation("Opportunity_shopId", fields: [shopId], references: [id])
   task ProjectTask? @relation("Opportunity_taskId", fields: [taskId], references: [id])
   opportunityApplications OpportunityApplication[] @relation("OpportunityApplication_opportunityId")
   opportunityUpdates OpportunityUpdate[] @relation("OpportunityUpdate_opportunityId")

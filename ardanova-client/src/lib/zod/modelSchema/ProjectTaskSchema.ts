@@ -21,7 +21,7 @@ export const ProjectTaskSchema = z.object({
   description: z.string().nullable(),
   estimatedHours: z.number().int().nullable(),
   actualHours: z.number().int().nullable(),
-  tokenReward: z.instanceof(Prisma.Decimal, { message: "Field 'tokenReward' must be a Decimal. Location: ['Models', 'ProjectTask']"}).nullable(),
+  equityReward: z.instanceof(Prisma.Decimal, { message: "Field 'equityReward' must be a Decimal. Location: ['Models', 'ProjectTask']"}).nullable(),
   dueDate: z.coerce.date().nullable(),
   completedAt: z.coerce.date().nullable(),
   createdAt: z.coerce.date(),

@@ -19,10 +19,10 @@ public class TaskCompensation
     public string taskId { get; set; } = string.Empty;
 
     [Required]
-    public CompensationModel model { get; set; }
+    public CompensationModel compensationModel { get; set; }
 
     [Precision(18, 8)]
-    public decimal? tokenAmount { get; set; }
+    public decimal? shareAmount { get; set; }
 
     [Precision(18, 8)]
     public decimal? hourlyRate { get; set; }

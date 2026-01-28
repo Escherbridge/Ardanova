@@ -9,7 +9,7 @@ export const TreasurySchema = z.object({
   id: z.string().cuid(),
   projectId: z.string(),
   balance: z.instanceof(Prisma.Decimal, { message: "Field 'balance' must be a Decimal. Location: ['Models', 'Treasury']"}),
-  tokenAssetId: z.string().nullable(),
+  shareAssetId: z.string().nullable(),
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date(),
 })

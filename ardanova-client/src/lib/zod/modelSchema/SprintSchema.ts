@@ -14,7 +14,7 @@ export const SprintSchema = z.object({
   goal: z.string().nullable(),
   startDate: z.coerce.date(),
   endDate: z.coerce.date(),
-  tokenBudget: z.instanceof(Prisma.Decimal, { message: "Field 'tokenBudget' must be a Decimal. Location: ['Models', 'Sprint']"}).nullable(),
+  equityBudget: z.instanceof(Prisma.Decimal, { message: "Field 'equityBudget' must be a Decimal. Location: ['Models', 'Sprint']"}).nullable(),
   velocity: z.number().int().nullable(),
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date(),

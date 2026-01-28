@@ -16,7 +16,7 @@ export const AchievementSchema = z.object({
   description: z.string(),
   criteria: JsonValueSchema,
   xpReward: z.number().int(),
-  tokenReward: z.instanceof(Prisma.Decimal, { message: "Field 'tokenReward' must be a Decimal. Location: ['Models', 'Achievement']"}).nullable(),
+  equityReward: z.instanceof(Prisma.Decimal, { message: "Field 'equityReward' must be a Decimal. Location: ['Models', 'Achievement']"}).nullable(),
   icon: z.string().nullable(),
   isActive: z.boolean(),
   createdAt: z.coerce.date(),

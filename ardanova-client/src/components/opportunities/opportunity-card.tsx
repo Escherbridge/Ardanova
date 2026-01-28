@@ -9,6 +9,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
+import { SourceBadge } from "./source-badge";
 
 interface OpportunityCardProps {
   opportunity: {
@@ -34,6 +35,13 @@ interface OpportunityCardProps {
     // Optional: project or guild name for context
     projectId?: string;
     guildId?: string;
+    source?: {
+      type: "guild" | "project" | "shop";
+      id: string;
+      name: string;
+      logo?: string | null;
+      slug: string;
+    };
   };
 }
 
@@ -127,6 +135,14 @@ export default function OpportunityCard({ opportunity }: OpportunityCardProps) {
                 {opportunity.type}
               </Badge>
             </div>
+
+            {/* Source Badge */}
+            {opportunity.source && (
+              <div className="mt-2 flex items-center gap-2">
+                <span className="text-xs text-muted-foreground">from</span>
+                <SourceBadge source={opportunity.source} />
+              </div>
+            )}
           </div>
         </div>
 

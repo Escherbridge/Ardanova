@@ -8,7 +8,6 @@ import {
   Users,
   TrendingUp,
   Briefcase,
-  Plus,
   MessageCircle,
   Share2,
   Bookmark,
@@ -109,6 +108,13 @@ const locationFilters = [
   { id: "onsite", label: "On-site" },
 ];
 
+const sourceFilters = [
+  { id: "all", label: "All Sources" },
+  { id: "guild", label: "Guilds" },
+  { id: "project", label: "Projects" },
+  { id: "shop", label: "Shops" },
+];
+
 export default function OpportunitiesPage() {
   const [activeTab, setActiveTab] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
@@ -117,10 +123,12 @@ export default function OpportunitiesPage() {
   const [selectedExperience, setSelectedExperience] = useState("all");
   const [selectedCompensation, setSelectedCompensation] = useState("all");
   const [selectedLocation, setSelectedLocation] = useState("all");
+  const [selectedSource, setSelectedSource] = useState<"all" | "guild" | "project" | "shop">("all");
 
   // Fetch opportunities from API
   const { data: opportunitiesResult, isLoading } = api.opportunity.getAll.useQuery({
     limit: 50,
+    ...(selectedSource !== "all" && { sourceType: selectedSource }),
   });
 
   const opportunities = opportunitiesResult?.items || [];
@@ -169,7 +177,8 @@ export default function OpportunitiesPage() {
     selectedType !== "all" ||
     selectedExperience !== "all" ||
     selectedCompensation !== "all" ||
-    selectedLocation !== "all";
+    selectedLocation !== "all" ||
+    selectedSource !== "all";
 
   const clearFilters = () => {
     setSearchQuery("");
@@ -177,13 +186,15 @@ export default function OpportunitiesPage() {
     setSelectedExperience("all");
     setSelectedCompensation("all");
     setSelectedLocation("all");
+    setSelectedSource("all");
   };
 
   const activeFilterCount =
     (selectedType !== "all" ? 1 : 0) +
     (selectedExperience !== "all" ? 1 : 0) +
     (selectedCompensation !== "all" ? 1 : 0) +
-    (selectedLocation !== "all" ? 1 : 0);
+    (selectedLocation !== "all" ? 1 : 0) +
+    (selectedSource !== "all" ? 1 : 0);
 
   // Stats for sidebar
   const stats = {
@@ -209,12 +220,9 @@ export default function OpportunitiesPage() {
                 <Briefcase className="size-5 text-primary" />
                 Opportunities
               </h1>
-              <Button variant="neon" size="sm" asChild>
-                <Link href="/opportunities/create">
-                  <Plus className="size-4 mr-2" />
-                  Post Job
-                </Link>
-              </Button>
+              <span className="text-xs text-muted-foreground">
+                From guilds, projects & shops
+              </span>
             </div>
 
             {/* Search */}
@@ -257,6 +265,24 @@ export default function OpportunitiesPage() {
             {showFilters && (
               <div className="px-4 pb-4 space-y-3 border-t border-border pt-3">
                 <div className="grid grid-cols-2 gap-3">
+                  {/* Source Filter */}
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1.5 block">
+                      Source
+                    </label>
+                    <select
+                      value={selectedSource}
+                      onChange={(e) => setSelectedSource(e.target.value as "all" | "guild" | "project" | "shop")}
+                      className="w-full px-3 py-2 bg-card border-2 border-border text-foreground text-sm focus:border-primary focus:outline-none appearance-none cursor-pointer"
+                    >
+                      {sourceFilters.map((filter) => (
+                        <option key={filter.id} value={filter.id}>
+                          {filter.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
                   {/* Type Filter */}
                   <div>
                     <label className="text-xs text-muted-foreground mb-1.5 block">
@@ -337,6 +363,14 @@ export default function OpportunitiesPage() {
                         <Badge variant="secondary" size="sm" className="gap-1">
                           Search: {searchQuery}
                           <button onClick={() => setSearchQuery("")}>
+                            <X className="size-3" />
+                          </button>
+                        </Badge>
+                      )}
+                      {selectedSource !== "all" && (
+                        <Badge variant="secondary" size="sm" className="gap-1">
+                          {sourceFilters.find((f) => f.id === selectedSource)?.label}
+                          <button onClick={() => setSelectedSource("all")}>
                             <X className="size-3" />
                           </button>
                         </Badge>
@@ -423,13 +457,9 @@ export default function OpportunitiesPage() {
               <div className="flex flex-col items-center justify-center py-20 px-4">
                 <Briefcase className="size-12 text-muted-foreground mb-4" />
                 <p className="text-lg font-medium text-foreground">No opportunities found</p>
-                <p className="text-muted-foreground mt-1">Be the first to post one!</p>
-                <Button variant="neon" className="mt-4" asChild>
-                  <Link href="/opportunities/create">
-                    <Plus className="size-4 mr-2" />
-                    Post Job
-                  </Link>
-                </Button>
+                <p className="text-muted-foreground mt-1 text-center max-w-sm">
+                  Opportunities are posted by guilds, projects, and shops recruiting new members.
+                </p>
               </div>
             ) : (
               filteredOpportunities.map((opportunity) => (

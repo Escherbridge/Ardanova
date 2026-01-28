@@ -87,6 +87,25 @@ export const guildRouter = createTRPCRouter({
     return response.data;
   }),
 
+  // Get user's guilds (as owner or with ADMIN/RECRUITER role)
+  getMyGuilds: protectedProcedure.query(async ({ ctx }) => {
+    const userId = ctx.session.user.id;
+    const guilds = [];
+
+    // Get guild where user is owner
+    const ownedGuildResponse = await apiClient.guilds.getByOwnerId(userId);
+    if (ownedGuildResponse.data) {
+      guilds.push(ownedGuildResponse.data);
+    }
+
+    // Note: Currently no backend endpoint to efficiently get guilds by member role.
+    // If needed in the future, add an API endpoint like:
+    // GET /api/guilds/member/{userId}?roles=ADMIN,RECRUITER
+    // For now, this returns guilds where user is owner.
+
+    return guilds;
+  }),
+
   // Get verified guilds
   getVerified: publicProcedure.query(async () => {
     const response = await apiClient.guilds.getVerified();

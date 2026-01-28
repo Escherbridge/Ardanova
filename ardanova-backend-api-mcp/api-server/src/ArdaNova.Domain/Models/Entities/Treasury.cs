@@ -22,7 +22,7 @@ public class Treasury
     [Precision(18, 8)]
     public decimal balance { get; set; }
 
-    public string? tokenAssetId { get; set; }
+    public string? shareAssetId { get; set; }
 
     [Required]
     public DateTime createdAt { get; set; }

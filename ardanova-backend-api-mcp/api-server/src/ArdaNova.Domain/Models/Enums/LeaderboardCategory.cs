@@ -4,7 +4,7 @@ public enum LeaderboardCategory
 {
     XP,
     TASKS_COMPLETED,
-    TOKENS_EARNED,
+    SHARES_EARNED,
     PROPOSALS_CREATED,
     VOTES_CAST,
     PROJECTS_FUNDED

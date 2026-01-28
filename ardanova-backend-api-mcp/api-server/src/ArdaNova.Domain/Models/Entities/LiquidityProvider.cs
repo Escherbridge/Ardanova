@@ -26,11 +26,11 @@ public class LiquidityProvider
 
     [Required]
     [Precision(18, 8)]
-    public decimal token1In { get; set; }
+    public decimal share1In { get; set; }
 
     [Required]
     [Precision(18, 8)]
-    public decimal token2In { get; set; }
+    public decimal share2In { get; set; }
 
     [Required]
     public DateTime createdAt { get; set; }
