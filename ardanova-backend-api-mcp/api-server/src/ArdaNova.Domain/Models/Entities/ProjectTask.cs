@@ -71,6 +71,8 @@ public class ProjectTask
 
     public virtual ICollection<TaskSubmission> TaskSubmissions { get; set; } = new List<TaskSubmission>();
 
+    public virtual ICollection<TaskBid> TaskBids { get; set; } = new List<TaskBid>();
+
     public virtual ICollection<TaskEscrow> TaskEscrows { get; set; } = new List<TaskEscrow>();
 
     public virtual ICollection<Opportunity> Opportunities { get; set; } = new List<Opportunity>();

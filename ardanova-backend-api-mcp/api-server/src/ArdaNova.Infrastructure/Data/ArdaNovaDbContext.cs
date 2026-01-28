@@ -123,6 +123,11 @@ public class ArdaNovaDbContext : DbContext
     public DbSet<GuildFollow> GuildFollows => Set<GuildFollow>();
     public DbSet<Opportunity> Opportunities => Set<Opportunity>();
     public DbSet<OpportunityApplication> OpportunityApplications => Set<OpportunityApplication>();
+    public DbSet<OpportunityUpdate> OpportunityUpdates => Set<OpportunityUpdate>();
+    public DbSet<OpportunityComment> OpportunityComments => Set<OpportunityComment>();
+    public DbSet<GuildUpdate> GuildUpdates => Set<GuildUpdate>();
+    public DbSet<TaskBid> TaskBids => Set<TaskBid>();
+
 
 
 

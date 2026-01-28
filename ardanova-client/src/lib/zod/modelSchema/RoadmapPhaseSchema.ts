@@ -16,6 +16,7 @@ export const RoadmapPhaseSchema = z.object({
   endDate: z.coerce.date().nullable(),
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date(),
+  assigneeId: z.string().nullable(),
 })
 
 export type RoadmapPhase = z.infer<typeof RoadmapPhaseSchema>

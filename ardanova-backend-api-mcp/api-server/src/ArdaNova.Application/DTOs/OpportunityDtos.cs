@@ -116,3 +116,63 @@ public record UpdateApplicationStatusDto
     public required ApplicationStatus Status { get; init; }
     public string? ReviewNotes { get; init; }
 }
+
+// ===== Opportunity Updates =====
+
+public record OpportunityUpdateDto
+{
+    public string Id { get; init; } = null!;
+    public string OpportunityId { get; init; } = null!;
+    public string UserId { get; init; } = null!;
+    public string Title { get; init; } = null!;
+    public string Content { get; init; } = null!;
+    public string? Images { get; init; }
+    public DateTime CreatedAt { get; init; }
+    public OpportunityUpdateAuthorDto? User { get; init; }
+}
+
+public record OpportunityUpdateAuthorDto
+{
+    public string Id { get; init; } = null!;
+    public string? Name { get; init; }
+    public string? Image { get; init; }
+}
+
+public record CreateOpportunityUpdateDto
+{
+    public required string OpportunityId { get; init; }
+    public required string UserId { get; init; }
+    public required string Title { get; init; }
+    public required string Content { get; init; }
+    public string? Images { get; init; }
+}
+
+// ===== Opportunity Comments =====
+
+public record OpportunityCommentDto
+{
+    public string Id { get; init; } = null!;
+    public string OpportunityId { get; init; } = null!;
+    public string UserId { get; init; } = null!;
+    public string Content { get; init; } = null!;
+    public string? ParentId { get; init; }
+    public DateTime CreatedAt { get; init; }
+    public DateTime UpdatedAt { get; init; }
+    public OpportunityCommentAuthorDto? Author { get; init; }
+}
+
+public record OpportunityCommentAuthorDto
+{
+    public string Id { get; init; } = null!;
+    public string? Name { get; init; }
+    public string? Image { get; init; }
+    public string? Email { get; init; }
+}
+
+public record CreateOpportunityCommentDto
+{
+    public required string OpportunityId { get; init; }
+    public required string UserId { get; init; }
+    public required string Content { get; init; }
+    public string? ParentId { get; init; }
+}

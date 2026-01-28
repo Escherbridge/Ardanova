@@ -20,6 +20,7 @@ export const EpicSchema = z.object({
   targetDate: z.coerce.date().nullable(),
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date(),
+  assigneeId: z.string().nullable(),
 })
 
 export type Epic = z.infer<typeof EpicSchema>

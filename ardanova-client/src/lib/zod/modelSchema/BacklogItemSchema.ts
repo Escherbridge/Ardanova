@@ -16,6 +16,7 @@ export const BacklogItemSchema = z.object({
   estimate: z.number().int().nullable(),
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date(),
+  assigneeId: z.string().nullable(),
 })
 
 export type BacklogItem = z.infer<typeof BacklogItemSchema>

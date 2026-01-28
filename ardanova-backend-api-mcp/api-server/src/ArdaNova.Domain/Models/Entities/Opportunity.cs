@@ -93,4 +93,8 @@ public class Opportunity
 
     public virtual ICollection<OpportunityApplication> OpportunityApplications { get; set; } = new List<OpportunityApplication>();
 
+    public virtual ICollection<OpportunityUpdate> OpportunityUpdates { get; set; } = new List<OpportunityUpdate>();
+
+    public virtual ICollection<OpportunityComment> OpportunityComments { get; set; } = new List<OpportunityComment>();
+
 }

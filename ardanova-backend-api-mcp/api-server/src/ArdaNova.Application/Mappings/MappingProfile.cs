@@ -243,6 +243,37 @@ public class MappingProfile : Profile
             .ForMember(dest => dest.Image, opt => opt.MapFrom(src => src.image))
             .ForMember(dest => dest.Email, opt => opt.MapFrom(src => src.email));
 
+        // Opportunity Update mappings
+        CreateMap<OpportunityUpdate, OpportunityUpdateDto>()
+            .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.id))
+            .ForMember(dest => dest.OpportunityId, opt => opt.MapFrom(src => src.opportunityId))
+            .ForMember(dest => dest.UserId, opt => opt.MapFrom(src => src.userId))
+            .ForMember(dest => dest.Title, opt => opt.MapFrom(src => src.title))
+            .ForMember(dest => dest.Content, opt => opt.MapFrom(src => src.content))
+            .ForMember(dest => dest.Images, opt => opt.MapFrom(src => src.images))
+            .ForMember(dest => dest.CreatedAt, opt => opt.MapFrom(src => src.createdAt))
+            .ForMember(dest => dest.User, opt => opt.Ignore());
+        CreateMap<User, OpportunityUpdateAuthorDto>()
+            .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.id))
+            .ForMember(dest => dest.Name, opt => opt.MapFrom(src => src.name))
+            .ForMember(dest => dest.Image, opt => opt.MapFrom(src => src.image));
+
+        // Opportunity Comment mappings
+        CreateMap<OpportunityComment, OpportunityCommentDto>()
+            .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.id))
+            .ForMember(dest => dest.OpportunityId, opt => opt.MapFrom(src => src.opportunityId))
+            .ForMember(dest => dest.UserId, opt => opt.MapFrom(src => src.userId))
+            .ForMember(dest => dest.Content, opt => opt.MapFrom(src => src.content))
+            .ForMember(dest => dest.ParentId, opt => opt.MapFrom(src => src.parentId))
+            .ForMember(dest => dest.CreatedAt, opt => opt.MapFrom(src => src.createdAt))
+            .ForMember(dest => dest.UpdatedAt, opt => opt.MapFrom(src => src.updatedAt))
+            .ForMember(dest => dest.Author, opt => opt.Ignore());
+        CreateMap<User, OpportunityCommentAuthorDto>()
+            .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.id))
+            .ForMember(dest => dest.Name, opt => opt.MapFrom(src => src.name))
+            .ForMember(dest => dest.Image, opt => opt.MapFrom(src => src.image))
+            .ForMember(dest => dest.Email, opt => opt.MapFrom(src => src.email));
+
         // Governance mappings (entity Proposal -> DTO ProposalDto)
         CreateMap<Proposal, ProposalDto>()
             .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.id))

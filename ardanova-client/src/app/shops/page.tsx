@@ -33,6 +33,7 @@ import {
   DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
 import { cn } from "~/lib/utils";
+import { api } from "~/trpc/react";
 
 // Feed tabs for shops
 const shopTabs = [
@@ -44,41 +45,33 @@ const shopTabs = [
 
 // Category badge variants
 const categoryVariants: Record<string, "neon" | "neon-pink" | "neon-green" | "neon-purple" | "warning" | "secondary"> = {
-  "Technology": "neon",
-  "Design": "neon-pink",
-  "Sustainability": "neon-green",
-  "Handmade": "neon-purple",
-  "Digital": "neon",
-  "Services": "warning",
-  "Food": "neon-green",
-  "Fashion": "neon-pink",
+  "RETAIL": "neon",
+  "SERVICES": "warning",
+  "DIGITAL_PRODUCTS": "neon",
+  "FOOD_BEVERAGE": "neon-green",
+  "HEALTH_WELLNESS": "neon-pink",
+  "TECHNOLOGY": "neon",
+  "FASHION": "neon-pink",
+  "HOME_GARDEN": "neon-green",
+  "ARTS_CRAFTS": "neon-purple",
+  "EDUCATION": "neon-purple",
+  "OTHER": "secondary",
 };
 
 // Filter options
 const categoryFilters = [
   { id: "all", label: "All Categories" },
-  { id: "Technology", label: "Technology" },
-  { id: "Design", label: "Design" },
-  { id: "Sustainability", label: "Sustainability" },
-  { id: "Handmade", label: "Handmade" },
-  { id: "Digital", label: "Digital" },
-  { id: "Services", label: "Services" },
-  { id: "Food", label: "Food" },
-  { id: "Fashion", label: "Fashion" },
-];
-
-const ratingFilters = [
-  { id: "all", label: "Any Rating" },
-  { id: "4.5+", label: "4.5+ Stars" },
-  { id: "4+", label: "4+ Stars" },
-  { id: "3+", label: "3+ Stars" },
-];
-
-const productsFilters = [
-  { id: "all", label: "Any Products" },
-  { id: "10+", label: "10+ Products" },
-  { id: "25+", label: "25+ Products" },
-  { id: "50+", label: "50+ Products" },
+  { id: "RETAIL", label: "Retail" },
+  { id: "SERVICES", label: "Services" },
+  { id: "DIGITAL_PRODUCTS", label: "Digital Products" },
+  { id: "FOOD_BEVERAGE", label: "Food & Beverage" },
+  { id: "HEALTH_WELLNESS", label: "Health & Wellness" },
+  { id: "TECHNOLOGY", label: "Technology" },
+  { id: "FASHION", label: "Fashion" },
+  { id: "HOME_GARDEN", label: "Home & Garden" },
+  { id: "ARTS_CRAFTS", label: "Arts & Crafts" },
+  { id: "EDUCATION", label: "Education" },
+  { id: "OTHER", label: "Other" },
 ];
 
 const timeFilters = [
@@ -88,81 +81,19 @@ const timeFilters = [
   { id: "quarter", label: "This Quarter" },
 ];
 
-// Sample shop data
-const sampleShops = [
-  {
-    id: "s1",
-    name: "Eco Products Store",
-    slug: "eco-products-store",
-    description: "Sustainable and eco-friendly products from our community projects. We offer a range of items from recycled materials to organic produce.",
-    owner: { id: "u1", name: "Sarah Chen", avatar: "https://i.pravatar.cc/150?u=sarah" },
-    category: "Sustainability",
-    productsCount: 24,
-    rating: 4.8,
-    reviewsCount: 156,
-    isActive: true,
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 30),
-  },
-  {
-    id: "s2",
-    name: "Tech Gadgets Hub",
-    slug: "tech-gadgets-hub",
-    description: "Innovative tech products built by our developer community. From smart home devices to productivity tools.",
-    owner: { id: "u7", name: "David Park", avatar: "https://i.pravatar.cc/150?u=david" },
-    category: "Technology",
-    productsCount: 15,
-    rating: 4.5,
-    reviewsCount: 89,
-    isActive: true,
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 45),
-  },
-  {
-    id: "s3",
-    name: "Design Resources",
-    slug: "design-resources",
-    description: "Premium templates, icons, and design assets created by the Design Guild. Perfect for startups and projects.",
-    owner: { id: "u6", name: "Emma Watson", avatar: "https://i.pravatar.cc/150?u=emma" },
-    category: "Design",
-    productsCount: 42,
-    rating: 4.9,
-    reviewsCount: 234,
-    isActive: true,
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 60),
-  },
-  {
-    id: "s4",
-    name: "Handcrafted Goods",
-    slug: "handcrafted-goods",
-    description: "Unique handmade items from local artisans. Each piece tells a story and supports community craftspeople.",
-    owner: { id: "u8", name: "Lisa Chen", avatar: "https://i.pravatar.cc/150?u=lisa" },
-    category: "Handmade",
-    productsCount: 67,
-    rating: 4.7,
-    reviewsCount: 178,
-    isActive: true,
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 15),
-  },
-];
-
 function formatRelativeTime(date: Date): string {
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
-  const diffDay = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  const diffSec = Math.floor(diffMs / 1000);
+  const diffMin = Math.floor(diffSec / 60);
+  const diffHour = Math.floor(diffMin / 60);
+  const diffDay = Math.floor(diffHour / 24);
 
-  if (diffDay === 0) return "Today";
-  if (diffDay === 1) return "Yesterday";
+  if (diffSec < 60) return "just now";
+  if (diffMin < 60) return `${diffMin}m ago`;
+  if (diffHour < 24) return `${diffHour}h ago`;
   if (diffDay < 7) return `${diffDay}d ago`;
-  if (diffDay < 30) return `${Math.floor(diffDay / 7)}w ago`;
-  return `${Math.floor(diffDay / 30)}mo ago`;
-}
-
-function renderRating(rating: number) {
-  return (
-    <div className="flex items-center gap-1 text-sm">
-      <Star className="size-4 fill-neon-yellow text-neon-yellow" />
-      <span className="font-medium text-foreground">{rating.toFixed(1)}</span>
-    </div>
-  );
+  return date.toLocaleDateString();
 }
 
 export default function ShopsPage() {
@@ -170,41 +101,31 @@ export default function ShopsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [showFilters, setShowFilters] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState("all");
-  const [selectedRating, setSelectedRating] = useState("all");
-  const [selectedProducts, setSelectedProducts] = useState("all");
   const [selectedTime, setSelectedTime] = useState("all");
 
+  // Fetch shops from API
+  const { data: shopsResult, isLoading } = api.shop.getAll.useQuery({
+    limit: 50,
+  });
+
+  const shops = shopsResult?.items || [];
+
   // Filter shops based on all criteria
-  const filteredShops = sampleShops.filter((shop) => {
-    // Tab filter
-    if (activeTab === "trending" && shop.reviewsCount <= 100) return false;
-    if (activeTab === "top-rated" && shop.rating < 4.7) return false;
+  const filteredShops = shops.filter((shop) => {
+    // Tab filter - for now "trending" and "newest" show all since we don't have these metrics yet
+    // Only "top-rated" is a placeholder that can be enhanced later
 
     // Search query
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       const matchesName = shop.name.toLowerCase().includes(query);
-      const matchesDescription = shop.description.toLowerCase().includes(query);
+      const matchesDescription = shop.description?.toLowerCase().includes(query);
       const matchesCategory = shop.category.toLowerCase().includes(query);
       if (!matchesName && !matchesDescription && !matchesCategory) return false;
     }
 
     // Category filter
     if (selectedCategory !== "all" && shop.category !== selectedCategory) return false;
-
-    // Rating filter
-    if (selectedRating !== "all") {
-      if (selectedRating === "4.5+" && shop.rating < 4.5) return false;
-      if (selectedRating === "4+" && shop.rating < 4) return false;
-      if (selectedRating === "3+" && shop.rating < 3) return false;
-    }
-
-    // Products filter
-    if (selectedProducts !== "all") {
-      if (selectedProducts === "10+" && shop.productsCount < 10) return false;
-      if (selectedProducts === "25+" && shop.productsCount < 25) return false;
-      if (selectedProducts === "50+" && shop.productsCount < 50) return false;
-    }
 
     // Time filter
     if (selectedTime !== "all") {
@@ -223,35 +144,27 @@ export default function ShopsPage() {
   const hasActiveFilters =
     searchQuery ||
     selectedCategory !== "all" ||
-    selectedRating !== "all" ||
-    selectedProducts !== "all" ||
     selectedTime !== "all";
 
   const clearFilters = () => {
     setSearchQuery("");
     setSelectedCategory("all");
-    setSelectedRating("all");
-    setSelectedProducts("all");
     setSelectedTime("all");
   };
 
   const activeFilterCount =
     (selectedCategory !== "all" ? 1 : 0) +
-    (selectedRating !== "all" ? 1 : 0) +
-    (selectedProducts !== "all" ? 1 : 0) +
     (selectedTime !== "all" ? 1 : 0);
 
   // Stats for sidebar
   const stats = {
-    total: sampleShops.length,
-    totalProducts: sampleShops.reduce((sum, s) => sum + s.productsCount, 0),
-    totalReviews: sampleShops.reduce((sum, s) => sum + s.reviewsCount, 0),
-    avgRating: (sampleShops.reduce((sum, s) => sum + s.rating, 0) / sampleShops.length).toFixed(1),
+    total: shops.length,
+    active: shops.filter((s) => s.isActive).length,
   };
 
-  // Top rated shops for sidebar
-  const topRatedShops = [...sampleShops]
-    .sort((a, b) => b.rating - a.rating)
+  // Recently created shops for sidebar
+  const recentShops = [...shops]
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
     .slice(0, 3);
 
   return (
@@ -332,42 +245,6 @@ export default function ShopsPage() {
                     </select>
                   </div>
 
-                  {/* Rating Filter */}
-                  <div>
-                    <label className="text-xs text-muted-foreground mb-1.5 block">
-                      Minimum Rating
-                    </label>
-                    <select
-                      value={selectedRating}
-                      onChange={(e) => setSelectedRating(e.target.value)}
-                      className="w-full px-3 py-2 bg-card border-2 border-border text-foreground text-sm focus:border-primary focus:outline-none appearance-none cursor-pointer"
-                    >
-                      {ratingFilters.map((filter) => (
-                        <option key={filter.id} value={filter.id}>
-                          {filter.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Products Filter */}
-                  <div>
-                    <label className="text-xs text-muted-foreground mb-1.5 block">
-                      Products Count
-                    </label>
-                    <select
-                      value={selectedProducts}
-                      onChange={(e) => setSelectedProducts(e.target.value)}
-                      className="w-full px-3 py-2 bg-card border-2 border-border text-foreground text-sm focus:border-primary focus:outline-none appearance-none cursor-pointer"
-                    >
-                      {productsFilters.map((filter) => (
-                        <option key={filter.id} value={filter.id}>
-                          {filter.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
                   {/* Time Filter */}
                   <div>
                     <label className="text-xs text-muted-foreground mb-1.5 block">
@@ -402,22 +279,6 @@ export default function ShopsPage() {
                         <Badge variant="secondary" size="sm" className="gap-1">
                           {categoryFilters.find((f) => f.id === selectedCategory)?.label}
                           <button onClick={() => setSelectedCategory("all")}>
-                            <X className="size-3" />
-                          </button>
-                        </Badge>
-                      )}
-                      {selectedRating !== "all" && (
-                        <Badge variant="secondary" size="sm" className="gap-1">
-                          {ratingFilters.find((f) => f.id === selectedRating)?.label}
-                          <button onClick={() => setSelectedRating("all")}>
-                            <X className="size-3" />
-                          </button>
-                        </Badge>
-                      )}
-                      {selectedProducts !== "all" && (
-                        <Badge variant="secondary" size="sm" className="gap-1">
-                          {productsFilters.find((f) => f.id === selectedProducts)?.label}
-                          <button onClick={() => setSelectedProducts("all")}>
                             <X className="size-3" />
                           </button>
                         </Badge>
@@ -472,7 +333,11 @@ export default function ShopsPage() {
 
           {/* Shops Feed */}
           <div>
-            {filteredShops.length === 0 ? (
+            {isLoading ? (
+              <div className="flex items-center justify-center py-20">
+                <div className="size-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+              </div>
+            ) : filteredShops.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-20 px-4">
                 <Store className="size-12 text-muted-foreground mb-4" />
                 <p className="text-lg font-medium text-foreground">No shops found</p>
@@ -508,15 +373,12 @@ export default function ShopsPage() {
                             {shop.name}
                           </Link>
                           <Badge variant="neon-green" size="sm">Shop</Badge>
+                          {shop.isActive && (
+                            <Badge variant="neon" size="sm">Active</Badge>
+                          )}
                           <span className="text-muted-foreground text-sm">·</span>
                           <span className="text-muted-foreground text-sm">
-                            {formatRelativeTime(shop.createdAt)}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-3 mt-1">
-                          {renderRating(shop.rating)}
-                          <span className="text-sm text-muted-foreground">
-                            {shop.reviewsCount} reviews
+                            {formatRelativeTime(new Date(shop.createdAt))}
                           </span>
                         </div>
                       </div>
@@ -537,7 +399,7 @@ export default function ShopsPage() {
                     {/* Shop Content */}
                     <Link href={`/shops/${shop.slug}`} className="block mt-3 pl-15">
                       <p className="text-foreground line-clamp-3">
-                        {shop.description}
+                        {shop.description || "No description available"}
                       </p>
 
                       {/* Category */}
@@ -546,25 +408,15 @@ export default function ShopsPage() {
                           variant={categoryVariants[shop.category] ?? "secondary"}
                           size="sm"
                         >
-                          {shop.category}
+                          {shop.category.replace(/_/g, " ")}
                         </Badge>
                       </div>
 
                       {/* Stats */}
                       <div className="flex items-center gap-4 mt-3 text-sm text-muted-foreground">
                         <div className="flex items-center gap-1">
-                          <Package className="size-4" />
-                          <span>{shop.productsCount} products</span>
-                        </div>
-                        <div className="flex items-center gap-1">
                           <ShoppingBag className="size-4" />
-                          <span>by</span>
-                          <Link
-                            href={`/dashboard/profile/${shop.owner.id}`}
-                            className="hover:text-primary transition-colors"
-                          >
-                            {shop.owner.name}
-                          </Link>
+                          <span>Owner ID: {shop.ownerId.slice(0, 8)}...</span>
                         </div>
                       </div>
                     </Link>
@@ -633,53 +485,52 @@ export default function ShopsPage() {
                 <span className="font-medium text-foreground">{stats.total}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-sm text-muted-foreground">Total Products</span>
-                <span className="font-medium text-foreground">{stats.totalProducts}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-sm text-muted-foreground">Total Reviews</span>
-                <span className="font-medium text-foreground">{stats.totalReviews}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-sm text-muted-foreground">Avg Rating</span>
-                <span className="font-medium text-neon-yellow">{stats.avgRating} / 5</span>
+                <span className="text-sm text-muted-foreground">Active Shops</span>
+                <span className="font-medium text-neon-green">{stats.active}</span>
               </div>
             </CardContent>
           </Card>
 
-          {/* Top Rated Shops */}
+          {/* Recent Shops */}
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
-                <Star className="size-4 text-neon-yellow" />
-                Top Rated Shops
+                <Clock className="size-4 text-primary" />
+                Recent Shops
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              {topRatedShops.map((shop) => (
+              {recentShops.map((shop) => (
                 <Link
                   key={shop.id}
                   href={`/shops/${shop.slug}`}
-                  className="flex items-center gap-3"
+                  className="block"
                 >
-                  <div className="size-10 bg-neon-green/20 border-2 border-border flex items-center justify-center">
-                    <Store className="size-4 text-neon-green" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-sm text-foreground hover:text-primary transition-colors truncate">
-                      {shop.name}
-                    </p>
-                    <div className="flex items-center gap-2">
-                      {renderRating(shop.rating)}
-                      <span className="text-xs text-muted-foreground">
-                        ({shop.reviewsCount})
-                      </span>
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="flex items-center gap-3">
+                      <div className="size-10 bg-neon-green/20 border-2 border-border flex items-center justify-center">
+                        <Store className="size-4 text-neon-green" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-sm text-foreground hover:text-primary transition-colors truncate">
+                          {shop.name}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {formatRelativeTime(new Date(shop.createdAt))}
+                        </p>
+                      </div>
                     </div>
+                    <Badge
+                      variant={categoryVariants[shop.category] || "secondary"}
+                      size="sm"
+                    >
+                      {shop.category.replace(/_/g, " ")}
+                    </Badge>
                   </div>
                 </Link>
               ))}
               <Button variant="ghost" className="w-full text-sm" asChild>
-                <Link href="/shops?tab=top-rated">View all top rated</Link>
+                <Link href="/shops?tab=newest">View all recent</Link>
               </Button>
             </CardContent>
           </Card>

@@ -120,6 +120,58 @@ public class OpportunitiesController : ControllerBase
         return ToActionResult(result);
     }
 
+    // ===== Updates =====
+
+    [HttpGet("{opportunityId}/updates")]
+    public async Task<IActionResult> GetUpdates(string opportunityId, CancellationToken ct)
+    {
+        var result = await _opportunityService.GetUpdatesAsync(opportunityId, ct);
+        return ToActionResult(result);
+    }
+
+    [HttpPost("{opportunityId}/updates")]
+    public async Task<IActionResult> CreateUpdate(string opportunityId, [FromBody] CreateOpportunityUpdateDto dto, CancellationToken ct)
+    {
+        var dtoWithId = dto with { OpportunityId = opportunityId };
+        var result = await _opportunityService.CreateUpdateAsync(dtoWithId, ct);
+        return result.IsSuccess
+            ? CreatedAtAction(nameof(GetById), new { id = opportunityId }, result.Value)
+            : ToActionResult(result);
+    }
+
+    [HttpDelete("updates/{updateId}")]
+    public async Task<IActionResult> DeleteUpdate(string updateId, CancellationToken ct)
+    {
+        var result = await _opportunityService.DeleteUpdateAsync(updateId, ct);
+        return result.IsSuccess ? NoContent() : ToActionResult(result);
+    }
+
+    // ===== Comments =====
+
+    [HttpGet("{opportunityId}/comments")]
+    public async Task<IActionResult> GetComments(string opportunityId, CancellationToken ct)
+    {
+        var result = await _opportunityService.GetCommentsAsync(opportunityId, ct);
+        return ToActionResult(result);
+    }
+
+    [HttpPost("{opportunityId}/comments")]
+    public async Task<IActionResult> AddComment(string opportunityId, [FromBody] CreateOpportunityCommentDto dto, CancellationToken ct)
+    {
+        var dtoWithId = dto with { OpportunityId = opportunityId };
+        var result = await _opportunityService.AddCommentAsync(dtoWithId, ct);
+        return result.IsSuccess
+            ? CreatedAtAction(nameof(GetById), new { id = opportunityId }, result.Value)
+            : ToActionResult(result);
+    }
+
+    [HttpDelete("comments/{commentId}")]
+    public async Task<IActionResult> DeleteComment(string commentId, CancellationToken ct)
+    {
+        var result = await _opportunityService.DeleteCommentAsync(commentId, ct);
+        return result.IsSuccess ? NoContent() : ToActionResult(result);
+    }
+
     private IActionResult ToActionResult<T>(Result<T> result)
     {
         if (result.IsSuccess)

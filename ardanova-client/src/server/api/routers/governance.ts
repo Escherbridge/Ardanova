@@ -29,23 +29,18 @@ const VoteType = z.enum(["for", "against", "abstain"]);
 // Proposal creation input schema
 const createProposalSchema = z.object({
   title: z.string().min(1, "Title is required"),
-  summary: z.string().min(20, "Summary must be at least 20 characters"),
   description: z.string().min(50, "Description must be at least 50 characters"),
   type: ProposalType,
-  rationale: z.string().optional(),
   votingDuration: z.number().min(1).max(30).default(7), // days
   quorum: z.number().min(1).max(100).default(25), // percentage
-  projectId: z.string().optional(),
-  guildId: z.string().optional(),
+  projectId: z.string().min(1, "Project ID is required"),
 });
 
 // Proposal update input schema
 const updateProposalSchema = z.object({
   id: z.string(),
   title: z.string().min(1).optional(),
-  summary: z.string().min(20).optional(),
   description: z.string().min(50).optional(),
-  rationale: z.string().optional(),
 });
 
 export const governanceRouter = createTRPCRouter({
@@ -60,16 +55,19 @@ export const governanceRouter = createTRPCRouter({
       votingEnds.setDate(votingEnds.getDate() + input.votingDuration);
 
       const response = await apiClient.governance.create({
-        creatorId: userId,
-        title: input.title,
-        summary: input.summary,
-        description: input.description,
-        type: input.type,
-        rationale: input.rationale,
-        quorumPercentage: input.quorum,
-        votingEndsAt: votingEnds.toISOString(),
         projectId: input.projectId,
-        guildId: input.guildId,
+        creatorId: userId,
+        type: input.type,
+        title: input.title,
+        description: input.description,
+        options: JSON.stringify([
+          { label: "For", choice: 0 },
+          { label: "Against", choice: 1 },
+          { label: "Abstain", choice: 2 }
+        ]),
+        quorum: input.quorum,
+        threshold: 51,
+        votingEnd: votingEnds.toISOString(),
       });
 
       if (response.error || !response.data) {
@@ -139,6 +137,24 @@ export const governanceRouter = createTRPCRouter({
       return response.data;
     }),
 
+  // Get proposal by ID with project slug for redirects
+  getByIdWithProjectSlug: publicProcedure
+    .input(z.object({ id: z.string() }))
+    .query(async ({ input }) => {
+      const response = await apiClient.governance.getById(input.id);
+      if (!response.data) {
+        throw new Error("Proposal not found");
+      }
+
+      // Get project for slug
+      const projectResponse = await apiClient.projects.getById(response.data.projectId);
+
+      return {
+        ...response.data,
+        projectSlug: projectResponse.data?.slug ?? response.data.projectId,
+      };
+    }),
+
   // Get user's proposals
   getMyProposals: protectedProcedure.query(async ({ ctx }) => {
     const userId = ctx.session.user.id;
@@ -178,7 +194,7 @@ export const governanceRouter = createTRPCRouter({
 
       const response = await apiClient.governance.vote(input.proposalId, {
         voterId: userId,
-        voteType: mapVoteType(input.vote),
+        choice: mapVoteToChoice(input.vote),
         reason: input.reason,
       });
 
@@ -186,7 +202,7 @@ export const governanceRouter = createTRPCRouter({
         throw new Error(response.error ?? "Failed to cast vote");
       }
 
-      return { success: true, voteId: response.data.id };
+      return { success: true, vote: response.data };
     }),
 
   // Get user's vote on a proposal
@@ -247,9 +263,7 @@ export const governanceRouter = createTRPCRouter({
 
       const response = await apiClient.governance.update(id, {
         title: data.title,
-        summary: data.summary,
         description: data.description,
-        rationale: data.rationale,
       });
 
       if (response.error || !response.data) {
@@ -281,11 +295,11 @@ export const governanceRouter = createTRPCRouter({
 
       const response = await apiClient.governance.execute(input.id);
 
-      if (response.error) {
-        throw new Error(response.error);
+      if (response.error || !response.data) {
+        throw new Error(response.error ?? "Failed to execute proposal");
       }
 
-      return { success: true };
+      return { success: true, proposal: response.data };
     }),
 
   // Cancel a proposal
@@ -310,11 +324,11 @@ export const governanceRouter = createTRPCRouter({
 
       const response = await apiClient.governance.cancel(input.id);
 
-      if (response.error) {
-        throw new Error(response.error);
+      if (response.error || !response.data) {
+        throw new Error(response.error ?? "Failed to cancel proposal");
       }
 
-      return { success: true };
+      return { success: true, proposal: response.data };
     }),
 
   // Delete proposal (only draft proposals)
@@ -343,16 +357,16 @@ export const governanceRouter = createTRPCRouter({
         throw new Error(response.error);
       }
 
-      return { success: true };
+      return { success: true, deletedId: input.id };
     }),
 });
 
-// Helper function to map frontend vote type to backend format
-function mapVoteType(vote: string): string {
-  const mapping: Record<string, string> = {
-    for: "For",
-    against: "Against",
-    abstain: "Abstain",
+// Helper function to map frontend vote type to backend choice number
+function mapVoteToChoice(vote: string): number {
+  const mapping: Record<string, number> = {
+    for: 0,
+    against: 1,
+    abstain: 2,
   };
-  return mapping[vote] ?? vote;
+  return mapping[vote] ?? 0;
 }

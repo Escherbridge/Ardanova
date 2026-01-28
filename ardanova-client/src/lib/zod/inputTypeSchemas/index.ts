@@ -45,6 +45,8 @@ export { GuildInvitationScalarFieldEnumSchema } from './GuildInvitationScalarFie
 export { GuildApplicationScalarFieldEnumSchema } from './GuildApplicationScalarFieldEnumSchema';
 export { ProjectBidScalarFieldEnumSchema } from './ProjectBidScalarFieldEnumSchema';
 export { GuildReviewScalarFieldEnumSchema } from './GuildReviewScalarFieldEnumSchema';
+export { GuildUpdateScalarFieldEnumSchema } from './GuildUpdateScalarFieldEnumSchema';
+export { TaskBidScalarFieldEnumSchema } from './TaskBidScalarFieldEnumSchema';
 export { ShopScalarFieldEnumSchema } from './ShopScalarFieldEnumSchema';
 export { ProductScalarFieldEnumSchema } from './ProductScalarFieldEnumSchema';
 export { InvoiceScalarFieldEnumSchema } from './InvoiceScalarFieldEnumSchema';
@@ -83,6 +85,8 @@ export { ProjectFollowScalarFieldEnumSchema } from './ProjectFollowScalarFieldEn
 export { GuildFollowScalarFieldEnumSchema } from './GuildFollowScalarFieldEnumSchema';
 export { OpportunityScalarFieldEnumSchema } from './OpportunityScalarFieldEnumSchema';
 export { OpportunityApplicationScalarFieldEnumSchema } from './OpportunityApplicationScalarFieldEnumSchema';
+export { OpportunityUpdateScalarFieldEnumSchema } from './OpportunityUpdateScalarFieldEnumSchema';
+export { OpportunityCommentScalarFieldEnumSchema } from './OpportunityCommentScalarFieldEnumSchema';
 export { SortOrderSchema } from './SortOrderSchema';
 export { NullableJsonNullValueInputSchema } from './NullableJsonNullValueInputSchema';
 export { JsonNullValueInputSchema } from './JsonNullValueInputSchema';
@@ -126,6 +130,7 @@ export { SubmissionStatusSchema } from './SubmissionStatusSchema';
 export { ProposalTypeSchema } from './ProposalTypeSchema';
 export { ProposalStatusSchema } from './ProposalStatusSchema';
 export { BidStatusSchema } from './BidStatusSchema';
+export { TaskBidStatusSchema } from './TaskBidStatusSchema';
 export { GuildMemberRoleSchema } from './GuildMemberRoleSchema';
 export { ShopCategorySchema } from './ShopCategorySchema';
 export { InvoiceStatusSchema } from './InvoiceStatusSchema';

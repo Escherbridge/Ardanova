@@ -39,8 +39,13 @@ public class RoadmapPhase
     [Required]
     public DateTime updatedAt { get; set; }
 
+    public string? assigneeId { get; set; }
+
     [ForeignKey("roadmapId")]
     public virtual Roadmap? Roadmap { get; set; }
+
+    [ForeignKey("assigneeId")]
+    public virtual User? Assignee { get; set; }
 
     public virtual ICollection<Epic> Epics { get; set; } = new List<Epic>();
 

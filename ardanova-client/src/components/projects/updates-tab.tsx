@@ -218,6 +218,11 @@ export default function UpdatesTab({ projectId, isOwner }: UpdatesTabProps) {
                   Cancel
                 </Button>
               </div>
+              {createMutation.error && (
+                <div className="p-3 bg-destructive/10 border border-destructive/30 rounded text-sm text-destructive">
+                  Error: {createMutation.error.message}
+                </div>
+              )}
             </form>
           </CardContent>
         </Card>

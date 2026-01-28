@@ -34,7 +34,12 @@ public class ProjectMilestone
     [Required]
     public DateTime createdAt { get; set; }
 
+    public string? assigneeId { get; set; }
+
     [ForeignKey("projectId")]
     public virtual Project? Project { get; set; }
+
+    [ForeignKey("assigneeId")]
+    public virtual User? Assignee { get; set; }
 
 }

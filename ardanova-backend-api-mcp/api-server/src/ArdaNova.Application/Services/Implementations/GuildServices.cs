@@ -422,3 +422,318 @@ public class GuildReviewService : IGuildReviewService
         return Result<bool>.Success(true);
     }
 }
+
+public class GuildUpdateService : IGuildUpdateService
+{
+    private readonly IRepository<GuildUpdate> _repository;
+    private readonly IUnitOfWork _unitOfWork;
+    private readonly IMapper _mapper;
+
+    public GuildUpdateService(IRepository<GuildUpdate> repository, IUnitOfWork unitOfWork, IMapper mapper)
+    {
+        _repository = repository;
+        _unitOfWork = unitOfWork;
+        _mapper = mapper;
+    }
+
+    public async Task<Result<GuildUpdateDto>> GetByIdAsync(string id, CancellationToken ct = default)
+    {
+        var update = await _repository.GetByIdAsync(id, ct);
+        if (update is null)
+            return Result<GuildUpdateDto>.NotFound($"Update with id {id} not found");
+        return Result<GuildUpdateDto>.Success(_mapper.Map<GuildUpdateDto>(update));
+    }
+
+    public async Task<Result<IReadOnlyList<GuildUpdateDto>>> GetByGuildIdAsync(string guildId, CancellationToken ct = default)
+    {
+        var updates = await _repository.FindAsync(u => u.guildId == guildId, ct);
+        return Result<IReadOnlyList<GuildUpdateDto>>.Success(_mapper.Map<IReadOnlyList<GuildUpdateDto>>(updates));
+    }
+
+    public async Task<Result<GuildUpdateDto>> CreateAsync(CreateGuildUpdateDto dto, CancellationToken ct = default)
+    {
+        var update = new GuildUpdate
+        {
+            id = Guid.NewGuid().ToString(),
+            guildId = dto.GuildId,
+            title = dto.Title,
+            content = dto.Content,
+            createdById = dto.CreatedById,
+            createdAt = DateTime.UtcNow
+        };
+
+        await _repository.AddAsync(update, ct);
+        await _unitOfWork.SaveChangesAsync(ct);
+        return Result<GuildUpdateDto>.Success(_mapper.Map<GuildUpdateDto>(update));
+    }
+
+    public async Task<Result<bool>> DeleteAsync(string id, CancellationToken ct = default)
+    {
+        var update = await _repository.GetByIdAsync(id, ct);
+        if (update is null)
+            return Result<bool>.NotFound($"Update with id {id} not found");
+
+        await _repository.DeleteAsync(update, ct);
+        await _unitOfWork.SaveChangesAsync(ct);
+        return Result<bool>.Success(true);
+    }
+}
+
+public class GuildApplicationService : IGuildApplicationService
+{
+    private readonly IRepository<GuildApplication> _repository;
+    private readonly IUnitOfWork _unitOfWork;
+    private readonly IMapper _mapper;
+
+    public GuildApplicationService(IRepository<GuildApplication> repository, IUnitOfWork unitOfWork, IMapper mapper)
+    {
+        _repository = repository;
+        _unitOfWork = unitOfWork;
+        _mapper = mapper;
+    }
+
+    public async Task<Result<GuildApplicationDto>> GetByIdAsync(string id, CancellationToken ct = default)
+    {
+        var application = await _repository.GetByIdAsync(id, ct);
+        if (application is null)
+            return Result<GuildApplicationDto>.NotFound($"Application with id {id} not found");
+        return Result<GuildApplicationDto>.Success(_mapper.Map<GuildApplicationDto>(application));
+    }
+
+    public async Task<Result<IReadOnlyList<GuildApplicationDto>>> GetByGuildIdAsync(string guildId, CancellationToken ct = default)
+    {
+        var applications = await _repository.FindAsync(a => a.guildId == guildId, ct);
+        return Result<IReadOnlyList<GuildApplicationDto>>.Success(_mapper.Map<IReadOnlyList<GuildApplicationDto>>(applications));
+    }
+
+    public async Task<Result<IReadOnlyList<GuildApplicationDto>>> GetByUserIdAsync(string userId, CancellationToken ct = default)
+    {
+        var applications = await _repository.FindAsync(a => a.userId == userId, ct);
+        return Result<IReadOnlyList<GuildApplicationDto>>.Success(_mapper.Map<IReadOnlyList<GuildApplicationDto>>(applications));
+    }
+
+    public async Task<Result<GuildApplicationDto>> CreateAsync(CreateGuildApplicationDto dto, CancellationToken ct = default)
+    {
+        var application = new GuildApplication
+        {
+            id = Guid.NewGuid().ToString(),
+            guildId = dto.GuildId,
+            userId = dto.UserId,
+            requestedRole = Enum.Parse<GuildMemberRole>(dto.RequestedRole),
+            message = dto.Message,
+            status = MembershipRequestStatus.PENDING,
+            appliedAt = DateTime.UtcNow
+        };
+
+        await _repository.AddAsync(application, ct);
+        await _unitOfWork.SaveChangesAsync(ct);
+        return Result<GuildApplicationDto>.Success(_mapper.Map<GuildApplicationDto>(application));
+    }
+
+    public async Task<Result<GuildApplicationDto>> AcceptAsync(string id, string? reviewMessage, CancellationToken ct = default)
+    {
+        var application = await _repository.GetByIdAsync(id, ct);
+        if (application is null)
+            return Result<GuildApplicationDto>.NotFound($"Application with id {id} not found");
+
+        application.status = MembershipRequestStatus.APPROVED;
+        application.reviewMessage = reviewMessage;
+        application.reviewedAt = DateTime.UtcNow;
+
+        await _repository.UpdateAsync(application, ct);
+        await _unitOfWork.SaveChangesAsync(ct);
+        return Result<GuildApplicationDto>.Success(_mapper.Map<GuildApplicationDto>(application));
+    }
+
+    public async Task<Result<GuildApplicationDto>> RejectAsync(string id, string? reviewMessage, CancellationToken ct = default)
+    {
+        var application = await _repository.GetByIdAsync(id, ct);
+        if (application is null)
+            return Result<GuildApplicationDto>.NotFound($"Application with id {id} not found");
+
+        application.status = MembershipRequestStatus.REJECTED;
+        application.reviewMessage = reviewMessage;
+        application.reviewedAt = DateTime.UtcNow;
+
+        await _repository.UpdateAsync(application, ct);
+        await _unitOfWork.SaveChangesAsync(ct);
+        return Result<GuildApplicationDto>.Success(_mapper.Map<GuildApplicationDto>(application));
+    }
+
+    public async Task<Result<GuildApplicationDto>> WithdrawAsync(string id, CancellationToken ct = default)
+    {
+        var application = await _repository.GetByIdAsync(id, ct);
+        if (application is null)
+            return Result<GuildApplicationDto>.NotFound($"Application with id {id} not found");
+
+        application.status = MembershipRequestStatus.WITHDRAWN;
+
+        await _repository.UpdateAsync(application, ct);
+        await _unitOfWork.SaveChangesAsync(ct);
+        return Result<GuildApplicationDto>.Success(_mapper.Map<GuildApplicationDto>(application));
+    }
+
+    public async Task<Result<bool>> DeleteAsync(string id, CancellationToken ct = default)
+    {
+        var application = await _repository.GetByIdAsync(id, ct);
+        if (application is null)
+            return Result<bool>.NotFound($"Application with id {id} not found");
+
+        await _repository.DeleteAsync(application, ct);
+        await _unitOfWork.SaveChangesAsync(ct);
+        return Result<bool>.Success(true);
+    }
+}
+
+public class GuildInvitationService : IGuildInvitationService
+{
+    private readonly IRepository<GuildInvitation> _repository;
+    private readonly IUnitOfWork _unitOfWork;
+    private readonly IMapper _mapper;
+
+    public GuildInvitationService(IRepository<GuildInvitation> repository, IUnitOfWork unitOfWork, IMapper mapper)
+    {
+        _repository = repository;
+        _unitOfWork = unitOfWork;
+        _mapper = mapper;
+    }
+
+    public async Task<Result<GuildInvitationDto>> GetByIdAsync(string id, CancellationToken ct = default)
+    {
+        var invitation = await _repository.GetByIdAsync(id, ct);
+        if (invitation is null)
+            return Result<GuildInvitationDto>.NotFound($"Invitation with id {id} not found");
+        return Result<GuildInvitationDto>.Success(_mapper.Map<GuildInvitationDto>(invitation));
+    }
+
+    public async Task<Result<IReadOnlyList<GuildInvitationDto>>> GetByGuildIdAsync(string guildId, CancellationToken ct = default)
+    {
+        var invitations = await _repository.FindAsync(i => i.guildId == guildId, ct);
+        return Result<IReadOnlyList<GuildInvitationDto>>.Success(_mapper.Map<IReadOnlyList<GuildInvitationDto>>(invitations));
+    }
+
+    public async Task<Result<IReadOnlyList<GuildInvitationDto>>> GetByUserIdAsync(string userId, CancellationToken ct = default)
+    {
+        var invitations = await _repository.FindAsync(i => i.invitedUserId == userId, ct);
+        return Result<IReadOnlyList<GuildInvitationDto>>.Success(_mapper.Map<IReadOnlyList<GuildInvitationDto>>(invitations));
+    }
+
+    public async Task<Result<GuildInvitationDto>> CreateAsync(CreateGuildInvitationDto dto, CancellationToken ct = default)
+    {
+        var invitation = new GuildInvitation
+        {
+            id = Guid.NewGuid().ToString(),
+            guildId = dto.GuildId,
+            invitedUserId = dto.InvitedUserId,
+            invitedById = dto.InvitedById,
+            role = Enum.Parse<GuildMemberRole>(dto.Role),
+            message = dto.Message,
+            status = InvitationStatus.PENDING,
+            createdAt = DateTime.UtcNow
+        };
+
+        await _repository.AddAsync(invitation, ct);
+        await _unitOfWork.SaveChangesAsync(ct);
+        return Result<GuildInvitationDto>.Success(_mapper.Map<GuildInvitationDto>(invitation));
+    }
+
+    public async Task<Result<GuildInvitationDto>> AcceptAsync(string id, CancellationToken ct = default)
+    {
+        var invitation = await _repository.GetByIdAsync(id, ct);
+        if (invitation is null)
+            return Result<GuildInvitationDto>.NotFound($"Invitation with id {id} not found");
+
+        invitation.status = InvitationStatus.ACCEPTED;
+        invitation.respondedAt = DateTime.UtcNow;
+
+        await _repository.UpdateAsync(invitation, ct);
+        await _unitOfWork.SaveChangesAsync(ct);
+        return Result<GuildInvitationDto>.Success(_mapper.Map<GuildInvitationDto>(invitation));
+    }
+
+    public async Task<Result<GuildInvitationDto>> RejectAsync(string id, CancellationToken ct = default)
+    {
+        var invitation = await _repository.GetByIdAsync(id, ct);
+        if (invitation is null)
+            return Result<GuildInvitationDto>.NotFound($"Invitation with id {id} not found");
+
+        invitation.status = InvitationStatus.DECLINED;
+        invitation.respondedAt = DateTime.UtcNow;
+
+        await _repository.UpdateAsync(invitation, ct);
+        await _unitOfWork.SaveChangesAsync(ct);
+        return Result<GuildInvitationDto>.Success(_mapper.Map<GuildInvitationDto>(invitation));
+    }
+
+    public async Task<Result<bool>> DeleteAsync(string id, CancellationToken ct = default)
+    {
+        var invitation = await _repository.GetByIdAsync(id, ct);
+        if (invitation is null)
+            return Result<bool>.NotFound($"Invitation with id {id} not found");
+
+        await _repository.DeleteAsync(invitation, ct);
+        await _unitOfWork.SaveChangesAsync(ct);
+        return Result<bool>.Success(true);
+    }
+}
+
+public class GuildFollowService : IGuildFollowService
+{
+    private readonly IRepository<GuildFollow> _repository;
+    private readonly IUnitOfWork _unitOfWork;
+    private readonly IMapper _mapper;
+
+    public GuildFollowService(IRepository<GuildFollow> repository, IUnitOfWork unitOfWork, IMapper mapper)
+    {
+        _repository = repository;
+        _unitOfWork = unitOfWork;
+        _mapper = mapper;
+    }
+
+    public async Task<Result<IReadOnlyList<GuildFollowDto>>> GetByGuildIdAsync(string guildId, CancellationToken ct = default)
+    {
+        var follows = await _repository.FindAsync(f => f.guildId == guildId, ct);
+        return Result<IReadOnlyList<GuildFollowDto>>.Success(_mapper.Map<IReadOnlyList<GuildFollowDto>>(follows));
+    }
+
+    public async Task<Result<IReadOnlyList<GuildFollowDto>>> GetByUserIdAsync(string userId, CancellationToken ct = default)
+    {
+        var follows = await _repository.FindAsync(f => f.userId == userId, ct);
+        return Result<IReadOnlyList<GuildFollowDto>>.Success(_mapper.Map<IReadOnlyList<GuildFollowDto>>(follows));
+    }
+
+    public async Task<Result<GuildFollowDto>> FollowAsync(CreateGuildFollowDto dto, CancellationToken ct = default)
+    {
+        var follow = new GuildFollow
+        {
+            id = Guid.NewGuid().ToString(),
+            guildId = dto.GuildId,
+            userId = dto.UserId,
+            notifyUpdates = true,
+            notifyEvents = true,
+            notifyProjects = true,
+            createdAt = DateTime.UtcNow
+        };
+
+        await _repository.AddAsync(follow, ct);
+        await _unitOfWork.SaveChangesAsync(ct);
+        return Result<GuildFollowDto>.Success(_mapper.Map<GuildFollowDto>(follow));
+    }
+
+    public async Task<Result<bool>> UnfollowAsync(string guildId, string userId, CancellationToken ct = default)
+    {
+        var follow = await _repository.FindOneAsync(f => f.guildId == guildId && f.userId == userId, ct);
+        if (follow is null)
+            return Result<bool>.NotFound($"Follow relationship not found");
+
+        await _repository.DeleteAsync(follow, ct);
+        await _unitOfWork.SaveChangesAsync(ct);
+        return Result<bool>.Success(true);
+    }
+
+    public async Task<Result<bool>> IsFollowingAsync(string guildId, string userId, CancellationToken ct = default)
+    {
+        var follow = await _repository.FindOneAsync(f => f.guildId == guildId && f.userId == userId, ct);
+        return Result<bool>.Success(follow is not null);
+    }
+}

@@ -10,10 +10,32 @@ using Microsoft.AspNetCore.Mvc;
 public class GuildsController : ControllerBase
 {
     private readonly IGuildService _guildService;
+    private readonly IGuildMemberService _memberService;
+    private readonly IGuildReviewService _reviewService;
+    private readonly IGuildUpdateService _updateService;
+    private readonly IGuildApplicationService _applicationService;
+    private readonly IGuildInvitationService _invitationService;
+    private readonly IGuildFollowService _followService;
+    private readonly IProjectBidService _bidService;
 
-    public GuildsController(IGuildService guildService)
+    public GuildsController(
+        IGuildService guildService,
+        IGuildMemberService memberService,
+        IGuildReviewService reviewService,
+        IGuildUpdateService updateService,
+        IGuildApplicationService applicationService,
+        IGuildInvitationService invitationService,
+        IGuildFollowService followService,
+        IProjectBidService bidService)
     {
         _guildService = guildService;
+        _memberService = memberService;
+        _reviewService = reviewService;
+        _updateService = updateService;
+        _applicationService = applicationService;
+        _invitationService = invitationService;
+        _followService = followService;
+        _bidService = bidService;
     }
 
     [HttpGet]
@@ -85,6 +107,246 @@ public class GuildsController : ControllerBase
     public async Task<IActionResult> Verify(string id, CancellationToken ct)
     {
         var result = await _guildService.VerifyAsync(id, ct);
+        return ToActionResult(result);
+    }
+
+    // ===== GUILD MEMBERS =====
+    [HttpGet("{guildId}/members")]
+    public async Task<IActionResult> GetMembers(string guildId, CancellationToken ct)
+    {
+        var result = await _memberService.GetByGuildIdAsync(guildId, ct);
+        return ToActionResult(result);
+    }
+
+    [HttpGet("{guildId}/members/{memberId}")]
+    public async Task<IActionResult> GetMemberById(string guildId, string memberId, CancellationToken ct)
+    {
+        var result = await _memberService.GetByIdAsync(memberId, ct);
+        return ToActionResult(result);
+    }
+
+    [HttpPost("{guildId}/members")]
+    public async Task<IActionResult> AddMember(string guildId, [FromBody] CreateGuildMemberDto dto, CancellationToken ct)
+    {
+        var dtoWithGuild = dto with { GuildId = guildId };
+        var result = await _memberService.CreateAsync(dtoWithGuild, ct);
+        return result.IsSuccess
+            ? CreatedAtAction(nameof(GetMemberById), new { guildId, memberId = result.Value!.Id }, result.Value)
+            : ToActionResult(result);
+    }
+
+    [HttpPut("{guildId}/members/{memberId}")]
+    public async Task<IActionResult> UpdateMember(string guildId, string memberId, [FromBody] UpdateGuildMemberDto dto, CancellationToken ct)
+    {
+        var result = await _memberService.UpdateAsync(memberId, dto, ct);
+        return ToActionResult(result);
+    }
+
+    [HttpDelete("{guildId}/members/{memberId}")]
+    public async Task<IActionResult> RemoveMember(string guildId, string memberId, CancellationToken ct)
+    {
+        var result = await _memberService.DeleteAsync(memberId, ct);
+        return result.IsSuccess ? NoContent() : ToActionResult(result);
+    }
+
+    // ===== GUILD REVIEWS =====
+    [HttpGet("{guildId}/reviews")]
+    public async Task<IActionResult> GetReviews(string guildId, CancellationToken ct)
+    {
+        var result = await _reviewService.GetByGuildIdAsync(guildId, ct);
+        return ToActionResult(result);
+    }
+
+    [HttpGet("{guildId}/reviews/{reviewId}")]
+    public async Task<IActionResult> GetReviewById(string guildId, string reviewId, CancellationToken ct)
+    {
+        var result = await _reviewService.GetByIdAsync(reviewId, ct);
+        return ToActionResult(result);
+    }
+
+    [HttpPost("{guildId}/reviews")]
+    public async Task<IActionResult> CreateReview(string guildId, [FromBody] CreateGuildReviewDto dto, CancellationToken ct)
+    {
+        var dtoWithGuild = dto with { GuildId = guildId };
+        var result = await _reviewService.CreateAsync(dtoWithGuild, ct);
+        return result.IsSuccess
+            ? CreatedAtAction(nameof(GetReviewById), new { guildId, reviewId = result.Value!.Id }, result.Value)
+            : ToActionResult(result);
+    }
+
+    [HttpPut("{guildId}/reviews/{reviewId}")]
+    public async Task<IActionResult> UpdateReview(string guildId, string reviewId, [FromBody] UpdateGuildReviewDto dto, CancellationToken ct)
+    {
+        var result = await _reviewService.UpdateAsync(reviewId, dto, ct);
+        return ToActionResult(result);
+    }
+
+    [HttpDelete("{guildId}/reviews/{reviewId}")]
+    public async Task<IActionResult> DeleteReview(string guildId, string reviewId, CancellationToken ct)
+    {
+        var result = await _reviewService.DeleteAsync(reviewId, ct);
+        return result.IsSuccess ? NoContent() : ToActionResult(result);
+    }
+
+    // ===== GUILD UPDATES =====
+    [HttpGet("{guildId}/updates")]
+    public async Task<IActionResult> GetUpdates(string guildId, CancellationToken ct)
+    {
+        var result = await _updateService.GetByGuildIdAsync(guildId, ct);
+        return ToActionResult(result);
+    }
+
+    [HttpGet("{guildId}/updates/{updateId}")]
+    public async Task<IActionResult> GetUpdateById(string guildId, string updateId, CancellationToken ct)
+    {
+        var result = await _updateService.GetByIdAsync(updateId, ct);
+        return ToActionResult(result);
+    }
+
+    [HttpPost("{guildId}/updates")]
+    public async Task<IActionResult> CreateUpdate(string guildId, [FromBody] CreateGuildUpdateDto dto, CancellationToken ct)
+    {
+        var dtoWithGuild = dto with { GuildId = guildId };
+        var result = await _updateService.CreateAsync(dtoWithGuild, ct);
+        return result.IsSuccess
+            ? CreatedAtAction(nameof(GetUpdateById), new { guildId, updateId = result.Value!.Id }, result.Value)
+            : ToActionResult(result);
+    }
+
+    [HttpDelete("{guildId}/updates/{updateId}")]
+    public async Task<IActionResult> DeleteUpdate(string guildId, string updateId, CancellationToken ct)
+    {
+        var result = await _updateService.DeleteAsync(updateId, ct);
+        return result.IsSuccess ? NoContent() : ToActionResult(result);
+    }
+
+    // ===== GUILD APPLICATIONS =====
+    [HttpGet("{guildId}/applications")]
+    public async Task<IActionResult> GetApplications(string guildId, CancellationToken ct)
+    {
+        var result = await _applicationService.GetByGuildIdAsync(guildId, ct);
+        return ToActionResult(result);
+    }
+
+    [HttpGet("{guildId}/applications/{applicationId}")]
+    public async Task<IActionResult> GetApplicationById(string guildId, string applicationId, CancellationToken ct)
+    {
+        var result = await _applicationService.GetByIdAsync(applicationId, ct);
+        return ToActionResult(result);
+    }
+
+    [HttpPost("{guildId}/applications")]
+    public async Task<IActionResult> SubmitApplication(string guildId, [FromBody] CreateGuildApplicationDto dto, CancellationToken ct)
+    {
+        var dtoWithGuild = dto with { GuildId = guildId };
+        var result = await _applicationService.CreateAsync(dtoWithGuild, ct);
+        return result.IsSuccess
+            ? CreatedAtAction(nameof(GetApplicationById), new { guildId, applicationId = result.Value!.Id }, result.Value)
+            : ToActionResult(result);
+    }
+
+    [HttpPost("{guildId}/applications/{applicationId}/accept")]
+    public async Task<IActionResult> AcceptApplication(string guildId, string applicationId, [FromBody] ReviewGuildApplicationDto? dto, CancellationToken ct)
+    {
+        var result = await _applicationService.AcceptAsync(applicationId, dto?.ReviewMessage, ct);
+        return ToActionResult(result);
+    }
+
+    [HttpPost("{guildId}/applications/{applicationId}/reject")]
+    public async Task<IActionResult> RejectApplication(string guildId, string applicationId, [FromBody] ReviewGuildApplicationDto? dto, CancellationToken ct)
+    {
+        var result = await _applicationService.RejectAsync(applicationId, dto?.ReviewMessage, ct);
+        return ToActionResult(result);
+    }
+
+    [HttpDelete("{guildId}/applications/{applicationId}")]
+    public async Task<IActionResult> DeleteApplication(string guildId, string applicationId, CancellationToken ct)
+    {
+        var result = await _applicationService.DeleteAsync(applicationId, ct);
+        return result.IsSuccess ? NoContent() : ToActionResult(result);
+    }
+
+    // ===== GUILD INVITATIONS =====
+    [HttpGet("{guildId}/invitations")]
+    public async Task<IActionResult> GetInvitations(string guildId, CancellationToken ct)
+    {
+        var result = await _invitationService.GetByGuildIdAsync(guildId, ct);
+        return ToActionResult(result);
+    }
+
+    [HttpGet("{guildId}/invitations/{invitationId}")]
+    public async Task<IActionResult> GetInvitationById(string guildId, string invitationId, CancellationToken ct)
+    {
+        var result = await _invitationService.GetByIdAsync(invitationId, ct);
+        return ToActionResult(result);
+    }
+
+    [HttpPost("{guildId}/invitations")]
+    public async Task<IActionResult> CreateInvitation(string guildId, [FromBody] CreateGuildInvitationDto dto, CancellationToken ct)
+    {
+        var dtoWithGuild = dto with { GuildId = guildId };
+        var result = await _invitationService.CreateAsync(dtoWithGuild, ct);
+        return result.IsSuccess
+            ? CreatedAtAction(nameof(GetInvitationById), new { guildId, invitationId = result.Value!.Id }, result.Value)
+            : ToActionResult(result);
+    }
+
+    [HttpPost("{guildId}/invitations/{invitationId}/accept")]
+    public async Task<IActionResult> AcceptInvitation(string guildId, string invitationId, CancellationToken ct)
+    {
+        var result = await _invitationService.AcceptAsync(invitationId, ct);
+        return ToActionResult(result);
+    }
+
+    [HttpPost("{guildId}/invitations/{invitationId}/reject")]
+    public async Task<IActionResult> RejectInvitation(string guildId, string invitationId, CancellationToken ct)
+    {
+        var result = await _invitationService.RejectAsync(invitationId, ct);
+        return ToActionResult(result);
+    }
+
+    [HttpDelete("{guildId}/invitations/{invitationId}")]
+    public async Task<IActionResult> DeleteInvitation(string guildId, string invitationId, CancellationToken ct)
+    {
+        var result = await _invitationService.DeleteAsync(invitationId, ct);
+        return result.IsSuccess ? NoContent() : ToActionResult(result);
+    }
+
+    // ===== GUILD FOLLOWS =====
+    [HttpGet("{guildId}/followers")]
+    public async Task<IActionResult> GetFollowers(string guildId, CancellationToken ct)
+    {
+        var result = await _followService.GetByGuildIdAsync(guildId, ct);
+        return ToActionResult(result);
+    }
+
+    [HttpPost("{guildId}/follow")]
+    public async Task<IActionResult> FollowGuild(string guildId, [FromBody] CreateGuildFollowDto dto, CancellationToken ct)
+    {
+        var dtoWithGuild = dto with { GuildId = guildId };
+        var result = await _followService.FollowAsync(dtoWithGuild, ct);
+        return result.IsSuccess ? Ok(result.Value) : ToActionResult(result);
+    }
+
+    [HttpDelete("{guildId}/follow")]
+    public async Task<IActionResult> UnfollowGuild(string guildId, [FromQuery] string userId, CancellationToken ct)
+    {
+        var result = await _followService.UnfollowAsync(guildId, userId, ct);
+        return result.IsSuccess ? NoContent() : ToActionResult(result);
+    }
+
+    [HttpGet("{guildId}/follow/check")]
+    public async Task<IActionResult> IsFollowing(string guildId, [FromQuery] string userId, CancellationToken ct)
+    {
+        var result = await _followService.IsFollowingAsync(guildId, userId, ct);
+        return result.IsSuccess ? Ok(result.Value) : ToActionResult(result);
+    }
+
+    // ===== GUILD PROJECTS AND BIDS =====
+    [HttpGet("{guildId}/bids")]
+    public async Task<IActionResult> GetBids(string guildId, CancellationToken ct)
+    {
+        var result = await _bidService.GetByGuildIdAsync(guildId, ct);
         return ToActionResult(result);
     }
 

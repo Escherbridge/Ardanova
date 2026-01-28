@@ -323,6 +323,160 @@ export const opportunityRouter = createTRPCRouter({
 
       return { success: true };
     }),
+
+  // ============ Updates ============
+
+  // Get updates for an opportunity
+  getUpdates: publicProcedure
+    .input(z.object({ opportunityId: z.string() }))
+    .query(async ({ input }) => {
+      const response = await apiClient.opportunities.getUpdates(input.opportunityId);
+
+      if (response.error) {
+        throw new Error(response.error);
+      }
+
+      return response.data ?? [];
+    }),
+
+  // Create an update (owner only)
+  createUpdate: protectedProcedure
+    .input(
+      z.object({
+        opportunityId: z.string(),
+        title: z.string().min(1, "Title is required"),
+        content: z.string().min(10, "Content must be at least 10 characters"),
+        images: z.string().optional(),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.session.user.id;
+
+      // Verify ownership
+      const opportunity = await apiClient.opportunities.getById(input.opportunityId);
+      if (opportunity.error || !opportunity.data) {
+        throw new Error("Opportunity not found");
+      }
+
+      if (opportunity.data.posterId !== userId) {
+        throw new Error("Access denied: You do not own this opportunity");
+      }
+
+      const response = await apiClient.opportunities.createUpdate(input.opportunityId, {
+        userId,
+        title: input.title,
+        content: input.content,
+        images: input.images,
+      });
+
+      if (response.error || !response.data) {
+        throw new Error(response.error ?? "Failed to create update");
+      }
+
+      return response.data;
+    }),
+
+  // Delete an update (owner only)
+  deleteUpdate: protectedProcedure
+    .input(z.object({ updateId: z.string(), opportunityId: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.session.user.id;
+
+      // Verify ownership of opportunity
+      const opportunity = await apiClient.opportunities.getById(input.opportunityId);
+      if (opportunity.error || !opportunity.data) {
+        throw new Error("Opportunity not found");
+      }
+
+      if (opportunity.data.posterId !== userId) {
+        throw new Error("Access denied: You do not own this opportunity");
+      }
+
+      const response = await apiClient.opportunities.deleteUpdate(input.updateId);
+
+      if (response.error) {
+        throw new Error(response.error);
+      }
+
+      return { success: true };
+    }),
+
+  // ============ Comments ============
+
+  // Get comments for an opportunity
+  getComments: publicProcedure
+    .input(z.object({ opportunityId: z.string() }))
+    .query(async ({ input }) => {
+      const response = await apiClient.opportunities.getComments(input.opportunityId);
+
+      if (response.error) {
+        throw new Error(response.error);
+      }
+
+      return response.data ?? [];
+    }),
+
+  // Add a comment
+  addComment: protectedProcedure
+    .input(
+      z.object({
+        opportunityId: z.string(),
+        content: z.string().min(1, "Comment cannot be empty"),
+        parentId: z.string().optional(),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.session.user.id;
+
+      const response = await apiClient.opportunities.addComment(input.opportunityId, {
+        userId,
+        content: input.content,
+        parentId: input.parentId,
+      });
+
+      if (response.error || !response.data) {
+        throw new Error(response.error ?? "Failed to add comment");
+      }
+
+      return response.data;
+    }),
+
+  // Delete a comment (only comment author or opportunity owner)
+  deleteComment: protectedProcedure
+    .input(z.object({ commentId: z.string(), opportunityId: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.session.user.id;
+
+      // Get opportunity to check ownership
+      const opportunity = await apiClient.opportunities.getById(input.opportunityId);
+      if (opportunity.error || !opportunity.data) {
+        throw new Error("Opportunity not found");
+      }
+
+      // Get comments to find the specific comment
+      const commentsResponse = await apiClient.opportunities.getComments(input.opportunityId);
+      const comment = commentsResponse.data?.find((c) => c.id === input.commentId);
+
+      if (!comment) {
+        throw new Error("Comment not found");
+      }
+
+      // Allow deletion if user is opportunity owner or comment author
+      const isOwner = opportunity.data.posterId === userId;
+      const isAuthor = comment.userId === userId;
+
+      if (!isOwner && !isAuthor) {
+        throw new Error("Access denied: You cannot delete this comment");
+      }
+
+      const response = await apiClient.opportunities.deleteComment(input.commentId);
+
+      if (response.error) {
+        throw new Error(response.error);
+      }
+
+      return { success: true };
+    }),
 });
 
 // Helper function to map frontend experience level to backend format

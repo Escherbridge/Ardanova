@@ -43,8 +43,13 @@ public class ProductBacklogItem
     [Required]
     public DateTime updatedAt { get; set; }
 
+    public string? assigneeId { get; set; }
+
     [ForeignKey("epicId")]
     public virtual Epic? Epic { get; set; }
+
+    [ForeignKey("assigneeId")]
+    public virtual User? Assignee { get; set; }
 
     public virtual ICollection<BacklogItem> BacklogItems { get; set; } = new List<BacklogItem>();
 

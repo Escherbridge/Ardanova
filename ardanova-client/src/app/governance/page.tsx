@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import {
   Search,
@@ -38,6 +38,78 @@ import {
   DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
 import { cn } from "~/lib/utils";
+import { api } from "~/trpc/react";
+
+// Types for display
+interface DisplayProposal {
+  id: string;
+  title: string;
+  type: string;
+  status: string;
+  project: { id: string; name: string; slug: string };
+  creator: { id: string; name: string; avatar?: string };
+  description: string;
+  options: Array<{ label: string; votes: number; percentage: number }>;
+  quorum: number;
+  currentQuorum: number;
+  threshold: number;
+  totalVotes: number;
+  totalVoters: number;
+  votingEnds: Date;
+  createdAt: Date;
+}
+
+// Transform API proposal to display format
+function transformProposal(apiProposal: any): DisplayProposal {
+  // Parse options from JSON string
+  let options = [
+    { label: "For", votes: 0, percentage: 0 },
+    { label: "Against", votes: 0, percentage: 0 },
+    { label: "Abstain", votes: 0, percentage: 0 },
+  ];
+  try {
+    const parsed = JSON.parse(apiProposal.options || "[]");
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      const totalVotes = apiProposal.votesCount || 1;
+      options = parsed.map((opt: any) => ({
+        label: opt.label || "Option",
+        votes: opt.votes || 0,
+        percentage: totalVotes > 0 ? Math.round(((opt.votes || 0) / totalVotes) * 100) : 0,
+      }));
+    }
+  } catch {}
+
+  // Calculate current quorum percentage
+  const currentQuorum = apiProposal.totalVotingPower > 0
+    ? Math.round((apiProposal.votesCount / apiProposal.totalVotingPower) * 100)
+    : 0;
+
+  return {
+    id: apiProposal.id,
+    title: apiProposal.title,
+    type: apiProposal.type,
+    status: apiProposal.status,
+    project: {
+      id: apiProposal.project?.id || "",
+      name: apiProposal.project?.title || "Unknown Project",  // Map title -> name
+      slug: apiProposal.project?.slug || apiProposal.project?.id || "",
+    },
+    creator: {
+      id: apiProposal.creator?.id || apiProposal.creatorId,
+      name: apiProposal.creator?.name || "Unknown",
+      avatar: apiProposal.creator?.image,  // Map image -> avatar
+    },
+    description: apiProposal.description,
+    options,
+    quorum: apiProposal.quorum,
+    currentQuorum,
+    threshold: apiProposal.threshold,
+    totalVotes: apiProposal.votesCount,  // Map votesCount -> totalVotes
+    totalVoters: Math.round(apiProposal.totalVotingPower),  // Map totalVotingPower -> totalVoters
+    votingEnds: apiProposal.votingEnd ? new Date(apiProposal.votingEnd) : new Date(),
+    createdAt: new Date(apiProposal.createdAt),
+  };
+}
 
 // Feed tabs for governance
 const governanceTabs = [
@@ -102,91 +174,6 @@ const timeFilters = [
   { id: "month", label: "Created this month" },
 ];
 
-// Sample proposals data
-const sampleProposals = [
-  {
-    id: "prop1",
-    title: "Allocate 15% Treasury for European Expansion",
-    type: "Treasury",
-    status: "Active",
-    project: { id: "p1", name: "EcoWaste Solutions", slug: "ecowaste-solutions" },
-    creator: { id: "u4", name: "Alex Kim", avatar: "https://i.pravatar.cc/150?u=alex" },
-    description: "This proposal requests allocation of 15% of the project treasury to fund expansion into Germany and Netherlands markets. Both countries have strong environmental policies.",
-    options: [
-      { label: "For", votes: 67, percentage: 67 },
-      { label: "Against", votes: 23, percentage: 23 },
-      { label: "Abstain", votes: 10, percentage: 10 },
-    ],
-    quorum: 60,
-    currentQuorum: 75,
-    threshold: 66,
-    totalVotes: 100,
-    totalVoters: 124,
-    votingEnds: new Date(Date.now() + 1000 * 60 * 60 * 24 * 5),
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 2),
-  },
-  {
-    id: "prop2",
-    title: "Update Token Vesting Schedule for Contributors",
-    type: "Token",
-    status: "Active",
-    project: { id: "p2", name: "HealthTrack", slug: "healthtrack" },
-    creator: { id: "u2", name: "Marcus Rodriguez", avatar: "https://i.pravatar.cc/150?u=marcus" },
-    description: "Propose to change the contributor token vesting from 12 months to 6 months cliff with 24 months total vesting period.",
-    options: [
-      { label: "For", votes: 45, percentage: 55 },
-      { label: "Against", votes: 37, percentage: 45 },
-    ],
-    quorum: 50,
-    currentQuorum: 62,
-    threshold: 51,
-    totalVotes: 82,
-    totalVoters: 89,
-    votingEnds: new Date(Date.now() + 1000 * 60 * 60 * 24 * 3),
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 4),
-  },
-  {
-    id: "prop3",
-    title: "Add New Governance Council Member",
-    type: "Governance",
-    status: "Passed",
-    project: { id: "p3", name: "EduConnect", slug: "educonnect" },
-    creator: { id: "u5", name: "Jordan Lee", avatar: "https://i.pravatar.cc/150?u=jordan" },
-    description: "Proposal to add Maria Santos as the 7th member of the Governance Council to improve decision-making diversity.",
-    options: [
-      { label: "For", votes: 156, percentage: 89 },
-      { label: "Against", votes: 19, percentage: 11 },
-    ],
-    quorum: 40,
-    currentQuorum: 85,
-    threshold: 66,
-    totalVotes: 175,
-    totalVoters: 67,
-    votingEnds: new Date(Date.now() - 1000 * 60 * 60 * 24 * 2),
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 9),
-  },
-  {
-    id: "prop4",
-    title: "Emergency: Pause Trading During Security Audit",
-    type: "Emergency",
-    status: "Executed",
-    project: { id: "p1", name: "EcoWaste Solutions", slug: "ecowaste-solutions" },
-    creator: { id: "u1", name: "Sarah Chen", avatar: "https://i.pravatar.cc/150?u=sarah" },
-    description: "Emergency proposal to pause token trading while we conduct a thorough security audit following a potential vulnerability report.",
-    options: [
-      { label: "For", votes: 98, percentage: 98 },
-      { label: "Against", votes: 2, percentage: 2 },
-    ],
-    quorum: 30,
-    currentQuorum: 95,
-    threshold: 80,
-    totalVotes: 100,
-    totalVoters: 124,
-    votingEnds: new Date(Date.now() - 1000 * 60 * 60 * 24 * 7),
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 8),
-  },
-];
-
 function formatTimeRemaining(date: Date): string {
   const now = new Date();
   const diffMs = date.getTime() - now.getTime();
@@ -215,33 +202,40 @@ function formatRelativeTime(date: Date): string {
 export default function GovernancePage() {
   const [activeTab, setActiveTab] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [showFilters, setShowFilters] = useState(false);
   const [selectedType, setSelectedType] = useState("all");
   const [selectedStatus, setSelectedStatus] = useState("all");
   const [selectedQuorum, setSelectedQuorum] = useState("all");
   const [selectedTime, setSelectedTime] = useState("all");
 
-  // Filter proposals based on all criteria
-  const filteredProposals = sampleProposals.filter((prop) => {
+  // Debounce search query
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Fetch proposals from API with debounced search
+  const { data: proposalsResult, isLoading } = api.governance.getAll.useQuery({
+    search: debouncedSearch || undefined,
+    type: selectedType !== "all" ? selectedType : undefined,
+    status: selectedStatus !== "all" ? selectedStatus : undefined,
+    limit: 50,
+    page: 1,
+  });
+
+  // Transform API proposals to display format
+  const proposals = (proposalsResult?.items || []).map(transformProposal);
+
+  // Filter proposals based on client-side criteria (tab, quorum, time)
+  const filteredProposals = proposals.filter((prop) => {
     // Tab filter
     if (activeTab === "active" && prop.status !== "Active") return false;
     if (activeTab === "passed" && prop.status !== "Passed" && prop.status !== "Executed") return false;
     if (activeTab === "rejected" && prop.status !== "Rejected" && prop.status !== "Expired") return false;
-
-    // Search query
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      const matchesTitle = prop.title.toLowerCase().includes(query);
-      const matchesDescription = prop.description.toLowerCase().includes(query);
-      const matchesProject = prop.project.name.toLowerCase().includes(query);
-      if (!matchesTitle && !matchesDescription && !matchesProject) return false;
-    }
-
-    // Type filter
-    if (selectedType !== "all" && prop.type !== selectedType) return false;
-
-    // Status filter
-    if (selectedStatus !== "all" && prop.status !== selectedStatus) return false;
 
     // Quorum filter
     if (selectedQuorum !== "all") {
@@ -286,14 +280,14 @@ export default function GovernancePage() {
 
   // Stats for sidebar
   const stats = {
-    total: sampleProposals.length,
-    active: sampleProposals.filter((p) => p.status === "Active").length,
-    passed: sampleProposals.filter((p) => p.status === "Passed" || p.status === "Executed").length,
-    totalVotes: sampleProposals.reduce((sum, p) => sum + p.totalVotes, 0),
+    total: proposals.length,
+    active: proposals.filter((p) => p.status === "Active").length,
+    passed: proposals.filter((p) => p.status === "Passed" || p.status === "Executed").length,
+    totalVotes: proposals.reduce((sum, p) => sum + p.totalVotes, 0),
   };
 
   // Active proposals for sidebar
-  const activeProposals = sampleProposals
+  const activeProposals = proposals
     .filter((p) => p.status === "Active")
     .slice(0, 3);
 
@@ -309,12 +303,9 @@ export default function GovernancePage() {
                 <Vote className="size-5 text-neon-purple" />
                 Governance
               </h1>
-              <Button variant="neon" size="sm" asChild>
-                <Link href="/governance/create">
-                  <Plus className="size-4 mr-2" />
-                  New Proposal
-                </Link>
-              </Button>
+              <div className="text-sm text-muted-foreground">
+                Proposals are created within projects
+              </div>
             </div>
 
             {/* Search */}
@@ -515,15 +506,18 @@ export default function GovernancePage() {
 
           {/* Proposals Feed */}
           <div>
-            {filteredProposals.length === 0 ? (
+            {isLoading ? (
+              <div className="flex items-center justify-center py-20">
+                <div className="size-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+              </div>
+            ) : filteredProposals.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-20 px-4">
                 <Vote className="size-12 text-muted-foreground mb-4" />
                 <p className="text-lg font-medium text-foreground">No proposals found</p>
-                <p className="text-muted-foreground mt-1">Create a new proposal to get started!</p>
+                <p className="text-muted-foreground mt-1">Proposals are created within projects</p>
                 <Button variant="neon" className="mt-4" asChild>
-                  <Link href="/governance/create">
-                    <Plus className="size-4 mr-2" />
-                    New Proposal
+                  <Link href="/projects">
+                    Browse Projects
                   </Link>
                 </Button>
               </div>
@@ -599,7 +593,7 @@ export default function GovernancePage() {
                     </div>
 
                     {/* Proposal Content */}
-                    <Link href={`/governance/${proposal.id}`} className="block mt-3 pl-13">
+                    <Link href={`/projects/${proposal.project.slug}?tab=proposals&proposalId=${proposal.id}`} className="block mt-3 pl-13">
                       <h3 className="font-semibold text-lg text-foreground hover:text-primary transition-colors">
                         {proposal.title}
                       </h3>
@@ -750,7 +744,7 @@ export default function GovernancePage() {
               {activeProposals.map((proposal) => (
                 <Link
                   key={proposal.id}
-                  href={`/governance/${proposal.id}`}
+                  href={`/projects/${proposal.project.slug}?tab=proposals&proposalId=${proposal.id}`}
                   className="block"
                 >
                   <p className="font-medium text-sm text-foreground hover:text-primary transition-colors line-clamp-1">

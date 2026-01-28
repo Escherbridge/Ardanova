@@ -13,6 +13,7 @@ export const RoadmapSchema = z.object({
   vision: z.string().nullable(),
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date(),
+  assigneeId: z.string().nullable(),
 })
 
 export type Roadmap = z.infer<typeof RoadmapSchema>

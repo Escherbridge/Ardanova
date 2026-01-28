@@ -633,8 +633,10 @@ Table ProjectMilestone {
   completedAt datetime
   isCompleted boolean [not null, default: false]
   createdAt datetime [not null, default: `now()`]
+  assigneeId varchar
 }
 Ref: ProjectMilestone.projectId > Project.id
+Ref: ProjectMilestone.assigneeId > User.id
 
 Table ProjectSupport {
   id varchar [not null, pk, default: `cuid()`]
@@ -737,8 +739,10 @@ Table Roadmap {
   status RoadmapStatus [not null, default: 'DRAFT']
   createdAt datetime [not null, default: `now()`]
   updatedAt datetime [not null, note: 'Updated at']
+  assigneeId varchar
 }
 Ref: Roadmap.projectId > Project.id
+Ref: Roadmap.assigneeId > User.id
 
 Table RoadmapPhase {
   id varchar [not null, pk, default: `cuid()`]
@@ -751,8 +755,10 @@ Table RoadmapPhase {
   status PhaseStatus [not null, default: 'PLANNED']
   createdAt datetime [not null, default: `now()`]
   updatedAt datetime [not null, note: 'Updated at']
+  assigneeId varchar
 }
 Ref: RoadmapPhase.roadmapId > Roadmap.id
+Ref: RoadmapPhase.assigneeId > User.id
 
 Table Epic {
   id varchar [not null, pk, default: `cuid()`]
@@ -767,8 +773,10 @@ Table Epic {
   targetDate datetime
   createdAt datetime [not null, default: `now()`]
   updatedAt datetime [not null, note: 'Updated at']
+  assigneeId varchar
 }
 Ref: Epic.phaseId > RoadmapPhase.id
+Ref: Epic.assigneeId > User.id
 
 Table Sprint {
   id varchar [not null, pk, default: `cuid()`]
@@ -782,8 +790,10 @@ Table Sprint {
   status SprintStatus [not null, default: 'PLANNED']
   createdAt datetime [not null, default: `now()`]
   updatedAt datetime [not null, note: 'Updated at']
+  assigneeId varchar
 }
 Ref: Sprint.projectId > Project.id
+Ref: Sprint.assigneeId > User.id
 
 Table ProductBacklogItem {
   id varchar [not null, pk, default: `cuid()`]
@@ -797,8 +807,10 @@ Table ProductBacklogItem {
   priority Priority [not null, default: 'MEDIUM']
   createdAt datetime [not null, default: `now()`]
   updatedAt datetime [not null, note: 'Updated at']
+  assigneeId varchar
 }
 Ref: ProductBacklogItem.epicId > Epic.id
+Ref: ProductBacklogItem.assigneeId > User.id
 
 Table BacklogItem {
   id varchar [not null, pk, default: `cuid()`]
@@ -810,8 +822,10 @@ Table BacklogItem {
   estimate int
   createdAt datetime [not null, default: `now()`]
   updatedAt datetime [not null, note: 'Updated at']
+  assigneeId varchar
 }
 Ref: BacklogItem.pbiId > ProductBacklogItem.id
+Ref: BacklogItem.assigneeId > User.id
 
 Table SprintItem {
   id varchar [not null, pk, default: `cuid()`]
@@ -936,6 +950,15 @@ Enum BidStatus {
   WITHDRAWN
 }
 
+Enum TaskBidStatus {
+  SUBMITTED
+  UNDER_REVIEW
+  ACCEPTED
+  REJECTED
+  WITHDRAWN
+  COMPLETED
+}
+
 Table Guild {
   id varchar [not null, pk, default: `cuid()`]
   name varchar [not null]
@@ -1047,6 +1070,32 @@ Table GuildReview {
 }
 Ref: GuildReview.guildId > Guild.id
 Ref: GuildReview.userId > User.id
+
+Table GuildUpdate {
+  id varchar [not null, pk, default: `cuid()`]
+  guildId varchar [not null]
+  createdById varchar [not null]
+  title varchar [not null]
+  content text [not null]
+  images text
+  createdAt datetime [not null, default: `now()`]
+}
+Ref: GuildUpdate.guildId > Guild.id
+Ref: GuildUpdate.createdById > User.id
+
+Table TaskBid {
+  id varchar [not null, pk, default: `cuid()`]
+  taskId varchar [not null]
+  guildId varchar [not null]
+  proposedAmount decimal(18,8)
+  proposal text
+  estimatedHours int
+  status TaskBidStatus [not null, default: 'SUBMITTED']
+  createdAt datetime [not null, default: `now()`]
+  reviewedAt datetime
+}
+Ref: TaskBid.taskId > ProjectTask.id
+Ref: TaskBid.guildId > Guild.id
 
 // =================================================================================================
 // 5. Marketplace & Shop Module
@@ -1833,3 +1882,28 @@ Table OpportunityApplication {
 }
 Ref: OpportunityApplication.opportunityId > Opportunity.id
 Ref: OpportunityApplication.applicantId > User.id
+
+Table OpportunityUpdate {
+  id varchar [not null, pk, default: `cuid()`]
+  opportunityId varchar [not null]
+  userId varchar [not null]
+  title varchar [not null]
+  content text [not null]
+  images text
+  createdAt datetime [not null, default: `now()`]
+}
+Ref: OpportunityUpdate.opportunityId > Opportunity.id
+Ref: OpportunityUpdate.userId > User.id
+
+Table OpportunityComment {
+  id varchar [not null, pk, default: `cuid()`]
+  opportunityId varchar [not null]
+  userId varchar [not null]
+  content text [not null]
+  parentId varchar
+  createdAt datetime [not null, default: `now()`]
+  updatedAt datetime [not null, note: 'Updated at']
+}
+Ref: OpportunityComment.opportunityId > Opportunity.id
+Ref: OpportunityComment.userId > User.id
+Ref: OpportunityComment.parentId > OpportunityComment.id

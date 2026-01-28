@@ -51,7 +51,11 @@
       "Bash(npm run check:*)",
       "Bash(npm --version)",
       "Bash(npm config list:*)",
-      "Bash(npm run generate:prisma:*)"
+      "Bash(npm run generate:prisma:*)",
+      "Bash(tasklist:*)",
+      "Bash(Select-String -Pattern \"\\(error|Build succeeded\\)\")",
+      "Bash(Select-Object -First 10)",
+      "Bash(npm run typecheck:*)"
     ]
   }
 }

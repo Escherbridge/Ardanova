@@ -3,11 +3,11 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Loader2, Plus, X, Info, Store, ImageIcon } from "lucide-react";
+import { ArrowLeft, Loader2, Info, Store, ImageIcon } from "lucide-react";
+import { toast } from "sonner";
 
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
-import { Badge } from "~/components/ui/badge";
 import {
   Select,
   SelectContent,
@@ -15,16 +15,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from "~/components/ui/select";
+import { api } from "~/trpc/react";
 
 const categories = [
-  { id: "Technology", label: "Technology" },
-  { id: "Design", label: "Design" },
-  { id: "Sustainability", label: "Sustainability" },
-  { id: "Handmade", label: "Handmade" },
-  { id: "Digital", label: "Digital Products" },
-  { id: "Services", label: "Services" },
-  { id: "Food", label: "Food & Beverages" },
-  { id: "Fashion", label: "Fashion" },
+  { id: "RETAIL", label: "Retail" },
+  { id: "SERVICES", label: "Services" },
+  { id: "DIGITAL_PRODUCTS", label: "Digital Products" },
+  { id: "FOOD_BEVERAGE", label: "Food & Beverage" },
+  { id: "HEALTH_WELLNESS", label: "Health & Wellness" },
+  { id: "TECHNOLOGY", label: "Technology" },
+  { id: "FASHION", label: "Fashion" },
+  { id: "HOME_GARDEN", label: "Home & Garden" },
+  { id: "ARTS_CRAFTS", label: "Arts & Crafts" },
+  { id: "EDUCATION", label: "Education" },
+  { id: "OTHER", label: "Other" },
 ];
 
 export default function CreateShopPage() {
@@ -33,13 +37,19 @@ export default function CreateShopPage() {
     name: "",
     description: "",
     category: "",
-    email: "",
-    website: "",
-    tags: [] as string[],
+    industry: "",
   });
-  const [newTag, setNewTag] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const createShopMutation = api.shop.create.useMutation({
+    onSuccess: (data) => {
+      toast.success("Shop created successfully!");
+      router.push(`/shops/${data.slug}`);
+    },
+    onError: (error) => {
+      toast.error(error.message || "Failed to create shop");
+    },
+  });
 
   const handleChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -52,34 +62,10 @@ export default function CreateShopPage() {
     }
   };
 
-  const addTag = () => {
-    if (newTag.trim() && !formData.tags.includes(newTag.trim())) {
-      setFormData((prev) => ({
-        ...prev,
-        tags: [...prev.tags, newTag.trim()],
-      }));
-      setNewTag("");
-    }
-  };
-
-  const removeTag = (tag: string) => {
-    setFormData((prev) => ({
-      ...prev,
-      tags: prev.tags.filter((t) => t !== tag),
-    }));
-  };
-
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
     if (!formData.name.trim()) newErrors.name = "Shop name is required";
-    if (!formData.description.trim())
-      newErrors.description = "Description is required";
-    if (formData.description.length < 10)
-      newErrors.description = "Must be at least 10 characters";
     if (!formData.category) newErrors.category = "Category is required";
-    if (!formData.email.trim()) newErrors.email = "Email is required";
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email))
-      newErrors.email = "Invalid email address";
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -88,12 +74,12 @@ export default function CreateShopPage() {
     e.preventDefault();
     if (!validateForm()) return;
 
-    setIsSubmitting(true);
-    // TODO: Implement shop creation API
-    // For now, simulate success and redirect
-    setTimeout(() => {
-      router.push("/shops");
-    }, 1000);
+    createShopMutation.mutate({
+      name: formData.name,
+      description: formData.description || undefined,
+      category: formData.category as any,
+      industry: formData.industry || undefined,
+    });
   };
 
   return (
@@ -145,22 +131,15 @@ export default function CreateShopPage() {
 
               <div>
                 <label className="text-sm font-medium mb-2 block">
-                  Description <span className="text-neon">*</span>
+                  Description
                 </label>
                 <textarea
                   value={formData.description}
                   onChange={(e) => handleChange("description", e.target.value)}
                   placeholder="Describe what your shop offers..."
                   rows={4}
-                  className={`w-full px-4 py-3 bg-muted/50 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-neon/50 resize-none ${
-                    errors.description ? "border-destructive" : "border-border"
-                  }`}
+                  className="w-full px-4 py-3 bg-muted/50 border-2 border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-neon/50 resize-none"
                 />
-                {errors.description && (
-                  <p className="text-sm text-destructive mt-1">
-                    {errors.description}
-                  </p>
-                )}
               </div>
 
               <div>
@@ -192,40 +171,16 @@ export default function CreateShopPage() {
                   </p>
                 )}
               </div>
-            </CardContent>
-          </Card>
 
-          {/* Contact Info */}
-          <Card className="bg-card border-border">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg">Contact Information</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
               <div>
                 <label className="text-sm font-medium mb-2 block">
-                  Contact Email <span className="text-neon">*</span>
+                  Industry
                 </label>
                 <input
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => handleChange("email", e.target.value)}
-                  placeholder="contact@yourshop.com"
-                  className={`w-full px-4 py-3 bg-muted/50 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-neon/50 ${
-                    errors.email ? "border-destructive" : "border-border"
-                  }`}
-                />
-                {errors.email && (
-                  <p className="text-sm text-destructive mt-1">{errors.email}</p>
-                )}
-              </div>
-
-              <div>
-                <label className="text-sm font-medium mb-2 block">Website</label>
-                <input
-                  type="url"
-                  value={formData.website}
-                  onChange={(e) => handleChange("website", e.target.value)}
-                  placeholder="https://yourshop.com"
+                  type="text"
+                  value={formData.industry}
+                  onChange={(e) => handleChange("industry", e.target.value)}
+                  placeholder="e.g., Sustainable Goods, Artisan Crafts"
                   className="w-full px-4 py-3 bg-muted/50 border-2 border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-neon/50"
                 />
               </div>
@@ -253,53 +208,6 @@ export default function CreateShopPage() {
             </CardContent>
           </Card>
 
-          {/* Tags */}
-          <Card className="bg-card border-border">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg">Tags</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={newTag}
-                  onChange={(e) => setNewTag(e.target.value)}
-                  placeholder="Add a tag..."
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      addTag();
-                    }
-                  }}
-                  className="flex-1 px-4 py-3 bg-muted/50 border-2 border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-neon/50"
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={addTag}
-                  className="px-4"
-                >
-                  <Plus className="h-4 w-4" />
-                </Button>
-              </div>
-              {formData.tags.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {formData.tags.map((tag) => (
-                    <Badge
-                      key={tag}
-                      variant="secondary"
-                      className="gap-1 cursor-pointer hover:bg-destructive/20"
-                      onClick={() => removeTag(tag)}
-                    >
-                      {tag}
-                      <X className="h-3 w-3" />
-                    </Badge>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
           {/* Submit Error */}
           {errors.submit && (
             <Card className="bg-destructive/10 border-destructive">
@@ -314,9 +222,9 @@ export default function CreateShopPage() {
             <Button
               type="submit"
               className="flex-1 bg-neon hover:bg-neon/90 text-black font-semibold py-6"
-              disabled={isSubmitting}
+              disabled={createShopMutation.isPending}
             >
-              {isSubmitting ? (
+              {createShopMutation.isPending ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                   Opening Shop...

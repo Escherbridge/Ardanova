@@ -148,6 +148,11 @@ export default function CommentsTab({ projectId }: CommentsTabProps) {
                 Post Comment
               </Button>
             </div>
+            {addComment.error && (
+              <div className="p-3 bg-destructive/10 border border-destructive/30 rounded text-sm text-destructive">
+                Error: {addComment.error.message}
+              </div>
+            )}
           </form>
         </CardContent>
       </Card>

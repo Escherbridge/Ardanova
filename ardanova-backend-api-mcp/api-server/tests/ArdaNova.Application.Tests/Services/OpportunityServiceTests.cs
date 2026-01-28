@@ -14,6 +14,8 @@ public class OpportunityServiceTests
 {
     private readonly Mock<IRepository<Opportunity>> _repositoryMock;
     private readonly Mock<IRepository<OpportunityApplication>> _applicationRepositoryMock;
+    private readonly Mock<IRepository<OpportunityUpdate>> _updateRepositoryMock;
+    private readonly Mock<IRepository<OpportunityComment>> _commentRepositoryMock;
     private readonly Mock<IRepository<User>> _userRepositoryMock;
     private readonly Mock<IUnitOfWork> _unitOfWorkMock;
     private readonly Mock<IMapper> _mapperMock;
@@ -23,12 +25,16 @@ public class OpportunityServiceTests
     {
         _repositoryMock = new Mock<IRepository<Opportunity>>();
         _applicationRepositoryMock = new Mock<IRepository<OpportunityApplication>>();
+        _updateRepositoryMock = new Mock<IRepository<OpportunityUpdate>>();
+        _commentRepositoryMock = new Mock<IRepository<OpportunityComment>>();
         _userRepositoryMock = new Mock<IRepository<User>>();
         _unitOfWorkMock = new Mock<IUnitOfWork>();
         _mapperMock = new Mock<IMapper>();
         _sut = new OpportunityService(
             _repositoryMock.Object,
             _applicationRepositoryMock.Object,
+            _updateRepositoryMock.Object,
+            _commentRepositoryMock.Object,
             _userRepositoryMock.Object,
             _unitOfWorkMock.Object,
             _mapperMock.Object);

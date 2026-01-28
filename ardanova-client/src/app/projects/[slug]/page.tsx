@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { useSession } from "next-auth/react";
 import {
   ArrowLeft,
   Heart,
@@ -80,8 +81,11 @@ const categoryVariants: Record<string, "neon" | "neon-pink" | "neon-green" | "ne
 
 export default function ProjectDetailPage() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const slug = params.slug as string;
-  const [activeTab, setActiveTab] = useState("overview");
+  const proposalId = searchParams.get("proposalId");
+  const [activeTab, setActiveTab] = useState(proposalId ? "proposals" : "overview");
+  const { data: session } = useSession();
 
   const { data: project, isLoading } = api.project.getById.useQuery({ id: slug });
   const { data: members } = api.project.getMembers.useQuery(
@@ -89,10 +93,10 @@ export default function ProjectDetailPage() {
     { enabled: !!project?.id }
   );
 
-  // Determine if current user is owner or member
-  // TODO: Replace with actual auth session check
-  const isOwner = true; // Placeholder - check against session user
-  const isMember = members?.some((m: any) => m.userId === "current-user-id") ?? isOwner;
+  // Determine if current user is owner or member based on session
+  const currentUserId = session?.user?.id;
+  const isOwner = !!currentUserId && project?.createdById === currentUserId;
+  const isMember = isOwner || (!!currentUserId && members?.some((m: any) => m.userId === currentUserId));
 
   if (isLoading) {
     return (
@@ -268,7 +272,14 @@ export default function ProjectDetailPage() {
         {activeTab === "updates" && <UpdatesTab projectId={project.id} isOwner={isOwner} />}
         {activeTab === "team" && <TeamTab projectId={project.id} isOwner={isOwner} />}
         {activeTab === "milestones" && <MilestonesTab projectId={project.id} isOwner={isOwner} />}
-        {activeTab === "proposals" && <ProposalsTab projectId={project.id} isOwner={isOwner} isMember={isMember} />}
+        {activeTab === "proposals" && (
+          <ProposalsTab
+            projectId={project.id}
+            isOwner={isOwner}
+            isMember={isMember}
+            selectedProposalId={proposalId || undefined}
+          />
+        )}
         {activeTab === "bids" && <BidsTab projectId={project.id} isOwner={isOwner} />}
         {activeTab === "comments" && <CommentsTab projectId={project.id} />}
       </div>

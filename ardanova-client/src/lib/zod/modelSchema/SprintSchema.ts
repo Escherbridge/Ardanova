@@ -18,6 +18,7 @@ export const SprintSchema = z.object({
   velocity: z.number().int().nullable(),
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date(),
+  assigneeId: z.string().nullable(),
 })
 
 export type Sprint = z.infer<typeof SprintSchema>

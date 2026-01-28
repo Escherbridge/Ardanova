@@ -94,6 +94,8 @@ public class User
 
     public virtual ICollection<ProjectTask> ProjectTasks { get; set; } = new List<ProjectTask>();
 
+    public virtual ICollection<ProjectMilestone> ProjectMilestones { get; set; } = new List<ProjectMilestone>();
+
     public virtual ICollection<ProjectSupport> ProjectSupports { get; set; } = new List<ProjectSupport>();
 
     public virtual ICollection<ProjectApplication> ProjectApplications { get; set; } = new List<ProjectApplication>();
@@ -101,6 +103,18 @@ public class User
     public virtual ICollection<ProjectComment> ProjectComments { get; set; } = new List<ProjectComment>();
 
     public virtual ICollection<ProjectUpdate> ProjectUpdates { get; set; } = new List<ProjectUpdate>();
+
+    public virtual ICollection<Roadmap> Roadmaps { get; set; } = new List<Roadmap>();
+
+    public virtual ICollection<RoadmapPhase> RoadmapPhases { get; set; } = new List<RoadmapPhase>();
+
+    public virtual ICollection<Epic> Epics { get; set; } = new List<Epic>();
+
+    public virtual ICollection<Sprint> Sprints { get; set; } = new List<Sprint>();
+
+    public virtual ICollection<ProductBacklogItem> ProductBacklogItems { get; set; } = new List<ProductBacklogItem>();
+
+    public virtual ICollection<BacklogItem> BacklogItems { get; set; } = new List<BacklogItem>();
 
     public virtual ICollection<ProjectMember> ProjectMembers { get; set; } = new List<ProjectMember>();
 
@@ -115,6 +129,8 @@ public class User
     public virtual ICollection<ProjectBid> ProjectBids { get; set; } = new List<ProjectBid>();
 
     public virtual ICollection<GuildReview> GuildReviews { get; set; } = new List<GuildReview>();
+
+    public virtual ICollection<GuildUpdate> GuildUpdates { get; set; } = new List<GuildUpdate>();
 
     public virtual ICollection<Shop> Shops { get; set; } = new List<Shop>();
 
@@ -165,6 +181,10 @@ public class User
     public virtual ICollection<Opportunity> Opportunities { get; set; } = new List<Opportunity>();
 
     public virtual ICollection<OpportunityApplication> OpportunityApplications { get; set; } = new List<OpportunityApplication>();
+
+    public virtual ICollection<OpportunityUpdate> OpportunityUpdates { get; set; } = new List<OpportunityUpdate>();
+
+    public virtual ICollection<OpportunityComment> OpportunityComments { get; set; } = new List<OpportunityComment>();
 
     public virtual ICollection<Referral> ReferralsAsReferrer { get; set; } = new List<Referral>();
 

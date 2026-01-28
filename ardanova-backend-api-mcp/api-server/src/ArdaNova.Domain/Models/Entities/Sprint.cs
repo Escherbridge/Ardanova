@@ -43,8 +43,13 @@ public class Sprint
     [Required]
     public DateTime updatedAt { get; set; }
 
+    public string? assigneeId { get; set; }
+
     [ForeignKey("projectId")]
     public virtual Project? Project { get; set; }
+
+    [ForeignKey("assigneeId")]
+    public virtual User? Assignee { get; set; }
 
     public virtual ICollection<SprintItem> SprintItems { get; set; } = new List<SprintItem>();
 

@@ -1000,7 +1000,14 @@ export const projectRouter = createTRPCRouter({
         throw new Error(response.error);
       }
 
-      return response.data ?? [];
+      // Handle paged response from backend (returns { items: [...], page, totalCount, etc. })
+      const data = response.data;
+      if (data && typeof data === 'object' && 'items' in data) {
+        return (data as { items: any[] }).items ?? [];
+      }
+
+      // Fallback for direct array response
+      return Array.isArray(data) ? data : [];
     }),
 
   // Get proposal by ID
@@ -1082,6 +1089,38 @@ export const projectRouter = createTRPCRouter({
       return response.data;
     }),
 
+  // Get proposal with vote summary
+  getProposalWithVotes: publicProcedure
+    .input(z.object({ proposalId: z.string() }))
+    .query(async ({ input }) => {
+      const proposalResponse = await apiClient.projects.getProposalById(input.proposalId);
+
+      if (proposalResponse.error || !proposalResponse.data) {
+        throw new Error(proposalResponse.error ?? "Proposal not found");
+      }
+
+      // Try to get vote summary from governance endpoint
+      const voteSummary = await apiClient.governance.getVoteSummary(input.proposalId);
+
+      return {
+        ...proposalResponse.data,
+        voteSummary: voteSummary.data ?? null,
+      };
+    }),
+
+  // Get all votes for a proposal
+  getProposalVotes: publicProcedure
+    .input(z.object({ proposalId: z.string() }))
+    .query(async ({ input }) => {
+      const response = await apiClient.governance.getVotes(input.proposalId);
+
+      if (response.error) {
+        throw new Error(response.error);
+      }
+
+      return response.data ?? [];
+    }),
+
   // ========================================
   // PROJECT UPDATES
   // ========================================
@@ -1152,7 +1191,7 @@ export const projectRouter = createTRPCRouter({
       }
 
       // Verify update ownership
-      if (update.data.createdById !== userId) {
+      if (update.data.userId !== userId) {
         throw new Error("Access denied");
       }
 

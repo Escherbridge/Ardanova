@@ -343,4 +343,365 @@ export const guildRouter = createTRPCRouter({
 
       return response.data ?? [];
     }),
+
+  // ========================================
+  // GUILD UPDATES
+  // ========================================
+
+  // Get updates for a guild
+  getUpdates: publicProcedure
+    .input(z.object({ guildId: z.string() }))
+    .query(async ({ input }) => {
+      const response = await apiClient.guilds.getUpdates(input.guildId);
+
+      if (response.error) {
+        throw new Error(response.error);
+      }
+
+      return response.data ?? [];
+    }),
+
+  // Create an update (owner only)
+  createUpdate: protectedProcedure
+    .input(
+      z.object({
+        guildId: z.string(),
+        title: z.string().min(1),
+        content: z.string().min(10),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.session.user.id;
+
+      // Verify ownership
+      const guild = await apiClient.guilds.getById(input.guildId);
+      if (guild.error || !guild.data) {
+        throw new Error("Guild not found");
+      }
+
+      if (guild.data.ownerId !== userId) {
+        throw new Error("Only the guild owner can create updates");
+      }
+
+      const response = await apiClient.guilds.createUpdate(input.guildId, {
+        title: input.title,
+        content: input.content,
+        createdById: userId,
+      });
+
+      if (response.error || !response.data) {
+        throw new Error(response.error ?? "Failed to create update");
+      }
+
+      return response.data;
+    }),
+
+  // Delete an update
+  deleteUpdate: protectedProcedure
+    .input(z.object({ guildId: z.string(), updateId: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.session.user.id;
+
+      // Verify ownership
+      const guild = await apiClient.guilds.getById(input.guildId);
+      if (guild.error || !guild.data) {
+        throw new Error("Guild not found");
+      }
+
+      if (guild.data.ownerId !== userId) {
+        throw new Error("Only the guild owner can delete updates");
+      }
+
+      const response = await apiClient.guilds.deleteUpdate(input.guildId, input.updateId);
+
+      if (response.error) {
+        throw new Error(response.error ?? "Failed to delete update");
+      }
+
+      return { success: true };
+    }),
+
+  // ========================================
+  // GUILD APPLICATIONS
+  // ========================================
+
+  // Get applications (owner only)
+  getApplications: protectedProcedure
+    .input(z.object({ guildId: z.string() }))
+    .query(async ({ input, ctx }) => {
+      const userId = ctx.session.user.id;
+
+      // Verify ownership
+      const guild = await apiClient.guilds.getById(input.guildId);
+      if (guild.error || !guild.data) {
+        throw new Error("Guild not found");
+      }
+
+      if (guild.data.ownerId !== userId) {
+        throw new Error("Only the guild owner can view applications");
+      }
+
+      const response = await apiClient.guilds.getApplications(input.guildId);
+
+      if (response.error) {
+        throw new Error(response.error);
+      }
+
+      return response.data ?? [];
+    }),
+
+  // Submit application
+  submitApplication: protectedProcedure
+    .input(
+      z.object({
+        guildId: z.string(),
+        requestedRole: z.string().min(1),
+        message: z.string().min(20),
+        skills: z.string().optional(),
+        experience: z.string().optional(),
+        portfolio: z.string().url().optional(),
+        availability: z.string().optional(),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.session.user.id;
+
+      const response = await apiClient.guilds.submitApplication(input.guildId, {
+        userId: userId,
+        requestedRole: input.requestedRole,
+        message: input.message,
+        skills: input.skills,
+        experience: input.experience,
+        portfolio: input.portfolio,
+        availability: input.availability,
+      });
+
+      if (response.error || !response.data) {
+        throw new Error(response.error ?? "Failed to submit application");
+      }
+
+      return response.data;
+    }),
+
+  // Accept/reject application (owner only)
+  reviewApplication: protectedProcedure
+    .input(
+      z.object({
+        guildId: z.string(),
+        applicationId: z.string(),
+        status: z.enum(["APPROVED", "REJECTED"]),
+        reviewMessage: z.string().optional(),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.session.user.id;
+
+      // Get application to verify ownership
+      const application = await apiClient.guilds.getApplicationById(input.guildId, input.applicationId);
+      if (application.error || !application.data) {
+        throw new Error("Application not found");
+      }
+
+      // Verify guild ownership
+      const guild = await apiClient.guilds.getById(application.data.guildId);
+      if (guild.error || !guild.data) {
+        throw new Error("Guild not found");
+      }
+
+      if (guild.data.ownerId !== userId) {
+        throw new Error("Only the guild owner can review applications");
+      }
+
+      // Call the appropriate endpoint based on status
+      const reviewData = { reviewMessage: input.reviewMessage };
+      const response = input.status === "APPROVED"
+        ? await apiClient.guilds.acceptApplication(input.guildId, input.applicationId, reviewData)
+        : await apiClient.guilds.rejectApplication(input.guildId, input.applicationId, reviewData);
+
+      if (response.error || !response.data) {
+        throw new Error(response.error ?? "Failed to review application");
+      }
+
+      return response.data;
+    }),
+
+  // ========================================
+  // GUILD INVITATIONS
+  // ========================================
+
+  // Get invitations sent by guild (owner only)
+  getInvitations: protectedProcedure
+    .input(z.object({ guildId: z.string() }))
+    .query(async ({ input, ctx }) => {
+      const userId = ctx.session.user.id;
+
+      // Verify ownership
+      const guild = await apiClient.guilds.getById(input.guildId);
+      if (guild.error || !guild.data) {
+        throw new Error("Guild not found");
+      }
+
+      if (guild.data.ownerId !== userId) {
+        throw new Error("Only the guild owner can view invitations");
+      }
+
+      const response = await apiClient.guilds.getInvitations(input.guildId);
+
+      if (response.error) {
+        throw new Error(response.error);
+      }
+
+      return response.data ?? [];
+    }),
+
+  // Create invitation (owner only)
+  createInvitation: protectedProcedure
+    .input(
+      z.object({
+        guildId: z.string(),
+        invitedUserId: z.string().optional(),
+        invitedEmail: z.string().email().optional(),
+        role: z.string(),
+        message: z.string().optional(),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      const sessionUserId = ctx.session.user.id;
+
+      // Verify ownership
+      const guild = await apiClient.guilds.getById(input.guildId);
+      if (guild.error || !guild.data) {
+        throw new Error("Guild not found");
+      }
+
+      if (guild.data.ownerId !== sessionUserId) {
+        throw new Error("Only the guild owner can create invitations");
+      }
+
+      const response = await apiClient.guilds.createInvitation(input.guildId, {
+        invitedById: sessionUserId,
+        invitedUserId: input.invitedUserId,
+        invitedEmail: input.invitedEmail,
+        role: input.role,
+        message: input.message,
+      });
+
+      if (response.error || !response.data) {
+        throw new Error(response.error ?? "Failed to create invitation");
+      }
+
+      return response.data;
+    }),
+
+  // Accept/reject invitation (invited user)
+  respondToInvitation: protectedProcedure
+    .input(
+      z.object({
+        guildId: z.string(),
+        invitationId: z.string(),
+        accept: z.boolean(),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.session.user.id;
+
+      // Get invitation to verify recipient
+      const invitation = await apiClient.guilds.getInvitationById(input.guildId, input.invitationId);
+      if (invitation.error || !invitation.data) {
+        throw new Error("Invitation not found");
+      }
+
+      if (invitation.data.invitedUserId !== userId) {
+        throw new Error("Access denied");
+      }
+
+      const response = await apiClient.guilds.respondToInvitation(input.invitationId, {
+        accept: input.accept,
+      });
+
+      if (response.error || !response.data) {
+        throw new Error(response.error ?? "Failed to respond to invitation");
+      }
+
+      return response.data;
+    }),
+
+  // ========================================
+  // GUILD FOLLOWS
+  // ========================================
+
+  // Get followers
+  getFollowers: publicProcedure
+    .input(z.object({ guildId: z.string() }))
+    .query(async ({ input }) => {
+      const response = await apiClient.guilds.getFollowers(input.guildId);
+
+      if (response.error) {
+        throw new Error(response.error);
+      }
+
+      return response.data ?? [];
+    }),
+
+  // Follow guild
+  followGuild: protectedProcedure
+    .input(z.object({ guildId: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.session.user.id;
+
+      const response = await apiClient.guilds.followGuild(input.guildId, userId);
+
+      if (response.error || !response.data) {
+        throw new Error(response.error ?? "Failed to follow guild");
+      }
+
+      return response.data;
+    }),
+
+  // Unfollow guild
+  unfollowGuild: protectedProcedure
+    .input(z.object({ guildId: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.session.user.id;
+
+      const response = await apiClient.guilds.unfollowGuild(input.guildId, userId);
+
+      if (response.error) {
+        throw new Error(response.error ?? "Failed to unfollow guild");
+      }
+
+      return { success: true };
+    }),
+
+  // Check if user follows guild
+  isFollowing: protectedProcedure
+    .input(z.object({ guildId: z.string() }))
+    .query(async ({ input, ctx }) => {
+      const userId = ctx.session.user.id;
+
+      const response = await apiClient.guilds.isFollowing(input.guildId, userId);
+
+      if (response.error) {
+        throw new Error(response.error);
+      }
+
+      return response.data ?? false;
+    }),
+
+  // ========================================
+  // GUILD PROJECTS
+  // ========================================
+
+  // Get guild's projects (completed bids)
+  getProjects: publicProcedure
+    .input(z.object({ guildId: z.string() }))
+    .query(async ({ input }) => {
+      const response = await apiClient.guilds.getProjects(input.guildId);
+
+      if (response.error) {
+        throw new Error(response.error);
+      }
+
+      return response.data ?? [];
+    }),
 });

@@ -19,6 +19,7 @@ export const ProductBacklogItemSchema = z.object({
   acceptanceCriteria: z.string().nullable(),
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date(),
+  assigneeId: z.string().nullable(),
 })
 
 export type ProductBacklogItem = z.infer<typeof ProductBacklogItemSchema>

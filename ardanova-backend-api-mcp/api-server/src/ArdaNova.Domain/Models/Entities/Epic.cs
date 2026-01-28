@@ -45,8 +45,13 @@ public class Epic
     [Required]
     public DateTime updatedAt { get; set; }
 
+    public string? assigneeId { get; set; }
+
     [ForeignKey("phaseId")]
     public virtual RoadmapPhase? Phase { get; set; }
+
+    [ForeignKey("assigneeId")]
+    public virtual User? Assignee { get; set; }
 
     public virtual ICollection<ProductBacklogItem> ProductBacklogItems { get; set; } = new List<ProductBacklogItem>();
 

@@ -51,3 +51,43 @@ public interface IGuildReviewService
     Task<Result<GuildReviewDto>> UpdateAsync(string id, UpdateGuildReviewDto dto, CancellationToken ct = default);
     Task<Result<bool>> DeleteAsync(string id, CancellationToken ct = default);
 }
+
+public interface IGuildUpdateService
+{
+    Task<Result<GuildUpdateDto>> GetByIdAsync(string id, CancellationToken ct = default);
+    Task<Result<IReadOnlyList<GuildUpdateDto>>> GetByGuildIdAsync(string guildId, CancellationToken ct = default);
+    Task<Result<GuildUpdateDto>> CreateAsync(CreateGuildUpdateDto dto, CancellationToken ct = default);
+    Task<Result<bool>> DeleteAsync(string id, CancellationToken ct = default);
+}
+
+public interface IGuildApplicationService
+{
+    Task<Result<GuildApplicationDto>> GetByIdAsync(string id, CancellationToken ct = default);
+    Task<Result<IReadOnlyList<GuildApplicationDto>>> GetByGuildIdAsync(string guildId, CancellationToken ct = default);
+    Task<Result<IReadOnlyList<GuildApplicationDto>>> GetByUserIdAsync(string userId, CancellationToken ct = default);
+    Task<Result<GuildApplicationDto>> CreateAsync(CreateGuildApplicationDto dto, CancellationToken ct = default);
+    Task<Result<GuildApplicationDto>> AcceptAsync(string id, string? reviewMessage, CancellationToken ct = default);
+    Task<Result<GuildApplicationDto>> RejectAsync(string id, string? reviewMessage, CancellationToken ct = default);
+    Task<Result<GuildApplicationDto>> WithdrawAsync(string id, CancellationToken ct = default);
+    Task<Result<bool>> DeleteAsync(string id, CancellationToken ct = default);
+}
+
+public interface IGuildInvitationService
+{
+    Task<Result<GuildInvitationDto>> GetByIdAsync(string id, CancellationToken ct = default);
+    Task<Result<IReadOnlyList<GuildInvitationDto>>> GetByGuildIdAsync(string guildId, CancellationToken ct = default);
+    Task<Result<IReadOnlyList<GuildInvitationDto>>> GetByUserIdAsync(string userId, CancellationToken ct = default);
+    Task<Result<GuildInvitationDto>> CreateAsync(CreateGuildInvitationDto dto, CancellationToken ct = default);
+    Task<Result<GuildInvitationDto>> AcceptAsync(string id, CancellationToken ct = default);
+    Task<Result<GuildInvitationDto>> RejectAsync(string id, CancellationToken ct = default);
+    Task<Result<bool>> DeleteAsync(string id, CancellationToken ct = default);
+}
+
+public interface IGuildFollowService
+{
+    Task<Result<IReadOnlyList<GuildFollowDto>>> GetByGuildIdAsync(string guildId, CancellationToken ct = default);
+    Task<Result<IReadOnlyList<GuildFollowDto>>> GetByUserIdAsync(string userId, CancellationToken ct = default);
+    Task<Result<GuildFollowDto>> FollowAsync(CreateGuildFollowDto dto, CancellationToken ct = default);
+    Task<Result<bool>> UnfollowAsync(string guildId, string userId, CancellationToken ct = default);
+    Task<Result<bool>> IsFollowingAsync(string guildId, string userId, CancellationToken ct = default);
+}

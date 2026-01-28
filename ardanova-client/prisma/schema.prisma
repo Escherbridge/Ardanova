@@ -371,6 +371,15 @@ enum BidStatus {
   WITHDRAWN
 }
 
+enum TaskBidStatus {
+  SUBMITTED
+  UNDER_REVIEW
+  ACCEPTED
+  REJECTED
+  WITHDRAWN
+  COMPLETED
+}
+
 enum GuildMemberRole {
   OWNER
   ADMIN
@@ -628,6 +637,7 @@ model User {
   referrals1 Referral[] @relation("Referral_referredId")
   projects Project[] @relation("Project_createdById")
   projectTasks ProjectTask[] @relation("ProjectTask_assignedToId")
+  projectMilestones ProjectMilestone[] @relation("ProjectMilestone_assigneeId")
   projectSupports ProjectSupport[] @relation("ProjectSupport_userId")
   projectApplications ProjectApplication[] @relation("ProjectApplication_userId")
   projectInvitations ProjectInvitation[] @relation("ProjectInvitation_invitedById")
@@ -636,6 +646,12 @@ model User {
   projectMembershipRequests1 ProjectMembershipRequest[] @relation("ProjectMembershipRequest_reviewedById")
   projectComments ProjectComment[] @relation("ProjectComment_userId")
   projectUpdates ProjectUpdate[] @relation("ProjectUpdate_userId")
+  roadmaps Roadmap[] @relation("Roadmap_assigneeId")
+  roadmapPhases RoadmapPhase[] @relation("RoadmapPhase_assigneeId")
+  epics Epic[] @relation("Epic_assigneeId")
+  sprints Sprint[] @relation("Sprint_assigneeId")
+  productBacklogItems ProductBacklogItem[] @relation("ProductBacklogItem_assigneeId")
+  backlogItems BacklogItem[] @relation("BacklogItem_assigneeId")
   projectMembers ProjectMember[] @relation("ProjectMember_userId")
   taskSubmissions TaskSubmission[] @relation("TaskSubmission_submittedById")
   taskSubmissions1 TaskSubmission[] @relation("TaskSubmission_reviewedById")
@@ -651,6 +667,7 @@ model User {
   guildApplications1 GuildApplication[] @relation("GuildApplication_reviewedById")
   projectBids ProjectBid[] @relation("ProjectBid_userId")
   guildReviews GuildReview[] @relation("GuildReview_userId")
+  guildUpdates GuildUpdate[] @relation("GuildUpdate_createdById")
   shops Shop[] @relation("Shop_ownerId")
   products Product[] @relation("Product_userId")
   invoices Invoice[] @relation("Invoice_buyerId")
@@ -684,6 +701,8 @@ model User {
   guildFollows GuildFollow[] @relation("GuildFollow_userId")
   opportunities Opportunity[] @relation("Opportunity_posterId")
   opportunityApplications OpportunityApplication[] @relation("OpportunityApplication_applicantId")
+  opportunityUpdates OpportunityUpdate[] @relation("OpportunityUpdate_userId")
+  opportunityComments OpportunityComment[] @relation("OpportunityComment_userId")
 }
 
 model UserSkill {
@@ -914,6 +933,7 @@ model ProjectTask {
   sprintItems SprintItem[] @relation("SprintItem_taskId")
   taskCompensations TaskCompensation[] @relation("TaskCompensation_taskId")
   taskSubmissions TaskSubmission[] @relation("TaskSubmission_taskId")
+  taskBids TaskBid[] @relation("TaskBid_taskId")
   taskEscrows TaskEscrow[] @relation("TaskEscrow_taskId")
   opportunities Opportunity[] @relation("Opportunity_taskId")
 }
@@ -948,7 +968,9 @@ model ProjectMilestone {
   completedAt DateTime?
   isCompleted Boolean @default(false)
   createdAt DateTime @default(now())
+  assigneeId String?
   project Project @relation("ProjectMilestone_projectId", fields: [projectId], references: [id])
+  assignee User? @relation("ProjectMilestone_assigneeId", fields: [assigneeId], references: [id])
 }
 
 model ProjectSupport {
@@ -1053,7 +1075,9 @@ model Roadmap {
   status RoadmapStatus @default(DRAFT)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  assigneeId String?
   project Project @relation("Roadmap_projectId", fields: [projectId], references: [id])
+  assignee User? @relation("Roadmap_assigneeId", fields: [assigneeId], references: [id])
   roadmapPhases RoadmapPhase[] @relation("RoadmapPhase_roadmapId")
 }
 
@@ -1068,7 +1092,9 @@ model RoadmapPhase {
   status PhaseStatus @default(PLANNED)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  assigneeId String?
   roadmap Roadmap @relation("RoadmapPhase_roadmapId", fields: [roadmapId], references: [id])
+  assignee User? @relation("RoadmapPhase_assigneeId", fields: [assigneeId], references: [id])
   epics Epic[] @relation("Epic_phaseId")
 }
 
@@ -1085,7 +1111,9 @@ model Epic {
   targetDate DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  assigneeId String?
   phase RoadmapPhase @relation("Epic_phaseId", fields: [phaseId], references: [id])
+  assignee User? @relation("Epic_assigneeId", fields: [assigneeId], references: [id])
   productBacklogItems ProductBacklogItem[] @relation("ProductBacklogItem_epicId")
 }
 
@@ -1101,7 +1129,9 @@ model Sprint {
   status SprintStatus @default(PLANNED)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  assigneeId String?
   project Project @relation("Sprint_projectId", fields: [projectId], references: [id])
+  assignee User? @relation("Sprint_assigneeId", fields: [assigneeId], references: [id])
   sprintItems SprintItem[] @relation("SprintItem_sprintId")
 }
 
@@ -1117,7 +1147,9 @@ model ProductBacklogItem {
   priority Priority @default(MEDIUM)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  assigneeId String?
   epic Epic @relation("ProductBacklogItem_epicId", fields: [epicId], references: [id])
+  assignee User? @relation("ProductBacklogItem_assigneeId", fields: [assigneeId], references: [id])
   backlogItems BacklogItem[] @relation("BacklogItem_pbiId")
 }
 
@@ -1131,8 +1163,10 @@ model BacklogItem {
   estimate Int?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  assigneeId String?
   projectTasks ProjectTask[] @relation("ProjectTask_backlogItemId")
   pbi ProductBacklogItem @relation("BacklogItem_pbiId", fields: [pbiId], references: [id])
+  assignee User? @relation("BacklogItem_assigneeId", fields: [assigneeId], references: [id])
 }
 
 model SprintItem {
@@ -1279,6 +1313,8 @@ model Guild {
   guildApplications GuildApplication[] @relation("GuildApplication_guildId")
   projectBids ProjectBid[] @relation("ProjectBid_guildId")
   guildReviews GuildReview[] @relation("GuildReview_guildId")
+  guildUpdates GuildUpdate[] @relation("GuildUpdate_guildId")
+  taskBids TaskBid[] @relation("TaskBid_guildId")
   posts Post[] @relation("Post_guildId")
   postShares PostShare[] @relation("PostShare_sharedToGuildId")
   events Event[] @relation("Event_guildId")
@@ -1361,6 +1397,32 @@ model GuildReview {
   createdAt DateTime @default(now())
   guild Guild @relation("GuildReview_guildId", fields: [guildId], references: [id])
   user User @relation("GuildReview_userId", fields: [userId], references: [id])
+}
+
+model GuildUpdate {
+  id String @id @default(cuid())
+  guildId String
+  createdById String
+  title String
+  content String @db.Text
+  images String? @db.Text
+  createdAt DateTime @default(now())
+  guild Guild @relation("GuildUpdate_guildId", fields: [guildId], references: [id])
+  createdBy User @relation("GuildUpdate_createdById", fields: [createdById], references: [id])
+}
+
+model TaskBid {
+  id String @id @default(cuid())
+  taskId String
+  guildId String
+  proposedAmount Decimal? @db.Decimal(18, 8)
+  proposal String? @db.Text
+  estimatedHours Int?
+  status TaskBidStatus @default(SUBMITTED)
+  createdAt DateTime @default(now())
+  reviewedAt DateTime?
+  task ProjectTask @relation("TaskBid_taskId", fields: [taskId], references: [id])
+  guild Guild @relation("TaskBid_guildId", fields: [guildId], references: [id])
 }
 
 model Shop {
@@ -1945,6 +2007,8 @@ model Opportunity {
   project Project? @relation("Opportunity_projectId", fields: [projectId], references: [id])
   task ProjectTask? @relation("Opportunity_taskId", fields: [taskId], references: [id])
   opportunityApplications OpportunityApplication[] @relation("OpportunityApplication_opportunityId")
+  opportunityUpdates OpportunityUpdate[] @relation("OpportunityUpdate_opportunityId")
+  opportunityComments OpportunityComment[] @relation("OpportunityComment_opportunityId")
 }
 
 model OpportunityApplication {
@@ -1962,5 +2026,31 @@ model OpportunityApplication {
   applicant User @relation("OpportunityApplication_applicantId", fields: [applicantId], references: [id])
 
   @@unique([opportunityId, applicantId])
+}
+
+model OpportunityUpdate {
+  id String @id @default(cuid())
+  opportunityId String
+  userId String
+  title String
+  content String @db.Text
+  images String? @db.Text
+  createdAt DateTime @default(now())
+  opportunity Opportunity @relation("OpportunityUpdate_opportunityId", fields: [opportunityId], references: [id])
+  user User @relation("OpportunityUpdate_userId", fields: [userId], references: [id])
+}
+
+model OpportunityComment {
+  id String @id @default(cuid())
+  opportunityId String
+  userId String
+  content String @db.Text
+  parentId String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  opportunity Opportunity @relation("OpportunityComment_opportunityId", fields: [opportunityId], references: [id])
+  user User @relation("OpportunityComment_userId", fields: [userId], references: [id])
+  parent OpportunityComment? @relation("OpportunityComment_parentId", fields: [parentId], references: [id])
+  parentChildren OpportunityComment[] @relation("OpportunityComment_parentId")
 }
 

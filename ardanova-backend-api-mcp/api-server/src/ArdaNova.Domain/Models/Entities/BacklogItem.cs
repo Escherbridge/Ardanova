@@ -37,9 +37,14 @@ public class BacklogItem
     [Required]
     public DateTime updatedAt { get; set; }
 
+    public string? assigneeId { get; set; }
+
     public virtual ICollection<ProjectTask> ProjectTasks { get; set; } = new List<ProjectTask>();
 
     [ForeignKey("pbiId")]
     public virtual ProductBacklogItem? Pbi { get; set; }
+
+    [ForeignKey("assigneeId")]
+    public virtual User? Assignee { get; set; }
 
 }

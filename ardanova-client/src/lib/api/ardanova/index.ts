@@ -8,6 +8,11 @@ import { TasksEndpoint } from "./endpoints/tasks";
 import { EventsEndpoint } from "./endpoints/events";
 import { OpportunitiesEndpoint } from "./endpoints/opportunities";
 import { GovernanceEndpoint } from "./endpoints/governance";
+import { RoadmapsEndpoint } from "./endpoints/roadmaps";
+import { SprintsEndpoint } from "./endpoints/sprints";
+import { EpicsEndpoint } from "./endpoints/epics";
+import { BacklogEndpoint } from "./endpoints/backlog";
+import { TaskBidsEndpoint } from "./endpoints/task-bids";
 
 // Re-export types from endpoints
 export type { User, CreateUserDto, UpdateUserDto } from "./endpoints/users";
@@ -62,6 +67,53 @@ export type { Task, TaskUser, TaskProject, CreateTaskDto, UpdateTaskDto, SearchT
 export type { Event, EventOrganizer, EventAttendee, CreateEventDto, UpdateEventDto, RegisterEventDto, SearchEventsParams } from "./endpoints/events";
 export type { Opportunity, OpportunityApplication, CreateOpportunityDto, UpdateOpportunityDto, ApplyToOpportunityDto, SearchOpportunitiesParams } from "./endpoints/opportunities";
 export type { Proposal, Vote, ProposalVoteSummary, CreateProposalDto, UpdateProposalDto, CastVoteDto, SearchProposalsParams } from "./endpoints/governance";
+export type {
+  Roadmap,
+  RoadmapPhase,
+  RoadmapStatus,
+  PhaseStatus,
+  CreateRoadmap,
+  UpdateRoadmap,
+  CreateRoadmapPhase,
+  UpdateRoadmapPhase,
+} from "./endpoints/roadmaps";
+export type {
+  Sprint,
+  SprintItem,
+  SprintStatus,
+  SprintItemStatus,
+  CreateSprint,
+  UpdateSprint,
+  CreateSprintItem,
+  UpdateSprintItem,
+} from "./endpoints/sprints";
+export type {
+  Epic,
+  EpicPriority,
+  EpicStatus,
+  CreateEpic,
+  UpdateEpic,
+} from "./endpoints/epics";
+export type {
+  ProductBacklogItem,
+  BacklogItem,
+  PbiType,
+  PbiPriority,
+  PbiStatus,
+  BacklogItemType,
+  BacklogItemStatus,
+  CreateProductBacklogItem,
+  UpdateProductBacklogItem,
+  CreateBacklogItem,
+  UpdateBacklogItem,
+} from "./endpoints/backlog";
+export type {
+  TaskBid,
+  TaskBidStatus,
+  CreateTaskBid,
+  UpdateTaskBid,
+  SearchTaskBidsParams,
+} from "./endpoints/task-bids";
 
 // Re-export schemas for validation
 export {
@@ -92,6 +144,11 @@ export class ArdaNovaApiClient extends BaseApiClient {
   readonly events: EventsEndpoint;
   readonly opportunities: OpportunitiesEndpoint;
   readonly governance: GovernanceEndpoint;
+  readonly roadmaps: RoadmapsEndpoint;
+  readonly sprints: SprintsEndpoint;
+  readonly epics: EpicsEndpoint;
+  readonly backlog: BacklogEndpoint;
+  readonly taskBids: TaskBidsEndpoint;
 
   constructor(config: BaseApiClientConfig) {
     super(config);
@@ -103,6 +160,11 @@ export class ArdaNovaApiClient extends BaseApiClient {
     this.events = new EventsEndpoint(this);
     this.opportunities = new OpportunitiesEndpoint(this);
     this.governance = new GovernanceEndpoint(this);
+    this.roadmaps = new RoadmapsEndpoint(this);
+    this.sprints = new SprintsEndpoint(this);
+    this.epics = new EpicsEndpoint(this);
+    this.backlog = new BacklogEndpoint(this);
+    this.taskBids = new TaskBidsEndpoint(this);
   }
 
   health() {

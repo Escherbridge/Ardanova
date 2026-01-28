@@ -6,6 +6,11 @@ import { taskRouter } from "~/server/api/routers/task";
 import { eventRouter } from "~/server/api/routers/event";
 import { opportunityRouter } from "~/server/api/routers/opportunity";
 import { governanceRouter } from "~/server/api/routers/governance";
+import { roadmapRouter } from "~/server/api/routers/roadmap";
+import { sprintRouter } from "~/server/api/routers/sprint";
+import { epicRouter } from "~/server/api/routers/epic";
+import { backlogRouter } from "~/server/api/routers/backlog";
+import { taskBidRouter } from "~/server/api/routers/task-bid";
 import { createCallerFactory, createTRPCRouter } from "~/server/api/trpc";
 
 /**
@@ -22,6 +27,11 @@ export const appRouter = createTRPCRouter({
   event: eventRouter,
   opportunity: opportunityRouter,
   governance: governanceRouter,
+  roadmap: roadmapRouter,
+  sprint: sprintRouter,
+  epic: epicRouter,
+  backlog: backlogRouter,
+  taskBid: taskBidRouter,
 });
 
 // export type definition of API

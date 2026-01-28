@@ -13,6 +13,7 @@ export const ProjectMilestoneSchema = z.object({
   completedAt: z.coerce.date().nullable(),
   isCompleted: z.boolean(),
   createdAt: z.coerce.date(),
+  assigneeId: z.string().nullable(),
 })
 
 export type ProjectMilestone = z.infer<typeof ProjectMilestoneSchema>

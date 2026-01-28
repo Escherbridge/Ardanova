@@ -12,6 +12,8 @@ public class OpportunityService : IOpportunityService
 {
     private readonly IRepository<Opportunity> _repository;
     private readonly IRepository<OpportunityApplication> _applicationRepository;
+    private readonly IRepository<OpportunityUpdate> _updateRepository;
+    private readonly IRepository<OpportunityComment> _commentRepository;
     private readonly IRepository<User> _userRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IMapper _mapper;
@@ -19,12 +21,16 @@ public class OpportunityService : IOpportunityService
     public OpportunityService(
         IRepository<Opportunity> repository,
         IRepository<OpportunityApplication> applicationRepository,
+        IRepository<OpportunityUpdate> updateRepository,
+        IRepository<OpportunityComment> commentRepository,
         IRepository<User> userRepository,
         IUnitOfWork unitOfWork,
         IMapper mapper)
     {
         _repository = repository;
         _applicationRepository = applicationRepository;
+        _updateRepository = updateRepository;
+        _commentRepository = commentRepository;
         _userRepository = userRepository;
         _unitOfWork = unitOfWork;
         _mapper = mapper;
@@ -300,6 +306,130 @@ public class OpportunityService : IOpportunityService
             applicationDto = applicationDto with { Applicant = _mapper.Map<OpportunityApplicationApplicantDto>(applicant) };
 
         return Result<OpportunityApplicationDto>.Success(applicationDto);
+    }
+
+    // ===== Updates =====
+
+    public async Task<Result<IReadOnlyList<OpportunityUpdateDto>>> GetUpdatesAsync(string opportunityId, CancellationToken ct = default)
+    {
+        var opportunity = await _repository.GetByIdAsync(opportunityId, ct);
+        if (opportunity is null)
+            return Result<IReadOnlyList<OpportunityUpdateDto>>.NotFound($"Opportunity with id {opportunityId} not found");
+
+        var updates = await _updateRepository.FindAsync(u => u.opportunityId == opportunityId, ct);
+        var dtos = new List<OpportunityUpdateDto>();
+
+        foreach (var update in updates.OrderByDescending(u => u.createdAt))
+        {
+            var dto = _mapper.Map<OpportunityUpdateDto>(update);
+            var user = await _userRepository.GetByIdAsync(update.userId, ct);
+            if (user is not null)
+                dto = dto with { User = _mapper.Map<OpportunityUpdateAuthorDto>(user) };
+            dtos.Add(dto);
+        }
+
+        return Result<IReadOnlyList<OpportunityUpdateDto>>.Success(dtos);
+    }
+
+    public async Task<Result<OpportunityUpdateDto>> CreateUpdateAsync(CreateOpportunityUpdateDto dto, CancellationToken ct = default)
+    {
+        var opportunity = await _repository.GetByIdAsync(dto.OpportunityId, ct);
+        if (opportunity is null)
+            return Result<OpportunityUpdateDto>.NotFound($"Opportunity with id {dto.OpportunityId} not found");
+
+        var update = new OpportunityUpdate
+        {
+            id = Guid.NewGuid().ToString(),
+            opportunityId = dto.OpportunityId,
+            userId = dto.UserId,
+            title = dto.Title,
+            content = dto.Content,
+            images = dto.Images,
+            createdAt = DateTime.UtcNow
+        };
+
+        await _updateRepository.AddAsync(update, ct);
+        await _unitOfWork.SaveChangesAsync(ct);
+
+        var resultDto = _mapper.Map<OpportunityUpdateDto>(update);
+        var user = await _userRepository.GetByIdAsync(dto.UserId, ct);
+        if (user is not null)
+            resultDto = resultDto with { User = _mapper.Map<OpportunityUpdateAuthorDto>(user) };
+
+        return Result<OpportunityUpdateDto>.Success(resultDto);
+    }
+
+    public async Task<Result<bool>> DeleteUpdateAsync(string updateId, CancellationToken ct = default)
+    {
+        var update = await _updateRepository.GetByIdAsync(updateId, ct);
+        if (update is null)
+            return Result<bool>.NotFound($"Update with id {updateId} not found");
+
+        await _updateRepository.DeleteAsync(update, ct);
+        await _unitOfWork.SaveChangesAsync(ct);
+        return Result<bool>.Success(true);
+    }
+
+    // ===== Comments =====
+
+    public async Task<Result<IReadOnlyList<OpportunityCommentDto>>> GetCommentsAsync(string opportunityId, CancellationToken ct = default)
+    {
+        var opportunity = await _repository.GetByIdAsync(opportunityId, ct);
+        if (opportunity is null)
+            return Result<IReadOnlyList<OpportunityCommentDto>>.NotFound($"Opportunity with id {opportunityId} not found");
+
+        var comments = await _commentRepository.FindAsync(c => c.opportunityId == opportunityId, ct);
+        var dtos = new List<OpportunityCommentDto>();
+
+        foreach (var comment in comments.OrderBy(c => c.createdAt))
+        {
+            var dto = _mapper.Map<OpportunityCommentDto>(comment);
+            var user = await _userRepository.GetByIdAsync(comment.userId, ct);
+            if (user is not null)
+                dto = dto with { Author = _mapper.Map<OpportunityCommentAuthorDto>(user) };
+            dtos.Add(dto);
+        }
+
+        return Result<IReadOnlyList<OpportunityCommentDto>>.Success(dtos);
+    }
+
+    public async Task<Result<OpportunityCommentDto>> AddCommentAsync(CreateOpportunityCommentDto dto, CancellationToken ct = default)
+    {
+        var opportunity = await _repository.GetByIdAsync(dto.OpportunityId, ct);
+        if (opportunity is null)
+            return Result<OpportunityCommentDto>.NotFound($"Opportunity with id {dto.OpportunityId} not found");
+
+        var comment = new OpportunityComment
+        {
+            id = Guid.NewGuid().ToString(),
+            opportunityId = dto.OpportunityId,
+            userId = dto.UserId,
+            content = dto.Content,
+            parentId = dto.ParentId,
+            createdAt = DateTime.UtcNow,
+            updatedAt = DateTime.UtcNow
+        };
+
+        await _commentRepository.AddAsync(comment, ct);
+        await _unitOfWork.SaveChangesAsync(ct);
+
+        var resultDto = _mapper.Map<OpportunityCommentDto>(comment);
+        var user = await _userRepository.GetByIdAsync(dto.UserId, ct);
+        if (user is not null)
+            resultDto = resultDto with { Author = _mapper.Map<OpportunityCommentAuthorDto>(user) };
+
+        return Result<OpportunityCommentDto>.Success(resultDto);
+    }
+
+    public async Task<Result<bool>> DeleteCommentAsync(string commentId, CancellationToken ct = default)
+    {
+        var comment = await _commentRepository.GetByIdAsync(commentId, ct);
+        if (comment is null)
+            return Result<bool>.NotFound($"Comment with id {commentId} not found");
+
+        await _commentRepository.DeleteAsync(comment, ct);
+        await _unitOfWork.SaveChangesAsync(ct);
+        return Result<bool>.Success(true);
     }
 
     private async Task<OpportunityDto> EnrichOpportunityDtoAsync(Opportunity opportunity, CancellationToken ct)
