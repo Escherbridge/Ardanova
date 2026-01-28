@@ -39,8 +39,8 @@ public class TokenSwapTools
     [Description("Creates a new token swap request")]
     public async Task<TokenSwapDto?> CreateSwap(
         [Description("The user ID")] string userId,
-        [Description("The source token ID")] string fromTokenId,
-        [Description("The destination token ID")] string toTokenId,
+        [Description("The source share ID")] string fromShareId,
+        [Description("The destination share ID")] string toShareId,
         [Description("The amount to swap from")] decimal fromAmount,
         [Description("The amount to receive")] decimal toAmount,
         [Description("The exchange rate")] decimal exchangeRate,
@@ -50,8 +50,8 @@ public class TokenSwapTools
         var dto = new CreateTokenSwapDto
         {
             UserId = userId,
-            FromTokenId = fromTokenId,
-            ToTokenId = toTokenId,
+            FromShareId = fromShareId,
+            ToShareId = toShareId,
             FromAmount = fromAmount,
             ToAmount = toAmount,
             ExchangeRate = exchangeRate,
@@ -124,26 +124,26 @@ public class LiquidityPoolTools
     [McpServerTool(Name = "pool_get_by_token_pair")]
     [Description("Retrieves a liquidity pool by token pair")]
     public async Task<LiquidityPoolDto?> GetPoolByTokenPair(
-        [Description("The first token ID")] string token1Id,
-        [Description("The second token ID")] string token2Id,
+        [Description("The first share ID")] string share1Id,
+        [Description("The second share ID")] string share2Id,
         CancellationToken ct = default)
     {
-        var result = await _poolService.GetByTokenPairAsync(token1Id, token2Id, ct);
+        var result = await _poolService.GetByTokenPairAsync(share1Id, share2Id, ct);
         return result.IsSuccess ? result.Value : null;
     }
 
     [McpServerTool(Name = "pool_create")]
     [Description("Creates a new liquidity pool")]
     public async Task<LiquidityPoolDto?> CreatePool(
-        [Description("The first token ID")] string token1Id,
-        [Description("The second token ID")] string token2Id,
+        [Description("The first share ID")] string share1Id,
+        [Description("The second share ID")] string share2Id,
         [Description("The fee percentage (default 0.3%)")] decimal feePercent = 0.003m,
         CancellationToken ct = default)
     {
         var dto = new CreateLiquidityPoolDto
         {
-            Token1Id = token1Id,
-            Token2Id = token2Id,
+            Share1Id = share1Id,
+            Share2Id = share2Id,
             FeePercent = feePercent
         };
         var result = await _poolService.CreateAsync(dto, ct);

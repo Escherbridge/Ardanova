@@ -63,7 +63,7 @@ public class EpicService : IEpicService
             description = dto.Description,
             status = EpicStatus.PLANNED,
             priority = (Priority)dto.Priority,
-            tokenBudget = dto.TokenBudget,
+            equityBudget = dto.EquityBudget,
             progress = 0,
             startDate = dto.StartDate,
             targetDate = dto.TargetDate,
@@ -87,7 +87,7 @@ public class EpicService : IEpicService
         if (dto.Description is not null) epic.description = dto.Description;
         if (dto.Status.HasValue) epic.status = dto.Status.Value;
         if (dto.Priority.HasValue) epic.priority = (Priority)dto.Priority.Value;
-        if (dto.TokenBudget.HasValue) epic.tokenBudget = dto.TokenBudget;
+        if (dto.EquityBudget.HasValue) epic.equityBudget = dto.EquityBudget;
         if (dto.Progress.HasValue) epic.progress = (int)dto.Progress.Value;
         if (dto.StartDate.HasValue) epic.startDate = dto.StartDate;
         if (dto.TargetDate.HasValue) epic.targetDate = dto.TargetDate;

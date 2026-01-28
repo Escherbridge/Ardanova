@@ -14,7 +14,7 @@ public record TaskDto
     public TaskType TaskType { get; init; }
     public int? EstimatedHours { get; init; }
     public int? ActualHours { get; init; }
-    public decimal? TokenReward { get; init; }
+    public decimal? EquityReward { get; init; }
     public EscrowStatus EscrowStatus { get; init; }
     public DateTime? DueDate { get; init; }
     public DateTime? CompletedAt { get; init; }
@@ -47,7 +47,7 @@ public record CreateTaskDto
     public TaskPriority Priority { get; init; } = TaskPriority.MEDIUM;
     public TaskType TaskType { get; init; } = TaskType.FEATURE;
     public int? EstimatedHours { get; init; }
-    public decimal? TokenReward { get; init; }
+    public decimal? EquityReward { get; init; }
     public DateTime? DueDate { get; init; }
     public string? AssignedToId { get; init; }
     public string? BacklogItemId { get; init; }
@@ -62,7 +62,7 @@ public record UpdateTaskDto
     public TaskType? TaskType { get; init; }
     public int? EstimatedHours { get; init; }
     public int? ActualHours { get; init; }
-    public decimal? TokenReward { get; init; }
+    public decimal? EquityReward { get; init; }
     public DateTime? DueDate { get; init; }
     public string? AssignedToId { get; init; }
 }

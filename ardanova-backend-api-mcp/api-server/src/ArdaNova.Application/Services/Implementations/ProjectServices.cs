@@ -1053,7 +1053,7 @@ public class ProjectMemberService : IProjectMemberService
             projectId = dto.ProjectId,
             userId = dto.UserId,
             role = dto.Role,
-            tokenBalance = 0,
+            shareBalance = 0,
             votingPower = 0,
             joinedAt = DateTime.UtcNow,
             invitedById = dto.InvitedById
@@ -1076,7 +1076,7 @@ public class ProjectMemberService : IProjectMemberService
             return Result<ProjectMemberDto>.NotFound($"Member with id {id} not found");
 
         if (dto.Role.HasValue) member.role = dto.Role.Value;
-        if (dto.TokenBalance.HasValue) member.tokenBalance = dto.TokenBalance.Value;
+        if (dto.ShareBalance.HasValue) member.shareBalance = dto.ShareBalance.Value;
         if (dto.VotingPower.HasValue) member.votingPower = dto.VotingPower.Value;
 
         await _repository.UpdateAsync(member, ct);

@@ -20,7 +20,7 @@ public interface ILiquidityPoolService
     Task<Result<LiquidityPoolDto>> GetByIdAsync(string id, CancellationToken ct = default);
     Task<Result<IReadOnlyList<LiquidityPoolDto>>> GetAllAsync(CancellationToken ct = default);
     Task<Result<IReadOnlyList<LiquidityPoolDto>>> GetActivePoolsAsync(CancellationToken ct = default);
-    Task<Result<LiquidityPoolDto>> GetByTokenPairAsync(string token1Id, string token2Id, CancellationToken ct = default);
+    Task<Result<LiquidityPoolDto>> GetByTokenPairAsync(string share1Id, string share2Id, CancellationToken ct = default);
     Task<Result<LiquidityPoolDto>> CreateAsync(CreateLiquidityPoolDto dto, CancellationToken ct = default);
     Task<Result<LiquidityPoolDto>> AddLiquidityAsync(string id, AddLiquidityDto dto, CancellationToken ct = default);
     Task<Result<LiquidityPoolDto>> RemoveLiquidityAsync(string id, RemoveLiquidityDto dto, CancellationToken ct = default);
@@ -35,7 +35,7 @@ public interface ILiquidityProviderService
     Task<Result<IReadOnlyList<LiquidityProviderDto>>> GetByUserIdAsync(string userId, CancellationToken ct = default);
     Task<Result<LiquidityProviderDto>> GetByPoolAndUserAsync(string poolId, string userId, CancellationToken ct = default);
     Task<Result<LiquidityProviderDto>> CreateAsync(CreateLiquidityProviderDto dto, CancellationToken ct = default);
-    Task<Result<LiquidityProviderDto>> AddLiquidityAsync(string id, decimal shares, decimal token1, decimal token2, CancellationToken ct = default);
-    Task<Result<LiquidityProviderDto>> RemoveLiquidityAsync(string id, decimal shares, decimal token1, decimal token2, CancellationToken ct = default);
+    Task<Result<LiquidityProviderDto>> AddLiquidityAsync(string id, decimal shares, decimal share1, decimal share2, CancellationToken ct = default);
+    Task<Result<LiquidityProviderDto>> RemoveLiquidityAsync(string id, decimal shares, decimal share1, decimal share2, CancellationToken ct = default);
     Task<Result<bool>> DeleteAsync(string id, CancellationToken ct = default);
 }

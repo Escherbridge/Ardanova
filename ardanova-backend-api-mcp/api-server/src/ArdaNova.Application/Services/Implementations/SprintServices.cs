@@ -53,7 +53,7 @@ public class SprintService : ISprintService
             goal = dto.Goal,
             startDate = dto.StartDate ?? DateTime.UtcNow,
             endDate = dto.EndDate ?? DateTime.UtcNow.AddDays(14),
-            tokenBudget = dto.TokenBudget,
+            equityBudget = dto.EquityBudget,
             assigneeId = dto.AssigneeId,
             status = SprintStatus.PLANNED,
             createdAt = DateTime.UtcNow,
@@ -75,7 +75,7 @@ public class SprintService : ISprintService
         if (dto.Goal is not null) sprint.goal = dto.Goal;
         if (dto.StartDate.HasValue) sprint.startDate = dto.StartDate.Value;
         if (dto.EndDate.HasValue) sprint.endDate = dto.EndDate.Value;
-        if (dto.TokenBudget.HasValue) sprint.tokenBudget = dto.TokenBudget;
+        if (dto.EquityBudget.HasValue) sprint.equityBudget = dto.EquityBudget;
         if (dto.Velocity.HasValue) sprint.velocity = (int?)dto.Velocity;
         if (dto.Status.HasValue) sprint.status = dto.Status.Value;
         if (dto.AssigneeId is not null) sprint.assigneeId = dto.AssigneeId;

@@ -10,11 +10,11 @@ using AutoMapper;
 
 public class TokenSwapService : ITokenSwapService
 {
-    private readonly IRepository<TokenSwap> _repository;
+    private readonly IRepository<ShareSwap> _repository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IMapper _mapper;
 
-    public TokenSwapService(IRepository<TokenSwap> repository, IUnitOfWork unitOfWork, IMapper mapper)
+    public TokenSwapService(IRepository<ShareSwap> repository, IUnitOfWork unitOfWork, IMapper mapper)
     {
         _repository = repository;
         _unitOfWork = unitOfWork;
@@ -44,12 +44,12 @@ public class TokenSwapService : ITokenSwapService
 
     public async Task<Result<TokenSwapDto>> CreateAsync(CreateTokenSwapDto dto, CancellationToken ct = default)
     {
-        var swap = new TokenSwap
+        var swap = new ShareSwap
         {
             id = Guid.NewGuid().ToString(),
             userId = dto.UserId,
-            fromTokenId = dto.FromTokenId,
-            toTokenId = dto.ToTokenId,
+            fromShareId = dto.FromShareId,
+            toShareId = dto.ToShareId,
             fromAmount = dto.FromAmount,
             toAmount = dto.ToAmount,
             exchangeRate = dto.ExchangeRate,
@@ -179,8 +179,8 @@ public class LiquidityPoolService : ILiquidityPoolService
         var pool = new LiquidityPool
         {
             id = Guid.NewGuid().ToString(),
-            token1Id = dto.Token1Id,
-            token2Id = dto.Token2Id,
+            share1Id = dto.Share1Id,
+            share2Id = dto.Share2Id,
             reserve1 = 0,
             reserve2 = 0,
             totalShares = 0,
@@ -309,8 +309,8 @@ public class LiquidityProviderService : ILiquidityProviderService
             poolId = dto.PoolId,
             userId = dto.UserId,
             shares = dto.Shares,
-            token1In = dto.Token1In,
-            token2In = dto.Token2In,
+            share1In = dto.Share1In,
+            share2In = dto.Share2In,
             createdAt = DateTime.UtcNow,
             updatedAt = DateTime.UtcNow
         };
@@ -320,15 +320,15 @@ public class LiquidityProviderService : ILiquidityProviderService
         return Result<LiquidityProviderDto>.Success(_mapper.Map<LiquidityProviderDto>(provider));
     }
 
-    public async Task<Result<LiquidityProviderDto>> AddLiquidityAsync(string id, decimal shares, decimal token1, decimal token2, CancellationToken ct = default)
+    public async Task<Result<LiquidityProviderDto>> AddLiquidityAsync(string id, decimal shares, decimal share1, decimal share2, CancellationToken ct = default)
     {
         var provider = await _repository.GetByIdAsync(id, ct);
         if (provider is null)
             return Result<LiquidityProviderDto>.NotFound($"LiquidityProvider with id {id} not found");
 
         provider.shares += shares;
-        provider.token1In += token1;
-        provider.token2In += token2;
+        provider.share1In += share1;
+        provider.share2In += share2;
         provider.updatedAt = DateTime.UtcNow;
 
         await _repository.UpdateAsync(provider, ct);
@@ -336,15 +336,15 @@ public class LiquidityProviderService : ILiquidityProviderService
         return Result<LiquidityProviderDto>.Success(_mapper.Map<LiquidityProviderDto>(provider));
     }
 
-    public async Task<Result<LiquidityProviderDto>> RemoveLiquidityAsync(string id, decimal shares, decimal token1, decimal token2, CancellationToken ct = default)
+    public async Task<Result<LiquidityProviderDto>> RemoveLiquidityAsync(string id, decimal shares, decimal share1, decimal share2, CancellationToken ct = default)
     {
         var provider = await _repository.GetByIdAsync(id, ct);
         if (provider is null)
             return Result<LiquidityProviderDto>.NotFound($"LiquidityProvider with id {id} not found");
 
         provider.shares -= shares;
-        provider.token1In -= token1;
-        provider.token2In -= token2;
+        provider.share1In -= share1;
+        provider.share2In -= share2;
         provider.updatedAt = DateTime.UtcNow;
 
         await _repository.UpdateAsync(provider, ct);

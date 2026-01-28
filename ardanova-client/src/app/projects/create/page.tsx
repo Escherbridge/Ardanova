@@ -76,7 +76,7 @@ interface Role {
   title: string;
   description: string;
   compensationModel: string;
-  tokenAmount: string;
+  shareAmount: string;
   equityPercent: string;
   isOpenForApplications: boolean;
 }
@@ -156,7 +156,7 @@ export default function CreateProjectPage() {
     title: "",
     description: "",
     compensationModel: "",
-    tokenAmount: "",
+    shareAmount: "",
     equityPercent: "",
     isOpenForApplications: true,
   });
@@ -322,7 +322,7 @@ export default function CreateProjectPage() {
       title: "",
       description: "",
       compensationModel: "",
-      tokenAmount: "",
+      shareAmount: "",
       equityPercent: "",
       isOpenForApplications: true,
     });
@@ -334,7 +334,7 @@ export default function CreateProjectPage() {
       title: role.title,
       description: role.description,
       compensationModel: role.compensationModel,
-      tokenAmount: role.tokenAmount,
+      shareAmount: role.shareAmount,
       equityPercent: role.equityPercent,
       isOpenForApplications: role.isOpenForApplications,
     });
@@ -356,7 +356,7 @@ export default function CreateProjectPage() {
       title: "",
       description: "",
       compensationModel: "",
-      tokenAmount: "",
+      shareAmount: "",
       equityPercent: "",
       isOpenForApplications: true,
     });
@@ -481,8 +481,8 @@ export default function CreateProjectPage() {
                       currentStep > index
                         ? "bg-neon text-black"
                         : currentStep === index
-                        ? "bg-neon/20 text-neon border-2 border-neon"
-                        : "bg-muted text-muted-foreground"
+                          ? "bg-neon/20 text-neon border-2 border-neon"
+                          : "bg-muted text-muted-foreground"
                     )}
                   >
                     {currentStep > index ? (
@@ -1054,15 +1054,15 @@ export default function CreateProjectPage() {
                       <div className="grid grid-cols-2 gap-4">
                         <div>
                           <label className="text-sm font-medium mb-2 block">
-                            Token Amount
+                            Share Amount
                           </label>
                           <input
                             type="number"
-                            value={roleForm.tokenAmount}
+                            value={roleForm.shareAmount}
                             onChange={(e) =>
                               setRoleForm((prev) => ({
                                 ...prev,
-                                tokenAmount: e.target.value,
+                                shareAmount: e.target.value,
                               }))
                             }
                             placeholder="0"
@@ -1155,8 +1155,8 @@ export default function CreateProjectPage() {
                                 )?.label || role.compensationModel}
                               </span>
                             )}
-                            {role.tokenAmount && (
-                              <span>Tokens: {role.tokenAmount}</span>
+                            {role.shareAmount && (
+                              <span>Shares: {role.shareAmount}</span>
                             )}
                             {role.equityPercent && (
                               <span>Equity: {role.equityPercent}%</span>
@@ -1522,7 +1522,7 @@ export default function CreateProjectPage() {
                                 compensationModels.find(
                                   (m) => m.id === role.compensationModel
                                 )?.label}
-                              {role.tokenAmount && ` • ${role.tokenAmount} tokens`}
+                              {role.shareAmount && ` • ${role.shareAmount} shares`}
                               {role.equityPercent && ` • ${role.equityPercent}% equity`}
                             </p>
                           </div>

@@ -226,7 +226,7 @@ public class ReferralService : IReferralService
 
         referral.rewardClaimed = true;
         referral.xpRewarded = dto.XpAmount;
-        referral.tokenRewarded = dto.TokenAmount;
+        referral.equityRewarded = dto.EquityAmount;
 
         await _repository.UpdateAsync(referral, ct);
         await _unitOfWork.SaveChangesAsync(ct);

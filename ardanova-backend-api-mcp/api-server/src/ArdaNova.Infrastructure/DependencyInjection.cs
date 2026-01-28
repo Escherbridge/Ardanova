@@ -45,7 +45,7 @@ public static class DependencyInjection
         dataSourceBuilder.MapEnum<EventType>("EventType", translator);
         dataSourceBuilder.MapEnum<EventVisibility>("EventVisibility", translator);
         dataSourceBuilder.MapEnum<ExperienceLevel>("ExperienceLevel", translator);
-        dataSourceBuilder.MapEnum<ICOStatus>("ICOStatus", translator);
+        dataSourceBuilder.MapEnum<FundraisingStatus>("FundraisingStatus", translator);
         dataSourceBuilder.MapEnum<InvoiceStatus>("InvoiceStatus", translator);
         dataSourceBuilder.MapEnum<LeaderboardCategory>("LeaderboardCategory", translator);
         dataSourceBuilder.MapEnum<LeaderboardPeriod>("LeaderboardPeriod", translator);

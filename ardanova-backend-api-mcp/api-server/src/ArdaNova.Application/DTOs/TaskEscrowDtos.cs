@@ -7,7 +7,7 @@ public record TaskEscrowDto
     public string Id { get; init; }
     public string TaskId { get; init; }
     public string FunderId { get; init; }
-    public string TokenId { get; init; }
+    public string ShareId { get; init; }
     public decimal Amount { get; init; }
     public EscrowStatus Status { get; init; }
     public string? TxHashFund { get; init; }
@@ -23,7 +23,7 @@ public record CreateTaskEscrowDto
 {
     public required string TaskId { get; init; }
     public required string FunderId { get; init; }
-    public required string TokenId { get; init; }
+    public required string ShareId { get; init; }
     public required decimal Amount { get; init; }
     public string? TxHashFund { get; init; }
 }

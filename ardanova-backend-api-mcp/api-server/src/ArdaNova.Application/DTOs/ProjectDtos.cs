@@ -307,7 +307,7 @@ public record ProjectMemberDto
     public string ProjectId { get; init; } = null!;
     public string UserId { get; init; } = null!;
     public ProjectRole Role { get; init; }
-    public decimal TokenBalance { get; init; }
+    public decimal ShareBalance { get; init; }
     public decimal VotingPower { get; init; }
     public DateTime JoinedAt { get; init; }
     public string? InvitedById { get; init; }
@@ -333,7 +333,7 @@ public record CreateProjectMemberDto
 public record UpdateProjectMemberDto
 {
     public ProjectRole? Role { get; init; }
-    public decimal? TokenBalance { get; init; }
+    public decimal? ShareBalance { get; init; }
     public decimal? VotingPower { get; init; }
 }
 

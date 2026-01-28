@@ -10,7 +10,7 @@ public record SprintDto
     public string? Goal { get; init; }
     public DateTime? StartDate { get; init; }
     public DateTime? EndDate { get; init; }
-    public decimal? TokenBudget { get; init; }
+    public decimal? EquityBudget { get; init; }
     public decimal? Velocity { get; init; }
     public SprintStatus Status { get; init; }
     public string? AssigneeId { get; init; }
@@ -26,7 +26,7 @@ public record CreateSprintDto
     public string? Goal { get; init; }
     public DateTime? StartDate { get; init; }
     public DateTime? EndDate { get; init; }
-    public decimal? TokenBudget { get; init; }
+    public decimal? EquityBudget { get; init; }
     public string? AssigneeId { get; init; }
 }
 
@@ -36,7 +36,7 @@ public record UpdateSprintDto
     public string? Goal { get; init; }
     public DateTime? StartDate { get; init; }
     public DateTime? EndDate { get; init; }
-    public decimal? TokenBudget { get; init; }
+    public decimal? EquityBudget { get; init; }
     public decimal? Velocity { get; init; }
     public SprintStatus? Status { get; init; }
     public string? AssigneeId { get; init; }

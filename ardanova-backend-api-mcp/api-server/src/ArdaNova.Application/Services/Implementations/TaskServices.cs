@@ -124,7 +124,7 @@ public class TaskService : ITaskService
             priority = dto.Priority,
             taskType = dto.TaskType,
             estimatedHours = dto.EstimatedHours,
-            tokenReward = dto.TokenReward,
+            equityReward = dto.EquityReward,
             escrowStatus = EscrowStatus.NONE,
             dueDate = dto.DueDate,
             assignedToId = dto.AssignedToId,
@@ -153,7 +153,7 @@ public class TaskService : ITaskService
         if (dto.TaskType.HasValue) task.taskType = dto.TaskType.Value;
         if (dto.EstimatedHours.HasValue) task.estimatedHours = dto.EstimatedHours;
         if (dto.ActualHours.HasValue) task.actualHours = dto.ActualHours;
-        if (dto.TokenReward.HasValue) task.tokenReward = dto.TokenReward;
+        if (dto.EquityReward.HasValue) task.equityReward = dto.EquityReward;
         if (dto.DueDate.HasValue) task.dueDate = dto.DueDate;
         if (dto.AssignedToId is not null) task.assignedToId = dto.AssignedToId;
         task.updatedAt = DateTime.UtcNow;

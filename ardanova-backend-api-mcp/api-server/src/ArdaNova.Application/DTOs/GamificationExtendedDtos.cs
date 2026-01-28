@@ -31,7 +31,7 @@ public record ReferralDto
     public ReferralStatus Status { get; init; }
     public bool RewardClaimed { get; init; }
     public int? XpRewarded { get; init; }
-    public decimal? TokenRewarded { get; init; }
+    public decimal? EquityRewarded { get; init; }
     public DateTime CreatedAt { get; init; }
     public DateTime? CompletedAt { get; init; }
 }
@@ -46,5 +46,5 @@ public record CreateReferralDto
 public record ClaimReferralRewardDto
 {
     public required int XpAmount { get; init; }
-    public decimal? TokenAmount { get; init; }
+    public decimal? EquityAmount { get; init; }
 }

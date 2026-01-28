@@ -50,7 +50,7 @@ public class TaskEscrowTools
     public async Task<TaskEscrowDto?> CreateEscrow(
         [Description("The task ID")] string taskId,
         [Description("The funder user ID")] string funderId,
-        [Description("The token ID for payment")] string tokenId,
+        [Description("The share ID for payment")] string shareId,
         [Description("The amount to escrow")] decimal amount,
         [Description("Optional funding transaction hash")] string? txHash = null,
         CancellationToken ct = default)
@@ -59,7 +59,7 @@ public class TaskEscrowTools
         {
             TaskId = taskId,
             FunderId = funderId,
-            TokenId = tokenId,
+            ShareId = shareId,
             Amount = amount,
             TxHashFund = txHash
         };

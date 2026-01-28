@@ -54,7 +54,7 @@ public class TaskEscrowService : ITaskEscrowService
             id = Guid.NewGuid().ToString(),
             taskId = dto.TaskId,
             funderId = dto.FunderId,
-            tokenId = dto.TokenId,
+            shareId = dto.ShareId,
             amount = dto.Amount,
             status = EscrowStatus.NONE,
             txHashFund = dto.TxHashFund,
