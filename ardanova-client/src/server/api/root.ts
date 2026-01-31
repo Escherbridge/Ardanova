@@ -11,6 +11,7 @@ import { sprintRouter } from "~/server/api/routers/sprint";
 import { epicRouter } from "~/server/api/routers/epic";
 import { backlogRouter } from "~/server/api/routers/backlog";
 import { taskBidRouter } from "~/server/api/routers/task-bid";
+import { chatRouter } from "~/server/api/routers/chat";
 import { createCallerFactory, createTRPCRouter } from "~/server/api/trpc";
 
 /**
@@ -32,6 +33,7 @@ export const appRouter = createTRPCRouter({
   epic: epicRouter,
   backlog: backlogRouter,
   taskBid: taskBidRouter,
+  chat: chatRouter,
 });
 
 // export type definition of API

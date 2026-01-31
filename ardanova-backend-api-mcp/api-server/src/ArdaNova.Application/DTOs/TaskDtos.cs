@@ -15,6 +15,7 @@ public record TaskDto
     public int? EstimatedHours { get; init; }
     public int? ActualHours { get; init; }
     public decimal? EquityReward { get; init; }
+    public decimal? TokenReward { get; init; }
     public EscrowStatus EscrowStatus { get; init; }
     public DateTime? DueDate { get; init; }
     public DateTime? CompletedAt { get; init; }

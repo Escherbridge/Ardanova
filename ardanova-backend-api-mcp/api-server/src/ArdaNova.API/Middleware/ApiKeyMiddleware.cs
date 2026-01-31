@@ -19,9 +19,11 @@ public class ApiKeyMiddleware
 
     public async Task InvokeAsync(HttpContext context)
     {
-        // Skip API key check for health and Swagger endpoints
+        // Skip API key check for health, Swagger, and SignalR hub endpoints
+        // SignalR hubs handle their own API key validation via query parameters
         if (context.Request.Path.StartsWithSegments("/health") ||
-            context.Request.Path.StartsWithSegments("/swagger"))
+            context.Request.Path.StartsWithSegments("/swagger") ||
+            context.Request.Path.StartsWithSegments("/hubs"))
         {
             await _next(context);
             return;

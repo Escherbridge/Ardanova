@@ -231,6 +231,26 @@ export class RealtimeClient {
   }
 
   /**
+   * Subscribe to conversation events.
+   */
+  async subscribeToConversation(conversationId: string): Promise<void> {
+    await this.sendCommand({
+      action: "subscribeToConversation",
+      payload: { conversationId },
+    });
+  }
+
+  /**
+   * Unsubscribe from conversation events.
+   */
+  async unsubscribeFromConversation(conversationId: string): Promise<void> {
+    await this.sendCommand({
+      action: "unsubscribeFromConversation",
+      payload: { conversationId },
+    });
+  }
+
+  /**
    * Subscribe to all events.
    */
   async subscribeToAll(): Promise<void> {

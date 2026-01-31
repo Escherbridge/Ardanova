@@ -12,14 +12,14 @@ using Moq;
 
 public class TokenSwapServiceTests
 {
-    private readonly Mock<IRepository<TokenSwap>> _repositoryMock;
+    private readonly Mock<IRepository<ShareSwap>> _repositoryMock;
     private readonly Mock<IUnitOfWork> _unitOfWorkMock;
     private readonly Mock<IMapper> _mapperMock;
     private readonly TokenSwapService _sut;
 
     public TokenSwapServiceTests()
     {
-        _repositoryMock = new Mock<IRepository<TokenSwap>>();
+        _repositoryMock = new Mock<IRepository<ShareSwap>>();
         _unitOfWorkMock = new Mock<IUnitOfWork>();
         _mapperMock = new Mock<IMapper>();
         _sut = new TokenSwapService(_repositoryMock.Object, _unitOfWorkMock.Object, _mapperMock.Object);
@@ -33,7 +33,7 @@ public class TokenSwapServiceTests
         var userId = Guid.NewGuid().ToString();
         var fromTokenId = Guid.NewGuid().ToString();
         var toTokenId = Guid.NewGuid().ToString();
-        var swap = new TokenSwap
+        var swap = new ShareSwap
         {
             id = swapId,
             userId = userId,
@@ -67,7 +67,7 @@ public class TokenSwapServiceTests
         // Arrange
         var swapId = Guid.NewGuid().ToString();
         _repositoryMock.Setup(r => r.GetByIdAsync(swapId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync((TokenSwap?)null);
+            .ReturnsAsync((ShareSwap?)null);
 
         // Act
         var result = await _sut.GetByIdAsync(swapId);
@@ -82,10 +82,10 @@ public class TokenSwapServiceTests
     {
         // Arrange
         var userId = Guid.NewGuid().ToString();
-        var swaps = new List<TokenSwap>
+        var swaps = new List<ShareSwap>
         {
-            new TokenSwap { id = Guid.NewGuid().ToString(), userId = userId, fromTokenId = Guid.NewGuid().ToString(), toTokenId = Guid.NewGuid().ToString(), fromAmount = 100m, toAmount = 95m, exchangeRate = 0.95m, fee = 0m, status = SwapStatus.PENDING, createdAt = DateTime.UtcNow },
-            new TokenSwap { id = Guid.NewGuid().ToString(), userId = userId, fromTokenId = Guid.NewGuid().ToString(), toTokenId = Guid.NewGuid().ToString(), fromAmount = 200m, toAmount = 190m, exchangeRate = 0.95m, fee = 0m, status = SwapStatus.PENDING, createdAt = DateTime.UtcNow }
+            new ShareSwap { id = Guid.NewGuid().ToString(), userId = userId, fromTokenId = Guid.NewGuid().ToString(), toTokenId = Guid.NewGuid().ToString(), fromAmount = 100m, toAmount = 95m, exchangeRate = 0.95m, fee = 0m, status = SwapStatus.PENDING, createdAt = DateTime.UtcNow },
+            new ShareSwap { id = Guid.NewGuid().ToString(), userId = userId, fromTokenId = Guid.NewGuid().ToString(), toTokenId = Guid.NewGuid().ToString(), fromAmount = 200m, toAmount = 190m, exchangeRate = 0.95m, fee = 0m, status = SwapStatus.PENDING, createdAt = DateTime.UtcNow }
         };
         var swapDtos = new List<TokenSwapDto>
         {
@@ -93,9 +93,9 @@ public class TokenSwapServiceTests
             new TokenSwapDto { UserId = userId, FromAmount = 200m }
         };
 
-        _repositoryMock.Setup(r => r.FindAsync(It.IsAny<System.Linq.Expressions.Expression<Func<TokenSwap, bool>>>(), It.IsAny<CancellationToken>()))
+        _repositoryMock.Setup(r => r.FindAsync(It.IsAny<System.Linq.Expressions.Expression<Func<ShareSwap, bool>>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(swaps);
-        _mapperMock.Setup(m => m.Map<IReadOnlyList<TokenSwapDto>>(It.IsAny<IEnumerable<TokenSwap>>())).Returns(swapDtos);
+        _mapperMock.Setup(m => m.Map<IReadOnlyList<TokenSwapDto>>(It.IsAny<IEnumerable<ShareSwap>>())).Returns(swapDtos);
 
         // Act
         var result = await _sut.GetByUserIdAsync(userId);
@@ -110,11 +110,17 @@ public class TokenSwapServiceTests
     {
         // Arrange
         var userId = Guid.NewGuid().ToString();
+        var fromShareId = Guid.NewGuid().ToString();
+        var toShareId = Guid.NewGuid().ToString();
+        var fromTokenId = Guid.NewGuid().ToString();
+        var toTokenId = Guid.NewGuid().ToString();
         var dto = new CreateTokenSwapDto
         {
             UserId = userId,
-            FromTokenId = Guid.NewGuid().ToString(),
-            ToTokenId = Guid.NewGuid().ToString(),
+            FromShareId = fromShareId,
+            ToShareId = toShareId,
+            FromTokenId = fromTokenId,
+            ToTokenId = toTokenId,
             FromAmount = 1000m,
             ToAmount = 950m,
             ExchangeRate = 0.95m,
@@ -122,13 +128,13 @@ public class TokenSwapServiceTests
         };
         var swapDto = new TokenSwapDto { UserId = userId, FromAmount = 1000m, Status = SwapStatus.PENDING };
 
-        _repositoryMock.Setup(r => r.AddAsync(It.IsAny<TokenSwap>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((TokenSwap s, CancellationToken _) => s);
+        _repositoryMock.Setup(r => r.AddAsync(It.IsAny<ShareSwap>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((ShareSwap s, CancellationToken _) => s);
 
         _unitOfWorkMock.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(1);
 
-        _mapperMock.Setup(m => m.Map<TokenSwapDto>(It.IsAny<TokenSwap>())).Returns(swapDto);
+        _mapperMock.Setup(m => m.Map<TokenSwapDto>(It.IsAny<ShareSwap>())).Returns(swapDto);
 
         // Act
         var result = await _sut.CreateAsync(dto);
@@ -144,7 +150,7 @@ public class TokenSwapServiceTests
     {
         // Arrange
         var swapId = Guid.NewGuid().ToString();
-        var swap = new TokenSwap
+        var swap = new ShareSwap
         {
             id = swapId,
             userId = Guid.NewGuid().ToString(),
@@ -162,13 +168,13 @@ public class TokenSwapServiceTests
         _repositoryMock.Setup(r => r.GetByIdAsync(swapId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(swap);
 
-        _repositoryMock.Setup(r => r.UpdateAsync(It.IsAny<TokenSwap>(), It.IsAny<CancellationToken>()))
+        _repositoryMock.Setup(r => r.UpdateAsync(It.IsAny<ShareSwap>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
         _unitOfWorkMock.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(1);
 
-        _mapperMock.Setup(m => m.Map<TokenSwapDto>(It.IsAny<TokenSwap>())).Returns(swapDto);
+        _mapperMock.Setup(m => m.Map<TokenSwapDto>(It.IsAny<ShareSwap>())).Returns(swapDto);
 
         // Act
         var result = await _sut.CompleteAsync(swapId, new CompleteSwapDto { TxHash = "TX123" });
@@ -183,7 +189,7 @@ public class TokenSwapServiceTests
     {
         // Arrange
         var swapId = Guid.NewGuid().ToString();
-        var swap = new TokenSwap
+        var swap = new ShareSwap
         {
             id = swapId,
             userId = Guid.NewGuid().ToString(),
@@ -201,13 +207,13 @@ public class TokenSwapServiceTests
         _repositoryMock.Setup(r => r.GetByIdAsync(swapId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(swap);
 
-        _repositoryMock.Setup(r => r.UpdateAsync(It.IsAny<TokenSwap>(), It.IsAny<CancellationToken>()))
+        _repositoryMock.Setup(r => r.UpdateAsync(It.IsAny<ShareSwap>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
         _unitOfWorkMock.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(1);
 
-        _mapperMock.Setup(m => m.Map<TokenSwapDto>(It.IsAny<TokenSwap>())).Returns(swapDto);
+        _mapperMock.Setup(m => m.Map<TokenSwapDto>(It.IsAny<ShareSwap>())).Returns(swapDto);
 
         // Act
         var result = await _sut.CancelAsync(swapId);
@@ -313,10 +319,14 @@ public class LiquidityPoolServiceTests
     public async Task CreateAsync_WithValidDto_ReturnsCreatedPool()
     {
         // Arrange
+        var share1Id = Guid.NewGuid().ToString();
+        var share2Id = Guid.NewGuid().ToString();
         var token1Id = Guid.NewGuid().ToString();
         var token2Id = Guid.NewGuid().ToString();
         var dto = new CreateLiquidityPoolDto
         {
+            Share1Id = share1Id,
+            Share2Id = share2Id,
             Token1Id = token1Id,
             Token2Id = token2Id,
             FeePercent = 0.003m
@@ -445,6 +455,8 @@ public class LiquidityProviderServiceTests
             PoolId = poolId,
             UserId = userId,
             Shares = 500m,
+            Share1In = 500m,
+            Share2In = 500m,
             Token1In = 500m,
             Token2In = 500m
         };

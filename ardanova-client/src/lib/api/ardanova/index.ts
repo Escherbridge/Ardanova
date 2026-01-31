@@ -13,6 +13,7 @@ import { SprintsEndpoint } from "./endpoints/sprints";
 import { EpicsEndpoint } from "./endpoints/epics";
 import { BacklogEndpoint } from "./endpoints/backlog";
 import { TaskBidsEndpoint } from "./endpoints/task-bids";
+import { ChatEndpoint } from "./endpoints/chat";
 
 // Re-export types from endpoints
 export type { User, CreateUserDto, UpdateUserDto } from "./endpoints/users";
@@ -114,6 +115,21 @@ export type {
   UpdateTaskBid,
   SearchTaskBidsParams,
 } from "./endpoints/task-bids";
+export type {
+  ChatConversation,
+  ChatParticipant,
+  ChatMessage,
+  GetConversationsParams,
+  GetOrCreateDirectDto,
+  CreateGroupDto,
+  UpdateGroupDto,
+  AddMemberDto as ChatAddMemberDto,
+  SendMessageDto,
+  UpdateMessageDto,
+  MarkAsReadDto,
+  TypingIndicatorDto,
+  CursorPaginatedResult,
+} from "./endpoints/chat";
 
 // Re-export schemas for validation
 export {
@@ -149,6 +165,7 @@ export class ArdaNovaApiClient extends BaseApiClient {
   readonly epics: EpicsEndpoint;
   readonly backlog: BacklogEndpoint;
   readonly taskBids: TaskBidsEndpoint;
+  readonly chat: ChatEndpoint;
 
   constructor(config: BaseApiClientConfig) {
     super(config);
@@ -165,6 +182,7 @@ export class ArdaNovaApiClient extends BaseApiClient {
     this.epics = new EpicsEndpoint(this);
     this.backlog = new BacklogEndpoint(this);
     this.taskBids = new TaskBidsEndpoint(this);
+    this.chat = new ChatEndpoint(this);
   }
 
   health() {

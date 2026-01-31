@@ -8,6 +8,7 @@ import "./src/env.js";
 const config = {
   // Enable standalone output for Docker deployment
   output: "standalone",
+  serverExternalPackages: ["@microsoft/signalr"],
   typescript: {
     // !! WARN !!
     // Dangerously allow production builds to successfully complete even if

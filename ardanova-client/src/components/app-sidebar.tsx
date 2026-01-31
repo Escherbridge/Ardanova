@@ -63,7 +63,7 @@ const mainNavItems = [
     icon: Store,
   },
   {
-    href: "/marketplace",
+    href: "/opportunities",
     label: "Opportunities",
     icon: Briefcase,
   },
@@ -117,7 +117,7 @@ export function AppSidebar({ user }: AppSidebarProps) {
     <TooltipProvider delayDuration={0}>
       <aside
         className={cn(
-          "fixed left-0 top-0 z-40 flex h-screen flex-col border-r-2 border-sidebar-border bg-sidebar transition-all duration-300",
+          "sticky top-0 self-start z-40 flex h-screen shrink-0 flex-col border-r-2 border-sidebar-border bg-sidebar transition-all duration-300",
           isCollapsed ? "w-16" : "w-64"
         )}
       >
@@ -364,7 +364,7 @@ export function AppSidebar({ user }: AppSidebarProps) {
 
 export function SidebarInset({ children }: { children: React.ReactNode }) {
   return (
-    <div className="pl-64 peer-data-[collapsed=true]:pl-16 transition-all duration-300">
+    <div className="flex-1 min-w-0 transition-all duration-300">
       {children}
     </div>
   );

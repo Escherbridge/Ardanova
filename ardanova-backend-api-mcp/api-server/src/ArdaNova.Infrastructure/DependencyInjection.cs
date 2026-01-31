@@ -39,6 +39,8 @@ public static class DependencyInjection
         dataSourceBuilder.MapEnum<CampaignStatus>("CampaignStatus", translator);
         dataSourceBuilder.MapEnum<CompensationModel>("CompensationModel", translator);
         dataSourceBuilder.MapEnum<ContributionStatus>("ContributionStatus", translator);
+        dataSourceBuilder.MapEnum<ConversationRole>("ConversationRole", translator);
+        dataSourceBuilder.MapEnum<ConversationType>("ConversationType", translator);
         dataSourceBuilder.MapEnum<EpicStatus>("EpicStatus", translator);
         dataSourceBuilder.MapEnum<EscrowStatus>("EscrowStatus", translator);
         dataSourceBuilder.MapEnum<EventStatus>("EventStatus", translator);

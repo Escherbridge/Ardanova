@@ -1,6 +1,12 @@
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { createTRPCRouter, protectedProcedure, publicProcedure } from "~/server/api/trpc";
 import { apiClient } from "~/lib/api";
+import {
+  canCreateGuildOpportunity,
+  canCreateProjectOpportunity,
+  canCreateShopOpportunity,
+} from "~/server/api/lib/permissions";
 
 // Opportunity type enum
 const OpportunityType = z.enum([
@@ -58,6 +64,38 @@ export const opportunityRouter = createTRPCRouter({
     .input(createOpportunitySchema)
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user.id;
+
+      // Validate permission based on entity type
+      if (input.guildId) {
+        const permission = await canCreateGuildOpportunity(ctx.db, userId, input.guildId);
+        if (!permission.allowed) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: permission.reason || "You don't have permission to create opportunities for this guild",
+          });
+        }
+      } else if (input.projectId) {
+        const permission = await canCreateProjectOpportunity(ctx.db, userId, input.projectId);
+        if (!permission.allowed) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: permission.reason || "You don't have permission to create opportunities for this project",
+          });
+        }
+      } else if (input.shopId) {
+        const permission = await canCreateShopOpportunity(ctx.db, userId, input.shopId);
+        if (!permission.allowed) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: permission.reason || "You don't have permission to create opportunities for this shop",
+          });
+        }
+      } else {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "An opportunity must be associated with a guild, project, or shop",
+        });
+      }
 
       const response = await apiClient.opportunities.create({
         posterId: userId,

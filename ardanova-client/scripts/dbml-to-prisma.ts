@@ -287,8 +287,17 @@ datasource db {
             // Use format: ModelName_FieldName to ensure uniqueness
             const relationDbName = `${table.name}_${fkField}`;
 
-            // Handle onDelete
-            const onDelete = ref.onDelete ? `, onDelete: ${ref.onDelete}` : '';
+            // Handle onDelete - map DBML values to Prisma PascalCase
+            const onDeleteMap: Record<string, string> = {
+                'cascade': 'Cascade',
+                'restrict': 'Restrict',
+                'set null': 'SetNull',
+                'set default': 'SetDefault',
+                'no action': 'NoAction',
+            };
+            const onDelete = ref.onDelete
+                ? `, onDelete: ${onDeleteMap[ref.onDelete.toLowerCase()] ?? ref.onDelete}`
+                : '';
 
             if (localEp.relation === '*' && remoteEp.relation === '1') {
                 // Many-to-One: This table holds the FK

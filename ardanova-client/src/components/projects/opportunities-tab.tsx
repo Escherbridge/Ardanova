@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useEffect } from "react";
 import Link from "next/link";
 import { api } from "~/trpc/react";
+import { toast } from "sonner";
 import { Card, CardContent } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
 import { Badge } from "~/components/ui/badge";
@@ -95,7 +96,7 @@ export default function OpportunitiesTab({
   isOwner,
   userRole
 }: OpportunitiesTabProps) {
-  const { data: opportunitiesResult, isLoading } = api.opportunity.getAll.useQuery({
+  const { data: opportunitiesResult, isLoading, error } = api.opportunity.getAll.useQuery({
     limit: 100,
   });
 
@@ -104,6 +105,13 @@ export default function OpportunitiesTab({
     const allOpportunities = opportunitiesResult?.items || [];
     return allOpportunities.filter((opp) => opp.projectId === projectId);
   }, [opportunitiesResult, projectId]);
+
+  // Show toast notification on error
+  useEffect(() => {
+    if (error) {
+      toast.error(error.message || "Failed to load opportunities");
+    }
+  }, [error]);
 
   // Permission check: Can create opportunities?
   const canCreate = isOwner || userRole === "LEAD" || userRole === "ADMIN";

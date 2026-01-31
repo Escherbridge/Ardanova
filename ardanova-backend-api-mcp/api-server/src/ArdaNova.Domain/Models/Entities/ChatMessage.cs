@@ -34,6 +34,17 @@ public class ChatMessage
 
     public DateTime? seenAt { get; set; }
 
+    public string? conversationId { get; set; }
+
+    public string? replyToId { get; set; }
+
+    public DateTime? deliveredAt { get; set; }
+
+    [Required]
+    public bool isDeleted { get; set; }
+
+    public DateTime? editedAt { get; set; }
+
     [ForeignKey("userToId")]
     [InverseProperty("ChatMessagesAsUserTo")]
     public virtual User? UserTo { get; set; }
@@ -44,5 +55,11 @@ public class ChatMessage
 
     [ForeignKey("chatAttachmentId")]
     public virtual Attachment? ChatAttachment { get; set; }
+
+    [ForeignKey("conversationId")]
+    public virtual Conversation? Conversation { get; set; }
+
+    [ForeignKey("replyToId")]
+    public virtual ChatMessage? ReplyTo { get; set; }
 
 }

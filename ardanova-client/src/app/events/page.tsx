@@ -292,7 +292,7 @@ export default function EventsPage() {
   return (
     <div className="flex">
       {/* Main Feed Column */}
-      <div className="flex-1 max-w-2xl mx-auto border-x-2 border-border/50 min-h-screen">
+      <div className="flex-1 max-w-2xl border-x-2 border-border/50 min-h-screen">
         {/* Sticky Header */}
         <div className="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b border-border/50">
           <div className="p-4">
@@ -636,7 +636,7 @@ export default function EventsPage() {
       </div>
 
       {/* Right Sidebar */}
-      <div className="hidden xl:block w-80 p-4 sticky top-0 h-screen overflow-y-auto">
+      <div className="hidden xl:block w-80 p-4 sticky top-0 right-0 h-screen overflow-y-auto">
         <div className="space-y-6">
           {/* Events Stats */}
           <Card className="bg-muted/30 border-border/50">

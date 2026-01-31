@@ -116,6 +116,7 @@ public class TaskEscrowServiceTests
         {
             TaskId = taskId,
             FunderId = funderId,
+            ShareId = tokenId,
             TokenId = tokenId,
             Amount = 500m
         };
@@ -146,11 +147,13 @@ public class TaskEscrowServiceTests
     {
         // Arrange
         var taskId = Guid.NewGuid().ToString();
+        var tokenId = Guid.NewGuid().ToString();
         var dto = new CreateTaskEscrowDto
         {
             TaskId = taskId,
             FunderId = Guid.NewGuid().ToString(),
-            TokenId = Guid.NewGuid().ToString(),
+            ShareId = tokenId,
+            TokenId = tokenId,
             Amount = 100m
         };
 

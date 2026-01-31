@@ -51,6 +51,7 @@ public class TaskEscrowTools
         [Description("The task ID")] string taskId,
         [Description("The funder user ID")] string funderId,
         [Description("The share ID for payment")] string shareId,
+        [Description("The token ID for payment")] string tokenId,
         [Description("The amount to escrow")] decimal amount,
         [Description("Optional funding transaction hash")] string? txHash = null,
         CancellationToken ct = default)
@@ -60,6 +61,7 @@ public class TaskEscrowTools
             TaskId = taskId,
             FunderId = funderId,
             ShareId = shareId,
+            TokenId = tokenId,
             Amount = amount,
             TxHashFund = txHash
         };

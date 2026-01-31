@@ -332,7 +332,7 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="flex justify-center">
+      <div className="flex">
         {/* Main Feed Column - Centered */}
         <div className="w-full max-w-2xl border-x-2 border-border">
           {/* Search Parameters Section */}
@@ -484,8 +484,8 @@ export default function DashboardPage() {
           />
         </div>
 
-        {/* Right Sidebar - Fixed to right edge */}
-        <div className="hidden xl:block fixed right-0 top-0 w-80 p-4 space-y-4 h-screen overflow-y-auto border-l-2 border-border bg-background">
+        {/* Right Sidebar - Fixed */}
+        <div className="hidden xl:block w-80 p-4 sticky top-0 right-0 min-h-screen overflow-y-auto">
           {/* Trending Projects */}
           <Card>
             <CardHeader className="pb-3">

@@ -7,6 +7,7 @@ public record DelegatedVoteDto
     public string DelegatorId { get; init; }
     public string DelegateeId { get; init; }
     public string ShareId { get; init; }
+    public string TokenId { get; init; }
     public decimal Amount { get; init; }
     public bool IsActive { get; init; }
     public DateTime CreatedAt { get; init; }
@@ -20,6 +21,7 @@ public record CreateDelegatedVoteDto
     public required string DelegatorId { get; init; }
     public required string DelegateeId { get; init; }
     public required string ShareId { get; init; }
+    public required string TokenId { get; init; }
     public required decimal Amount { get; init; }
     public DateTime? ExpiresAt { get; init; }
 }

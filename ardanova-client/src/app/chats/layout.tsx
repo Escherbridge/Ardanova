@@ -3,6 +3,7 @@ import { SessionProvider } from "next-auth/react";
 import { auth } from "~/server/auth";
 import { redirect } from "next/navigation";
 import { AppSidebar } from "~/components/app-sidebar";
+import { RealtimeProvider } from "~/providers/realtime-provider";
 
 export default async function ChatsLayout({
   children,
@@ -20,9 +21,11 @@ export default async function ChatsLayout({
       <TRPCReactProvider>
         <div className="flex min-h-screen">
           <AppSidebar user={session.user} />
-          <main className="flex-1 ml-64 transition-all duration-300">
+          <RealtimeProvider>
+          <main className="flex-1 transition-all duration-300">
             {children}
           </main>
+          </RealtimeProvider>
         </div>
       </TRPCReactProvider>
     </SessionProvider>

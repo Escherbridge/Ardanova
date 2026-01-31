@@ -1,9 +1,11 @@
 "use client";
 
+import { useEffect } from "react";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
 import { Badge } from "~/components/ui/badge";
+import { toast } from "sonner";
 import {
   Briefcase,
   Plus,
@@ -73,7 +75,7 @@ export default function OpportunitiesTab({
   isOwner,
 }: OpportunitiesTabProps) {
   // Fetch all opportunities and filter by shop on client side
-  const { data: opportunitiesResult, isLoading } =
+  const { data: opportunitiesResult, isLoading, error } =
     api.opportunity.getAll.useQuery({
       limit: 100,
     });
@@ -89,6 +91,13 @@ export default function OpportunitiesTab({
       (opp as any).shopId === shopId ||
       (opp as any).postedByShopId === shopId
   );
+
+  // Show toast notification on error
+  useEffect(() => {
+    if (error) {
+      toast.error(error.message || "Failed to load opportunities");
+    }
+  }, [error]);
 
   const hasOpportunities = opportunities.length > 0;
 

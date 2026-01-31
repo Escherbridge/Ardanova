@@ -99,6 +99,8 @@ public class ArdaNovaDbContext : DbContext
     public DbSet<TreasuryTransaction> TreasuryTransactions => Set<TreasuryTransaction>();
 
     public DbSet<ChatMessage> ChatMessages => Set<ChatMessage>();
+    public DbSet<Conversation> Conversations => Set<Conversation>();
+    public DbSet<ConversationMember> ConversationMembers => Set<ConversationMember>();
     public DbSet<Attachment> Attachments => Set<Attachment>();
     public DbSet<ShopAnalytics> ShopAnalytics => Set<ShopAnalytics>();
     public DbSet<ProjectInvitation> ProjectInvitations => Set<ProjectInvitation>();

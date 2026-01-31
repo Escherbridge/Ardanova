@@ -5,19 +5,23 @@ import Link from "next/link";
 import {
   Search,
   Filter,
-  Users,
-  TrendingUp,
   Briefcase,
+  Plus,
   MessageCircle,
   Share2,
   Bookmark,
   MoreHorizontal,
+  Sparkles,
   Clock,
-  SlidersHorizontal,
-  X,
+  TrendingUp,
   DollarSign,
   MapPin,
   Calendar,
+  Zap,
+  Target,
+  Users,
+  SlidersHorizontal,
+  X,
 } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
@@ -31,49 +35,37 @@ import {
   DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
 import { cn } from "~/lib/utils";
-import { api } from "~/trpc/react";
 
 // Feed tabs for opportunities
 const opportunityTabs = [
-  { id: "all", label: "All Opportunities", icon: Briefcase },
-  { id: "trending", label: "Trending", icon: TrendingUp },
-  { id: "newest", label: "Newest", icon: Clock },
-  { id: "bounties", label: "Bounties", icon: DollarSign },
+  { id: "all", label: "All", icon: Briefcase },
+  { id: "bounties", label: "Bounties", icon: Target },
+  { id: "freelance", label: "Freelance", icon: Zap },
+  { id: "full-time", label: "Full-time", icon: Users },
 ];
 
 // Type badge variants
 const typeVariants: Record<string, "neon" | "neon-pink" | "neon-green" | "neon-purple" | "warning" | "secondary"> = {
-  Bounty: "neon-green",
-  Freelance: "neon-purple",
-  Contract: "neon",
-  "Part-time": "warning",
+  "Bounty": "neon-green",
+  "Freelance": "neon",
+  "Part-time": "neon-purple",
   "Full-time": "neon-pink",
+  "Contract": "warning",
 };
 
-// Status badge variants
-const statusVariants: Record<string, "neon" | "neon-pink" | "neon-green" | "neon-purple" | "warning" | "secondary" | "destructive"> = {
-  DRAFT: "secondary",
-  OPEN: "neon",
-  IN_REVIEW: "warning",
-  FILLED: "neon-green",
-  CLOSED: "secondary",
-  CANCELLED: "destructive",
+// Skill badge variants
+const skillVariants: Record<string, "neon" | "neon-pink" | "neon-green" | "neon-purple" | "warning" | "secondary"> = {
+  "React": "neon",
+  "TypeScript": "neon",
+  "Node.js": "neon-green",
+  "Python": "neon-green",
+  "UI/UX": "neon-pink",
+  "Design": "neon-pink",
+  "Solidity": "neon-purple",
+  "Web3": "neon-purple",
+  "Marketing": "warning",
+  "Writing": "secondary",
 };
-
-function formatRelativeTime(date: Date): string {
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffSec = Math.floor(diffMs / 1000);
-  const diffMin = Math.floor(diffSec / 60);
-  const diffHour = Math.floor(diffMin / 60);
-  const diffDay = Math.floor(diffHour / 24);
-
-  if (diffSec < 60) return "just now";
-  if (diffMin < 60) return `${diffMin}m ago`;
-  if (diffHour < 24) return `${diffHour}h ago`;
-  if (diffDay < 7) return `${diffDay}d ago`;
-  return date.toLocaleDateString();
-}
 
 // Filter options
 const typeFilters = [
@@ -85,16 +77,20 @@ const typeFilters = [
   { id: "Full-time", label: "Full-time" },
 ];
 
-const experienceLevelFilters = [
-  { id: "all", label: "All Levels" },
-  { id: "Entry", label: "Entry Level" },
-  { id: "Intermediate", label: "Intermediate" },
-  { id: "Advanced", label: "Advanced" },
-  { id: "Expert", label: "Expert" },
+const skillFilters = [
+  { id: "all", label: "All Skills" },
+  { id: "React", label: "React" },
+  { id: "TypeScript", label: "TypeScript" },
+  { id: "Node.js", label: "Node.js" },
+  { id: "Python", label: "Python" },
+  { id: "UI/UX", label: "UI/UX" },
+  { id: "Solidity", label: "Solidity" },
+  { id: "Web3", label: "Web3" },
+  { id: "Marketing", label: "Marketing" },
 ];
 
 const compensationFilters = [
-  { id: "all", label: "Any Compensation" },
+  { id: "all", label: "Any Budget" },
   { id: "0-1000", label: "Under $1,000" },
   { id: "1000-5000", label: "$1,000 - $5,000" },
   { id: "5000-10000", label: "$5,000 - $10,000" },
@@ -103,70 +99,161 @@ const compensationFilters = [
 
 const locationFilters = [
   { id: "all", label: "All Locations" },
-  { id: "remote", label: "Remote Only" },
-  { id: "hybrid", label: "Hybrid" },
-  { id: "onsite", label: "On-site" },
+  { id: "Remote", label: "Remote" },
+  { id: "US", label: "United States" },
+  { id: "EU", label: "Europe" },
+  { id: "Asia", label: "Asia" },
 ];
 
-const sourceFilters = [
-  { id: "all", label: "All Sources" },
-  { id: "guild", label: "Guilds" },
-  { id: "project", label: "Projects" },
-  { id: "shop", label: "Shops" },
+// Sample opportunities data
+const sampleOpportunities = [
+  {
+    id: "o1",
+    title: "Build Mobile App for EcoWaste Platform",
+    type: "Bounty",
+    project: { id: "p1", name: "EcoWaste Solutions", slug: "ecowaste-solutions" },
+    poster: { id: "u1", name: "Sarah Chen", avatar: "https://i.pravatar.cc/150?u=sarah" },
+    description: "We need a React Native developer to build our mobile app for waste tracking and recycling rewards. The app should integrate with our existing API.",
+    skills: ["React", "TypeScript", "Node.js"],
+    compensation: { amount: 2500, currency: "USD", type: "fixed" },
+    location: "Remote",
+    deadline: new Date(Date.now() + 1000 * 60 * 60 * 24 * 14),
+    applicants: 8,
+    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 2),
+    isUrgent: true,
+  },
+  {
+    id: "o2",
+    title: "Smart Contract Audit for Token Launch",
+    type: "Freelance",
+    project: { id: "p2", name: "HealthTrack", slug: "healthtrack" },
+    poster: { id: "u2", name: "Marcus Rodriguez", avatar: "https://i.pravatar.cc/150?u=marcus" },
+    description: "Looking for an experienced Solidity auditor to review our governance token smart contracts before mainnet deployment.",
+    skills: ["Solidity", "Web3"],
+    compensation: { amount: 150, currency: "USD", type: "hourly" },
+    location: "Remote",
+    deadline: new Date(Date.now() + 1000 * 60 * 60 * 24 * 7),
+    applicants: 3,
+    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 1),
+    isUrgent: false,
+  },
+  {
+    id: "o3",
+    title: "Full-Stack Developer for EdTech Platform",
+    type: "Full-time",
+    project: { id: "p3", name: "EduConnect", slug: "educonnect" },
+    poster: { id: "u5", name: "Jordan Lee", avatar: "https://i.pravatar.cc/150?u=jordan" },
+    description: "Join our team as a full-time developer to build and maintain our mentorship platform. You'll work on both frontend and backend features.",
+    skills: ["React", "TypeScript", "Python"],
+    compensation: { amount: 95000, currency: "USD", type: "yearly" },
+    location: "San Francisco, CA",
+    deadline: null,
+    applicants: 24,
+    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 5),
+    isUrgent: false,
+  },
+  {
+    id: "o4",
+    title: "Design System Creation for Design Guild",
+    type: "Contract",
+    project: { id: "g1", name: "Design Guild", slug: "design-guild" },
+    poster: { id: "u6", name: "Emma Watson", avatar: "https://i.pravatar.cc/150?u=emma" },
+    description: "Create a comprehensive design system including components, tokens, and documentation. 3-month contract with potential extension.",
+    skills: ["UI/UX", "Design"],
+    compensation: { amount: 8000, currency: "USD", type: "fixed" },
+    location: "Remote",
+    deadline: new Date(Date.now() + 1000 * 60 * 60 * 24 * 30),
+    applicants: 12,
+    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 3),
+    isUrgent: false,
+  },
 ];
 
-export default function OpportunitiesPage() {
+function formatRelativeTime(date: Date): string {
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffDay = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+  if (diffDay === 0) return "Today";
+  if (diffDay === 1) return "Yesterday";
+  if (diffDay < 7) return `${diffDay}d ago`;
+  return date.toLocaleDateString();
+}
+
+function formatDeadline(date: Date | null): string {
+  if (!date) return "Open";
+  const now = new Date();
+  const diffMs = date.getTime() - now.getTime();
+  const diffDay = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+  if (diffDay < 0) return "Expired";
+  if (diffDay === 0) return "Today";
+  if (diffDay === 1) return "Tomorrow";
+  if (diffDay < 7) return `${diffDay} days left`;
+  return `${Math.floor(diffDay / 7)} weeks left`;
+}
+
+function formatCompensation(comp: { amount: number; currency: string; type: string }): string {
+  const formatted = new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: comp.currency,
+    maximumFractionDigits: 0,
+  }).format(comp.amount);
+
+  switch (comp.type) {
+    case "hourly":
+      return `${formatted}/hr`;
+    case "yearly":
+      return `${formatted}/yr`;
+    default:
+      return formatted;
+  }
+}
+
+export default function MarketplacePage() {
   const [activeTab, setActiveTab] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [showFilters, setShowFilters] = useState(false);
   const [selectedType, setSelectedType] = useState("all");
-  const [selectedExperience, setSelectedExperience] = useState("all");
+  const [selectedSkill, setSelectedSkill] = useState("all");
   const [selectedCompensation, setSelectedCompensation] = useState("all");
   const [selectedLocation, setSelectedLocation] = useState("all");
-  const [selectedSource, setSelectedSource] = useState<"all" | "guild" | "project" | "shop">("all");
-
-  // Fetch opportunities from API
-  const { data: opportunitiesResult, isLoading } = api.opportunity.getAll.useQuery({
-    limit: 50,
-    ...(selectedSource !== "all" && { sourceType: selectedSource }),
-  });
-
-  const opportunities = opportunitiesResult?.items || [];
 
   // Filter opportunities based on all criteria
-  const filteredOpportunities = opportunities.filter((opportunity) => {
+  const filteredOpportunities = sampleOpportunities.filter((opp) => {
     // Tab filter
-    if (activeTab === "trending" && (opportunity.applicationsCount ?? 0) === 0) return false;
-    if (activeTab === "bounties" && opportunity.type !== "Bounty") return false;
+    if (activeTab === "bounties" && opp.type !== "Bounty") return false;
+    if (activeTab === "freelance" && opp.type !== "Freelance" && opp.type !== "Contract") return false;
+    if (activeTab === "full-time" && opp.type !== "Full-time" && opp.type !== "Part-time") return false;
 
     // Search query
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
-      const matchesTitle = opportunity.title.toLowerCase().includes(query);
-      const matchesDescription = opportunity.description?.toLowerCase().includes(query);
-      const matchesSkills = opportunity.requiredSkills?.toLowerCase().includes(query);
+      const matchesTitle = opp.title.toLowerCase().includes(query);
+      const matchesDescription = opp.description.toLowerCase().includes(query);
+      const matchesSkills = opp.skills.some((s) => s.toLowerCase().includes(query));
       if (!matchesTitle && !matchesDescription && !matchesSkills) return false;
     }
 
     // Type filter
-    if (selectedType !== "all" && opportunity.type !== selectedType) return false;
+    if (selectedType !== "all" && opp.type !== selectedType) return false;
 
-    // Experience level filter
-    if (selectedExperience !== "all" && opportunity.experienceLevel !== selectedExperience) return false;
+    // Skill filter
+    if (selectedSkill !== "all" && !opp.skills.includes(selectedSkill)) return false;
 
     // Compensation filter
-    if (selectedCompensation !== "all") {
-      const compensation = Number(opportunity.compensation || 0);
-      if (selectedCompensation === "0-1000" && compensation >= 1000) return false;
-      if (selectedCompensation === "1000-5000" && (compensation < 1000 || compensation >= 5000)) return false;
-      if (selectedCompensation === "5000-10000" && (compensation < 5000 || compensation >= 10000)) return false;
-      if (selectedCompensation === "10000+" && compensation < 10000) return false;
+    if (selectedCompensation !== "all" && opp.compensation.type === "fixed") {
+      const amount = opp.compensation.amount;
+      if (selectedCompensation === "0-1000" && amount >= 1000) return false;
+      if (selectedCompensation === "1000-5000" && (amount < 1000 || amount >= 5000)) return false;
+      if (selectedCompensation === "5000-10000" && (amount < 5000 || amount >= 10000)) return false;
+      if (selectedCompensation === "10000+" && amount < 10000) return false;
     }
 
     // Location filter
     if (selectedLocation !== "all") {
-      if (selectedLocation === "remote" && !opportunity.isRemote) return false;
-      if (selectedLocation === "onsite" && opportunity.isRemote) return false;
+      if (selectedLocation === "Remote" && opp.location !== "Remote") return false;
+      if (selectedLocation === "US" && !opp.location.includes("CA") && !opp.location.includes("NY") && !opp.location.includes("US")) return false;
     }
 
     return true;
@@ -175,54 +262,57 @@ export default function OpportunitiesPage() {
   const hasActiveFilters =
     searchQuery ||
     selectedType !== "all" ||
-    selectedExperience !== "all" ||
+    selectedSkill !== "all" ||
     selectedCompensation !== "all" ||
-    selectedLocation !== "all" ||
-    selectedSource !== "all";
+    selectedLocation !== "all";
 
   const clearFilters = () => {
     setSearchQuery("");
     setSelectedType("all");
-    setSelectedExperience("all");
+    setSelectedSkill("all");
     setSelectedCompensation("all");
     setSelectedLocation("all");
-    setSelectedSource("all");
   };
 
   const activeFilterCount =
     (selectedType !== "all" ? 1 : 0) +
-    (selectedExperience !== "all" ? 1 : 0) +
+    (selectedSkill !== "all" ? 1 : 0) +
     (selectedCompensation !== "all" ? 1 : 0) +
-    (selectedLocation !== "all" ? 1 : 0) +
-    (selectedSource !== "all" ? 1 : 0);
+    (selectedLocation !== "all" ? 1 : 0);
 
   // Stats for sidebar
   const stats = {
-    total: opportunities.length,
-    active: opportunities.filter((o) => o.status === "OPEN").length,
-    totalApplicants: opportunities.reduce((sum, o) => sum + (o.applicationsCount || 0), 0),
+    total: sampleOpportunities.length,
+    bounties: sampleOpportunities.filter((o) => o.type === "Bounty").length,
+    totalValue: sampleOpportunities
+      .filter((o) => o.compensation.type === "fixed")
+      .reduce((sum, o) => sum + o.compensation.amount, 0),
+    totalApplicants: sampleOpportunities.reduce((sum, o) => sum + o.applicants, 0),
   };
 
-  // Trending opportunities for sidebar
-  const trendingOpportunities = [...opportunities]
-    .sort((a, b) => (b.applicationsCount || 0) - (a.applicationsCount || 0))
+  // Hot opportunities for sidebar
+  const hotOpportunities = [...sampleOpportunities]
+    .sort((a, b) => b.applicants - a.applicants)
     .slice(0, 3);
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="flex justify-center">
-        {/* Main Feed Column - Centered */}
+      <div className="flex">
+        {/* Main Feed Column */}
         <div className="w-full max-w-2xl border-x-2 border-border">
           {/* Header */}
           <div className="sticky top-0 z-10 bg-background/95 backdrop-blur border-b-2 border-border">
             <div className="p-4 flex items-center justify-between">
               <h1 className="text-xl font-bold text-foreground flex items-center gap-2">
-                <Briefcase className="size-5 text-primary" />
+                <Briefcase className="size-5 text-warning" />
                 Opportunities
               </h1>
-              <span className="text-xs text-muted-foreground">
-                From guilds, projects & shops
-              </span>
+              <Button variant="neon" size="sm" asChild>
+                <Link href="/marketplace/create">
+                  <Plus className="size-4 mr-2" />
+                  Post Job
+                </Link>
+              </Button>
             </div>
 
             {/* Search */}
@@ -265,28 +355,10 @@ export default function OpportunitiesPage() {
             {showFilters && (
               <div className="px-4 pb-4 space-y-3 border-t border-border pt-3">
                 <div className="grid grid-cols-2 gap-3">
-                  {/* Source Filter */}
-                  <div>
-                    <label className="text-xs text-muted-foreground mb-1.5 block">
-                      Source
-                    </label>
-                    <select
-                      value={selectedSource}
-                      onChange={(e) => setSelectedSource(e.target.value as "all" | "guild" | "project" | "shop")}
-                      className="w-full px-3 py-2 bg-card border-2 border-border text-foreground text-sm focus:border-primary focus:outline-none appearance-none cursor-pointer"
-                    >
-                      {sourceFilters.map((filter) => (
-                        <option key={filter.id} value={filter.id}>
-                          {filter.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
                   {/* Type Filter */}
                   <div>
                     <label className="text-xs text-muted-foreground mb-1.5 block">
-                      Type
+                      Job Type
                     </label>
                     <select
                       value={selectedType}
@@ -301,17 +373,17 @@ export default function OpportunitiesPage() {
                     </select>
                   </div>
 
-                  {/* Experience Level Filter */}
+                  {/* Skill Filter */}
                   <div>
                     <label className="text-xs text-muted-foreground mb-1.5 block">
-                      Experience Level
+                      Required Skill
                     </label>
                     <select
-                      value={selectedExperience}
-                      onChange={(e) => setSelectedExperience(e.target.value)}
+                      value={selectedSkill}
+                      onChange={(e) => setSelectedSkill(e.target.value)}
                       className="w-full px-3 py-2 bg-card border-2 border-border text-foreground text-sm focus:border-primary focus:outline-none appearance-none cursor-pointer"
                     >
-                      {experienceLevelFilters.map((filter) => (
+                      {skillFilters.map((filter) => (
                         <option key={filter.id} value={filter.id}>
                           {filter.label}
                         </option>
@@ -322,7 +394,7 @@ export default function OpportunitiesPage() {
                   {/* Compensation Filter */}
                   <div>
                     <label className="text-xs text-muted-foreground mb-1.5 block">
-                      Compensation Range
+                      Budget Range
                     </label>
                     <select
                       value={selectedCompensation}
@@ -367,14 +439,6 @@ export default function OpportunitiesPage() {
                           </button>
                         </Badge>
                       )}
-                      {selectedSource !== "all" && (
-                        <Badge variant="secondary" size="sm" className="gap-1">
-                          {sourceFilters.find((f) => f.id === selectedSource)?.label}
-                          <button onClick={() => setSelectedSource("all")}>
-                            <X className="size-3" />
-                          </button>
-                        </Badge>
-                      )}
                       {selectedType !== "all" && (
                         <Badge variant="secondary" size="sm" className="gap-1">
                           {typeFilters.find((f) => f.id === selectedType)?.label}
@@ -383,10 +447,10 @@ export default function OpportunitiesPage() {
                           </button>
                         </Badge>
                       )}
-                      {selectedExperience !== "all" && (
+                      {selectedSkill !== "all" && (
                         <Badge variant="secondary" size="sm" className="gap-1">
-                          {experienceLevelFilters.find((f) => f.id === selectedExperience)?.label}
-                          <button onClick={() => setSelectedExperience("all")}>
+                          {skillFilters.find((f) => f.id === selectedSkill)?.label}
+                          <button onClick={() => setSelectedSkill("all")}>
                             <X className="size-3" />
                           </button>
                         </Badge>
@@ -449,51 +513,55 @@ export default function OpportunitiesPage() {
 
           {/* Opportunities Feed */}
           <div>
-            {isLoading ? (
-              <div className="flex items-center justify-center py-20">
-                <div className="size-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-              </div>
-            ) : filteredOpportunities.length === 0 ? (
+            {filteredOpportunities.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-20 px-4">
                 <Briefcase className="size-12 text-muted-foreground mb-4" />
                 <p className="text-lg font-medium text-foreground">No opportunities found</p>
-                <p className="text-muted-foreground mt-1 text-center max-w-sm">
-                  Opportunities are posted by guilds, projects, and shops recruiting new members.
-                </p>
+                <p className="text-muted-foreground mt-1">Check back later or post your own!</p>
+                <Button variant="neon" className="mt-4" asChild>
+                  <Link href="/marketplace/create">
+                    <Plus className="size-4 mr-2" />
+                    Post Job
+                  </Link>
+                </Button>
               </div>
             ) : (
-              filteredOpportunities.map((opportunity) => (
+              filteredOpportunities.map((opp) => (
                 <article
-                  key={opportunity.id}
+                  key={opp.id}
                   className="border-b-2 border-border bg-card hover:bg-card/80 transition-colors"
                 >
                   <div className="p-4">
                     {/* Header */}
                     <div className="flex items-start gap-3">
                       <Link
-                        href={`/dashboard/profile/${opportunity.postedById}`}
+                        href={`/dashboard/profile/${opp.poster.id}`}
                         className="shrink-0"
                       >
                         <Avatar className="size-10 border-2 border-border hover:border-primary transition-colors">
-                          <AvatarImage src={(opportunity as any).postedBy?.image || undefined} />
-                          <AvatarFallback>
-                            {(opportunity as any).postedBy?.name?.charAt(0) || "U"}
-                          </AvatarFallback>
+                          <AvatarImage src={opp.poster.avatar} />
+                          <AvatarFallback>{opp.poster.name.charAt(0)}</AvatarFallback>
                         </Avatar>
                       </Link>
 
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <Link
-                            href={`/dashboard/profile/${opportunity.postedById}`}
+                            href={`/dashboard/profile/${opp.poster.id}`}
                             className="font-medium text-foreground hover:text-primary transition-colors"
                           >
-                            {(opportunity as any).postedBy?.name || "Unknown User"}
+                            {opp.poster.name}
                           </Link>
-                          <Badge variant="secondary" size="sm">Poster</Badge>
+                          <span className="text-muted-foreground text-sm">·</span>
+                          <Link
+                            href={`/projects/${opp.project.slug}`}
+                            className="text-sm text-muted-foreground hover:text-primary transition-colors"
+                          >
+                            {opp.project.name}
+                          </Link>
                           <span className="text-muted-foreground text-sm">·</span>
                           <span className="text-muted-foreground text-sm">
-                            {formatRelativeTime(new Date(opportunity.createdAt))}
+                            {formatRelativeTime(opp.createdAt)}
                           </span>
                         </div>
                         <p className="text-sm text-muted-foreground mt-0.5">
@@ -502,11 +570,14 @@ export default function OpportunitiesPage() {
                       </div>
 
                       <div className="flex items-center gap-2">
+                        {opp.isUrgent && (
+                          <Badge variant="destructive" size="sm">Urgent</Badge>
+                        )}
                         <Badge
-                          variant={statusVariants[opportunity.status] || "secondary"}
+                          variant={typeVariants[opp.type] ?? "secondary"}
                           size="sm"
                         >
-                          {opportunity.status.replace("_", " ")}
+                          {opp.type}
                         </Badge>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
@@ -523,63 +594,58 @@ export default function OpportunitiesPage() {
                     </div>
 
                     {/* Opportunity Content */}
-                    <Link href={`/opportunities/${opportunity.id}`} className="block mt-3 pl-13">
+                    <Link href={`/marketplace/${opp.id}`} className="block mt-3 pl-13">
                       <h3 className="font-semibold text-lg text-foreground hover:text-primary transition-colors">
-                        {opportunity.title}
+                        {opp.title}
                       </h3>
-                      <p className="text-foreground mt-2 line-clamp-3">
-                        {opportunity.description}
+                      <p className="text-foreground mt-2 line-clamp-2">
+                        {opp.description}
                       </p>
 
-                      {/* Type & Skills */}
+                      {/* Skills */}
                       <div className="flex flex-wrap gap-2 mt-3">
-                        <Badge
-                          variant={typeVariants[opportunity.type] || "secondary"}
-                          size="sm"
-                        >
-                          {opportunity.type}
-                        </Badge>
-                        {opportunity.requiredSkills?.split(",").slice(0, 3).map((skill, i) => (
-                          <Badge key={i} variant="secondary" size="sm">
-                            {skill.trim()}
+                        {opp.skills.map((skill, i) => (
+                          <Badge
+                            key={i}
+                            variant={skillVariants[skill] ?? "secondary"}
+                            size="sm"
+                          >
+                            {skill}
                           </Badge>
                         ))}
                       </div>
 
-                      {/* Opportunity Details */}
-                      <div className="flex items-center gap-4 mt-3 text-sm text-muted-foreground flex-wrap">
-                        {opportunity.compensation && (
-                          <div className="flex items-center gap-1">
-                            <DollarSign className="size-4" />
-                            <span>${Number(opportunity.compensation).toLocaleString()}</span>
-                          </div>
-                        )}
-                        {opportunity.location && (
-                          <div className="flex items-center gap-1">
-                            <MapPin className="size-4" />
-                            <span>{opportunity.location}</span>
-                            {opportunity.isRemote && <Badge variant="neon-green" size="sm">Remote</Badge>}
-                          </div>
-                        )}
-                        {opportunity.deadline && (
-                          <div className="flex items-center gap-1">
-                            <Calendar className="size-4" />
-                            <span>Deadline: {new Date(opportunity.deadline).toLocaleDateString()}</span>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Stats */}
-                      <div className="flex items-center gap-4 mt-3 text-sm text-muted-foreground">
+                      {/* Meta Info */}
+                      <div className="flex flex-wrap items-center gap-4 mt-3 text-sm text-muted-foreground">
+                        <div className="flex items-center gap-1 text-neon-green font-medium">
+                          <DollarSign className="size-4" />
+                          <span>{formatCompensation(opp.compensation)}</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <MapPin className="size-4" />
+                          <span>{opp.location}</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Calendar className="size-4" />
+                          <span>{formatDeadline(opp.deadline)}</span>
+                        </div>
                         <div className="flex items-center gap-1">
                           <Users className="size-4" />
-                          <span>{opportunity.applicationsCount || 0} applicants</span>
+                          <span>{opp.applicants} applicants</span>
                         </div>
                       </div>
                     </Link>
 
                     {/* Actions */}
                     <div className="mt-4 pl-13 flex items-center gap-1">
+                      <Button
+                        variant="neon"
+                        size="sm"
+                        className="gap-1.5"
+                      >
+                        <Zap className="size-4" />
+                        <span className="text-xs">Apply Now</span>
+                      </Button>
                       <Button
                         variant="ghost"
                         size="sm"
@@ -602,15 +668,6 @@ export default function OpportunitiesPage() {
                       >
                         <Bookmark className="size-4" />
                       </Button>
-                      <Button
-                        variant="neon"
-                        size="sm"
-                        asChild
-                      >
-                        <Link href={`/opportunities/${opportunity.id}`}>
-                          Apply Now
-                        </Link>
-                      </Button>
                     </div>
                   </div>
                 </article>
@@ -632,18 +689,22 @@ export default function OpportunitiesPage() {
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
-                <Briefcase className="size-4 text-primary" />
-                Opportunity Stats
+                <Sparkles className="size-4 text-neon-yellow" />
+                Marketplace Stats
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="flex justify-between">
-                <span className="text-sm text-muted-foreground">Total Opportunities</span>
+                <span className="text-sm text-muted-foreground">Open Opportunities</span>
                 <span className="font-medium text-foreground">{stats.total}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-sm text-muted-foreground">Active</span>
-                <span className="font-medium text-neon-green">{stats.active}</span>
+                <span className="text-sm text-muted-foreground">Active Bounties</span>
+                <span className="font-medium text-neon-green">{stats.bounties}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-sm text-muted-foreground">Total Value</span>
+                <span className="font-medium text-foreground">${stats.totalValue.toLocaleString()}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-sm text-muted-foreground">Total Applicants</span>
@@ -652,68 +713,64 @@ export default function OpportunitiesPage() {
             </CardContent>
           </Card>
 
-          {/* Trending Opportunities */}
+          {/* Hot Opportunities */}
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
-                <TrendingUp className="size-4 text-primary" />
-                Trending Opportunities
+                <TrendingUp className="size-4 text-neon-pink" />
+                Hot Opportunities
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              {trendingOpportunities.map((opportunity) => (
+              {hotOpportunities.map((opp) => (
                 <Link
-                  key={opportunity.id}
-                  href={`/opportunities/${opportunity.id}`}
+                  key={opp.id}
+                  href={`/marketplace/${opp.id}`}
                   className="block"
                 >
-                  <div className="flex items-start justify-between mb-2">
-                    <div className="flex-1">
-                      <p className="font-medium text-sm text-foreground hover:text-primary transition-colors line-clamp-1">
-                        {opportunity.title}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {opportunity.applicationsCount || 0} applicants
-                      </p>
-                    </div>
+                  <div className="flex items-start justify-between mb-1">
+                    <p className="font-medium text-sm text-foreground hover:text-primary transition-colors line-clamp-1">
+                      {opp.title}
+                    </p>
                     <Badge
-                      variant={typeVariants[opportunity.type] || "secondary"}
+                      variant={typeVariants[opp.type] ?? "secondary"}
                       size="sm"
                     >
-                      {opportunity.type}
+                      {opp.type}
                     </Badge>
                   </div>
-                  {opportunity.compensation && (
-                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                      <DollarSign className="size-3" />
-                      <span>${Number(opportunity.compensation).toLocaleString()}</span>
-                    </div>
-                  )}
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <span className="text-neon-green font-medium">
+                      {formatCompensation(opp.compensation)}
+                    </span>
+                    <span>·</span>
+                    <span>{opp.applicants} applicants</span>
+                  </div>
                 </Link>
               ))}
               <Button variant="ghost" className="w-full text-sm" asChild>
-                <Link href="/opportunities?tab=trending">View all trending</Link>
+                <Link href="/marketplace?tab=all">View all opportunities</Link>
               </Button>
             </CardContent>
           </Card>
 
-          {/* Job Types */}
+          {/* Skills Filter */}
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
-                <Filter className="size-4 text-neon-pink" />
-                Job Types
+                <Filter className="size-4 text-neon-purple" />
+                Skills
               </CardTitle>
             </CardHeader>
             <CardContent className="flex flex-wrap gap-2">
-              {Object.keys(typeVariants).map((type) => (
+              {Object.keys(skillVariants).map((skill) => (
                 <Badge
-                  key={type}
-                  variant={typeVariants[type]}
+                  key={skill}
+                  variant={skillVariants[skill]}
                   size="sm"
                   className="cursor-pointer hover:opacity-80"
                 >
-                  {type}
+                  {skill}
                 </Badge>
               ))}
             </CardContent>

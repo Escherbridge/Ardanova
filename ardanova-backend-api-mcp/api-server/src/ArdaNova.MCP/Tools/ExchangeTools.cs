@@ -41,6 +41,8 @@ public class TokenSwapTools
         [Description("The user ID")] string userId,
         [Description("The source share ID")] string fromShareId,
         [Description("The destination share ID")] string toShareId,
+        [Description("The source token ID")] string fromTokenId,
+        [Description("The destination token ID")] string toTokenId,
         [Description("The amount to swap from")] decimal fromAmount,
         [Description("The amount to receive")] decimal toAmount,
         [Description("The exchange rate")] decimal exchangeRate,
@@ -52,6 +54,8 @@ public class TokenSwapTools
             UserId = userId,
             FromShareId = fromShareId,
             ToShareId = toShareId,
+            FromTokenId = fromTokenId,
+            ToTokenId = toTokenId,
             FromAmount = fromAmount,
             ToAmount = toAmount,
             ExchangeRate = exchangeRate,
@@ -137,6 +141,8 @@ public class LiquidityPoolTools
     public async Task<LiquidityPoolDto?> CreatePool(
         [Description("The first share ID")] string share1Id,
         [Description("The second share ID")] string share2Id,
+        [Description("The first token ID")] string token1Id,
+        [Description("The second token ID")] string token2Id,
         [Description("The fee percentage (default 0.3%)")] decimal feePercent = 0.003m,
         CancellationToken ct = default)
     {
@@ -144,6 +150,8 @@ public class LiquidityPoolTools
         {
             Share1Id = share1Id,
             Share2Id = share2Id,
+            Token1Id = token1Id,
+            Token2Id = token2Id,
             FeePercent = feePercent
         };
         var result = await _poolService.CreateAsync(dto, ct);

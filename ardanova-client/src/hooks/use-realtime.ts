@@ -78,6 +78,20 @@ export function useRealtime() {
   }, []);
 
   /**
+   * Subscribe to conversation events.
+   */
+  const subscribeToConversation = useCallback(async (conversationId: string) => {
+    await clientRef.current?.subscribeToConversation(conversationId);
+  }, []);
+
+  /**
+   * Unsubscribe from conversation events.
+   */
+  const unsubscribeFromConversation = useCallback(async (conversationId: string) => {
+    await clientRef.current?.unsubscribeFromConversation(conversationId);
+  }, []);
+
+  /**
    * Subscribe to all events.
    */
   const subscribeToAll = useCallback(async () => {
@@ -101,6 +115,8 @@ export function useRealtime() {
     unsubscribeFromProject,
     subscribeToAgency,
     unsubscribeFromAgency,
+    subscribeToConversation,
+    unsubscribeFromConversation,
     subscribeToAll,
     unsubscribeFromAll,
     client: clientRef.current,

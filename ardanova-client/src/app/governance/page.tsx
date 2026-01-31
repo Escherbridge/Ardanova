@@ -293,8 +293,8 @@ export default function GovernancePage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="flex justify-center">
-        {/* Main Feed Column - Centered */}
+      <div className="flex">
+        {/* Main Feed Column */}
         <div className="w-full max-w-2xl border-x-2 border-border">
           {/* Header */}
           <div className="sticky top-0 z-10 bg-background/95 backdrop-blur border-b-2 border-border">

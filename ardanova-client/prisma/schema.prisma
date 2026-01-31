@@ -506,6 +506,17 @@ enum MessageStatus {
   NOTSEEN
 }
 
+enum ConversationType {
+  DIRECT
+  GROUP
+}
+
+enum ConversationRole {
+  MEMBER
+  ADMIN
+  OWNER
+}
+
 enum MimeType {
   IMAGE
   VIDEO
@@ -688,6 +699,8 @@ model User {
   postComments PostComment[] @relation("PostComment_authorId")
   postBookmarks PostBookmark[] @relation("PostBookmark_userId")
   postShares PostShare[] @relation("PostShare_userId")
+  conversations Conversation[] @relation("Conversation_createdById")
+  conversationMembers ConversationMember[] @relation("ConversationMember_userId")
   chatMessages ChatMessage[] @relation("ChatMessage_userToId")
   chatMessages1 ChatMessage[] @relation("ChatMessage_userFromId")
   attachments Attachment[] @relation("Attachment_uploadedById")
@@ -1854,6 +1867,36 @@ model PostShare {
   sharedToGuild Guild? @relation("PostShare_sharedToGuildId", fields: [sharedToGuildId], references: [id])
 }
 
+model Conversation {
+  id String @id @default(cuid())
+  type ConversationType
+  name String?
+  avatarUrl String?
+  createdById String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
+  lastMessageAt DateTime?
+  createdBy User? @relation("Conversation_createdById", fields: [createdById], references: [id], onDelete: SetNull)
+  conversationMembers ConversationMember[] @relation("ConversationMember_conversationId")
+  chatMessages ChatMessage[] @relation("ChatMessage_conversationId")
+
+  @@index([createdById])
+}
+
+model ConversationMember {
+  id String @id @default(cuid())
+  conversationId String
+  userId String
+  role ConversationRole @default(MEMBER)
+  lastReadAt DateTime?
+  joinedAt DateTime @default(now())
+  lastActiveAt DateTime?
+  conversation Conversation @relation("ConversationMember_conversationId", fields: [conversationId], references: [id], onDelete: Cascade)
+  user User @relation("ConversationMember_userId", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, userId])
+}
+
 model ChatMessage {
   id String @id @default(cuid())
   userToId String
@@ -1864,9 +1907,19 @@ model ChatMessage {
   chatAttachmentId String?
   sentAt DateTime @default(now())
   seenAt DateTime?
+  conversationId String?
+  replyToId String?
+  deliveredAt DateTime?
+  isDeleted Boolean @default(false)
+  editedAt DateTime?
   userTo User @relation("ChatMessage_userToId", fields: [userToId], references: [id])
   userFrom User @relation("ChatMessage_userFromId", fields: [userFromId], references: [id])
   chatAttachment Attachment? @relation("ChatMessage_chatAttachmentId", fields: [chatAttachmentId], references: [id])
+  conversation Conversation? @relation("ChatMessage_conversationId", fields: [conversationId], references: [id], onDelete: Cascade)
+  replyTo ChatMessage? @relation("ChatMessage_replyToId", fields: [replyToId], references: [id], onDelete: Restrict)
+  replyToChildren ChatMessage[] @relation("ChatMessage_replyToId")
+
+  @@index([conversationId, sentAt])
 }
 
 model Attachment {

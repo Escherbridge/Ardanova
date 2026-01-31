@@ -73,6 +73,7 @@ public class DelegatedVoteTools
         [Description("The delegator user ID")] string delegatorId,
         [Description("The delegatee user ID")] string delegateeId,
         [Description("The share ID")] string shareId,
+        [Description("The token ID")] string tokenId,
         [Description("The amount to delegate")] decimal amount,
         [Description("Optional expiration date")] DateTime? expiresAt = null,
         CancellationToken ct = default)
@@ -83,6 +84,7 @@ public class DelegatedVoteTools
             DelegatorId = delegatorId,
             DelegateeId = delegateeId,
             ShareId = shareId,
+            TokenId = tokenId,
             Amount = amount,
             ExpiresAt = expiresAt
         };

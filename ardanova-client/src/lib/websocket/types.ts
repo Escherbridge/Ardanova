@@ -116,6 +116,68 @@ export interface ActivityLoggedEvent extends DomainEvent {
   entityType?: string;
 }
 
+// ========== Chat Events ==========
+
+export interface ChatMessageSentEvent extends DomainEvent {
+  eventType: "chat.message_sent";
+  messageId: string;
+  conversationId: string;
+  senderId: string;
+  senderName: string;
+  senderImage?: string;
+  content: string;
+  replyToId?: string;
+  sentAt: string;
+}
+
+export interface ChatMessageDeliveredEvent extends DomainEvent {
+  eventType: "chat.message_delivered";
+  messageId: string;
+  conversationId: string;
+  userId: string;
+  deliveredAt: string;
+}
+
+export interface ChatMessageReadEvent extends DomainEvent {
+  eventType: "chat.message_read";
+  conversationId: string;
+  userId: string;
+  lastReadMessageId: string;
+  readAt: string;
+}
+
+export interface ChatTypingEvent extends DomainEvent {
+  eventType: "chat.typing";
+  conversationId: string;
+  userId: string;
+  userName: string;
+  isTyping: boolean;
+}
+
+export interface ChatConversationCreatedEvent extends DomainEvent {
+  eventType: "chat.conversation_created";
+  conversationId: string;
+  conversationType: "DIRECT" | "GROUP";
+  name?: string;
+  memberUserIds: string[];
+  createdById: string;
+}
+
+export interface ChatMemberAddedEvent extends DomainEvent {
+  eventType: "chat.member_added";
+  conversationId: string;
+  userId: string;
+  userName: string;
+  addedById: string;
+}
+
+export interface ChatMemberRemovedEvent extends DomainEvent {
+  eventType: "chat.member_removed";
+  conversationId: string;
+  userId: string;
+  removedById: string;
+}
+
 // Union type of all events
 export type ArdaNovaEvent =
   | UserCreatedEvent
@@ -132,7 +194,15 @@ export type ArdaNovaEvent =
   | NotificationCreatedEvent
   | NotificationReadEvent
   | NotificationsMarkedAllReadEvent
-  | ActivityLoggedEvent;
+  | ActivityLoggedEvent
+  // Chat events
+  | ChatMessageSentEvent
+  | ChatMessageDeliveredEvent
+  | ChatMessageReadEvent
+  | ChatTypingEvent
+  | ChatConversationCreatedEvent
+  | ChatMemberAddedEvent
+  | ChatMemberRemovedEvent;
 
 // Event type string literals
 export type ArdaNovaEventType = ArdaNovaEvent["eventType"];
@@ -163,6 +233,8 @@ export type SubscriptionAction =
   | { action: "unsubscribeFromAgency"; payload: { agencyId: string } }
   | { action: "subscribeToUser"; payload: { userId: string } }
   | { action: "unsubscribeFromUser"; payload: { userId: string } }
+  | { action: "subscribeToConversation"; payload: { conversationId: string } }
+  | { action: "unsubscribeFromConversation"; payload: { conversationId: string } }
   | { action: "subscribeToAll"; payload: Record<string, never> }
   | { action: "unsubscribeFromAll"; payload: Record<string, never> };
 

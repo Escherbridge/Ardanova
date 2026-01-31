@@ -191,6 +191,7 @@ public class DelegatedVoteServiceTests
             ProjectId = projectId,
             DelegatorId = delegatorId,
             DelegateeId = delegateeId,
+            ShareId = tokenId,
             TokenId = tokenId,
             Amount = 500m
         };
@@ -220,12 +221,14 @@ public class DelegatedVoteServiceTests
     public async Task CreateAsync_WithDuplicateDelegation_ReturnsValidationError()
     {
         // Arrange
+        var tokenId = Guid.NewGuid().ToString();
         var dto = new CreateDelegatedVoteDto
         {
             ProjectId = Guid.NewGuid().ToString(),
             DelegatorId = Guid.NewGuid().ToString(),
             DelegateeId = Guid.NewGuid().ToString(),
-            TokenId = Guid.NewGuid().ToString(),
+            ShareId = tokenId,
+            TokenId = tokenId,
             Amount = 100m
         };
 

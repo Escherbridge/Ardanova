@@ -16,6 +16,11 @@ export const ChatMessageSchema = z.object({
   chatAttachmentId: z.string().nullable(),
   sentAt: z.coerce.date(),
   seenAt: z.coerce.date().nullable(),
+  conversationId: z.string().nullable(),
+  replyToId: z.string().nullable(),
+  deliveredAt: z.coerce.date().nullable(),
+  isDeleted: z.boolean(),
+  editedAt: z.coerce.date().nullable(),
 })
 
 export type ChatMessage = z.infer<typeof ChatMessageSchema>

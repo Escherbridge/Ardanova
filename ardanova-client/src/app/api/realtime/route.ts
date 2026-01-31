@@ -68,7 +68,11 @@ export async function GET(request: NextRequest) {
           clearInterval(heartbeatInterval);
           unsubscribe?.();
           await connectionManager.releaseConnection(userId);
-          controller.close();
+          try {
+            controller.close();
+          } catch {
+            // Stream already closed
+          }
           console.log(`[SSE] Client disconnected: ${userId}`);
         });
       } catch (error) {

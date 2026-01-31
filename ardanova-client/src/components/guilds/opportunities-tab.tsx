@@ -1,11 +1,13 @@
 "use client";
 
+import { useEffect } from "react";
 import { api } from "~/trpc/react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
 import { Badge } from "~/components/ui/badge";
 import { Loader2, Briefcase, Plus, Users, DollarSign, MapPin, Calendar } from "lucide-react";
 import Link from "next/link";
+import { toast } from "sonner";
 
 interface OpportunitiesTabProps {
   guildId: string;
@@ -44,6 +46,13 @@ export function OpportunitiesTab({ guildId, guildSlug, isOwner, userRole }: Oppo
 
   // Filter opportunities by guildId
   const opportunities = (opportunitiesResult?.items || []).filter((opp) => opp.guildId === guildId);
+
+  // Show toast notification on error
+  useEffect(() => {
+    if (error) {
+      toast.error(error.message || "Failed to load opportunities");
+    }
+  }, [error]);
 
   if (isLoading) {
     return (

@@ -26,15 +26,10 @@ export class SignalRBackendClient {
       return;
     }
 
-    const hubUrl = `${env.API_URL}/hubs/ardanova`;
+    const hubUrl = `${env.API_URL}/hubs/ardanova?api_key=${encodeURIComponent(env.API_KEY)}&userId=${encodeURIComponent(this.userId)}`;
 
     this.connection = new signalR.HubConnectionBuilder()
-      .withUrl(hubUrl, {
-        headers: {
-          "X-Api-Key": env.API_KEY,
-          "X-User-Id": this.userId,
-        },
-      })
+      .withUrl(hubUrl)
       .withAutomaticReconnect({
         nextRetryDelayInMilliseconds: (retryContext) => {
           if (retryContext.previousRetryCount >= this.maxReconnectAttempts) {

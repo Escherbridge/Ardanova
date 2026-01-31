@@ -73,6 +73,8 @@ export * from './PostLikeSchema';
 export * from './PostCommentSchema';
 export * from './PostBookmarkSchema';
 export * from './PostShareSchema';
+export * from './ConversationSchema';
+export * from './ConversationMemberSchema';
 export * from './ChatMessageSchema';
 export * from './AttachmentSchema';
 export * from './EventSchema';

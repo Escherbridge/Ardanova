@@ -106,6 +106,9 @@ public static class DependencyInjection
         // Attachment services
         services.AddScoped<IAttachmentService, AttachmentService>();
 
+        // Chat services
+        services.AddScoped<IChatService, ChatService>();
+
         return services;
     }
 }

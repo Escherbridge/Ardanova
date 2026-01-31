@@ -164,6 +164,10 @@ public class User
 
     public virtual ICollection<PostShare> PostShares { get; set; } = new List<PostShare>();
 
+    public virtual ICollection<Conversation> Conversations { get; set; } = new List<Conversation>();
+
+    public virtual ICollection<ConversationMember> ConversationMembers { get; set; } = new List<ConversationMember>();
+
     public virtual ICollection<Attachment> Attachments { get; set; } = new List<Attachment>();
 
     public virtual ICollection<Event> Events { get; set; } = new List<Event>();

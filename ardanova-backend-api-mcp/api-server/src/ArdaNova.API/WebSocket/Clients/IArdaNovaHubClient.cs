@@ -52,4 +52,36 @@ public interface IArdaNovaHubClient
     /// Receives an activity event.
     /// </summary>
     Task ActivityLogged(object activity);
+
+    // ========== Chat Events ==========
+
+    /// <summary>
+    /// Receives a new chat message.
+    /// </summary>
+    Task MessageReceived(object message);
+
+    /// <summary>
+    /// Receives message status update (delivered/read).
+    /// </summary>
+    Task MessageStatusUpdated(object statusUpdate);
+
+    /// <summary>
+    /// Receives typing indicator.
+    /// </summary>
+    Task TypingIndicatorReceived(object typingIndicator);
+
+    /// <summary>
+    /// Receives conversation created/updated event.
+    /// </summary>
+    Task ConversationUpdated(object conversation);
+
+    /// <summary>
+    /// Receives notification when added to a conversation.
+    /// </summary>
+    Task AddedToConversation(object conversation);
+
+    /// <summary>
+    /// Receives notification when removed from a conversation.
+    /// </summary>
+    Task RemovedFromConversation(object data);
 }

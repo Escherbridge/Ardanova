@@ -1631,6 +1631,17 @@ Enum MessageStatus {
   NOTSEEN
 }
 
+Enum ConversationType {
+  DIRECT
+  GROUP
+}
+
+Enum ConversationRole {
+  MEMBER
+  ADMIN
+  OWNER
+}
+
 Enum MimeType {
   IMAGE
   VIDEO
@@ -1639,6 +1650,38 @@ Enum MimeType {
   ARCHIVE
   OTHER
 }
+
+Table Conversation {
+  id varchar [not null, pk, default: `cuid()`]
+  type ConversationType [not null]
+  name varchar
+  avatarUrl varchar
+  createdById varchar
+  createdAt datetime [not null, default: `now()`]
+  updatedAt datetime [not null, default: `now()`]
+  lastMessageAt datetime
+
+  indexes {
+    createdById
+  }
+}
+Ref: Conversation.createdById > User.id [delete: set null]
+
+Table ConversationMember {
+  id varchar [not null, pk, default: `cuid()`]
+  conversationId varchar [not null]
+  userId varchar [not null]
+  role ConversationRole [not null, default: 'MEMBER']
+  lastReadAt datetime
+  joinedAt datetime [not null, default: `now()`]
+  lastActiveAt datetime
+
+  indexes {
+    (conversationId, userId) [unique]
+  }
+}
+Ref: ConversationMember.conversationId > Conversation.id [delete: cascade]
+Ref: ConversationMember.userId > User.id [delete: cascade]
 
 Table ChatMessage {
   id varchar [not null, pk, default: `cuid()`]
@@ -1650,10 +1693,21 @@ Table ChatMessage {
   chatAttachmentId varchar
   sentAt datetime [not null, default: `now()`]
   seenAt datetime
+  conversationId varchar
+  replyToId varchar
+  deliveredAt datetime
+  isDeleted boolean [not null, default: false]
+  editedAt datetime
+
+  indexes {
+    (conversationId, sentAt)
+  }
 }
 Ref: ChatMessage.userToId > User.id
 Ref: ChatMessage.userFromId > User.id
 Ref: ChatMessage.chatAttachmentId > Attachment.id
+Ref: ChatMessage.conversationId > Conversation.id [delete: cascade]
+Ref: ChatMessage.replyToId > ChatMessage.id [delete: restrict]
 
 Table Attachment {
   id varchar [not null, pk, default: `cuid()`]

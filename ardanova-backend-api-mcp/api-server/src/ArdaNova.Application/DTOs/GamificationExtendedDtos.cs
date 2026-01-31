@@ -47,4 +47,5 @@ public record ClaimReferralRewardDto
 {
     public required int XpAmount { get; init; }
     public decimal? EquityAmount { get; init; }
+    public decimal? TokenAmount { get; init; }
 }
