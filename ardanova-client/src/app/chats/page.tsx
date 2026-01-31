@@ -41,8 +41,9 @@ import { useSession } from "next-auth/react";
 
 interface ConversationMember {
   id: string;
-  name: string;
-  image?: string | null;
+  userId: string;
+  userName: string;
+  userImage?: string | null;
   isOnline?: boolean;
 }
 
@@ -174,13 +175,17 @@ export default function ChatsPage() {
     if (conv.type === "GROUP") {
       return conv.name ?? "Group Chat";
     }
-    // For direct messages, find the other user
-    const otherMember = conv.members.find((m) => m.id !== currentUserId);
-    return otherMember?.name ?? "Unknown User";
+    const otherMember = conv.members.find((m) => m.userId !== currentUserId);
+    if (otherMember) return otherMember.userName ?? "Unknown User";
+    // Self-conversation: use own name or conversation name
+    const selfMember = conv.members.find((m) => m.userId === currentUserId);
+    return selfMember?.userName ? `${selfMember.userName} (You)` : conv.name ?? "Unknown User";
   }
 
   function getOtherMember(conv: Conversation): ConversationMember | undefined {
-    return conv.members.find((m) => m.id !== currentUserId);
+    // For self-conversations, return the current user as the member
+    return conv.members.find((m) => m.userId !== currentUserId)
+      ?? conv.members.find((m) => m.userId === currentUserId);
   }
 
   function getConversationAvatar(conv: Conversation) {
@@ -188,9 +193,9 @@ export default function ChatsPage() {
       const otherMember = getOtherMember(conv);
       return (
         <Avatar className="size-12">
-          <AvatarImage src={otherMember?.image ?? undefined} />
+          <AvatarImage src={otherMember?.userImage ?? undefined} />
           <AvatarFallback className="bg-neon-pink/20 text-neon-pink">
-            {otherMember?.name?.charAt(0) ?? "?"}
+            {otherMember?.userName?.charAt(0) ?? "?"}
           </AvatarFallback>
         </Avatar>
       );
@@ -200,15 +205,15 @@ export default function ChatsPage() {
       return (
         <div className="relative size-12">
           <Avatar className="size-8 absolute top-0 left-0 border-2 border-background">
-            <AvatarImage src={visibleMembers[0]?.image ?? undefined} />
+            <AvatarImage src={visibleMembers[0]?.userImage ?? undefined} />
             <AvatarFallback className="bg-neon-purple/20 text-neon-purple text-xs">
-              {visibleMembers[0]?.name?.charAt(0) ?? "?"}
+              {visibleMembers[0]?.userName?.charAt(0) ?? "?"}
             </AvatarFallback>
           </Avatar>
           <Avatar className="size-8 absolute bottom-0 right-0 border-2 border-background">
-            <AvatarImage src={visibleMembers[1]?.image ?? undefined} />
+            <AvatarImage src={visibleMembers[1]?.userImage ?? undefined} />
             <AvatarFallback className="bg-neon-green/20 text-neon-green text-xs">
-              {visibleMembers[1]?.name?.charAt(0) ?? "?"}
+              {visibleMembers[1]?.userName?.charAt(0) ?? "?"}
             </AvatarFallback>
           </Avatar>
         </div>
@@ -422,7 +427,7 @@ export default function ChatsPage() {
               <Link
                 href={
                   selectedChat.type === "DIRECT"
-                    ? `/dashboard/profile/${getOtherMember(selectedChat)?.id}`
+                    ? `/dashboard/profile/${getOtherMember(selectedChat)?.userId}`
                     : "#"
                 }
                 className="flex items-center gap-3"

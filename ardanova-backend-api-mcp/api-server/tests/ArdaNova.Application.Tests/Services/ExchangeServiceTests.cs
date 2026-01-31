@@ -31,14 +31,14 @@ public class TokenSwapServiceTests
         // Arrange
         var swapId = Guid.NewGuid().ToString();
         var userId = Guid.NewGuid().ToString();
-        var fromTokenId = Guid.NewGuid().ToString();
-        var toTokenId = Guid.NewGuid().ToString();
+        var fromShareId = Guid.NewGuid().ToString();
+        var toShareId = Guid.NewGuid().ToString();
         var swap = new ShareSwap
         {
             id = swapId,
             userId = userId,
-            fromTokenId = fromTokenId,
-            toTokenId = toTokenId,
+            fromShareId = fromShareId,
+            toShareId = toShareId,
             fromAmount = 100m,
             toAmount = 95m,
             exchangeRate = 0.95m,
@@ -84,8 +84,8 @@ public class TokenSwapServiceTests
         var userId = Guid.NewGuid().ToString();
         var swaps = new List<ShareSwap>
         {
-            new ShareSwap { id = Guid.NewGuid().ToString(), userId = userId, fromTokenId = Guid.NewGuid().ToString(), toTokenId = Guid.NewGuid().ToString(), fromAmount = 100m, toAmount = 95m, exchangeRate = 0.95m, fee = 0m, status = SwapStatus.PENDING, createdAt = DateTime.UtcNow },
-            new ShareSwap { id = Guid.NewGuid().ToString(), userId = userId, fromTokenId = Guid.NewGuid().ToString(), toTokenId = Guid.NewGuid().ToString(), fromAmount = 200m, toAmount = 190m, exchangeRate = 0.95m, fee = 0m, status = SwapStatus.PENDING, createdAt = DateTime.UtcNow }
+            new ShareSwap { id = Guid.NewGuid().ToString(), userId = userId, fromShareId = Guid.NewGuid().ToString(), toShareId = Guid.NewGuid().ToString(), fromAmount = 100m, toAmount = 95m, exchangeRate = 0.95m, fee = 0m, status = SwapStatus.PENDING, createdAt = DateTime.UtcNow },
+            new ShareSwap { id = Guid.NewGuid().ToString(), userId = userId, fromShareId = Guid.NewGuid().ToString(), toShareId = Guid.NewGuid().ToString(), fromAmount = 200m, toAmount = 190m, exchangeRate = 0.95m, fee = 0m, status = SwapStatus.PENDING, createdAt = DateTime.UtcNow }
         };
         var swapDtos = new List<TokenSwapDto>
         {
@@ -112,15 +112,11 @@ public class TokenSwapServiceTests
         var userId = Guid.NewGuid().ToString();
         var fromShareId = Guid.NewGuid().ToString();
         var toShareId = Guid.NewGuid().ToString();
-        var fromTokenId = Guid.NewGuid().ToString();
-        var toTokenId = Guid.NewGuid().ToString();
         var dto = new CreateTokenSwapDto
         {
             UserId = userId,
             FromShareId = fromShareId,
             ToShareId = toShareId,
-            FromTokenId = fromTokenId,
-            ToTokenId = toTokenId,
             FromAmount = 1000m,
             ToAmount = 950m,
             ExchangeRate = 0.95m,
@@ -154,8 +150,8 @@ public class TokenSwapServiceTests
         {
             id = swapId,
             userId = Guid.NewGuid().ToString(),
-            fromTokenId = Guid.NewGuid().ToString(),
-            toTokenId = Guid.NewGuid().ToString(),
+            fromShareId = Guid.NewGuid().ToString(),
+            toShareId = Guid.NewGuid().ToString(),
             fromAmount = 100m,
             toAmount = 95m,
             exchangeRate = 0.95m,
@@ -193,8 +189,8 @@ public class TokenSwapServiceTests
         {
             id = swapId,
             userId = Guid.NewGuid().ToString(),
-            fromTokenId = Guid.NewGuid().ToString(),
-            toTokenId = Guid.NewGuid().ToString(),
+            fromShareId = Guid.NewGuid().ToString(),
+            toShareId = Guid.NewGuid().ToString(),
             fromAmount = 100m,
             toAmount = 95m,
             exchangeRate = 0.95m,
@@ -249,8 +245,8 @@ public class LiquidityPoolServiceTests
         var pool = new LiquidityPool
         {
             id = poolId,
-            token1Id = token1Id,
-            token2Id = token2Id,
+            share1Id = token1Id,
+            share2Id = token2Id,
             reserve1 = 0m,
             reserve2 = 0m,
             totalShares = 0m,
@@ -258,7 +254,7 @@ public class LiquidityPoolServiceTests
             isActive = true,
             createdAt = DateTime.UtcNow
         };
-        var poolDto = new LiquidityPoolDto { Id = poolId, Token1Id = token1Id, Token2Id = token2Id };
+        var poolDto = new LiquidityPoolDto { Id = poolId, Share1Id = token1Id, Share2Id = token2Id };
 
         _repositoryMock.Setup(r => r.GetByIdAsync(poolId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(pool);
@@ -294,8 +290,8 @@ public class LiquidityPoolServiceTests
         // Arrange
         var pools = new List<LiquidityPool>
         {
-            new LiquidityPool { id = Guid.NewGuid().ToString(), token1Id = Guid.NewGuid().ToString(), token2Id = Guid.NewGuid().ToString(), reserve1 = 0m, reserve2 = 0m, totalShares = 0m, feePercent = 0.003m, isActive = true, createdAt = DateTime.UtcNow },
-            new LiquidityPool { id = Guid.NewGuid().ToString(), token1Id = Guid.NewGuid().ToString(), token2Id = Guid.NewGuid().ToString(), reserve1 = 0m, reserve2 = 0m, totalShares = 0m, feePercent = 0.003m, isActive = true, createdAt = DateTime.UtcNow }
+            new LiquidityPool { id = Guid.NewGuid().ToString(), share1Id = Guid.NewGuid().ToString(), share2Id = Guid.NewGuid().ToString(), reserve1 = 0m, reserve2 = 0m, totalShares = 0m, feePercent = 0.003m, isActive = true, createdAt = DateTime.UtcNow },
+            new LiquidityPool { id = Guid.NewGuid().ToString(), share1Id = Guid.NewGuid().ToString(), share2Id = Guid.NewGuid().ToString(), reserve1 = 0m, reserve2 = 0m, totalShares = 0m, feePercent = 0.003m, isActive = true, createdAt = DateTime.UtcNow }
         };
         var poolDtos = new List<LiquidityPoolDto>
         {
@@ -321,17 +317,13 @@ public class LiquidityPoolServiceTests
         // Arrange
         var share1Id = Guid.NewGuid().ToString();
         var share2Id = Guid.NewGuid().ToString();
-        var token1Id = Guid.NewGuid().ToString();
-        var token2Id = Guid.NewGuid().ToString();
         var dto = new CreateLiquidityPoolDto
         {
             Share1Id = share1Id,
             Share2Id = share2Id,
-            Token1Id = token1Id,
-            Token2Id = token2Id,
             FeePercent = 0.003m
         };
-        var poolDto = new LiquidityPoolDto { Token1Id = token1Id, Token2Id = token2Id, FeePercent = 0.003m };
+        var poolDto = new LiquidityPoolDto { Share1Id = share1Id, Share2Id = share2Id, FeePercent = 0.003m };
 
         _repositoryMock.Setup(r => r.ExistsAsync(It.IsAny<System.Linq.Expressions.Expression<Func<LiquidityPool, bool>>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(false);
@@ -382,8 +374,8 @@ public class LiquidityProviderServiceTests
             poolId = poolId,
             userId = userId,
             shares = 100m,
-            token1In = 100m,
-            token2In = 100m,
+            share1In = 100m,
+            share2In = 100m,
             createdAt = DateTime.UtcNow
         };
         var providerDto = new LiquidityProviderDto { Id = providerId, PoolId = poolId, UserId = userId };
@@ -423,8 +415,8 @@ public class LiquidityProviderServiceTests
         var poolId = Guid.NewGuid().ToString();
         var providers = new List<LiquidityProvider>
         {
-            new LiquidityProvider { id = Guid.NewGuid().ToString(), poolId = poolId, userId = Guid.NewGuid().ToString(), shares = 100m, token1In = 100m, token2In = 100m, createdAt = DateTime.UtcNow },
-            new LiquidityProvider { id = Guid.NewGuid().ToString(), poolId = poolId, userId = Guid.NewGuid().ToString(), shares = 200m, token1In = 200m, token2In = 200m, createdAt = DateTime.UtcNow }
+            new LiquidityProvider { id = Guid.NewGuid().ToString(), poolId = poolId, userId = Guid.NewGuid().ToString(), shares = 100m, share1In = 100m, share2In = 100m, createdAt = DateTime.UtcNow },
+            new LiquidityProvider { id = Guid.NewGuid().ToString(), poolId = poolId, userId = Guid.NewGuid().ToString(), shares = 200m, share1In = 200m, share2In = 200m, createdAt = DateTime.UtcNow }
         };
         var providerDtos = new List<LiquidityProviderDto>
         {
@@ -456,9 +448,7 @@ public class LiquidityProviderServiceTests
             UserId = userId,
             Shares = 500m,
             Share1In = 500m,
-            Share2In = 500m,
-            Token1In = 500m,
-            Token2In = 500m
+            Share2In = 500m
         };
         var providerDto = new LiquidityProviderDto { PoolId = poolId, UserId = userId, Shares = 500m };
 

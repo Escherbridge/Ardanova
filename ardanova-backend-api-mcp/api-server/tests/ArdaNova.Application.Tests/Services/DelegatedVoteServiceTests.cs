@@ -32,14 +32,14 @@ public class DelegatedVoteServiceTests
         var projectId = Guid.NewGuid().ToString();
         var delegatorId = Guid.NewGuid().ToString();
         var delegateeId = Guid.NewGuid().ToString();
-        var tokenId = Guid.NewGuid().ToString();
+        var shareId = Guid.NewGuid().ToString();
         var delegation = new DelegatedVote
         {
             id = delegationId,
             projectId = projectId,
             delegatorId = delegatorId,
             delegateeId = delegateeId,
-            tokenId = tokenId,
+            shareId = shareId,
             amount = 100m,
             isActive = true,
             createdAt = DateTime.UtcNow
@@ -82,8 +82,8 @@ public class DelegatedVoteServiceTests
         var delegatorId = Guid.NewGuid().ToString();
         var delegations = new List<DelegatedVote>
         {
-            new DelegatedVote { id = Guid.NewGuid().ToString(), projectId = Guid.NewGuid().ToString(), delegatorId = delegatorId, delegateeId = Guid.NewGuid().ToString(), tokenId = Guid.NewGuid().ToString(), amount = 100m, isActive = true, createdAt = DateTime.UtcNow },
-            new DelegatedVote { id = Guid.NewGuid().ToString(), projectId = Guid.NewGuid().ToString(), delegatorId = delegatorId, delegateeId = Guid.NewGuid().ToString(), tokenId = Guid.NewGuid().ToString(), amount = 200m, isActive = true, createdAt = DateTime.UtcNow }
+            new DelegatedVote { id = Guid.NewGuid().ToString(), projectId = Guid.NewGuid().ToString(), delegatorId = delegatorId, delegateeId = Guid.NewGuid().ToString(), shareId = Guid.NewGuid().ToString(), amount = 100m, isActive = true, createdAt = DateTime.UtcNow },
+            new DelegatedVote { id = Guid.NewGuid().ToString(), projectId = Guid.NewGuid().ToString(), delegatorId = delegatorId, delegateeId = Guid.NewGuid().ToString(), shareId = Guid.NewGuid().ToString(), amount = 200m, isActive = true, createdAt = DateTime.UtcNow }
         };
         var delegationDtos = new List<DelegatedVoteDto>
         {
@@ -110,7 +110,7 @@ public class DelegatedVoteServiceTests
         var delegateeId = Guid.NewGuid().ToString();
         var delegations = new List<DelegatedVote>
         {
-            new DelegatedVote { id = Guid.NewGuid().ToString(), projectId = Guid.NewGuid().ToString(), delegatorId = Guid.NewGuid().ToString(), delegateeId = delegateeId, tokenId = Guid.NewGuid().ToString(), amount = 150m, isActive = true, createdAt = DateTime.UtcNow }
+            new DelegatedVote { id = Guid.NewGuid().ToString(), projectId = Guid.NewGuid().ToString(), delegatorId = Guid.NewGuid().ToString(), delegateeId = delegateeId, shareId = Guid.NewGuid().ToString(), amount = 150m, isActive = true, createdAt = DateTime.UtcNow }
         };
         var delegationDtos = new List<DelegatedVoteDto>
         {
@@ -136,7 +136,7 @@ public class DelegatedVoteServiceTests
         var projectId = Guid.NewGuid().ToString();
         var delegations = new List<DelegatedVote>
         {
-            new DelegatedVote { id = Guid.NewGuid().ToString(), projectId = projectId, delegatorId = Guid.NewGuid().ToString(), delegateeId = Guid.NewGuid().ToString(), tokenId = Guid.NewGuid().ToString(), amount = 100m, isActive = true, createdAt = DateTime.UtcNow }
+            new DelegatedVote { id = Guid.NewGuid().ToString(), projectId = projectId, delegatorId = Guid.NewGuid().ToString(), delegateeId = Guid.NewGuid().ToString(), shareId = Guid.NewGuid().ToString(), amount = 100m, isActive = true, createdAt = DateTime.UtcNow }
         };
         var delegationDtos = new List<DelegatedVoteDto>
         {
@@ -163,8 +163,8 @@ public class DelegatedVoteServiceTests
         var projectId = Guid.NewGuid().ToString();
         var delegations = new List<DelegatedVote>
         {
-            new DelegatedVote { id = Guid.NewGuid().ToString(), projectId = projectId, delegatorId = Guid.NewGuid().ToString(), delegateeId = delegateeId, tokenId = Guid.NewGuid().ToString(), amount = 100m, isActive = true, createdAt = DateTime.UtcNow },
-            new DelegatedVote { id = Guid.NewGuid().ToString(), projectId = projectId, delegatorId = Guid.NewGuid().ToString(), delegateeId = delegateeId, tokenId = Guid.NewGuid().ToString(), amount = 200m, isActive = true, createdAt = DateTime.UtcNow }
+            new DelegatedVote { id = Guid.NewGuid().ToString(), projectId = projectId, delegatorId = Guid.NewGuid().ToString(), delegateeId = delegateeId, shareId = Guid.NewGuid().ToString(), amount = 100m, isActive = true, createdAt = DateTime.UtcNow },
+            new DelegatedVote { id = Guid.NewGuid().ToString(), projectId = projectId, delegatorId = Guid.NewGuid().ToString(), delegateeId = delegateeId, shareId = Guid.NewGuid().ToString(), amount = 200m, isActive = true, createdAt = DateTime.UtcNow }
         };
 
         _repositoryMock.Setup(r => r.FindAsync(It.IsAny<System.Linq.Expressions.Expression<Func<DelegatedVote, bool>>>(), It.IsAny<CancellationToken>()))
@@ -185,14 +185,13 @@ public class DelegatedVoteServiceTests
         var projectId = Guid.NewGuid().ToString();
         var delegatorId = Guid.NewGuid().ToString();
         var delegateeId = Guid.NewGuid().ToString();
-        var tokenId = Guid.NewGuid().ToString();
+        var shareId = Guid.NewGuid().ToString();
         var dto = new CreateDelegatedVoteDto
         {
             ProjectId = projectId,
             DelegatorId = delegatorId,
             DelegateeId = delegateeId,
-            ShareId = tokenId,
-            TokenId = tokenId,
+            ShareId = shareId,
             Amount = 500m
         };
         var delegationDto = new DelegatedVoteDto { Amount = 500m, IsActive = true };
@@ -221,14 +220,13 @@ public class DelegatedVoteServiceTests
     public async Task CreateAsync_WithDuplicateDelegation_ReturnsValidationError()
     {
         // Arrange
-        var tokenId = Guid.NewGuid().ToString();
+        var shareId = Guid.NewGuid().ToString();
         var dto = new CreateDelegatedVoteDto
         {
             ProjectId = Guid.NewGuid().ToString(),
             DelegatorId = Guid.NewGuid().ToString(),
             DelegateeId = Guid.NewGuid().ToString(),
-            ShareId = tokenId,
-            TokenId = tokenId,
+            ShareId = shareId,
             Amount = 100m
         };
 
@@ -254,7 +252,7 @@ public class DelegatedVoteServiceTests
             projectId = Guid.NewGuid().ToString(),
             delegatorId = Guid.NewGuid().ToString(),
             delegateeId = Guid.NewGuid().ToString(),
-            tokenId = Guid.NewGuid().ToString(),
+            shareId = Guid.NewGuid().ToString(),
             amount = 100m,
             isActive = true,
             createdAt = DateTime.UtcNow

@@ -112,9 +112,9 @@ export function useConversation({ conversationId, enabled = true }: UseConversat
     fetchNextPage: messagesQuery.fetchNextPage,
     typingUsers: Array.from(typingUsers.values()).map(v => v.name),
     sendMessage: (message: string, replyToId?: string) =>
-      sendMessage.mutateAsync({ conversationId, message, replyToId }),
+      sendMessage.mutateAsync({ conversationId, content: message, replyToId }),
     markAsRead: (readUpTo: string) =>
-      markAsRead.mutateAsync({ conversationId, readUpTo }),
+      markAsRead.mutateAsync({ conversationId }),
     sendTypingIndicator: (isTyping: boolean) =>
       sendTyping.mutateAsync({ conversationId, isTyping }),
     isSending: sendMessage.isPending,

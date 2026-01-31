@@ -13,6 +13,7 @@ public interface IUserService
     Task<Result<bool>> DeleteAsync(string id, CancellationToken ct = default);
     Task<Result<UserDto>> GetByEmailAsync(string email, CancellationToken ct = default);
     Task<Result<UserDto>> VerifyAsync(string id, CancellationToken ct = default);
+    Task<Result<PagedResult<UserDto>>> SearchAsync(string query, int page, int pageSize, CancellationToken ct = default);
 }
 
 public interface IAccountService

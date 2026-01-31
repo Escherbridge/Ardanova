@@ -46,6 +46,12 @@ export class UsersEndpoint {
     return this.client.get<PagedResult<User>>(`/api/users?page=${page}&pageSize=${pageSize}`);
   }
 
+  search(query: string, page = 1, pageSize = 20): Promise<ApiResponse<PagedResult<User>>> {
+    return this.client.get<PagedResult<User>>(
+      `/api/users/search?query=${encodeURIComponent(query)}&page=${page}&pageSize=${pageSize}`
+    );
+  }
+
   create(data: CreateUserDto): Promise<ApiResponse<User>> {
     return this.client.post<User>("/api/users", data);
   }

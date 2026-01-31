@@ -122,6 +122,16 @@ public class UserService : IUserService
         await _unitOfWork.SaveChangesAsync(ct);
         return Result<UserDto>.Success(_mapper.Map<UserDto>(user));
     }
+
+    public async Task<Result<PagedResult<UserDto>>> SearchAsync(string query, int page, int pageSize, CancellationToken ct = default)
+    {
+        var lowerQuery = query.ToLower();
+        var result = await _repository.GetPagedAsync(page, pageSize,
+            u => u.name != null && u.name.ToLower().Contains(lowerQuery) ||
+                 u.email.ToLower().Contains(lowerQuery),
+            ct);
+        return Result<PagedResult<UserDto>>.Success(result.Map(_mapper.Map<UserDto>));
+    }
 }
 
 public class AccountService : IAccountService

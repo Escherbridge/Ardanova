@@ -30,7 +30,14 @@ public class UsersController : ControllerBase
         return ToActionResult(result);
     }
 
-    [HttpGet("{id}")]
+    [HttpGet("search")]
+    public async Task<IActionResult> Search([FromQuery] string query = "", [FromQuery] int page = 1, [FromQuery] int pageSize = 20, CancellationToken ct = default)
+    {
+        var result = await _userService.SearchAsync(query, page, pageSize, ct);
+        return ToActionResult(result);
+    }
+
+    [HttpGet("{id:minlength(10)}")]
     public async Task<IActionResult> GetById(string id, CancellationToken ct)
     {
         var result = await _userService.GetByIdAsync(id, ct);

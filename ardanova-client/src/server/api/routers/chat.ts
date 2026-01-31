@@ -28,7 +28,7 @@ export const chatRouter = createTRPCRouter({
     .query(async ({ input, ctx }) => {
       const userId = ctx.session.user.id;
 
-      const response = await apiClient.users.getAll(1, input.limit);
+      const response = await apiClient.users.search(input.query, 1, input.limit);
 
       if (response.error) {
         throw new Error(response.error);
@@ -36,17 +36,7 @@ export const chatRouter = createTRPCRouter({
 
       const users = response.data?.items ?? [];
 
-      // Filter by search query if provided
-      const query = input.query.toLowerCase();
-      const filtered = query
-        ? users.filter(
-            (u) =>
-              u.name?.toLowerCase().includes(query) ||
-              u.email.toLowerCase().includes(query)
-          )
-        : users;
-
-      return filtered.map((u) => ({
+      return users.map((u) => ({
         id: u.id,
         name: u.name ?? u.email,
         email: u.email,

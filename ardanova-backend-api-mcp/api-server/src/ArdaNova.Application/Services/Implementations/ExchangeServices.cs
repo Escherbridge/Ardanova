@@ -159,8 +159,8 @@ public class LiquidityPoolService : ILiquidityPoolService
     public async Task<Result<LiquidityPoolDto>> GetByTokenPairAsync(string token1Id, string token2Id, CancellationToken ct = default)
     {
         var pool = await _repository.FindOneAsync(p =>
-            (p.token1Id == token1Id && p.token2Id == token2Id) ||
-            (p.token1Id == token2Id && p.token2Id == token1Id), ct);
+            (p.share1Id == token1Id && p.share2Id == token2Id) ||
+            (p.share1Id == token2Id && p.share2Id == token1Id), ct);
 
         if (pool is null)
             return Result<LiquidityPoolDto>.NotFound($"LiquidityPool for token pair not found");
@@ -170,8 +170,8 @@ public class LiquidityPoolService : ILiquidityPoolService
     public async Task<Result<LiquidityPoolDto>> CreateAsync(CreateLiquidityPoolDto dto, CancellationToken ct = default)
     {
         var exists = await _repository.ExistsAsync(p =>
-            (p.token1Id == dto.Token1Id && p.token2Id == dto.Token2Id) ||
-            (p.token1Id == dto.Token2Id && p.token2Id == dto.Token1Id), ct);
+            (p.share1Id == dto.Share1Id && p.share2Id == dto.Share2Id) ||
+            (p.share1Id == dto.Share2Id && p.share2Id == dto.Share1Id), ct);
 
         if (exists)
             return Result<LiquidityPoolDto>.ValidationError("Pool already exists for this token pair");

@@ -145,6 +145,11 @@ public class ArdaNovaDbContext : DbContext
         // Note: Enums are mapped to PostgreSQL native enums via NpgsqlDataSourceBuilder
         // in DependencyInjection.cs (no string conversion needed)
 
+        // Map jsonb columns that Prisma defines as Json
+        modelBuilder.Entity<ChatMessage>()
+            .Property(e => e.ChatReaction)
+            .HasColumnType("jsonb");
+
         // Composite indexes and other generated configurations
         modelBuilder.ApplyGeneratedConfigurations();
     }

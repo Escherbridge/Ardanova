@@ -71,7 +71,7 @@ public class DelegatedVoteService : IDelegatedVoteService
         var exists = await _repository.ExistsAsync(v =>
             v.projectId == dto.ProjectId &&
             v.delegatorId == dto.DelegatorId &&
-            v.tokenId == dto.TokenId &&
+            v.shareId == dto.ShareId &&
             v.isActive, ct);
 
         if (exists)
@@ -83,7 +83,7 @@ public class DelegatedVoteService : IDelegatedVoteService
             projectId = dto.ProjectId,
             delegatorId = dto.DelegatorId,
             delegateeId = dto.DelegateeId,
-            tokenId = dto.TokenId,
+            shareId = dto.ShareId,
             amount = dto.Amount,
             isActive = true,
             createdAt = DateTime.UtcNow,

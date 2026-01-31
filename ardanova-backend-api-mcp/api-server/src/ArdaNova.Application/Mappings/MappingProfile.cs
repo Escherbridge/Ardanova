@@ -132,7 +132,7 @@ public class MappingProfile : Profile
             .ForMember(dest => dest.TaskType, opt => opt.MapFrom(src => src.taskType))
             .ForMember(dest => dest.EstimatedHours, opt => opt.MapFrom(src => src.estimatedHours))
             .ForMember(dest => dest.ActualHours, opt => opt.MapFrom(src => src.actualHours))
-            .ForMember(dest => dest.TokenReward, opt => opt.MapFrom(src => src.tokenReward))
+            .ForMember(dest => dest.EquityReward, opt => opt.MapFrom(src => src.equityReward))
             .ForMember(dest => dest.EscrowStatus, opt => opt.MapFrom(src => src.escrowStatus))
             .ForMember(dest => dest.DueDate, opt => opt.MapFrom(src => src.dueDate))
             .ForMember(dest => dest.CompletedAt, opt => opt.MapFrom(src => src.completedAt))

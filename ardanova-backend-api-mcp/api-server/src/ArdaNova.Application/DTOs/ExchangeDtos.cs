@@ -24,8 +24,6 @@ public record CreateTokenSwapDto
     public required string UserId { get; init; }
     public required string FromShareId { get; init; }
     public required string ToShareId { get; init; }
-    public required string FromTokenId { get; init; }
-    public required string ToTokenId { get; init; }
     public required decimal FromAmount { get; init; }
     public required decimal ToAmount { get; init; }
     public required decimal ExchangeRate { get; init; }
@@ -43,8 +41,6 @@ public record LiquidityPoolDto
     public string Id { get; init; }
     public string Share1Id { get; init; }
     public string Share2Id { get; init; }
-    public string Token1Id { get; init; }
-    public string Token2Id { get; init; }
     public decimal Reserve1 { get; init; }
     public decimal Reserve2 { get; init; }
     public decimal TotalShares { get; init; }
@@ -58,8 +54,6 @@ public record CreateLiquidityPoolDto
 {
     public required string Share1Id { get; init; }
     public required string Share2Id { get; init; }
-    public required string Token1Id { get; init; }
-    public required string Token2Id { get; init; }
     public decimal FeePercent { get; init; } = 0.003m;
 }
 
@@ -86,8 +80,6 @@ public record LiquidityProviderDto
     public decimal Shares { get; init; }
     public decimal Share1In { get; init; }
     public decimal Share2In { get; init; }
-    public decimal Token1In { get; init; }
-    public decimal Token2In { get; init; }
     public DateTime CreatedAt { get; init; }
     public DateTime UpdatedAt { get; init; }
 }
@@ -99,6 +91,4 @@ public record CreateLiquidityProviderDto
     public required decimal Shares { get; init; }
     public required decimal Share1In { get; init; }
     public required decimal Share2In { get; init; }
-    public required decimal Token1In { get; init; }
-    public required decimal Token2In { get; init; }
 }

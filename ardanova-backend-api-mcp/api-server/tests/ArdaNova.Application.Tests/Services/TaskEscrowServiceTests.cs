@@ -117,7 +117,6 @@ public class TaskEscrowServiceTests
             TaskId = taskId,
             FunderId = funderId,
             ShareId = tokenId,
-            TokenId = tokenId,
             Amount = 500m
         };
         var escrowDto = new TaskEscrowDto { TaskId = taskId, Amount = 500m, Status = EscrowStatus.FUNDED };
@@ -153,7 +152,6 @@ public class TaskEscrowServiceTests
             TaskId = taskId,
             FunderId = Guid.NewGuid().ToString(),
             ShareId = tokenId,
-            TokenId = tokenId,
             Amount = 100m
         };
 
