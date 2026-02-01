@@ -34,6 +34,7 @@ import {
 } from "~/components/ui/dropdown-menu";
 import { cn } from "~/lib/utils";
 import { api } from "~/trpc/react";
+import { FeedLayout } from "~/components/layouts/feed-layout";
 
 // Feed tabs for shops
 const shopTabs = [
@@ -168,12 +169,109 @@ export default function ShopsPage() {
     .slice(0, 3);
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="flex">
-        {/* Main Feed Column - Centered */}
-        <div className="w-full max-w-2xl border-x-2 border-border">
-          {/* Header */}
-          <div className="sticky top-0 z-10 bg-background/95 backdrop-blur border-b-2 border-border">
+    <FeedLayout
+      sidebar={
+        <>
+          {/* Stats */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Sparkles className="size-4 text-neon-yellow" />
+                Marketplace Stats
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex justify-between">
+                <span className="text-sm text-muted-foreground">Total Shops</span>
+                <span className="font-medium text-foreground">{stats.total}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-sm text-muted-foreground">Active Shops</span>
+                <span className="font-medium text-neon-green">{stats.active}</span>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Recent Shops */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Clock className="size-4 text-primary" />
+                Recent Shops
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {recentShops.map((shop) => (
+                <Link
+                  key={shop.id}
+                  href={`/shops/${shop.slug}`}
+                  className="block"
+                >
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="flex items-center gap-3">
+                      <div className="size-10 bg-neon-green/20 border-2 border-border flex items-center justify-center">
+                        <Store className="size-4 text-neon-green" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-sm text-foreground hover:text-primary transition-colors truncate">
+                          {shop.name}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {formatRelativeTime(new Date(shop.createdAt))}
+                        </p>
+                      </div>
+                    </div>
+                    <Badge
+                      variant={categoryVariants[shop.category] || "secondary"}
+                      size="sm"
+                    >
+                      {shop.category.replace(/_/g, " ")}
+                    </Badge>
+                  </div>
+                </Link>
+              ))}
+              <Button variant="ghost" className="w-full text-sm" asChild>
+                <Link href="/shops?tab=newest">View all recent</Link>
+              </Button>
+            </CardContent>
+          </Card>
+
+          {/* Categories */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Filter className="size-4 text-neon-pink" />
+                Categories
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-wrap gap-2">
+              {Object.keys(categoryVariants).map((category) => (
+                <Badge
+                  key={category}
+                  variant={categoryVariants[category]}
+                  size="sm"
+                  className="cursor-pointer hover:opacity-80"
+                >
+                  {category}
+                </Badge>
+              ))}
+            </CardContent>
+          </Card>
+
+          {/* Footer */}
+          <div className="text-xs text-muted-foreground space-x-2 px-2">
+            <Link href="/terms" className="hover:underline">Terms</Link>
+            <span>·</span>
+            <Link href="/privacy" className="hover:underline">Privacy</Link>
+            <span>·</span>
+            <Link href="/help" className="hover:underline">Help</Link>
+            <p className="mt-2">&copy; 2024 ArdaNova</p>
+          </div>
+        </>
+      }
+    >
+      {/* Header */}
+      <div className="sticky top-0 z-10 bg-background/95 backdrop-blur border-b-2 border-border">
             <div className="p-4 flex items-center justify-between">
               <h1 className="text-xl font-bold text-foreground flex items-center gap-2">
                 <Store className="size-5 text-neon-green" />
@@ -467,107 +565,6 @@ export default function ShopsPage() {
               </div>
             )}
           </div>
-        </div>
-
-        {/* Right Sidebar - Fixed to right edge */}
-        <div className="hidden xl:block fixed right-0 top-0 w-80 p-4 space-y-4 h-screen overflow-y-auto border-l-2 border-border bg-background">
-          {/* Stats */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Sparkles className="size-4 text-neon-yellow" />
-                Marketplace Stats
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex justify-between">
-                <span className="text-sm text-muted-foreground">Total Shops</span>
-                <span className="font-medium text-foreground">{stats.total}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-sm text-muted-foreground">Active Shops</span>
-                <span className="font-medium text-neon-green">{stats.active}</span>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Recent Shops */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Clock className="size-4 text-primary" />
-                Recent Shops
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {recentShops.map((shop) => (
-                <Link
-                  key={shop.id}
-                  href={`/shops/${shop.slug}`}
-                  className="block"
-                >
-                  <div className="flex items-start justify-between mb-2">
-                    <div className="flex items-center gap-3">
-                      <div className="size-10 bg-neon-green/20 border-2 border-border flex items-center justify-center">
-                        <Store className="size-4 text-neon-green" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-sm text-foreground hover:text-primary transition-colors truncate">
-                          {shop.name}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {formatRelativeTime(new Date(shop.createdAt))}
-                        </p>
-                      </div>
-                    </div>
-                    <Badge
-                      variant={categoryVariants[shop.category] || "secondary"}
-                      size="sm"
-                    >
-                      {shop.category.replace(/_/g, " ")}
-                    </Badge>
-                  </div>
-                </Link>
-              ))}
-              <Button variant="ghost" className="w-full text-sm" asChild>
-                <Link href="/shops?tab=newest">View all recent</Link>
-              </Button>
-            </CardContent>
-          </Card>
-
-          {/* Categories */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Filter className="size-4 text-neon-pink" />
-                Categories
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-wrap gap-2">
-              {Object.keys(categoryVariants).map((category) => (
-                <Badge
-                  key={category}
-                  variant={categoryVariants[category]}
-                  size="sm"
-                  className="cursor-pointer hover:opacity-80"
-                >
-                  {category}
-                </Badge>
-              ))}
-            </CardContent>
-          </Card>
-
-          {/* Footer */}
-          <div className="text-xs text-muted-foreground space-x-2 px-2">
-            <Link href="/terms" className="hover:underline">Terms</Link>
-            <span>·</span>
-            <Link href="/privacy" className="hover:underline">Privacy</Link>
-            <span>·</span>
-            <Link href="/help" className="hover:underline">Help</Link>
-            <p className="mt-2">&copy; 2024 ArdaNova</p>
-          </div>
-        </div>
-      </div>
-    </div>
+    </FeedLayout>
   );
 }

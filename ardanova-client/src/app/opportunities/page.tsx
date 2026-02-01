@@ -35,6 +35,7 @@ import {
   DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
 import { cn } from "~/lib/utils";
+import { FeedLayout } from "~/components/layouts/feed-layout";
 
 // Feed tabs for opportunities
 const opportunityTabs = [
@@ -296,12 +297,114 @@ export default function MarketplacePage() {
     .slice(0, 3);
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="flex">
-        {/* Main Feed Column */}
-        <div className="w-full max-w-2xl border-x-2 border-border">
-          {/* Header */}
-          <div className="sticky top-0 z-10 bg-background/95 backdrop-blur border-b-2 border-border">
+    <FeedLayout
+      sidebar={
+        <>
+          {/* Stats */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Sparkles className="size-4 text-neon-yellow" />
+                Marketplace Stats
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex justify-between">
+                <span className="text-sm text-muted-foreground">Open Opportunities</span>
+                <span className="font-medium text-foreground">{stats.total}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-sm text-muted-foreground">Active Bounties</span>
+                <span className="font-medium text-neon-green">{stats.bounties}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-sm text-muted-foreground">Total Value</span>
+                <span className="font-medium text-foreground">${stats.totalValue.toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-sm text-muted-foreground">Total Applicants</span>
+                <span className="font-medium text-foreground">{stats.totalApplicants}</span>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Hot Opportunities */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <TrendingUp className="size-4 text-neon-pink" />
+                Hot Opportunities
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {hotOpportunities.map((opp) => (
+                <Link
+                  key={opp.id}
+                  href={`/marketplace/${opp.id}`}
+                  className="block"
+                >
+                  <div className="flex items-start justify-between mb-1">
+                    <p className="font-medium text-sm text-foreground hover:text-primary transition-colors line-clamp-1">
+                      {opp.title}
+                    </p>
+                    <Badge
+                      variant={typeVariants[opp.type] ?? "secondary"}
+                      size="sm"
+                    >
+                      {opp.type}
+                    </Badge>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <span className="text-neon-green font-medium">
+                      {formatCompensation(opp.compensation)}
+                    </span>
+                    <span>·</span>
+                    <span>{opp.applicants} applicants</span>
+                  </div>
+                </Link>
+              ))}
+              <Button variant="ghost" className="w-full text-sm" asChild>
+                <Link href="/marketplace?tab=all">View all opportunities</Link>
+              </Button>
+            </CardContent>
+          </Card>
+
+          {/* Skills Filter */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Filter className="size-4 text-neon-purple" />
+                Skills
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-wrap gap-2">
+              {Object.keys(skillVariants).map((skill) => (
+                <Badge
+                  key={skill}
+                  variant={skillVariants[skill]}
+                  size="sm"
+                  className="cursor-pointer hover:opacity-80"
+                >
+                  {skill}
+                </Badge>
+              ))}
+            </CardContent>
+          </Card>
+
+          {/* Footer */}
+          <div className="text-xs text-muted-foreground space-x-2 px-2">
+            <Link href="/terms" className="hover:underline">Terms</Link>
+            <span>·</span>
+            <Link href="/privacy" className="hover:underline">Privacy</Link>
+            <span>·</span>
+            <Link href="/help" className="hover:underline">Help</Link>
+            <p className="mt-2">&copy; 2024 ArdaNova</p>
+          </div>
+        </>
+      }
+    >
+      {/* Header */}
+      <div className="sticky top-0 z-10 bg-background/95 backdrop-blur border-b-2 border-border">
             <div className="p-4 flex items-center justify-between">
               <h1 className="text-xl font-bold text-foreground flex items-center gap-2">
                 <Briefcase className="size-5 text-warning" />
@@ -681,112 +784,6 @@ export default function MarketplacePage() {
               </div>
             )}
           </div>
-        </div>
-
-        {/* Right Sidebar - Fixed to right edge */}
-        <div className="hidden xl:block fixed right-0 top-0 w-80 p-4 space-y-4 h-screen overflow-y-auto border-l-2 border-border bg-background">
-          {/* Stats */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Sparkles className="size-4 text-neon-yellow" />
-                Marketplace Stats
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex justify-between">
-                <span className="text-sm text-muted-foreground">Open Opportunities</span>
-                <span className="font-medium text-foreground">{stats.total}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-sm text-muted-foreground">Active Bounties</span>
-                <span className="font-medium text-neon-green">{stats.bounties}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-sm text-muted-foreground">Total Value</span>
-                <span className="font-medium text-foreground">${stats.totalValue.toLocaleString()}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-sm text-muted-foreground">Total Applicants</span>
-                <span className="font-medium text-foreground">{stats.totalApplicants}</span>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Hot Opportunities */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <TrendingUp className="size-4 text-neon-pink" />
-                Hot Opportunities
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {hotOpportunities.map((opp) => (
-                <Link
-                  key={opp.id}
-                  href={`/marketplace/${opp.id}`}
-                  className="block"
-                >
-                  <div className="flex items-start justify-between mb-1">
-                    <p className="font-medium text-sm text-foreground hover:text-primary transition-colors line-clamp-1">
-                      {opp.title}
-                    </p>
-                    <Badge
-                      variant={typeVariants[opp.type] ?? "secondary"}
-                      size="sm"
-                    >
-                      {opp.type}
-                    </Badge>
-                  </div>
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <span className="text-neon-green font-medium">
-                      {formatCompensation(opp.compensation)}
-                    </span>
-                    <span>·</span>
-                    <span>{opp.applicants} applicants</span>
-                  </div>
-                </Link>
-              ))}
-              <Button variant="ghost" className="w-full text-sm" asChild>
-                <Link href="/marketplace?tab=all">View all opportunities</Link>
-              </Button>
-            </CardContent>
-          </Card>
-
-          {/* Skills Filter */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Filter className="size-4 text-neon-purple" />
-                Skills
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-wrap gap-2">
-              {Object.keys(skillVariants).map((skill) => (
-                <Badge
-                  key={skill}
-                  variant={skillVariants[skill]}
-                  size="sm"
-                  className="cursor-pointer hover:opacity-80"
-                >
-                  {skill}
-                </Badge>
-              ))}
-            </CardContent>
-          </Card>
-
-          {/* Footer */}
-          <div className="text-xs text-muted-foreground space-x-2 px-2">
-            <Link href="/terms" className="hover:underline">Terms</Link>
-            <span>·</span>
-            <Link href="/privacy" className="hover:underline">Privacy</Link>
-            <span>·</span>
-            <Link href="/help" className="hover:underline">Help</Link>
-            <p className="mt-2">&copy; 2024 ArdaNova</p>
-          </div>
-        </div>
-      </div>
-    </div>
+    </FeedLayout>
   );
 }

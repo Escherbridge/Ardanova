@@ -73,6 +73,11 @@ const mainNavItems = [
     icon: Vote,
   },
   {
+    href: "/events",
+    label: "Events",
+    icon: Calendar,
+  },
+  {
     href: "/tasks",
     label: "Tasks",
     icon: CheckSquare,
@@ -81,11 +86,6 @@ const mainNavItems = [
     href: "/chats",
     label: "Chats",
     icon: MessageCircle,
-  },
-  {
-    href: "/events",
-    label: "Events",
-    icon: Calendar,
   },
 ];
 

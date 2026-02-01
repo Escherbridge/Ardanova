@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { api } from "~/trpc/react";
 import { useEventSubscription } from "./use-event-subscription";
 import type {
@@ -42,7 +42,14 @@ export function useConversation({ conversationId, enabled = true }: UseConversat
   });
 
   // Mark as read mutation
-  const markAsRead = api.chat.markAsRead.useMutation();
+  const markAsReadMutation = api.chat.markAsRead.useMutation({
+    onSuccess: () => {
+      void utils.chat.getConversations.invalidate();
+    },
+  });
+  // Ref to access mutation without it being a useCallback dependency
+  const markAsReadRef = useRef(markAsReadMutation);
+  markAsReadRef.current = markAsReadMutation;
 
   // Typing indicator mutation
   const sendTyping = api.chat.sendTypingIndicator.useMutation();
@@ -57,12 +64,12 @@ export function useConversation({ conversationId, enabled = true }: UseConversat
     [conversationId]
   );
 
-  // Real-time: message read
+  // Real-time: message read - only update conversation list (unread counts), not messages
   useEventSubscription<ChatMessageReadEvent>(
     "chat.message_read",
     useCallback((event) => {
       if (event.conversationId !== conversationId) return;
-      void utils.chat.getMessages.invalidate({ conversationId });
+      void utils.chat.getConversations.invalidate();
     }, [conversationId, utils]),
     [conversationId]
   );
@@ -103,9 +110,34 @@ export function useConversation({ conversationId, enabled = true }: UseConversat
     [conversationId]
   );
 
+  // Memoize messages to prevent new array reference on every render
+  const messages = useMemo(
+    () => messagesQuery.data?.pages.flatMap(p => p.items).reverse() ?? [],
+    [messagesQuery.data]
+  );
+
+  // Dedupe markAsRead calls - track what we've already marked
+  const lastMarkedKeyRef = useRef<string | null>(null);
+
+  const handleMarkAsRead = useCallback(() => {
+    const lastMsg = markAsReadRef.current;
+    if (lastMarkedKeyRef.current === conversationId) return;
+    if (lastMsg.isPending) return;
+    lastMarkedKeyRef.current = conversationId;
+    void lastMsg.mutateAsync({ conversationId });
+  }, [conversationId]);
+
+  // Reset the dedup key when a new message arrives
+  const lastMessageId = messages[messages.length - 1]?.id;
+  const prevLastMessageIdRef = useRef(lastMessageId);
+  if (lastMessageId !== prevLastMessageIdRef.current) {
+    prevLastMessageIdRef.current = lastMessageId;
+    lastMarkedKeyRef.current = null;
+  }
+
   return {
     conversation: conversationQuery.data,
-    messages: messagesQuery.data?.pages.flatMap(p => p.items).reverse() ?? [],
+    messages,
     isLoading: conversationQuery.isLoading || messagesQuery.isLoading,
     isFetchingNextPage: messagesQuery.isFetchingNextPage,
     hasNextPage: messagesQuery.hasNextPage,
@@ -113,8 +145,7 @@ export function useConversation({ conversationId, enabled = true }: UseConversat
     typingUsers: Array.from(typingUsers.values()).map(v => v.name),
     sendMessage: (message: string, replyToId?: string) =>
       sendMessage.mutateAsync({ conversationId, content: message, replyToId }),
-    markAsRead: (readUpTo: string) =>
-      markAsRead.mutateAsync({ conversationId }),
+    markAsRead: handleMarkAsRead,
     sendTypingIndicator: (isTyping: boolean) =>
       sendTyping.mutateAsync({ conversationId, isTyping }),
     isSending: sendMessage.isPending,

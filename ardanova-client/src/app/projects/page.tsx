@@ -33,6 +33,7 @@ import {
 } from "~/components/ui/dropdown-menu";
 import { cn } from "~/lib/utils";
 import { api } from "~/trpc/react";
+import { FeedLayout } from "~/components/layouts/feed-layout";
 
 // Feed tabs for projects
 const projectTabs = [
@@ -217,12 +218,119 @@ export default function ProjectsPage() {
     .slice(0, 3);
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="flex">
-        {/* Main Feed Column - Centered */}
-        <div className="w-full max-w-2xl border-x-2 border-border">
-          {/* Header */}
-          <div className="sticky top-0 z-10 bg-background/95 backdrop-blur border-b-2 border-border">
+    <FeedLayout
+      sidebar={
+        <>
+          {/* Stats */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Sparkles className="size-4 text-neon-yellow" />
+                Platform Stats
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex justify-between">
+                <span className="text-sm text-muted-foreground">Total Projects</span>
+                <span className="font-medium text-foreground">{stats.total}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-sm text-muted-foreground">Funded Projects</span>
+                <span className="font-medium text-neon-green">{stats.funded}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-sm text-muted-foreground">Total Raised</span>
+                <span className="font-medium text-foreground">${stats.totalFunding.toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-sm text-muted-foreground">Total Supporters</span>
+                <span className="font-medium text-foreground">{stats.totalSupporters}</span>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Trending Projects */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <TrendingUp className="size-4 text-primary" />
+                Trending Projects
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {trendingProjects.map((project) => (
+                <Link
+                  key={project.id}
+                  href={`/projects/${project.id}`}
+                  className="block"
+                >
+                  <div className="flex items-start justify-between mb-2">
+                    <div>
+                      <p className="font-medium text-sm text-foreground hover:text-primary transition-colors line-clamp-1">
+                        {project.title}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {project.supportersCount || 0} supporters
+                      </p>
+                    </div>
+                    <Badge
+                      variant={categoryVariants[project.category] || "secondary"}
+                      size="sm"
+                    >
+                      {project.category.replace("_", " ")}
+                    </Badge>
+                  </div>
+                  {project.fundingGoal && Number(project.fundingGoal) > 0 && (
+                    <Progress
+                      value={Math.min((Number(project.currentFunding || 0) / Number(project.fundingGoal)) * 100, 100)}
+                      variant="neon"
+                      className="h-1"
+                    />
+                  )}
+                </Link>
+              ))}
+              <Button variant="ghost" className="w-full text-sm" asChild>
+                <Link href="/projects?tab=trending">View all trending</Link>
+              </Button>
+            </CardContent>
+          </Card>
+
+          {/* Categories */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Filter className="size-4 text-neon-pink" />
+                Categories
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-wrap gap-2">
+              {Object.keys(categoryVariants).map((category) => (
+                <Badge
+                  key={category}
+                  variant={categoryVariants[category]}
+                  size="sm"
+                  className="cursor-pointer hover:opacity-80"
+                >
+                  {category.replace("_", " ")}
+                </Badge>
+              ))}
+            </CardContent>
+          </Card>
+
+          {/* Footer */}
+          <div className="text-xs text-muted-foreground space-x-2 px-2">
+            <Link href="/terms" className="hover:underline">Terms</Link>
+            <span>·</span>
+            <Link href="/privacy" className="hover:underline">Privacy</Link>
+            <span>·</span>
+            <Link href="/help" className="hover:underline">Help</Link>
+            <p className="mt-2">&copy; 2024 ArdaNova</p>
+          </div>
+        </>
+      }
+    >
+      {/* Header */}
+      <div className="sticky top-0 z-10 bg-background/95 backdrop-blur border-b-2 border-border">
             <div className="p-4 flex items-center justify-between">
               <h1 className="text-xl font-bold text-foreground flex items-center gap-2">
                 <FolderKanban className="size-5 text-primary" />
@@ -610,117 +718,6 @@ export default function ProjectsPage() {
               </div>
             )}
           </div>
-        </div>
-
-        {/* Right Sidebar - Fixed to right edge */}
-        <div className="hidden xl:block fixed right-0 top-0 w-80 p-4 space-y-4 h-screen overflow-y-auto border-l-2 border-border bg-background">
-          {/* Stats */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Sparkles className="size-4 text-neon-yellow" />
-                Platform Stats
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex justify-between">
-                <span className="text-sm text-muted-foreground">Total Projects</span>
-                <span className="font-medium text-foreground">{stats.total}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-sm text-muted-foreground">Funded Projects</span>
-                <span className="font-medium text-neon-green">{stats.funded}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-sm text-muted-foreground">Total Raised</span>
-                <span className="font-medium text-foreground">${stats.totalFunding.toLocaleString()}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-sm text-muted-foreground">Total Supporters</span>
-                <span className="font-medium text-foreground">{stats.totalSupporters}</span>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Trending Projects */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <TrendingUp className="size-4 text-primary" />
-                Trending Projects
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {trendingProjects.map((project) => (
-                <Link
-                  key={project.id}
-                  href={`/projects/${project.id}`}
-                  className="block"
-                >
-                  <div className="flex items-start justify-between mb-2">
-                    <div>
-                      <p className="font-medium text-sm text-foreground hover:text-primary transition-colors line-clamp-1">
-                        {project.title}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {project.supportersCount || 0} supporters
-                      </p>
-                    </div>
-                    <Badge
-                      variant={categoryVariants[project.category] || "secondary"}
-                      size="sm"
-                    >
-                      {project.category.replace("_", " ")}
-                    </Badge>
-                  </div>
-                  {project.fundingGoal && Number(project.fundingGoal) > 0 && (
-                    <Progress
-                      value={Math.min((Number(project.currentFunding || 0) / Number(project.fundingGoal)) * 100, 100)}
-                      variant="neon"
-                      className="h-1"
-                    />
-                  )}
-                </Link>
-              ))}
-              <Button variant="ghost" className="w-full text-sm" asChild>
-                <Link href="/projects?tab=trending">View all trending</Link>
-              </Button>
-            </CardContent>
-          </Card>
-
-          {/* Categories */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Filter className="size-4 text-neon-pink" />
-                Categories
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-wrap gap-2">
-              {Object.keys(categoryVariants).map((category) => (
-                <Badge
-                  key={category}
-                  variant={categoryVariants[category]}
-                  size="sm"
-                  className="cursor-pointer hover:opacity-80"
-                >
-                  {category.replace("_", " ")}
-                </Badge>
-              ))}
-            </CardContent>
-          </Card>
-
-          {/* Footer */}
-          <div className="text-xs text-muted-foreground space-x-2 px-2">
-            <Link href="/terms" className="hover:underline">Terms</Link>
-            <span>·</span>
-            <Link href="/privacy" className="hover:underline">Privacy</Link>
-            <span>·</span>
-            <Link href="/help" className="hover:underline">Help</Link>
-            <p className="mt-2">&copy; 2024 ArdaNova</p>
-          </div>
-        </div>
-      </div>
-    </div>
+    </FeedLayout>
   );
 }

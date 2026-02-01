@@ -28,6 +28,7 @@ import {
   Sparkles,
   TrendingUp,
 } from "lucide-react";
+import { FeedLayout } from "~/components/layouts/feed-layout";
 
 interface FeedTab {
   id: string;
@@ -290,11 +291,110 @@ export default function EventsPage() {
   });
 
   return (
-    <div className="flex">
-      {/* Main Feed Column */}
-      <div className="flex-1 max-w-2xl border-x-2 border-border/50 min-h-screen">
-        {/* Sticky Header */}
-        <div className="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b border-border/50">
+    <FeedLayout
+      sidebar={
+        <>
+          <div className="space-y-6">
+            {/* Events Stats */}
+            {/* <Card className="bg-muted/30 border-border/50">
+              <CardContent className="p-4">
+                <h3 className="font-semibold mb-4 flex items-center gap-2">
+                  <TrendingUp className="h-4 w-4 text-neon" />
+                  Event Stats
+                </h3>
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">
+                      Upcoming Events
+                    </span>
+                    <span className="font-semibold text-neon">24</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">
+                      Your Registrations
+                    </span>
+                    <span className="font-semibold">3</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">
+                      Events This Month
+                    </span>
+                    <span className="font-semibold">12</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">
+                      Total Attendees
+                    </span>
+                    <span className="font-semibold">2.4K</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card> */}
+
+            {/* Featured Events */}
+            <Card className="bg-muted/30 border-border/50">
+              <CardContent className="p-4">
+                <h3 className="font-semibold mb-4 flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 text-neon-pink" />
+                  Featured Events
+                </h3>
+                <div className="space-y-3">
+                  {sampleEvents
+                    .filter((e) => e.featured)
+                    .slice(0, 3)
+                    .map((event) => (
+                      <div
+                        key={event.id}
+                        className="p-2 rounded-lg hover:bg-muted/50 transition-colors cursor-pointer"
+                      >
+                        <div className="flex items-center gap-2 mb-1">
+                          <Badge
+                            variant="outline"
+                            className={`text-xs ${getEventTypeColor(event.type)}`}
+                          >
+                            {event.type}
+                          </Badge>
+                          <span className="text-xs text-muted-foreground">
+                            {formatDate(event.date)}
+                          </span>
+                        </div>
+                        <p className="text-sm font-medium truncate">{event.title}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {event.attendees} attending
+                        </p>
+                      </div>
+                    ))}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Event Categories */}
+            <Card className="bg-muted/30 border-border/50">
+              <CardContent className="p-4">
+                <h3 className="font-semibold mb-4">Popular Categories</h3>
+                <div className="flex flex-wrap gap-2">
+                  {eventTypeFilters.slice(1).map((type) => (
+                    <Badge
+                      key={type.id}
+                      variant="outline"
+                      className="cursor-pointer hover:bg-neon/20 hover:border-neon transition-colors"
+                      onClick={() => {
+                        setEventTypeFilter(type.id);
+                        setShowFilters(true);
+                      }}
+                    >
+                      {type.label}
+                    </Badge>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </>
+      }
+    >
+      {/* Sticky Header */}
+      <div className="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b border-border/50">
           <div className="p-4">
             <div className="flex items-center justify-between mb-4">
               <h1 className="text-2xl font-bold">Events</h1>
@@ -633,107 +733,6 @@ export default function EventsPage() {
             ))
           )}
         </div>
-      </div>
-
-      {/* Right Sidebar */}
-      <div className="hidden xl:block w-80 p-4 sticky top-0 right-0 h-screen overflow-y-auto">
-        <div className="space-y-6">
-          {/* Events Stats */}
-          <Card className="bg-muted/30 border-border/50">
-            <CardContent className="p-4">
-              <h3 className="font-semibold mb-4 flex items-center gap-2">
-                <TrendingUp className="h-4 w-4 text-neon" />
-                Event Stats
-              </h3>
-              <div className="space-y-3">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">
-                    Upcoming Events
-                  </span>
-                  <span className="font-semibold text-neon">24</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">
-                    Your Registrations
-                  </span>
-                  <span className="font-semibold">3</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">
-                    Events This Month
-                  </span>
-                  <span className="font-semibold">12</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">
-                    Total Attendees
-                  </span>
-                  <span className="font-semibold">2.4K</span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Featured Events */}
-          <Card className="bg-muted/30 border-border/50">
-            <CardContent className="p-4">
-              <h3 className="font-semibold mb-4 flex items-center gap-2">
-                <Sparkles className="h-4 w-4 text-neon-pink" />
-                Featured Events
-              </h3>
-              <div className="space-y-3">
-                {sampleEvents
-                  .filter((e) => e.featured)
-                  .slice(0, 3)
-                  .map((event) => (
-                    <div
-                      key={event.id}
-                      className="p-2 rounded-lg hover:bg-muted/50 transition-colors cursor-pointer"
-                    >
-                      <div className="flex items-center gap-2 mb-1">
-                        <Badge
-                          variant="outline"
-                          className={`text-xs ${getEventTypeColor(event.type)}`}
-                        >
-                          {event.type}
-                        </Badge>
-                        <span className="text-xs text-muted-foreground">
-                          {formatDate(event.date)}
-                        </span>
-                      </div>
-                      <p className="text-sm font-medium truncate">{event.title}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {event.attendees} attending
-                      </p>
-                    </div>
-                  ))}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Event Categories */}
-          <Card className="bg-muted/30 border-border/50">
-            <CardContent className="p-4">
-              <h3 className="font-semibold mb-4">Popular Categories</h3>
-              <div className="flex flex-wrap gap-2">
-                {eventTypeFilters.slice(1).map((type) => (
-                  <Badge
-                    key={type.id}
-                    variant="outline"
-                    className="cursor-pointer hover:bg-neon/20 hover:border-neon transition-colors"
-                    onClick={() => {
-                      setEventTypeFilter(type.id);
-                      setShowFilters(true);
-                    }}
-                  >
-                    {type.label}
-                  </Badge>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-    </div>
+    </FeedLayout>
   );
 }

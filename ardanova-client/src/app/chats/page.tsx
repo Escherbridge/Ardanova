@@ -132,15 +132,16 @@ export default function ChatsPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Mark as read when viewing messages
+  // Mark as read when viewing messages from others
+  const lastMessageId = messages.length > 0 ? messages[messages.length - 1]?.id : null;
+  const lastMessageFromOther =
+    messages.length > 0 && messages[messages.length - 1]?.userFromId !== currentUserId;
+
   useEffect(() => {
-    if (selectedChatId && messages.length > 0) {
-      const lastMessage = messages[messages.length - 1];
-      if (lastMessage && lastMessage.userFromId !== currentUserId) {
-        void markAsRead(lastMessage.id);
-      }
+    if (selectedChatId && lastMessageId && lastMessageFromOther) {
+      markAsRead();
     }
-  }, [selectedChatId, messages, currentUserId, markAsRead]);
+  }, [selectedChatId, lastMessageId, lastMessageFromOther, markAsRead]);
 
   // Filter conversations
   const filteredConversations = (conversations as Conversation[]).filter((conv) => {
@@ -165,11 +166,12 @@ export default function ChatsPage() {
   });
 
   // Set first conversation as selected if none selected
+  const firstConversationId = sortedConversations[0]?.id ?? null;
   useEffect(() => {
-    if (!selectedChatId && sortedConversations.length > 0) {
-      setSelectedChatId(sortedConversations[0]?.id ?? null);
+    if (!selectedChatId && firstConversationId) {
+      setSelectedChatId(firstConversationId);
     }
-  }, [selectedChatId, sortedConversations]);
+  }, [selectedChatId, firstConversationId]);
 
   function getConversationName(conv: Conversation): string {
     if (conv.type === "GROUP") {

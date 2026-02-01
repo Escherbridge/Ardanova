@@ -33,6 +33,7 @@ import {
 } from "~/components/ui/dropdown-menu";
 import { cn } from "~/lib/utils";
 import { api } from "~/trpc/react";
+import { FeedLayout } from "~/components/layouts/feed-layout";
 
 // Feed tabs for guilds
 const guildTabs = [
@@ -219,12 +220,115 @@ export default function GuildsPage() {
     .slice(0, 3);
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="flex">
-        {/* Main Feed Column - Centered */}
-        <div className="w-full max-w-2xl border-x-2 border-border">
-          {/* Header */}
-          <div className="sticky top-0 z-10 bg-background/95 backdrop-blur border-b-2 border-border">
+    <FeedLayout
+      sidebar={
+        <>
+          {/* Stats */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Sparkles className="size-4 text-neon-yellow" />
+                Guild Stats
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex justify-between">
+                <span className="text-sm text-muted-foreground">Total Guilds</span>
+                <span className="font-medium text-foreground">{stats.total}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-sm text-muted-foreground">Verified Guilds</span>
+                <span className="font-medium text-neon-green">{stats.verified}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-sm text-muted-foreground">Projects Completed</span>
+                <span className="font-medium text-foreground">{stats.totalProjects}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-sm text-muted-foreground">Total Reviews</span>
+                <span className="font-medium text-foreground">{stats.totalReviews}</span>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Top Rated Guilds */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Award className="size-4 text-neon-yellow" />
+                Top Rated Guilds
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {topRatedGuilds.map((guild) => (
+                <Link
+                  key={guild.id}
+                  href={`/guilds/${guild.slug}`}
+                  className="flex items-center gap-3"
+                >
+                  <Avatar className="size-10 border-2 border-border">
+                    {guild.logo ? (
+                      <AvatarImage src={guild.logo} alt={guild.name} />
+                    ) : null}
+                    <AvatarFallback className="bg-neon-pink/20 text-neon-pink">
+                      <Briefcase className="size-4" />
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-sm text-foreground hover:text-primary transition-colors truncate">
+                      {guild.name}
+                    </p>
+                    <div className="flex items-center gap-2">
+                      {renderRating(guild.rating)}
+                      {guild.isVerified && (
+                        <CheckCircle className="size-3 text-neon-green" />
+                      )}
+                    </div>
+                  </div>
+                </Link>
+              ))}
+              <Button variant="ghost" className="w-full text-sm" asChild>
+                <Link href="/guilds?tab=top-rated">View all top rated</Link>
+              </Button>
+            </CardContent>
+          </Card>
+
+          {/* Specialties */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Filter className="size-4 text-neon-pink" />
+                Specialties
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-wrap gap-2">
+              {Object.keys(specialtyVariants).map((specialty) => (
+                <Badge
+                  key={specialty}
+                  variant={specialtyVariants[specialty]}
+                  size="sm"
+                  className="cursor-pointer hover:opacity-80"
+                >
+                  {specialty}
+                </Badge>
+              ))}
+            </CardContent>
+          </Card>
+
+          {/* Footer */}
+          <div className="text-xs text-muted-foreground space-x-2 px-2">
+            <Link href="/terms" className="hover:underline">Terms</Link>
+            <span>·</span>
+            <Link href="/privacy" className="hover:underline">Privacy</Link>
+            <span>·</span>
+            <Link href="/help" className="hover:underline">Help</Link>
+            <p className="mt-2">&copy; 2024 ArdaNova</p>
+          </div>
+        </>
+      }
+    >
+      {/* Header */}
+      <div className="sticky top-0 z-10 bg-background/95 backdrop-blur border-b-2 border-border">
             <div className="p-4 flex items-center justify-between">
               <h1 className="text-xl font-bold text-foreground flex items-center gap-2">
                 <Users className="size-5 text-neon-pink" />
@@ -596,113 +700,6 @@ export default function GuildsPage() {
               </div>
             )}
           </div>
-        </div>
-
-        {/* Right Sidebar - Fixed to right edge */}
-        <div className="hidden xl:block fixed right-0 top-0 w-80 p-4 space-y-4 h-screen overflow-y-auto border-l-2 border-border bg-background">
-          {/* Stats */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Sparkles className="size-4 text-neon-yellow" />
-                Guild Stats
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex justify-between">
-                <span className="text-sm text-muted-foreground">Total Guilds</span>
-                <span className="font-medium text-foreground">{stats.total}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-sm text-muted-foreground">Verified Guilds</span>
-                <span className="font-medium text-neon-green">{stats.verified}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-sm text-muted-foreground">Projects Completed</span>
-                <span className="font-medium text-foreground">{stats.totalProjects}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-sm text-muted-foreground">Total Reviews</span>
-                <span className="font-medium text-foreground">{stats.totalReviews}</span>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Top Rated Guilds */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Award className="size-4 text-neon-yellow" />
-                Top Rated Guilds
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {topRatedGuilds.map((guild) => (
-                <Link
-                  key={guild.id}
-                  href={`/guilds/${guild.slug}`}
-                  className="flex items-center gap-3"
-                >
-                  <Avatar className="size-10 border-2 border-border">
-                    {guild.logo ? (
-                      <AvatarImage src={guild.logo} alt={guild.name} />
-                    ) : null}
-                    <AvatarFallback className="bg-neon-pink/20 text-neon-pink">
-                      <Briefcase className="size-4" />
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-sm text-foreground hover:text-primary transition-colors truncate">
-                      {guild.name}
-                    </p>
-                    <div className="flex items-center gap-2">
-                      {renderRating(guild.rating)}
-                      {guild.isVerified && (
-                        <CheckCircle className="size-3 text-neon-green" />
-                      )}
-                    </div>
-                  </div>
-                </Link>
-              ))}
-              <Button variant="ghost" className="w-full text-sm" asChild>
-                <Link href="/guilds?tab=top-rated">View all top rated</Link>
-              </Button>
-            </CardContent>
-          </Card>
-
-          {/* Specialties */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Filter className="size-4 text-neon-pink" />
-                Specialties
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-wrap gap-2">
-              {Object.keys(specialtyVariants).map((specialty) => (
-                <Badge
-                  key={specialty}
-                  variant={specialtyVariants[specialty]}
-                  size="sm"
-                  className="cursor-pointer hover:opacity-80"
-                >
-                  {specialty}
-                </Badge>
-              ))}
-            </CardContent>
-          </Card>
-
-          {/* Footer */}
-          <div className="text-xs text-muted-foreground space-x-2 px-2">
-            <Link href="/terms" className="hover:underline">Terms</Link>
-            <span>·</span>
-            <Link href="/privacy" className="hover:underline">Privacy</Link>
-            <span>·</span>
-            <Link href="/help" className="hover:underline">Help</Link>
-            <p className="mt-2">&copy; 2024 ArdaNova</p>
-          </div>
-        </div>
-      </div>
-    </div>
+    </FeedLayout>
   );
 }

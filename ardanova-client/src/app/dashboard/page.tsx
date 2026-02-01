@@ -29,6 +29,7 @@ import {
 } from "~/components/feed";
 import { useSession } from "next-auth/react";
 import { cn } from "~/lib/utils";
+import { FeedLayout } from "~/components/layouts/feed-layout";
 
 // Sample feed data - in production this would come from API
 const sampleFeedItems: FeedCardProps[] = [
@@ -331,161 +332,9 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="flex">
-        {/* Main Feed Column - Centered */}
-        <div className="w-full max-w-2xl border-x-2 border-border">
-          {/* Search Parameters Section */}
-          <div className="sticky top-0 z-20 bg-background border-b-2 border-border">
-            {/* Search Bar */}
-            <div className="p-4 flex items-center gap-2">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search posts, projects, people..."
-                  className="w-full pl-10 pr-4 py-2 bg-card border-2 border-border text-foreground text-sm placeholder:text-muted-foreground focus:border-primary focus:outline-none"
-                />
-                {searchQuery && (
-                  <button
-                    onClick={() => setSearchQuery("")}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                  >
-                    <X className="size-4" />
-                  </button>
-                )}
-              </div>
-              <Button
-                variant={showFilters ? "neon" : "outline"}
-                size="sm"
-                onClick={() => setShowFilters(!showFilters)}
-                className="gap-1.5"
-              >
-                <SlidersHorizontal className="size-4" />
-                Filters
-                {hasActiveFilters && !showFilters && (
-                  <Badge variant="neon" size="sm" className="ml-1">
-                    {(selectedType !== "all" ? 1 : 0) +
-                      (selectedTimeRange !== "all" ? 1 : 0)}
-                  </Badge>
-                )}
-              </Button>
-            </div>
-
-            {/* Expanded Filters */}
-            {showFilters && (
-              <div className="px-4 pb-4 space-y-3 border-t border-border pt-3">
-                <div className="flex flex-wrap gap-4">
-                  {/* Post Type Filter */}
-                  <div className="flex-1 min-w-[150px]">
-                    <label className="text-xs text-muted-foreground mb-1.5 block">
-                      Post Type
-                    </label>
-                    <select
-                      value={selectedType}
-                      onChange={(e) => setSelectedType(e.target.value)}
-                      className="w-full px-3 py-2 bg-card border-2 border-border text-foreground text-sm focus:border-primary focus:outline-none appearance-none cursor-pointer"
-                    >
-                      {postTypeFilters.map((filter) => (
-                        <option key={filter.id} value={filter.id}>
-                          {filter.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Time Range Filter */}
-                  <div className="flex-1 min-w-[150px]">
-                    <label className="text-xs text-muted-foreground mb-1.5 block">
-                      Time Range
-                    </label>
-                    <select
-                      value={selectedTimeRange}
-                      onChange={(e) => setSelectedTimeRange(e.target.value)}
-                      className="w-full px-3 py-2 bg-card border-2 border-border text-foreground text-sm focus:border-primary focus:outline-none appearance-none cursor-pointer"
-                    >
-                      {timeRangeFilters.map((filter) => (
-                        <option key={filter.id} value={filter.id}>
-                          {filter.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                {hasActiveFilters && (
-                  <div className="flex items-center justify-between pt-2">
-                    <div className="flex flex-wrap gap-2">
-                      {searchQuery && (
-                        <Badge variant="secondary" size="sm" className="gap-1">
-                          Search: {searchQuery}
-                          <button onClick={() => setSearchQuery("")}>
-                            <X className="size-3" />
-                          </button>
-                        </Badge>
-                      )}
-                      {selectedType !== "all" && (
-                        <Badge variant="secondary" size="sm" className="gap-1">
-                          {postTypeFilters.find((f) => f.id === selectedType)?.label}
-                          <button onClick={() => setSelectedType("all")}>
-                            <X className="size-3" />
-                          </button>
-                        </Badge>
-                      )}
-                      {selectedTimeRange !== "all" && (
-                        <Badge variant="secondary" size="sm" className="gap-1">
-                          {timeRangeFilters.find((f) => f.id === selectedTimeRange)?.label}
-                          <button onClick={() => setSelectedTimeRange("all")}>
-                            <X className="size-3" />
-                          </button>
-                        </Badge>
-                      )}
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={clearFilters}
-                      className="text-muted-foreground"
-                    >
-                      Clear all
-                    </Button>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
-          <Feed
-            tabs={dashboardTabs}
-            initialTab="feed"
-            items={filteredFeedItems}
-            onEntityClick={handleEntityClick}
-            onAuthorClick={handleAuthorClick}
-            header={
-              <ComposeBox
-                user={{
-                  name: user?.name || "You",
-                  avatar: user?.image || undefined,
-                }}
-                onSubmit={handlePostSubmit}
-                placeholder="Share an update with the community..."
-                scopes={[
-                  { type: "project", id: "p1", name: "EcoWaste Solutions" },
-                  { type: "guild", id: "g1", name: "Design Guild" },
-                ]}
-              />
-            }
-            hasMore
-            onLoadMore={() => {
-              // Load more items
-            }}
-          />
-        </div>
-
-        {/* Right Sidebar - Fixed */}
-        <div className="hidden xl:block w-80 p-4 sticky top-0 right-0 min-h-screen overflow-y-auto">
+    <FeedLayout
+      sidebar={
+        <>
           {/* Trending Projects */}
           <Card>
             <CardHeader className="pb-3">
@@ -621,8 +470,156 @@ export default function DashboardPage() {
             </Link>
             <p className="mt-2">&copy; 2024 ArdaNova</p>
           </div>
+        </>
+      }
+    >
+      {/* Search Parameters Section */}
+      <div className="sticky top-0 z-20 bg-background border-b-2 border-border">
+        {/* Search Bar */}
+        <div className="p-4 flex items-center gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search posts, projects, people..."
+              className="w-full pl-10 pr-4 py-2 bg-card border-2 border-border text-foreground text-sm placeholder:text-muted-foreground focus:border-primary focus:outline-none"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery("")}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              >
+                <X className="size-4" />
+              </button>
+            )}
+          </div>
+          <Button
+            variant={showFilters ? "neon" : "outline"}
+            size="sm"
+            onClick={() => setShowFilters(!showFilters)}
+            className="gap-1.5"
+          >
+            <SlidersHorizontal className="size-4" />
+            Filters
+            {hasActiveFilters && !showFilters && (
+              <Badge variant="neon" size="sm" className="ml-1">
+                {(selectedType !== "all" ? 1 : 0) +
+                  (selectedTimeRange !== "all" ? 1 : 0)}
+              </Badge>
+            )}
+          </Button>
         </div>
+
+        {/* Expanded Filters */}
+        {showFilters && (
+          <div className="px-4 pb-4 space-y-3 border-t border-border pt-3">
+            <div className="flex flex-wrap gap-4">
+              {/* Post Type Filter */}
+              <div className="flex-1 min-w-[150px]">
+                <label className="text-xs text-muted-foreground mb-1.5 block">
+                  Post Type
+                </label>
+                <select
+                  value={selectedType}
+                  onChange={(e) => setSelectedType(e.target.value)}
+                  className="w-full px-3 py-2 bg-card border-2 border-border text-foreground text-sm focus:border-primary focus:outline-none appearance-none cursor-pointer"
+                >
+                  {postTypeFilters.map((filter) => (
+                    <option key={filter.id} value={filter.id}>
+                      {filter.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Time Range Filter */}
+              <div className="flex-1 min-w-[150px]">
+                <label className="text-xs text-muted-foreground mb-1.5 block">
+                  Time Range
+                </label>
+                <select
+                  value={selectedTimeRange}
+                  onChange={(e) => setSelectedTimeRange(e.target.value)}
+                  className="w-full px-3 py-2 bg-card border-2 border-border text-foreground text-sm focus:border-primary focus:outline-none appearance-none cursor-pointer"
+                >
+                  {timeRangeFilters.map((filter) => (
+                    <option key={filter.id} value={filter.id}>
+                      {filter.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {hasActiveFilters && (
+              <div className="flex items-center justify-between pt-2">
+                <div className="flex flex-wrap gap-2">
+                  {searchQuery && (
+                    <Badge variant="secondary" size="sm" className="gap-1">
+                      Search: {searchQuery}
+                      <button onClick={() => setSearchQuery("")}>
+                        <X className="size-3" />
+                      </button>
+                    </Badge>
+                  )}
+                  {selectedType !== "all" && (
+                    <Badge variant="secondary" size="sm" className="gap-1">
+                      {postTypeFilters.find((f) => f.id === selectedType)?.label}
+                      <button onClick={() => setSelectedType("all")}>
+                        <X className="size-3" />
+                      </button>
+                    </Badge>
+                  )}
+                  {selectedTimeRange !== "all" && (
+                    <Badge variant="secondary" size="sm" className="gap-1">
+                      {timeRangeFilters.find((f) => f.id === selectedTimeRange)?.label}
+                      <button onClick={() => setSelectedTimeRange("all")}>
+                        <X className="size-3" />
+                      </button>
+                    </Badge>
+                  )}
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={clearFilters}
+                  className="text-muted-foreground"
+                >
+                  Clear all
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
+
+      <Feed
+        tabs={dashboardTabs}
+        initialTab="feed"
+        items={filteredFeedItems}
+        onEntityClick={handleEntityClick}
+        onAuthorClick={handleAuthorClick}
+        header={
+          <ComposeBox
+            user={{
+              name: user?.name || "You",
+              avatar: user?.image || undefined,
+            }}
+            onSubmit={handlePostSubmit}
+            placeholder="Share an update with the community..."
+            scopes={[
+              { type: "project", id: "p1", name: "EcoWaste Solutions" },
+              { type: "guild", id: "g1", name: "Design Guild" },
+            ]}
+          />
+        }
+        hasMore
+        onLoadMore={() => {
+          // Load more items
+        }}
+      />
 
       {/* Entity Preview Panel */}
       <EntityPreview
@@ -630,6 +627,6 @@ export default function DashboardPage() {
         isOpen={isEntityPreviewOpen}
         onClose={() => setIsEntityPreviewOpen(false)}
       />
-    </div>
+    </FeedLayout>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import { api } from "~/trpc/react";
 import { useEventSubscription } from "./use-event-subscription";
 import type { ChatMessageSentEvent, ChatConversationCreatedEvent } from "~/lib/websocket/types";
@@ -49,8 +49,13 @@ export function useChat() {
     },
   });
 
+  const conversations = useMemo(
+    () => conversationsQuery.data?.pages.flatMap(p => p.items) ?? [],
+    [conversationsQuery.data]
+  );
+
   return {
-    conversations: conversationsQuery.data?.pages.flatMap(p => p.items) ?? [],
+    conversations,
     isLoading: conversationsQuery.isLoading,
     isFetchingNextPage: conversationsQuery.isFetchingNextPage,
     hasNextPage: conversationsQuery.hasNextPage,
