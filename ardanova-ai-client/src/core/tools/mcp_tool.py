@@ -86,6 +86,14 @@ MCP_TOOL_REGISTRY: dict[str, list[tuple[str, str]]] = {
         ("project_get_by_category", "Get projects filtered by category"),
         ("project_get_featured", "Get featured projects"),
     ],
+    "project_write": [
+        ("project_create", "Create a new project with title, description, problem statement, solution, categories"),
+        ("project_update", "Update an existing project's fields"),
+        ("project_publish", "Publish a draft project"),
+        ("project_add_milestone", "Add a milestone to a project with title, description, and target date"),
+        ("project_add_resource", "Add a resource to a project with name, description, quantity, estimated cost"),
+        ("project_add_member", "Add a member to a project with a specified role"),
+    ],
     "user": [
         ("user_get_by_id", "Get a user by their ID"),
         ("user_get_by_email", "Get a user by their email address"),

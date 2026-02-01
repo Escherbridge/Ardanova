@@ -59,7 +59,8 @@
       "WebFetch(domain:docs.crewai.com)",
       "WebFetch(domain:docs.langchain.com)",
       "WebFetch(domain:langchain-ai.github.io)",
-      "Bash(Select-String -Pattern \"error|Build succeeded|Build FAILED\")"
+      "Bash(Select-String -Pattern \"error|Build succeeded|Build FAILED\")",
+      "WebFetch(domain:developers.gamma.app)"
     ]
   }
 }

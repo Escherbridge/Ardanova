@@ -32,6 +32,10 @@ class Settings(BaseSettings):
     crew_verbose: bool = True
     crew_max_iterations: int = 20
 
+    # Gamma API (pitch deck generation)
+    gamma_api_key: str = ""
+    gamma_base_url: str = "https://public-api.gamma.app/v1.0"
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"

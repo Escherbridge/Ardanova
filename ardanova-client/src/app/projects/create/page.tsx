@@ -216,6 +216,8 @@ export default function CreateProjectPage() {
   });
 
   const createMutation = api.project.create.useMutation();
+  const addResourceMutation = api.project.addResource.useMutation();
+  const addMilestoneMutation = api.project.addMilestone.useMutation();
 
   const handleChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -500,8 +502,29 @@ export default function CreateProjectPage() {
         tags: formData.tags.join(", ") || undefined,
       });
 
-      // Note: Resource, milestone, and role APIs would be called here when available
-      // For now, we'll navigate to the created project
+      // 2. Save resources
+      for (const resource of formData.resources) {
+        await addResourceMutation.mutateAsync({
+          projectId: project.id,
+          name: resource.name,
+          description: resource.description || undefined,
+          quantity: resource.quantity,
+          estimatedCost: resource.estimatedCost ? Number(resource.estimatedCost) : undefined,
+          recurringCost: resource.recurringCost ? Number(resource.recurringCost) : undefined,
+          recurringIntervalDays: resource.recurringIntervalDays ?? undefined,
+          isRequired: resource.isRequired,
+        });
+      }
+
+      // 3. Save milestones
+      for (const milestone of formData.milestones) {
+        await addMilestoneMutation.mutateAsync({
+          projectId: project.id,
+          title: milestone.title,
+          description: milestone.description || undefined,
+          targetDate: milestone.targetDate,
+        });
+      }
 
       router.push(`/projects/${project.slug}`);
     } catch (error) {
