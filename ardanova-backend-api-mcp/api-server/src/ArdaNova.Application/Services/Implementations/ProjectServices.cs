@@ -97,12 +97,13 @@ public class ProjectService : IProjectService
     public async Task<Result<PagedResult<ProjectDto>>> SearchAsync(
         string? searchTerm,
         ProjectStatus? status,
-        ProjectCategory? category,
+        string? category,
+        ProjectType? projectType,
         int page,
         int pageSize,
         CancellationToken ct = default)
     {
-        var result = await _repository.SearchAsync(searchTerm, status, category, page, pageSize, ct);
+        var result = await _repository.SearchAsync(searchTerm, status, category, projectType, page, pageSize, ct);
         var enrichedItems = await EnrichWithUserDataAsync(result.Items, ct);
         return Result<PagedResult<ProjectDto>>.Success(new PagedResult<ProjectDto>(
             enrichedItems.ToList(),
@@ -126,9 +127,16 @@ public class ProjectService : IProjectService
         return Result<IReadOnlyList<ProjectDto>>.Success(enrichedDtos);
     }
 
-    public async Task<Result<IReadOnlyList<ProjectDto>>> GetByCategory(ProjectCategory category, CancellationToken ct = default)
+    public async Task<Result<IReadOnlyList<ProjectDto>>> GetByCategory(string category, CancellationToken ct = default)
     {
-        var projects = await _repository.FindAsync(p => p.category == category, ct);
+        var projects = await _repository.FindAsync(p => p.categories.Contains(category), ct);
+        var enrichedDtos = await EnrichWithUserDataAsync(projects, ct);
+        return Result<IReadOnlyList<ProjectDto>>.Success(enrichedDtos);
+    }
+
+    public async Task<Result<IReadOnlyList<ProjectDto>>> GetByProjectTypeAsync(ProjectType projectType, CancellationToken ct = default)
+    {
+        var projects = await _repository.FindAsync(p => p.projectType == projectType, ct);
         var enrichedDtos = await EnrichWithUserDataAsync(projects, ct);
         return Result<IReadOnlyList<ProjectDto>>.Success(enrichedDtos);
     }
@@ -140,8 +148,26 @@ public class ProjectService : IProjectService
         return Result<IReadOnlyList<ProjectDto>>.Success(enrichedDtos);
     }
 
+    private static readonly HashSet<string> ValidCategories = Enum.GetNames<ProjectCategory>()
+        .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+    private static Result<ProjectDto>? ValidateCategories(IEnumerable<string> categories)
+    {
+        foreach (var category in categories)
+        {
+            if (string.IsNullOrWhiteSpace(category))
+                return Result<ProjectDto>.ValidationError("Category cannot be empty");
+            if (!ValidCategories.Contains(category) && category.Length > 50)
+                return Result<ProjectDto>.ValidationError($"Custom category '{category}' exceeds 50 characters");
+        }
+        return null;
+    }
+
     public async Task<Result<ProjectDto>> CreateAsync(CreateProjectDto dto, CancellationToken ct = default)
     {
+        var categoryError = ValidateCategories(dto.Categories);
+        if (categoryError is not null) return categoryError;
+
         var project = new Project
         {
             id = Guid.NewGuid().ToString(),
@@ -151,7 +177,7 @@ public class ProjectService : IProjectService
             description = dto.Description,
             problemStatement = dto.ProblemStatement,
             solution = dto.Solution,
-            category = dto.Category,
+            categories = string.Join(",", dto.Categories),
             status = ProjectStatus.DRAFT,
             fundingGoal = dto.FundingGoal,
             currentFunding = 0,
@@ -163,6 +189,8 @@ public class ProjectService : IProjectService
             targetAudience = dto.TargetAudience,
             expectedImpact = dto.ExpectedImpact,
             timeline = dto.Timeline,
+            projectType = dto.ProjectType,
+            duration = dto.Duration,
             images = dto.Images,
             videos = dto.Videos,
             documents = dto.Documents,
@@ -176,6 +204,12 @@ public class ProjectService : IProjectService
 
     public async Task<Result<ProjectDto>> UpdateAsync(string id, UpdateProjectDto dto, CancellationToken ct = default)
     {
+        if (dto.Categories is not null)
+        {
+            var categoryError = ValidateCategories(dto.Categories);
+            if (categoryError is not null) return categoryError;
+        }
+
         var project = await _repository.GetByIdAsync(id, ct);
         if (project is null)
             return Result<ProjectDto>.NotFound($"Project with id {id} not found");
@@ -184,12 +218,14 @@ public class ProjectService : IProjectService
         if (dto.Description is not null) project.description = dto.Description;
         if (dto.ProblemStatement is not null) project.problemStatement = dto.ProblemStatement;
         if (dto.Solution is not null) project.solution = dto.Solution;
-        if (dto.Category.HasValue) project.category = dto.Category.Value;
+        if (dto.Categories is not null) project.categories = string.Join(",", dto.Categories);
         if (dto.Status.HasValue) project.status = dto.Status.Value;
         if (dto.Tags is not null) project.tags = dto.Tags;
         if (dto.TargetAudience is not null) project.targetAudience = dto.TargetAudience;
         if (dto.ExpectedImpact is not null) project.expectedImpact = dto.ExpectedImpact;
         if (dto.Timeline is not null) project.timeline = dto.Timeline;
+        if (dto.ProjectType.HasValue) project.projectType = dto.ProjectType.Value;
+        if (dto.Duration.HasValue) project.duration = dto.Duration;
         if (dto.Images is not null) project.images = dto.Images;
         if (dto.Videos is not null) project.videos = dto.Videos;
         if (dto.Documents is not null) project.documents = dto.Documents;
@@ -448,6 +484,11 @@ public class ProjectResourceService : IProjectResourceService
 
     public async Task<Result<ProjectResourceDto>> CreateAsync(CreateProjectResourceDto dto, CancellationToken ct = default)
     {
+        if (dto.RecurringIntervalDays.HasValue && dto.RecurringIntervalDays.Value > 365)
+            return Result<ProjectResourceDto>.ValidationError("Recurring interval cannot exceed 365 days");
+        if (dto.RecurringIntervalDays.HasValue && dto.RecurringIntervalDays.Value < 1)
+            return Result<ProjectResourceDto>.ValidationError("Recurring interval must be at least 1 day");
+
         var resource = new ProjectResource
         {
             id = Guid.NewGuid().ToString(),
@@ -456,6 +497,8 @@ public class ProjectResourceService : IProjectResourceService
             description = dto.Description,
             quantity = dto.Quantity,
             estimatedCost = dto.EstimatedCost,
+            recurringCost = dto.RecurringCost,
+            recurringIntervalDays = dto.RecurringIntervalDays,
             isRequired = dto.IsRequired,
             isObtained = false,
             createdAt = DateTime.UtcNow
@@ -471,10 +514,17 @@ public class ProjectResourceService : IProjectResourceService
         if (resource is null)
             return Result<ProjectResourceDto>.NotFound($"Resource with id {id} not found");
 
+        if (dto.RecurringIntervalDays.HasValue && dto.RecurringIntervalDays.Value > 365)
+            return Result<ProjectResourceDto>.ValidationError("Recurring interval cannot exceed 365 days");
+        if (dto.RecurringIntervalDays.HasValue && dto.RecurringIntervalDays.Value < 1)
+            return Result<ProjectResourceDto>.ValidationError("Recurring interval must be at least 1 day");
+
         if (dto.Name is not null) resource.name = dto.Name;
         if (dto.Description is not null) resource.description = dto.Description;
         if (dto.Quantity.HasValue) resource.quantity = dto.Quantity.Value;
         if (dto.EstimatedCost.HasValue) resource.estimatedCost = dto.EstimatedCost;
+        if (dto.RecurringCost.HasValue) resource.recurringCost = dto.RecurringCost;
+        if (dto.RecurringIntervalDays.HasValue) resource.recurringIntervalDays = dto.RecurringIntervalDays;
         if (dto.IsRequired.HasValue) resource.isRequired = dto.IsRequired.Value;
         if (dto.IsObtained.HasValue) resource.isObtained = dto.IsObtained.Value;
 

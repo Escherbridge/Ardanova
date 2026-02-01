@@ -17,7 +17,7 @@ public record ProjectDto
     public string Description { get; init; } = null!;
     public string ProblemStatement { get; init; } = null!;
     public string Solution { get; init; } = null!;
-    public ProjectCategory Category { get; init; }
+    public List<string> Categories { get; init; } = new();
     public ProjectStatus Status { get; init; }
     public decimal? FundingGoal { get; init; }
     public decimal CurrentFunding { get; init; }
@@ -32,6 +32,8 @@ public record ProjectDto
     public string? TargetAudience { get; init; }
     public string? ExpectedImpact { get; init; }
     public string? Timeline { get; init; }
+    public ProjectType ProjectType { get; init; }
+    public ProjectDuration? Duration { get; init; }
     public DateTime CreatedAt { get; init; }
     public DateTime UpdatedAt { get; init; }
     public DateTime? PublishedAt { get; init; }
@@ -49,7 +51,7 @@ public record CreateProjectDto
     public required string Description { get; init; }
     public required string ProblemStatement { get; init; }
     public required string Solution { get; init; }
-    public required ProjectCategory Category { get; init; }
+    public required List<string> Categories { get; init; }
     public decimal? FundingGoal { get; init; }
     public string? Tags { get; init; }
     public string? Images { get; init; }
@@ -58,6 +60,8 @@ public record CreateProjectDto
     public string? TargetAudience { get; init; }
     public string? ExpectedImpact { get; init; }
     public string? Timeline { get; init; }
+    public ProjectType ProjectType { get; init; } = ProjectType.TEMPORARY;
+    public ProjectDuration? Duration { get; init; }
 }
 
 public record UpdateProjectDto
@@ -66,7 +70,7 @@ public record UpdateProjectDto
     public string? Description { get; init; }
     public string? ProblemStatement { get; init; }
     public string? Solution { get; init; }
-    public ProjectCategory? Category { get; init; }
+    public List<string>? Categories { get; init; }
     public ProjectStatus? Status { get; init; }
     public decimal? FundingGoal { get; init; }
     public string? Tags { get; init; }
@@ -76,6 +80,8 @@ public record UpdateProjectDto
     public string? TargetAudience { get; init; }
     public string? ExpectedImpact { get; init; }
     public string? Timeline { get; init; }
+    public ProjectType? ProjectType { get; init; }
+    public ProjectDuration? Duration { get; init; }
 }
 
 public record ProjectTaskDto
@@ -124,6 +130,8 @@ public record ProjectResourceDto
     public string? Description { get; init; }
     public int Quantity { get; init; }
     public decimal? EstimatedCost { get; init; }
+    public decimal? RecurringCost { get; init; }
+    public int? RecurringIntervalDays { get; init; }
     public bool IsRequired { get; init; }
     public bool IsObtained { get; init; }
     public DateTime CreatedAt { get; init; }
@@ -136,6 +144,8 @@ public record CreateProjectResourceDto
     public string? Description { get; init; }
     public int Quantity { get; init; } = 1;
     public decimal? EstimatedCost { get; init; }
+    public decimal? RecurringCost { get; init; }
+    public int? RecurringIntervalDays { get; init; }
     public bool IsRequired { get; init; } = true;
 }
 
@@ -145,6 +155,8 @@ public record UpdateProjectResourceDto
     public string? Description { get; init; }
     public int? Quantity { get; init; }
     public decimal? EstimatedCost { get; init; }
+    public decimal? RecurringCost { get; init; }
+    public int? RecurringIntervalDays { get; init; }
     public bool? IsRequired { get; init; }
     public bool? IsObtained { get; init; }
 }

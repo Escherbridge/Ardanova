@@ -108,6 +108,8 @@ export { LeaderboardPeriodSchema } from './LeaderboardPeriodSchema';
 export { LeaderboardCategorySchema } from './LeaderboardCategorySchema';
 export { StreakTypeSchema } from './StreakTypeSchema';
 export { ReferralStatusSchema } from './ReferralStatusSchema';
+export { ProjectTypeSchema } from './ProjectTypeSchema';
+export { ProjectDurationSchema } from './ProjectDurationSchema';
 export { ProjectStatusSchema } from './ProjectStatusSchema';
 export { ProjectCategorySchema } from './ProjectCategorySchema';
 export { TaskStatusSchema } from './TaskStatusSchema';

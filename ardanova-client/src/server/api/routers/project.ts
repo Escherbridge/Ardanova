@@ -2,18 +2,26 @@ import { z } from "zod";
 import { createTRPCRouter, protectedProcedure, publicProcedure } from "~/server/api/trpc";
 import { apiClient } from "~/lib/api";
 
-// Project category enum (matches .NET backend)
-const ProjectCategory = z.enum([
-  "TECHNOLOGY",
-  "HEALTHCARE",
-  "EDUCATION",
-  "ENVIRONMENT",
-  "SOCIAL_IMPACT",
+// Project type enum - what kind of project this is
+const ProjectType = z.enum([
+  "TEMPORARY",
+  "LONG_TERM",
+  "FOUNDATION",
   "BUSINESS",
-  "ARTS_CULTURE",
-  "AGRICULTURE",
-  "FINANCE",
-  "OTHER",
+  "PRODUCT",
+  "OPEN_SOURCE",
+  "COMMUNITY",
+]);
+
+// Project duration enum - expected timeline
+const ProjectDuration = z.enum([
+  "ONE_TWO_WEEKS",
+  "ONE_THREE_MONTHS",
+  "THREE_SIX_MONTHS",
+  "SIX_TWELVE_MONTHS",
+  "ONE_TWO_YEARS",
+  "TWO_PLUS_YEARS",
+  "ONGOING",
 ]);
 
 // Project status enum (matches .NET backend)
@@ -33,7 +41,9 @@ const createProjectSchema = z.object({
   description: z.string().min(10, "Description must be at least 10 characters"),
   problemStatement: z.string().min(10, "Problem statement must be at least 10 characters"),
   solution: z.string().min(10, "Solution must be at least 10 characters"),
-  category: ProjectCategory,
+  categories: z.array(z.string()).min(1, "At least one category is required"),
+  projectType: ProjectType.optional(),
+  duration: ProjectDuration.optional(),
   targetAudience: z.string().optional(),
   expectedImpact: z.string().optional(),
   timeline: z.string().optional(),
@@ -41,7 +51,6 @@ const createProjectSchema = z.object({
   images: z.string().optional(),
   videos: z.string().optional(),
   documents: z.string().optional(),
-  fundingGoal: z.number().optional(),
 });
 
 // Project update input schema
@@ -51,7 +60,9 @@ const updateProjectSchema = z.object({
   description: z.string().min(10).optional(),
   problemStatement: z.string().min(10).optional(),
   solution: z.string().min(10).optional(),
-  category: ProjectCategory.optional(),
+  categories: z.array(z.string()).min(1).optional(),
+  projectType: ProjectType.optional(),
+  duration: ProjectDuration.optional(),
   status: ProjectStatus.optional(),
   targetAudience: z.string().optional(),
   expectedImpact: z.string().optional(),
@@ -113,6 +124,8 @@ const addResourceSchema = z.object({
   description: z.string().optional(),
   quantity: z.number().default(1),
   estimatedCost: z.number().optional(),
+  recurringCost: z.number().min(0).optional(),
+  recurringIntervalDays: z.number().int().min(1).max(365).optional(),
   isRequired: z.boolean().default(true),
 });
 
@@ -122,6 +135,8 @@ const updateResourceSchema = z.object({
   description: z.string().optional(),
   quantity: z.number().optional(),
   estimatedCost: z.number().optional(),
+  recurringCost: z.number().min(0).optional(),
+  recurringIntervalDays: z.number().int().min(1).max(365).optional(),
   isRequired: z.boolean().optional(),
 });
 
@@ -231,8 +246,10 @@ export const projectRouter = createTRPCRouter({
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user.id;
 
+      const { categories, ...rest } = input;
       const response = await apiClient.projects.create({
-        ...input,
+        ...rest,
+        categories: categories,
         createdById: userId,
       } as any);
 
@@ -249,7 +266,7 @@ export const projectRouter = createTRPCRouter({
       z.object({
         limit: z.number().min(1).max(100).default(20),
         page: z.number().min(1).default(1),
-        category: ProjectCategory.optional(),
+        category: z.string().optional(),
         status: ProjectStatus.optional(),
         search: z.string().optional(),
       })
@@ -458,6 +475,8 @@ export const projectRouter = createTRPCRouter({
         description: input.description,
         quantity: input.quantity,
         estimatedCost: input.estimatedCost,
+        recurringCost: input.recurringCost,
+        recurringIntervalDays: input.recurringIntervalDays,
         isRequired: input.isRequired,
       });
 

@@ -3,7 +3,6 @@ namespace ArdaNova.MCP.Tools;
 using System.ComponentModel;
 using ArdaNova.Application.DTOs;
 using ArdaNova.Application.Services.Interfaces;
-using ArdaNova.Domain.Models.Enums;
 using ModelContextProtocol.Server;
 
 [McpServerToolType]
@@ -66,14 +65,12 @@ public class ProjectTools
     }
 
     [McpServerTool(Name = "project_get_by_category")]
-    [Description("Retrieves projects by their category")]
+    [Description("Retrieves projects that match a given category")]
     public async Task<IReadOnlyList<ProjectDto>?> GetProjectsByCategory(
-        [Description("The project category")] string category,
+        [Description("The project category to search for")] string category,
         CancellationToken ct = default)
     {
-        if (!Enum.TryParse<ProjectCategory>(category, true, out var projectCategory))
-            return null;
-        var result = await _projectService.GetByCategory(projectCategory, ct);
+        var result = await _projectService.GetByCategory(category, ct);
         return result.IsSuccess ? result.Value : null;
     }
 

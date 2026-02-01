@@ -14,7 +14,6 @@ import {
   Pencil,
   Trash2,
   Calendar,
-  DollarSign,
   Users,
   Target,
   Flag,
@@ -43,14 +42,28 @@ const categories = [
   { id: "ARTS_CULTURE", label: "Arts & Culture" },
   { id: "AGRICULTURE", label: "Agriculture" },
   { id: "FINANCE", label: "Finance" },
-  { id: "OTHER", label: "Other" },
+];
+
+const OTHER_CATEGORY_MAX_LENGTH = 50;
+
+const projectTypes = [
+  { id: "TEMPORARY", label: "Temporary", description: "Short-term project with a defined end date" },
+  { id: "LONG_TERM", label: "Long Term", description: "Ongoing project without a strict end date" },
+  { id: "FOUNDATION", label: "Foundation", description: "Non-profit organization or foundation" },
+  { id: "BUSINESS", label: "Business", description: "Business venture or startup" },
+  { id: "PRODUCT", label: "Product", description: "A product people can help develop" },
+  { id: "OPEN_SOURCE", label: "Open Source", description: "Open source project or tool" },
+  { id: "COMMUNITY", label: "Community", description: "Community-driven initiative" },
 ];
 
 const durations = [
-  { id: "1-2 weeks", label: "1-2 weeks" },
-  { id: "1-3 months", label: "1-3 months" },
-  { id: "3-6 months", label: "3-6 months" },
-  { id: "6+ months", label: "6+ months" },
+  { id: "ONE_TWO_WEEKS", label: "1-2 weeks" },
+  { id: "ONE_THREE_MONTHS", label: "1-3 months" },
+  { id: "THREE_SIX_MONTHS", label: "3-6 months" },
+  { id: "SIX_TWELVE_MONTHS", label: "6-12 months" },
+  { id: "ONE_TWO_YEARS", label: "1-2 years" },
+  { id: "TWO_PLUS_YEARS", label: "2+ years" },
+  { id: "ONGOING", label: "Ongoing" },
 ];
 
 const compensationModels = [
@@ -62,12 +75,38 @@ const compensationModels = [
   { id: "MILESTONE", label: "Milestone" },
 ];
 
+const RECURRING_PRESETS = [
+  { label: "Biweekly", days: 14 },
+  { label: "Monthly", days: 30 },
+  { label: "Yearly", days: 365 },
+] as const;
+
+const PRESET_DAYS = RECURRING_PRESETS.map((p) => p.days);
+
+const durationToMonths = (durationId: string): number | null => {
+  switch (durationId) {
+    case "ONE_TWO_WEEKS": return 0.5;
+    case "ONE_THREE_MONTHS": return 2;
+    case "THREE_SIX_MONTHS": return 4.5;
+    case "SIX_TWELVE_MONTHS": return 9;
+    case "ONE_TWO_YEARS": return 18;
+    case "TWO_PLUS_YEARS": return 30;
+    case "ONGOING": return 12;
+    default: return null;
+  }
+};
+
+const toMonthlyRate = (cost: number, intervalDays: number): number =>
+  (cost / intervalDays) * 30;
+
 interface Resource {
   id: string;
   name: string;
   description: string;
   quantity: number;
   estimatedCost: string;
+  recurringCost: string;
+  recurringIntervalDays: number | null;
   isRequired: boolean;
 }
 
@@ -93,12 +132,14 @@ interface WizardFormData {
   title: string;
   problemStatement: string;
   solution: string;
-  category: string;
+  categories: string[];
+  otherCategory: string;
+  projectType: string;
+  duration: string;
   targetAudience: string;
   expectedImpact: string;
   timeline: string;
   tags: string[];
-  fundingGoal: string;
 
   // Step 2: Resources
   resources: Resource[];
@@ -125,12 +166,14 @@ export default function CreateProjectPage() {
     title: "",
     problemStatement: "",
     solution: "",
-    category: "",
+    categories: [],
+    otherCategory: "",
+    projectType: "",
+    duration: "",
     targetAudience: "",
     expectedImpact: "",
     timeline: "",
     tags: [],
-    fundingGoal: "",
     resources: [],
     roles: [],
     milestones: [],
@@ -146,6 +189,8 @@ export default function CreateProjectPage() {
     description: "",
     quantity: 1,
     estimatedCost: "",
+    recurringCost: "",
+    recurringIntervalDays: null,
     isRequired: true,
   });
 
@@ -211,7 +256,13 @@ export default function CreateProjectPage() {
         newErrors.problemStatement = "Min 10 characters";
       if (!formData.solution.trim()) newErrors.solution = "Required";
       if (formData.solution.length < 10) newErrors.solution = "Min 10 characters";
-      if (!formData.category) newErrors.category = "Category is required";
+      if (formData.categories.length === 0) newErrors.categories = "Select at least one category";
+      if (formData.categories.includes("OTHER") && !formData.otherCategory.trim()) {
+        newErrors.otherCategory = "Please specify your category";
+      }
+      if (formData.otherCategory.length > OTHER_CATEGORY_MAX_LENGTH) {
+        newErrors.otherCategory = `Max ${OTHER_CATEGORY_MAX_LENGTH} characters`;
+      }
     }
 
     // Steps 1-3: No required fields, just informational
@@ -263,6 +314,8 @@ export default function CreateProjectPage() {
       description: "",
       quantity: 1,
       estimatedCost: "",
+      recurringCost: "",
+      recurringIntervalDays: null,
       isRequired: true,
     });
     setIsAddingResource(false);
@@ -274,6 +327,8 @@ export default function CreateProjectPage() {
       description: resource.description,
       quantity: resource.quantity,
       estimatedCost: resource.estimatedCost,
+      recurringCost: resource.recurringCost,
+      recurringIntervalDays: resource.recurringIntervalDays,
       isRequired: resource.isRequired,
     });
     setEditingResourceId(resource.id);
@@ -295,6 +350,8 @@ export default function CreateProjectPage() {
       description: "",
       quantity: 1,
       estimatedCost: "",
+      recurringCost: "",
+      recurringIntervalDays: null,
       isRequired: true,
     });
   };
@@ -422,17 +479,25 @@ export default function CreateProjectPage() {
   const handleSubmit = async (publish: boolean) => {
     try {
       // 1. Create the project first
+      // Build categories list, replacing "OTHER" with the custom value
+      const resolvedCategories = formData.categories.map((c) =>
+        c === "OTHER" ? formData.otherCategory.trim() : c
+      );
+
       const project = await createMutation.mutateAsync({
         title: formData.title,
         description: formData.solution,
         problemStatement: formData.problemStatement,
         solution: formData.solution,
-        category: formData.category as any,
+        categories: resolvedCategories,
+        projectType: (formData.projectType as any) || undefined,
+        duration: (formData.duration as any) || undefined,
         targetAudience: formData.targetAudience || undefined,
         expectedImpact: formData.expectedImpact || undefined,
-        timeline: formData.timeline || undefined,
+        timeline: formData.duration
+          ? durations.find((d) => d.id === formData.duration)?.label
+          : formData.timeline || undefined,
         tags: formData.tags.join(", ") || undefined,
-        fundingGoal: formData.fundingGoal ? Number(formData.fundingGoal) : undefined,
       });
 
       // Note: Resource, milestone, and role APIs would be called here when available
@@ -643,74 +708,183 @@ export default function CreateProjectPage() {
 
               <Card className="bg-card border-border">
                 <CardHeader className="pb-3">
-                  <CardTitle className="text-lg">Project Details</CardTitle>
+                  <CardTitle className="text-lg">Project Type</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="text-sm font-medium mb-2 block">
-                        Category <span className="text-neon">*</span>
-                      </label>
-                      <Select
-                        value={formData.category}
-                        onValueChange={(value) => handleChange("category", value)}
-                      >
-                        <SelectTrigger
-                          className={
-                            errors.category ? "border-destructive" : "border-border"
-                          }
-                        >
-                          <SelectValue placeholder="Select category" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {categories.map((cat) => (
-                            <SelectItem key={cat.id} value={cat.id}>
-                              {cat.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      {errors.category && (
-                        <p className="text-sm text-destructive mt-1">
-                          {errors.category}
-                        </p>
-                      )}
-                    </div>
-
-                    <div>
-                      <label className="text-sm font-medium mb-2 block">
-                        Timeline
-                      </label>
-                      <Select
-                        value={formData.timeline}
-                        onValueChange={(value) => handleChange("timeline", value)}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select duration" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {durations.map((dur) => (
-                            <SelectItem key={dur.id} value={dur.id}>
-                              {dur.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                  <div>
+                    <label className="text-sm font-medium mb-2 block">
+                      What kind of project is this?
+                    </label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {projectTypes.map((pt) => {
+                        const isSelected = formData.projectType === pt.id;
+                        return (
+                          <button
+                            key={pt.id}
+                            type="button"
+                            onClick={() => handleChange("projectType", pt.id)}
+                            className={cn(
+                              "flex flex-col items-start p-3 rounded-lg border-2 text-left transition-colors",
+                              isSelected
+                                ? "border-neon bg-neon/10"
+                                : "border-border bg-muted/30 hover:border-neon/50"
+                            )}
+                          >
+                            <span className={cn(
+                              "text-sm font-medium",
+                              isSelected ? "text-neon" : "text-foreground"
+                            )}>
+                              {pt.label}
+                            </span>
+                            <span className="text-xs text-muted-foreground mt-0.5">
+                              {pt.description}
+                            </span>
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
 
                   <div>
                     <label className="text-sm font-medium mb-2 block">
-                      Funding Goal ($)
+                      Expected Duration
                     </label>
-                    <input
-                      type="number"
-                      value={formData.fundingGoal}
-                      onChange={(e) => handleChange("fundingGoal", e.target.value)}
-                      placeholder="0"
-                      min="0"
-                      className="w-full px-4 py-3 bg-muted/50 border-2 border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-neon/50"
-                    />
+                    <Select
+                      value={formData.duration}
+                      onValueChange={(value) => handleChange("duration", value)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select duration" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {durations.map((dur) => (
+                          <SelectItem key={dur.id} value={dur.id}>
+                            {dur.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="bg-card border-border">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-lg">Project Details</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <label className="text-sm font-medium mb-2 block">
+                      Categories <span className="text-neon">*</span>
+                    </label>
+                    <div className={cn(
+                      "flex flex-wrap gap-2 p-3 rounded-lg border-2",
+                      errors.categories ? "border-destructive" : "border-border"
+                    )}>
+                      {categories.map((cat) => {
+                        const isSelected = formData.categories.includes(cat.id);
+                        return (
+                          <button
+                            key={cat.id}
+                            type="button"
+                            onClick={() => {
+                              setFormData((prev) => ({
+                                ...prev,
+                                categories: isSelected
+                                  ? prev.categories.filter((c) => c !== cat.id)
+                                  : [...prev.categories, cat.id],
+                              }));
+                              if (errors.categories) {
+                                setErrors((prev) => {
+                                  const newErrors = { ...prev };
+                                  delete newErrors.categories;
+                                  return newErrors;
+                                });
+                              }
+                            }}
+                            className={cn(
+                              "px-3 py-1.5 rounded-full text-sm font-medium transition-colors border",
+                              isSelected
+                                ? "bg-neon text-black border-neon"
+                                : "bg-muted/50 text-muted-foreground border-border hover:border-neon/50 hover:text-foreground"
+                            )}
+                          >
+                            {cat.label}
+                          </button>
+                        );
+                      })}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const isSelected = formData.categories.includes("OTHER");
+                          setFormData((prev) => ({
+                            ...prev,
+                            categories: isSelected
+                              ? prev.categories.filter((c) => c !== "OTHER")
+                              : [...prev.categories, "OTHER"],
+                            otherCategory: isSelected ? "" : prev.otherCategory,
+                          }));
+                          if (errors.categories) {
+                            setErrors((prev) => {
+                              const newErrors = { ...prev };
+                              delete newErrors.categories;
+                              return newErrors;
+                            });
+                          }
+                        }}
+                        className={cn(
+                          "px-3 py-1.5 rounded-full text-sm font-medium transition-colors border",
+                          formData.categories.includes("OTHER")
+                            ? "bg-neon text-black border-neon"
+                            : "bg-muted/50 text-muted-foreground border-border hover:border-neon/50 hover:text-foreground"
+                        )}
+                      >
+                        Other
+                      </button>
+                    </div>
+                    {errors.categories && (
+                      <p className="text-sm text-destructive mt-1">
+                        {errors.categories}
+                      </p>
+                    )}
+                    {formData.categories.includes("OTHER") && (
+                      <div className="mt-3">
+                        <label className="text-sm font-medium mb-1 block">
+                          Specify other category
+                        </label>
+                        <div className="relative">
+                          <input
+                            type="text"
+                            value={formData.otherCategory}
+                            onChange={(e) => {
+                              const value = e.target.value.slice(0, OTHER_CATEGORY_MAX_LENGTH);
+                              setFormData((prev) => ({ ...prev, otherCategory: value }));
+                              if (errors.otherCategory) {
+                                setErrors((prev) => {
+                                  const newErrors = { ...prev };
+                                  delete newErrors.otherCategory;
+                                  return newErrors;
+                                });
+                              }
+                            }}
+                            maxLength={OTHER_CATEGORY_MAX_LENGTH}
+                            placeholder="e.g., Renewable Energy"
+                            className={cn(
+                              "w-full px-4 py-2 bg-muted/50 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-neon/50",
+                              errors.otherCategory ? "border-destructive" : "border-border"
+                            )}
+                          />
+                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+                            {formData.otherCategory.length}/{OTHER_CATEGORY_MAX_LENGTH}
+                          </span>
+                        </div>
+                        {errors.otherCategory && (
+                          <p className="text-sm text-destructive mt-1">
+                            {errors.otherCategory}
+                          </p>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -865,6 +1039,137 @@ export default function CreateProjectPage() {
                           />
                         </div>
                       </div>
+
+                      {/* Recurring Cost */}
+                      <div className="space-y-3 pt-2 border-t border-border/50">
+                        <label className="text-sm font-medium block">
+                          Recurring Cost
+                        </label>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="text-xs text-muted-foreground mb-1 block">
+                              Amount ($) per period
+                            </label>
+                            <input
+                              type="number"
+                              value={resourceForm.recurringCost}
+                              onChange={(e) =>
+                                setResourceForm((prev) => ({
+                                  ...prev,
+                                  recurringCost: e.target.value,
+                                }))
+                              }
+                              placeholder="0"
+                              min="0"
+                              className="w-full px-4 py-2 bg-background border-2 border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-neon/50"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-xs text-muted-foreground mb-1 block">
+                              Billing interval
+                            </label>
+                            <div className="flex flex-wrap gap-2">
+                              {RECURRING_PRESETS.map((preset) => (
+                                <button
+                                  key={preset.label}
+                                  type="button"
+                                  onClick={() =>
+                                    setResourceForm((prev) => ({
+                                      ...prev,
+                                      recurringIntervalDays: preset.days,
+                                    }))
+                                  }
+                                  className={cn(
+                                    "px-3 py-1.5 text-xs rounded-md border transition-colors",
+                                    resourceForm.recurringIntervalDays === preset.days
+                                      ? "bg-neon/20 border-neon text-neon"
+                                      : "bg-muted/50 border-border text-muted-foreground hover:bg-muted"
+                                  )}
+                                >
+                                  {preset.label}
+                                </button>
+                              ))}
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setResourceForm((prev) => ({
+                                    ...prev,
+                                    recurringIntervalDays:
+                                      prev.recurringIntervalDays !== null &&
+                                      !PRESET_DAYS.includes(prev.recurringIntervalDays as 14 | 30 | 365)
+                                        ? prev.recurringIntervalDays
+                                        : 7,
+                                  }))
+                                }
+                                className={cn(
+                                  "px-3 py-1.5 text-xs rounded-md border transition-colors",
+                                  resourceForm.recurringIntervalDays !== null &&
+                                    !PRESET_DAYS.includes(resourceForm.recurringIntervalDays as 14 | 30 | 365)
+                                    ? "bg-neon/20 border-neon text-neon"
+                                    : "bg-muted/50 border-border text-muted-foreground hover:bg-muted"
+                                )}
+                              >
+                                Custom
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Custom interval input */}
+                        {resourceForm.recurringIntervalDays !== null &&
+                          !PRESET_DAYS.includes(resourceForm.recurringIntervalDays as 14 | 30 | 365) && (
+                          <div>
+                            <label className="text-xs text-muted-foreground mb-1 block">
+                              Custom interval (days, max 365)
+                            </label>
+                            <input
+                              type="number"
+                              value={resourceForm.recurringIntervalDays}
+                              onChange={(e) => {
+                                const val = Math.min(365, Math.max(1, parseInt(e.target.value) || 1));
+                                setResourceForm((prev) => ({
+                                  ...prev,
+                                  recurringIntervalDays: val,
+                                }));
+                              }}
+                              min="1"
+                              max="365"
+                              className="w-32 px-4 py-2 bg-background border-2 border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-neon/50"
+                            />
+                          </div>
+                        )}
+
+                        {/* Computed monthly rate preview */}
+                        {resourceForm.recurringCost &&
+                          Number(resourceForm.recurringCost) > 0 &&
+                          resourceForm.recurringIntervalDays &&
+                          resourceForm.recurringIntervalDays > 0 && (
+                          <p className="text-xs text-muted-foreground">
+                            Equivalent to{" "}
+                            <span className="font-medium text-foreground">
+                              ${toMonthlyRate(Number(resourceForm.recurringCost), resourceForm.recurringIntervalDays).toFixed(2)}/month
+                            </span>
+                          </p>
+                        )}
+
+                        {/* Clear recurring cost button */}
+                        {resourceForm.recurringIntervalDays !== null && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setResourceForm((prev) => ({
+                                ...prev,
+                                recurringCost: "",
+                                recurringIntervalDays: null,
+                              }))
+                            }
+                            className="text-xs text-muted-foreground hover:text-foreground underline"
+                          >
+                            Remove recurring cost
+                          </button>
+                        )}
+                      </div>
+
                       <div className="flex items-center gap-2">
                         <input
                           type="checkbox"
@@ -930,10 +1235,16 @@ export default function CreateProjectPage() {
                               {resource.description}
                             </p>
                           )}
-                          <div className="flex gap-4 mt-2 text-sm text-muted-foreground">
+                          <div className="flex flex-wrap gap-4 mt-2 text-sm text-muted-foreground">
                             <span>Qty: {resource.quantity}</span>
                             {resource.estimatedCost && (
-                              <span>Cost: ${resource.estimatedCost}</span>
+                              <span>One-time: ${resource.estimatedCost}</span>
+                            )}
+                            {resource.recurringCost && resource.recurringIntervalDays && (
+                              <span>
+                                Recurring: ${resource.recurringCost}/{resource.recurringIntervalDays}d
+                                {" "}(${toMonthlyRate(Number(resource.recurringCost), resource.recurringIntervalDays).toFixed(2)}/mo)
+                              </span>
                             )}
                           </div>
                         </div>
@@ -1382,23 +1693,45 @@ export default function CreateProjectPage() {
                     <p className="text-sm mt-1">{formData.solution}</p>
                   </div>
                   <div className="grid grid-cols-2 gap-4 pt-2">
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">
-                        Category
-                      </p>
-                      <p className="text-sm mt-1">
-                        {categories.find((c) => c.id === formData.category)
-                          ?.label || formData.category}
-                      </p>
-                    </div>
-                    {formData.timeline && (
+                    {formData.projectType && (
                       <div>
                         <p className="text-sm font-medium text-muted-foreground">
-                          Timeline
+                          Project Type
                         </p>
-                        <p className="text-sm mt-1">{formData.timeline}</p>
+                        <p className="text-sm mt-1">
+                          {projectTypes.find((pt) => pt.id === formData.projectType)?.label || formData.projectType}
+                        </p>
                       </div>
                     )}
+                    {formData.duration && (
+                      <div>
+                        <p className="text-sm font-medium text-muted-foreground">
+                          Duration
+                        </p>
+                        <p className="text-sm mt-1">
+                          {durations.find((d) => d.id === formData.duration)?.label || formData.duration}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 gap-4 pt-2">
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground">
+                        Categories
+                      </p>
+                      <div className="flex flex-wrap gap-1.5 mt-1">
+                        {formData.categories.map((catId) => {
+                          const label = catId === "OTHER"
+                            ? formData.otherCategory || "Other"
+                            : categories.find((c) => c.id === catId)?.label || catId.replace("_", " ");
+                          return (
+                            <Badge key={catId} variant="secondary" className="text-xs">
+                              {label}
+                            </Badge>
+                          );
+                        })}
+                      </div>
+                    </div>
                   </div>
                   {formData.targetAudience && (
                     <div>
@@ -1414,14 +1747,6 @@ export default function CreateProjectPage() {
                         Expected Impact
                       </p>
                       <p className="text-sm mt-1">{formData.expectedImpact}</p>
-                    </div>
-                  )}
-                  {formData.fundingGoal && (
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">
-                        Funding Goal
-                      </p>
-                      <p className="text-sm mt-1">${formData.fundingGoal}</p>
                     </div>
                   )}
                   {formData.tags.length > 0 && (
@@ -1474,7 +1799,9 @@ export default function CreateProjectPage() {
                             <p className="text-xs text-muted-foreground">
                               Qty: {resource.quantity}
                               {resource.estimatedCost &&
-                                ` • Cost: $${resource.estimatedCost}`}
+                                ` • One-time: $${resource.estimatedCost}`}
+                              {resource.recurringCost && resource.recurringIntervalDays &&
+                                ` • Recurring: $${resource.recurringCost}/${resource.recurringIntervalDays}d ($${toMonthlyRate(Number(resource.recurringCost), resource.recurringIntervalDays).toFixed(2)}/mo)`}
                             </p>
                           </div>
                           {resource.isRequired && (
@@ -1488,6 +1815,83 @@ export default function CreateProjectPage() {
                   )}
                 </CardContent>
               </Card>
+
+              {/* Financial Projections */}
+              {formData.resources.length > 0 && (() => {
+                const totalOneTime = formData.resources.reduce(
+                  (sum, r) => sum + (Number(r.estimatedCost) || 0) * r.quantity,
+                  0
+                );
+                const totalMonthlyRecurring = formData.resources.reduce(
+                  (sum, r) =>
+                    sum +
+                    (r.recurringCost && r.recurringIntervalDays
+                      ? toMonthlyRate(Number(r.recurringCost), r.recurringIntervalDays)
+                      : 0),
+                  0
+                );
+                const projectMonths = durationToMonths(formData.duration);
+                const totalProjectedRecurring = projectMonths
+                  ? totalMonthlyRecurring * projectMonths
+                  : null;
+                const totalProjectedCost = totalProjectedRecurring !== null
+                  ? totalOneTime + totalProjectedRecurring
+                  : null;
+
+                if (totalOneTime === 0 && totalMonthlyRecurring === 0) return null;
+
+                return (
+                  <Card className="bg-card border-border">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        <Target className="size-5 text-neon" />
+                        Financial Projections
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="p-3 bg-muted/30 rounded-lg">
+                          <p className="text-xs text-muted-foreground">Total One-Time Costs</p>
+                          <p className="text-lg font-semibold">${totalOneTime.toFixed(2)}</p>
+                        </div>
+                        {totalMonthlyRecurring > 0 && (
+                          <div className="p-3 bg-muted/30 rounded-lg">
+                            <p className="text-xs text-muted-foreground">Total Monthly Recurring</p>
+                            <p className="text-lg font-semibold">${totalMonthlyRecurring.toFixed(2)}/mo</p>
+                          </div>
+                        )}
+                        {totalProjectedCost !== null && totalMonthlyRecurring > 0 && (
+                          <>
+                            <div className="p-3 bg-muted/30 rounded-lg">
+                              <p className="text-xs text-muted-foreground">
+                                Projected Recurring ({durations.find((d) => d.id === formData.duration)?.label})
+                              </p>
+                              <p className="text-lg font-semibold">
+                                ${totalProjectedRecurring!.toFixed(2)}
+                              </p>
+                            </div>
+                            <div className="p-3 bg-neon/10 rounded-lg border border-neon/30">
+                              <p className="text-xs text-muted-foreground">
+                                Total Projected Cost
+                              </p>
+                              <p className="text-lg font-semibold text-neon">
+                                ${totalProjectedCost.toFixed(2)}
+                              </p>
+                            </div>
+                          </>
+                        )}
+                        {totalProjectedCost === null && totalMonthlyRecurring > 0 && (
+                          <div className="col-span-2 p-3 bg-muted/30 rounded-lg text-center">
+                            <p className="text-xs text-muted-foreground">
+                              Set a project duration to see total projected costs
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })()}
 
               <Card className="bg-card border-border">
                 <CardHeader className="pb-3">

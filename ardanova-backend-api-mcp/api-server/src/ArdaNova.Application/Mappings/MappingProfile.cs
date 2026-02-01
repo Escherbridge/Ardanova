@@ -22,7 +22,11 @@ public class MappingProfile : Profile
             .ForMember(dest => dest.Name, opt => opt.MapFrom(src => src.name))
             .ForMember(dest => dest.Image, opt => opt.MapFrom(src => src.image));
         CreateMap<Project, ProjectDto>()
-            .ForMember(dest => dest.CreatedBy, opt => opt.MapFrom(src => src.CreatedBy));
+            .ForMember(dest => dest.CreatedBy, opt => opt.MapFrom(src => src.CreatedBy))
+            .ForMember(dest => dest.Categories, opt => opt.MapFrom(src =>
+                string.IsNullOrEmpty(src.categories)
+                    ? new List<string>()
+                    : src.categories.Split(',', StringSplitOptions.RemoveEmptyEntries).ToList()));
         CreateMap<ProjectTask, ProjectTaskDto>();
         CreateMap<ProjectTaskDependency, ProjectTaskDependencyDto>();
         CreateMap<ProjectResource, ProjectResourceDto>();

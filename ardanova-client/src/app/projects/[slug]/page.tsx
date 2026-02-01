@@ -81,6 +81,26 @@ const categoryVariants: Record<string, "neon" | "neon-pink" | "neon-green" | "ne
   OTHER: "secondary",
 };
 
+const projectTypeLabels: Record<string, string> = {
+  TEMPORARY: "Temporary",
+  LONG_TERM: "Long Term",
+  FOUNDATION: "Foundation",
+  BUSINESS: "Business",
+  PRODUCT: "Product",
+  OPEN_SOURCE: "Open Source",
+  COMMUNITY: "Community",
+};
+
+const durationLabels: Record<string, string> = {
+  ONE_TWO_WEEKS: "1-2 weeks",
+  ONE_THREE_MONTHS: "1-3 months",
+  THREE_SIX_MONTHS: "3-6 months",
+  SIX_TWELVE_MONTHS: "6-12 months",
+  ONE_TWO_YEARS: "1-2 years",
+  TWO_PLUS_YEARS: "2+ years",
+  ONGOING: "Ongoing",
+};
+
 export default function ProjectDetailPage() {
   const params = useParams();
   const searchParams = useSearchParams();
@@ -142,9 +162,21 @@ export default function ProjectDetailPage() {
                 <Badge variant={statusVariants[project.status] || "secondary"}>
                   {project.status.replace("_", " ")}
                 </Badge>
-                <Badge variant={categoryVariants[project.category] || "secondary"}>
-                  {project.category.replace("_", " ")}
-                </Badge>
+                {(project.categories ?? []).map((cat) => (
+                  <Badge key={cat} variant={categoryVariants[cat] || "secondary"}>
+                    {cat.replace("_", " ")}
+                  </Badge>
+                ))}
+                {(project as any).projectType && (
+                  <Badge variant="neon-purple">
+                    {projectTypeLabels[(project as any).projectType] || (project as any).projectType}
+                  </Badge>
+                )}
+                {(project as any).duration && (
+                  <Badge variant="secondary">
+                    {durationLabels[(project as any).duration] || (project as any).duration}
+                  </Badge>
+                )}
               </div>
 
               <h1 className="text-3xl font-bold text-foreground">{project.title}</h1>

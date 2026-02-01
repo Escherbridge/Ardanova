@@ -29,6 +29,11 @@ public class ProjectResource
     [Precision(18, 8)]
     public decimal? estimatedCost { get; set; }
 
+    [Precision(18, 8)]
+    public decimal? recurringCost { get; set; }
+
+    public int? recurringIntervalDays { get; set; }
+
     [Required]
     public bool isRequired { get; set; }
 

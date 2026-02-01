@@ -63,12 +63,13 @@ public class ProjectsController : ControllerBase
     public async Task<IActionResult> Search(
         [FromQuery] string? searchTerm,
         [FromQuery] ProjectStatus? status,
-        [FromQuery] ProjectCategory? category,
+        [FromQuery] string? category,
+        [FromQuery] ProjectType? projectType,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 10,
         CancellationToken ct = default)
     {
-        var result = await _projectService.SearchAsync(searchTerm, status, category, page, pageSize, ct);
+        var result = await _projectService.SearchAsync(searchTerm, status, category, projectType, page, pageSize, ct);
         return ToActionResult(result);
     }
 
@@ -101,9 +102,16 @@ public class ProjectsController : ControllerBase
     }
 
     [HttpGet("category/{category}")]
-    public async Task<IActionResult> GetByCategory(ProjectCategory category, CancellationToken ct)
+    public async Task<IActionResult> GetByCategory(string category, CancellationToken ct)
     {
         var result = await _projectService.GetByCategory(category, ct);
+        return ToActionResult(result);
+    }
+
+    [HttpGet("type/{projectType}")]
+    public async Task<IActionResult> GetByProjectType(ProjectType projectType, CancellationToken ct)
+    {
+        var result = await _projectService.GetByProjectTypeAsync(projectType, ct);
         return ToActionResult(result);
     }
 

@@ -21,7 +21,7 @@ import {
   Heart,
   Loader2
 } from "lucide-react";
-import { ProjectStatus, ProjectCategory } from "@prisma/client";
+import { ProjectStatus } from "@prisma/client";
 import type { RouterOutputs } from "~/trpc/react";
 import { api } from "~/trpc/react";
 import {
@@ -106,25 +106,25 @@ export function ProjectDetail({ project }: ProjectDetailProps) {
     }
   };
 
-  const getCategoryIcon = (category: ProjectCategory) => {
+  const getCategoryIcon = (category: string) => {
     switch (category) {
-      case ProjectCategory.TECHNOLOGY:
+      case "TECHNOLOGY":
         return "💻";
-      case ProjectCategory.HEALTHCARE:
+      case "HEALTHCARE":
         return "🏥";
-      case ProjectCategory.EDUCATION:
+      case "EDUCATION":
         return "📚";
-      case ProjectCategory.ENVIRONMENT:
+      case "ENVIRONMENT":
         return "🌱";
-      case ProjectCategory.SOCIAL_IMPACT:
+      case "SOCIAL_IMPACT":
         return "🤝";
-      case ProjectCategory.BUSINESS:
+      case "BUSINESS":
         return "💼";
-      case ProjectCategory.ARTS_CULTURE:
+      case "ARTS_CULTURE":
         return "🎨";
-      case ProjectCategory.AGRICULTURE:
+      case "AGRICULTURE":
         return "🌾";
-      case ProjectCategory.FINANCE:
+      case "FINANCE":
         return "💰";
       default:
         return "📋";
@@ -146,10 +146,12 @@ export function ProjectDetail({ project }: ProjectDetailProps) {
                   >
                     {project.status.replace("_", " ")}
                   </Badge>
-                  <Badge variant="outline" className="text-xs sm:text-sm flex items-center gap-1">
-                    {getCategoryIcon(project.category as ProjectCategory)}
-                    {project.category.replace("_", " ")}
-                  </Badge>
+                  {(project.categories ?? []).map((cat) => (
+                    <Badge key={cat} variant="outline" className="text-xs sm:text-sm flex items-center gap-1">
+                      {getCategoryIcon(cat)}
+                      {cat.replace("_", " ")}
+                    </Badge>
+                  ))}
                   {project.featured && (
                     <Badge variant="default" className="text-xs sm:text-sm bg-yellow-100 text-yellow-800">
                       ⭐ Featured

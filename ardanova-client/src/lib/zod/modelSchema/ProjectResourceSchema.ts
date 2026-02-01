@@ -12,6 +12,8 @@ export const ProjectResourceSchema = z.object({
   description: z.string().nullable(),
   quantity: z.number().int(),
   estimatedCost: z.instanceof(Prisma.Decimal, { message: "Field 'estimatedCost' must be a Decimal. Location: ['Models', 'ProjectResource']"}).nullable(),
+  recurringCost: z.instanceof(Prisma.Decimal, { message: "Field 'recurringCost' must be a Decimal. Location: ['Models', 'ProjectResource']"}).nullable(),
+  recurringIntervalDays: z.number().int().nullable(),
   isRequired: z.boolean(),
   isObtained: z.boolean(),
   createdAt: z.coerce.date(),

@@ -10,8 +10,11 @@ import { Textarea } from "~/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "~/components/ui/select";
 import { Badge } from "~/components/ui/badge";
 import { Plus, X, FileText, Video, Image, Presentation, Loader2 } from "lucide-react";
+import { cn } from "~/lib/utils";
 import { api } from "~/trpc/react";
 import type { RouterOutputs } from "~/trpc/react";
+
+const OTHER_CATEGORY_MAX_LENGTH = 50;
 
 type Project = RouterOutputs["project"]["getById"];
 
@@ -32,7 +35,8 @@ interface ProjectFormData {
     approach: string;
     expectedOutcome: string;
   };
-  category: string;
+  categories: string[];
+  otherCategory: string;
   difficulty: string;
   estimatedDuration: string;
   resources: string[];
@@ -58,7 +62,8 @@ export function ProjectForm({ mode = "create", project }: ProjectFormProps) {
       approach: "",
       expectedOutcome: "",
     },
-    category: "",
+    categories: [],
+    otherCategory: "",
     difficulty: "",
     estimatedDuration: "",
     resources: [],
@@ -86,7 +91,8 @@ export function ProjectForm({ mode = "create", project }: ProjectFormProps) {
           approach: project.solution, // Using solution as approach for now
           expectedOutcome: project.expectedImpact || "",
         },
-        category: project.category,
+        categories: project.categories ? project.categories : project.category ? [project.category] : [],
+        otherCategory: "",
         difficulty: "Intermediate", // Default value
         estimatedDuration: project.timeline || "",
         resources: project.tags ? project.tags.split(",").filter(tag => tag.trim()) : [],
@@ -106,17 +112,16 @@ export function ProjectForm({ mode = "create", project }: ProjectFormProps) {
   const [newResource, setNewResource] = useState("");
   const [newSkill, setNewSkill] = useState("");
 
-  const categories = [
-    "TECHNOLOGY",
-    "HEALTHCARE", 
-    "EDUCATION",
-    "ENVIRONMENT",
-    "SOCIAL_IMPACT",
-    "BUSINESS",
-    "ARTS_CULTURE",
-    "AGRICULTURE",
-    "FINANCE",
-    "OTHER",
+  const categoryOptions = [
+    { id: "TECHNOLOGY", label: "Technology" },
+    { id: "HEALTHCARE", label: "Healthcare" },
+    { id: "EDUCATION", label: "Education" },
+    { id: "ENVIRONMENT", label: "Environment" },
+    { id: "SOCIAL_IMPACT", label: "Social Impact" },
+    { id: "BUSINESS", label: "Business" },
+    { id: "ARTS_CULTURE", label: "Arts & Culture" },
+    { id: "AGRICULTURE", label: "Agriculture" },
+    { id: "FINANCE", label: "Finance" },
   ];
 
   const difficulties = ["Beginner", "Intermediate", "Advanced", "Expert"];
@@ -250,8 +255,14 @@ export function ProjectForm({ mode = "create", project }: ProjectFormProps) {
       newErrors.solutionDescription = "Solution description is required";
     }
 
-    if (!formData.category) {
-      newErrors.category = "Please select a project category";
+    if (formData.categories.length === 0) {
+      newErrors.categories = "Select at least one category";
+    }
+    if (formData.categories.includes("OTHER") && !formData.otherCategory.trim()) {
+      newErrors.otherCategory = "Please specify your category";
+    }
+    if (formData.otherCategory.length > OTHER_CATEGORY_MAX_LENGTH) {
+      newErrors.otherCategory = `Max ${OTHER_CATEGORY_MAX_LENGTH} characters`;
     }
 
     // Set errors
@@ -270,13 +281,18 @@ export function ProjectForm({ mode = "create", project }: ProjectFormProps) {
       return;
     }
 
+    // Build categories list, replacing "OTHER" with the custom value
+    const resolvedCategories = formData.categories.map((c) =>
+      c === "OTHER" ? formData.otherCategory.trim() : c
+    );
+
     // Prepare data for API
     const projectData = {
       title: formData.title,
-      description: formData.solution.description, // Use solution description as main description
+      description: formData.solution.description,
       problemStatement: formData.problem.description,
       solution: formData.solution.description,
-      category: formData.category as any, // Type assertion for enum
+      categories: resolvedCategories,
       targetAudience: formData.problem.targetAudience,
       expectedImpact: formData.problem.impact,
       timeline: formData.estimatedDuration,
@@ -476,28 +492,114 @@ export function ProjectForm({ mode = "create", project }: ProjectFormProps) {
             </CardDescription>
           </CardHeader>
                             <CardContent className="px-4 sm:px-6 space-y-4">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-                      <div className="sm:col-span-2 lg:col-span-1">
-                        <Label htmlFor="category">Category *</Label>
-                        <Select value={formData.category} onValueChange={(value) => handleInputChange("category", value)}>
-                          <SelectTrigger className={errors.category ? "border-red-500 focus:border-red-500" : ""}>
-                            <SelectValue placeholder="Select category" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {categories.map((category) => (
-                              <SelectItem key={category} value={category}>
-                                {category.replace("_", " ")}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        {errors.category && (
-                          <p className="text-sm text-red-600 mt-1 flex items-center gap-1">
-                            <span className="w-1 h-1 bg-red-600 rounded-full"></span>
-                            {errors.category}
-                          </p>
-                        )}
+                    <div className="sm:col-span-2 lg:col-span-3">
+                      <Label>Categories *</Label>
+                      <div className={cn(
+                        "flex flex-wrap gap-2 mt-2 p-3 rounded-md border",
+                        errors.categories ? "border-red-500" : "border-input"
+                      )}>
+                        {categoryOptions.map((cat) => {
+                          const isSelected = formData.categories.includes(cat.id);
+                          return (
+                            <button
+                              key={cat.id}
+                              type="button"
+                              onClick={() => {
+                                setFormData((prev) => ({
+                                  ...prev,
+                                  categories: isSelected
+                                    ? prev.categories.filter((c) => c !== cat.id)
+                                    : [...prev.categories, cat.id],
+                                }));
+                                if (errors.categories) {
+                                  setErrors((prev) => {
+                                    const newErrors = { ...prev };
+                                    delete newErrors.categories;
+                                    return newErrors;
+                                  });
+                                }
+                              }}
+                              className={cn(
+                                "px-3 py-1.5 rounded-full text-sm font-medium transition-colors border",
+                                isSelected
+                                  ? "bg-primary text-primary-foreground border-primary"
+                                  : "bg-muted text-muted-foreground border-input hover:border-primary/50 hover:text-foreground"
+                              )}
+                            >
+                              {cat.label}
+                            </button>
+                          );
+                        })}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const isSelected = formData.categories.includes("OTHER");
+                            setFormData((prev) => ({
+                              ...prev,
+                              categories: isSelected
+                                ? prev.categories.filter((c) => c !== "OTHER")
+                                : [...prev.categories, "OTHER"],
+                              otherCategory: isSelected ? "" : prev.otherCategory,
+                            }));
+                            if (errors.categories) {
+                              setErrors((prev) => {
+                                const newErrors = { ...prev };
+                                delete newErrors.categories;
+                                return newErrors;
+                              });
+                            }
+                          }}
+                          className={cn(
+                            "px-3 py-1.5 rounded-full text-sm font-medium transition-colors border",
+                            formData.categories.includes("OTHER")
+                              ? "bg-primary text-primary-foreground border-primary"
+                              : "bg-muted text-muted-foreground border-input hover:border-primary/50 hover:text-foreground"
+                          )}
+                        >
+                          Other
+                        </button>
                       </div>
+                      {errors.categories && (
+                        <p className="text-sm text-red-600 mt-1 flex items-center gap-1">
+                          <span className="w-1 h-1 bg-red-600 rounded-full"></span>
+                          {errors.categories}
+                        </p>
+                      )}
+                      {formData.categories.includes("OTHER") && (
+                        <div className="mt-3">
+                          <Label>Specify other category</Label>
+                          <div className="relative mt-1">
+                            <Input
+                              value={formData.otherCategory}
+                              onChange={(e) => {
+                                const value = e.target.value.slice(0, OTHER_CATEGORY_MAX_LENGTH);
+                                setFormData((prev) => ({ ...prev, otherCategory: value }));
+                                if (errors.otherCategory) {
+                                  setErrors((prev) => {
+                                    const newErrors = { ...prev };
+                                    delete newErrors.otherCategory;
+                                    return newErrors;
+                                  });
+                                }
+                              }}
+                              maxLength={OTHER_CATEGORY_MAX_LENGTH}
+                              placeholder="e.g., Renewable Energy"
+                              className={errors.otherCategory ? "border-red-500 focus:border-red-500 pr-16" : "pr-16"}
+                            />
+                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+                              {formData.otherCategory.length}/{OTHER_CATEGORY_MAX_LENGTH}
+                            </span>
+                          </div>
+                          {errors.otherCategory && (
+                            <p className="text-sm text-red-600 mt-1 flex items-center gap-1">
+                              <span className="w-1 h-1 bg-red-600 rounded-full"></span>
+                              {errors.otherCategory}
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                       <div>
                         <Label htmlFor="difficulty">Difficulty Level</Label>
                         <Select value={formData.difficulty} onValueChange={(value) => handleInputChange("difficulty", value)}>

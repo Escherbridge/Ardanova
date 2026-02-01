@@ -97,6 +97,17 @@ const categoryFilters = [
   { id: "FINANCE", label: "Finance" },
 ];
 
+const projectTypeFilters = [
+  { id: "all", label: "All Types" },
+  { id: "TEMPORARY", label: "Temporary" },
+  { id: "LONG_TERM", label: "Long Term" },
+  { id: "FOUNDATION", label: "Foundation" },
+  { id: "BUSINESS", label: "Business" },
+  { id: "PRODUCT", label: "Product" },
+  { id: "OPEN_SOURCE", label: "Open Source" },
+  { id: "COMMUNITY", label: "Community" },
+];
+
 const statusFilters = [
   { id: "all", label: "All Statuses" },
   { id: "PUBLISHED", label: "Published" },
@@ -127,6 +138,7 @@ export default function ProjectsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [showFilters, setShowFilters] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState("all");
+  const [selectedProjectType, setSelectedProjectType] = useState("all");
   const [selectedStatus, setSelectedStatus] = useState("all");
   const [selectedFunding, setSelectedFunding] = useState("all");
   const [selectedTime, setSelectedTime] = useState("all");
@@ -154,7 +166,10 @@ export default function ProjectsPage() {
     }
 
     // Category filter
-    if (selectedCategory !== "all" && project.category !== selectedCategory) return false;
+    if (selectedCategory !== "all" && !((project as any).categories as string[] ?? []).includes(selectedCategory)) return false;
+
+    // Project type filter
+    if (selectedProjectType !== "all" && (project as any).projectType !== selectedProjectType) return false;
 
     // Status filter
     if (selectedStatus !== "all" && project.status !== selectedStatus) return false;
@@ -186,6 +201,7 @@ export default function ProjectsPage() {
   const hasActiveFilters =
     searchQuery ||
     selectedCategory !== "all" ||
+    selectedProjectType !== "all" ||
     selectedStatus !== "all" ||
     selectedFunding !== "all" ||
     selectedTime !== "all";
@@ -193,6 +209,7 @@ export default function ProjectsPage() {
   const clearFilters = () => {
     setSearchQuery("");
     setSelectedCategory("all");
+    setSelectedProjectType("all");
     setSelectedStatus("all");
     setSelectedFunding("all");
     setSelectedTime("all");
@@ -200,6 +217,7 @@ export default function ProjectsPage() {
 
   const activeFilterCount =
     (selectedCategory !== "all" ? 1 : 0) +
+    (selectedProjectType !== "all" ? 1 : 0) +
     (selectedStatus !== "all" ? 1 : 0) +
     (selectedFunding !== "all" ? 1 : 0) +
     (selectedTime !== "all" ? 1 : 0);
@@ -273,12 +291,15 @@ export default function ProjectsPage() {
                         {project.supportersCount || 0} supporters
                       </p>
                     </div>
-                    <Badge
-                      variant={categoryVariants[project.category] || "secondary"}
-                      size="sm"
-                    >
-                      {project.category.replace("_", " ")}
-                    </Badge>
+                    {((project as any).categories as string[] ?? []).slice(0, 1).map((cat: string) => (
+                      <Badge
+                        key={cat}
+                        variant={categoryVariants[cat] || "secondary"}
+                        size="sm"
+                      >
+                        {cat.replace("_", " ")}
+                      </Badge>
+                    ))}
                   </div>
                   {project.fundingGoal && Number(project.fundingGoal) > 0 && (
                     <Progress
@@ -402,6 +423,24 @@ export default function ProjectsPage() {
                     </select>
                   </div>
 
+                  {/* Project Type Filter */}
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1.5 block">
+                      Project Type
+                    </label>
+                    <select
+                      value={selectedProjectType}
+                      onChange={(e) => setSelectedProjectType(e.target.value)}
+                      className="w-full px-3 py-2 bg-card border-2 border-border text-foreground text-sm focus:border-primary focus:outline-none appearance-none cursor-pointer"
+                    >
+                      {projectTypeFilters.map((filter) => (
+                        <option key={filter.id} value={filter.id}>
+                          {filter.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
                   {/* Status Filter */}
                   <div>
                     <label className="text-xs text-muted-foreground mb-1.5 block">
@@ -472,6 +511,14 @@ export default function ProjectsPage() {
                         <Badge variant="secondary" size="sm" className="gap-1">
                           {categoryFilters.find((f) => f.id === selectedCategory)?.label}
                           <button onClick={() => setSelectedCategory("all")}>
+                            <X className="size-3" />
+                          </button>
+                        </Badge>
+                      )}
+                      {selectedProjectType !== "all" && (
+                        <Badge variant="secondary" size="sm" className="gap-1">
+                          {projectTypeFilters.find((f) => f.id === selectedProjectType)?.label}
+                          <button onClick={() => setSelectedProjectType("all")}>
                             <X className="size-3" />
                           </button>
                         </Badge>
@@ -630,12 +677,15 @@ export default function ProjectsPage() {
 
                       {/* Category & Tags */}
                       <div className="flex flex-wrap gap-2 mt-3">
-                        <Badge
-                          variant={categoryVariants[project.category] || "secondary"}
-                          size="sm"
-                        >
-                          {project.category.replace("_", " ")}
-                        </Badge>
+                        {((project as any).categories as string[] ?? []).map((cat: string) => (
+                          <Badge
+                            key={cat}
+                            variant={categoryVariants[cat] || "secondary"}
+                            size="sm"
+                          >
+                            {cat.replace("_", " ")}
+                          </Badge>
+                        ))}
                         {project.tags?.split(",").slice(0, 2).map((tag, i) => (
                           <Badge key={i} variant="secondary" size="sm">
                             {tag.trim()}

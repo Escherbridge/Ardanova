@@ -353,6 +353,26 @@ Ref: Referral.referredId > User.id
 // 3. Project Management & Governance Module
 // =================================================================================================
 
+Enum ProjectType {
+  TEMPORARY
+  LONG_TERM
+  FOUNDATION
+  BUSINESS
+  PRODUCT
+  OPEN_SOURCE
+  COMMUNITY
+}
+
+Enum ProjectDuration {
+  ONE_TWO_WEEKS
+  ONE_THREE_MONTHS
+  THREE_SIX_MONTHS
+  SIX_TWELVE_MONTHS
+  ONE_TWO_YEARS
+  TWO_PLUS_YEARS
+  ONGOING
+}
+
 Enum ProjectStatus {
   DRAFT
   PUBLISHED
@@ -550,7 +570,9 @@ Table Project {
   description text [not null]
   problemStatement text [not null]
   solution text [not null]
-  category ProjectCategory [not null]
+  categories text [not null, default: 'OTHER', note: 'Comma-separated ProjectCategory values']
+  projectType ProjectType [not null, default: 'TEMPORARY']
+  duration ProjectDuration
   status ProjectStatus [not null, default: 'DRAFT']
   fundingGoal decimal(18,8)
   currentFunding decimal(18,8) [not null, default: 0.00]
@@ -618,6 +640,8 @@ Table ProjectResource {
   description text
   quantity int [not null, default: 1]
   estimatedCost decimal
+  recurringCost decimal
+  recurringIntervalDays int
   isRequired boolean [not null, default: true]
   isObtained boolean [not null, default: false]
   createdAt datetime [not null, default: `now()`]

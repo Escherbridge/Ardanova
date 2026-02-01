@@ -134,7 +134,7 @@ export function DashboardProjectCards() {
                 </p>
 
                 <div className="flex items-center gap-4 text-xs text-slate-500">
-                  <span>{project.category.replace("_", " ")}</span>
+                  <span>{(project.categories ?? []).map(c => c.replace("_", " ")).join(", ")}</span>
                   <span>•</span>
                   <span>{project._count?.supports || 0} supporters</span>
                   <span>•</span>

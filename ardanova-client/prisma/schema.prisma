@@ -173,6 +173,26 @@ enum ReferralStatus {
   CANCELLED
 }
 
+enum ProjectType {
+  TEMPORARY
+  LONG_TERM
+  FOUNDATION
+  BUSINESS
+  PRODUCT
+  OPEN_SOURCE
+  COMMUNITY
+}
+
+enum ProjectDuration {
+  ONE_TWO_WEEKS
+  ONE_THREE_MONTHS
+  THREE_SIX_MONTHS
+  SIX_TWELVE_MONTHS
+  ONE_TWO_YEARS
+  TWO_PLUS_YEARS
+  ONGOING
+}
+
 enum ProjectStatus {
   DRAFT
   PUBLISHED
@@ -866,7 +886,9 @@ model Project {
   description String @db.Text
   problemStatement String @db.Text
   solution String @db.Text
-  category ProjectCategory
+  categories String @default("OTHER") @db.Text
+  projectType ProjectType @default(TEMPORARY)
+  duration ProjectDuration?
   status ProjectStatus @default(DRAFT)
   fundingGoal Decimal? @db.Decimal(18, 8)
   currentFunding Decimal @default(0) @db.Decimal(18, 8)
@@ -966,6 +988,8 @@ model ProjectResource {
   description String? @db.Text
   quantity Int @default(1)
   estimatedCost Decimal? @db.Decimal(18, 8)
+  recurringCost Decimal? @db.Decimal(18, 8)
+  recurringIntervalDays Int?
   isRequired Boolean @default(true)
   isObtained Boolean @default(false)
   createdAt DateTime @default(now())

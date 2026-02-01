@@ -23,6 +23,15 @@ class Settings(BaseSettings):
     port: int = 8081
     debug: bool = False
 
+    # LLM Configuration
+    llm_provider: str = "anthropic"
+    llm_model: str = "claude-sonnet-4-20250514"
+    llm_temperature: float = 0.7
+
+    # CrewAI Defaults
+    crew_verbose: bool = True
+    crew_max_iterations: int = 20
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"

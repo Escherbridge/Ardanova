@@ -55,7 +55,11 @@
       "Bash(tasklist:*)",
       "Bash(Select-String -Pattern \"\\(error|Build succeeded\\)\")",
       "Bash(Select-Object -First 10)",
-      "Bash(npm run typecheck:*)"
+      "Bash(npm run typecheck:*)",
+      "WebFetch(domain:docs.crewai.com)",
+      "WebFetch(domain:docs.langchain.com)",
+      "WebFetch(domain:langchain-ai.github.io)",
+      "Bash(Select-String -Pattern \"error|Build succeeded|Build FAILED\")"
     ]
   }
 }

@@ -266,7 +266,7 @@ export function AppSidebar({ user }: AppSidebarProps) {
         </nav>
 
         {/* User Section */}
-        <div className="mt-auto border-t-2 border-sidebar-border p-3">
+        <div className="mt-auto p-3">
           {user && (
             <div
               className={cn(

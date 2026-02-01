@@ -16,7 +16,8 @@ public class ProjectRepository : Repository<Project>, IProjectRepository
     public async Task<PagedResult<Project>> SearchAsync(
         string? searchTerm,
         ProjectStatus? status,
-        ProjectCategory? category,
+        string? category,
+        ProjectType? projectType,
         int page,
         int pageSize,
         CancellationToken cancellationToken = default)
@@ -40,9 +41,15 @@ public class ProjectRepository : Repository<Project>, IProjectRepository
         }
 
         // Apply category filter
-        if (category.HasValue)
+        if (!string.IsNullOrWhiteSpace(category))
         {
-            query = query.Where(p => p.category == category.Value);
+            query = query.Where(p => p.categories.Contains(category));
+        }
+
+        // Apply project type filter
+        if (projectType.HasValue)
+        {
+            query = query.Where(p => p.projectType == projectType.Value);
         }
 
         // Order by most recent first

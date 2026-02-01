@@ -13,13 +13,15 @@ public interface IProjectService
     Task<Result<PagedResult<ProjectDto>>> SearchAsync(
         string? searchTerm,
         ProjectStatus? status,
-        ProjectCategory? category,
+        string? category,
+        ProjectType? projectType,
         int page,
         int pageSize,
         CancellationToken ct = default);
     Task<Result<IReadOnlyList<ProjectDto>>> GetByUserIdAsync(string userId, CancellationToken ct = default);
     Task<Result<IReadOnlyList<ProjectDto>>> GetByStatusAsync(ProjectStatus status, CancellationToken ct = default);
-    Task<Result<IReadOnlyList<ProjectDto>>> GetByCategory(ProjectCategory category, CancellationToken ct = default);
+    Task<Result<IReadOnlyList<ProjectDto>>> GetByCategory(string category, CancellationToken ct = default);
+    Task<Result<IReadOnlyList<ProjectDto>>> GetByProjectTypeAsync(ProjectType projectType, CancellationToken ct = default);
     Task<Result<IReadOnlyList<ProjectDto>>> GetFeaturedAsync(CancellationToken ct = default);
     Task<Result<ProjectDto>> CreateAsync(CreateProjectDto dto, CancellationToken ct = default);
     Task<Result<ProjectDto>> UpdateAsync(string id, UpdateProjectDto dto, CancellationToken ct = default);

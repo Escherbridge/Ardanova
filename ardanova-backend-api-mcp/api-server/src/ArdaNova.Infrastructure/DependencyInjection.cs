@@ -61,7 +61,6 @@ public static class DependencyInjection
         dataSourceBuilder.MapEnum<PBIType>("PBIType", translator);
         dataSourceBuilder.MapEnum<PhaseStatus>("PhaseStatus", translator);
         dataSourceBuilder.MapEnum<Priority>("Priority", translator);
-        dataSourceBuilder.MapEnum<ProjectCategory>("ProjectCategory", translator);
         dataSourceBuilder.MapEnum<ProjectRole>("ProjectRole", translator);
         dataSourceBuilder.MapEnum<ProjectStatus>("ProjectStatus", translator);
         dataSourceBuilder.MapEnum<ProposalStatus>("ProposalStatus", translator);

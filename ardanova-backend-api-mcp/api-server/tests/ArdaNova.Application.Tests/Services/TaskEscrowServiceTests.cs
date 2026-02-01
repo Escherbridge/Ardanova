@@ -38,7 +38,7 @@ public class TaskEscrowServiceTests
             id = escrowId,
             taskId = taskId,
             funderId = funderId,
-            tokenId = tokenId,
+            shareId = tokenId,
             amount = 100m,
             status = EscrowStatus.FUNDED,
             createdAt = DateTime.UtcNow
@@ -86,7 +86,7 @@ public class TaskEscrowServiceTests
             id = Guid.NewGuid().ToString(),
             taskId = taskId,
             funderId = funderId,
-            tokenId = tokenId,
+            shareId = tokenId,
             amount = 200m,
             status = EscrowStatus.FUNDED,
             createdAt = DateTime.UtcNow
@@ -179,7 +179,7 @@ public class TaskEscrowServiceTests
             id = escrowId,
             taskId = taskId,
             funderId = funderId,
-            tokenId = tokenId,
+            shareId = tokenId,
             amount = 100m,
             status = EscrowStatus.FUNDED,
             createdAt = DateTime.UtcNow
@@ -218,7 +218,7 @@ public class TaskEscrowServiceTests
             id = escrowId,
             taskId = taskId,
             funderId = funderId,
-            tokenId = tokenId,
+            shareId = tokenId,
             amount = 100m,
             status = EscrowStatus.FUNDED,
             createdAt = DateTime.UtcNow
@@ -257,7 +257,7 @@ public class TaskEscrowServiceTests
             id = escrowId,
             taskId = taskId,
             funderId = funderId,
-            tokenId = tokenId,
+            shareId = tokenId,
             amount = 100m,
             status = EscrowStatus.FUNDED,
             createdAt = DateTime.UtcNow

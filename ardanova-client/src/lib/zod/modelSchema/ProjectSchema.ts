@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { Prisma } from '@prisma/client'
-import { ProjectCategorySchema } from '../inputTypeSchemas/ProjectCategorySchema'
+import { ProjectTypeSchema } from '../inputTypeSchemas/ProjectTypeSchema'
+import { ProjectDurationSchema } from '../inputTypeSchemas/ProjectDurationSchema'
 import { ProjectStatusSchema } from '../inputTypeSchemas/ProjectStatusSchema'
 
 /////////////////////////////////////////
@@ -8,7 +9,8 @@ import { ProjectStatusSchema } from '../inputTypeSchemas/ProjectStatusSchema'
 /////////////////////////////////////////
 
 export const ProjectSchema = z.object({
-  category: ProjectCategorySchema,
+  projectType: ProjectTypeSchema,
+  duration: ProjectDurationSchema.nullable(),
   status: ProjectStatusSchema,
   id: z.string().cuid(),
   title: z.string(),
@@ -16,6 +18,7 @@ export const ProjectSchema = z.object({
   description: z.string(),
   problemStatement: z.string(),
   solution: z.string(),
+  categories: z.string(),
   fundingGoal: z.instanceof(Prisma.Decimal, { message: "Field 'fundingGoal' must be a Decimal. Location: ['Models', 'Project']"}).nullable(),
   currentFunding: z.instanceof(Prisma.Decimal, { message: "Field 'currentFunding' must be a Decimal. Location: ['Models', 'Project']"}),
   supportersCount: z.number().int(),

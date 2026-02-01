@@ -9,7 +9,7 @@ export interface Project {
   description: string;
   problemStatement: string;
   solution: string;
-  category: string;
+  categories: string[];
   status: string;
   fundingGoal?: number;
   currentFunding: number;
@@ -38,7 +38,7 @@ export interface CreateProjectDto {
   description: string;
   problemStatement: string;
   solution: string;
-  category: string;
+  categories: string[];
   createdById: string;
   targetAudience?: string;
   expectedImpact?: string;
@@ -55,7 +55,7 @@ export interface UpdateProjectDto {
   description?: string;
   problemStatement?: string;
   solution?: string;
-  category?: string;
+  categories?: string[];
   status?: string;
   targetAudience?: string;
   expectedImpact?: string;
@@ -82,6 +82,8 @@ export interface ProjectResource {
   description?: string;
   quantity: number;
   estimatedCost?: number;
+  recurringCost?: number;
+  recurringIntervalDays?: number;
   isRequired: boolean;
   isObtained: boolean;
   createdAt: string;
@@ -92,6 +94,8 @@ export interface CreateResourceDto {
   description?: string;
   quantity?: number;
   estimatedCost?: number;
+  recurringCost?: number;
+  recurringIntervalDays?: number;
   isRequired?: boolean;
 }
 
@@ -100,6 +104,8 @@ export interface UpdateResourceDto {
   description?: string;
   quantity?: number;
   estimatedCost?: number;
+  recurringCost?: number;
+  recurringIntervalDays?: number;
   isRequired?: boolean;
   isObtained?: boolean;
 }

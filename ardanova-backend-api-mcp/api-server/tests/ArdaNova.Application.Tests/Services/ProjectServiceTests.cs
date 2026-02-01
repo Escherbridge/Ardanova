@@ -41,7 +41,7 @@ public class ProjectServiceTests
             description = "A test project description",
             problemStatement = "Problem statement",
             solution = "Solution description",
-            category = ProjectCategory.TECHNOLOGY,
+            categories = "TECHNOLOGY",
             status = ProjectStatus.DRAFT,
             createdAt = DateTime.UtcNow,
             updatedAt = DateTime.UtcNow
@@ -86,8 +86,8 @@ public class ProjectServiceTests
         var projectId2 = Guid.NewGuid().ToString();
         var projects = new List<Project>
         {
-            new Project { id = projectId1, createdById = userId, title = "Project 1", description = "Desc 1", problemStatement = "Problem 1", solution = "Solution 1", category = ProjectCategory.TECHNOLOGY, status = ProjectStatus.DRAFT, createdAt = DateTime.UtcNow, updatedAt = DateTime.UtcNow },
-            new Project { id = projectId2, createdById = userId, title = "Project 2", description = "Desc 2", problemStatement = "Problem 2", solution = "Solution 2", category = ProjectCategory.HEALTHCARE, status = ProjectStatus.DRAFT, createdAt = DateTime.UtcNow, updatedAt = DateTime.UtcNow }
+            new Project { id = projectId1, createdById = userId, title = "Project 1", description = "Desc 1", problemStatement = "Problem 1", solution = "Solution 1", categories = "TECHNOLOGY", status = ProjectStatus.DRAFT, createdAt = DateTime.UtcNow, updatedAt = DateTime.UtcNow },
+            new Project { id = projectId2, createdById = userId, title = "Project 2", description = "Desc 2", problemStatement = "Problem 2", solution = "Solution 2", categories = "HEALTHCARE", status = ProjectStatus.DRAFT, createdAt = DateTime.UtcNow, updatedAt = DateTime.UtcNow }
         };
         var projectDtos = new List<ProjectDto>
         {
@@ -120,8 +120,9 @@ public class ProjectServiceTests
             Description = "New project description",
             ProblemStatement = "The problem",
             Solution = "The solution",
-            Category = ProjectCategory.TECHNOLOGY,
-            CreatedById = userId
+            Categories = new List<string> { "TECHNOLOGY" },
+            CreatedById = userId,
+            ProjectType = ProjectType.TEMPORARY
         };
         var projectDto = new ProjectDto { Title = "New Project" };
 
@@ -148,7 +149,7 @@ public class ProjectServiceTests
         // Arrange
         var slug = "test-project";
         var userId = Guid.NewGuid().ToString();
-        var project = new Project { id = Guid.NewGuid().ToString(), createdById = userId, title = "Test Project", description = "Description", problemStatement = "Problem", solution = "Solution", category = ProjectCategory.TECHNOLOGY, slug = slug, status = ProjectStatus.DRAFT, createdAt = DateTime.UtcNow, updatedAt = DateTime.UtcNow };
+        var project = new Project { id = Guid.NewGuid().ToString(), createdById = userId, title = "Test Project", description = "Description", problemStatement = "Problem", solution = "Solution", categories = "TECHNOLOGY", slug = slug, status = ProjectStatus.DRAFT, createdAt = DateTime.UtcNow, updatedAt = DateTime.UtcNow };
         var projectDto = new ProjectDto { Title = "Test Project" };
 
         _repositoryMock.Setup(r => r.FindOneAsync(It.IsAny<System.Linq.Expressions.Expression<Func<Project, bool>>>(), It.IsAny<CancellationToken>()))
@@ -171,7 +172,7 @@ public class ProjectServiceTests
         var projectId = Guid.NewGuid().ToString();
         var projects = new List<Project>
         {
-            new Project { id = projectId, createdById = userId, title = "Draft Project", description = "Desc", problemStatement = "Problem", solution = "Solution", category = ProjectCategory.TECHNOLOGY, status = ProjectStatus.DRAFT, createdAt = DateTime.UtcNow, updatedAt = DateTime.UtcNow }
+            new Project { id = projectId, createdById = userId, title = "Draft Project", description = "Desc", problemStatement = "Problem", solution = "Solution", categories = "TECHNOLOGY", status = ProjectStatus.DRAFT, createdAt = DateTime.UtcNow, updatedAt = DateTime.UtcNow }
         };
         var projectDtos = new List<ProjectDto> { new ProjectDto { Id = projectId, Title = "Draft Project" } };
 
@@ -195,7 +196,7 @@ public class ProjectServiceTests
         // Arrange
         var projectId = Guid.NewGuid().ToString();
         var userId = Guid.NewGuid().ToString();
-        var project = new Project { id = projectId, createdById = userId, title = "Test Project", description = "Desc", problemStatement = "Problem", solution = "Solution", category = ProjectCategory.TECHNOLOGY, status = ProjectStatus.DRAFT, createdAt = DateTime.UtcNow, updatedAt = DateTime.UtcNow };
+        var project = new Project { id = projectId, createdById = userId, title = "Test Project", description = "Desc", problemStatement = "Problem", solution = "Solution", categories = "TECHNOLOGY", status = ProjectStatus.DRAFT, createdAt = DateTime.UtcNow, updatedAt = DateTime.UtcNow };
 
         _repositoryMock.Setup(r => r.GetByIdAsync(projectId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(project);
@@ -219,7 +220,7 @@ public class ProjectServiceTests
         // Arrange
         var projectId = Guid.NewGuid().ToString();
         var userId = Guid.NewGuid().ToString();
-        var project = new Project { id = projectId, createdById = userId, title = "Test Project", description = "Desc", problemStatement = "Problem", solution = "Solution", category = ProjectCategory.TECHNOLOGY, status = ProjectStatus.DRAFT, createdAt = DateTime.UtcNow, updatedAt = DateTime.UtcNow };
+        var project = new Project { id = projectId, createdById = userId, title = "Test Project", description = "Desc", problemStatement = "Problem", solution = "Solution", categories = "TECHNOLOGY", status = ProjectStatus.DRAFT, createdAt = DateTime.UtcNow, updatedAt = DateTime.UtcNow };
         var projectDto = new ProjectDto { Title = "Test Project", Status = ProjectStatus.PUBLISHED };
 
         _repositoryMock.Setup(r => r.GetByIdAsync(projectId, It.IsAny<CancellationToken>()))
@@ -238,5 +239,335 @@ public class ProjectServiceTests
 
         // Assert
         result.IsSuccess.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task GetByProjectTypeAsync_ReturnsProjectsWithMatchingType()
+    {
+        // Arrange
+        var userId = Guid.NewGuid().ToString();
+        var projectId = Guid.NewGuid().ToString();
+        var projects = new List<Project>
+        {
+            new Project { id = projectId, createdById = userId, title = "Foundation Project", description = "Desc", problemStatement = "Problem", solution = "Solution", categories = "TECHNOLOGY", projectType = ProjectType.FOUNDATION, status = ProjectStatus.DRAFT, createdAt = DateTime.UtcNow, updatedAt = DateTime.UtcNow }
+        };
+        var projectDtos = new List<ProjectDto> { new ProjectDto { Id = projectId, Title = "Foundation Project", ProjectType = ProjectType.FOUNDATION } };
+
+        _repositoryMock.Setup(r => r.FindAsync(It.IsAny<System.Linq.Expressions.Expression<Func<Project, bool>>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(projects);
+        _mapperMock.Setup(m => m.Map<List<ProjectDto>>(It.IsAny<IEnumerable<Project>>())).Returns(projectDtos);
+        _userRepositoryMock.Setup(r => r.GetByIdAsync(userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((User?)null);
+
+        // Act
+        var result = await _sut.GetByProjectTypeAsync(ProjectType.FOUNDATION);
+
+        // Assert
+        result.IsSuccess.Should().BeTrue();
+        result.Value.Should().NotBeEmpty();
+        result.Value!.First().ProjectType.Should().Be(ProjectType.FOUNDATION);
+    }
+
+    [Fact]
+    public async Task SearchAsync_WithProjectTypeFilter_ReturnsFilteredResults()
+    {
+        // Arrange
+        var userId = Guid.NewGuid().ToString();
+        var projectId = Guid.NewGuid().ToString();
+        var projects = new List<Project>
+        {
+            new Project { id = projectId, createdById = userId, title = "Business Project", description = "Desc", problemStatement = "Problem", solution = "Solution", categories = "TECHNOLOGY", projectType = ProjectType.BUSINESS, status = ProjectStatus.PUBLISHED, createdAt = DateTime.UtcNow, updatedAt = DateTime.UtcNow }
+        };
+        var pagedResult = new PagedResult<Project>(projects, 1, 1, 10);
+        var projectDtos = new List<ProjectDto> { new ProjectDto { Id = projectId, Title = "Business Project", ProjectType = ProjectType.BUSINESS } };
+
+        _repositoryMock.Setup(r => r.SearchAsync(null, null, null, ProjectType.BUSINESS, 1, 10, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(pagedResult);
+        _mapperMock.Setup(m => m.Map<List<ProjectDto>>(It.IsAny<IEnumerable<Project>>())).Returns(projectDtos);
+        _userRepositoryMock.Setup(r => r.GetByIdAsync(userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((User?)null);
+
+        // Act
+        var result = await _sut.SearchAsync(null, null, null, ProjectType.BUSINESS, 1, 10);
+
+        // Assert
+        result.IsSuccess.Should().BeTrue();
+        result.Value.Should().NotBeNull();
+        result.Value!.Items.Should().NotBeEmpty();
+    }
+
+    [Fact]
+    public async Task CreateAsync_WithProjectTypeAndDuration_SetsFieldsCorrectly()
+    {
+        // Arrange
+        var userId = Guid.NewGuid().ToString();
+        var dto = new CreateProjectDto
+        {
+            Title = "Long Term Foundation",
+            Description = "A foundation project",
+            ProblemStatement = "The problem",
+            Solution = "The solution",
+            Categories = new List<string> { "TECHNOLOGY" },
+            CreatedById = userId,
+            ProjectType = ProjectType.FOUNDATION,
+            Duration = ProjectDuration.ONGOING
+        };
+        Project? capturedProject = null;
+
+        _repositoryMock.Setup(r => r.AddAsync(It.IsAny<Project>(), It.IsAny<CancellationToken>()))
+            .Callback<Project, CancellationToken>((p, _) => capturedProject = p)
+            .ReturnsAsync((Project p, CancellationToken _) => p);
+
+        _unitOfWorkMock.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(1);
+
+        _mapperMock.Setup(m => m.Map<ProjectDto>(It.IsAny<Project>()))
+            .Returns(new ProjectDto { Title = "Long Term Foundation", ProjectType = ProjectType.FOUNDATION, Duration = ProjectDuration.ONGOING });
+
+        // Act
+        var result = await _sut.CreateAsync(dto);
+
+        // Assert
+        result.IsSuccess.Should().BeTrue();
+        capturedProject.Should().NotBeNull();
+        capturedProject!.projectType.Should().Be(ProjectType.FOUNDATION);
+        capturedProject.duration.Should().Be(ProjectDuration.ONGOING);
+    }
+
+    [Fact]
+    public async Task CreateAsync_WithMultipleCategories_StoresCommaSeparated()
+    {
+        // Arrange
+        var userId = Guid.NewGuid().ToString();
+        var dto = new CreateProjectDto
+        {
+            Title = "Multi Category Project",
+            Description = "A project with multiple categories",
+            ProblemStatement = "The problem",
+            Solution = "The solution",
+            Categories = new List<string> { "TECHNOLOGY", "HEALTHCARE", "EDUCATION" },
+            CreatedById = userId,
+            ProjectType = ProjectType.TEMPORARY
+        };
+        Project? capturedProject = null;
+
+        _repositoryMock.Setup(r => r.AddAsync(It.IsAny<Project>(), It.IsAny<CancellationToken>()))
+            .Callback<Project, CancellationToken>((p, _) => capturedProject = p)
+            .ReturnsAsync((Project p, CancellationToken _) => p);
+
+        _unitOfWorkMock.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(1);
+
+        _mapperMock.Setup(m => m.Map<ProjectDto>(It.IsAny<Project>()))
+            .Returns(new ProjectDto { Title = "Multi Category Project" });
+
+        // Act
+        var result = await _sut.CreateAsync(dto);
+
+        // Assert
+        result.IsSuccess.Should().BeTrue();
+        capturedProject.Should().NotBeNull();
+        capturedProject!.categories.Should().Be("TECHNOLOGY,HEALTHCARE,EDUCATION");
+    }
+
+    [Fact]
+    public async Task CreateAsync_WithEmptyCategory_ReturnsValidationError()
+    {
+        // Arrange
+        var userId = Guid.NewGuid().ToString();
+        var dto = new CreateProjectDto
+        {
+            Title = "Invalid Project",
+            Description = "A project with empty category",
+            ProblemStatement = "The problem",
+            Solution = "The solution",
+            Categories = new List<string> { "TECHNOLOGY", "", "EDUCATION" },
+            CreatedById = userId,
+            ProjectType = ProjectType.TEMPORARY
+        };
+
+        // Act
+        var result = await _sut.CreateAsync(dto);
+
+        // Assert
+        result.IsSuccess.Should().BeFalse();
+        result.Type.Should().Be(ResultType.ValidationError);
+    }
+
+    [Fact]
+    public async Task CreateAsync_WithCustomCategoryOver50Chars_ReturnsValidationError()
+    {
+        // Arrange
+        var userId = Guid.NewGuid().ToString();
+        var longCustomCategory = new string('A', 51);
+        var dto = new CreateProjectDto
+        {
+            Title = "Invalid Project",
+            Description = "A project with overly long custom category",
+            ProblemStatement = "The problem",
+            Solution = "The solution",
+            Categories = new List<string> { "TECHNOLOGY", longCustomCategory },
+            CreatedById = userId,
+            ProjectType = ProjectType.TEMPORARY
+        };
+
+        // Act
+        var result = await _sut.CreateAsync(dto);
+
+        // Assert
+        result.IsSuccess.Should().BeFalse();
+        result.Type.Should().Be(ResultType.ValidationError);
+    }
+
+    [Fact]
+    public async Task CreateAsync_WithValidCustomCategory_Succeeds()
+    {
+        // Arrange
+        var userId = Guid.NewGuid().ToString();
+        var dto = new CreateProjectDto
+        {
+            Title = "Custom Category Project",
+            Description = "A project with a valid custom category",
+            ProblemStatement = "The problem",
+            Solution = "The solution",
+            Categories = new List<string> { "TECHNOLOGY", "MyCustomCategory" },
+            CreatedById = userId,
+            ProjectType = ProjectType.TEMPORARY
+        };
+        Project? capturedProject = null;
+
+        _repositoryMock.Setup(r => r.AddAsync(It.IsAny<Project>(), It.IsAny<CancellationToken>()))
+            .Callback<Project, CancellationToken>((p, _) => capturedProject = p)
+            .ReturnsAsync((Project p, CancellationToken _) => p);
+
+        _unitOfWorkMock.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(1);
+
+        _mapperMock.Setup(m => m.Map<ProjectDto>(It.IsAny<Project>()))
+            .Returns(new ProjectDto { Title = "Custom Category Project" });
+
+        // Act
+        var result = await _sut.CreateAsync(dto);
+
+        // Assert
+        result.IsSuccess.Should().BeTrue();
+        capturedProject.Should().NotBeNull();
+        capturedProject!.categories.Should().Be("TECHNOLOGY,MyCustomCategory");
+    }
+
+    [Fact]
+    public async Task UpdateAsync_WithCategories_UpdatesCategoriesField()
+    {
+        // Arrange
+        var projectId = Guid.NewGuid().ToString();
+        var userId = Guid.NewGuid().ToString();
+        var project = new Project
+        {
+            id = projectId,
+            createdById = userId,
+            title = "Test Project",
+            description = "Desc",
+            problemStatement = "Problem",
+            solution = "Solution",
+            categories = "TECHNOLOGY",
+            status = ProjectStatus.DRAFT,
+            createdAt = DateTime.UtcNow,
+            updatedAt = DateTime.UtcNow
+        };
+        var dto = new UpdateProjectDto
+        {
+            Categories = new List<string> { "HEALTHCARE", "EDUCATION" }
+        };
+
+        _repositoryMock.Setup(r => r.GetByIdAsync(projectId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(project);
+
+        _repositoryMock.Setup(r => r.UpdateAsync(It.IsAny<Project>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        _unitOfWorkMock.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(1);
+
+        _mapperMock.Setup(m => m.Map<ProjectDto>(It.IsAny<Project>()))
+            .Returns(new ProjectDto { Title = "Test Project" });
+
+        // Act
+        var result = await _sut.UpdateAsync(projectId, dto);
+
+        // Assert
+        result.IsSuccess.Should().BeTrue();
+        project.categories.Should().Be("HEALTHCARE,EDUCATION");
+    }
+
+    [Fact]
+    public async Task UpdateAsync_WithInvalidCategories_ReturnsValidationError()
+    {
+        // Arrange
+        var projectId = Guid.NewGuid().ToString();
+        var dto = new UpdateProjectDto
+        {
+            Categories = new List<string> { "TECHNOLOGY", "" }
+        };
+
+        // Act
+        var result = await _sut.UpdateAsync(projectId, dto);
+
+        // Assert
+        result.IsSuccess.Should().BeFalse();
+        result.Type.Should().Be(ResultType.ValidationError);
+    }
+
+    [Fact]
+    public async Task GetByCategory_WithStringCategory_ReturnsMatchingProjects()
+    {
+        // Arrange
+        var userId = Guid.NewGuid().ToString();
+        var projectId = Guid.NewGuid().ToString();
+        var projects = new List<Project>
+        {
+            new Project { id = projectId, createdById = userId, title = "Tech Project", description = "Desc", problemStatement = "Problem", solution = "Solution", categories = "TECHNOLOGY,HEALTHCARE", status = ProjectStatus.DRAFT, createdAt = DateTime.UtcNow, updatedAt = DateTime.UtcNow }
+        };
+        var projectDtos = new List<ProjectDto> { new ProjectDto { Id = projectId, Title = "Tech Project" } };
+
+        _repositoryMock.Setup(r => r.FindAsync(It.IsAny<System.Linq.Expressions.Expression<Func<Project, bool>>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(projects);
+        _mapperMock.Setup(m => m.Map<List<ProjectDto>>(It.IsAny<IEnumerable<Project>>())).Returns(projectDtos);
+        _userRepositoryMock.Setup(r => r.GetByIdAsync(userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((User?)null);
+
+        // Act
+        var result = await _sut.GetByCategory("TECHNOLOGY");
+
+        // Assert
+        result.IsSuccess.Should().BeTrue();
+        result.Value.Should().NotBeEmpty();
+    }
+
+    [Fact]
+    public async Task SearchAsync_WithCategoryFilter_ReturnsFilteredResults()
+    {
+        // Arrange
+        var userId = Guid.NewGuid().ToString();
+        var projectId = Guid.NewGuid().ToString();
+        var projects = new List<Project>
+        {
+            new Project { id = projectId, createdById = userId, title = "Health Project", description = "Desc", problemStatement = "Problem", solution = "Solution", categories = "HEALTHCARE,EDUCATION", status = ProjectStatus.PUBLISHED, createdAt = DateTime.UtcNow, updatedAt = DateTime.UtcNow }
+        };
+        var pagedResult = new PagedResult<Project>(projects, 1, 1, 10);
+        var projectDtos = new List<ProjectDto> { new ProjectDto { Id = projectId, Title = "Health Project" } };
+
+        _repositoryMock.Setup(r => r.SearchAsync(null, null, "HEALTHCARE", null, 1, 10, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(pagedResult);
+        _mapperMock.Setup(m => m.Map<List<ProjectDto>>(It.IsAny<IEnumerable<Project>>())).Returns(projectDtos);
+        _userRepositoryMock.Setup(r => r.GetByIdAsync(userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((User?)null);
+
+        // Act
+        var result = await _sut.SearchAsync(null, null, "HEALTHCARE", null, 1, 10);
+
+        // Assert
+        result.IsSuccess.Should().BeTrue();
+        result.Value.Should().NotBeNull();
+        result.Value!.Items.Should().NotBeEmpty();
     }
 }

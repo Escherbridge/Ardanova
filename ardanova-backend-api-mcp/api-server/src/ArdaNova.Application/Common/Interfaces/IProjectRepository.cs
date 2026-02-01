@@ -12,7 +12,8 @@ public interface IProjectRepository : IRepository<Project>
     Task<PagedResult<Project>> SearchAsync(
         string? searchTerm,
         ProjectStatus? status,
-        ProjectCategory? category,
+        string? category,
+        ProjectType? projectType,
         int page,
         int pageSize,
         CancellationToken cancellationToken = default);

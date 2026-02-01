@@ -17,7 +17,7 @@ import {
   Globe,
   Clock
 } from "lucide-react";
-import { ProjectStatus, ProjectCategory } from "@prisma/client";
+import { ProjectStatus } from "@prisma/client";
 import type { RouterOutputs } from "~/trpc/react";
 
 type Project = (RouterOutputs["project"]["getAll"]["items"][0] | RouterOutputs["project"]["getMyProjects"]["items"][0]) & {
@@ -67,25 +67,25 @@ export function ProjectCard({
     }
   };
 
-  const getCategoryIcon = (category: ProjectCategory) => {
+  const getCategoryIcon = (category: string) => {
     switch (category) {
-      case ProjectCategory.TECHNOLOGY:
+      case "TECHNOLOGY":
         return "💻";
-      case ProjectCategory.HEALTHCARE:
+      case "HEALTHCARE":
         return "🏥";
-      case ProjectCategory.EDUCATION:
+      case "EDUCATION":
         return "📚";
-      case ProjectCategory.ENVIRONMENT:
+      case "ENVIRONMENT":
         return "🌱";
-      case ProjectCategory.SOCIAL_IMPACT:
+      case "SOCIAL_IMPACT":
         return "🤝";
-      case ProjectCategory.BUSINESS:
+      case "BUSINESS":
         return "💼";
-      case ProjectCategory.ARTS_CULTURE:
+      case "ARTS_CULTURE":
         return "🎨";
-      case ProjectCategory.AGRICULTURE:
+      case "AGRICULTURE":
         return "🌾";
-      case ProjectCategory.FINANCE:
+      case "FINANCE":
         return "💰";
       default:
         return "📋";
@@ -109,10 +109,12 @@ export function ProjectCard({
               >
                 {project.status.replace("_", " ")}
               </Badge>
-              <Badge variant="outline" className="text-xs flex items-center gap-1">
-                {getCategoryIcon(project.category as ProjectCategory)}
-                {project.category.replace("_", " ")}
-              </Badge>
+              {(project.categories ?? []).map((cat) => (
+                <Badge key={cat} variant="outline" className="text-xs flex items-center gap-1">
+                  {getCategoryIcon(cat)}
+                  {cat.replace("_", " ")}
+                </Badge>
+              ))}
             </div>
 
             <CardTitle className="text-lg leading-tight mb-2">

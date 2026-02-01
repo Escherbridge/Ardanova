@@ -34,7 +34,13 @@ public class Project
     public string solution { get; set; } = string.Empty;
 
     [Required]
-    public ProjectCategory category { get; set; }
+    [Column(TypeName = "text")]
+    public string categories { get; set; } = string.Empty;
+
+    [Required]
+    public ProjectType projectType { get; set; }
+
+    public ProjectDuration? duration { get; set; }
 
     [Required]
     public ProjectStatus status { get; set; }
