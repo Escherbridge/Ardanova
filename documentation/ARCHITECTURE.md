@@ -732,14 +732,15 @@ The main platform is a Next.js 15 application using the App Router pattern.
 
 ### Schema Overview
 
-The database schema is organized into 9 modules with 70+ entities:
+The database schema is organized into 10 modules with 70+ entities:
 
 1. **Authentication & User Core** - Users, accounts, sessions, verification
 2. **Gamification & Reputation** - XP, achievements, streaks, leaderboards
 3. **Project Management & Governance** - Projects, tasks, roadmaps, proposals
 4. **Guild Module** - Guilds, members, bids, reviews
 5. **Marketplace & Shop** - Shops, products, invoices, sales
-6. **Finance & Tokenomics** - Tokens, treasury, escrow, ICO, liquidity
+6. **Finance & Tokenomics** - ProjectShares (economic rights), treasury, escrow, ICO, liquidity
+6a. **Dual-Asset Model** - MembershipCredential (governance rights) + ProjectShare (economic rights) separation
 7. **Engagement & Communication** - Posts, comments, chat, attachments
 8. **Events Module** - Events, attendees, co-hosts, reminders
 9. **Social & Follow Module** - User/Project/Guild following
@@ -761,8 +762,12 @@ The database schema is organized into 9 modules with 70+ entities:
 | Project | ProjectFollow | 1:N |
 | Project | Proposal | 1:N |
 | Project | ProjectToken | 1:1 |
+| Project | MembershipCredential | 1:N |
 | Project | Event | 1:N |
 | ProjectToken | ICO | 1:1 |
+| MembershipCredential | User | N:1 |
+| MembershipCredential | Project | N:1 |
+| MembershipCredential | Proposal | N:1 (optional, if granted via DAO vote) |
 | Guild | GuildMember | 1:N |
 | Guild | GuildInvitation | 1:N |
 | Guild | GuildApplication | 1:N |
@@ -992,6 +997,101 @@ The database schema is organized into 9 modules with 70+ entities:
 │                                                                  │
 └─────────────────────────────────────────────────────────────────┘
 ```
+
+### Dual-Asset Model (Governance + Economic)
+
+ArdaNova uses a dual-asset architecture to separate governance rights from economic rights:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    DUAL-ASSET MODEL                              │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  GOVERNANCE ASSET: MembershipCredential (Soulbound)              │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │ MembershipCredential                                      │   │
+│  │ • projectId → Project                                     │   │
+│  │ • userId → User                                           │   │
+│  │ • assetId (Algorand ASA for soulbound credential)        │   │
+│  │ • status: ACTIVE, REVOKED, SUSPENDED                     │   │
+│  │ • isTransferable: false (always soulbound)               │   │
+│  │ • grantedVia: FOUNDER, DAO_VOTE,                         │   │
+│  │   CONTRIBUTION_THRESHOLD, APPLICATION_APPROVED,          │   │
+│  │   GAME_SDK_THRESHOLD                                     │   │
+│  │ • grantedByProposalId → Proposal (if via DAO vote)       │   │
+│  │ • Unique constraint: (projectId, userId)                 │   │
+│  │                                                           │   │
+│  │ GRANTS: 1 vote in governance (equal for all members)     │   │
+│  │ CANNOT: Be bought, sold, or transferred                  │   │
+│  └──────────────────────────────────────────────────────────┘   │
+│                                                                  │
+│  ECONOMIC ASSET: ProjectShare (Fungible ASA)                    │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │ ProjectShare                                              │   │
+│  │ • projectId → Project (1:1)                               │   │
+│  │ • assetId (Algorand ASA for fungible token)              │   │
+│  │ • totalSupply, decimals, symbol                          │   │
+│  │ • allocation (founders, contributors, treasury, etc.)    │   │
+│  │ • vestingConfig                                           │   │
+│  │                                                           │   │
+│  │ GRANTS: Proportional revenue dividends, staking rewards  │   │
+│  │ CAN: Be purchased (ICO), earned (tasks/games), traded   │   │
+│  │ DOES NOT: Grant governance voting power                  │   │
+│  └──────────────────────────────────────────────────────────┘   │
+│                                                                  │
+│  RELATIONSHIP TO ProjectMember:                                  │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │ ProjectMember                                             │   │
+│  │ • shareBalance: decimal (economic rights, proportional)  │   │
+│  │ • votingPower: decimal (0 or 1, from MembershipCredential) │   │
+│  │                                                           │   │
+│  │ votingPower = 1 if user has ACTIVE MembershipCredential  │   │
+│  │ votingPower = 0 otherwise                                │   │
+│  │ shareBalance is independent of votingPower               │   │
+│  └──────────────────────────────────────────────────────────┘   │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Membership Grant Flow:**
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                MEMBERSHIP CREDENTIAL GRANT FLOW                   │
+├──────────────────────────────────────────────────────────────────┤
+│                                                                   │
+│  PATH 1: FOUNDER                                                 │
+│  Project Created ──► MembershipCredential auto-issued for creator│
+│                                                                   │
+│  PATH 2: DAO VOTE                                                │
+│  Proposal Created ──► Members Vote ──► If Passed ──► Credential Issued │
+│                                                                   │
+│  PATH 3: CONTRIBUTION THRESHOLD                                  │
+│  Tasks Completed ──► Threshold Met ──► Credential Auto-Issued   │
+│                                                                   │
+│  PATH 4: APPLICATION APPROVED                                    │
+│  User Applies ──► Project Reviews ──► Approved ──► Credential Issued │
+│                                                                   │
+│  PATH 5: GAME SDK THRESHOLD                                     │
+│  Player Earns ──► Play-to-Earn Level Met ──► Credential Auto-Issued │
+│                                                                   │
+│  REVOCATION (requires DAO vote):                                 │
+│  Proposal Created ──► 66% Quorum ──► 75% Approve ──► Credential Revoked│
+│                                                                   │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+### Cooperative Trust Structure
+
+ArdaNova operates as a cooperative trust entity with the following properties:
+
+| Property | Description |
+|----------|-------------|
+| Entity Type | Cooperative Trust (pass-through taxation) |
+| Securities | Project shares are registered securities (Reg D / Reg CF / Reg A+) |
+| Governance Instruments | MembershipCredentials are non-security governance instruments |
+| Revenue | Distributed via DAO-governed treasury |
+| Compliance | Trust charter enforces cooperative principles |
+| Ownership | Platform owned by members via $ARDA token |
 
 ### Trending System
 
@@ -1522,14 +1622,17 @@ lib/blockchain/
 | **Project Following** | ✅ Complete | `ArdaNova.Domain/Models/Entities/ProjectFollow.cs` |
 | **Guild Following** | ✅ Complete | `ArdaNova.Domain/Models/Entities/GuildFollow.cs` |
 | **Trending System** | ✅ Complete | Added to Project, Guild, Post entities |
+| **MembershipCredential Entity** | ✅ Complete | `ArdaNova.Domain/Models/Entities/MembershipCredential.cs` |
+| **MembershipCredential Enums** | ✅ Complete | `MembershipCredentialStatus`, `MembershipGrantType` |
+| **Dual-Asset Model Schema** | ✅ Complete | DBML updated with governance/economic separation |
 
 ### Database Schema Stats
 
 | Metric | Count |
 |--------|-------|
-| Total Entities | 70+ |
-| Total Enums | 45+ |
-| Schema Modules | 9 |
+| Total Entities | 75+ |
+| Total Enums | 48+ |
+| Schema Modules | 10 |
 | New Tables (Jan 2025) | 11 |
 | New Enums (Jan 2025) | 6 |
 
@@ -1578,5 +1681,5 @@ See [ROADMAP.md](./ROADMAP.md) for detailed timelines.
 
 ---
 
-**Last Updated**: January 2025
-**Version**: 4.3.0 (Membership Management, Events, Social Following, Trending System)
+**Last Updated**: February 2025
+**Version**: 5.0.0 (Dual-Asset Model, MembershipCredential, Cooperative Trust Structure)

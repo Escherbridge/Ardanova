@@ -43,6 +43,7 @@ export { GuildApplicationScalarFieldEnumSchema } from './GuildApplicationScalarF
 export { GuildReviewScalarFieldEnumSchema } from './GuildReviewScalarFieldEnumSchema';
 export { GuildUpdateScalarFieldEnumSchema } from './GuildUpdateScalarFieldEnumSchema';
 export { ProductScalarFieldEnumSchema } from './ProductScalarFieldEnumSchema';
+export { MembershipCredentialScalarFieldEnumSchema } from './MembershipCredentialScalarFieldEnumSchema';
 export { ProjectShareScalarFieldEnumSchema } from './ProjectShareScalarFieldEnumSchema';
 export { ProjectEquityScalarFieldEnumSchema } from './ProjectEquityScalarFieldEnumSchema';
 export { TreasuryScalarFieldEnumSchema } from './TreasuryScalarFieldEnumSchema';
@@ -131,6 +132,8 @@ export { FundraisingStatusSchema } from './FundraisingStatusSchema';
 export { ContributionStatusSchema } from './ContributionStatusSchema';
 export { WalletProviderSchema } from './WalletProviderSchema';
 export { SwapStatusSchema } from './SwapStatusSchema';
+export { MembershipCredentialStatusSchema } from './MembershipCredentialStatusSchema';
+export { MembershipGrantTypeSchema } from './MembershipGrantTypeSchema';
 export { PostTypeSchema } from './PostTypeSchema';
 export { PostVisibilitySchema } from './PostVisibilitySchema';
 export { MessageStatusSchema } from './MessageStatusSchema';

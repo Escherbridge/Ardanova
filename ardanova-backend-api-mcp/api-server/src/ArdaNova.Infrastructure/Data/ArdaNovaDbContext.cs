@@ -128,6 +128,8 @@ public class ArdaNovaDbContext : DbContext
     public DbSet<ShareSwap> ShareSwaps => Set<ShareSwap>();
     public DbSet<Feature> Features => Set<Feature>();
     public DbSet<OpportunityBid> OpportunityBids => Set<OpportunityBid>();
+    public DbSet<MembershipCredential> MembershipCredentials => Set<MembershipCredential>();
+
 
 
 

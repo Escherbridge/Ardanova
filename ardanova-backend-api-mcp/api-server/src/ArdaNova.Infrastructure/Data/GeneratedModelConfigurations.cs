@@ -12,6 +12,7 @@ public static class GeneratedModelConfigurations
     /// </summary>
     public static void ApplyGeneratedConfigurations(this ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<MembershipCredential>().HasIndex(e => new { e.projectId, e.userId }).IsUnique();
         modelBuilder.Entity<ConversationMember>().HasIndex(e => new { e.conversationId, e.userId }).IsUnique();
         modelBuilder.Entity<ChatMessage>().HasIndex(e => new { e.conversationId, e.sentAt });
         modelBuilder.Entity<OpportunityApplication>().HasIndex(e => new { e.opportunityId, e.applicantId }).IsUnique();

@@ -42,6 +42,7 @@
 14. [Cross-Cutting Concerns](#14-cross-cutting-concerns)
 15. [Navigation & Layout](#15-navigation--layout)
 16. [Edge Cases & Negative Testing](#16-edge-cases--negative-testing)
+17. [Dual-Asset Model & Membership Credentials](#17-dual-asset-model--membership-credentials)
 
 ---
 

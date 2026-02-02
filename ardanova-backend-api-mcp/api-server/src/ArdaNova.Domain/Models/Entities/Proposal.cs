@@ -65,4 +65,6 @@ public class Proposal
 
     public virtual ICollection<ProposalExecution> ProposalExecutions { get; set; } = new List<ProposalExecution>();
 
+    public virtual ICollection<MembershipCredential> MembershipCredentials { get; set; } = new List<MembershipCredential>();
+
 }

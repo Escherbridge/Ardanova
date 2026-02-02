@@ -90,6 +90,9 @@ enum NotificationType {
   COMMENT_REPLY
   MENTION
   FOLLOWER_NEW
+  MEMBERSHIP_GRANTED
+  MEMBERSHIP_REVOKED
+  MEMBERSHIP_SUSPENDED
   SYSTEM_ANNOUNCEMENT
   SECURITY_ALERT
 }
@@ -452,6 +455,20 @@ enum SwapStatus {
   CANCELLED
 }
 
+enum MembershipCredentialStatus {
+  ACTIVE
+  REVOKED
+  SUSPENDED
+}
+
+enum MembershipGrantType {
+  FOUNDER
+  DAO_VOTE
+  CONTRIBUTION_THRESHOLD
+  APPLICATION_APPROVED
+  GAME_SDK_THRESHOLD
+}
+
 enum PostType {
   POST
   PROJECT_UPDATE
@@ -648,6 +665,7 @@ model User {
   guildReviews GuildReview[] @relation("GuildReview_userId")
   guildUpdates GuildUpdate[] @relation("GuildUpdate_createdById")
   products Product[] @relation("Product_userId")
+  membershipCredentials MembershipCredential[] @relation("MembershipCredential_userId")
   projectEquities ProjectEquity[] @relation("ProjectEquity_userId")
   shareHolders ShareHolder[] @relation("ShareHolder_userId")
   fundraisingContributions FundraisingContribution[] @relation("FundraisingContribution_userId")
@@ -874,6 +892,7 @@ model Project {
   proposals Proposal[] @relation("Proposal_projectId")
   delegatedVotes DelegatedVote[] @relation("DelegatedVote_projectId")
   products Product[] @relation("Product_projectId")
+  membershipCredentials MembershipCredential[] @relation("MembershipCredential_projectId")
   projectShares ProjectShare[] @relation("ProjectShare_projectId")
   projectEquities ProjectEquity[] @relation("ProjectEquity_projectId")
   treasuries Treasury[] @relation("Treasury_projectId")
@@ -1183,6 +1202,7 @@ model Proposal {
   creator User @relation("Proposal_creatorId", fields: [creatorId], references: [id])
   votes Vote[] @relation("Vote_proposalId")
   proposalExecutions ProposalExecution[] @relation("ProposalExecution_proposalId")
+  membershipCredentials MembershipCredential[] @relation("MembershipCredential_grantedByProposalId")
 }
 
 model Vote {
@@ -1350,6 +1370,28 @@ model Product {
   userId String
   project Project @relation("Product_projectId", fields: [projectId], references: [id])
   user User @relation("Product_userId", fields: [userId], references: [id])
+}
+
+model MembershipCredential {
+  id String @id @default(cuid())
+  projectId String
+  userId String
+  assetId String?
+  status MembershipCredentialStatus @default(ACTIVE)
+  isTransferable Boolean @default(false)
+  grantedVia MembershipGrantType
+  grantedByProposalId String?
+  mintTxHash String?
+  revokeTxHash String?
+  mintedAt DateTime?
+  revokedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  project Project @relation("MembershipCredential_projectId", fields: [projectId], references: [id])
+  user User @relation("MembershipCredential_userId", fields: [userId], references: [id])
+  grantedByProposal Proposal? @relation("MembershipCredential_grantedByProposalId", fields: [grantedByProposalId], references: [id])
+
+  @@unique([projectId, userId])
 }
 
 model ProjectShare {

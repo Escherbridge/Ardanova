@@ -24,28 +24,36 @@
 - **Community Fundraising** - Launch project equity for fractional ownership
 - **Multi-Modal Funding** - Fund with capital, labor, resources, crypto, or social capital
 - **DAO-Governed Projects** - Transparent, participatory governance at every level
-- **Worker-Owned Cooperatives** - Every project becomes a tokenized cooperative
-- **Play-to-Earn Integration** - Earn project tokens through games and engagement
+- **Worker-Owned Cooperatives** - Every project becomes a member-governed cooperative
+- **Play-to-Earn Integration** - Earn ownership shares through games and engagement
 - **AI-Powered Generation** - Gamma API integration for instant pitch creation
 - **Game SDK** - Unity/Godot integration for gamified experiences
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    THE CIRCULAR ECONOMY MODEL                    │
+│                  THE DUAL-ASSET COOPERATIVE MODEL                 │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                  │
-│  ┌─────────────────────────────────────────────────────────┐    │
-│  │                                                          │    │
-│  │   CONTRIBUTORS ──► PROJECTS ──► TOKEN VALUE CREATION    │    │
-│  │        ▲                               │                 │    │
-│  │        │                               │                 │    │
-│  │        └──── OWNERSHIP (ASA TOKENS) ◄──┘                │    │
-│  │                                                          │    │
-│  └─────────────────────────────────────────────────────────┘    │
+│  GOVERNANCE (Voice)              ECONOMICS (Value)               │
+│  ┌───────────────────────┐      ┌───────────────────────┐       │
+│  │  Membership Credential │      │   Ownership Shares     │       │
+│  │  • Earned, not bought  │      │   • Earned or funded   │       │
+│  │  • Non-transferable    │      │   • Transferable       │       │
+│  │  • 1 member = 1 vote  │      │   • Proportional       │       │
+│  │  • Revocable by DAO   │      │     dividends          │       │
+│  └───────────┬───────────┘      └───────────┬───────────┘       │
+│              │                               │                   │
+│              └───────────┐   ┌───────────────┘                   │
+│                          ▼   ▼                                   │
+│               ┌──────────────────────┐                           │
+│               │ COOPERATIVE PROJECT  │                           │
+│               │  Contributors earn   │                           │
+│               │  both voice & value  │                           │
+│               └──────────────────────┘                           │
 │                                                                  │
 │  ┌─────────────────────────────────────────────────────────┐    │
 │  │                   PLAY-TO-EARN LAYER                     │    │
-│  │   GAMES ──► ENGAGEMENT ──► TOKENS ──► INVESTMENT/REDEEM │    │
+│  │   GAMES ──► ENGAGEMENT ──► SHARES ──► INVESTMENT/REDEEM │    │
 │  └─────────────────────────────────────────────────────────┘    │
 │                                                                  │
 └─────────────────────────────────────────────────────────────────┘
@@ -60,11 +68,11 @@ ArdaNova unifies project management with transparent ownership infrastructure:
 | Application Layer | Ownership Layer |
 |-----------|------------------------|
 | Project management & agile workflows | Secure ledger & Ownership Shares |
-| DAO governance & worker cooperatives | Community fundraising & fractional ownership |
-| Crowdfunding (labor, capital, resources) | Stable coin & token exchange |
+| Cooperative governance & worker cooperatives | Community fundraising & fractional ownership |
+| Crowdfunding (labor, capital, resources) | Stable coin & share exchange |
 | AI/MCP for project generation | Game SDK for Unity/Godot |
-| Gamma API for pitch creation | Play-to-earn token distribution |
-| Role-based permissions | Cross-project token investment |
+| Gamma API for pitch creation | Play-to-earn share distribution |
+| Role-based permissions | Cross-project share investment |
 
 ---
 
@@ -100,8 +108,8 @@ ArdaNova unifies project management with transparent ownership infrastructure:
 | **Cooperative Governance** | Transparent proposals, voting, treasury | Q3 2025 |
 | **Game SDK** | Unity/Godot C# SDK for play-to-earn | Q4 2025 |
 | **MCP Agent** | AI agent for project management with role-based access | Q4 2025 |
-| **Cross-ICO Investment** | Invest completed tokens into new projects | Q1 2026 |
-| **Platform Token** | $ARDA token, revenue sharing, meta-governance | Q2 2026 |
+| **Cross-Project Investment** | Invest completed shares into new projects | Q1 2026 |
+| **Platform Cooperative** | $ARDA shares, revenue sharing, meta-governance | Q2 2026 |
 
 See the full [Roadmap](./ROADMAP.md) for detailed plans.
 
@@ -266,13 +274,13 @@ Projects on ArdaNova follow a transparent lifecycle powered by our secure ledger
 │  └──────────────────────────────────────────────────────────┘   │
 │                              │                                   │
 │                              ▼                                   │
-│  PHASE 4: POST-ICO ECOSYSTEM                                    │
+│  PHASE 4: POST-FUNDING ECOSYSTEM                                 │
 │  ┌──────────────────────────────────────────────────────────┐   │
 │  │ • Shares circulate in ecosystem                          │   │
 │  │ • Cooperative governance active (proposals, voting)      │   │
 │  │ • Revenue sharing to share holders                       │   │
 │  │ • Cross-project investment opportunities                 │   │
-│  │ • Analytics track token performance                      │   │
+│  │ • Analytics track share performance                      │   │
 │  └──────────────────────────────────────────────────────────┘   │
 │                                                                  │
 └─────────────────────────────────────────────────────────────────┘
@@ -288,8 +296,8 @@ ArdaNova implements a comprehensive agile project management structure:
 ROADMAP
 └── Strategic vision and long-term goals
     │
-    └── ROLE STRUCTURE (DAO Roles)
-        └── Organizational hierarchy and token-weighted permissions
+    └── ROLE STRUCTURE (Cooperative Roles)
+        └── Organizational hierarchy and credential-gated permissions
             │
             └── EPICS
                 └── Large bodies of work
@@ -303,35 +311,47 @@ ROADMAP
                                     └── BACKLOG ITEMS
                                         └── Smaller work items
                                             │
-                                            └── TASKS (Token-Compensated)
+                                            └── TASKS (Share-Compensated)
                                                 └── Atomic units of work
 ```
 
 ### Role-Based Access Control
 
-| Role | Permissions | Voting Weight | Token Requirement |
-|------|-------------|---------------|-------------------|
-| **Founder** | Full access, veto rights | 3x | Initial allocation |
-| **Leader** | Roadmap, epics, treasury proposals | 2x | 5% of supply |
-| **Core Contributor** | Task management, proposals | 1.5x | 1% of supply |
-| **Contributor** | Task execution, voting | 1x | Any holding |
-| **Observer** | View only | 0x | None |
+| Role | Permissions | Governance Vote | Credential Requirement |
+|------|-------------|-----------------|------------------------|
+| **Founder** | Full access, emergency proposals | 1 vote | Membership Credential (auto-granted) |
+| **Leader** | Roadmap, epics, treasury proposals | 1 vote | Membership Credential |
+| **Core Contributor** | Task management, proposals | 1 vote | Membership Credential |
+| **Contributor** | Task execution, voting | 1 vote | Membership Credential |
+| **Observer** | View only | No vote | None (no credential) |
+
+> **Dual-Asset Model:** Governance rights (1 member = 1 vote) are separated from economic rights (ownership shares proportional to contribution). Membership Credentials are earned, non-transferable, and revocable by cooperative vote. See the [Whitepaper](./documentation/ARDA%20NOVA%20-%20Whitepaper.txt) for the full model.
 
 ---
 
-## Token Economics
+## Ownership Model
 
-### Project Equity (ASAs)
+ArdaNova separates governance rights from economic rights using a dual-asset model:
 
-Each project on ArdaNova can issue its own equity via Standard Assets:
+### Membership Credentials (Governance)
+
+Non-transferable credentials that grant cooperative voting rights:
+- **Earned, never bought** — granted via founding, contribution thresholds, DAO vote, or Game SDK
+- **1 member = 1 vote** — equal governance regardless of economic stake
+- **Revocable** — by cooperative vote (66% quorum, 75% approval)
+- **Soulbound** — cannot be transferred or sold
+
+### Ownership Shares (Economics)
+
+Fungible shares representing economic stake in a project:
 
 ```typescript
-interface ProjectEquityAllocation {
+interface ProjectShareAllocation {
   founders: 20;        // % to founding team (vested over 2 years)
   contributors: 30;    // % for task/bounty rewards
-  treasury: 20;        // % held by project DAO
+  treasury: 20;        // % held by project cooperative
   investors: 20;       // % for fundraising participants
-  community: 5;        // % for airdrops, engagement
+  community: 5;        // % for engagement rewards
   platform: 5;         // % to ArdaNova platform treasury
 }
 ```
@@ -339,7 +359,7 @@ interface ProjectEquityAllocation {
 ### Platform Digital Currency
 
 - Pegged to USDC/USDT for value stability
-- All project equity exchangeable with digital currency
+- All project shares exchangeable with digital currency
 - Provides liquidity for cross-project transactions
 - Managed by platform automated agreements
 
@@ -347,12 +367,12 @@ interface ProjectEquityAllocation {
 
 | Utility | Description |
 |---------|-------------|
-| **Governance** | Vote on project proposals (weight by holdings) |
-| **Revenue Share** | Receive dividends from project revenue |
+| **Governance** | Vote on project proposals (1 credential = 1 vote) |
+| **Revenue Share** | Receive dividends proportional to share holdings |
 | **Access** | Unlock premium features, early access |
-| **Staking** | Earn rewards by staking tokens |
+| **Staking** | Earn rewards by staking shares |
 | **Redemption** | Exchange for ownership, goods, or services |
-| **Cross-Investment** | Invest tokens into other projects |
+| **Cross-Investment** | Invest shares into other projects |
 
 ---
 
@@ -360,7 +380,7 @@ interface ProjectEquityAllocation {
 
 ### For Game Developers
 
-The ArdaNova Game SDK enables Unity and Godot developers to integrate blockchain tokens:
+The ArdaNova Game SDK enables Unity and Godot developers to integrate ownership shares:
 
 ```csharp
 // C# SDK Example (Unity)
@@ -413,19 +433,19 @@ public class TokenRewardSystem : MonoBehaviour
 │  ┌──────────────────────────────────────────────────────────┐   │
 │  │ 1. Register on ArdaNova platform → Get API credentials       │   │
 │  │ 2. Integrate Game SDK (Unity/Godot C#)                   │   │
-│  │ 3. Choose which project tokens to integrate               │   │
+│  │ 3. Choose which project shares to integrate               │   │
 │  │ 4. Implement reward triggers (achievements, wins, etc.)   │   │
-│  │ 5. Enable in-game token exchange                          │   │
+│  │ 5. Enable in-game share exchange                           │   │
 │  └──────────────────────────────────────────────────────────┘   │
 │                                                                  │
 │  PLAYER                                                          │
 │  ┌──────────────────────────────────────────────────────────┐   │
 │  │ 1. Link ArdaNova wallet to game                               │   │
-│  │ 2. Play games → Earn project tokens                       │   │
-│  │ 3. Exchange tokens in-game or on platform                 │   │
+│  │ 2. Play games → Earn ownership shares                      │   │
+│  │ 3. Exchange shares in-game or on platform                 │   │
 │  │ 4. View portfolio across all games in ArdaNova wallet         │   │
-│  │ 5. Invest earned tokens into new projects                 │   │
-│  │ 6. Redeem tokens for ownership or services                │   │
+│  │ 5. Invest earned shares into new projects                 │   │
+│  │ 6. Redeem shares for ownership or services                │   │
 │  └──────────────────────────────────────────────────────────┘   │
 │                                                                  │
 └─────────────────────────────────────────────────────────────────┘
@@ -433,24 +453,24 @@ public class TokenRewardSystem : MonoBehaviour
 
 ---
 
-## DAO Governance
+## Cooperative Governance
 
-### Project DAOs
+### Project Cooperatives
 
-Every project on ArdaNova operates as a Decentralized Autonomous Organization:
+Every project on ArdaNova operates as a member-governed cooperative:
 
-- **Token-weighted governance** - Voting power proportional to holdings
+- **Credential-gated governance** - 1 Membership Credential = 1 vote, regardless of economic stake
 - **Multi-stakeholder structure** - Founders, workers, and investors all have voice
 - **Proposal types** - Treasury, governance, strategic, operational, emergency
-- **Voting mechanisms** - Weighted, quadratic, conviction, delegation
-- **On-chain execution** - Proposals execute automatically via smart contracts
-- **Rage quit** - Members can exit with their fair share of treasury
+- **Voting mechanisms** - Equal-weight, quadratic, conviction, delegation
+- **Automated execution** - Proposals execute automatically via secure agreements
+- **Fair exit** - Members can exit with their fair share of treasury
 
 ### Crowdfunding Modalities
 
-| Mode | Description | Token Reward |
+| Mode | Description | Share Reward |
 |------|-------------|--------------|
-| **Financial** | Stable coin, ALGO, other tokens | Direct purchase |
+| **Financial** | Stable coin, ALGO, other shares | Direct purchase |
 | **Labor** | Time commitments, task completion | Task bounties |
 | **Resources** | Equipment, licenses, infrastructure | Negotiated |
 | **Gaming** | Play-to-earn engagement | Per achievement |
@@ -493,10 +513,10 @@ The Model Context Protocol server enables AI-assisted project management. The .N
 - `generate_pitch` - Create presentations via Gamma
 - `create_proposal` - Draft governance proposals
 - `analyze_progress` - Generate progress reports
-- `estimate_token_rewards` - Calculate task compensation
+- `estimate_share_rewards` - Calculate task compensation
 
 **Permissions**
-- All tools respect role-based and token-weighted access control
+- All tools respect role-based and credential-gated access control
 - Actions are audit-logged on-chain
 - Sensitive operations require multi-sig approval
 
@@ -571,13 +591,13 @@ ALGORAND_INDEXER_URL="https://testnet-idx.algonode.cloud"
 
 | Stream | Description |
 |--------|-------------|
-| **Transaction Fees** | % on all token exchanges and ICO transactions |
-| **ICO Launch Fees** | Fee for launching new project tokens |
-| **Platform Token** | 5% allocation from all project tokens |
+| **Transaction Fees** | % on all share exchanges and fundraising transactions |
+| **Fundraising Launch Fees** | Fee for launching new project share offerings |
+| **Platform Share** | 5% allocation from all project share issuances |
 | **SaaS Subscriptions** | Tiered plans for business tools |
 | **API Usage Fees** | Metered billing for Game SDK developers |
 | **Premium Features** | AI generation credits, advanced analytics |
-| **Ownership Facilitation** | Fees on fractional ownership redemptions |
+| **Credential Issuance** | Fees on membership credential issuance and verification |
 
 ### Revenue Distribution (Platform DAO)
 
@@ -592,12 +612,12 @@ ALGORAND_INDEXER_URL="https://testnet-idx.algonode.cloud"
 
 ## Target Audience
 
-- **Innovators** - Individuals with ideas seeking to launch tokenized projects
+- **Innovators** - Individuals with ideas seeking to launch cooperative projects
 - **Contributors** - Freelancers and professionals seeking ownership, not just wages
 - **Investors** - Backers looking for fractional ownership with governance rights
 - **Agencies** - Professional service providers seeking project opportunities
 - **SMEs** - Businesses needing affordable, localized digital tools
-- **Game Developers** - Studios wanting blockchain/play-to-earn integration
+- **Game Developers** - Studios wanting play-to-earn integration
 - **Players** - Gamers seeking to earn while playing
 - **Cooperatives** - Organizations aligned with worker-ownership principles
 
@@ -614,7 +634,7 @@ ArdaNova chose Algorand for its blockchain infrastructure:
 | **~$0.001 Fees** | Affordable for micro-transactions |
 | **Pure PoS** | Energy efficient, sustainable |
 | **No Forking** | Transaction certainty |
-| **Native ASAs** | Simple token creation |
+| **Native ASAs** | Simple asset creation |
 | **Atomic Txns** | Complex multi-step operations |
 | **State Proofs** | Cross-chain interoperability |
 
@@ -687,7 +707,7 @@ ArdaNova is built on the shoulders of giants:
 
 **Let's build the future of work together.**
 
-*Workers own what they build. Tokens flow to contributors. Governance is participatory. Games create value. Success is shared.*
+*Workers own what they build. Shares flow to contributors. Governance is one member, one vote. Games create value. Success is shared.*
 
 ---
 

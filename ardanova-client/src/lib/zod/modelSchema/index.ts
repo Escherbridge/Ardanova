@@ -42,6 +42,7 @@ export * from './GuildApplicationSchema';
 export * from './GuildReviewSchema';
 export * from './GuildUpdateSchema';
 export * from './ProductSchema';
+export * from './MembershipCredentialSchema';
 export * from './ProjectShareSchema';
 export * from './ProjectEquitySchema';
 export * from './TreasurySchema';

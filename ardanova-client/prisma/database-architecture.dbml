@@ -179,6 +179,9 @@ Enum NotificationType {
   COMMENT_REPLY
   MENTION
   FOLLOWER_NEW
+  MEMBERSHIP_GRANTED
+  MEMBERSHIP_REVOKED
+  MEMBERSHIP_SUSPENDED
   SYSTEM_ANNOUNCEMENT
   SECURITY_ALERT
 }
@@ -832,8 +835,8 @@ Table ProjectMember {
   projectId varchar [not null]
   userId varchar [not null]
   role ProjectRole [not null, default: 'OBSERVER']
-  shareBalance decimal [not null, default: 0]
-  votingPower decimal [not null, default: 0]
+  shareBalance decimal [not null, default: 0, note: 'Economic rights - proportional to holdings']
+  votingPower decimal [not null, default: 0, note: 'Governance rights - binary (0 or 1), derived from MembershipCredential ownership']
   joinedAt datetime [not null, default: `now()`]
   invitedById varchar
 }
@@ -1138,6 +1141,57 @@ Enum SwapStatus {
   CANCELLED
 }
 
+Enum MembershipCredentialStatus {
+  ACTIVE
+  REVOKED
+  SUSPENDED
+}
+
+Enum MembershipGrantType {
+  FOUNDER
+  DAO_VOTE
+  CONTRIBUTION_THRESHOLD
+  APPLICATION_APPROVED
+  GAME_SDK_THRESHOLD
+}
+
+// =================================================================================================
+// 6a. Dual-Asset Model: Governance (MembershipCredential) + Economic (ProjectShare)
+//
+// MembershipCredential = Governance rights (soulbound ASA, non-transferable, one-member-one-vote)
+// ProjectShare  = Economic rights (fungible, transferable, proportional to holdings)
+//
+// A member's VOTE is always equal (1 credential = 1 vote, regardless of share balance).
+// A member's DIVIDEND is proportional to their share holdings.
+// Membership cannot be purchased — only earned through contribution, approval, or DAO vote.
+// =================================================================================================
+
+Table MembershipCredential {
+  id varchar [not null, pk, default: `cuid()`]
+  projectId varchar [not null]
+  userId varchar [not null]
+  assetId varchar [note: 'Algorand ASA ID for this soulbound credential']
+  status MembershipCredentialStatus [not null, default: 'ACTIVE']
+  isTransferable boolean [not null, default: false, note: 'Soulbound by default - non-transferable']
+  grantedVia MembershipGrantType [not null]
+  grantedByProposalId varchar [note: 'Populated if membership was granted via DAO vote']
+  mintTxHash varchar
+  revokeTxHash varchar
+  mintedAt datetime
+  revokedAt datetime
+  createdAt datetime [not null, default: `now()`]
+  updatedAt datetime [not null, note: 'Updated at']
+
+  indexes {
+    (projectId, userId) [unique, note: 'One membership credential per user per project']
+  }
+}
+Ref: MembershipCredential.projectId > Project.id
+Ref: MembershipCredential.userId > User.id
+Ref: MembershipCredential.grantedByProposalId > Proposal.id
+
+// ProjectShare represents ECONOMIC rights only — ownership stakes with proportional dividends.
+// Governance voting power is NOT derived from share balance; it comes from MembershipCredential.
 Table ProjectShare {
   id varchar [not null, pk, default: `cuid()`]
   projectId varchar [not null, unique]

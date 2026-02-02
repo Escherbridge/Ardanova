@@ -154,6 +154,8 @@ public class Project
 
     public virtual ICollection<Product> Products { get; set; } = new List<Product>();
 
+    public virtual ICollection<MembershipCredential> MembershipCredentials { get; set; } = new List<MembershipCredential>();
+
     public virtual ICollection<ProjectShare> ProjectShares { get; set; } = new List<ProjectShare>();
 
     public virtual ICollection<ProjectEquity> ProjectEquities { get; set; } = new List<ProjectEquity>();

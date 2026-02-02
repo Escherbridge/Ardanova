@@ -28,7 +28,7 @@ public class ProjectTask
     public string? description { get; set; }
 
     [Required]
-    public Enums.TaskStatus status { get; set; }
+    public ArdaNova.Domain.Models.Enums.TaskStatus status { get; set; }
 
     [Required]
     public TaskPriority priority { get; set; }

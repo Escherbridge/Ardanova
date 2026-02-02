@@ -129,6 +129,8 @@ public class User
 
     public virtual ICollection<Product> Products { get; set; } = new List<Product>();
 
+    public virtual ICollection<MembershipCredential> MembershipCredentials { get; set; } = new List<MembershipCredential>();
+
     public virtual ICollection<ProjectEquity> ProjectEquities { get; set; } = new List<ProjectEquity>();
 
     public virtual ICollection<ShareHolder> ShareHolders { get; set; } = new List<ShareHolder>();

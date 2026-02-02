@@ -49,8 +49,26 @@ HOW IT WORKS
 
 4. Workplace Democracy
    You shouldn't have to check your rights at the door when you start work. ArdaNova cooperatives are democracies. one member, one vote.
-   
+
    Major decisions—how to spend the budget, who leads the project, how to handle growth—are decided by the people doing the work. We use secure, transparent technology to make sure every voice counts and every vote is counted fairly.
+
+5. The Ownership Model: Voice and Value
+   ArdaNova separates your voice from your financial stake—and that is by design.
+
+   Membership is earned, never bought. When you contribute meaningfully to a project—through work, through sustained participation, or through a vote of the existing members—you receive a verified membership credential. That credential gives you one vote, equal to every other member, regardless of how much money anyone has put in. Your membership cannot be sold or transferred. It is yours because you earned it.
+
+   Ownership shares represent your economic stake—the financial value of what you helped build. You earn shares through your labor, through community fundraising, or through participation in the project's ecosystem (including games built on the platform). When the project generates revenue, your shares determine your portion of the profits.
+
+   Why separate the two?
+
+   Because history has shown that when money buys votes, the wealthy rule. In a traditional company, if someone owns 51% of the stock, they control everything. That is not democracy—it is plutocracy with extra steps.
+
+   In an ArdaNova cooperative:
+   - A member who invested $10,000 gets one vote.
+   - A member who earned shares through six months of work gets one vote.
+   - A member who reached the contribution threshold through playing a game built on the platform gets one vote.
+
+   All voices are equal. Economic returns are proportional to contribution. That is the difference between a corporation and a cooperative.
 
 THE TECHNOLOGY (A PUBLIC LEDGER)
 
@@ -62,6 +80,17 @@ Why? Because transparency is the best disinfectant.
 - No hidden ownership structures.
 
 Everyone can see the rules, and everyone plays by the same ones. We use modern, energy-efficient technology because we believe we have a moral obligation to protect our planet while we build a fairer economy.
+
+THE COOPERATIVE TRUST
+
+ArdaNova is structured as a cooperative trust—a legal entity designed to serve its members, not outside shareholders. This means:
+
+- The platform is owned by the people who use it.
+- Revenue flows back to contributors, not to venture capitalists.
+- Ownership shares issued on the platform are treated as what they are: real securities, with real rights and real protections under the law.
+- The trust structure ensures compliance with securities regulation while preserving the cooperative's democratic values.
+
+We do not hide behind jargon or legal loopholes. Your ownership is legitimate, auditable, and legally protected.
 
 WHO IS THIS FOR?
 

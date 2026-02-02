@@ -21,25 +21,48 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                  THE TOKENIZED CIRCULAR ECONOMY                 │
+│              THE DUAL-ASSET COOPERATIVE ECONOMY                  │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│    CONTRIBUTORS ──────► PROJECTS ──────► VALUE CREATION         │
-│         ▲                                      │                │
-│         │                                      │                │
-│         └──────── OWNERSHIP (ASA SHARES) ◄─────┘                │
-│                                                                 │
-│    PLAYERS ─────► GAMES ─────► ENGAGEMENT ─────► TOKENS         │
-│         ▲                                           │           │
-│         │                                           │           │
-│         └──────── INVEST / REDEEM / EXCHANGE ◄─────┘            │
-│                                                                 │
-│  • Workers earn ownership, not just wages                       │
-│  • Supporters become equity stakeholders                        │
-│  • Projects become digital cooperatives                         │
-│  • Platform is governed by $ARDA holders                        │
-│  • Games distribute value through play-to-earn                  │
-│                                                                 │
+│                                                                  │
+│  DUAL-ASSET MODEL:                                               │
+│  ┌───────────────────────┐    ┌───────────────────────┐          │
+│  │   MEMBERSHIP          │    │   PROJECT SHARES      │          │
+│  │   CREDENTIAL          │    │   (Economic)          │          │
+│  │   (Governance)        │    │                       │          │
+│  ├───────────────────────┤    ├───────────────────────┤          │
+│  │ • Soulbound / Non-    │    │ • Fungible ASA tokens │          │
+│  │   transferable        │    │ • Transferable        │          │
+│  │ • 1 member = 1 vote   │    │ • Proportional to     │          │
+│  │ • Earned, never bought│    │   contribution        │          │
+│  │ • Revocable by DAO    │    │ • Revenue dividends   │          │
+│  └───────────────────────┘    └───────────────────────┘          │
+│                                                                  │
+│  HOW MEMBERSHIP IS EARNED:                                       │
+│  • Founder grant (project creation)                              │
+│  • DAO vote (existing members approve)                           │
+│  • Contribution threshold (sustained task completion)            │
+│  • Application approved (membership request accepted)            │
+│  • Game SDK threshold (play-to-earn participation level)         │
+│                                                                  │
+│  CIRCULAR VALUE FLOW:                                            │
+│  CONTRIBUTORS ──────► PROJECTS ──────► VALUE CREATION            │
+│       ▲                                      │                   │
+│       │                                      │                   │
+│       └──────── SHARES (Economic) ◄──────────┘                   │
+│       └──────── CREDENTIAL (Governance) ◄────┘                   │
+│                                                                  │
+│  PLAYERS ─────► GAMES ─────► ENGAGEMENT ─────► SHARES + CREDENTIAL │
+│       ▲                                           │              │
+│       │                                           │              │
+│       └──────── INVEST / REDEEM / EXCHANGE ◄─────┘               │
+│                                                                  │
+│  • Workers earn ownership, not just wages                        │
+│  • Supporters become equity stakeholders                         │
+│  • Membership grants equal governance regardless of investment   │
+│  • Projects become digital cooperatives                          │
+│  • Platform is governed by $ARDA holders                         │
+│  • Games distribute value through play-to-earn                   │
+│                                                                  │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -469,13 +492,13 @@ interface ASAToken {
 
 ```typescript
 interface ProjectTokenConfig {
-  // Basic token info
+  // Basic token info (economic rights - fungible ASA)
   name: string;
   symbol: string;
   totalSupply: bigint;
   decimals: number;  // Usually 6 on Algorand
 
-  // Allocation percentages
+  // Allocation percentages (economic shares only)
   allocation: {
     founders: number;      // 20% - vested over 2 years
     contributors: number;  // 30% - task rewards pool
@@ -499,13 +522,41 @@ interface ProjectTokenConfig {
     };
   };
 
-  // Utility configuration
+  // Economic utility (shares grant these rights)
   utility: {
-    governance: true;      // Voting rights
-    revenue: true;         // Revenue sharing
+    revenue: true;         // Revenue sharing (proportional to holdings)
     access: true;          // Feature access
     staking: true;         // Staking rewards
     redemption: true;      // Redeem for goods/services
+  };
+}
+
+// Governance rights come from MembershipCredential, NOT from token holdings
+interface MembershipCredentialConfig {
+  // Soulbound credential per project (non-transferable)
+  isTransferable: false;
+
+  // How membership is earned (not purchased)
+  grantMethods: {
+    founder: true;                    // Auto-granted to project creator
+    daoVote: true;                    // Existing members vote to grant
+    contributionThreshold: true;      // Earned after sustained contribution
+    applicationApproved: true;        // Membership request accepted by project
+    gameSdkThreshold: true;           // Play-to-earn participation level
+  };
+
+  // Governance rights (equal for all members)
+  governance: {
+    votingWeight: 1;                  // Always 1 — one member, one vote
+    proposalCreation: true;           // Members can create proposals
+    delegationAllowed: true;          // Can delegate vote to another member
+  };
+
+  // Revocation (requires DAO vote)
+  revocation: {
+    requiresProposal: true;
+    quorumThreshold: 0.66;           // 66% of members must vote
+    passThreshold: 0.75;             // 75% must approve revocation
   };
 }
 ```
@@ -629,9 +680,13 @@ interface StableCoinConfig {
 │  ├─────────────┤   ├─────────────┤   ├─────────────┤           │
 │  │ • Vision    │   │ • Execute   │   │ • Fund      │           │
 │  │ • Strategy  │   │ • Build     │   │ • Advise    │           │
-│  │ • Veto      │   │ • Maintain  │   │ • Network   │           │
-│  │ • 3x vote   │   │ • 1-1.5x    │   │ • 1x vote   │           │
+│  │ • Veto*     │   │ • Maintain  │   │ • Network   │           │
+│  │ • 1 vote    │   │ • 1 vote    │   │ • 1 vote**  │           │
 │  └─────────────┘   └─────────────┘   └─────────────┘           │
+│                                                                  │
+│  * Founder veto requires DAO proposal to override               │
+│  ** Investors get governance vote ONLY if they hold a            │
+│     MembershipCredential (earned via contribution, not purchase) │
 │                                                                  │
 │  ┌─────────────────────────────────────────────────────────┐    │
 │  │                      PROPOSAL TYPES                      │    │
@@ -647,12 +702,13 @@ interface StableCoinConfig {
 │  ┌─────────────────────────────────────────────────────────┐    │
 │  │                    VOTING MECHANISMS                     │    │
 │  ├─────────────────────────────────────────────────────────┤    │
-│  │ • Token-weighted voting (proportional to holdings)      │    │
+│  │ • Credential-gated voting (1 MembershipCredential = 1 vote) │    │
 │  │ • Quadratic voting (for community decisions)            │    │
 │  │ • Conviction voting (for continuous proposals)          │    │
-│  │ • Delegation (vote on behalf of others)                 │    │
+│  │ • Delegation (delegate credential vote to another member) │    │
 │  │ • Rage quit (exit with fair share if disagree)          │    │
 │  │ • On-chain execution via Algorand smart contracts       │    │
+│  │ • Economic votes: share-weighted (for dividend policy)  │    │
 │  └─────────────────────────────────────────────────────────┘    │
 │                                                                  │
 └─────────────────────────────────────────────────────────────────┘
@@ -697,17 +753,18 @@ class GovernanceContract:
     def cast_vote(self):
         """
         Cast vote on proposal
-        Weight = token balance * role multiplier
+        Weight = 1 if voter holds MembershipCredential, 0 otherwise
+        Economic proposals may use share-weighted voting
         """
         proposal_id = Btoi(Txn.application_args[1])
         vote_choice = Btoi(Txn.application_args[2])
 
         return Seq([
-            # Get voter's token balance
-            voter_balance := self.get_token_balance(Txn.sender()),
+            # Verify voter holds MembershipCredential (soulbound governance credential)
+            Assert(self.has_membership_credential(Txn.sender())),
 
-            # Calculate voting power
-            voting_power := voter_balance * self.get_role_multiplier(Txn.sender()),
+            # Governance voting power is always 1 (one member, one vote)
+            voting_power := Int(1),
 
             # Record vote
             App.localPut(
@@ -1205,6 +1262,18 @@ const agentCommands = {
 │  └─────────────────────────────────────────────────────────┘    │
 │                                                                  │
 │  ┌─────────────────────────────────────────────────────────┐    │
+│  │              COOPERATIVE TRUST STRUCTURE                 │    │
+│  ├─────────────────────────────────────────────────────────┤    │
+│  │ • Platform operated as a cooperative trust entity        │    │
+│  │ • Pass-through taxation (no double taxation)            │    │
+│  │ • Project shares are registered securities              │    │
+│  │ • Regulatory compliance: Reg D / Reg CF / Reg A+       │    │
+│  │ • MembershipCredentials are non-security governance instruments │    │
+│  │ • Trust charter enforces cooperative principles         │    │
+│  │ • Revenue distribution governed by $ARDA DAO            │    │
+│  └─────────────────────────────────────────────────────────┘    │
+│                                                                  │
+│  ┌─────────────────────────────────────────────────────────┐    │
 │  │                GOVERNANCE STRUCTURE                      │    │
 │  ├─────────────────────────────────────────────────────────┤    │
 │  │                                                          │    │
@@ -1427,11 +1496,12 @@ const agentCommands = {
 
 ArdaNova is building the infrastructure for a new economic paradigm—one where:
 
-- **Workers own what they build** (tokenized equity)
+- **Workers own what they build** (tokenized equity shares)
 - **Capital follows contribution** (ICO + task rewards)
-- **Governance is participatory** (on-chain DAO)
-- **Games create value** (play-to-earn)
-- **Success is shared** (revenue distribution)
+- **Governance is truly democratic** (MembershipCredential = one member, one vote)
+- **Economic rights are proportional** (shares reflect contribution)
+- **Games create value** (play-to-earn shares + membership)
+- **Success is shared** (revenue distribution via cooperative trust)
 
 Join us in building the future of work.
 
