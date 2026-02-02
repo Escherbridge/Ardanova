@@ -25,6 +25,7 @@ export function UpdatesTab({ guildId, isOwner }: UpdatesTabProps) {
   // Mutation for creating update with optimistic updates
   const createMutation = api.guild.createUpdate.useMutation({
     onMutate: async (newUpdate) => {
+      if (!newUpdate) return;
       await utils.guild.getUpdates.cancel({ guildId });
       const previous = utils.guild.getUpdates.getData({ guildId });
 
@@ -61,6 +62,7 @@ export function UpdatesTab({ guildId, isOwner }: UpdatesTabProps) {
   // Mutation for deleting update with optimistic updates
   const deleteMutation = api.guild.deleteUpdate.useMutation({
     onMutate: async (variables) => {
+      if (!variables) return;
       await utils.guild.getUpdates.cancel({ guildId });
       const previous = utils.guild.getUpdates.getData({ guildId });
 
@@ -261,15 +263,15 @@ export function UpdatesTab({ guildId, isOwner }: UpdatesTabProps) {
               <CardContent className="pt-6">
                 <div className="flex items-start gap-4">
                   <Avatar className="h-10 w-10">
-                    <AvatarImage src={update.user?.image} alt={update.user?.name} />
-                    <AvatarFallback>{getInitials(update.user?.name)}</AvatarFallback>
+                    <AvatarImage src={(update as any).user?.image} alt={(update as any).user?.name} />
+                    <AvatarFallback>{getInitials((update as any).user?.name)}</AvatarFallback>
                   </Avatar>
                   <div className="flex-1 space-y-2">
                     <div className="flex items-start justify-between gap-2">
                       <div>
                         <h3 className="font-semibold">{update.title}</h3>
                         <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                          <span>{update.user?.name ?? "Unknown User"}</span>
+                          <span>{(update as any).user?.name ?? "Unknown User"}</span>
                           <span>•</span>
                           <span>{formatDate(update.createdAt)}</span>
                         </div>

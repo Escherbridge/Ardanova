@@ -281,7 +281,9 @@ const buildBidirectionalFKs = (schema: Schema): BidirectionalFK[] => {
 const generateCSharp = async () => {
     console.log(`Reading DBML from ${DBML_PATH}...`);
     const dbml = fs.readFileSync(DBML_PATH, 'utf-8').replace(/^\uFEFF/, '');
-    const database = Parser.parse(dbml, 'dbml');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment
+    const database = Parser.parse(dbml, 'dbml') as any;
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
     const schema: Schema = database.schemas[0];
 
     // Build multi-FK map for [InverseProperty] generation

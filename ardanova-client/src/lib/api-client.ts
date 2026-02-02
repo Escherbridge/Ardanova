@@ -19,10 +19,4 @@ export {
   type Project,
   type CreateProjectDto,
   type UpdateProjectDto,
-  type Agency,
-  type CreateAgencyDto,
-  type UpdateAgencyDto,
-  type Business,
-  type CreateBusinessDto,
-  type UpdateBusinessDto,
 } from "./api";

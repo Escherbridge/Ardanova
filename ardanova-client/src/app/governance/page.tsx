@@ -222,8 +222,8 @@ export default function GovernancePage() {
   // Fetch proposals from API with debounced search
   const { data: proposalsResult, isLoading } = api.governance.getAll.useQuery({
     search: debouncedSearch || undefined,
-    type: selectedType !== "all" ? selectedType : undefined,
-    status: selectedStatus !== "all" ? selectedStatus : undefined,
+    type: selectedType !== "all" ? (selectedType as "Treasury" | "Governance" | "Strategic" | "Operational" | "Emergency" | "Constitutional" | "Token") : undefined,
+    status: selectedStatus !== "all" ? (selectedStatus as "Draft" | "Active" | "Passed" | "Rejected" | "Executed" | "Expired") : undefined,
     limit: 50,
     page: 1,
   });
@@ -712,7 +712,7 @@ export default function GovernancePage() {
                             </div>
                             <Progress
                               value={option.percentage}
-                              variant={option.label === "For" ? "neon-green" : option.label === "Against" ? "destructive" : "secondary"}
+                              variant={option.label === "For" ? "success" : option.label === "Against" ? "warning" : "default"}
                               className="h-2"
                             />
                           </div>

@@ -23,7 +23,7 @@ const pageVariants = {
 };
 
 const pageTransition = {
-  type: "tween",
+  type: "tween" as const,
   ease: "easeInOut",
   duration: 0.2,
 };
@@ -39,7 +39,7 @@ export function PageTransition({ children }: PageTransitionProps) {
         animate="in"
         exit="out"
         variants={pageVariants}
-        transition={pageTransition}
+        transition={pageTransition as any}
       >
         {children}
       </motion.div>

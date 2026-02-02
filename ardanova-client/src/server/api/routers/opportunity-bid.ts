@@ -97,8 +97,14 @@ export const opportunityBidRouter = createTRPCRouter({
       }
 
       const response = await apiClient.opportunityBids.create({
-        ...input,
+        opportunityId: input.opportunityId,
         bidderId: userId,
+        guildId: input.guildId,
+        proposedAmount: input.proposedAmount,
+        proposal: input.proposal,
+        estimatedHours: input.estimatedHours,
+        timeline: input.timeline,
+        deliverables: input.deliverables,
       });
 
       if (response.error || !response.data) {

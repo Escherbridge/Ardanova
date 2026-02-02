@@ -44,6 +44,7 @@ export function ReviewsTab({ guildId, isOwner, currentUserId }: ReviewsTabProps)
   // Mutation for creating review
   const createReviewMutation = api.guild.createReview.useMutation({
     onMutate: async (newReview) => {
+      if (!newReview) return;
       await utils.guild.getReviews.cancel({ guildId });
       const previous = utils.guild.getReviews.getData({ guildId });
 
@@ -81,6 +82,7 @@ export function ReviewsTab({ guildId, isOwner, currentUserId }: ReviewsTabProps)
   // Mutation for deleting review
   const deleteReviewMutation = api.guild.deleteReview.useMutation({
     onMutate: async (variables) => {
+      if (!variables) return;
       await utils.guild.getReviews.cancel({ guildId });
       const previous = utils.guild.getReviews.getData({ guildId });
 

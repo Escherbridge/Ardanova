@@ -12,6 +12,7 @@ import { EpicsEndpoint } from "./endpoints/epics";
 import { BacklogEndpoint } from "./endpoints/backlog";
 import { FeaturesEndpoint } from "./endpoints/features";
 import { OpportunityBidsEndpoint } from "./endpoints/opportunity-bids";
+import { MembershipCredentialsEndpoint } from "./endpoints/membership-credentials";
 import { ProductsEndpoint } from "./endpoints/products";
 import { ChatEndpoint } from "./endpoints/chat";
 import { EnumsEndpoint } from "./endpoints/enums";
@@ -56,7 +57,6 @@ export type {
   GuildReview,
   CreateGuildReviewDto,
   UpdateGuildReviewDto,
-  BidStatus,
 } from "./endpoints/guilds";
 export type { Task, TaskUser, TaskProject, CreateTaskDto, UpdateTaskDto, SearchTasksParams } from "./endpoints/tasks";
 export type { Event, EventOrganizer, EventAttendee, CreateEventDto, UpdateEventDto, RegisterEventDto, SearchEventsParams } from "./endpoints/events";
@@ -101,6 +101,14 @@ export type {
   CreateOpportunityBid,
   UpdateOpportunityBid,
 } from "./endpoints/opportunity-bids";
+export type {
+  MembershipCredential,
+  MembershipCredentialStatus,
+  MembershipGrantType,
+  GrantMembershipCredentialDto,
+  RevokeMembershipCredentialDto,
+  UpdateMembershipCredentialMintDto,
+} from "./endpoints/membership-credentials";
 export type {
   ChatConversation,
   ChatParticipant,
@@ -148,6 +156,7 @@ export class ArdaNovaApiClient extends BaseApiClient {
   readonly features: FeaturesEndpoint;
   readonly products: ProductsEndpoint;
   readonly opportunityBids: OpportunityBidsEndpoint;
+  readonly membershipCredentials: MembershipCredentialsEndpoint;
   readonly chat: ChatEndpoint;
   readonly enums: EnumsEndpoint;
 
@@ -166,6 +175,7 @@ export class ArdaNovaApiClient extends BaseApiClient {
     this.features = new FeaturesEndpoint(this);
     this.products = new ProductsEndpoint(this);
     this.opportunityBids = new OpportunityBidsEndpoint(this);
+    this.membershipCredentials = new MembershipCredentialsEndpoint(this);
     this.chat = new ChatEndpoint(this);
     this.enums = new EnumsEndpoint(this);
   }

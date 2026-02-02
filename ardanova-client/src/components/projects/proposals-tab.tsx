@@ -72,7 +72,9 @@ export default function ProposalsTab({ projectId, isOwner, isMember, selectedPro
   });
 
   const voteMutation = api.project.castVote.useMutation({
-    onMutate: async ({ proposalId, choice }) => {
+    onMutate: async (variables) => {
+      if (!variables) return;
+      const { proposalId, choice } = variables;
       await utils.project.getProposals.cancel({ projectId });
       const previous = utils.project.getProposals.getData({ projectId });
       utils.project.getProposals.setData({ projectId }, (old) =>

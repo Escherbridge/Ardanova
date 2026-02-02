@@ -124,7 +124,9 @@ export default function TeamTab({ projectId, isOwner }: TeamTabProps) {
   });
 
   const reviewMutation = api.project.reviewApplication.useMutation({
-    onMutate: async ({ applicationId, status }) => {
+    onMutate: async (variables) => {
+      if (!variables) return;
+      const { applicationId, status } = variables;
       await utils.project.getApplications.cancel({ projectId });
       const previous = utils.project.getApplications.getData({ projectId });
       utils.project.getApplications.setData({ projectId }, (old) =>
@@ -205,7 +207,7 @@ export default function TeamTab({ projectId, isOwner }: TeamTabProps) {
             </div>
           ) : (
             <div className="space-y-3">
-              {members.map((member: Member) => (
+              {members.map((member: any) => (
                 <div
                   key={member.id}
                   className="flex items-center justify-between p-4 border border-border rounded hover:bg-muted/50 transition-colors"
@@ -285,7 +287,7 @@ export default function TeamTab({ projectId, isOwner }: TeamTabProps) {
             ) : (
               // Fallback: show default roles when no opportunities defined
               DEFAULT_ROLES.map((role) => {
-                const filledMembers = members?.filter((m: Member) => m.role === role.id) ?? [];
+                const filledMembers = members?.filter((m: any) => m.role === role.id) ?? [];
                 const isFilled = filledMembers.length > 0;
 
                 return (
@@ -309,7 +311,7 @@ export default function TeamTab({ projectId, isOwner }: TeamTabProps) {
                     <div className="ml-4">
                       {isFilled ? (
                         <div className="flex -space-x-2">
-                          {filledMembers.slice(0, 3).map((m: Member) => (
+                          {filledMembers.slice(0, 3).map((m: any) => (
                             <Avatar key={m.id} className="size-8 border-2 border-background">
                               <AvatarImage src={m.user?.image ?? undefined} />
                               <AvatarFallback className="text-xs">
@@ -459,7 +461,7 @@ export default function TeamTab({ projectId, isOwner }: TeamTabProps) {
               </div>
             ) : (
               <div className="space-y-4">
-                {pendingApplications.map((application: Application) => (
+                {pendingApplications.map((application: any) => (
                   <div
                     key={application.id}
                     className="p-4 border border-border rounded space-y-3"

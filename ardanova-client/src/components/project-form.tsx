@@ -92,7 +92,7 @@ export function ProjectForm({ mode = "create", project }: ProjectFormProps) {
           approach: project.solution, // Using solution as approach for now
           expectedOutcome: project.expectedImpact || "",
         },
-        categories: project.categories ? project.categories : project.category ? [project.category] : [],
+        categories: project.categories ? project.categories : [],
         otherCategory: "",
         difficulty: "Intermediate", // Default value
         estimatedDuration: project.timeline || "",

@@ -142,7 +142,7 @@ export default function TasksPage() {
               </div>
               <Progress
                 value={(taskStats.completed / taskStats.total) * 100}
-                variant="neon-green"
+                variant="success"
                 className="mt-2 h-1"
               />
             </CardContent>

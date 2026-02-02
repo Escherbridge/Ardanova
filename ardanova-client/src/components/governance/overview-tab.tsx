@@ -134,7 +134,7 @@ export default function OverviewTab({ proposal, isCreator }: OverviewTabProps) {
             </div>
             <Progress
               value={Math.min(currentQuorum, 100)}
-              variant={currentQuorum >= proposal.quorum ? "neon-green" : "neon"}
+              variant={currentQuorum >= proposal.quorum ? "success" : "neon"}
             />
           </div>
 
@@ -155,7 +155,7 @@ export default function OverviewTab({ proposal, isCreator }: OverviewTabProps) {
                 </div>
                 <Progress
                   value={option.percentage}
-                  variant={option.label === "For" ? "neon-green" : option.label === "Against" ? "destructive" : "secondary"}
+                  variant={option.label === "For" ? "success" : option.label === "Against" ? "warning" : "default"}
                   className="h-3"
                 />
               </div>

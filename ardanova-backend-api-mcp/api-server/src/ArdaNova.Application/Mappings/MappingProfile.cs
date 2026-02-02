@@ -302,9 +302,27 @@ public class MappingProfile : Profile
         // Governance mappings
         CreateMap<DelegatedVote, DelegatedVoteDto>();
 
+        // Membership Credential mappings
+        CreateMap<MembershipCredential, MembershipCredentialDto>()
+            .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.id))
+            .ForMember(dest => dest.ProjectId, opt => opt.MapFrom(src => src.projectId))
+            .ForMember(dest => dest.UserId, opt => opt.MapFrom(src => src.userId))
+            .ForMember(dest => dest.AssetId, opt => opt.MapFrom(src => src.assetId))
+            .ForMember(dest => dest.Status, opt => opt.MapFrom(src => src.status.ToString()))
+            .ForMember(dest => dest.IsTransferable, opt => opt.MapFrom(src => src.isTransferable))
+            .ForMember(dest => dest.GrantedVia, opt => opt.MapFrom(src => src.grantedVia.ToString()))
+            .ForMember(dest => dest.GrantedByProposalId, opt => opt.MapFrom(src => src.grantedByProposalId))
+            .ForMember(dest => dest.MintTxHash, opt => opt.MapFrom(src => src.mintTxHash))
+            .ForMember(dest => dest.RevokeTxHash, opt => opt.MapFrom(src => src.revokeTxHash))
+            .ForMember(dest => dest.MintedAt, opt => opt.MapFrom(src => src.mintedAt))
+            .ForMember(dest => dest.RevokedAt, opt => opt.MapFrom(src => src.revokedAt))
+            .ForMember(dest => dest.CreatedAt, opt => opt.MapFrom(src => src.createdAt))
+            .ForMember(dest => dest.UpdatedAt, opt => opt.MapFrom(src => src.updatedAt));
+
         // Exchange mappings
-        CreateMap<LiquidityPool, LiquidityPoolDto>();
-        CreateMap<LiquidityProvider, LiquidityProviderDto>();
+        // TODO: LiquidityPool/LiquidityProvider DTOs not yet implemented
+        // CreateMap<LiquidityPool, LiquidityPoolDto>();
+        // CreateMap<LiquidityProvider, LiquidityProviderDto>();
 
         // Attachment mappings
         CreateMap<Attachment, AttachmentDto>()

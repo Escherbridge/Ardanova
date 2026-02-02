@@ -26,6 +26,7 @@ export default function UpdatesTab({ opportunityId, isOwner }: UpdatesTabProps) 
   // Mutation for creating update with optimistic updates
   const createMutation = api.opportunity.createUpdate.useMutation({
     onMutate: async (newUpdate) => {
+      if (!newUpdate) return;
       setFeedback(null);
       // Cancel any outgoing refetches to prevent overwriting optimistic update
       await utils.opportunity.getUpdates.cancel({ opportunityId });
@@ -75,6 +76,7 @@ export default function UpdatesTab({ opportunityId, isOwner }: UpdatesTabProps) 
   // Mutation for deleting update with optimistic updates
   const deleteMutation = api.opportunity.deleteUpdate.useMutation({
     onMutate: async (variables) => {
+      if (!variables) return;
       setFeedback(null);
       await utils.opportunity.getUpdates.cancel({ opportunityId });
       const previous = utils.opportunity.getUpdates.getData({ opportunityId });

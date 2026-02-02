@@ -50,7 +50,8 @@ export function TRPCReactProvider(props: { children: React.ReactNode }) {
             (op.direction === "down" && op.result instanceof Error),
         }),
         httpBatchStreamLink({
-          transformer: SuperJSON,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          transformer: SuperJSON as any,
           url: getBaseUrl() + "/api/trpc",
           headers: () => {
             const headers = new Headers();

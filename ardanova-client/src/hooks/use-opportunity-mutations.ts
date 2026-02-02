@@ -28,6 +28,7 @@ export function useOpportunityMutations() {
   // Update opportunity mutation
   const updateOpportunity = api.opportunity.update.useMutation({
     onSuccess: (data) => {
+      if (!data) return;
       toast.success("Opportunity updated successfully!");
       utils.opportunity.getById.invalidate({ id: data.id });
       utils.opportunity.getAll.invalidate();
@@ -58,9 +59,9 @@ export function useOpportunityMutations() {
 
   // Close opportunity mutation
   const closeOpportunity = api.opportunity.close.useMutation({
-    onSuccess: (_data, variables) => {
+    onSuccess: (_data, variables: { id?: string }) => {
       toast.success("Opportunity closed!");
-      utils.opportunity.getById.invalidate({ id: variables.id });
+      utils.opportunity.getById.invalidate({ id: variables.id ?? "" });
       utils.opportunity.getAll.invalidate();
       utils.opportunity.getMyOpportunities.invalidate();
     },
@@ -75,6 +76,7 @@ export function useOpportunityMutations() {
   // Submit application mutation
   const submitApplication = api.opportunity.submitApplication.useMutation({
     onSuccess: (_data, variables) => {
+      if (!variables) return;
       toast.success("Application submitted successfully!");
       utils.opportunity.getById.invalidate({ id: variables.opportunityId });
       utils.opportunity.getAll.invalidate();

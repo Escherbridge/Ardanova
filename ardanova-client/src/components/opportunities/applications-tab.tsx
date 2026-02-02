@@ -59,6 +59,7 @@ export default function ApplicationsTab({
 
   const updateStatus = api.opportunity.updateApplicationStatus.useMutation({
     onMutate: async (newData) => {
+      if (!newData) return;
       setUpdatingId(newData.applicationId);
       setFeedback(null);
 
@@ -200,7 +201,7 @@ export default function ApplicationsTab({
               </p>
             </div>
 
-            {application.portfolioUrl && (
+            {application.portfolio && (
               <div>
                 <Button
                   variant="outline"
@@ -209,7 +210,7 @@ export default function ApplicationsTab({
                   className="gap-2"
                 >
                   <a
-                    href={application.portfolioUrl}
+                    href={application.portfolio}
                     target="_blank"
                     rel="noopener noreferrer"
                   >

@@ -38,8 +38,8 @@ export function GuildForm({ mode, guild }: GuildFormProps) {
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const createMutation = api.guild.create.useMutation({
-    onSuccess: (data) => {
-      router.push(`/guilds/${data.slug}`);
+    onSuccess: (data: any) => {
+      router.push(`/guilds/${data.slug as string}`);
     },
     onError: (error) => {
       setErrors({ submit: error.message });
@@ -47,8 +47,8 @@ export function GuildForm({ mode, guild }: GuildFormProps) {
   });
 
   const updateMutation = api.guild.update.useMutation({
-    onSuccess: (data) => {
-      router.push(`/guilds/${data.slug}`);
+    onSuccess: (data: any) => {
+      router.push(`/guilds/${data.slug as string}`);
     },
     onError: (error) => {
       setErrors({ submit: error.message });

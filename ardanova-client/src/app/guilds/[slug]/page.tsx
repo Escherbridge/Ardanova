@@ -30,6 +30,7 @@ import {
 } from "~/components/ui/dropdown-menu";
 import { cn } from "~/lib/utils";
 import { api } from "~/trpc/react";
+import type { Guild } from "~/lib/api";
 
 import {
   OverviewTab,
@@ -53,7 +54,7 @@ export default function GuildDetailPage() {
   const [activeTab, setActiveTab] = useState("overview");
   const { data: session } = useSession();
 
-  const { data: guild, isLoading } = api.guild.getBySlug.useQuery({ slug });
+  const { data: guild, isLoading } = api.guild.getBySlug.useQuery({ slug }) as { data: Guild | undefined; isLoading: boolean };
   const { data: members } = api.guild.getMembers.useQuery(
     { guildId: guild?.id ?? "" },
     { enabled: !!guild?.id }

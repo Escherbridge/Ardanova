@@ -13,7 +13,7 @@ export function useChat() {
     { pageSize: 20 },
     {
       getNextPageParam: (lastPage) =>
-        lastPage.hasMore ? (lastPage.items?.length ?? 0) / 20 + 1 : undefined,
+        lastPage.nextCursor ? (lastPage.items?.length ?? 0) / 20 + 1 : undefined,
     }
   );
 

@@ -133,7 +133,9 @@ const generatePrisma = async () => {
     const dbml = fs.readFileSync(DBML_PATH, 'utf-8').replace(/^\uFEFF/, '');
 
     console.log('Parsing DBML...');
-    const database = Parser.parse(dbml, 'dbml');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment
+    const database = Parser.parse(dbml, 'dbml') as any;
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
     const schema: Schema = database.schemas[0];
 
     let output = `// Auto-generated from database-archietecture.dbml

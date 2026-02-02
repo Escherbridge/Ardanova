@@ -75,7 +75,9 @@ export function MembersTab({ guildId, isOwner }: MembersTabProps) {
 
   // Mutation for sending invitation
   const inviteMemberMutation = api.guild.createInvitation.useMutation({
-    onMutate: async ({ invitedEmail, role }) => {
+    onMutate: async (variables) => {
+      if (!variables) return;
+      const { invitedEmail, role } = variables;
       await utils.guild.getMembers.cancel({ guildId });
       const previous = utils.guild.getMembers.getData({ guildId });
 
@@ -119,7 +121,9 @@ export function MembersTab({ guildId, isOwner }: MembersTabProps) {
 
   // Mutation for removing member
   const removeMemberMutation = api.guild.removeMember.useMutation({
-    onMutate: async ({ memberId }) => {
+    onMutate: async (variables) => {
+      if (!variables) return;
+      const { memberId } = variables;
       await utils.guild.getMembers.cancel({ guildId });
       const previous = utils.guild.getMembers.getData({ guildId });
       utils.guild.getMembers.setData({ guildId }, (old) =>

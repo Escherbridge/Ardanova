@@ -13,6 +13,7 @@ import { enumRouter } from "~/server/api/routers/enum";
 import { featureRouter } from "~/server/api/routers/feature";
 import { productRouter } from "~/server/api/routers/product";
 import { opportunityBidRouter } from "~/server/api/routers/opportunity-bid";
+import { membershipCredentialRouter } from "~/server/api/routers/membership-credential";
 import { createCallerFactory, createTRPCRouter } from "~/server/api/trpc";
 
 /**
@@ -36,6 +37,7 @@ export const appRouter = createTRPCRouter({
   feature: featureRouter,
   product: productRouter,
   opportunityBid: opportunityBidRouter,
+  membershipCredential: membershipCredentialRouter,
 });
 
 // export type definition of API

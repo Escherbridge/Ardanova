@@ -180,7 +180,7 @@ export class SignalRBackendClient {
   private emitEvent(eventType: string, payload: unknown): void {
     const event = {
       eventType,
-      ...payload,
+      ...(typeof payload === 'object' && payload !== null ? payload : {}),
     } as ArdaNovaEvent;
 
     // Notify type-specific listeners

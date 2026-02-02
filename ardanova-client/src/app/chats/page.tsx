@@ -135,7 +135,7 @@ export default function ChatsPage() {
   // Mark as read when viewing messages from others
   const lastMessageId = messages.length > 0 ? messages[messages.length - 1]?.id : null;
   const lastMessageFromOther =
-    messages.length > 0 && messages[messages.length - 1]?.userFromId !== currentUserId;
+    messages.length > 0 && messages[messages.length - 1]?.senderId !== currentUserId;
 
   useEffect(() => {
     if (selectedChatId && lastMessageId && lastMessageFromOther) {
@@ -144,7 +144,7 @@ export default function ChatsPage() {
   }, [selectedChatId, lastMessageId, lastMessageFromOther, markAsRead]);
 
   // Filter conversations
-  const filteredConversations = (conversations as Conversation[]).filter((conv) => {
+  const filteredConversations = (conversations as unknown as Conversation[]).filter((conv) => {
     if (activeFilter === "unread" && conv.unreadCount === 0) return false;
     if (activeFilter === "groups" && conv.type !== "GROUP") return false;
 

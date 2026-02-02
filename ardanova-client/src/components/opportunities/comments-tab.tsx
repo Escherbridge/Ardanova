@@ -33,6 +33,7 @@ export default function CommentsTab({ opportunityId }: CommentsTabProps) {
 
   const addComment = api.opportunity.addComment.useMutation({
     onMutate: async (newCommentData) => {
+      if (!newCommentData) return;
       setFeedback(null);
       await utils.opportunity.getComments.cancel({ opportunityId });
       const previous = utils.opportunity.getComments.getData({ opportunityId });
@@ -76,6 +77,7 @@ export default function CommentsTab({ opportunityId }: CommentsTabProps) {
 
   const deleteComment = api.opportunity.deleteComment.useMutation({
     onMutate: async (variables) => {
+      if (!variables) return;
       setFeedback(null);
       await utils.opportunity.getComments.cancel({ opportunityId });
       const previous = utils.opportunity.getComments.getData({ opportunityId });

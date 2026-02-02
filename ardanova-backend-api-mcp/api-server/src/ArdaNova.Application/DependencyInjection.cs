@@ -79,10 +79,12 @@ public static class DependencyInjection
         // Governance services
         services.AddScoped<IGovernanceService, GovernanceService>();
         services.AddScoped<IDelegatedVoteService, DelegatedVoteService>();
+        services.AddScoped<IMembershipCredentialService, MembershipCredentialService>();
 
         // Exchange services
-        services.AddScoped<ILiquidityPoolService, LiquidityPoolService>();
-        services.AddScoped<ILiquidityProviderService, LiquidityProviderService>();
+        // TODO: LiquidityPool/LiquidityProvider services not yet implemented
+        // services.AddScoped<ILiquidityPoolService, LiquidityPoolService>();
+        // services.AddScoped<ILiquidityProviderService, LiquidityProviderService>();
 
         // Attachment services
         services.AddScoped<IAttachmentService, AttachmentService>();

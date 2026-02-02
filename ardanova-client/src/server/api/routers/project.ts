@@ -956,6 +956,12 @@ export const projectRouter = createTRPCRouter({
         throw new Error("Only project members can vote");
       }
 
+      // Verify user has an active MembershipCredential (governance right)
+      const credential = await apiClient.membershipCredentials.getByProjectAndUser(proposal.data.projectId, userId);
+      if (credential.error || !credential.data || credential.data.status !== 'ACTIVE') {
+        throw new Error("Active membership credential required to vote. Credential grants governance rights (1 member = 1 vote).");
+      }
+
       const response = await apiClient.projects.castVote(input.proposalId, {
         userId: userId,
         choice: input.choice,

@@ -115,13 +115,15 @@ export const governanceRouter = createTRPCRouter({
   getActive: publicProcedure
     .input(z.object({ limit: z.number().min(1).max(20).default(10) }))
     .query(async ({ input }) => {
-      const response = await apiClient.governance.getActive(input.limit);
+      const response = await apiClient.governance.getActive();
 
       if (response.error) {
         throw new Error(response.error);
       }
 
-      return response.data ?? [];
+      // Limit results on client side
+      const proposals = response.data ?? [];
+      return proposals.slice(0, input.limit);
     }),
 
   // Get proposal by ID
@@ -191,6 +193,18 @@ export const governanceRouter = createTRPCRouter({
     )
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user.id;
+
+      // Fetch proposal to get projectId for credential check
+      const proposal = await apiClient.governance.getById(input.proposalId);
+      if (proposal.error || !proposal.data) {
+        throw new Error("Proposal not found");
+      }
+
+      // Verify user has an active MembershipCredential (governance right)
+      const credential = await apiClient.membershipCredentials.getByProjectAndUser(proposal.data.projectId, userId);
+      if (credential.error || !credential.data || credential.data.status !== 'ACTIVE') {
+        throw new Error("Active membership credential required to vote. Credential grants governance rights (1 member = 1 vote).");
+      }
 
       const response = await apiClient.governance.vote(input.proposalId, {
         voterId: userId,
