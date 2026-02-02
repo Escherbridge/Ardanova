@@ -91,15 +91,6 @@ const ApplicationStatus = z.enum([
   "WITHDRAWN",
 ]);
 
-// Bid status enum
-const BidStatus = z.enum([
-  "SUBMITTED",
-  "UNDER_REVIEW",
-  "ACCEPTED",
-  "REJECTED",
-  "WITHDRAWN",
-]);
-
 // Proposal type enum
 const ProposalType = z.enum([
   "TREASURY",
@@ -182,21 +173,6 @@ const reviewApplicationSchema = z.object({
   applicationId: z.string(),
   status: ApplicationStatus,
   reviewMessage: z.string().optional(),
-});
-
-// Bid schemas
-const submitBidSchema = z.object({
-  projectId: z.string(),
-  guildId: z.string(),
-  proposal: z.string().min(50),
-  timeline: z.string().optional(),
-  budget: z.number().positive(),
-  deliverables: z.string().optional(),
-});
-
-const reviewBidSchema = z.object({
-  bidId: z.string(),
-  status: BidStatus,
 });
 
 // Proposal schemas
@@ -864,90 +840,6 @@ export const projectRouter = createTRPCRouter({
 
       if (response.error || !response.data) {
         throw new Error(response.error ?? "Failed to review application");
-      }
-
-      return response.data;
-    }),
-
-  // ========================================
-  // PROJECT BIDS
-  // ========================================
-
-  // Submit bid for project
-  submitBid: protectedProcedure
-    .input(submitBidSchema)
-    .mutation(async ({ input, ctx }) => {
-      const userId = ctx.session.user.id;
-
-      const response = await apiClient.projects.submitBid(input.projectId, {
-        guildId: input.guildId,
-        userId: userId,
-        proposal: input.proposal,
-        timeline: input.timeline,
-        budget: input.budget,
-        deliverables: input.deliverables,
-      });
-
-      if (response.error || !response.data) {
-        throw new Error(response.error ?? "Failed to submit bid");
-      }
-
-      return response.data;
-    }),
-
-  // Get bids for project
-  getBids: publicProcedure
-    .input(z.object({ projectId: z.string() }))
-    .query(async ({ input }) => {
-      const response = await apiClient.projects.getBids(input.projectId);
-
-      if (response.error) {
-        throw new Error(response.error);
-      }
-
-      return response.data ?? [];
-    }),
-
-  // Get bid by ID
-  getBidById: publicProcedure
-    .input(z.object({ bidId: z.string() }))
-    .query(async ({ input }) => {
-      const response = await apiClient.projects.getBidById(input.bidId);
-
-      if (response.error || !response.data) {
-        throw new Error(response.error ?? "Bid not found");
-      }
-
-      return response.data;
-    }),
-
-  // Review bid (owner only)
-  reviewBid: protectedProcedure
-    .input(reviewBidSchema)
-    .mutation(async ({ input, ctx }) => {
-      const userId = ctx.session.user.id;
-
-      // Get bid to verify ownership
-      const bid = await apiClient.projects.getBidById(input.bidId);
-      if (bid.error || !bid.data) {
-        throw new Error("Bid not found");
-      }
-
-      // Verify project ownership
-      const project = await apiClient.projects.getById(bid.data.projectId);
-      if (project.error || !project.data) {
-        throw new Error("Project not found");
-      }
-      if (project.data.createdById !== userId) {
-        throw new Error("Access denied");
-      }
-
-      const response = await apiClient.projects.reviewBid(input.bidId, {
-        status: input.status,
-      });
-
-      if (response.error || !response.data) {
-        throw new Error(response.error ?? "Failed to review bid");
       }
 
       return response.data;

@@ -35,7 +35,6 @@ import {
   OverviewTab,
   UpdatesTab,
   MembersTab,
-  ProjectsTab,
   ReviewsTab,
   OpportunitiesTab,
 } from "~/components/guilds";
@@ -44,7 +43,6 @@ const tabs = [
   { id: "overview", label: "Overview", icon: FileText },
   { id: "updates", label: "Updates", icon: Bell },
   { id: "members", label: "Members", icon: Users },
-  { id: "projects", label: "Projects", icon: Briefcase },
   { id: "opportunities", label: "Opportunities", icon: Briefcase },
   { id: "reviews", label: "Reviews", icon: Star },
 ];
@@ -276,7 +274,6 @@ export default function GuildDetailPage() {
         {activeTab === "overview" && <OverviewTab guild={guild} />}
         {activeTab === "updates" && <UpdatesTab guildId={guild.id} isOwner={isOwner} />}
         {activeTab === "members" && <MembersTab guildId={guild.id} isOwner={isOwner} />}
-        {activeTab === "projects" && <ProjectsTab guildId={guild.id} />}
         {activeTab === "opportunities" && <OpportunitiesTab guildId={guild.id} guildSlug={slug} isOwner={isOwner} userRole={userRole} />}
         {activeTab === "reviews" && <ReviewsTab guildId={guild.id} isOwner={isOwner} currentUserId={currentUserId} />}
       </div>

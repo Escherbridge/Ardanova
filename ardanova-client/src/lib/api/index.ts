@@ -28,7 +28,6 @@ export {
   type CreateGuildMemberDto,
   type GuildReview,
   type CreateGuildReviewDto,
-  type ProjectBid,
   // Guild schemas for validation
   GuildApiSchema,
   CreateGuildSchema,

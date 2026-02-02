@@ -182,35 +182,6 @@ export interface ReviewApplicationDto {
   reviewMessage?: string;
 }
 
-export interface ProjectBid {
-  id: string;
-  projectId: string;
-  guildId: string;
-  userId: string;
-  proposal: string;
-  timeline?: string;
-  budget: number;
-  deliverables?: string;
-  status: string;
-  submittedAt: string;
-  reviewedAt?: string;
-  guild?: { id: string; name: string; slug: string; logo?: string };
-  user?: { id: string; name?: string; email: string; image?: string };
-}
-
-export interface CreateBidDto {
-  guildId: string;
-  userId: string;
-  proposal: string;
-  timeline?: string;
-  budget: number;
-  deliverables?: string;
-}
-
-export interface ReviewBidDto {
-  status: string;
-}
-
 export interface Proposal {
   id: string;
   projectId: string;
@@ -482,24 +453,6 @@ export class ProjectsEndpoint {
 
   applyToProject(projectId: string, data: CreateApplicationDto & { userId: string }): Promise<ApiResponse<ProjectApplication>> {
     return this.submitApplication(projectId, data);
-  }
-
-  // ============ Bid Methods ============
-
-  submitBid(projectId: string, data: CreateBidDto): Promise<ApiResponse<ProjectBid>> {
-    return this.client.post<ProjectBid>(`/api/projects/${projectId}/bids`, data);
-  }
-
-  getBids(projectId: string): Promise<ApiResponse<ProjectBid[]>> {
-    return this.client.get<ProjectBid[]>(`/api/projects/${projectId}/bids`);
-  }
-
-  getBidById(bidId: string): Promise<ApiResponse<ProjectBid>> {
-    return this.client.get<ProjectBid>(`/api/project-bids/${bidId}`);
-  }
-
-  reviewBid(bidId: string, data: ReviewBidDto): Promise<ApiResponse<ProjectBid>> {
-    return this.client.put<ProjectBid>(`/api/project-bids/${bidId}/review`, data);
   }
 
   // ============ Proposal & Vote Methods ============

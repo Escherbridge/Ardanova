@@ -303,7 +303,6 @@ public class MappingProfile : Profile
         CreateMap<DelegatedVote, DelegatedVoteDto>();
 
         // Exchange mappings
-        CreateMap<TokenSwap, TokenSwapDto>();
         CreateMap<LiquidityPool, LiquidityPoolDto>();
         CreateMap<LiquidityProvider, LiquidityProviderDto>();
 

@@ -81,7 +81,6 @@ public static class DependencyInjection
         services.AddScoped<IDelegatedVoteService, DelegatedVoteService>();
 
         // Exchange services
-        services.AddScoped<ITokenSwapService, TokenSwapService>();
         services.AddScoped<ILiquidityPoolService, LiquidityPoolService>();
         services.AddScoped<ILiquidityProviderService, LiquidityProviderService>();
 

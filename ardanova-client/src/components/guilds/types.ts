@@ -15,27 +15,6 @@ export interface GuildMember {
   };
 }
 
-// Bid types
-export type BidStatus = "PENDING" | "ACCEPTED" | "REJECTED" | "WITHDRAWN";
-
-export interface ProjectBid {
-  id: string;
-  projectId: string;
-  guildId: string;
-  proposal: string;
-  budget?: number | null;
-  timeline?: string | null;
-  status: BidStatus;
-  submittedAt: string;
-  project: {
-    id: string;
-    title: string;
-    slug: string;
-    description?: string | null;
-    status?: string | null;
-  };
-}
-
 // Review types
 export interface GuildReview {
   id: string;
@@ -93,16 +72,6 @@ export const getRoleBadgeVariant = (role: MemberRole) => {
     case "OWNER": return "neon-pink-solid" as const;
     case "ADMIN": return "neon-purple" as const;
     case "MEMBER": return "info" as const;
-    default: return "default" as const;
-  }
-};
-
-export const getBidStatusVariant = (status: BidStatus) => {
-  switch (status) {
-    case "ACCEPTED": return "success" as const;
-    case "PENDING": return "warning" as const;
-    case "REJECTED": return "destructive" as const;
-    case "WITHDRAWN": return "outline" as const;
     default: return "default" as const;
   }
 };

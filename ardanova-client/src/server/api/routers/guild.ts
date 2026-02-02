@@ -337,32 +337,6 @@ export const guildRouter = createTRPCRouter({
       return { success: true };
     }),
 
-  // Get guild's bids
-  getBids: protectedProcedure
-    .input(z.object({ guildId: z.string() }))
-    .query(async ({ input, ctx }) => {
-      const userId = ctx.session.user.id;
-
-      // Verify user is owner or member of guild
-      const guild = await apiClient.guilds.getById(input.guildId);
-      if (guild.error || !guild.data) {
-        throw new Error("Guild not found");
-      }
-
-      // For now, only allow owner to view bids
-      if (guild.data.ownerId !== userId) {
-        throw new Error("Access denied");
-      }
-
-      const response = await apiClient.guilds.getBids(input.guildId);
-
-      if (response.error) {
-        throw new Error(response.error);
-      }
-
-      return response.data ?? [];
-    }),
-
   // ========================================
   // GUILD UPDATES
   // ========================================
@@ -707,20 +681,4 @@ export const guildRouter = createTRPCRouter({
       return response.data ?? false;
     }),
 
-  // ========================================
-  // GUILD PROJECTS
-  // ========================================
-
-  // Get guild's projects (completed bids)
-  getProjects: publicProcedure
-    .input(z.object({ guildId: z.string() }))
-    .query(async ({ input }) => {
-      const response = await apiClient.guilds.getProjects(input.guildId);
-
-      if (response.error) {
-        throw new Error(response.error);
-      }
-
-      return response.data ?? [];
-    }),
 });
