@@ -817,6 +817,7 @@
 ### 16.5 Data Integrity: Unique Constraint Violations
 - [ ] **[P0]** Create OpportunityApplication with same userId + opportunityId → Expected: Unique constraint error, user cannot apply twice
 - [ ] **[P0]** Create OpportunityBid with same userId + opportunityId → Expected: Unique constraint error, user cannot bid twice
+- [ ] **[P0]** Create duplicate MembershipCredential (same userId + projectId) → Expected: Unique constraint error, one credential per user per project
 - [ ] **[P1]** Create duplicate ProjectMember (same userId + projectId) → Expected: Unique constraint error
 - [ ] **[P1]** Create duplicate GuildMembership (same userId + guildId) → Expected: Unique constraint error
 - [ ] **[P1]** Create duplicate Like (same userId + entityId + entityType) → Expected: Unique constraint error, user cannot like same item twice
@@ -4384,6 +4385,97 @@
 - [ ] **[P2]** Storefront with 100+ products loads efficiently → Expected: Page loads within acceptable time
 - [ ] **[P2]** Product search with 1000+ products performs well → Expected: Search returns results quickly
 - [ ] **[P3]** Concurrent product updates do not cause conflicts → Expected: Updates handled without data loss
+
+---
+
+## 17. Dual-Asset Model & Membership Credentials
+
+> The dual-asset model separates **governance rights** (Membership Credentials — earned, non-transferable, 1 member = 1 vote) from **economic rights** (Ownership Shares — fungible, transferable, proportional dividends). This section tests both assets and their interaction.
+
+### 17.1 Membership Credential Issuance
+
+- [ ] **[P0]** Project founder creates project → Founder automatically receives MembershipCredential with grantedVia = FOUNDER → Expected: Credential created with status ACTIVE, isTransferable = false
+- [ ] **[P0]** User meets contribution threshold → MembershipCredential issued with grantedVia = CONTRIBUTION_THRESHOLD → Expected: Credential created, user gains voting rights
+- [ ] **[P0]** DAO vote grants membership to user → MembershipCredential issued with grantedVia = DAO_VOTE, grantedByProposalId populated → Expected: Credential linked to proposal, status ACTIVE
+- [ ] **[P1]** User applies and is approved → MembershipCredential issued with grantedVia = APPLICATION_APPROVED → Expected: Credential created after approval
+- [ ] **[P1]** User reaches Game SDK threshold → MembershipCredential issued with grantedVia = GAME_SDK_THRESHOLD → Expected: Credential created, user can now vote on project proposals
+- [ ] **[P1]** MembershipCredential created with correct projectId and userId → Expected: Both foreign keys valid, credential scoped to specific project
+- [ ] **[P2]** MembershipCredential includes mintTxHash when minted on-chain → Expected: Hash populated, verifiable on secure ledger
+- [ ] **[P2]** MembershipCredential mintedAt timestamp set on creation → Expected: Timestamp accurate, not null
+- [ ] **[P3]** Credential issuance triggers MEMBERSHIP_GRANTED notification → Expected: User and project members notified
+
+### 17.2 Membership Credential Uniqueness & Constraints
+
+- [ ] **[P0]** Attempt to create second MembershipCredential for same user + project → Expected: Unique constraint error (projectId, userId), "User already has a membership credential for this project"
+- [ ] **[P0]** MembershipCredential isTransferable defaults to false → Expected: All new credentials are non-transferable (soulbound)
+- [ ] **[P1]** MembershipCredential references valid Project and User → Expected: Foreign key constraints enforced
+- [ ] **[P1]** MembershipCredential grantedByProposalId references valid Proposal (when populated) → Expected: Foreign key constraint enforced
+- [ ] **[P2]** MembershipCredential with null assetId (not yet minted on-chain) → Expected: Valid state, credential functional for off-chain governance
+- [ ] **[P3]** Attempt to set isTransferable = true → Expected: Rejected or requires special governance proposal
+
+### 17.3 Membership Credential Revocation
+
+- [ ] **[P0]** DAO proposal to revoke membership passes (66% quorum, 75% approval) → MembershipCredential status changed to REVOKED → Expected: User loses voting rights, revokedAt timestamp set
+- [ ] **[P0]** Revoked member attempts to vote on proposal → Expected: Vote rejected, "You do not have an active membership credential"
+- [ ] **[P0]** Revoked member attempts to create governance proposal → Expected: Rejected, "Active membership credential required"
+- [ ] **[P1]** Revocation proposal does not meet quorum (< 66%) → Expected: Proposal expires, credential remains ACTIVE
+- [ ] **[P1]** Revocation proposal meets quorum but not approval (< 75%) → Expected: Proposal rejected, credential remains ACTIVE
+- [ ] **[P1]** Revoked credential includes revokeTxHash when revoked on-chain → Expected: Hash populated, verifiable
+- [ ] **[P2]** Credential suspended (status = SUSPENDED) → Expected: Voting rights temporarily removed, can be reactivated
+- [ ] **[P2]** Revocation triggers MEMBERSHIP_REVOKED notification → Expected: Affected user and project members notified
+- [ ] **[P3]** Revoked member retains economic rights (ownership shares) → Expected: Share balance unchanged, dividend rights preserved
+
+### 17.4 Credential-Gated Governance Voting
+
+- [ ] **[P0]** Member with ACTIVE credential votes on proposal → Expected: Vote counted, voting power = 1 (not weighted by share holdings)
+- [ ] **[P0]** User without credential attempts to vote → Expected: Vote rejected, "Membership credential required to vote"
+- [ ] **[P0]** Two members with different share balances both vote → Expected: Each vote has equal weight (1 vote each), regardless of economic stake
+- [ ] **[P1]** Member votes on treasury proposal → Expected: Vote accepted, credential verified, equal weight applied
+- [ ] **[P1]** Delegated vote respects credential requirement → Expected: Delegate must also hold active credential
+- [ ] **[P1]** Member with SUSPENDED credential attempts to vote → Expected: Vote rejected
+- [ ] **[P2]** Quorum calculation based on total active credentials, not share supply → Expected: Quorum = (votes cast / total active credentials) × 100
+- [ ] **[P2]** Governance proposal displays credential-holder count, not share percentages → Expected: UI shows "X of Y members voted" not "X% of shares voted"
+- [ ] **[P3]** Historical vote records link to credential status at time of vote → Expected: Audit trail shows credential was ACTIVE when vote was cast
+
+### 17.5 Dual-Asset Separation
+
+- [ ] **[P0]** Member with credential and shares: credential governs voting, shares govern dividends → Expected: Vote weight = 1, dividend share = (user shares / total shares)
+- [ ] **[P0]** User acquires shares (via funding or task completion) but has no credential → Expected: User receives economic rights (dividends) but cannot vote
+- [ ] **[P0]** User has credential but zero shares → Expected: User can vote but receives no dividends
+- [ ] **[P1]** Share transfer between users does not affect credential status → Expected: Seller retains credential and voting rights after selling shares
+- [ ] **[P1]** Credential revocation does not affect share balance → Expected: Revoked member still holds shares, receives dividends
+- [ ] **[P1]** ProjectMember.votingPower reflects credential status (0 or 1) → Expected: votingPower = 1 when credential ACTIVE, 0 otherwise
+- [ ] **[P1]** ProjectMember.shareBalance reflects economic stake → Expected: shareBalance updated on share transactions, independent of credential
+- [ ] **[P2]** Revenue distribution uses shareBalance (economic), not votingPower (governance) → Expected: Dividends proportional to shares, not votes
+- [ ] **[P3]** Portfolio view shows both credential status and share balance per project → Expected: Clear visual separation of governance vs economic rights
+
+### 17.6 Membership Credential Grant Paths
+
+- [ ] **[P0]** FOUNDER path: Create project → Founder gets credential automatically → Expected: No manual step, credential created in same transaction
+- [ ] **[P1]** DAO_VOTE path: Proposal created → Voting period → Passes → Credential issued → Expected: Full governance workflow end-to-end
+- [ ] **[P1]** CONTRIBUTION_THRESHOLD path: User completes tasks → Cumulative contribution exceeds threshold → Credential issued → Expected: Automatic issuance when threshold met
+- [ ] **[P1]** APPLICATION_APPROVED path: User submits membership application → Admin/DAO approves → Credential issued → Expected: Application → Approval → Credential flow works
+- [ ] **[P2]** GAME_SDK_THRESHOLD path: Player earns shares via games → Reaches game threshold → Credential issued → Expected: Game engagement converts to governance rights
+- [ ] **[P2]** Each grant path sets correct grantedVia enum value → Expected: Enum matches the actual granting mechanism used
+- [ ] **[P3]** Grant path displayed on credential detail view → Expected: User can see how they earned their membership
+
+### 17.7 Cooperative Trust Integration
+
+- [ ] **[P1]** Membership Credentials are non-security governance instruments → Expected: Not included in share/securities calculations or reports
+- [ ] **[P1]** Ownership Shares are treated as securities with legal protections → Expected: Share issuance respects fundraising compliance rules
+- [ ] **[P2]** Platform distinguishes credential operations from share operations in audit logs → Expected: Clear categorization in activity/audit trail
+- [ ] **[P2]** Membership credential issuance does not trigger financial/securities workflows → Expected: No tax implications, no investment disclosures
+- [ ] **[P3]** Share issuance triggers appropriate compliance workflows → Expected: Securities disclosures, investor accreditation checks where required
+
+### 17.8 Edge Cases: Credential & Share Interactions
+
+- [ ] **[P0]** Delete project → All MembershipCredentials for project cascade deleted or archived → Expected: No orphaned credentials
+- [ ] **[P0]** Delete user → All MembershipCredentials for user cascade deleted → Expected: No orphaned credentials referencing non-existent users
+- [ ] **[P1]** User has credentials across multiple projects → Revoking one does not affect others → Expected: Credentials are project-scoped
+- [ ] **[P1]** Concurrent credential issuance for same user + project (race condition) → Expected: Only one credential created, unique constraint enforced
+- [ ] **[P2]** User with credential exits project (rage quit) → Expected: Credential revoked, shares redeemed at fair value from treasury
+- [ ] **[P2]** Credential status change (ACTIVE → REVOKED) while user has pending vote → Expected: Pending vote invalidated or honored based on policy
+- [ ] **[P3]** Bulk credential issuance (e.g., all founding team members) → Expected: All credentials created atomically, no partial failures
 
 ---
 
