@@ -10,6 +10,7 @@ namespace ArdaNova.Domain.Models.Entities;
 [Table("Sprint")]
 public class Sprint
 {
+
     [Key]
     [Required]
     public string id { get; set; } = string.Empty;

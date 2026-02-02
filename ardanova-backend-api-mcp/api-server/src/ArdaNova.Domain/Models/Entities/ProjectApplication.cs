@@ -10,6 +10,7 @@ namespace ArdaNova.Domain.Models.Entities;
 [Table("ProjectApplication")]
 public class ProjectApplication
 {
+
     [Key]
     [Required]
     public string id { get; set; } = string.Empty;

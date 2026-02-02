@@ -11,6 +11,7 @@ namespace ArdaNova.Domain.Models.Entities;
 [Table("TaskCompensation")]
 public class TaskCompensation
 {
+
     [Key]
     [Required]
     public string id { get; set; } = string.Empty;

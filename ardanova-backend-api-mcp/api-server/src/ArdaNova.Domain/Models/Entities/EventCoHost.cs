@@ -10,6 +10,7 @@ namespace ArdaNova.Domain.Models.Entities;
 [Table("EventCoHost")]
 public class EventCoHost
 {
+
     [Key]
     [Required]
     public string id { get; set; } = string.Empty;

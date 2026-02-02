@@ -10,6 +10,7 @@ namespace ArdaNova.Domain.Models.Entities;
 [Table("Leaderboard")]
 public class Leaderboard
 {
+
     [Key]
     [Required]
     public string id { get; set; } = string.Empty;

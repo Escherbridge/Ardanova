@@ -10,6 +10,7 @@ namespace ArdaNova.Domain.Models.Entities;
 [Table("ChatMessage")]
 public class ChatMessage
 {
+
     [Key]
     [Required]
     public string id { get; set; } = string.Empty;

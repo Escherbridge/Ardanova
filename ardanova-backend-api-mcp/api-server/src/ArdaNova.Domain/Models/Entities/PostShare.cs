@@ -10,6 +10,7 @@ namespace ArdaNova.Domain.Models.Entities;
 [Table("PostShare")]
 public class PostShare
 {
+
     [Key]
     [Required]
     public string id { get; set; } = string.Empty;

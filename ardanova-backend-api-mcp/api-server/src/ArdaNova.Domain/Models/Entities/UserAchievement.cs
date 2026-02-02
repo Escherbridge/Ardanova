@@ -10,6 +10,7 @@ namespace ArdaNova.Domain.Models.Entities;
 [Table("UserAchievement")]
 public class UserAchievement
 {
+
     [Key]
     [Required]
     public string id { get; set; } = string.Empty;

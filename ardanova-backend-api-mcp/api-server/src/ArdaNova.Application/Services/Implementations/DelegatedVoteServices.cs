@@ -77,18 +77,18 @@ public class DelegatedVoteService : IDelegatedVoteService
         if (exists)
             return Result<DelegatedVoteDto>.ValidationError("Active delegation already exists for this token");
 
-        var vote = new DelegatedVote
-        {
-            id = Guid.NewGuid().ToString(),
-            projectId = dto.ProjectId,
-            delegatorId = dto.DelegatorId,
-            delegateeId = dto.DelegateeId,
-            shareId = dto.ShareId,
-            amount = dto.Amount,
-            isActive = true,
-            createdAt = DateTime.UtcNow,
-            expiresAt = dto.ExpiresAt
-        };
+
+        DelegatedVote vote;
+
+        vote.id = Guid.NewGuid().ToString();
+        vote.projectId = dto.ProjectId,
+            vote.delegatorId = dto.DelegatorId,
+            vote.delegateeId = dto.DelegateeId,
+            vote.shareId = dto.ShareId,
+            vote.amount = dto.Amount,
+            vote.isActive = true,
+            vote.createdAt = DateTime.UtcNow,
+            vote.expiresAt = dto.ExpiresAt
 
         await _repository.AddAsync(vote, ct);
         await _unitOfWork.SaveChangesAsync(ct);

@@ -10,6 +10,7 @@ namespace ArdaNova.Domain.Models.Entities;
 [Table("OpportunityApplication")]
 public class OpportunityApplication
 {
+
     [Key]
     [Required]
     public string id { get; set; } = string.Empty;

@@ -11,6 +11,7 @@ namespace ArdaNova.Domain.Models.Entities;
 [Table("Treasury")]
 public class Treasury
 {
+
     [Key]
     [Required]
     public string id { get; set; } = string.Empty;

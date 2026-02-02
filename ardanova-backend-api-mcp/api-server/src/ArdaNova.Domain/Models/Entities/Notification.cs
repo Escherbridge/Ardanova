@@ -10,6 +10,7 @@ namespace ArdaNova.Domain.Models.Entities;
 [Table("Notification")]
 public class Notification
 {
+
     [Key]
     [Required]
     public string id { get; set; } = string.Empty;

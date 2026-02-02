@@ -11,6 +11,7 @@ namespace ArdaNova.Domain.Models.Entities;
 [Table("ProjectTask")]
 public class ProjectTask
 {
+
     [Key]
     [Required]
     public string id { get; set; } = string.Empty;
@@ -27,7 +28,7 @@ public class ProjectTask
     public string? description { get; set; }
 
     [Required]
-    public ArdaNova.Domain.Models.Enums.TaskStatus status { get; set; }
+    public Enums.TaskStatus status { get; set; }
 
     [Required]
     public TaskPriority priority { get; set; }

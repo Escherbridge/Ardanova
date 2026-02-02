@@ -10,6 +10,7 @@ namespace ArdaNova.Domain.Models.Entities;
 [Table("FundraisingContribution")]
 public class FundraisingContribution
 {
+
     [Key]
     [Required]
     public string id { get; set; } = string.Empty;

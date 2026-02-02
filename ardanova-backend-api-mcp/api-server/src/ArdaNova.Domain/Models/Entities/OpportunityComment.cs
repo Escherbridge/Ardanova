@@ -10,6 +10,7 @@ namespace ArdaNova.Domain.Models.Entities;
 [Table("OpportunityComment")]
 public class OpportunityComment
 {
+
     [Key]
     [Required]
     public string id { get; set; } = string.Empty;

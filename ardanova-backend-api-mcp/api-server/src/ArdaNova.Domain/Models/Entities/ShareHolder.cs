@@ -10,6 +10,7 @@ namespace ArdaNova.Domain.Models.Entities;
 [Table("ShareHolder")]
 public class ShareHolder
 {
+
     [Key]
     [Required]
     public string id { get; set; } = string.Empty;

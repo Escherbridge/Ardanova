@@ -11,6 +11,7 @@ namespace ArdaNova.Domain.Models.Entities;
 [Table("ProposalExecution")]
 public class ProposalExecution
 {
+
     [Key]
     [Required]
     public string id { get; set; } = string.Empty;

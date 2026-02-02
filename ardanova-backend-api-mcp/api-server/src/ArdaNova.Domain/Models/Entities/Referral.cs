@@ -11,6 +11,7 @@ namespace ArdaNova.Domain.Models.Entities;
 [Table("Referral")]
 public class Referral
 {
+
     [Key]
     [Required]
     public string id { get; set; } = string.Empty;

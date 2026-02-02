@@ -10,6 +10,7 @@ namespace ArdaNova.Domain.Models.Entities;
 [Table("Epic")]
 public class Epic
 {
+
     [Key]
     [Required]
     public string id { get; set; } = string.Empty;

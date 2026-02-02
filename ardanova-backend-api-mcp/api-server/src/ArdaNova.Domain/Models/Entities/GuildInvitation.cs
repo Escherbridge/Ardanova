@@ -11,6 +11,7 @@ namespace ArdaNova.Domain.Models.Entities;
 [Table("GuildInvitation")]
 public class GuildInvitation
 {
+
     [Key]
     [Required]
     public string id { get; set; } = string.Empty;

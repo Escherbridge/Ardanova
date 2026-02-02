@@ -11,6 +11,7 @@ namespace ArdaNova.Domain.Models.Entities;
 [Table("ProjectInvitation")]
 public class ProjectInvitation
 {
+
     [Key]
     [Required]
     public string id { get; set; } = string.Empty;

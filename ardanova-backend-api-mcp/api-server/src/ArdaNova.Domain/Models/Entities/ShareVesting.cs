@@ -10,6 +10,7 @@ namespace ArdaNova.Domain.Models.Entities;
 [Table("ShareVesting")]
 public class ShareVesting
 {
+
     [Key]
     [Required]
     public string id { get; set; } = string.Empty;

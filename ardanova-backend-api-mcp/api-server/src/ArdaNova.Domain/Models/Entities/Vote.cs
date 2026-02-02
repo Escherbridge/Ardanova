@@ -10,6 +10,7 @@ namespace ArdaNova.Domain.Models.Entities;
 [Table("Vote")]
 public class Vote
 {
+
     [Key]
     [Required]
     public string id { get; set; } = string.Empty;

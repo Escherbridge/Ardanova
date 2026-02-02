@@ -10,6 +10,7 @@ namespace ArdaNova.Domain.Models.Entities;
 [Table("EventReminder")]
 public class EventReminder
 {
+
     [Key]
     [Required]
     public string id { get; set; } = string.Empty;

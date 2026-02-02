@@ -10,6 +10,7 @@ namespace ArdaNova.Domain.Models.Entities;
 [Table("LiquidityProvider")]
 public class LiquidityProvider
 {
+
     [Key]
     [Required]
     public string id { get; set; } = string.Empty;

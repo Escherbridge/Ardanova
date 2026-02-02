@@ -10,6 +10,7 @@ namespace ArdaNova.Domain.Models.Entities;
 [Table("PostBookmark")]
 public class PostBookmark
 {
+
     [Key]
     [Required]
     public string id { get; set; } = string.Empty;

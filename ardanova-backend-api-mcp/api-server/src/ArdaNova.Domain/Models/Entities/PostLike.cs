@@ -10,6 +10,7 @@ namespace ArdaNova.Domain.Models.Entities;
 [Table("PostLike")]
 public class PostLike
 {
+
     [Key]
     [Required]
     public string id { get; set; } = string.Empty;

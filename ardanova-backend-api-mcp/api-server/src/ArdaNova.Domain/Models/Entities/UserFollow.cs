@@ -10,6 +10,7 @@ namespace ArdaNova.Domain.Models.Entities;
 [Table("UserFollow")]
 public class UserFollow
 {
+
     [Key]
     [Required]
     public string id { get; set; } = string.Empty;

@@ -11,6 +11,7 @@ namespace ArdaNova.Domain.Models.Entities;
 [Table("Event")]
 public class Event
 {
+
     [Key]
     [Required]
     public string id { get; set; } = string.Empty;

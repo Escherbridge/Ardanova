@@ -10,6 +10,7 @@ namespace ArdaNova.Domain.Models.Entities;
 [Table("XPEvent")]
 public class XPEvent
 {
+
     [Key]
     [Required]
     public string id { get; set; } = string.Empty;

@@ -10,6 +10,7 @@ namespace ArdaNova.Domain.Models.Entities;
 [Table("UserSkill")]
 public class UserSkill
 {
+
     [Key]
     [Required]
     public string id { get; set; } = string.Empty;

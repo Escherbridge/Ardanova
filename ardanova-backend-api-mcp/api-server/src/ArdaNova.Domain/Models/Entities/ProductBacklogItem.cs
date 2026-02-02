@@ -10,6 +10,7 @@ namespace ArdaNova.Domain.Models.Entities;
 [Table("ProductBacklogItem")]
 public class ProductBacklogItem
 {
+
     [Key]
     [Required]
     public string id { get; set; } = string.Empty;

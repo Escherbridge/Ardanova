@@ -11,6 +11,7 @@ namespace ArdaNova.Domain.Models.Entities;
 [Table("UserStreak")]
 public class UserStreak
 {
+
     [Key]
     [Required]
     public string id { get; set; } = string.Empty;

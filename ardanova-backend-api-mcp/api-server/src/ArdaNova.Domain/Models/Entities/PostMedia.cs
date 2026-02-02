@@ -10,6 +10,7 @@ namespace ArdaNova.Domain.Models.Entities;
 [Table("PostMedia")]
 public class PostMedia
 {
+
     [Key]
     [Required]
     public string id { get; set; } = string.Empty;

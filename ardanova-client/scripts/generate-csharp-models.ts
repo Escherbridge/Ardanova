@@ -337,6 +337,26 @@ public enum ${en.name}
         }
     });
 
+    // Clean up stale enum files not in DBML
+    const generatedEnumNames = schema.enums.map(en => en.name);
+    const enumDir = path.join(DOMAIN_PATH, 'Enums');
+    if (fs.existsSync(enumDir)) {
+        const existingEnumFiles = fs.readdirSync(enumDir).filter(f => f.endsWith('.cs'));
+        const generatedEnumFileSet = new Set(generatedEnumNames.map(n => `${n}.cs`));
+        const staleEnumFiles = existingEnumFiles.filter(f => !generatedEnumFileSet.has(f));
+
+        if (staleEnumFiles.length > 0) {
+            if (noRemove) {
+                console.log(`[--no-remove] Would remove stale enum files: ${staleEnumFiles.join(', ')}`);
+            } else if (dryRun) {
+                console.log(`[DRY-RUN] Would remove stale enum files: ${staleEnumFiles.join(', ')}`);
+            } else {
+                console.log(`Removing stale enum files: ${staleEnumFiles.join(', ')}`);
+                staleEnumFiles.forEach(f => fs.unlinkSync(path.join(enumDir, f)));
+            }
+        }
+    }
+
     // Helper for relations
     const getRelations = (tableName: string): Ref[] => {
         return schema.refs.filter((ref) =>
@@ -370,6 +390,7 @@ namespace ArdaNova.Domain.Models.Entities;
         content += `[Table("${table.name}")]
 public class ${table.name}
 {
+
 `;
 
         // Properties
@@ -518,6 +539,25 @@ public class ${table.name}
             console.log(`[DRY-RUN] Would write: ${filePath}`);
         }
     });
+
+    // Clean up stale entity files not in DBML
+    const entityDir = path.join(DOMAIN_PATH, 'Entities');
+    if (fs.existsSync(entityDir)) {
+        const existingEntityFiles = fs.readdirSync(entityDir).filter(f => f.endsWith('.cs'));
+        const generatedEntityFileSet = new Set(generatedModels.map(m => `${m}.cs`));
+        const staleEntityFiles = existingEntityFiles.filter(f => !generatedEntityFileSet.has(f));
+
+        if (staleEntityFiles.length > 0) {
+            if (noRemove) {
+                console.log(`[--no-remove] Would remove stale entity files: ${staleEntityFiles.join(', ')}`);
+            } else if (dryRun) {
+                console.log(`[DRY-RUN] Would remove stale entity files: ${staleEntityFiles.join(', ')}`);
+            } else {
+                console.log(`Removing stale entity files: ${staleEntityFiles.join(', ')}`);
+                staleEntityFiles.forEach(f => fs.unlinkSync(path.join(entityDir, f)));
+            }
+        }
+    }
 
     // 3. Generate Model Configurations file (for composite indexes)
     console.log('Generating model configurations...');

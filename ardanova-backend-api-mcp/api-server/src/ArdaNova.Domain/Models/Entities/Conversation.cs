@@ -10,6 +10,7 @@ namespace ArdaNova.Domain.Models.Entities;
 [Table("Conversation")]
 public class Conversation
 {
+
     [Key]
     [Required]
     public string id { get; set; } = string.Empty;

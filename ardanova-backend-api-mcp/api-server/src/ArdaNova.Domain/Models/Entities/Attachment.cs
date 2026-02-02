@@ -10,6 +10,7 @@ namespace ArdaNova.Domain.Models.Entities;
 [Table("Attachment")]
 public class Attachment
 {
+
     [Key]
     [Required]
     public string id { get; set; } = string.Empty;

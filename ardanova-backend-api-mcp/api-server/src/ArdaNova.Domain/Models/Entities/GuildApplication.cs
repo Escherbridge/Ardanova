@@ -10,6 +10,7 @@ namespace ArdaNova.Domain.Models.Entities;
 [Table("GuildApplication")]
 public class GuildApplication
 {
+
     [Key]
     [Required]
     public string id { get; set; } = string.Empty;

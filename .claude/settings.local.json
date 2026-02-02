@@ -64,6 +64,9 @@
       "Bash(npx prisma:*)",
       "Bash(test:*)",
       "Bash(ls:*)"
+    ],
+    "additionalDirectories": [
+      "c:\\Users\\atooz\\Documents\\Escherbridge\\ardanova"
     ]
   }
 }

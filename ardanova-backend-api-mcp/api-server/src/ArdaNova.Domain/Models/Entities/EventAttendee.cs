@@ -10,6 +10,7 @@ namespace ArdaNova.Domain.Models.Entities;
 [Table("EventAttendee")]
 public class EventAttendee
 {
+
     [Key]
     [Required]
     public string id { get; set; } = string.Empty;
