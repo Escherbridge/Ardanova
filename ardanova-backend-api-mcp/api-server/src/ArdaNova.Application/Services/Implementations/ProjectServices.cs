@@ -594,8 +594,11 @@ public class ProjectMilestoneService : IProjectMilestoneService
             title = dto.Title,
             description = dto.Description,
             targetDate = dto.TargetDate,
-            isCompleted = false,
-            createdAt = DateTime.UtcNow
+            status = MilestoneStatus.PLANNED,
+            priority = Priority.MEDIUM,
+            order = 0,
+            createdAt = DateTime.UtcNow,
+            updatedAt = DateTime.UtcNow
         };
         await _repository.AddAsync(milestone, ct);
         await _unitOfWork.SaveChangesAsync(ct);
@@ -611,6 +614,9 @@ public class ProjectMilestoneService : IProjectMilestoneService
         if (dto.Title is not null) milestone.title = dto.Title;
         if (dto.Description is not null) milestone.description = dto.Description;
         if (dto.TargetDate.HasValue) milestone.targetDate = dto.TargetDate.Value;
+        if (dto.Status.HasValue) milestone.status = dto.Status.Value;
+        if (dto.Priority.HasValue) milestone.priority = dto.Priority.Value;
+        milestone.updatedAt = DateTime.UtcNow;
 
         await _repository.UpdateAsync(milestone, ct);
         await _unitOfWork.SaveChangesAsync(ct);
@@ -634,7 +640,7 @@ public class ProjectMilestoneService : IProjectMilestoneService
         if (milestone is null)
             return Result<ProjectMilestoneDto>.NotFound($"Milestone with id {id} not found");
 
-        milestone.isCompleted = true;
+        milestone.status = MilestoneStatus.COMPLETED;
         milestone.completedAt = DateTime.UtcNow;
 
         await _repository.UpdateAsync(milestone, ct);

@@ -17,10 +17,10 @@ public class ProductBacklogItemsController : ControllerBase
         _pbiService = pbiService;
     }
 
-    [HttpGet("epics/{epicId}/product-backlog-items")]
-    public async Task<IActionResult> GetByEpicId(string epicId, CancellationToken ct)
+    [HttpGet("features/{featureId}/product-backlog-items")]
+    public async Task<IActionResult> GetByFeatureId(string featureId, CancellationToken ct)
     {
-        var result = await _pbiService.GetByProjectIdAsync(epicId, ct);
+        var result = await _pbiService.GetByProjectIdAsync(featureId, ct);
         return ToActionResult(result);
     }
 
@@ -83,21 +83,11 @@ public class ProductBacklogItemsController : ControllerBase
         return ToActionResult(result);
     }
 
-    [HttpPut("epics/{epicId}/product-backlog-items/reorder")]
-    public async Task<IActionResult> ReorderPbis(string epicId, [FromBody] ReorderDto dto, CancellationToken ct)
+    [HttpPut("features/{featureId}/product-backlog-items/reorder")]
+    public async Task<IActionResult> ReorderPbis(string featureId, [FromBody] ReorderDto dto, CancellationToken ct)
     {
-        var result = await _pbiService.ReorderAsync(epicId, dto.ItemIds, ct);
+        var result = await _pbiService.ReorderAsync(featureId, dto.ItemIds, ct);
         return result.IsSuccess ? NoContent() : ToActionResult(result);
-    }
-
-    [HttpGet("product-backlog-items/{pbiId}/backlog-items")]
-    public async Task<IActionResult> GetBacklogItems(string pbiId, CancellationToken ct)
-    {
-        var result = await _pbiService.GetByIdAsync(pbiId, ct);
-        if (!result.IsSuccess)
-            return ToActionResult(result);
-
-        return Ok(result.Value!.BacklogItems ?? new List<BacklogItemDto>());
     }
 
     private IActionResult ToActionResult<T>(Result<T> result)

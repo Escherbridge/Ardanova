@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Loader2, Plus, X, Info, Briefcase, DollarSign } from "lucide-react";
 
@@ -15,30 +15,37 @@ import {
   SelectTrigger,
   SelectValue,
 } from "~/components/ui/select";
+import { useEnumOptions } from "~/hooks/use-enum";
+import { api } from "~/trpc/react";
+import { useSession } from "next-auth/react";
 
-const jobTypes = [
-  { id: "Bounty", label: "Bounty" },
-  { id: "Freelance", label: "Freelance" },
-  { id: "Contract", label: "Contract" },
-  { id: "Part-time", label: "Part-time" },
-  { id: "Full-time", label: "Full-time" },
-];
+// Label overrides for opportunity types
+const jobTypeLabels: Record<string, string> = {
+  PART_TIME: "Part-time",
+  FULL_TIME: "Full-time",
+};
 
-const compensationTypes = [
-  { id: "fixed", label: "Fixed Price" },
-  { id: "hourly", label: "Hourly Rate" },
-  { id: "negotiable", label: "Negotiable" },
-];
+// Label overrides for compensation types
+const compensationLabels: Record<string, string> = {
+  FIXED: "Fixed Price",
+  HOURLY: "Hourly Rate",
+};
 
-const experienceLevels = [
-  { id: "entry", label: "Entry Level" },
-  { id: "intermediate", label: "Intermediate" },
-  { id: "senior", label: "Senior" },
-  { id: "expert", label: "Expert" },
-];
+// Label overrides for experience levels
+const experienceLabels: Record<string, string> = {
+  ENTRY: "Entry Level",
+};
 
 export default function CreateOpportunityPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const entityType = searchParams.get("entityType");
+  const entityId = searchParams.get("entityId");
+  const entitySlug = searchParams.get("entitySlug");
+  const { data: session } = useSession();
+  const { options: jobTypes } = useEnumOptions("OpportunityType", jobTypeLabels);
+  const { options: compensationTypes } = useEnumOptions("CompensationType", compensationLabels);
+  const { options: experienceLevels } = useEnumOptions("ExperienceLevel", experienceLabels);
   const [formData, setFormData] = useState({
     title: "",
     description: "",
@@ -53,6 +60,20 @@ export default function CreateOpportunityPage() {
   const [newSkill, setNewSkill] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const createOpportunity = api.opportunity.create.useMutation({
+    onSuccess: () => {
+      if (entitySlug && entityType === "project") {
+        router.push(`/projects/${entitySlug}`);
+      } else {
+        router.push("/opportunities");
+      }
+    },
+    onError: (error) => {
+      setErrors({ submit: error.message });
+      setIsSubmitting(false);
+    },
+  });
 
   const handleChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -101,10 +122,28 @@ export default function CreateOpportunityPage() {
     if (!validateForm()) return;
 
     setIsSubmitting(true);
-    // TODO: Implement opportunity creation API
-    setTimeout(() => {
-      router.push("/marketplace");
-    }, 1000);
+
+    // Validate that we have an entity association (required by backend)
+    if (!entityId || !entityType) {
+      setErrors({ submit: "An opportunity must be associated with a project or guild" });
+      setIsSubmitting(false);
+      return;
+    }
+
+    createOpportunity.mutate({
+      title: formData.title,
+      description: formData.description,
+      type: formData.type as "Bounty" | "Freelance" | "Contract" | "Part-time" | "Full-time",
+      skills: formData.skills,
+      experienceLevel: formData.experienceLevel as "entry" | "intermediate" | "senior" | "expert" | undefined,
+      compensationType: formData.compensationType as "fixed" | "hourly" | "negotiable" | undefined,
+      compensationAmount: formData.compensationAmount ? parseFloat(formData.compensationAmount) : undefined,
+      location: formData.location || undefined,
+      isRemote: formData.location.toLowerCase().includes("remote") || !formData.location,
+      deadline: formData.deadline || undefined,
+      projectId: entityType === "project" ? entityId || undefined : undefined,
+      guildId: entityType === "guild" ? entityId || undefined : undefined,
+    });
   };
 
   return (
@@ -113,7 +152,7 @@ export default function CreateOpportunityPage() {
         {/* Header */}
         <div className="mb-8">
           <Button variant="ghost" asChild className="mb-4 -ml-2">
-            <Link href="/marketplace">
+            <Link href="/opportunities">
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back to Opportunities
             </Link>
@@ -130,6 +169,16 @@ export default function CreateOpportunityPage() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Purpose Info Card */}
+          {entityType === "project" && entitySlug && (
+            <Card className="bg-neon/5 border-neon/20">
+              <CardContent className="py-4">
+                <p className="text-sm">
+                  Creating a team position for project: <span className="font-medium">{entitySlug}</span>
+                </p>
+              </CardContent>
+            </Card>
+          )}
           {/* Job Info */}
           <Card className="bg-card border-border">
             <CardHeader className="pb-3">
@@ -380,7 +429,7 @@ export default function CreateOpportunityPage() {
               )}
             </Button>
             <Button type="button" variant="outline" asChild className="py-6">
-              <Link href="/marketplace">Cancel</Link>
+              <Link href="/opportunities">Cancel</Link>
             </Button>
           </div>
 

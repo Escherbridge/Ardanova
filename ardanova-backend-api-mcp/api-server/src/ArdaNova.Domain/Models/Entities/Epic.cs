@@ -15,7 +15,7 @@ public class Epic
     public string id { get; set; } = string.Empty;
 
     [Required]
-    public string phaseId { get; set; } = string.Empty;
+    public string milestoneId { get; set; } = string.Empty;
 
     [Required]
     public string title { get; set; } = string.Empty;
@@ -47,12 +47,12 @@ public class Epic
 
     public string? assigneeId { get; set; }
 
-    [ForeignKey("phaseId")]
-    public virtual RoadmapPhase? Phase { get; set; }
+    [ForeignKey("milestoneId")]
+    public virtual ProjectMilestone? Milestone { get; set; }
 
     [ForeignKey("assigneeId")]
     public virtual User? Assignee { get; set; }
 
-    public virtual ICollection<ProductBacklogItem> ProductBacklogItems { get; set; } = new List<ProductBacklogItem>();
+    public virtual ICollection<Sprint> Sprints { get; set; } = new List<Sprint>();
 
 }

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -31,49 +32,38 @@ import {
 } from "~/components/ui/select";
 import { cn } from "~/lib/utils";
 import { api } from "~/trpc/react";
-
-const categories = [
-  { id: "TECHNOLOGY", label: "Technology" },
-  { id: "HEALTHCARE", label: "Healthcare" },
-  { id: "EDUCATION", label: "Education" },
-  { id: "ENVIRONMENT", label: "Environment" },
-  { id: "SOCIAL_IMPACT", label: "Social Impact" },
-  { id: "BUSINESS", label: "Business" },
-  { id: "ARTS_CULTURE", label: "Arts & Culture" },
-  { id: "AGRICULTURE", label: "Agriculture" },
-  { id: "FINANCE", label: "Finance" },
-];
+import { useEnumOptions, formatEnumLabel } from "~/hooks/use-enum";
 
 const OTHER_CATEGORY_MAX_LENGTH = 50;
 
-const projectTypes = [
-  { id: "TEMPORARY", label: "Temporary", description: "Short-term project with a defined end date" },
-  { id: "LONG_TERM", label: "Long Term", description: "Ongoing project without a strict end date" },
-  { id: "FOUNDATION", label: "Foundation", description: "Non-profit organization or foundation" },
-  { id: "BUSINESS", label: "Business", description: "Business venture or startup" },
-  { id: "PRODUCT", label: "Product", description: "A product people can help develop" },
-  { id: "OPEN_SOURCE", label: "Open Source", description: "Open source project or tool" },
-  { id: "COMMUNITY", label: "Community", description: "Community-driven initiative" },
-];
+const projectTypeDescriptions: Record<string, string> = {
+  TEMPORARY: "Short-term project with a defined end date",
+  LONG_TERM: "Ongoing project without a strict end date",
+  FOUNDATION: "Non-profit organization or foundation",
+  BUSINESS: "Business venture or startup",
+  PRODUCT: "A product people can help develop",
+  OPEN_SOURCE: "Open source project or tool",
+  COMMUNITY: "Community-driven initiative",
+};
 
-const durations = [
-  { id: "ONE_TWO_WEEKS", label: "1-2 weeks" },
-  { id: "ONE_THREE_MONTHS", label: "1-3 months" },
-  { id: "THREE_SIX_MONTHS", label: "3-6 months" },
-  { id: "SIX_TWELVE_MONTHS", label: "6-12 months" },
-  { id: "ONE_TWO_YEARS", label: "1-2 years" },
-  { id: "TWO_PLUS_YEARS", label: "2+ years" },
-  { id: "ONGOING", label: "Ongoing" },
-];
+const durationLabels: Record<string, string> = {
+  ONE_TWO_WEEKS: "1-2 weeks",
+  ONE_THREE_MONTHS: "1-3 months",
+  THREE_SIX_MONTHS: "3-6 months",
+  SIX_TWELVE_MONTHS: "6-12 months",
+  ONE_TWO_YEARS: "1-2 years",
+  TWO_PLUS_YEARS: "2+ years",
+  ONGOING: "Ongoing",
+};
 
-const compensationModels = [
-  { id: "FIXED_TOKEN", label: "Fixed Token" },
-  { id: "HOURLY_TOKEN", label: "Hourly Token" },
-  { id: "EQUITY_PERCENT", label: "Equity Percent" },
-  { id: "HYBRID", label: "Hybrid" },
-  { id: "BOUNTY", label: "Bounty" },
-  { id: "MILESTONE", label: "Milestone" },
-];
+const compensationLabels: Record<string, string> = {
+  FIXED_SHARES: "Fixed Token",
+  HOURLY_SHARES: "Hourly Token",
+  EQUITY_PERCENT: "Equity Percent",
+  HYBRID: "Hybrid",
+  BOUNTY: "Bounty",
+  MILESTONE: "Milestone",
+};
 
 const RECURRING_PRESETS = [
   { label: "Biweekly", days: 14 },
@@ -161,6 +151,14 @@ const steps = [
 
 export default function CreateProjectPage() {
   const router = useRouter();
+  const { data: session } = useSession();
+
+  // API-driven enum options
+  const { options: categories } = useEnumOptions("ProjectCategory");
+  const { options: projectTypes } = useEnumOptions("ProjectType");
+  const { options: durations } = useEnumOptions("ProjectDuration", durationLabels);
+  const { options: compensationModels } = useEnumOptions("CompensationModel", compensationLabels);
+
   const [currentStep, setCurrentStep] = useState(0);
   const [formData, setFormData] = useState<WizardFormData>({
     title: "",
@@ -218,6 +216,8 @@ export default function CreateProjectPage() {
   const createMutation = api.project.create.useMutation();
   const addResourceMutation = api.project.addResource.useMutation();
   const addMilestoneMutation = api.project.addMilestone.useMutation();
+  const addMemberMutation = api.project.addMember.useMutation();
+  const createOpportunityMutation = api.opportunity.create.useMutation();
 
   const handleChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -526,6 +526,58 @@ export default function CreateProjectPage() {
         });
       }
 
+      // 4. Auto-add creator as FOUNDER member
+      if (session?.user?.id) {
+        try {
+          await addMemberMutation.mutateAsync({
+            projectId: project.id,
+            userId: session.user.id,
+            role: "FOUNDER",
+          });
+        } catch {
+          // Non-critical: creator might already be added by backend
+        }
+      }
+
+      // 5. Save team roles as project opportunities
+      for (const role of formData.roles) {
+        const compensationMap: Record<string, "fixed" | "hourly" | "negotiable"> = {
+          FIXED_TOKEN: "fixed",
+          HOURLY_TOKEN: "hourly",
+          EQUITY_PERCENT: "negotiable",
+          HYBRID: "negotiable",
+          BOUNTY: "fixed",
+          MILESTONE: "fixed",
+        };
+        const typeMap: Record<string, "Bounty" | "Freelance" | "Contract" | "Part-time" | "Full-time"> = {
+          FIXED_TOKEN: "Contract",
+          HOURLY_TOKEN: "Freelance",
+          EQUITY_PERCENT: "Full-time",
+          HYBRID: "Part-time",
+          BOUNTY: "Bounty",
+          MILESTONE: "Contract",
+        };
+
+        const description = role.description.length >= 20
+          ? role.description
+          : `${role.description} — Role for ${formData.title}`.slice(0, 200);
+
+        try {
+          await createOpportunityMutation.mutateAsync({
+            projectId: project.id,
+            title: role.title,
+            description,
+            type: typeMap[role.compensationModel] ?? "Contract",
+            skills: formData.tags.length > 0 ? formData.tags : ["General"],
+            compensationType: compensationMap[role.compensationModel] ?? "negotiable",
+            compensationAmount: role.shareAmount && Number(role.shareAmount) > 0 ? Number(role.shareAmount) : undefined,
+            isRemote: true,
+          });
+        } catch {
+          // Non-critical: continue saving remaining roles
+        }
+      }
+
       router.push(`/projects/${project.slug}`);
     } catch (error) {
       setErrors({
@@ -760,7 +812,7 @@ export default function CreateProjectPage() {
                               {pt.label}
                             </span>
                             <span className="text-xs text-muted-foreground mt-0.5">
-                              {pt.description}
+                              {projectTypeDescriptions[pt.id] ?? ""}
                             </span>
                           </button>
                         );

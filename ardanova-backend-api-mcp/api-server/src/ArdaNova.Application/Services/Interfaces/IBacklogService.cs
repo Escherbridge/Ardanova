@@ -16,15 +16,3 @@ public interface IProductBacklogItemService
     Task<Result<bool>> ReorderAsync(string projectId, IReadOnlyList<string> itemIds, CancellationToken ct = default);
 }
 
-public interface IBacklogItemService
-{
-    Task<Result<BacklogItemDto>> GetByIdAsync(string id, CancellationToken ct = default);
-    Task<Result<IReadOnlyList<BacklogItemDto>>> GetByProjectIdAsync(string projectId, CancellationToken ct = default);
-    Task<Result<IReadOnlyList<BacklogItemDto>>> GetBySprintIdAsync(string sprintId, CancellationToken ct = default);
-    Task<Result<BacklogItemDto>> CreateAsync(CreateBacklogItemDto dto, CancellationToken ct = default);
-    Task<Result<BacklogItemDto>> UpdateAsync(string id, UpdateBacklogItemDto dto, CancellationToken ct = default);
-    Task<Result<bool>> DeleteAsync(string id, CancellationToken ct = default);
-    Task<Result<BacklogItemDto>> AssignAsync(string id, string? userId, CancellationToken ct = default);
-    Task<Result<BacklogItemDto>> UpdateStatusAsync(string id, BacklogStatus status, CancellationToken ct = default);
-    Task<Result<bool>> ReorderAsync(string projectId, IReadOnlyList<string> itemIds, CancellationToken ct = default);
-}

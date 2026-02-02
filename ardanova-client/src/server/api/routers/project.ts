@@ -149,6 +149,7 @@ const addMilestoneSchema = z.object({
 });
 
 const updateMilestoneSchema = z.object({
+  projectId: z.string(),
   milestoneId: z.string(),
   title: z.string().min(1).optional(),
   description: z.string().optional(),
@@ -598,16 +599,10 @@ export const projectRouter = createTRPCRouter({
     .input(updateMilestoneSchema)
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user.id;
-      const { milestoneId, ...data } = input;
-
-      // Get milestone to verify ownership
-      const milestone = await apiClient.projects.getMilestoneById(milestoneId);
-      if (milestone.error || !milestone.data) {
-        throw new Error("Milestone not found");
-      }
+      const { projectId, milestoneId, ...data } = input;
 
       // Verify project ownership
-      const project = await apiClient.projects.getById(milestone.data.projectId);
+      const project = await apiClient.projects.getById(projectId);
       if (project.error || !project.data) {
         throw new Error("Project not found");
       }
@@ -615,7 +610,7 @@ export const projectRouter = createTRPCRouter({
         throw new Error("Access denied");
       }
 
-      const response = await apiClient.projects.updateMilestone(milestoneId, data);
+      const response = await apiClient.projects.updateMilestone(projectId, milestoneId, data);
 
       if (response.error || !response.data) {
         throw new Error(response.error ?? "Failed to update milestone");
@@ -626,18 +621,12 @@ export const projectRouter = createTRPCRouter({
 
   // Delete milestone
   deleteMilestone: protectedProcedure
-    .input(z.object({ milestoneId: z.string() }))
+    .input(z.object({ projectId: z.string(), milestoneId: z.string() }))
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user.id;
 
-      // Get milestone to verify ownership
-      const milestone = await apiClient.projects.getMilestoneById(input.milestoneId);
-      if (milestone.error || !milestone.data) {
-        throw new Error("Milestone not found");
-      }
-
       // Verify project ownership
-      const project = await apiClient.projects.getById(milestone.data.projectId);
+      const project = await apiClient.projects.getById(input.projectId);
       if (project.error || !project.data) {
         throw new Error("Project not found");
       }
@@ -645,7 +634,7 @@ export const projectRouter = createTRPCRouter({
         throw new Error("Access denied");
       }
 
-      const response = await apiClient.projects.deleteMilestone(input.milestoneId);
+      const response = await apiClient.projects.deleteMilestone(input.projectId, input.milestoneId);
 
       if (response.error) {
         throw new Error(response.error ?? "Failed to delete milestone");
@@ -669,18 +658,12 @@ export const projectRouter = createTRPCRouter({
 
   // Complete milestone
   completeMilestone: protectedProcedure
-    .input(z.object({ milestoneId: z.string() }))
+    .input(z.object({ projectId: z.string(), milestoneId: z.string() }))
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user.id;
 
-      // Get milestone to verify ownership
-      const milestone = await apiClient.projects.getMilestoneById(input.milestoneId);
-      if (milestone.error || !milestone.data) {
-        throw new Error("Milestone not found");
-      }
-
       // Verify project ownership
-      const project = await apiClient.projects.getById(milestone.data.projectId);
+      const project = await apiClient.projects.getById(input.projectId);
       if (project.error || !project.data) {
         throw new Error("Project not found");
       }
@@ -688,7 +671,7 @@ export const projectRouter = createTRPCRouter({
         throw new Error("Access denied");
       }
 
-      const response = await apiClient.projects.completeMilestone(input.milestoneId);
+      const response = await apiClient.projects.completeMilestone(input.projectId, input.milestoneId);
 
       if (response.error || !response.data) {
         throw new Error(response.error ?? "Failed to complete milestone");
@@ -980,14 +963,22 @@ export const projectRouter = createTRPCRouter({
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user.id;
 
-      // Verify user is a member of the project
-      const members = await apiClient.projects.getMembers(input.projectId);
+      // Verify user is a member or founder of the project
+      const [project, members] = await Promise.all([
+        apiClient.projects.getById(input.projectId),
+        apiClient.projects.getMembers(input.projectId),
+      ]);
+
+      if (project.error || !project.data) {
+        throw new Error("Project not found");
+      }
       if (members.error || !members.data) {
         throw new Error("Failed to verify membership");
       }
 
+      const isFounder = project.data.createdById === userId;
       const isMember = members.data.some((m: any) => m.userId === userId);
-      if (!isMember) {
+      if (!isFounder && !isMember) {
         throw new Error("Only project members can create proposals");
       }
 
@@ -1054,14 +1045,22 @@ export const projectRouter = createTRPCRouter({
         throw new Error("Proposal not found");
       }
 
-      // Verify user is a member of the project
-      const members = await apiClient.projects.getMembers(proposal.data.projectId);
+      // Verify user is a member or founder of the project
+      const [project, members] = await Promise.all([
+        apiClient.projects.getById(proposal.data.projectId),
+        apiClient.projects.getMembers(proposal.data.projectId),
+      ]);
+
+      if (project.error || !project.data) {
+        throw new Error("Project not found");
+      }
       if (members.error || !members.data) {
         throw new Error("Failed to verify membership");
       }
 
+      const isFounder = project.data.createdById === userId;
       const isMember = members.data.some((m: any) => m.userId === userId);
-      if (!isMember) {
+      if (!isFounder && !isMember) {
         throw new Error("Only project members can vote");
       }
 
@@ -1234,6 +1233,7 @@ export const projectRouter = createTRPCRouter({
       const userId = ctx.session.user.id;
 
       const response = await apiClient.projects.addComment(input.projectId, {
+        projectId: input.projectId,
         userId: userId,
         content: input.content,
         parentId: input.parentId,

@@ -39,6 +39,7 @@ const createTaskSchema = z.object({
   dueDate: z.string().optional(),
   assigneeId: z.string().optional(),
   projectId: z.string(),
+  pbiId: z.string().optional(),
   tags: z.string().optional(),
 });
 
@@ -53,6 +54,7 @@ const updateTaskSchema = z.object({
   effort: TaskEffort.optional(),
   dueDate: z.string().optional(),
   assigneeId: z.string().optional(),
+  pbiId: z.string().optional(),
   tags: z.string().optional(),
 });
 
@@ -63,6 +65,7 @@ export const taskRouter = createTRPCRouter({
     .mutation(async ({ input, ctx }) => {
       const response = await apiClient.tasks.create({
         projectId: input.projectId,
+        pbiId: input.pbiId,
         title: input.title,
         description: input.description,
         taskType: input.type,
@@ -76,7 +79,29 @@ export const taskRouter = createTRPCRouter({
         throw new Error(response.error ?? "Failed to create task");
       }
 
-      return response.data;
+      const taskData = response.data;
+
+      // Auto-create a draft opportunity for this task
+      try {
+        const slug = `task-${taskData.id}-${Date.now()}`;
+        await apiClient.opportunities.create({
+          title: taskData.title,
+          slug,
+          description: taskData.description || taskData.title,
+          type: 'TASK_BOUNTY',
+          experienceLevel: 'MID',
+          origin: 'TASK_GENERATED',
+          status: 'DRAFT',
+          projectId: input.projectId,
+          taskId: taskData.id,
+          posterId: ctx.session.user.id,
+        });
+      } catch {
+        // Don't fail task creation if opportunity auto-gen fails
+        console.error('Failed to auto-generate opportunity for task:', taskData.id);
+      }
+
+      return taskData;
     }),
 
   // Get all tasks with pagination and filters
@@ -184,6 +209,7 @@ export const taskRouter = createTRPCRouter({
         estimatedHours: data.effort ? effortToHours(data.effort) : undefined,
         dueDate: data.dueDate,
         assignedToId: data.assigneeId,
+        pbiId: data.pbiId,
       });
 
       if (response.error || !response.data) {

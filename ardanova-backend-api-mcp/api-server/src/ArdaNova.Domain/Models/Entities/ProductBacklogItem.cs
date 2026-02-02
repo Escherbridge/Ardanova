@@ -15,7 +15,7 @@ public class ProductBacklogItem
     public string id { get; set; } = string.Empty;
 
     [Required]
-    public string epicId { get; set; } = string.Empty;
+    public string featureId { get; set; } = string.Empty;
 
     [Required]
     public string title { get; set; } = string.Empty;
@@ -45,12 +45,12 @@ public class ProductBacklogItem
 
     public string? assigneeId { get; set; }
 
-    [ForeignKey("epicId")]
-    public virtual Epic? Epic { get; set; }
+    public virtual ICollection<ProjectTask> ProjectTasks { get; set; } = new List<ProjectTask>();
+
+    [ForeignKey("featureId")]
+    public virtual Feature? Feature { get; set; }
 
     [ForeignKey("assigneeId")]
     public virtual User? Assignee { get; set; }
-
-    public virtual ICollection<BacklogItem> BacklogItems { get; set; } = new List<BacklogItem>();
 
 }

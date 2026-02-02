@@ -11,7 +11,6 @@ import {
   Bookmark,
   Users,
   FolderKanban,
-  Store,
   TrendingUp,
   Award,
   Vote,
@@ -34,8 +33,7 @@ export type FeedItemType =
   | "guild_activity"
   | "task_completed"
   | "milestone"
-  | "proposal"
-  | "shop_item";
+  | "proposal";
 
 export interface FeedCardProps {
   id: string;
@@ -48,7 +46,7 @@ export interface FeedCardProps {
   };
   entity?: {
     id: string;
-    type: "project" | "guild" | "shop";
+    type: "project" | "guild";
     name: string;
     slug: string;
   };
@@ -77,7 +75,6 @@ const typeIcons: Record<FeedItemType, typeof FolderKanban> = {
   task_completed: Award,
   milestone: TrendingUp,
   proposal: Vote,
-  shop_item: Store,
 };
 
 const typeLabels: Record<FeedItemType, string> = {
@@ -87,7 +84,6 @@ const typeLabels: Record<FeedItemType, string> = {
   task_completed: "Task Completed",
   milestone: "Milestone",
   proposal: "Proposal",
-  shop_item: "Shop Item",
 };
 
 const typeBadgeVariants: Record<FeedItemType, string> = {
@@ -97,7 +93,6 @@ const typeBadgeVariants: Record<FeedItemType, string> = {
   task_completed: "neon-green",
   milestone: "neon",
   proposal: "neon-purple",
-  shop_item: "warning",
 };
 
 function formatRelativeTime(date: Date): string {

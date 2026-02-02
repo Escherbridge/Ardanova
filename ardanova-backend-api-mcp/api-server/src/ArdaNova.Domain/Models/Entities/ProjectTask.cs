@@ -7,6 +7,7 @@ using ArdaNova.Domain.Models.Enums;
 
 namespace ArdaNova.Domain.Models.Entities;
 
+[Index(nameof(opportunityId), IsUnique = true)]
 [Table("ProjectTask")]
 public class ProjectTask
 {
@@ -17,7 +18,7 @@ public class ProjectTask
     [Required]
     public string projectId { get; set; } = string.Empty;
 
-    public string? backlogItemId { get; set; }
+    public string? pbiId { get; set; }
 
     [Required]
     public string title { get; set; } = string.Empty;
@@ -56,22 +57,23 @@ public class ProjectTask
 
     public string? assignedToId { get; set; }
 
+    public string? opportunityId { get; set; }
+
     [ForeignKey("projectId")]
     public virtual Project? Project { get; set; }
 
     [ForeignKey("assignedToId")]
     public virtual User? AssignedTo { get; set; }
 
-    [ForeignKey("backlogItemId")]
-    public virtual BacklogItem? BacklogItem { get; set; }
+    [ForeignKey("pbiId")]
+    public virtual ProductBacklogItem? Pbi { get; set; }
 
-    public virtual ICollection<SprintItem> SprintItems { get; set; } = new List<SprintItem>();
+    [ForeignKey("opportunityId")]
+    public virtual Opportunity? Opportunity { get; set; }
 
     public virtual ICollection<TaskCompensation> TaskCompensations { get; set; } = new List<TaskCompensation>();
 
     public virtual ICollection<TaskSubmission> TaskSubmissions { get; set; } = new List<TaskSubmission>();
-
-    public virtual ICollection<TaskBid> TaskBids { get; set; } = new List<TaskBid>();
 
     public virtual ICollection<TaskEscrow> TaskEscrows { get; set; } = new List<TaskEscrow>();
 

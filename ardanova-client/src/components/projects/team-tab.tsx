@@ -75,9 +75,9 @@ const formatRoleName = (role: MemberRole) => {
     .join(" ");
 };
 
-// Available roles with descriptions
-const AVAILABLE_ROLES = [
-  { id: "FOUNDER", name: "Founder", description: "Project creator with full administrative access", filled: true },
+// Fallback roles if no opportunities have been created for this project
+const DEFAULT_ROLES = [
+  { id: "FOUNDER", name: "Founder", description: "Project creator with full administrative access" },
   { id: "LEADER", name: "Leader", description: "Team lead with management responsibilities" },
   { id: "CORE_CONTRIBUTOR", name: "Core Contributor", description: "Key contributor with significant ongoing involvement" },
   { id: "CONTRIBUTOR", name: "Contributor", description: "Active contributor to the project" },
@@ -96,6 +96,10 @@ export default function TeamTab({ projectId, isOwner }: TeamTabProps) {
 
   // Queries
   const { data: members, isLoading: membersLoading } = api.project.getMembers.useQuery({
+    projectId,
+  });
+
+  const { data: opportunities } = api.opportunity.getByProjectId.useQuery({
     projectId,
   });
 
@@ -240,52 +244,93 @@ export default function TeamTab({ projectId, isOwner }: TeamTabProps) {
         </CardHeader>
         <CardContent>
           <div className="grid gap-3">
-            {AVAILABLE_ROLES.map((role) => {
-              const filledMembers = members?.filter((m: Member) => m.role === role.id) ?? [];
-              const isFilled = filledMembers.length > 0;
+            {opportunities && opportunities.length > 0 ? (
+              // Show roles from project creation (stored as opportunities)
+              opportunities.map((opp: any) => {
+                const isFilled = opp.status === "FILLED" || opp.status === "CLOSED";
 
-              return (
-                <div
-                  key={role.id}
-                  className="flex items-center justify-between p-3 border border-border rounded hover:bg-muted/30 transition-colors"
-                >
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <Badge variant={getRoleBadgeVariant(role.id as MemberRole)}>
-                        {role.name}
-                      </Badge>
-                      {isFilled && (
-                        <span className="text-xs text-muted-foreground">
-                          ({filledMembers.length} {filledMembers.length === 1 ? 'member' : 'members'})
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-sm text-muted-foreground mt-1">{role.description}</p>
-                  </div>
-                  <div className="ml-4">
-                    {isFilled ? (
-                      <div className="flex -space-x-2">
-                        {filledMembers.slice(0, 3).map((m: Member) => (
-                          <Avatar key={m.id} className="size-8 border-2 border-background">
-                            <AvatarImage src={m.user?.image ?? undefined} />
-                            <AvatarFallback className="text-xs">
-                              {m.user?.name?.charAt(0).toUpperCase() ?? "U"}
-                            </AvatarFallback>
-                          </Avatar>
-                        ))}
-                        {filledMembers.length > 3 && (
-                          <div className="size-8 rounded-full bg-muted border-2 border-background flex items-center justify-center text-xs font-medium">
-                            +{filledMembers.length - 3}
-                          </div>
+                return (
+                  <div
+                    key={opp.id}
+                    className="flex items-center justify-between p-3 border border-border rounded hover:bg-muted/30 transition-colors"
+                  >
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="neon">
+                          {opp.title}
+                        </Badge>
+                        {opp.type && (
+                          <Badge variant="secondary" className="text-xs">
+                            {opp.type}
+                          </Badge>
+                        )}
+                        {opp.applicationsCount > 0 && (
+                          <span className="text-xs text-muted-foreground">
+                            ({opp.applicationsCount} {opp.applicationsCount === 1 ? 'applicant' : 'applicants'})
+                          </span>
                         )}
                       </div>
-                    ) : (
-                      <Badge variant="outline" className="text-xs">Open</Badge>
-                    )}
+                      <p className="text-sm text-muted-foreground mt-1">{opp.description}</p>
+                    </div>
+                    <div className="ml-4">
+                      {isFilled ? (
+                        <Badge variant="secondary" className="text-xs">Filled</Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-xs">Open</Badge>
+                      )}
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })
+            ) : (
+              // Fallback: show default roles when no opportunities defined
+              DEFAULT_ROLES.map((role) => {
+                const filledMembers = members?.filter((m: Member) => m.role === role.id) ?? [];
+                const isFilled = filledMembers.length > 0;
+
+                return (
+                  <div
+                    key={role.id}
+                    className="flex items-center justify-between p-3 border border-border rounded hover:bg-muted/30 transition-colors"
+                  >
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <Badge variant={getRoleBadgeVariant(role.id as MemberRole)}>
+                          {role.name}
+                        </Badge>
+                        {isFilled && (
+                          <span className="text-xs text-muted-foreground">
+                            ({filledMembers.length} {filledMembers.length === 1 ? 'member' : 'members'})
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-sm text-muted-foreground mt-1">{role.description}</p>
+                    </div>
+                    <div className="ml-4">
+                      {isFilled ? (
+                        <div className="flex -space-x-2">
+                          {filledMembers.slice(0, 3).map((m: Member) => (
+                            <Avatar key={m.id} className="size-8 border-2 border-background">
+                              <AvatarImage src={m.user?.image ?? undefined} />
+                              <AvatarFallback className="text-xs">
+                                {m.user?.name?.charAt(0).toUpperCase() ?? "U"}
+                              </AvatarFallback>
+                            </Avatar>
+                          ))}
+                          {filledMembers.length > 3 && (
+                            <div className="size-8 rounded-full bg-muted border-2 border-background flex items-center justify-center text-xs font-medium">
+                              +{filledMembers.length - 3}
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <Badge variant="outline" className="text-xs">Open</Badge>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
+            )}
           </div>
         </CardContent>
       </Card>

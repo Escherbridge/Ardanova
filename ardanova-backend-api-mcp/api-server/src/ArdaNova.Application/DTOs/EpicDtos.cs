@@ -5,7 +5,7 @@ using ArdaNova.Domain.Models.Enums;
 public record EpicDto
 {
     public string Id { get; init; } = null!;
-    public string PhaseId { get; init; } = null!;
+    public string MilestoneId { get; init; } = null!;
     public string Title { get; init; } = null!;
     public string? Description { get; init; }
     public EpicStatus Status { get; init; }
@@ -22,7 +22,7 @@ public record EpicDto
 
 public record CreateEpicDto
 {
-    public required string PhaseId { get; init; }
+    public required string MilestoneId { get; init; }
     public required string Title { get; init; }
     public string? Description { get; init; }
     public TaskPriority Priority { get; init; } = TaskPriority.MEDIUM;

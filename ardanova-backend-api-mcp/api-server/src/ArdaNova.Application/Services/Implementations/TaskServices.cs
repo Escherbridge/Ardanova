@@ -128,7 +128,7 @@ public class TaskService : ITaskService
             escrowStatus = EscrowStatus.NONE,
             dueDate = dto.DueDate,
             assignedToId = dto.AssignedToId,
-            backlogItemId = dto.BacklogItemId,
+            pbiId = dto.PbiId,
             createdAt = DateTime.UtcNow,
             updatedAt = DateTime.UtcNow
         };

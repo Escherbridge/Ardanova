@@ -27,15 +27,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "~/components/ui/select";
-
-const eventTypes = [
-  { id: "meetup", label: "Meetup" },
-  { id: "workshop", label: "Workshop" },
-  { id: "hackathon", label: "Hackathon" },
-  { id: "conference", label: "Conference" },
-  { id: "webinar", label: "Webinar" },
-  { id: "ama", label: "AMA" },
-];
+import { useEnumOptions } from "~/hooks/use-enum";
 
 const eventFormats = [
   { id: "virtual", label: "Virtual", icon: Video },
@@ -54,6 +46,7 @@ const timezones = [
 
 export default function CreateEventPage() {
   const router = useRouter();
+  const { options: eventTypes } = useEnumOptions("EventType");
   const [formData, setFormData] = useState({
     title: "",
     description: "",

@@ -5,7 +5,6 @@ import { apiClient } from "~/lib/api";
 import {
   canCreateGuildOpportunity,
   canCreateProjectOpportunity,
-  canCreateShopOpportunity,
 } from "~/server/api/lib/permissions";
 
 // Opportunity type enum
@@ -38,7 +37,6 @@ const createOpportunitySchema = z.object({
   maxApplications: z.number().positive().optional(),
   projectId: z.string().optional(),
   guildId: z.string().optional(),
-  shopId: z.string().optional(),
   taskId: z.string().optional(),
 });
 
@@ -82,18 +80,10 @@ export const opportunityRouter = createTRPCRouter({
             message: permission.reason || "You don't have permission to create opportunities for this project",
           });
         }
-      } else if (input.shopId) {
-        const permission = await canCreateShopOpportunity(ctx.db, userId, input.shopId);
-        if (!permission.allowed) {
-          throw new TRPCError({
-            code: "FORBIDDEN",
-            message: permission.reason || "You don't have permission to create opportunities for this shop",
-          });
-        }
       } else {
         throw new TRPCError({
           code: "BAD_REQUEST",
-          message: "An opportunity must be associated with a guild, project, or shop",
+          message: "An opportunity must be associated with a guild or project",
         });
       }
 
@@ -113,7 +103,6 @@ export const opportunityRouter = createTRPCRouter({
         maxApplications: input.maxApplications,
         projectId: input.projectId,
         guildId: input.guildId,
-        shopId: input.shopId,
         taskId: input.taskId,
       });
 
@@ -135,7 +124,7 @@ export const opportunityRouter = createTRPCRouter({
         type: OpportunityType.optional(),
         experienceLevel: ExperienceLevel.optional(),
         skill: z.string().optional(),
-        sourceType: z.enum(["guild", "project", "shop"]).optional(),
+        sourceType: z.enum(["guild", "project"]).optional(),
       })
     )
     .query(async ({ input }) => {
@@ -209,19 +198,6 @@ export const opportunityRouter = createTRPCRouter({
     .input(z.object({ projectId: z.string() }))
     .query(async ({ input }) => {
       const response = await apiClient.opportunities.getByProjectId(input.projectId);
-
-      if (response.error) {
-        throw new Error(response.error);
-      }
-
-      return response.data ?? [];
-    }),
-
-  // Get opportunities by shop ID
-  getByShopId: publicProcedure
-    .input(z.object({ shopId: z.string() }))
-    .query(async ({ input }) => {
-      const response = await apiClient.opportunities.getByShopId(input.shopId);
 
       if (response.error) {
         throw new Error(response.error);

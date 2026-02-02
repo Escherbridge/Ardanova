@@ -60,7 +60,10 @@
       "WebFetch(domain:docs.langchain.com)",
       "WebFetch(domain:langchain-ai.github.io)",
       "Bash(Select-String -Pattern \"error|Build succeeded|Build FAILED\")",
-      "WebFetch(domain:developers.gamma.app)"
+      "WebFetch(domain:developers.gamma.app)",
+      "Bash(npx prisma:*)",
+      "Bash(test:*)",
+      "Bash(ls:*)"
     ]
   }
 }

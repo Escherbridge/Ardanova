@@ -41,6 +41,8 @@ export const ProjectSchema = z.object({
   publishedAt: z.coerce.date().nullable(),
   fundedAt: z.coerce.date().nullable(),
   completedAt: z.coerce.date().nullable(),
+  commerceEnabled: z.boolean(),
+  storefrontDescription: z.string().nullable(),
   createdById: z.string(),
   assignedGuildId: z.string().nullable(),
 })

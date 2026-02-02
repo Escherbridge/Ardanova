@@ -27,10 +27,6 @@ public class Business
     public User Owner { get; private set; } = null!;
     public ICollection<Customer> Customers { get; private set; } = new List<Customer>();
     public ICollection<Product> Products { get; private set; } = new List<Product>();
-    public ICollection<Invoice> Invoices { get; private set; } = new List<Invoice>();
-    public ICollection<Sale> Sales { get; private set; } = new List<Sale>();
-    public ICollection<InventoryItem> Inventory { get; private set; } = new List<InventoryItem>();
-    public ICollection<MarketingCampaign> Campaigns { get; private set; } = new List<MarketingCampaign>();
     public ICollection<BusinessAnalytics> Analytics { get; private set; } = new List<BusinessAnalytics>();
 
     private Business() { }

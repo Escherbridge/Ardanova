@@ -23,7 +23,6 @@ public interface IOpportunityService
     Task<Result<IReadOnlyList<OpportunityDto>>> GetByPosterIdAsync(string posterId, CancellationToken ct = default);
     Task<Result<IReadOnlyList<OpportunityDto>>> GetByGuildIdAsync(string guildId, CancellationToken ct = default);
     Task<Result<IReadOnlyList<OpportunityDto>>> GetByProjectIdAsync(string projectId, CancellationToken ct = default);
-    Task<Result<IReadOnlyList<OpportunityDto>>> GetByShopIdAsync(string shopId, CancellationToken ct = default);
     Task<Result<OpportunityDto>> CreateAsync(CreateOpportunityDto dto, CancellationToken ct = default);
     Task<Result<OpportunityDto>> UpdateAsync(string id, UpdateOpportunityDto dto, CancellationToken ct = default);
     Task<Result<OpportunityDto>> CloseAsync(string id, CancellationToken ct = default);

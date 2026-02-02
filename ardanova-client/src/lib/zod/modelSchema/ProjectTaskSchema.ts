@@ -16,7 +16,7 @@ export const ProjectTaskSchema = z.object({
   escrowStatus: EscrowStatusSchema,
   id: z.string().cuid(),
   projectId: z.string(),
-  backlogItemId: z.string().nullable(),
+  pbiId: z.string().nullable(),
   title: z.string(),
   description: z.string().nullable(),
   estimatedHours: z.number().int().nullable(),
@@ -27,6 +27,7 @@ export const ProjectTaskSchema = z.object({
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date(),
   assignedToId: z.string().nullable(),
+  opportunityId: z.string().nullable(),
 })
 
 export type ProjectTask = z.infer<typeof ProjectTaskSchema>

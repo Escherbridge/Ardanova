@@ -29,6 +29,9 @@ public class Opportunity
     public OpportunityType type { get; set; }
 
     [Required]
+    public OpportunityOrigin origin { get; set; }
+
+    [Required]
     public OpportunityStatus status { get; set; }
 
     [Required]
@@ -60,6 +63,9 @@ public class Opportunity
     [Required]
     public int applicationsCount { get; set; }
 
+    [Required]
+    public int bidsCount { get; set; }
+
     public string? coverImage { get; set; }
 
     [Required]
@@ -77,9 +83,9 @@ public class Opportunity
 
     public string? projectId { get; set; }
 
-    public string? shopId { get; set; }
-
     public string? taskId { get; set; }
+
+    public virtual ICollection<ProjectTask> ProjectTasks { get; set; } = new List<ProjectTask>();
 
     [ForeignKey("posterId")]
     public virtual User? Poster { get; set; }
@@ -90,9 +96,6 @@ public class Opportunity
     [ForeignKey("projectId")]
     public virtual Project? Project { get; set; }
 
-    [ForeignKey("shopId")]
-    public virtual Shop? Shop { get; set; }
-
     [ForeignKey("taskId")]
     public virtual ProjectTask? Task { get; set; }
 
@@ -101,5 +104,7 @@ public class Opportunity
     public virtual ICollection<OpportunityUpdate> OpportunityUpdates { get; set; } = new List<OpportunityUpdate>();
 
     public virtual ICollection<OpportunityComment> OpportunityComments { get; set; } = new List<OpportunityComment>();
+
+    public virtual ICollection<OpportunityBid> OpportunityBids { get; set; } = new List<OpportunityBid>();
 
 }

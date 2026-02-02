@@ -15,8 +15,6 @@ public class Customer
     // Navigation properties
     public Business Business { get; private set; } = null!;
     public User User { get; private set; } = null!;
-    public ICollection<Invoice> Invoices { get; private set; } = new List<Invoice>();
-    public ICollection<Sale> Sales { get; private set; } = new List<Sale>();
 
     private Customer() { }
 

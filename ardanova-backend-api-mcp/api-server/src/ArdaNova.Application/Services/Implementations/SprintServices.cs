@@ -29,17 +29,17 @@ public class SprintService : ISprintService
         return Result<SprintDto>.Success(_mapper.Map<SprintDto>(sprint));
     }
 
-    public async Task<Result<IReadOnlyList<SprintDto>>> GetByProjectIdAsync(string projectId, CancellationToken ct = default)
+    public async Task<Result<IReadOnlyList<SprintDto>>> GetByEpicIdAsync(string epicId, CancellationToken ct = default)
     {
-        var sprints = await _repository.FindAsync(s => s.projectId == projectId, ct);
+        var sprints = await _repository.FindAsync(s => s.epicId == epicId, ct);
         return Result<IReadOnlyList<SprintDto>>.Success(_mapper.Map<IReadOnlyList<SprintDto>>(sprints));
     }
 
-    public async Task<Result<SprintDto>> GetActiveByProjectIdAsync(string projectId, CancellationToken ct = default)
+    public async Task<Result<SprintDto>> GetActiveByEpicIdAsync(string epicId, CancellationToken ct = default)
     {
-        var sprint = await _repository.FindOneAsync(s => s.projectId == projectId && s.status == SprintStatus.ACTIVE, ct);
+        var sprint = await _repository.FindOneAsync(s => s.epicId == epicId && s.status == SprintStatus.ACTIVE, ct);
         if (sprint is null)
-            return Result<SprintDto>.NotFound($"No active sprint found for project {projectId}");
+            return Result<SprintDto>.NotFound($"No active sprint found for epic {epicId}");
         return Result<SprintDto>.Success(_mapper.Map<SprintDto>(sprint));
     }
 
@@ -48,7 +48,7 @@ public class SprintService : ISprintService
         var sprint = new Sprint
         {
             id = Guid.NewGuid().ToString(),
-            projectId = dto.ProjectId,
+            epicId = dto.EpicId,
             name = dto.Name,
             goal = dto.Goal,
             startDate = dto.StartDate ?? DateTime.UtcNow,
@@ -152,79 +152,5 @@ public class SprintService : ISprintService
         await _repository.UpdateAsync(sprint, ct);
         await _unitOfWork.SaveChangesAsync(ct);
         return Result<SprintDto>.Success(_mapper.Map<SprintDto>(sprint));
-    }
-}
-
-public class SprintItemService : ISprintItemService
-{
-    private readonly IRepository<SprintItem> _repository;
-    private readonly IUnitOfWork _unitOfWork;
-    private readonly IMapper _mapper;
-
-    public SprintItemService(IRepository<SprintItem> repository, IUnitOfWork unitOfWork, IMapper mapper)
-    {
-        _repository = repository;
-        _unitOfWork = unitOfWork;
-        _mapper = mapper;
-    }
-
-    public async Task<Result<SprintItemDto>> GetByIdAsync(string id, CancellationToken ct = default)
-    {
-        var item = await _repository.GetByIdAsync(id, ct);
-        if (item is null)
-            return Result<SprintItemDto>.NotFound($"Sprint item with id {id} not found");
-        return Result<SprintItemDto>.Success(_mapper.Map<SprintItemDto>(item));
-    }
-
-    public async Task<Result<IReadOnlyList<SprintItemDto>>> GetBySprintIdAsync(string sprintId, CancellationToken ct = default)
-    {
-        var items = await _repository.FindAsync(i => i.sprintId == sprintId, ct);
-        var orderedItems = items.OrderBy(i => i.order).ToList();
-        return Result<IReadOnlyList<SprintItemDto>>.Success(_mapper.Map<IReadOnlyList<SprintItemDto>>(orderedItems));
-    }
-
-    public async Task<Result<SprintItemDto>> AddTaskToSprintAsync(AddSprintItemDto dto, CancellationToken ct = default)
-    {
-        var item = new SprintItem
-        {
-            id = Guid.NewGuid().ToString(),
-            sprintId = dto.SprintId,
-            taskId = dto.TaskId,
-            order = dto.Order,
-            addedAt = DateTime.UtcNow
-        };
-
-        await _repository.AddAsync(item, ct);
-        await _unitOfWork.SaveChangesAsync(ct);
-        return Result<SprintItemDto>.Success(_mapper.Map<SprintItemDto>(item));
-    }
-
-    public async Task<Result<bool>> RemoveTaskFromSprintAsync(string id, CancellationToken ct = default)
-    {
-        var item = await _repository.GetByIdAsync(id, ct);
-        if (item is null)
-            return Result<bool>.NotFound($"Sprint item with id {id} not found");
-
-        await _repository.DeleteAsync(item, ct);
-        await _unitOfWork.SaveChangesAsync(ct);
-        return Result<bool>.Success(true);
-    }
-
-    public async Task<Result<bool>> ReorderAsync(string sprintId, IReadOnlyList<string> itemIds, CancellationToken ct = default)
-    {
-        var items = await _repository.FindAsync(i => i.sprintId == sprintId, ct);
-        var itemDict = items.ToDictionary(i => i.id);
-
-        for (int i = 0; i < itemIds.Count; i++)
-        {
-            if (itemDict.TryGetValue(itemIds[i], out var item))
-            {
-                item.order = i;
-                await _repository.UpdateAsync(item, ct);
-            }
-        }
-
-        await _unitOfWork.SaveChangesAsync(ct);
-        return Result<bool>.Success(true);
     }
 }

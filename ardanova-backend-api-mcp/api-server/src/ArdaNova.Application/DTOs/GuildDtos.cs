@@ -68,40 +68,6 @@ public record UpdateGuildMemberDto
     public string? Role { get; init; }
 }
 
-public record ProjectBidDto
-{
-    public string Id { get; init; }
-    public string ProjectId { get; init; }
-    public string GuildId { get; init; }
-    public string UserId { get; init; }
-    public string Proposal { get; init; } = null!;
-    public string? Timeline { get; init; }
-    public decimal Budget { get; init; }
-    public string? Deliverables { get; init; }
-    public BidStatus Status { get; init; }
-    public DateTime SubmittedAt { get; init; }
-    public DateTime? ReviewedAt { get; init; }
-}
-
-public record CreateProjectBidDto
-{
-    public required string ProjectId { get; init; }
-    public required string GuildId { get; init; }
-    public required string UserId { get; init; }
-    public required string Proposal { get; init; }
-    public required decimal Budget { get; init; }
-    public string? Timeline { get; init; }
-    public string? Deliverables { get; init; }
-}
-
-public record UpdateProjectBidDto
-{
-    public string? Proposal { get; init; }
-    public decimal? Budget { get; init; }
-    public string? Timeline { get; init; }
-    public string? Deliverables { get; init; }
-}
-
 public record GuildReviewDto
 {
     public string Id { get; init; }

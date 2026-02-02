@@ -453,19 +453,7 @@ Enum MembershipRequestStatus {
   WITHDRAWN
 }
 
-Enum RoadmapStatus {
-  DRAFT
-  ACTIVE
-  COMPLETED
-  ARCHIVED
-}
 
-Enum PhaseStatus {
-  PLANNED
-  IN_PROGRESS
-  COMPLETED
-  CANCELLED
-}
 
 Enum EpicStatus {
   PLANNED
@@ -497,26 +485,32 @@ Enum PBIStatus {
   CANCELLED
 }
 
-Enum BacklogItemType {
-  TASK
-  BUG
-  IMPROVEMENT
-  RESEARCH
-}
 
-Enum BacklogStatus {
-  NEW
-  READY
-  IN_PROGRESS
-  DONE
-  BLOCKED
-}
 
 Enum Priority {
   LOW
   MEDIUM
   HIGH
   CRITICAL
+}
+
+Enum FeatureStatus {
+  PLANNED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+Enum MilestoneStatus {
+  PLANNED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+Enum OpportunityOrigin {
+  TASK_GENERATED
+  TEAM_POSITION
 }
 
 Enum ProjectRole {
@@ -596,6 +590,8 @@ Table Project {
   publishedAt datetime
   fundedAt datetime
   completedAt datetime
+  commerceEnabled boolean [not null, default: false]
+  storefrontDescription text
   createdById varchar [not null]
   assignedGuildId varchar
 }
@@ -605,7 +601,7 @@ Ref: Project.assignedGuildId > Guild.id
 Table ProjectTask {
   id varchar [not null, pk, default: `cuid()`]
   projectId varchar [not null]
-  backlogItemId varchar
+  pbiId varchar
   title varchar [not null]
   description text
   status TaskStatus [not null, default: 'TODO']
@@ -620,10 +616,12 @@ Table ProjectTask {
   createdAt datetime [not null, default: `now()`]
   updatedAt datetime [not null, note: 'Updated at']
   assignedToId varchar
+  opportunityId varchar [unique, note: 'Auto-generated opportunity for this task']
 }
 Ref: ProjectTask.projectId > Project.id
 Ref: ProjectTask.assignedToId > User.id
-Ref: ProjectTask.backlogItemId > BacklogItem.id
+Ref: ProjectTask.pbiId > ProductBacklogItem.id
+Ref: ProjectTask.opportunityId > Opportunity.id
 
 Table ProjectTaskDependency {
   id varchar [not null, pk, default: `cuid()`]
@@ -653,10 +651,13 @@ Table ProjectMilestone {
   projectId varchar [not null]
   title varchar [not null]
   description text
-  targetDate datetime [not null]
+  targetDate datetime
   completedAt datetime
-  isCompleted boolean [not null, default: false]
+  status MilestoneStatus [not null, default: 'PLANNED']
+  priority Priority [not null, default: 'MEDIUM']
+  order int [not null, default: 0]
   createdAt datetime [not null, default: `now()`]
+  updatedAt datetime [not null, note: 'Updated at']
   assigneeId varchar
 }
 Ref: ProjectMilestone.projectId > Project.id
@@ -755,38 +756,11 @@ Table ProjectUpdate {
 Ref: ProjectUpdate.projectId > Project.id
 Ref: ProjectUpdate.userId > User.id
 
-Table Roadmap {
-  id varchar [not null, pk, default: `cuid()`]
-  projectId varchar [not null, unique]
-  title varchar [not null]
-  vision text
-  status RoadmapStatus [not null, default: 'DRAFT']
-  createdAt datetime [not null, default: `now()`]
-  updatedAt datetime [not null, note: 'Updated at']
-  assigneeId varchar
-}
-Ref: Roadmap.projectId > Project.id
-Ref: Roadmap.assigneeId > User.id
 
-Table RoadmapPhase {
-  id varchar [not null, pk, default: `cuid()`]
-  roadmapId varchar [not null]
-  name varchar [not null]
-  description text
-  order int [not null]
-  startDate datetime
-  endDate datetime
-  status PhaseStatus [not null, default: 'PLANNED']
-  createdAt datetime [not null, default: `now()`]
-  updatedAt datetime [not null, note: 'Updated at']
-  assigneeId varchar
-}
-Ref: RoadmapPhase.roadmapId > Roadmap.id
-Ref: RoadmapPhase.assigneeId > User.id
 
 Table Epic {
   id varchar [not null, pk, default: `cuid()`]
-  phaseId varchar [not null]
+  milestoneId varchar [not null]
   title varchar [not null]
   description text
   status EpicStatus [not null, default: 'PLANNED']
@@ -799,12 +773,12 @@ Table Epic {
   updatedAt datetime [not null, note: 'Updated at']
   assigneeId varchar
 }
-Ref: Epic.phaseId > RoadmapPhase.id
+Ref: Epic.milestoneId > ProjectMilestone.id
 Ref: Epic.assigneeId > User.id
 
 Table Sprint {
   id varchar [not null, pk, default: `cuid()`]
-  projectId varchar [not null]
+  epicId varchar [not null]
   name varchar [not null]
   goal text
   startDate datetime [not null]
@@ -816,12 +790,27 @@ Table Sprint {
   updatedAt datetime [not null, note: 'Updated at']
   assigneeId varchar
 }
-Ref: Sprint.projectId > Project.id
+Ref: Sprint.epicId > Epic.id
 Ref: Sprint.assigneeId > User.id
+
+Table Feature {
+  id varchar [not null, pk, default: `cuid()`]
+  sprintId varchar [not null]
+  title varchar [not null]
+  description text
+  status FeatureStatus [not null, default: 'PLANNED']
+  priority Priority [not null, default: 'MEDIUM']
+  order int [not null, default: 0]
+  createdAt datetime [not null, default: `now()`]
+  updatedAt datetime [not null, note: 'Updated at']
+  assigneeId varchar
+}
+Ref: Feature.sprintId > Sprint.id
+Ref: Feature.assigneeId > User.id
 
 Table ProductBacklogItem {
   id varchar [not null, pk, default: `cuid()`]
-  epicId varchar [not null]
+  featureId varchar [not null]
   title varchar [not null]
   description text
   type PBIType [not null, default: 'FEATURE']
@@ -833,33 +822,10 @@ Table ProductBacklogItem {
   updatedAt datetime [not null, note: 'Updated at']
   assigneeId varchar
 }
-Ref: ProductBacklogItem.epicId > Epic.id
+Ref: ProductBacklogItem.featureId > Feature.id
 Ref: ProductBacklogItem.assigneeId > User.id
 
-Table BacklogItem {
-  id varchar [not null, pk, default: `cuid()`]
-  pbiId varchar [not null]
-  title varchar [not null]
-  description text
-  type BacklogItemType [not null, default: 'TASK']
-  status BacklogStatus [not null, default: 'NEW']
-  estimate int
-  createdAt datetime [not null, default: `now()`]
-  updatedAt datetime [not null, note: 'Updated at']
-  assigneeId varchar
-}
-Ref: BacklogItem.pbiId > ProductBacklogItem.id
-Ref: BacklogItem.assigneeId > User.id
 
-Table SprintItem {
-  id varchar [not null, pk, default: `cuid()`]
-  sprintId varchar [not null]
-  taskId varchar [not null]
-  order int [not null, default: 0]
-  addedAt datetime [not null, default: `now()`]
-}
-Ref: SprintItem.sprintId > Sprint.id
-Ref: SprintItem.taskId > ProjectTask.id
 
 Table ProjectMember {
   id varchar [not null, pk, default: `cuid()`]
@@ -974,14 +940,6 @@ Enum BidStatus {
   WITHDRAWN
 }
 
-Enum TaskBidStatus {
-  SUBMITTED
-  UNDER_REVIEW
-  ACCEPTED
-  REJECTED
-  WITHDRAWN
-  COMPLETED
-}
 
 Table Guild {
   id varchar [not null, pk, default: `cuid()`]
@@ -1066,22 +1024,6 @@ Ref: GuildApplication.guildId > Guild.id
 Ref: GuildApplication.userId > User.id
 Ref: GuildApplication.reviewedById > User.id
 
-Table ProjectBid {
-  id varchar [not null, pk, default: `cuid()`]
-  projectId varchar [not null]
-  guildId varchar [not null]
-  userId varchar [not null]
-  proposal text [not null]
-  timeline text
-  budget decimal [not null]
-  deliverables text
-  status BidStatus [not null, default: 'SUBMITTED']
-  submittedAt datetime [not null, default: `now()`]
-  reviewedAt datetime
-}
-Ref: ProjectBid.projectId > Project.id
-Ref: ProjectBid.guildId > Guild.id
-Ref: ProjectBid.userId > User.id
 
 Table GuildReview {
   id varchar [not null, pk, default: `cuid()`]
@@ -1107,45 +1049,10 @@ Table GuildUpdate {
 Ref: GuildUpdate.guildId > Guild.id
 Ref: GuildUpdate.createdById > User.id
 
-Table TaskBid {
-  id varchar [not null, pk, default: `cuid()`]
-  taskId varchar [not null]
-  guildId varchar [not null]
-  proposedAmount decimal(18,8)
-  proposal text
-  estimatedHours int
-  status TaskBidStatus [not null, default: 'SUBMITTED']
-  createdAt datetime [not null, default: `now()`]
-  reviewedAt datetime
-}
-Ref: TaskBid.taskId > ProjectTask.id
-Ref: TaskBid.guildId > Guild.id
 
 // =================================================================================================
-// 5. Marketplace & Shop Module
+// 5. Product Catalog Module
 // =================================================================================================
-
-Enum ShopCategory {
-  RETAIL
-  SERVICES
-  DIGITAL_PRODUCTS
-  FOOD_BEVERAGE
-  HEALTH_WELLNESS
-  TECHNOLOGY
-  FASHION
-  HOME_GARDEN
-  ARTS_CRAFTS
-  EDUCATION
-  OTHER
-}
-
-Enum InvoiceStatus {
-  DRAFT
-  SENT
-  PAID
-  OVERDUE
-  CANCELLED
-}
 
 Enum PaymentMethod {
   BANK_TRANSFER
@@ -1154,39 +1061,9 @@ Enum PaymentMethod {
   WALLET
 }
 
-
-
-Enum CampaignStatus {
-  DRAFT
-  SCHEDULED
-  ACTIVE
-  COMPLETED
-  CANCELLED
-}
-
-Table Shop {
-  id varchar [not null, pk, default: `cuid()`]
-  name varchar [not null]
-  slug varchar [not null, unique]
-  description text
-  category ShopCategory [not null, default: 'OTHER']
-  address text
-  phone varchar
-  email varchar
-  website varchar
-  logo varchar
-  isActive boolean [not null, default: true]
-  createdAt datetime [not null, default: `now()`]
-  updatedAt datetime [not null, note: 'Updated at']
-  ownerId varchar [not null]
-}
-Ref: Shop.ownerId > User.id
-
-
-
 Table Product {
   id varchar [not null, pk, default: `cuid()`]
-  shopId varchar [not null]
+  projectId varchar [not null]
   name varchar [not null]
   description text
   sku varchar
@@ -1198,103 +1075,8 @@ Table Product {
   updatedAt datetime [not null, note: 'Updated at']
   userId varchar [not null]
 }
-Ref: Product.shopId > Shop.id
+Ref: Product.projectId > Project.id
 Ref: Product.userId > User.id
-
-Table Invoice {
-  id varchar [not null, pk, default: `cuid()`]
-  shopId varchar [not null]
-  buyerId varchar [not null]
-  invoiceNumber varchar [not null, unique]
-  amount decimal [not null]
-  tax decimal
-  discount decimal
-  total decimal [not null]
-  status InvoiceStatus [not null, default: 'DRAFT']
-  dueDate datetime [not null]
-  paidAt datetime
-  notes text
-  createdAt datetime [not null, default: `now()`]
-  updatedAt datetime [not null, note: 'Updated at']
-  userId varchar [not null]
-}
-Ref: Invoice.shopId > Shop.id
-Ref: Invoice.buyerId > User.id
-Ref: Invoice.userId > User.id
-
-Table Sale {
-  id varchar [not null, pk, default: `cuid()`]
-  shopId varchar [not null]
-  buyerId varchar
-  total decimal [not null]
-  tax decimal
-  discount decimal
-  paymentMethod PaymentMethod [not null]
-  notes text
-  createdAt datetime [not null, default: `now()`]
-  userId varchar [not null]
-}
-Ref: Sale.shopId > Shop.id
-Ref: Sale.buyerId > User.id
-Ref: Sale.userId > User.id
-
-Table SaleItem {
-  id varchar [not null, pk, default: `cuid()`]
-  saleId varchar [not null]
-  productId varchar [not null]
-  quantity int [not null]
-  price decimal [not null]
-  total decimal [not null]
-}
-Ref: SaleItem.saleId > Sale.id
-Ref: SaleItem.productId > Product.id
-
-Table InventoryItem {
-  id varchar [not null, pk, default: `cuid()`]
-  shopId varchar [not null]
-  productId varchar [not null, unique]
-  currentStock int [not null, default: 0]
-  minStock int [not null, default: 0]
-  maxStock int
-  reorderPoint int
-  lastRestocked datetime
-  createdAt datetime [not null, default: `now()`]
-  updatedAt datetime [not null, note: 'Updated at']
-  userId varchar [not null]
-}
-Ref: InventoryItem.shopId > Shop.id
-Ref: InventoryItem.productId > Product.id
-Ref: InventoryItem.userId > User.id
-
-Table MarketingCampaign {
-  id varchar [not null, pk, default: `cuid()`]
-  shopId varchar [not null]
-  name varchar [not null]
-  description text
-  platform varchar [not null]
-  content text [not null]
-  mediaUrls text
-  scheduledAt datetime
-  status CampaignStatus [not null, default: 'DRAFT']
-  createdAt datetime [not null, default: `now()`]
-  updatedAt datetime [not null, note: 'Updated at']
-  userId varchar [not null]
-}
-Ref: MarketingCampaign.shopId > Shop.id
-Ref: MarketingCampaign.userId > User.id
-
-Table ShopAnalytics {
-  id varchar [not null, pk, default: `cuid()`]
-  shopId varchar [not null]
-  date datetime [not null]
-  revenue decimal [not null]
-  expenses decimal [not null]
-  profit decimal [not null]
-  salesCount int [not null]
-  newCustomers int [not null]
-  createdAt datetime [not null, default: `now()`]
-}
-Ref: ShopAnalytics.shopId > Shop.id
 
 // =================================================================================================
 // 6. Finance & Tokenomics Module
@@ -1566,7 +1348,6 @@ Table Post {
   authorId varchar [not null]
   projectId varchar
   guildId varchar
-  shopId varchar
   type PostType [not null, default: 'POST']
   visibility PostVisibility [not null, default: 'PUBLIC']
   title varchar
@@ -1587,7 +1368,6 @@ Table Post {
 Ref: Post.authorId > User.id
 Ref: Post.projectId > Project.id
 Ref: Post.guildId > Guild.id
-Ref: Post.shopId > Shop.id
 
 Table PostMedia {
   id varchar [not null, pk, default: `cuid()`]
@@ -1916,6 +1696,7 @@ Table Opportunity {
   slug varchar [not null, unique]
   description text [not null]
   type OpportunityType [not null]
+  origin OpportunityOrigin [not null, default: 'TEAM_POSITION']
   status OpportunityStatus [not null, default: 'DRAFT']
   experienceLevel ExperienceLevel [not null, default: 'MID']
   requirements text
@@ -1928,6 +1709,7 @@ Table Opportunity {
   deadline datetime
   maxApplications int
   applicationsCount int [not null, default: 0]
+  bidsCount int [not null, default: 0]
   coverImage varchar
   createdAt datetime [not null, default: `now()`]
   updatedAt datetime [not null, note: 'Updated at']
@@ -1935,13 +1717,11 @@ Table Opportunity {
   posterId varchar [not null]
   guildId varchar
   projectId varchar
-  shopId varchar
   taskId varchar
 }
 Ref: Opportunity.posterId > User.id
 Ref: Opportunity.guildId > Guild.id
 Ref: Opportunity.projectId > Project.id
-Ref: Opportunity.shopId > Shop.id
 Ref: Opportunity.taskId > ProjectTask.id
 
 Table OpportunityApplication {
@@ -1987,3 +1767,25 @@ Table OpportunityComment {
 Ref: OpportunityComment.opportunityId > Opportunity.id
 Ref: OpportunityComment.userId > User.id
 Ref: OpportunityComment.parentId > OpportunityComment.id
+
+Table OpportunityBid {
+  id varchar [not null, pk, default: `cuid()`]
+  opportunityId varchar [not null]
+  bidderId varchar [not null]
+  guildId varchar
+  proposedAmount decimal(18,8)
+  proposal text [not null]
+  estimatedHours int
+  timeline text
+  deliverables text
+  status BidStatus [not null, default: 'SUBMITTED']
+  createdAt datetime [not null, default: `now()`]
+  reviewedAt datetime
+
+  indexes {
+    (opportunityId, bidderId) [unique]
+  }
+}
+Ref: OpportunityBid.opportunityId > Opportunity.id
+Ref: OpportunityBid.bidderId > User.id
+Ref: OpportunityBid.guildId > Guild.id

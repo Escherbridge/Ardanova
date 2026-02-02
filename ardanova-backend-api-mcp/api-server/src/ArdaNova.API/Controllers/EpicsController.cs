@@ -130,65 +130,30 @@ public class ProjectEpicsController : ControllerBase
     }
 }
 
-// Nested controller for roadmap-phase epics
+// Nested controller for milestone epics
 [ApiController]
-[Route("api/roadmap-phases/{phaseId}/epics")]
-public class RoadmapPhaseEpicsController : ControllerBase
+[Route("api/milestones/{milestoneId}/epics")]
+public class MilestoneEpicsController : ControllerBase
 {
     private readonly IEpicService _epicService;
 
-    public RoadmapPhaseEpicsController(IEpicService epicService)
+    public MilestoneEpicsController(IEpicService epicService)
     {
         _epicService = epicService;
     }
 
     [HttpGet]
-    public async Task<IActionResult> GetByPhaseId(string phaseId, CancellationToken ct)
+    public async Task<IActionResult> GetByMilestoneId(string milestoneId, CancellationToken ct)
     {
-        var result = await _epicService.GetByPhaseIdAsync(phaseId, ct);
+        var result = await _epicService.GetByMilestoneIdAsync(milestoneId, ct);
         return ToActionResult(result);
     }
 
     [HttpPut("reorder")]
-    public async Task<IActionResult> ReorderEpics(string phaseId, [FromBody] ReorderEpicsDto dto, CancellationToken ct)
+    public async Task<IActionResult> ReorderEpics(string milestoneId, [FromBody] ReorderEpicsDto dto, CancellationToken ct)
     {
-        var result = await _epicService.ReorderAsync(phaseId, dto.EpicIds, ct);
+        var result = await _epicService.ReorderAsync(milestoneId, dto.EpicIds, ct);
         return result.IsSuccess ? NoContent() : ToActionResult(result);
-    }
-
-    private IActionResult ToActionResult<T>(Result<T> result)
-    {
-        if (result.IsSuccess)
-            return Ok(result.Value);
-
-        return result.Type switch
-        {
-            ResultType.NotFound => NotFound(new { error = result.Error }),
-            ResultType.ValidationError => BadRequest(new { error = result.Error }),
-            ResultType.Unauthorized => Unauthorized(new { error = result.Error }),
-            ResultType.Forbidden => Forbid(),
-            _ => BadRequest(new { error = result.Error })
-        };
-    }
-}
-
-// Nested controller for roadmap epics
-[ApiController]
-[Route("api/roadmaps/{roadmapId}/epics")]
-public class RoadmapEpicsController : ControllerBase
-{
-    private readonly IEpicService _epicService;
-
-    public RoadmapEpicsController(IEpicService epicService)
-    {
-        _epicService = epicService;
-    }
-
-    [HttpGet]
-    public async Task<IActionResult> GetByRoadmapId(string roadmapId, CancellationToken ct)
-    {
-        var result = await _epicService.GetByRoadmapIdAsync(roadmapId, ct);
-        return ToActionResult(result);
     }
 
     private IActionResult ToActionResult<T>(Result<T> result)

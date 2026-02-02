@@ -11,14 +11,14 @@ using AutoMapper;
 public class EpicService : IEpicService
 {
     private readonly IRepository<Epic> _repository;
-    private readonly IRepository<RoadmapPhase> _phaseRepository;
+    private readonly IRepository<ProjectMilestone> _milestoneRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IMapper _mapper;
 
-    public EpicService(IRepository<Epic> repository, IRepository<RoadmapPhase> phaseRepository, IUnitOfWork unitOfWork, IMapper mapper)
+    public EpicService(IRepository<Epic> repository, IRepository<ProjectMilestone> milestoneRepository, IUnitOfWork unitOfWork, IMapper mapper)
     {
         _repository = repository;
-        _phaseRepository = phaseRepository;
+        _milestoneRepository = milestoneRepository;
         _unitOfWork = unitOfWork;
         _mapper = mapper;
     }
@@ -33,23 +33,15 @@ public class EpicService : IEpicService
 
     public async Task<Result<IReadOnlyList<EpicDto>>> GetByProjectIdAsync(string projectId, CancellationToken ct = default)
     {
-        var phases = await _phaseRepository.FindAsync(p => p.Roadmap != null && p.Roadmap.projectId == projectId, ct);
-        var phaseIds = phases.Select(p => p.id).ToHashSet();
-        var epics = await _repository.FindAsync(e => phaseIds.Contains(e.phaseId), ct);
+        var milestones = await _milestoneRepository.FindAsync(m => m.projectId == projectId, ct);
+        var milestoneIds = milestones.Select(m => m.id).ToHashSet();
+        var epics = await _repository.FindAsync(e => milestoneIds.Contains(e.milestoneId), ct);
         return Result<IReadOnlyList<EpicDto>>.Success(_mapper.Map<IReadOnlyList<EpicDto>>(epics));
     }
 
-    public async Task<Result<IReadOnlyList<EpicDto>>> GetByPhaseIdAsync(string phaseId, CancellationToken ct = default)
+    public async Task<Result<IReadOnlyList<EpicDto>>> GetByMilestoneIdAsync(string milestoneId, CancellationToken ct = default)
     {
-        var epics = await _repository.FindAsync(e => e.phaseId == phaseId, ct);
-        return Result<IReadOnlyList<EpicDto>>.Success(_mapper.Map<IReadOnlyList<EpicDto>>(epics));
-    }
-
-    public async Task<Result<IReadOnlyList<EpicDto>>> GetByRoadmapIdAsync(string roadmapId, CancellationToken ct = default)
-    {
-        var phases = await _phaseRepository.FindAsync(p => p.roadmapId == roadmapId, ct);
-        var phaseIds = phases.Select(p => p.id).ToHashSet();
-        var epics = await _repository.FindAsync(e => phaseIds.Contains(e.phaseId), ct);
+        var epics = await _repository.FindAsync(e => e.milestoneId == milestoneId, ct);
         return Result<IReadOnlyList<EpicDto>>.Success(_mapper.Map<IReadOnlyList<EpicDto>>(epics));
     }
 
@@ -58,7 +50,7 @@ public class EpicService : IEpicService
         var epic = new Epic
         {
             id = Guid.NewGuid().ToString(),
-            phaseId = dto.PhaseId,
+            milestoneId = dto.MilestoneId,
             title = dto.Title,
             description = dto.Description,
             status = EpicStatus.PLANNED,
@@ -152,7 +144,7 @@ public class EpicService : IEpicService
         return Result<EpicDto>.Success(_mapper.Map<EpicDto>(epic));
     }
 
-    public async Task<Result<bool>> ReorderAsync(string phaseId, IReadOnlyList<string> epicIds, CancellationToken ct = default)
+    public async Task<Result<bool>> ReorderAsync(string milestoneId, IReadOnlyList<string> epicIds, CancellationToken ct = default)
     {
         // Epic doesn't have an order field currently, so this is a no-op
         // Would need to add an order field to Epic entity to support reordering

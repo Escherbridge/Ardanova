@@ -15,7 +15,7 @@ public class Product
     public string id { get; set; } = string.Empty;
 
     [Required]
-    public string shopId { get; set; } = string.Empty;
+    public string projectId { get; set; } = string.Empty;
 
     [Required]
     public string name { get; set; } = string.Empty;
@@ -46,14 +46,10 @@ public class Product
     [Required]
     public string userId { get; set; } = string.Empty;
 
-    [ForeignKey("shopId")]
-    public virtual Shop? Shop { get; set; }
+    [ForeignKey("projectId")]
+    public virtual Project? Project { get; set; }
 
     [ForeignKey("userId")]
     public virtual User? User { get; set; }
-
-    public virtual ICollection<SaleItem> SaleItems { get; set; } = new List<SaleItem>();
-
-    public virtual ICollection<InventoryItem> InventoryItems { get; set; } = new List<InventoryItem>();
 
 }

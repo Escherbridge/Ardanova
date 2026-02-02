@@ -22,6 +22,8 @@ import {
   Users,
   SlidersHorizontal,
   X,
+  CheckSquare,
+  Loader2,
 } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
@@ -36,11 +38,13 @@ import {
 } from "~/components/ui/dropdown-menu";
 import { cn } from "~/lib/utils";
 import { FeedLayout } from "~/components/layouts/feed-layout";
+import { api } from "~/trpc/react";
 
 // Feed tabs for opportunities
 const opportunityTabs = [
   { id: "all", label: "All", icon: Briefcase },
   { id: "bounties", label: "Bounties", icon: Target },
+  { id: "tasks", label: "Task Bounties", icon: CheckSquare },
   { id: "freelance", label: "Freelance", icon: Zap },
   { id: "full-time", label: "Full-time", icon: Users },
 ];
@@ -106,71 +110,24 @@ const locationFilters = [
   { id: "Asia", label: "Asia" },
 ];
 
-// Sample opportunities data
-const sampleOpportunities = [
-  {
-    id: "o1",
-    title: "Build Mobile App for EcoWaste Platform",
-    type: "Bounty",
-    project: { id: "p1", name: "EcoWaste Solutions", slug: "ecowaste-solutions" },
-    poster: { id: "u1", name: "Sarah Chen", avatar: "https://i.pravatar.cc/150?u=sarah" },
-    description: "We need a React Native developer to build our mobile app for waste tracking and recycling rewards. The app should integrate with our existing API.",
-    skills: ["React", "TypeScript", "Node.js"],
-    compensation: { amount: 2500, currency: "USD", type: "fixed" },
-    location: "Remote",
-    deadline: new Date(Date.now() + 1000 * 60 * 60 * 24 * 14),
-    applicants: 8,
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 2),
-    isUrgent: true,
-  },
-  {
-    id: "o2",
-    title: "Smart Contract Audit for Token Launch",
-    type: "Freelance",
-    project: { id: "p2", name: "HealthTrack", slug: "healthtrack" },
-    poster: { id: "u2", name: "Marcus Rodriguez", avatar: "https://i.pravatar.cc/150?u=marcus" },
-    description: "Looking for an experienced Solidity auditor to review our governance token smart contracts before mainnet deployment.",
-    skills: ["Solidity", "Web3"],
-    compensation: { amount: 150, currency: "USD", type: "hourly" },
-    location: "Remote",
-    deadline: new Date(Date.now() + 1000 * 60 * 60 * 24 * 7),
-    applicants: 3,
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 1),
-    isUrgent: false,
-  },
-  {
-    id: "o3",
-    title: "Full-Stack Developer for EdTech Platform",
-    type: "Full-time",
-    project: { id: "p3", name: "EduConnect", slug: "educonnect" },
-    poster: { id: "u5", name: "Jordan Lee", avatar: "https://i.pravatar.cc/150?u=jordan" },
-    description: "Join our team as a full-time developer to build and maintain our mentorship platform. You'll work on both frontend and backend features.",
-    skills: ["React", "TypeScript", "Python"],
-    compensation: { amount: 95000, currency: "USD", type: "yearly" },
-    location: "San Francisco, CA",
-    deadline: null,
-    applicants: 24,
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 5),
-    isUrgent: false,
-  },
-  {
-    id: "o4",
-    title: "Design System Creation for Design Guild",
-    type: "Contract",
-    project: { id: "g1", name: "Design Guild", slug: "design-guild" },
-    poster: { id: "u6", name: "Emma Watson", avatar: "https://i.pravatar.cc/150?u=emma" },
-    description: "Create a comprehensive design system including components, tokens, and documentation. 3-month contract with potential extension.",
-    skills: ["UI/UX", "Design"],
-    compensation: { amount: 8000, currency: "USD", type: "fixed" },
-    location: "Remote",
-    deadline: new Date(Date.now() + 1000 * 60 * 60 * 24 * 30),
-    applicants: 12,
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 3),
-    isUrgent: false,
-  },
+const originFilters = [
+  { id: "all", label: "All Sources" },
+  { id: "TASK_GENERATED", label: "Task Bounties" },
+  { id: "TEAM_POSITION", label: "Team Positions" },
 ];
 
-function formatRelativeTime(date: Date): string {
+// Helper to check if opportunity is urgent
+function isOpportunityUrgent(deadline?: string, status?: string): boolean {
+  if (!deadline || status !== "OPEN") return false;
+  const deadlineDate = new Date(deadline);
+  const now = new Date();
+  const diffMs = deadlineDate.getTime() - now.getTime();
+  const diffDays = diffMs / (1000 * 60 * 60 * 24);
+  return diffDays < 3 && diffDays >= 0;
+}
+
+function formatRelativeTime(dateString: string): string {
+  const date = new Date(dateString);
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
   const diffDay = Math.floor(diffMs / (1000 * 60 * 60 * 24));
@@ -181,8 +138,9 @@ function formatRelativeTime(date: Date): string {
   return date.toLocaleDateString();
 }
 
-function formatDeadline(date: Date | null): string {
-  if (!date) return "Open";
+function formatDeadline(dateString?: string): string {
+  if (!dateString) return "Open";
+  const date = new Date(dateString);
   const now = new Date();
   const diffMs = date.getTime() - now.getTime();
   const diffDay = Math.floor(diffMs / (1000 * 60 * 60 * 24));
@@ -194,21 +152,12 @@ function formatDeadline(date: Date | null): string {
   return `${Math.floor(diffDay / 7)} weeks left`;
 }
 
-function formatCompensation(comp: { amount: number; currency: string; type: string }): string {
-  const formatted = new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: comp.currency,
-    maximumFractionDigits: 0,
-  }).format(comp.amount);
-
-  switch (comp.type) {
-    case "hourly":
-      return `${formatted}/hr`;
-    case "yearly":
-      return `${formatted}/yr`;
-    default:
-      return formatted;
-  }
+function formatCompensation(amount?: number, details?: string): string {
+  if (!amount) return "Negotiable";
+  const formatted = amount >= 1000 ? `$${(amount / 1000).toFixed(amount % 1000 === 0 ? 0 : 1)}k` : `$${amount}`;
+  if (details === "hourly") return `${formatted}/hr`;
+  if (details === "yearly") return `${formatted}/yr`;
+  return formatted;
 }
 
 export default function MarketplacePage() {
@@ -219,11 +168,17 @@ export default function MarketplacePage() {
   const [selectedSkill, setSelectedSkill] = useState("all");
   const [selectedCompensation, setSelectedCompensation] = useState("all");
   const [selectedLocation, setSelectedLocation] = useState("all");
+  const [selectedOrigin, setSelectedOrigin] = useState("all");
+
+  // Fetch opportunities from API
+  const { data: opportunitiesResult, isLoading } = api.opportunity.getAll.useQuery({ limit: 100 });
+  const allOpportunities = opportunitiesResult?.items ?? [];
 
   // Filter opportunities based on all criteria
-  const filteredOpportunities = sampleOpportunities.filter((opp) => {
+  const filteredOpportunities = allOpportunities.filter((opp) => {
     // Tab filter
     if (activeTab === "bounties" && opp.type !== "Bounty") return false;
+    if (activeTab === "tasks" && opp.origin !== "TASK_GENERATED") return false;
     if (activeTab === "freelance" && opp.type !== "Freelance" && opp.type !== "Contract") return false;
     if (activeTab === "full-time" && opp.type !== "Full-time" && opp.type !== "Part-time") return false;
 
@@ -232,7 +187,8 @@ export default function MarketplacePage() {
       const query = searchQuery.toLowerCase();
       const matchesTitle = opp.title.toLowerCase().includes(query);
       const matchesDescription = opp.description.toLowerCase().includes(query);
-      const matchesSkills = opp.skills.some((s) => s.toLowerCase().includes(query));
+      const skillsList = opp.skills ? opp.skills.split(',').map(s => s.trim()) : [];
+      const matchesSkills = skillsList.some((s) => s.toLowerCase().includes(query));
       if (!matchesTitle && !matchesDescription && !matchesSkills) return false;
     }
 
@@ -240,11 +196,17 @@ export default function MarketplacePage() {
     if (selectedType !== "all" && opp.type !== selectedType) return false;
 
     // Skill filter
-    if (selectedSkill !== "all" && !opp.skills.includes(selectedSkill)) return false;
+    if (selectedSkill !== "all") {
+      const skillsList = opp.skills ? opp.skills.split(',').map(s => s.trim()) : [];
+      if (!skillsList.includes(selectedSkill)) return false;
+    }
+
+    // Origin filter
+    if (selectedOrigin !== "all" && opp.origin !== selectedOrigin) return false;
 
     // Compensation filter
-    if (selectedCompensation !== "all" && opp.compensation.type === "fixed") {
-      const amount = opp.compensation.amount;
+    if (selectedCompensation !== "all" && opp.compensation) {
+      const amount = opp.compensation;
       if (selectedCompensation === "0-1000" && amount >= 1000) return false;
       if (selectedCompensation === "1000-5000" && (amount < 1000 || amount >= 5000)) return false;
       if (selectedCompensation === "5000-10000" && (amount < 5000 || amount >= 10000)) return false;
@@ -253,8 +215,8 @@ export default function MarketplacePage() {
 
     // Location filter
     if (selectedLocation !== "all") {
-      if (selectedLocation === "Remote" && opp.location !== "Remote") return false;
-      if (selectedLocation === "US" && !opp.location.includes("CA") && !opp.location.includes("NY") && !opp.location.includes("US")) return false;
+      if (selectedLocation === "Remote" && !opp.isRemote) return false;
+      if (selectedLocation === "US" && opp.location && !opp.location.includes("CA") && !opp.location.includes("NY") && !opp.location.includes("US")) return false;
     }
 
     return true;
@@ -265,7 +227,8 @@ export default function MarketplacePage() {
     selectedType !== "all" ||
     selectedSkill !== "all" ||
     selectedCompensation !== "all" ||
-    selectedLocation !== "all";
+    selectedLocation !== "all" ||
+    selectedOrigin !== "all";
 
   const clearFilters = () => {
     setSearchQuery("");
@@ -273,27 +236,27 @@ export default function MarketplacePage() {
     setSelectedSkill("all");
     setSelectedCompensation("all");
     setSelectedLocation("all");
+    setSelectedOrigin("all");
   };
 
   const activeFilterCount =
     (selectedType !== "all" ? 1 : 0) +
     (selectedSkill !== "all" ? 1 : 0) +
     (selectedCompensation !== "all" ? 1 : 0) +
-    (selectedLocation !== "all" ? 1 : 0);
+    (selectedLocation !== "all" ? 1 : 0) +
+    (selectedOrigin !== "all" ? 1 : 0);
 
   // Stats for sidebar
   const stats = {
-    total: sampleOpportunities.length,
-    bounties: sampleOpportunities.filter((o) => o.type === "Bounty").length,
-    totalValue: sampleOpportunities
-      .filter((o) => o.compensation.type === "fixed")
-      .reduce((sum, o) => sum + o.compensation.amount, 0),
-    totalApplicants: sampleOpportunities.reduce((sum, o) => sum + o.applicants, 0),
+    total: allOpportunities.length,
+    bounties: allOpportunities.filter((o) => o.type === "Bounty").length,
+    taskBounties: allOpportunities.filter((o) => o.origin === "TASK_GENERATED").length,
+    totalApplicants: allOpportunities.reduce((sum, o) => sum + (o.applicationsCount || 0), 0),
   };
 
   // Hot opportunities for sidebar
-  const hotOpportunities = [...sampleOpportunities]
-    .sort((a, b) => b.applicants - a.applicants)
+  const hotOpportunities = [...allOpportunities]
+    .sort((a, b) => (b.applicationsCount || 0) - (a.applicationsCount || 0))
     .slice(0, 3);
 
   return (
@@ -318,8 +281,8 @@ export default function MarketplacePage() {
                 <span className="font-medium text-neon-green">{stats.bounties}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-sm text-muted-foreground">Total Value</span>
-                <span className="font-medium text-foreground">${stats.totalValue.toLocaleString()}</span>
+                <span className="text-sm text-muted-foreground">Task Bounties</span>
+                <span className="font-medium text-neon-purple">{stats.taskBounties}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-sm text-muted-foreground">Total Applicants</span>
@@ -356,10 +319,10 @@ export default function MarketplacePage() {
                   </div>
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
                     <span className="text-neon-green font-medium">
-                      {formatCompensation(opp.compensation)}
+                      {formatCompensation(opp.compensation, opp.compensationDetails)}
                     </span>
                     <span>·</span>
-                    <span>{opp.applicants} applicants</span>
+                    <span>{opp.applicationsCount || 0} applicants</span>
                   </div>
                 </Link>
               ))}
@@ -411,7 +374,7 @@ export default function MarketplacePage() {
                 Opportunities
               </h1>
               <Button variant="neon" size="sm" asChild>
-                <Link href="/marketplace/create">
+                <Link href="/opportunities/create">
                   <Plus className="size-4 mr-2" />
                   Post Job
                 </Link>
@@ -457,7 +420,7 @@ export default function MarketplacePage() {
             {/* Expanded Filters */}
             {showFilters && (
               <div className="px-4 pb-4 space-y-3 border-t border-border pt-3">
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-3 gap-3">
                   {/* Type Filter */}
                   <div>
                     <label className="text-xs text-muted-foreground mb-1.5 block">
@@ -494,6 +457,26 @@ export default function MarketplacePage() {
                     </select>
                   </div>
 
+                  {/* Origin Filter */}
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1.5 block">
+                      Origin
+                    </label>
+                    <select
+                      value={selectedOrigin}
+                      onChange={(e) => setSelectedOrigin(e.target.value)}
+                      className="w-full px-3 py-2 bg-card border-2 border-border text-foreground text-sm focus:border-primary focus:outline-none appearance-none cursor-pointer"
+                    >
+                      {originFilters.map((filter) => (
+                        <option key={filter.id} value={filter.id}>
+                          {filter.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
                   {/* Compensation Filter */}
                   <div>
                     <label className="text-xs text-muted-foreground mb-1.5 block">
@@ -574,6 +557,14 @@ export default function MarketplacePage() {
                           </button>
                         </Badge>
                       )}
+                      {selectedOrigin !== "all" && (
+                        <Badge variant="secondary" size="sm" className="gap-1">
+                          {originFilters.find((f) => f.id === selectedOrigin)?.label}
+                          <button onClick={() => setSelectedOrigin("all")}>
+                            <X className="size-3" />
+                          </button>
+                        </Badge>
+                      )}
                     </div>
                     <Button
                       variant="ghost"
@@ -616,20 +607,30 @@ export default function MarketplacePage() {
 
           {/* Opportunities Feed */}
           <div>
-            {filteredOpportunities.length === 0 ? (
+            {isLoading ? (
+              <div className="flex justify-center items-center py-20">
+                <Loader2 className="size-8 animate-spin text-primary" />
+              </div>
+            ) : filteredOpportunities.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-20 px-4">
                 <Briefcase className="size-12 text-muted-foreground mb-4" />
                 <p className="text-lg font-medium text-foreground">No opportunities found</p>
                 <p className="text-muted-foreground mt-1">Check back later or post your own!</p>
                 <Button variant="neon" className="mt-4" asChild>
-                  <Link href="/marketplace/create">
+                  <Link href="/opportunities/create">
                     <Plus className="size-4 mr-2" />
                     Post Job
                   </Link>
                 </Button>
               </div>
             ) : (
-              filteredOpportunities.map((opp) => (
+              filteredOpportunities.map((opp) => {
+                const skillsList = opp.skills ? opp.skills.split(',').map(s => s.trim()) : [];
+                const isUrgent = isOpportunityUrgent(opp.deadline, opp.status);
+                const posterName = opp.poster?.name ?? "Unknown";
+                const posterImage = opp.poster?.image;
+
+                return (
                 <article
                   key={opp.id}
                   className="border-b-2 border-border bg-card hover:bg-card/80 transition-colors"
@@ -638,29 +639,22 @@ export default function MarketplacePage() {
                     {/* Header */}
                     <div className="flex items-start gap-3">
                       <Link
-                        href={`/dashboard/profile/${opp.poster.id}`}
+                        href={`/dashboard/profile/${opp.posterId}`}
                         className="shrink-0"
                       >
                         <Avatar className="size-10 border-2 border-border hover:border-primary transition-colors">
-                          <AvatarImage src={opp.poster.avatar} />
-                          <AvatarFallback>{opp.poster.name.charAt(0)}</AvatarFallback>
+                          <AvatarImage src={posterImage} />
+                          <AvatarFallback>{posterName.charAt(0)}</AvatarFallback>
                         </Avatar>
                       </Link>
 
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <Link
-                            href={`/dashboard/profile/${opp.poster.id}`}
+                            href={`/dashboard/profile/${opp.posterId}`}
                             className="font-medium text-foreground hover:text-primary transition-colors"
                           >
-                            {opp.poster.name}
-                          </Link>
-                          <span className="text-muted-foreground text-sm">·</span>
-                          <Link
-                            href={`/projects/${opp.project.slug}`}
-                            className="text-sm text-muted-foreground hover:text-primary transition-colors"
-                          >
-                            {opp.project.name}
+                            {posterName}
                           </Link>
                           <span className="text-muted-foreground text-sm">·</span>
                           <span className="text-muted-foreground text-sm">
@@ -673,7 +667,7 @@ export default function MarketplacePage() {
                       </div>
 
                       <div className="flex items-center gap-2">
-                        {opp.isUrgent && (
+                        {isUrgent && (
                           <Badge variant="destructive" size="sm">Urgent</Badge>
                         )}
                         <Badge
@@ -697,7 +691,7 @@ export default function MarketplacePage() {
                     </div>
 
                     {/* Opportunity Content */}
-                    <Link href={`/marketplace/${opp.id}`} className="block mt-3 pl-13">
+                    <Link href={`/opportunities/${opp.slug}`} className="block mt-3 pl-13">
                       <h3 className="font-semibold text-lg text-foreground hover:text-primary transition-colors">
                         {opp.title}
                       </h3>
@@ -706,35 +700,39 @@ export default function MarketplacePage() {
                       </p>
 
                       {/* Skills */}
-                      <div className="flex flex-wrap gap-2 mt-3">
-                        {opp.skills.map((skill, i) => (
-                          <Badge
-                            key={i}
-                            variant={skillVariants[skill] ?? "secondary"}
-                            size="sm"
-                          >
-                            {skill}
-                          </Badge>
-                        ))}
-                      </div>
+                      {skillsList.length > 0 && (
+                        <div className="flex flex-wrap gap-2 mt-3">
+                          {skillsList.map((skill, i) => (
+                            <Badge
+                              key={i}
+                              variant={skillVariants[skill] ?? "secondary"}
+                              size="sm"
+                            >
+                              {skill}
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
 
                       {/* Meta Info */}
                       <div className="flex flex-wrap items-center gap-4 mt-3 text-sm text-muted-foreground">
                         <div className="flex items-center gap-1 text-neon-green font-medium">
                           <DollarSign className="size-4" />
-                          <span>{formatCompensation(opp.compensation)}</span>
+                          <span>{formatCompensation(opp.compensation, opp.compensationDetails)}</span>
                         </div>
-                        <div className="flex items-center gap-1">
-                          <MapPin className="size-4" />
-                          <span>{opp.location}</span>
-                        </div>
+                        {(opp.location || opp.isRemote) && (
+                          <div className="flex items-center gap-1">
+                            <MapPin className="size-4" />
+                            <span>{opp.isRemote ? "Remote" : opp.location}</span>
+                          </div>
+                        )}
                         <div className="flex items-center gap-1">
                           <Calendar className="size-4" />
                           <span>{formatDeadline(opp.deadline)}</span>
                         </div>
                         <div className="flex items-center gap-1">
                           <Users className="size-4" />
-                          <span>{opp.applicants} applicants</span>
+                          <span>{opp.applicationsCount || 0} applicants</span>
                         </div>
                       </div>
                     </Link>
@@ -774,7 +772,8 @@ export default function MarketplacePage() {
                     </div>
                   </div>
                 </article>
-              ))
+                );
+              })
             )}
 
             {/* Load More */}

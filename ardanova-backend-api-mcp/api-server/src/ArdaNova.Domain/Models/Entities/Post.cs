@@ -21,8 +21,6 @@ public class Post
 
     public string? guildId { get; set; }
 
-    public string? shopId { get; set; }
-
     [Required]
     public PostType type { get; set; }
 
@@ -77,9 +75,6 @@ public class Post
 
     [ForeignKey("guildId")]
     public virtual Guild? Guild { get; set; }
-
-    [ForeignKey("shopId")]
-    public virtual Shop? Shop { get; set; }
 
     public virtual ICollection<PostMedia> PostMedias { get; set; } = new List<PostMedia>();
 

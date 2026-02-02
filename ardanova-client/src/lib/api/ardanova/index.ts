@@ -3,17 +3,18 @@ import { BaseApiClient, type BaseApiClientConfig } from "../base-client";
 import { UsersEndpoint } from "./endpoints/users";
 import { ProjectsEndpoint } from "./endpoints/projects";
 import { GuildsEndpoint } from "./endpoints/guilds";
-import { ShopsEndpoint } from "./endpoints/shops";
 import { TasksEndpoint } from "./endpoints/tasks";
 import { EventsEndpoint } from "./endpoints/events";
 import { OpportunitiesEndpoint } from "./endpoints/opportunities";
 import { GovernanceEndpoint } from "./endpoints/governance";
-import { RoadmapsEndpoint } from "./endpoints/roadmaps";
 import { SprintsEndpoint } from "./endpoints/sprints";
 import { EpicsEndpoint } from "./endpoints/epics";
 import { BacklogEndpoint } from "./endpoints/backlog";
-import { TaskBidsEndpoint } from "./endpoints/task-bids";
+import { FeaturesEndpoint } from "./endpoints/features";
+import { OpportunityBidsEndpoint } from "./endpoints/opportunity-bids";
+import { ProductsEndpoint } from "./endpoints/products";
 import { ChatEndpoint } from "./endpoints/chat";
+import { EnumsEndpoint } from "./endpoints/enums";
 
 // Re-export types from endpoints
 export type { User, CreateUserDto, UpdateUserDto } from "./endpoints/users";
@@ -34,9 +35,6 @@ export type {
   ProjectApplication,
   CreateApplicationDto,
   ReviewApplicationDto,
-  ProjectBid as ProjectBidDto,
-  CreateBidDto,
-  ReviewBidDto,
   Proposal as ProjectProposal,
   CreateProposalDto as CreateProjectProposalDto,
   Vote as ProjectVote,
@@ -55,38 +53,20 @@ export type {
   GuildMember,
   CreateGuildMemberDto,
   UpdateGuildMemberDto,
-  ProjectBid,
-  CreateProjectBidDto,
-  UpdateProjectBidDto,
   GuildReview,
   CreateGuildReviewDto,
   UpdateGuildReviewDto,
   BidStatus,
 } from "./endpoints/guilds";
-export type { Shop, CreateShopDto, UpdateShopDto, SearchShopsParams } from "./endpoints/shops";
 export type { Task, TaskUser, TaskProject, CreateTaskDto, UpdateTaskDto, SearchTasksParams } from "./endpoints/tasks";
 export type { Event, EventOrganizer, EventAttendee, CreateEventDto, UpdateEventDto, RegisterEventDto, SearchEventsParams } from "./endpoints/events";
 export type { Opportunity, OpportunityApplication, CreateOpportunityDto, UpdateOpportunityDto, ApplyToOpportunityDto, SearchOpportunitiesParams } from "./endpoints/opportunities";
 export type { Proposal, Vote, ProposalVoteSummary, CreateProposalDto, UpdateProposalDto, CastVoteDto, SearchProposalsParams } from "./endpoints/governance";
 export type {
-  Roadmap,
-  RoadmapPhase,
-  RoadmapStatus,
-  PhaseStatus,
-  CreateRoadmap,
-  UpdateRoadmap,
-  CreateRoadmapPhase,
-  UpdateRoadmapPhase,
-} from "./endpoints/roadmaps";
-export type {
   Sprint,
-  SprintItem,
   SprintStatus,
-  SprintItemStatus,
   CreateSprint,
   UpdateSprint,
-  CreateSprintItem,
-  UpdateSprintItem,
 } from "./endpoints/sprints";
 export type {
   Epic,
@@ -97,24 +77,30 @@ export type {
 } from "./endpoints/epics";
 export type {
   ProductBacklogItem,
-  BacklogItem,
   PbiType,
   PbiPriority,
   PbiStatus,
-  BacklogItemType,
-  BacklogItemStatus,
   CreateProductBacklogItem,
   UpdateProductBacklogItem,
-  CreateBacklogItem,
-  UpdateBacklogItem,
 } from "./endpoints/backlog";
 export type {
-  TaskBid,
-  TaskBidStatus,
-  CreateTaskBid,
-  UpdateTaskBid,
-  SearchTaskBidsParams,
-} from "./endpoints/task-bids";
+  Feature,
+  FeatureStatus,
+  FeaturePriority,
+  CreateFeature,
+  UpdateFeature,
+} from "./endpoints/features";
+export type {
+  Product,
+  CreateProduct,
+  UpdateProduct,
+} from "./endpoints/products";
+export type {
+  OpportunityBid,
+  OpportunityBidStatus,
+  CreateOpportunityBid,
+  UpdateOpportunityBid,
+} from "./endpoints/opportunity-bids";
 export type {
   ChatConversation,
   ChatParticipant,
@@ -139,9 +125,6 @@ export {
   GuildMemberApiSchema,
   CreateGuildMemberSchema,
   UpdateGuildMemberSchema,
-  ProjectBidApiSchema,
-  CreateProjectBidSchema,
-  UpdateProjectBidSchema,
   GuildReviewApiSchema,
   CreateGuildReviewSchema,
   UpdateGuildReviewSchema,
@@ -155,34 +138,36 @@ export class ArdaNovaApiClient extends BaseApiClient {
   readonly users: UsersEndpoint;
   readonly projects: ProjectsEndpoint;
   readonly guilds: GuildsEndpoint;
-  readonly shops: ShopsEndpoint;
   readonly tasks: TasksEndpoint;
   readonly events: EventsEndpoint;
   readonly opportunities: OpportunitiesEndpoint;
   readonly governance: GovernanceEndpoint;
-  readonly roadmaps: RoadmapsEndpoint;
   readonly sprints: SprintsEndpoint;
   readonly epics: EpicsEndpoint;
   readonly backlog: BacklogEndpoint;
-  readonly taskBids: TaskBidsEndpoint;
+  readonly features: FeaturesEndpoint;
+  readonly products: ProductsEndpoint;
+  readonly opportunityBids: OpportunityBidsEndpoint;
   readonly chat: ChatEndpoint;
+  readonly enums: EnumsEndpoint;
 
   constructor(config: BaseApiClientConfig) {
     super(config);
     this.users = new UsersEndpoint(this);
     this.projects = new ProjectsEndpoint(this);
     this.guilds = new GuildsEndpoint(this);
-    this.shops = new ShopsEndpoint(this);
     this.tasks = new TasksEndpoint(this);
     this.events = new EventsEndpoint(this);
     this.opportunities = new OpportunitiesEndpoint(this);
     this.governance = new GovernanceEndpoint(this);
-    this.roadmaps = new RoadmapsEndpoint(this);
     this.sprints = new SprintsEndpoint(this);
     this.epics = new EpicsEndpoint(this);
     this.backlog = new BacklogEndpoint(this);
-    this.taskBids = new TaskBidsEndpoint(this);
+    this.features = new FeaturesEndpoint(this);
+    this.products = new ProductsEndpoint(this);
+    this.opportunityBids = new OpportunityBidsEndpoint(this);
     this.chat = new ChatEndpoint(this);
+    this.enums = new EnumsEndpoint(this);
   }
 
   health() {

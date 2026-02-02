@@ -1,5 +1,6 @@
 namespace ArdaNova.Application.DTOs;
 
+using System.Text.Json.Serialization;
 using ArdaNova.Domain.Models.Enums;
 
 public record ProjectCreatorDto
@@ -39,6 +40,8 @@ public record ProjectDto
     public DateTime? PublishedAt { get; init; }
     public DateTime? FundedAt { get; init; }
     public DateTime? CompletedAt { get; init; }
+    public bool CommerceEnabled { get; init; }
+    public string? StorefrontDescription { get; init; }
     public string CreatedById { get; init; } = null!;
     public ProjectCreatorDto? CreatedBy { get; init; }
     public string? AssignedGuildId { get; init; }
@@ -62,6 +65,8 @@ public record CreateProjectDto
     public string? Timeline { get; init; }
     public ProjectType ProjectType { get; init; } = ProjectType.TEMPORARY;
     public ProjectDuration? Duration { get; init; }
+    public bool CommerceEnabled { get; init; }
+    public string? StorefrontDescription { get; init; }
 }
 
 public record UpdateProjectDto
@@ -82,6 +87,8 @@ public record UpdateProjectDto
     public string? Timeline { get; init; }
     public ProjectType? ProjectType { get; init; }
     public ProjectDuration? Duration { get; init; }
+    public bool? CommerceEnabled { get; init; }
+    public string? StorefrontDescription { get; init; }
 }
 
 public record ProjectTaskDto
@@ -103,7 +110,7 @@ public record ProjectTaskDto
 
 public record CreateProjectTaskDto
 {
-    public required string ProjectId { get; init; }
+    public string ProjectId { get; init; } = string.Empty;
     public required string Title { get; init; }
     public string? Description { get; init; }
     public TaskPriority Priority { get; init; } = TaskPriority.MEDIUM;
@@ -139,7 +146,7 @@ public record ProjectResourceDto
 
 public record CreateProjectResourceDto
 {
-    public required string ProjectId { get; init; }
+    public string ProjectId { get; init; } = string.Empty;
     public required string Name { get; init; }
     public string? Description { get; init; }
     public int Quantity { get; init; } = 1;
@@ -169,16 +176,22 @@ public record ProjectMilestoneDto
     public string? Description { get; init; }
     public DateTime TargetDate { get; init; }
     public DateTime? CompletedAt { get; init; }
-    public bool IsCompleted { get; init; }
+    public MilestoneStatus Status { get; init; }
+    public Priority Priority { get; init; }
+    public int Order { get; init; }
     public DateTime CreatedAt { get; init; }
+    public DateTime UpdatedAt { get; init; }
 }
 
 public record CreateProjectMilestoneDto
 {
-    public required string ProjectId { get; init; }
+    [JsonIgnore]
+    public string ProjectId { get; init; } = string.Empty;
     public required string Title { get; init; }
     public string? Description { get; init; }
-    public required DateTime TargetDate { get; init; }
+    public DateTime? TargetDate { get; init; }
+    public MilestoneStatus Status { get; init; } = MilestoneStatus.PLANNED;
+    public Priority Priority { get; init; } = Priority.MEDIUM;
 }
 
 public record UpdateProjectMilestoneDto
@@ -186,6 +199,8 @@ public record UpdateProjectMilestoneDto
     public string? Title { get; init; }
     public string? Description { get; init; }
     public DateTime? TargetDate { get; init; }
+    public MilestoneStatus? Status { get; init; }
+    public Priority? Priority { get; init; }
 }
 
 public record ProjectSupportDto
@@ -203,7 +218,7 @@ public record ProjectSupportDto
 
 public record CreateProjectSupportDto
 {
-    public required string ProjectId { get; init; }
+    public string ProjectId { get; init; } = string.Empty;
     public required string UserId { get; init; }
     public required SupportType SupportType { get; init; }
     public decimal? MonthlyAmount { get; init; }
@@ -228,7 +243,7 @@ public record ProjectApplicationDto
 
 public record CreateProjectApplicationDto
 {
-    public required string ProjectId { get; init; }
+    public string ProjectId { get; init; } = string.Empty;
     public required string UserId { get; init; }
     public required string RoleTitle { get; init; }
     public required string Message { get; init; }
@@ -250,7 +265,7 @@ public record ProjectCommentDto
 
 public record CreateProjectCommentDto
 {
-    public required string ProjectId { get; init; }
+    public string ProjectId { get; init; } = string.Empty;
     public required string UserId { get; init; }
     public required string Content { get; init; }
     public string? ParentId { get; init; }
@@ -269,7 +284,7 @@ public record ProjectUpdateDto
 
 public record CreateProjectUpdateDto
 {
-    public required string ProjectId { get; init; }
+    public string ProjectId { get; init; } = string.Empty;
     public required string UserId { get; init; }
     public required string Title { get; init; }
     public required string Content { get; init; }
@@ -301,7 +316,7 @@ public record ProjectEquityDto
 
 public record CreateProjectEquityDto
 {
-    public required string ProjectId { get; init; }
+    public string ProjectId { get; init; } = string.Empty;
     public required string UserId { get; init; }
     public required decimal SharePercent { get; init; }
     public required decimal InvestmentAmount { get; init; }
@@ -336,7 +351,7 @@ public record ProjectMemberUserDto
 
 public record CreateProjectMemberDto
 {
-    public required string ProjectId { get; init; }
+    public string ProjectId { get; init; } = string.Empty;
     public required string UserId { get; init; }
     public required ProjectRole Role { get; init; }
     public string? InvitedById { get; init; }
@@ -353,9 +368,4 @@ public record ReviewProjectApplicationDto
 {
     public required ApplicationStatus Status { get; init; }
     public string? ReviewMessage { get; init; }
-}
-
-public record ReviewProjectBidDto
-{
-    public required BidStatus Status { get; init; }
 }

@@ -6,7 +6,7 @@ export const EpicStatus = z.enum(['DRAFT', 'READY', 'IN_PROGRESS', 'COMPLETED', 
 export const EpicPriority = z.enum(['CRITICAL', 'HIGH', 'MEDIUM', 'LOW']);
 
 const createEpicSchema = z.object({
-  phaseId: z.string().min(1),
+  milestoneId: z.string().min(1),
   title: z.string().min(1).max(200),
   description: z.string().optional(),
   priority: EpicPriority.default('MEDIUM'),
@@ -25,10 +25,10 @@ const updateEpicSchema = z.object({
 });
 
 export const epicRouter = createTRPCRouter({
-  getByPhaseId: publicProcedure
-    .input(z.object({ phaseId: z.string() }))
+  getByMilestoneId: publicProcedure
+    .input(z.object({ milestoneId: z.string() }))
     .query(async ({ input }) => {
-      const response = await apiClient.epics.getByPhaseId(input.phaseId);
+      const response = await apiClient.epics.getByMilestoneId(input.milestoneId);
 
       if (response.error) {
         throw new Error(response.error);
@@ -54,20 +54,14 @@ export const epicRouter = createTRPCRouter({
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user.id;
 
-      // Get phase to verify ownership
-      const phase = await apiClient.roadmaps.getPhaseById(input.phaseId);
-      if (phase.error || !phase.data) {
-        throw new Error("Phase not found");
-      }
-
-      // Get roadmap to verify ownership
-      const roadmap = await apiClient.roadmaps.getById(phase.data.roadmapId);
-      if (roadmap.error || !roadmap.data) {
-        throw new Error("Roadmap not found");
+      // Get milestone to verify ownership
+      const milestone = await apiClient.milestones.getById(input.milestoneId);
+      if (milestone.error || !milestone.data) {
+        throw new Error("Milestone not found");
       }
 
       // Verify project ownership
-      const project = await apiClient.projects.getById(roadmap.data.projectId);
+      const project = await apiClient.projects.getById(milestone.data.projectId);
       if (project.error || !project.data) {
         throw new Error("Project not found");
       }
@@ -95,20 +89,14 @@ export const epicRouter = createTRPCRouter({
         throw new Error("Epic not found");
       }
 
-      // Get phase to verify ownership
-      const phase = await apiClient.roadmaps.getPhaseById(epic.data.phaseId);
-      if (phase.error || !phase.data) {
-        throw new Error("Phase not found");
-      }
-
-      // Get roadmap to verify ownership
-      const roadmap = await apiClient.roadmaps.getById(phase.data.roadmapId);
-      if (roadmap.error || !roadmap.data) {
-        throw new Error("Roadmap not found");
+      // Get milestone to verify ownership
+      const milestone = await apiClient.milestones.getById(epic.data.milestoneId);
+      if (milestone.error || !milestone.data) {
+        throw new Error("Milestone not found");
       }
 
       // Verify project ownership
-      const project = await apiClient.projects.getById(roadmap.data.projectId);
+      const project = await apiClient.projects.getById(milestone.data.projectId);
       if (project.error || !project.data) {
         throw new Error("Project not found");
       }
@@ -136,20 +124,14 @@ export const epicRouter = createTRPCRouter({
         throw new Error("Epic not found");
       }
 
-      // Get phase to verify ownership
-      const phase = await apiClient.roadmaps.getPhaseById(epic.data.phaseId);
-      if (phase.error || !phase.data) {
-        throw new Error("Phase not found");
-      }
-
-      // Get roadmap to verify ownership
-      const roadmap = await apiClient.roadmaps.getById(phase.data.roadmapId);
-      if (roadmap.error || !roadmap.data) {
-        throw new Error("Roadmap not found");
+      // Get milestone to verify ownership
+      const milestone = await apiClient.milestones.getById(epic.data.milestoneId);
+      if (milestone.error || !milestone.data) {
+        throw new Error("Milestone not found");
       }
 
       // Verify project ownership
-      const project = await apiClient.projects.getById(roadmap.data.projectId);
+      const project = await apiClient.projects.getById(milestone.data.projectId);
       if (project.error || !project.data) {
         throw new Error("Project not found");
       }
@@ -177,20 +159,14 @@ export const epicRouter = createTRPCRouter({
         throw new Error("Epic not found");
       }
 
-      // Get phase to verify ownership
-      const phase = await apiClient.roadmaps.getPhaseById(epic.data.phaseId);
-      if (phase.error || !phase.data) {
-        throw new Error("Phase not found");
-      }
-
-      // Get roadmap to verify ownership
-      const roadmap = await apiClient.roadmaps.getById(phase.data.roadmapId);
-      if (roadmap.error || !roadmap.data) {
-        throw new Error("Roadmap not found");
+      // Get milestone to verify ownership
+      const milestone = await apiClient.milestones.getById(epic.data.milestoneId);
+      if (milestone.error || !milestone.data) {
+        throw new Error("Milestone not found");
       }
 
       // Verify project ownership
-      const project = await apiClient.projects.getById(roadmap.data.projectId);
+      const project = await apiClient.projects.getById(milestone.data.projectId);
       if (project.error || !project.data) {
         throw new Error("Project not found");
       }
@@ -218,20 +194,14 @@ export const epicRouter = createTRPCRouter({
         throw new Error("Epic not found");
       }
 
-      // Get phase to verify ownership
-      const phase = await apiClient.roadmaps.getPhaseById(epic.data.phaseId);
-      if (phase.error || !phase.data) {
-        throw new Error("Phase not found");
-      }
-
-      // Get roadmap to verify ownership
-      const roadmap = await apiClient.roadmaps.getById(phase.data.roadmapId);
-      if (roadmap.error || !roadmap.data) {
-        throw new Error("Roadmap not found");
+      // Get milestone to verify ownership
+      const milestone = await apiClient.milestones.getById(epic.data.milestoneId);
+      if (milestone.error || !milestone.data) {
+        throw new Error("Milestone not found");
       }
 
       // Verify project ownership
-      const project = await apiClient.projects.getById(roadmap.data.projectId);
+      const project = await apiClient.projects.getById(milestone.data.projectId);
       if (project.error || !project.data) {
         throw new Error("Project not found");
       }
@@ -259,20 +229,14 @@ export const epicRouter = createTRPCRouter({
         throw new Error("Epic not found");
       }
 
-      // Get phase to verify ownership
-      const phase = await apiClient.roadmaps.getPhaseById(epic.data.phaseId);
-      if (phase.error || !phase.data) {
-        throw new Error("Phase not found");
-      }
-
-      // Get roadmap to verify ownership
-      const roadmap = await apiClient.roadmaps.getById(phase.data.roadmapId);
-      if (roadmap.error || !roadmap.data) {
-        throw new Error("Roadmap not found");
+      // Get milestone to verify ownership
+      const milestone = await apiClient.milestones.getById(epic.data.milestoneId);
+      if (milestone.error || !milestone.data) {
+        throw new Error("Milestone not found");
       }
 
       // Verify project ownership
-      const project = await apiClient.projects.getById(roadmap.data.projectId);
+      const project = await apiClient.projects.getById(milestone.data.projectId);
       if (project.error || !project.data) {
         throw new Error("Project not found");
       }

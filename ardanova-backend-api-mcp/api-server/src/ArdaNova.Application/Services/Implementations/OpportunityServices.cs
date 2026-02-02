@@ -17,7 +17,6 @@ public class OpportunityService : IOpportunityService
     private readonly IRepository<User> _userRepository;
     private readonly IRepository<Guild> _guildRepository;
     private readonly IRepository<Project> _projectRepository;
-    private readonly IRepository<Shop> _shopRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IMapper _mapper;
 
@@ -29,7 +28,6 @@ public class OpportunityService : IOpportunityService
         IRepository<User> userRepository,
         IRepository<Guild> guildRepository,
         IRepository<Project> projectRepository,
-        IRepository<Shop> shopRepository,
         IUnitOfWork unitOfWork,
         IMapper mapper)
     {
@@ -40,7 +38,6 @@ public class OpportunityService : IOpportunityService
         _userRepository = userRepository;
         _guildRepository = guildRepository;
         _projectRepository = projectRepository;
-        _shopRepository = shopRepository;
         _unitOfWork = unitOfWork;
         _mapper = mapper;
     }
@@ -129,7 +126,6 @@ public class OpportunityService : IOpportunityService
             {
                 "guild" => query.Where(o => o.guildId != null),
                 "project" => query.Where(o => o.projectId != null),
-                "shop" => query.Where(o => o.shopId != null),
                 _ => query
             };
         }
@@ -160,13 +156,6 @@ public class OpportunityService : IOpportunityService
     public async Task<Result<IReadOnlyList<OpportunityDto>>> GetByProjectIdAsync(string projectId, CancellationToken ct = default)
     {
         var opportunities = await _repository.FindAsync(o => o.projectId == projectId, ct);
-        var dtos = await EnrichOpportunityDtosAsync(opportunities, ct);
-        return Result<IReadOnlyList<OpportunityDto>>.Success(dtos);
-    }
-
-    public async Task<Result<IReadOnlyList<OpportunityDto>>> GetByShopIdAsync(string shopId, CancellationToken ct = default)
-    {
-        var opportunities = await _repository.FindAsync(o => o.shopId == shopId, ct);
         var dtos = await EnrichOpportunityDtosAsync(opportunities, ct);
         return Result<IReadOnlyList<OpportunityDto>>.Success(dtos);
     }
@@ -516,22 +505,6 @@ public class OpportunityService : IOpportunityService
                 };
             }
         }
-        else if (!string.IsNullOrWhiteSpace(opportunity.shopId))
-        {
-            var shop = await _shopRepository.GetByIdAsync(opportunity.shopId, ct);
-            if (shop is not null)
-            {
-                source = new OpportunitySourceDto
-                {
-                    Type = "shop",
-                    Id = shop.id,
-                    Name = shop.name,
-                    Logo = shop.logo,
-                    Slug = shop.slug
-                };
-            }
-        }
-
         if (source is not null)
             dto = dto with { Source = source };
 

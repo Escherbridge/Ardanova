@@ -6,7 +6,8 @@ public record TaskDto
 {
     public string Id { get; init; } = null!;
     public string ProjectId { get; init; } = null!;
-    public string? BacklogItemId { get; init; }
+    public string? PbiId { get; init; }
+    public string? OpportunityId { get; init; }
     public string Title { get; init; } = null!;
     public string? Description { get; init; }
     public TaskStatus Status { get; init; }
@@ -50,7 +51,7 @@ public record CreateTaskDto
     public decimal? EquityReward { get; init; }
     public DateTime? DueDate { get; init; }
     public string? AssignedToId { get; init; }
-    public string? BacklogItemId { get; init; }
+    public string? PbiId { get; init; }
 }
 
 public record UpdateTaskDto

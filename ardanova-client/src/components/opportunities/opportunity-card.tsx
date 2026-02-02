@@ -36,7 +36,7 @@ interface OpportunityCardProps {
     projectId?: string;
     guildId?: string;
     source?: {
-      type: "guild" | "project" | "shop";
+      type: "guild" | "project";
       id: string;
       name: string;
       logo?: string | null;

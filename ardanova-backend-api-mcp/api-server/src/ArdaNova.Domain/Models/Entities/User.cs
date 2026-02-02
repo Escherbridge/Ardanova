@@ -104,17 +104,13 @@ public class User
 
     public virtual ICollection<ProjectUpdate> ProjectUpdates { get; set; } = new List<ProjectUpdate>();
 
-    public virtual ICollection<Roadmap> Roadmaps { get; set; } = new List<Roadmap>();
-
-    public virtual ICollection<RoadmapPhase> RoadmapPhases { get; set; } = new List<RoadmapPhase>();
-
     public virtual ICollection<Epic> Epics { get; set; } = new List<Epic>();
 
     public virtual ICollection<Sprint> Sprints { get; set; } = new List<Sprint>();
 
-    public virtual ICollection<ProductBacklogItem> ProductBacklogItems { get; set; } = new List<ProductBacklogItem>();
+    public virtual ICollection<Feature> Features { get; set; } = new List<Feature>();
 
-    public virtual ICollection<BacklogItem> BacklogItems { get; set; } = new List<BacklogItem>();
+    public virtual ICollection<ProductBacklogItem> ProductBacklogItems { get; set; } = new List<ProductBacklogItem>();
 
     public virtual ICollection<ProjectMember> ProjectMembers { get; set; } = new List<ProjectMember>();
 
@@ -126,19 +122,11 @@ public class User
 
     public virtual ICollection<GuildMember> GuildMembers { get; set; } = new List<GuildMember>();
 
-    public virtual ICollection<ProjectBid> ProjectBids { get; set; } = new List<ProjectBid>();
-
     public virtual ICollection<GuildReview> GuildReviews { get; set; } = new List<GuildReview>();
 
     public virtual ICollection<GuildUpdate> GuildUpdates { get; set; } = new List<GuildUpdate>();
 
-    public virtual ICollection<Shop> Shops { get; set; } = new List<Shop>();
-
     public virtual ICollection<Product> Products { get; set; } = new List<Product>();
-
-    public virtual ICollection<InventoryItem> InventoryItems { get; set; } = new List<InventoryItem>();
-
-    public virtual ICollection<MarketingCampaign> MarketingCampaigns { get; set; } = new List<MarketingCampaign>();
 
     public virtual ICollection<ProjectEquity> ProjectEquities { get; set; } = new List<ProjectEquity>();
 
@@ -190,6 +178,8 @@ public class User
 
     public virtual ICollection<OpportunityComment> OpportunityComments { get; set; } = new List<OpportunityComment>();
 
+    public virtual ICollection<OpportunityBid> OpportunityBids { get; set; } = new List<OpportunityBid>();
+
     public virtual ICollection<Referral> ReferralsAsReferrer { get; set; } = new List<Referral>();
 
     public virtual ICollection<Referral> ReferralsAsReferred { get; set; } = new List<Referral>();
@@ -217,14 +207,6 @@ public class User
     public virtual ICollection<GuildApplication> GuildApplicationsAsUser { get; set; } = new List<GuildApplication>();
 
     public virtual ICollection<GuildApplication> GuildApplicationsAsReviewedBy { get; set; } = new List<GuildApplication>();
-
-    public virtual ICollection<Invoice> InvoicesAsBuyer { get; set; } = new List<Invoice>();
-
-    public virtual ICollection<Invoice> InvoicesAsUser { get; set; } = new List<Invoice>();
-
-    public virtual ICollection<Sale> SalesAsBuyer { get; set; } = new List<Sale>();
-
-    public virtual ICollection<Sale> SalesAsUser { get; set; } = new List<Sale>();
 
     public virtual ICollection<ChatMessage> ChatMessagesAsUserTo { get; set; } = new List<ChatMessage>();
 

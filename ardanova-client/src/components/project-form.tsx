@@ -13,6 +13,7 @@ import { Plus, X, FileText, Video, Image, Presentation, Loader2 } from "lucide-r
 import { cn } from "~/lib/utils";
 import { api } from "~/trpc/react";
 import type { RouterOutputs } from "~/trpc/react";
+import { useEnumOptions } from "~/hooks/use-enum";
 
 const OTHER_CATEGORY_MAX_LENGTH = 50;
 
@@ -112,17 +113,7 @@ export function ProjectForm({ mode = "create", project }: ProjectFormProps) {
   const [newResource, setNewResource] = useState("");
   const [newSkill, setNewSkill] = useState("");
 
-  const categoryOptions = [
-    { id: "TECHNOLOGY", label: "Technology" },
-    { id: "HEALTHCARE", label: "Healthcare" },
-    { id: "EDUCATION", label: "Education" },
-    { id: "ENVIRONMENT", label: "Environment" },
-    { id: "SOCIAL_IMPACT", label: "Social Impact" },
-    { id: "BUSINESS", label: "Business" },
-    { id: "ARTS_CULTURE", label: "Arts & Culture" },
-    { id: "AGRICULTURE", label: "Agriculture" },
-    { id: "FINANCE", label: "Finance" },
-  ];
+  const { options: categoryOptions } = useEnumOptions("ProjectCategory");
 
   const difficulties = ["Beginner", "Intermediate", "Advanced", "Expert"];
   const durations = ["1-2 weeks", "1-3 months", "3-6 months", "6+ months"];

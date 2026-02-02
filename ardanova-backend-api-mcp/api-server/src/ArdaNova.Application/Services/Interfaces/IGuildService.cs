@@ -28,20 +28,6 @@ public interface IGuildMemberService
     Task<Result<bool>> DeleteAsync(string id, CancellationToken ct = default);
 }
 
-public interface IProjectBidService
-{
-    Task<Result<ProjectBidDto>> GetByIdAsync(string id, CancellationToken ct = default);
-    Task<Result<IReadOnlyList<ProjectBidDto>>> GetByProjectIdAsync(string projectId, CancellationToken ct = default);
-    Task<Result<IReadOnlyList<ProjectBidDto>>> GetByGuildIdAsync(string guildId, CancellationToken ct = default);
-    Task<Result<IReadOnlyList<ProjectBidDto>>> GetByStatusAsync(BidStatus status, CancellationToken ct = default);
-    Task<Result<ProjectBidDto>> CreateAsync(CreateProjectBidDto dto, CancellationToken ct = default);
-    Task<Result<ProjectBidDto>> UpdateAsync(string id, UpdateProjectBidDto dto, CancellationToken ct = default);
-    Task<Result<bool>> DeleteAsync(string id, CancellationToken ct = default);
-    Task<Result<ProjectBidDto>> AcceptAsync(string id, CancellationToken ct = default);
-    Task<Result<ProjectBidDto>> RejectAsync(string id, CancellationToken ct = default);
-    Task<Result<ProjectBidDto>> WithdrawAsync(string id, CancellationToken ct = default);
-}
-
 public interface IGuildReviewService
 {
     Task<Result<GuildReviewDto>> GetByIdAsync(string id, CancellationToken ct = default);

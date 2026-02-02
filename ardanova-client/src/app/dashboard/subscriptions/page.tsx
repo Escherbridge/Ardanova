@@ -18,15 +18,8 @@ import { Card, CardContent } from "~/components/ui/card";
 import { Badge } from "~/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
 import { cn } from "~/lib/utils";
-// import { api } from "~/trpc/react";
-
-const supportTypes = [
-  { id: "all", label: "All" },
-  { id: "SUBSCRIPTION", label: "Subscriptions" },
-  { id: "VOTE", label: "Votes" },
-  { id: "VOLUNTEER", label: "Volunteering" },
-  { id: "RESOURCE", label: "Resources" },
-];
+import { api } from "~/trpc/react";
+import { useEnumOptions } from "~/hooks/use-enum";
 
 const supportTypeVariants: Record<string, "neon" | "neon-pink" | "neon-green" | "neon-purple" | "secondary"> = {
   SUBSCRIPTION: "neon",
@@ -100,6 +93,10 @@ const sampleSupports = [
 ];
 
 export default function SubscriptionsPage() {
+  // API-driven enum filters
+  const { options: supportTypeOptions } = useEnumOptions("SupportType");
+  const supportTypes = [{ id: "all", label: "All" }, ...supportTypeOptions];
+
   const [activeFilter, setActiveFilter] = useState("all");
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [showCancelDialog, setShowCancelDialog] = useState<string | null>(null);

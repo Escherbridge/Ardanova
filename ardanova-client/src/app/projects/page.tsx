@@ -33,6 +33,7 @@ import {
 } from "~/components/ui/dropdown-menu";
 import { cn } from "~/lib/utils";
 import { api } from "~/trpc/react";
+import { useEnumOptions } from "~/hooks/use-enum";
 import { FeedLayout } from "~/components/layouts/feed-layout";
 
 // Feed tabs for projects
@@ -83,39 +84,6 @@ function formatRelativeTime(date: Date): string {
   return date.toLocaleDateString();
 }
 
-// Filter options
-const categoryFilters = [
-  { id: "all", label: "All Categories" },
-  { id: "TECHNOLOGY", label: "Technology" },
-  { id: "HEALTHCARE", label: "Healthcare" },
-  { id: "EDUCATION", label: "Education" },
-  { id: "ENVIRONMENT", label: "Environment" },
-  { id: "SOCIAL_IMPACT", label: "Social Impact" },
-  { id: "BUSINESS", label: "Business" },
-  { id: "ARTS_CULTURE", label: "Arts & Culture" },
-  { id: "AGRICULTURE", label: "Agriculture" },
-  { id: "FINANCE", label: "Finance" },
-];
-
-const projectTypeFilters = [
-  { id: "all", label: "All Types" },
-  { id: "TEMPORARY", label: "Temporary" },
-  { id: "LONG_TERM", label: "Long Term" },
-  { id: "FOUNDATION", label: "Foundation" },
-  { id: "BUSINESS", label: "Business" },
-  { id: "PRODUCT", label: "Product" },
-  { id: "OPEN_SOURCE", label: "Open Source" },
-  { id: "COMMUNITY", label: "Community" },
-];
-
-const statusFilters = [
-  { id: "all", label: "All Statuses" },
-  { id: "PUBLISHED", label: "Published" },
-  { id: "SEEKING_SUPPORT", label: "Seeking Support" },
-  { id: "FUNDED", label: "Funded" },
-  { id: "IN_PROGRESS", label: "In Progress" },
-  { id: "COMPLETED", label: "Completed" },
-];
 
 const fundingFilters = [
   { id: "all", label: "Any Funding" },
@@ -142,6 +110,14 @@ export default function ProjectsPage() {
   const [selectedStatus, setSelectedStatus] = useState("all");
   const [selectedFunding, setSelectedFunding] = useState("all");
   const [selectedTime, setSelectedTime] = useState("all");
+
+  // API-driven enum filters
+  const { options: categoryOptions } = useEnumOptions("ProjectCategory");
+  const categoryFilters = [{ id: "all", label: "All Categories" }, ...categoryOptions];
+  const { options: projectTypeOptions } = useEnumOptions("ProjectType");
+  const projectTypeFilters = [{ id: "all", label: "All Types" }, ...projectTypeOptions];
+  const { options: statusOptions } = useEnumOptions("ProjectStatus");
+  const statusFilters = [{ id: "all", label: "All Statuses" }, ...statusOptions];
 
   // Fetch projects from API
   const { data: projectsResult, isLoading } = api.project.getAll.useQuery({

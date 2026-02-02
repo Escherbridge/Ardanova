@@ -15,34 +15,35 @@ import {
   SelectTrigger,
   SelectValue,
 } from "~/components/ui/select";
+import { useEnumOptions } from "~/hooks/use-enum";
 
-const priorityLevels = [
-  { id: "low", label: "Low", color: "bg-blue-500" },
-  { id: "medium", label: "Medium", color: "bg-yellow-500" },
-  { id: "high", label: "High", color: "bg-orange-500" },
-  { id: "critical", label: "Critical", color: "bg-red-500" },
-];
+// Priority color indicators
+const priorityColors: Record<string, string> = {
+  LOW: "bg-blue-500",
+  MEDIUM: "bg-yellow-500",
+  HIGH: "bg-orange-500",
+  CRITICAL: "bg-red-500",
+};
 
-const taskTypes = [
-  { id: "feature", label: "Feature" },
-  { id: "bug", label: "Bug Fix" },
-  { id: "improvement", label: "Improvement" },
-  { id: "documentation", label: "Documentation" },
-  { id: "research", label: "Research" },
-  { id: "design", label: "Design" },
-  { id: "other", label: "Other" },
-];
+// Label overrides for task types
+const taskTypeLabels: Record<string, string> = {
+  BUG: "Bug Fix",
+};
 
-const effortEstimates = [
-  { id: "xs", label: "XS (< 1 hour)" },
-  { id: "s", label: "S (1-4 hours)" },
-  { id: "m", label: "M (1-2 days)" },
-  { id: "l", label: "L (3-5 days)" },
-  { id: "xl", label: "XL (1-2 weeks)" },
-];
+// Label overrides for effort estimates
+const effortLabels: Record<string, string> = {
+  XS: "XS (< 1 hour)",
+  S: "S (1-4 hours)",
+  M: "M (1-2 days)",
+  L: "L (3-5 days)",
+  XL: "XL (1-2 weeks)",
+};
 
 export default function CreateTaskPage() {
   const router = useRouter();
+  const { options: priorityLevels } = useEnumOptions("TaskPriority");
+  const { options: taskTypes } = useEnumOptions("TaskType", taskTypeLabels);
+  const { options: effortEstimates } = useEnumOptions("EffortEstimate", effortLabels);
   const [formData, setFormData] = useState({
     title: "",
     description: "",
@@ -252,7 +253,7 @@ export default function CreateTaskPage() {
                       }`}
                     >
                       <div
-                        className={`w-2 h-2 rounded-full ${level.color} inline-block mr-2`}
+                        className={`w-2 h-2 rounded-full ${priorityColors[level.id] ?? "bg-gray-500"} inline-block mr-2`}
                       />
                       {level.label}
                     </button>

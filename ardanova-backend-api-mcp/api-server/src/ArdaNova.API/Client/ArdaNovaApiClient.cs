@@ -27,8 +27,6 @@ public class ArdaNovaApiClient : IDisposable
     public UserClient Users => new(_httpClient, _jsonOptions);
     public ProjectClient Projects => new(_httpClient, _jsonOptions);
     public GuildClient Guilds => new(_httpClient, _jsonOptions);
-    public ShopClient Shops => new(_httpClient, _jsonOptions);
-
     public void Dispose()
     {
         _httpClient.Dispose();
@@ -184,46 +182,3 @@ public class GuildClient
     }
 }
 
-public class ShopClient
-{
-    private readonly HttpClient _http;
-    private readonly JsonSerializerOptions _json;
-
-    public ShopClient(HttpClient http, JsonSerializerOptions json)
-    {
-        _http = http;
-        _json = json;
-    }
-
-    public async Task<ShopDto?> GetByIdAsync(string id) =>
-        await _http.GetFromJsonAsync<ShopDto>($"api/shops/{id}", _json);
-
-    public async Task<IReadOnlyList<ShopDto>?> GetAllAsync() =>
-        await _http.GetFromJsonAsync<IReadOnlyList<ShopDto>>("api/shops", _json);
-
-    public async Task<PagedResult<ShopDto>?> GetPagedAsync(int page = 1, int pageSize = 10) =>
-        await _http.GetFromJsonAsync<PagedResult<ShopDto>>($"api/shops/paged?page={page}&pageSize={pageSize}", _json);
-
-    public async Task<IReadOnlyList<ShopDto>?> GetByOwnerIdAsync(string ownerId) =>
-        await _http.GetFromJsonAsync<IReadOnlyList<ShopDto>>($"api/shops/owner/{ownerId}", _json);
-
-    public async Task<ShopDto?> CreateAsync(CreateShopDto dto)
-    {
-        var response = await _http.PostAsJsonAsync("api/shops", dto, _json);
-        response.EnsureSuccessStatusCode();
-        return await response.Content.ReadFromJsonAsync<ShopDto>(_json);
-    }
-
-    public async Task<ShopDto?> UpdateAsync(string id, UpdateShopDto dto)
-    {
-        var response = await _http.PutAsJsonAsync($"api/shops/{id}", dto, _json);
-        response.EnsureSuccessStatusCode();
-        return await response.Content.ReadFromJsonAsync<ShopDto>(_json);
-    }
-
-    public async Task DeleteAsync(string id)
-    {
-        var response = await _http.DeleteAsync($"api/shops/{id}");
-        response.EnsureSuccessStatusCode();
-    }
-}

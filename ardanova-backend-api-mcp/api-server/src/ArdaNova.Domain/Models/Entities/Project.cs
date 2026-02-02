@@ -109,6 +109,12 @@ public class Project
     public DateTime? completedAt { get; set; }
 
     [Required]
+    public bool commerceEnabled { get; set; }
+
+    [Column(TypeName = "text")]
+    public string? storefrontDescription { get; set; }
+
+    [Required]
     public string createdById { get; set; } = string.Empty;
 
     public string? assignedGuildId { get; set; }
@@ -139,17 +145,13 @@ public class Project
 
     public virtual ICollection<ProjectUpdate> ProjectUpdates { get; set; } = new List<ProjectUpdate>();
 
-    public virtual ICollection<Roadmap> Roadmaps { get; set; } = new List<Roadmap>();
-
-    public virtual ICollection<Sprint> Sprints { get; set; } = new List<Sprint>();
-
     public virtual ICollection<ProjectMember> ProjectMembers { get; set; } = new List<ProjectMember>();
 
     public virtual ICollection<Proposal> Proposals { get; set; } = new List<Proposal>();
 
     public virtual ICollection<DelegatedVote> DelegatedVotes { get; set; } = new List<DelegatedVote>();
 
-    public virtual ICollection<ProjectBid> ProjectBids { get; set; } = new List<ProjectBid>();
+    public virtual ICollection<Product> Products { get; set; } = new List<Product>();
 
     public virtual ICollection<ProjectShare> ProjectShares { get; set; } = new List<ProjectShare>();
 

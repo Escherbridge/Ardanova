@@ -44,16 +44,12 @@ public class ArdaNovaDbContext : DbContext
     public DbSet<Guild> Guilds => Set<Guild>();
     public DbSet<GuildMember> GuildMembers => Set<GuildMember>();
     public DbSet<GuildReview> GuildReviews => Set<GuildReview>();
-    public DbSet<ProjectBid> ProjectBids => Set<ProjectBid>();
+
 
     // Business entities
-    public DbSet<Shop> Shops => Set<Shop>();
+
     public DbSet<Product> Products => Set<Product>();
-    public DbSet<Invoice> Invoices => Set<Invoice>();
-    public DbSet<Sale> Sales => Set<Sale>();
-    public DbSet<SaleItem> SaleItems => Set<SaleItem>();
-    public DbSet<InventoryItem> InventoryItems => Set<InventoryItem>();
-    public DbSet<MarketingCampaign> MarketingCampaigns => Set<MarketingCampaign>();
+
 
     // Wallet entities
     public DbSet<Wallet> Wallets => Set<Wallet>();
@@ -81,13 +77,11 @@ public class ArdaNovaDbContext : DbContext
     public DbSet<UserAchievement> UserAchievements => Set<UserAchievement>();
     public DbSet<Leaderboard> Leaderboards => Set<Leaderboard>();
     public DbSet<LeaderboardEntry> LeaderboardEntries => Set<LeaderboardEntry>();
-    public DbSet<Roadmap> Roadmaps => Set<Roadmap>();
-    public DbSet<RoadmapPhase> RoadmapPhases => Set<RoadmapPhase>();
+
     public DbSet<Epic> Epics => Set<Epic>();
     public DbSet<Sprint> Sprints => Set<Sprint>();
     public DbSet<ProductBacklogItem> ProductBacklogItems => Set<ProductBacklogItem>();
-    public DbSet<BacklogItem> BacklogItems => Set<BacklogItem>();
-    public DbSet<SprintItem> SprintItems => Set<SprintItem>();
+
     public DbSet<ProjectMember> ProjectMembers => Set<ProjectMember>();
     public DbSet<TaskCompensation> TaskCompensations => Set<TaskCompensation>();
     public DbSet<TaskSubmission> TaskSubmissions => Set<TaskSubmission>();
@@ -102,7 +96,7 @@ public class ArdaNovaDbContext : DbContext
     public DbSet<Conversation> Conversations => Set<Conversation>();
     public DbSet<ConversationMember> ConversationMembers => Set<ConversationMember>();
     public DbSet<Attachment> Attachments => Set<Attachment>();
-    public DbSet<ShopAnalytics> ShopAnalytics => Set<ShopAnalytics>();
+
     public DbSet<ProjectInvitation> ProjectInvitations => Set<ProjectInvitation>();
     public DbSet<ProjectMembershipRequest> ProjectMembershipRequests => Set<ProjectMembershipRequest>();
     public DbSet<GuildInvitation> GuildInvitations => Set<GuildInvitation>();
@@ -125,13 +119,16 @@ public class ArdaNovaDbContext : DbContext
     public DbSet<OpportunityUpdate> OpportunityUpdates => Set<OpportunityUpdate>();
     public DbSet<OpportunityComment> OpportunityComments => Set<OpportunityComment>();
     public DbSet<GuildUpdate> GuildUpdates => Set<GuildUpdate>();
-    public DbSet<TaskBid> TaskBids => Set<TaskBid>();
+
     public DbSet<ProjectShare> ProjectShares => Set<ProjectShare>();
     public DbSet<ShareHolder> ShareHolders => Set<ShareHolder>();
     public DbSet<ShareVesting> ShareVestings => Set<ShareVesting>();
     public DbSet<Fundraising> Fundraisings => Set<Fundraising>();
     public DbSet<FundraisingContribution> FundraisingContributions => Set<FundraisingContribution>();
     public DbSet<ShareSwap> ShareSwaps => Set<ShareSwap>();
+    public DbSet<Feature> Features => Set<Feature>();
+    public DbSet<OpportunityBid> OpportunityBids => Set<OpportunityBid>();
+
 
 
 

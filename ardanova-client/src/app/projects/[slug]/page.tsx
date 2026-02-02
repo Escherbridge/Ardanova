@@ -12,14 +12,13 @@ import {
   MoreHorizontal,
   FileText,
   Bell,
-  Flag,
   MessageCircle,
-  Briefcase,
   Vote,
   Users,
   Loader2,
   Edit,
   Trash2,
+  Target,
 } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
@@ -40,9 +39,7 @@ import {
   OverviewTab,
   UpdatesTab,
   TeamTab,
-  MilestonesTab,
   ProposalsTab,
-  BidsTab,
   CommentsTab,
   OpportunitiesTab,
 } from "~/components/projects";
@@ -51,10 +48,8 @@ const tabs = [
   { id: "overview", label: "Overview", icon: FileText },
   { id: "updates", label: "Updates", icon: Bell },
   { id: "team", label: "Team", icon: Users },
-  { id: "milestones", label: "Milestones", icon: Flag },
   { id: "proposals", label: "Proposals", icon: Vote },
-  { id: "bids", label: "Bids", icon: Briefcase },
-  { id: "opportunities", label: "Opportunities", icon: Briefcase },
+  { id: "opportunities", label: "Work", icon: Target },
   { id: "comments", label: "Comments", icon: MessageCircle },
 ];
 
@@ -309,7 +304,6 @@ export default function ProjectDetailPage() {
         {activeTab === "overview" && <OverviewTab project={project} />}
         {activeTab === "updates" && <UpdatesTab projectId={project.id} isOwner={isOwner} />}
         {activeTab === "team" && <TeamTab projectId={project.id} isOwner={isOwner} />}
-        {activeTab === "milestones" && <MilestonesTab projectId={project.id} isOwner={isOwner} />}
         {activeTab === "proposals" && (
           <ProposalsTab
             projectId={project.id}
@@ -318,7 +312,6 @@ export default function ProjectDetailPage() {
             selectedProposalId={proposalId || undefined}
           />
         )}
-        {activeTab === "bids" && <BidsTab projectId={project.id} isOwner={isOwner} />}
         {activeTab === "opportunities" && <OpportunitiesTab projectId={project.id} projectSlug={slug} isOwner={isOwner} userRole={userRole} />}
         {activeTab === "comments" && <CommentsTab projectId={project.id} />}
       </div>

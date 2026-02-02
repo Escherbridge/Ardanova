@@ -90,13 +90,9 @@ public class Guild
 
     public virtual ICollection<GuildApplication> GuildApplications { get; set; } = new List<GuildApplication>();
 
-    public virtual ICollection<ProjectBid> ProjectBids { get; set; } = new List<ProjectBid>();
-
     public virtual ICollection<GuildReview> GuildReviews { get; set; } = new List<GuildReview>();
 
     public virtual ICollection<GuildUpdate> GuildUpdates { get; set; } = new List<GuildUpdate>();
-
-    public virtual ICollection<TaskBid> TaskBids { get; set; } = new List<TaskBid>();
 
     public virtual ICollection<Post> Posts { get; set; } = new List<Post>();
 
@@ -107,5 +103,7 @@ public class Guild
     public virtual ICollection<GuildFollow> GuildFollows { get; set; } = new List<GuildFollow>();
 
     public virtual ICollection<Opportunity> Opportunities { get; set; } = new List<Opportunity>();
+
+    public virtual ICollection<OpportunityBid> OpportunityBids { get; set; } = new List<OpportunityBid>();
 
 }

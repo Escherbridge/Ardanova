@@ -7,7 +7,7 @@ import { Prisma } from '@prisma/client'
 
 export const ProductSchema = z.object({
   id: z.string().cuid(),
-  shopId: z.string(),
+  projectId: z.string(),
   name: z.string(),
   description: z.string().nullable(),
   sku: z.string().nullable(),

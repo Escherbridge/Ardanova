@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Building2, FolderKanban, Store, ArrowLeft, Loader2 } from "lucide-react";
+import { Building2, FolderKanban, ArrowLeft, Loader2 } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
@@ -9,10 +9,10 @@ import { Badge } from "~/components/ui/badge";
 import { api } from "~/trpc/react";
 
 interface EntitySelectorProps {
-  onSelect: (entityType: "guild" | "project" | "shop", entityId: string, entitySlug: string) => void;
+  onSelect: (entityType: "guild" | "project", entityId: string, entitySlug: string) => void;
 }
 
-type EntityType = "guild" | "project" | "shop" | null;
+type EntityType = "guild" | "project" | null;
 
 const entityConfig = {
   guild: {
@@ -26,12 +26,6 @@ const entityConfig = {
     label: "Project",
     variant: "neon" as const,
     description: "Post opportunity for your project"
-  },
-  shop: {
-    icon: Store,
-    label: "Shop",
-    variant: "neon-green" as const,
-    description: "Post opportunity for your shop"
   },
 };
 
@@ -47,10 +41,6 @@ export default function EntitySelector({ onSelect }: EntitySelectorProps) {
     { limit: 100, page: 1 },
     { enabled: selectedType === "project" }
   );
-
-  const { data: shops, isLoading: shopsLoading } = api.shop.getMyShops.useQuery(undefined, {
-    enabled: selectedType === "shop",
-  });
 
   // Handle entity type selection
   const handleTypeSelect = (type: EntityType) => {
@@ -75,7 +65,7 @@ export default function EntitySelector({ onSelect }: EntitySelectorProps) {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           {(Object.entries(entityConfig) as [keyof typeof entityConfig, typeof entityConfig[keyof typeof entityConfig]][]).map(([type, config]) => {
             const Icon = config.icon;
             return (
@@ -106,17 +96,9 @@ export default function EntitySelector({ onSelect }: EntitySelectorProps) {
   const config = entityConfig[selectedType];
   const Icon = config.icon;
 
-  const isLoading = selectedType === "guild"
-    ? guildsLoading
-    : selectedType === "project"
-    ? projectsLoading
-    : shopsLoading;
+  const isLoading = selectedType === "guild" ? guildsLoading : projectsLoading;
 
-  const entities = selectedType === "guild"
-    ? guilds
-    : selectedType === "project"
-    ? projects?.items
-    : shops;
+  const entities = selectedType === "guild" ? guilds : projects?.items;
 
   return (
     <div className="space-y-4">

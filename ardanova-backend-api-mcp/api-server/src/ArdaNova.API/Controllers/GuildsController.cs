@@ -16,7 +16,6 @@ public class GuildsController : ControllerBase
     private readonly IGuildApplicationService _applicationService;
     private readonly IGuildInvitationService _invitationService;
     private readonly IGuildFollowService _followService;
-    private readonly IProjectBidService _bidService;
 
     public GuildsController(
         IGuildService guildService,
@@ -25,8 +24,7 @@ public class GuildsController : ControllerBase
         IGuildUpdateService updateService,
         IGuildApplicationService applicationService,
         IGuildInvitationService invitationService,
-        IGuildFollowService followService,
-        IProjectBidService bidService)
+        IGuildFollowService followService)
     {
         _guildService = guildService;
         _memberService = memberService;
@@ -35,7 +33,6 @@ public class GuildsController : ControllerBase
         _applicationService = applicationService;
         _invitationService = invitationService;
         _followService = followService;
-        _bidService = bidService;
     }
 
     [HttpGet]
@@ -340,14 +337,6 @@ public class GuildsController : ControllerBase
     {
         var result = await _followService.IsFollowingAsync(guildId, userId, ct);
         return result.IsSuccess ? Ok(result.Value) : ToActionResult(result);
-    }
-
-    // ===== GUILD PROJECTS AND BIDS =====
-    [HttpGet("{guildId}/bids")]
-    public async Task<IActionResult> GetBids(string guildId, CancellationToken ct)
-    {
-        var result = await _bidService.GetByGuildIdAsync(guildId, ct);
-        return ToActionResult(result);
     }
 
     private IActionResult ToActionResult<T>(Result<T> result)

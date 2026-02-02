@@ -17,7 +17,6 @@ import {
   Bell,
   MessageCircle,
   CheckSquare,
-  Store,
   Calendar,
 } from "lucide-react";
 import { useState } from "react";
@@ -56,11 +55,6 @@ const mainNavItems = [
     href: "/guilds",
     label: "Guilds",
     icon: Users,
-  },
-  {
-    href: "/shops",
-    label: "Shops",
-    icon: Store,
   },
   {
     href: "/opportunities",

@@ -15,7 +15,7 @@ public class Sprint
     public string id { get; set; } = string.Empty;
 
     [Required]
-    public string projectId { get; set; } = string.Empty;
+    public string epicId { get; set; } = string.Empty;
 
     [Required]
     public string name { get; set; } = string.Empty;
@@ -45,12 +45,12 @@ public class Sprint
 
     public string? assigneeId { get; set; }
 
-    [ForeignKey("projectId")]
-    public virtual Project? Project { get; set; }
+    [ForeignKey("epicId")]
+    public virtual Epic? Epic { get; set; }
 
     [ForeignKey("assigneeId")]
     public virtual User? Assignee { get; set; }
 
-    public virtual ICollection<SprintItem> SprintItems { get; set; } = new List<SprintItem>();
+    public virtual ICollection<Feature> Features { get; set; } = new List<Feature>();
 
 }

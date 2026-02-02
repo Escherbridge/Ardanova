@@ -12,7 +12,7 @@ export const ProductBacklogItemSchema = z.object({
   status: PBIStatusSchema,
   priority: PrioritySchema,
   id: z.string().cuid(),
-  epicId: z.string(),
+  featureId: z.string(),
   title: z.string(),
   description: z.string().nullable(),
   storyPoints: z.number().int().nullable(),

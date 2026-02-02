@@ -293,6 +293,7 @@ export interface ProjectComment {
 }
 
 export interface CreateCommentDto {
+  projectId?: string;
   userId: string;
   content: string;
   parentId?: string;
@@ -415,24 +416,24 @@ export class ProjectsEndpoint {
     return this.client.post<ProjectMilestone>(`/api/projects/${projectId}/milestones`, data);
   }
 
-  updateMilestone(milestoneId: string, data: UpdateMilestoneDto): Promise<ApiResponse<ProjectMilestone>> {
-    return this.client.put<ProjectMilestone>(`/api/project-milestones/${milestoneId}`, data);
+  updateMilestone(projectId: string, milestoneId: string, data: UpdateMilestoneDto): Promise<ApiResponse<ProjectMilestone>> {
+    return this.client.put<ProjectMilestone>(`/api/projects/${projectId}/milestones/${milestoneId}`, data);
   }
 
-  deleteMilestone(milestoneId: string): Promise<ApiResponse<void>> {
-    return this.client.delete(`/api/project-milestones/${milestoneId}`);
+  deleteMilestone(projectId: string, milestoneId: string): Promise<ApiResponse<void>> {
+    return this.client.delete(`/api/projects/${projectId}/milestones/${milestoneId}`);
   }
 
   getMilestones(projectId: string): Promise<ApiResponse<ProjectMilestone[]>> {
     return this.client.get<ProjectMilestone[]>(`/api/projects/${projectId}/milestones`);
   }
 
-  getMilestoneById(milestoneId: string): Promise<ApiResponse<ProjectMilestone>> {
-    return this.client.get<ProjectMilestone>(`/api/project-milestones/${milestoneId}`);
+  getMilestoneById(projectId: string, milestoneId: string): Promise<ApiResponse<ProjectMilestone>> {
+    return this.client.get<ProjectMilestone>(`/api/projects/${projectId}/milestones/${milestoneId}`);
   }
 
-  completeMilestone(milestoneId: string): Promise<ApiResponse<ProjectMilestone>> {
-    return this.client.post<ProjectMilestone>(`/api/project-milestones/${milestoneId}/complete`);
+  completeMilestone(projectId: string, milestoneId: string): Promise<ApiResponse<ProjectMilestone>> {
+    return this.client.post<ProjectMilestone>(`/api/projects/${projectId}/milestones/${milestoneId}/complete`);
   }
 
   // ============ Member Methods ============

@@ -10,26 +10,24 @@ using Microsoft.AspNetCore.Mvc;
 public class SprintsController : ControllerBase
 {
     private readonly ISprintService _sprintService;
-    private readonly ISprintItemService _sprintItemService;
 
-    public SprintsController(ISprintService sprintService, ISprintItemService sprintItemService)
+    public SprintsController(ISprintService sprintService)
     {
         _sprintService = sprintService;
-        _sprintItemService = sprintItemService;
     }
 
-    // ===== PROJECT-BASED ROUTES =====
-    [HttpGet("api/projects/{projectId}/sprints")]
-    public async Task<IActionResult> GetByProjectId(string projectId, CancellationToken ct)
+    // ===== EPIC-BASED ROUTES =====
+    [HttpGet("api/epics/{epicId}/sprints")]
+    public async Task<IActionResult> GetByEpicId(string epicId, CancellationToken ct)
     {
-        var result = await _sprintService.GetByProjectIdAsync(projectId, ct);
+        var result = await _sprintService.GetByEpicIdAsync(epicId, ct);
         return ToActionResult(result);
     }
 
-    [HttpGet("api/projects/{projectId}/sprints/active")]
-    public async Task<IActionResult> GetActiveSprint(string projectId, CancellationToken ct)
+    [HttpGet("api/epics/{epicId}/sprints/active")]
+    public async Task<IActionResult> GetActiveSprint(string epicId, CancellationToken ct)
     {
-        var result = await _sprintService.GetActiveByProjectIdAsync(projectId, ct);
+        var result = await _sprintService.GetActiveByEpicIdAsync(epicId, ct);
         return ToActionResult(result);
     }
 
@@ -38,13 +36,6 @@ public class SprintsController : ControllerBase
     public async Task<IActionResult> GetById(string id, CancellationToken ct)
     {
         var result = await _sprintService.GetByIdAsync(id, ct);
-        return ToActionResult(result);
-    }
-
-    [HttpGet("api/sprints/{sprintId}/items")]
-    public async Task<IActionResult> GetItems(string sprintId, CancellationToken ct)
-    {
-        var result = await _sprintItemService.GetBySprintIdAsync(sprintId, ct);
         return ToActionResult(result);
     }
 
@@ -99,13 +90,6 @@ public class SprintsController : ControllerBase
         return ToActionResult(result);
     }
 
-    [HttpPut("api/sprints/{sprintId}/items/reorder")]
-    public async Task<IActionResult> ReorderItems(string sprintId, [FromBody] ReorderSprintItemsDto dto, CancellationToken ct)
-    {
-        var result = await _sprintItemService.ReorderAsync(sprintId, dto.ItemIds, ct);
-        return result.IsSuccess ? NoContent() : ToActionResult(result);
-    }
-
     private IActionResult ToActionResult<T>(Result<T> result)
     {
         if (result.IsSuccess)
@@ -125,9 +109,4 @@ public class SprintsController : ControllerBase
 public record UpdateSprintStatusDto
 {
     public required SprintStatus Status { get; init; }
-}
-
-public record ReorderSprintItemsDto
-{
-    public required IReadOnlyList<string> ItemIds { get; init; }
 }

@@ -3,11 +3,11 @@
 import Link from "next/link";
 import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
 import { Badge } from "~/components/ui/badge";
-import { Building2, FolderKanban, Store } from "lucide-react";
+import { Building2, FolderKanban } from "lucide-react";
 
 interface SourceBadgeProps {
   source: {
-    type: "guild" | "project" | "shop";
+    type: "guild" | "project";
     id: string;
     name: string;
     logo?: string | null;
@@ -28,12 +28,6 @@ const sourceConfig = {
     label: "Project",
     variant: "neon" as const,
     href: (slug: string) => `/projects/${slug}`
-  },
-  shop: {
-    icon: Store,
-    label: "Shop",
-    variant: "neon-green" as const,
-    href: (slug: string) => `/shops/${slug}`
   },
 };
 

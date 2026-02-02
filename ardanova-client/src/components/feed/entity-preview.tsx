@@ -7,7 +7,6 @@ import {
   ExternalLink,
   Users,
   FolderKanban,
-  Store,
   Calendar,
   TrendingUp,
   ChevronRight,
@@ -22,7 +21,7 @@ import { useState } from "react";
 
 export interface EntityData {
   id: string;
-  type: "project" | "guild" | "shop";
+  type: "project" | "guild";
   name: string;
   slug: string;
   description?: string;
@@ -53,13 +52,11 @@ interface EntityPreviewProps {
 const entityIcons = {
   project: FolderKanban,
   guild: Users,
-  shop: Store,
 };
 
 const entityColors = {
   project: "neon-cyan",
   guild: "neon-pink",
-  shop: "neon-yellow",
 };
 
 export function EntityPreview({

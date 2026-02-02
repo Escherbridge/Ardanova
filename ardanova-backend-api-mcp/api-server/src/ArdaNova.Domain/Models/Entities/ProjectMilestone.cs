@@ -23,16 +23,24 @@ public class ProjectMilestone
     [Column(TypeName = "text")]
     public string? description { get; set; }
 
-    [Required]
-    public DateTime targetDate { get; set; }
+    public DateTime? targetDate { get; set; }
 
     public DateTime? completedAt { get; set; }
 
     [Required]
-    public bool isCompleted { get; set; }
+    public MilestoneStatus status { get; set; }
+
+    [Required]
+    public Priority priority { get; set; }
+
+    [Required]
+    public int order { get; set; }
 
     [Required]
     public DateTime createdAt { get; set; }
+
+    [Required]
+    public DateTime updatedAt { get; set; }
 
     public string? assigneeId { get; set; }
 
@@ -41,5 +49,7 @@ public class ProjectMilestone
 
     [ForeignKey("assigneeId")]
     public virtual User? Assignee { get; set; }
+
+    public virtual ICollection<Epic> Epics { get; set; } = new List<Epic>();
 
 }

@@ -11,7 +11,7 @@ export const EpicSchema = z.object({
   status: EpicStatusSchema,
   priority: PrioritySchema,
   id: z.string().cuid(),
-  phaseId: z.string(),
+  milestoneId: z.string(),
   title: z.string(),
   description: z.string().nullable(),
   equityBudget: z.instanceof(Prisma.Decimal, { message: "Field 'equityBudget' must be a Decimal. Location: ['Models', 'Epic']"}).nullable(),

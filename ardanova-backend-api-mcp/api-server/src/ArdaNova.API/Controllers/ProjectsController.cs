@@ -15,7 +15,6 @@ public class ProjectsController : ControllerBase
     private readonly IProjectMilestoneService _milestoneService;
     private readonly IProjectMemberService _memberService;
     private readonly IProjectApplicationService _applicationService;
-    private readonly IProjectBidService _bidService;
     private readonly IProjectCommentService _commentService;
     private readonly IProjectUpdateService _updateService;
     private readonly IProjectSupportService _supportService;
@@ -27,7 +26,6 @@ public class ProjectsController : ControllerBase
         IProjectMilestoneService milestoneService,
         IProjectMemberService memberService,
         IProjectApplicationService applicationService,
-        IProjectBidService bidService,
         IProjectCommentService commentService,
         IProjectUpdateService updateService,
         IProjectSupportService supportService,
@@ -38,7 +36,6 @@ public class ProjectsController : ControllerBase
         _milestoneService = milestoneService;
         _memberService = memberService;
         _applicationService = applicationService;
-        _bidService = bidService;
         _commentService = commentService;
         _updateService = updateService;
         _supportService = supportService;
@@ -340,52 +337,6 @@ public class ProjectsController : ControllerBase
     public async Task<IActionResult> DeleteApplication(string projectId, string applicationId, CancellationToken ct)
     {
         var result = await _applicationService.DeleteAsync(applicationId, ct);
-        return result.IsSuccess ? NoContent() : ToActionResult(result);
-    }
-
-    // ===== PROJECT BIDS =====
-    [HttpGet("{projectId}/bids")]
-    public async Task<IActionResult> GetBids(string projectId, CancellationToken ct)
-    {
-        var result = await _bidService.GetByProjectIdAsync(projectId, ct);
-        return ToActionResult(result);
-    }
-
-    [HttpGet("{projectId}/bids/{bidId}")]
-    public async Task<IActionResult> GetBidById(string projectId, string bidId, CancellationToken ct)
-    {
-        var result = await _bidService.GetByIdAsync(bidId, ct);
-        return ToActionResult(result);
-    }
-
-    [HttpPost("{projectId}/bids")]
-    public async Task<IActionResult> SubmitBid(string projectId, [FromBody] CreateProjectBidDto dto, CancellationToken ct)
-    {
-        var dtoWithProject = dto with { ProjectId = projectId };
-        var result = await _bidService.CreateAsync(dtoWithProject, ct);
-        return result.IsSuccess
-            ? CreatedAtAction(nameof(GetBidById), new { projectId, bidId = result.Value!.Id }, result.Value)
-            : ToActionResult(result);
-    }
-
-    [HttpPost("{projectId}/bids/{bidId}/accept")]
-    public async Task<IActionResult> AcceptBid(string projectId, string bidId, CancellationToken ct)
-    {
-        var result = await _bidService.AcceptAsync(bidId, ct);
-        return ToActionResult(result);
-    }
-
-    [HttpPost("{projectId}/bids/{bidId}/reject")]
-    public async Task<IActionResult> RejectBid(string projectId, string bidId, CancellationToken ct)
-    {
-        var result = await _bidService.RejectAsync(bidId, ct);
-        return ToActionResult(result);
-    }
-
-    [HttpDelete("{projectId}/bids/{bidId}")]
-    public async Task<IActionResult> DeleteBid(string projectId, string bidId, CancellationToken ct)
-    {
-        var result = await _bidService.DeleteAsync(bidId, ct);
         return result.IsSuccess ? NoContent() : ToActionResult(result);
     }
 

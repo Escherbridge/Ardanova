@@ -9,7 +9,7 @@ import { SprintStatusSchema } from '../inputTypeSchemas/SprintStatusSchema'
 export const SprintSchema = z.object({
   status: SprintStatusSchema,
   id: z.string().cuid(),
-  projectId: z.string(),
+  epicId: z.string(),
   name: z.string(),
   goal: z.string().nullable(),
   startDate: z.coerce.date(),

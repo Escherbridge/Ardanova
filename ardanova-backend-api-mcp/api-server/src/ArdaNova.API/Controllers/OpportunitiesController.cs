@@ -82,13 +82,6 @@ public class OpportunitiesController : ControllerBase
         return ToActionResult(result);
     }
 
-    [HttpGet("shop/{shopId}")]
-    public async Task<IActionResult> GetByShopId(string shopId, CancellationToken ct)
-    {
-        var result = await _opportunityService.GetByShopIdAsync(shopId, ct);
-        return ToActionResult(result);
-    }
-
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreateOpportunityDto dto, CancellationToken ct)
     {
