@@ -17,6 +17,10 @@ export interface User {
   role: string;
   userType: string;
   isVerified: boolean;
+  totalXP: number;
+  level: number;
+  tier: string;
+  trustScore: number;
   verificationLevel: string;
   createdAt: string;
   updatedAt: string;
@@ -51,6 +55,55 @@ export interface AdminUpdateUserTypeDto {
 
 export interface AdminUpdateVerificationLevelDto {
   verificationLevel: string;
+}
+
+// ============ UserSkill Types ============
+
+export interface UserSkill {
+  id: string;
+  userId: string;
+  skill: string;
+  level: number;
+}
+
+export interface CreateUserSkillDto {
+  skill: string;
+  level?: number;
+}
+
+export interface UpdateUserSkillDto {
+  level?: number;
+}
+
+// ============ UserExperience Types ============
+
+export interface UserExperience {
+  id: string;
+  userId: string;
+  title: string;
+  company: string;
+  description?: string;
+  startDate: string;
+  endDate?: string;
+  isCurrent: boolean;
+}
+
+export interface CreateUserExperienceDto {
+  title: string;
+  company: string;
+  description?: string;
+  startDate: string;
+  endDate?: string;
+  isCurrent?: boolean;
+}
+
+export interface UpdateUserExperienceDto {
+  title?: string;
+  company?: string;
+  description?: string;
+  startDate?: string;
+  endDate?: string;
+  isCurrent?: boolean;
 }
 
 // ============ Users Endpoint ============
@@ -98,5 +151,41 @@ export class UsersEndpoint {
 
   updateVerificationLevel(id: string, dto: AdminUpdateVerificationLevelDto): Promise<ApiResponse<User>> {
     return this.client.put<User>(`/api/users/${id}/verification-level`, dto);
+  }
+
+  // ---- Skills ----
+
+  getSkills(userId: string): Promise<ApiResponse<UserSkill[]>> {
+    return this.client.get<UserSkill[]>(`/api/users/${userId}/skills`);
+  }
+
+  addSkill(userId: string, data: CreateUserSkillDto): Promise<ApiResponse<UserSkill>> {
+    return this.client.post<UserSkill>(`/api/users/${userId}/skills`, data);
+  }
+
+  updateSkill(userId: string, skillId: string, data: UpdateUserSkillDto): Promise<ApiResponse<UserSkill>> {
+    return this.client.put<UserSkill>(`/api/users/${userId}/skills/${skillId}`, data);
+  }
+
+  deleteSkill(userId: string, skillId: string): Promise<ApiResponse<void>> {
+    return this.client.delete(`/api/users/${userId}/skills/${skillId}`);
+  }
+
+  // ---- Experience ----
+
+  getExperience(userId: string): Promise<ApiResponse<UserExperience[]>> {
+    return this.client.get<UserExperience[]>(`/api/users/${userId}/experience`);
+  }
+
+  addExperience(userId: string, data: CreateUserExperienceDto): Promise<ApiResponse<UserExperience>> {
+    return this.client.post<UserExperience>(`/api/users/${userId}/experience`, data);
+  }
+
+  updateExperience(userId: string, experienceId: string, data: UpdateUserExperienceDto): Promise<ApiResponse<UserExperience>> {
+    return this.client.put<UserExperience>(`/api/users/${userId}/experience/${experienceId}`, data);
+  }
+
+  deleteExperience(userId: string, experienceId: string): Promise<ApiResponse<void>> {
+    return this.client.delete(`/api/users/${userId}/experience/${experienceId}`);
   }
 }

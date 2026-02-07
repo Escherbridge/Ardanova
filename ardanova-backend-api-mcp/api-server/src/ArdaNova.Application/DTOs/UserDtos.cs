@@ -18,6 +18,10 @@ public record UserDto
     public UserRole Role { get; init; }
     public UserType UserType { get; init; }
     public bool IsVerified { get; init; }
+    public int TotalXP { get; init; }
+    public int Level { get; init; }
+    public UserTier Tier { get; init; }
+    public decimal TrustScore { get; init; }
     public VerificationLevel VerificationLevel { get; init; }
     public DateTime CreatedAt { get; init; }
     public DateTime UpdatedAt { get; init; }
