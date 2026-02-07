@@ -17,6 +17,7 @@ declare module "next-auth" {
       role?: string;
       userType?: string;
       isVerified?: boolean;
+      verificationLevel?: string;
     } & DefaultSession["user"];
   }
 }
@@ -94,6 +95,7 @@ export const authConfig = {
         session.user.role = token.role as string;
         session.user.userType = token.userType as string;
         session.user.isVerified = token.isVerified as boolean;
+        session.user.verificationLevel = token.verificationLevel as string;
       }
       // Also propagate default session fields
       if (token.email) {
@@ -108,48 +110,52 @@ export const authConfig = {
 
       return session;
     },
-        async jwt({ token, user, account, profile }) {
-          console.log("[NextAuth] JWT callback:", {
-            token: token?.email,
-            user: user?.email,
-            account: account?.provider
-          });
-    
-          let dbUser;
-          if (user) { // user is only present on first sign in
-            dbUser = await db.user.findUnique({ where: { email: user.email as string } });
-          } else if (token.email) { // subsequent calls, user is not present, but token has email
-            dbUser = await db.user.findUnique({ where: { email: token.email as string } });
-          }
-    
-          if (dbUser) {
-            token.id = dbUser.id;
-            token.role = dbUser.role;
-            token.userType = dbUser.userType;
-            token.isVerified = dbUser.isVerified;
-          }
-    
-          if (account?.provider === "google" && profile) {
-            token.email = profile.email;
-            token.name = profile.name;
-            token.picture = profile.picture;
-          }
-    
-          return token;
-        },    async redirect({ url, baseUrl }) {
+    async jwt({ token, user, account, profile }) {
+      console.log("[NextAuth] JWT callback:", {
+        token: token?.email,
+        user: user?.email,
+        account: account?.provider,
+      });
+
+      let dbUser;
+      if (user) {
+        // user is only present on first sign in
+        dbUser = await db.user.findUnique({ where: { email: user.email as string } });
+      } else if (token.email) {
+        // subsequent calls, user is not present, but token has email
+        dbUser = await db.user.findUnique({ where: { email: token.email as string } });
+      }
+
+      if (dbUser) {
+        token.id = dbUser.id;
+        token.role = dbUser.role;
+        token.userType = dbUser.userType;
+        token.isVerified = dbUser.isVerified;
+        token.verificationLevel = dbUser.verificationLevel;
+      }
+
+      if (account?.provider === "google" && profile) {
+        token.email = profile.email;
+        token.name = profile.name;
+        token.picture = profile.picture;
+      }
+
+      return token;
+    },
+    async redirect({ url, baseUrl }) {
       console.log("[NextAuth] Redirect:", { url, baseUrl });
-      
+
       // Handle callback URLs properly
       if (url.startsWith("/api/auth/callback")) {
         return `${baseUrl}/dashboard`;
       }
-      
+
       // Allows relative callback URLs
       if (url.startsWith("/")) return `${baseUrl}${url}`;
-      
+
       // Allows callback URLs on the same origin
       else if (new URL(url).origin === baseUrl) return url;
-      
+
       // Default fallback
       return `${baseUrl}/dashboard`;
     },
