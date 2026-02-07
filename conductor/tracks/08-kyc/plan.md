@@ -133,7 +133,7 @@
 
 ## 4. Controller + API Client + tRPC Router
 
-- [ ] **[P1] KycController: REST endpoints**
+- [x] **[P1] KycController: REST endpoints** [5de1f09]
     - Create `ArdaNova.API/Controllers/KycController.cs`
     - `POST /api/Kyc/submit` — submit KYC with document references
     - `GET /api/Kyc/status/{userId}` — check KYC status (own or admin)
@@ -143,7 +143,7 @@
     - `POST /api/Kyc/{id}/reject` — reject submission (admin only)
     - `POST /api/Kyc/webhook` — Veriff webhook endpoint (when enabled)
 
-- [ ] **[P1] API Client: kyc.ts endpoint wrapper**
+- [x] **[P1] API Client: kyc.ts endpoint wrapper** [5de1f09]
     - Create `ardanova-client/src/lib/api/ardanova/endpoints/kyc.ts`
     - `submit(data: SubmitKycDto)` → POST /api/Kyc/submit
     - `getStatus(userId: string)` → GET /api/Kyc/status/{userId}
@@ -153,10 +153,10 @@
     - `reject(id: string, data: ReviewKycDto)` → POST /api/Kyc/{id}/reject
     - TypeScript interfaces mirroring DTOs
 
-- [ ] **[P1] Register in ArdaNovaApiClient**
+- [x] **[P1] Register in ArdaNovaApiClient** [5de1f09]
     - Add `kyc` endpoint to `ardanova-client/src/lib/api/ardanova/index.ts`
 
-- [ ] **[P1] tRPC Router: kyc.ts thin proxy**
+- [x] **[P1] tRPC Router: kyc.ts thin proxy** [5de1f09]
     - Create `ardanova-client/src/server/api/routers/kyc.ts`
     - `submit` — protectedProcedure, calls apiClient.kyc.submit
     - `getMyStatus` — protectedProcedure, calls apiClient.kyc.getStatus(ctx.session.user.id)
