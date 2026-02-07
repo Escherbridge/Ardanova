@@ -62,6 +62,7 @@ public static class DependencyInjection
         // Gamification extended services
         services.AddScoped<IUserStreakService, UserStreakService>();
         services.AddScoped<IReferralService, ReferralService>();
+        services.AddScoped<IXPEventService, XPEventService>();
 
         // Notification & Activity services
         services.AddScoped<INotificationService, NotificationService>();

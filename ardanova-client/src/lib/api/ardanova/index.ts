@@ -207,6 +207,7 @@ export class ArdaNovaApiClient extends BaseApiClient {
     this.chat = new ChatEndpoint(this);
     this.enums = new EnumsEndpoint(this);
     this.streaks = new StreaksEndpoint(this);
+    this.xpEvents = new XPEventsEndpoint(this);
   }
 
   health() {

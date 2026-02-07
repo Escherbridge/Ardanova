@@ -295,6 +295,9 @@ public class MappingProfile : Profile
         CreateMap<UserStreak, UserStreakDto>();
         CreateMap<Referral, ReferralDto>();
 
+        // XP Event mappings
+        CreateMap<XPEvent, XPEventDto>();
+
         // Notification & Activity mappings
         CreateMap<Notification, NotificationDto>();
         CreateMap<Activity, ActivityDto>();
