@@ -340,4 +340,189 @@ public class UserServiceTests
         result.IsSuccess.Should().BeFalse();
         result.Type.Should().Be(ResultType.NotFound);
     }
+
+    // =========================================================================
+    // Admin Role Management Tests
+    // =========================================================================
+
+    [Fact]
+    public async Task UpdateRoleAsync_WhenUserExists_UpdatesRole()
+    {
+        // Arrange
+        var userId = Guid.NewGuid().ToString();
+        var user = new User
+        {
+            id = userId,
+            email = "test@example.com",
+            name = "Test User",
+            role = UserRole.INDIVIDUAL,
+            verificationLevel = VerificationLevel.ANONYMOUS,
+            createdAt = DateTime.UtcNow,
+            updatedAt = DateTime.UtcNow
+        };
+        var dto = new AdminUpdateUserRoleDto { Role = UserRole.ADMIN };
+        var updatedDto = new UserDto
+        {
+            Id = userId,
+            Email = "test@example.com",
+            Name = "Test User",
+            Role = UserRole.ADMIN,
+            VerificationLevel = VerificationLevel.ANONYMOUS
+        };
+
+        _repositoryMock.Setup(r => r.GetByIdAsync(userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(user);
+        _repositoryMock.Setup(r => r.UpdateAsync(It.IsAny<User>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        _unitOfWorkMock.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(1);
+        _mapperMock.Setup(m => m.Map<UserDto>(It.IsAny<User>())).Returns(updatedDto);
+
+        // Act
+        var result = await _sut.UpdateRoleAsync(userId, dto);
+
+        // Assert
+        result.IsSuccess.Should().BeTrue();
+        result.Value.Should().NotBeNull();
+        result.Value!.Role.Should().Be(UserRole.ADMIN);
+        _repositoryMock.Verify(r => r.UpdateAsync(It.Is<User>(u => u.role == UserRole.ADMIN), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task UpdateRoleAsync_WhenUserNotFound_ReturnsNotFound()
+    {
+        // Arrange
+        var userId = Guid.NewGuid().ToString();
+        var dto = new AdminUpdateUserRoleDto { Role = UserRole.ADMIN };
+
+        _repositoryMock.Setup(r => r.GetByIdAsync(userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((User?)null);
+
+        // Act
+        var result = await _sut.UpdateRoleAsync(userId, dto);
+
+        // Assert
+        result.IsSuccess.Should().BeFalse();
+        result.Type.Should().Be(ResultType.NotFound);
+    }
+
+    [Fact]
+    public async Task UpdateUserTypeAsync_WhenUserExists_UpdatesUserType()
+    {
+        // Arrange
+        var userId = Guid.NewGuid().ToString();
+        var user = new User
+        {
+            id = userId,
+            email = "test@example.com",
+            name = "Test User",
+            userType = UserType.INNOVATOR,
+            verificationLevel = VerificationLevel.ANONYMOUS,
+            createdAt = DateTime.UtcNow,
+            updatedAt = DateTime.UtcNow
+        };
+        var dto = new AdminUpdateUserTypeDto { UserType = UserType.FREELANCER };
+        var updatedDto = new UserDto
+        {
+            Id = userId,
+            Email = "test@example.com",
+            Name = "Test User",
+            UserType = UserType.FREELANCER,
+            VerificationLevel = VerificationLevel.ANONYMOUS
+        };
+
+        _repositoryMock.Setup(r => r.GetByIdAsync(userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(user);
+        _repositoryMock.Setup(r => r.UpdateAsync(It.IsAny<User>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        _unitOfWorkMock.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(1);
+        _mapperMock.Setup(m => m.Map<UserDto>(It.IsAny<User>())).Returns(updatedDto);
+
+        // Act
+        var result = await _sut.UpdateUserTypeAsync(userId, dto);
+
+        // Assert
+        result.IsSuccess.Should().BeTrue();
+        result.Value.Should().NotBeNull();
+        result.Value!.UserType.Should().Be(UserType.FREELANCER);
+        _repositoryMock.Verify(r => r.UpdateAsync(It.Is<User>(u => u.userType == UserType.FREELANCER), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task UpdateUserTypeAsync_WhenUserNotFound_ReturnsNotFound()
+    {
+        // Arrange
+        var userId = Guid.NewGuid().ToString();
+        var dto = new AdminUpdateUserTypeDto { UserType = UserType.FREELANCER };
+
+        _repositoryMock.Setup(r => r.GetByIdAsync(userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((User?)null);
+
+        // Act
+        var result = await _sut.UpdateUserTypeAsync(userId, dto);
+
+        // Assert
+        result.IsSuccess.Should().BeFalse();
+        result.Type.Should().Be(ResultType.NotFound);
+    }
+
+    [Fact]
+    public async Task UpdateVerificationLevelAsync_WhenUserExists_UpdatesVerificationLevel()
+    {
+        // Arrange
+        var userId = Guid.NewGuid().ToString();
+        var user = new User
+        {
+            id = userId,
+            email = "test@example.com",
+            name = "Test User",
+            verificationLevel = VerificationLevel.ANONYMOUS,
+            createdAt = DateTime.UtcNow,
+            updatedAt = DateTime.UtcNow
+        };
+        var dto = new AdminUpdateVerificationLevelDto { VerificationLevel = VerificationLevel.PRO };
+        var updatedDto = new UserDto
+        {
+            Id = userId,
+            Email = "test@example.com",
+            Name = "Test User",
+            VerificationLevel = VerificationLevel.PRO
+        };
+
+        _repositoryMock.Setup(r => r.GetByIdAsync(userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(user);
+        _repositoryMock.Setup(r => r.UpdateAsync(It.IsAny<User>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        _unitOfWorkMock.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(1);
+        _mapperMock.Setup(m => m.Map<UserDto>(It.IsAny<User>())).Returns(updatedDto);
+
+        // Act
+        var result = await _sut.UpdateVerificationLevelAsync(userId, dto);
+
+        // Assert
+        result.IsSuccess.Should().BeTrue();
+        result.Value.Should().NotBeNull();
+        result.Value!.VerificationLevel.Should().Be(VerificationLevel.PRO);
+        _repositoryMock.Verify(r => r.UpdateAsync(It.Is<User>(u => u.verificationLevel == VerificationLevel.PRO), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task UpdateVerificationLevelAsync_WhenUserNotFound_ReturnsNotFound()
+    {
+        // Arrange
+        var userId = Guid.NewGuid().ToString();
+        var dto = new AdminUpdateVerificationLevelDto { VerificationLevel = VerificationLevel.PRO };
+
+        _repositoryMock.Setup(r => r.GetByIdAsync(userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((User?)null);
+
+        // Act
+        var result = await _sut.UpdateVerificationLevelAsync(userId, dto);
+
+        // Assert
+        result.IsSuccess.Should().BeFalse();
+        result.Type.Should().Be(ResultType.NotFound);
+    }
 }

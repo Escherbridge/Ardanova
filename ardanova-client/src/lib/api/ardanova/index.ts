@@ -18,7 +18,7 @@ import { ChatEndpoint } from "./endpoints/chat";
 import { EnumsEndpoint } from "./endpoints/enums";
 
 // Re-export types from endpoints
-export type { User, CreateUserDto, UpdateUserDto } from "./endpoints/users";
+export type { User, CreateUserDto, UpdateUserDto, AdminUpdateUserRoleDto, AdminUpdateUserTypeDto, AdminUpdateVerificationLevelDto } from "./endpoints/users";
 export type {
   Project,
   CreateProjectDto,

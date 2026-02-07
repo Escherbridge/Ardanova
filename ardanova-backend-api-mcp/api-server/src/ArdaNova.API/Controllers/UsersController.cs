@@ -81,6 +81,27 @@ public class UsersController : ControllerBase
         return ToActionResult(result);
     }
 
+    [HttpPut("{id}/role")]
+    public async Task<IActionResult> UpdateRole(string id, [FromBody] AdminUpdateUserRoleDto dto, CancellationToken ct)
+    {
+        var result = await _userService.UpdateRoleAsync(id, dto, ct);
+        return ToActionResult(result);
+    }
+
+    [HttpPut("{id}/user-type")]
+    public async Task<IActionResult> UpdateUserType(string id, [FromBody] AdminUpdateUserTypeDto dto, CancellationToken ct)
+    {
+        var result = await _userService.UpdateUserTypeAsync(id, dto, ct);
+        return ToActionResult(result);
+    }
+
+    [HttpPut("{id}/verification-level")]
+    public async Task<IActionResult> UpdateVerificationLevel(string id, [FromBody] AdminUpdateVerificationLevelDto dto, CancellationToken ct)
+    {
+        var result = await _userService.UpdateVerificationLevelAsync(id, dto, ct);
+        return ToActionResult(result);
+    }
+
     private IActionResult ToActionResult<T>(Result<T> result)
     {
         if (result.IsSuccess)

@@ -132,6 +132,48 @@ public class UserService : IUserService
             ct);
         return Result<PagedResult<UserDto>>.Success(result.Map(_mapper.Map<UserDto>));
     }
+
+    public async Task<Result<UserDto>> UpdateRoleAsync(string id, AdminUpdateUserRoleDto dto, CancellationToken ct = default)
+    {
+        var user = await _repository.GetByIdAsync(id, ct);
+        if (user is null)
+            return Result<UserDto>.NotFound($"User with id {id} not found");
+
+        user.role = dto.Role;
+        user.updatedAt = DateTime.UtcNow;
+
+        await _repository.UpdateAsync(user, ct);
+        await _unitOfWork.SaveChangesAsync(ct);
+        return Result<UserDto>.Success(_mapper.Map<UserDto>(user));
+    }
+
+    public async Task<Result<UserDto>> UpdateUserTypeAsync(string id, AdminUpdateUserTypeDto dto, CancellationToken ct = default)
+    {
+        var user = await _repository.GetByIdAsync(id, ct);
+        if (user is null)
+            return Result<UserDto>.NotFound($"User with id {id} not found");
+
+        user.userType = dto.UserType;
+        user.updatedAt = DateTime.UtcNow;
+
+        await _repository.UpdateAsync(user, ct);
+        await _unitOfWork.SaveChangesAsync(ct);
+        return Result<UserDto>.Success(_mapper.Map<UserDto>(user));
+    }
+
+    public async Task<Result<UserDto>> UpdateVerificationLevelAsync(string id, AdminUpdateVerificationLevelDto dto, CancellationToken ct = default)
+    {
+        var user = await _repository.GetByIdAsync(id, ct);
+        if (user is null)
+            return Result<UserDto>.NotFound($"User with id {id} not found");
+
+        user.verificationLevel = dto.VerificationLevel;
+        user.updatedAt = DateTime.UtcNow;
+
+        await _repository.UpdateAsync(user, ct);
+        await _unitOfWork.SaveChangesAsync(ct);
+        return Result<UserDto>.Success(_mapper.Map<UserDto>(user));
+    }
 }
 
 public class AccountService : IAccountService

@@ -43,6 +43,21 @@ public record UpdateUserDto
     public string? Image { get; init; }
 }
 
+public record AdminUpdateUserRoleDto
+{
+    public required UserRole Role { get; init; }
+}
+
+public record AdminUpdateUserTypeDto
+{
+    public required UserType UserType { get; init; }
+}
+
+public record AdminUpdateVerificationLevelDto
+{
+    public required VerificationLevel VerificationLevel { get; init; }
+}
+
 public record UserSkillDto
 {
     public string Id { get; init; }

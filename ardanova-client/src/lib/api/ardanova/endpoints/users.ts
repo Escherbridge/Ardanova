@@ -41,6 +41,18 @@ export interface UpdateUserDto {
   image?: string;
 }
 
+export interface AdminUpdateUserRoleDto {
+  role: string;
+}
+
+export interface AdminUpdateUserTypeDto {
+  userType: string;
+}
+
+export interface AdminUpdateVerificationLevelDto {
+  verificationLevel: string;
+}
+
 // ============ Users Endpoint ============
 
 export class UsersEndpoint {
@@ -74,5 +86,17 @@ export class UsersEndpoint {
 
   delete(id: string): Promise<ApiResponse<void>> {
     return this.client.delete(`/api/users/${id}`);
+  }
+
+  updateRole(id: string, dto: AdminUpdateUserRoleDto): Promise<ApiResponse<User>> {
+    return this.client.put<User>(`/api/users/${id}/role`, dto);
+  }
+
+  updateUserType(id: string, dto: AdminUpdateUserTypeDto): Promise<ApiResponse<User>> {
+    return this.client.put<User>(`/api/users/${id}/user-type`, dto);
+  }
+
+  updateVerificationLevel(id: string, dto: AdminUpdateVerificationLevelDto): Promise<ApiResponse<User>> {
+    return this.client.put<User>(`/api/users/${id}/verification-level`, dto);
   }
 }
