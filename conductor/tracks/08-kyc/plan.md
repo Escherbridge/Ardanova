@@ -43,28 +43,28 @@
 
 ## 2. Backend — KYC Service + Provider Abstraction
 
-- [ ] **[P0] DTOs: KYC data transfer objects**
+- [x] **[P0] DTOs: KYC data transfer objects** [c13d6fb]
     - `KycSubmissionDto` — full submission with status, documents, provider
     - `SubmitKycDto` — userId (from auth), documentIds (pre-uploaded via AttachmentService)
     - `ReviewKycDto` — approved/rejected, reviewNotes, rejectionReason
     - `KycStatusDto` — lightweight status check response (status, submittedAt, reviewedAt)
     - `KycDocumentDto` — document metadata for display
 
-- [ ] **[P0] IKycProviderService: Provider abstraction interface**
+- [x] **[P0] IKycProviderService: Provider abstraction interface** [c13d6fb]
     - Create `ArdaNova.Application/Services/Interfaces/IKycProviderService.cs`
     - `CreateSessionAsync(userId, documents, ct)` → providerSessionId
     - `GetSessionStatusAsync(providerSessionId, ct)` → KycStatus
     - `HandleWebhookAsync(payload, ct)` → KycStatus + result data
     - `ValidateDocumentsAsync(documents, ct)` → validation result
 
-- [ ] **[P0] ManualKycProviderService: Internal review implementation**
+- [x] **[P0] ManualKycProviderService: Internal review implementation** [c13d6fb]
     - Create `ArdaNova.Application/Services/Implementations/ManualKycProviderService.cs`
     - `CreateSessionAsync` → stores documents, returns internal submission ID
     - `GetSessionStatusAsync` → returns current DB status
     - `HandleWebhookAsync` → no-op for manual (admin uses review endpoint)
     - `ValidateDocumentsAsync` → basic file type + size validation
 
-- [ ] **[P1] VeriffKycProviderService: Veriff integration (behind feature flag)**
+- [x] **[P1] VeriffKycProviderService: Veriff integration (behind feature flag)** [c13d6fb]
     - Create `ArdaNova.Infrastructure/Kyc/VeriffKycProviderService.cs`
     - `CreateSessionAsync` → POST to Veriff API, create session, return sessionId + redirect URL
     - `GetSessionStatusAsync` → GET from Veriff API, map to KycStatus
@@ -72,7 +72,7 @@
     - `ValidateDocumentsAsync` → Veriff handles validation
     - Behind `KYC_PROVIDER=veriff` environment variable
 
-- [ ] **[P0] IKycService / KycService: Core KYC business logic**
+- [x] **[P0] IKycService / KycService: Core KYC business logic** [c13d6fb]
     - Create `ArdaNova.Application/Services/Interfaces/IKycService.cs`
     - Create `ArdaNova.Application/Services/Implementations/KycService.cs`
     - `SubmitAsync(userId, documents, ct)` → creates KycSubmission + KycDocuments, calls provider
@@ -86,7 +86,7 @@
     - Prevent duplicate active submissions per user
     - Rejected users can re-submit (creates new submission)
 
-- [ ] **[P0] KycSettings: Configuration POCO**
+- [x] **[P0] KycSettings: Configuration POCO** [c13d6fb]
     - Create `ArdaNova.Application/Settings/KycSettings.cs`
     - `Provider`: "manual" (default) or "veriff"
     - `VeriffApiKey`: API key (nullable, only for veriff provider)
@@ -94,14 +94,14 @@
     - `SubmissionExpiryDays`: how long approval lasts (nullable, default null = never)
     - Bind from `KYC_PROVIDER`, `VERIFF_API_KEY`, `VERIFF_BASE_URL` environment variables
 
-- [ ] **[P0] DependencyInjection: Register KYC services**
+- [x] **[P0] DependencyInjection: Register KYC services** [c13d6fb]
     - Register `IKycService` → `KycService` (always)
     - Conditional registration based on `KycSettings.Provider`:
       - `"manual"` → `IKycProviderService` → `ManualKycProviderService`
       - `"veriff"` → `IKycProviderService` → `VeriffKycProviderService`
     - Register `IKycGateService` → `KycGateService`
 
-- [ ] **[P0] MappingProfile: Add KYC mappings**
+- [x] **[P0] MappingProfile: Add KYC mappings** [c13d6fb]
     - `KycSubmission` → `KycSubmissionDto`
     - `KycDocument` → `KycDocumentDto`
 
