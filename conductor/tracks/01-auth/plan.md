@@ -1,5 +1,5 @@
 ## 1. Identity & Credentials (User Core)
-- [~] **[P0] OAuth & Sessions**: Google OAuth, JWT Claims (`userId`, `email`, `role`, `userType`, `verificationLevel`), Session persistence.
+- [x] **[P0] OAuth & Sessions**: Google OAuth, JWT Claims (`userId`, `email`, `role`, `userType`, `verificationLevel`), Session persistence. [84867b6]
 - [ ] **[P0] Membership Credentials (Dual-Asset)**: 
     - [ ] Mint non-transferable credential on project joining/founding.
     - [ ] Enforce unique credential per project per user.
