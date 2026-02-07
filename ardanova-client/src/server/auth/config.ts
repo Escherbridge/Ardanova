@@ -69,6 +69,9 @@ export const authConfig = {
                 name: profile.name as string,
                 image: profile.picture as string,
                 emailVerified: new Date(),
+                role: "INDIVIDUAL", // Default role
+                userType: "VOLUNTEER", // Default user type
+                isVerified: false, // Default verification status
               }
             });
             console.log("[NextAuth] Created new user:", profile.email);
@@ -86,41 +89,54 @@ export const authConfig = {
       return true;
     },
     async session({ session, token }) {
-      if (token?.email) {
-        try {
-          const user = await db.user.findUnique({
-            where: { email: token.email as string }
-          });
-          
-          if (user) {
-            session.user.id = user.id;
-            session.user.role = user.role;
-            session.user.userType = user.userType;
-            session.user.isVerified = user.isVerified;
-          }
-        } catch (error) {
-          console.error("[NextAuth] Database error during session:", error);
-        }
+      if (token.id) { // Ensure token has the id, which should be populated by jwt callback
+        session.user.id = token.id as string;
+        session.user.role = token.role as string;
+        session.user.userType = token.userType as string;
+        session.user.isVerified = token.isVerified as boolean;
       }
-      
+      // Also propagate default session fields
+      if (token.email) {
+          session.user.email = token.email;
+      }
+      if (token.name) {
+          session.user.name = token.name;
+      }
+      if (token.picture) {
+          session.user.image = token.picture;
+      }
+
       return session;
     },
-    async jwt({ token, user, account, profile }) {
-      console.log("[NextAuth] JWT callback:", { 
-        token: token?.email, 
-        user: user?.email, 
-        account: account?.provider 
-      });
-      
-      if (account?.provider === "google" && profile) {
-        token.email = profile.email;
-        token.name = profile.name;
-        token.picture = profile.picture;
-      }
-      
-      return token;
-    },
-    async redirect({ url, baseUrl }) {
+        async jwt({ token, user, account, profile }) {
+          console.log("[NextAuth] JWT callback:", {
+            token: token?.email,
+            user: user?.email,
+            account: account?.provider
+          });
+    
+          let dbUser;
+          if (user) { // user is only present on first sign in
+            dbUser = await db.user.findUnique({ where: { email: user.email as string } });
+          } else if (token.email) { // subsequent calls, user is not present, but token has email
+            dbUser = await db.user.findUnique({ where: { email: token.email as string } });
+          }
+    
+          if (dbUser) {
+            token.id = dbUser.id;
+            token.role = dbUser.role;
+            token.userType = dbUser.userType;
+            token.isVerified = dbUser.isVerified;
+          }
+    
+          if (account?.provider === "google" && profile) {
+            token.email = profile.email;
+            token.name = profile.name;
+            token.picture = profile.picture;
+          }
+    
+          return token;
+        },    async redirect({ url, baseUrl }) {
       console.log("[NextAuth] Redirect:", { url, baseUrl });
       
       // Handle callback URLs properly
