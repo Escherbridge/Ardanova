@@ -1,16 +1,8 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import type { PrismaClient } from "@prisma/client";
 import { createTRPCRouter, publicProcedure, protectedProcedure } from "~/server/api/trpc";
-import {
-  mintCredential,
-  revokeCredential,
-  suspendCredential,
-  reactivateCredential,
-  getCredentialsByProject,
-  getCredentialsByUser,
-  getCredentialByProjectAndUser,
-} from "~/server/api/services/membership-credential.service";
+import { apiClient } from "~/lib/api";
+import type { MembershipGrantType } from "~/lib/api/ardanova/endpoints/membership-credentials";
 
 // ---------------------------------------------------------------------------
 // Zod schemas
@@ -32,35 +24,28 @@ const grantMembershipCredentialSchema = z.object({
 });
 
 // ---------------------------------------------------------------------------
-// Helper: verify caller is project owner
+// Helper: verify caller is project owner via apiClient
 // ---------------------------------------------------------------------------
 
-async function verifyProjectOwner(
-  db: PrismaClient,
-  projectId: string,
-  callerId: string
-) {
-  const project = await db.project.findUnique({
-    where: { id: projectId },
-    select: { createdById: true },
-  });
+async function verifyProjectOwner(projectId: string, callerId: string) {
+  const projectResponse = await apiClient.projects.getById(projectId);
 
-  if (!project) {
+  if (projectResponse.error || !projectResponse.data) {
     throw new TRPCError({ code: "NOT_FOUND", message: "Project not found" });
   }
 
-  if (project.createdById !== callerId) {
+  if (projectResponse.data.createdById !== callerId) {
     throw new TRPCError({
       code: "FORBIDDEN",
       message: "Only the project owner can perform this action",
     });
   }
 
-  return project;
+  return projectResponse.data;
 }
 
 // ---------------------------------------------------------------------------
-// Router
+// Router - thin proxy to .NET API via apiClient
 // ---------------------------------------------------------------------------
 
 export const membershipCredentialRouter = createTRPCRouter({
@@ -68,72 +53,76 @@ export const membershipCredentialRouter = createTRPCRouter({
 
   getByProjectId: publicProcedure
     .input(z.object({ projectId: z.string().min(1) }))
-    .query(async ({ input, ctx }) => {
-      return getCredentialsByProject({
-        db: ctx.db,
-        projectId: input.projectId,
-      });
+    .query(async ({ input }) => {
+      const response = await apiClient.membershipCredentials.getByProjectId(input.projectId);
+      if (response.error) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: response.error });
+      }
+      return response.data ?? [];
     }),
 
   getActiveByProjectId: publicProcedure
     .input(z.object({ projectId: z.string().min(1) }))
-    .query(async ({ input, ctx }) => {
-      return ctx.db.membershipCredential.findMany({
-        where: { projectId: input.projectId, status: "ACTIVE" },
-        include: { user: true },
-        orderBy: { createdAt: "desc" },
-      });
+    .query(async ({ input }) => {
+      const response = await apiClient.membershipCredentials.getActiveByProjectId(input.projectId);
+      if (response.error) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: response.error });
+      }
+      return response.data ?? [];
     }),
 
   getById: publicProcedure
     .input(z.object({ id: z.string().min(1) }))
-    .query(async ({ input, ctx }) => {
-      const credential = await ctx.db.membershipCredential.findUnique({
-        where: { id: input.id },
-      });
-
-      if (!credential) {
+    .query(async ({ input }) => {
+      const response = await apiClient.membershipCredentials.getById(input.id);
+      if (response.error || !response.data) {
         throw new TRPCError({
           code: "NOT_FOUND",
-          message: "Membership credential not found",
+          message: response.error ?? "Membership credential not found",
         });
       }
-
-      return credential;
+      return response.data;
     }),
 
   getByUserId: protectedProcedure
     .input(z.object({ userId: z.string().optional() }))
     .query(async ({ input, ctx }) => {
       const userId = input.userId ?? ctx.session.user.id;
-      return getCredentialsByUser({ db: ctx.db, userId });
+      const response = await apiClient.membershipCredentials.getByUserId(userId);
+      if (response.error) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: response.error });
+      }
+      return response.data ?? [];
     }),
 
   getMyCredential: protectedProcedure
     .input(z.object({ projectId: z.string().min(1) }))
     .query(async ({ input, ctx }) => {
       const userId = ctx.session.user.id;
-      return getCredentialByProjectAndUser({
-        db: ctx.db,
-        projectId: input.projectId,
-        userId,
-      });
+      const response = await apiClient.membershipCredentials.getByProjectAndUser(
+        input.projectId,
+        userId
+      );
+      // Return null if not found (expected for users without credentials)
+      if (response.error || !response.data) {
+        return null;
+      }
+      return response.data;
     }),
 
   checkCredential: publicProcedure
     .input(z.object({ projectId: z.string().min(1), userId: z.string().min(1) }))
-    .query(async ({ input, ctx }) => {
-      const credential = await getCredentialByProjectAndUser({
-        db: ctx.db,
-        projectId: input.projectId,
-        userId: input.userId,
-      });
+    .query(async ({ input }) => {
+      const response = await apiClient.membershipCredentials.getByProjectAndUser(
+        input.projectId,
+        input.userId
+      );
 
-      if (!credential) {
+      if (response.error || !response.data) {
         return { hasCredential: false, status: null as string | null };
       }
 
-      return { hasCredential: true, status: credential.status };
+      return { hasCredential: true, status: response.data.status };
     }),
 
   // ---- Mutations ----
@@ -146,16 +135,24 @@ export const membershipCredentialRouter = createTRPCRouter({
       // For DAO_VOTE grants, the proposal system handles authorization
       // For other grants, only the project owner can grant
       if (input.grantedVia !== "DAO_VOTE") {
-        await verifyProjectOwner(ctx.db, input.projectId, callerId);
+        await verifyProjectOwner(input.projectId, callerId);
       }
 
-      return mintCredential({
-        db: ctx.db,
+      const response = await apiClient.membershipCredentials.grant({
         projectId: input.projectId,
         userId: input.userId,
-        grantedVia: input.grantedVia,
+        grantedVia: input.grantedVia as MembershipGrantType,
         grantedByProposalId: input.grantedByProposalId,
       });
+
+      if (response.error || !response.data) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: response.error ?? "Failed to grant membership credential",
+        });
+      }
+
+      return response.data;
     }),
 
   revoke: protectedProcedure
@@ -163,25 +160,29 @@ export const membershipCredentialRouter = createTRPCRouter({
     .mutation(async ({ input, ctx }) => {
       const callerId = ctx.session.user.id;
 
-      // Fetch credential to find associated project
-      const credential = await ctx.db.membershipCredential.findUnique({
-        where: { id: input.id },
-      });
-
-      if (!credential) {
+      // Fetch credential to find associated project for authorization
+      const credentialResponse = await apiClient.membershipCredentials.getById(input.id);
+      if (credentialResponse.error || !credentialResponse.data) {
         throw new TRPCError({
           code: "NOT_FOUND",
           message: "Membership credential not found",
         });
       }
 
-      await verifyProjectOwner(ctx.db, credential.projectId, callerId);
+      await verifyProjectOwner(credentialResponse.data.projectId, callerId);
 
-      return revokeCredential({
-        db: ctx.db,
-        credentialId: input.id,
+      const response = await apiClient.membershipCredentials.revoke(input.id, {
         revokeTxHash: input.revokeTxHash,
       });
+
+      if (response.error || !response.data) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: response.error ?? "Failed to revoke membership credential",
+        });
+      }
+
+      return response.data;
     }),
 
   suspend: protectedProcedure
@@ -189,23 +190,26 @@ export const membershipCredentialRouter = createTRPCRouter({
     .mutation(async ({ input, ctx }) => {
       const callerId = ctx.session.user.id;
 
-      const credential = await ctx.db.membershipCredential.findUnique({
-        where: { id: input.id },
-      });
-
-      if (!credential) {
+      const credentialResponse = await apiClient.membershipCredentials.getById(input.id);
+      if (credentialResponse.error || !credentialResponse.data) {
         throw new TRPCError({
           code: "NOT_FOUND",
           message: "Membership credential not found",
         });
       }
 
-      await verifyProjectOwner(ctx.db, credential.projectId, callerId);
+      await verifyProjectOwner(credentialResponse.data.projectId, callerId);
 
-      return suspendCredential({
-        db: ctx.db,
-        credentialId: input.id,
-      });
+      const response = await apiClient.membershipCredentials.suspend(input.id);
+
+      if (response.error || !response.data) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: response.error ?? "Failed to suspend membership credential",
+        });
+      }
+
+      return response.data;
     }),
 
   reactivate: protectedProcedure
@@ -213,22 +217,25 @@ export const membershipCredentialRouter = createTRPCRouter({
     .mutation(async ({ input, ctx }) => {
       const callerId = ctx.session.user.id;
 
-      const credential = await ctx.db.membershipCredential.findUnique({
-        where: { id: input.id },
-      });
-
-      if (!credential) {
+      const credentialResponse = await apiClient.membershipCredentials.getById(input.id);
+      if (credentialResponse.error || !credentialResponse.data) {
         throw new TRPCError({
           code: "NOT_FOUND",
           message: "Membership credential not found",
         });
       }
 
-      await verifyProjectOwner(ctx.db, credential.projectId, callerId);
+      await verifyProjectOwner(credentialResponse.data.projectId, callerId);
 
-      return reactivateCredential({
-        db: ctx.db,
-        credentialId: input.id,
-      });
+      const response = await apiClient.membershipCredentials.reactivate(input.id);
+
+      if (response.error || !response.data) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: response.error ?? "Failed to reactivate membership credential",
+        });
+      }
+
+      return response.data;
     }),
 });
