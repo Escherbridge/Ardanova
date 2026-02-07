@@ -5,7 +5,7 @@
     - [x] Enforce unique credential per project per user.
     - [x] Support revocation status (`ACTIVE`, `REVOKED`, `SUSPENDED`).
 - [x] **[P1] RBAC & Permissions**: Implement `ADMIN`, `GUILD`, `INDIVIDUAL` roles, `UserType` (`INNOVATOR`, `FREELANCER`, etc.), and Verification Levels.
-- [ ] **[P0] Profile Management**: `Name`, `Bio`, `Location`, `Socials` (`LinkedIn`, `Twitter`), `TrustScore`.
+- [x] **[P0] Profile Management**: `Name`, `Bio`, `Location`, `Socials` (`LinkedIn`, `Twitter`), `TrustScore`.
 
 ## 2. Gamification Engine (XP & Levels)
 - [ ] **[P0] XP System**: `XPEvent` entity (`amount`, `source`, `sourceId`, `metadata`).
