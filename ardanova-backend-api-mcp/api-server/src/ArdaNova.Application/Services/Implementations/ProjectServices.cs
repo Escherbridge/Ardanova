@@ -15,13 +15,15 @@ public class ProjectService : IProjectService
     private readonly IRepository<User> _userRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IMapper _mapper;
+    private readonly IKycGateService _kycGateService;
 
-    public ProjectService(IProjectRepository repository, IRepository<User> userRepository, IUnitOfWork unitOfWork, IMapper mapper)
+    public ProjectService(IProjectRepository repository, IRepository<User> userRepository, IUnitOfWork unitOfWork, IMapper mapper, IKycGateService kycGateService)
     {
         _repository = repository;
         _userRepository = userRepository;
         _unitOfWork = unitOfWork;
         _mapper = mapper;
+        _kycGateService = kycGateService;
     }
 
     public async Task<Result<ProjectDto>> GetByIdAsync(string id, CancellationToken ct = default)
@@ -165,6 +167,10 @@ public class ProjectService : IProjectService
 
     public async Task<Result<ProjectDto>> CreateAsync(CreateProjectDto dto, CancellationToken ct = default)
     {
+        var gateResult = await _kycGateService.RequireProAsync(dto.CreatedById, ct);
+        if (!gateResult.IsSuccess)
+            return Result<ProjectDto>.Forbidden(gateResult.Error!);
+
         var categoryError = ValidateCategories(dto.Categories);
         if (categoryError is not null) return categoryError;
 

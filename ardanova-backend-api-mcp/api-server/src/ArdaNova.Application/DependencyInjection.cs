@@ -101,6 +101,7 @@ public static class DependencyInjection
         // KYC services
         services.AddScoped<IKycService, KycService>();
         services.AddScoped<IKycProviderService, ManualKycProviderService>();
+        services.AddScoped<IKycGateService, KycGateService>();
 
         // Enum lookup (singleton - enum types are static)
         services.AddSingleton<IEnumLookupService, EnumLookupService>();

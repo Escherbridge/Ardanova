@@ -13,12 +13,14 @@ public class MembershipCredentialService : IMembershipCredentialService
     private readonly IRepository<MembershipCredential> _repository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IMapper _mapper;
+    private readonly IKycGateService _kycGateService;
 
-    public MembershipCredentialService(IRepository<MembershipCredential> repository, IUnitOfWork unitOfWork, IMapper mapper)
+    public MembershipCredentialService(IRepository<MembershipCredential> repository, IUnitOfWork unitOfWork, IMapper mapper, IKycGateService kycGateService)
     {
         _repository = repository;
         _unitOfWork = unitOfWork;
         _mapper = mapper;
+        _kycGateService = kycGateService;
     }
 
     public async Task<Result<MembershipCredentialDto>> GetByIdAsync(string id, CancellationToken ct = default)
@@ -58,6 +60,11 @@ public class MembershipCredentialService : IMembershipCredentialService
 
     public async Task<Result<MembershipCredentialDto>> GrantAsync(GrantMembershipCredentialDto dto, CancellationToken ct = default)
     {
+        // KYC gate: require PRO verification to receive credentials
+        var gateResult = await _kycGateService.RequireProAsync(dto.UserId, ct);
+        if (!gateResult.IsSuccess)
+            return Result<MembershipCredentialDto>.Forbidden(gateResult.Error!);
+
         // Validate grantedVia enum
         if (!Enum.TryParse<MembershipGrantType>(dto.GrantedVia, true, out var grantType))
             return Result<MembershipCredentialDto>.ValidationError($"Invalid grant type: {dto.GrantedVia}");

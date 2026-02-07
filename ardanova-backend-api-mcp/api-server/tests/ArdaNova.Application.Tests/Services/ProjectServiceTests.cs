@@ -4,6 +4,7 @@ using ArdaNova.Application.Common.Interfaces;
 using ArdaNova.Application.Common.Results;
 using ArdaNova.Application.DTOs;
 using ArdaNova.Application.Services.Implementations;
+using ArdaNova.Application.Services.Interfaces;
 using ArdaNova.Domain.Models.Entities;
 using ArdaNova.Domain.Models.Enums;
 using AutoMapper;
@@ -16,6 +17,7 @@ public class ProjectServiceTests
     private readonly Mock<IRepository<User>> _userRepositoryMock;
     private readonly Mock<IUnitOfWork> _unitOfWorkMock;
     private readonly Mock<IMapper> _mapperMock;
+    private readonly Mock<IKycGateService> _kycGateServiceMock;
     private readonly ProjectService _sut;
 
     public ProjectServiceTests()
@@ -24,7 +26,10 @@ public class ProjectServiceTests
         _userRepositoryMock = new Mock<IRepository<User>>();
         _unitOfWorkMock = new Mock<IUnitOfWork>();
         _mapperMock = new Mock<IMapper>();
-        _sut = new ProjectService(_repositoryMock.Object, _userRepositoryMock.Object, _unitOfWorkMock.Object, _mapperMock.Object);
+        _kycGateServiceMock = new Mock<IKycGateService>();
+        _kycGateServiceMock.Setup(x => x.RequireProAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<bool>.Success(true));
+        _sut = new ProjectService(_repositoryMock.Object, _userRepositoryMock.Object, _unitOfWorkMock.Object, _mapperMock.Object, _kycGateServiceMock.Object);
     }
 
     [Fact]
@@ -541,6 +546,32 @@ public class ProjectServiceTests
         // Assert
         result.IsSuccess.Should().BeTrue();
         result.Value.Should().NotBeEmpty();
+    }
+
+    [Fact]
+    public async Task CreateAsync_WhenKycGateBlocksNonPro_ReturnsForbidden()
+    {
+        // Arrange
+        var dto = new CreateProjectDto
+        {
+            CreatedById = Guid.NewGuid().ToString(),
+            Title = "Test",
+            Description = "Desc",
+            ProblemStatement = "Problem",
+            Solution = "Solution",
+            Categories = new List<string> { "TECHNOLOGY" }
+        };
+        _kycGateServiceMock.Setup(x => x.RequireProAsync(dto.CreatedById, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<bool>.Forbidden("KYC verification required"));
+
+        // Act
+        var result = await _sut.CreateAsync(dto);
+
+        // Assert
+        result.IsFailure.Should().BeTrue();
+        result.Type.Should().Be(ResultType.Forbidden);
+        result.Error.Should().Contain("KYC verification required");
+        _repositoryMock.Verify(r => r.AddAsync(It.IsAny<Project>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]

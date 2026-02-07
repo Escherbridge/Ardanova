@@ -4,6 +4,7 @@ using ArdaNova.Application.Common.Interfaces;
 using ArdaNova.Application.Common.Results;
 using ArdaNova.Application.DTOs;
 using ArdaNova.Application.Services.Implementations;
+using ArdaNova.Application.Services.Interfaces;
 using ArdaNova.Domain.Models.Entities;
 using ArdaNova.Domain.Models.Enums;
 using AutoMapper;
@@ -15,6 +16,7 @@ public class MembershipCredentialServiceTests
     private readonly Mock<IRepository<MembershipCredential>> _repositoryMock;
     private readonly Mock<IUnitOfWork> _unitOfWorkMock;
     private readonly Mock<IMapper> _mapperMock;
+    private readonly Mock<IKycGateService> _kycGateServiceMock;
     private readonly MembershipCredentialService _sut;
 
     public MembershipCredentialServiceTests()
@@ -22,7 +24,10 @@ public class MembershipCredentialServiceTests
         _repositoryMock = new Mock<IRepository<MembershipCredential>>();
         _unitOfWorkMock = new Mock<IUnitOfWork>();
         _mapperMock = new Mock<IMapper>();
-        _sut = new MembershipCredentialService(_repositoryMock.Object, _unitOfWorkMock.Object, _mapperMock.Object);
+        _kycGateServiceMock = new Mock<IKycGateService>();
+        _kycGateServiceMock.Setup(x => x.RequireProAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<bool>.Success(true));
+        _sut = new MembershipCredentialService(_repositoryMock.Object, _unitOfWorkMock.Object, _mapperMock.Object, _kycGateServiceMock.Object);
     }
 
     // ========================================================================
@@ -443,6 +448,34 @@ public class MembershipCredentialServiceTests
         result.IsSuccess.Should().BeFalse();
         result.Type.Should().Be(ResultType.ValidationError);
         result.Error.Should().Contain("grantedByProposalId can only be set when grantedVia is DAO_VOTE");
+    }
+
+    // ========================================================================
+    // GrantAsync - KYC Gate
+    // ========================================================================
+
+    [Fact]
+    public async Task GrantAsync_WhenKycGateBlocksNonPro_ReturnsForbidden()
+    {
+        // Arrange
+        var userId = Guid.NewGuid().ToString();
+        var dto = new GrantMembershipCredentialDto
+        {
+            ProjectId = Guid.NewGuid().ToString(),
+            UserId = userId,
+            GrantedVia = "FOUNDER"
+        };
+        _kycGateServiceMock.Setup(x => x.RequireProAsync(userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<bool>.Forbidden("KYC verification required"));
+
+        // Act
+        var result = await _sut.GrantAsync(dto);
+
+        // Assert
+        result.IsFailure.Should().BeTrue();
+        result.Type.Should().Be(ResultType.Forbidden);
+        result.Error.Should().Contain("KYC verification required");
+        _repositoryMock.Verify(r => r.AddAsync(It.IsAny<MembershipCredential>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     // ========================================================================
