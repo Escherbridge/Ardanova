@@ -16,6 +16,8 @@ import { MembershipCredentialsEndpoint } from "./endpoints/membership-credential
 import { ProductsEndpoint } from "./endpoints/products";
 import { ChatEndpoint } from "./endpoints/chat";
 import { EnumsEndpoint } from "./endpoints/enums";
+import { StreaksEndpoint } from "./endpoints/streaks";
+import { XPEventsEndpoint } from "./endpoints/xp-events";
 
 // Re-export types from endpoints
 export type {
@@ -137,6 +139,17 @@ export type {
   TypingIndicatorDto,
   CursorPaginatedResult,
 } from "./endpoints/chat";
+export type {
+  UserStreak,
+  CreateUserStreakDto,
+} from "./endpoints/streaks";
+export type {
+  XPEventDto,
+  AwardXPDto,
+  XPSummaryDto,
+  LevelInfoDto,
+  XPRewardsConfigDto,
+} from "./endpoints/xp-events";
 
 // Re-export schemas for validation
 export {
@@ -172,6 +185,8 @@ export class ArdaNovaApiClient extends BaseApiClient {
   readonly membershipCredentials: MembershipCredentialsEndpoint;
   readonly chat: ChatEndpoint;
   readonly enums: EnumsEndpoint;
+  readonly streaks: StreaksEndpoint;
+  readonly xpEvents: XPEventsEndpoint;
 
   constructor(config: BaseApiClientConfig) {
     super(config);
@@ -191,6 +206,7 @@ export class ArdaNovaApiClient extends BaseApiClient {
     this.membershipCredentials = new MembershipCredentialsEndpoint(this);
     this.chat = new ChatEndpoint(this);
     this.enums = new EnumsEndpoint(this);
+    this.streaks = new StreaksEndpoint(this);
   }
 
   health() {
