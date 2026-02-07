@@ -10,7 +10,7 @@
 ## 2. Gamification Engine (XP & Levels)
 - [x] **[P0] XP System**: `XPEvent` entity (`amount`, `source`, `sourceId`, `metadata`).
     - [x] Triggers: `TASK_COMPLETED`, `PROPOSAL_CREATED`, `VOTE_CAST`, `REFERRAL`, `STREAK`.
-- [ ] **[P0] Leveling**: Calculate User Level based on `totalXP` thresholds (Exponential curve).
+- [x] **[P0] Leveling**: Calculate User Level based on `totalXP` thresholds (Exponential curve).
 - [ ] **[P1] Tiers**: `BRONZE` -> `SILVER` -> `GOLD` -> `PLATINUM` -> `DIAMOND` based on XP ranges.
 - [ ] **[P1] Streaks**: Track `DAILY_LOGIN`, `DAILY_CONTRIBUTION`, `WEEKLY_TASK` streaks with reset logic.
 

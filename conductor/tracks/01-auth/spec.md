@@ -87,7 +87,7 @@ Records experience point transactions for users.
 
 ### 2. Gamification Engine
 - **Integrated Model**: XP, Level, and Tier are stored directly on the `User` table for efficient querying.
-- **Leveling**: Calculated based on `TotalXP`.
+- **Leveling**: Calculated based on `TotalXP` using the formula `Level = floor(sqrt(TotalXP / 100))`.
 - **Tiers**: Determined by Level milestones.
 
 ### 3. Dual-Asset Identity
