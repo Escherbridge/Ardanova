@@ -4,7 +4,7 @@
     - [ ] Mint non-transferable credential on project joining/founding.
     - [ ] Enforce unique credential per project per user.
     - [ ] Support revocation status (`ACTIVE`, `REVOKED`, `SUSPENDED`).
-- [ ] **[P1] RBAC & Permissions**: Implement `ADMIN`, `GUILD`, `INDIVIDUAL` roles, `UserType` (`INNOVATOR`, `FREELANCER`, etc.), and Verification Levels.
+- [x] **[P1] RBAC & Permissions**: Implement `ADMIN`, `GUILD`, `INDIVIDUAL` roles, `UserType` (`INNOVATOR`, `FREELANCER`, etc.), and Verification Levels.
 - [ ] **[P0] Profile Management**: `Name`, `Bio`, `Location`, `Socials` (`LinkedIn`, `Twitter`), `TrustScore`.
 
 ## 2. Gamification Engine (XP & Levels)
