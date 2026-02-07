@@ -295,8 +295,16 @@ public class MappingProfile : Profile
         CreateMap<UserStreak, UserStreakDto>();
         CreateMap<Referral, ReferralDto>();
 
+        // Leaderboard mappings
+        CreateMap<Leaderboard, LeaderboardDto>();
+        CreateMap<LeaderboardEntry, LeaderboardEntryDto>();
+
         // XP Event mappings
         CreateMap<XPEvent, XPEventDto>();
+
+        // Achievement mappings
+        CreateMap<Achievement, AchievementDto>();
+        CreateMap<UserAchievement, UserAchievementDto>();
 
         // Notification & Activity mappings
         CreateMap<Notification, NotificationDto>();

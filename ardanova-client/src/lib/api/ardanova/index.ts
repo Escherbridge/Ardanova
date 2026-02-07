@@ -18,6 +18,9 @@ import { ChatEndpoint } from "./endpoints/chat";
 import { EnumsEndpoint } from "./endpoints/enums";
 import { StreaksEndpoint } from "./endpoints/streaks";
 import { XPEventsEndpoint } from "./endpoints/xp-events";
+import { AchievementsEndpoint } from "./endpoints/achievements";
+import { LeaderboardsEndpoint } from "./endpoints/leaderboards";
+import { ReferralsEndpoint } from "./endpoints/referrals";
 
 // Re-export types from endpoints
 export type {
@@ -150,6 +153,25 @@ export type {
   LevelInfoDto,
   XPRewardsConfigDto,
 } from "./endpoints/xp-events";
+export type {
+  AchievementDto,
+  CreateAchievementDto,
+  UpdateAchievementDto,
+  UserAchievementDto,
+  UpdateProgressDto,
+} from "./endpoints/achievements";
+export type {
+  LeaderboardDto,
+  CreateLeaderboardDto,
+  LeaderboardEntryDto,
+  CreateLeaderboardEntryDto,
+  UpdateLeaderboardEntryDto,
+} from "./endpoints/leaderboards";
+export type {
+  Referral,
+  CreateReferralDto,
+  ClaimReferralRewardDto,
+} from "./endpoints/referrals";
 
 // Re-export schemas for validation
 export {
@@ -187,6 +209,9 @@ export class ArdaNovaApiClient extends BaseApiClient {
   readonly enums: EnumsEndpoint;
   readonly streaks: StreaksEndpoint;
   readonly xpEvents: XPEventsEndpoint;
+  readonly achievements: AchievementsEndpoint;
+  readonly leaderboards: LeaderboardsEndpoint;
+  readonly referrals: ReferralsEndpoint;
 
   constructor(config: BaseApiClientConfig) {
     super(config);
@@ -208,6 +233,9 @@ export class ArdaNovaApiClient extends BaseApiClient {
     this.enums = new EnumsEndpoint(this);
     this.streaks = new StreaksEndpoint(this);
     this.xpEvents = new XPEventsEndpoint(this);
+    this.achievements = new AchievementsEndpoint(this);
+    this.leaderboards = new LeaderboardsEndpoint(this);
+    this.referrals = new ReferralsEndpoint(this);
   }
 
   health() {

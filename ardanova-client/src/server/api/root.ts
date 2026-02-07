@@ -18,6 +18,9 @@ import { membershipCredentialRouter } from "~/server/api/routers/membership-cred
 import { profileRouter } from "~/server/api/routers/profile";
 import { xpRouter } from "~/server/api/routers/xp";
 import { streakRouter } from "~/server/api/routers/streak";
+import { achievementRouter } from "~/server/api/routers/achievement";
+import { leaderboardRouter } from "~/server/api/routers/leaderboard";
+import { referralRouter } from "~/server/api/routers/referral";
 import { createCallerFactory, createTRPCRouter } from "~/server/api/trpc";
 
 /**
@@ -46,6 +49,9 @@ export const appRouter = createTRPCRouter({
   profile: profileRouter,
   xp: xpRouter,
   streak: streakRouter,
+  achievement: achievementRouter,
+  leaderboard: leaderboardRouter,
+  referral: referralRouter,
 });
 
 // export type definition of API

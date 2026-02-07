@@ -63,6 +63,8 @@ public static class DependencyInjection
         services.AddScoped<IUserStreakService, UserStreakService>();
         services.AddScoped<IReferralService, ReferralService>();
         services.AddScoped<IXPEventService, XPEventService>();
+        services.AddScoped<ILeaderboardService, LeaderboardService>();
+        services.AddScoped<IAchievementService, AchievementService>();
 
         // Notification & Activity services
         services.AddScoped<INotificationService, NotificationService>();
