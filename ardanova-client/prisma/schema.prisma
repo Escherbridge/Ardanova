@@ -654,6 +654,7 @@ model User {
   taskSubmissions1 TaskSubmission[] @relation("TaskSubmission_reviewedById")
   proposals Proposal[] @relation("Proposal_creatorId")
   votes Vote[] @relation("Vote_voterId")
+  proposalComments ProposalComment[] @relation("ProposalComment_userId")
   delegatedVotes DelegatedVote[] @relation("DelegatedVote_delegatorId")
   delegatedVotes1 DelegatedVote[] @relation("DelegatedVote_delegateeId")
   guilds Guild[] @relation("Guild_ownerId")
@@ -1202,6 +1203,7 @@ model Proposal {
   creator User @relation("Proposal_creatorId", fields: [creatorId], references: [id])
   votes Vote[] @relation("Vote_proposalId")
   proposalExecutions ProposalExecution[] @relation("ProposalExecution_proposalId")
+  proposalComments ProposalComment[] @relation("ProposalComment_proposalId")
   membershipCredentials MembershipCredential[] @relation("MembershipCredential_grantedByProposalId")
 }
 
@@ -1225,6 +1227,20 @@ model ProposalExecution {
   txHash String?
   result Json?
   proposal Proposal @relation("ProposalExecution_proposalId", fields: [proposalId], references: [id])
+}
+
+model ProposalComment {
+  id String @id @default(cuid())
+  proposalId String
+  userId String
+  content String @db.Text
+  parentId String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  proposal Proposal @relation("ProposalComment_proposalId", fields: [proposalId], references: [id])
+  user User @relation("ProposalComment_userId", fields: [userId], references: [id])
+  parent ProposalComment? @relation("ProposalComment_parentId", fields: [parentId], references: [id])
+  parentChildren ProposalComment[] @relation("ProposalComment_parentId")
 }
 
 model DelegatedVote {

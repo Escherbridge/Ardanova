@@ -193,6 +193,28 @@ const castVoteSchema = z.object({
   reason: z.string().optional(),
 });
 
+const updateProposalSchema = z.object({
+  projectId: z.string(),
+  proposalId: z.string(),
+  title: z.string().min(1).optional(),
+  description: z.string().min(20).optional(),
+  options: z.array(z.string()).min(2).optional(),
+  quorum: z.number().optional(),
+  threshold: z.number().optional(),
+  votingDays: z.number().optional(),
+});
+
+const publishProposalSchema = z.object({
+  projectId: z.string(),
+  proposalId: z.string(),
+});
+
+const createProposalCommentSchema = z.object({
+  proposalId: z.string(),
+  content: z.string().min(1),
+  parentId: z.string().optional(),
+});
+
 // Update schemas
 const createUpdateSchema = z.object({
   projectId: z.string(),
@@ -958,8 +980,23 @@ export const projectRouter = createTRPCRouter({
 
       // Verify user has an active MembershipCredential (governance right)
       const credential = await apiClient.membershipCredentials.getByProjectAndUser(proposal.data.projectId, userId);
-      if (credential.error || !credential.data || credential.data.status !== 'ACTIVE') {
-        throw new Error("Active membership credential required to vote. Credential grants governance rights (1 member = 1 vote).");
+      const hasActiveCredential = !credential.error && credential.data && credential.data.status === 'ACTIVE';
+
+      if (!hasActiveCredential) {
+        if (isFounder) {
+          // Auto-grant FOUNDER credential if founder doesn't have one yet
+          const granted = await apiClient.membershipCredentials.grant({
+            projectId: proposal.data.projectId,
+            userId,
+            grantedVia: 'FOUNDER',
+          });
+          if (granted.error || !granted.data) {
+            throw new Error("Failed to auto-grant founder credential. Please try again.");
+          }
+        } else {
+          // Non-founders must complete KYC to get a credential
+          throw new Error("CREDENTIAL_REQUIRED: You need an active membership credential to vote. Please complete identity verification (KYC) to receive your credential.");
+        }
       }
 
       const response = await apiClient.projects.castVote(input.proposalId, {
@@ -1035,6 +1072,93 @@ export const projectRouter = createTRPCRouter({
       }
 
       return response.data ?? [];
+    }),
+
+  // Update proposal (DRAFT only)
+  updateProposal: protectedProcedure
+    .input(updateProposalSchema)
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.session.user.id;
+
+      // Get proposal to verify ownership
+      const proposal = await apiClient.projects.getProposalById(input.proposalId);
+      if (proposal.error || !proposal.data) {
+        throw new Error("Proposal not found");
+      }
+      if (proposal.data.creatorId !== userId) {
+        throw new Error("Only the proposal creator can edit");
+      }
+
+      const response = await apiClient.projects.updateProposal(input.projectId, input.proposalId, {
+        title: input.title,
+        description: input.description,
+        options: input.options ? JSON.stringify(input.options) : undefined,
+        quorum: input.quorum,
+        threshold: input.threshold,
+        votingDays: input.votingDays,
+      });
+
+      if (response.error || !response.data) {
+        throw new Error(response.error ?? "Failed to update proposal");
+      }
+
+      return response.data;
+    }),
+
+  // Publish proposal (DRAFT -> ACTIVE)
+  publishProposal: protectedProcedure
+    .input(publishProposalSchema)
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.session.user.id;
+
+      // Get proposal to verify ownership
+      const proposal = await apiClient.projects.getProposalById(input.proposalId);
+      if (proposal.error || !proposal.data) {
+        throw new Error("Proposal not found");
+      }
+      if (proposal.data.creatorId !== userId) {
+        throw new Error("Only the proposal creator can publish");
+      }
+
+      const response = await apiClient.projects.publishProposal(input.projectId, input.proposalId);
+
+      if (response.error || !response.data) {
+        throw new Error(response.error ?? "Failed to publish proposal");
+      }
+
+      return response.data;
+    }),
+
+  // Get proposal comments
+  getProposalComments: publicProcedure
+    .input(z.object({ proposalId: z.string() }))
+    .query(async ({ input }) => {
+      const response = await apiClient.projects.getProposalComments(input.proposalId);
+
+      if (response.error) {
+        throw new Error(response.error);
+      }
+
+      return response.data ?? [];
+    }),
+
+  // Create proposal comment
+  createProposalComment: protectedProcedure
+    .input(createProposalCommentSchema)
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.session.user.id;
+
+      const response = await apiClient.projects.createProposalComment(input.proposalId, {
+        userId,
+        content: input.content,
+        parentId: input.parentId,
+      });
+
+      if (response.error || !response.data) {
+        throw new Error(response.error ?? "Failed to create comment");
+      }
+
+      return response.data;
     }),
 
   // ========================================

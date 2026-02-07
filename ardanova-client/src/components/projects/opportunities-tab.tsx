@@ -1312,16 +1312,9 @@ function TeamPositionsView({
   projectSlug: string;
   isOwner: boolean;
 }) {
-  const { data: opportunitiesResult, isLoading } = api.opportunity.getAll.useQuery({
-    limit: 100,
+  const { data: teamPositions = [], isLoading } = api.opportunity.getByProjectId.useQuery({
+    projectId,
   });
-
-  const teamPositions = useMemo(() => {
-    const all = opportunitiesResult?.items ?? [];
-    return all.filter(
-      (o: any) => o.projectId === projectId && o.origin === "TEAM_POSITION"
-    );
-  }, [opportunitiesResult, projectId]);
 
   if (isLoading) {
     return (

@@ -53,6 +53,9 @@ public static class DependencyInjection
         // Epic services
         services.AddScoped<IEpicService, EpicService>();
 
+        // Feature services
+        services.AddScoped<IFeatureService, FeatureService>();
+
         // Wallet services
         services.AddScoped<IWalletService, WalletService>();
 

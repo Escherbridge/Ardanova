@@ -914,6 +914,19 @@ Table ProposalExecution {
 }
 Ref: ProposalExecution.proposalId > Proposal.id
 
+Table ProposalComment {
+  id varchar [not null, pk, default: `cuid()`]
+  proposalId varchar [not null]
+  userId varchar [not null]
+  content text [not null]
+  parentId varchar
+  createdAt datetime [not null, default: `now()`]
+  updatedAt datetime [not null, note: 'Updated at']
+}
+Ref: ProposalComment.proposalId > Proposal.id
+Ref: ProposalComment.userId > User.id
+Ref: ProposalComment.parentId > ProposalComment.id
+
 Table DelegatedVote {
   id varchar [not null, pk, default: `cuid()`]
   projectId varchar [not null]

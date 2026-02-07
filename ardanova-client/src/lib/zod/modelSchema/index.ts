@@ -34,6 +34,7 @@ export * from './TaskSubmissionSchema';
 export * from './ProposalSchema';
 export * from './VoteSchema';
 export * from './ProposalExecutionSchema';
+export * from './ProposalCommentSchema';
 export * from './DelegatedVoteSchema';
 export * from './GuildSchema';
 export * from './GuildMemberSchema';

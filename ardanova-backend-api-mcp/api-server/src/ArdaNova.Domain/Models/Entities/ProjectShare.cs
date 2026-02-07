@@ -35,8 +35,10 @@ public class ProjectShare
     public int decimals { get; set; }
 
     [Required]
+    [Column(TypeName = "jsonb")]
     public string allocation { get; set; } = string.Empty;
 
+    [Column(TypeName = "jsonb")]
     public string? vestingConfig { get; set; }
 
     [Required]

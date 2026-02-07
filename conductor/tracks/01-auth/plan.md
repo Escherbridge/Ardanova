@@ -5,17 +5,17 @@
     - [x] Enforce unique credential per project per user.
     - [x] Support revocation status (`ACTIVE`, `REVOKED`, `SUSPENDED`).
 - [x] **[P1] RBAC & Permissions**: Implement `ADMIN`, `GUILD`, `INDIVIDUAL` roles, `UserType` (`INNOVATOR`, `FREELANCER`, etc.), and Verification Levels. [59c7f87]
-- [ ] **[P0] Profile Management**: `Name`, `Bio`, `Location`, `Socials` (`LinkedIn`, `Twitter`), `TrustScore`.
+- [x] **[P0] Profile Management**: `Name`, `Bio`, `Location`, `Socials` (`LinkedIn`, `Twitter`), `TrustScore`. [1540a41]
 
 ## 2. Gamification Engine (XP & Levels)
-- [ ] **[P0] XP System**: `XPEvent` entity (`amount`, `source`, `sourceId`, `metadata`).
-    - [ ] Triggers: `TASK_COMPLETED`, `PROPOSAL_CREATED`, `VOTE_CAST`, `REFERRAL`, `STREAK`.
-- [ ] **[P0] Leveling**: Calculate User Level based on `totalXP` thresholds (Exponential curve).
-- [ ] **[P1] Tiers**: `BRONZE` -> `SILVER` -> `GOLD` -> `PLATINUM` -> `DIAMOND` based on XP ranges.
-- [ ] **[P1] Streaks**: Track `DAILY_LOGIN`, `DAILY_CONTRIBUTION`, `WEEKLY_TASK` streaks with reset logic.
+- [x] **[P0] XP System**: `XPEvent` entity (`amount`, `source`, `sourceId`, `metadata`). [a1df1dd]
+    - [x] Triggers: `TASK_COMPLETED`, `PROPOSAL_CREATED`, `VOTE_CAST`, `REFERRAL`, `STREAK`.
+- [x] **[P0] Leveling**: Calculate User Level based on `totalXP` thresholds (Exponential curve). [a1df1dd]
+- [x] **[P1] Tiers**: `BRONZE` -> `SILVER` -> `GOLD` -> `PLATINUM` -> `DIAMOND` based on XP ranges. [a1df1dd]
+- [x] **[P1] Streaks**: Track `DAILY_LOGIN`, `DAILY_CONTRIBUTION`, `WEEKLY_TASK` streaks with reset logic. [f3b9b27]
 
 ## 3. Achievements & Reputation
-- [ ] **[P1] Achievement System**: `Achievement` definitions (Criteria JSON, Rarity: `COMMON` -> `LEGENDARY`).
-- [ ] **[P1] User Progress**: `UserAchievement` tracking (`progress`, `earnedAt`).
-- [ ] **[P1] Leaderboards**: `DAILY`, `WEEKLY`, `MONTHLY`, `ALL_TIME` rankings by XP, Tasks, Votes.
-- [ ] **[P2] Referrals**: `Referral` system with unique codes, status (`PENDING` -> `COMPLETED`), and dual-sided rewards.
+- [x] **[P1] Achievement System**: `Achievement` definitions (Criteria JSON, Rarity: `COMMON` -> `LEGENDARY`). [975fe0e]
+- [x] **[P1] User Progress**: `UserAchievement` tracking (`progress`, `earnedAt`). [975fe0e]
+- [x] **[P1] Leaderboards**: `DAILY`, `WEEKLY`, `MONTHLY`, `ALL_TIME` rankings by XP, Tasks, Votes. [84f855c]
+- [x] **[P2] Referrals**: `Referral` system with unique codes, status (`PENDING` -> `COMPLETED`), and dual-sided rewards. [84f855c]

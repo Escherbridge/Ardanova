@@ -232,6 +232,33 @@ export interface CastVoteDto {
   reason?: string;
 }
 
+export interface UpdateProposalDto {
+  title?: string;
+  description?: string;
+  options?: string;
+  quorum?: number;
+  threshold?: number;
+  votingDays?: number;
+}
+
+export interface ProposalComment {
+  id: string;
+  proposalId: string;
+  userId: string;
+  content: string;
+  parentId?: string;
+  createdAt: string;
+  updatedAt: string;
+  user?: { id: string; name?: string; image?: string };
+  replies?: ProposalComment[];
+}
+
+export interface CreateProposalCommentDto {
+  userId: string;
+  content: string;
+  parentId?: string;
+}
+
 export interface ProjectUpdate {
   id: string;
   projectId: string;
@@ -458,10 +485,17 @@ export class ProjectsEndpoint {
   // ============ Proposal & Vote Methods ============
 
   createProposal(projectId: string, data: CreateProposalDto): Promise<ApiResponse<Proposal>> {
-    // Normalize field names for backend compatibility
+    // Normalize field names and types for .NET backend compatibility
     const normalizedData = {
-      ...data,
+      projectId,
       creatorId: data.creatorId ?? data.createdById,
+      type: data.type,
+      title: data.title,
+      description: data.description,
+      // .NET DTO expects Options as a JSON string, not an array
+      options: Array.isArray(data.options) ? JSON.stringify(data.options) : data.options,
+      quorum: data.quorum,
+      threshold: data.threshold,
       votingEnd: data.votingEnd ?? (data.votingDays
         ? new Date(Date.now() + data.votingDays * 24 * 60 * 60 * 1000).toISOString()
         : undefined),
@@ -474,7 +508,7 @@ export class ProjectsEndpoint {
   }
 
   getProposalById(proposalId: string): Promise<ApiResponse<Proposal>> {
-    return this.client.get<Proposal>(`/api/proposals/${proposalId}`);
+    return this.client.get<Proposal>(`/api/governance/proposals/${proposalId}`);
   }
 
   castVote(proposalId: string, data: CastVoteDto): Promise<ApiResponse<Vote>> {
@@ -483,15 +517,35 @@ export class ProjectsEndpoint {
       ...data,
       voterId: data.voterId ?? data.userId,
     };
-    return this.client.post<Vote>(`/api/proposals/${proposalId}/votes`, normalizedData);
+    return this.client.post<Vote>(`/api/governance/proposals/${proposalId}/vote`, normalizedData);
   }
 
   getVotes(proposalId: string): Promise<ApiResponse<Vote[]>> {
-    return this.client.get<Vote[]>(`/api/proposals/${proposalId}/votes`);
+    return this.client.get<Vote[]>(`/api/governance/proposals/${proposalId}/votes`);
   }
 
   closeProposal(proposalId: string): Promise<ApiResponse<Proposal>> {
-    return this.client.post<Proposal>(`/api/proposals/${proposalId}/close`);
+    return this.client.patch<Proposal>(`/api/governance/proposals/${proposalId}/cancel`);
+  }
+
+  publishProposal(projectId: string, proposalId: string): Promise<ApiResponse<Proposal>> {
+    return this.client.post<Proposal>(`/api/projects/${projectId}/proposals/${proposalId}/publish`);
+  }
+
+  updateProposal(projectId: string, proposalId: string, data: UpdateProposalDto): Promise<ApiResponse<Proposal>> {
+    const normalizedData = {
+      ...data,
+      options: data.options ? (Array.isArray(data.options) ? JSON.stringify(data.options) : data.options) : undefined,
+    };
+    return this.client.put<Proposal>(`/api/projects/${projectId}/proposals/${proposalId}`, normalizedData);
+  }
+
+  getProposalComments(proposalId: string): Promise<ApiResponse<ProposalComment[]>> {
+    return this.client.get<ProposalComment[]>(`/api/governance/proposals/${proposalId}/comments`);
+  }
+
+  createProposalComment(proposalId: string, data: CreateProposalCommentDto): Promise<ApiResponse<ProposalComment>> {
+    return this.client.post<ProposalComment>(`/api/governance/proposals/${proposalId}/comments`, { ...data, proposalId });
   }
 
   // ============ Update Methods ============

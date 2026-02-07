@@ -8,18 +8,120 @@ import { Badge } from "~/components/ui/badge";
 import { Progress } from "~/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { Textarea } from "~/components/ui/textarea";
-import { Vote, Plus, Check, X, Loader2, Clock, Users, MessageSquare, ChevronDown, ChevronUp, AlertCircle } from "lucide-react";
+import { Vote, Plus, Check, X, Loader2, Clock, Users, MessageSquare, ChevronDown, ChevronUp, AlertCircle, Pencil, Send } from "lucide-react";
 
 interface ProposalsTabProps {
   projectId: string;
   isOwner: boolean;
   isMember: boolean;
   selectedProposalId?: string;
+  userId?: string;
 }
 
 type ProposalType = "TREASURY" | "GOVERNANCE" | "STRATEGIC" | "OPERATIONAL" | "EMERGENCY";
 
-export default function ProposalsTab({ projectId, isOwner, isMember, selectedProposalId }: ProposalsTabProps) {
+function ProposalDiscussion({ proposalId, isMember }: { proposalId: string; isMember: boolean }) {
+  const [newComment, setNewComment] = useState("");
+  const utils = api.useUtils();
+
+  const { data: comments, isLoading } = api.project.getProposalComments.useQuery(
+    { proposalId },
+    { enabled: !!proposalId }
+  );
+
+  const commentMutation = api.project.createProposalComment.useMutation({
+    onSuccess: () => {
+      utils.project.getProposalComments.invalidate({ proposalId });
+      setNewComment("");
+    },
+  });
+
+  const handleSubmit = () => {
+    const content = newComment.trim();
+    if (!content) return;
+    commentMutation.mutate({ proposalId, content });
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {!comments || comments.length === 0 ? (
+        <div className="text-center py-6 text-sm text-gray-500">
+          No comments yet. Be the first to start the discussion.
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {comments.map((comment: any) => (
+            <div key={comment.id} className="rounded-md border border-gray-200 p-3">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-sm font-medium text-gray-900">
+                  {comment.user?.name ?? "Anonymous"}
+                </span>
+                <span className="text-xs text-gray-500">
+                  {new Date(comment.createdAt).toLocaleDateString()}
+                </span>
+              </div>
+              <p className="text-sm text-gray-700 whitespace-pre-wrap">{comment.content}</p>
+              {comment.replies && comment.replies.length > 0 && (
+                <div className="mt-2 ml-4 space-y-2 border-l-2 border-gray-100 pl-3">
+                  {comment.replies.map((reply: any) => (
+                    <div key={reply.id} className="text-sm">
+                      <div className="flex items-center justify-between">
+                        <span className="font-medium text-gray-900">{reply.user?.name ?? "Anonymous"}</span>
+                        <span className="text-xs text-gray-500">
+                          {new Date(reply.createdAt).toLocaleDateString()}
+                        </span>
+                      </div>
+                      <p className="text-gray-700 whitespace-pre-wrap">{reply.content}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {isMember && (
+        <div className="flex gap-2 pt-2 border-t">
+          <Textarea
+            placeholder="Add a comment..."
+            value={newComment}
+            onChange={(e) => setNewComment(e.target.value)}
+            className="min-h-16 flex-1"
+          />
+          <Button
+            onClick={handleSubmit}
+            disabled={commentMutation.isPending || !newComment.trim()}
+            size="sm"
+            className="self-end"
+          >
+            {commentMutation.isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Send className="h-4 w-4" />
+            )}
+          </Button>
+        </div>
+      )}
+
+      {commentMutation.error && (
+        <div className="rounded-md bg-red-50 border border-red-200 p-3">
+          <p className="text-sm text-red-800">{commentMutation.error.message}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function ProposalsTab({ projectId, isOwner, isMember, selectedProposalId, userId }: ProposalsTabProps) {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [expandedProposalId, setExpandedProposalId] = useState<string | null>(selectedProposalId || null);
   const [voteReasons, setVoteReasons] = useState<Record<string, string>>({});
@@ -33,6 +135,8 @@ export default function ProposalsTab({ projectId, isOwner, isMember, selectedPro
     threshold: 66,
     votingDays: 7,
   });
+  const [editingProposalId, setEditingProposalId] = useState<string | null>(null);
+  const [editFormData, setEditFormData] = useState<typeof formData | null>(null);
 
   const selectedProposalRef = useRef<HTMLDivElement>(null);
   const utils = api.useUtils();
@@ -107,6 +211,20 @@ export default function ProposalsTab({ projectId, isOwner, isMember, selectedPro
     },
   });
 
+  const publishMutation = api.project.publishProposal.useMutation({
+    onSuccess: () => {
+      utils.project.getProposals.invalidate({ projectId });
+    },
+  });
+
+  const updateMutation = api.project.updateProposal.useMutation({
+    onSuccess: () => {
+      utils.project.getProposals.invalidate({ projectId });
+      setEditingProposalId(null);
+      setEditFormData(null);
+    },
+  });
+
   const handleCreateProposal = (e: React.FormEvent) => {
     e.preventDefault();
     createMutation.mutate({
@@ -167,8 +285,51 @@ export default function ProposalsTab({ projectId, isOwner, isMember, selectedPro
     closeMutation.mutate({ proposalId });
   };
 
+  const handlePublishProposal = (proposalId: string) => {
+    publishMutation.mutate({ projectId, proposalId });
+  };
+
+  const handleStartEdit = (proposal: any) => {
+    let parsedOpts: string[] = [];
+    try {
+      const raw = typeof proposal.options === 'string' ? JSON.parse(proposal.options) : proposal.options;
+      parsedOpts = Array.isArray(raw) ? raw : ["Yes", "No"];
+    } catch { parsedOpts = ["Yes", "No"]; }
+
+    setEditingProposalId(proposal.id);
+    setEditFormData({
+      type: proposal.type,
+      title: proposal.title,
+      description: proposal.description,
+      options: parsedOpts,
+      quorum: proposal.quorum ?? 50,
+      threshold: proposal.threshold ?? 66,
+      votingDays: 7,
+    });
+  };
+
+  const handleSaveEdit = (proposalId: string) => {
+    if (!editFormData) return;
+    updateMutation.mutate({
+      projectId,
+      proposalId,
+      title: editFormData.title,
+      description: editFormData.description,
+      options: editFormData.options,
+      quorum: editFormData.quorum,
+      threshold: editFormData.threshold,
+      votingDays: editFormData.votingDays,
+    });
+  };
+
+  const handleCancelEdit = () => {
+    setEditingProposalId(null);
+    setEditFormData(null);
+  };
+
   const getStatusBadge = (status: string) => {
     const variants: Record<string, { variant: "default" | "secondary" | "destructive" | "outline", label: string }> = {
+      DRAFT: { variant: "outline", label: "Draft" },
       ACTIVE: { variant: "default", label: "Active" },
       PASSED: { variant: "secondary", label: "Passed" },
       REJECTED: { variant: "destructive", label: "Rejected" },
@@ -275,6 +436,53 @@ export default function ProposalsTab({ projectId, isOwner, isMember, selectedPro
                     rows={4}
                     required
                   />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Voting Options
+                  </label>
+                  <div className="space-y-2">
+                    {formData.options.map((option, index) => (
+                      <div key={index} className="flex items-center gap-2">
+                        <span className="text-xs text-gray-500 w-5 text-right">{index + 1}.</span>
+                        <input
+                          type="text"
+                          value={option}
+                          onChange={(e) => {
+                            const newOptions = [...formData.options];
+                            newOptions[index] = e.target.value;
+                            setFormData({ ...formData, options: newOptions });
+                          }}
+                          className="flex-1 rounded-md border border-gray-300 px-3 py-1.5 text-sm"
+                          placeholder={`Option ${index + 1}`}
+                          required
+                        />
+                        {formData.options.length > 2 && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const newOptions = formData.options.filter((_, i) => i !== index);
+                              setFormData({ ...formData, options: newOptions });
+                            }}
+                            className="p-1 text-gray-400 hover:text-red-500"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                    {formData.options.length < 10 && (
+                      <button
+                        type="button"
+                        onClick={() => setFormData({ ...formData, options: [...formData.options, ""] })}
+                        className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 mt-1"
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                        Add option
+                      </button>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">At least 2 options required</p>
                 </div>
                 <div className="grid grid-cols-3 gap-4">
                   <div>
@@ -389,6 +597,14 @@ export default function ProposalsTab({ projectId, isOwner, isMember, selectedPro
             const { forPct, againstPct, abstainPct } = calculateVotePercentages(proposal);
             const quorumInfo = calculateQuorumProgress(proposal);
 
+            // Parse options from JSON string
+            let parsedOptions: string[] = [];
+            try {
+              const raw = typeof proposal.options === 'string' ? JSON.parse(proposal.options) : proposal.options;
+              parsedOptions = Array.isArray(raw) ? raw : [];
+            } catch { parsedOptions = []; }
+
+
             return (
               <Card
                 key={proposal.id}
@@ -423,6 +639,28 @@ export default function ProposalsTab({ projectId, isOwner, isMember, selectedPro
                         </Button>
                       </div>
                     </div>
+                    {proposal.status === "DRAFT" && userId && proposal.creatorId === userId && (
+                      <div className="flex gap-1 ml-2">
+                        <Button
+                          onClick={() => handleStartEdit(proposal)}
+                          variant="outline"
+                          size="sm"
+                        >
+                          <Pencil className="h-3.5 w-3.5 mr-1" />
+                          Edit
+                        </Button>
+                        <Button
+                          onClick={() => handlePublishProposal(proposal.id)}
+                          disabled={publishMutation.isPending}
+                          size="sm"
+                        >
+                          {publishMutation.isPending ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
+                          ) : null}
+                          Publish
+                        </Button>
+                      </div>
+                    )}
                     {isOwner && proposal.status === "ACTIVE" && (
                       <Button
                         onClick={() => handleCloseProposal(proposal.id)}
@@ -441,201 +679,275 @@ export default function ProposalsTab({ projectId, isOwner, isMember, selectedPro
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  {!isExpanded ? (
-                    <>
-                      <p className="text-gray-700 line-clamp-2">{proposal.description}</p>
-                      <div className="flex items-center gap-4 text-sm text-gray-600">
-                        <div className="flex items-center gap-1">
-                          <Check className="h-4 w-4 text-green-600" />
-                          <span>{proposal.votesFor || 0} ({forPct}%)</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <X className="h-4 w-4 text-red-600" />
-                          <span>{proposal.votesAgainst || 0} ({againstPct}%)</span>
-                        </div>
-                        {(proposal.abstainVotes || 0) > 0 && (
-                          <div className="flex items-center gap-1">
-                            <span>{proposal.abstainVotes} ({abstainPct}%) abstained</span>
-                          </div>
-                        )}
+                  {editingProposalId === proposal.id && editFormData ? (
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
+                        <input
+                          type="text"
+                          value={editFormData.title}
+                          onChange={(e) => setEditFormData({ ...editFormData, title: e.target.value })}
+                          className="w-full rounded-md border border-gray-300 px-3 py-2"
+                        />
                       </div>
-                    </>
-                  ) : (
-                    <Tabs defaultValue="details" className="w-full">
-                      <TabsList className="grid w-full grid-cols-2">
-                        <TabsTrigger value="details">Details</TabsTrigger>
-                        <TabsTrigger value="discussion">
-                          <MessageSquare className="h-4 w-4 mr-1" />
-                          Discussion
-                        </TabsTrigger>
-                      </TabsList>
-
-                      <TabsContent value="details" className="space-y-4 mt-4">
-                        <div>
-                          <h4 className="font-semibold mb-2">Description</h4>
-                          <p className="text-gray-700 whitespace-pre-wrap">{proposal.description}</p>
-                        </div>
-
-                        {proposal.createdBy && (
-                          <div>
-                            <h4 className="font-semibold mb-2">Proposed by</h4>
-                            <p className="text-sm text-gray-600">
-                              {proposal.createdBy.username || proposal.createdBy.email || "Unknown"}
-                            </p>
-                          </div>
-                        )}
-
-                        <div className="space-y-3">
-                          <div className="flex items-center justify-between">
-                            <h4 className="font-semibold">Voting Progress</h4>
-                            <span className="text-sm text-gray-600">
-                              {quorumInfo.totalVotes} total votes
-                            </span>
-                          </div>
-
-                          <div className="space-y-2">
-                            <div>
-                              <div className="flex items-center justify-between text-sm mb-1">
-                                <span className="flex items-center gap-1">
-                                  <Check className="h-4 w-4 text-green-600" />
-                                  For
-                                </span>
-                                <span className="font-medium">{proposal.votesFor || 0} ({forPct}%)</span>
-                              </div>
-                              <Progress value={forPct} className="h-2 bg-gray-200">
-                                <div className="h-full bg-green-600 rounded-full" style={{ width: `${forPct}%` }} />
-                              </Progress>
-                            </div>
-
-                            <div>
-                              <div className="flex items-center justify-between text-sm mb-1">
-                                <span className="flex items-center gap-1">
-                                  <X className="h-4 w-4 text-red-600" />
-                                  Against
-                                </span>
-                                <span className="font-medium">{proposal.votesAgainst || 0} ({againstPct}%)</span>
-                              </div>
-                              <Progress value={againstPct} className="h-2 bg-gray-200">
-                                <div className="h-full bg-red-600 rounded-full" style={{ width: `${againstPct}%` }} />
-                              </Progress>
-                            </div>
-
-                            {(proposal.abstainVotes || 0) > 0 && (
-                              <div>
-                                <div className="flex items-center justify-between text-sm mb-1">
-                                  <span>Abstain</span>
-                                  <span className="font-medium">{proposal.abstainVotes} ({abstainPct}%)</span>
-                                </div>
-                                <Progress value={abstainPct} className="h-2 bg-gray-200">
-                                  <div className="h-full bg-gray-600 rounded-full" style={{ width: `${abstainPct}%` }} />
-                                </Progress>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                        <textarea
+                          value={editFormData.description}
+                          onChange={(e) => setEditFormData({ ...editFormData, description: e.target.value })}
+                          className="w-full rounded-md border border-gray-300 px-3 py-2"
+                          rows={4}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Voting Options</label>
                         <div className="space-y-2">
-                          <div className="flex items-center justify-between">
-                            <h4 className="font-semibold">Quorum Progress</h4>
-                            <span className="text-sm text-gray-600">
-                              {quorumInfo.votesNeeded > 0
-                                ? `${quorumInfo.votesNeeded} more votes needed`
-                                : "Quorum reached"}
-                            </span>
-                          </div>
-                          <Progress value={quorumInfo.progress} className="h-2">
-                            <div
-                              className={`h-full rounded-full ${quorumInfo.progress >= 100 ? "bg-green-600" : "bg-blue-600"}`}
-                              style={{ width: `${quorumInfo.progress}%` }}
-                            />
-                          </Progress>
-                          <p className="text-xs text-gray-500">
-                            {quorumInfo.totalVotes} / {quorumInfo.quorumNeeded} votes ({proposal.quorum}% quorum required)
-                          </p>
-                        </div>
-
-                        <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 space-y-1 text-sm">
-                          <div className="flex justify-between">
-                            <span className="text-gray-600">Threshold:</span>
-                            <span className="font-medium">{proposal.threshold}%</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-gray-600">Voting Period:</span>
-                            <span className="font-medium">{proposal.votingDays || 7} days</span>
-                          </div>
-                          {proposal.votingEndsAt && (
-                            <div className="flex justify-between">
-                              <span className="text-gray-600">Ends:</span>
-                              <span className="font-medium">
-                                {new Date(proposal.votingEndsAt).toLocaleDateString()}
-                              </span>
+                          {editFormData.options.map((option, index) => (
+                            <div key={index} className="flex items-center gap-2">
+                              <span className="text-xs text-gray-500 w-5 text-right">{index + 1}.</span>
+                              <input
+                                type="text"
+                                value={option}
+                                onChange={(e) => {
+                                  const newOptions = [...editFormData.options];
+                                  newOptions[index] = e.target.value;
+                                  setEditFormData({ ...editFormData, options: newOptions });
+                                }}
+                                className="flex-1 rounded-md border border-gray-300 px-3 py-1.5 text-sm"
+                                placeholder={`Option ${index + 1}`}
+                              />
+                              {editFormData.options.length > 2 && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const newOptions = editFormData.options.filter((_, i) => i !== index);
+                                    setEditFormData({ ...editFormData, options: newOptions });
+                                  }}
+                                  className="p-1 text-gray-400 hover:text-red-500"
+                                >
+                                  <X className="h-4 w-4" />
+                                </button>
+                              )}
                             </div>
+                          ))}
+                          {editFormData.options.length < 10 && (
+                            <button
+                              type="button"
+                              onClick={() => setEditFormData({ ...editFormData, options: [...editFormData.options, ""] })}
+                              className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 mt-1"
+                            >
+                              <Plus className="h-3.5 w-3.5" />
+                              Add option
+                            </button>
                           )}
                         </div>
-
-                        {isMember && proposal.status === "ACTIVE" && !proposal.userVoted && (
-                          <div className="space-y-3 pt-2 border-t">
-                            <h4 className="font-semibold">Cast Your Vote</h4>
-                            <Textarea
-                              placeholder="Optional: Explain your vote (visible to other members)"
-                              value={voteReasons[proposal.id] || ""}
-                              onChange={(e) => setVoteReasons({ ...voteReasons, [proposal.id]: e.target.value })}
-                              className="min-h-20"
-                            />
-                            <div className="flex gap-2">
-                              <Button
-                                onClick={() => handleVote(proposal.id, 0)}
-                                disabled={voteMutation.isPending}
-                                variant="outline"
-                                className="flex-1 border-green-600 text-green-600 hover:bg-green-50"
-                              >
-                                {voteMutation.isPending ? (
-                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                ) : (
-                                  <Check className="mr-2 h-4 w-4" />
-                                )}
-                                Vote For
-                              </Button>
-                              <Button
-                                onClick={() => handleVote(proposal.id, 1)}
-                                disabled={voteMutation.isPending}
-                                variant="outline"
-                                className="flex-1 border-red-600 text-red-600 hover:bg-red-50"
-                              >
-                                {voteMutation.isPending ? (
-                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                ) : (
-                                  <X className="mr-2 h-4 w-4" />
-                                )}
-                                Vote Against
-                              </Button>
+                      </div>
+                      <div className="grid grid-cols-3 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Quorum (%)</label>
+                          <input
+                            type="number" min="1" max="100"
+                            value={editFormData.quorum}
+                            onChange={(e) => setEditFormData({ ...editFormData, quorum: Number(e.target.value) })}
+                            className="w-full rounded-md border border-gray-300 px-3 py-2"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Threshold (%)</label>
+                          <input
+                            type="number" min="1" max="100"
+                            value={editFormData.threshold}
+                            onChange={(e) => setEditFormData({ ...editFormData, threshold: Number(e.target.value) })}
+                            className="w-full rounded-md border border-gray-300 px-3 py-2"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Voting Days</label>
+                          <input
+                            type="number" min="1" max="30"
+                            value={editFormData.votingDays}
+                            onChange={(e) => setEditFormData({ ...editFormData, votingDays: Number(e.target.value) })}
+                            className="w-full rounded-md border border-gray-300 px-3 py-2"
+                          />
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button onClick={handleCancelEdit} variant="outline" className="flex-1">
+                          Cancel
+                        </Button>
+                        <Button
+                          onClick={() => handleSaveEdit(proposal.id)}
+                          disabled={updateMutation.isPending}
+                          className="flex-1"
+                        >
+                          {updateMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                          Save Changes
+                        </Button>
+                      </div>
+                      {updateMutation.error && (
+                        <div className="rounded-md bg-red-50 border border-red-200 p-3 flex items-start gap-2">
+                          <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+                          <p className="text-sm text-red-800">{updateMutation.error.message}</p>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <>
+                      {!isExpanded ? (
+                        <>
+                          <p className="text-gray-700 line-clamp-2">{proposal.description}</p>
+                          {parsedOptions.length > 0 && (
+                            <div className="rounded-md border border-gray-200 bg-gray-50 p-3">
+                              <div className="flex items-center justify-between mb-2">
+                                <span className="text-xs font-medium text-gray-500 uppercase">Options</span>
+                                <span className="text-xs text-gray-500">
+                                  {quorumInfo.totalVotes} vote{quorumInfo.totalVotes !== 1 ? "s" : ""}
+                                </span>
+                              </div>
+                              <div className="space-y-1">
+                                {parsedOptions.map((opt, i) => (
+                                  <div key={i} className="flex items-center justify-between text-sm">
+                                    <span className="text-gray-700">{opt}</span>
+                                    <span className="text-gray-500 font-medium">0</span>
+                                  </div>
+                                ))}
+                              </div>
                             </div>
-                          </div>
-                        )}
+                          )}
+                        </>
+                      ) : (
+                        <Tabs defaultValue="details" className="w-full">
+                          <TabsList className="grid w-full grid-cols-2">
+                            <TabsTrigger value="details">Details</TabsTrigger>
+                            <TabsTrigger value="discussion">
+                              <MessageSquare className="h-4 w-4 mr-1" />
+                              Discussion
+                            </TabsTrigger>
+                          </TabsList>
 
-                        {proposal.userVoted && (
-                          <div className="rounded-md bg-blue-50 border border-blue-200 p-4 flex items-start gap-3">
-                            <Check className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                          <TabsContent value="details" className="space-y-4 mt-4">
                             <div>
-                              <p className="font-medium text-blue-900">You have voted on this proposal</p>
-                              <p className="text-sm text-blue-700 mt-1">
-                                Your vote has been recorded and will count towards the final decision.
+                              <h4 className="font-semibold mb-2">Description</h4>
+                              <p className="text-gray-700 whitespace-pre-wrap">{proposal.description}</p>
+                            </div>
+
+                            {proposal.createdBy && (
+                              <div>
+                                <h4 className="font-semibold mb-2">Proposed by</h4>
+                                <p className="text-sm text-gray-600">
+                                  {proposal.createdBy.username || proposal.createdBy.email || "Unknown"}
+                                </p>
+                              </div>
+                            )}
+
+                            <div className="space-y-3">
+                              <div className="flex items-center justify-between">
+                                <h4 className="font-semibold">Voting Options</h4>
+                                <span className="text-sm text-gray-600">
+                                  {quorumInfo.totalVotes} total votes
+                                </span>
+                              </div>
+
+                              {parsedOptions.length > 0 ? (
+                                <div className="rounded-md border border-gray-200 bg-gray-50 p-3 space-y-2">
+                                  {parsedOptions.map((opt, i) => (
+                                    <div key={i} className="flex items-center justify-between text-sm">
+                                      <span className="text-gray-700">{opt}</span>
+                                      <span className="text-gray-500 font-medium">0</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <p className="text-sm text-gray-500">No options defined</p>
+                              )}
+                            </div>
+
+                            <div className="space-y-2">
+                              <div className="flex items-center justify-between">
+                                <h4 className="font-semibold">Quorum Progress</h4>
+                                <span className="text-sm text-gray-600">
+                                  {quorumInfo.votesNeeded > 0
+                                    ? `${quorumInfo.votesNeeded} more votes needed`
+                                    : "Quorum reached"}
+                                </span>
+                              </div>
+                              <Progress value={quorumInfo.progress} className="h-2">
+                                <div
+                                  className={`h-full rounded-full ${quorumInfo.progress >= 100 ? "bg-green-600" : "bg-blue-600"}`}
+                                  style={{ width: `${quorumInfo.progress}%` }}
+                                />
+                              </Progress>
+                              <p className="text-xs text-gray-500">
+                                {quorumInfo.totalVotes} / {quorumInfo.quorumNeeded} votes ({proposal.quorum}% quorum required)
                               </p>
                             </div>
-                          </div>
-                        )}
-                      </TabsContent>
 
-                      <TabsContent value="discussion" className="space-y-4 mt-4">
-                        <div className="rounded-lg border border-gray-200 bg-gray-50 p-8 text-center">
-                          <MessageSquare className="h-12 w-12 text-gray-400 mx-auto mb-3" />
-                          <h4 className="font-semibold text-gray-900 mb-2">Discussion Coming Soon</h4>
-                          <p className="text-sm text-gray-600">
-                            Proposal discussion features will be available in a future update.
-                          </p>
-                        </div>
-                      </TabsContent>
-                    </Tabs>
+                            <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 space-y-1 text-sm">
+                              <div className="flex justify-between">
+                                <span className="text-gray-600">Threshold:</span>
+                                <span className="font-medium">{proposal.threshold}%</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-gray-600">Voting Period:</span>
+                                <span className="font-medium">{proposal.votingDays || 7} days</span>
+                              </div>
+                              {proposal.votingEndsAt && (
+                                <div className="flex justify-between">
+                                  <span className="text-gray-600">Ends:</span>
+                                  <span className="font-medium">
+                                    {new Date(proposal.votingEndsAt).toLocaleDateString()}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+
+                            {isMember && proposal.status === "ACTIVE" && !proposal.userVoted && parsedOptions.length > 0 && (
+                              <div className="space-y-3 pt-2 border-t">
+                                <h4 className="font-semibold">Cast Your Vote</h4>
+                                <Textarea
+                                  placeholder="Optional: Explain your vote (visible to other members)"
+                                  value={voteReasons[proposal.id] || ""}
+                                  onChange={(e) => setVoteReasons({ ...voteReasons, [proposal.id]: e.target.value })}
+                                  className="min-h-20"
+                                />
+                                <div className="flex gap-2 flex-wrap">
+                                  {parsedOptions.map((opt, i) => (
+                                    <Button
+                                      key={i}
+                                      onClick={() => handleVote(proposal.id, i)}
+                                      disabled={voteMutation.isPending}
+                                      variant="outline"
+                                      className="flex-1 min-w-[120px]"
+                                    >
+                                      {voteMutation.isPending ? (
+                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                      ) : null}
+                                      {opt}
+                                    </Button>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {proposal.userVoted && (
+                              <div className="rounded-md bg-blue-50 border border-blue-200 p-4 flex items-start gap-3">
+                                <Check className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                                <div>
+                                  <p className="font-medium text-blue-900">You have voted on this proposal</p>
+                                  <p className="text-sm text-blue-700 mt-1">
+                                    Your vote has been recorded and will count towards the final decision.
+                                  </p>
+                                </div>
+                              </div>
+                            )}
+                          </TabsContent>
+
+                          <TabsContent value="discussion" className="space-y-4 mt-4">
+                            <ProposalDiscussion proposalId={proposal.id} isMember={isMember} />
+                          </TabsContent>
+                        </Tabs>
+                      )}
+                    </>
                   )}
                 </CardContent>
               </Card>

@@ -21,14 +21,16 @@ import { useSession } from "next-auth/react";
 
 // Label overrides for opportunity types
 const jobTypeLabels: Record<string, string> = {
-  PART_TIME: "Part-time",
-  FULL_TIME: "Full-time",
+  GUILD_POSITION: "Guild Position",
+  PROJECT_ROLE: "Project Role",
+  TASK_BOUNTY: "Task Bounty",
 };
 
 // Label overrides for compensation types
 const compensationLabels: Record<string, string> = {
-  FIXED: "Fixed Price",
-  HOURLY: "Hourly Rate",
+  FIXED_SHARES: "Fixed Shares",
+  HOURLY_SHARES: "Hourly Shares",
+  EQUITY_PERCENT: "Equity Percent",
 };
 
 // Label overrides for experience levels
@@ -44,14 +46,14 @@ export default function CreateOpportunityPage() {
   const entitySlug = searchParams.get("entitySlug");
   const { data: session } = useSession();
   const { options: jobTypes } = useEnumOptions("OpportunityType", jobTypeLabels);
-  const { options: compensationTypes } = useEnumOptions("CompensationType", compensationLabels);
+  const { options: compensationTypes } = useEnumOptions("CompensationModel", compensationLabels);
   const { options: experienceLevels } = useEnumOptions("ExperienceLevel", experienceLabels);
   const [formData, setFormData] = useState({
     title: "",
     description: "",
     type: "",
     skills: [] as string[],
-    compensationType: "",
+    compensationModel: "",
     compensationAmount: "",
     location: "",
     experienceLevel: "",
@@ -133,10 +135,10 @@ export default function CreateOpportunityPage() {
     createOpportunity.mutate({
       title: formData.title,
       description: formData.description,
-      type: formData.type as "Bounty" | "Freelance" | "Contract" | "Part-time" | "Full-time",
+      type: formData.type,
       skills: formData.skills,
-      experienceLevel: formData.experienceLevel as "entry" | "intermediate" | "senior" | "expert" | undefined,
-      compensationType: formData.compensationType as "fixed" | "hourly" | "negotiable" | undefined,
+      experienceLevel: formData.experienceLevel || undefined,
+      compensationModel: formData.compensationModel || undefined,
       compensationAmount: formData.compensationAmount ? parseFloat(formData.compensationAmount) : undefined,
       location: formData.location || undefined,
       isRemote: formData.location.toLowerCase().includes("remote") || !formData.location,
@@ -340,16 +342,16 @@ export default function CreateOpportunityPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm font-medium mb-2 block">
-                    Payment Type
+                    Compensation Model
                   </label>
                   <Select
-                    value={formData.compensationType}
+                    value={formData.compensationModel}
                     onValueChange={(value) =>
-                      handleChange("compensationType", value)
+                      handleChange("compensationModel", value)
                     }
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Select type" />
+                      <SelectValue placeholder="Select model" />
                     </SelectTrigger>
                     <SelectContent>
                       {compensationTypes.map((type) => (
@@ -363,7 +365,7 @@ export default function CreateOpportunityPage() {
 
                 <div>
                   <label className="text-sm font-medium mb-2 block">
-                    Amount ($)
+                    Amount
                   </label>
                   <input
                     type="number"

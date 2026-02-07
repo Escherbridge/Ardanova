@@ -119,6 +119,8 @@ public class User
 
     public virtual ICollection<Vote> Votes { get; set; } = new List<Vote>();
 
+    public virtual ICollection<ProposalComment> ProposalComments { get; set; } = new List<ProposalComment>();
+
     public virtual ICollection<Guild> Guilds { get; set; } = new List<Guild>();
 
     public virtual ICollection<GuildMember> GuildMembers { get; set; } = new List<GuildMember>();

@@ -310,6 +310,7 @@ export default function ProjectDetailPage() {
             isOwner={isOwner}
             isMember={isMember}
             selectedProposalId={proposalId || undefined}
+            userId={currentUserId}
           />
         )}
         {activeTab === "opportunities" && <OpportunitiesTab projectId={project.id} projectSlug={slug} isOwner={isOwner} userRole={userRole} />}

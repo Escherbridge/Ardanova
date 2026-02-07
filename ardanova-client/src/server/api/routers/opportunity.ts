@@ -7,29 +7,16 @@ import {
   canCreateProjectOpportunity,
 } from "~/server/api/lib/permissions";
 
-// Opportunity type enum
-const OpportunityType = z.enum([
-  "Bounty",
-  "Freelance",
-  "Contract",
-  "Part-time",
-  "Full-time",
-]);
-
-// Experience level enum
-const ExperienceLevel = z.enum(["entry", "intermediate", "senior", "expert"]);
-
-// Compensation type enum
-const CompensationType = z.enum(["fixed", "hourly", "negotiable"]);
+// Enum values are API-driven from the backend enum service — validated server-side
 
 // Opportunity creation input schema
 const createOpportunitySchema = z.object({
   title: z.string().min(1, "Title is required"),
   description: z.string().min(20, "Description must be at least 20 characters"),
-  type: OpportunityType,
+  type: z.string().min(1, "Type is required"),
   skills: z.array(z.string()).min(1, "At least one skill is required"),
-  experienceLevel: ExperienceLevel.optional(),
-  compensationType: CompensationType.optional(),
+  experienceLevel: z.string().optional(),
+  compensationModel: z.string().optional(),
   compensationAmount: z.number().positive().optional(),
   location: z.string().optional(),
   isRemote: z.boolean().optional(),
@@ -45,10 +32,10 @@ const updateOpportunitySchema = z.object({
   id: z.string(),
   title: z.string().min(1).optional(),
   description: z.string().min(20).optional(),
-  type: OpportunityType.optional(),
+  type: z.string().optional(),
   skills: z.array(z.string()).optional(),
-  experienceLevel: ExperienceLevel.optional(),
-  compensationType: CompensationType.optional(),
+  experienceLevel: z.string().optional(),
+  compensationModel: z.string().optional(),
   compensationAmount: z.number().positive().optional(),
   location: z.string().optional(),
   isRemote: z.boolean().optional(),
@@ -92,11 +79,11 @@ export const opportunityRouter = createTRPCRouter({
         title: input.title,
         description: input.description,
         type: input.type,
-        experienceLevel: mapExperienceLevel(input.experienceLevel),
+        experienceLevel: input.experienceLevel,
         skills: input.skills.join(","),
         requirements: input.description,
         compensation: input.compensationAmount,
-        compensationDetails: input.compensationType,
+        compensationDetails: input.compensationModel,
         location: input.location,
         isRemote: input.isRemote ?? false,
         deadline: input.deadline,
@@ -121,8 +108,8 @@ export const opportunityRouter = createTRPCRouter({
         limit: z.number().min(1).max(100).default(20),
         page: z.number().min(1).default(1),
         search: z.string().optional(),
-        type: OpportunityType.optional(),
-        experienceLevel: ExperienceLevel.optional(),
+        type: z.string().optional(),
+        experienceLevel: z.string().optional(),
         skill: z.string().optional(),
         sourceType: z.enum(["guild", "project"]).optional(),
       })
@@ -131,7 +118,7 @@ export const opportunityRouter = createTRPCRouter({
       const response = await apiClient.opportunities.search({
         searchTerm: input.search,
         type: input.type,
-        experienceLevel: input.experienceLevel ? mapExperienceLevel(input.experienceLevel) : undefined,
+        experienceLevel: input.experienceLevel,
         skills: input.skill,
         sourceType: input.sourceType,
         page: input.page,
@@ -314,10 +301,10 @@ export const opportunityRouter = createTRPCRouter({
         title: data.title,
         description: data.description,
         type: data.type,
-        experienceLevel: data.experienceLevel ? mapExperienceLevel(data.experienceLevel) : undefined,
+        experienceLevel: data.experienceLevel,
         skills: data.skills?.join(","),
         compensation: data.compensationAmount,
-        compensationDetails: data.compensationType,
+        compensationDetails: data.compensationModel,
         location: data.location,
         isRemote: data.isRemote,
         deadline: data.deadline,
@@ -535,15 +522,3 @@ export const opportunityRouter = createTRPCRouter({
       return { success: true };
     }),
 });
-
-// Helper function to map frontend experience level to backend format
-function mapExperienceLevel(level?: string): string | undefined {
-  if (!level) return undefined;
-  const mapping: Record<string, string> = {
-    entry: "Entry",
-    intermediate: "Intermediate",
-    senior: "Senior",
-    expert: "Expert",
-  };
-  return mapping[level] ?? level;
-}

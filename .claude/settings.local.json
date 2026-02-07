@@ -63,7 +63,8 @@
       "WebFetch(domain:developers.gamma.app)",
       "Bash(npx prisma:*)",
       "Bash(test:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(Select-String \"error|Error\\\\\\(s\\\\\\)|Warning\\\\\\(s\\\\\\)\")"
     ],
     "additionalDirectories": [
       "c:\\Users\\atooz\\Documents\\Escherbridge\\ardanova"

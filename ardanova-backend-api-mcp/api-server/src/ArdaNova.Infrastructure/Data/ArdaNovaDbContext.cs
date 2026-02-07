@@ -129,6 +129,8 @@ public class ArdaNovaDbContext : DbContext
     public DbSet<Feature> Features => Set<Feature>();
     public DbSet<OpportunityBid> OpportunityBids => Set<OpportunityBid>();
     public DbSet<MembershipCredential> MembershipCredentials => Set<MembershipCredential>();
+    public DbSet<ProposalComment> ProposalComments => Set<ProposalComment>();
+
 
 
 
@@ -147,6 +149,14 @@ public class ArdaNovaDbContext : DbContext
         // Map jsonb columns that Prisma defines as Json
         modelBuilder.Entity<ChatMessage>()
             .Property(e => e.ChatReaction)
+            .HasColumnType("jsonb");
+
+        modelBuilder.Entity<Proposal>()
+            .Property(e => e.options)
+            .HasColumnType("jsonb");
+
+        modelBuilder.Entity<ProposalExecution>()
+            .Property(e => e.result)
             .HasColumnType("jsonb");
 
         // Composite indexes and other generated configurations

@@ -489,6 +489,37 @@ public class ProjectsController : ControllerBase
         return ToActionResult(result);
     }
 
+    [HttpPost("{projectId}/proposals/{proposalId}/publish")]
+    public async Task<IActionResult> PublishProposal(string projectId, string proposalId, CancellationToken ct)
+    {
+        var result = await _governanceService.PublishProposalAsync(proposalId, ct);
+        return ToActionResult(result);
+    }
+
+    [HttpPut("{projectId}/proposals/{proposalId}")]
+    public async Task<IActionResult> UpdateProposal(string projectId, string proposalId, [FromBody] UpdateProposalDto dto, CancellationToken ct)
+    {
+        var result = await _governanceService.UpdateProposalAsync(proposalId, dto, ct);
+        return ToActionResult(result);
+    }
+
+    [HttpGet("{projectId}/proposals/{proposalId}/comments")]
+    public async Task<IActionResult> GetProposalComments(string projectId, string proposalId, CancellationToken ct)
+    {
+        var result = await _governanceService.GetProposalCommentsAsync(proposalId, ct);
+        return ToActionResult(result);
+    }
+
+    [HttpPost("{projectId}/proposals/{proposalId}/comments")]
+    public async Task<IActionResult> CreateProposalComment(string projectId, string proposalId, [FromBody] CreateProposalCommentDto dto, CancellationToken ct)
+    {
+        var dtoWithProposal = dto with { ProposalId = proposalId };
+        var result = await _governanceService.CreateProposalCommentAsync(dtoWithProposal, ct);
+        return result.IsSuccess
+            ? Ok(result.Value)
+            : ToActionResult(result);
+    }
+
     [HttpGet("{projectId}/proposals/{proposalId}/summary")]
     public async Task<IActionResult> GetProposalVoteSummary(string projectId, string proposalId, CancellationToken ct)
     {

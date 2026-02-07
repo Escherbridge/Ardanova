@@ -31,11 +31,30 @@ public class MappingProfile : Profile
         CreateMap<ProjectTaskDependency, ProjectTaskDependencyDto>();
         CreateMap<ProjectResource, ProjectResourceDto>();
         CreateMap<ProjectMilestone, ProjectMilestoneDto>();
+        CreateMap<Epic, EpicDto>();
+        CreateMap<Sprint, SprintDto>();
+        CreateMap<ProductBacklogItem, ProductBacklogItemDto>();
+        CreateMap<Feature, FeatureDto>();
         CreateMap<ProjectSupport, ProjectSupportDto>();
         CreateMap<ProjectApplication, ProjectApplicationDto>();
         CreateMap<ProjectComment, ProjectCommentDto>();
         CreateMap<ProjectUpdate, ProjectUpdateDto>();
         CreateMap<ProjectEquity, ProjectEquityDto>();
+        CreateMap<ProjectMember, ProjectMemberDto>()
+            .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.id))
+            .ForMember(dest => dest.ProjectId, opt => opt.MapFrom(src => src.projectId))
+            .ForMember(dest => dest.UserId, opt => opt.MapFrom(src => src.userId))
+            .ForMember(dest => dest.Role, opt => opt.MapFrom(src => src.role))
+            .ForMember(dest => dest.ShareBalance, opt => opt.MapFrom(src => src.shareBalance))
+            .ForMember(dest => dest.VotingPower, opt => opt.MapFrom(src => src.votingPower))
+            .ForMember(dest => dest.JoinedAt, opt => opt.MapFrom(src => src.joinedAt))
+            .ForMember(dest => dest.InvitedById, opt => opt.MapFrom(src => src.invitedById))
+            .ForMember(dest => dest.User, opt => opt.Ignore());
+        CreateMap<User, ProjectMemberUserDto>()
+            .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.id))
+            .ForMember(dest => dest.Name, opt => opt.MapFrom(src => src.name))
+            .ForMember(dest => dest.Email, opt => opt.MapFrom(src => src.email))
+            .ForMember(dest => dest.Image, opt => opt.MapFrom(src => src.image));
 
         // Guild mappings (entity Guild -> DTO GuildDto)
         CreateMap<Guild, GuildDto>()
@@ -281,6 +300,20 @@ public class MappingProfile : Profile
             .ForMember(dest => dest.CreatedAt, opt => opt.MapFrom(src => src.createdAt))
             .ForMember(dest => dest.Voter, opt => opt.Ignore());
         CreateMap<User, VoteUserDto>()
+            .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.id))
+            .ForMember(dest => dest.Name, opt => opt.MapFrom(src => src.name))
+            .ForMember(dest => dest.Image, opt => opt.MapFrom(src => src.image));
+        CreateMap<ProposalComment, ProposalCommentDto>()
+            .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.id))
+            .ForMember(dest => dest.ProposalId, opt => opt.MapFrom(src => src.proposalId))
+            .ForMember(dest => dest.UserId, opt => opt.MapFrom(src => src.userId))
+            .ForMember(dest => dest.Content, opt => opt.MapFrom(src => src.content))
+            .ForMember(dest => dest.ParentId, opt => opt.MapFrom(src => src.parentId))
+            .ForMember(dest => dest.CreatedAt, opt => opt.MapFrom(src => src.createdAt))
+            .ForMember(dest => dest.UpdatedAt, opt => opt.MapFrom(src => src.updatedAt))
+            .ForMember(dest => dest.User, opt => opt.Ignore())
+            .ForMember(dest => dest.Replies, opt => opt.Ignore());
+        CreateMap<User, ProposalCommentUserDto>()
             .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.id))
             .ForMember(dest => dest.Name, opt => opt.MapFrom(src => src.name))
             .ForMember(dest => dest.Image, opt => opt.MapFrom(src => src.image));

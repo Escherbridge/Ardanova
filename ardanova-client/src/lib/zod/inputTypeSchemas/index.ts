@@ -35,6 +35,7 @@ export { TaskSubmissionScalarFieldEnumSchema } from './TaskSubmissionScalarField
 export { ProposalScalarFieldEnumSchema } from './ProposalScalarFieldEnumSchema';
 export { VoteScalarFieldEnumSchema } from './VoteScalarFieldEnumSchema';
 export { ProposalExecutionScalarFieldEnumSchema } from './ProposalExecutionScalarFieldEnumSchema';
+export { ProposalCommentScalarFieldEnumSchema } from './ProposalCommentScalarFieldEnumSchema';
 export { DelegatedVoteScalarFieldEnumSchema } from './DelegatedVoteScalarFieldEnumSchema';
 export { GuildScalarFieldEnumSchema } from './GuildScalarFieldEnumSchema';
 export { GuildMemberScalarFieldEnumSchema } from './GuildMemberScalarFieldEnumSchema';

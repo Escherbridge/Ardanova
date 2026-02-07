@@ -26,6 +26,7 @@ public class ChatMessage
     [Required]
     public MessageStatus status { get; set; }
 
+    [Column(TypeName = "jsonb")]
     public string? ChatReaction { get; set; }
 
     public string? chatAttachmentId { get; set; }
