@@ -1,6 +1,6 @@
 ## 1. Identity & Credentials (User Core)
 - [x] **[P0] OAuth & Sessions**: Google OAuth, JWT Claims (`userId`, `email`, `role`, `userType`, `verificationLevel`), Session persistence.
-- [ ] **[P0] Membership Credentials (Dual-Asset)**: 
+- [x] **[P0] Membership Credentials (Dual-Asset)**: 
     - [ ] Mint non-transferable credential on project joining/founding.
     - [ ] Enforce unique credential per project per user.
     - [ ] Support revocation status (`ACTIVE`, `REVOKED`, `SUSPENDED`).
