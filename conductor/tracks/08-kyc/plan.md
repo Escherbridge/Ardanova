@@ -2,7 +2,7 @@
 
 ## 1. Schema — KYC Submission & Document Tables
 
-- [~] **[P0] DBML: Add KycSubmission table**
+- [x] **[P0] DBML: Add KycSubmission table** [cad695c]
     - `id varchar [pk, default: cuid()]`
     - `userId varchar [not null, FK → User]`
     - `provider KycProvider [not null, default: 'MANUAL']` — MANUAL or VERIFF
@@ -20,7 +20,7 @@
     - Index: `(userId) [unique]` — one active submission per user
     - Run `npm run generate:prisma` + `npm run generate:csharp`
 
-- [~] **[P0] DBML: Add KycDocument table**
+- [x] **[P0] DBML: Add KycDocument table** [cad695c]
     - `id varchar [pk, default: cuid()]`
     - `submissionId varchar [not null, FK → KycSubmission]`
     - `type KycDocumentType [not null]` — GOVERNMENT_ID, PASSPORT, DRIVERS_LICENSE, SELFIE, PROOF_OF_ADDRESS
@@ -32,12 +32,12 @@
     - `createdAt datetime [not null, default: now()]`
     - Index: `(submissionId, type) [unique]` — one document per type per submission
 
-- [~] **[P0] DBML: Add KYC enums**
+- [x] **[P0] DBML: Add KYC enums** [cad695c]
     - `KycStatus`: PENDING, IN_REVIEW, APPROVED, REJECTED, EXPIRED
     - `KycDocumentType`: GOVERNMENT_ID, PASSPORT, DRIVERS_LICENSE, SELFIE, PROOF_OF_ADDRESS
     - `KycProvider`: MANUAL, VERIFF
 
-- [~] **[P0] Run generators**
+- [x] **[P0] Run generators** [cad695c]
     - `npm run generate:prisma` from `ardanova-client/`
     - `npm run generate:csharp` from `ardanova-client/`
 
