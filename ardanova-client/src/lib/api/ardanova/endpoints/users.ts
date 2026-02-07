@@ -5,11 +5,19 @@ import { type BaseApiClient, type ApiResponse, type PagedResult } from "../../ba
 export interface User {
   id: string;
   email: string;
+  emailVerified?: string;
   name?: string;
   image?: string;
+  bio?: string;
+  location?: string;
+  phone?: string;
+  website?: string;
+  linkedIn?: string;
+  twitter?: string;
   role: string;
   userType: string;
   isVerified: boolean;
+  verificationLevel: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -24,9 +32,13 @@ export interface CreateUserDto {
 
 export interface UpdateUserDto {
   name?: string;
+  bio?: string;
+  location?: string;
+  phone?: string;
+  website?: string;
+  linkedIn?: string;
+  twitter?: string;
   image?: string;
-  role?: string;
-  userType?: string;
 }
 
 // ============ Users Endpoint ============

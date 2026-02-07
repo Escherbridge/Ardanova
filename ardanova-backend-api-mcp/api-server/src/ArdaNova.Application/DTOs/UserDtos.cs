@@ -18,6 +18,7 @@ public record UserDto
     public UserRole Role { get; init; }
     public UserType UserType { get; init; }
     public bool IsVerified { get; init; }
+    public VerificationLevel VerificationLevel { get; init; }
     public DateTime CreatedAt { get; init; }
     public DateTime UpdatedAt { get; init; }
 }

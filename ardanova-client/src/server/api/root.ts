@@ -14,6 +14,8 @@ import { featureRouter } from "~/server/api/routers/feature";
 import { productRouter } from "~/server/api/routers/product";
 import { opportunityBidRouter } from "~/server/api/routers/opportunity-bid";
 import { membershipCredentialRouter } from "~/server/api/routers/membership-credential";
+import { profileRouter } from "~/server/api/routers/profile";
+import { xpRouter } from "~/server/api/routers/xp";
 import { createCallerFactory, createTRPCRouter } from "~/server/api/trpc";
 
 /**
@@ -38,6 +40,8 @@ export const appRouter = createTRPCRouter({
   product: productRouter,
   opportunityBid: opportunityBidRouter,
   membershipCredential: membershipCredentialRouter,
+  profile: profileRouter,
+  xp: xpRouter,
 });
 
 // export type definition of API

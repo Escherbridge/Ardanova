@@ -58,14 +58,6 @@ public class MembershipCredentialService : IMembershipCredentialService
 
     public async Task<Result<MembershipCredentialDto>> GrantAsync(GrantMembershipCredentialDto dto, CancellationToken ct = default)
     {
-        // Check if credential already exists for this user + project
-        var exists = await _repository.ExistsAsync(c =>
-            c.projectId == dto.ProjectId &&
-            c.userId == dto.UserId, ct);
-
-        if (exists)
-            return Result<MembershipCredentialDto>.ValidationError("User already has a membership credential for this project");
-
         // Validate grantedVia enum
         if (!Enum.TryParse<MembershipGrantType>(dto.GrantedVia, true, out var grantType))
             return Result<MembershipCredentialDto>.ValidationError($"Invalid grant type: {dto.GrantedVia}");
@@ -73,6 +65,33 @@ public class MembershipCredentialService : IMembershipCredentialService
         // Validate that grantedByProposalId is only set for DAO_VOTE
         if (dto.GrantedByProposalId != null && grantType != MembershipGrantType.DAO_VOTE)
             return Result<MembershipCredentialDto>.ValidationError("grantedByProposalId can only be set when grantedVia is DAO_VOTE");
+
+        // Check if credential already exists for this user + project
+        var existing = (await _repository.FindAsync(c =>
+            c.projectId == dto.ProjectId &&
+            c.userId == dto.UserId, ct)).FirstOrDefault();
+
+        if (existing is not null)
+        {
+            // Allow re-minting if the existing credential was REVOKED
+            if (existing.status == MembershipCredentialStatus.REVOKED)
+            {
+                existing.status = MembershipCredentialStatus.ACTIVE;
+                existing.isTransferable = false;
+                existing.grantedVia = grantType;
+                existing.grantedByProposalId = dto.GrantedByProposalId;
+                existing.mintedAt = DateTime.UtcNow;
+                existing.revokedAt = null;
+                existing.revokeTxHash = null;
+                existing.updatedAt = DateTime.UtcNow;
+
+                await _repository.UpdateAsync(existing, ct);
+                await _unitOfWork.SaveChangesAsync(ct);
+                return Result<MembershipCredentialDto>.Success(_mapper.Map<MembershipCredentialDto>(existing));
+            }
+
+            return Result<MembershipCredentialDto>.ValidationError("User already has an active membership credential for this project");
+        }
 
         var credential = new MembershipCredential
         {
@@ -83,6 +102,7 @@ public class MembershipCredentialService : IMembershipCredentialService
             isTransferable = false,
             grantedVia = grantType,
             grantedByProposalId = dto.GrantedByProposalId,
+            mintedAt = DateTime.UtcNow,
             createdAt = DateTime.UtcNow,
             updatedAt = DateTime.UtcNow
         };

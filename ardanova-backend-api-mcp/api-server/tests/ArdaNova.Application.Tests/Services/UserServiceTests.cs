@@ -226,4 +226,118 @@ public class UserServiceTests
         // Assert
         result.IsSuccess.Should().BeTrue();
     }
+
+    [Fact]
+    public async Task GetByIdAsync_WhenUserExists_ReturnsVerificationLevel()
+    {
+        // Arrange
+        var userId = Guid.NewGuid().ToString();
+        var user = new User
+        {
+            id = userId,
+            email = "test@example.com",
+            name = "Test User",
+            verificationLevel = VerificationLevel.PRO,
+            createdAt = DateTime.UtcNow,
+            updatedAt = DateTime.UtcNow
+        };
+        var userDto = new UserDto
+        {
+            Id = userId,
+            Email = "test@example.com",
+            Name = "Test User",
+            VerificationLevel = VerificationLevel.PRO
+        };
+
+        _repositoryMock.Setup(r => r.GetByIdAsync(userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(user);
+        _mapperMock.Setup(m => m.Map<UserDto>(user)).Returns(userDto);
+
+        // Act
+        var result = await _sut.GetByIdAsync(userId);
+
+        // Assert
+        result.IsSuccess.Should().BeTrue();
+        result.Value.Should().NotBeNull();
+        result.Value!.VerificationLevel.Should().Be(VerificationLevel.PRO);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_WhenUserExists_ReturnsUpdatedUser()
+    {
+        // Arrange
+        var userId = Guid.NewGuid().ToString();
+        var user = new User
+        {
+            id = userId,
+            email = "test@example.com",
+            name = "Test User",
+            verificationLevel = VerificationLevel.ANONYMOUS,
+            createdAt = DateTime.UtcNow,
+            updatedAt = DateTime.UtcNow
+        };
+        var dto = new UpdateUserDto
+        {
+            Name = "Updated Name",
+            Bio = "A short bio",
+            Location = "New York"
+        };
+        var updatedDto = new UserDto
+        {
+            Id = userId,
+            Email = "test@example.com",
+            Name = "Updated Name",
+            VerificationLevel = VerificationLevel.ANONYMOUS
+        };
+
+        _repositoryMock.Setup(r => r.GetByIdAsync(userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(user);
+        _repositoryMock.Setup(r => r.UpdateAsync(It.IsAny<User>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        _unitOfWorkMock.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(1);
+        _mapperMock.Setup(m => m.Map<UserDto>(It.IsAny<User>())).Returns(updatedDto);
+
+        // Act
+        var result = await _sut.UpdateAsync(userId, dto);
+
+        // Assert
+        result.IsSuccess.Should().BeTrue();
+        result.Value.Should().NotBeNull();
+        result.Value!.Name.Should().Be("Updated Name");
+    }
+
+    [Fact]
+    public async Task UpdateAsync_WhenUserNotExists_ReturnsNotFound()
+    {
+        // Arrange
+        var userId = Guid.NewGuid().ToString();
+        var dto = new UpdateUserDto { Name = "Updated Name" };
+
+        _repositoryMock.Setup(r => r.GetByIdAsync(userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((User?)null);
+
+        // Act
+        var result = await _sut.UpdateAsync(userId, dto);
+
+        // Assert
+        result.IsSuccess.Should().BeFalse();
+        result.Type.Should().Be(ResultType.NotFound);
+    }
+
+    [Fact]
+    public async Task GetByEmailAsync_WhenUserNotExists_ReturnsNotFound()
+    {
+        // Arrange
+        var email = "nonexistent@example.com";
+        _repositoryMock.Setup(r => r.FindOneAsync(It.IsAny<System.Linq.Expressions.Expression<Func<User, bool>>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((User?)null);
+
+        // Act
+        var result = await _sut.GetByEmailAsync(email);
+
+        // Assert
+        result.IsSuccess.Should().BeFalse();
+        result.Type.Should().Be(ResultType.NotFound);
+    }
 }
