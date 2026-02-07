@@ -63,7 +63,13 @@
       "WebFetch(domain:developers.gamma.app)",
       "Bash(npx prisma:*)",
       "Bash(test:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(npx vitest:*)",
+      "Bash(git commit:*)",
+      "Bash(dotnet --version:*)",
+      "Bash(git notes add:*)",
+      "Bash(git status:*)",
+      "Bash(git check-ignore:*)"
     ],
     "additionalDirectories": [
       "c:\\Users\\atooz\\Documents\\Escherbridge\\ardanova"

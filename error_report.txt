@@ -1,0 +1,1 @@
+The `read_file` tool is still consistently failing with "File not found" when attempting to read backend files like `api-server\src\ArdaNova.Application\DTOs\UserDtos.cs`. This prevents me from inspecting the contents of `UpdateUserDto` and thus from implementing "[P0] Profile Management". I am halting the current operation. Please provide further instructions.

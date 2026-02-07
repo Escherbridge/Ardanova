@@ -16,7 +16,7 @@
 
 ## Test Environment Setup
 - [ ] Google OAuth credentials configured
-- [ ] PostgreSQL database running and migrated
+- [ ] PostgreSQL database running and migrated using the dbml file and the prisma + csharp generators
 - [ ] .NET 8 backend API running with valid API key
 - [ ] Next.js frontend running with environment variables
 - [ ] SignalR hub accessible
@@ -3345,7 +3345,6 @@
 - [ ] **[P0]** Create post with type=TASK_COMPLETED → Expected: Task completion post created
 - [ ] **[P0]** Create post with type=MILESTONE → Expected: Milestone post created
 - [ ] **[P0]** Create post with type=PROPOSAL → Expected: Proposal post created
-- [ ] **[P0]** Create post with type=SHOP_ITEM → Expected: Shop item post created
 - [ ] **[P1]** Query posts by type → Expected: Filtered results for specific PostType
 - [ ] **[P2]** Validate required fields based on post type → Expected: Type-specific validation enforced
 
