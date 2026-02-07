@@ -98,6 +98,10 @@ public static class DependencyInjection
         // Chat services
         services.AddScoped<IChatService, ChatService>();
 
+        // KYC services
+        services.AddScoped<IKycService, KycService>();
+        services.AddScoped<IKycProviderService, ManualKycProviderService>();
+
         // Enum lookup (singleton - enum types are static)
         services.AddSingleton<IEnumLookupService, EnumLookupService>();
 

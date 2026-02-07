@@ -375,5 +375,32 @@ public class MappingProfile : Profile
             .ForMember(dest => dest.CreatedAt, opt => opt.MapFrom(src => src.createdAt))
             .ForMember(dest => dest.LastUsedAt, opt => opt.MapFrom(src => src.lastUsedAt))
             .ForMember(dest => dest.Type, opt => opt.MapFrom(src => src.type));
+
+        // KYC mappings
+        CreateMap<KycSubmission, KycSubmissionDto>()
+            .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.id))
+            .ForMember(dest => dest.UserId, opt => opt.MapFrom(src => src.userId))
+            .ForMember(dest => dest.Provider, opt => opt.MapFrom(src => src.provider))
+            .ForMember(dest => dest.Status, opt => opt.MapFrom(src => src.status))
+            .ForMember(dest => dest.ReviewerId, opt => opt.MapFrom(src => src.reviewerId))
+            .ForMember(dest => dest.ReviewNotes, opt => opt.MapFrom(src => src.reviewNotes))
+            .ForMember(dest => dest.RejectionReason, opt => opt.MapFrom(src => src.rejectionReason))
+            .ForMember(dest => dest.ProviderSessionId, opt => opt.MapFrom(src => src.providerSessionId))
+            .ForMember(dest => dest.SubmittedAt, opt => opt.MapFrom(src => src.submittedAt))
+            .ForMember(dest => dest.ReviewedAt, opt => opt.MapFrom(src => src.reviewedAt))
+            .ForMember(dest => dest.ExpiresAt, opt => opt.MapFrom(src => src.expiresAt))
+            .ForMember(dest => dest.CreatedAt, opt => opt.MapFrom(src => src.createdAt))
+            .ForMember(dest => dest.UpdatedAt, opt => opt.MapFrom(src => src.updatedAt))
+            .ForMember(dest => dest.Documents, opt => opt.Ignore());
+        CreateMap<KycDocument, KycDocumentDto>()
+            .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.id))
+            .ForMember(dest => dest.SubmissionId, opt => opt.MapFrom(src => src.submissionId))
+            .ForMember(dest => dest.Type, opt => opt.MapFrom(src => src.type))
+            .ForMember(dest => dest.FileUrl, opt => opt.MapFrom(src => src.fileUrl))
+            .ForMember(dest => dest.FileName, opt => opt.MapFrom(src => src.fileName))
+            .ForMember(dest => dest.MimeType, opt => opt.MapFrom(src => src.mimeType))
+            .ForMember(dest => dest.FileSizeBytes, opt => opt.MapFrom(src => src.fileSizeBytes))
+            .ForMember(dest => dest.Metadata, opt => opt.MapFrom(src => src.metadata))
+            .ForMember(dest => dest.CreatedAt, opt => opt.MapFrom(src => src.createdAt));
     }
 }
