@@ -107,21 +107,21 @@
 
 ## 3. KYC Gate Service — Reusable Verification Checks
 
-- [ ] **[P0] IKycGateService / KycGateService: Verification gate**
+- [x] **[P0] IKycGateService / KycGateService: Verification gate** [3092a41]
     - Create `ArdaNova.Application/Services/Interfaces/IKycGateService.cs`
     - Create `ArdaNova.Application/Services/Implementations/KycGateService.cs`
     - `RequireProAsync(userId, ct)` → `Result<bool>` — returns success if PRO+, error with redirect message if not
     - `RequireVerifiedAsync(userId, ct)` → success if VERIFIED+
     - `GetVerificationLevelAsync(userId, ct)` → current VerificationLevel
-    - Reads `User.verificationLevel` via `IUserService` or repository
+    - Reads `User.verificationLevel` via `IRepository<User>` (direct repository access)
     - Error messages include KYC flow URL for frontend redirect
 
-- [ ] **[P0] Gate: ProjectService.CreateAsync() — block non-PRO**
+- [x] **[P0] Gate: ProjectService.CreateAsync() — block non-PRO** [3092a41]
     - Inject `IKycGateService` into `ProjectService`
     - Add `RequireProAsync(dto.CreatedById)` check at top of `CreateAsync()`
     - Return `Result.Forbidden("KYC verification required to create projects")`
 
-- [ ] **[P0] Gate: MembershipCredentialService.GrantAsync() — block non-PRO**
+- [x] **[P0] Gate: MembershipCredentialService.GrantAsync() — block non-PRO** [3092a41]
     - Inject `IKycGateService` into `MembershipCredentialService`
     - Add `RequireProAsync(dto.UserId)` check at top of `GrantAsync()`
     - Return `Result.Forbidden("KYC verification required for membership credentials")`
@@ -205,7 +205,7 @@
     - Status transitions — only valid transitions allowed (PENDING → IN_REVIEW → APPROVED/REJECTED)
     - Follow existing pattern: xUnit + Moq + FluentAssertions
 
-- [ ] **[P0] KycGateService unit tests**
+- [x] **[P0] KycGateService unit tests** [3092a41]
     - Create `tests/ArdaNova.Application.Tests/Services/KycGateServiceTests.cs`
     - PRO user passes `RequireProAsync`
     - EXPERT user passes `RequireProAsync`
@@ -213,12 +213,13 @@
     - ANONYMOUS user blocked by `RequireProAsync`
     - VERIFIED user passes `RequireVerifiedAsync`
     - Error messages include KYC redirect info
+    - 13 tests: RequireProAsync (5), RequireVerifiedAsync (5), GetVerificationLevelAsync (3)
 
-- [ ] **[P0] Gate integration tests**
+- [x] **[P0] Gate integration tests** [3092a41]
     - Project creation returns 403 for non-PRO user
-    - Project creation succeeds for PRO user
+    - Project creation succeeds for PRO user (via default mock setup)
     - Membership credential grant returns 403 for non-PRO user
-    - Membership credential grant succeeds for PRO user
+    - Membership credential grant succeeds for PRO user (via default mock setup)
 
 - [ ] **[P1] ManualKycProviderService tests**
     - Document validation (accepted types, size limits)
