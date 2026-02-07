@@ -38,6 +38,7 @@ public record SubmitKycDocumentDto
 
 public record ReviewKycDto
 {
+    public required string ReviewerId { get; init; }
     public string? ReviewNotes { get; init; }
     public string? RejectionReason { get; init; }
 }

@@ -21,6 +21,7 @@ import { XPEventsEndpoint } from "./endpoints/xp-events";
 import { AchievementsEndpoint } from "./endpoints/achievements";
 import { LeaderboardsEndpoint } from "./endpoints/leaderboards";
 import { ReferralsEndpoint } from "./endpoints/referrals";
+import { KycEndpoint } from "./endpoints/kyc";
 
 // Re-export types from endpoints
 export type {
@@ -172,6 +173,16 @@ export type {
   CreateReferralDto,
   ClaimReferralRewardDto,
 } from "./endpoints/referrals";
+export type {
+  KycSubmission,
+  KycDocument,
+  KycStatus,
+  KycDocumentType,
+  KycProvider,
+  SubmitKycDto,
+  SubmitKycDocumentDto,
+  ReviewKycDto,
+} from "./endpoints/kyc";
 
 // Re-export schemas for validation
 export {
@@ -212,6 +223,7 @@ export class ArdaNovaApiClient extends BaseApiClient {
   readonly achievements: AchievementsEndpoint;
   readonly leaderboards: LeaderboardsEndpoint;
   readonly referrals: ReferralsEndpoint;
+  readonly kyc: KycEndpoint;
 
   constructor(config: BaseApiClientConfig) {
     super(config);
@@ -236,6 +248,7 @@ export class ArdaNovaApiClient extends BaseApiClient {
     this.achievements = new AchievementsEndpoint(this);
     this.leaderboards = new LeaderboardsEndpoint(this);
     this.referrals = new ReferralsEndpoint(this);
+    this.kyc = new KycEndpoint(this);
   }
 
   health() {

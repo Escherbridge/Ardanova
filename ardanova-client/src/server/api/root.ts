@@ -21,6 +21,7 @@ import { streakRouter } from "~/server/api/routers/streak";
 import { achievementRouter } from "~/server/api/routers/achievement";
 import { leaderboardRouter } from "~/server/api/routers/leaderboard";
 import { referralRouter } from "~/server/api/routers/referral";
+import { kycRouter } from "~/server/api/routers/kyc";
 import { createCallerFactory, createTRPCRouter } from "~/server/api/trpc";
 
 /**
@@ -52,6 +53,7 @@ export const appRouter = createTRPCRouter({
   achievement: achievementRouter,
   leaderboard: leaderboardRouter,
   referral: referralRouter,
+  kyc: kycRouter,
 });
 
 // export type definition of API
