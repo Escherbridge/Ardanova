@@ -42,6 +42,37 @@
 - **Strategy**: JWT with claims: `userId`, `email`, `role`, `userType`, `verificationLevel`
 - **Auth is the ONE exception** where Next.js uses Prisma directly (for user creation on sign-in)
 
+### KYC & Identity Verification
+- **Provider Abstraction**: `IKycProviderService` interface (Strategy pattern)
+- **Default Provider**: `ManualKycProviderService` — document upload + admin review
+- **Planned Provider**: Veriff SDK (`VeriffKycProviderService`) — behind `KYC_PROVIDER=veriff` feature flag
+- **Gate Service**: `IKycGateService` — reusable PRO verification check injected into ProjectService, MembershipCredentialService
+- **Level Gating**: ANONYMOUS → VERIFIED (email) → PRO (KYC) → EXPERT (future)
+
+## Blockchain (Algorand)
+
+### Algorand Integration
+- **SDK**: dotnet-algorand-sdk (C# native, NuGet package in .NET backend)
+- **Network**: Algorand TestNet → MainNet
+- **Node**: AlgoNode (`https://testnet-api.algonode.cloud`)
+- **Indexer**: AlgoNode Indexer (`https://testnet-idx.algonode.cloud`)
+- **Credentials**: Soulbound ASAs (ARC-19 metadata, `defaultFrozen=true`, clawback-only)
+- **Pattern**: Custodial — platform account signs all blockchain transactions
+- **Config**: Environment variables (`ALGORAND_NETWORK`, `ALGORAND_NODE_URL`, `ALGORAND_INDEXER_URL`, `ALGORAND_PLATFORM_MNEMONIC`)
+
+### Credential Architecture
+- **Soulbound ASAs**: Non-transferable Algorand Standard Assets representing membership credentials
+- **ARC-19 Metadata**: On-chain metadata with credential type, tier, grant method, scope (project/guild)
+- **Graceful Degradation**: Credentials always granted off-chain first; blockchain minting is additive
+- **Tier System**: Reuses `UserTier` enum (BRONZE → SILVER → GOLD → PLATINUM → DIAMOND)
+
+### Key Blockchain Services
+| Service | Location | Purpose |
+|---------|----------|---------|
+| `IAlgorandService` | `ArdaNova.Infrastructure/Algorand/` | Algorand SDK wrapper (mint, burn, verify) |
+| `ICredentialUtilityService` | `ArdaNova.Application/Services/` | Orchestrates grant-and-mint, revoke-and-burn |
+| `IMembershipCredentialService` | `ArdaNova.Application/Services/` | Off-chain credential CRUD |
+
 ## Frontend Design System
 
 ### Brand & Copy

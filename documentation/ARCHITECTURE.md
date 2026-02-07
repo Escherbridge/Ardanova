@@ -24,6 +24,9 @@ This document provides a detailed technical architecture for the ArdaNova platfo
 | `ardanova-ai-client` | 🔄 Stubbed | Python AI orchestrator (structure ready) |
 | `ardanova-game-sdk` | 🔄 TODO | Unity & Godot SDKs (NuGet) |
 | `contracts` | 🔄 Stubbed | Algorand Powered Automated agreements (structure ready) |
+| `Credential Utility Service` | 🔄 In Progress | Soulbound ASA minting, guild credentials, tier system |
+| `Algorand Integration (.NET)` | 🔄 In Progress | dotnet-algorand-sdk for on-chain credential operations |
+| `KYC & Identity Verification` | 🔄 In Progress | KYC submission, provider abstraction (Manual/Veriff), PRO verification gating |
 
 **Key Changes:**
 - DAO, Studio, Exchange, Explorer, and Agent UI consolidated into main platform
@@ -763,6 +766,7 @@ The database schema is organized into 10 modules with 70+ entities:
 | Project | Proposal | 1:N |
 | Project | ProjectToken | 1:1 |
 | Project | MembershipCredential | 1:N |
+| Guild | MembershipCredential | 1:N |
 | Project | Event | 1:N |
 | ProjectToken | ICO | 1:1 |
 | MembershipCredential | User | N:1 |
@@ -1010,16 +1014,19 @@ ArdaNova uses a dual-asset architecture to separate governance rights from econo
 │  GOVERNANCE ASSET: MembershipCredential (Soulbound)              │
 │  ┌──────────────────────────────────────────────────────────┐   │
 │  │ MembershipCredential                                      │   │
-│  │ • projectId → Project                                     │   │
+│  │ • projectId → Project (nullable — project OR guild)      │   │
+│  │ • guildId → Guild (nullable — project OR guild)          │   │
 │  │ • userId → User                                           │   │
 │  │ • assetId (Algorand ASA for soulbound credential)        │   │
+│  │ • tier: BRONZE, SILVER, GOLD, PLATINUM, DIAMOND          │   │
 │  │ • status: ACTIVE, REVOKED, SUSPENDED                     │   │
 │  │ • isTransferable: false (always soulbound)               │   │
 │  │ • grantedVia: FOUNDER, DAO_VOTE,                         │   │
 │  │   CONTRIBUTION_THRESHOLD, APPLICATION_APPROVED,          │   │
 │  │   GAME_SDK_THRESHOLD                                     │   │
 │  │ • grantedByProposalId → Proposal (if via DAO vote)       │   │
-│  │ • Unique constraint: (projectId, userId)                 │   │
+│  │ • metadataUri (ARC-19 metadata pointer)                  │   │
+│  │ • Unique constraints: (projectId, userId), (guildId, userId) │
 │  │                                                           │   │
 │  │ GRANTS: 1 vote in governance (equal for all members)     │   │
 │  │ CANNOT: Be bought, sold, or transferred                  │   │
@@ -1347,7 +1354,7 @@ The generator:
 
 ## API Layer
 
-### REST Controllers (14 Total)
+### REST Controllers (17 Total)
 
 | Controller | Endpoints | Description |
 |------------|-----------|-------------|
@@ -1363,7 +1370,10 @@ The generator:
 | `TaskEscrowsController` | 5 | Escrow services |
 | `UserStreaksController` | 4 | Gamification streaks |
 | `WalletsController` | 5 | Wallet operations |
-| `AttachmentsController` | 9 | File storage ✅ NEW |
+| `AttachmentsController` | 9 | File storage |
+| `MembershipCredentialsController` | 10 | Credential CRUD, guild queries, tier |
+| `CredentialUtilityController` | 6 | Grant-and-mint, revoke-and-burn, tier upgrade |
+| `KycController` | 7 | KYC submission, status, admin review, webhook |
 
 ### Service Layer (28+ Services)
 
@@ -1381,6 +1391,8 @@ The generator:
 | **Gamification** | UserStreakService, ReferralService |
 | **Communication** | NotificationService, ActivityService |
 | **Governance** | DelegatedVoteService |
+| **Credential Utility** | MembershipCredentialService, CredentialUtilityService, AlgorandService |
+| **KYC** | KycService, KycGateService, ManualKycProviderService, VeriffKycProviderService (feature flag) |
 | **Storage** | AttachmentService |
 
 ---
@@ -1460,6 +1472,61 @@ ardanova-ai-client/
 ---
 
 ## Blockchain Integration
+
+### Credential Utility Service (In Progress)
+
+The first Algorand integration: soulbound membership credentials minted as ASAs on-chain.
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                CREDENTIAL UTILITY ARCHITECTURE                    │
+├──────────────────────────────────────────────────────────────────┤
+│                                                                   │
+│  ┌─────────────────────┐    ┌─────────────────────┐              │
+│  │ IMembershipCredential│    │  IAlgorandService   │              │
+│  │      Service         │    │ (Infrastructure)    │              │
+│  │  (Off-chain CRUD)    │    │ (dotnet-algorand-sdk)│             │
+│  └──────────┬──────────┘    └──────────┬──────────┘              │
+│             │                          │                          │
+│             └──────────┬───────────────┘                          │
+│                        │                                          │
+│                        ▼                                          │
+│  ┌──────────────────────────────────────────────────────────┐    │
+│  │           ICredentialUtilityService                       │    │
+│  │              (Orchestrator)                                │    │
+│  │                                                           │    │
+│  │  • GrantAndMint → grant credential + mint soulbound ASA  │    │
+│  │  • RevokeAndBurn → burn ASA + revoke credential          │    │
+│  │  • UpgradeTier → update tier + update on-chain metadata  │    │
+│  │  • CheckAndAutoGrant → auto-grant based on thresholds    │    │
+│  │  • RetryMint → re-attempt failed ASA minting             │    │
+│  └──────────────────────────────────────────────────────────┘    │
+│                        │                                          │
+│                        ▼                                          │
+│  ┌──────────────────────────────────────────────────────────┐    │
+│  │                 ALGORAND NETWORK                           │    │
+│  │  • Soulbound ASAs (defaultFrozen=true, clawback=platform) │    │
+│  │  • ARC-19 metadata (credential type, tier, scope)         │    │
+│  │  • TestNet → MainNet                                      │    │
+│  └──────────────────────────────────────────────────────────┘    │
+│                                                                   │
+│  DESIGN PRINCIPLES:                                               │
+│  • Off-chain first — credentials work without blockchain          │
+│  • Graceful degradation — chain down = credential still valid     │
+│  • Custodial model — platform signs all transactions              │
+│  • XOR scope — each credential: project OR guild, never both     │
+│                                                                   │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+### Algorand Configuration
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `ALGORAND_NETWORK` | Network (testnet/mainnet) | `testnet` |
+| `ALGORAND_NODE_URL` | Algod API endpoint | `https://testnet-api.algonode.cloud` |
+| `ALGORAND_INDEXER_URL` | Indexer API endpoint | `https://testnet-idx.algonode.cloud` |
+| `ALGORAND_PLATFORM_MNEMONIC` | Platform account mnemonic | (required) |
 
 ### Smart Contracts (PyTeal - Stubbed)
 
@@ -1581,8 +1648,17 @@ lib/blockchain/
    - Rate limiting
    - CORS configuration
 
-5. **Smart Contract Security**
-   - PyTeal best practices
+5. **Identity Verification (KYC)**
+   - PRO verification required for project creation and credential issuance
+   - Provider abstraction (Manual review / Veriff) behind feature flag
+   - KYC documents stored via S3 with presigned URLs (time-limited)
+   - No PII in logs — only submission IDs and status transitions
+   - Admin-only review endpoints with role check
+
+6. **Blockchain Security**
+   - Soulbound ASAs (frozen, clawback-only, no transfer)
+   - Custodial model — platform account signs all transactions
+   - ARC-19 metadata for credential verification
    - Multi-sig for admin functions
    - Timelocks for governance
    - Audits before mainnet
@@ -1640,6 +1716,12 @@ lib/blockchain/
 
 | Feature | Status | Notes |
 |---------|--------|-------|
+| **Credential Utility Service** | 🔄 In Progress | Soulbound ASA minting, guild credentials, tier system |
+| **Algorand Integration (.NET)** | 🔄 In Progress | `dotnet-algorand-sdk` for on-chain credential operations |
+| **Guild Credentials** | 🔄 In Progress | Extend MembershipCredential with guildId, XOR validation |
+| **Credential Tier System** | 🔄 In Progress | BRONZE → DIAMOND progression tracked on-chain |
+| **KYC & Identity Verification** | 🔄 In Progress | KYC submission, provider abstraction, PRO gating |
+| **KYC Gate Service** | 🔄 In Progress | Reusable PRO check for ProjectService + CredentialService |
 | Membership Services | 🔄 TODO | CRUD services for invitations/applications |
 | Events Services | 🔄 TODO | CRUD services for events system |
 | Following Services | 🔄 TODO | CRUD services for social following |
@@ -1673,8 +1755,8 @@ lib/blockchain/
 10. ✅ **Phase 5.5**: Trending System - **COMPLETE**
 11. 🔄 **Phase 6**: Backend Services for new entities (invitations, events, follows)
 12. 🔄 **Phase 7**: Consolidate DAO, Studio, Exchange, Explorer into client
-13. **Phase 8**: Blockchain integration (Algorand)
-14. **Phase 9**: Smart contract development (PyTeal)
+13. 🔄 **Phase 8**: Blockchain integration (Algorand) — **IN PROGRESS** (Credential Utility Service with `dotnet-algorand-sdk`)
+14. **Phase 9**: Smart contract development (AVM/TEAL for governance automation)
 15. **Phase 10**: Game SDK (Unity, Godot)
 
 See [ROADMAP.md](./ROADMAP.md) for detailed timelines.
@@ -1682,4 +1764,4 @@ See [ROADMAP.md](./ROADMAP.md) for detailed timelines.
 ---
 
 **Last Updated**: February 2025
-**Version**: 5.0.0 (Dual-Asset Model, MembershipCredential, Cooperative Trust Structure)
+**Version**: 5.2.0 (KYC & Identity Verification, Credential Utility Service, Algorand Integration)

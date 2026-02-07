@@ -12,6 +12,9 @@
 - **Projects**: The core unit of work. Can be temporary, long-term, or foundation-based.
 - **Guilds**: Collectives of skilled workers (e.g., "React Developers Guild") that can bid on projects or mentor members.
 - **Opportunities**: Job listings and tasks that users can apply for.
+- **Membership Credentials**: Soulbound, non-transferable governance credentials with on-chain verification via Algorand ASAs. Scoped to projects or guilds.
+- **Credential Tiers**: BRONZE → SILVER → GOLD → PLATINUM → DIAMOND progression for projects and guilds, tracked on-chain.
+- **KYC Verification**: Identity verification gating project creation and credential issuance. Manual review with Veriff integration path.
 - **Game SDK**: Integration for play-to-earn mechanics.
 - **Gamma API + MCP**: AI-powered project generation and management.
 

@@ -45,6 +45,9 @@
 | Frontend component tests | Next.js vitest (for UI components only) |
 | Auth callbacks | Next.js `src/server/auth/` (exception: Prisma OK here) |
 | RBAC middleware | Next.js `src/server/api/lib/` (checks session claims, no DB calls) |
+| Blockchain/Algorand service | .NET `ArdaNova.Infrastructure/Algorand/` |
+| Credential orchestration | .NET `ArdaNova.Application/Services/` (CredentialUtilityService) |
+| KYC verification service | .NET `ArdaNova.Application/Services/` (KycService, KycGateService) |
 
 ## Database Change Workflow
 
