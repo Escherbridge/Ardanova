@@ -575,6 +575,27 @@ enum ExperienceLevel {
   EXPERT
 }
 
+enum KycStatus {
+  PENDING
+  IN_REVIEW
+  APPROVED
+  REJECTED
+  EXPIRED
+}
+
+enum KycDocumentType {
+  GOVERNMENT_ID
+  PASSPORT
+  DRIVERS_LICENSE
+  SELFIE
+  PROOF_OF_ADDRESS
+}
+
+enum KycProvider {
+  MANUAL
+  VERIFF
+}
+
 model Account {
   id String @id @default(cuid())
   userId String
@@ -697,6 +718,8 @@ model User {
   opportunityUpdates OpportunityUpdate[] @relation("OpportunityUpdate_userId")
   opportunityComments OpportunityComment[] @relation("OpportunityComment_userId")
   opportunityBids OpportunityBid[] @relation("OpportunityBid_bidderId")
+  kycSubmissions KycSubmission[] @relation("KycSubmission_userId")
+  kycSubmissions1 KycSubmission[] @relation("KycSubmission_reviewerId")
 }
 
 model UserSkill {
@@ -1959,5 +1982,42 @@ model OpportunityBid {
   guild Guild? @relation("OpportunityBid_guildId", fields: [guildId], references: [id])
 
   @@unique([opportunityId, bidderId])
+}
+
+model KycSubmission {
+  id String @id @default(cuid())
+  userId String
+  provider KycProvider @default(MANUAL)
+  status KycStatus @default(PENDING)
+  reviewerId String?
+  reviewNotes String? @db.Text
+  rejectionReason String?
+  providerSessionId String?
+  providerResult String? @db.Text
+  submittedAt DateTime @default(now())
+  reviewedAt DateTime?
+  expiresAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user User @relation("KycSubmission_userId", fields: [userId], references: [id])
+  reviewer User? @relation("KycSubmission_reviewerId", fields: [reviewerId], references: [id])
+  kycDocuments KycDocument[] @relation("KycDocument_submissionId")
+
+  @@index([userId, status])
+}
+
+model KycDocument {
+  id String @id @default(cuid())
+  submissionId String
+  type KycDocumentType
+  fileUrl String
+  fileName String
+  mimeType String?
+  fileSizeBytes Int?
+  metadata String? @db.Text
+  createdAt DateTime @default(now())
+  submission KycSubmission @relation("KycDocument_submissionId", fields: [submissionId], references: [id])
+
+  @@unique([submissionId, type])
 }
 

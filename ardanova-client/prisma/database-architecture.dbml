@@ -1856,3 +1856,68 @@ Table OpportunityBid {
 Ref: OpportunityBid.opportunityId > Opportunity.id
 Ref: OpportunityBid.bidderId > User.id
 Ref: OpportunityBid.guildId > Guild.id
+
+// =================================================================================================
+// 11. KYC & Identity Verification Module
+// =================================================================================================
+
+Enum KycStatus {
+  PENDING
+  IN_REVIEW
+  APPROVED
+  REJECTED
+  EXPIRED
+}
+
+Enum KycDocumentType {
+  GOVERNMENT_ID
+  PASSPORT
+  DRIVERS_LICENSE
+  SELFIE
+  PROOF_OF_ADDRESS
+}
+
+Enum KycProvider {
+  MANUAL
+  VERIFF
+}
+
+Table KycSubmission {
+  id varchar [not null, pk, default: `cuid()`]
+  userId varchar [not null]
+  provider KycProvider [not null, default: 'MANUAL']
+  status KycStatus [not null, default: 'PENDING']
+  reviewerId varchar [note: 'Admin who reviewed']
+  reviewNotes text [note: 'Internal admin notes']
+  rejectionReason varchar [note: 'User-facing rejection reason']
+  providerSessionId varchar [note: 'External provider session ID']
+  providerResult text [note: 'Raw JSON from provider']
+  submittedAt datetime [not null, default: `now()`]
+  reviewedAt datetime
+  expiresAt datetime [note: 'KYC approval expiration']
+  createdAt datetime [not null, default: `now()`]
+  updatedAt datetime [not null, note: 'Updated at']
+
+  indexes {
+    (userId, status) [note: 'Query active submissions per user']
+  }
+}
+Ref: KycSubmission.userId > User.id
+Ref: KycSubmission.reviewerId > User.id
+
+Table KycDocument {
+  id varchar [not null, pk, default: `cuid()`]
+  submissionId varchar [not null]
+  type KycDocumentType [not null]
+  fileUrl varchar [not null, note: 'S3/storage URL']
+  fileName varchar [not null]
+  mimeType varchar
+  fileSizeBytes int
+  metadata text [note: 'JSON: country, expiryDate, etc.']
+  createdAt datetime [not null, default: `now()`]
+
+  indexes {
+    (submissionId, type) [unique, note: 'One document per type per submission']
+  }
+}
+Ref: KycDocument.submissionId > KycSubmission.id

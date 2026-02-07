@@ -79,3 +79,5 @@ export * from './OpportunityApplicationSchema';
 export * from './OpportunityUpdateSchema';
 export * from './OpportunityCommentSchema';
 export * from './OpportunityBidSchema';
+export * from './KycSubmissionSchema';
+export * from './KycDocumentSchema';

@@ -17,6 +17,8 @@ public static class GeneratedModelConfigurations
         modelBuilder.Entity<ChatMessage>().HasIndex(e => new { e.conversationId, e.sentAt });
         modelBuilder.Entity<OpportunityApplication>().HasIndex(e => new { e.opportunityId, e.applicantId }).IsUnique();
         modelBuilder.Entity<OpportunityBid>().HasIndex(e => new { e.opportunityId, e.bidderId }).IsUnique();
+        modelBuilder.Entity<KycSubmission>().HasIndex(e => new { e.userId, e.status });
+        modelBuilder.Entity<KycDocument>().HasIndex(e => new { e.submissionId, e.type }).IsUnique();
 
         // Bidirectional FK disambiguation
         // ProjectTask.opportunityId -> Opportunity

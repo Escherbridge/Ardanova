@@ -80,6 +80,8 @@ export { OpportunityApplicationScalarFieldEnumSchema } from './OpportunityApplic
 export { OpportunityUpdateScalarFieldEnumSchema } from './OpportunityUpdateScalarFieldEnumSchema';
 export { OpportunityCommentScalarFieldEnumSchema } from './OpportunityCommentScalarFieldEnumSchema';
 export { OpportunityBidScalarFieldEnumSchema } from './OpportunityBidScalarFieldEnumSchema';
+export { KycSubmissionScalarFieldEnumSchema } from './KycSubmissionScalarFieldEnumSchema';
+export { KycDocumentScalarFieldEnumSchema } from './KycDocumentScalarFieldEnumSchema';
 export { SortOrderSchema } from './SortOrderSchema';
 export { NullableJsonNullValueInputSchema } from './NullableJsonNullValueInputSchema';
 export { JsonNullValueInputSchema } from './JsonNullValueInputSchema';
@@ -148,6 +150,9 @@ export { AttendeeStatusSchema } from './AttendeeStatusSchema';
 export { OpportunityTypeSchema } from './OpportunityTypeSchema';
 export { OpportunityStatusSchema } from './OpportunityStatusSchema';
 export { ExperienceLevelSchema } from './ExperienceLevelSchema';
+export { KycStatusSchema } from './KycStatusSchema';
+export { KycDocumentTypeSchema } from './KycDocumentTypeSchema';
+export { KycProviderSchema } from './KycProviderSchema';
 export { InputJsonValueSchema } from './InputJsonValueSchema';
 export { JsonValueSchema } from './JsonValueSchema';
 export { DecimalJsLikeSchema } from './DecimalJsLikeSchema';

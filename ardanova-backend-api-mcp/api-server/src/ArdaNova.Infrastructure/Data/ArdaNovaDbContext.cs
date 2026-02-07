@@ -130,6 +130,9 @@ public class ArdaNovaDbContext : DbContext
     public DbSet<OpportunityBid> OpportunityBids => Set<OpportunityBid>();
     public DbSet<MembershipCredential> MembershipCredentials => Set<MembershipCredential>();
     public DbSet<ProposalComment> ProposalComments => Set<ProposalComment>();
+    public DbSet<KycSubmission> KycSubmissions => Set<KycSubmission>();
+    public DbSet<KycDocument> KycDocuments => Set<KycDocument>();
+
 
 
 

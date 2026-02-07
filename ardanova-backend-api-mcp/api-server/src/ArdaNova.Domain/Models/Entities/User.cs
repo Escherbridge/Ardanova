@@ -221,4 +221,8 @@ public class User
 
     public virtual ICollection<UserFollow> UserFollowsAsFollowing { get; set; } = new List<UserFollow>();
 
+    public virtual ICollection<KycSubmission> KycSubmissionsAsUser { get; set; } = new List<KycSubmission>();
+
+    public virtual ICollection<KycSubmission> KycSubmissionsAsReviewer { get; set; } = new List<KycSubmission>();
+
 }
