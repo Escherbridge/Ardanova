@@ -1,9 +1,11 @@
 namespace ArdaNova.Infrastructure;
 
 using ArdaNova.Application.Common.Interfaces;
+using ArdaNova.Application.Services.Interfaces;
 using System.Reflection;
 using ArdaNova.Domain.Models.Entities;
 using ArdaNova.Domain.Models.Enums;
+using ArdaNova.Infrastructure.Algorand;
 using ArdaNova.Infrastructure.Data;
 using ArdaNova.Infrastructure.Repositories;
 using ArdaNova.Infrastructure.UnitOfWork;
@@ -58,6 +60,11 @@ public static class DependencyInjection
 
         // Unit of Work
         services.AddScoped<IUnitOfWork, UnitOfWork.UnitOfWork>();
+
+        // Algorand blockchain service
+        services.Configure<AlgorandSettings>(
+            configuration.GetSection(AlgorandSettings.SectionName));
+        services.AddHttpClient<IAlgorandService, AlgorandService>();
 
         return services;
     }
