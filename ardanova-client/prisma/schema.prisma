@@ -1314,6 +1314,7 @@ model Guild {
   guildApplications GuildApplication[] @relation("GuildApplication_guildId")
   guildReviews GuildReview[] @relation("GuildReview_guildId")
   guildUpdates GuildUpdate[] @relation("GuildUpdate_guildId")
+  membershipCredentials MembershipCredential[] @relation("MembershipCredential_guildId")
   posts Post[] @relation("Post_guildId")
   postShares PostShare[] @relation("PostShare_sharedToGuildId")
   events Event[] @relation("Event_guildId")
@@ -1413,24 +1414,29 @@ model Product {
 
 model MembershipCredential {
   id String @id @default(cuid())
-  projectId String
+  projectId String?
+  guildId String?
   userId String
   assetId String?
   status MembershipCredentialStatus @default(ACTIVE)
   isTransferable Boolean @default(false)
+  tier UserTier?
   grantedVia MembershipGrantType
   grantedByProposalId String?
+  metadataUri String?
   mintTxHash String?
   revokeTxHash String?
   mintedAt DateTime?
   revokedAt DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  project Project @relation("MembershipCredential_projectId", fields: [projectId], references: [id])
+  project Project? @relation("MembershipCredential_projectId", fields: [projectId], references: [id])
+  guild Guild? @relation("MembershipCredential_guildId", fields: [guildId], references: [id])
   user User @relation("MembershipCredential_userId", fields: [userId], references: [id])
   grantedByProposal Proposal? @relation("MembershipCredential_grantedByProposalId", fields: [grantedByProposalId], references: [id])
 
   @@unique([projectId, userId])
+  @@unique([guildId, userId])
 }
 
 model ProjectShare {

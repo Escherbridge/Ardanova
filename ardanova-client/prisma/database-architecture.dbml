@@ -1181,13 +1181,16 @@ Enum MembershipGrantType {
 
 Table MembershipCredential {
   id varchar [not null, pk, default: `cuid()`]
-  projectId varchar [not null]
+  projectId varchar [note: 'Nullable — credential for a project']
+  guildId varchar [note: 'Nullable — credential for a guild']
   userId varchar [not null]
   assetId varchar [note: 'Algorand ASA ID for this soulbound credential']
   status MembershipCredentialStatus [not null, default: 'ACTIVE']
-  isTransferable boolean [not null, default: false, note: 'Soulbound by default - non-transferable']
+  isTransferable boolean [not null, default: false, note: 'Soulbound — always false']
+  tier UserTier [note: 'Credential tier: BRONZE, SILVER, GOLD, PLATINUM, DIAMOND']
   grantedVia MembershipGrantType [not null]
   grantedByProposalId varchar [note: 'Populated if membership was granted via DAO vote']
+  metadataUri varchar [note: 'ARC-19 metadata URI (IPFS or HTTP)']
   mintTxHash varchar
   revokeTxHash varchar
   mintedAt datetime
@@ -1196,10 +1199,12 @@ Table MembershipCredential {
   updatedAt datetime [not null, note: 'Updated at']
 
   indexes {
-    (projectId, userId) [unique, note: 'One membership credential per user per project']
+    (projectId, userId) [unique, note: 'One credential per user per project']
+    (guildId, userId) [unique, note: 'One credential per user per guild']
   }
 }
 Ref: MembershipCredential.projectId > Project.id
+Ref: MembershipCredential.guildId > Guild.id
 Ref: MembershipCredential.userId > User.id
 Ref: MembershipCredential.grantedByProposalId > Proposal.id
 
