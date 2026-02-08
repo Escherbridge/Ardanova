@@ -35,28 +35,28 @@
     - Grant must have exactly one of projectId or guildId (not both, not neither)
 
 ## 3. Algorand Integration — IAlgorandService
-- [ ] **[P0] Install dotnet-algorand-sdk NuGet package**
-    - Add to `ArdaNova.Infrastructure.csproj`
-- [ ] **[P0] AlgorandSettings configuration**
+- [x] **[P0] Install dotnet-algorand-sdk NuGet package** [520f6c1]
+    - Add to `ArdaNova.Infrastructure.csproj` (Algorand2 v2.0.0)
+- [x] **[P0] AlgorandSettings configuration** [520f6c1]
     - Create `ArdaNova.Infrastructure/Algorand/AlgorandSettings.cs`
-    - Fields: Network, NodeUrl, IndexerUrl, PlatformMnemonic, PlatformAddress
-    - Register in `appsettings.json` and env var binding
-- [ ] **[P0] IAlgorandService interface**
+    - Fields: Network, NodeUrl, IndexerUrl, PlatformMnemonic, PlatformAddress, AlgodToken, IndexerToken
+    - Register in `appsettings.json` with testnet defaults
+- [x] **[P0] IAlgorandService interface** [520f6c1]
     - Create in `ArdaNova.Application/Services/Interfaces/IAlgorandService.cs`
-    - `MintSoulboundASAAsync(recipientAddress, metadata, ct)` → (assetId, txHash)
-    - `BurnASAAsync(assetId, ct)` → txHash
-    - `GetASAInfoAsync(assetId, ct)` → ASA metadata
-    - `VerifyOwnershipAsync(assetId, address, ct)` → bool
-    - `BuildARC19MetadataAsync(credential, ct)` → metadata JSON
-- [ ] **[P0] AlgorandService implementation**
+    - Soulbound: `MintSoulboundASAAsync`, `BurnASAAsync`, `GetASAInfoAsync`, `VerifyOwnershipAsync`, `BuildARC19MetadataAsync`
+    - Fungible (Track 09): `CreateFungibleASAAsync`, `TransferASAAsync`, `GetASABalanceAsync`, `ClawbackASAAsync`
+    - Uses `Result<T>` pattern consistent with existing services
+- [x] **[P0] AlgorandService implementation** [520f6c1]
     - Create `ArdaNova.Infrastructure/Algorand/AlgorandService.cs`
-    - Soulbound enforcement: `defaultFrozen=true`, `clawback=platformAddress`, no transfer
+    - HttpClient-based REST API calls to Algod and Indexer
+    - Soulbound enforcement: `defaultFrozen=true`, `clawback=platformAddress`, total=1, decimals=0
     - ARC-19 metadata: credential type, tier, grant type, project/guild info
     - Platform account signs all transactions (custodial model)
-    - Error handling with retry for transient network errors
-- [ ] **[P1] DependencyInjection: Register IAlgorandService**
-    - Wire AlgorandSettings from configuration
-    - Register AlgorandService as singleton
+    - Graceful degradation: all operations return Result.Failure on error
+    - AlgorandDtos: `SoulboundAsaMintResult`, `AsaInfoDto`, `FungibleAsaCreateResult`, `CredentialMetadataInput`
+- [x] **[P1] DependencyInjection: Register IAlgorandService** [520f6c1]
+    - Wire AlgorandSettings from configuration section "Algorand"
+    - Register AlgorandService with typed HttpClient via AddHttpClient
 
 ## 4. CredentialUtilityService — Orchestrator
 - [ ] **[P0] ICredentialUtilityService interface**
@@ -115,8 +115,14 @@
     - Retry mint for failed credentials
     - Tier upgrade validation
     - Auto-grant threshold checks
-- [ ] **[P1] AlgorandService unit tests (mocked SDK)**
-    - ASA creation with soulbound config
-    - ARC-19 metadata building
-    - Burn/clawback operations
-    - Error handling and retry
+- [x] **[P1] AlgorandService unit tests (mocked HttpClient)** [520f6c1]
+    - ARC-19 metadata building (3 tests: valid input, null tier, guild scope)
+    - Soulbound ASA minting (3 tests: success, unreachable, error)
+    - ASA burning (2 tests: success, failure)
+    - ASA info query (2 tests: found, not found)
+    - Ownership verification (3 tests: holds, doesnt hold, no assets)
+    - Fungible ASA create (2 tests: success, failure)
+    - ASA transfer (2 tests: success, failure)
+    - ASA balance (2 tests: has balance, no balance)
+    - ASA clawback (2 tests: success, failure)
+    - Total: 21 tests, all passing
