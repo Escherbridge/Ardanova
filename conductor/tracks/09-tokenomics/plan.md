@@ -1,0 +1,413 @@
+# Track 09 — Tokenomics & Project Equity
+
+## 1. Schema — Token & Equity Models
+- [ ] **[P0] DBML: ProjectTokenConfig table**
+    - `id varchar [pk, default: cuid()]`
+    - `projectId varchar [not null, unique, FK → Project.id]`
+    - `assetId varchar` (Algorand ASA ID — null until minted)
+    - `assetName varchar [not null]` (e.g., "ProjectName Shares")
+    - `unitName varchar [not null]` (e.g., "PSHARE", max 8 chars)
+    - `totalSupply int [not null]` (fixed supply = 100% equity, e.g., 10000)
+    - `allocatedSupply int [not null, default: 0]` (tokens assigned to tasks)
+    - `distributedSupply int [not null, default: 0]` (tokens given to contributors)
+    - `reservedSupply int [not null, default: 0]` (founder/team reserve)
+    - `mintTxHash varchar` (ASA creation tx)
+    - `status ProjectTokenStatus [not null, default: 'PENDING']`
+    - `fundingGoal float [not null]` (USD required to clear Gate 1)
+    - `fundingRaised float [not null, default: 0]` (USD raised so far)
+    - `gateStatus ProjectGateStatus [not null, default: 'FUNDING']`
+    - `gate1ClearedAt datetime` (when funding goal met)
+    - `gate2ClearedAt datetime` (when project success verified)
+    - `failedAt datetime` (when project marked failed)
+    - `contributorSupply int [not null, default: 0]` (tokens for contributors)
+    - `investorSupply int [not null, default: 0]` (tokens for investors)
+    - `founderSupply int [not null, default: 0]` (tokens for founder(s))
+    - `burnedSupply int [not null, default: 0]` (founder tokens burned on failure)
+    - `successCriteria text` (what constitutes Gate 2 success)
+    - `successVerifiedBy varchar` (userId of verifier)
+    - `createdAt datetime`, `updatedAt datetime`
+- [ ] **[P0] DBML: TokenAllocation table**
+    - `id varchar [pk, default: cuid()]`
+    - `projectTokenConfigId varchar [not null, FK → ProjectTokenConfig.id]`
+    - `taskId varchar [FK → ProductBacklogItem.id]` (nullable — can allocate to non-task equity)
+    - `recipientUserId varchar [FK → User.id]` (null until distributed)
+    - `equityPercentage decimal [not null]` (e.g., 2.5 = 2.5% of total supply)
+    - `tokenAmount int [not null]` (calculated: totalSupply * equityPercentage / 100)
+    - `status AllocationStatus [not null, default: 'RESERVED']`
+    - `holderClass TokenHolderClass [not null]` (CONTRIBUTOR, INVESTOR, or FOUNDER)
+    - `isLiquid boolean [not null, default: false]` (derived from holderClass + gateStatus)
+    - `distributedAt datetime`
+    - `distributionTxHash varchar` (on-chain transfer tx)
+    - `burnedAt datetime` (set when founder tokens burned on failure)
+    - `createdAt datetime`, `updatedAt datetime`
+- [ ] **[P0] DBML: TokenBalance table**
+    - `id varchar [pk, default: cuid()]`
+    - `userId varchar [not null, FK → User.id]`
+    - `projectTokenConfigId varchar [FK → ProjectTokenConfig.id]` (project token balance)
+    - `isPlatformToken boolean [not null, default: false]` (true = ARDA token balance)
+    - `holderClass TokenHolderClass` (which class this balance belongs to)
+    - `isLiquid boolean [not null, default: false]` (can this balance be traded/exited?)
+    - `balance int [not null, default: 0]`
+    - `lockedBalance int [not null, default: 0]` (in pending payout)
+    - Unique index: `(userId, projectTokenConfigId, holderClass)` — user can hold both CONTRIBUTOR and INVESTOR tokens in same project
+    - `updatedAt datetime`
+- [ ] **[P0] DBML: PayoutRequest table**
+    - `id varchar [pk, default: cuid()]`
+    - `userId varchar [not null, FK → User.id]`
+    - `sourceProjectTokenConfigId varchar [FK → ProjectTokenConfig.id]`
+    - `sourceTokenAmount int [not null]` (project tokens being converted)
+    - `ardaTokenAmount int` (intermediate ARDA amount)
+    - `usdAmount decimal` (final USD payout value)
+    - `status PayoutStatus [not null, default: 'PENDING']`
+    - `holderClass TokenHolderClass [not null]` (which holder class being exited)
+    - `gateStatusAtRequest ProjectGateStatus [not null]` (snapshot at request time)
+    - `conversionTxHash varchar` (project token → ARDA on-chain)
+    - `payoutTxHash varchar` (ARDA → USDCa on-chain)
+    - `stripePayoutId varchar` (Stripe Connect payout reference)
+    - `failureReason varchar`
+    - `requestedAt datetime [not null, default: now()]`
+    - `processedAt datetime`
+    - `completedAt datetime`
+- [ ] **[P0] DBML: PlatformTreasury table (three-bucket model)**
+    - `id varchar [pk, default: cuid()]`
+    - `ardaTotalSupply bigint [not null]` (total ARDA tokens minted)
+    - `ardaCirculatingSupply bigint [not null, default: 0]`
+    - `ardaAssetId varchar` (Algorand ASA ID for ARDA token)
+    - `ardaMintTxHash varchar`
+    - `indexFundBalance float [not null, default: 0]` (55% of inflows, compounding)
+    - `liquidReserveBalance float [not null, default: 0]` (30% of inflows, immediate payouts)
+    - `operationsBalance float [not null, default: 0]` (15% of inflows, platform ops)
+    - `indexFundAllocationPct float [not null, default: 0.55]`
+    - `liquidReserveAllocationPct float [not null, default: 0.30]`
+    - `operationsAllocationPct float [not null, default: 0.15]`
+    - `indexFundAnnualReturn float [not null, default: 0.08]`
+    - `platformProfitSharePct float [not null, default: 0.25]`
+    - `trustProtectionRate float [not null, default: 0.50]` (% investor capital protected on failure)
+    - `totalInflows float [not null, default: 0]`
+    - `totalPayouts float [not null, default: 0]`
+    - `totalRebalanceTransfers float [not null, default: 0]` (cumulative index→liquid)
+    - `lastRebalanceAt datetime`
+    - `lastReconciliationAt datetime`
+    - `updatedAt datetime`
+- [ ] **[P0] DBML: TreasuryTransaction table (audit log)**
+    - `id varchar [pk, default: cuid()]`
+    - `type TreasuryTransactionType [not null]`
+    - `amount float [not null]`
+    - `fromBucket varchar` (index, liquid, operations, or external)
+    - `toBucket varchar` (index, liquid, operations, or external)
+    - `relatedProjectId varchar`
+    - `relatedPayoutRequestId varchar`
+    - `description varchar`
+    - `balanceAfter float [not null]` (total treasury after transaction)
+    - `createdAt datetime [not null, default: now()]`
+- [ ] **[P0] DBML: ProjectInvestment table**
+    - `id varchar [pk, default: cuid()]`
+    - `projectTokenConfigId varchar [not null, FK → ProjectTokenConfig.id]`
+    - `userId varchar [not null, FK → User.id]`
+    - `usdAmount float [not null]` (amount invested in USD)
+    - `tokenAmount int [not null]` (project tokens received)
+    - `stripePaymentIntentId varchar`
+    - `investedAt datetime [not null, default: now()]`
+    - `protectionEligible boolean [not null, default: true]`
+    - `protectionPaidOut boolean [not null, default: false]`
+    - `protectionAmount float` (USD refunded on failure)
+    - `protectionPaidAt datetime`
+    - Index: `(projectTokenConfigId, userId)` (can have multiple investments)
+- [ ] **[P0] DBML: New enums**
+    - `ProjectTokenStatus`: PENDING, ACTIVE, FROZEN, DISSOLVED
+    - `ProjectGateStatus`: FUNDING, ACTIVE, SUCCEEDED, FAILED
+    - `TokenHolderClass`: CONTRIBUTOR, INVESTOR, FOUNDER
+    - `AllocationStatus`: RESERVED, DISTRIBUTED, REVOKED, BURNED
+    - `PayoutStatus`: PENDING, PROCESSING, COMPLETED, FAILED, CANCELLED
+    - `TreasuryTransactionType`: FUNDING_INFLOW, ALLOCATION_INDEX, ALLOCATION_LIQUID, ALLOCATION_OPS, PAYOUT_DEBIT, INDEX_RETURN, PROFIT_SHARE, REBALANCE, TRUST_PROTECTION, FOUNDER_BURN
+- [ ] **[P0] Run generators**: `npm run generate:prisma` + `npm run generate:csharp`
+
+## 2. Backend — Project Token Service
+- [ ] **[P0] DTOs: Token management data objects**
+    - `ProjectTokenConfigDto` — full token config with supply breakdown + gate status + holder class supplies
+    - `CreateProjectTokenConfigDto` — totalSupply, unitName, fundingGoal, reservedPercentage, successCriteria
+    - `TokenAllocationDto` — equity allocation details + holderClass + isLiquid + burnedAt
+    - `CreateTokenAllocationDto` — taskId, equityPercentage, holderClass
+    - `TokenBalanceDto` — userId, projectId/isPlatform, balance, lockedBalance, holderClass, isLiquid
+    - `UserPortfolioDto` — all token balances with holderClass, isLiquid per holding; liquid vs locked totals
+    - `PayoutRequestDto` — payout request with status, amounts, holderClass, gateStatusAtRequest
+    - `CreatePayoutRequestDto` — sourceProjectTokenConfigId, sourceTokenAmount, holderClass
+    - `GateTransitionResult` — transitioned, previousStatus, newStatus, tokensUnlocked, tokensBurned, trustProtectionPaid
+    - `ProjectGateStatusDto` — gateStatus, gate1ClearedAt, gate2ClearedAt, failedAt, fundingProgress
+    - `TreasuryStatusDto` — indexFundBalance, liquidReserveBalance, operationsBalance, totalTreasury, ardaValue, rebalanceHistory
+    - `TreasuryTransactionDto` — transaction audit log entry
+    - `ProjectInvestmentDto` — investor contribution details + protection status
+- [ ] **[P0] IProjectTokenService interface**
+    - `CreateConfigAsync(projectId, CreateProjectTokenConfigDto, ct)` → ProjectTokenConfigDto
+    - `GetConfigByProjectIdAsync(projectId, ct)` → ProjectTokenConfigDto
+    - `AllocateToTaskAsync(projectTokenConfigId, CreateTokenAllocationDto, ct)` → TokenAllocationDto (holderClass = CONTRIBUTOR only)
+    - `AllocateToInvestorAsync(projectTokenConfigId, userId, usdAmount, tokenAmount, ct)` → TokenAllocationDto
+    - `AllocateToFounderAsync(projectTokenConfigId, userId, equityPercentage, ct)` → TokenAllocationDto
+    - `DistributeAsync(allocationId, recipientUserId, ct)` → TokenAllocationDto
+    - `GetAllocationsByProjectAsync(projectTokenConfigId, ct)` → List<TokenAllocationDto>
+    - `GetAllocationsByTaskAsync(taskId, ct)` → List<TokenAllocationDto>
+    - `RevokeAllocationAsync(allocationId, ct)` → TokenAllocationDto
+    - `GetSupplyBreakdownAsync(projectTokenConfigId, ct)` → supply stats (by holder class)
+    - `BurnFounderTokensAsync(projectTokenConfigId, ct)` → void
+    - `ProcessInvestorTrustProtectionAsync(projectTokenConfigId, ct)` → void
+- [ ] **[P0] ProjectTokenService implementation**
+    - Validate total allocations never exceed 100% equity
+    - Validate reserved supply set at creation (founder/team share)
+    - Distribution: mark allocation as DISTRIBUTED, update TokenBalance, trigger on-chain transfer
+    - Supply tracking: `contributorSupply + investorSupply + founderSupply + burnedSupply ≤ totalSupply`
+    - Holder class enforcement: task allocations must be CONTRIBUTOR, investments must be INVESTOR
+    - Founder burn: set status=BURNED, zero balances, increment burnedSupply, log FOUNDER_BURN tx
+    - Investor trust protection: calculate `usdAmount * trustProtectionRate`, create PayoutRequests, debit index fund
+- [ ] **[P1] ProjectTokensController**
+    - `POST /api/ProjectTokens` — create token config for project (with fundingGoal, successCriteria)
+    - `GET /api/ProjectTokens/project/{projectId}` — get token config (includes gate status)
+    - `POST /api/ProjectTokens/{id}/allocate` — allocate equity to task (holderClass = CONTRIBUTOR; requires gateStatus >= ACTIVE)
+    - `POST /api/ProjectTokens/{id}/invest` — investor: fund project (creates ProjectInvestment + INVESTOR allocation)
+    - `POST /api/ProjectTokens/allocations/{allocationId}/distribute` — distribute to user
+    - `GET /api/ProjectTokens/{id}/allocations` — list allocations (filterable by holderClass)
+    - `GET /api/ProjectTokens/{id}/investors` — list investors and their stakes
+    - `DELETE /api/ProjectTokens/allocations/{allocationId}` — revoke allocation
+    - `GET /api/ProjectTokens/{id}/supply` — supply breakdown (by holder class)
+
+## 3. Backend — Project Gate Service
+- [ ] **[P0] IProjectGateService interface**
+    - `EvaluateGate1Async(projectTokenConfigId, ct)` → GateTransitionResult (check funding threshold, advance FUNDING→ACTIVE)
+    - `ClearGate2Async(projectTokenConfigId, verifiedByUserId, ct)` → GateTransitionResult (admin: advance ACTIVE→SUCCEEDED)
+    - `FailProjectAsync(projectTokenConfigId, reason, ct)` → GateTransitionResult (ACTIVE→FAILED, burn + trust protection)
+    - `GetGateStatusAsync(projectTokenConfigId, ct)` → ProjectGateStatusDto
+- [ ] **[P0] ProjectGateService implementation**
+    - Gate 1 logic: if `fundingRaised >= fundingGoal` → set ACTIVE, mark `gate1ClearedAt`, unlock all CONTRIBUTOR allocations/balances (`isLiquid = true`)
+    - Gate 2 logic: set SUCCEEDED, mark `gate2ClearedAt`, unlock all INVESTOR and FOUNDER allocations/balances
+    - Failure logic: set FAILED, mark `failedAt`, call `BurnFounderTokensAsync` + `ProcessInvestorTrustProtectionAsync`
+    - State transition validation: prevent invalid transitions (SUCCEEDED→FAILED, FAILED→ACTIVE, etc.)
+    - Contributor tokens unaffected by failure
+- [ ] **[P1] Gate endpoints on ProjectTokensController**
+    - `POST /api/ProjectTokens/{id}/gate/evaluate` — check and advance Gate 1 (called after each funding contribution)
+    - `POST /api/ProjectTokens/{id}/gate/succeed` — admin: clear Gate 2
+    - `POST /api/ProjectTokens/{id}/gate/fail` — admin: mark project failed
+    - `GET /api/ProjectTokens/{id}/gate` — get gate status and timeline
+
+## 4. Backend — Token Balance & Portfolio Service
+- [ ] **[P0] ITokenBalanceService interface**
+    - `GetBalanceAsync(userId, projectTokenConfigId, holderClass, ct)` → TokenBalanceDto
+    - `GetArdaBalanceAsync(userId, ct)` → TokenBalanceDto
+    - `GetPortfolioAsync(userId, ct)` → UserPortfolioDto (includes holderClass, isLiquid per holding; liquid vs locked totals)
+    - `CreditAsync(userId, projectTokenConfigId, amount, holderClass, ct)` → TokenBalanceDto
+    - `DebitAsync(userId, projectTokenConfigId, amount, holderClass, ct)` → TokenBalanceDto
+    - `LockAsync(userId, projectTokenConfigId, amount, holderClass, ct)` — lock for payout
+    - `UnlockAsync(userId, projectTokenConfigId, amount, holderClass, ct)` — unlock on failure
+    - `IsBalanceLiquidAsync(userId, projectTokenConfigId, holderClass, ct)` → bool (check gate status)
+- [ ] **[P0] TokenBalanceService implementation**
+    - Atomic balance updates (prevent double-spending)
+    - Lock/unlock pattern for payout processing
+    - Portfolio aggregation across all projects + ARDA, grouped by liquidity status
+    - Liquidity check: CONTRIBUTOR liquid when gateStatus >= ACTIVE; INVESTOR/FOUNDER liquid when gateStatus == SUCCEEDED
+- [ ] **[P1] TokenBalanceController**
+    - `GET /api/TokenBalances/me` — current user's full portfolio (includes per-holding: holderClass, isLiquid, gateStatus; separates liquid vs locked totals)
+    - `GET /api/TokenBalances/me/project/{projectId}` — balance for specific project (all holder classes)
+    - `GET /api/TokenBalances/me/arda` — ARDA token balance
+    - `GET /api/TokenBalances/user/{userId}` — admin: any user's portfolio
+
+## 5. Backend — Treasury Service
+- [ ] **[P0] ITreasuryService interface**
+    - `ProcessFundingInflowAsync(usdAmount, projectId, ct)` — split inflow: 55% index, 30% liquid, 15% ops; log TreasuryTransactions
+    - `ApplyIndexFundReturnAsync(ct)` — monthly: calculate `indexFundBalance * (annualReturn / 12)`; take platformProfitSharePct; log INDEX_RETURN + PROFIT_SHARE transactions
+    - `RebalanceIfNeededAsync(requiredLiquid, ct)` → decimal (if liquidReserve < required, pull from indexFund; log REBALANCE transaction; return amount transferred)
+    - `ReconcileAsync(ct)` — verify sum of all token balances × values ≤ total treasury; alert on discrepancy
+    - `GetStatusAsync(ct)` → TreasuryStatusDto (three-bucket breakdown, ARDA value, health metrics)
+    - `GetTransactionHistoryAsync(limit, ct)` → List<TreasuryTransactionDto>
+- [ ] **[P0] TreasuryService implementation**
+    - Inflow split: allocate across three buckets per configured percentages
+    - Index fund returns: monthly compounding, profit share deduction
+    - Auto-rebalance: transfer from index to liquid on demand, log all movements
+    - Reconciliation: compare on-chain + off-chain balances, detect discrepancies
+    - Transaction logging: every treasury movement creates a TreasuryTransaction record
+- [ ] **[P1] TreasuryController**
+    - `GET /api/Treasury/status` — three-bucket breakdown, ARDA value, health metrics
+    - `GET /api/Treasury/transactions` — transaction audit log (paginated)
+    - `POST /api/Treasury/rebalance` — admin: force rebalance
+    - `POST /api/Treasury/apply-returns` — admin: trigger index fund return calculation
+
+## 6. Backend — Exchange & Payout Service
+- [ ] **[P0] IExchangeService interface**
+    - `GetProjectTokenValueAsync(projectTokenConfigId, ct)` → per-token USD value (gate-aware: $0 for burned founder tokens; trust-protection value for investors on FAILED)
+    - `GetArdaValueAsync(ct)` → ARDA-to-USD exchange rate (`totalTreasury / ardaCirculatingSupply`)
+    - `CalculateConversionAsync(projectTokenConfigId, tokenAmount, ct)` → (ardaAmount, usdAmount)
+    - `GetTreasuryStatusAsync(ct)` → TreasuryStatusDto (delegates to ITreasuryService)
+- [ ] **[P0] ExchangeService implementation**
+    - Project token USD value: `project_funding_raised / project_total_supply`
+    - ARDA USD value: `(indexFundBalance + liquidReserveBalance + operationsBalance) / arda_circulating_supply`
+    - Conversion: `project_tokens * project_token_value / arda_value = arda_amount`
+    - Gate-aware adjustments: FAILED projects return $0 for founder tokens, trust-protected value for investor tokens
+    - All rates are deterministic (treasury-backed, not market-based)
+- [ ] **[P0] IPayoutService interface**
+    - `RequestPayoutAsync(userId, CreatePayoutRequestDto, ct)` → PayoutRequestDto
+    - `ProcessPayoutAsync(payoutRequestId, ct)` → PayoutRequestDto
+    - `GetPayoutsByUserAsync(userId, ct)` → List<PayoutRequestDto>
+    - `GetPendingPayoutsAsync(ct)` → List<PayoutRequestDto> (admin)
+    - `CancelPayoutAsync(payoutRequestId, ct)` → PayoutRequestDto
+- [ ] **[P0] PayoutService implementation**
+    - Request: determine holderClass, call `IsBalanceLiquidAsync` — reject with gate-specific message if locked
+    - Request: validate balance, lock tokens, create PayoutRequest with holderClass + gateStatusAtRequest
+    - Process: debit from `liquidReserveBalance` (not generic usdReserves); call `RebalanceIfNeededAsync` if insufficient
+    - Process: convert project tokens → ARDA → calculate USD → trigger Stripe payout
+    - On-chain: record conversion transactions for accountability
+    - Failure: unlock tokens, set status FAILED with reason
+    - Completed: debit tokens, update balances, record completion
+    - Gate-specific rejection messages:
+        - CONTRIBUTOR + FUNDING: "Project hasn't reached funding goal yet."
+        - INVESTOR + ACTIVE: "Project hasn't reached success milestone."
+        - FOUNDER + ACTIVE: "Founder tokens unlock after project success verification."
+        - FOUNDER + FAILED: "Founder tokens were burned when the project failed."
+- [ ] **[P1] PayoutsController**
+    - `POST /api/Payouts/request` — request payout (validates holder class liquidity; returns 403 with gate-specific message if locked)
+    - `GET /api/Payouts/me` — my payout history
+    - `POST /api/Payouts/{id}/process` — admin: process payout
+    - `POST /api/Payouts/{id}/cancel` — cancel pending payout
+    - `GET /api/Payouts/pending` — admin: pending payouts
+
+## 7. Algorand Integration — Token Operations
+- [ ] **[P0] Extend IAlgorandService for fungible ASAs**
+    - `CreateFungibleASAAsync(name, unitName, totalSupply, ct)` → (assetId, txHash)
+    - `TransferASAAsync(assetId, recipientAddress, amount, ct)` → txHash
+    - `GetASABalanceAsync(assetId, address, ct)` → balance
+    - `ClawbackASAAsync(assetId, fromAddress, amount, ct)` → txHash (for revocation)
+- [ ] **[P0] ARDA token deployment**
+    - One-time platform token ASA creation
+    - Fixed total supply (configurable via env var)
+    - Platform manages all operations (custodial)
+- [ ] **[P1] Project ASA lifecycle**
+    - Create project ASA on token config creation
+    - Transfer shares on distribution
+    - Clawback on revocation
+    - All users have platform-managed Algorand addresses (internal wallets)
+- [ ] **[P1] On-chain conversion tracking**
+    - Record project token → ARDA conversions as atomic group transactions
+    - Provides transparent audit trail of all financial flows
+
+## 8. Fiat Integration — Stripe
+- [ ] **[P1] Stripe Checkout for project funding**
+    - Payment intent creation for project crowdfunding
+    - Webhook handler for successful payments
+    - On success: create ProjectInvestment, create INVESTOR TokenAllocation, credit TokenBalance (locked), update fundingRaised
+    - On success: call `ProcessFundingInflowAsync` (three-bucket split), then `EvaluateGate1Async`
+- [ ] **[P1] Stripe Connect for payouts**
+    - Onboard contributors as Stripe Connect accounts
+    - Process USD payouts from `liquidReserveBalance` to contributor bank accounts
+    - Webhook handler for payout completion/failure
+- [ ] **[P2] Treasury reconciliation**
+    - Periodic check: three-bucket balances match on-chain token accounting
+    - Alert on discrepancies
+    - Monthly index fund return application
+
+## 9. API Client + tRPC
+- [ ] **[P1] API Client: Create project-tokens.ts**
+    - Full endpoint wrapper for ProjectTokensController (including invest, investors, gate endpoints)
+- [ ] **[P1] API Client: Create token-balances.ts**
+    - Full endpoint wrapper for TokenBalanceController
+- [ ] **[P1] API Client: Create payouts.ts**
+    - Full endpoint wrapper for PayoutsController
+- [ ] **[P1] API Client: Create exchange.ts**
+    - Exchange rate queries and conversion calculator
+- [ ] **[P1] API Client: Create treasury.ts**
+    - Full endpoint wrapper for TreasuryController (status, transactions, rebalance, apply-returns)
+- [ ] **[P1] API Client: Create project-gates.ts**
+    - Gate status queries and transition endpoints
+- [ ] **[P1] Register all new endpoints in ArdaNovaApiClient**
+- [ ] **[P2] tRPC routers: Thin proxies for all token endpoints**
+    - `projectTokens.ts`, `tokenBalances.ts`, `payouts.ts`, `exchange.ts`, `treasury.ts`, `projectGates.ts`
+    - Register in `appRouter`
+
+## 10. Frontend — Token & Equity UI
+- [ ] **[P2] Project funding page**
+    - Funding progress bar toward Gate 1 (fundingRaised / fundingGoal)
+    - Gate status badge (FUNDING / ACTIVE / SUCCEEDED / FAILED)
+    - Investor: "Fund This Project" button → Stripe checkout → creates ProjectInvestment
+    - Show investor list and their stakes
+- [ ] **[P2] Project equity dashboard**
+    - Token supply breakdown by holder class (contributor / investor / founder / burned / available)
+    - Equity allocation table (task → percentage → recipient → holderClass → status → isLiquid)
+    - Allocate equity to tasks (project owner only, requires gateStatus >= ACTIVE)
+    - Gate status with timeline (Gate 1 cleared date, Gate 2 pending)
+    - "Mark Project Succeeded" button (if ACTIVE + admin)
+    - "Mark Project Failed" button (if ACTIVE + admin)
+- [ ] **[P2] User portfolio page**
+    - Holdings grouped by liquidity status (liquid vs locked sections)
+    - Per-holding: holderClass, isLiquid, gateStatus, current USD value
+    - Locked holdings show: "Unlocks when [project] reaches [Gate 2 / funding goal]"
+    - ARDA token balance
+    - Total portfolio value (liquid + locked breakdown)
+    - Payout history
+- [ ] **[P2] Payout request flow**
+    - Only show "Request Payout" for liquid holdings
+    - Preview conversion: X project tokens → Y ARDA → $Z USD
+    - Confirm and submit payout request
+    - Payout status tracking
+- [ ] **[P2] Task equity display**
+    - Show equity % on task cards in backlog
+    - Show equity earned on task completion
+- [ ] **[P2] Treasury dashboard (admin)**
+    - Three-bucket visualization (index / liquid / ops)
+    - Rebalance history
+    - Transaction audit log
+    - Health metrics: payout coverage, ARDA value, index fund returns
+
+## 11. Tests
+- [ ] **[P0] ProjectTokenService unit tests**
+    - Create token config with fundingGoal and successCriteria, validate supply limits
+    - Allocate equity to task (CONTRIBUTOR), validate ≤ 100%
+    - Allocate to investor (INVESTOR), validate token amount matches USD contribution
+    - Allocate to founder (FOUNDER), validate reserved supply
+    - Distribute tokens, update balances with correct holderClass
+    - Revoke allocation, return to available supply
+    - Burn founder tokens: status=BURNED, balances zeroed, burnedSupply incremented
+    - Trust protection: correct payout amounts, index fund debited, investors credited
+- [ ] **[P0] ProjectGateService unit tests**
+    - Gate 1 advances when `fundingRaised >= fundingGoal`
+    - Gate 1 does NOT advance when funding below goal
+    - Gate 1 clears: all CONTRIBUTOR allocations/balances become `isLiquid = true`
+    - Gate 2 clears with admin verification: all INVESTOR + FOUNDER allocations/balances become liquid
+    - Failure burns all founder tokens for the project
+    - Failure triggers investor trust protection at `trustProtectionRate`
+    - Contributor tokens unaffected by failure
+    - Cannot transition from SUCCEEDED to FAILED
+    - Cannot transition from FAILED to ACTIVE
+    - Cannot transition from FUNDING directly to SUCCEEDED
+- [ ] **[P0] TokenBalanceService unit tests**
+    - Credit/debit operations with holderClass
+    - Lock/unlock for payouts
+    - Portfolio aggregation (grouped by holderClass and liquidity)
+    - Prevent overdraft (debit > balance)
+    - `IsBalanceLiquidAsync`: CONTRIBUTOR liquid when ACTIVE, INVESTOR/FOUNDER liquid only when SUCCEEDED
+- [ ] **[P0] TreasuryService unit tests**
+    - Inflow splits correctly (55/30/15)
+    - Index fund return calculated correctly (monthly)
+    - Profit share deducted from index return
+    - Auto-rebalance transfers from index to liquid when needed
+    - Auto-rebalance logs TreasuryTransaction(REBALANCE)
+    - Trust protection debits from index fund, creates payout requests
+    - Reconciliation detects discrepancy
+    - Transaction logging covers all movement types
+- [ ] **[P0] ExchangeService unit tests**
+    - Project token value calculation
+    - ARDA value calculation using three-bucket total
+    - Conversion calculations (project → ARDA → USD)
+    - Gate-aware values: $0 for burned founder tokens, trust-protected for investor tokens on FAILED
+    - Edge cases: zero supply, zero funding, empty treasury
+- [ ] **[P0] PayoutService unit tests**
+    - Request payout: validate, lock, create (with holderClass + gateStatusAtRequest)
+    - Process payout: convert, debit from liquidReserve, record
+    - Cancel payout: unlock tokens
+    - Failure handling: unlock on error
+    - Gate enforcement — CONTRIBUTOR payout accepted when ACTIVE
+    - Gate enforcement — CONTRIBUTOR payout rejected when FUNDING
+    - Gate enforcement — INVESTOR payout accepted when SUCCEEDED
+    - Gate enforcement — INVESTOR payout rejected when ACTIVE
+    - Gate enforcement — FOUNDER payout accepted when SUCCEEDED
+    - Gate enforcement — FOUNDER payout rejected when ACTIVE
+    - Gate enforcement — FOUNDER payout rejected when FAILED (tokens burned)
+    - Payout auto-rebalances when liquid reserve insufficient
+- [ ] **[P1] AlgorandService fungible ASA tests (mocked SDK)**
+    - Create fungible ASA
+    - Transfer operations
+    - Balance queries

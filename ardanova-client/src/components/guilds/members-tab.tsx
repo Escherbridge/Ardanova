@@ -21,6 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "~/components/ui/select";
+import { CredentialBadge } from "~/components/credentials/credential-badge";
 import { Loader2, Users, Plus, UserMinus, Mail } from "lucide-react";
 
 interface MembersTabProps {
@@ -72,6 +73,14 @@ export function MembersTab({ guildId, isOwner }: MembersTabProps) {
   const { data: members, isLoading } = api.guild.getMembers.useQuery({
     guildId,
   });
+
+  const { data: guildCredentials } = api.membershipCredential.getByGuildId.useQuery({
+    guildId,
+  });
+
+  const credentialsByUserId = new Map(
+    (guildCredentials ?? []).map((c) => [c.userId, c]),
+  );
 
   // Mutation for sending invitation
   const inviteMemberMutation = api.guild.createInvitation.useMutation({
@@ -219,9 +228,17 @@ export function MembersTab({ guildId, isOwner }: MembersTabProps) {
                         <div className="font-medium">
                           {member.user?.name ?? member.user?.email ?? "Unknown User"}
                         </div>
-                        <Badge variant={getRoleBadgeVariant(member.role)}>
-                          {member.role}
-                        </Badge>
+                        <div className="flex items-center gap-1.5 justify-center">
+                          <Badge variant={getRoleBadgeVariant(member.role)}>
+                            {member.role}
+                          </Badge>
+                          {credentialsByUserId.get(member.userId)?.status === "ACTIVE" && (
+                            <CredentialBadge
+                              tier={credentialsByUserId.get(member.userId)?.tier}
+                              size="sm"
+                            />
+                          )}
+                        </div>
                       </div>
                       <div className="text-xs text-muted-foreground">
                         Joined {new Date(member.joinedAt).toLocaleDateString()}

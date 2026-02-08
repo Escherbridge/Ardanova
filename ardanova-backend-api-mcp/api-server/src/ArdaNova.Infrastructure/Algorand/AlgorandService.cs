@@ -1,6 +1,5 @@
 namespace ArdaNova.Infrastructure.Algorand;
 
-using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using ArdaNova.Application.Common.Results;
@@ -40,6 +39,9 @@ public class AlgorandService : IAlgorandService
         _httpClient = httpClient;
         _logger = logger;
     }
+
+    private static bool TryParseAssetId(string assetId, out ulong result)
+        => ulong.TryParse(assetId, out result);
 
     // ========================================================================
     // BuildARC19MetadataAsync
@@ -190,7 +192,9 @@ public class AlgorandService : IAlgorandService
 
             // 2. Build the ASA destroy transaction
             // The platform account (manager) destroys the asset
-            var txnBytes = BuildAssetDestroyTransaction(txParams.Value, ulong.Parse(assetId));
+            if (!TryParseAssetId(assetId, out var assetIdNum))
+                return Result<string>.Failure($"Invalid asset ID format: {assetId}");
+            var txnBytes = BuildAssetDestroyTransaction(txParams.Value, assetIdNum);
 
             // 3. Sign and submit
             var signedTxn = SignTransaction(txnBytes);
@@ -281,7 +285,8 @@ public class AlgorandService : IAlgorandService
             if (accountInfo == null)
                 return Result<bool>.Success(false);
 
-            var assetIdNum = ulong.Parse(assetId);
+            if (!TryParseAssetId(assetId, out var assetIdNum))
+                return Result<bool>.Failure($"Invalid asset ID format: {assetId}");
             var hasAsset = accountInfo.Any(a => a.AssetId == assetIdNum && a.Amount > 0);
 
             return Result<bool>.Success(hasAsset);
@@ -373,9 +378,12 @@ public class AlgorandService : IAlgorandService
             if (txParams == null)
                 return Result<string>.Failure("Failed to get transaction parameters");
 
+            if (!TryParseAssetId(assetId, out var assetIdNum))
+                return Result<string>.Failure($"Invalid asset ID format: {assetId}");
+
             var txnBytes = BuildAssetTransferTransaction(
                 txParams.Value,
-                assetId: ulong.Parse(assetId),
+                assetId: assetIdNum,
                 sender: _settings.PlatformAddress,
                 receiver: recipientAddress,
                 amount: amount);
@@ -411,7 +419,8 @@ public class AlgorandService : IAlgorandService
             if (accountAssets == null)
                 return Result<ulong>.Success(0);
 
-            var assetIdNum = ulong.Parse(assetId);
+            if (!TryParseAssetId(assetId, out var assetIdNum))
+                return Result<ulong>.Failure($"Invalid asset ID format: {assetId}");
             var holding = accountAssets.FirstOrDefault(a => a.AssetId == assetIdNum);
             return Result<ulong>.Success(holding?.Amount ?? 0);
         }
@@ -439,9 +448,12 @@ public class AlgorandService : IAlgorandService
                 return Result<string>.Failure("Failed to get transaction parameters");
 
             // Clawback transaction: the platform (clawback address) force-transfers from fromAddress to platform
+            if (!TryParseAssetId(assetId, out var assetIdNum))
+                return Result<string>.Failure($"Invalid asset ID format: {assetId}");
+
             var txnBytes = BuildAssetClawbackTransaction(
                 txParams.Value,
-                assetId: ulong.Parse(assetId),
+                assetId: assetIdNum,
                 clawbackFrom: fromAddress,
                 clawbackTo: _settings.PlatformAddress,
                 amount: amount);

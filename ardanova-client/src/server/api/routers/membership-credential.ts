@@ -110,6 +110,26 @@ export const membershipCredentialRouter = createTRPCRouter({
       return response.data;
     }),
 
+  getByGuildId: publicProcedure
+    .input(z.object({ guildId: z.string().min(1) }))
+    .query(async ({ input }) => {
+      const response = await apiClient.membershipCredentials.getByGuildId(input.guildId);
+      if (response.error) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: response.error });
+      }
+      return response.data ?? [];
+    }),
+
+  getActiveByGuildId: publicProcedure
+    .input(z.object({ guildId: z.string().min(1) }))
+    .query(async ({ input }) => {
+      const response = await apiClient.membershipCredentials.getActiveByGuildId(input.guildId);
+      if (response.error) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: response.error });
+      }
+      return response.data ?? [];
+    }),
+
   checkCredential: publicProcedure
     .input(z.object({ projectId: z.string().min(1), userId: z.string().min(1) }))
     .query(async ({ input }) => {

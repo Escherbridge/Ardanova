@@ -15,6 +15,7 @@ import { featureRouter } from "~/server/api/routers/feature";
 import { productRouter } from "~/server/api/routers/product";
 import { opportunityBidRouter } from "~/server/api/routers/opportunity-bid";
 import { membershipCredentialRouter } from "~/server/api/routers/membership-credential";
+import { credentialUtilityRouter } from "~/server/api/routers/credential-utility";
 import { profileRouter } from "~/server/api/routers/profile";
 import { xpRouter } from "~/server/api/routers/xp";
 import { streakRouter } from "~/server/api/routers/streak";
@@ -47,6 +48,7 @@ export const appRouter = createTRPCRouter({
   product: productRouter,
   opportunityBid: opportunityBidRouter,
   membershipCredential: membershipCredentialRouter,
+  credentialUtility: credentialUtilityRouter,
   profile: profileRouter,
   xp: xpRouter,
   streak: streakRouter,

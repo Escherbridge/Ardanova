@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "~/com
 import { Button } from "~/components/ui/button";
 import { Badge } from "~/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
+import { CredentialBadge } from "~/components/credentials/credential-badge";
 import { Loader2, Users, Plus, Check, X } from "lucide-react";
 
 interface TeamTabProps {
@@ -106,6 +107,14 @@ export default function TeamTab({ projectId, isOwner }: TeamTabProps) {
   const { data: applications, isLoading: applicationsLoading } = api.project.getApplications.useQuery(
     { projectId },
     { enabled: isOwner }
+  );
+
+  const { data: projectCredentials } = api.membershipCredential.getByProjectId.useQuery({
+    projectId,
+  });
+
+  const credentialsByUserId = new Map(
+    (projectCredentials ?? []).map((c) => [c.userId, c]),
   );
 
   // Mutations
@@ -228,9 +237,17 @@ export default function TeamTab({ projectId, isOwner }: TeamTabProps) {
                       </div>
                     </div>
                   </div>
-                  <Badge variant={getRoleBadgeVariant(member.role)}>
-                    {formatRoleName(member.role)}
-                  </Badge>
+                  <div className="flex items-center gap-2">
+                    <Badge variant={getRoleBadgeVariant(member.role)}>
+                      {formatRoleName(member.role)}
+                    </Badge>
+                    {credentialsByUserId.get(member.userId)?.status === "ACTIVE" && (
+                      <CredentialBadge
+                        tier={credentialsByUserId.get(member.userId)?.tier}
+                        size="sm"
+                      />
+                    )}
+                  </div>
                 </div>
               ))}
             </div>

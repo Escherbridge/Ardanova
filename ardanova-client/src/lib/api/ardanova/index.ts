@@ -13,6 +13,7 @@ import { BacklogEndpoint } from "./endpoints/backlog";
 import { FeaturesEndpoint } from "./endpoints/features";
 import { OpportunityBidsEndpoint } from "./endpoints/opportunity-bids";
 import { MembershipCredentialsEndpoint } from "./endpoints/membership-credentials";
+import { CredentialUtilityEndpoint } from "./endpoints/credential-utility";
 import { ProductsEndpoint } from "./endpoints/products";
 import { ChatEndpoint } from "./endpoints/chat";
 import { EnumsEndpoint } from "./endpoints/enums";
@@ -127,7 +128,15 @@ export type {
   GrantMembershipCredentialDto,
   RevokeMembershipCredentialDto,
   UpdateMembershipCredentialMintDto,
+  UpdateCredentialTierDto,
+  CredentialEligibilityDto,
 } from "./endpoints/membership-credentials";
+export type {
+  AsaInfo,
+  CredentialWithChainData,
+  CheckAutoGrantRequest,
+  UpdateTierDto,
+} from "./endpoints/credential-utility";
 export type {
   ChatConversation,
   ChatParticipant,
@@ -216,6 +225,7 @@ export class ArdaNovaApiClient extends BaseApiClient {
   readonly products: ProductsEndpoint;
   readonly opportunityBids: OpportunityBidsEndpoint;
   readonly membershipCredentials: MembershipCredentialsEndpoint;
+  readonly credentialUtility: CredentialUtilityEndpoint;
   readonly chat: ChatEndpoint;
   readonly enums: EnumsEndpoint;
   readonly streaks: StreaksEndpoint;
@@ -241,6 +251,7 @@ export class ArdaNovaApiClient extends BaseApiClient {
     this.products = new ProductsEndpoint(this);
     this.opportunityBids = new OpportunityBidsEndpoint(this);
     this.membershipCredentials = new MembershipCredentialsEndpoint(this);
+    this.credentialUtility = new CredentialUtilityEndpoint(this);
     this.chat = new ChatEndpoint(this);
     this.enums = new EnumsEndpoint(this);
     this.streaks = new StreaksEndpoint(this);

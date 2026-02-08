@@ -66,12 +66,24 @@
 - **Graceful Degradation**: Credentials always granted off-chain first; blockchain minting is additive
 - **Tier System**: Reuses `UserTier` enum (BRONZE → SILVER → GOLD → PLATINUM → DIAMOND)
 
+### Tokenomics Architecture
+- **ARDA Token**: Platform-wide fungible ASA serving as universal exchange medium
+- **Project Tokens**: Per-project fungible ASAs representing equity shares (fixed supply = 100%)
+- **Exchange Model**: Deterministic treasury-backed rates (not market/AMM-based)
+- **Fiat Integration**: Stripe for USD crowdfunding (in) and Stripe Connect for payouts (out)
+- **Equity Model**: Tasks assigned equity percentages; contributors earn project tokens on task completion
+- **Conversion Path**: Project Tokens → ARDA → USDCa → USD (all abstracted from users)
+
 ### Key Blockchain Services
 | Service | Location | Purpose |
 |---------|----------|---------|
-| `IAlgorandService` | `ArdaNova.Infrastructure/Algorand/` | Algorand SDK wrapper (mint, burn, verify) |
+| `IAlgorandService` | `ArdaNova.Infrastructure/Algorand/` | Algorand SDK wrapper (mint, burn, verify, fungible ASA ops) |
 | `ICredentialUtilityService` | `ArdaNova.Application/Services/` | Orchestrates grant-and-mint, revoke-and-burn |
 | `IMembershipCredentialService` | `ArdaNova.Application/Services/` | Off-chain credential CRUD |
+| `IProjectTokenService` | `ArdaNova.Application/Services/` | Project equity token management |
+| `ITokenBalanceService` | `ArdaNova.Application/Services/` | Token balance tracking |
+| `IExchangeService` | `ArdaNova.Application/Services/` | Deterministic exchange rate calculation |
+| `IPayoutService` | `ArdaNova.Application/Services/` | Token → USD payout processing |
 
 ## Frontend Design System
 

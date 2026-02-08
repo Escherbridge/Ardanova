@@ -5,6 +5,7 @@ using ArdaNova.Application.DTOs;
 using ArdaNova.Application.Services.Implementations;
 using ArdaNova.Application.Services.Interfaces;
 using FluentAssertions;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Moq;
 
@@ -15,16 +16,21 @@ public class CredentialUtilityServiceTests
     private readonly Mock<ILogger<CredentialUtilityService>> _loggerMock;
     private readonly CredentialUtilityService _sut;
 
-    private const string PlatformAddress = "PLATFORM_ADDRESS_PLACEHOLDER";
+    private const string TestPlatformAddress = "ALGO_TEST_PLATFORM_ADDRESS";
 
     public CredentialUtilityServiceTests()
     {
         _credentialServiceMock = new Mock<IMembershipCredentialService>();
         _algorandServiceMock = new Mock<IAlgorandService>();
         _loggerMock = new Mock<ILogger<CredentialUtilityService>>();
+
+        var configMock = new Mock<IConfiguration>();
+        configMock.Setup(c => c["Algorand:PlatformAddress"]).Returns(TestPlatformAddress);
+
         _sut = new CredentialUtilityService(
             _credentialServiceMock.Object,
             _algorandServiceMock.Object,
+            configMock.Object,
             _loggerMock.Object);
     }
 

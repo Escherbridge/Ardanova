@@ -7,5 +7,7 @@
 - [Financial & Tokenomics](tracks/04-finance/index.md) - Treasury, Escrow, Shares, and Fundraising.
 - [Social & Real-time](tracks/05-social/index.md) - Posts, Feed, Notifications, and Messaging.
 - [Events Module](tracks/06-events/index.md) - Event lifecycle, RSVP, and scheduling.
-- [Credential Utility & Blockchain](tracks/07-credential-utility/index.md) - Soulbound credentials, Algorand ASA minting, tier system.
-- [~] [KYC & Identity Verification](tracks/08-kyc/index.md) - KYC submission, provider abstraction, verification gating.
+- [x] [Credential Utility & Blockchain](tracks/07-credential-utility/index.md) - Soulbound credentials, Algorand ASA minting, tier system.
+- [x] [KYC & Identity Verification](tracks/08-kyc/index.md) - KYC submission, provider abstraction, verification gating.
+- [Tokenomics & Project Equity](tracks/09-tokenomics/index.md) - Project tokens, ARDA platform token, equity distribution, payouts.
+- [Credential Frontend UI & Game SDK](tracks/10-credential-ui-gamesdk/index.md) - Credential badges, tier UI, profile/project/guild integration, Unity/Godot SDK setup.

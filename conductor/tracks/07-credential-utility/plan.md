@@ -87,20 +87,21 @@
 - [x] **[P1] DependencyInjection: Register CredentialUtilityService** [3e282a1]
 
 ## 5. API Client + tRPC Router Updates
-- [ ] **[P1] API Client: Update membership-credentials.ts**
+- [x] **[P1] API Client: Update membership-credentials.ts**
     - Add `guildId`, `tier`, `metadataUri` to interfaces
     - Add `getByGuildId`, `getByGuildAndUser`, `getActiveByGuildId`
     - Add `updateTier`, `checkEligibility`
-- [ ] **[P1] API Client: Create credential-utility.ts**
+- [x] **[P1] API Client: Create credential-utility.ts**
     - `grantAndMint(data)` → POST /api/CredentialUtility/grant-and-mint
     - `revokeAndBurn(id)` → POST /api/CredentialUtility/{id}/revoke-and-burn
     - `upgradeTier(id, tier)` → PATCH /api/CredentialUtility/{id}/upgrade-tier
     - `checkAutoGrant(data)` → POST /api/CredentialUtility/check-auto-grant
     - `retryMint(id)` → POST /api/CredentialUtility/{id}/retry-mint
     - `getChainData(id)` → GET /api/CredentialUtility/{id}/chain-data
-- [ ] **[P1] Register in ArdaNovaApiClient index.ts**
-- [ ] **[P2] tRPC router: Add credential utility procedures**
+- [x] **[P1] Register in ArdaNovaApiClient index.ts**
+- [x] **[P2] tRPC router: Add credential utility procedures**
     - Thin proxies following existing pattern in project.ts
+    - Registered `credentialUtility` in appRouter
 
 ## 6. Tests
 - [x] **[P0] MembershipCredentialService guild tests** [f586970]

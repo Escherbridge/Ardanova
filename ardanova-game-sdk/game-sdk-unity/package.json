@@ -1,0 +1,14 @@
+{
+  "name": "com.ardanova.sdk",
+  "version": "0.1.0",
+  "displayName": "ArdaNova SDK",
+  "description": "Unity SDK for integrating with the ArdaNova platform — authentication, credentials, and token operations.",
+  "unity": "2021.3",
+  "documentationUrl": "https://docs.ardanova.io/game-sdk/unity",
+  "keywords": ["ardanova", "blockchain", "credentials", "tokens"],
+  "author": {
+    "name": "Escherbridge",
+    "url": "https://ardanova.io"
+  },
+  "dependencies": {}
+}

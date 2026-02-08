@@ -1,16 +1,28 @@
 "use client";
 
 import { useSession } from "next-auth/react";
+import { api } from "~/trpc/react";
 import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
-import { Settings, Share2, Calendar, FolderKanban, Users } from "lucide-react";
+import { CredentialList } from "~/components/credentials/credential-list";
+import { CredentialBadge } from "~/components/credentials/credential-badge";
+import { Settings, Share2, Calendar, FolderKanban, Users, Shield } from "lucide-react";
 
 export default function ProfilePage() {
   const { data: session } = useSession();
   const user = session?.user;
+
+  const { data: credentials, isLoading: credentialsLoading } =
+    api.membershipCredential.getByUserId.useQuery(
+      { userId: user?.id },
+      { enabled: !!user?.id },
+    );
+
+  const activeCredentials = credentials?.filter((c) => c.status === "ACTIVE") ?? [];
+  const highestTier = getHighestTier(activeCredentials.map((c) => c.tier).filter(Boolean) as string[]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -49,6 +61,18 @@ export default function ProfilePage() {
                     <Calendar className="size-4 text-neon-green" />
                     <span>Joined Jan 2024</span>
                   </div>
+                  {activeCredentials.length > 0 && (
+                    <div className="flex items-center gap-2">
+                      <Shield className="size-4 text-neon-cyan" />
+                      <span>
+                        <strong>{activeCredentials.length}</strong>{" "}
+                        {activeCredentials.length === 1 ? "Credential" : "Credentials"}
+                      </span>
+                      {highestTier && (
+                        <CredentialBadge tier={highestTier} size="sm" />
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -72,6 +96,7 @@ export default function ProfilePage() {
             <TabsTrigger value="activity">Activity</TabsTrigger>
             <TabsTrigger value="projects">Projects</TabsTrigger>
             <TabsTrigger value="guilds">Guilds</TabsTrigger>
+            <TabsTrigger value="credentials">Credentials</TabsTrigger>
             <TabsTrigger value="contributions">Contributions</TabsTrigger>
           </TabsList>
 
@@ -108,6 +133,14 @@ export default function ProfilePage() {
             </Card>
           </TabsContent>
 
+          <TabsContent value="credentials" className="mt-6">
+            <CredentialList
+              credentials={credentials}
+              isLoading={credentialsLoading}
+              emptyMessage="You don't have any credentials yet. Join a project or guild to earn one!"
+            />
+          </TabsContent>
+
           <TabsContent value="contributions" className="mt-6">
             <Card>
               <CardHeader>
@@ -122,4 +155,21 @@ export default function ProfilePage() {
       </div>
     </div>
   );
+}
+
+const TIER_RANK: Record<string, number> = {
+  DIAMOND: 5,
+  PLATINUM: 4,
+  GOLD: 3,
+  SILVER: 2,
+  BRONZE: 1,
+};
+
+function getHighestTier(tiers: string[]): string | null {
+  if (tiers.length === 0) return null;
+  return tiers.reduce((highest, tier) => {
+    const rank = TIER_RANK[tier.toUpperCase()] ?? 0;
+    const highestRank = TIER_RANK[highest.toUpperCase()] ?? 0;
+    return rank > highestRank ? tier : highest;
+  }, tiers[0]!);
 }

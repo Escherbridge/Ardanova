@@ -200,6 +200,9 @@ public class MembershipCredentialService : IMembershipCredentialService
                 existing.mintedAt = DateTime.UtcNow;
                 existing.revokedAt = null;
                 existing.revokeTxHash = null;
+                existing.assetId = null;
+                existing.mintTxHash = null;
+                existing.metadataUri = null;
                 existing.updatedAt = DateTime.UtcNow;
 
                 await _repository.UpdateAsync(existing, ct);

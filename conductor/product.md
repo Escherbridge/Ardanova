@@ -15,6 +15,7 @@
 - **Membership Credentials**: Soulbound, non-transferable governance credentials with on-chain verification via Algorand ASAs. Scoped to projects or guilds.
 - **Credential Tiers**: BRONZE → SILVER → GOLD → PLATINUM → DIAMOND progression for projects and guilds, tracked on-chain.
 - **KYC Verification**: Identity verification gating project creation and credential issuance. Manual review with Veriff integration path.
+- **Tokenomics & Project Equity**: Per-project equity tokens (ASAs) for task rewards. ARDA platform token bridges project tokens to stablecoins for USD payouts. Treasury-backed deterministic exchange rates. Stripe integration for fiat on/off-ramps.
 - **Game SDK**: Integration for play-to-earn mechanics.
 - **Gamma API + MCP**: AI-powered project generation and management.
 

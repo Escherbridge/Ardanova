@@ -4,6 +4,7 @@ using ArdaNova.Application.Common.Results;
 using ArdaNova.Application.DTOs;
 using ArdaNova.Application.Services.Interfaces;
 using ArdaNova.Domain.Models.Enums;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
 /// <summary>
@@ -16,21 +17,18 @@ public class CredentialUtilityService : ICredentialUtilityService
     private readonly IMembershipCredentialService _credentialService;
     private readonly IAlgorandService _algorandService;
     private readonly ILogger<CredentialUtilityService> _logger;
-
-    /// <summary>
-    /// Placeholder platform address used as the recipient for custodial minting.
-    /// In a production environment this would come from configuration.
-    /// </summary>
-    private const string PlatformAddress = "PLATFORM_ADDRESS_PLACEHOLDER";
+    private readonly string _platformAddress;
 
     public CredentialUtilityService(
         IMembershipCredentialService credentialService,
         IAlgorandService algorandService,
+        IConfiguration configuration,
         ILogger<CredentialUtilityService> logger)
     {
         _credentialService = credentialService;
         _algorandService = algorandService;
         _logger = logger;
+        _platformAddress = configuration["Algorand:PlatformAddress"] ?? string.Empty;
     }
 
     public async Task<Result<MembershipCredentialDto>> GrantAndMintAsync(
@@ -70,7 +68,7 @@ public class CredentialUtilityService : ICredentialUtilityService
         }
 
         // 4. Mint soulbound ASA
-        var mintResult = await _algorandService.MintSoulboundASAAsync(PlatformAddress, metadataInput, ct);
+        var mintResult = await _algorandService.MintSoulboundASAAsync(_platformAddress, metadataInput, ct);
         if (mintResult.IsFailure)
         {
             _logger.LogWarning("Failed to mint soulbound ASA for credential {CredentialId}: {Error}. Credential is valid off-chain.",
@@ -237,7 +235,7 @@ public class CredentialUtilityService : ICredentialUtilityService
         if (metadataResult.IsFailure)
             return Result<MembershipCredentialDto>.Failure($"Failed to build metadata: {metadataResult.Error}");
 
-        var mintResult = await _algorandService.MintSoulboundASAAsync(PlatformAddress, metadataInput, ct);
+        var mintResult = await _algorandService.MintSoulboundASAAsync(_platformAddress, metadataInput, ct);
         if (mintResult.IsFailure)
             return Result<MembershipCredentialDto>.Failure($"Mint retry failed: {mintResult.Error}");
 
@@ -283,7 +281,7 @@ public class CredentialUtilityService : ICredentialUtilityService
 
             // 3. Verify ownership
             var ownershipResult = await _algorandService.VerifyOwnershipAsync(
-                credential.AssetId!, PlatformAddress, ct);
+                credential.AssetId!, _platformAddress, ct);
             if (ownershipResult.IsSuccess)
             {
                 chainVerified = ownershipResult.Value;

@@ -16,6 +16,7 @@ public class KycServiceTests
 {
     private readonly Mock<IRepository<KycSubmission>> _submissionRepoMock;
     private readonly Mock<IRepository<KycDocument>> _documentRepoMock;
+    private readonly Mock<IRepository<User>> _userRepoMock;
     private readonly Mock<IUnitOfWork> _unitOfWorkMock;
     private readonly Mock<IMapper> _mapperMock;
     private readonly Mock<IKycProviderService> _providerMock;
@@ -26,6 +27,7 @@ public class KycServiceTests
     {
         _submissionRepoMock = new Mock<IRepository<KycSubmission>>();
         _documentRepoMock = new Mock<IRepository<KycDocument>>();
+        _userRepoMock = new Mock<IRepository<User>>();
         _unitOfWorkMock = new Mock<IUnitOfWork>();
         _mapperMock = new Mock<IMapper>();
         _providerMock = new Mock<IKycProviderService>();
@@ -65,6 +67,7 @@ public class KycServiceTests
         _sut = new KycService(
             _submissionRepoMock.Object,
             _documentRepoMock.Object,
+            _userRepoMock.Object,
             _unitOfWorkMock.Object,
             _mapperMock.Object,
             _providerMock.Object,
@@ -136,7 +139,7 @@ public class KycServiceTests
 
         _submissionRepoMock.Verify(x => x.AddAsync(It.IsAny<KycSubmission>(), It.IsAny<CancellationToken>()), Times.Once);
         _documentRepoMock.Verify(x => x.AddRangeAsync(It.IsAny<IEnumerable<KycDocument>>(), It.IsAny<CancellationToken>()), Times.Once);
-        _unitOfWorkMock.Verify(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+        _unitOfWorkMock.Verify(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Exactly(2));
     }
 
     [Fact]
