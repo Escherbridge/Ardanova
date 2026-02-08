@@ -58,8 +58,108 @@ public class MembershipCredentialService : IMembershipCredentialService
         return Result<IReadOnlyList<MembershipCredentialDto>>.Success(_mapper.Map<IReadOnlyList<MembershipCredentialDto>>(credentials));
     }
 
+    // ========================================================================
+    // Guild Queries
+    // ========================================================================
+
+    public async Task<Result<IReadOnlyList<MembershipCredentialDto>>> GetByGuildIdAsync(string guildId, CancellationToken ct = default)
+    {
+        var credentials = await _repository.FindAsync(c => c.guildId == guildId, ct);
+        return Result<IReadOnlyList<MembershipCredentialDto>>.Success(_mapper.Map<IReadOnlyList<MembershipCredentialDto>>(credentials));
+    }
+
+    public async Task<Result<MembershipCredentialDto>> GetByGuildAndUserAsync(string guildId, string userId, CancellationToken ct = default)
+    {
+        var credentials = await _repository.FindAsync(c => c.guildId == guildId && c.userId == userId, ct);
+        var credential = credentials.FirstOrDefault();
+        if (credential is null)
+            return Result<MembershipCredentialDto>.NotFound($"No MembershipCredential found for user {userId} in guild {guildId}");
+        return Result<MembershipCredentialDto>.Success(_mapper.Map<MembershipCredentialDto>(credential));
+    }
+
+    public async Task<Result<IReadOnlyList<MembershipCredentialDto>>> GetActiveByGuildIdAsync(string guildId, CancellationToken ct = default)
+    {
+        var credentials = await _repository.FindAsync(c => c.guildId == guildId && c.status == MembershipCredentialStatus.ACTIVE, ct);
+        return Result<IReadOnlyList<MembershipCredentialDto>>.Success(_mapper.Map<IReadOnlyList<MembershipCredentialDto>>(credentials));
+    }
+
+    // ========================================================================
+    // Tier Management
+    // ========================================================================
+
+    public async Task<Result<MembershipCredentialDto>> UpdateTierAsync(string id, UpdateCredentialTierDto dto, CancellationToken ct = default)
+    {
+        var credential = await _repository.GetByIdAsync(id, ct);
+        if (credential is null)
+            return Result<MembershipCredentialDto>.NotFound($"MembershipCredential with id {id} not found");
+
+        if (credential.status != MembershipCredentialStatus.ACTIVE)
+            return Result<MembershipCredentialDto>.ValidationError("Only active credentials can have their tier updated");
+
+        if (!Enum.TryParse<UserTier>(dto.Tier, true, out var tier))
+            return Result<MembershipCredentialDto>.ValidationError($"Invalid tier: {dto.Tier}");
+
+        credential.tier = tier;
+        credential.updatedAt = DateTime.UtcNow;
+
+        await _repository.UpdateAsync(credential, ct);
+        await _unitOfWork.SaveChangesAsync(ct);
+        return Result<MembershipCredentialDto>.Success(_mapper.Map<MembershipCredentialDto>(credential));
+    }
+
+    // ========================================================================
+    // Eligibility Check
+    // ========================================================================
+
+    public async Task<Result<CredentialEligibilityDto>> CheckEligibilityAsync(string userId, string? projectId, string? guildId, CancellationToken ct = default)
+    {
+        if (projectId is null && guildId is null)
+            return Result<CredentialEligibilityDto>.ValidationError("Must provide either projectId or guildId");
+
+        // Check for existing active credential
+        IReadOnlyList<MembershipCredential> existing;
+        if (projectId is not null)
+        {
+            existing = await _repository.FindAsync(c =>
+                c.projectId == projectId &&
+                c.userId == userId &&
+                c.status == MembershipCredentialStatus.ACTIVE, ct);
+        }
+        else
+        {
+            existing = await _repository.FindAsync(c =>
+                c.guildId == guildId &&
+                c.userId == userId &&
+                c.status == MembershipCredentialStatus.ACTIVE, ct);
+        }
+
+        if (existing.Any())
+        {
+            return Result<CredentialEligibilityDto>.Success(new CredentialEligibilityDto
+            {
+                IsEligible = false,
+                Reason = "User already has an active credential for this scope"
+            });
+        }
+
+        return Result<CredentialEligibilityDto>.Success(new CredentialEligibilityDto
+        {
+            IsEligible = true
+        });
+    }
+
+    // ========================================================================
+    // Grant (with XOR validation for projectId/guildId)
+    // ========================================================================
+
     public async Task<Result<MembershipCredentialDto>> GrantAsync(GrantMembershipCredentialDto dto, CancellationToken ct = default)
     {
+        // XOR validation: must have exactly one of projectId or guildId
+        var hasProject = !string.IsNullOrEmpty(dto.ProjectId);
+        var hasGuild = !string.IsNullOrEmpty(dto.GuildId);
+        if (hasProject == hasGuild) // both true or both false
+            return Result<MembershipCredentialDto>.ValidationError("Grant must have exactly one of projectId or guildId (not both, not neither)");
+
         // KYC gate: require PRO verification to receive credentials
         var gateResult = await _kycGateService.RequireProAsync(dto.UserId, ct);
         if (!gateResult.IsSuccess)
@@ -73,10 +173,20 @@ public class MembershipCredentialService : IMembershipCredentialService
         if (dto.GrantedByProposalId != null && grantType != MembershipGrantType.DAO_VOTE)
             return Result<MembershipCredentialDto>.ValidationError("grantedByProposalId can only be set when grantedVia is DAO_VOTE");
 
-        // Check if credential already exists for this user + project
-        var existing = (await _repository.FindAsync(c =>
-            c.projectId == dto.ProjectId &&
-            c.userId == dto.UserId, ct)).FirstOrDefault();
+        // Check if credential already exists for this user + project/guild
+        MembershipCredential? existing;
+        if (hasProject)
+        {
+            existing = (await _repository.FindAsync(c =>
+                c.projectId == dto.ProjectId &&
+                c.userId == dto.UserId, ct)).FirstOrDefault();
+        }
+        else
+        {
+            existing = (await _repository.FindAsync(c =>
+                c.guildId == dto.GuildId &&
+                c.userId == dto.UserId, ct)).FirstOrDefault();
+        }
 
         if (existing is not null)
         {
@@ -97,13 +207,15 @@ public class MembershipCredentialService : IMembershipCredentialService
                 return Result<MembershipCredentialDto>.Success(_mapper.Map<MembershipCredentialDto>(existing));
             }
 
-            return Result<MembershipCredentialDto>.ValidationError("User already has an active membership credential for this project");
+            var scopeLabel = hasProject ? "project" : "guild";
+            return Result<MembershipCredentialDto>.ValidationError($"User already has an active membership credential for this {scopeLabel}");
         }
 
         var credential = new MembershipCredential
         {
             id = Guid.NewGuid().ToString(),
-            projectId = dto.ProjectId,
+            projectId = hasProject ? dto.ProjectId : null,
+            guildId = hasGuild ? dto.GuildId : null,
             userId = dto.UserId,
             status = MembershipCredentialStatus.ACTIVE,
             isTransferable = false,
