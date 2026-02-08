@@ -1,5 +1,5 @@
 ## 1. Schema — Extend MembershipCredential for Guilds + Tiers
-- [ ] **[P0] DBML: Add guildId, tier, metadata to MembershipCredential**
+- [x] **[P0] DBML: Add guildId, tier, metadata to MembershipCredential** [368d348]
     - Make `projectId` nullable (credentials can belong to a project OR a guild)
     - Add `guildId varchar` (nullable, FK → Guild.id)
     - Add `tier UserTier` (nullable, default null — assigned post-grant)
