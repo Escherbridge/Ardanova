@@ -6,6 +6,9 @@ public record KycSubmissionDto
 {
     public string Id { get; init; } = null!;
     public string UserId { get; init; } = null!;
+    public string? UserName { get; init; }
+    public string? UserEmail { get; init; }
+    public string? UserImage { get; init; }
     public KycProvider Provider { get; init; }
     public KycStatus Status { get; init; }
     public string? ReviewerId { get; init; }

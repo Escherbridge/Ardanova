@@ -168,34 +168,41 @@
 
 ## 5. Frontend UI
 
-- [ ] **[P2] KYC submission page**
-    - Create `ardanova-client/src/app/settings/verification/page.tsx` (or `/kyc`)
-    - Document upload form (government ID + selfie minimum)
-    - File type validation (images, PDF)
+- [x] **[P0] Admin role bootstrap**
+    - `manlytaco3@gmail.com` auto-assigned ADMIN role on sign-in
+    - `PLATFORM_ADMIN_EMAILS` constant in auth config
+    - Existing users auto-promoted on next sign-in
+
+- [x] **[P2] KYC submission page**
+    - Created `ardanova-client/src/app/settings/verification/page.tsx`
+    - Settings layout + redirect from `/settings` → `/settings/verification`
+    - Document upload form (government ID, passport, driver's license)
     - Status display (pending/in-review/approved/rejected)
-    - Re-submission flow after rejection
-    - Follow Swiss brutalist design system
+    - Re-submission flow after rejection with rejection reason display
+    - Swiss brutalist design with neon accents
 
-- [ ] **[P2] KYC status banner**
-    - Add verification status indicator to profile/settings
-    - Show current VerificationLevel with icon
-    - "Complete Verification" CTA for non-PRO users
+- [x] **[P2] KYC status banner**
+    - Created `ardanova-client/src/components/kyc/kyc-status-banner.tsx`
+    - Verification status indicator with 6 states
+    - Compact mode for inline usage
+    - "Get Verified" CTA for non-submitted users
 
-- [ ] **[P2] Blocked-state UIs**
-    - Project creation: show "Verify your identity" prompt when non-PRO clicks "Create Project"
-    - Credential granting: show verification requirement in credential-related flows
-    - Link to KYC submission page
+- [x] **[P2] Blocked-state UIs**
+    - Project creation: KYC gate in `ProjectForm` checks `session.user.verificationLevel`
+    - Shows "Verification Required" card with link to `/settings/verification`
+    - `meetsVerificationLevel()` helper for verification level comparison
 
-- [ ] **[P2] Admin KYC review dashboard**
-    - Admin-only page at `/admin/kyc` (or within existing admin section)
-    - List pending submissions with user info
-    - View uploaded documents
-    - Approve/reject with notes
-    - Submission history view
+- [x] **[P2] Admin KYC review dashboard**
+    - Created `ardanova-client/src/app/admin/layout.tsx` with ADMIN role guard
+    - Created `ardanova-client/src/app/admin/kyc/page.tsx`
+    - Lists pending submissions with documents
+    - Approve/reject with inline rejection form
+    - Query invalidation after mutations
+    - Admin nav link in sidebar (conditional on ADMIN role)
 
 ## 6. Tests
 
-- [ ] **[P0] KycService unit tests**
+- [x] **[P0] KycService unit tests**
     - Create `tests/ArdaNova.Application.Tests/Services/KycServiceTests.cs`
     - Submit KYC — creates submission + documents, calls provider
     - Approve — sets status APPROVED, upgrades user to PRO
@@ -203,6 +210,7 @@
     - Duplicate prevention — cannot submit if PENDING/IN_REVIEW exists
     - Re-submit after rejection — creates new submission
     - Status transitions — only valid transitions allowed (PENDING → IN_REVIEW → APPROVED/REJECTED)
+    - 17 tests: SubmitAsync (5), GetByIdAsync (2), GetByUserIdAsync (2), GetPendingAsync (1), ApproveAsync (4), RejectAsync (3)
     - Follow existing pattern: xUnit + Moq + FluentAssertions
 
 - [x] **[P0] KycGateService unit tests** [3092a41]
@@ -221,10 +229,11 @@
     - Membership credential grant returns 403 for non-PRO user
     - Membership credential grant succeeds for PRO user (via default mock setup)
 
-- [ ] **[P1] ManualKycProviderService tests**
+- [x] **[P1] ManualKycProviderService tests**
     - Document validation (accepted types, size limits)
     - Session creation stores documents correctly
     - Status returns current DB state
+    - 15 tests: ValidateDocumentsAsync (8), CreateSessionAsync (3), GetSessionStatusAsync (2), HandleWebhookAsync (2)
 
 - [ ] **[P1] KycController integration tests**
     - Submit endpoint creates submission

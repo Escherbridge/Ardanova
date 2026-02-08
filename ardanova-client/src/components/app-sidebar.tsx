@@ -18,6 +18,7 @@ import {
   MessageCircle,
   CheckSquare,
   Calendar,
+  ShieldCheck,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -37,6 +38,7 @@ interface AppSidebarProps {
     name?: string | null;
     email?: string | null;
     image?: string | null;
+    role?: string | null;
   } | null;
 }
 
@@ -211,6 +213,46 @@ export function AppSidebar({ user }: AppSidebarProps) {
             );
           })}
         </nav>
+
+        {/* Admin Navigation */}
+        {user?.role === "ADMIN" && (
+          <>
+            <Separator className="mx-3 bg-sidebar-border" />
+            <nav className="space-y-1 px-3 py-2">
+              {isCollapsed ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Link
+                      href="/admin/kyc"
+                      className={cn(
+                        "flex h-10 w-full items-center justify-center transition-colors",
+                        isActive("/admin")
+                          ? "bg-sidebar-accent text-neon-green border-l-2 border-neon-green"
+                          : "text-sidebar-muted hover:bg-sidebar-accent hover:text-neon-green"
+                      )}
+                    >
+                      <ShieldCheck className="size-5" />
+                    </Link>
+                  </TooltipTrigger>
+                  <TooltipContent side="right">KYC Review</TooltipContent>
+                </Tooltip>
+              ) : (
+                <Link
+                  href="/admin/kyc"
+                  className={cn(
+                    "flex h-10 items-center gap-3 px-3 text-sm font-medium transition-colors",
+                    isActive("/admin")
+                      ? "bg-sidebar-accent text-neon-green border-l-2 border-neon-green -ml-px"
+                      : "text-sidebar-muted hover:bg-sidebar-accent hover:text-neon-green"
+                  )}
+                >
+                  <ShieldCheck className="size-5" />
+                  KYC Review
+                </Link>
+              )}
+            </nav>
+          </>
+        )}
 
         <Separator className="mx-3 bg-sidebar-border" />
 

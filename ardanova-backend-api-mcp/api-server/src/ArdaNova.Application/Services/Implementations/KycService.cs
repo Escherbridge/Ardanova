@@ -12,6 +12,7 @@ public class KycService : IKycService
 {
     private readonly IRepository<KycSubmission> _submissionRepository;
     private readonly IRepository<KycDocument> _documentRepository;
+    private readonly IRepository<User> _userRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IMapper _mapper;
     private readonly IKycProviderService _providerService;
@@ -20,6 +21,7 @@ public class KycService : IKycService
     public KycService(
         IRepository<KycSubmission> submissionRepository,
         IRepository<KycDocument> documentRepository,
+        IRepository<User> userRepository,
         IUnitOfWork unitOfWork,
         IMapper mapper,
         IKycProviderService providerService,
@@ -27,6 +29,7 @@ public class KycService : IKycService
     {
         _submissionRepository = submissionRepository;
         _documentRepository = documentRepository;
+        _userRepository = userRepository;
         _unitOfWork = unitOfWork;
         _mapper = mapper;
         _providerService = providerService;
@@ -61,6 +64,7 @@ public class KycService : IKycService
         };
 
         await _submissionRepository.AddAsync(submission, ct);
+        await _unitOfWork.SaveChangesAsync(ct);
 
         // Create document records
         var documents = new List<KycDocument>();
@@ -139,10 +143,23 @@ public class KycService : IKycService
             var documents = await _documentRepository.FindAsync(d => d.submissionId == submission.id, ct);
             var dto = _mapper.Map<KycSubmissionDto>(submission);
             dto = dto with { Documents = _mapper.Map<List<KycDocumentDto>>(documents) };
+            dto = await EnrichWithUserDataAsync(dto, ct);
             dtos.Add(dto);
         }
 
         return Result<List<KycSubmissionDto>>.Success(dtos);
+    }
+
+    private async Task<KycSubmissionDto> EnrichWithUserDataAsync(KycSubmissionDto dto, CancellationToken ct)
+    {
+        var user = await _userRepository.GetByIdAsync(dto.UserId, ct);
+        if (user is null) return dto;
+        return dto with
+        {
+            UserName = user.name,
+            UserEmail = user.email,
+            UserImage = user.image
+        };
     }
 
     public async Task<Result<KycSubmissionDto>> ApproveAsync(string id, string reviewerId, string? notes, CancellationToken ct = default)

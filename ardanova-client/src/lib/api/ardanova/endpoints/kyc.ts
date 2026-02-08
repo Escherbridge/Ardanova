@@ -23,6 +23,9 @@ export interface KycDocument {
 export interface KycSubmission {
   id: string;
   userId: string;
+  userName?: string;
+  userEmail?: string;
+  userImage?: string;
   provider: KycProvider;
   status: KycStatus;
   reviewerId?: string;

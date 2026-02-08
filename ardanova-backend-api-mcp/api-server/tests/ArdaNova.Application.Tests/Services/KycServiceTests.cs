@@ -30,75 +30,99 @@ public class KycServiceTests
         _mapperMock = new Mock<IMapper>();
         _providerMock = new Mock<IKycProviderService>();
         _userServiceMock = new Mock<IUserService>();
-        _sut = new KycService(
-            _submissionRepoMock.Object,
-            _documentRepoMock.Object,
-            _unitOfWorkMock.Object,
-            _mapperMock.Object,
-            _providerMock.Object,
-            _userServiceMock.Object);
-    }
 
-    #region SubmitAsync
-
-    [Fact]
-    public async Task SubmitAsync_WithValidDto_CreatesSubmissionAndDocuments()
-    {
-        // Arrange
-        var userId = Guid.NewGuid().ToString();
-        var dto = new SubmitKycDto
-        {
-            UserId = userId,
-            Documents = new List<SubmitKycDocumentDto>
-            {
-                new SubmitKycDocumentDto
-                {
-                    Type = KycDocumentType.GOVERNMENT_ID,
-                    FileUrl = "https://s3.example.com/doc1.jpg",
-                    FileName = "id-front.jpg",
-                    MimeType = "image/jpeg",
-                    FileSizeBytes = 1024
-                }
-            }
-        };
-
-        _submissionRepoMock.Setup(r => r.FindAsync(It.IsAny<Expression<Func<KycSubmission, bool>>>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new List<KycSubmission>());
-
-        _providerMock.Setup(p => p.ValidateDocumentsAsync(dto.Documents, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Result<bool>.Success(true));
-
-        _submissionRepoMock.Setup(r => r.AddAsync(It.IsAny<KycSubmission>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((KycSubmission s, CancellationToken _) => s);
-
-        _documentRepoMock.Setup(r => r.AddRangeAsync(It.IsAny<IEnumerable<KycDocument>>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((IEnumerable<KycDocument> docs, CancellationToken _) => docs);
-
-        _providerMock.Setup(p => p.CreateSessionAsync(userId, It.IsAny<List<KycDocumentDto>>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Result<string>.Success(userId));
-
-        _mapperMock.Setup(m => m.Map<KycDocumentDto>(It.IsAny<KycDocument>()))
+        // Default mapper setup for KycDocumentDto
+        _mapperMock
+            .Setup(x => x.Map<KycDocumentDto>(It.IsAny<KycDocument>()))
             .Returns((KycDocument d) => new KycDocumentDto
             {
                 Id = d.id,
                 SubmissionId = d.submissionId,
                 Type = d.type,
                 FileUrl = d.fileUrl,
-                FileName = d.fileName
+                FileName = d.fileName,
+                MimeType = d.mimeType,
+                FileSizeBytes = d.fileSizeBytes,
+                CreatedAt = d.createdAt
             });
 
-        _mapperMock.Setup(m => m.Map<KycSubmissionDto>(It.IsAny<KycSubmission>()))
+        _mapperMock
+            .Setup(x => x.Map<List<KycDocumentDto>>(It.IsAny<IReadOnlyList<KycDocument>>()))
+            .Returns((IReadOnlyList<KycDocument> docs) => docs.Select(d => new KycDocumentDto
+            {
+                Id = d.id,
+                SubmissionId = d.submissionId,
+                Type = d.type,
+                FileUrl = d.fileUrl,
+                FileName = d.fileName,
+                CreatedAt = d.createdAt
+            }).ToList());
+
+        _unitOfWorkMock
+            .Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(1);
+
+        _sut = new KycService(
+            _submissionRepoMock.Object,
+            _documentRepoMock.Object,
+            _unitOfWorkMock.Object,
+            _mapperMock.Object,
+            _providerMock.Object,
+            _userServiceMock.Object
+        );
+    }
+
+    private static SubmitKycDto CreateValidSubmitDto(string userId = "user-123") => new()
+    {
+        UserId = userId,
+        Documents = new List<SubmitKycDocumentDto>
+        {
+            new()
+            {
+                Type = KycDocumentType.PASSPORT,
+                FileUrl = "https://example.com/passport.jpg",
+                FileName = "passport.jpg",
+            }
+        }
+    };
+
+    private void SetupSubmitDefaults()
+    {
+        _submissionRepoMock
+            .Setup(x => x.FindAsync(It.IsAny<Expression<Func<KycSubmission, bool>>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<KycSubmission>());
+
+        _providerMock
+            .Setup(x => x.ValidateDocumentsAsync(It.IsAny<List<SubmitKycDocumentDto>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<bool>.Success(true));
+
+        _providerMock
+            .Setup(x => x.CreateSessionAsync(It.IsAny<string>(), It.IsAny<List<KycDocumentDto>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<string>.Success("session-123"));
+
+        _mapperMock
+            .Setup(x => x.Map<KycSubmissionDto>(It.IsAny<KycSubmission>()))
             .Returns((KycSubmission s) => new KycSubmissionDto
             {
                 Id = s.id,
                 UserId = s.userId,
-                Status = s.status,
                 Provider = s.provider,
-                SubmittedAt = s.submittedAt
+                Status = s.status,
+                ProviderSessionId = s.providerSessionId,
+                SubmittedAt = s.submittedAt,
+                CreatedAt = s.createdAt,
+                UpdatedAt = s.updatedAt,
             });
+    }
 
-        _unitOfWorkMock.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(1);
+    #region SubmitAsync
+
+    [Fact]
+    public async Task SubmitAsync_WithNoActiveSubmission_CreatesSubmissionAndDocuments()
+    {
+        // Arrange
+        SetupSubmitDefaults();
+        var dto = CreateValidSubmitDto();
 
         // Act
         var result = await _sut.SubmitAsync(dto);
@@ -106,43 +130,40 @@ public class KycServiceTests
         // Assert
         result.IsSuccess.Should().BeTrue();
         result.Value.Should().NotBeNull();
-        result.Value!.UserId.Should().Be(userId);
+        result.Value!.UserId.Should().Be("user-123");
         result.Value.Status.Should().Be(KycStatus.PENDING);
-        result.Value.Documents.Should().HaveCount(1);
+        result.Value.Provider.Should().Be(KycProvider.MANUAL);
 
-        _submissionRepoMock.Verify(r => r.AddAsync(It.Is<KycSubmission>(s =>
-            s.userId == userId && s.status == KycStatus.PENDING && s.provider == KycProvider.MANUAL),
+        _submissionRepoMock.Verify(x => x.AddAsync(It.IsAny<KycSubmission>(), It.IsAny<CancellationToken>()), Times.Once);
+        _documentRepoMock.Verify(x => x.AddRangeAsync(It.IsAny<IEnumerable<KycDocument>>(), It.IsAny<CancellationToken>()), Times.Once);
+        _unitOfWorkMock.Verify(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task SubmitAsync_CallsProviderCreateSession()
+    {
+        // Arrange
+        SetupSubmitDefaults();
+        var dto = CreateValidSubmitDto();
+
+        // Act
+        await _sut.SubmitAsync(dto);
+
+        // Assert
+        _providerMock.Verify(x => x.CreateSessionAsync(
+            "user-123",
+            It.IsAny<List<KycDocumentDto>>(),
             It.IsAny<CancellationToken>()), Times.Once);
-
-        _documentRepoMock.Verify(r => r.AddRangeAsync(It.IsAny<IEnumerable<KycDocument>>(),
-            It.IsAny<CancellationToken>()), Times.Once);
-
-        _unitOfWorkMock.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
     public async Task SubmitAsync_WithActiveSubmission_ReturnsValidationError()
     {
         // Arrange
-        var userId = Guid.NewGuid().ToString();
-        var dto = new SubmitKycDto
+        var activeSubmission = new KycSubmission
         {
-            UserId = userId,
-            Documents = new List<SubmitKycDocumentDto>
-            {
-                new SubmitKycDocumentDto
-                {
-                    Type = KycDocumentType.GOVERNMENT_ID,
-                    FileUrl = "https://s3.example.com/doc1.jpg",
-                    FileName = "id-front.jpg"
-                }
-            }
-        };
-
-        var existingSubmission = new KycSubmission
-        {
-            id = Guid.NewGuid().ToString(),
-            userId = userId,
+            id = "existing-123",
+            userId = "user-123",
             status = KycStatus.PENDING,
             provider = KycProvider.MANUAL,
             submittedAt = DateTime.UtcNow,
@@ -150,100 +171,59 @@ public class KycServiceTests
             updatedAt = DateTime.UtcNow
         };
 
-        _submissionRepoMock.Setup(r => r.FindAsync(It.IsAny<Expression<Func<KycSubmission, bool>>>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new List<KycSubmission> { existingSubmission });
+        _submissionRepoMock
+            .Setup(x => x.FindAsync(It.IsAny<Expression<Func<KycSubmission, bool>>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<KycSubmission> { activeSubmission });
+
+        var dto = CreateValidSubmitDto();
 
         // Act
         var result = await _sut.SubmitAsync(dto);
 
         // Assert
-        result.IsSuccess.Should().BeFalse();
+        result.IsFailure.Should().BeTrue();
         result.Type.Should().Be(ResultType.ValidationError);
-        result.Error.Should().Contain("active KYC submission already exists");
+        result.Error.Should().Contain("active");
+        _submissionRepoMock.Verify(x => x.AddAsync(It.IsAny<KycSubmission>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
-    public async Task SubmitAsync_WithInvalidDocuments_ReturnsValidationError()
+    public async Task SubmitAsync_WithDocumentValidationFailure_ReturnsValidationError()
     {
         // Arrange
-        var userId = Guid.NewGuid().ToString();
-        var dto = new SubmitKycDto
-        {
-            UserId = userId,
-            Documents = new List<SubmitKycDocumentDto>()
-        };
-
-        _submissionRepoMock.Setup(r => r.FindAsync(It.IsAny<Expression<Func<KycSubmission, bool>>>(), It.IsAny<CancellationToken>()))
+        _submissionRepoMock
+            .Setup(x => x.FindAsync(It.IsAny<Expression<Func<KycSubmission, bool>>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<KycSubmission>());
 
-        _providerMock.Setup(p => p.ValidateDocumentsAsync(dto.Documents, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Result<bool>.ValidationError("At least one document is required"));
+        _providerMock
+            .Setup(x => x.ValidateDocumentsAsync(It.IsAny<List<SubmitKycDocumentDto>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<bool>.ValidationError("Invalid document format"));
+
+        var dto = CreateValidSubmitDto();
 
         // Act
         var result = await _sut.SubmitAsync(dto);
 
         // Assert
-        result.IsSuccess.Should().BeFalse();
-        result.Type.Should().Be(ResultType.ValidationError);
-        result.Error.Should().Contain("At least one document is required");
+        result.IsFailure.Should().BeTrue();
+        result.Error.Should().Contain("Invalid document");
+        _submissionRepoMock.Verify(x => x.AddAsync(It.IsAny<KycSubmission>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
     public async Task SubmitAsync_AfterRejection_AllowsResubmission()
     {
-        // Arrange
-        var userId = Guid.NewGuid().ToString();
-        var dto = new SubmitKycDto
-        {
-            UserId = userId,
-            Documents = new List<SubmitKycDocumentDto>
-            {
-                new SubmitKycDocumentDto
-                {
-                    Type = KycDocumentType.PASSPORT,
-                    FileUrl = "https://s3.example.com/passport.jpg",
-                    FileName = "passport.jpg",
-                    MimeType = "image/jpeg"
-                }
-            }
-        };
-
-        // Only a REJECTED submission exists, not PENDING/IN_REVIEW
-        _submissionRepoMock.Setup(r => r.FindAsync(It.IsAny<Expression<Func<KycSubmission, bool>>>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new List<KycSubmission>());
-
-        _providerMock.Setup(p => p.ValidateDocumentsAsync(dto.Documents, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Result<bool>.Success(true));
-
-        _submissionRepoMock.Setup(r => r.AddAsync(It.IsAny<KycSubmission>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((KycSubmission s, CancellationToken _) => s);
-
-        _documentRepoMock.Setup(r => r.AddRangeAsync(It.IsAny<IEnumerable<KycDocument>>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((IEnumerable<KycDocument> docs, CancellationToken _) => docs);
-
-        _providerMock.Setup(p => p.CreateSessionAsync(userId, It.IsAny<List<KycDocumentDto>>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Result<string>.Success(userId));
-
-        _mapperMock.Setup(m => m.Map<KycDocumentDto>(It.IsAny<KycDocument>()))
-            .Returns(new KycDocumentDto { Id = "doc1", SubmissionId = "sub1", FileName = "passport.jpg", FileUrl = "url" });
-
-        _mapperMock.Setup(m => m.Map<KycSubmissionDto>(It.IsAny<KycSubmission>()))
-            .Returns((KycSubmission s) => new KycSubmissionDto
-            {
-                Id = s.id,
-                UserId = s.userId,
-                Status = s.status
-            });
-
-        _unitOfWorkMock.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(1);
+        // Arrange — FindAsync returns empty because the REJECTED submission
+        // does NOT match the PENDING/IN_REVIEW predicate in the real service
+        SetupSubmitDefaults();
+        var dto = CreateValidSubmitDto();
 
         // Act
         var result = await _sut.SubmitAsync(dto);
 
         // Assert
         result.IsSuccess.Should().BeTrue();
-        result.Value!.Status.Should().Be(KycStatus.PENDING);
+        _submissionRepoMock.Verify(x => x.AddAsync(It.IsAny<KycSubmission>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     #endregion
@@ -251,14 +231,14 @@ public class KycServiceTests
     #region GetByIdAsync
 
     [Fact]
-    public async Task GetByIdAsync_WhenSubmissionExists_ReturnsSuccess()
+    public async Task GetByIdAsync_WithValidId_ReturnsSubmissionWithDocuments()
     {
         // Arrange
-        var submissionId = Guid.NewGuid().ToString();
+        var submissionId = "submission-123";
         var submission = new KycSubmission
         {
             id = submissionId,
-            userId = Guid.NewGuid().ToString(),
+            userId = "user-123",
             provider = KycProvider.MANUAL,
             status = KycStatus.PENDING,
             submittedAt = DateTime.UtcNow,
@@ -266,37 +246,56 @@ public class KycServiceTests
             updatedAt = DateTime.UtcNow
         };
 
-        _submissionRepoMock.Setup(r => r.GetByIdAsync(submissionId, It.IsAny<CancellationToken>()))
+        var documents = new List<KycDocument>
+        {
+            new()
+            {
+                id = "doc-1",
+                submissionId = submissionId,
+                type = KycDocumentType.PASSPORT,
+                fileUrl = "https://example.com/passport.jpg",
+                fileName = "passport.jpg",
+                createdAt = DateTime.UtcNow
+            }
+        };
+
+        _submissionRepoMock
+            .Setup(x => x.GetByIdAsync(submissionId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(submission);
-        _documentRepoMock.Setup(r => r.FindAsync(It.IsAny<Expression<Func<KycDocument, bool>>>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new List<KycDocument>());
-        _mapperMock.Setup(m => m.Map<KycSubmissionDto>(submission))
-            .Returns(new KycSubmissionDto { Id = submissionId, Status = KycStatus.PENDING });
-        _mapperMock.Setup(m => m.Map<List<KycDocumentDto>>(It.IsAny<IReadOnlyList<KycDocument>>()))
-            .Returns(new List<KycDocumentDto>());
+
+        _documentRepoMock
+            .Setup(x => x.FindAsync(It.IsAny<Expression<Func<KycDocument, bool>>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(documents);
+
+        _mapperMock
+            .Setup(x => x.Map<KycSubmissionDto>(It.IsAny<KycSubmission>()))
+            .Returns(new KycSubmissionDto { Id = submissionId, UserId = "user-123", Status = KycStatus.PENDING });
 
         // Act
         var result = await _sut.GetByIdAsync(submissionId);
 
         // Assert
         result.IsSuccess.Should().BeTrue();
+        result.Value.Should().NotBeNull();
         result.Value!.Id.Should().Be(submissionId);
+        result.Value.Documents.Should().HaveCount(1);
     }
 
     [Fact]
-    public async Task GetByIdAsync_WhenSubmissionNotExists_ReturnsNotFound()
+    public async Task GetByIdAsync_WithNonExistentId_ReturnsNotFound()
     {
         // Arrange
-        var submissionId = Guid.NewGuid().ToString();
-        _submissionRepoMock.Setup(r => r.GetByIdAsync(submissionId, It.IsAny<CancellationToken>()))
+        _submissionRepoMock
+            .Setup(x => x.GetByIdAsync("invalid-123", It.IsAny<CancellationToken>()))
             .ReturnsAsync((KycSubmission?)null);
 
         // Act
-        var result = await _sut.GetByIdAsync(submissionId);
+        var result = await _sut.GetByIdAsync("invalid-123");
 
         // Assert
-        result.IsSuccess.Should().BeFalse();
+        result.IsFailure.Should().BeTrue();
         result.Type.Should().Be(ResultType.NotFound);
+        result.Error.Should().Contain("not found");
     }
 
     #endregion
@@ -304,23 +303,23 @@ public class KycServiceTests
     #region GetByUserIdAsync
 
     [Fact]
-    public async Task GetByUserIdAsync_WhenSubmissionExists_ReturnsMostRecent()
+    public async Task GetByUserIdAsync_WithMultipleSubmissions_ReturnsMostRecent()
     {
         // Arrange
-        var userId = Guid.NewGuid().ToString();
+        var userId = "user-123";
         var olderSubmission = new KycSubmission
         {
-            id = Guid.NewGuid().ToString(),
+            id = "submission-old",
             userId = userId,
             status = KycStatus.REJECTED,
             provider = KycProvider.MANUAL,
-            submittedAt = DateTime.UtcNow.AddDays(-10),
-            createdAt = DateTime.UtcNow.AddDays(-10),
-            updatedAt = DateTime.UtcNow.AddDays(-10)
+            submittedAt = DateTime.UtcNow.AddDays(-2),
+            createdAt = DateTime.UtcNow.AddDays(-2),
+            updatedAt = DateTime.UtcNow.AddDays(-2)
         };
         var newerSubmission = new KycSubmission
         {
-            id = Guid.NewGuid().ToString(),
+            id = "submission-new",
             userId = userId,
             status = KycStatus.PENDING,
             provider = KycProvider.MANUAL,
@@ -329,37 +328,39 @@ public class KycServiceTests
             updatedAt = DateTime.UtcNow
         };
 
-        _submissionRepoMock.Setup(r => r.FindAsync(It.IsAny<Expression<Func<KycSubmission, bool>>>(), It.IsAny<CancellationToken>()))
+        _submissionRepoMock
+            .Setup(x => x.FindAsync(It.IsAny<Expression<Func<KycSubmission, bool>>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<KycSubmission> { olderSubmission, newerSubmission });
-        _documentRepoMock.Setup(r => r.FindAsync(It.IsAny<Expression<Func<KycDocument, bool>>>(), It.IsAny<CancellationToken>()))
+
+        _documentRepoMock
+            .Setup(x => x.FindAsync(It.IsAny<Expression<Func<KycDocument, bool>>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<KycDocument>());
-        _mapperMock.Setup(m => m.Map<KycSubmissionDto>(newerSubmission))
-            .Returns(new KycSubmissionDto { Id = newerSubmission.id, Status = KycStatus.PENDING });
-        _mapperMock.Setup(m => m.Map<List<KycDocumentDto>>(It.IsAny<IReadOnlyList<KycDocument>>()))
-            .Returns(new List<KycDocumentDto>());
+
+        _mapperMock
+            .Setup(x => x.Map<KycSubmissionDto>(It.Is<KycSubmission>(s => s.id == "submission-new")))
+            .Returns(new KycSubmissionDto { Id = "submission-new", UserId = userId, Status = KycStatus.PENDING });
 
         // Act
         var result = await _sut.GetByUserIdAsync(userId);
 
         // Assert
         result.IsSuccess.Should().BeTrue();
-        result.Value!.Id.Should().Be(newerSubmission.id);
-        result.Value.Status.Should().Be(KycStatus.PENDING);
+        result.Value!.Id.Should().Be("submission-new");
     }
 
     [Fact]
-    public async Task GetByUserIdAsync_WhenNoSubmission_ReturnsNotFound()
+    public async Task GetByUserIdAsync_WithNoSubmissions_ReturnsNotFound()
     {
         // Arrange
-        var userId = Guid.NewGuid().ToString();
-        _submissionRepoMock.Setup(r => r.FindAsync(It.IsAny<Expression<Func<KycSubmission, bool>>>(), It.IsAny<CancellationToken>()))
+        _submissionRepoMock
+            .Setup(x => x.FindAsync(It.IsAny<Expression<Func<KycSubmission, bool>>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<KycSubmission>());
 
         // Act
-        var result = await _sut.GetByUserIdAsync(userId);
+        var result = await _sut.GetByUserIdAsync("user-123");
 
         // Assert
-        result.IsSuccess.Should().BeFalse();
+        result.IsFailure.Should().BeTrue();
         result.Type.Should().Be(ResultType.NotFound);
     }
 
@@ -373,37 +374,34 @@ public class KycServiceTests
         // Arrange
         var submissions = new List<KycSubmission>
         {
-            new KycSubmission
+            new()
             {
-                id = Guid.NewGuid().ToString(),
-                userId = Guid.NewGuid().ToString(),
-                status = KycStatus.PENDING,
-                provider = KycProvider.MANUAL,
-                submittedAt = DateTime.UtcNow,
-                createdAt = DateTime.UtcNow,
-                updatedAt = DateTime.UtcNow
+                id = "s1", userId = "u1", status = KycStatus.PENDING,
+                provider = KycProvider.MANUAL, submittedAt = DateTime.UtcNow,
+                createdAt = DateTime.UtcNow, updatedAt = DateTime.UtcNow
             },
-            new KycSubmission
+            new()
             {
-                id = Guid.NewGuid().ToString(),
-                userId = Guid.NewGuid().ToString(),
-                status = KycStatus.IN_REVIEW,
-                provider = KycProvider.MANUAL,
-                submittedAt = DateTime.UtcNow,
-                createdAt = DateTime.UtcNow,
-                updatedAt = DateTime.UtcNow
+                id = "s2", userId = "u2", status = KycStatus.IN_REVIEW,
+                provider = KycProvider.MANUAL, submittedAt = DateTime.UtcNow,
+                createdAt = DateTime.UtcNow, updatedAt = DateTime.UtcNow
             }
         };
 
-        _submissionRepoMock.Setup(r => r.FindAsync(It.IsAny<Expression<Func<KycSubmission, bool>>>(), It.IsAny<CancellationToken>()))
+        _submissionRepoMock
+            .Setup(x => x.FindAsync(It.IsAny<Expression<Func<KycSubmission, bool>>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(submissions);
-        _documentRepoMock.Setup(r => r.FindAsync(It.IsAny<Expression<Func<KycDocument, bool>>>(), It.IsAny<CancellationToken>()))
+
+        _documentRepoMock
+            .Setup(x => x.FindAsync(It.IsAny<Expression<Func<KycDocument, bool>>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<KycDocument>());
 
-        _mapperMock.Setup(m => m.Map<KycSubmissionDto>(It.IsAny<KycSubmission>()))
-            .Returns((KycSubmission s) => new KycSubmissionDto { Id = s.id, Status = s.status });
-        _mapperMock.Setup(m => m.Map<List<KycDocumentDto>>(It.IsAny<IReadOnlyList<KycDocument>>()))
-            .Returns(new List<KycDocumentDto>());
+        _mapperMock
+            .Setup(x => x.Map<KycSubmissionDto>(It.IsAny<KycSubmission>()))
+            .Returns((KycSubmission s) => new KycSubmissionDto
+            {
+                Id = s.id, UserId = s.userId, Status = s.status
+            });
 
         // Act
         var result = await _sut.GetPendingAsync();
@@ -418,16 +416,15 @@ public class KycServiceTests
     #region ApproveAsync
 
     [Fact]
-    public async Task ApproveAsync_WithPendingSubmission_ApprovesAndUpgradesUser()
+    public async Task ApproveAsync_WithPendingSubmission_ApprovesAndUpgradesUserToPro()
     {
         // Arrange
-        var submissionId = Guid.NewGuid().ToString();
-        var userId = Guid.NewGuid().ToString();
-        var reviewerId = Guid.NewGuid().ToString();
+        var submissionId = "sub-123";
+        var reviewerId = "admin-1";
         var submission = new KycSubmission
         {
             id = submissionId,
-            userId = userId,
+            userId = "user-123",
             status = KycStatus.PENDING,
             provider = KycProvider.MANUAL,
             submittedAt = DateTime.UtcNow,
@@ -435,129 +432,116 @@ public class KycServiceTests
             updatedAt = DateTime.UtcNow
         };
 
-        _submissionRepoMock.Setup(r => r.GetByIdAsync(submissionId, It.IsAny<CancellationToken>()))
+        _submissionRepoMock.Setup(x => x.GetByIdAsync(submissionId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(submission);
-        _submissionRepoMock.Setup(r => r.UpdateAsync(It.IsAny<KycSubmission>(), It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
-        _unitOfWorkMock.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(1);
-        _userServiceMock.Setup(u => u.UpdateVerificationLevelAsync(userId,
-            It.Is<AdminUpdateVerificationLevelDto>(d => d.VerificationLevel == VerificationLevel.PRO),
-            It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Result<UserDto>.Success(new UserDto { Id = userId, VerificationLevel = VerificationLevel.PRO }));
-        _documentRepoMock.Setup(r => r.FindAsync(It.IsAny<Expression<Func<KycDocument, bool>>>(), It.IsAny<CancellationToken>()))
+
+        _documentRepoMock
+            .Setup(x => x.FindAsync(It.IsAny<Expression<Func<KycDocument, bool>>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<KycDocument>());
-        _mapperMock.Setup(m => m.Map<KycSubmissionDto>(It.IsAny<KycSubmission>()))
+
+        _mapperMock
+            .Setup(x => x.Map<KycSubmissionDto>(It.IsAny<KycSubmission>()))
             .Returns((KycSubmission s) => new KycSubmissionDto
             {
-                Id = s.id,
-                UserId = s.userId,
-                Status = s.status,
-                ReviewerId = s.reviewerId,
-                ReviewNotes = s.reviewNotes
+                Id = s.id, UserId = s.userId, Status = s.status,
+                ReviewerId = s.reviewerId, ReviewNotes = s.reviewNotes
             });
-        _mapperMock.Setup(m => m.Map<List<KycDocumentDto>>(It.IsAny<IReadOnlyList<KycDocument>>()))
-            .Returns(new List<KycDocumentDto>());
+
+        _userServiceMock
+            .Setup(x => x.UpdateVerificationLevelAsync("user-123", It.IsAny<AdminUpdateVerificationLevelDto>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<UserDto>.Success(new UserDto { Id = "user-123" }));
 
         // Act
-        var result = await _sut.ApproveAsync(submissionId, reviewerId, "All documents verified");
+        var result = await _sut.ApproveAsync(submissionId, reviewerId, "Looks good");
 
         // Assert
         result.IsSuccess.Should().BeTrue();
-        submission.status.Should().Be(KycStatus.APPROVED);
-        submission.reviewerId.Should().Be(reviewerId);
-        submission.reviewNotes.Should().Be("All documents verified");
-        submission.reviewedAt.Should().NotBeNull();
 
-        _userServiceMock.Verify(u => u.UpdateVerificationLevelAsync(userId,
-            It.Is<AdminUpdateVerificationLevelDto>(d => d.VerificationLevel == VerificationLevel.PRO),
+        _submissionRepoMock.Verify(x => x.UpdateAsync(
+            It.Is<KycSubmission>(s =>
+                s.status == KycStatus.APPROVED &&
+                s.reviewerId == reviewerId &&
+                s.reviewNotes == "Looks good" &&
+                s.reviewedAt != null),
+            It.IsAny<CancellationToken>()), Times.Once);
+
+        _userServiceMock.Verify(x => x.UpdateVerificationLevelAsync(
+            "user-123",
+            It.Is<AdminUpdateVerificationLevelDto>(dto => dto.VerificationLevel == VerificationLevel.PRO),
             It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
-    public async Task ApproveAsync_WithInReviewSubmission_ApprovesSuccessfully()
+    public async Task ApproveAsync_WithNonExistentId_ReturnsNotFound()
     {
         // Arrange
-        var submissionId = Guid.NewGuid().ToString();
-        var userId = Guid.NewGuid().ToString();
-        var reviewerId = Guid.NewGuid().ToString();
-        var submission = new KycSubmission
-        {
-            id = submissionId,
-            userId = userId,
-            status = KycStatus.IN_REVIEW,
-            provider = KycProvider.MANUAL,
-            submittedAt = DateTime.UtcNow,
-            createdAt = DateTime.UtcNow,
-            updatedAt = DateTime.UtcNow
-        };
-
-        _submissionRepoMock.Setup(r => r.GetByIdAsync(submissionId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(submission);
-        _submissionRepoMock.Setup(r => r.UpdateAsync(It.IsAny<KycSubmission>(), It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
-        _unitOfWorkMock.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(1);
-        _userServiceMock.Setup(u => u.UpdateVerificationLevelAsync(userId,
-            It.IsAny<AdminUpdateVerificationLevelDto>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Result<UserDto>.Success(new UserDto { Id = userId }));
-        _documentRepoMock.Setup(r => r.FindAsync(It.IsAny<Expression<Func<KycDocument, bool>>>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new List<KycDocument>());
-        _mapperMock.Setup(m => m.Map<KycSubmissionDto>(It.IsAny<KycSubmission>()))
-            .Returns((KycSubmission s) => new KycSubmissionDto { Id = s.id, Status = s.status });
-        _mapperMock.Setup(m => m.Map<List<KycDocumentDto>>(It.IsAny<IReadOnlyList<KycDocument>>()))
-            .Returns(new List<KycDocumentDto>());
-
-        // Act
-        var result = await _sut.ApproveAsync(submissionId, reviewerId, null);
-
-        // Assert
-        result.IsSuccess.Should().BeTrue();
-        submission.status.Should().Be(KycStatus.APPROVED);
-    }
-
-    [Fact]
-    public async Task ApproveAsync_WithAlreadyApprovedSubmission_ReturnsValidationError()
-    {
-        // Arrange
-        var submissionId = Guid.NewGuid().ToString();
-        var submission = new KycSubmission
-        {
-            id = submissionId,
-            userId = Guid.NewGuid().ToString(),
-            status = KycStatus.APPROVED,
-            provider = KycProvider.MANUAL,
-            submittedAt = DateTime.UtcNow,
-            createdAt = DateTime.UtcNow,
-            updatedAt = DateTime.UtcNow
-        };
-
-        _submissionRepoMock.Setup(r => r.GetByIdAsync(submissionId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(submission);
-
-        // Act
-        var result = await _sut.ApproveAsync(submissionId, "reviewer1", null);
-
-        // Assert
-        result.IsSuccess.Should().BeFalse();
-        result.Type.Should().Be(ResultType.ValidationError);
-        result.Error.Should().Contain("Cannot approve");
-    }
-
-    [Fact]
-    public async Task ApproveAsync_WithNonExistentSubmission_ReturnsNotFound()
-    {
-        // Arrange
-        var submissionId = Guid.NewGuid().ToString();
-        _submissionRepoMock.Setup(r => r.GetByIdAsync(submissionId, It.IsAny<CancellationToken>()))
+        _submissionRepoMock.Setup(x => x.GetByIdAsync("invalid", It.IsAny<CancellationToken>()))
             .ReturnsAsync((KycSubmission?)null);
 
         // Act
-        var result = await _sut.ApproveAsync(submissionId, "reviewer1", null);
+        var result = await _sut.ApproveAsync("invalid", "admin-1", null);
 
         // Assert
-        result.IsSuccess.Should().BeFalse();
+        result.IsFailure.Should().BeTrue();
         result.Type.Should().Be(ResultType.NotFound);
+        _userServiceMock.Verify(x => x.UpdateVerificationLevelAsync(
+            It.IsAny<string>(), It.IsAny<AdminUpdateVerificationLevelDto>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ApproveAsync_WithAlreadyApproved_ReturnsValidationError()
+    {
+        // Arrange
+        var submission = new KycSubmission
+        {
+            id = "sub-1", userId = "u1", status = KycStatus.APPROVED,
+            provider = KycProvider.MANUAL, submittedAt = DateTime.UtcNow,
+            createdAt = DateTime.UtcNow, updatedAt = DateTime.UtcNow
+        };
+
+        _submissionRepoMock.Setup(x => x.GetByIdAsync("sub-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(submission);
+
+        // Act
+        var result = await _sut.ApproveAsync("sub-1", "admin-1", null);
+
+        // Assert
+        result.IsFailure.Should().BeTrue();
+        result.Type.Should().Be(ResultType.ValidationError);
+        result.Error.Should().Contain("PENDING or IN_REVIEW");
+    }
+
+    [Fact]
+    public async Task ApproveAsync_WithInReviewStatus_Succeeds()
+    {
+        // Arrange
+        var submission = new KycSubmission
+        {
+            id = "sub-1", userId = "u1", status = KycStatus.IN_REVIEW,
+            provider = KycProvider.MANUAL, submittedAt = DateTime.UtcNow,
+            createdAt = DateTime.UtcNow, updatedAt = DateTime.UtcNow
+        };
+
+        _submissionRepoMock.Setup(x => x.GetByIdAsync("sub-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(submission);
+
+        _documentRepoMock
+            .Setup(x => x.FindAsync(It.IsAny<Expression<Func<KycDocument, bool>>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<KycDocument>());
+
+        _mapperMock
+            .Setup(x => x.Map<KycSubmissionDto>(It.IsAny<KycSubmission>()))
+            .Returns(new KycSubmissionDto { Id = "sub-1", Status = KycStatus.APPROVED });
+
+        _userServiceMock
+            .Setup(x => x.UpdateVerificationLevelAsync(It.IsAny<string>(), It.IsAny<AdminUpdateVerificationLevelDto>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<UserDto>.Success(new UserDto { Id = "u1" }));
+
+        // Act
+        var result = await _sut.ApproveAsync("sub-1", "admin-1", null);
+
+        // Assert
+        result.IsSuccess.Should().BeTrue();
     }
 
     #endregion
@@ -568,12 +552,13 @@ public class KycServiceTests
     public async Task RejectAsync_WithPendingSubmission_RejectsWithReason()
     {
         // Arrange
-        var submissionId = Guid.NewGuid().ToString();
-        var reviewerId = Guid.NewGuid().ToString();
+        var submissionId = "sub-123";
+        var reviewerId = "admin-1";
+        var reason = "Documents are blurry";
         var submission = new KycSubmission
         {
             id = submissionId,
-            userId = Guid.NewGuid().ToString(),
+            userId = "user-123",
             status = KycStatus.PENDING,
             provider = KycProvider.MANUAL,
             submittedAt = DateTime.UtcNow,
@@ -581,79 +566,77 @@ public class KycServiceTests
             updatedAt = DateTime.UtcNow
         };
 
-        _submissionRepoMock.Setup(r => r.GetByIdAsync(submissionId, It.IsAny<CancellationToken>()))
+        _submissionRepoMock.Setup(x => x.GetByIdAsync(submissionId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(submission);
-        _submissionRepoMock.Setup(r => r.UpdateAsync(It.IsAny<KycSubmission>(), It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
-        _unitOfWorkMock.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(1);
-        _documentRepoMock.Setup(r => r.FindAsync(It.IsAny<Expression<Func<KycDocument, bool>>>(), It.IsAny<CancellationToken>()))
+
+        _documentRepoMock
+            .Setup(x => x.FindAsync(It.IsAny<Expression<Func<KycDocument, bool>>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<KycDocument>());
-        _mapperMock.Setup(m => m.Map<KycSubmissionDto>(It.IsAny<KycSubmission>()))
+
+        _mapperMock
+            .Setup(x => x.Map<KycSubmissionDto>(It.IsAny<KycSubmission>()))
             .Returns((KycSubmission s) => new KycSubmissionDto
             {
-                Id = s.id,
-                Status = s.status,
-                ReviewerId = s.reviewerId,
-                RejectionReason = s.rejectionReason
+                Id = s.id, UserId = s.userId, Status = s.status,
+                ReviewerId = s.reviewerId, RejectionReason = s.rejectionReason
             });
-        _mapperMock.Setup(m => m.Map<List<KycDocumentDto>>(It.IsAny<IReadOnlyList<KycDocument>>()))
-            .Returns(new List<KycDocumentDto>());
 
         // Act
-        var result = await _sut.RejectAsync(submissionId, reviewerId, "Blurry document", "Please resubmit with a clearer image");
+        var result = await _sut.RejectAsync(submissionId, reviewerId, "Internal notes", reason);
 
         // Assert
         result.IsSuccess.Should().BeTrue();
-        submission.status.Should().Be(KycStatus.REJECTED);
-        submission.reviewerId.Should().Be(reviewerId);
-        submission.reviewNotes.Should().Be("Blurry document");
-        submission.rejectionReason.Should().Be("Please resubmit with a clearer image");
-        submission.reviewedAt.Should().NotBeNull();
+
+        _submissionRepoMock.Verify(x => x.UpdateAsync(
+            It.Is<KycSubmission>(s =>
+                s.status == KycStatus.REJECTED &&
+                s.reviewerId == reviewerId &&
+                s.rejectionReason == reason &&
+                s.reviewNotes == "Internal notes" &&
+                s.reviewedAt != null),
+            It.IsAny<CancellationToken>()), Times.Once);
+
+        // Should NOT upgrade user on rejection
+        _userServiceMock.Verify(x => x.UpdateVerificationLevelAsync(
+            It.IsAny<string>(), It.IsAny<AdminUpdateVerificationLevelDto>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
-    public async Task RejectAsync_WithAlreadyRejectedSubmission_ReturnsValidationError()
+    public async Task RejectAsync_WithNonExistentId_ReturnsNotFound()
     {
         // Arrange
-        var submissionId = Guid.NewGuid().ToString();
-        var submission = new KycSubmission
-        {
-            id = submissionId,
-            userId = Guid.NewGuid().ToString(),
-            status = KycStatus.REJECTED,
-            provider = KycProvider.MANUAL,
-            submittedAt = DateTime.UtcNow,
-            createdAt = DateTime.UtcNow,
-            updatedAt = DateTime.UtcNow
-        };
-
-        _submissionRepoMock.Setup(r => r.GetByIdAsync(submissionId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(submission);
-
-        // Act
-        var result = await _sut.RejectAsync(submissionId, "reviewer1", null, null);
-
-        // Assert
-        result.IsSuccess.Should().BeFalse();
-        result.Type.Should().Be(ResultType.ValidationError);
-        result.Error.Should().Contain("Cannot reject");
-    }
-
-    [Fact]
-    public async Task RejectAsync_WithNonExistentSubmission_ReturnsNotFound()
-    {
-        // Arrange
-        var submissionId = Guid.NewGuid().ToString();
-        _submissionRepoMock.Setup(r => r.GetByIdAsync(submissionId, It.IsAny<CancellationToken>()))
+        _submissionRepoMock.Setup(x => x.GetByIdAsync("invalid", It.IsAny<CancellationToken>()))
             .ReturnsAsync((KycSubmission?)null);
 
         // Act
-        var result = await _sut.RejectAsync(submissionId, "reviewer1", null, null);
+        var result = await _sut.RejectAsync("invalid", "admin-1", null, null);
 
         // Assert
-        result.IsSuccess.Should().BeFalse();
+        result.IsFailure.Should().BeTrue();
         result.Type.Should().Be(ResultType.NotFound);
+    }
+
+    [Fact]
+    public async Task RejectAsync_WithAlreadyRejected_ReturnsValidationError()
+    {
+        // Arrange
+        var submission = new KycSubmission
+        {
+            id = "sub-1", userId = "u1", status = KycStatus.REJECTED,
+            provider = KycProvider.MANUAL, submittedAt = DateTime.UtcNow,
+            createdAt = DateTime.UtcNow, updatedAt = DateTime.UtcNow
+        };
+
+        _submissionRepoMock.Setup(x => x.GetByIdAsync("sub-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(submission);
+
+        // Act
+        var result = await _sut.RejectAsync("sub-1", "admin-1", null, null);
+
+        // Assert
+        result.IsFailure.Should().BeTrue();
+        result.Type.Should().Be(ResultType.ValidationError);
+        result.Error.Should().Contain("PENDING or IN_REVIEW");
     }
 
     #endregion

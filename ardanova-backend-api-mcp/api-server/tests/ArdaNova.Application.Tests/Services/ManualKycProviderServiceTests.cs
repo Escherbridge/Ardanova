@@ -167,6 +167,30 @@ public class ManualKycProviderServiceTests
     }
 
     [Fact]
+    public async Task ValidateDocumentsAsync_WithMissingFileName_ReturnsValidationError()
+    {
+        // Arrange
+        var documents = new List<SubmitKycDocumentDto>
+        {
+            new SubmitKycDocumentDto
+            {
+                Type = KycDocumentType.GOVERNMENT_ID,
+                FileUrl = "https://s3.example.com/doc.jpg",
+                FileName = "",
+                MimeType = "image/jpeg"
+            }
+        };
+
+        // Act
+        var result = await _sut.ValidateDocumentsAsync(documents);
+
+        // Assert
+        result.IsSuccess.Should().BeFalse();
+        result.Type.Should().Be(ResultType.ValidationError);
+        result.Error.Should().Contain("file name");
+    }
+
+    [Fact]
     public async Task ValidateDocumentsAsync_WithPdfMimeType_ReturnsSuccess()
     {
         // Arrange
