@@ -59,7 +59,7 @@
     - Register AlgorandService with typed HttpClient via AddHttpClient
 
 ## 4. CredentialUtilityService — Orchestrator
-- [ ] **[P0] ICredentialUtilityService interface**
+- [x] **[P0] ICredentialUtilityService interface** [3e282a1]
     - Create `ArdaNova.Application/Services/Interfaces/ICredentialUtilityService.cs`
     - `GrantAndMintAsync(dto, ct)` → credential with on-chain ASA
     - `RevokeAndBurnAsync(id, ct)` → credential with revoke tx
@@ -67,7 +67,7 @@
     - `CheckAndAutoGrantAsync(userId, projectId?, guildId?, ct)` → credential or null
     - `RetryMintAsync(id, ct)` → retry failed mint
     - `GetCredentialWithChainDataAsync(id, ct)` → enriched DTO with on-chain state
-- [ ] **[P0] CredentialUtilityService implementation**
+- [x] **[P0] CredentialUtilityService implementation** [3e282a1]
     - Create `ArdaNova.Application/Services/Implementations/CredentialUtilityService.cs`
     - Orchestrates IMembershipCredentialService + IAlgorandService
     - `GrantAndMint`: Grant credential → Mint ASA → UpdateMintInfo
@@ -76,7 +76,7 @@
     - `CheckAndAutoGrant`: Check contribution/XP thresholds → Auto-grant if eligible
     - `RetryMint`: Re-attempt failed ASA minting for credentials with null assetId
     - Graceful degradation: If chain is down, credential still granted off-chain
-- [ ] **[P1] CredentialUtilityController**
+- [x] **[P1] CredentialUtilityController** [3e282a1]
     - Create `ArdaNova.API/Controllers/CredentialUtilityController.cs`
     - `POST /api/CredentialUtility/grant-and-mint`
     - `POST /api/CredentialUtility/{id}/revoke-and-burn`
@@ -84,7 +84,7 @@
     - `POST /api/CredentialUtility/check-auto-grant`
     - `POST /api/CredentialUtility/{id}/retry-mint`
     - `GET /api/CredentialUtility/{id}/chain-data`
-- [ ] **[P1] DependencyInjection: Register CredentialUtilityService**
+- [x] **[P1] DependencyInjection: Register CredentialUtilityService** [3e282a1]
 
 ## 5. API Client + tRPC Router Updates
 - [ ] **[P1] API Client: Update membership-credentials.ts**
@@ -108,13 +108,30 @@
     - Unique constraint per guild/user
     - Query by guild ID
     - XOR validation (projectId vs guildId)
-- [ ] **[P0] CredentialUtilityService unit tests**
+- [x] **[P0] CredentialUtilityService unit tests** [3e282a1]
     - Grant-and-mint happy path (credential created + ASA minted)
     - Grant-and-mint chain failure (credential created, ASA null — graceful degradation)
-    - Revoke-and-burn happy path
-    - Retry mint for failed credentials
-    - Tier upgrade validation
-    - Auto-grant threshold checks
+    - Grant-and-mint grant fails (returns failure without minting)
+    - Grant-and-mint guild scope (correct metadata scope)
+    - Revoke-and-burn happy path (burns ASA + revokes credential)
+    - Revoke-and-burn no assetId (revokes without burning)
+    - Revoke-and-burn not found
+    - Revoke-and-burn burn fails (graceful degradation)
+    - Upgrade tier happy path (BRONZE -> SILVER)
+    - Upgrade tier downgrade rejected
+    - Upgrade tier same tier rejected
+    - Upgrade tier invalid tier
+    - Upgrade tier null current tier (first assignment)
+    - Upgrade tier not found
+    - Auto-grant already has credential (returns null)
+    - Auto-grant eligible (grants and mints)
+    - Retry mint happy path
+    - Retry mint already minted
+    - Retry mint not active
+    - Get chain data with on-chain data
+    - Get chain data without assetId
+    - Get chain data not found
+    - Total: 22 tests, all passing
 - [x] **[P1] AlgorandService unit tests (mocked HttpClient)** [520f6c1]
     - ARC-19 metadata building (3 tests: valid input, null tier, guild scope)
     - Soulbound ASA minting (3 tests: success, unreachable, error)
