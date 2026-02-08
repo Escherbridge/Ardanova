@@ -86,6 +86,7 @@ public static class DependencyInjection
         services.AddScoped<IGovernanceService, GovernanceService>();
         services.AddScoped<IDelegatedVoteService, DelegatedVoteService>();
         services.AddScoped<IMembershipCredentialService, MembershipCredentialService>();
+        services.AddScoped<ICredentialUtilityService, CredentialUtilityService>();
 
         // Exchange services
         // TODO: LiquidityPool/LiquidityProvider services not yet implemented

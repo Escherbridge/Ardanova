@@ -291,6 +291,8 @@ public class MembershipCredentialService : IMembershipCredentialService
             return Result<MembershipCredentialDto>.NotFound($"MembershipCredential with id {id} not found");
 
         credential.mintTxHash = dto.MintTxHash;
+        if (dto.AssetId is not null) credential.assetId = dto.AssetId;
+        if (dto.MetadataUri is not null) credential.metadataUri = dto.MetadataUri;
         credential.mintedAt = DateTime.UtcNow;
         credential.updatedAt = DateTime.UtcNow;
 
