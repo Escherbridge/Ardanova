@@ -9,29 +9,29 @@
     - Run `npm run generate:prisma` + `npm run generate:csharp`
 
 ## 2. Backend — Extend Credential Service for Guilds + Tiers
-- [ ] **[P0] DTOs: Add guild + tier fields**
+- [x] **[P0] DTOs: Add guild + tier fields** [f586970]
     - Update `MembershipCredentialDto` → add `GuildId`, `Tier`, `MetadataUri`
     - Update `GrantMembershipCredentialDto` → add optional `GuildId`
     - Add `UpdateCredentialTierDto { Tier: string }`
     - Add `CredentialEligibilityDto { IsEligible, Reason, RequiredTier }`
-- [ ] **[P0] IMembershipCredentialService: Extend interface**
+- [x] **[P0] IMembershipCredentialService: Extend interface** [f586970]
     - `GetByGuildIdAsync(guildId, ct)`
     - `GetByGuildAndUserAsync(guildId, userId, ct)`
     - `GetActiveByGuildIdAsync(guildId, ct)`
     - `UpdateTierAsync(id, UpdateCredentialTierDto, ct)`
     - `CheckEligibilityAsync(userId, projectId?, guildId?, ct)`
-- [ ] **[P0] MembershipCredentialServices: Implement new methods**
+- [x] **[P0] MembershipCredentialServices: Implement new methods** [f586970]
     - Guild credential queries (mirror project queries)
     - Tier update with validation (only ACTIVE credentials)
     - Eligibility check (validates membership state)
-- [ ] **[P1] MembershipCredentialsController: Add guild endpoints**
+- [x] **[P1] MembershipCredentialsController: Add guild endpoints** [f586970]
     - `GET /api/MembershipCredentials/guild/{guildId}`
     - `GET /api/MembershipCredentials/guild/{guildId}/active`
     - `GET /api/MembershipCredentials/guild/{guildId}/user/{userId}`
     - `PATCH /api/MembershipCredentials/{id}/tier`
     - `GET /api/MembershipCredentials/eligibility`
-- [ ] **[P0] MappingProfile: Update AutoMapper for new fields**
-- [ ] **[P0] Validation: Enforce XOR on projectId/guildId**
+- [x] **[P0] MappingProfile: Update AutoMapper for new fields** [f586970]
+- [x] **[P0] Validation: Enforce XOR on projectId/guildId** [f586970]
     - Grant must have exactly one of projectId or guildId (not both, not neither)
 
 ## 3. Algorand Integration — IAlgorandService
@@ -103,7 +103,7 @@
     - Thin proxies following existing pattern in project.ts
 
 ## 6. Tests
-- [ ] **[P0] MembershipCredentialService guild tests**
+- [x] **[P0] MembershipCredentialService guild tests** [f586970]
     - Grant guild credential (guildId, no projectId)
     - Unique constraint per guild/user
     - Query by guild ID
