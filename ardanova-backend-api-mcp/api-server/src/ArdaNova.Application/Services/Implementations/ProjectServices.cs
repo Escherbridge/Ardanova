@@ -1109,6 +1109,11 @@ public class ProjectMemberService : IProjectMemberService
 
     public async Task<Result<ProjectMemberDto>> CreateAsync(CreateProjectMemberDto dto, CancellationToken ct = default)
     {
+        // Enforce one role per user per project
+        var existing = await _repository.FindAsync(m => m.projectId == dto.ProjectId && m.userId == dto.UserId, ct);
+        if (existing.Any())
+            return Result<ProjectMemberDto>.ValidationError("User already has a role on this project");
+
         var member = new ProjectMember
         {
             id = Guid.NewGuid().ToString(),
@@ -1161,5 +1166,193 @@ public class ProjectMemberService : IProjectMemberService
         await _repository.DeleteAsync(member, ct);
         await _unitOfWork.SaveChangesAsync(ct);
         return Result<bool>.Success(true);
+    }
+}
+
+public class ProjectInvitationService : IProjectInvitationService
+{
+    private readonly IRepository<ProjectInvitation> _repository;
+    private readonly IRepository<ProjectMember> _memberRepository;
+    private readonly IRepository<User> _userRepository;
+    private readonly IRepository<Project> _projectRepository;
+    private readonly IUnitOfWork _unitOfWork;
+    private readonly IMapper _mapper;
+
+    public ProjectInvitationService(
+        IRepository<ProjectInvitation> repository,
+        IRepository<ProjectMember> memberRepository,
+        IRepository<User> userRepository,
+        IRepository<Project> projectRepository,
+        IUnitOfWork unitOfWork,
+        IMapper mapper)
+    {
+        _repository = repository;
+        _memberRepository = memberRepository;
+        _userRepository = userRepository;
+        _projectRepository = projectRepository;
+        _unitOfWork = unitOfWork;
+        _mapper = mapper;
+    }
+
+    public async Task<Result<ProjectInvitationDto>> GetByIdAsync(string id, CancellationToken ct = default)
+    {
+        var invitation = await _repository.GetByIdAsync(id, ct);
+        if (invitation is null)
+            return Result<ProjectInvitationDto>.NotFound($"Invitation with id {id} not found");
+
+        return Result<ProjectInvitationDto>.Success(await EnrichAsync(invitation, ct));
+    }
+
+    public async Task<Result<IReadOnlyList<ProjectInvitationDto>>> GetByProjectIdAsync(string projectId, CancellationToken ct = default)
+    {
+        var invitations = await _repository.FindAsync(i => i.projectId == projectId, ct);
+        var dtos = new List<ProjectInvitationDto>();
+        foreach (var inv in invitations)
+            dtos.Add(await EnrichAsync(inv, ct));
+        return Result<IReadOnlyList<ProjectInvitationDto>>.Success(dtos);
+    }
+
+    public async Task<Result<IReadOnlyList<ProjectInvitationDto>>> GetByUserIdAsync(string userId, CancellationToken ct = default)
+    {
+        var invitations = await _repository.FindAsync(i => i.invitedUserId == userId, ct);
+        var dtos = new List<ProjectInvitationDto>();
+        foreach (var inv in invitations)
+            dtos.Add(await EnrichAsync(inv, ct));
+        return Result<IReadOnlyList<ProjectInvitationDto>>.Success(dtos);
+    }
+
+    public async Task<Result<ProjectInvitationDto>> CreateAsync(CreateProjectInvitationDto dto, CancellationToken ct = default)
+    {
+        // Validate no duplicate PENDING invitation for same (projectId, invitedUserId)
+        if (dto.InvitedUserId is not null)
+        {
+            var existing = await _repository.FindAsync(
+                i => i.projectId == dto.ProjectId
+                     && i.invitedUserId == dto.InvitedUserId
+                     && i.status == InvitationStatus.PENDING, ct);
+            if (existing.Any())
+                return Result<ProjectInvitationDto>.ValidationError("A pending invitation already exists for this user on this project");
+
+            // Validate user is not already a member (one-role constraint)
+            var members = await _memberRepository.FindAsync(m => m.projectId == dto.ProjectId && m.userId == dto.InvitedUserId, ct);
+            if (members.Any())
+                return Result<ProjectInvitationDto>.ValidationError("User already has a role on this project");
+        }
+
+        var invitation = new ProjectInvitation
+        {
+            id = Guid.NewGuid().ToString(),
+            projectId = dto.ProjectId,
+            invitedById = dto.InvitedById,
+            invitedUserId = dto.InvitedUserId,
+            invitedEmail = dto.InvitedEmail,
+            role = Enum.Parse<ProjectRole>(dto.Role),
+            message = dto.Message,
+            status = InvitationStatus.PENDING,
+            createdAt = DateTime.UtcNow
+        };
+
+        await _repository.AddAsync(invitation, ct);
+        await _unitOfWork.SaveChangesAsync(ct);
+        return Result<ProjectInvitationDto>.Success(await EnrichAsync(invitation, ct));
+    }
+
+    public async Task<Result<ProjectInvitationDto>> AcceptAsync(string id, CancellationToken ct = default)
+    {
+        var invitation = await _repository.GetByIdAsync(id, ct);
+        if (invitation is null)
+            return Result<ProjectInvitationDto>.NotFound($"Invitation with id {id} not found");
+
+        if (invitation.status != InvitationStatus.PENDING)
+            return Result<ProjectInvitationDto>.ValidationError("Invitation is no longer pending");
+
+        // Check user not already a member (one-role constraint)
+        if (invitation.invitedUserId is not null)
+        {
+            var members = await _memberRepository.FindAsync(
+                m => m.projectId == invitation.projectId && m.userId == invitation.invitedUserId, ct);
+            if (members.Any())
+                return Result<ProjectInvitationDto>.ValidationError("User already has a role on this project");
+        }
+
+        invitation.status = InvitationStatus.ACCEPTED;
+        invitation.respondedAt = DateTime.UtcNow;
+        await _repository.UpdateAsync(invitation, ct);
+
+        // Auto-create ProjectMember with the invitation's role
+        if (invitation.invitedUserId is not null)
+        {
+            var member = new ProjectMember
+            {
+                id = Guid.NewGuid().ToString(),
+                projectId = invitation.projectId,
+                userId = invitation.invitedUserId,
+                role = invitation.role,
+                shareBalance = 0,
+                votingPower = 0,
+                joinedAt = DateTime.UtcNow,
+                invitedById = invitation.invitedById
+            };
+            await _memberRepository.AddAsync(member, ct);
+        }
+
+        await _unitOfWork.SaveChangesAsync(ct);
+        return Result<ProjectInvitationDto>.Success(await EnrichAsync(invitation, ct));
+    }
+
+    public async Task<Result<ProjectInvitationDto>> RejectAsync(string id, CancellationToken ct = default)
+    {
+        var invitation = await _repository.GetByIdAsync(id, ct);
+        if (invitation is null)
+            return Result<ProjectInvitationDto>.NotFound($"Invitation with id {id} not found");
+
+        if (invitation.status != InvitationStatus.PENDING)
+            return Result<ProjectInvitationDto>.ValidationError("Invitation is no longer pending");
+
+        invitation.status = InvitationStatus.DECLINED;
+        invitation.respondedAt = DateTime.UtcNow;
+
+        await _repository.UpdateAsync(invitation, ct);
+        await _unitOfWork.SaveChangesAsync(ct);
+        return Result<ProjectInvitationDto>.Success(await EnrichAsync(invitation, ct));
+    }
+
+    public async Task<Result<bool>> DeleteAsync(string id, CancellationToken ct = default)
+    {
+        var invitation = await _repository.GetByIdAsync(id, ct);
+        if (invitation is null)
+            return Result<bool>.NotFound($"Invitation with id {id} not found");
+
+        await _repository.DeleteAsync(invitation, ct);
+        await _unitOfWork.SaveChangesAsync(ct);
+        return Result<bool>.Success(true);
+    }
+
+    private async Task<ProjectInvitationDto> EnrichAsync(ProjectInvitation invitation, CancellationToken ct)
+    {
+        var dto = _mapper.Map<ProjectInvitationDto>(invitation);
+
+        if (invitation.invitedUserId is not null)
+        {
+            var user = await _userRepository.GetByIdAsync(invitation.invitedUserId, ct);
+            if (user is not null)
+                dto = dto with { InvitedUser = _mapper.Map<ProjectMemberUserDto>(user) };
+        }
+
+        var invitedBy = await _userRepository.GetByIdAsync(invitation.invitedById, ct);
+        if (invitedBy is not null)
+            dto = dto with { InvitedBy = _mapper.Map<ProjectMemberUserDto>(invitedBy) };
+
+        var project = await _projectRepository.GetByIdAsync(invitation.projectId, ct);
+        if (project is not null)
+            dto = dto with { Project = new ProjectInvitationProjectDto
+            {
+                Id = project.id,
+                Title = project.title,
+                Slug = project.slug,
+                Images = project.images
+            }};
+
+        return dto;
     }
 }

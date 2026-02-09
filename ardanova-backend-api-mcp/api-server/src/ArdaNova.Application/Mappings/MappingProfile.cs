@@ -319,6 +319,13 @@ public class MappingProfile : Profile
             .ForMember(dest => dest.Name, opt => opt.MapFrom(src => src.name))
             .ForMember(dest => dest.Image, opt => opt.MapFrom(src => src.image));
 
+        // UserFollow mappings
+        CreateMap<UserFollow, UserFollowDto>()
+            .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.id))
+            .ForMember(dest => dest.FollowerId, opt => opt.MapFrom(src => src.followerId))
+            .ForMember(dest => dest.FollowingId, opt => opt.MapFrom(src => src.followingId))
+            .ForMember(dest => dest.CreatedAt, opt => opt.MapFrom(src => src.createdAt));
+
         // Wallet mappings
         CreateMap<Wallet, WalletDto>();
 
@@ -406,6 +413,24 @@ public class MappingProfile : Profile
             .ForMember(dest => dest.FileSizeBytes, opt => opt.MapFrom(src => src.fileSizeBytes))
             .ForMember(dest => dest.Metadata, opt => opt.MapFrom(src => src.metadata))
             .ForMember(dest => dest.CreatedAt, opt => opt.MapFrom(src => src.createdAt));
+
+        // Project Invitation mappings
+        CreateMap<ProjectInvitation, ProjectInvitationDto>()
+            .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.id))
+            .ForMember(dest => dest.ProjectId, opt => opt.MapFrom(src => src.projectId))
+            .ForMember(dest => dest.InvitedById, opt => opt.MapFrom(src => src.invitedById))
+            .ForMember(dest => dest.InvitedUserId, opt => opt.MapFrom(src => src.invitedUserId))
+            .ForMember(dest => dest.InvitedEmail, opt => opt.MapFrom(src => src.invitedEmail))
+            .ForMember(dest => dest.Role, opt => opt.MapFrom(src => src.role.ToString()))
+            .ForMember(dest => dest.Message, opt => opt.MapFrom(src => src.message))
+            .ForMember(dest => dest.Status, opt => opt.MapFrom(src => src.status.ToString()))
+            .ForMember(dest => dest.Token, opt => opt.MapFrom(src => src.token))
+            .ForMember(dest => dest.CreatedAt, opt => opt.MapFrom(src => src.createdAt))
+            .ForMember(dest => dest.ExpiresAt, opt => opt.MapFrom(src => src.expiresAt))
+            .ForMember(dest => dest.RespondedAt, opt => opt.MapFrom(src => src.respondedAt))
+            .ForMember(dest => dest.InvitedUser, opt => opt.Ignore())
+            .ForMember(dest => dest.InvitedBy, opt => opt.Ignore())
+            .ForMember(dest => dest.Project, opt => opt.Ignore());
 
         // Tokenomics mappings
         CreateMap<ProjectTokenConfig, ProjectTokenConfigDto>();

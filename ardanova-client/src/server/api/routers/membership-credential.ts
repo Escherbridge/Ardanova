@@ -258,4 +258,38 @@ export const membershipCredentialRouter = createTRPCRouter({
 
       return response.data;
     }),
+
+  updateTier: protectedProcedure
+    .input(
+      z.object({
+        credentialId: z.string().min(1),
+        tier: z.enum(["BRONZE", "SILVER", "GOLD", "PLATINUM", "DIAMOND"]),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      const callerId = ctx.session.user.id;
+
+      const credentialResponse = await apiClient.membershipCredentials.getById(input.credentialId);
+      if (credentialResponse.error || !credentialResponse.data) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Membership credential not found",
+        });
+      }
+
+      await verifyProjectOwner(credentialResponse.data.projectId, callerId);
+
+      const response = await apiClient.membershipCredentials.updateTier(input.credentialId, {
+        tier: input.tier,
+      });
+
+      if (response.error || !response.data) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: response.error ?? "Failed to update credential tier",
+        });
+      }
+
+      return response.data;
+    }),
 });

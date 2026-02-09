@@ -29,6 +29,7 @@ import { payoutsRouter } from "~/server/api/routers/payouts";
 import { treasuryRouter } from "~/server/api/routers/treasury";
 import { projectGatesRouter } from "~/server/api/routers/project-gates";
 import { exchangeRouter } from "~/server/api/routers/exchange";
+import { userRouter } from "~/server/api/routers/user";
 import { createCallerFactory, createTRPCRouter } from "~/server/api/trpc";
 
 /**
@@ -68,6 +69,7 @@ export const appRouter = createTRPCRouter({
   treasury: treasuryRouter,
   projectGates: projectGatesRouter,
   exchange: exchangeRouter,
+  user: userRouter,
 });
 
 // export type definition of API

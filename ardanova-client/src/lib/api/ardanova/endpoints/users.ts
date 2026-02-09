@@ -106,6 +106,20 @@ export interface UpdateUserExperienceDto {
   isCurrent?: boolean;
 }
 
+// ============ UserFollow Types ============
+
+export interface UserFollowDto {
+  id: string;
+  followerId: string;
+  followingId: string;
+  createdAt: string;
+}
+
+export interface UserFollowCounts {
+  followersCount: number;
+  followingCount: number;
+}
+
 // ============ Users Endpoint ============
 
 export class UsersEndpoint {
@@ -187,5 +201,31 @@ export class UsersEndpoint {
 
   deleteExperience(userId: string, experienceId: string): Promise<ApiResponse<void>> {
     return this.client.delete(`/api/users/${userId}/experience/${experienceId}`);
+  }
+
+  // ---- Follow ----
+
+  follow(userId: string, followerId: string): Promise<ApiResponse<UserFollowDto>> {
+    return this.client.post<UserFollowDto>(`/api/users/${userId}/follow`, { followerId, followingId: userId });
+  }
+
+  unfollow(userId: string, followerId: string): Promise<ApiResponse<void>> {
+    return this.client.delete(`/api/users/${userId}/follow?followerId=${followerId}`);
+  }
+
+  getFollowers(userId: string): Promise<ApiResponse<UserFollowDto[]>> {
+    return this.client.get<UserFollowDto[]>(`/api/users/${userId}/followers`);
+  }
+
+  getFollowing(userId: string): Promise<ApiResponse<UserFollowDto[]>> {
+    return this.client.get<UserFollowDto[]>(`/api/users/${userId}/following`);
+  }
+
+  isFollowing(userId: string, followerId: string): Promise<ApiResponse<boolean>> {
+    return this.client.get<boolean>(`/api/users/${userId}/follow/check?followerId=${followerId}`);
+  }
+
+  getFollowCounts(userId: string): Promise<ApiResponse<UserFollowCounts>> {
+    return this.client.get<UserFollowCounts>(`/api/users/${userId}/follow/counts`);
   }
 }

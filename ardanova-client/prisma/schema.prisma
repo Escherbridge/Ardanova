@@ -1229,6 +1229,8 @@ model ProjectMember {
   invitedById String?
   project Project @relation("ProjectMember_projectId", fields: [projectId], references: [id])
   user User @relation("ProjectMember_userId", fields: [userId], references: [id])
+
+  @@unique([projectId, userId])
 }
 
 model TaskCompensation {

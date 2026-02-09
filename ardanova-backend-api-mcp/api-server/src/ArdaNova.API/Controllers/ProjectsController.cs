@@ -19,6 +19,7 @@ public class ProjectsController : ControllerBase
     private readonly IProjectUpdateService _updateService;
     private readonly IProjectSupportService _supportService;
     private readonly IGovernanceService _governanceService;
+    private readonly IProjectInvitationService _invitationService;
 
     public ProjectsController(
         IProjectService projectService,
@@ -29,7 +30,8 @@ public class ProjectsController : ControllerBase
         IProjectCommentService commentService,
         IProjectUpdateService updateService,
         IProjectSupportService supportService,
-        IGovernanceService governanceService)
+        IGovernanceService governanceService,
+        IProjectInvitationService invitationService)
     {
         _projectService = projectService;
         _resourceService = resourceService;
@@ -40,6 +42,7 @@ public class ProjectsController : ControllerBase
         _updateService = updateService;
         _supportService = supportService;
         _governanceService = governanceService;
+        _invitationService = invitationService;
     }
 
     [HttpGet]
@@ -542,6 +545,60 @@ public class ProjectsController : ControllerBase
         return result.IsSuccess
             ? Ok(result.Value)
             : ToActionResult(result);
+    }
+
+    // ===== PROJECT INVITATIONS =====
+    [HttpGet("{projectId}/invitations")]
+    public async Task<IActionResult> GetInvitations(string projectId, CancellationToken ct)
+    {
+        var result = await _invitationService.GetByProjectIdAsync(projectId, ct);
+        return ToActionResult(result);
+    }
+
+    [HttpPost("{projectId}/invitations")]
+    public async Task<IActionResult> CreateInvitation(string projectId, [FromBody] CreateProjectInvitationDto dto, CancellationToken ct)
+    {
+        var dtoWithProject = dto with { ProjectId = projectId };
+        var result = await _invitationService.CreateAsync(dtoWithProject, ct);
+        return result.IsSuccess
+            ? CreatedAtAction(nameof(GetInvitationById), new { projectId, invitationId = result.Value!.Id }, result.Value)
+            : ToActionResult(result);
+    }
+
+    [HttpGet("{projectId}/invitations/{invitationId}")]
+    public async Task<IActionResult> GetInvitationById(string projectId, string invitationId, CancellationToken ct)
+    {
+        var result = await _invitationService.GetByIdAsync(invitationId, ct);
+        return ToActionResult(result);
+    }
+
+    [HttpPost("{projectId}/invitations/{invitationId}/accept")]
+    public async Task<IActionResult> AcceptInvitation(string projectId, string invitationId, CancellationToken ct)
+    {
+        var result = await _invitationService.AcceptAsync(invitationId, ct);
+        return ToActionResult(result);
+    }
+
+    [HttpPost("{projectId}/invitations/{invitationId}/reject")]
+    public async Task<IActionResult> RejectInvitation(string projectId, string invitationId, CancellationToken ct)
+    {
+        var result = await _invitationService.RejectAsync(invitationId, ct);
+        return ToActionResult(result);
+    }
+
+    [HttpDelete("{projectId}/invitations/{invitationId}")]
+    public async Task<IActionResult> DeleteInvitation(string projectId, string invitationId, CancellationToken ct)
+    {
+        var result = await _invitationService.DeleteAsync(invitationId, ct);
+        return result.IsSuccess ? NoContent() : ToActionResult(result);
+    }
+
+    // ===== USER INVITATIONS (cross-project) =====
+    [HttpGet("/api/project-invitations/user/{userId}")]
+    public async Task<IActionResult> GetUserInvitations(string userId, CancellationToken ct)
+    {
+        var result = await _invitationService.GetByUserIdAsync(userId, ct);
+        return ToActionResult(result);
     }
 
     private IActionResult ToActionResult<T>(Result<T> result)

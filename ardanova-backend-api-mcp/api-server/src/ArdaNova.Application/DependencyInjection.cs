@@ -18,6 +18,7 @@ public static class DependencyInjection
         services.AddScoped<ISessionService, SessionService>();
         services.AddScoped<IUserSkillService, UserSkillService>();
         services.AddScoped<IUserExperienceService, UserExperienceService>();
+        services.AddScoped<IUserFollowService, UserFollowService>();
 
         // Project services
         services.AddScoped<IProjectService, ProjectService>();
@@ -31,6 +32,7 @@ public static class DependencyInjection
         services.AddScoped<IProjectUpdateService, ProjectUpdateService>();
         services.AddScoped<IProjectEquityService, ProjectEquityService>();
         services.AddScoped<IProjectMemberService, ProjectMemberService>();
+        services.AddScoped<IProjectInvitationService, ProjectInvitationService>();
 
         // Guild services
         services.AddScoped<IGuildService, GuildService>();

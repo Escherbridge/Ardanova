@@ -54,8 +54,8 @@ const mainNavItems = [
     icon: FolderKanban,
   },
   {
-    href: "/guilds",
-    label: "Guilds",
+    href: "/people",
+    label: "People",
     icon: Users,
   },
   {

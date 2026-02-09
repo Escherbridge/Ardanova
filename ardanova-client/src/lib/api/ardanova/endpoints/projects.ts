@@ -318,6 +318,32 @@ export interface CreateSupportDto {
   message?: string;
 }
 
+export interface ProjectInvitation {
+  id: string;
+  projectId: string;
+  invitedById: string;
+  invitedUserId?: string;
+  invitedEmail?: string;
+  role: string;
+  message?: string;
+  status: string;
+  token?: string;
+  createdAt: string;
+  expiresAt?: string;
+  respondedAt?: string;
+  invitedUser?: { id: string; name?: string; email?: string; image?: string };
+  invitedBy?: { id: string; name?: string; email?: string; image?: string };
+  project?: { id: string; title: string; slug: string; images?: string };
+}
+
+export interface CreateProjectInvitationDto {
+  invitedById: string;
+  invitedUserId?: string;
+  invitedEmail?: string;
+  role: string;
+  message?: string;
+}
+
 // ============ Projects Endpoint ============
 
 export class ProjectsEndpoint {
@@ -609,5 +635,31 @@ export class ProjectsEndpoint {
 
   getSupportById(supportId: string): Promise<ApiResponse<ProjectSupport>> {
     return this.client.get<ProjectSupport>(`/api/project-support/${supportId}`);
+  }
+
+  // ============ Invitation Methods ============
+
+  getInvitations(projectId: string): Promise<ApiResponse<ProjectInvitation[]>> {
+    return this.client.get<ProjectInvitation[]>(`/api/projects/${projectId}/invitations`);
+  }
+
+  createInvitation(projectId: string, data: CreateProjectInvitationDto): Promise<ApiResponse<ProjectInvitation>> {
+    return this.client.post<ProjectInvitation>(`/api/projects/${projectId}/invitations`, data);
+  }
+
+  acceptInvitation(projectId: string, invitationId: string): Promise<ApiResponse<ProjectInvitation>> {
+    return this.client.post<ProjectInvitation>(`/api/projects/${projectId}/invitations/${invitationId}/accept`);
+  }
+
+  rejectInvitation(projectId: string, invitationId: string): Promise<ApiResponse<ProjectInvitation>> {
+    return this.client.post<ProjectInvitation>(`/api/projects/${projectId}/invitations/${invitationId}/reject`);
+  }
+
+  deleteInvitation(projectId: string, invitationId: string): Promise<ApiResponse<void>> {
+    return this.client.delete(`/api/projects/${projectId}/invitations/${invitationId}`);
+  }
+
+  getInvitationsByUserId(userId: string): Promise<ApiResponse<ProjectInvitation[]>> {
+    return this.client.get<ProjectInvitation[]>(`/api/project-invitations/user/${userId}`);
   }
 }

@@ -5,7 +5,7 @@ using ArdaNova.Application.Common.Results;
 using ArdaNova.Application.DTOs;
 using ArdaNova.Application.Services.Interfaces;
 using ArdaNova.Domain.Models.Entities;
-using ArdaNova.Domain.Repositories;
+using ArdaNova.Application.Common.Interfaces;
 
 public class UserFollowService : IUserFollowService
 {

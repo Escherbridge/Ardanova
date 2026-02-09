@@ -128,3 +128,14 @@ public interface IProjectMemberService
     Task<Result<ProjectMemberDto>> UpdateAsync(string id, UpdateProjectMemberDto dto, CancellationToken ct = default);
     Task<Result<bool>> DeleteAsync(string id, CancellationToken ct = default);
 }
+
+public interface IProjectInvitationService
+{
+    Task<Result<ProjectInvitationDto>> GetByIdAsync(string id, CancellationToken ct = default);
+    Task<Result<IReadOnlyList<ProjectInvitationDto>>> GetByProjectIdAsync(string projectId, CancellationToken ct = default);
+    Task<Result<IReadOnlyList<ProjectInvitationDto>>> GetByUserIdAsync(string userId, CancellationToken ct = default);
+    Task<Result<ProjectInvitationDto>> CreateAsync(CreateProjectInvitationDto dto, CancellationToken ct = default);
+    Task<Result<ProjectInvitationDto>> AcceptAsync(string id, CancellationToken ct = default);
+    Task<Result<ProjectInvitationDto>> RejectAsync(string id, CancellationToken ct = default);
+    Task<Result<bool>> DeleteAsync(string id, CancellationToken ct = default);
+}

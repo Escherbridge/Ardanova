@@ -697,6 +697,12 @@ export const projectRouter = createTRPCRouter({
         throw new Error("Access denied");
       }
 
+      // Enforce one role per user per project
+      const existingMembers = await apiClient.projects.getMembers(input.projectId);
+      if (existingMembers.data?.some((m: any) => m.userId === input.userId)) {
+        throw new Error("User already has a role on this project");
+      }
+
       const response = await apiClient.projects.addMember(input.projectId, {
         userId: input.userId,
         role: input.role,
@@ -1381,5 +1387,107 @@ export const projectRouter = createTRPCRouter({
       }
 
       return response.data ?? [];
+    }),
+
+  // ========================================
+  // PROJECT INVITATIONS
+  // ========================================
+
+  // Get invitations for a project (owner only)
+  getInvitations: protectedProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(async ({ input, ctx }) => {
+      const userId = ctx.session.user.id;
+
+      // Verify project ownership
+      const project = await apiClient.projects.getById(input.projectId);
+      if (project.error || !project.data) {
+        throw new Error("Project not found");
+      }
+      if (project.data.createdById !== userId) {
+        throw new Error("Access denied");
+      }
+
+      const response = await apiClient.projects.getInvitations(input.projectId);
+
+      if (response.error) {
+        throw new Error(response.error);
+      }
+
+      return response.data ?? [];
+    }),
+
+  // Get current user's pending invitations
+  getMyInvitations: protectedProcedure.query(async ({ ctx }) => {
+    const userId = ctx.session.user.id;
+    const response = await apiClient.projects.getInvitationsByUserId(userId);
+
+    if (response.error) {
+      throw new Error(response.error);
+    }
+
+    return response.data ?? [];
+  }),
+
+  // Create invitation (owner only)
+  createInvitation: protectedProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        invitedUserId: z.string(),
+        role: z.string(),
+        message: z.string().optional(),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.session.user.id;
+
+      // Verify project ownership
+      const project = await apiClient.projects.getById(input.projectId);
+      if (project.error || !project.data) {
+        throw new Error("Project not found");
+      }
+      if (project.data.createdById !== userId) {
+        throw new Error("Access denied");
+      }
+
+      const response = await apiClient.projects.createInvitation(input.projectId, {
+        invitedById: userId,
+        invitedUserId: input.invitedUserId,
+        role: input.role,
+        message: input.message,
+      });
+
+      if (response.error || !response.data) {
+        throw new Error(response.error ?? "Failed to create invitation");
+      }
+
+      return response.data;
+    }),
+
+  // Accept invitation
+  acceptInvitation: protectedProcedure
+    .input(z.object({ projectId: z.string(), invitationId: z.string() }))
+    .mutation(async ({ input }) => {
+      const response = await apiClient.projects.acceptInvitation(input.projectId, input.invitationId);
+
+      if (response.error || !response.data) {
+        throw new Error(response.error ?? "Failed to accept invitation");
+      }
+
+      return response.data;
+    }),
+
+  // Reject invitation
+  rejectInvitation: protectedProcedure
+    .input(z.object({ projectId: z.string(), invitationId: z.string() }))
+    .mutation(async ({ input }) => {
+      const response = await apiClient.projects.rejectInvitation(input.projectId, input.invitationId);
+
+      if (response.error || !response.data) {
+        throw new Error(response.error ?? "Failed to reject invitation");
+      }
+
+      return response.data;
     }),
 });

@@ -839,6 +839,10 @@ Table ProjectMember {
   votingPower decimal [not null, default: 0, note: 'Governance rights - binary (0 or 1), derived from MembershipCredential ownership']
   joinedAt datetime [not null, default: `now()`]
   invitedById varchar
+
+  indexes {
+    (projectId, userId) [unique]
+  }
 }
 Ref: ProjectMember.projectId > Project.id
 Ref: ProjectMember.userId > User.id

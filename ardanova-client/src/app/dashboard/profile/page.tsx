@@ -9,8 +9,10 @@ import { Button } from "~/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { CredentialList } from "~/components/credentials/credential-list";
 import { CredentialBadge } from "~/components/credentials/credential-badge";
-import { Settings, Share2, Calendar, FolderKanban, Users, Shield } from "lucide-react";
+import { Settings, Share2, Calendar, FolderKanban, Users, Shield, Mail, Check, X } from "lucide-react";
 import type { MembershipCredential } from "~/lib/api/ardanova/endpoints/membership-credentials";
+import { getRoleBadgeVariant, formatRoleName } from "~/components/projects/team-tab";
+import { toast } from "sonner";
 
 export default function ProfilePage() {
   const { data: session } = useSession();
@@ -21,6 +23,35 @@ export default function ProfilePage() {
       { userId: user?.id },
       { enabled: !!user?.id },
     );
+
+  const { data: invitations } = api.project.getMyInvitations.useQuery(
+    undefined,
+    { enabled: !!user?.id },
+  );
+
+  const utils = api.useUtils();
+
+  const acceptMutation = api.project.acceptInvitation.useMutation({
+    onSuccess: () => {
+      void utils.project.getMyInvitations.invalidate();
+      toast.success("Invitation accepted — you have joined the project.");
+    },
+    onError: (err) => {
+      toast.error(err.message);
+    },
+  });
+
+  const rejectMutation = api.project.rejectInvitation.useMutation({
+    onSuccess: () => {
+      void utils.project.getMyInvitations.invalidate();
+      toast.success("Invitation declined.");
+    },
+    onError: (err) => {
+      toast.error(err.message);
+    },
+  });
+
+  const pendingInvitations = invitations?.filter((i: any) => i.status === "PENDING") ?? [];
 
   const activeCredentials = credentials?.filter((c) => c.status === "ACTIVE") ?? [];
   const highestTier = getHighestTier(activeCredentials.map((c) => c.tier).filter(Boolean) as string[]);
@@ -96,6 +127,14 @@ export default function ProfilePage() {
           <TabsList className="w-full justify-start">
             <TabsTrigger value="activity">Activity</TabsTrigger>
             <TabsTrigger value="projects">Projects</TabsTrigger>
+            <TabsTrigger value="invitations" className="relative">
+              Invitations
+              {pendingInvitations.length > 0 && (
+                <span className="ml-1.5 inline-flex items-center justify-center rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-bold text-primary-foreground">
+                  {pendingInvitations.length}
+                </span>
+              )}
+            </TabsTrigger>
             <TabsTrigger value="guilds">Guilds</TabsTrigger>
             <TabsTrigger value="credentials">Credentials</TabsTrigger>
             <TabsTrigger value="contributions">Contributions</TabsTrigger>
@@ -119,6 +158,76 @@ export default function ProfilePage() {
               </CardHeader>
               <CardContent>
                 <p className="text-muted-foreground">You haven't joined any projects yet.</p>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="invitations" className="mt-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Mail className="size-5" />
+                  Project Invitations
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {pendingInvitations.length === 0 ? (
+                  <p className="text-muted-foreground">No pending invitations.</p>
+                ) : (
+                  <div className="space-y-4">
+                    {pendingInvitations.map((inv: any) => (
+                      <div key={inv.id} className="flex items-center justify-between rounded-lg border p-4">
+                        <div className="flex items-center gap-4">
+                          <Avatar className="size-10">
+                            <AvatarImage
+                              src={inv.project?.images?.split(",")[0] || undefined}
+                              alt={inv.project?.title || "Project"}
+                            />
+                            <AvatarFallback>
+                              {inv.project?.title?.charAt(0) || "P"}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <p className="font-medium">{inv.project?.title || "Unknown Project"}</p>
+                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                              <span>Role:</span>
+                              <Badge variant={getRoleBadgeVariant(inv.role)}>
+                                {formatRoleName(inv.role)}
+                              </Badge>
+                              {inv.invitedBy && (
+                                <span>from {inv.invitedBy.name || "Unknown"}</span>
+                              )}
+                            </div>
+                            {inv.message && (
+                              <p className="text-sm text-muted-foreground mt-1 italic">
+                                &ldquo;{inv.message}&rdquo;
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            onClick={() => acceptMutation.mutate({ projectId: inv.projectId, invitationId: inv.id })}
+                            disabled={acceptMutation.isPending || rejectMutation.isPending}
+                          >
+                            <Check className="size-4 mr-1" />
+                            Accept
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => rejectMutation.mutate({ projectId: inv.projectId, invitationId: inv.id })}
+                            disabled={acceptMutation.isPending || rejectMutation.isPending}
+                          >
+                            <X className="size-4 mr-1" />
+                            Decline
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>

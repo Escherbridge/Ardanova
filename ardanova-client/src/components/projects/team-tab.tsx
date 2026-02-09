@@ -6,8 +6,24 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "~/com
 import { Button } from "~/components/ui/button";
 import { Badge } from "~/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "~/components/ui/accordion";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "~/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "~/components/ui/dialog";
 import { CredentialBadge } from "~/components/credentials/credential-badge";
-import { Loader2, Users, Plus, Check, X, Shield } from "lucide-react";
+import { Loader2, Users, Plus, Check, X, Shield, ChevronUp, UserPlus, Search } from "lucide-react";
 import { toast } from "sonner";
 
 interface TeamTabProps {
@@ -77,6 +93,8 @@ export const formatRoleName = (role: MemberRole | string) => {
     .join(" ");
 };
 
+const TIERS = ["BRONZE", "SILVER", "GOLD", "PLATINUM", "DIAMOND"] as const;
+
 const DEFAULT_ROLES = [
   { id: "FOUNDER", name: "Founder", description: "Project creator with full administrative access" },
   { id: "LEADER", name: "Leader", description: "Team lead with management responsibilities" },
@@ -84,6 +102,167 @@ const DEFAULT_ROLES = [
   { id: "CONTRIBUTOR", name: "Contributor", description: "Active contributor to the project" },
   { id: "OBSERVER", name: "Observer", description: "Following the project with limited participation" },
 ] as const;
+
+// Invite Member Dialog Component
+function InviteMemberDialog({
+  projectId,
+  role,
+  existingMemberIds,
+  isOwner,
+}: {
+  projectId: string;
+  role: string;
+  existingMemberIds: string[];
+  isOwner: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [inviteMessage, setInviteMessage] = useState("");
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const utils = api.useUtils();
+
+  const { data: following, isLoading: followingLoading } = api.user.getFollowing.useQuery(
+    { userId: "" }, // Will be overridden by the session
+    { enabled: open && isOwner }
+  );
+
+  const createInvitationMutation = api.project.createInvitation.useMutation({
+    onSuccess: () => {
+      toast.success("Invitation sent successfully");
+      setOpen(false);
+      setSelectedUserId(null);
+      setInviteMessage("");
+      setSearchTerm("");
+      void utils.project.getInvitations.invalidate({ projectId });
+    },
+    onError: (error) => {
+      toast.error(error.message || "Failed to send invitation");
+    },
+  });
+
+  // Filter out existing members and search
+  const availableUsers = (following ?? []).filter((follow: any) => {
+    const user = follow.following ?? follow;
+    const userId = user.followingId ?? user.id;
+    if (existingMemberIds.includes(userId)) return false;
+    if (!searchTerm) return true;
+    const name = (user.name ?? user.followingName ?? "").toLowerCase();
+    return name.includes(searchTerm.toLowerCase());
+  });
+
+  const handleInvite = () => {
+    if (!selectedUserId) return;
+    createInvitationMutation.mutate({
+      projectId,
+      invitedUserId: selectedUserId,
+      role: role as "FOUNDER" | "LEADER" | "CORE_CONTRIBUTOR" | "CONTRIBUTOR" | "OBSERVER",
+      message: inviteMessage || undefined,
+    });
+  };
+
+  if (!isOwner) return null;
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="ghost" size="sm" className="h-7 px-2 text-xs">
+          <UserPlus className="size-3.5 mr-1" />
+          Invite
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Invite Member as {formatRoleName(role)}</DialogTitle>
+          <DialogDescription>
+            Select a user you follow to invite to this project
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search followed users..."
+              className="w-full pl-9 pr-3 py-2 border border-border rounded bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+            />
+          </div>
+
+          <div className="max-h-48 overflow-y-auto space-y-1">
+            {followingLoading ? (
+              <div className="flex items-center justify-center py-4">
+                <Loader2 className="size-4 animate-spin text-muted-foreground" />
+              </div>
+            ) : availableUsers.length === 0 ? (
+              <div className="text-center py-4 text-sm text-muted-foreground">
+                {searchTerm ? "No matching users found" : "No followed users available to invite"}
+              </div>
+            ) : (
+              availableUsers.map((follow: any) => {
+                const user = follow.following ?? follow;
+                const userId = user.followingId ?? user.id;
+                const userName = user.name ?? user.followingName ?? "Unknown";
+                const userImage = user.image ?? user.followingImage;
+                const isSelected = selectedUserId === userId;
+                return (
+                  <button
+                    key={userId}
+                    onClick={() => setSelectedUserId(isSelected ? null : userId)}
+                    className={`w-full flex items-center gap-3 p-2 rounded transition-colors text-left ${
+                      isSelected ? "bg-primary/10 border border-primary" : "hover:bg-muted/50 border border-transparent"
+                    }`}
+                  >
+                    <Avatar className="size-8">
+                      <AvatarImage src={userImage ?? undefined} />
+                      <AvatarFallback className="text-xs">
+                        {userName.charAt(0).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <span className="text-sm font-medium">{userName}</span>
+                    {isSelected && <Check className="size-4 ml-auto text-primary" />}
+                  </button>
+                );
+              })
+            )}
+          </div>
+
+          {selectedUserId && (
+            <div>
+              <label className="text-sm font-medium block mb-1.5">
+                Message (optional)
+              </label>
+              <textarea
+                value={inviteMessage}
+                onChange={(e) => setInviteMessage(e.target.value)}
+                placeholder="Add a personal message to the invitation..."
+                className="w-full px-3 py-2 border border-border rounded bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary min-h-[60px] resize-y text-sm"
+              />
+            </div>
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setOpen(false)}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleInvite}
+            disabled={!selectedUserId || createInvitationMutation.isPending}
+          >
+            {createInvitationMutation.isPending ? (
+              <>
+                <Loader2 className="size-4 mr-2 animate-spin" />
+                Sending...
+              </>
+            ) : (
+              "Send Invitation"
+            )}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 export default function TeamTab({ projectId, isOwner }: TeamTabProps) {
   const [showApplicationForm, setShowApplicationForm] = useState(false);
@@ -165,6 +344,16 @@ export default function TeamTab({ projectId, isOwner }: TeamTabProps) {
     },
   });
 
+  const updateTierMutation = api.membershipCredential.updateTier.useMutation({
+    onSuccess: () => {
+      toast.success("Credential tier updated");
+      void utils.membershipCredential.getByProjectId.invalidate({ projectId });
+    },
+    onError: (error) => {
+      toast.error(error.message || "Failed to update tier");
+    },
+  });
+
   const handleApply = (e: React.FormEvent) => {
     e.preventDefault();
     applyMutation.mutate({
@@ -215,18 +404,20 @@ export default function TeamTab({ projectId, isOwner }: TeamTabProps) {
     }
   });
 
+  const existingMemberIds = (members ?? []).map((m: any) => m.userId);
+
   return (
     <div className="space-y-6">
-      {/* Team Members */}
+      {/* Team & Roles - Accordion */}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
               <CardTitle className="flex items-center gap-2">
                 <Users className="size-5" />
-                Team Members
+                Team & Roles
               </CardTitle>
-              <CardDescription>Current members working on this project</CardDescription>
+              <CardDescription>Team positions, members, and open opportunities</CardDescription>
             </div>
             {!isOwner && (
               <Button
@@ -241,181 +432,207 @@ export default function TeamTab({ projectId, isOwner }: TeamTabProps) {
           </div>
         </CardHeader>
         <CardContent>
-          {!members || members.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              No team members yet. Be the first to join!
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {members.map((member: any) => {
-                const hasCredential = credentialsByUserId.get(member.userId)?.status === "ACTIVE";
+          <Accordion type="multiple" defaultValue={["FOUNDER", "LEADER"]}>
+            {DEFAULT_ROLES.map((role) => {
+              const filledMembers = members?.filter((m: any) => m.role === role.id) ?? [];
+              const linkedPositions = opportunitiesByRole.get(role.id) ?? [];
+
+              return (
+                <AccordionItem key={role.id} value={role.id}>
+                  <AccordionTrigger className="hover:no-underline">
+                    <div className="flex items-center gap-2">
+                      <Badge variant={getRoleBadgeVariant(role.id as MemberRole)}>
+                        {role.name}
+                      </Badge>
+                      <span className="text-xs text-muted-foreground">
+                        ({filledMembers.length} {filledMembers.length === 1 ? "member" : "members"})
+                      </span>
+                    </div>
+                  </AccordionTrigger>
+                  <AccordionContent>
+                    <div className="space-y-3 pt-1">
+                      {/* Role description */}
+                      <p className="text-sm text-muted-foreground">{role.description}</p>
+
+                      {/* Members in this role */}
+                      {filledMembers.length > 0 && (
+                        <div className="space-y-2">
+                          {filledMembers.map((member: any) => {
+                            const credential = credentialsByUserId.get(member.userId);
+                            const hasCredential = credential?.status === "ACTIVE";
+                            return (
+                              <div
+                                key={member.id}
+                                className="flex items-center justify-between p-3 border border-border rounded hover:bg-muted/50 transition-colors"
+                              >
+                                <div className="flex items-center gap-3">
+                                  <Avatar className="size-8">
+                                    <AvatarImage src={member.user?.image ?? undefined} />
+                                    <AvatarFallback className="text-xs">
+                                      {member.user?.name?.charAt(0).toUpperCase() ?? "U"}
+                                    </AvatarFallback>
+                                  </Avatar>
+                                  <div>
+                                    <div className="text-sm font-medium">
+                                      {member.user?.name ?? member.user?.email ?? "Unknown User"}
+                                    </div>
+                                    <div className="text-xs text-muted-foreground">
+                                      Joined {new Date(member.joinedAt).toLocaleDateString()}
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  {hasCredential && (
+                                    <>
+                                      <CredentialBadge
+                                        tier={credential?.tier}
+                                        size="sm"
+                                      />
+                                      {/* Tier upgrade dropdown (owner only) */}
+                                      {isOwner && (
+                                        <DropdownMenu>
+                                          <DropdownMenuTrigger asChild>
+                                            <Button
+                                              variant="ghost"
+                                              size="sm"
+                                              className="h-6 w-6 p-0"
+                                              title="Upgrade credential tier"
+                                            >
+                                              <ChevronUp className="size-3.5" />
+                                            </Button>
+                                          </DropdownMenuTrigger>
+                                          <DropdownMenuContent align="end">
+                                            {TIERS.map((tier) => (
+                                              <DropdownMenuItem
+                                                key={tier}
+                                                disabled={credential?.tier === tier || updateTierMutation.isPending}
+                                                onClick={() =>
+                                                  updateTierMutation.mutate({
+                                                    credentialId: credential.id,
+                                                    tier,
+                                                  })
+                                                }
+                                              >
+                                                <span className={credential?.tier === tier ? "font-bold" : ""}>
+                                                  {tier.charAt(0) + tier.slice(1).toLowerCase()}
+                                                </span>
+                                                {credential?.tier === tier && (
+                                                  <Check className="size-3.5 ml-auto" />
+                                                )}
+                                              </DropdownMenuItem>
+                                            ))}
+                                          </DropdownMenuContent>
+                                        </DropdownMenu>
+                                      )}
+                                    </>
+                                  )}
+                                  {isOwner && !hasCredential && (
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-7 px-2 text-xs text-muted-foreground hover:text-primary"
+                                      onClick={() => handleGrantCredential(member.userId)}
+                                      disabled={grantCredentialMutation.isPending}
+                                      title="Grant membership credential"
+                                    >
+                                      <Shield className="size-3.5 mr-1" />
+                                      Grant
+                                    </Button>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      {/* Linked team positions */}
+                      {linkedPositions.length > 0 && (
+                        <div className="space-y-1.5">
+                          <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                            Positions
+                          </div>
+                          {linkedPositions.map((opp: any) => (
+                            <div key={opp.id} className="flex items-center gap-2 text-xs text-muted-foreground pl-2">
+                              <span className="w-1.5 h-1.5 rounded-full bg-neon shrink-0" />
+                              <span className="font-medium text-foreground">{opp.title}</span>
+                              {opp.applicationsCount > 0 && (
+                                <span>
+                                  ({opp.applicationsCount} {opp.applicationsCount === 1 ? "applicant" : "applicants"})
+                                </span>
+                              )}
+                              <Badge
+                                variant={opp.status === "FILLED" || opp.status === "CLOSED" ? "secondary" : "outline"}
+                                className="text-[10px] h-4 px-1.5"
+                              >
+                                {opp.status === "FILLED" || opp.status === "CLOSED" ? "Filled" : "Open"}
+                              </Badge>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Invite button (owner only) */}
+                      {isOwner && (
+                        <div className="pt-1">
+                          <InviteMemberDialog
+                            projectId={projectId}
+                            role={role.id}
+                            existingMemberIds={existingMemberIds}
+                            isOwner={isOwner}
+                          />
+                        </div>
+                      )}
+
+                      {/* Empty state */}
+                      {filledMembers.length === 0 && linkedPositions.length === 0 && !isOwner && (
+                        <div className="text-sm text-muted-foreground italic">
+                          No members or positions yet.
+                        </div>
+                      )}
+                    </div>
+                  </AccordionContent>
+                </AccordionItem>
+              );
+            })}
+          </Accordion>
+
+          {/* Custom Positions (unlinked to a role) */}
+          {unlinkedOpportunities.length > 0 && (
+            <div className="mt-4 space-y-2">
+              <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                Custom Positions
+              </div>
+              {unlinkedOpportunities.map((opp: any) => {
+                const isFilled = opp.status === "FILLED" || opp.status === "CLOSED";
                 return (
                   <div
-                    key={member.id}
-                    className="flex items-center justify-between p-4 border border-border rounded hover:bg-muted/50 transition-colors"
+                    key={opp.id}
+                    className="flex items-center justify-between p-3 border border-border rounded hover:bg-muted/30 transition-colors"
                   >
-                    <div className="flex items-center gap-3">
-                      <Avatar>
-                        <AvatarImage src={member.user?.image ?? undefined} />
-                        <AvatarFallback>
-                          {member.user?.name?.charAt(0).toUpperCase() ?? "U"}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <div className="font-medium">
-                          {member.user?.name ?? member.user?.email ?? "Unknown User"}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          Joined {new Date(member.joinedAt).toLocaleDateString()}
-                        </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="neon">{opp.title}</Badge>
+                        {opp.applicationsCount > 0 && (
+                          <span className="text-xs text-muted-foreground">
+                            ({opp.applicationsCount} {opp.applicationsCount === 1 ? "applicant" : "applicants"})
+                          </span>
+                        )}
                       </div>
+                      {opp.description && (
+                        <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{opp.description}</p>
+                      )}
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Badge variant={getRoleBadgeVariant(member.role)}>
-                        {formatRoleName(member.role)}
+                    <div className="ml-4">
+                      <Badge variant={isFilled ? "secondary" : "outline"} className="text-xs">
+                        {isFilled ? "Filled" : "Open"}
                       </Badge>
-                      {hasCredential && (
-                        <CredentialBadge
-                          tier={credentialsByUserId.get(member.userId)?.tier}
-                          size="sm"
-                        />
-                      )}
-                      {isOwner && !hasCredential && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 px-2 text-xs text-muted-foreground hover:text-primary"
-                          onClick={() => handleGrantCredential(member.userId)}
-                          disabled={grantCredentialMutation.isPending}
-                          title="Grant membership credential"
-                        >
-                          <Shield className="size-3.5 mr-1" />
-                          Grant
-                        </Button>
-                      )}
                     </div>
                   </div>
                 );
               })}
             </div>
           )}
-        </CardContent>
-      </Card>
-
-      {/* Available Roles - Always shows all 5 base roles */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Available Roles</CardTitle>
-          <CardDescription>Team positions and their current status</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-3">
-            {DEFAULT_ROLES.map((role) => {
-              const filledMembers = members?.filter((m: any) => m.role === role.id) ?? [];
-              const linkedPositions = opportunitiesByRole.get(role.id) ?? [];
-              const isFilled = filledMembers.length > 0;
-
-              return (
-                <div
-                  key={role.id}
-                  className="p-3 border border-border rounded hover:bg-muted/30 transition-colors"
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <Badge variant={getRoleBadgeVariant(role.id as MemberRole)}>
-                          {role.name}
-                        </Badge>
-                        {isFilled && (
-                          <span className="text-xs text-muted-foreground">
-                            ({filledMembers.length} {filledMembers.length === 1 ? 'member' : 'members'})
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-sm text-muted-foreground mt-1">{role.description}</p>
-                    </div>
-                    <div className="ml-4">
-                      {isFilled ? (
-                        <div className="flex -space-x-2">
-                          {filledMembers.slice(0, 3).map((m: any) => (
-                            <Avatar key={m.id} className="size-8 border-2 border-background">
-                              <AvatarImage src={m.user?.image ?? undefined} />
-                              <AvatarFallback className="text-xs">
-                                {m.user?.name?.charAt(0).toUpperCase() ?? "U"}
-                              </AvatarFallback>
-                            </Avatar>
-                          ))}
-                          {filledMembers.length > 3 && (
-                            <div className="size-8 rounded-full bg-muted border-2 border-background flex items-center justify-center text-xs font-medium">
-                              +{filledMembers.length - 3}
-                            </div>
-                          )}
-                        </div>
-                      ) : (
-                        <Badge variant="outline" className="text-xs">Open</Badge>
-                      )}
-                    </div>
-                  </div>
-                  {/* Show linked team positions */}
-                  {linkedPositions.length > 0 && (
-                    <div className="mt-2 ml-2 space-y-1.5">
-                      {linkedPositions.map((opp: any) => (
-                        <div key={opp.id} className="flex items-center gap-2 text-xs text-muted-foreground">
-                          <span className="w-1.5 h-1.5 rounded-full bg-neon shrink-0" />
-                          <span className="font-medium text-foreground">{opp.title}</span>
-                          {opp.applicationsCount > 0 && (
-                            <span>({opp.applicationsCount} {opp.applicationsCount === 1 ? 'applicant' : 'applicants'})</span>
-                          )}
-                          <Badge variant={opp.status === "FILLED" || opp.status === "CLOSED" ? "secondary" : "outline"} className="text-[10px] h-4 px-1.5">
-                            {opp.status === "FILLED" || opp.status === "CLOSED" ? "Filled" : "Open"}
-                          </Badge>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-
-            {/* Show unlinked team positions (no projectRole set) */}
-            {unlinkedOpportunities.length > 0 && (
-              <>
-                <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide pt-2">
-                  Custom Positions
-                </div>
-                {unlinkedOpportunities.map((opp: any) => {
-                  const isFilled = opp.status === "FILLED" || opp.status === "CLOSED";
-                  return (
-                    <div
-                      key={opp.id}
-                      className="flex items-center justify-between p-3 border border-border rounded hover:bg-muted/30 transition-colors"
-                    >
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <Badge variant="neon">
-                            {opp.title}
-                          </Badge>
-                          {opp.applicationsCount > 0 && (
-                            <span className="text-xs text-muted-foreground">
-                              ({opp.applicationsCount} {opp.applicationsCount === 1 ? 'applicant' : 'applicants'})
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-sm text-muted-foreground mt-1">{opp.description}</p>
-                      </div>
-                      <div className="ml-4">
-                        {isFilled ? (
-                          <Badge variant="secondary" className="text-xs">Filled</Badge>
-                        ) : (
-                          <Badge variant="outline" className="text-xs">Open</Badge>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </>
-            )}
-          </div>
         </CardContent>
       </Card>
 

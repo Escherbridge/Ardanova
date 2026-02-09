@@ -44,6 +44,8 @@ export type {
   UserExperience,
   CreateUserExperienceDto,
   UpdateUserExperienceDto,
+  UserFollowDto,
+  UserFollowCounts,
 } from "./endpoints/users";
 export type {
   Project,
