@@ -72,7 +72,11 @@
       "Bash(dotnet add:*)",
       "Bash(dotnet package search:*)",
       "Bash(dotnet remove:*)",
-      "Bash(cmd /c:*)"
+      "Bash(cmd /c:*)",
+      "Bash(Select-String -Pattern \"error CS\")",
+      "Bash(Measure-Object -Line)",
+      "Skill(conductor:status)",
+      "Skill(conductor:status:*)"
     ],
     "additionalDirectories": [
       "c:\\Users\\atooz\\Documents\\Escherbridge\\ardanova"

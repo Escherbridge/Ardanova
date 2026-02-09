@@ -185,6 +185,14 @@ public class User
 
     public virtual ICollection<OpportunityBid> OpportunityBids { get; set; } = new List<OpportunityBid>();
 
+    public virtual ICollection<TokenAllocation> TokenAllocations { get; set; } = new List<TokenAllocation>();
+
+    public virtual ICollection<TokenBalance> TokenBalances { get; set; } = new List<TokenBalance>();
+
+    public virtual ICollection<PayoutRequest> PayoutRequests { get; set; } = new List<PayoutRequest>();
+
+    public virtual ICollection<ProjectInvestment> ProjectInvestments { get; set; } = new List<ProjectInvestment>();
+
     public virtual ICollection<Referral> ReferralsAsReferrer { get; set; } = new List<Referral>();
 
     public virtual ICollection<Referral> ReferralsAsReferred { get; set; } = new List<Referral>();

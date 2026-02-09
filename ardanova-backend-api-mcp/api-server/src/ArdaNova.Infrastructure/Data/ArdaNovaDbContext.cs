@@ -132,6 +132,14 @@ public class ArdaNovaDbContext : DbContext
     public DbSet<ProposalComment> ProposalComments => Set<ProposalComment>();
     public DbSet<KycSubmission> KycSubmissions => Set<KycSubmission>();
     public DbSet<KycDocument> KycDocuments => Set<KycDocument>();
+    public DbSet<ProjectTokenConfig> ProjectTokenConfigs => Set<ProjectTokenConfig>();
+    public DbSet<TokenAllocation> TokenAllocations => Set<TokenAllocation>();
+    public DbSet<TokenBalance> TokenBalances => Set<TokenBalance>();
+    public DbSet<PayoutRequest> PayoutRequests => Set<PayoutRequest>();
+    public DbSet<PlatformTreasury> PlatformTreasuries => Set<PlatformTreasury>();
+    public DbSet<PlatformTreasuryTransaction> PlatformTreasuryTransactions => Set<PlatformTreasuryTransaction>();
+    public DbSet<ProjectInvestment> ProjectInvestments => Set<ProjectInvestment>();
+
 
 
 

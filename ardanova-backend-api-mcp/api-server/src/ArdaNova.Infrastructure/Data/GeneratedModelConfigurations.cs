@@ -20,6 +20,8 @@ public static class GeneratedModelConfigurations
         modelBuilder.Entity<OpportunityBid>().HasIndex(e => new { e.opportunityId, e.bidderId }).IsUnique();
         modelBuilder.Entity<KycSubmission>().HasIndex(e => new { e.userId, e.status });
         modelBuilder.Entity<KycDocument>().HasIndex(e => new { e.submissionId, e.type }).IsUnique();
+        modelBuilder.Entity<TokenBalance>().HasIndex(e => new { e.userId, e.projectTokenConfigId, e.holderClass }).IsUnique();
+        modelBuilder.Entity<ProjectInvestment>().HasIndex(e => new { e.projectTokenConfigId, e.userId });
 
         // Bidirectional FK disambiguation
         // ProjectTask.opportunityId -> Opportunity

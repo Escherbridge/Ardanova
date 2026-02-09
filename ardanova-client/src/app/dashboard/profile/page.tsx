@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { CredentialList } from "~/components/credentials/credential-list";
 import { CredentialBadge } from "~/components/credentials/credential-badge";
 import { Settings, Share2, Calendar, FolderKanban, Users, Shield } from "lucide-react";
+import type { MembershipCredential } from "~/lib/api/ardanova/endpoints/membership-credentials";
 
 export default function ProfilePage() {
   const { data: session } = useSession();
@@ -135,7 +136,7 @@ export default function ProfilePage() {
 
           <TabsContent value="credentials" className="mt-6">
             <CredentialList
-              credentials={credentials}
+              credentials={credentials as MembershipCredential[] | undefined}
               isLoading={credentialsLoading}
               emptyMessage="You don't have any credentials yet. Join a project or guild to earn one!"
             />

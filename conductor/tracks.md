@@ -9,5 +9,5 @@
 - [Events Module](tracks/06-events/index.md) - Event lifecycle, RSVP, and scheduling.
 - [x] [Credential Utility & Blockchain](tracks/07-credential-utility/index.md) - Soulbound credentials, Algorand ASA minting, tier system.
 - [x] [KYC & Identity Verification](tracks/08-kyc/index.md) - KYC submission, provider abstraction, verification gating.
-- [Tokenomics & Project Equity](tracks/09-tokenomics/index.md) - Project tokens, ARDA platform token, equity distribution, payouts.
+- [Tokenomics & Project Equity](tracks/09-tokenomics/index.md) - Project tokens, ARDA platform token, equity distribution, payouts. **Phases 1-8 complete (schema, services, controllers, unit tests). Phases 9-11 in progress (Stripe SDK, API client + tRPC, flow tests).**
 - [Credential Frontend UI & Game SDK](tracks/10-credential-ui-gamesdk/index.md) - Credential badges, tier UI, profile/project/guild integration, Unity/Godot SDK setup.

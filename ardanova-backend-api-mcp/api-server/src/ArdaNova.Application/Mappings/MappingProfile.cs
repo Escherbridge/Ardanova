@@ -405,5 +405,14 @@ public class MappingProfile : Profile
             .ForMember(dest => dest.FileSizeBytes, opt => opt.MapFrom(src => src.fileSizeBytes))
             .ForMember(dest => dest.Metadata, opt => opt.MapFrom(src => src.metadata))
             .ForMember(dest => dest.CreatedAt, opt => opt.MapFrom(src => src.createdAt));
+
+        // Tokenomics mappings
+        CreateMap<ProjectTokenConfig, ProjectTokenConfigDto>();
+        CreateMap<TokenAllocation, TokenAllocationDto>();
+        CreateMap<TokenBalance, TokenBalanceDto>();
+        CreateMap<PayoutRequest, PayoutRequestDto>();
+        CreateMap<PlatformTreasury, TreasuryStatusDto>();
+        CreateMap<PlatformTreasuryTransaction, PlatformTreasuryTransactionDto>();
+        CreateMap<ProjectInvestment, ProjectInvestmentDto>();
     }
 }

@@ -8,67 +8,120 @@ using UnityEngine.Networking;
 namespace ArdaNova
 {
     /// <summary>
-    /// Main client for interacting with the ArdaNova platform API.
+    /// Main client for interacting with the ArdaNova platform.
+    /// Routes through the Next.js SDK API layer (/api/sdk/*) which handles
+    /// session authorization. Does NOT hit the .NET backend directly.
     /// </summary>
     public class ArdaNovaClient
     {
         private readonly string _baseUrl;
-        private string _authToken;
+        private string _sessionToken;
 
+        /// <summary>
+        /// Content gating helpers for credential and token checks.
+        /// </summary>
+        public CredentialGate Gate { get; }
+
+        /// <param name="baseUrl">
+        /// The base URL of the Next.js application (e.g., https://app.ardanova.io).
+        /// SDK requests are sent to /api/sdk/* routes on this host.
+        /// </param>
         public ArdaNovaClient(string baseUrl)
         {
             _baseUrl = baseUrl.TrimEnd('/');
+            Gate = new CredentialGate(this);
         }
 
         /// <summary>
-        /// Set the JWT authentication token for API requests.
+        /// Set the session token for authenticated requests.
         /// </summary>
-        public void SetAuthToken(string token)
+        public void SetSessionToken(string token)
         {
-            _authToken = token;
+            _sessionToken = token;
         }
 
         /// <summary>
-        /// Authenticate with email and token, returning user profile.
+        /// Authenticate by exchanging an auth code for a session token.
+        /// The auth code is obtained through the ArdaNova web login flow.
         /// </summary>
-        public async Task<UserProfile> AuthenticateAsync(string token)
+        public async Task<UserProfile> AuthenticateAsync(string authCode)
         {
-            SetAuthToken(token);
-            return await GetAsync<UserProfile>("/api/Users/me");
+            var result = await PostAsync<AuthSessionResponse>("/api/sdk/auth/session", new AuthSessionRequest { authCode = authCode });
+            SetSessionToken(result.sessionToken);
+            return result.profile;
         }
 
         /// <summary>
-        /// Get the current user's profile.
+        /// Get the current authenticated user's profile.
         /// </summary>
         public async Task<UserProfile> GetProfileAsync()
         {
-            return await GetAsync<UserProfile>("/api/Users/me");
+            return await GetAsync<UserProfile>("/api/sdk/me");
         }
 
         /// <summary>
-        /// Get all credentials for a user.
+        /// Get all membership credentials for the current user.
         /// </summary>
-        public async Task<List<MembershipCredential>> GetCredentialsAsync(string userId)
+        public async Task<List<MembershipCredential>> GetCredentialsAsync()
         {
-            return await GetAsync<List<MembershipCredential>>($"/api/MembershipCredentials/user/{userId}");
+            return await GetAsync<List<MembershipCredential>>("/api/sdk/me/credentials");
         }
 
         /// <summary>
-        /// Get token balance for a project.
+        /// Check if the current user holds a credential matching the given criteria.
         /// </summary>
-        public async Task<TokenBalance> GetTokenBalanceAsync(string userId, string projectId)
+        public async Task<CredentialCheckResult> CheckCredentialAsync(
+            string projectId = null,
+            string guildId = null,
+            string minTier = null)
         {
-            return await GetAsync<TokenBalance>($"/api/TokenBalances/user/{userId}/project/{projectId}");
+            var queryParams = new List<string>();
+            if (!string.IsNullOrEmpty(projectId)) queryParams.Add($"projectId={projectId}");
+            if (!string.IsNullOrEmpty(guildId)) queryParams.Add($"guildId={guildId}");
+            if (!string.IsNullOrEmpty(minTier)) queryParams.Add($"minTier={minTier}");
+
+            var query = queryParams.Count > 0 ? "?" + string.Join("&", queryParams) : "";
+            return await GetAsync<CredentialCheckResult>($"/api/sdk/me/credentials/check{query}");
         }
 
-        private async Task<T> GetAsync<T>(string path)
+        /// <summary>
+        /// Get all token balances for the current user.
+        /// </summary>
+        public async Task<List<TokenBalance>> GetTokenBalancesAsync()
+        {
+            return await GetAsync<List<TokenBalance>>("/api/sdk/me/token-balances");
+        }
+
+        /// <summary>
+        /// Get token balance for a specific project.
+        /// </summary>
+        public async Task<TokenBalance> GetTokenBalanceAsync(string projectId)
+        {
+            return await GetAsync<TokenBalance>($"/api/sdk/me/token-balances/{projectId}");
+        }
+
+        /// <summary>
+        /// Report an in-game action to earn equity/XP.
+        /// The platform determines the reward based on task configuration.
+        /// </summary>
+        public async Task<ActionResult> ReportActionAsync(string actionType, string taskId, string metadata = null)
+        {
+            return await PostAsync<ActionResult>("/api/sdk/actions", new GameActionRequest
+            {
+                actionType = actionType,
+                taskId = taskId,
+                metadata = metadata
+            });
+        }
+
+        internal async Task<T> GetAsync<T>(string path)
         {
             var url = _baseUrl + path;
             using var request = UnityWebRequest.Get(url);
 
-            if (!string.IsNullOrEmpty(_authToken))
+            if (!string.IsNullOrEmpty(_sessionToken))
             {
-                request.SetRequestHeader("Authorization", $"Bearer {_authToken}");
+                request.SetRequestHeader("Authorization", $"Bearer {_sessionToken}");
             }
             request.SetRequestHeader("Content-Type", "application/json");
 
@@ -85,7 +138,7 @@ namespace ArdaNova
             return JsonUtility.FromJson<T>(request.downloadHandler.text);
         }
 
-        private async Task<T> PostAsync<T>(string path, object body)
+        internal async Task<T> PostAsync<T>(string path, object body)
         {
             var url = _baseUrl + path;
             var json = JsonUtility.ToJson(body);
@@ -95,9 +148,9 @@ namespace ArdaNova
             request.uploadHandler = new UploadHandlerRaw(bodyBytes);
             request.downloadHandler = new DownloadHandlerBuffer();
 
-            if (!string.IsNullOrEmpty(_authToken))
+            if (!string.IsNullOrEmpty(_sessionToken))
             {
-                request.SetRequestHeader("Authorization", $"Bearer {_authToken}");
+                request.SetRequestHeader("Authorization", $"Bearer {_sessionToken}");
             }
             request.SetRequestHeader("Content-Type", "application/json");
 
@@ -113,5 +166,26 @@ namespace ArdaNova
 
             return JsonUtility.FromJson<T>(request.downloadHandler.text);
         }
+    }
+
+    [Serializable]
+    internal class AuthSessionRequest
+    {
+        public string authCode;
+    }
+
+    [Serializable]
+    internal class AuthSessionResponse
+    {
+        public string sessionToken;
+        public UserProfile profile;
+    }
+
+    [Serializable]
+    internal class GameActionRequest
+    {
+        public string actionType;
+        public string taskId;
+        public string metadata;
     }
 }

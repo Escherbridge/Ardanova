@@ -777,6 +777,324 @@ Algorand variables are shared with Track 07 (`ALGORAND_NETWORK`, `ALGORAND_NODE_
 | Founder payout after FAILED | Rejected: "Founder tokens were burned when the project failed." |
 | Trust protection with insufficient index fund | Partial protection paid from available funds; remainder queued; admin notified |
 | Invalid gate transition (e.g., SUCCEEDED → FAILED) | Rejected with error: invalid state transition |
+| Stripe webhook signature invalid | Rejected with 400; event not processed |
+| Stripe payment intent fails | ProjectInvestment not created; no funding inflow |
+| Stripe Connect payout fails | PayoutRequest status = FAILED; tokens unlocked; failureReason logged |
+
+---
+
+## Stripe Integration
+
+### IStripeService Interface
+
+Single interface covering both crowdfunding inflow and payout outflow:
+
+```csharp
+public interface IStripeService
+{
+    // --- Crowdfunding (Inflow) ---
+    Task<Result<StripeCheckoutSessionDto>> CreateCheckoutSessionAsync(
+        string projectTokenConfigId, string userId, double usdAmount, CancellationToken ct = default);
+
+    Task<Result<ProjectInvestmentDto>> HandlePaymentSucceededAsync(
+        string paymentIntentId, CancellationToken ct = default);
+
+    Task<Result<bool>> HandlePaymentFailedAsync(
+        string paymentIntentId, string failureReason, CancellationToken ct = default);
+
+    // --- Stripe Connect (Outflow) ---
+    Task<Result<StripeConnectedAccountDto>> CreateConnectedAccountAsync(
+        string userId, string email, CancellationToken ct = default);
+
+    Task<Result<StripeTransferDto>> CreatePayoutTransferAsync(
+        string payoutRequestId, string connectedAccountId, double usdAmount, CancellationToken ct = default);
+
+    Task<Result<PayoutRequestDto>> HandlePayoutSucceededAsync(
+        string transferId, CancellationToken ct = default);
+
+    Task<Result<PayoutRequestDto>> HandlePayoutFailedAsync(
+        string transferId, string failureReason, CancellationToken ct = default);
+}
+```
+
+### Stripe DTOs
+
+```csharp
+public record StripeCheckoutSessionDto
+{
+    public string SessionId { get; init; } = string.Empty;
+    public string SessionUrl { get; init; } = string.Empty;
+    public string ProjectTokenConfigId { get; init; } = string.Empty;
+    public double UsdAmount { get; init; }
+}
+
+public record StripeConnectedAccountDto
+{
+    public string AccountId { get; init; } = string.Empty;
+    public string UserId { get; init; } = string.Empty;
+    public string OnboardingUrl { get; init; } = string.Empty;
+    public string Status { get; init; } = string.Empty;
+}
+
+public record StripeTransferDto
+{
+    public string TransferId { get; init; } = string.Empty;
+    public string PayoutRequestId { get; init; } = string.Empty;
+    public double UsdAmount { get; init; }
+    public string Status { get; init; } = string.Empty;
+}
+```
+
+### Crowdfunding Flow (Stripe Checkout → Investment)
+
+```
+User                    Frontend              .NET API               Stripe
+  │                        │                      │                      │
+  │  Click "Fund Project"  │                      │                      │
+  │───────────────────────>│                      │                      │
+  │                        │  POST /api/funding/  │                      │
+  │                        │  checkout-session     │                      │
+  │                        │─────────────────────>│                      │
+  │                        │                      │  CreateCheckoutSession│
+  │                        │                      │─────────────────────>│
+  │                        │                      │     session.url      │
+  │                        │                      │<─────────────────────│
+  │                        │    { sessionUrl }    │                      │
+  │                        │<─────────────────────│                      │
+  │  Redirect to Stripe    │                      │                      │
+  │  Checkout              │                      │                      │
+  │                        │                      │                      │
+  │  (user pays)           │                      │  Webhook:            │
+  │                        │                      │  payment_intent.     │
+  │                        │                      │  succeeded           │
+  │                        │                      │<─────────────────────│
+  │                        │                      │                      │
+  │                        │                      │  HandlePaymentSucceeded:
+  │                        │                      │  1. Create ProjectInvestment
+  │                        │                      │  2. AllocateToInvestor
+  │                        │                      │  3. Credit TokenBalance (INVESTOR, locked)
+  │                        │                      │  4. ProcessFundingInflow (55/30/15)
+  │                        │                      │  5. EvaluateGate1
+  │                        │                      │                      │
+```
+
+### Payout Flow (Stripe Connect)
+
+```
+Contributor             Frontend              .NET API               Stripe Connect
+  │                        │                      │                      │
+  │  Request Payout        │                      │                      │
+  │───────────────────────>│                      │                      │
+  │                        │  POST /api/Payouts   │                      │
+  │                        │─────────────────────>│                      │
+  │                        │                      │  RequestPayoutAsync  │
+  │                        │                      │  (lock, calc, create)│
+  │                        │                      │                      │
+  │                        │                      │  ProcessPayoutAsync: │
+  │                        │                      │  1. Debit tokens     │
+  │                        │                      │  2. RebalanceIfNeeded│
+  │                        │                      │  3. CreatePayoutTransfer
+  │                        │                      │─────────────────────>│
+  │                        │                      │    transfer.id       │
+  │                        │                      │<─────────────────────│
+  │                        │                      │                      │
+  │                        │                      │  Webhook:            │
+  │                        │                      │  transfer.paid       │
+  │                        │                      │<─────────────────────│
+  │                        │                      │  HandlePayoutSucceeded
+  │                        │                      │  (status=COMPLETED)  │
+  │                        │                      │                      │
+```
+
+### Stripe Webhook Controller
+
+```
+POST /api/webhooks/stripe
+  - Validate Stripe signature using STRIPE_WEBHOOK_SECRET
+  - Parse event type
+  - Dispatch to IStripeService:
+    - payment_intent.succeeded → HandlePaymentSucceededAsync
+    - payment_intent.payment_failed → HandlePaymentFailedAsync
+    - transfer.paid → HandlePayoutSucceededAsync
+    - transfer.failed → HandlePayoutFailedAsync
+  - Return 200 OK (idempotent)
+```
+
+### Package & Configuration
+
+- **NuGet**: `Stripe.net` (latest stable) in `ArdaNova.Application.csproj`
+- **Configuration**: `IConfiguration` injected into StripeService for API keys
+- **DI**: `services.AddScoped<IStripeService, StripeService>()`
+
+---
+
+## Service-Level Flow Tests
+
+Cross-service flow tests that instantiate multiple **real** service implementations with **mocked** external dependencies (repositories, IAlgorandService, IStripeService). These verify the full tokenomics lifecycle end-to-end, catching integration bugs that unit tests miss.
+
+### Test Infrastructure
+
+- **Location**: `tests/ArdaNova.Application.Tests/Flows/TokenomicsFlowTests.cs`
+- **Pattern**: Shared in-memory repository state via `Dictionary<string, T>` backing stores
+- **Mocked external deps**: `IAlgorandService`, `IStripeService` (Moq)
+- **Mocked data layer**: `IRepository<T>`, `IUnitOfWork` (Moq with in-memory backing)
+- **Real services**: All tokenomics services instantiated with real code, sharing the same mock repositories
+- **AutoMapper**: Real mapper instance with actual `MappingProfile` (not mocked)
+
+### Repository Mock Strategy
+
+```csharp
+// In-memory backing store per entity type
+Dictionary<string, ProjectTokenConfig> _tokenConfigs = new();
+Dictionary<string, TokenAllocation> _allocations = new();
+Dictionary<string, TokenBalance> _balances = new();
+// etc.
+
+// Mock repositories delegate to backing stores
+_configRepoMock.Setup(r => r.GetByIdAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+    .ReturnsAsync((string id, CancellationToken _) => _tokenConfigs.GetValueOrDefault(id));
+
+_configRepoMock.Setup(r => r.AddAsync(It.IsAny<ProjectTokenConfig>(), It.IsAny<CancellationToken>()))
+    .Callback((ProjectTokenConfig e, CancellationToken _) => _tokenConfigs[e.id] = e);
+
+_configRepoMock.Setup(r => r.UpdateAsync(It.IsAny<ProjectTokenConfig>(), It.IsAny<CancellationToken>()))
+    .Callback((ProjectTokenConfig e, CancellationToken _) => _tokenConfigs[e.id] = e);
+
+_configRepoMock.Setup(r => r.FindAsync(It.IsAny<Expression<Func<ProjectTokenConfig, bool>>>(), It.IsAny<CancellationToken>()))
+    .ReturnsAsync((Expression<Func<ProjectTokenConfig, bool>> pred, CancellationToken _) =>
+        _tokenConfigs.Values.Where(pred.Compile()).ToList());
+```
+
+### Flow 1: Project Creation → Funding → Gate 1
+
+**Real services**: ProjectTokenService, TreasuryService, ProjectGateService, TokenBalanceService, ExchangeService
+**Verifies**: Full lifecycle from project setup through Gate 1 advancement
+
+Steps:
+1. `ProjectTokenService.CreateConfigAsync(...)` → verify FUNDING status, correct supplies
+2. `ProjectTokenService.AllocateToFounderAsync(...)` → verify founderSupply updated, FOUNDER allocation created
+3. `ProjectTokenService.AllocateToTaskAsync(...)` → create CONTRIBUTOR allocations
+4. Simulate investment: `ProjectTokenService.AllocateToInvestorAsync(...)` + `TokenBalanceService.CreditAsync(INVESTOR, locked)`
+5. `TreasuryService.ProcessFundingInflowAsync(...)` → verify 55/30/15 bucket split
+6. `ProjectGateService.EvaluateGate1Async(...)` → verify ACTIVE status when fundingRaised >= fundingGoal
+7. Verify: CONTRIBUTOR allocations isLiquid = true, INVESTOR/FOUNDER allocations still locked
+8. **Invariant check**: supply breakdown sums correctly
+
+### Flow 2: Task Completion → Contributor Payout
+
+**Real services**: ProjectTokenService, TokenBalanceService, ExchangeService, PayoutService, TreasuryService
+**Verifies**: Contributor earns tokens and cashes out after Gate 1
+
+Steps:
+1. (Pre-condition: Flow 1 completed — project is ACTIVE)
+2. `ProjectTokenService.AllocateToTaskAsync(...)` → CONTRIBUTOR allocation
+3. `ProjectTokenService.DistributeAsync(...)` → credit TokenBalance (CONTRIBUTOR)
+4. `ExchangeService.CalculateConversionAsync(...)` → get conversion preview
+5. `PayoutService.RequestPayoutAsync(...)` → verify tokens locked, payout PENDING
+6. `PayoutService.ProcessPayoutAsync(...)` → verify tokens debited, payout COMPLETED
+7. `TokenBalanceService.GetPortfolioAsync(...)` → verify updated balance
+
+### Flow 3: Project Success (Gate 2)
+
+**Real services**: ProjectGateService, TokenBalanceService, ProjectTokenService
+**Verifies**: Gate 2 unlocks all holder classes
+
+Steps:
+1. (Pre-condition: project is ACTIVE — Gate 1 cleared)
+2. `ProjectGateService.ClearGate2Async(...)` → verify SUCCEEDED
+3. Verify all INVESTOR allocations/balances: isLiquid = true
+4. Verify all FOUNDER allocations/balances: isLiquid = true
+5. Verify CONTRIBUTOR balances remain liquid (unchanged)
+6. Verify gate timestamps set correctly
+
+### Flow 4: Project Failure — Founder Burn + Investor Trust Protection
+
+**Real services**: ProjectGateService, ProjectTokenService, TreasuryService, TokenBalanceService
+**Verifies**: Failure burns founders, protects investors, leaves contributors alone
+
+Steps:
+1. (Pre-condition: project is ACTIVE with founder + investor + contributor allocations)
+2. `ProjectGateService.FailProjectAsync(...)` → verify FAILED
+3. Verify all FOUNDER allocations: status = BURNED, burnedAt set
+4. Verify all FOUNDER TokenBalances: balance = 0
+5. Verify ProjectTokenConfig: burnedSupply incremented
+6. Verify investor trust protection: index fund debited at `trustProtectionRate`
+7. Verify CONTRIBUTOR tokens unaffected (still liquid, balance unchanged)
+8. **Invariant check**: `contributorSupply + investorSupply + founderSupply + burnedSupply <= totalSupply`
+
+---
+
+## API Controller Endpoints
+
+### ProjectTokensController (`/api/ProjectTokens`)
+
+#### Config CRUD
+| Method | Route | Input | Output |
+|--------|-------|-------|--------|
+| POST | `/config` | `CreateProjectTokenConfigDto` (body) | `ProjectTokenConfigDto` |
+| GET | `/config/{id}` | `id` (route) | `ProjectTokenConfigDto` |
+| GET | `/config/by-project/{projectId}` | `projectId` (route) | `ProjectTokenConfigDto` |
+| GET | `/config/{id}/supply` | `id` (route) | `ProjectTokenConfigDto` |
+
+#### Allocations
+| Method | Route | Input | Output |
+|--------|-------|-------|--------|
+| POST | `/{configId}/allocate/task` | `configId` (route), `CreateTokenAllocationDto` (body) | `TokenAllocationDto` |
+| POST | `/{configId}/allocate/investor` | `configId` (route), `CreateInvestorAllocationDto` (body) | `TokenAllocationDto` |
+| POST | `/{configId}/allocate/founder` | `configId` (route), `CreateFounderAllocationDto` (body) | `TokenAllocationDto` |
+| POST | `/allocations/{allocationId}/distribute` | `allocationId` (route), `recipientUserId` (query) | `TokenAllocationDto` |
+| POST | `/allocations/{allocationId}/revoke` | `allocationId` (route) | `TokenAllocationDto` |
+| GET | `/{configId}/allocations` | `configId` (route) | `TokenAllocationDto[]` |
+| GET | `/allocations/by-task/{taskId}` | `taskId` (route) | `TokenAllocationDto[]` |
+| GET | `/{configId}/investors` | `configId` (route) | `ProjectInvestmentDto[]` |
+
+#### Gate Management
+| Method | Route | Input | Output |
+|--------|-------|-------|--------|
+| GET | `/{configId}/gate` | `configId` (route) | `ProjectGateStatusDto` |
+| POST | `/{configId}/gate/evaluate` | `configId` (route) | `GateTransitionResultDto` |
+| POST | `/{configId}/gate/clear` | `configId` (route), `verifiedByUserId` (query) | `GateTransitionResultDto` |
+| POST | `/{configId}/gate/fail` | `configId` (route), `{ reason }` (body) | `GateTransitionResultDto` |
+
+#### Failure Handling
+| Method | Route | Input | Output |
+|--------|-------|-------|--------|
+| POST | `/{configId}/burn-founder` | `configId` (route) | `GateTransitionResultDto` |
+| POST | `/{configId}/trust-protection` | `configId` (route) | `GateTransitionResultDto` |
+
+### TokenBalanceController (`/api/TokenBalance`)
+
+| Method | Route | Input | Output |
+|--------|-------|-------|--------|
+| GET | `/{userId}/balance` | `userId` (route), `projectTokenConfigId` + `holderClass` (query) | `TokenBalanceDto` |
+| GET | `/{userId}/arda` | `userId` (route) | `TokenBalanceDto` |
+| GET | `/{userId}/portfolio` | `userId` (route) | `UserPortfolioDto` |
+| GET | `/{userId}/liquidity` | `userId` (route), `projectTokenConfigId` + `holderClass` (query) | `bool` |
+| GET | `/exchange/project-token-value/{configId}` | `configId` (route) | `double` |
+| GET | `/exchange/arda-value` | — | `double` |
+| GET | `/exchange/conversion-preview` | `projectTokenConfigId` + `tokenAmount` (query) | `ConversionPreviewDto` |
+
+### PayoutsController (`/api/Payouts`)
+
+| Method | Route | Input | Output |
+|--------|-------|-------|--------|
+| POST | `/` | `userId` (query), `CreatePayoutRequestDto` (body) | `PayoutRequestDto` |
+| POST | `/{payoutRequestId}/process` | `payoutRequestId` (route) | `PayoutRequestDto` |
+| POST | `/{payoutRequestId}/cancel` | `payoutRequestId` (route) | `PayoutRequestDto` |
+| GET | `/by-user/{userId}` | `userId` (route) | `PayoutRequestDto[]` |
+| GET | `/pending` | — | `PayoutRequestDto[]` |
+
+### TreasuryController (`/api/Treasury`)
+
+| Method | Route | Input | Output |
+|--------|-------|-------|--------|
+| GET | `/status` | — | `TreasuryStatusDto` |
+| GET | `/transactions` | `limit` (query, default 50) | `TreasuryTransactionDto[]` |
+| POST | `/funding-inflow` | `usdAmount` + `projectId?` (query) | `TreasuryStatusDto` |
+| POST | `/apply-index-return` | — | `TreasuryStatusDto` |
+| POST | `/rebalance` | `requiredLiquid` (query) | `TreasuryStatusDto` |
+| POST | `/reconcile` | — | `TreasuryStatusDto` |
+| GET | `/exchange/treasury-status` | — | `TreasuryStatusDto` |
 
 ---
 
@@ -814,6 +1132,18 @@ Algorand variables are shared with Track 07 (`ALGORAND_NETWORK`, `ALGORAND_NODE_
 | `tests/.../PayoutServiceTests.cs` | Tests | Payout service tests |
 | `tests/.../TreasuryServiceTests.cs` | Tests | Treasury service tests |
 | `tests/.../ProjectGateServiceTests.cs` | Tests | Gate transition tests |
+| `ArdaNova.Application/Services/Interfaces/IStripeService.cs` | Application | Stripe SDK wrapper interface |
+| `ArdaNova.Application/Services/Implementations/StripeService.cs` | Application | Stripe checkout + connect impl |
+| `ArdaNova.Application/DTOs/StripeDtos.cs` | Application | Stripe-specific DTOs |
+| `ArdaNova.API/Controllers/StripeWebhookController.cs` | API | Stripe webhook handler |
+| `tests/.../StripeServiceTests.cs` | Tests | Stripe service unit tests |
+| `tests/.../Flows/TokenomicsFlowTests.cs` | Tests | Cross-service flow tests |
+| `ardanova-client/src/server/api/routers/project-tokens.ts` | Frontend | tRPC thin proxy router |
+| `ardanova-client/src/server/api/routers/token-balances.ts` | Frontend | tRPC thin proxy router |
+| `ardanova-client/src/server/api/routers/payouts.ts` | Frontend | tRPC thin proxy router |
+| `ardanova-client/src/server/api/routers/exchange.ts` | Frontend | tRPC thin proxy router |
+| `ardanova-client/src/server/api/routers/treasury.ts` | Frontend | tRPC thin proxy router |
+| `ardanova-client/src/server/api/routers/project-gates.ts` | Frontend | tRPC thin proxy router |
 
 ### Modified Files
 | File | Changes |

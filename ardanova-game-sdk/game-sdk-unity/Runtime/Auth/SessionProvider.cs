@@ -1,17 +1,17 @@
-using System;
 using UnityEngine;
 
 namespace ArdaNova.Auth
 {
     /// <summary>
-    /// Manages JWT token storage and refresh for ArdaNova authentication.
+    /// Manages session token storage for ArdaNova authentication.
+    /// Tokens are obtained by exchanging an auth code via the SDK API.
     /// </summary>
-    public class JwtAuthProvider
+    public class SessionProvider
     {
-        private const string TokenPrefKey = "ardanova_auth_token";
+        private const string TokenPrefKey = "ardanova_session_token";
 
         /// <summary>
-        /// Store the JWT token persistently.
+        /// Store the session token persistently.
         /// </summary>
         public void StoreToken(string token)
         {
@@ -20,7 +20,7 @@ namespace ArdaNova.Auth
         }
 
         /// <summary>
-        /// Retrieve the stored JWT token.
+        /// Retrieve the stored session token.
         /// </summary>
         public string GetStoredToken()
         {
@@ -28,7 +28,7 @@ namespace ArdaNova.Auth
         }
 
         /// <summary>
-        /// Clear the stored JWT token.
+        /// Clear the stored session token (logout).
         /// </summary>
         public void ClearToken()
         {
@@ -37,7 +37,7 @@ namespace ArdaNova.Auth
         }
 
         /// <summary>
-        /// Check if a token is stored.
+        /// Check if a session token is stored.
         /// </summary>
         public bool HasToken()
         {

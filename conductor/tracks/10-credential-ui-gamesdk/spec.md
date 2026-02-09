@@ -123,16 +123,103 @@ await grantMutation.mutateAsync({
 
 ## Game SDK Architecture
 
+### CRITICAL: Routing & Auth Model
+
+The Game SDKs **DO NOT** hit the .NET backend directly. They route through the
+Next.js API layer, which handles session authorization per user.
+
+```
+Game Client (Unity/Godot)
+    │
+    │  HTTPS + Session Token (NextAuth JWT)
+    │
+    ▼
+Next.js API (/api/sdk/*)         ← New dedicated SDK route namespace
+    │
+    │  Session validated via NextAuth
+    │  Scoped to current user only
+    │
+    ▼
+tRPC / apiClient → .NET Backend  ← Existing auth model (API key)
+```
+
+**Why not hit .NET directly?**
+- The .NET API uses an internal API key shared with Next.js — exposing that
+  to open SDK clients would grant full platform access to every game developer.
+- NextAuth session tokens scope requests to the authenticated user.
+- The SDK API surface is intentionally limited: games can read their own
+  credentials and token balances, report actions, and gate content — but
+  cannot grant credentials, revoke, mint, or perform admin operations.
+
+### SDK API Surface (Next.js `/api/sdk/` routes)
+
+| Endpoint | Method | Description | Auth |
+|----------|--------|-------------|------|
+| `/api/sdk/auth/session` | POST | Exchange game auth code for session token | Public |
+| `/api/sdk/me` | GET | Get current user profile | Session |
+| `/api/sdk/me/credentials` | GET | Get current user's credentials | Session |
+| `/api/sdk/me/credentials/check` | GET | Check if user holds credential (by project/guild) | Session |
+| `/api/sdk/me/token-balances` | GET | Get current user's token balances | Session |
+| `/api/sdk/me/token-balances/{projectId}` | GET | Get balance for specific project | Session |
+| `/api/sdk/actions` | POST | Report in-game action (earns XP/equity) | Session |
+
+### Content Gating Pattern
+
+The primary SDK use case is **content gating** — checking whether the current
+player holds a specific credential or tier before unlocking game content.
+
+```
+Game Client                          Next.js SDK API
+    │                                      │
+    │  GET /api/sdk/me/credentials/check   │
+    │  ?projectId=xxx&minTier=GOLD         │
+    │─────────────────────────────────────>│
+    │                                      │
+    │  { hasCredential: true,              │
+    │    tier: "PLATINUM",                 │
+    │    meetsMinTier: true }              │
+    │<─────────────────────────────────────│
+    │                                      │
+    │  → Unlock premium content            │
+```
+
+### Token Exchange on Game Actions
+
+Games report player actions, and the platform awards equity shares based on
+configured task allocations. The game never directly mints or transfers tokens.
+
+```
+Game Client                     Next.js SDK API              .NET Backend
+    │                                │                            │
+    │  POST /api/sdk/actions         │                            │
+    │  { actionType: "QUEST_DONE",   │                            │
+    │    taskId: "abc",              │                            │
+    │    metadata: {...} }           │                            │
+    │───────────────────────────────>│                            │
+    │                                │  Validate session          │
+    │                                │  Forward to .NET ─────────>│
+    │                                │                            │  Award equity
+    │                                │                            │  Update balance
+    │                                │         result            │
+    │                                │<───────────────────────────│
+    │  { awarded: true,              │                            │
+    │    tokensEarned: 50,           │                            │
+    │    newBalance: 1250 }          │                            │
+    │<───────────────────────────────│                            │
+```
+
 ### Unity SDK (`ardanova-game-sdk/game-sdk-unity/`)
 
 ```
 game-sdk-unity/
 ├── package.json              # Unity Package Manager manifest
 ├── Runtime/
-│   ├── ArdaNovaClient.cs     # Main API client
+│   ├── ArdaNovaClient.cs     # Main API client → Next.js SDK routes
 │   ├── Models/               # Data models (User, Credential, Token)
 │   ├── Auth/
-│   │   └── JwtAuthProvider.cs # JWT token management
+│   │   └── SessionProvider.cs # Session token management
+│   ├── Gating/
+│   │   └── CredentialGate.cs  # Content gating helper
 │   └── ArdaNova.Runtime.asmdef
 ├── Editor/
 │   ├── ArdaNovaSettings.cs   # ScriptableObject for API config
@@ -149,23 +236,55 @@ game-sdk-unity/
 game-sdk-godot/
 ├── plugin.cfg               # Godot plugin manifest
 ├── addons/ardanova/
-│   ├── ardanova_client.gd   # Main API client (GDScript)
+│   ├── ardanova_client.gd   # Main API client → Next.js SDK routes
 │   ├── models/              # Data models
 │   ├── auth/
-│   │   └── jwt_provider.gd  # JWT token management
+│   │   └── session_provider.gd # Session token management
+│   ├── gating/
+│   │   └── credential_gate.gd  # Content gating helper
 │   └── plugin.gd            # Plugin entry point
 └── tests/
 ```
 
 ### Core SDK Methods
 
-| Method | Description | API Endpoint |
-|--------|-------------|-------------|
-| `Authenticate(email, token)` | Validate JWT and store session | `GET /api/Users/me` |
-| `GetProfile()` | Get current user profile | `GET /api/Users/me` |
-| `GetCredentials()` | Get user's credentials | `GET /api/MembershipCredentials/user/{userId}` |
-| `GetTokenBalance(projectId)` | Get token balance | `GET /api/TokenBalances/me/project/{projectId}` |
-| `ReportAction(actionType, data)` | Report in-game action for XP/rewards | `POST /api/GameActions` |
+| Method | Description | Hits |
+|--------|-------------|------|
+| `Authenticate(authCode)` | Exchange auth code for session, store token | `POST /api/sdk/auth/session` |
+| `GetProfile()` | Get current user profile | `GET /api/sdk/me` |
+| `GetCredentials()` | Get current user's credentials | `GET /api/sdk/me/credentials` |
+| `CheckCredential(projectId?, guildId?, minTier?)` | Check if user holds credential at tier | `GET /api/sdk/me/credentials/check` |
+| `GetTokenBalances()` | Get all token balances | `GET /api/sdk/me/token-balances` |
+| `GetTokenBalance(projectId)` | Get balance for a project | `GET /api/sdk/me/token-balances/{id}` |
+| `ReportAction(actionType, taskId, metadata)` | Report game action for equity award | `POST /api/sdk/actions` |
+
+### Content Gating Helpers
+
+Both SDKs provide high-level helpers for common gating patterns:
+
+```csharp
+// Unity — C#
+if (await ArdaNova.Gate.HasCredential(projectId: "abc"))
+    EnablePremiumContent();
+
+if (await ArdaNova.Gate.HasMinTier(projectId: "abc", minTier: "GOLD"))
+    EnableGoldContent();
+
+if (await ArdaNova.Gate.HasTokenBalance(projectId: "abc", minBalance: 100))
+    EnableTokenGatedContent();
+```
+
+```gdscript
+# Godot — GDScript
+if await ArdaNova.gate.has_credential(project_id):
+    enable_premium_content()
+
+if await ArdaNova.gate.has_min_tier(project_id, "GOLD"):
+    enable_gold_content()
+
+if await ArdaNova.gate.has_token_balance(project_id, 100):
+    enable_token_gated_content()
+```
 
 ---
 
@@ -180,10 +299,18 @@ game-sdk-godot/
 | `src/components/credentials/tier-progress.tsx` | Tier progression visualization |
 | `src/app/credentials/[id]/page.tsx` | Credential detail page |
 | `src/app/admin/credentials/page.tsx` | Admin credential dashboard |
+| `src/app/api/sdk/auth/session/route.ts` | SDK auth endpoint (Next.js Route Handler) |
+| `src/app/api/sdk/me/route.ts` | SDK profile endpoint |
+| `src/app/api/sdk/me/credentials/route.ts` | SDK credentials endpoint |
+| `src/app/api/sdk/me/credentials/check/route.ts` | SDK credential check endpoint |
+| `src/app/api/sdk/me/token-balances/route.ts` | SDK token balances endpoint |
+| `src/app/api/sdk/actions/route.ts` | SDK game action endpoint |
 | `game-sdk-unity/package.json` | Unity package manifest |
 | `game-sdk-unity/Runtime/ArdaNovaClient.cs` | Unity API client |
+| `game-sdk-unity/Runtime/Gating/CredentialGate.cs` | Content gating helpers |
 | `game-sdk-godot/plugin.cfg` | Godot plugin manifest |
 | `game-sdk-godot/addons/ardanova/ardanova_client.gd` | Godot API client |
+| `game-sdk-godot/addons/ardanova/gating/credential_gate.gd` | Content gating helpers |
 
 ### Modified Files
 | File | Changes |

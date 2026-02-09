@@ -19,6 +19,7 @@ import {
   Edit,
   Trash2,
   Target,
+  Shield,
 } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
@@ -106,6 +107,10 @@ export default function ProjectDetailPage() {
 
   const { data: project, isLoading } = api.project.getById.useQuery({ id: slug });
   const { data: members } = api.project.getMembers.useQuery(
+    { projectId: project?.id ?? "" },
+    { enabled: !!project?.id }
+  );
+  const { data: activeCredentials } = api.membershipCredential.getActiveByProjectId.useQuery(
     { projectId: project?.id ?? "" },
     { enabled: !!project?.id }
   );
@@ -223,7 +228,7 @@ export default function ProjectDetailPage() {
           </div>
 
           {/* Stats */}
-          <div className="grid grid-cols-4 gap-4 mt-6">
+          <div className="grid grid-cols-5 gap-4 mt-6">
             <Card className="bg-card border-2 border-border">
               <CardContent className="p-4 text-center">
                 <p className="text-2xl font-bold text-primary">{project.supportersCount || 0}</p>
@@ -248,6 +253,15 @@ export default function ProjectDetailPage() {
               <CardContent className="p-4 text-center">
                 <p className="text-2xl font-bold text-foreground">{project.viewsCount || 0}</p>
                 <p className="text-sm text-muted-foreground">Views</p>
+              </CardContent>
+            </Card>
+            <Card className="bg-card border-2 border-border">
+              <CardContent className="p-4 text-center">
+                <div className="flex items-center justify-center gap-1">
+                  <Shield className="size-5 text-neon-cyan" />
+                  <p className="text-2xl font-bold text-neon-cyan">{activeCredentials?.length || 0}</p>
+                </div>
+                <p className="text-sm text-muted-foreground">Credentialed</p>
               </CardContent>
             </Card>
           </div>

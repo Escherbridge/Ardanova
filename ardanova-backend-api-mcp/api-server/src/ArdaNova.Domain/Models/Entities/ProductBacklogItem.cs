@@ -54,4 +54,6 @@ public class ProductBacklogItem
     [ForeignKey("assigneeId")]
     public virtual User? Assignee { get; set; }
 
+    public virtual ICollection<TokenAllocation> TokenAllocations { get; set; } = new List<TokenAllocation>();
+
 }

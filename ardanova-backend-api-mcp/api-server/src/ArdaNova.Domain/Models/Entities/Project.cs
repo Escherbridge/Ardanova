@@ -172,4 +172,6 @@ public class Project
 
     public virtual ICollection<Opportunity> Opportunities { get; set; } = new List<Opportunity>();
 
+    public virtual ICollection<ProjectTokenConfig> ProjectTokenConfigs { get; set; } = new List<ProjectTokenConfig>();
+
 }
