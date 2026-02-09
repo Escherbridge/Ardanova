@@ -1970,6 +1970,7 @@ model Opportunity {
   guildId String?
   projectId String?
   taskId String?
+  projectRole ProjectRole?
   projectTasks ProjectTask[] @relation("ProjectTask_opportunityId")
   poster User @relation("Opportunity_posterId", fields: [posterId], references: [id])
   guild Guild? @relation("Opportunity_guildId", fields: [guildId], references: [id])

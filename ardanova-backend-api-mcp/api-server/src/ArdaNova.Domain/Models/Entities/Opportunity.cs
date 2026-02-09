@@ -86,6 +86,8 @@ public class Opportunity
 
     public string? taskId { get; set; }
 
+    public ProjectRole? projectRole { get; set; }
+
     public virtual ICollection<ProjectTask> ProjectTasks { get; set; } = new List<ProjectTask>();
 
     [ForeignKey("posterId")]

@@ -7,14 +7,15 @@ import { Button } from "~/components/ui/button";
 import { Badge } from "~/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
 import { CredentialBadge } from "~/components/credentials/credential-badge";
-import { Loader2, Users, Plus, Check, X } from "lucide-react";
+import { Loader2, Users, Plus, Check, X, Shield } from "lucide-react";
+import { toast } from "sonner";
 
 interface TeamTabProps {
   projectId: string;
   isOwner: boolean;
 }
 
-type MemberRole = "FOUNDER" | "LEADER" | "CORE_CONTRIBUTOR" | "CONTRIBUTOR" | "OBSERVER";
+export type MemberRole = "FOUNDER" | "LEADER" | "CORE_CONTRIBUTOR" | "CONTRIBUTOR" | "OBSERVER";
 type ApplicationStatus = "PENDING" | "ACCEPTED" | "REJECTED" | "WITHDRAWN";
 
 interface Member {
@@ -52,7 +53,7 @@ interface Application {
   };
 }
 
-const getRoleBadgeVariant = (role: MemberRole) => {
+export const getRoleBadgeVariant = (role: MemberRole | string) => {
   switch (role) {
     case "FOUNDER":
       return "neon-pink-solid" as const;
@@ -69,14 +70,13 @@ const getRoleBadgeVariant = (role: MemberRole) => {
   }
 };
 
-const formatRoleName = (role: MemberRole) => {
+export const formatRoleName = (role: MemberRole | string) => {
   return role
     .split("_")
     .map((word) => word.charAt(0) + word.slice(1).toLowerCase())
     .join(" ");
 };
 
-// Fallback roles if no opportunities have been created for this project
 const DEFAULT_ROLES = [
   { id: "FOUNDER", name: "Founder", description: "Project creator with full administrative access" },
   { id: "LEADER", name: "Leader", description: "Team lead with management responsibilities" },
@@ -114,7 +114,7 @@ export default function TeamTab({ projectId, isOwner }: TeamTabProps) {
   });
 
   const credentialsByUserId = new Map(
-    (projectCredentials ?? []).map((c) => [c.userId, c]),
+    (projectCredentials ?? []).map((c: any) => [c.userId, c]),
   );
 
   // Mutations
@@ -155,6 +155,16 @@ export default function TeamTab({ projectId, isOwner }: TeamTabProps) {
     },
   });
 
+  const grantCredentialMutation = api.membershipCredential.grant.useMutation({
+    onSuccess: () => {
+      toast.success("Credential granted successfully");
+      void utils.membershipCredential.getByProjectId.invalidate({ projectId });
+    },
+    onError: (error) => {
+      toast.error(error.message || "Failed to grant credential");
+    },
+  });
+
   const handleApply = (e: React.FormEvent) => {
     e.preventDefault();
     applyMutation.mutate({
@@ -174,6 +184,14 @@ export default function TeamTab({ projectId, isOwner }: TeamTabProps) {
     });
   };
 
+  const handleGrantCredential = (userId: string) => {
+    grantCredentialMutation.mutate({
+      projectId,
+      userId,
+      grantedVia: "FOUNDER",
+    });
+  };
+
   if (membersLoading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -183,6 +201,19 @@ export default function TeamTab({ projectId, isOwner }: TeamTabProps) {
   }
 
   const pendingApplications = applications?.filter((app) => app.status === "PENDING") ?? [];
+
+  // Group opportunities by their linked projectRole
+  const opportunitiesByRole = new Map<string, any[]>();
+  const unlinkedOpportunities: any[] = [];
+  (opportunities ?? []).forEach((opp: any) => {
+    if (opp.projectRole) {
+      const existing = opportunitiesByRole.get(opp.projectRole) ?? [];
+      existing.push(opp);
+      opportunitiesByRole.set(opp.projectRole, existing);
+    } else {
+      unlinkedOpportunities.push(opp);
+    }
+  });
 
   return (
     <div className="space-y-6">
@@ -216,46 +247,62 @@ export default function TeamTab({ projectId, isOwner }: TeamTabProps) {
             </div>
           ) : (
             <div className="space-y-3">
-              {members.map((member: any) => (
-                <div
-                  key={member.id}
-                  className="flex items-center justify-between p-4 border border-border rounded hover:bg-muted/50 transition-colors"
-                >
-                  <div className="flex items-center gap-3">
-                    <Avatar>
-                      <AvatarImage src={member.user?.image ?? undefined} />
-                      <AvatarFallback>
-                        {member.user?.name?.charAt(0).toUpperCase() ?? "U"}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <div className="font-medium">
-                        {member.user?.name ?? member.user?.email ?? "Unknown User"}
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        Joined {new Date(member.joinedAt).toLocaleDateString()}
+              {members.map((member: any) => {
+                const hasCredential = credentialsByUserId.get(member.userId)?.status === "ACTIVE";
+                return (
+                  <div
+                    key={member.id}
+                    className="flex items-center justify-between p-4 border border-border rounded hover:bg-muted/50 transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      <Avatar>
+                        <AvatarImage src={member.user?.image ?? undefined} />
+                        <AvatarFallback>
+                          {member.user?.name?.charAt(0).toUpperCase() ?? "U"}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <div className="font-medium">
+                          {member.user?.name ?? member.user?.email ?? "Unknown User"}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          Joined {new Date(member.joinedAt).toLocaleDateString()}
+                        </div>
                       </div>
                     </div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant={getRoleBadgeVariant(member.role)}>
+                        {formatRoleName(member.role)}
+                      </Badge>
+                      {hasCredential && (
+                        <CredentialBadge
+                          tier={credentialsByUserId.get(member.userId)?.tier}
+                          size="sm"
+                        />
+                      )}
+                      {isOwner && !hasCredential && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 px-2 text-xs text-muted-foreground hover:text-primary"
+                          onClick={() => handleGrantCredential(member.userId)}
+                          disabled={grantCredentialMutation.isPending}
+                          title="Grant membership credential"
+                        >
+                          <Shield className="size-3.5 mr-1" />
+                          Grant
+                        </Button>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Badge variant={getRoleBadgeVariant(member.role)}>
-                      {formatRoleName(member.role)}
-                    </Badge>
-                    {credentialsByUserId.get(member.userId)?.status === "ACTIVE" && (
-                      <CredentialBadge
-                        tier={credentialsByUserId.get(member.userId)?.tier}
-                        size="sm"
-                      />
-                    )}
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </CardContent>
       </Card>
 
-      {/* Available Roles */}
+      {/* Available Roles - Always shows all 5 base roles */}
       <Card>
         <CardHeader>
           <CardTitle>Available Roles</CardTitle>
@@ -263,55 +310,17 @@ export default function TeamTab({ projectId, isOwner }: TeamTabProps) {
         </CardHeader>
         <CardContent>
           <div className="grid gap-3">
-            {opportunities && opportunities.length > 0 ? (
-              // Show roles from project creation (stored as opportunities)
-              opportunities.map((opp: any) => {
-                const isFilled = opp.status === "FILLED" || opp.status === "CLOSED";
+            {DEFAULT_ROLES.map((role) => {
+              const filledMembers = members?.filter((m: any) => m.role === role.id) ?? [];
+              const linkedPositions = opportunitiesByRole.get(role.id) ?? [];
+              const isFilled = filledMembers.length > 0;
 
-                return (
-                  <div
-                    key={opp.id}
-                    className="flex items-center justify-between p-3 border border-border rounded hover:bg-muted/30 transition-colors"
-                  >
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <Badge variant="neon">
-                          {opp.title}
-                        </Badge>
-                        {opp.type && (
-                          <Badge variant="secondary" className="text-xs">
-                            {opp.type}
-                          </Badge>
-                        )}
-                        {opp.applicationsCount > 0 && (
-                          <span className="text-xs text-muted-foreground">
-                            ({opp.applicationsCount} {opp.applicationsCount === 1 ? 'applicant' : 'applicants'})
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-sm text-muted-foreground mt-1">{opp.description}</p>
-                    </div>
-                    <div className="ml-4">
-                      {isFilled ? (
-                        <Badge variant="secondary" className="text-xs">Filled</Badge>
-                      ) : (
-                        <Badge variant="outline" className="text-xs">Open</Badge>
-                      )}
-                    </div>
-                  </div>
-                );
-              })
-            ) : (
-              // Fallback: show default roles when no opportunities defined
-              DEFAULT_ROLES.map((role) => {
-                const filledMembers = members?.filter((m: any) => m.role === role.id) ?? [];
-                const isFilled = filledMembers.length > 0;
-
-                return (
-                  <div
-                    key={role.id}
-                    className="flex items-center justify-between p-3 border border-border rounded hover:bg-muted/30 transition-colors"
-                  >
+              return (
+                <div
+                  key={role.id}
+                  className="p-3 border border-border rounded hover:bg-muted/30 transition-colors"
+                >
+                  <div className="flex items-center justify-between">
                     <div className="flex-1">
                       <div className="flex items-center gap-2">
                         <Badge variant={getRoleBadgeVariant(role.id as MemberRole)}>
@@ -347,8 +356,64 @@ export default function TeamTab({ projectId, isOwner }: TeamTabProps) {
                       )}
                     </div>
                   </div>
-                );
-              })
+                  {/* Show linked team positions */}
+                  {linkedPositions.length > 0 && (
+                    <div className="mt-2 ml-2 space-y-1.5">
+                      {linkedPositions.map((opp: any) => (
+                        <div key={opp.id} className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <span className="w-1.5 h-1.5 rounded-full bg-neon shrink-0" />
+                          <span className="font-medium text-foreground">{opp.title}</span>
+                          {opp.applicationsCount > 0 && (
+                            <span>({opp.applicationsCount} {opp.applicationsCount === 1 ? 'applicant' : 'applicants'})</span>
+                          )}
+                          <Badge variant={opp.status === "FILLED" || opp.status === "CLOSED" ? "secondary" : "outline"} className="text-[10px] h-4 px-1.5">
+                            {opp.status === "FILLED" || opp.status === "CLOSED" ? "Filled" : "Open"}
+                          </Badge>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+
+            {/* Show unlinked team positions (no projectRole set) */}
+            {unlinkedOpportunities.length > 0 && (
+              <>
+                <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide pt-2">
+                  Custom Positions
+                </div>
+                {unlinkedOpportunities.map((opp: any) => {
+                  const isFilled = opp.status === "FILLED" || opp.status === "CLOSED";
+                  return (
+                    <div
+                      key={opp.id}
+                      className="flex items-center justify-between p-3 border border-border rounded hover:bg-muted/30 transition-colors"
+                    >
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <Badge variant="neon">
+                            {opp.title}
+                          </Badge>
+                          {opp.applicationsCount > 0 && (
+                            <span className="text-xs text-muted-foreground">
+                              ({opp.applicationsCount} {opp.applicationsCount === 1 ? 'applicant' : 'applicants'})
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-sm text-muted-foreground mt-1">{opp.description}</p>
+                      </div>
+                      <div className="ml-4">
+                        {isFilled ? (
+                          <Badge variant="secondary" className="text-xs">Filled</Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-xs">Open</Badge>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </>
             )}
           </div>
         </CardContent>

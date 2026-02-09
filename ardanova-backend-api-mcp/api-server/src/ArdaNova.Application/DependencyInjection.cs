@@ -111,6 +111,7 @@ public static class DependencyInjection
         services.AddScoped<IPayoutService, PayoutService>();
         services.AddScoped<ITreasuryService, TreasuryService>();
         services.AddScoped<IProjectGateService, ProjectGateService>();
+        services.AddScoped<IStripeService, StripeService>();
 
         // Enum lookup (singleton - enum types are static)
         services.AddSingleton<IEnumLookupService, EnumLookupService>();

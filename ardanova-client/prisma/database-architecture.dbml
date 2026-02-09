@@ -1790,6 +1790,7 @@ Table Opportunity {
   guildId varchar
   projectId varchar
   taskId varchar
+  projectRole ProjectRole
 }
 Ref: Opportunity.posterId > User.id
 Ref: Opportunity.guildId > Guild.id

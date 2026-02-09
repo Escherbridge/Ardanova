@@ -206,6 +206,7 @@ public class MappingProfile : Profile
             .ForMember(dest => dest.GuildId, opt => opt.MapFrom(src => src.guildId))
             .ForMember(dest => dest.ProjectId, opt => opt.MapFrom(src => src.projectId))
             .ForMember(dest => dest.TaskId, opt => opt.MapFrom(src => src.taskId))
+            .ForMember(dest => dest.ProjectRole, opt => opt.MapFrom(src => src.projectRole))
             .ForMember(dest => dest.Poster, opt => opt.Ignore());
         CreateMap<User, OpportunityPosterDto>()
             .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.id))

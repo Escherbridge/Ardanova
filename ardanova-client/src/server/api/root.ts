@@ -23,6 +23,12 @@ import { achievementRouter } from "~/server/api/routers/achievement";
 import { leaderboardRouter } from "~/server/api/routers/leaderboard";
 import { referralRouter } from "~/server/api/routers/referral";
 import { kycRouter } from "~/server/api/routers/kyc";
+import { projectTokensRouter } from "~/server/api/routers/project-tokens";
+import { tokenBalancesRouter } from "~/server/api/routers/token-balances";
+import { payoutsRouter } from "~/server/api/routers/payouts";
+import { treasuryRouter } from "~/server/api/routers/treasury";
+import { projectGatesRouter } from "~/server/api/routers/project-gates";
+import { exchangeRouter } from "~/server/api/routers/exchange";
 import { createCallerFactory, createTRPCRouter } from "~/server/api/trpc";
 
 /**
@@ -56,6 +62,12 @@ export const appRouter = createTRPCRouter({
   leaderboard: leaderboardRouter,
   referral: referralRouter,
   kyc: kycRouter,
+  projectTokens: projectTokensRouter,
+  tokenBalances: tokenBalancesRouter,
+  payouts: payoutsRouter,
+  treasury: treasuryRouter,
+  projectGates: projectGatesRouter,
+  exchange: exchangeRouter,
 });
 
 // export type definition of API

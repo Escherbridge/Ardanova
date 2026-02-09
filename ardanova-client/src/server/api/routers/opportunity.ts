@@ -25,6 +25,7 @@ const createOpportunitySchema = z.object({
   projectId: z.string().optional(),
   guildId: z.string().optional(),
   taskId: z.string().optional(),
+  projectRole: z.enum(["FOUNDER", "LEADER", "CORE_CONTRIBUTOR", "CONTRIBUTOR", "OBSERVER"]).optional(),
 });
 
 // Opportunity update input schema
@@ -41,6 +42,7 @@ const updateOpportunitySchema = z.object({
   isRemote: z.boolean().optional(),
   deadline: z.string().optional(),
   maxApplications: z.number().positive().optional(),
+  projectRole: z.enum(["FOUNDER", "LEADER", "CORE_CONTRIBUTOR", "CONTRIBUTOR", "OBSERVER"]).optional(),
 });
 
 export const opportunityRouter = createTRPCRouter({
@@ -79,7 +81,7 @@ export const opportunityRouter = createTRPCRouter({
         title: input.title,
         description: input.description,
         type: input.type,
-        experienceLevel: input.experienceLevel,
+        experienceLevel: input.experienceLevel ?? "MID",
         skills: input.skills.join(","),
         requirements: input.description,
         compensation: input.compensationAmount,
@@ -91,6 +93,7 @@ export const opportunityRouter = createTRPCRouter({
         projectId: input.projectId,
         guildId: input.guildId,
         taskId: input.taskId,
+        projectRole: input.projectRole,
       });
 
       if (response.error || !response.data) {
@@ -309,6 +312,7 @@ export const opportunityRouter = createTRPCRouter({
         isRemote: data.isRemote,
         deadline: data.deadline,
         maxApplications: data.maxApplications,
+        projectRole: data.projectRole,
       });
 
       if (response.error || !response.data) {

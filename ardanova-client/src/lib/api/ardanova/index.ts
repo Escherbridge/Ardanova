@@ -23,6 +23,12 @@ import { AchievementsEndpoint } from "./endpoints/achievements";
 import { LeaderboardsEndpoint } from "./endpoints/leaderboards";
 import { ReferralsEndpoint } from "./endpoints/referrals";
 import { KycEndpoint } from "./endpoints/kyc";
+import { ProjectTokensEndpoint } from "./endpoints/project-tokens";
+import { TokenBalancesEndpoint } from "./endpoints/token-balances";
+import { PayoutsEndpoint } from "./endpoints/payouts";
+import { TreasuryEndpoint } from "./endpoints/treasury";
+import { ProjectGatesEndpoint } from "./endpoints/project-gates";
+import { ExchangeEndpoint } from "./endpoints/exchange";
 
 // Re-export types from endpoints
 export type {
@@ -192,6 +198,38 @@ export type {
   SubmitKycDocumentDto,
   ReviewKycDto,
 } from "./endpoints/kyc";
+export type {
+  ProjectTokenConfigDto,
+  CreateProjectTokenConfigDto,
+  TokenAllocationDto,
+  CreateTokenAllocationDto,
+  CreateInvestorAllocationDto,
+  CreateFounderAllocationDto,
+  ProjectInvestmentDto,
+  ProjectGateStatusDto,
+  GateTransitionResultDto,
+  FailProjectDto,
+  ProjectTokenStatus,
+  ProjectGateStatus,
+  TokenHolderClass,
+  AllocationStatus,
+} from "./endpoints/project-tokens";
+export type {
+  TokenBalanceDto,
+  UserPortfolioDto,
+  ProjectTokenBalanceDto,
+  ConversionPreviewDto,
+} from "./endpoints/token-balances";
+export type {
+  PayoutRequestDto,
+  CreatePayoutRequestDto,
+  PayoutStatus,
+} from "./endpoints/payouts";
+export type {
+  TreasuryStatusDto,
+  TreasuryTransactionDto,
+  TreasuryTransactionType,
+} from "./endpoints/treasury";
 
 // Re-export schemas for validation
 export {
@@ -234,6 +272,12 @@ export class ArdaNovaApiClient extends BaseApiClient {
   readonly leaderboards: LeaderboardsEndpoint;
   readonly referrals: ReferralsEndpoint;
   readonly kyc: KycEndpoint;
+  readonly projectTokens: ProjectTokensEndpoint;
+  readonly tokenBalances: TokenBalancesEndpoint;
+  readonly payouts: PayoutsEndpoint;
+  readonly treasury: TreasuryEndpoint;
+  readonly projectGates: ProjectGatesEndpoint;
+  readonly exchange: ExchangeEndpoint;
 
   constructor(config: BaseApiClientConfig) {
     super(config);
@@ -260,6 +304,12 @@ export class ArdaNovaApiClient extends BaseApiClient {
     this.leaderboards = new LeaderboardsEndpoint(this);
     this.referrals = new ReferralsEndpoint(this);
     this.kyc = new KycEndpoint(this);
+    this.projectTokens = new ProjectTokensEndpoint(this);
+    this.tokenBalances = new TokenBalancesEndpoint(this);
+    this.payouts = new PayoutsEndpoint(this);
+    this.treasury = new TreasuryEndpoint(this);
+    this.projectGates = new ProjectGatesEndpoint(this);
+    this.exchange = new ExchangeEndpoint(this);
   }
 
   health() {
