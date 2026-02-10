@@ -11,3 +11,4 @@
 - [x] [KYC & Identity Verification](tracks/08-kyc/index.md) - KYC submission, provider abstraction, verification gating.
 - [Tokenomics & Project Equity](tracks/09-tokenomics/index.md) - Project tokens, ARDA platform token, equity distribution, payouts. **Phases 1-8 complete (schema, services, controllers, unit tests). Phases 9-11 in progress (Stripe SDK, API client + tRPC, flow tests).**
 - [Credential Frontend UI & Game SDK](tracks/10-credential-ui-gamesdk/index.md) - Credential badges, tier UI, profile/project/guild integration, Unity/Godot SDK setup.
+- [Position Management, Equity & Treasury Pool](tracks/11-position-equity-treasury/spec.md) - Position detail/edit pages, equity cap enforcement, treasury pool allocation UI. **P0 complete (pages, equity cap, pool display). P1 in progress (editable pool targets, per-member equity view).**

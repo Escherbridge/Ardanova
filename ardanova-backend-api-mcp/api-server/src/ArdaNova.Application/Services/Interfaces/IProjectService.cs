@@ -117,6 +117,7 @@ public interface IProjectEquityService
     Task<Result<ProjectEquityDto>> CreateAsync(CreateProjectEquityDto dto, CancellationToken ct = default);
     Task<Result<ProjectEquityDto>> UpdateAsync(string id, UpdateProjectEquityDto dto, CancellationToken ct = default);
     Task<Result<bool>> DeleteAsync(string id, CancellationToken ct = default);
+    Task<Result<decimal>> GetTotalEquityAsync(string projectId, CancellationToken ct = default);
 }
 
 public interface IProjectMemberService

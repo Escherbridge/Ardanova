@@ -88,7 +88,7 @@ export function Feed({
       )}
 
       {/* Feed Content */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto scrollbar-hide">
         <AnimatePresence mode="wait">
           {isLoading && items.length === 0 ? (
             <motion.div

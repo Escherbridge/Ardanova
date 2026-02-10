@@ -155,6 +155,7 @@ const addMemberSchema = z.object({
 });
 
 const updateMemberRoleSchema = z.object({
+  projectId: z.string(),
   memberId: z.string(),
   role: MemberRole,
 });
@@ -721,14 +722,8 @@ export const projectRouter = createTRPCRouter({
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user.id;
 
-      // Get member to verify ownership
-      const member = await apiClient.projects.getMemberById(input.memberId);
-      if (member.error || !member.data) {
-        throw new Error("Member not found");
-      }
-
       // Verify project ownership
-      const project = await apiClient.projects.getById(member.data.projectId);
+      const project = await apiClient.projects.getById(input.projectId);
       if (project.error || !project.data) {
         throw new Error("Project not found");
       }
@@ -736,7 +731,7 @@ export const projectRouter = createTRPCRouter({
         throw new Error("Access denied");
       }
 
-      const response = await apiClient.projects.updateMemberRole(input.memberId, {
+      const response = await apiClient.projects.updateMemberRole(input.projectId, input.memberId, {
         role: input.role,
       });
 
@@ -749,18 +744,12 @@ export const projectRouter = createTRPCRouter({
 
   // Remove member from project
   removeMember: protectedProcedure
-    .input(z.object({ memberId: z.string() }))
+    .input(z.object({ projectId: z.string(), memberId: z.string() }))
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user.id;
 
-      // Get member to verify ownership
-      const member = await apiClient.projects.getMemberById(input.memberId);
-      if (member.error || !member.data) {
-        throw new Error("Member not found");
-      }
-
       // Verify project ownership
-      const project = await apiClient.projects.getById(member.data.projectId);
+      const project = await apiClient.projects.getById(input.projectId);
       if (project.error || !project.data) {
         throw new Error("Project not found");
       }
@@ -768,7 +757,7 @@ export const projectRouter = createTRPCRouter({
         throw new Error("Access denied");
       }
 
-      const response = await apiClient.projects.removeMember(input.memberId);
+      const response = await apiClient.projects.removeMember(input.projectId, input.memberId);
 
       if (response.error) {
         throw new Error(response.error ?? "Failed to remove member");

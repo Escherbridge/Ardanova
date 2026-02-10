@@ -101,6 +101,27 @@ export const userRouter = createTRPCRouter({
       return response.data ?? [];
     }),
 
+  // Get who a user is following with full user details
+  getFollowingWithUsers: protectedProcedure
+    .input(z.object({ userId: z.string() }))
+    .query(async ({ input }) => {
+      const response = await apiClient.users.getFollowing(input.userId);
+      if (response.error) {
+        throw new Error(response.error);
+      }
+      const follows = response.data ?? [];
+
+      const userResults = await Promise.all(
+        follows.map(async (follow) => {
+          const userResp = await apiClient.users.getById(follow.followingId);
+          if (userResp.error || !userResp.data) return null;
+          return userResp.data;
+        })
+      );
+
+      return userResults.filter((u): u is NonNullable<typeof u> => u !== null);
+    }),
+
   // Check if current user follows another user
   isFollowing: protectedProcedure
     .input(z.object({ userId: z.string() }))

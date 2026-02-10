@@ -1002,6 +1002,13 @@ public class ProjectEquityService : IProjectEquityService
 
     public async Task<Result<ProjectEquityDto>> CreateAsync(CreateProjectEquityDto dto, CancellationToken ct = default)
     {
+        // Enforce 100% equity cap
+        var existingEquities = await _repository.FindAsync(e => e.projectId == dto.ProjectId, ct);
+        var currentTotal = existingEquities.Sum(e => e.sharePercent);
+        if (currentTotal + dto.SharePercent > 100)
+            return Result<ProjectEquityDto>.Failure(
+                $"Total equity allocation cannot exceed 100%. Current: {currentTotal}%, requested: {dto.SharePercent}%, available: {100 - currentTotal}%");
+
         var equity = new ProjectEquity
         {
             id = Guid.NewGuid().ToString(),
@@ -1022,7 +1029,17 @@ public class ProjectEquityService : IProjectEquityService
         if (equity is null)
             return Result<ProjectEquityDto>.NotFound($"Equity with id {id} not found");
 
-        if (dto.SharePercent.HasValue) equity.sharePercent = dto.SharePercent.Value;
+        // Enforce 100% equity cap on share percent updates
+        if (dto.SharePercent.HasValue)
+        {
+            var existingEquities = await _repository.FindAsync(e => e.projectId == equity.projectId, ct);
+            var othersTotal = existingEquities.Where(e => e.id != id).Sum(e => e.sharePercent);
+            if (othersTotal + dto.SharePercent.Value > 100)
+                return Result<ProjectEquityDto>.Failure(
+                    $"Total equity allocation cannot exceed 100%. Others: {othersTotal}%, requested: {dto.SharePercent.Value}%, available: {100 - othersTotal}%");
+
+            equity.sharePercent = dto.SharePercent.Value;
+        }
         if (dto.InvestmentAmount.HasValue) equity.investmentAmount = dto.InvestmentAmount.Value;
 
         await _repository.UpdateAsync(equity, ct);
@@ -1039,6 +1056,13 @@ public class ProjectEquityService : IProjectEquityService
         await _repository.DeleteAsync(equity, ct);
         await _unitOfWork.SaveChangesAsync(ct);
         return Result<bool>.Success(true);
+    }
+
+    public async Task<Result<decimal>> GetTotalEquityAsync(string projectId, CancellationToken ct = default)
+    {
+        var equities = await _repository.FindAsync(e => e.projectId == projectId, ct);
+        var total = equities.Sum(e => e.sharePercent);
+        return Result<decimal>.Success(total);
     }
 }
 

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSession } from "next-auth/react";
 import { api } from "~/trpc/react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
@@ -14,6 +15,13 @@ import {
   DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "~/components/ui/select";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -23,11 +31,14 @@ import {
   DialogTrigger,
 } from "~/components/ui/dialog";
 import { CredentialBadge } from "~/components/credentials/credential-badge";
-import { Loader2, Users, Plus, Check, X, Shield, ChevronUp, UserPlus, Search } from "lucide-react";
+import { Loader2, Users, Plus, Check, X, Shield, ChevronUp, UserPlus, Search, ExternalLink, PieChart, Pencil } from "lucide-react";
+import Link from "next/link";
 import { toast } from "sonner";
+import { cn } from "~/lib/utils";
 
 interface TeamTabProps {
   projectId: string;
+  projectSlug?: string;
   isOwner: boolean;
 }
 
@@ -109,21 +120,48 @@ function InviteMemberDialog({
   role,
   existingMemberIds,
   isOwner,
+  currentUserId,
 }: {
   projectId: string;
   role: string;
   existingMemberIds: string[];
   isOwner: boolean;
+  currentUserId?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [inviteMessage, setInviteMessage] = useState("");
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [selectedUserName, setSelectedUserName] = useState<string | null>(null);
+  const [sourceTab, setSourceTab] = useState<"search" | "following">("search");
   const utils = api.useUtils();
 
-  const { data: following, isLoading: followingLoading } = api.user.getFollowing.useQuery(
-    { userId: "" }, // Will be overridden by the session
-    { enabled: open && isOwner }
+  // Debounce search input
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(searchTerm), 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  // Paginated user search — only fires when 2+ characters typed
+  const { data: searchResults, isLoading: searchLoading } = api.user.search.useQuery(
+    { query: debouncedSearch, page: 1, limit: 10 },
+    { enabled: open && isOwner && debouncedSearch.length >= 2 }
+  );
+
+  // Filter out existing members from results
+  const availableUsers = (searchResults?.items ?? []).filter(
+    (user: any) => !existingMemberIds.includes(user.id)
+  );
+
+  // Fetch followed users when "Following" tab is active
+  const { data: followedUsers, isLoading: followingLoading } = api.user.getFollowingWithUsers.useQuery(
+    { userId: currentUserId! },
+    { enabled: open && isOwner && sourceTab === "following" && !!currentUserId }
+  );
+
+  const availableFollowedUsers = (followedUsers ?? []).filter(
+    (user: any) => !existingMemberIds.includes(user.id)
   );
 
   const createInvitationMutation = api.project.createInvitation.useMutation({
@@ -131,23 +169,15 @@ function InviteMemberDialog({
       toast.success("Invitation sent successfully");
       setOpen(false);
       setSelectedUserId(null);
+      setSelectedUserName(null);
       setInviteMessage("");
       setSearchTerm("");
+      setDebouncedSearch("");
       void utils.project.getInvitations.invalidate({ projectId });
     },
     onError: (error) => {
       toast.error(error.message || "Failed to send invitation");
     },
-  });
-
-  // Filter out existing members and search
-  const availableUsers = (following ?? []).filter((follow: any) => {
-    const user = follow.following ?? follow;
-    const userId = user.followingId ?? user.id;
-    if (existingMemberIds.includes(userId)) return false;
-    if (!searchTerm) return true;
-    const name = (user.name ?? user.followingName ?? "").toLowerCase();
-    return name.includes(searchTerm.toLowerCase());
   });
 
   const handleInvite = () => {
@@ -163,7 +193,17 @@ function InviteMemberDialog({
   if (!isOwner) return null;
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={(v) => {
+      setOpen(v);
+      if (!v) {
+        setSearchTerm("");
+        setDebouncedSearch("");
+        setSelectedUserId(null);
+        setSelectedUserName(null);
+        setInviteMessage("");
+        setSourceTab("search");
+      }
+    }}>
       <DialogTrigger asChild>
         <Button variant="ghost" size="sm" className="h-7 px-2 text-xs">
           <UserPlus className="size-3.5 mr-1" />
@@ -174,58 +214,153 @@ function InviteMemberDialog({
         <DialogHeader>
           <DialogTitle>Invite Member as {formatRoleName(role)}</DialogTitle>
           <DialogDescription>
-            Select a user you follow to invite to this project
+            Search for a user to invite to this project
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search followed users..."
-              className="w-full pl-9 pr-3 py-2 border border-border rounded bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary text-sm"
-            />
-          </div>
+          {/* Source tab toggle */}
+          {!selectedUserId && (
+            <div className="flex gap-1 border-b border-border">
+              <button
+                type="button"
+                className={cn(
+                  "text-xs px-3 py-1.5 border-b-2 transition-colors",
+                  sourceTab === "search"
+                    ? "border-primary text-primary font-medium"
+                    : "border-transparent text-muted-foreground hover:text-foreground"
+                )}
+                onClick={() => setSourceTab("search")}
+              >
+                <Search className="size-3 inline mr-1" />
+                Search
+              </button>
+              <button
+                type="button"
+                className={cn(
+                  "text-xs px-3 py-1.5 border-b-2 transition-colors",
+                  sourceTab === "following"
+                    ? "border-primary text-primary font-medium"
+                    : "border-transparent text-muted-foreground hover:text-foreground"
+                )}
+                onClick={() => setSourceTab("following")}
+              >
+                <Users className="size-3 inline mr-1" />
+                Following
+              </button>
+            </div>
+          )}
 
-          <div className="max-h-48 overflow-y-auto space-y-1">
-            {followingLoading ? (
-              <div className="flex items-center justify-center py-4">
-                <Loader2 className="size-4 animate-spin text-muted-foreground" />
+          {/* Selected user chip */}
+          {selectedUserId && selectedUserName && (
+            <div className="flex items-center gap-2 bg-primary/10 border border-primary rounded px-3 py-1.5">
+              <Check className="size-3.5 text-primary" />
+              <span className="text-sm font-medium flex-1">{selectedUserName}</span>
+              <button
+                onClick={() => { setSelectedUserId(null); setSelectedUserName(null); }}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <X className="size-3.5" />
+              </button>
+            </div>
+          )}
+
+          {/* Search input */}
+          {!selectedUserId && sourceTab === "search" && (
+            <>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Search users by name..."
+                  className="w-full pl-9 pr-3 py-2 border border-border rounded bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                  autoFocus
+                />
               </div>
-            ) : availableUsers.length === 0 ? (
-              <div className="text-center py-4 text-sm text-muted-foreground">
-                {searchTerm ? "No matching users found" : "No followed users available to invite"}
+
+              <div className="max-h-48 overflow-y-auto space-y-1">
+                {debouncedSearch.length < 2 ? (
+                  <div className="text-center py-4 text-sm text-muted-foreground">
+                    Type at least 2 characters to search
+                  </div>
+                ) : searchLoading ? (
+                  <div className="flex items-center justify-center py-4">
+                    <Loader2 className="size-4 animate-spin text-muted-foreground" />
+                  </div>
+                ) : availableUsers.length === 0 ? (
+                  <div className="text-center py-4 text-sm text-muted-foreground">
+                    No matching users found
+                  </div>
+                ) : (
+                  availableUsers.map((user: any) => (
+                    <button
+                      key={user.id}
+                      onClick={() => {
+                        setSelectedUserId(user.id);
+                        setSelectedUserName(user.name ?? user.email ?? "Unknown");
+                      }}
+                      className="w-full flex items-center gap-3 p-2 rounded transition-colors text-left hover:bg-muted/50 border border-transparent"
+                    >
+                      <Avatar className="size-8">
+                        <AvatarImage src={user.image ?? undefined} />
+                        <AvatarFallback className="text-xs">
+                          {(user.name ?? user.email ?? "U").charAt(0).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex flex-col">
+                        <span className="text-sm font-medium">{user.name ?? "Unnamed"}</span>
+                        {user.email && (
+                          <span className="text-xs text-muted-foreground">{user.email}</span>
+                        )}
+                      </div>
+                    </button>
+                  ))
+                )}
               </div>
-            ) : (
-              availableUsers.map((follow: any) => {
-                const user = follow.following ?? follow;
-                const userId = user.followingId ?? user.id;
-                const userName = user.name ?? user.followingName ?? "Unknown";
-                const userImage = user.image ?? user.followingImage;
-                const isSelected = selectedUserId === userId;
-                return (
+            </>
+          )}
+
+          {/* Following list */}
+          {!selectedUserId && sourceTab === "following" && (
+            <div className="max-h-48 overflow-y-auto space-y-1">
+              {followingLoading ? (
+                <div className="flex items-center justify-center py-4">
+                  <Loader2 className="size-4 animate-spin text-muted-foreground" />
+                </div>
+              ) : availableFollowedUsers.length === 0 ? (
+                <div className="text-center py-4 text-sm text-muted-foreground">
+                  {(followedUsers?.length ?? 0) === 0
+                    ? "You're not following anyone yet"
+                    : "All followed users are already members"}
+                </div>
+              ) : (
+                availableFollowedUsers.map((user: any) => (
                   <button
-                    key={userId}
-                    onClick={() => setSelectedUserId(isSelected ? null : userId)}
-                    className={`w-full flex items-center gap-3 p-2 rounded transition-colors text-left ${
-                      isSelected ? "bg-primary/10 border border-primary" : "hover:bg-muted/50 border border-transparent"
-                    }`}
+                    key={user.id}
+                    onClick={() => {
+                      setSelectedUserId(user.id);
+                      setSelectedUserName(user.name ?? user.email ?? "Unknown");
+                    }}
+                    className="w-full flex items-center gap-3 p-2 rounded transition-colors text-left hover:bg-muted/50 border border-transparent"
                   >
                     <Avatar className="size-8">
-                      <AvatarImage src={userImage ?? undefined} />
+                      <AvatarImage src={user.image ?? undefined} />
                       <AvatarFallback className="text-xs">
-                        {userName.charAt(0).toUpperCase()}
+                        {(user.name ?? user.email ?? "U").charAt(0).toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
-                    <span className="text-sm font-medium">{userName}</span>
-                    {isSelected && <Check className="size-4 ml-auto text-primary" />}
+                    <div className="flex flex-col">
+                      <span className="text-sm font-medium">{user.name ?? "Unnamed"}</span>
+                      {user.email && (
+                        <span className="text-xs text-muted-foreground">{user.email}</span>
+                      )}
+                    </div>
                   </button>
-                );
-              })
-            )}
-          </div>
+                ))
+              )}
+            </div>
+          )}
 
           {selectedUserId && (
             <div>
@@ -264,7 +399,7 @@ function InviteMemberDialog({
   );
 }
 
-export default function TeamTab({ projectId, isOwner }: TeamTabProps) {
+export default function TeamTab({ projectId, projectSlug, isOwner }: TeamTabProps) {
   const [showApplicationForm, setShowApplicationForm] = useState(false);
   const [roleTitle, setRoleTitle] = useState("");
   const [message, setMessage] = useState("");
@@ -291,6 +426,11 @@ export default function TeamTab({ projectId, isOwner }: TeamTabProps) {
   const { data: projectCredentials } = api.membershipCredential.getByProjectId.useQuery({
     projectId,
   });
+
+  const { data: tokenConfig } = api.projectTokens.getConfigByProject.useQuery(
+    { projectId },
+    { retry: false }
+  );
 
   const credentialsByUserId = new Map(
     (projectCredentials ?? []).map((c: any) => [c.userId, c]),
@@ -341,6 +481,26 @@ export default function TeamTab({ projectId, isOwner }: TeamTabProps) {
     },
     onError: (error) => {
       toast.error(error.message || "Failed to grant credential");
+    },
+  });
+
+  const updateMemberRoleMutation = api.project.updateMemberRole.useMutation({
+    onSuccess: () => {
+      toast.success("Member role updated");
+      void utils.project.getMembers.invalidate({ projectId });
+    },
+    onError: (error) => {
+      toast.error(error.message || "Failed to update member role");
+    },
+  });
+
+  const updateOpportunityRoleMutation = api.opportunity.update.useMutation({
+    onSuccess: () => {
+      toast.success("Role assigned successfully");
+      void utils.opportunity.getByProjectId.invalidate({ projectId });
+    },
+    onError: (error) => {
+      toast.error(error.message || "Failed to assign role");
     },
   });
 
@@ -406,6 +566,10 @@ export default function TeamTab({ projectId, isOwner }: TeamTabProps) {
 
   const existingMemberIds = (members ?? []).map((m: any) => m.userId);
 
+  const { data: session } = useSession();
+  const currentUserId = session?.user?.id;
+  const isCurrentUserMember = currentUserId ? existingMemberIds.includes(currentUserId) : false;
+
   return (
     <div className="space-y-6">
       {/* Team & Roles - Accordion */}
@@ -419,7 +583,7 @@ export default function TeamTab({ projectId, isOwner }: TeamTabProps) {
               </CardTitle>
               <CardDescription>Team positions, members, and open opportunities</CardDescription>
             </div>
-            {!isOwner && (
+            {!isOwner && !isCurrentUserMember && (
               <Button
                 onClick={() => setShowApplicationForm(!showApplicationForm)}
                 variant="default"
@@ -436,6 +600,9 @@ export default function TeamTab({ projectId, isOwner }: TeamTabProps) {
             {DEFAULT_ROLES.map((role) => {
               const filledMembers = members?.filter((m: any) => m.role === role.id) ?? [];
               const linkedPositions = opportunitiesByRole.get(role.id) ?? [];
+              const openPositions = linkedPositions.filter(
+                (opp: any) => opp.status !== "FILLED" && opp.status !== "CLOSED"
+              );
 
               return (
                 <AccordionItem key={role.id} value={role.id}>
@@ -445,7 +612,10 @@ export default function TeamTab({ projectId, isOwner }: TeamTabProps) {
                         {role.name}
                       </Badge>
                       <span className="text-xs text-muted-foreground">
-                        ({filledMembers.length} {filledMembers.length === 1 ? "member" : "members"})
+                        {filledMembers.length} {filledMembers.length === 1 ? "member" : "members"}
+                        {openPositions.length > 0 && (
+                          <> · {openPositions.length} open {openPositions.length === 1 ? "position" : "positions"}</>
+                        )}
                       </span>
                     </div>
                   </AccordionTrigger>
@@ -482,6 +652,29 @@ export default function TeamTab({ projectId, isOwner }: TeamTabProps) {
                                   </div>
                                 </div>
                                 <div className="flex items-center gap-2">
+                                  {isOwner && member.userId !== currentUserId && (
+                                    <Select
+                                      defaultValue={member.role}
+                                      onValueChange={(value) => {
+                                        updateMemberRoleMutation.mutate({
+                                          projectId,
+                                          memberId: member.id,
+                                          role: value as "FOUNDER" | "LEADER" | "CORE_CONTRIBUTOR" | "CONTRIBUTOR" | "OBSERVER",
+                                        });
+                                      }}
+                                    >
+                                      <SelectTrigger className="h-7 w-[140px] text-xs">
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {DEFAULT_ROLES.map((r) => (
+                                          <SelectItem key={r.id} value={r.id}>
+                                            {r.name}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  )}
                                   {hasCredential && (
                                     <>
                                       <CredentialBadge
@@ -539,10 +732,50 @@ export default function TeamTab({ projectId, isOwner }: TeamTabProps) {
                                       Grant
                                     </Button>
                                   )}
+                                  {/* Edit linked opportunity (owner only) */}
+                                  {isOwner && linkedPositions.length === 1 && (
+                                    <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" asChild>
+                                      <Link href={`/opportunities/${linkedPositions[0].slug}/edit`}>
+                                        <Pencil className="size-3.5 mr-1" />
+                                        Edit Position
+                                      </Link>
+                                    </Button>
+                                  )}
+                                  {isOwner && linkedPositions.length > 1 && (
+                                    <DropdownMenu>
+                                      <DropdownMenuTrigger asChild>
+                                        <Button variant="ghost" size="sm" className="h-7 px-2 text-xs">
+                                          <Pencil className="size-3.5 mr-1" />
+                                          Edit Position
+                                        </Button>
+                                      </DropdownMenuTrigger>
+                                      <DropdownMenuContent align="end">
+                                        {linkedPositions.map((opp: any) => (
+                                          <DropdownMenuItem key={opp.id} asChild>
+                                            <Link href={`/opportunities/${opp.slug}/edit`}>
+                                              {opp.title}
+                                            </Link>
+                                          </DropdownMenuItem>
+                                        ))}
+                                      </DropdownMenuContent>
+                                    </DropdownMenu>
+                                  )}
                                 </div>
                               </div>
                             );
                           })}
+                        </div>
+                      )}
+
+                      {/* Define position for role without opportunity (owner only) */}
+                      {isOwner && linkedPositions.length === 0 && filledMembers.length > 0 && (
+                        <div className="pt-1">
+                          <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" asChild>
+                            <Link href={`/opportunities/create?projectId=${projectId}${projectSlug ? `&projectSlug=${projectSlug}` : ""}&projectRole=${role.id}`}>
+                              <Plus className="size-3.5 mr-1" />
+                              Define {role.name} Position
+                            </Link>
+                          </Button>
                         </div>
                       )}
 
@@ -555,7 +788,12 @@ export default function TeamTab({ projectId, isOwner }: TeamTabProps) {
                           {linkedPositions.map((opp: any) => (
                             <div key={opp.id} className="flex items-center gap-2 text-xs text-muted-foreground pl-2">
                               <span className="w-1.5 h-1.5 rounded-full bg-neon shrink-0" />
-                              <span className="font-medium text-foreground">{opp.title}</span>
+                              <Link
+                                href={`/opportunities/${opp.slug}`}
+                                className="font-medium text-foreground hover:text-neon hover:underline transition-colors"
+                              >
+                                {opp.title}
+                              </Link>
                               {opp.applicationsCount > 0 && (
                                 <span>
                                   ({opp.applicationsCount} {opp.applicationsCount === 1 ? "applicant" : "applicants"})
@@ -567,6 +805,28 @@ export default function TeamTab({ projectId, isOwner }: TeamTabProps) {
                               >
                                 {opp.status === "FILLED" || opp.status === "CLOSED" ? "Filled" : "Open"}
                               </Badge>
+                              {isOwner && (
+                                <Select
+                                  defaultValue={opp.projectRole}
+                                  onValueChange={(value) => {
+                                    updateOpportunityRoleMutation.mutate({
+                                      id: opp.id,
+                                      projectRole: value as "FOUNDER" | "LEADER" | "CORE_CONTRIBUTOR" | "CONTRIBUTOR" | "OBSERVER",
+                                    });
+                                  }}
+                                >
+                                  <SelectTrigger className="h-5 w-[120px] text-[10px] ml-auto">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {DEFAULT_ROLES.map((r) => (
+                                      <SelectItem key={r.id} value={r.id}>
+                                        {r.name}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              )}
                             </div>
                           ))}
                         </div>
@@ -580,6 +840,7 @@ export default function TeamTab({ projectId, isOwner }: TeamTabProps) {
                             role={role.id}
                             existingMemberIds={existingMemberIds}
                             isOwner={isOwner}
+                            currentUserId={currentUserId}
                           />
                         </div>
                       )}
@@ -612,7 +873,11 @@ export default function TeamTab({ projectId, isOwner }: TeamTabProps) {
                   >
                     <div className="flex-1">
                       <div className="flex items-center gap-2">
-                        <Badge variant="neon">{opp.title}</Badge>
+                        <Link href={`/opportunities/${opp.slug}`}>
+                          <Badge variant="neon" className="cursor-pointer hover:opacity-80 transition-opacity">
+                            {opp.title}
+                          </Badge>
+                        </Link>
                         {opp.applicationsCount > 0 && (
                           <span className="text-xs text-muted-foreground">
                             ({opp.applicationsCount} {opp.applicationsCount === 1 ? "applicant" : "applicants"})
@@ -623,7 +888,28 @@ export default function TeamTab({ projectId, isOwner }: TeamTabProps) {
                         <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{opp.description}</p>
                       )}
                     </div>
-                    <div className="ml-4">
+                    <div className="ml-4 flex items-center gap-2">
+                      {isOwner && (
+                        <Select
+                          onValueChange={(value) => {
+                            updateOpportunityRoleMutation.mutate({
+                              id: opp.id,
+                              projectRole: value as "FOUNDER" | "LEADER" | "CORE_CONTRIBUTOR" | "CONTRIBUTOR" | "OBSERVER",
+                            });
+                          }}
+                        >
+                          <SelectTrigger className="h-7 w-[140px] text-xs">
+                            <SelectValue placeholder="Assign role" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {DEFAULT_ROLES.map((role) => (
+                              <SelectItem key={role.id} value={role.id}>
+                                {role.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
                       <Badge variant={isFilled ? "secondary" : "outline"} className="text-xs">
                         {isFilled ? "Filled" : "Open"}
                       </Badge>
@@ -637,7 +923,7 @@ export default function TeamTab({ projectId, isOwner }: TeamTabProps) {
       </Card>
 
       {/* Application Form */}
-      {showApplicationForm && !isOwner && (
+      {showApplicationForm && !isOwner && !isCurrentUserMember && (
         <Card>
           <CardHeader>
             <CardTitle>Apply to Join Project</CardTitle>
@@ -738,6 +1024,86 @@ export default function TeamTab({ projectId, isOwner }: TeamTabProps) {
                 </Button>
               </div>
             </form>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Equity Pool Allocation */}
+      {tokenConfig && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <PieChart className="size-5" />
+              Token Pool Allocation
+            </CardTitle>
+            <CardDescription>How project tokens are distributed across holder classes</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {(() => {
+              const total = tokenConfig.totalSupply || 1;
+              const contributorPct = ((tokenConfig.contributorSupply / total) * 100).toFixed(1);
+              const investorPct = ((tokenConfig.investorSupply / total) * 100).toFixed(1);
+              const founderPct = ((tokenConfig.founderSupply / total) * 100).toFixed(1);
+              const burnedPct = ((tokenConfig.burnedSupply / total) * 100).toFixed(1);
+              const availableSupply = total - tokenConfig.contributorSupply - tokenConfig.investorSupply - tokenConfig.founderSupply - tokenConfig.burnedSupply;
+              const availablePct = ((availableSupply / total) * 100).toFixed(1);
+
+              return (
+                <div className="space-y-4">
+                  {/* Pool bars */}
+                  <div className="space-y-3">
+                    <div>
+                      <div className="flex justify-between text-sm mb-1">
+                        <span className="font-medium">Contributor Pool</span>
+                        <span className="text-muted-foreground">{contributorPct}% ({tokenConfig.contributorSupply.toLocaleString()} tokens)</span>
+                      </div>
+                      <div className="h-2 bg-muted rounded-full overflow-hidden">
+                        <div className="h-full bg-neon-green rounded-full transition-all" style={{ width: `${contributorPct}%` }} />
+                      </div>
+                    </div>
+                    <div>
+                      <div className="flex justify-between text-sm mb-1">
+                        <span className="font-medium">Investor Pool</span>
+                        <span className="text-muted-foreground">{investorPct}% ({tokenConfig.investorSupply.toLocaleString()} tokens)</span>
+                      </div>
+                      <div className="h-2 bg-muted rounded-full overflow-hidden">
+                        <div className="h-full bg-neon rounded-full transition-all" style={{ width: `${investorPct}%` }} />
+                      </div>
+                    </div>
+                    <div>
+                      <div className="flex justify-between text-sm mb-1">
+                        <span className="font-medium">Founder / Member Pool</span>
+                        <span className="text-muted-foreground">{founderPct}% ({tokenConfig.founderSupply.toLocaleString()} tokens)</span>
+                      </div>
+                      <div className="h-2 bg-muted rounded-full overflow-hidden">
+                        <div className="h-full bg-neon-pink rounded-full transition-all" style={{ width: `${founderPct}%` }} />
+                      </div>
+                    </div>
+                    {tokenConfig.burnedSupply > 0 && (
+                      <div>
+                        <div className="flex justify-between text-sm mb-1">
+                          <span className="font-medium text-muted-foreground">Burned</span>
+                          <span className="text-muted-foreground">{burnedPct}% ({tokenConfig.burnedSupply.toLocaleString()} tokens)</span>
+                        </div>
+                        <div className="h-2 bg-muted rounded-full overflow-hidden">
+                          <div className="h-full bg-destructive/50 rounded-full transition-all" style={{ width: `${burnedPct}%` }} />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Summary */}
+                  <div className="flex items-center justify-between pt-2 border-t border-border text-sm">
+                    <span className="text-muted-foreground">
+                      Total Supply: <span className="font-medium text-foreground">{total.toLocaleString()}</span> tokens
+                    </span>
+                    <span className="text-muted-foreground">
+                      Unallocated: <span className="font-medium text-foreground">{availablePct}%</span> ({availableSupply.toLocaleString()})
+                    </span>
+                  </div>
+                </div>
+              );
+            })()}
           </CardContent>
         </Card>
       )}

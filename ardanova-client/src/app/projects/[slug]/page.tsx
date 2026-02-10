@@ -317,7 +317,7 @@ export default function ProjectDetailPage() {
       <div className="max-w-4xl mx-auto px-4 py-6">
         {activeTab === "overview" && <OverviewTab project={project} />}
         {activeTab === "updates" && <UpdatesTab projectId={project.id} isOwner={isOwner} />}
-        {activeTab === "team" && <TeamTab projectId={project.id} isOwner={isOwner} />}
+        {activeTab === "team" && <TeamTab projectId={project.id} projectSlug={slug} isOwner={isOwner} />}
         {activeTab === "proposals" && (
           <ProposalsTab
             projectId={project.id}

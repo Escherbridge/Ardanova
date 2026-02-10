@@ -113,7 +113,7 @@ export function AppSidebar({ user }: AppSidebarProps) {
     <TooltipProvider delayDuration={0}>
       <aside
         className={cn(
-          "sticky top-0 self-start z-40 flex h-screen shrink-0 flex-col border-r-2 border-sidebar-border bg-sidebar transition-all duration-300",
+          "sticky top-0 self-start z-40 flex h-screen shrink-0 flex-col border-r-2 border-sidebar-border bg-sidebar transition-all duration-300 mr-[1.2vw]",
           isCollapsed ? "w-16" : "w-64"
         )}
       >
@@ -141,33 +141,6 @@ export function AppSidebar({ user }: AppSidebarProps) {
           </Button>
         </div>
 
-        {/* Create Button */}
-        <div className="p-3">
-          {isCollapsed ? (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="neon"
-                  size="icon"
-                  className="w-full"
-                  asChild
-                >
-                  <Link href="/dashboard/create">
-                    <Plus className="size-5" />
-                  </Link>
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="right">Create Project</TooltipContent>
-            </Tooltip>
-          ) : (
-            <Button variant="neon" className="w-full" asChild>
-              <Link href="/dashboard/create">
-                <Plus className="size-4 mr-2" />
-                Create Project
-              </Link>
-            </Button>
-          )}
-        </div>
 
         {/* Main Navigation */}
         <nav className="flex-1 space-y-1 px-3 py-2">
@@ -217,7 +190,7 @@ export function AppSidebar({ user }: AppSidebarProps) {
         {/* Admin Navigation */}
         {user?.role === "ADMIN" && (
           <>
-            <Separator className="mx-3 bg-sidebar-border" />
+            <Separator className=" bg-sidebar-border" />
             <nav className="space-y-1 px-3 py-2">
               {isCollapsed ? (
                 <Tooltip>
@@ -254,7 +227,7 @@ export function AppSidebar({ user }: AppSidebarProps) {
           </>
         )}
 
-        <Separator className="mx-3 bg-sidebar-border" />
+        <Separator className="bg-sidebar-border" />
 
         {/* Secondary Navigation */}
         <nav className="space-y-1 px-3 py-2">

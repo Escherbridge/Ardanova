@@ -466,24 +466,24 @@ export class ProjectsEndpoint {
     return this.client.post<ProjectMember>(`/api/projects/${projectId}/members`, data);
   }
 
-  updateMember(memberId: string, data: UpdateMemberDto): Promise<ApiResponse<ProjectMember>> {
-    return this.client.put<ProjectMember>(`/api/project-members/${memberId}`, data);
+  updateMember(projectId: string, memberId: string, data: UpdateMemberDto): Promise<ApiResponse<ProjectMember>> {
+    return this.client.put<ProjectMember>(`/api/projects/${projectId}/members/${memberId}`, data);
   }
 
-  removeMember(memberId: string): Promise<ApiResponse<void>> {
-    return this.client.delete(`/api/project-members/${memberId}`);
+  removeMember(projectId: string, memberId: string): Promise<ApiResponse<void>> {
+    return this.client.delete(`/api/projects/${projectId}/members/${memberId}`);
   }
 
   getMembers(projectId: string): Promise<ApiResponse<ProjectMember[]>> {
     return this.client.get<ProjectMember[]>(`/api/projects/${projectId}/members`);
   }
 
-  getMemberById(memberId: string): Promise<ApiResponse<ProjectMember>> {
-    return this.client.get<ProjectMember>(`/api/project-members/${memberId}`);
+  getMemberById(projectId: string, memberId: string): Promise<ApiResponse<ProjectMember>> {
+    return this.client.get<ProjectMember>(`/api/projects/${projectId}/members/${memberId}`);
   }
 
-  updateMemberRole(memberId: string, data: UpdateMemberDto): Promise<ApiResponse<ProjectMember>> {
-    return this.updateMember(memberId, data);
+  updateMemberRole(projectId: string, memberId: string, data: UpdateMemberDto): Promise<ApiResponse<ProjectMember>> {
+    return this.updateMember(projectId, memberId, data);
   }
 
   // ============ Application Methods ============
@@ -644,7 +644,7 @@ export class ProjectsEndpoint {
   }
 
   createInvitation(projectId: string, data: CreateProjectInvitationDto): Promise<ApiResponse<ProjectInvitation>> {
-    return this.client.post<ProjectInvitation>(`/api/projects/${projectId}/invitations`, data);
+    return this.client.post<ProjectInvitation>(`/api/projects/${projectId}/invitations`, { ...data, projectId });
   }
 
   acceptInvitation(projectId: string, invitationId: string): Promise<ApiResponse<ProjectInvitation>> {

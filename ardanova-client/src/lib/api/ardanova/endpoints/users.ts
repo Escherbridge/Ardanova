@@ -134,7 +134,7 @@ export class UsersEndpoint {
   }
 
   getAll(page = 1, pageSize = 10): Promise<ApiResponse<PagedResult<User>>> {
-    return this.client.get<PagedResult<User>>(`/api/users?page=${page}&pageSize=${pageSize}`);
+    return this.client.get<PagedResult<User>>(`/api/users/paged?page=${page}&pageSize=${pageSize}`);
   }
 
   search(query: string, page = 1, pageSize = 20): Promise<ApiResponse<PagedResult<User>>> {

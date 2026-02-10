@@ -20,7 +20,7 @@ export default async function AuthenticatedLayout({
   return (
     <SessionProvider session={session}>
       <TRPCReactProvider>
-        <div className={wide ? "flex min-h-screen" : "flex justify-center min-h-screen"}>
+        <div className={"flex min-h-screen"}>
           <AppSidebar user={session.user} />
           <main className={wide ? "flex-1 transition-all duration-300" : "transition-all duration-300"}>
             {children}
