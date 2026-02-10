@@ -58,7 +58,7 @@ export function Feed({
   };
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full min-w-0">
       {/* Header (optional compose area, etc.) */}
       {header}
 

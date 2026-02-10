@@ -6,10 +6,8 @@ import { AppSidebar } from "~/components/app-sidebar";
 
 export default async function AuthenticatedLayout({
   children,
-  wide = false,
 }: {
   children: React.ReactNode;
-  wide?: boolean;
 }) {
   const session = await auth();
 
@@ -22,7 +20,7 @@ export default async function AuthenticatedLayout({
       <TRPCReactProvider>
         <div className={"flex min-h-screen"}>
           <AppSidebar user={session.user} />
-          <main className={wide ? "flex-1 transition-all duration-300" : "transition-all duration-300"}>
+          <main className="flex-1 min-w-0 transition-all duration-300">
             {children}
           </main>
         </div>
