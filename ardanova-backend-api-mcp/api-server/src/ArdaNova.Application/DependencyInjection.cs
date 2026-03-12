@@ -83,6 +83,7 @@ public static class DependencyInjection
 
         // Opportunity services
         services.AddScoped<IOpportunityService, OpportunityService>();
+        services.AddScoped<IOpportunityBidService, OpportunityBidService>();
 
         // Governance services
         services.AddScoped<IGovernanceService, GovernanceService>();

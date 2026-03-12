@@ -54,9 +54,9 @@
 
 ---
 
-## 9. Stripe SDK Integration [P1] — NEW
-- [ ] **Install `Stripe.net` NuGet package** in `ArdaNova.Application.csproj`
-- [ ] **Create `IStripeService` interface** in `Services/Interfaces/IStripeService.cs`
+## 9. Stripe SDK Integration [P1] ✅ COMPLETE
+- [x] **Install `Stripe.net` NuGet package** in `ArdaNova.Application.csproj`
+- [x] **Create `IStripeService` interface** in `Services/Interfaces/IStripeService.cs`
     - `CreateCheckoutSessionAsync(projectTokenConfigId, userId, usdAmount, ct)` → StripeCheckoutSessionDto
     - `HandlePaymentSucceededAsync(paymentIntentId, ct)` → ProjectInvestmentDto
     - `HandlePaymentFailedAsync(paymentIntentId, failureReason, ct)` → bool
@@ -64,22 +64,22 @@
     - `CreatePayoutTransferAsync(payoutRequestId, connectedAccountId, usdAmount, ct)` → StripeTransferDto
     - `HandlePayoutSucceededAsync(transferId, ct)` → PayoutRequestDto
     - `HandlePayoutFailedAsync(transferId, failureReason, ct)` → PayoutRequestDto
-- [ ] **Create Stripe DTOs** in `DTOs/StripeDtos.cs`
+- [x] **Create Stripe DTOs** in `DTOs/StripeDtos.cs`
     - `StripeCheckoutSessionDto` (SessionId, SessionUrl, ProjectTokenConfigId, UsdAmount)
     - `StripeConnectedAccountDto` (AccountId, UserId, OnboardingUrl, Status)
     - `StripeTransferDto` (TransferId, PayoutRequestId, UsdAmount, Status)
-- [ ] **Create `StripeService` implementation** in `Services/Implementations/StripeService.cs`
+- [x] **Create `StripeService` implementation** in `Services/Implementations/StripeService.cs`
     - Uses `Stripe.PaymentIntentService`, `Stripe.Checkout.SessionService`, `Stripe.TransferService`
     - Inject `IConfiguration` for API keys
     - Inject `IProjectTokenService`, `ITokenBalanceService`, `ITreasuryService`, `IProjectGateService` for payment orchestration
     - Payment succeeded handler: create ProjectInvestment → AllocateToInvestor → CreditAsync (locked) → ProcessFundingInflow → EvaluateGate1
     - Payout transfer: call Stripe API to create transfer to connected account
-- [ ] **Create `StripeWebhookController`** in `ArdaNova.API/Controllers/StripeWebhookController.cs`
+- [x] **Create `StripeWebhookController`** in `ArdaNova.API/Controllers/StripeWebhookController.cs`
     - `POST /api/webhooks/stripe` — validate signature, parse event, dispatch to IStripeService
     - Event routing: `payment_intent.succeeded`, `payment_intent.payment_failed`, `transfer.paid`, `transfer.failed`
-- [ ] **Register IStripeService** in `DependencyInjection.cs`
-- [ ] **Wire PayoutService** to call `IStripeService.CreatePayoutTransferAsync` during ProcessPayoutAsync
-- [ ] **Write `StripeServiceTests.cs`** unit tests (mock Stripe SDK classes + dependent services)
+- [x] **Register IStripeService** in `DependencyInjection.cs`
+- [x] **Wire PayoutService** to call `IStripeService.CreatePayoutTransferAsync` during ProcessPayoutAsync
+- [x] **Write `StripeServiceTests.cs`** unit tests (mock Stripe SDK classes + dependent services)
     - Checkout session creation
     - Payment succeeded → full investment flow
     - Payment failed → no side effects
@@ -87,57 +87,52 @@
     - Payout transfer success/failure
     - Webhook event routing
 
-## 10. API Client + tRPC Routers [P1] — NEW
-- [ ] **Create `project-tokens.ts` API endpoint** in `ardanova-client/src/lib/api/ardanova/endpoints/`
+## 10. API Client + tRPC Routers [P1] ✅ COMPLETE
+- [x] **Create `project-tokens.ts` API endpoint** in `ardanova-client/src/lib/api/ardanova/endpoints/`
     - Config: createConfig, getConfig, getConfigByProject, getSupply
     - Allocations: allocateToTask, allocateToInvestor, allocateToFounder, distribute, revoke, getAllocations, getAllocationsByTask, getInvestors
     - Gate: getGateStatus, evaluateGate, clearGate, failProject
     - Failure: burnFounder, trustProtection
-- [ ] **Create `token-balances.ts` API endpoint**
+- [x] **Create `token-balances.ts` API endpoint**
     - getBalance, getArdaBalance, getPortfolio, checkLiquidity
     - Exchange: getProjectTokenValue, getArdaValue, getConversionPreview
-- [ ] **Create `payouts.ts` API endpoint**
+- [x] **Create `payouts.ts` API endpoint**
     - requestPayout, processPayout, cancelPayout, getPayoutsByUser, getPendingPayouts
-- [ ] **Create `treasury.ts` API endpoint**
+- [x] **Create `treasury.ts` API endpoint**
     - getStatus, getTransactions, processFundingInflow, applyIndexReturn, rebalance, reconcile
-- [ ] **Register all new endpoints** in `ArdaNovaApiClient` class (`index.ts`)
+- [x] **Register all new endpoints** in `ArdaNovaApiClient` class (`index.ts`)
     - Add imports, properties, constructor initialization
     - Add type re-exports
-- [ ] **Create `project-tokens.ts` tRPC router** in `ardanova-client/src/server/api/routers/`
+- [x] **Create `project-tokens.ts` tRPC router** in `ardanova-client/src/server/api/routers/`
     - Thin proxy: protectedProcedure → apiClient.projectTokens.method() → TRPCError on failure
     - Zod input schemas for each procedure
-- [ ] **Create `token-balances.ts` tRPC router**
-- [ ] **Create `payouts.ts` tRPC router**
-- [ ] **Create `treasury.ts` tRPC router**
-- [ ] **Register all tRPC routers** in `appRouter` (`root.ts`)
+- [x] **Create `token-balances.ts` tRPC router**
+- [x] **Create `payouts.ts` tRPC router**
+- [x] **Create `treasury.ts` tRPC router**
+- [x] **Register all tRPC routers** in `appRouter` (`root.ts`)
 
-## 11. Service-Level Flow Tests [P0] — NEW
-- [ ] **Create test infrastructure** in `tests/ArdaNova.Application.Tests/Flows/`
+## 11. Service-Level Flow Tests [P0] ✅ COMPLETE
+- [x] **Create test infrastructure** in `tests/ArdaNova.Application.Tests/Flows/`
     - Shared in-memory repository backing stores (`Dictionary<string, T>`)
     - Repository mock factory (generic helper for FindAsync/FindOneAsync/GetByIdAsync/AddAsync/UpdateAsync)
     - Real AutoMapper instance with MappingProfile
     - Mocked IAlgorandService and IStripeService
-- [ ] **Flow 1: Project Creation → Funding → Gate 1**
+- [x] **Flow 1: Project Creation → Funding → Gate 1**
     - CreateConfigAsync → AllocateToFounderAsync → simulate investment → ProcessFundingInflow → EvaluateGate1
     - Verify: FUNDING→ACTIVE, contributor tokens liquid, investor/founder locked, treasury 55/30/15 split
     - Invariant: supply breakdown sums correctly
-- [ ] **Flow 2: Task Completion → Contributor Payout**
+- [x] **Flow 2: Task Completion → Contributor Payout**
     - AllocateToTaskAsync → DistributeAsync → CalculateConversion → RequestPayout → ProcessPayout
     - Verify: tokens locked then debited, payout COMPLETED, balance updated
-- [ ] **Flow 3: Project Success (Gate 2)**
+- [x] **Flow 3: Project Success (Gate 2)**
     - ClearGate2Async → verify SUCCEEDED
     - Verify: all INVESTOR + FOUNDER balances isLiquid = true, CONTRIBUTOR unchanged
-- [ ] **Flow 4: Project Failure — Founder Burn + Investor Trust Protection**
+- [x] **Flow 4: Project Failure — Founder Burn + Investor Trust Protection**
     - FailProjectAsync → verify FAILED
     - Verify: FOUNDER allocations BURNED, balances zeroed, burnedSupply incremented
     - Verify: investor trust protection paid, index fund debited
     - Verify: CONTRIBUTOR tokens unaffected
     - Invariant: `contributorSupply + investorSupply + founderSupply + burnedSupply <= totalSupply`
 
-## 12. Frontend — Token & Equity UI [P2] — DEFERRED
-- [ ] **[P2] Project funding page** (funding progress, gate badge, Stripe checkout)
-- [ ] **[P2] Project equity dashboard** (supply breakdown, allocation table, gate timeline)
-- [ ] **[P2] User portfolio page** (holdings by liquidity, ARDA balance, payout history)
-- [ ] **[P2] Payout request flow** (conversion preview, submit, status tracking)
-- [ ] **[P2] Task equity display** (equity % on task cards)
-- [ ] **[P2] Treasury dashboard (admin)** (three-bucket visualization, audit log)
+## 12. Frontend — Token & Equity UI [P0] — MOVED TO TRACK 15
+Frontend equity UI has been promoted to P0 and moved to [Track 15: Token & Equity Frontend UI](../15-token-equity-ui/spec.md) with expanded scope including investment flow, portfolio, and Stripe Connect onboarding.

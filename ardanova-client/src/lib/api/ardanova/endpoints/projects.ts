@@ -178,7 +178,7 @@ export interface CreateApplicationDto {
 }
 
 export interface ReviewApplicationDto {
-  status: string;
+  status?: string;
   reviewMessage?: string;
 }
 
@@ -418,20 +418,20 @@ export class ProjectsEndpoint {
     return this.client.post<ProjectResource>(`/api/projects/${projectId}/resources`, data);
   }
 
-  updateResource(resourceId: string, data: UpdateResourceDto): Promise<ApiResponse<ProjectResource>> {
-    return this.client.put<ProjectResource>(`/api/project-resources/${resourceId}`, data);
+  updateResource(projectId: string, resourceId: string, data: UpdateResourceDto): Promise<ApiResponse<ProjectResource>> {
+    return this.client.put<ProjectResource>(`/api/projects/${projectId}/resources/${resourceId}`, data);
   }
 
-  deleteResource(resourceId: string): Promise<ApiResponse<void>> {
-    return this.client.delete(`/api/project-resources/${resourceId}`);
+  deleteResource(projectId: string, resourceId: string): Promise<ApiResponse<void>> {
+    return this.client.delete(`/api/projects/${projectId}/resources/${resourceId}`);
   }
 
   getResources(projectId: string): Promise<ApiResponse<ProjectResource[]>> {
     return this.client.get<ProjectResource[]>(`/api/projects/${projectId}/resources`);
   }
 
-  getResourceById(resourceId: string): Promise<ApiResponse<ProjectResource>> {
-    return this.client.get<ProjectResource>(`/api/project-resources/${resourceId}`);
+  getResourceById(projectId: string, resourceId: string): Promise<ApiResponse<ProjectResource>> {
+    return this.client.get<ProjectResource>(`/api/projects/${projectId}/resources/${resourceId}`);
   }
 
   // ============ Milestone Methods ============
@@ -496,12 +496,16 @@ export class ProjectsEndpoint {
     return this.client.get<ProjectApplication[]>(`/api/projects/${projectId}/applications`);
   }
 
-  reviewApplication(applicationId: string, data: ReviewApplicationDto): Promise<ApiResponse<ProjectApplication>> {
-    return this.client.put<ProjectApplication>(`/api/project-applications/${applicationId}/review`, data);
+  acceptApplication(projectId: string, applicationId: string, data?: ReviewApplicationDto): Promise<ApiResponse<ProjectApplication>> {
+    return this.client.post<ProjectApplication>(`/api/projects/${projectId}/applications/${applicationId}/accept`, data ?? {});
   }
 
-  getApplicationById(applicationId: string): Promise<ApiResponse<ProjectApplication>> {
-    return this.client.get<ProjectApplication>(`/api/project-applications/${applicationId}`);
+  rejectApplication(projectId: string, applicationId: string, data?: ReviewApplicationDto): Promise<ApiResponse<ProjectApplication>> {
+    return this.client.post<ProjectApplication>(`/api/projects/${projectId}/applications/${applicationId}/reject`, data ?? {});
+  }
+
+  getApplicationById(projectId: string, applicationId: string): Promise<ApiResponse<ProjectApplication>> {
+    return this.client.get<ProjectApplication>(`/api/projects/${projectId}/applications/${applicationId}`);
   }
 
   applyToProject(projectId: string, data: CreateApplicationDto & { userId: string }): Promise<ApiResponse<ProjectApplication>> {
@@ -589,12 +593,12 @@ export class ProjectsEndpoint {
     return this.client.get<ProjectUpdate[]>(`/api/projects/${projectId}/updates`);
   }
 
-  deleteUpdate(updateId: string): Promise<ApiResponse<void>> {
-    return this.client.delete(`/api/project-updates/${updateId}`);
+  deleteUpdate(projectId: string, updateId: string): Promise<ApiResponse<void>> {
+    return this.client.delete(`/api/projects/${projectId}/updates/${updateId}`);
   }
 
-  getUpdateById(updateId: string): Promise<ApiResponse<ProjectUpdate>> {
-    return this.client.get<ProjectUpdate>(`/api/project-updates/${updateId}`);
+  getUpdateById(projectId: string, updateId: string): Promise<ApiResponse<ProjectUpdate>> {
+    return this.client.get<ProjectUpdate>(`/api/projects/${projectId}/updates/${updateId}`);
   }
 
   // ============ Comment Methods ============
@@ -607,12 +611,12 @@ export class ProjectsEndpoint {
     return this.client.get<ProjectComment[]>(`/api/projects/${projectId}/comments`);
   }
 
-  deleteComment(commentId: string): Promise<ApiResponse<void>> {
-    return this.client.delete(`/api/project-comments/${commentId}`);
+  deleteComment(projectId: string, commentId: string): Promise<ApiResponse<void>> {
+    return this.client.delete(`/api/projects/${projectId}/comments/${commentId}`);
   }
 
-  getCommentById(commentId: string): Promise<ApiResponse<ProjectComment>> {
-    return this.client.get<ProjectComment>(`/api/project-comments/${commentId}`);
+  getCommentById(projectId: string, commentId: string): Promise<ApiResponse<ProjectComment>> {
+    return this.client.get<ProjectComment>(`/api/projects/${projectId}/comments/${commentId}`);
   }
 
   // ============ Support Methods ============
@@ -621,20 +625,16 @@ export class ProjectsEndpoint {
     return this.client.post<ProjectSupport>(`/api/projects/${projectId}/support`, data);
   }
 
-  cancelSupport(supportId: string): Promise<ApiResponse<void>> {
-    return this.client.delete(`/api/project-support/${supportId}`);
-  }
-
-  getUserSupports(userId: string): Promise<ApiResponse<ProjectSupport[]>> {
-    return this.client.get<ProjectSupport[]>(`/api/project-support/user/${userId}`);
+  cancelSupport(projectId: string, supportId: string): Promise<ApiResponse<void>> {
+    return this.client.delete(`/api/projects/${projectId}/support/${supportId}`);
   }
 
   getSupporters(projectId: string): Promise<ApiResponse<ProjectSupport[]>> {
-    return this.client.get<ProjectSupport[]>(`/api/projects/${projectId}/supporters`);
+    return this.client.get<ProjectSupport[]>(`/api/projects/${projectId}/support`);
   }
 
-  getSupportById(supportId: string): Promise<ApiResponse<ProjectSupport>> {
-    return this.client.get<ProjectSupport>(`/api/project-support/${supportId}`);
+  getSupportById(projectId: string, supportId: string): Promise<ApiResponse<ProjectSupport>> {
+    return this.client.get<ProjectSupport>(`/api/projects/${projectId}/support/${supportId}`);
   }
 
   // ============ Invitation Methods ============

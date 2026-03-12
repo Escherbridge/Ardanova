@@ -1,4 +1,4 @@
-import { PrismaClient } from "@prisma/client";
+import { apiClient } from "~/lib/api";
 
 interface PermissionResult {
   allowed: boolean;
@@ -6,72 +6,73 @@ interface PermissionResult {
 }
 
 export async function canCreateGuildOpportunity(
-  db: PrismaClient,
   userId: string,
   guildId: string
 ): Promise<PermissionResult> {
-  // Check if user is guild owner
-  const guild = await db.guild.findUnique({
-    where: { id: guildId },
-    select: { ownerId: true },
-  });
+  try {
+    const guildResponse = await apiClient.guilds.getById(guildId);
 
-  if (!guild) {
-    return { allowed: false, reason: "Guild not found" };
+    if (guildResponse.error || !guildResponse.data) {
+      return { allowed: false, reason: "Guild not found" };
+    }
+
+    if (guildResponse.data.ownerId === userId) {
+      return { allowed: true };
+    }
+
+    const membersResponse = await apiClient.guilds.getMembers(guildId);
+
+    if (membersResponse.error || !membersResponse.data) {
+      return { allowed: false, reason: "You don't have permission to create opportunities for this guild" };
+    }
+
+    const membership = membersResponse.data.find(
+      (m: { userId: string; role: string }) =>
+        m.userId === userId && ["OWNER", "ADMIN", "MANAGER"].includes(m.role)
+    );
+
+    if (membership) {
+      return { allowed: true };
+    }
+
+    return { allowed: false, reason: "You don't have permission to create opportunities for this guild" };
+  } catch {
+    return { allowed: false, reason: "Failed to verify guild permissions" };
   }
-
-  if (guild.ownerId === userId) {
-    return { allowed: true };
-  }
-
-  // Check if user has appropriate role in guild
-  const membership = await db.guildMember.findFirst({
-    where: {
-      guildId,
-      userId,
-      role: { in: ["OWNER", "ADMIN", "MANAGER"] },
-    },
-  });
-
-  if (membership) {
-    return { allowed: true };
-  }
-
-  return { allowed: false, reason: "You don't have permission to create opportunities for this guild" };
 }
 
 export async function canCreateProjectOpportunity(
-  db: PrismaClient,
   userId: string,
   projectId: string
 ): Promise<PermissionResult> {
-  // Check if user is project owner
-  const project = await db.project.findUnique({
-    where: { id: projectId },
-    select: { createdById: true },
-  });
+  try {
+    const projectResponse = await apiClient.projects.getById(projectId);
 
-  if (!project) {
-    return { allowed: false, reason: "Project not found" };
+    if (projectResponse.error || !projectResponse.data) {
+      return { allowed: false, reason: "Project not found" };
+    }
+
+    if (projectResponse.data.createdById === userId) {
+      return { allowed: true };
+    }
+
+    const membersResponse = await apiClient.projects.getMembers(projectId);
+
+    if (membersResponse.error || !membersResponse.data) {
+      return { allowed: false, reason: "You don't have permission to create opportunities for this project" };
+    }
+
+    const membership = membersResponse.data.find(
+      (m: { userId: string; role: string }) =>
+        m.userId === userId && ["FOUNDER", "LEADER", "CORE_CONTRIBUTOR"].includes(m.role)
+    );
+
+    if (membership) {
+      return { allowed: true };
+    }
+
+    return { allowed: false, reason: "You don't have permission to create opportunities for this project" };
+  } catch {
+    return { allowed: false, reason: "Failed to verify project permissions" };
   }
-
-  if (project.createdById === userId) {
-    return { allowed: true };
-  }
-
-  // Check if user has appropriate role in project
-  const membership = await db.projectMember.findFirst({
-    where: {
-      projectId,
-      userId,
-      role: { in: ["FOUNDER", "LEADER", "CORE_CONTRIBUTOR"] },
-    },
-  });
-
-  if (membership) {
-    return { allowed: true };
-  }
-
-  return { allowed: false, reason: "You don't have permission to create opportunities for this project" };
 }
-

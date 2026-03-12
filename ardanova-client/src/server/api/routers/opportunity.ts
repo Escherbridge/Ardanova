@@ -54,7 +54,7 @@ export const opportunityRouter = createTRPCRouter({
 
       // Validate permission based on entity type
       if (input.guildId) {
-        const permission = await canCreateGuildOpportunity(ctx.db, userId, input.guildId);
+        const permission = await canCreateGuildOpportunity(userId, input.guildId);
         if (!permission.allowed) {
           throw new TRPCError({
             code: "FORBIDDEN",
@@ -62,7 +62,7 @@ export const opportunityRouter = createTRPCRouter({
           });
         }
       } else if (input.projectId) {
-        const permission = await canCreateProjectOpportunity(ctx.db, userId, input.projectId);
+        const permission = await canCreateProjectOpportunity(userId, input.projectId);
         if (!permission.allowed) {
           throw new TRPCError({
             code: "FORBIDDEN",

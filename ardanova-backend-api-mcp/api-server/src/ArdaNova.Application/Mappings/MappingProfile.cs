@@ -261,6 +261,33 @@ public class MappingProfile : Profile
             .ForMember(dest => dest.Image, opt => opt.MapFrom(src => src.image))
             .ForMember(dest => dest.Email, opt => opt.MapFrom(src => src.email));
 
+        // Opportunity Bid mappings
+        CreateMap<OpportunityBid, OpportunityBidDto>()
+            .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.id))
+            .ForMember(dest => dest.OpportunityId, opt => opt.MapFrom(src => src.opportunityId))
+            .ForMember(dest => dest.BidderId, opt => opt.MapFrom(src => src.bidderId))
+            .ForMember(dest => dest.GuildId, opt => opt.MapFrom(src => src.guildId))
+            .ForMember(dest => dest.ProposedAmount, opt => opt.MapFrom(src => src.proposedAmount))
+            .ForMember(dest => dest.Proposal, opt => opt.MapFrom(src => src.proposal))
+            .ForMember(dest => dest.EstimatedHours, opt => opt.MapFrom(src => src.estimatedHours))
+            .ForMember(dest => dest.Timeline, opt => opt.MapFrom(src => src.timeline))
+            .ForMember(dest => dest.Deliverables, opt => opt.MapFrom(src => src.deliverables))
+            .ForMember(dest => dest.Status, opt => opt.MapFrom(src => src.status))
+            .ForMember(dest => dest.CreatedAt, opt => opt.MapFrom(src => src.createdAt))
+            .ForMember(dest => dest.ReviewedAt, opt => opt.MapFrom(src => src.reviewedAt))
+            .ForMember(dest => dest.Bidder, opt => opt.Ignore())
+            .ForMember(dest => dest.Guild, opt => opt.Ignore());
+        CreateMap<User, OpportunityBidBidderDto>()
+            .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.id))
+            .ForMember(dest => dest.Name, opt => opt.MapFrom(src => src.name))
+            .ForMember(dest => dest.Image, opt => opt.MapFrom(src => src.image))
+            .ForMember(dest => dest.Email, opt => opt.MapFrom(src => src.email));
+        CreateMap<Guild, OpportunityBidGuildDto>()
+            .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.id))
+            .ForMember(dest => dest.Name, opt => opt.MapFrom(src => src.name))
+            .ForMember(dest => dest.Logo, opt => opt.MapFrom(src => src.logo))
+            .ForMember(dest => dest.Slug, opt => opt.MapFrom(src => src.slug));
+
         // Governance mappings (entity Proposal -> DTO ProposalDto)
         CreateMap<Proposal, ProposalDto>()
             .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.id))
