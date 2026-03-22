@@ -1,9 +1,9 @@
-import { ProjectForm } from "~/components/project-form";
+import { redirect } from "next/navigation";
 
+/**
+ * Single create path: multi-step wizard at /projects/create.
+ * Dashboard and nav links still use /dashboard/create for discoverability.
+ */
 export default function CreateProjectPage() {
-  return (
-    <div className="min-h-screen bg-gray-50">
-      <ProjectForm mode="create" />
-    </div>
-  );
+  redirect("/projects/create");
 }

@@ -103,7 +103,7 @@ export default function UpdatesTab({ projectId, isOwner }: UpdatesTabProps) {
 
   const handleDelete = (updateId: string) => {
     if (confirm("Are you sure you want to delete this update?")) {
-      deleteMutation.mutate({ updateId });
+      deleteMutation.mutate({ projectId, updateId });
     }
   };
 

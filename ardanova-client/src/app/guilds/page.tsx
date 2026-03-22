@@ -19,6 +19,7 @@ import {
   Award,
   SlidersHorizontal,
   X,
+  Loader2,
 } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
@@ -116,6 +117,32 @@ function renderRating(rating: number | null) {
   );
 }
 
+function GuildsFeedSkeleton({ rows = 6 }: { rows?: number }) {
+  return (
+    <div
+      className="divide-y-2 divide-border"
+      role="status"
+      aria-live="polite"
+      aria-busy="true"
+    >
+      <span className="sr-only">Loading guilds, please wait.</span>
+      {Array.from({ length: rows }).map((_, i) => (
+        <div
+          key={i}
+          className="p-4 flex gap-3 bg-card"
+        >
+          <div className="size-12 rounded-full bg-muted animate-pulse shrink-0" />
+          <div className="flex-1 space-y-2.5 pt-1 min-w-0">
+            <div className="h-4 bg-muted rounded-md animate-pulse w-[min(60%,18rem)]" />
+            <div className="h-3 bg-muted rounded-md animate-pulse w-[min(40%,12rem)]" />
+            <div className="h-3 bg-muted rounded-md animate-pulse w-24" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function GuildsPage() {
   const [activeTab, setActiveTab] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
@@ -126,7 +153,7 @@ export default function GuildsPage() {
   const [selectedTime, setSelectedTime] = useState("all");
 
   // Fetch guilds from API
-  const { data: guildsResult, isLoading } = api.guild.getAll.useQuery({
+  const { data: guildsResult, isPending: isInitialLoad } = api.guild.getAll.useQuery({
     limit: 50,
     page: 1,
   });
@@ -540,9 +567,13 @@ export default function GuildsPage() {
 
           {/* Guilds Feed */}
           <div>
-            {isLoading ? (
-              <div className="flex items-center justify-center py-20">
-                <div className="size-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+            {isInitialLoad ? (
+              <div className="bg-card border-b-2 border-border">
+                <div className="px-4 py-3 flex items-center gap-2 text-sm text-muted-foreground border-b border-border">
+                  <Loader2 className="size-4 animate-spin shrink-0 text-primary" aria-hidden />
+                  <span>Loading guilds…</span>
+                </div>
+                <GuildsFeedSkeleton />
               </div>
             ) : filteredGuilds.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-20 px-4">

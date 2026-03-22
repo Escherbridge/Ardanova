@@ -81,3 +81,6 @@ __pypackages__/
 ardanova-backend-api-mcp/api-server/src/ArdaNova.API/appsettings.json
 ardanova-client/.omc/ultrapilot-state.json
 .claude/settings.local.json
+
+# Local contributor planning (not for public repo)
+CONTRIBUTOR_USD400_ROADMAP.md

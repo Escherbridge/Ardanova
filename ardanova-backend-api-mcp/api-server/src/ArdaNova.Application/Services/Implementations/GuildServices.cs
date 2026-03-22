@@ -11,12 +11,18 @@ using AutoMapper;
 public class GuildService : IGuildService
 {
     private readonly IRepository<Guild> _repository;
+    private readonly IRepository<GuildMember> _memberRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IMapper _mapper;
 
-    public GuildService(IRepository<Guild> repository, IUnitOfWork unitOfWork, IMapper mapper)
+    public GuildService(
+        IRepository<Guild> repository,
+        IRepository<GuildMember> memberRepository,
+        IUnitOfWork unitOfWork,
+        IMapper mapper)
     {
         _repository = repository;
+        _memberRepository = memberRepository;
         _unitOfWork = unitOfWork;
         _mapper = mapper;
     }
@@ -86,11 +92,24 @@ public class GuildService : IGuildService
             isVerified = false,
             reviewsCount = 0,
             projectsCount = 0,
+            membersCount = 1,
             createdAt = DateTime.UtcNow,
             updatedAt = DateTime.UtcNow
         };
 
         await _repository.AddAsync(guild, ct);
+
+        // Owner must appear in GuildMember (Phase C: members / invitations / applications).
+        var ownerMembership = new GuildMember
+        {
+            id = Guid.NewGuid().ToString(),
+            guildId = guild.id,
+            userId = dto.OwnerId,
+            role = GuildMemberRole.OWNER.ToString(),
+            joinedAt = DateTime.UtcNow
+        };
+        await _memberRepository.AddAsync(ownerMembership, ct);
+
         await _unitOfWork.SaveChangesAsync(ct);
         return Result<GuildDto>.Success(_mapper.Map<GuildDto>(guild));
     }
