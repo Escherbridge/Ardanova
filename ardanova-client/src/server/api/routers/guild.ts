@@ -608,7 +608,7 @@ export const guildRouter = createTRPCRouter({
         throw new Error("Access denied");
       }
 
-      const response = await apiClient.guilds.respondToInvitation(input.invitationId, {
+      const response = await apiClient.guilds.respondToInvitation(input.guildId, input.invitationId, {
         accept: input.accept,
       });
 

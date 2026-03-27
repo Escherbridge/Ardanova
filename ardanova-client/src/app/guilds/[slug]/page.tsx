@@ -68,9 +68,9 @@ export default function GuildDetailPage() {
   const currentUserId = session?.user?.id;
   const isOwner = !!currentUserId && guild?.ownerId === currentUserId;
 
-  // Determine user's role in guild from members list
+  // Role from members list; if missing (legacy guilds created before owner row existed), infer OWNER from guild.ownerId
   const userMember = members?.find((m: any) => m.userId === currentUserId);
-  const userRole = userMember?.role;
+  const userRole = userMember?.role ?? (isOwner ? "OWNER" : undefined);
 
   if (isLoading) {
     return (

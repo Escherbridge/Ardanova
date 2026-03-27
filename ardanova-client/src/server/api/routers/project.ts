@@ -121,6 +121,7 @@ const addResourceSchema = z.object({
 });
 
 const updateResourceSchema = z.object({
+  projectId: z.string(),
   resourceId: z.string(),
   name: z.string().min(1).optional(),
   description: z.string().optional(),
@@ -155,6 +156,7 @@ const addMemberSchema = z.object({
 });
 
 const updateMemberRoleSchema = z.object({
+  projectId: z.string(),
   memberId: z.string(),
   role: MemberRole,
 });
@@ -170,6 +172,7 @@ const applyToProjectSchema = z.object({
 });
 
 const reviewApplicationSchema = z.object({
+  projectId: z.string(),
   applicationId: z.string(),
   status: ApplicationStatus,
   reviewMessage: z.string().optional(),
@@ -188,6 +191,7 @@ const createProposalSchema = z.object({
 });
 
 const castVoteSchema = z.object({
+  projectId: z.string(),
   proposalId: z.string(),
   choice: z.number(),
   reason: z.string().optional(),
@@ -469,10 +473,10 @@ export const projectRouter = createTRPCRouter({
     .input(updateResourceSchema)
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user.id;
-      const { resourceId, ...data } = input;
+      const { projectId, resourceId, ...data } = input;
 
       // Get resource to verify ownership
-      const resource = await apiClient.projects.getResourceById(resourceId);
+      const resource = await apiClient.projects.getResourceById(projectId, resourceId);
       if (resource.error || !resource.data) {
         throw new Error("Resource not found");
       }
@@ -482,11 +486,14 @@ export const projectRouter = createTRPCRouter({
       if (project.error || !project.data) {
         throw new Error("Project not found");
       }
+      if (resource.data.projectId !== projectId) {
+        throw new Error("Resource does not belong to this project");
+      }
       if (project.data.createdById !== userId) {
         throw new Error("Access denied");
       }
 
-      const response = await apiClient.projects.updateResource(resourceId, data);
+      const response = await apiClient.projects.updateResource(projectId, resourceId, data);
 
       if (response.error || !response.data) {
         throw new Error(response.error ?? "Failed to update resource");
@@ -497,12 +504,12 @@ export const projectRouter = createTRPCRouter({
 
   // Delete resource
   deleteResource: protectedProcedure
-    .input(z.object({ resourceId: z.string() }))
+    .input(z.object({ projectId: z.string(), resourceId: z.string() }))
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user.id;
 
       // Get resource to verify ownership
-      const resource = await apiClient.projects.getResourceById(input.resourceId);
+      const resource = await apiClient.projects.getResourceById(input.projectId, input.resourceId);
       if (resource.error || !resource.data) {
         throw new Error("Resource not found");
       }
@@ -516,7 +523,7 @@ export const projectRouter = createTRPCRouter({
         throw new Error("Access denied");
       }
 
-      const response = await apiClient.projects.deleteResource(input.resourceId);
+      const response = await apiClient.projects.deleteResource(input.projectId, input.resourceId);
 
       if (response.error) {
         throw new Error(response.error ?? "Failed to delete resource");
@@ -694,7 +701,7 @@ export const projectRouter = createTRPCRouter({
       const userId = ctx.session.user.id;
 
       // Get member to verify ownership
-      const member = await apiClient.projects.getMemberById(input.memberId);
+      const member = await apiClient.projects.getMemberById(input.projectId, input.memberId);
       if (member.error || !member.data) {
         throw new Error("Member not found");
       }
@@ -704,11 +711,14 @@ export const projectRouter = createTRPCRouter({
       if (project.error || !project.data) {
         throw new Error("Project not found");
       }
+      if (member.data.projectId !== input.projectId) {
+        throw new Error("Member does not belong to this project");
+      }
       if (project.data.createdById !== userId) {
         throw new Error("Access denied");
       }
 
-      const response = await apiClient.projects.updateMemberRole(input.memberId, {
+      const response = await apiClient.projects.updateMemberRole(input.projectId, input.memberId, {
         role: input.role,
       });
 
@@ -721,12 +731,12 @@ export const projectRouter = createTRPCRouter({
 
   // Remove member from project
   removeMember: protectedProcedure
-    .input(z.object({ memberId: z.string() }))
+    .input(z.object({ projectId: z.string(), memberId: z.string() }))
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user.id;
 
       // Get member to verify ownership
-      const member = await apiClient.projects.getMemberById(input.memberId);
+      const member = await apiClient.projects.getMemberById(input.projectId, input.memberId);
       if (member.error || !member.data) {
         throw new Error("Member not found");
       }
@@ -740,7 +750,7 @@ export const projectRouter = createTRPCRouter({
         throw new Error("Access denied");
       }
 
-      const response = await apiClient.projects.removeMember(input.memberId);
+      const response = await apiClient.projects.removeMember(input.projectId, input.memberId);
 
       if (response.error) {
         throw new Error(response.error ?? "Failed to remove member");
@@ -819,7 +829,7 @@ export const projectRouter = createTRPCRouter({
       const userId = ctx.session.user.id;
 
       // Get application to verify ownership
-      const application = await apiClient.projects.getApplicationById(input.applicationId);
+      const application = await apiClient.projects.getApplicationById(input.projectId, input.applicationId);
       if (application.error || !application.data) {
         throw new Error("Application not found");
       }
@@ -829,11 +839,14 @@ export const projectRouter = createTRPCRouter({
       if (project.error || !project.data) {
         throw new Error("Project not found");
       }
+      if (application.data.projectId !== input.projectId) {
+        throw new Error("Application does not belong to this project");
+      }
       if (project.data.createdById !== userId) {
         throw new Error("Access denied");
       }
 
-      const response = await apiClient.projects.reviewApplication(input.applicationId, {
+      const response = await apiClient.projects.reviewApplication(input.projectId, input.applicationId, {
         status: input.status,
         reviewMessage: input.reviewMessage,
       });
@@ -914,9 +927,9 @@ export const projectRouter = createTRPCRouter({
 
   // Get proposal by ID
   getProposalById: publicProcedure
-    .input(z.object({ proposalId: z.string() }))
+    .input(z.object({ projectId: z.string(), proposalId: z.string() }))
     .query(async ({ input }) => {
-      const response = await apiClient.projects.getProposalById(input.proposalId);
+      const response = await apiClient.projects.getProposalById(input.projectId, input.proposalId);
 
       if (response.error || !response.data) {
         throw new Error(response.error ?? "Proposal not found");
@@ -932,9 +945,13 @@ export const projectRouter = createTRPCRouter({
       const userId = ctx.session.user.id;
 
       // Get proposal to verify membership
-      const proposal = await apiClient.projects.getProposalById(input.proposalId);
+      const proposal = await apiClient.projects.getProposalById(input.projectId, input.proposalId);
       if (proposal.error || !proposal.data) {
         throw new Error("Proposal not found");
+      }
+
+      if (proposal.data.projectId !== input.projectId) {
+        throw new Error("Proposal does not belong to this project");
       }
 
       // Verify user is a member or founder of the project
@@ -962,7 +979,7 @@ export const projectRouter = createTRPCRouter({
         throw new Error("Active membership credential required to vote. Credential grants governance rights (1 member = 1 vote).");
       }
 
-      const response = await apiClient.projects.castVote(input.proposalId, {
+      const response = await apiClient.projects.castVote(input.projectId, input.proposalId, {
         userId: userId,
         choice: input.choice,
         reason: input.reason,
@@ -977,12 +994,12 @@ export const projectRouter = createTRPCRouter({
 
   // Close proposal
   closeProposal: protectedProcedure
-    .input(z.object({ proposalId: z.string() }))
+    .input(z.object({ projectId: z.string(), proposalId: z.string() }))
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user.id;
 
       // Get proposal to verify ownership
-      const proposal = await apiClient.projects.getProposalById(input.proposalId);
+      const proposal = await apiClient.projects.getProposalById(input.projectId, input.proposalId);
       if (proposal.error || !proposal.data) {
         throw new Error("Proposal not found");
       }
@@ -992,11 +1009,14 @@ export const projectRouter = createTRPCRouter({
       if (project.error || !project.data) {
         throw new Error("Project not found");
       }
+      if (proposal.data.projectId !== input.projectId) {
+        throw new Error("Proposal does not belong to this project");
+      }
       if (project.data.createdById !== userId) {
         throw new Error("Access denied");
       }
 
-      const response = await apiClient.projects.closeProposal(input.proposalId);
+      const response = await apiClient.projects.closeProposal(input.projectId, input.proposalId);
 
       if (response.error || !response.data) {
         throw new Error(response.error ?? "Failed to close proposal");
@@ -1007,9 +1027,9 @@ export const projectRouter = createTRPCRouter({
 
   // Get proposal with vote summary
   getProposalWithVotes: publicProcedure
-    .input(z.object({ proposalId: z.string() }))
+    .input(z.object({ projectId: z.string(), proposalId: z.string() }))
     .query(async ({ input }) => {
-      const proposalResponse = await apiClient.projects.getProposalById(input.proposalId);
+      const proposalResponse = await apiClient.projects.getProposalById(input.projectId, input.proposalId);
 
       if (proposalResponse.error || !proposalResponse.data) {
         throw new Error(proposalResponse.error ?? "Proposal not found");
@@ -1096,14 +1116,18 @@ export const projectRouter = createTRPCRouter({
 
   // Delete update
   deleteUpdate: protectedProcedure
-    .input(z.object({ updateId: z.string() }))
+    .input(z.object({ projectId: z.string(), updateId: z.string() }))
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user.id;
 
       // Get update to verify ownership
-      const update = await apiClient.projects.getUpdateById(input.updateId);
+      const update = await apiClient.projects.getUpdateById(input.projectId, input.updateId);
       if (update.error || !update.data) {
         throw new Error("Update not found");
+      }
+
+      if (update.data.projectId !== input.projectId) {
+        throw new Error("Update does not belong to this project");
       }
 
       // Verify update ownership
@@ -1111,7 +1135,7 @@ export const projectRouter = createTRPCRouter({
         throw new Error("Access denied");
       }
 
-      const response = await apiClient.projects.deleteUpdate(input.updateId);
+      const response = await apiClient.projects.deleteUpdate(input.projectId, input.updateId);
 
       if (response.error) {
         throw new Error(response.error ?? "Failed to delete update");
@@ -1159,14 +1183,18 @@ export const projectRouter = createTRPCRouter({
 
   // Delete comment
   deleteComment: protectedProcedure
-    .input(z.object({ commentId: z.string() }))
+    .input(z.object({ projectId: z.string(), commentId: z.string() }))
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user.id;
 
       // Get comment to verify ownership
-      const comment = await apiClient.projects.getCommentById(input.commentId);
+      const comment = await apiClient.projects.getCommentById(input.projectId, input.commentId);
       if (comment.error || !comment.data) {
         throw new Error("Comment not found");
+      }
+
+      if (comment.data.projectId !== input.projectId) {
+        throw new Error("Comment does not belong to this project");
       }
 
       // Verify comment ownership
@@ -1174,7 +1202,7 @@ export const projectRouter = createTRPCRouter({
         throw new Error("Access denied");
       }
 
-      const response = await apiClient.projects.deleteComment(input.commentId);
+      const response = await apiClient.projects.deleteComment(input.projectId, input.commentId);
 
       if (response.error) {
         throw new Error(response.error ?? "Failed to delete comment");
@@ -1209,14 +1237,18 @@ export const projectRouter = createTRPCRouter({
 
   // Cancel support for project
   cancelSupport: protectedProcedure
-    .input(z.object({ supportId: z.string() }))
+    .input(z.object({ projectId: z.string(), supportId: z.string() }))
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user.id;
 
       // Get support to verify ownership
-      const support = await apiClient.projects.getSupportById(input.supportId);
+      const support = await apiClient.projects.getSupportById(input.projectId, input.supportId);
       if (support.error || !support.data) {
         throw new Error("Support not found");
+      }
+
+      if (support.data.projectId !== input.projectId) {
+        throw new Error("Support record does not belong to this project");
       }
 
       // Verify support ownership
@@ -1224,7 +1256,7 @@ export const projectRouter = createTRPCRouter({
         throw new Error("Access denied");
       }
 
-      const response = await apiClient.projects.cancelSupport(input.supportId);
+      const response = await apiClient.projects.cancelSupport(input.projectId, input.supportId);
 
       if (response.error) {
         throw new Error(response.error ?? "Failed to cancel support");

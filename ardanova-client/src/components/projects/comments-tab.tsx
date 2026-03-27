@@ -96,7 +96,7 @@ export default function CommentsTab({ projectId }: CommentsTabProps) {
 
   const handleDeleteComment = (commentId: string) => {
     if (confirm("Are you sure you want to delete this comment?")) {
-      deleteComment.mutate({ commentId });
+      deleteComment.mutate({ projectId, commentId });
     }
   };
 

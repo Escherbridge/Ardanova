@@ -117,7 +117,7 @@ export default function ProposalsTab({ projectId, isOwner, isMember, selectedPro
 
   const handleVote = (proposalId: string, choice: number) => {
     const reason = voteReasons[proposalId];
-    voteMutation.mutate({ proposalId, choice, reason });
+    voteMutation.mutate({ projectId, proposalId, choice, reason });
   };
 
   const toggleProposalExpand = (proposalId: string) => {
@@ -164,7 +164,7 @@ export default function ProposalsTab({ projectId, isOwner, isMember, selectedPro
   };
 
   const handleCloseProposal = (proposalId: string) => {
-    closeMutation.mutate({ proposalId });
+    closeMutation.mutate({ projectId, proposalId });
   };
 
   const getStatusBadge = (status: string) => {

@@ -160,6 +160,7 @@ export default function TeamTab({ projectId, isOwner }: TeamTabProps) {
 
   const handleReview = (applicationId: string, status: ApplicationStatus) => {
     reviewMutation.mutate({
+      projectId,
       applicationId,
       status,
     });

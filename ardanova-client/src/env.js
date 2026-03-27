@@ -1,5 +1,18 @@
+import nextEnv from "@next/env";
+import path from "path";
+import { fileURLToPath } from "url";
 import { createEnv } from "@t3-oss/env-nextjs";
 import { z } from "zod";
+
+const { loadEnvConfig } = nextEnv;
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+// `src/env.js` → repo root is two levels up (parent of `ardanova-client/`).
+// Next loads `.env` only from `ardanova-client/`; a single root `.env` is common here.
+const repoRoot = path.resolve(__dirname, "../..");
+const clientRoot = path.resolve(__dirname, "..");
+loadEnvConfig(repoRoot);
+loadEnvConfig(clientRoot);
 
 export const env = createEnv({
   /**
@@ -20,8 +33,22 @@ export const env = createEnv({
     NODE_ENV: z
       .enum(["development", "test", "production"])
       .default("development"),
-    // ArdaNova Backend API
-    API_URL: z.string().url().default("http://localhost:8080"),
+    // ArdaNova Backend API — default matches `dotnet run` + launchSettings (port 5147).
+    // Use 127.0.0.1 (not "localhost") so Node's fetch targets IPv4; Kestrel often binds IPv4-only and ::1 fails with "fetch failed".
+    API_URL: z.preprocess(
+      (val) => {
+        if (val === undefined || val === null || val === "") return undefined;
+        if (typeof val !== "string") return val;
+        try {
+          const u = new URL(val);
+          if (u.hostname === "localhost") u.hostname = "127.0.0.1";
+          return u.href.replace(/\/$/, "");
+        } catch {
+          return val;
+        }
+      },
+      z.string().url().default("http://127.0.0.1:5147"),
+    ),
     API_KEY: z.string().min(1),
   },
 

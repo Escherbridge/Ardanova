@@ -197,3 +197,7 @@ export class ArdaNovaApiClient extends BaseApiClient {
 
 // Export singleton instance configured from environment
 export const apiClient = ArdaNovaApiClient.withApiKey(env.API_URL, env.API_KEY);
+
+if (process.env.NODE_ENV === "development") {
+  console.info("[ArdaNova] Server API base URL:", env.API_URL);
+}

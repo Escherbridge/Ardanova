@@ -6,6 +6,8 @@ import "./src/env.js";
 
 /** @type {import("next").NextConfig} */
 const config = {
+  // Turbopack: use cwd as workspace root when running dev (avoids multiple-lockfile warning)
+  turbopack: { root: process.cwd() },
   // Enable standalone output for Docker deployment
   output: "standalone",
   serverExternalPackages: ["@microsoft/signalr"],
