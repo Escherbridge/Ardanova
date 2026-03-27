@@ -575,6 +575,75 @@ enum ExperienceLevel {
   EXPERT
 }
 
+enum KycStatus {
+  PENDING
+  IN_REVIEW
+  APPROVED
+  REJECTED
+  EXPIRED
+}
+
+enum KycDocumentType {
+  GOVERNMENT_ID
+  PASSPORT
+  DRIVERS_LICENSE
+  SELFIE
+  PROOF_OF_ADDRESS
+}
+
+enum KycProvider {
+  MANUAL
+  VERIFF
+}
+
+enum ProjectTokenStatus {
+  PENDING
+  ACTIVE
+  FROZEN
+  DISSOLVED
+}
+
+enum ProjectGateStatus {
+  FUNDING
+  ACTIVE
+  SUCCEEDED
+  FAILED
+}
+
+enum TokenHolderClass {
+  CONTRIBUTOR
+  INVESTOR
+  FOUNDER
+}
+
+enum AllocationStatus {
+  RESERVED
+  DISTRIBUTED
+  REVOKED
+  BURNED
+}
+
+enum PayoutStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum PlatformTreasuryTransactionType {
+  FUNDING_INFLOW
+  ALLOCATION_INDEX
+  ALLOCATION_LIQUID
+  ALLOCATION_OPS
+  PAYOUT_DEBIT
+  INDEX_RETURN
+  PROFIT_SHARE
+  REBALANCE
+  TRUST_PROTECTION
+  FOUNDER_BURN
+}
+
 model Account {
   id String @id @default(cuid())
   userId String
@@ -654,6 +723,7 @@ model User {
   taskSubmissions1 TaskSubmission[] @relation("TaskSubmission_reviewedById")
   proposals Proposal[] @relation("Proposal_creatorId")
   votes Vote[] @relation("Vote_voterId")
+  proposalComments ProposalComment[] @relation("ProposalComment_userId")
   delegatedVotes DelegatedVote[] @relation("DelegatedVote_delegatorId")
   delegatedVotes1 DelegatedVote[] @relation("DelegatedVote_delegateeId")
   guilds Guild[] @relation("Guild_ownerId")
@@ -696,6 +766,12 @@ model User {
   opportunityUpdates OpportunityUpdate[] @relation("OpportunityUpdate_userId")
   opportunityComments OpportunityComment[] @relation("OpportunityComment_userId")
   opportunityBids OpportunityBid[] @relation("OpportunityBid_bidderId")
+  kycSubmissions KycSubmission[] @relation("KycSubmission_userId")
+  kycSubmissions1 KycSubmission[] @relation("KycSubmission_reviewerId")
+  tokenAllocations TokenAllocation[] @relation("TokenAllocation_recipientUserId")
+  tokenBalances TokenBalance[] @relation("TokenBalance_userId")
+  payoutRequests PayoutRequest[] @relation("PayoutRequest_userId")
+  projectInvestments ProjectInvestment[] @relation("ProjectInvestment_userId")
 }
 
 model UserSkill {
@@ -901,6 +977,7 @@ model Project {
   events Event[] @relation("Event_projectId")
   projectFollows ProjectFollow[] @relation("ProjectFollow_projectId")
   opportunities Opportunity[] @relation("Opportunity_projectId")
+  projectTokenConfigs ProjectTokenConfig[] @relation("ProjectTokenConfig_projectId")
 }
 
 model ProjectTask {
@@ -1138,6 +1215,7 @@ model ProductBacklogItem {
   projectTasks ProjectTask[] @relation("ProjectTask_pbiId")
   feature Feature @relation("ProductBacklogItem_featureId", fields: [featureId], references: [id])
   assignee User? @relation("ProductBacklogItem_assigneeId", fields: [assigneeId], references: [id])
+  tokenAllocations TokenAllocation[] @relation("TokenAllocation_taskId")
 }
 
 model ProjectMember {
@@ -1151,6 +1229,8 @@ model ProjectMember {
   invitedById String?
   project Project @relation("ProjectMember_projectId", fields: [projectId], references: [id])
   user User @relation("ProjectMember_userId", fields: [userId], references: [id])
+
+  @@unique([projectId, userId])
 }
 
 model TaskCompensation {
@@ -1202,6 +1282,7 @@ model Proposal {
   creator User @relation("Proposal_creatorId", fields: [creatorId], references: [id])
   votes Vote[] @relation("Vote_proposalId")
   proposalExecutions ProposalExecution[] @relation("ProposalExecution_proposalId")
+  proposalComments ProposalComment[] @relation("ProposalComment_proposalId")
   membershipCredentials MembershipCredential[] @relation("MembershipCredential_grantedByProposalId")
 }
 
@@ -1225,6 +1306,20 @@ model ProposalExecution {
   txHash String?
   result Json?
   proposal Proposal @relation("ProposalExecution_proposalId", fields: [proposalId], references: [id])
+}
+
+model ProposalComment {
+  id String @id @default(cuid())
+  proposalId String
+  userId String
+  content String @db.Text
+  parentId String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  proposal Proposal @relation("ProposalComment_proposalId", fields: [proposalId], references: [id])
+  user User @relation("ProposalComment_userId", fields: [userId], references: [id])
+  parent ProposalComment? @relation("ProposalComment_parentId", fields: [parentId], references: [id])
+  parentChildren ProposalComment[] @relation("ProposalComment_parentId")
 }
 
 model DelegatedVote {
@@ -1275,6 +1370,7 @@ model Guild {
   guildApplications GuildApplication[] @relation("GuildApplication_guildId")
   guildReviews GuildReview[] @relation("GuildReview_guildId")
   guildUpdates GuildUpdate[] @relation("GuildUpdate_guildId")
+  membershipCredentials MembershipCredential[] @relation("MembershipCredential_guildId")
   posts Post[] @relation("Post_guildId")
   postShares PostShare[] @relation("PostShare_sharedToGuildId")
   events Event[] @relation("Event_guildId")
@@ -1374,24 +1470,29 @@ model Product {
 
 model MembershipCredential {
   id String @id @default(cuid())
-  projectId String
+  projectId String?
+  guildId String?
   userId String
   assetId String?
   status MembershipCredentialStatus @default(ACTIVE)
   isTransferable Boolean @default(false)
+  tier UserTier?
   grantedVia MembershipGrantType
   grantedByProposalId String?
+  metadataUri String?
   mintTxHash String?
   revokeTxHash String?
   mintedAt DateTime?
   revokedAt DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  project Project @relation("MembershipCredential_projectId", fields: [projectId], references: [id])
+  project Project? @relation("MembershipCredential_projectId", fields: [projectId], references: [id])
+  guild Guild? @relation("MembershipCredential_guildId", fields: [guildId], references: [id])
   user User @relation("MembershipCredential_userId", fields: [userId], references: [id])
   grantedByProposal Proposal? @relation("MembershipCredential_grantedByProposalId", fields: [grantedByProposalId], references: [id])
 
   @@unique([projectId, userId])
+  @@unique([guildId, userId])
 }
 
 model ProjectShare {
@@ -1871,6 +1972,7 @@ model Opportunity {
   guildId String?
   projectId String?
   taskId String?
+  projectRole ProjectRole?
   projectTasks ProjectTask[] @relation("ProjectTask_opportunityId")
   poster User @relation("Opportunity_posterId", fields: [posterId], references: [id])
   guild Guild? @relation("Opportunity_guildId", fields: [guildId], references: [id])
@@ -1943,5 +2045,186 @@ model OpportunityBid {
   guild Guild? @relation("OpportunityBid_guildId", fields: [guildId], references: [id])
 
   @@unique([opportunityId, bidderId])
+}
+
+model KycSubmission {
+  id String @id @default(cuid())
+  userId String
+  provider KycProvider @default(MANUAL)
+  status KycStatus @default(PENDING)
+  reviewerId String?
+  reviewNotes String? @db.Text
+  rejectionReason String?
+  providerSessionId String?
+  providerResult String? @db.Text
+  submittedAt DateTime @default(now())
+  reviewedAt DateTime?
+  expiresAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user User @relation("KycSubmission_userId", fields: [userId], references: [id])
+  reviewer User? @relation("KycSubmission_reviewerId", fields: [reviewerId], references: [id])
+  kycDocuments KycDocument[] @relation("KycDocument_submissionId")
+
+  @@index([userId, status])
+}
+
+model KycDocument {
+  id String @id @default(cuid())
+  submissionId String
+  type KycDocumentType
+  fileUrl String
+  fileName String
+  mimeType String?
+  fileSizeBytes Int?
+  metadata String? @db.Text
+  createdAt DateTime @default(now())
+  submission KycSubmission @relation("KycDocument_submissionId", fields: [submissionId], references: [id])
+
+  @@unique([submissionId, type])
+}
+
+model ProjectTokenConfig {
+  id String @id @default(cuid())
+  projectId String @unique
+  assetId String?
+  assetName String
+  unitName String
+  totalSupply Int
+  allocatedSupply Int @default(0)
+  distributedSupply Int @default(0)
+  reservedSupply Int @default(0)
+  mintTxHash String?
+  status ProjectTokenStatus @default(PENDING)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  fundingGoal Float
+  fundingRaised Float @default(0)
+  gateStatus ProjectGateStatus @default(FUNDING)
+  gate1ClearedAt DateTime?
+  gate2ClearedAt DateTime?
+  failedAt DateTime?
+  contributorSupply Int @default(0)
+  investorSupply Int @default(0)
+  founderSupply Int @default(0)
+  burnedSupply Int @default(0)
+  successCriteria String? @db.Text
+  successVerifiedBy String?
+  project Project @relation("ProjectTokenConfig_projectId", fields: [projectId], references: [id])
+  tokenAllocations TokenAllocation[] @relation("TokenAllocation_projectTokenConfigId")
+  tokenBalances TokenBalance[] @relation("TokenBalance_projectTokenConfigId")
+  payoutRequests PayoutRequest[] @relation("PayoutRequest_sourceProjectTokenConfigId")
+  projectInvestments ProjectInvestment[] @relation("ProjectInvestment_projectTokenConfigId")
+}
+
+model TokenAllocation {
+  id String @id @default(cuid())
+  projectTokenConfigId String
+  taskId String?
+  recipientUserId String?
+  equityPercentage Float
+  tokenAmount Int
+  status AllocationStatus @default(RESERVED)
+  holderClass TokenHolderClass
+  isLiquid Boolean @default(false)
+  distributedAt DateTime?
+  distributionTxHash String?
+  burnedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  projectTokenConfig ProjectTokenConfig @relation("TokenAllocation_projectTokenConfigId", fields: [projectTokenConfigId], references: [id])
+  task ProductBacklogItem? @relation("TokenAllocation_taskId", fields: [taskId], references: [id])
+  recipientUser User? @relation("TokenAllocation_recipientUserId", fields: [recipientUserId], references: [id])
+}
+
+model TokenBalance {
+  id String @id @default(cuid())
+  userId String
+  projectTokenConfigId String?
+  isPlatformToken Boolean @default(false)
+  holderClass TokenHolderClass?
+  isLiquid Boolean @default(false)
+  balance Int @default(0)
+  lockedBalance Int @default(0)
+  updatedAt DateTime @updatedAt
+  user User @relation("TokenBalance_userId", fields: [userId], references: [id])
+  projectTokenConfig ProjectTokenConfig? @relation("TokenBalance_projectTokenConfigId", fields: [projectTokenConfigId], references: [id])
+
+  @@unique([userId, projectTokenConfigId, holderClass])
+}
+
+model PayoutRequest {
+  id String @id @default(cuid())
+  userId String
+  sourceProjectTokenConfigId String?
+  sourceTokenAmount Int
+  ardaTokenAmount Int?
+  usdAmount Float?
+  status PayoutStatus @default(PENDING)
+  holderClass TokenHolderClass
+  gateStatusAtRequest ProjectGateStatus
+  conversionTxHash String?
+  payoutTxHash String?
+  stripePayoutId String?
+  failureReason String?
+  requestedAt DateTime @default(now())
+  processedAt DateTime?
+  completedAt DateTime?
+  user User @relation("PayoutRequest_userId", fields: [userId], references: [id])
+  sourceProjectTokenConfig ProjectTokenConfig? @relation("PayoutRequest_sourceProjectTokenConfigId", fields: [sourceProjectTokenConfigId], references: [id])
+}
+
+model PlatformTreasury {
+  id String @id @default(cuid())
+  ardaTotalSupply BigInt
+  ardaCirculatingSupply BigInt @default(0)
+  ardaAssetId String?
+  ardaMintTxHash String?
+  indexFundBalance Float @default(0)
+  liquidReserveBalance Float @default(0)
+  operationsBalance Float @default(0)
+  indexFundAllocationPct Float @default(0.55)
+  liquidReserveAllocationPct Float @default(0.3)
+  operationsAllocationPct Float @default(0.15)
+  indexFundAnnualReturn Float @default(0.08)
+  platformProfitSharePct Float @default(0.25)
+  trustProtectionRate Float @default(0.5)
+  totalInflows Float @default(0)
+  totalPayouts Float @default(0)
+  totalRebalanceTransfers Float @default(0)
+  lastRebalanceAt DateTime?
+  lastReconciliationAt DateTime?
+  updatedAt DateTime @updatedAt
+}
+
+model PlatformTreasuryTransaction {
+  id String @id @default(cuid())
+  type PlatformTreasuryTransactionType
+  amount Float
+  fromBucket String?
+  toBucket String?
+  relatedProjectId String?
+  relatedPayoutRequestId String?
+  description String?
+  balanceAfter Float
+  createdAt DateTime @default(now())
+}
+
+model ProjectInvestment {
+  id String @id @default(cuid())
+  projectTokenConfigId String
+  userId String
+  usdAmount Float
+  tokenAmount Int
+  stripePaymentIntentId String?
+  investedAt DateTime @default(now())
+  protectionEligible Boolean @default(true)
+  protectionPaidOut Boolean @default(false)
+  protectionAmount Float?
+  protectionPaidAt DateTime?
+  projectTokenConfig ProjectTokenConfig @relation("ProjectInvestment_projectTokenConfigId", fields: [projectTokenConfigId], references: [id])
+  user User @relation("ProjectInvestment_userId", fields: [userId], references: [id])
+
+  @@index([projectTokenConfigId, userId])
 }
 

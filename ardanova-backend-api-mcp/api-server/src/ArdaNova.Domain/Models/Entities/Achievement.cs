@@ -26,6 +26,7 @@ public class Achievement
     public AchievementCategory category { get; set; }
 
     [Required]
+    [Column(TypeName = "jsonb")]
     public string criteria { get; set; } = string.Empty;
 
     [Required]

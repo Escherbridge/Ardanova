@@ -54,7 +54,7 @@ public class EpicService : IEpicService
             title = dto.Title,
             description = dto.Description,
             status = EpicStatus.PLANNED,
-            priority = (Priority)dto.Priority,
+            priority = dto.Priority,
             equityBudget = dto.EquityBudget,
             progress = 0,
             startDate = dto.StartDate,
@@ -78,7 +78,7 @@ public class EpicService : IEpicService
         if (dto.Title is not null) epic.title = dto.Title;
         if (dto.Description is not null) epic.description = dto.Description;
         if (dto.Status.HasValue) epic.status = dto.Status.Value;
-        if (dto.Priority.HasValue) epic.priority = (Priority)dto.Priority.Value;
+        if (dto.Priority.HasValue) epic.priority = dto.Priority.Value;
         if (dto.EquityBudget.HasValue) epic.equityBudget = dto.EquityBudget;
         if (dto.Progress.HasValue) epic.progress = (int)dto.Progress.Value;
         if (dto.StartDate.HasValue) epic.startDate = dto.StartDate;
@@ -130,13 +130,13 @@ public class EpicService : IEpicService
         return Result<EpicDto>.Success(_mapper.Map<EpicDto>(epic));
     }
 
-    public async Task<Result<EpicDto>> UpdatePriorityAsync(string id, TaskPriority priority, CancellationToken ct = default)
+    public async Task<Result<EpicDto>> UpdatePriorityAsync(string id, Priority priority, CancellationToken ct = default)
     {
         var epic = await _repository.GetByIdAsync(id, ct);
         if (epic is null)
             return Result<EpicDto>.NotFound($"Epic with id {id} not found");
 
-        epic.priority = (Priority)priority;
+        epic.priority = priority;
         epic.updatedAt = DateTime.UtcNow;
 
         await _repository.UpdateAsync(epic, ct);

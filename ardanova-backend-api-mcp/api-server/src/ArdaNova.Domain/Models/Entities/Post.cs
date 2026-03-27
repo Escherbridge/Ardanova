@@ -34,6 +34,7 @@ public class Post
     [Column(TypeName = "text")]
     public string content { get; set; } = string.Empty;
 
+    [Column(TypeName = "jsonb")]
     public string? metadata { get; set; }
 
     [Required]

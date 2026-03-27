@@ -32,6 +32,7 @@ public class Proposal
     public string description { get; set; } = string.Empty;
 
     [Required]
+    [Column(TypeName = "jsonb")]
     public string options { get; set; } = string.Empty;
 
     [Required]
@@ -64,6 +65,8 @@ public class Proposal
     public virtual ICollection<Vote> Votes { get; set; } = new List<Vote>();
 
     public virtual ICollection<ProposalExecution> ProposalExecutions { get; set; } = new List<ProposalExecution>();
+
+    public virtual ICollection<ProposalComment> ProposalComments { get; set; } = new List<ProposalComment>();
 
     public virtual ICollection<MembershipCredential> MembershipCredentials { get; set; } = new List<MembershipCredential>();
 

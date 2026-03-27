@@ -32,6 +32,7 @@ public class Activity
     [Required]
     public string action { get; set; } = string.Empty;
 
+    [Column(TypeName = "jsonb")]
     public string? metadata { get; set; }
 
     [Required]

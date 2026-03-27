@@ -29,6 +29,7 @@ public record OpportunityDto
     public string? GuildId { get; init; }
     public string? ProjectId { get; init; }
     public string? TaskId { get; init; }
+    public ProjectRole? ProjectRole { get; init; }
     public OpportunityPosterDto? Poster { get; init; }
     public OpportunitySourceDto? Source { get; init; }
 }
@@ -69,6 +70,7 @@ public record CreateOpportunityDto
     public string? GuildId { get; init; }
     public string? ProjectId { get; init; }
     public string? TaskId { get; init; }
+    public ProjectRole? ProjectRole { get; init; }
 }
 
 public record UpdateOpportunityDto
@@ -88,6 +90,7 @@ public record UpdateOpportunityDto
     public DateTime? Deadline { get; init; }
     public int? MaxApplications { get; init; }
     public string? CoverImage { get; init; }
+    public ProjectRole? ProjectRole { get; init; }
 }
 
 public record OpportunityApplicationDto

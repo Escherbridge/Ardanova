@@ -327,7 +327,7 @@ export default function ProjectsPage() {
       }
     >
       {/* Header */}
-      <div className="sticky top-0 z-10 bg-background/95 backdrop-blur border-b-2 border-border">
+      <div className="sticky top-0 bg-background/95 backdrop-blur border-b-2 border-border">
             <div className="p-4 flex items-center justify-between">
               <h1 className="text-xl font-bold text-foreground flex items-center gap-2">
                 <FolderKanban className="size-5 text-primary" />
@@ -643,11 +643,11 @@ export default function ProjectsPage() {
                     </div>
 
                     {/* Project Content */}
-                    <Link href={`/projects/${project.id}`} className="block mt-3 pl-13">
+                    <Link href={`/projects/${project.id}`} className="block mt-3 pl-13 overflow-hidden">
                       <h3 className="font-semibold text-lg text-foreground hover:text-primary transition-colors">
                         {project.title}
                       </h3>
-                      <p className="text-foreground mt-2 line-clamp-3">
+                      <p className="text-foreground mt-2 line-clamp-3 break-words">
                         {project.description}
                       </p>
 

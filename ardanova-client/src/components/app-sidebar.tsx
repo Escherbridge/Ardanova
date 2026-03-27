@@ -18,6 +18,7 @@ import {
   MessageCircle,
   CheckSquare,
   Calendar,
+  ShieldCheck,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -37,6 +38,7 @@ interface AppSidebarProps {
     name?: string | null;
     email?: string | null;
     image?: string | null;
+    role?: string | null;
   } | null;
 }
 
@@ -52,8 +54,8 @@ const mainNavItems = [
     icon: FolderKanban,
   },
   {
-    href: "/guilds",
-    label: "Guilds",
+    href: "/people",
+    label: "People",
     icon: Users,
   },
   {
@@ -111,7 +113,7 @@ export function AppSidebar({ user }: AppSidebarProps) {
     <TooltipProvider delayDuration={0}>
       <aside
         className={cn(
-          "sticky top-0 self-start z-40 flex h-screen shrink-0 flex-col border-r-2 border-sidebar-border bg-sidebar transition-all duration-300",
+          "sticky top-0 self-start z-40 flex h-screen shrink-0 flex-col border-r-2 border-sidebar-border bg-sidebar transition-all duration-300 mr-[.5vw]",
           isCollapsed ? "w-16" : "w-64"
         )}
       >
@@ -139,33 +141,6 @@ export function AppSidebar({ user }: AppSidebarProps) {
           </Button>
         </div>
 
-        {/* Create Button */}
-        <div className="p-3">
-          {isCollapsed ? (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="neon"
-                  size="icon"
-                  className="w-full"
-                  asChild
-                >
-                  <Link href="/dashboard/create">
-                    <Plus className="size-5" />
-                  </Link>
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="right">Create Project</TooltipContent>
-            </Tooltip>
-          ) : (
-            <Button variant="neon" className="w-full" asChild>
-              <Link href="/dashboard/create">
-                <Plus className="size-4 mr-2" />
-                Create Project
-              </Link>
-            </Button>
-          )}
-        </div>
 
         {/* Main Navigation */}
         <nav className="flex-1 space-y-1 px-3 py-2">
@@ -212,7 +187,47 @@ export function AppSidebar({ user }: AppSidebarProps) {
           })}
         </nav>
 
-        <Separator className="mx-3 bg-sidebar-border" />
+        {/* Admin Navigation */}
+        {user?.role === "ADMIN" && (
+          <>
+            <Separator className=" bg-sidebar-border" />
+            <nav className="space-y-1 px-3 py-2">
+              {isCollapsed ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Link
+                      href="/admin/kyc"
+                      className={cn(
+                        "flex h-10 w-full items-center justify-center transition-colors",
+                        isActive("/admin")
+                          ? "bg-sidebar-accent text-neon-green border-l-2 border-neon-green"
+                          : "text-sidebar-muted hover:bg-sidebar-accent hover:text-neon-green"
+                      )}
+                    >
+                      <ShieldCheck className="size-5" />
+                    </Link>
+                  </TooltipTrigger>
+                  <TooltipContent side="right">KYC Review</TooltipContent>
+                </Tooltip>
+              ) : (
+                <Link
+                  href="/admin/kyc"
+                  className={cn(
+                    "flex h-10 items-center gap-3 px-3 text-sm font-medium transition-colors",
+                    isActive("/admin")
+                      ? "bg-sidebar-accent text-neon-green border-l-2 border-neon-green -ml-px"
+                      : "text-sidebar-muted hover:bg-sidebar-accent hover:text-neon-green"
+                  )}
+                >
+                  <ShieldCheck className="size-5" />
+                  KYC Review
+                </Link>
+              )}
+            </nav>
+          </>
+        )}
+
+        <Separator className="bg-sidebar-border" />
 
         {/* Secondary Navigation */}
         <nav className="space-y-1 px-3 py-2">

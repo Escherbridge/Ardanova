@@ -27,6 +27,7 @@ public class LeaderboardEntry
     [Required]
     public int score { get; set; }
 
+    [Column(TypeName = "jsonb")]
     public string? metadata { get; set; }
 
     [ForeignKey("leaderboardId")]

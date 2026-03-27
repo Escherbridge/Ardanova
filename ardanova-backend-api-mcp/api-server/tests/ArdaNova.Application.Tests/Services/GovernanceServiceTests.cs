@@ -17,6 +17,7 @@ public class GovernanceServiceTests
     private readonly Mock<IRepository<ProposalExecution>> _executionRepositoryMock;
     private readonly Mock<IRepository<User>> _userRepositoryMock;
     private readonly Mock<IRepository<Project>> _projectRepositoryMock;
+    private readonly Mock<IRepository<ProposalComment>> _proposalCommentRepositoryMock;
     private readonly Mock<IUnitOfWork> _unitOfWorkMock;
     private readonly Mock<IMapper> _mapperMock;
     private readonly GovernanceService _sut;
@@ -28,6 +29,7 @@ public class GovernanceServiceTests
         _executionRepositoryMock = new Mock<IRepository<ProposalExecution>>();
         _userRepositoryMock = new Mock<IRepository<User>>();
         _projectRepositoryMock = new Mock<IRepository<Project>>();
+        _proposalCommentRepositoryMock = new Mock<IRepository<ProposalComment>>();
         _unitOfWorkMock = new Mock<IUnitOfWork>();
         _mapperMock = new Mock<IMapper>();
         _sut = new GovernanceService(
@@ -36,6 +38,7 @@ public class GovernanceServiceTests
             _executionRepositoryMock.Object,
             _userRepositoryMock.Object,
             _projectRepositoryMock.Object,
+            _proposalCommentRepositoryMock.Object,
             _unitOfWorkMock.Object,
             _mapperMock.Object);
     }

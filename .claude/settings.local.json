@@ -63,7 +63,20 @@
       "WebFetch(domain:developers.gamma.app)",
       "Bash(npx prisma:*)",
       "Bash(test:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(Select-String \"error|Error\\\\\\(s\\\\\\)|Warning\\\\\\(s\\\\\\)\")",
+      "Bash(git check-ignore:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nfeat\\(kyc\\): Add KYC schema - KycSubmission, KycDocument tables and enums\n\nAdd KYC & Identity Verification schema to DBML as the foundation for\nPRO-level verification gating. Includes KycSubmission and KycDocument\ntables with KycStatus, KycDocumentType, and KycProvider enums.\nGenerated Prisma schema, C# EF Core entities, and Zod types.\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git commit:*)",
+      "Bash(git status:*)",
+      "Bash(dotnet add:*)",
+      "Bash(dotnet package search:*)",
+      "Bash(dotnet remove:*)",
+      "Bash(cmd /c:*)",
+      "Bash(Select-String -Pattern \"error CS\")",
+      "Bash(Measure-Object -Line)",
+      "Skill(conductor:status)",
+      "Skill(conductor:status:*)"
     ],
     "additionalDirectories": [
       "c:\\Users\\atooz\\Documents\\Escherbridge\\ardanova"

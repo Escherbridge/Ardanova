@@ -15,8 +15,9 @@ public class MembershipCredential
     [Required]
     public string id { get; set; } = string.Empty;
 
-    [Required]
-    public string projectId { get; set; } = string.Empty;
+    public string? projectId { get; set; }
+
+    public string? guildId { get; set; }
 
     [Required]
     public string userId { get; set; } = string.Empty;
@@ -29,10 +30,14 @@ public class MembershipCredential
     [Required]
     public bool isTransferable { get; set; }
 
+    public UserTier? tier { get; set; }
+
     [Required]
     public MembershipGrantType grantedVia { get; set; }
 
     public string? grantedByProposalId { get; set; }
+
+    public string? metadataUri { get; set; }
 
     public string? mintTxHash { get; set; }
 
@@ -50,6 +55,9 @@ public class MembershipCredential
 
     [ForeignKey("projectId")]
     public virtual Project? Project { get; set; }
+
+    [ForeignKey("guildId")]
+    public virtual Guild? Guild { get; set; }
 
     [ForeignKey("userId")]
     public virtual User? User { get; set; }

@@ -29,6 +29,7 @@ public class XPEvent
 
     public string? sourceId { get; set; }
 
+    [Column(TypeName = "jsonb")]
     public string? metadata { get; set; }
 
     [Required]

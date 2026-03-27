@@ -18,6 +18,11 @@ public record UserDto
     public UserRole Role { get; init; }
     public UserType UserType { get; init; }
     public bool IsVerified { get; init; }
+    public int TotalXP { get; init; }
+    public int Level { get; init; }
+    public UserTier Tier { get; init; }
+    public decimal TrustScore { get; init; }
+    public VerificationLevel VerificationLevel { get; init; }
     public DateTime CreatedAt { get; init; }
     public DateTime UpdatedAt { get; init; }
 }
@@ -40,6 +45,21 @@ public record UpdateUserDto
     public string? LinkedIn { get; init; }
     public string? Twitter { get; init; }
     public string? Image { get; init; }
+}
+
+public record AdminUpdateUserRoleDto
+{
+    public required UserRole Role { get; init; }
+}
+
+public record AdminUpdateUserTypeDto
+{
+    public required UserType UserType { get; init; }
+}
+
+public record AdminUpdateVerificationLevelDto
+{
+    public required VerificationLevel VerificationLevel { get; init; }
 }
 
 public record UserSkillDto

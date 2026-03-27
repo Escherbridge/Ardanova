@@ -18,6 +18,7 @@ public static class DependencyInjection
         services.AddScoped<ISessionService, SessionService>();
         services.AddScoped<IUserSkillService, UserSkillService>();
         services.AddScoped<IUserExperienceService, UserExperienceService>();
+        services.AddScoped<IUserFollowService, UserFollowService>();
 
         // Project services
         services.AddScoped<IProjectService, ProjectService>();
@@ -31,6 +32,7 @@ public static class DependencyInjection
         services.AddScoped<IProjectUpdateService, ProjectUpdateService>();
         services.AddScoped<IProjectEquityService, ProjectEquityService>();
         services.AddScoped<IProjectMemberService, ProjectMemberService>();
+        services.AddScoped<IProjectInvitationService, ProjectInvitationService>();
 
         // Guild services
         services.AddScoped<IGuildService, GuildService>();
@@ -53,6 +55,9 @@ public static class DependencyInjection
         // Epic services
         services.AddScoped<IEpicService, EpicService>();
 
+        // Feature services
+        services.AddScoped<IFeatureService, FeatureService>();
+
         // Wallet services
         services.AddScoped<IWalletService, WalletService>();
 
@@ -62,6 +67,9 @@ public static class DependencyInjection
         // Gamification extended services
         services.AddScoped<IUserStreakService, UserStreakService>();
         services.AddScoped<IReferralService, ReferralService>();
+        services.AddScoped<IXPEventService, XPEventService>();
+        services.AddScoped<ILeaderboardService, LeaderboardService>();
+        services.AddScoped<IAchievementService, AchievementService>();
 
         // Notification & Activity services
         services.AddScoped<INotificationService, NotificationService>();
@@ -75,11 +83,13 @@ public static class DependencyInjection
 
         // Opportunity services
         services.AddScoped<IOpportunityService, OpportunityService>();
+        services.AddScoped<IOpportunityBidService, OpportunityBidService>();
 
         // Governance services
         services.AddScoped<IGovernanceService, GovernanceService>();
         services.AddScoped<IDelegatedVoteService, DelegatedVoteService>();
         services.AddScoped<IMembershipCredentialService, MembershipCredentialService>();
+        services.AddScoped<ICredentialUtilityService, CredentialUtilityService>();
 
         // Exchange services
         // TODO: LiquidityPool/LiquidityProvider services not yet implemented
@@ -91,6 +101,20 @@ public static class DependencyInjection
 
         // Chat services
         services.AddScoped<IChatService, ChatService>();
+
+        // KYC services
+        services.AddScoped<IKycService, KycService>();
+        services.AddScoped<IKycProviderService, ManualKycProviderService>();
+        services.AddScoped<IKycGateService, KycGateService>();
+
+        // Tokenomics services
+        services.AddScoped<IProjectTokenService, ProjectTokenService>();
+        services.AddScoped<ITokenBalanceService, TokenBalanceService>();
+        services.AddScoped<IExchangeService, ExchangeService>();
+        services.AddScoped<IPayoutService, PayoutService>();
+        services.AddScoped<ITreasuryService, TreasuryService>();
+        services.AddScoped<IProjectGateService, ProjectGateService>();
+        services.AddScoped<IStripeService, StripeService>();
 
         // Enum lookup (singleton - enum types are static)
         services.AddSingleton<IEnumLookupService, EnumLookupService>();

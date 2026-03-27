@@ -12,7 +12,7 @@ public record ProductBacklogItemDto
     public int? StoryPoints { get; init; }
     public PBIStatus Status { get; init; }
     public string? AcceptanceCriteria { get; init; }
-    public TaskPriority Priority { get; init; }
+    public Priority Priority { get; init; }
     public string? AssigneeId { get; init; }
     public DateTime CreatedAt { get; init; }
     public DateTime UpdatedAt { get; init; }
@@ -26,7 +26,7 @@ public record CreateProductBacklogItemDto
     public PBIType Type { get; init; } = PBIType.FEATURE;
     public int? StoryPoints { get; init; }
     public string? AcceptanceCriteria { get; init; }
-    public TaskPriority Priority { get; init; } = TaskPriority.MEDIUM;
+    public Priority Priority { get; init; } = Priority.MEDIUM;
     public string? AssigneeId { get; init; }
 }
 
@@ -38,6 +38,6 @@ public record UpdateProductBacklogItemDto
     public int? StoryPoints { get; init; }
     public PBIStatus? Status { get; init; }
     public string? AcceptanceCriteria { get; init; }
-    public TaskPriority? Priority { get; init; }
+    public Priority? Priority { get; init; }
     public string? AssigneeId { get; init; }
 }

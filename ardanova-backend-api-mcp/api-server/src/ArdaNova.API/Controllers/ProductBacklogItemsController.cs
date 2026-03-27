@@ -118,7 +118,7 @@ public record UpdatePBIStatusDto
 
 public record UpdatePriorityDto
 {
-    public TaskPriority Priority { get; init; }
+    public Priority Priority { get; init; }
 }
 
 public record ReorderDto

@@ -1,0 +1,146 @@
+## 1. Schema — Extend MembershipCredential for Guilds + Tiers
+- [x] **[P0] DBML: Add guildId, tier, metadata to MembershipCredential** [368d348]
+    - Make `projectId` nullable (credentials can belong to a project OR a guild)
+    - Add `guildId varchar` (nullable, FK → Guild.id)
+    - Add `tier UserTier` (nullable, default null — assigned post-grant)
+    - Add `metadataUri varchar` (ARC-19 metadata URI)
+    - Change unique index from `(projectId, userId)` to composite check logic
+    - Add new index: `(guildId, userId) [unique]` for guild credentials
+    - Run `npm run generate:prisma` + `npm run generate:csharp`
+
+## 2. Backend — Extend Credential Service for Guilds + Tiers
+- [x] **[P0] DTOs: Add guild + tier fields** [f586970]
+    - Update `MembershipCredentialDto` → add `GuildId`, `Tier`, `MetadataUri`
+    - Update `GrantMembershipCredentialDto` → add optional `GuildId`
+    - Add `UpdateCredentialTierDto { Tier: string }`
+    - Add `CredentialEligibilityDto { IsEligible, Reason, RequiredTier }`
+- [x] **[P0] IMembershipCredentialService: Extend interface** [f586970]
+    - `GetByGuildIdAsync(guildId, ct)`
+    - `GetByGuildAndUserAsync(guildId, userId, ct)`
+    - `GetActiveByGuildIdAsync(guildId, ct)`
+    - `UpdateTierAsync(id, UpdateCredentialTierDto, ct)`
+    - `CheckEligibilityAsync(userId, projectId?, guildId?, ct)`
+- [x] **[P0] MembershipCredentialServices: Implement new methods** [f586970]
+    - Guild credential queries (mirror project queries)
+    - Tier update with validation (only ACTIVE credentials)
+    - Eligibility check (validates membership state)
+- [x] **[P1] MembershipCredentialsController: Add guild endpoints** [f586970]
+    - `GET /api/MembershipCredentials/guild/{guildId}`
+    - `GET /api/MembershipCredentials/guild/{guildId}/active`
+    - `GET /api/MembershipCredentials/guild/{guildId}/user/{userId}`
+    - `PATCH /api/MembershipCredentials/{id}/tier`
+    - `GET /api/MembershipCredentials/eligibility`
+- [x] **[P0] MappingProfile: Update AutoMapper for new fields** [f586970]
+- [x] **[P0] Validation: Enforce XOR on projectId/guildId** [f586970]
+    - Grant must have exactly one of projectId or guildId (not both, not neither)
+
+## 3. Algorand Integration — IAlgorandService
+- [x] **[P0] Install dotnet-algorand-sdk NuGet package** [520f6c1]
+    - Add to `ArdaNova.Infrastructure.csproj` (Algorand2 v2.0.0)
+- [x] **[P0] AlgorandSettings configuration** [520f6c1]
+    - Create `ArdaNova.Infrastructure/Algorand/AlgorandSettings.cs`
+    - Fields: Network, NodeUrl, IndexerUrl, PlatformMnemonic, PlatformAddress, AlgodToken, IndexerToken
+    - Register in `appsettings.json` with testnet defaults
+- [x] **[P0] IAlgorandService interface** [520f6c1]
+    - Create in `ArdaNova.Application/Services/Interfaces/IAlgorandService.cs`
+    - Soulbound: `MintSoulboundASAAsync`, `BurnASAAsync`, `GetASAInfoAsync`, `VerifyOwnershipAsync`, `BuildARC19MetadataAsync`
+    - Fungible (Track 09): `CreateFungibleASAAsync`, `TransferASAAsync`, `GetASABalanceAsync`, `ClawbackASAAsync`
+    - Uses `Result<T>` pattern consistent with existing services
+- [x] **[P0] AlgorandService implementation** [520f6c1]
+    - Create `ArdaNova.Infrastructure/Algorand/AlgorandService.cs`
+    - HttpClient-based REST API calls to Algod and Indexer
+    - Soulbound enforcement: `defaultFrozen=true`, `clawback=platformAddress`, total=1, decimals=0
+    - ARC-19 metadata: credential type, tier, grant type, project/guild info
+    - Platform account signs all transactions (custodial model)
+    - Graceful degradation: all operations return Result.Failure on error
+    - AlgorandDtos: `SoulboundAsaMintResult`, `AsaInfoDto`, `FungibleAsaCreateResult`, `CredentialMetadataInput`
+- [x] **[P1] DependencyInjection: Register IAlgorandService** [520f6c1]
+    - Wire AlgorandSettings from configuration section "Algorand"
+    - Register AlgorandService with typed HttpClient via AddHttpClient
+
+## 4. CredentialUtilityService — Orchestrator
+- [x] **[P0] ICredentialUtilityService interface** [3e282a1]
+    - Create `ArdaNova.Application/Services/Interfaces/ICredentialUtilityService.cs`
+    - `GrantAndMintAsync(dto, ct)` → credential with on-chain ASA
+    - `RevokeAndBurnAsync(id, ct)` → credential with revoke tx
+    - `UpgradeTierAsync(id, newTier, ct)` → updated credential
+    - `CheckAndAutoGrantAsync(userId, projectId?, guildId?, ct)` → credential or null
+    - `RetryMintAsync(id, ct)` → retry failed mint
+    - `GetCredentialWithChainDataAsync(id, ct)` → enriched DTO with on-chain state
+- [x] **[P0] CredentialUtilityService implementation** [3e282a1]
+    - Create `ArdaNova.Application/Services/Implementations/CredentialUtilityService.cs`
+    - Orchestrates IMembershipCredentialService + IAlgorandService
+    - `GrantAndMint`: Grant credential → Mint ASA → UpdateMintInfo
+    - `RevokeAndBurn`: Burn ASA → Revoke credential → Store revokeTxHash
+    - `UpgradeTier`: Validate tier progression → Update credential → Update on-chain metadata
+    - `CheckAndAutoGrant`: Check contribution/XP thresholds → Auto-grant if eligible
+    - `RetryMint`: Re-attempt failed ASA minting for credentials with null assetId
+    - Graceful degradation: If chain is down, credential still granted off-chain
+- [x] **[P1] CredentialUtilityController** [3e282a1]
+    - Create `ArdaNova.API/Controllers/CredentialUtilityController.cs`
+    - `POST /api/CredentialUtility/grant-and-mint`
+    - `POST /api/CredentialUtility/{id}/revoke-and-burn`
+    - `PATCH /api/CredentialUtility/{id}/upgrade-tier`
+    - `POST /api/CredentialUtility/check-auto-grant`
+    - `POST /api/CredentialUtility/{id}/retry-mint`
+    - `GET /api/CredentialUtility/{id}/chain-data`
+- [x] **[P1] DependencyInjection: Register CredentialUtilityService** [3e282a1]
+
+## 5. API Client + tRPC Router Updates
+- [x] **[P1] API Client: Update membership-credentials.ts**
+    - Add `guildId`, `tier`, `metadataUri` to interfaces
+    - Add `getByGuildId`, `getByGuildAndUser`, `getActiveByGuildId`
+    - Add `updateTier`, `checkEligibility`
+- [x] **[P1] API Client: Create credential-utility.ts**
+    - `grantAndMint(data)` → POST /api/CredentialUtility/grant-and-mint
+    - `revokeAndBurn(id)` → POST /api/CredentialUtility/{id}/revoke-and-burn
+    - `upgradeTier(id, tier)` → PATCH /api/CredentialUtility/{id}/upgrade-tier
+    - `checkAutoGrant(data)` → POST /api/CredentialUtility/check-auto-grant
+    - `retryMint(id)` → POST /api/CredentialUtility/{id}/retry-mint
+    - `getChainData(id)` → GET /api/CredentialUtility/{id}/chain-data
+- [x] **[P1] Register in ArdaNovaApiClient index.ts**
+- [x] **[P2] tRPC router: Add credential utility procedures**
+    - Thin proxies following existing pattern in project.ts
+    - Registered `credentialUtility` in appRouter
+
+## 6. Tests
+- [x] **[P0] MembershipCredentialService guild tests** [f586970]
+    - Grant guild credential (guildId, no projectId)
+    - Unique constraint per guild/user
+    - Query by guild ID
+    - XOR validation (projectId vs guildId)
+- [x] **[P0] CredentialUtilityService unit tests** [3e282a1]
+    - Grant-and-mint happy path (credential created + ASA minted)
+    - Grant-and-mint chain failure (credential created, ASA null — graceful degradation)
+    - Grant-and-mint grant fails (returns failure without minting)
+    - Grant-and-mint guild scope (correct metadata scope)
+    - Revoke-and-burn happy path (burns ASA + revokes credential)
+    - Revoke-and-burn no assetId (revokes without burning)
+    - Revoke-and-burn not found
+    - Revoke-and-burn burn fails (graceful degradation)
+    - Upgrade tier happy path (BRONZE -> SILVER)
+    - Upgrade tier downgrade rejected
+    - Upgrade tier same tier rejected
+    - Upgrade tier invalid tier
+    - Upgrade tier null current tier (first assignment)
+    - Upgrade tier not found
+    - Auto-grant already has credential (returns null)
+    - Auto-grant eligible (grants and mints)
+    - Retry mint happy path
+    - Retry mint already minted
+    - Retry mint not active
+    - Get chain data with on-chain data
+    - Get chain data without assetId
+    - Get chain data not found
+    - Total: 22 tests, all passing
+- [x] **[P1] AlgorandService unit tests (mocked HttpClient)** [520f6c1]
+    - ARC-19 metadata building (3 tests: valid input, null tier, guild scope)
+    - Soulbound ASA minting (3 tests: success, unreachable, error)
+    - ASA burning (2 tests: success, failure)
+    - ASA info query (2 tests: found, not found)
+    - Ownership verification (3 tests: holds, doesnt hold, no assets)
+    - Fungible ASA create (2 tests: success, failure)
+    - ASA transfer (2 tests: success, failure)
+    - ASA balance (2 tests: has balance, no balance)
+    - ASA clawback (2 tests: success, failure)
+    - Total: 21 tests, all passing

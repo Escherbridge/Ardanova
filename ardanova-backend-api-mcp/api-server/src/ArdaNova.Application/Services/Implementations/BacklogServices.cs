@@ -52,7 +52,7 @@ public class ProductBacklogItemService : IProductBacklogItemService
             storyPoints = dto.StoryPoints,
             status = PBIStatus.NEW,
             acceptanceCriteria = dto.AcceptanceCriteria,
-            priority = (Priority)dto.Priority,
+            priority = dto.Priority,
             assigneeId = dto.AssigneeId,
             createdAt = DateTime.UtcNow,
             updatedAt = DateTime.UtcNow
@@ -75,7 +75,7 @@ public class ProductBacklogItemService : IProductBacklogItemService
         if (dto.StoryPoints.HasValue) item.storyPoints = dto.StoryPoints;
         if (dto.Status.HasValue) item.status = dto.Status.Value;
         if (dto.AcceptanceCriteria is not null) item.acceptanceCriteria = dto.AcceptanceCriteria;
-        if (dto.Priority.HasValue) item.priority = (Priority)dto.Priority.Value;
+        if (dto.Priority.HasValue) item.priority = dto.Priority.Value;
         if (dto.AssigneeId is not null) item.assigneeId = dto.AssigneeId;
         item.updatedAt = DateTime.UtcNow;
 

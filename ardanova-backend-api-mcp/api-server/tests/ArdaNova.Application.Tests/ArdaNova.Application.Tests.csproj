@@ -14,11 +14,14 @@
     <PackageReference Include="Moq" Version="4.20.72" />
     <PackageReference Include="xunit" Version="2.9.2" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
+    <PackageReference Include="Microsoft.Extensions.Options" Version="8.0.2" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.2" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\ArdaNova.Application\ArdaNova.Application.csproj" />
     <ProjectReference Include="..\..\src\ArdaNova.Domain\ArdaNova.Domain.csproj" />
+    <ProjectReference Include="..\..\src\ArdaNova.Infrastructure\ArdaNova.Infrastructure.csproj" />
   </ItemGroup>
 
   <ItemGroup>

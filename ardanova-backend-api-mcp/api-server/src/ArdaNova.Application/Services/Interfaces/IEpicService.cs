@@ -14,6 +14,6 @@ public interface IEpicService
     Task<Result<bool>> DeleteAsync(string id, CancellationToken ct = default);
     Task<Result<EpicDto>> AssignAsync(string id, string? userId, CancellationToken ct = default);
     Task<Result<EpicDto>> UpdateStatusAsync(string id, EpicStatus status, CancellationToken ct = default);
-    Task<Result<EpicDto>> UpdatePriorityAsync(string id, TaskPriority priority, CancellationToken ct = default);
+    Task<Result<EpicDto>> UpdatePriorityAsync(string id, Priority priority, CancellationToken ct = default);
     Task<Result<bool>> ReorderAsync(string milestoneId, IReadOnlyList<string> epicIds, CancellationToken ct = default);
 }

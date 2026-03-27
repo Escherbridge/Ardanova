@@ -90,6 +90,9 @@ ArdaNova unifies project management with transparent ownership infrastructure:
 | **Shop System** | Shop management, products, inventory, analytics | Complete |
 | **Equity Tracking** | Share allocation to supporters and contributors | Complete |
 | **.NET Backend API** | Clean Architecture API with 6 projects, 40+ MCP tools | Complete |
+| **Membership Credentials** | Soulbound governance credentials for projects and guilds | Complete |
+| **Credential Utility** | Algorand ASA minting, tier system (BRONZE→DIAMOND), guild credentials | In Progress |
+| **KYC Verification** | Identity verification gating project creation and credentials (Manual + Veriff) | In Progress |
 | **Event Bus** | In-memory domain event publishing and handling | Complete |
 | **SignalR WebSocket** | Real-time updates for activities, notifications, projects | Complete |
 | **S3/Local Storage** | File attachments with S3 or local filesystem support | Complete |
@@ -102,7 +105,7 @@ ArdaNova unifies project management with transparent ownership infrastructure:
 | **Gamification Layer** | XP, levels, achievements, leaderboards, seasons | Q1 2025 |
 | **Project Hierarchy** | Roadmaps → Epics → Sprints → PBIs → Tasks | Q2 2025 |
 | **Task Marketplace** | Bounties, bidding, escrow, multiple compensation models | Q2 2025 |
-| **Secure Ledger Integration** | Ownership Shares, digital wallet connect, stable payments | Q2 2025 |
+| **Secure Ledger Integration** | Soulbound credentials (ASA), ownership shares, wallet connect | In Progress |
 | **Fundraising Lifecycle** | Equity creation, funding phases, redemption | Q3 2025 |
 | **Gamma Integration** | AI-powered pitch generation and presentation builder | Q3 2025 |
 | **Cooperative Governance** | Transparent proposals, voting, treasury | Q3 2025 |
@@ -164,11 +167,12 @@ ardanova/
 |-------|------------|---------|
 | **Frontend** | Next.js + tRPC | UI, validation, session |
 | **API Client** | TypeScript | Typed backend communication |
-| **Backend** | .NET 8 Clean Architecture | Business logic, data access |
+| **Backend** | .NET 9 Clean Architecture | Business logic, data access |
 | **Real-time** | SignalR | WebSocket for live updates |
 | **Events** | In-Memory Event Bus | Domain event publishing |
 | **Auth** | NextAuth + Prisma | Authentication only |
 | **Storage** | S3 / Local filesystem | File attachments |
+| **Blockchain** | Algorand (dotnet-algorand-sdk) | Soulbound credential ASAs |
 | **Database** | PostgreSQL | Persistent storage |
 
 See [ARCHITECTURE.md](./ARCHITECTURE.md) for detailed technical documentation.
@@ -183,7 +187,7 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for detailed technical documentation.
 |-------|------------|
 | **Frontend** | Next.js 15, React 19, TypeScript 5.8 |
 | **UI** | Radix UI, Tailwind CSS 4.0 |
-| **API Layer** | tRPC (frontend) → .NET 8 (backend) |
+| **API Layer** | tRPC (frontend) → .NET 9 (backend) |
 | **Database** | PostgreSQL |
 | **Schema** | DBML → Prisma (migrations) + EF Core (C# entities via generator) |
 | **Auth** | NextAuth 5 + Prisma Adapter |
@@ -196,7 +200,9 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for detailed technical documentation.
 |-------|------------|
 | **Ledger** | Algorand (10,000+ TPS, 2.85s finality) |
 | **Shares/Equity** | Standard Assets (ASAs) |
-| **Automated Agreements** | PyTeal / TEAL |
+| **Credential SDK** | dotnet-algorand-sdk (C# native) |
+| **Soulbound Credentials** | Frozen ASAs with ARC-19 metadata |
+| **Automated Agreements** | AVM / TEAL |
 | **Digital Wallets** | Pera Wallet, Defly, MyAlgo |
 | **Indexer** | Algorand Indexer API |
 | **Node** | AlgoNode / Self-hosted |
@@ -339,7 +345,11 @@ Non-transferable credentials that grant cooperative voting rights:
 - **Earned, never bought** — granted via founding, contribution thresholds, DAO vote, or Game SDK
 - **1 member = 1 vote** — equal governance regardless of economic stake
 - **Revocable** — by cooperative vote (66% quorum, 75% approval)
-- **Soulbound** — cannot be transferred or sold
+- **Soulbound** — cannot be transferred or sold (Algorand ASAs with `defaultFrozen=true`)
+- **KYC-gated** — requires PRO verification level (identity verification) before issuance
+- **Scoped** — issued per-project or per-guild with XOR validation
+- **Tiered** — BRONZE → SILVER → GOLD → PLATINUM → DIAMOND progression
+- **On-chain verified** — ARC-19 metadata on Algorand for trustless verification
 
 ### Ownership Shares (Economics)
 
@@ -577,7 +587,7 @@ AUTH_URL="http://localhost:3000"
 GOOGLE_CLIENT_ID="your-google-client-id"
 GOOGLE_CLIENT_SECRET="your-google-client-secret"
 
-# Algorand (future)
+# Algorand
 ALGORAND_NETWORK="testnet"
 ALGORAND_NODE_URL="https://testnet-api.algonode.cloud"
 ALGORAND_INDEXER_URL="https://testnet-idx.algonode.cloud"

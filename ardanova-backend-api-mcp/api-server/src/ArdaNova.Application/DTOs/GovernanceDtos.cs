@@ -111,3 +111,31 @@ public record VoteOptionSummary
     public decimal VotingPower { get; init; }
     public decimal Percentage { get; init; }
 }
+
+public record ProposalCommentDto
+{
+    public string Id { get; init; } = null!;
+    public string ProposalId { get; init; } = null!;
+    public string UserId { get; init; } = null!;
+    public string Content { get; init; } = null!;
+    public string? ParentId { get; init; }
+    public DateTime CreatedAt { get; init; }
+    public DateTime UpdatedAt { get; init; }
+    public ProposalCommentUserDto? User { get; init; }
+    public List<ProposalCommentDto>? Replies { get; init; }
+}
+
+public record ProposalCommentUserDto
+{
+    public string Id { get; init; } = null!;
+    public string? Name { get; init; }
+    public string? Image { get; init; }
+}
+
+public record CreateProposalCommentDto
+{
+    public required string ProposalId { get; init; }
+    public required string UserId { get; init; }
+    public required string Content { get; init; }
+    public string? ParentId { get; init; }
+}

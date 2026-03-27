@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { createTRPCRouter, protectedProcedure, publicProcedure } from "~/server/api/trpc";
 import { apiClient } from "~/lib/api";
 
@@ -195,6 +196,28 @@ const castVoteSchema = z.object({
   proposalId: z.string(),
   choice: z.number(),
   reason: z.string().optional(),
+});
+
+const updateProposalSchema = z.object({
+  projectId: z.string(),
+  proposalId: z.string(),
+  title: z.string().min(1).optional(),
+  description: z.string().min(20).optional(),
+  options: z.array(z.string()).min(2).optional(),
+  quorum: z.number().optional(),
+  threshold: z.number().optional(),
+  votingDays: z.number().optional(),
+});
+
+const publishProposalSchema = z.object({
+  projectId: z.string(),
+  proposalId: z.string(),
+});
+
+const createProposalCommentSchema = z.object({
+  proposalId: z.string(),
+  content: z.string().min(1),
+  parentId: z.string().optional(),
 });
 
 // Update schemas
@@ -682,6 +705,12 @@ export const projectRouter = createTRPCRouter({
         throw new Error("Access denied");
       }
 
+      // Enforce one role per user per project
+      const existingMembers = await apiClient.projects.getMembers(input.projectId);
+      if (existingMembers.data?.some((m: any) => m.userId === input.userId)) {
+        throw new Error("User already has a role on this project");
+      }
+
       const response = await apiClient.projects.addMember(input.projectId, {
         userId: input.userId,
         role: input.role,
@@ -707,7 +736,7 @@ export const projectRouter = createTRPCRouter({
       }
 
       // Verify project ownership
-      const project = await apiClient.projects.getById(member.data.projectId);
+      const project = await apiClient.projects.getById(input.projectId);
       if (project.error || !project.data) {
         throw new Error("Project not found");
       }
@@ -742,7 +771,7 @@ export const projectRouter = createTRPCRouter({
       }
 
       // Verify project ownership
-      const project = await apiClient.projects.getById(member.data.projectId);
+      const project = await apiClient.projects.getById(input.projectId);
       if (project.error || !project.data) {
         throw new Error("Project not found");
       }
@@ -975,8 +1004,23 @@ export const projectRouter = createTRPCRouter({
 
       // Verify user has an active MembershipCredential (governance right)
       const credential = await apiClient.membershipCredentials.getByProjectAndUser(proposal.data.projectId, userId);
-      if (credential.error || !credential.data || credential.data.status !== 'ACTIVE') {
-        throw new Error("Active membership credential required to vote. Credential grants governance rights (1 member = 1 vote).");
+      const hasActiveCredential = !credential.error && credential.data && credential.data.status === 'ACTIVE';
+
+      if (!hasActiveCredential) {
+        if (isFounder) {
+          // Auto-grant FOUNDER credential if founder doesn't have one yet
+          const granted = await apiClient.membershipCredentials.grant({
+            projectId: proposal.data.projectId,
+            userId,
+            grantedVia: 'FOUNDER',
+          });
+          if (granted.error || !granted.data) {
+            throw new Error("Failed to auto-grant founder credential. Please try again.");
+          }
+        } else {
+          // Non-founders must complete KYC to get a credential
+          throw new Error("CREDENTIAL_REQUIRED: You need an active membership credential to vote. Please complete identity verification (KYC) to receive your credential.");
+        }
       }
 
       const response = await apiClient.projects.castVote(input.projectId, input.proposalId, {
@@ -1055,6 +1099,93 @@ export const projectRouter = createTRPCRouter({
       }
 
       return response.data ?? [];
+    }),
+
+  // Update proposal (DRAFT only)
+  updateProposal: protectedProcedure
+    .input(updateProposalSchema)
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.session.user.id;
+
+      // Get proposal to verify ownership
+      const proposal = await apiClient.projects.getProposalById(input.proposalId);
+      if (proposal.error || !proposal.data) {
+        throw new Error("Proposal not found");
+      }
+      if (proposal.data.creatorId !== userId) {
+        throw new Error("Only the proposal creator can edit");
+      }
+
+      const response = await apiClient.projects.updateProposal(input.projectId, input.proposalId, {
+        title: input.title,
+        description: input.description,
+        options: input.options ? JSON.stringify(input.options) : undefined,
+        quorum: input.quorum,
+        threshold: input.threshold,
+        votingDays: input.votingDays,
+      });
+
+      if (response.error || !response.data) {
+        throw new Error(response.error ?? "Failed to update proposal");
+      }
+
+      return response.data;
+    }),
+
+  // Publish proposal (DRAFT -> ACTIVE)
+  publishProposal: protectedProcedure
+    .input(publishProposalSchema)
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.session.user.id;
+
+      // Get proposal to verify ownership
+      const proposal = await apiClient.projects.getProposalById(input.proposalId);
+      if (proposal.error || !proposal.data) {
+        throw new Error("Proposal not found");
+      }
+      if (proposal.data.creatorId !== userId) {
+        throw new Error("Only the proposal creator can publish");
+      }
+
+      const response = await apiClient.projects.publishProposal(input.projectId, input.proposalId);
+
+      if (response.error || !response.data) {
+        throw new Error(response.error ?? "Failed to publish proposal");
+      }
+
+      return response.data;
+    }),
+
+  // Get proposal comments
+  getProposalComments: publicProcedure
+    .input(z.object({ proposalId: z.string() }))
+    .query(async ({ input }) => {
+      const response = await apiClient.projects.getProposalComments(input.proposalId);
+
+      if (response.error) {
+        throw new Error(response.error);
+      }
+
+      return response.data ?? [];
+    }),
+
+  // Create proposal comment
+  createProposalComment: protectedProcedure
+    .input(createProposalCommentSchema)
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.session.user.id;
+
+      const response = await apiClient.projects.createProposalComment(input.proposalId, {
+        userId,
+        content: input.content,
+        parentId: input.parentId,
+      });
+
+      if (response.error || !response.data) {
+        throw new Error(response.error ?? "Failed to create comment");
+      }
+
+      return response.data;
     }),
 
   // ========================================
@@ -1266,16 +1397,8 @@ export const projectRouter = createTRPCRouter({
     }),
 
   // Get user's supported projects
-  getMySupports: protectedProcedure.query(async ({ ctx }) => {
-    const userId = ctx.session.user.id;
-
-    const response = await apiClient.projects.getUserSupports(userId);
-
-    if (response.error) {
-      throw new Error(response.error);
-    }
-
-    return response.data ?? [];
+  getMySupports: protectedProcedure.query(async () => {
+    throw new TRPCError({ code: "NOT_IMPLEMENTED", message: "User supports endpoint is not yet available" });
   }),
 
   // Get supporters of a project
@@ -1289,5 +1412,107 @@ export const projectRouter = createTRPCRouter({
       }
 
       return response.data ?? [];
+    }),
+
+  // ========================================
+  // PROJECT INVITATIONS
+  // ========================================
+
+  // Get invitations for a project (owner only)
+  getInvitations: protectedProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(async ({ input, ctx }) => {
+      const userId = ctx.session.user.id;
+
+      // Verify project ownership
+      const project = await apiClient.projects.getById(input.projectId);
+      if (project.error || !project.data) {
+        throw new Error("Project not found");
+      }
+      if (project.data.createdById !== userId) {
+        throw new Error("Access denied");
+      }
+
+      const response = await apiClient.projects.getInvitations(input.projectId);
+
+      if (response.error) {
+        throw new Error(response.error);
+      }
+
+      return response.data ?? [];
+    }),
+
+  // Get current user's pending invitations
+  getMyInvitations: protectedProcedure.query(async ({ ctx }) => {
+    const userId = ctx.session.user.id;
+    const response = await apiClient.projects.getInvitationsByUserId(userId);
+
+    if (response.error) {
+      throw new Error(response.error);
+    }
+
+    return response.data ?? [];
+  }),
+
+  // Create invitation (owner only)
+  createInvitation: protectedProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        invitedUserId: z.string(),
+        role: z.string(),
+        message: z.string().optional(),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.session.user.id;
+
+      // Verify project ownership
+      const project = await apiClient.projects.getById(input.projectId);
+      if (project.error || !project.data) {
+        throw new Error("Project not found");
+      }
+      if (project.data.createdById !== userId) {
+        throw new Error("Access denied");
+      }
+
+      const response = await apiClient.projects.createInvitation(input.projectId, {
+        invitedById: userId,
+        invitedUserId: input.invitedUserId,
+        role: input.role,
+        message: input.message,
+      });
+
+      if (response.error || !response.data) {
+        throw new Error(response.error ?? "Failed to create invitation");
+      }
+
+      return response.data;
+    }),
+
+  // Accept invitation
+  acceptInvitation: protectedProcedure
+    .input(z.object({ projectId: z.string(), invitationId: z.string() }))
+    .mutation(async ({ input }) => {
+      const response = await apiClient.projects.acceptInvitation(input.projectId, input.invitationId);
+
+      if (response.error || !response.data) {
+        throw new Error(response.error ?? "Failed to accept invitation");
+      }
+
+      return response.data;
+    }),
+
+  // Reject invitation
+  rejectInvitation: protectedProcedure
+    .input(z.object({ projectId: z.string(), invitationId: z.string() }))
+    .mutation(async ({ input }) => {
+      const response = await apiClient.projects.rejectInvitation(input.projectId, input.invitationId);
+
+      if (response.error || !response.data) {
+        throw new Error(response.error ?? "Failed to reject invitation");
+      }
+
+      return response.data;
     }),
 });
