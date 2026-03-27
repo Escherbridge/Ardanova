@@ -215,6 +215,7 @@ const publishProposalSchema = z.object({
 });
 
 const createProposalCommentSchema = z.object({
+  projectId: z.string(),
   proposalId: z.string(),
   content: z.string().min(1),
   parentId: z.string().optional(),
@@ -1108,7 +1109,7 @@ export const projectRouter = createTRPCRouter({
       const userId = ctx.session.user.id;
 
       // Get proposal to verify ownership
-      const proposal = await apiClient.projects.getProposalById(input.proposalId);
+      const proposal = await apiClient.projects.getProposalById(input.projectId, input.proposalId);
       if (proposal.error || !proposal.data) {
         throw new Error("Proposal not found");
       }
@@ -1139,7 +1140,7 @@ export const projectRouter = createTRPCRouter({
       const userId = ctx.session.user.id;
 
       // Get proposal to verify ownership
-      const proposal = await apiClient.projects.getProposalById(input.proposalId);
+      const proposal = await apiClient.projects.getProposalById(input.projectId, input.proposalId);
       if (proposal.error || !proposal.data) {
         throw new Error("Proposal not found");
       }
@@ -1158,9 +1159,9 @@ export const projectRouter = createTRPCRouter({
 
   // Get proposal comments
   getProposalComments: publicProcedure
-    .input(z.object({ proposalId: z.string() }))
+    .input(z.object({ projectId: z.string(), proposalId: z.string() }))
     .query(async ({ input }) => {
-      const response = await apiClient.projects.getProposalComments(input.proposalId);
+      const response = await apiClient.projects.getProposalComments(input.projectId, input.proposalId);
 
       if (response.error) {
         throw new Error(response.error);
@@ -1175,7 +1176,7 @@ export const projectRouter = createTRPCRouter({
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user.id;
 
-      const response = await apiClient.projects.createProposalComment(input.proposalId, {
+      const response = await apiClient.projects.createProposalComment(input.projectId, input.proposalId, {
         userId,
         content: input.content,
         parentId: input.parentId,
