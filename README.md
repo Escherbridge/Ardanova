@@ -676,6 +676,9 @@ We welcome contributions from the community! See our [Contributing Guide](./CONT
 
 - [Roadmap](./documentation/ROADMAP.md) - Platform vision and implementation timeline
 - [Architecture](./documentation/ARCHITECTURE.md) - Technical architecture and data flow
+- [Phase A baseline critique](./documentation/PHASE_A_BASELINE_CRITIQUE.md) - Doc vs code snapshot, risks, MVP notes
+- [Local development smoke runbook](./documentation/LOCAL_DEVELOPMENT_SMOKE.md) - Env, commands, smoke checks, known issues
+- [Phase A test matrix](./documentation/PHASE_A_TEST_MATRIX.md) - Narrow manual QA matrix (baseline)
 - [Database Schema (DBML)](./ardanova-client/prisma/database-architecture.dbml) - DBML schema (source of truth)
 - [Prisma Schema](./ardanova-client/prisma/schema.prisma) - Generated Prisma schema
 - [C# Generator](./ardanova-client/scripts/generate-csharp-models.ts) - DBML to C# entity generator

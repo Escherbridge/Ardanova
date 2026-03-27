@@ -178,7 +178,7 @@ export interface CreateApplicationDto {
 }
 
 export interface ReviewApplicationDto {
-  status?: string;
+  status: string;
   reviewMessage?: string;
 }
 
@@ -230,33 +230,6 @@ export interface CastVoteDto {
   choice: number;
   weight?: number;
   reason?: string;
-}
-
-export interface UpdateProposalDto {
-  title?: string;
-  description?: string;
-  options?: string;
-  quorum?: number;
-  threshold?: number;
-  votingDays?: number;
-}
-
-export interface ProposalComment {
-  id: string;
-  proposalId: string;
-  userId: string;
-  content: string;
-  parentId?: string;
-  createdAt: string;
-  updatedAt: string;
-  user?: { id: string; name?: string; image?: string };
-  replies?: ProposalComment[];
-}
-
-export interface CreateProposalCommentDto {
-  userId: string;
-  content: string;
-  parentId?: string;
 }
 
 export interface ProjectUpdate {
@@ -315,32 +288,6 @@ export interface CreateSupportDto {
   userId: string;
   supportType: string;
   monthlyAmount?: number;
-  message?: string;
-}
-
-export interface ProjectInvitation {
-  id: string;
-  projectId: string;
-  invitedById: string;
-  invitedUserId?: string;
-  invitedEmail?: string;
-  role: string;
-  message?: string;
-  status: string;
-  token?: string;
-  createdAt: string;
-  expiresAt?: string;
-  respondedAt?: string;
-  invitedUser?: { id: string; name?: string; email?: string; image?: string };
-  invitedBy?: { id: string; name?: string; email?: string; image?: string };
-  project?: { id: string; title: string; slug: string; images?: string };
-}
-
-export interface CreateProjectInvitationDto {
-  invitedById: string;
-  invitedUserId?: string;
-  invitedEmail?: string;
-  role: string;
   message?: string;
 }
 
@@ -496,12 +443,30 @@ export class ProjectsEndpoint {
     return this.client.get<ProjectApplication[]>(`/api/projects/${projectId}/applications`);
   }
 
-  acceptApplication(projectId: string, applicationId: string, data?: ReviewApplicationDto): Promise<ApiResponse<ProjectApplication>> {
-    return this.client.post<ProjectApplication>(`/api/projects/${projectId}/applications/${applicationId}/accept`, data ?? {});
-  }
-
-  rejectApplication(projectId: string, applicationId: string, data?: ReviewApplicationDto): Promise<ApiResponse<ProjectApplication>> {
-    return this.client.post<ProjectApplication>(`/api/projects/${projectId}/applications/${applicationId}/reject`, data ?? {});
+  reviewApplication(projectId: string, applicationId: string, data: ReviewApplicationDto): Promise<ApiResponse<ProjectApplication>> {
+    const body = data.reviewMessage !== undefined ? { reviewMessage: data.reviewMessage } : {};
+    if (data.status === "ACCEPTED") {
+      return this.client.post<ProjectApplication>(
+        `/api/projects/${projectId}/applications/${applicationId}/accept`,
+        body
+      );
+    }
+    if (data.status === "REJECTED") {
+      return this.client.post<ProjectApplication>(
+        `/api/projects/${projectId}/applications/${applicationId}/reject`,
+        body
+      );
+    }
+    if (data.status === "WITHDRAWN") {
+      return this.client.post<ProjectApplication>(
+        `/api/projects/${projectId}/applications/${applicationId}/withdraw`
+      );
+    }
+    return Promise.resolve({
+      data: undefined,
+      error: `Unsupported application status for review: ${data.status}`,
+      status: 400,
+    });
   }
 
   getApplicationById(projectId: string, applicationId: string): Promise<ApiResponse<ProjectApplication>> {
@@ -515,17 +480,10 @@ export class ProjectsEndpoint {
   // ============ Proposal & Vote Methods ============
 
   createProposal(projectId: string, data: CreateProposalDto): Promise<ApiResponse<Proposal>> {
-    // Normalize field names and types for .NET backend compatibility
+    // Normalize field names for backend compatibility
     const normalizedData = {
-      projectId,
+      ...data,
       creatorId: data.creatorId ?? data.createdById,
-      type: data.type,
-      title: data.title,
-      description: data.description,
-      // .NET DTO expects Options as a JSON string, not an array
-      options: Array.isArray(data.options) ? JSON.stringify(data.options) : data.options,
-      quorum: data.quorum,
-      threshold: data.threshold,
       votingEnd: data.votingEnd ?? (data.votingDays
         ? new Date(Date.now() + data.votingDays * 24 * 60 * 60 * 1000).toISOString()
         : undefined),
@@ -537,45 +495,25 @@ export class ProjectsEndpoint {
     return this.client.get<Proposal[]>(`/api/projects/${projectId}/proposals`);
   }
 
-  getProposalById(proposalId: string): Promise<ApiResponse<Proposal>> {
-    return this.client.get<Proposal>(`/api/governance/proposals/${proposalId}`);
+  getProposalById(projectId: string, proposalId: string): Promise<ApiResponse<Proposal>> {
+    return this.client.get<Proposal>(`/api/projects/${projectId}/proposals/${proposalId}`);
   }
 
-  castVote(proposalId: string, data: CastVoteDto): Promise<ApiResponse<Vote>> {
+  castVote(projectId: string, proposalId: string, data: CastVoteDto): Promise<ApiResponse<Vote>> {
     // Normalize field names for backend compatibility
     const normalizedData = {
       ...data,
       voterId: data.voterId ?? data.userId,
     };
-    return this.client.post<Vote>(`/api/governance/proposals/${proposalId}/vote`, normalizedData);
+    return this.client.post<Vote>(`/api/projects/${projectId}/proposals/${proposalId}/votes`, normalizedData);
   }
 
-  getVotes(proposalId: string): Promise<ApiResponse<Vote[]>> {
-    return this.client.get<Vote[]>(`/api/governance/proposals/${proposalId}/votes`);
+  getVotes(projectId: string, proposalId: string): Promise<ApiResponse<Vote[]>> {
+    return this.client.get<Vote[]>(`/api/projects/${projectId}/proposals/${proposalId}/votes`);
   }
 
-  closeProposal(proposalId: string): Promise<ApiResponse<Proposal>> {
-    return this.client.patch<Proposal>(`/api/governance/proposals/${proposalId}/cancel`);
-  }
-
-  publishProposal(projectId: string, proposalId: string): Promise<ApiResponse<Proposal>> {
-    return this.client.post<Proposal>(`/api/projects/${projectId}/proposals/${proposalId}/publish`);
-  }
-
-  updateProposal(projectId: string, proposalId: string, data: UpdateProposalDto): Promise<ApiResponse<Proposal>> {
-    const normalizedData = {
-      ...data,
-      options: data.options ? (Array.isArray(data.options) ? JSON.stringify(data.options) : data.options) : undefined,
-    };
-    return this.client.put<Proposal>(`/api/projects/${projectId}/proposals/${proposalId}`, normalizedData);
-  }
-
-  getProposalComments(proposalId: string): Promise<ApiResponse<ProposalComment[]>> {
-    return this.client.get<ProposalComment[]>(`/api/governance/proposals/${proposalId}/comments`);
-  }
-
-  createProposalComment(proposalId: string, data: CreateProposalCommentDto): Promise<ApiResponse<ProposalComment>> {
-    return this.client.post<ProposalComment>(`/api/governance/proposals/${proposalId}/comments`, { ...data, proposalId });
+  closeProposal(projectId: string, proposalId: string): Promise<ApiResponse<Proposal>> {
+    return this.client.post<Proposal>(`/api/projects/${projectId}/proposals/${proposalId}/cancel`);
   }
 
   // ============ Update Methods ============
@@ -629,37 +567,16 @@ export class ProjectsEndpoint {
     return this.client.delete(`/api/projects/${projectId}/support/${supportId}`);
   }
 
+  /** No dedicated UsersController route found; keep until backend exposes user support list. */
+  getUserSupports(userId: string): Promise<ApiResponse<ProjectSupport[]>> {
+    return this.client.get<ProjectSupport[]>(`/api/project-support/user/${userId}`);
+  }
+
   getSupporters(projectId: string): Promise<ApiResponse<ProjectSupport[]>> {
     return this.client.get<ProjectSupport[]>(`/api/projects/${projectId}/support`);
   }
 
   getSupportById(projectId: string, supportId: string): Promise<ApiResponse<ProjectSupport>> {
     return this.client.get<ProjectSupport>(`/api/projects/${projectId}/support/${supportId}`);
-  }
-
-  // ============ Invitation Methods ============
-
-  getInvitations(projectId: string): Promise<ApiResponse<ProjectInvitation[]>> {
-    return this.client.get<ProjectInvitation[]>(`/api/projects/${projectId}/invitations`);
-  }
-
-  createInvitation(projectId: string, data: CreateProjectInvitationDto): Promise<ApiResponse<ProjectInvitation>> {
-    return this.client.post<ProjectInvitation>(`/api/projects/${projectId}/invitations`, { ...data, projectId });
-  }
-
-  acceptInvitation(projectId: string, invitationId: string): Promise<ApiResponse<ProjectInvitation>> {
-    return this.client.post<ProjectInvitation>(`/api/projects/${projectId}/invitations/${invitationId}/accept`);
-  }
-
-  rejectInvitation(projectId: string, invitationId: string): Promise<ApiResponse<ProjectInvitation>> {
-    return this.client.post<ProjectInvitation>(`/api/projects/${projectId}/invitations/${invitationId}/reject`);
-  }
-
-  deleteInvitation(projectId: string, invitationId: string): Promise<ApiResponse<void>> {
-    return this.client.delete(`/api/projects/${projectId}/invitations/${invitationId}`);
-  }
-
-  getInvitationsByUserId(userId: string): Promise<ApiResponse<ProjectInvitation[]>> {
-    return this.client.get<ProjectInvitation[]>(`/api/project-invitations/user/${userId}`);
   }
 }

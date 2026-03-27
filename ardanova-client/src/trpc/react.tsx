@@ -45,9 +45,17 @@ export function TRPCReactProvider(props: { children: React.ReactNode }) {
     api.createClient({
       links: [
         loggerLink({
-          enabled: (op) =>
-            process.env.NODE_ENV === "development" ||
-            (op.direction === "down" && op.result instanceof Error),
+          /**
+           * In dev, logging every query/mutation spams the console and is often
+           * shown as "errors" by React DevTools (`hook.js` / overrideMethod).
+           * Set `NEXT_PUBLIC_TRPC_DEBUG=true` when you need tRPC traffic logs.
+           */
+          enabled: (op) => {
+            if (op.direction === "down" && op.result instanceof Error) {
+              return true;
+            }
+            return process.env.NEXT_PUBLIC_TRPC_DEBUG === "true";
+          },
         }),
         httpBatchStreamLink({
           // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -485,6 +485,7 @@ export default function CreateProjectPage() {
   };
 
   const handleSubmit = async (publish: boolean) => {
+    const partialWarnings: string[] = [];
     try {
       // 1. Create the project first
       // Build categories list, replacing "OTHER" with the custom value
@@ -540,8 +541,10 @@ export default function CreateProjectPage() {
             userId: session.user.id,
             role: "FOUNDER",
           });
-        } catch {
-          // Non-critical: creator might already be added by backend
+        } catch (e) {
+          partialWarnings.push(
+            `Founder membership: ${e instanceof Error ? e.message : "could not be saved"}`
+          );
         }
       }
 
@@ -572,10 +575,18 @@ export default function CreateProjectPage() {
             isRemote: true,
             projectRole: (role.projectRole || undefined) as "FOUNDER" | "LEADER" | "CORE_CONTRIBUTOR" | "CONTRIBUTOR" | "OBSERVER" | undefined,
           });
-        } catch (err) {
-          console.error(`Failed to create role "${role.title}":`, err);
-          toast.error(`Failed to save role "${role.title}"`);
+        } catch (e) {
+          partialWarnings.push(
+            `Role "${role.title}": ${e instanceof Error ? e.message : "opportunity could not be created"}`
+          );
         }
+      }
+
+      if (partialWarnings.length > 0) {
+        toast.warning("Project created, but with some issues.", {
+          description: partialWarnings.join('. '),
+          duration: 8000,
+        });
       }
 
       router.push(`/projects/${project.slug}`);

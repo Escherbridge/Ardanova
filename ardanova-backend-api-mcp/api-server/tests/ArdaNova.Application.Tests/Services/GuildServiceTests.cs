@@ -12,6 +12,7 @@ using Moq;
 public class GuildServiceTests
 {
     private readonly Mock<IRepository<Guild>> _repositoryMock;
+    private readonly Mock<IRepository<GuildMember>> _memberRepositoryMock;
     private readonly Mock<IUnitOfWork> _unitOfWorkMock;
     private readonly Mock<IMapper> _mapperMock;
     private readonly GuildService _sut;
@@ -19,9 +20,14 @@ public class GuildServiceTests
     public GuildServiceTests()
     {
         _repositoryMock = new Mock<IRepository<Guild>>();
+        _memberRepositoryMock = new Mock<IRepository<GuildMember>>();
         _unitOfWorkMock = new Mock<IUnitOfWork>();
         _mapperMock = new Mock<IMapper>();
-        _sut = new GuildService(_repositoryMock.Object, _unitOfWorkMock.Object, _mapperMock.Object);
+        _sut = new GuildService(
+            _repositoryMock.Object,
+            _memberRepositoryMock.Object,
+            _unitOfWorkMock.Object,
+            _mapperMock.Object);
     }
 
     [Fact]
@@ -116,6 +122,9 @@ public class GuildServiceTests
         _repositoryMock.Setup(r => r.AddAsync(It.IsAny<Guild>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((Guild g, CancellationToken _) => g);
 
+        _memberRepositoryMock.Setup(r => r.AddAsync(It.IsAny<GuildMember>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((GuildMember m, CancellationToken _) => m);
+
         _unitOfWorkMock.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(1);
 
@@ -128,6 +137,9 @@ public class GuildServiceTests
         result.IsSuccess.Should().BeTrue();
         result.Value.Should().NotBeNull();
         result.Value!.Name.Should().Be("New Guild");
+        _memberRepositoryMock.Verify(
+            r => r.AddAsync(It.Is<GuildMember>(m => m.userId == ownerId && m.role == "OWNER"), It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 
     [Fact]
