@@ -584,9 +584,10 @@ export default function CreateProjectPage() {
       }
 
       if (partialWarnings.length > 0) {
-        window.alert(
-          `Project created, but some optional steps failed:\n\n${partialWarnings.join("\n\n")}\n\nYou can add roles or members from the project page if needed.`
-        );
+        toast.warning("Project created, but with some issues.", {
+          description: partialWarnings.join('. '),
+          duration: 8000,
+        });
       }
 
       router.push(`/projects/${project.slug}`);
