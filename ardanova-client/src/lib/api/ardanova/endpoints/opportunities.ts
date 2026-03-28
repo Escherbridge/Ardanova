@@ -19,19 +19,27 @@ export interface Opportunity {
   guildId?: string | null;
   taskId?: string | null;
   status?: string | null;
+  slug?: string | null;
+  origin?: string | null;
+  applicationsCount?: number;
+  bidsCount?: number;
+  poster?: { id: string; name?: string | null; image?: string | null };
   createdAt: string;
   updatedAt: string;
-  [key: string]: unknown;
 }
 
 export interface OpportunityApplication {
   id: string;
   opportunityId: string;
   userId: string;
+  applicantId?: string;
+  coverLetter?: string;
+  portfolio?: string | null;
+  additionalInfo?: string | null;
   status?: string | null;
   message?: string | null;
   appliedAt: string;
-  [key: string]: unknown;
+  applicant?: { id: string; name?: string | null; image?: string | null; email?: string | null };
 }
 
 export interface CreateOpportunityDto {
@@ -100,7 +108,7 @@ export interface OpportunityCommentDto {
   parentId?: string | null;
   createdAt: string;
   updatedAt: string;
-  [key: string]: unknown;
+  author?: { id: string; name?: string | null; image?: string | null; email?: string | null };
 }
 
 export interface CreateOpportunityCommentDto {
@@ -108,6 +116,17 @@ export interface CreateOpportunityCommentDto {
   userId: string;
   content: string;
   parentId?: string;
+}
+
+export interface OpportunityUpdate {
+  id: string;
+  opportunityId: string;
+  userId: string;
+  title: string;
+  content: string;
+  images?: string | null;
+  createdAt: string;
+  user?: { id: string; name?: string | null; image?: string | null };
 }
 
 export interface SearchOpportunitiesParams {
@@ -152,7 +171,9 @@ export class OpportunitiesEndpoint {
     if (params.sourceType) sp.set("sourceType", params.sourceType ?? "");
     sp.set("page", String(params.page ?? 1));
     sp.set("pageSize", String(params.pageSize ?? 10));
-    return this.client.get(`/api/opportunities/search?${sp.toString()}`);
+    return this.client.get<PagedResult<Opportunity> & { totalCount?: number; totalPages?: number; hasNextPage?: boolean }>(
+      `/api/opportunities/search?${sp.toString()}`
+    );
   }
 
   create(data: CreateOpportunityDto): Promise<ApiResponse<Opportunity>> {
@@ -186,15 +207,15 @@ export class OpportunitiesEndpoint {
     return this.client.patch<OpportunityApplication>(`/api/opportunities/applications/${applicationId}/status`, data);
   }
 
-  getUpdates(opportunityId: string): Promise<ApiResponse<unknown[]>> {
-    return this.client.get<unknown[]>(`/api/opportunities/${opportunityId}/updates`);
+  getUpdates(opportunityId: string): Promise<ApiResponse<OpportunityUpdate[]>> {
+    return this.client.get<OpportunityUpdate[]>(`/api/opportunities/${opportunityId}/updates`);
   }
 
   createUpdate(
     opportunityId: string,
     data: CreateOpportunityUpdateDto
-  ): Promise<ApiResponse<unknown>> {
-    return this.client.post(`/api/opportunities/${opportunityId}/updates`, data);
+  ): Promise<ApiResponse<OpportunityUpdate>> {
+    return this.client.post<OpportunityUpdate>(`/api/opportunities/${opportunityId}/updates`, data);
   }
 
   deleteUpdate(updateId: string): Promise<ApiResponse<void>> {
@@ -208,8 +229,8 @@ export class OpportunitiesEndpoint {
   addComment(
     opportunityId: string,
     data: CreateOpportunityCommentDto
-  ): Promise<ApiResponse<unknown>> {
-    return this.client.post(`/api/opportunities/${opportunityId}/comments`, data);
+  ): Promise<ApiResponse<OpportunityCommentDto>> {
+    return this.client.post<OpportunityCommentDto>(`/api/opportunities/${opportunityId}/comments`, data);
   }
 
   deleteComment(commentId: string): Promise<ApiResponse<void>> {

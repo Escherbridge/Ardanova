@@ -139,3 +139,8 @@ public record CreateProposalCommentDto
     public required string Content { get; init; }
     public string? ParentId { get; init; }
 }
+
+public record UpdateProposalCommentDto
+{
+    public required string Content { get; init; }
+}

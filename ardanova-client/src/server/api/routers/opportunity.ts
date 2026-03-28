@@ -411,6 +411,7 @@ export const opportunityRouter = createTRPCRouter({
       }
 
       const response = await apiClient.opportunities.createUpdate(input.opportunityId, {
+        opportunityId: input.opportunityId,
         userId,
         title: input.title,
         content: input.content,
@@ -477,6 +478,7 @@ export const opportunityRouter = createTRPCRouter({
       const userId = ctx.session.user.id;
 
       const response = await apiClient.opportunities.addComment(input.opportunityId, {
+        opportunityId: input.opportunityId,
         userId,
         content: input.content,
         parentId: input.parentId,

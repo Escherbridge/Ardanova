@@ -3,6 +3,7 @@
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { api } from "~/trpc/react";
+import type { CredentialChainDataResponse } from "~/lib/api/ardanova/endpoints/credential-utility";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "~/components/ui/card";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
@@ -51,7 +52,7 @@ export default function CredentialDetailPage() {
     );
   }
 
-  const { credential, asaInfo, isOnChain, chainVerified } = chainData;
+  const { credential, asaInfo, isOnChain, chainVerified } = chainData as CredentialChainDataResponse;
   const scope = credential.projectId ? "PROJECT" : "GUILD";
   const statusCfg = statusConfig[credential.status as keyof typeof statusConfig];
 

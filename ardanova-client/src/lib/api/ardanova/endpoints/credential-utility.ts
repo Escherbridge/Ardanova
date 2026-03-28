@@ -23,12 +23,21 @@ export interface UpdateTierDto {
 
 export interface AsaInfo {
   assetId?: string;
-  [key: string]: unknown;
+  assetName?: string;
+  unitName?: string;
+  total?: number;
+  decimals?: number;
+  defaultFrozen?: boolean;
+  isDeleted?: boolean;
+  creatorAddress?: string;
 }
 
-export interface CredentialWithChainData extends MembershipCredential {
-  asaInfo?: AsaInfo;
-  [key: string]: unknown;
+/** Response from `GET .../chain-data` */
+export interface CredentialChainDataResponse {
+  credential: MembershipCredential;
+  asaInfo?: AsaInfo | null;
+  isOnChain: boolean;
+  chainVerified: boolean;
 }
 
 export class CredentialUtilityEndpoint {
@@ -57,7 +66,7 @@ export class CredentialUtilityEndpoint {
     return this.client.post<MembershipCredential>(`/api/CredentialUtility/${encodeURIComponent(id)}/retry-mint`, {});
   }
 
-  getChainData(id: string): Promise<ApiResponse<CredentialWithChainData>> {
-    return this.client.get<CredentialWithChainData>(`/api/CredentialUtility/${encodeURIComponent(id)}/chain-data`);
+  getChainData(id: string): Promise<ApiResponse<CredentialChainDataResponse>> {
+    return this.client.get<CredentialChainDataResponse>(`/api/CredentialUtility/${encodeURIComponent(id)}/chain-data`);
   }
 }

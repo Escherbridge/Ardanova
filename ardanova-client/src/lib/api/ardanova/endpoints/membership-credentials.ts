@@ -25,7 +25,7 @@ export interface MembershipCredential {
   updatedAt?: string;
   revokedAt?: string | null;
   mintAddress?: string | null;
-  [key: string]: unknown;
+  assetId?: string | null;
 }
 
 export interface GrantMembershipCredentialDto {
@@ -37,13 +37,13 @@ export interface GrantMembershipCredentialDto {
 }
 
 export interface RevokeMembershipCredentialDto {
-  reason?: string;
-  [key: string]: unknown;
+  revokeTxHash?: string;
 }
 
 export interface UpdateMembershipCredentialMintDto {
-  mintAddress?: string | null;
-  [key: string]: unknown;
+  mintTxHash?: string;
+  assetId?: string | null;
+  metadataUri?: string | null;
 }
 
 export interface UpdateCredentialTierDto {

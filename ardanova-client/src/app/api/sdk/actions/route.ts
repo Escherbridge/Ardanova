@@ -1,17 +1,14 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { apiClient } from "~/lib/api";
 import { getSessionOrError } from "../_lib/session";
 
 /**
  * POST /api/sdk/actions
  *
- * Report an in-game action to earn equity/XP rewards.
- * The platform determines the reward based on configured task allocations.
- * Games never directly mint or transfer tokens — they only report actions.
+ * Report an in-game action. Awards XP via the platform XP API (`source: GAME_SDK`).
  *
  * Body: { actionType: string, taskId: string, metadata?: object }
  * Returns: { awarded: boolean, tokensEarned: number, newBalance: number, message: string }
- *
- * This will be fully implemented when the tokenomics backend (Track 09) is complete.
  */
 export async function POST(request: NextRequest) {
   const { session, error } = await getSessionOrError();
@@ -31,19 +28,29 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // TODO: Wire up to game action processing backend once Track 09 is implemented
-    // const response = await apiClient.gameActions.report({
-    //   userId: session!.user.id,
-    //   actionType: body.actionType,
-    //   taskId: body.taskId,
-    //   metadata: body.metadata,
-    // });
+    const award = await apiClient.xpEvents.award({
+      userId: session!.user.id,
+      eventType: body.actionType,
+      amount: 1,
+      source: "GAME_SDK",
+      sourceId: body.taskId,
+      metadata: body.metadata ? JSON.stringify(body.metadata) : undefined,
+    });
+
+    if (award.error || !award.data) {
+      return NextResponse.json({
+        awarded: false,
+        tokensEarned: 0,
+        newBalance: 0,
+        message: award.error ?? "Could not record action",
+      });
+    }
 
     return NextResponse.json({
-      awarded: false,
+      awarded: true,
       tokensEarned: 0,
       newBalance: 0,
-      message: "Game action recorded — tokenomics backend not yet active",
+      message: "Action recorded and XP awarded",
     });
   } catch {
     return NextResponse.json(

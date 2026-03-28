@@ -148,7 +148,7 @@ export type {
 } from "./endpoints/membership-credentials";
 export type {
   AsaInfo,
-  CredentialWithChainData,
+  CredentialChainDataResponse,
   CheckAutoGrantRequest,
   UpdateTierDto,
 } from "./endpoints/credential-utility";

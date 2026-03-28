@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
+import { createTRPCRouter, adminProcedure, protectedProcedure } from "~/server/api/trpc";
 import { apiClient } from "~/lib/api";
 
 // ---------------------------------------------------------------------------
@@ -42,7 +42,7 @@ export const payoutsRouter = createTRPCRouter({
       return response.data;
     }),
 
-  processPayout: protectedProcedure
+  processPayout: adminProcedure
     .input(z.object({ payoutRequestId: z.string().min(1) }))
     .mutation(async ({ input }) => {
       const response = await apiClient.payouts.processPayout(input.payoutRequestId);
@@ -57,7 +57,7 @@ export const payoutsRouter = createTRPCRouter({
       return response.data;
     }),
 
-  cancelPayout: protectedProcedure
+  cancelPayout: adminProcedure
     .input(z.object({ payoutRequestId: z.string().min(1) }))
     .mutation(async ({ input }) => {
       const response = await apiClient.payouts.cancelPayout(input.payoutRequestId);

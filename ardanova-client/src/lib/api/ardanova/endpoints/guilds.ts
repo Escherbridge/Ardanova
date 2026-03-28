@@ -7,12 +7,22 @@ export interface Guild {
   slug?: string | null;
   description?: string | null;
   logoUrl?: string | null;
+  /** Backend `Logo` (camelCase `logo`); may mirror `logoUrl` depending on API version */
+  logo?: string | null;
   website?: string | null;
+  email?: string;
+  phone?: string | null;
+  address?: string | null;
+  portfolio?: string | null;
+  specialties?: string | null;
   isVerified: boolean;
+  rating?: number | null;
+  reviewsCount?: number;
+  projectsCount?: number;
+  membersCount?: number;
   ownerId: string;
   createdAt: string;
   updatedAt: string;
-  [key: string]: unknown;
 }
 
 export interface GuildMember {
@@ -22,7 +32,6 @@ export interface GuildMember {
   role?: string | null;
   joinedAt: string;
   user?: { id: string; name?: string; email: string; image?: string };
-  [key: string]: unknown;
 }
 
 export interface GuildReview {
@@ -33,7 +42,6 @@ export interface GuildReview {
   title?: string | null;
   content?: string | null;
   createdAt: string;
-  [key: string]: unknown;
 }
 
 export interface CreateGuildDto {
@@ -46,7 +54,6 @@ export interface CreateGuildDto {
   email: string;
   phone?: string;
   ownerId: string;
-  [key: string]: unknown;
 }
 
 export interface UpdateGuildDto {
@@ -54,20 +61,23 @@ export interface UpdateGuildDto {
   slug?: string;
   description?: string;
   logoUrl?: string;
+  logo?: string | null;
   website?: string;
-  [key: string]: unknown;
+  email?: string;
+  phone?: string | null;
+  address?: string | null;
+  portfolio?: string | null;
+  specialties?: string | null;
 }
 
 export interface CreateGuildMemberDto {
   guildId?: string;
   userId: string;
   role?: string;
-  [key: string]: unknown;
 }
 
 export interface UpdateGuildMemberDto {
   role?: string;
-  [key: string]: unknown;
 }
 
 export interface CreateGuildReviewDto {
@@ -76,14 +86,21 @@ export interface CreateGuildReviewDto {
   rating: number;
   title?: string;
   content?: string;
-  [key: string]: unknown;
 }
 
 export interface UpdateGuildReviewDto {
   rating?: number;
   title?: string;
   content?: string;
-  [key: string]: unknown;
+}
+
+export interface GuildUpdate {
+  id: string;
+  guildId?: string;
+  title: string;
+  content: string;
+  createdAt: string;
+  updatedAt?: string;
 }
 
 // Zod schemas for validation (re-exported from index)
@@ -126,6 +143,12 @@ export const UpdateGuildSchema = z.object({
   description: z.string().optional(),
   logoUrl: z.string().url().optional(),
   website: z.string().url().optional(),
+  email: z.string().email().optional(),
+  phone: z.string().optional(),
+  address: z.string().optional(),
+  logo: z.string().optional(),
+  portfolio: z.string().optional(),
+  specialties: z.string().optional(),
 });
 
 export const GuildMemberApiSchema = z.object({
@@ -237,12 +260,12 @@ export class GuildsEndpoint {
     return this.client.delete(`/api/guilds/${guildId}/reviews/${reviewId}`);
   }
 
-  getUpdates(guildId: string): Promise<ApiResponse<unknown[]>> {
-    return this.client.get<unknown[]>(`/api/guilds/${guildId}/updates`);
+  getUpdates(guildId: string): Promise<ApiResponse<GuildUpdate[]>> {
+    return this.client.get<GuildUpdate[]>(`/api/guilds/${guildId}/updates`);
   }
 
-  createUpdate(guildId: string, data: { title: string; content: string }): Promise<ApiResponse<unknown>> {
-    return this.client.post(`/api/guilds/${guildId}/updates`, data);
+  createUpdate(guildId: string, data: { title: string; content: string }): Promise<ApiResponse<GuildUpdate>> {
+    return this.client.post<GuildUpdate>(`/api/guilds/${guildId}/updates`, data);
   }
 
   deleteUpdate(guildId: string, updateId: string): Promise<ApiResponse<void>> {

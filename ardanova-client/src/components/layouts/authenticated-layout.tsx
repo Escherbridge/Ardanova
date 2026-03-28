@@ -6,8 +6,11 @@ import { AppSidebar } from "~/components/app-sidebar";
 
 export default async function AuthenticatedLayout({
   children,
+  wide,
 }: {
   children: React.ReactNode;
+  /** When true, main content uses full width (e.g. chats, tasks). */
+  wide?: boolean;
 }) {
   const session = await auth();
 
@@ -20,7 +23,13 @@ export default async function AuthenticatedLayout({
       <TRPCReactProvider>
         <div className={"flex min-h-screen"}>
           <AppSidebar user={session.user} />
-          <main className="flex-1 min-w-0 transition-all duration-300">
+          <main
+            className={
+              wide
+                ? "flex-1 min-w-0 w-full transition-all duration-300"
+                : "flex-1 min-w-0 max-w-6xl mx-auto w-full px-4 sm:px-6 transition-all duration-300"
+            }
+          >
             {children}
           </main>
         </div>

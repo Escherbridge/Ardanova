@@ -91,6 +91,34 @@ public class MappingProfile : Profile
             .ForMember(dest => dest.Comment, opt => opt.MapFrom(src => src.comment))
             .ForMember(dest => dest.CreatedAt, opt => opt.MapFrom(src => src.createdAt));
 
+        // Post / feed
+        CreateMap<Post, PostDto>()
+            .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.id))
+            .ForMember(dest => dest.AuthorId, opt => opt.MapFrom(src => src.authorId))
+            .ForMember(dest => dest.ProjectId, opt => opt.MapFrom(src => src.projectId))
+            .ForMember(dest => dest.GuildId, opt => opt.MapFrom(src => src.guildId))
+            .ForMember(dest => dest.Type, opt => opt.MapFrom(src => src.type.ToString()))
+            .ForMember(dest => dest.Visibility, opt => opt.MapFrom(src => src.visibility.ToString()))
+            .ForMember(dest => dest.Title, opt => opt.MapFrom(src => src.title))
+            .ForMember(dest => dest.Content, opt => opt.MapFrom(src => src.content))
+            .ForMember(dest => dest.Metadata, opt => opt.MapFrom(src => src.metadata))
+            .ForMember(dest => dest.LikesCount, opt => opt.MapFrom(src => src.likesCount))
+            .ForMember(dest => dest.CommentsCount, opt => opt.MapFrom(src => src.commentsCount))
+            .ForMember(dest => dest.SharesCount, opt => opt.MapFrom(src => src.sharesCount))
+            .ForMember(dest => dest.ViewsCount, opt => opt.MapFrom(src => src.viewsCount))
+            .ForMember(dest => dest.IsPinned, opt => opt.MapFrom(src => src.isPinned))
+            .ForMember(dest => dest.CreatedAt, opt => opt.MapFrom(src => src.createdAt))
+            .ForMember(dest => dest.UpdatedAt, opt => opt.MapFrom(src => src.updatedAt));
+        CreateMap<PostComment, PostCommentDto>()
+            .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.id))
+            .ForMember(dest => dest.PostId, opt => opt.MapFrom(src => src.postId))
+            .ForMember(dest => dest.AuthorId, opt => opt.MapFrom(src => src.authorId))
+            .ForMember(dest => dest.ParentId, opt => opt.MapFrom(src => src.parentId))
+            .ForMember(dest => dest.Content, opt => opt.MapFrom(src => src.content))
+            .ForMember(dest => dest.LikesCount, opt => opt.MapFrom(src => src.likesCount))
+            .ForMember(dest => dest.CreatedAt, opt => opt.MapFrom(src => src.createdAt))
+            .ForMember(dest => dest.UpdatedAt, opt => opt.MapFrom(src => src.updatedAt));
+
         // Product mappings (entity Product -> DTO ProductDto)
         CreateMap<Product, ProductDto>()
             .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.id))

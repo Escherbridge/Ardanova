@@ -29,6 +29,8 @@ export default tseslint.config(
         { argsIgnorePattern: "^_" },
       ],
       "@typescript-eslint/require-await": "off",
+      // Requires `strictNullChecks`; project uses `strict: false` in tsconfig.
+      "@typescript-eslint/prefer-nullish-coalescing": "off",
       "@typescript-eslint/no-misused-promises": [
         "error",
         { checksVoidReturn: { attributes: false } },

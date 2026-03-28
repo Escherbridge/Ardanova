@@ -165,6 +165,25 @@ public class GovernanceController : ControllerBase
             : ToActionResult(result);
     }
 
+    [HttpPut("proposals/{id}/comments/{commentId}")]
+    public async Task<IActionResult> UpdateProposalComment(
+        string id,
+        string commentId,
+        [FromQuery] string userId,
+        [FromBody] UpdateProposalCommentDto dto,
+        CancellationToken ct)
+    {
+        var result = await _governanceService.UpdateProposalCommentAsync(id, commentId, userId, dto, ct);
+        return ToActionResult(result);
+    }
+
+    [HttpDelete("proposals/{id}/comments/{commentId}")]
+    public async Task<IActionResult> DeleteProposalComment(string id, string commentId, [FromQuery] string userId, CancellationToken ct)
+    {
+        var result = await _governanceService.DeleteProposalCommentAsync(id, commentId, userId, ct);
+        return result.IsSuccess ? NoContent() : ToActionResult(result);
+    }
+
     private IActionResult ToActionResult<T>(Result<T> result)
     {
         if (result.IsSuccess)

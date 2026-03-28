@@ -1,12 +1,11 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { apiClient } from "~/lib/api";
 import { getSessionOrError } from "../../../_lib/session";
 
 /**
  * GET /api/sdk/me/token-balances/[projectId]
  *
- * Get token balance for a specific project for the current user.
- * This will be implemented when the tokenomics backend (Track 09) is complete.
- * For now returns a zero balance placeholder.
+ * `projectId` is the project **token config** id (`projectTokenConfigId`) used by the token balance API.
  */
 export async function GET(
   _request: NextRequest,
@@ -17,11 +16,15 @@ export async function GET(
 
   const { projectId } = await params;
 
-  // TODO: Wire up to token balance backend once Track 09 is implemented
-  // const response = await apiClient.tokenBalances.getByProjectAndUser(projectId, session!.user.id);
+  const response = await apiClient.tokenBalances.getPortfolio(session!.user.id);
+  if (response.error) {
+    return NextResponse.json({ error: response.error }, { status: response.status });
+  }
+
+  const row = response.data?.balances?.find((b) => b.projectTokenConfigId === projectId);
   return NextResponse.json({
     userId: session!.user.id,
-    projectId,
-    balance: 0,
+    projectTokenConfigId: projectId,
+    balance: row?.balance ?? 0,
   });
 }

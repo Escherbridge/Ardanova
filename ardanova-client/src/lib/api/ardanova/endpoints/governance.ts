@@ -24,8 +24,9 @@ export interface Vote {
   choice: number;
   weight: number;
   reason?: string | null;
+  txHash?: string | null;
   createdAt: string;
-  [key: string]: unknown;
+  voter?: { id: string; name?: string | null; image?: string | null };
 }
 
 export interface ProposalVoteSummary {

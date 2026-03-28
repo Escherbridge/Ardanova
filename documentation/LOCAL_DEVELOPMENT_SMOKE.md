@@ -102,6 +102,7 @@ Services and ports are defined in [`docker-compose.yml`](../docker-compose.yml).
 | **API 401 / 403 from Next to .NET** | `API_KEY` mismatch | Align `.env` `API_KEY` with backend configuration |
 | **Google sign-in fails** | OAuth console misconfiguration | Add authorized origins + redirect for `http://localhost:3000` |
 | **CORS / SignalR** | Cross-origin | Backend allows configured origins; test from same host first |
+| **`NU1301` / Unable to load the service index for `api.nuget.org`** | No route to NuGet, proxy, firewall, DNS, or TLS/CA issues | Run [`scripts/verify-nuget-feed.sh`](../ardanova-backend-api-mcp/scripts/verify-nuget-feed.sh); see [NUGET_NU1301.md](./NUGET_NU1301.md) |
 
 ---
 
@@ -109,3 +110,4 @@ Services and ports are defined in [`docker-compose.yml`](../docker-compose.yml).
 
 - [README.md](../README.md) — full stack overview and installation
 - [QA-TESTING-CHECKLIST.md](../QA-TESTING-CHECKLIST.md) — comprehensive regression (not required for initial smoke)
+- [NUGET_NU1301.md](./NUGET_NU1301.md) — when `dotnet restore` cannot reach nuget.org

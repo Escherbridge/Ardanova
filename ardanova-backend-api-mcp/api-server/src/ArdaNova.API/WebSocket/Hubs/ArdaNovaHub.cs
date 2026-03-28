@@ -1,4 +1,5 @@
 using ArdaNova.API.WebSocket.Clients;
+using ArdaNova.Application.Services.Interfaces;
 using Microsoft.AspNetCore.SignalR;
 
 namespace ArdaNova.API.WebSocket.Hubs;
@@ -11,11 +12,50 @@ public class ArdaNovaHub : Hub<IArdaNovaHubClient>
 {
     private readonly ILogger<ArdaNovaHub> _logger;
     private readonly IConfiguration _configuration;
+    private readonly IProjectMemberService _projectMemberService;
+    private readonly IGuildService _guildService;
+    private readonly IGuildMemberService _guildMemberService;
 
-    public ArdaNovaHub(ILogger<ArdaNovaHub> logger, IConfiguration configuration)
+    private static readonly object TypingLock = new();
+    private static readonly Dictionary<string, List<DateTime>> TypingWindows = new();
+
+    private static bool IsTypingAllowed(string userId, string conversationId)
+    {
+        const int maxEvents = 10;
+        var window = TimeSpan.FromSeconds(5);
+        var key = $"{userId}:{conversationId}";
+        var now = DateTime.UtcNow;
+        lock (TypingLock)
+        {
+            if (!TypingWindows.TryGetValue(key, out var list))
+            {
+                list = new List<DateTime>();
+                TypingWindows[key] = list;
+            }
+
+            list.RemoveAll(t => now - t > window);
+            if (list.Count >= maxEvents)
+            {
+                return false;
+            }
+
+            list.Add(now);
+            return true;
+        }
+    }
+
+    public ArdaNovaHub(
+        ILogger<ArdaNovaHub> logger,
+        IConfiguration configuration,
+        IProjectMemberService projectMemberService,
+        IGuildService guildService,
+        IGuildMemberService guildMemberService)
     {
         _logger = logger;
         _configuration = configuration;
+        _projectMemberService = projectMemberService;
+        _guildService = guildService;
+        _guildMemberService = guildMemberService;
     }
 
     /// <summary>
@@ -110,15 +150,31 @@ public class ArdaNovaHub : Hub<IArdaNovaHubClient>
         var connectionId = Context.ConnectionId;
         var groupName = $"project:{projectId}";
 
-        // TODO: Optionally validate that the user has access to this project
-        // by injecting IProjectService and checking membership
+        if (string.IsNullOrEmpty(userId))
+        {
+            _logger.LogWarning(
+                "SubscribeToProject denied: missing user id (connection {ConnectionId})",
+                connectionId);
+            return;
+        }
+
+        var membersResult = await _projectMemberService.GetByProjectIdAsync(projectId, CancellationToken.None);
+        if (!membersResult.IsSuccess || membersResult.Value is null ||
+            membersResult.Value.All(m => m.UserId != userId))
+        {
+            _logger.LogWarning(
+                "SubscribeToProject denied: user {UserId} is not a member of project {ProjectId}",
+                userId,
+                projectId);
+            return;
+        }
 
         await Groups.AddToGroupAsync(connectionId, groupName);
 
         _logger.LogInformation(
             "Client {ConnectionId} (User: {UserId}) subscribed to project {ProjectId}",
             connectionId,
-            userId ?? "anonymous",
+            userId,
             projectId);
     }
 
@@ -149,14 +205,41 @@ public class ArdaNovaHub : Hub<IArdaNovaHubClient>
         var connectionId = Context.ConnectionId;
         var groupName = $"guild:{guildId}";
 
-        // TODO: Optionally validate that the user is a member of this guild
+        if (string.IsNullOrEmpty(userId))
+        {
+            _logger.LogWarning(
+                "SubscribeToGuild denied: missing user id (connection {ConnectionId})",
+                connectionId);
+            return;
+        }
+
+        var guildResult = await _guildService.GetByIdAsync(guildId, CancellationToken.None);
+        if (!guildResult.IsSuccess || guildResult.Value is null)
+        {
+            _logger.LogWarning("SubscribeToGuild denied: guild {GuildId} not found", guildId);
+            return;
+        }
+
+        if (guildResult.Value.OwnerId != userId)
+        {
+            var membersResult = await _guildMemberService.GetByGuildIdAsync(guildId, CancellationToken.None);
+            if (!membersResult.IsSuccess || membersResult.Value is null ||
+                membersResult.Value.All(m => m.UserId != userId))
+            {
+                _logger.LogWarning(
+                    "SubscribeToGuild denied: user {UserId} is not a member of guild {GuildId}",
+                    userId,
+                    guildId);
+                return;
+            }
+        }
 
         await Groups.AddToGroupAsync(connectionId, groupName);
 
         _logger.LogInformation(
             "Client {ConnectionId} (User: {UserId}) subscribed to guild {GuildId}",
             connectionId,
-            userId ?? "anonymous",
+            userId,
             guildId);
     }
 
@@ -319,8 +402,14 @@ public class ArdaNovaHub : Hub<IArdaNovaHubClient>
             return;
         }
 
-        // TODO: Add rate limiting to prevent typing indicator spam
-        // Consider implementing a sliding window (e.g., max 10 indicators per 5 seconds)
+        if (!IsTypingAllowed(userId, conversationId))
+        {
+            _logger.LogDebug(
+                "Typing indicator rate limited for user {UserId} in conversation {ConversationId}",
+                userId,
+                conversationId);
+            return;
+        }
 
         var groupName = $"conversation:{conversationId}";
 
