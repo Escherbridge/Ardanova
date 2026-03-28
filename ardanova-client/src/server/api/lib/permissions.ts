@@ -27,8 +27,10 @@ export async function canCreateGuildOpportunity(
     }
 
     const membership = membersResponse.data.find(
-      (m: { userId: string; role: string }) =>
-        m.userId === userId && ["OWNER", "ADMIN", "MANAGER"].includes(m.role)
+      (m) =>
+        m.userId === userId &&
+        !!m.role &&
+        ["OWNER", "ADMIN", "MANAGER"].includes(m.role)
     );
 
     if (membership) {

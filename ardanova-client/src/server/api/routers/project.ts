@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { createTRPCRouter, protectedProcedure, publicProcedure } from "~/server/api/trpc";
+import { createTRPCRouter, adminProcedure, protectedProcedure, publicProcedure } from "~/server/api/trpc";
 import { apiClient } from "~/lib/api";
 
 // Project type enum - what kind of project this is
@@ -441,7 +441,7 @@ export const projectRouter = createTRPCRouter({
     }),
 
   // Set featured status
-  setFeatured: protectedProcedure
+  setFeatured: adminProcedure
     .input(z.object({ id: z.string(), featured: z.boolean() }))
     .mutation(async ({ input }) => {
       const { id, featured } = input;
@@ -1013,7 +1013,7 @@ export const projectRouter = createTRPCRouter({
           const granted = await apiClient.membershipCredentials.grant({
             projectId: proposal.data.projectId,
             userId,
-            grantedVia: 'FOUNDER',
+            grantedVia: "FOUNDER",
           });
           if (granted.error || !granted.data) {
             throw new Error("Failed to auto-grant founder credential. Please try again.");
