@@ -81,8 +81,8 @@ export const authConfig = {
 
           return true;
         } catch (error) {
-          console.warn("[NextAuth] Database not ready (fresh DB?), allowing sign-in:", (error as Error).message);
-          return true;
+          console.error("[NextAuth] signIn DB error — denying sign-in:", (error as Error).message);
+          return false;
         }
       }
 

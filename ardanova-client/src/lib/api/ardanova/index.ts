@@ -29,6 +29,13 @@ import { PayoutsEndpoint } from "./endpoints/payouts";
 import { TreasuryEndpoint } from "./endpoints/treasury";
 import { ProjectGatesEndpoint } from "./endpoints/project-gates";
 import { ExchangeEndpoint } from "./endpoints/exchange";
+import { PostsEndpoint } from "./endpoints/posts";
+import { NotificationsEndpoint } from "./endpoints/notifications";
+import { ActivitiesEndpoint } from "./endpoints/activities";
+import { WalletsEndpoint } from "./endpoints/wallets";
+import { AttachmentsEndpoint } from "./endpoints/attachments";
+import { TaskEscrowsEndpoint } from "./endpoints/task-escrows";
+import { DelegatedVotesEndpoint } from "./endpoints/delegated-votes";
 
 // Re-export types from endpoints
 export type {
@@ -141,7 +148,7 @@ export type {
 } from "./endpoints/membership-credentials";
 export type {
   AsaInfo,
-  CredentialWithChainData,
+  CredentialChainDataResponse,
   CheckAutoGrantRequest,
   UpdateTierDto,
 } from "./endpoints/credential-utility";
@@ -232,6 +239,43 @@ export type {
   TreasuryTransactionDto,
   TreasuryTransactionType,
 } from "./endpoints/treasury";
+export type {
+  Post,
+  PostType,
+  PostVisibility,
+  CreatePostDto,
+  UpdatePostDto,
+  PostComment,
+  CreatePostCommentDto,
+  CreatePostShareDto,
+} from "./endpoints/posts";
+export type {
+  Notification,
+  CreateNotificationDto,
+  NotificationSummary,
+} from "./endpoints/notifications";
+export type { Activity, CreateActivityDto } from "./endpoints/activities";
+export type { Wallet, CreateWalletDto, UpdateWalletDto } from "./endpoints/wallets";
+export type {
+  Attachment,
+  CreateAttachmentDto,
+  UploadRequestDto,
+  UploadResponseDto,
+  BulkUploadRequestDto,
+  BulkUploadResponseDto,
+  DownloadResponseDto,
+} from "./endpoints/attachments";
+export type {
+  TaskEscrow,
+  CreateTaskEscrowDto,
+  ReleaseEscrowDto,
+  RefundEscrowDto,
+} from "./endpoints/task-escrows";
+export type {
+  DelegatedVote,
+  CreateDelegatedVoteDto,
+  UpdateDelegatedVoteDto,
+} from "./endpoints/delegated-votes";
 
 // Re-export schemas for validation
 export {
@@ -280,6 +324,13 @@ export class ArdaNovaApiClient extends BaseApiClient {
   readonly treasury: TreasuryEndpoint;
   readonly projectGates: ProjectGatesEndpoint;
   readonly exchange: ExchangeEndpoint;
+  readonly posts: PostsEndpoint;
+  readonly notifications: NotificationsEndpoint;
+  readonly activities: ActivitiesEndpoint;
+  readonly wallets: WalletsEndpoint;
+  readonly attachments: AttachmentsEndpoint;
+  readonly taskEscrows: TaskEscrowsEndpoint;
+  readonly delegatedVotes: DelegatedVotesEndpoint;
 
   constructor(config: BaseApiClientConfig) {
     super(config);
@@ -312,6 +363,13 @@ export class ArdaNovaApiClient extends BaseApiClient {
     this.treasury = new TreasuryEndpoint(this);
     this.projectGates = new ProjectGatesEndpoint(this);
     this.exchange = new ExchangeEndpoint(this);
+    this.posts = new PostsEndpoint(this);
+    this.notifications = new NotificationsEndpoint(this);
+    this.activities = new ActivitiesEndpoint(this);
+    this.wallets = new WalletsEndpoint(this);
+    this.attachments = new AttachmentsEndpoint(this);
+    this.taskEscrows = new TaskEscrowsEndpoint(this);
+    this.delegatedVotes = new DelegatedVotesEndpoint(this);
   }
 
   health() {

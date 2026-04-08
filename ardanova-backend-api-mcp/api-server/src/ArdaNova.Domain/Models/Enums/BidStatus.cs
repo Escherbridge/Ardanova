@@ -6,5 +6,6 @@ public enum BidStatus
     UNDER_REVIEW,
     ACCEPTED,
     REJECTED,
-    WITHDRAWN
+    WITHDRAWN,
+    COMPLETED
 }

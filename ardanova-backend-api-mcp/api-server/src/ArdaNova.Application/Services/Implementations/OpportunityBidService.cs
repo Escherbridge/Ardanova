@@ -188,9 +188,13 @@ public class OpportunityBidService : IOpportunityBidService
         if (bid.status != BidStatus.ACCEPTED)
             return Result<OpportunityBidDto>.ValidationError("Only bids with ACCEPTED status can be completed");
 
-        // TODO: BidStatus.COMPLETED is not yet defined in the BidStatus enum.
-        // Add COMPLETED to ArdaNova.Domain.Models.Enums.BidStatus and update this method.
-        return Result<OpportunityBidDto>.ValidationError("COMPLETED status is not yet supported. Add BidStatus.COMPLETED to the enum.");
+        bid.status = BidStatus.COMPLETED;
+
+        await _repository.UpdateAsync(bid, ct);
+        await _unitOfWork.SaveChangesAsync(ct);
+
+        var completedDto = await EnrichBidDtoAsync(bid, ct);
+        return Result<OpportunityBidDto>.Success(completedDto);
     }
 
     public async Task<Result<bool>> DeleteAsync(string id, CancellationToken ct = default)

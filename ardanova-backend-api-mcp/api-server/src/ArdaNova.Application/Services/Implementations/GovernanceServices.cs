@@ -467,6 +467,50 @@ public class GovernanceService : IGovernanceService
         return Result<ProposalCommentDto>.Success(commentDto);
     }
 
+    public async Task<Result<ProposalCommentDto>> UpdateProposalCommentAsync(
+        string proposalId,
+        string commentId,
+        string userId,
+        UpdateProposalCommentDto dto,
+        CancellationToken ct = default)
+    {
+        var comment = await _proposalCommentRepository.GetByIdAsync(commentId, ct);
+        if (comment is null || comment.proposalId != proposalId)
+            return Result<ProposalCommentDto>.NotFound("Comment not found");
+        if (comment.userId != userId)
+            return Result<ProposalCommentDto>.ValidationError("Only the author can update this comment");
+
+        comment.content = dto.Content;
+        comment.updatedAt = DateTime.UtcNow;
+        await _proposalCommentRepository.UpdateAsync(comment, ct);
+        await _unitOfWork.SaveChangesAsync(ct);
+
+        var user = await _userRepository.GetByIdAsync(userId, ct);
+        var commentDto = _mapper.Map<ProposalCommentDto>(comment);
+        commentDto = commentDto with
+        {
+            User = user is not null ? _mapper.Map<ProposalCommentUserDto>(user) : null
+        };
+        return Result<ProposalCommentDto>.Success(commentDto);
+    }
+
+    public async Task<Result<bool>> DeleteProposalCommentAsync(
+        string proposalId,
+        string commentId,
+        string userId,
+        CancellationToken ct = default)
+    {
+        var comment = await _proposalCommentRepository.GetByIdAsync(commentId, ct);
+        if (comment is null || comment.proposalId != proposalId)
+            return Result<bool>.NotFound("Comment not found");
+        if (comment.userId != userId)
+            return Result<bool>.ValidationError("Only the author can delete this comment");
+
+        await _proposalCommentRepository.DeleteAsync(comment, ct);
+        await _unitOfWork.SaveChangesAsync(ct);
+        return Result<bool>.Success(true);
+    }
+
     private ProposalCommentDto MapCommentDto(
         ProposalComment comment,
         Dictionary<string, User> users,

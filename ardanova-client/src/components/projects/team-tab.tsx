@@ -1041,12 +1041,16 @@ export default function TeamTab({ projectId, projectSlug, isOwner }: TeamTabProp
           </CardHeader>
           <CardContent>
             {(() => {
-              const total = tokenConfig.totalSupply || 1;
-              const contributorPct = ((tokenConfig.contributorSupply / total) * 100).toFixed(1);
-              const investorPct = ((tokenConfig.investorSupply / total) * 100).toFixed(1);
-              const founderPct = ((tokenConfig.founderSupply / total) * 100).toFixed(1);
-              const burnedPct = ((tokenConfig.burnedSupply / total) * 100).toFixed(1);
-              const availableSupply = total - tokenConfig.contributorSupply - tokenConfig.investorSupply - tokenConfig.founderSupply - tokenConfig.burnedSupply;
+              const total = Number(tokenConfig.totalSupply) || 1;
+              const contributorSupply = Number(tokenConfig.contributorSupply);
+              const investorSupply = Number(tokenConfig.investorSupply);
+              const founderSupply = Number(tokenConfig.founderSupply);
+              const burnedSupply = Number(tokenConfig.burnedSupply);
+              const contributorPct = ((contributorSupply / total) * 100).toFixed(1);
+              const investorPct = ((investorSupply / total) * 100).toFixed(1);
+              const founderPct = ((founderSupply / total) * 100).toFixed(1);
+              const burnedPct = ((burnedSupply / total) * 100).toFixed(1);
+              const availableSupply = total - contributorSupply - investorSupply - founderSupply - burnedSupply;
               const availablePct = ((availableSupply / total) * 100).toFixed(1);
 
               return (
@@ -1056,7 +1060,7 @@ export default function TeamTab({ projectId, projectSlug, isOwner }: TeamTabProp
                     <div>
                       <div className="flex justify-between text-sm mb-1">
                         <span className="font-medium">Contributor Pool</span>
-                        <span className="text-muted-foreground">{contributorPct}% ({tokenConfig.contributorSupply.toLocaleString()} tokens)</span>
+                        <span className="text-muted-foreground">{contributorPct}% ({contributorSupply.toLocaleString()} tokens)</span>
                       </div>
                       <div className="h-2 bg-muted rounded-full overflow-hidden">
                         <div className="h-full bg-neon-green rounded-full transition-all" style={{ width: `${contributorPct}%` }} />
@@ -1065,7 +1069,7 @@ export default function TeamTab({ projectId, projectSlug, isOwner }: TeamTabProp
                     <div>
                       <div className="flex justify-between text-sm mb-1">
                         <span className="font-medium">Investor Pool</span>
-                        <span className="text-muted-foreground">{investorPct}% ({tokenConfig.investorSupply.toLocaleString()} tokens)</span>
+                        <span className="text-muted-foreground">{investorPct}% ({investorSupply.toLocaleString()} tokens)</span>
                       </div>
                       <div className="h-2 bg-muted rounded-full overflow-hidden">
                         <div className="h-full bg-neon rounded-full transition-all" style={{ width: `${investorPct}%` }} />
@@ -1074,17 +1078,17 @@ export default function TeamTab({ projectId, projectSlug, isOwner }: TeamTabProp
                     <div>
                       <div className="flex justify-between text-sm mb-1">
                         <span className="font-medium">Founder / Member Pool</span>
-                        <span className="text-muted-foreground">{founderPct}% ({tokenConfig.founderSupply.toLocaleString()} tokens)</span>
+                        <span className="text-muted-foreground">{founderPct}% ({founderSupply.toLocaleString()} tokens)</span>
                       </div>
                       <div className="h-2 bg-muted rounded-full overflow-hidden">
                         <div className="h-full bg-neon-pink rounded-full transition-all" style={{ width: `${founderPct}%` }} />
                       </div>
                     </div>
-                    {tokenConfig.burnedSupply > 0 && (
+                    {burnedSupply > 0 && (
                       <div>
                         <div className="flex justify-between text-sm mb-1">
                           <span className="font-medium text-muted-foreground">Burned</span>
-                          <span className="text-muted-foreground">{burnedPct}% ({tokenConfig.burnedSupply.toLocaleString()} tokens)</span>
+                          <span className="text-muted-foreground">{burnedPct}% ({burnedSupply.toLocaleString()} tokens)</span>
                         </div>
                         <div className="h-2 bg-muted rounded-full overflow-hidden">
                           <div className="h-full bg-destructive/50 rounded-full transition-all" style={{ width: `${burnedPct}%` }} />

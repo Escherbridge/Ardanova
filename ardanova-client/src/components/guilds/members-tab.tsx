@@ -23,6 +23,7 @@ import {
 } from "~/components/ui/select";
 import { CredentialBadge } from "~/components/credentials/credential-badge";
 import { Loader2, Users, Plus, UserMinus, Mail } from "lucide-react";
+import type { GuildMember } from "~/lib/api/ardanova/endpoints/guilds";
 
 interface MembersTabProps {
   guildId: string;
@@ -31,21 +32,7 @@ interface MembersTabProps {
 
 type MemberRole = "OWNER" | "ADMIN" | "MEMBER";
 
-interface Member {
-  id: string;
-  userId: string;
-  guildId: string;
-  role: MemberRole;
-  joinedAt: string;
-  user?: {
-    id: string;
-    name?: string | null;
-    email?: string | null;
-    image?: string | null;
-  };
-}
-
-const getRoleBadgeVariant = (role: MemberRole) => {
+const getRoleBadgeVariant = (role: string) => {
   switch (role) {
     case "OWNER":
       return "neon-pink-solid" as const;
@@ -91,16 +78,16 @@ export function MembersTab({ guildId, isOwner }: MembersTabProps) {
       const previous = utils.guild.getMembers.getData({ guildId });
 
       // Optimistically add a placeholder member (invitation pending)
-      const optimisticMember: Member = {
+      const optimisticMember: GuildMember = {
         id: `temp-${Date.now()}`,
         userId: `pending-${Date.now()}`,
         guildId: guildId,
-        role: role as MemberRole,
+        role,
         joinedAt: new Date().toISOString(),
         user: {
           id: `pending-${Date.now()}`,
           name: null,
-          email: invitedEmail ?? null,
+          email: invitedEmail ?? "",
           image: null,
         },
       };
@@ -211,7 +198,7 @@ export function MembersTab({ guildId, isOwner }: MembersTabProps) {
             </div>
           ) : (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {members.map((member: Member) => (
+              {members.map((member) => (
                 <Card
                   key={member.id}
                   className="border border-border hover:bg-muted/50 transition-colors"
@@ -229,8 +216,8 @@ export function MembersTab({ guildId, isOwner }: MembersTabProps) {
                           {member.user?.name ?? member.user?.email ?? "Unknown User"}
                         </div>
                         <div className="flex items-center gap-1.5 justify-center">
-                          <Badge variant={getRoleBadgeVariant(member.role)}>
-                            {member.role}
+                          <Badge variant={getRoleBadgeVariant((member.role ?? "MEMBER") as MemberRole)}>
+                            {member.role ?? "MEMBER"}
                           </Badge>
                           {credentialsByUserId.get(member.userId)?.status === "ACTIVE" && (
                             <CredentialBadge

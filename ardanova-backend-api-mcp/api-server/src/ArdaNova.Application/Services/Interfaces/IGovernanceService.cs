@@ -38,4 +38,11 @@ public interface IGovernanceService
     // Proposal comments
     Task<Result<IReadOnlyList<ProposalCommentDto>>> GetProposalCommentsAsync(string proposalId, CancellationToken ct = default);
     Task<Result<ProposalCommentDto>> CreateProposalCommentAsync(CreateProposalCommentDto dto, CancellationToken ct = default);
+    Task<Result<ProposalCommentDto>> UpdateProposalCommentAsync(
+        string proposalId,
+        string commentId,
+        string userId,
+        UpdateProposalCommentDto dto,
+        CancellationToken ct = default);
+    Task<Result<bool>> DeleteProposalCommentAsync(string proposalId, string commentId, string userId, CancellationToken ct = default);
 }

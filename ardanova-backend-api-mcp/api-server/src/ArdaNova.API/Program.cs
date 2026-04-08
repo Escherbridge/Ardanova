@@ -12,6 +12,13 @@ AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
 
 var builder = WebApplication.CreateBuilder(args);
 
+var kycProvider = builder.Configuration["KYC_PROVIDER"] ?? Environment.GetEnvironmentVariable("KYC_PROVIDER");
+if (string.Equals(kycProvider, "veriff", StringComparison.OrdinalIgnoreCase))
+{
+    throw new InvalidOperationException(
+        "KYC_PROVIDER=veriff is not supported: Veriff integration is not implemented. Use KYC_PROVIDER=manual or omit the setting.");
+}
+
 // Add services to the container
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);

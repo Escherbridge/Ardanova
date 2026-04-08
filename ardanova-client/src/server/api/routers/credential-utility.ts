@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
+import { createTRPCRouter, adminProcedure, protectedProcedure } from "~/server/api/trpc";
 import { apiClient } from "~/lib/api";
 
 // ---------------------------------------------------------------------------
@@ -61,7 +61,7 @@ export const credentialUtilityRouter = createTRPCRouter({
       return response.data;
     }),
 
-  revokeAndBurn: protectedProcedure
+  revokeAndBurn: adminProcedure
     .input(z.object({ id: z.string().min(1) }))
     .mutation(async ({ input }) => {
       const response = await apiClient.credentialUtility.revokeAndBurn(input.id);
@@ -76,7 +76,7 @@ export const credentialUtilityRouter = createTRPCRouter({
       return response.data;
     }),
 
-  upgradeTier: protectedProcedure
+  upgradeTier: adminProcedure
     .input(z.object({ id: z.string().min(1) }).merge(upgradeTierSchema))
     .mutation(async ({ input }) => {
       const response = await apiClient.credentialUtility.upgradeTier(input.id, {
@@ -113,7 +113,7 @@ export const credentialUtilityRouter = createTRPCRouter({
       return response.data ?? null;
     }),
 
-  retryMint: protectedProcedure
+  retryMint: adminProcedure
     .input(z.object({ id: z.string().min(1) }))
     .mutation(async ({ input }) => {
       const response = await apiClient.credentialUtility.retryMint(input.id);

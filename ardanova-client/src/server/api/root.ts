@@ -30,6 +30,12 @@ import { treasuryRouter } from "~/server/api/routers/treasury";
 import { projectGatesRouter } from "~/server/api/routers/project-gates";
 import { exchangeRouter } from "~/server/api/routers/exchange";
 import { userRouter } from "~/server/api/routers/user";
+import { notificationRouter } from "~/server/api/routers/notification";
+import { activityRouter } from "~/server/api/routers/activity";
+import { walletRouter } from "~/server/api/routers/wallet";
+import { attachmentRouter } from "~/server/api/routers/attachment";
+import { taskEscrowRouter } from "~/server/api/routers/task-escrow";
+import { delegatedVoteRouter } from "~/server/api/routers/delegated-vote";
 import { createCallerFactory, createTRPCRouter } from "~/server/api/trpc";
 
 /**
@@ -70,6 +76,12 @@ export const appRouter = createTRPCRouter({
   projectGates: projectGatesRouter,
   exchange: exchangeRouter,
   user: userRouter,
+  notification: notificationRouter,
+  activity: activityRouter,
+  wallet: walletRouter,
+  attachment: attachmentRouter,
+  taskEscrow: taskEscrowRouter,
+  delegatedVote: delegatedVoteRouter,
 });
 
 // export type definition of API

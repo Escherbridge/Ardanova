@@ -75,6 +75,9 @@ public static class DependencyInjection
         services.AddScoped<INotificationService, NotificationService>();
         services.AddScoped<IActivityService, ActivityService>();
 
+        // Posts / feed
+        services.AddScoped<IPostService, PostService>();
+
         // Task services
         services.AddScoped<ITaskService, TaskService>();
 

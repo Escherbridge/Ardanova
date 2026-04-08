@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
+import { createTRPCRouter, adminProcedure, protectedProcedure } from "~/server/api/trpc";
 import { apiClient } from "~/lib/api";
 
 // ---------------------------------------------------------------------------
@@ -81,7 +81,7 @@ export const treasuryRouter = createTRPCRouter({
 
   // ---- Mutations ----
 
-  processFundingInflow: protectedProcedure
+  processFundingInflow: adminProcedure
     .input(processFundingInflowSchema)
     .mutation(async ({ input }) => {
       const response = await apiClient.treasury.processFundingInflow(
@@ -99,7 +99,7 @@ export const treasuryRouter = createTRPCRouter({
       return response.data;
     }),
 
-  applyIndexReturn: protectedProcedure
+  applyIndexReturn: adminProcedure
     .mutation(async () => {
       const response = await apiClient.treasury.applyIndexReturn();
 
@@ -113,7 +113,7 @@ export const treasuryRouter = createTRPCRouter({
       return response.data;
     }),
 
-  rebalance: protectedProcedure
+  rebalance: adminProcedure
     .input(rebalanceSchema)
     .mutation(async ({ input }) => {
       const response = await apiClient.treasury.rebalance(input.requiredLiquid);
@@ -128,7 +128,7 @@ export const treasuryRouter = createTRPCRouter({
       return response.data;
     }),
 
-  reconcile: protectedProcedure
+  reconcile: adminProcedure
     .mutation(async () => {
       const response = await apiClient.treasury.reconcile();
 

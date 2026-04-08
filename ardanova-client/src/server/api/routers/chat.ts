@@ -218,4 +218,98 @@ export const chatRouter = createTRPCRouter({
 
       return { success: true };
     }),
+
+  updateMessage: protectedProcedure
+    .input(
+      z.object({
+        messageId: z.string(),
+        message: z.string().min(1).max(10000),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.session.user.id;
+      const response = await apiClient.chat.updateMessage(input.messageId, userId, {
+        message: input.message,
+      });
+      if (response.error || !response.data) {
+        throw new Error(response.error ?? "Failed to update message");
+      }
+      return response.data;
+    }),
+
+  deleteMessage: protectedProcedure
+    .input(z.object({ messageId: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.session.user.id;
+      const response = await apiClient.chat.deleteMessage(input.messageId, userId);
+      if (response.error) {
+        throw new Error(response.error ?? "Failed to delete message");
+      }
+      return { success: true };
+    }),
+
+  updateGroup: protectedProcedure
+    .input(
+      z.object({
+        conversationId: z.string(),
+        name: z.string().min(1).optional(),
+        avatarUrl: z.string().url().optional(),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.session.user.id;
+      const { conversationId, ...dto } = input;
+      const response = await apiClient.chat.updateGroup(conversationId, userId, dto);
+      if (response.error || !response.data) {
+        throw new Error(response.error ?? "Failed to update group");
+      }
+      return response.data;
+    }),
+
+  addMember: protectedProcedure
+    .input(
+      z.object({
+        conversationId: z.string(),
+        memberUserId: z.string(),
+        role: z.enum(["OWNER", "ADMIN", "MEMBER"]).optional(),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.session.user.id;
+      const response = await apiClient.chat.addMember(input.conversationId, userId, {
+        userId: input.memberUserId,
+        role: input.role,
+      });
+      if (response.error || !response.data) {
+        throw new Error(response.error ?? "Failed to add member");
+      }
+      return response.data;
+    }),
+
+  removeMember: protectedProcedure
+    .input(
+      z.object({
+        conversationId: z.string(),
+        memberUserId: z.string(),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.session.user.id;
+      const response = await apiClient.chat.removeMember(input.conversationId, input.memberUserId, userId);
+      if (response.error) {
+        throw new Error(response.error ?? "Failed to remove member");
+      }
+      return { success: true };
+    }),
+
+  leaveConversation: protectedProcedure
+    .input(z.object({ conversationId: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.session.user.id;
+      const response = await apiClient.chat.leaveConversation(input.conversationId, userId);
+      if (response.error) {
+        throw new Error(response.error ?? "Failed to leave conversation");
+      }
+      return response.data ?? { success: true };
+    }),
 });

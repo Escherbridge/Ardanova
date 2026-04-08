@@ -109,7 +109,7 @@ export default function VotesTab({ proposalId }: VotesTabProps) {
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
-            {votes.map((vote: Vote) => (
+            {votes.map((vote) => (
               <div
                 key={vote.id}
                 className="flex gap-4 p-4 border border-border rounded-lg hover:bg-muted/50 transition-colors"

@@ -135,7 +135,7 @@ export default function ChatsPage() {
   // Mark as read when viewing messages from others
   const lastMessageId = messages.length > 0 ? messages[messages.length - 1]?.id : null;
   const lastMessageFromOther =
-    messages.length > 0 && messages[messages.length - 1]?.senderId !== currentUserId;
+    messages.length > 0 && messages[messages.length - 1]?.userFromId !== currentUserId;
 
   useEffect(() => {
     if (selectedChatId && lastMessageId && lastMessageFromOther) {
@@ -506,14 +506,15 @@ export default function ChatsPage() {
                     <div className="flex-1 h-px bg-border" />
                   </div>
 
-                  {(messages as Message[]).map((message, index) => {
+                  {(messages as unknown as Message[]).map((message, index) => {
                     const isOwn = message.userFromId === currentUserId;
                     const showAvatar =
                       !isOwn &&
-                      (index === 0 || (messages as Message[])[index - 1]?.userFromId !== message.userFromId);
+                      (index === 0 ||
+                        (messages as unknown as Message[])[index - 1]?.userFromId !== message.userFromId);
                     const isLastInGroup =
                       index === messages.length - 1 ||
-                      (messages as Message[])[index + 1]?.userFromId !== message.userFromId;
+                      (messages as unknown as Message[])[index + 1]?.userFromId !== message.userFromId;
 
                     return (
                       <div

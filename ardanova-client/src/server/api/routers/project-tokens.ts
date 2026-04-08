@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
+import { createTRPCRouter, adminProcedure, protectedProcedure } from "~/server/api/trpc";
 import { apiClient } from "~/lib/api";
 
 // ---------------------------------------------------------------------------
@@ -283,7 +283,7 @@ export const projectTokensRouter = createTRPCRouter({
       return response.data;
     }),
 
-  clearGate: protectedProcedure
+  clearGate: adminProcedure
     .input(z.object({
       configId: z.string().min(1),
       verifiedByUserId: z.string().min(1),
@@ -323,7 +323,7 @@ export const projectTokensRouter = createTRPCRouter({
 
   // ---- Failure Handling ----
 
-  burnFounder: protectedProcedure
+  burnFounder: adminProcedure
     .input(z.object({ configId: z.string().min(1) }))
     .mutation(async ({ input }) => {
       const response = await apiClient.projectTokens.burnFounder(input.configId);
@@ -338,7 +338,7 @@ export const projectTokensRouter = createTRPCRouter({
       return response.data;
     }),
 
-  trustProtection: protectedProcedure
+  trustProtection: adminProcedure
     .input(z.object({ configId: z.string().min(1) }))
     .mutation(async ({ input }) => {
       const response = await apiClient.projectTokens.trustProtection(input.configId);
