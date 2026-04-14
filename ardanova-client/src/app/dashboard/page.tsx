@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
@@ -28,6 +28,7 @@ import {
   type FeedTab,
 } from "~/components/feed";
 import { useSession } from "next-auth/react";
+import { api } from "~/trpc/react";
 import { cn } from "~/lib/utils";
 import { FeedLayout } from "~/components/layouts/feed-layout";
 
@@ -232,6 +233,26 @@ export default function DashboardPage() {
   const [selectedTimeRange, setSelectedTimeRange] = useState("all");
 
   const user = session?.user;
+
+  const { data: myProjectsData } = api.project.getMyProjects.useQuery(
+    { limit: 100, page: 1 },
+    { enabled: !!session?.user },
+  );
+
+  const { data: myGuilds } = api.guild.getMyGuilds.useQuery(undefined, {
+    enabled: !!session?.user,
+  });
+
+  const composeScopes = useMemo(() => {
+    const scopes: { type: string; id: string; name: string }[] = [];
+    for (const p of myProjectsData?.items ?? []) {
+      scopes.push({ type: "project", id: p.id, name: p.name });
+    }
+    for (const g of myGuilds ?? []) {
+      scopes.push({ type: "guild", id: g.id, name: g.name });
+    }
+    return scopes;
+  }, [myProjectsData?.items, myGuilds]);
 
   const handleAuthorClick = (author: { id: string; name: string }) => {
     // Navigate to user's own profile if clicking on themselves, otherwise to the author's profile
@@ -609,10 +630,7 @@ export default function DashboardPage() {
             }}
             onSubmit={handlePostSubmit}
             placeholder="Share an update with the community..."
-            scopes={[
-              { type: "project", id: "p1", name: "EcoWaste Solutions" },
-              { type: "guild", id: "g1", name: "Design Guild" },
-            ]}
+            scopes={composeScopes}
           />
         }
         hasMore
