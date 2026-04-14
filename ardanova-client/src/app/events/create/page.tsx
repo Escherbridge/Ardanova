@@ -28,12 +28,27 @@ import {
   SelectValue,
 } from "~/components/ui/select";
 import { useEnumOptions } from "~/hooks/use-enum";
+import { api } from "~/trpc/react";
+import { toast } from "sonner";
 
 const eventFormats = [
   { id: "virtual", label: "Virtual", icon: Video },
   { id: "in-person", label: "In-Person", icon: MapPin },
   { id: "hybrid", label: "Hybrid", icon: Globe },
 ];
+
+function mapEventTypeIdToRouter(
+  id: string,
+): "meetup" | "workshop" | "hackathon" | "conference" | "webinar" | "ama" {
+  const u = id.toUpperCase();
+  if (u.includes("HACK")) return "hackathon";
+  if (u.includes("CONFERENCE")) return "conference";
+  if (u.includes("WEBINAR")) return "webinar";
+  if (u.includes("AMA")) return "ama";
+  if (u.includes("WORKSHOP")) return "workshop";
+  if (u.includes("MEET")) return "meetup";
+  return "meetup";
+}
 
 const timezones = [
   { id: "UTC", label: "UTC" },
@@ -46,6 +61,13 @@ const timezones = [
 
 export default function CreateEventPage() {
   const router = useRouter();
+  const createEvent = api.event.create.useMutation({
+    onSuccess: () => {
+      toast.success("Event created");
+      router.push("/events");
+    },
+    onError: (e) => toast.error(e.message),
+  });
   const { options: eventTypes } = useEnumOptions("EventType");
   const [formData, setFormData] = useState({
     title: "",
@@ -118,10 +140,25 @@ export default function CreateEventPage() {
     if (!validateForm()) return;
 
     setIsSubmitting(true);
-    // TODO: Implement event creation API
-    setTimeout(() => {
-      router.push("/events");
-    }, 1000);
+    try {
+      const type = mapEventTypeIdToRouter(formData.type);
+      await createEvent.mutateAsync({
+        title: formData.title.trim(),
+        description: formData.description.trim(),
+        type,
+        format: formData.format as "virtual" | "in-person" | "hybrid",
+        date: formData.date,
+        startTime: formData.startTime,
+        endTime: formData.endTime || undefined,
+        timezone: formData.timezone,
+        location: formData.location.trim() || undefined,
+        virtualLink: formData.virtualLink.trim() || undefined,
+        maxAttendees: formData.maxAttendees ? parseInt(formData.maxAttendees, 10) : undefined,
+        tags: formData.tags.length ? formData.tags.join(",") : undefined,
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (

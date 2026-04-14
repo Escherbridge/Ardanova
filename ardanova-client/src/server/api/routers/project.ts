@@ -347,6 +347,23 @@ export const projectRouter = createTRPCRouter({
       return { items, nextCursor: undefined };
     }),
 
+  /** Projects linked to a user (public profile) */
+  getByUserId: publicProcedure
+    .input(
+      z.object({
+        userId: z.string(),
+        limit: z.number().min(1).max(100).default(20),
+      }),
+    )
+    .query(async ({ input }) => {
+      const response = await apiClient.projects.getByUserId(input.userId);
+      if (response.error) {
+        throw new Error(response.error);
+      }
+      const items = (response.data ?? []).slice(0, input.limit);
+      return { items };
+    }),
+
   // Get featured projects
   getFeatured: publicProcedure.query(async () => {
     const response = await apiClient.projects.getFeatured();

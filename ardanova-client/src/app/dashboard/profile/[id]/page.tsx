@@ -1,84 +1,103 @@
 "use client";
 
 import { useParams } from "next/navigation";
+import Link from "next/link";
 import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { Share2, Calendar, FolderKanban, Users, UserPlus } from "lucide-react";
-
-// Sample user data - would come from API in production
-const sampleUsers: Record<string, { name: string; avatar: string; bio: string; projects: number; guilds: number; joinedDate: string }> = {
-  "u1": { name: "Sarah Chen", avatar: "https://i.pravatar.cc/150?u=sarah", bio: "Founder of EcoWaste Solutions. Passionate about sustainability.", projects: 5, guilds: 3, joinedDate: "Nov 2023" },
-  "u2": { name: "Marcus Rodriguez", avatar: "https://i.pravatar.cc/150?u=marcus", bio: "Mobile developer. Building accessible apps for everyone.", projects: 2, guilds: 1, joinedDate: "Dec 2023" },
-  "u3": { name: "Design Guild", avatar: "https://i.pravatar.cc/150?u=guild", bio: "Official Design Guild account.", projects: 0, guilds: 1, joinedDate: "Jan 2024" },
-  "u4": { name: "Alex Kim", avatar: "https://i.pravatar.cc/150?u=alex", bio: "Strategy & Growth. Always thinking about the next big thing.", projects: 3, guilds: 2, joinedDate: "Oct 2023" },
-  "u5": { name: "Jordan Lee", avatar: "https://i.pravatar.cc/150?u=jordan", bio: "EdTech enthusiast. Connecting students with mentors.", projects: 4, guilds: 2, joinedDate: "Sep 2023" },
-  "u6": { name: "Emma Watson", avatar: "https://i.pravatar.cc/150?u=emma", bio: "UX Designer with a passion for accessible design.", projects: 12, guilds: 4, joinedDate: "Aug 2023" },
-  "u7": { name: "David Park", avatar: "https://i.pravatar.cc/150?u=david", bio: "Full-stack developer. Building the future one commit at a time.", projects: 8, guilds: 3, joinedDate: "Jul 2023" },
-  "u8": { name: "Lisa Chen", avatar: "https://i.pravatar.cc/150?u=lisa", bio: "Product Manager. Turning ideas into reality.", projects: 8, guilds: 5, joinedDate: "Jun 2023" },
-};
+import { api } from "~/trpc/react";
 
 export default function UserProfilePage() {
   const params = useParams();
   const userId = params.id as string;
 
-  const userData = sampleUsers[userId] || {
-    name: "Unknown User",
-    avatar: "",
-    bio: "This user hasn't set up their profile yet.",
-    projects: 0,
-    guilds: 0,
-    joinedDate: "Unknown",
-  };
+  const { data: profileUser, isLoading: userLoading, error: userError } = api.user.getById.useQuery(
+    { id: userId },
+    { enabled: !!userId },
+  );
+
+  const { data: userProjects, isLoading: projectsLoading } = api.project.getByUserId.useQuery(
+    { userId, limit: 50 },
+    { enabled: !!userId },
+  );
+
+  const { data: ownedGuilds, isLoading: guildsLoading } = api.guild.getGuildsForOwner.useQuery(
+    { ownerId: userId },
+    { enabled: !!userId },
+  );
+
+  const joinedDate = profileUser?.createdAt
+    ? new Date(profileUser.createdAt).toLocaleDateString("en-US", { month: "short", year: "numeric" })
+    : "—";
+
+  if (userLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-6">
+        <p className="text-muted-foreground">Loading profile…</p>
+      </div>
+    );
+  }
+
+  if (userError || !profileUser) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-4 p-6">
+        <p className="text-destructive">{userError?.message ?? "User not found."}</p>
+        <Button asChild variant="outline">
+          <Link href="/people">Back to People</Link>
+        </Button>
+      </div>
+    );
+  }
+
+  const projectCount = userProjects?.items?.length ?? 0;
+  const guildCount = Array.isArray(ownedGuilds) ? ownedGuilds.length : 0;
 
   return (
     <div className="min-h-screen bg-background">
       <div className="max-w-4xl mx-auto p-6">
-        {/* Profile Header */}
         <Card className="mb-6">
           <CardContent className="pt-6">
             <div className="flex items-start gap-6">
               <Avatar className="size-24 border-4 border-primary">
-                <AvatarImage src={userData.avatar} alt={userData.name} />
-                <AvatarFallback className="text-2xl">
-                  {userData.name.charAt(0)}
-                </AvatarFallback>
+                <AvatarImage src={profileUser.image ?? undefined} alt={profileUser.name ?? "User"} />
+                <AvatarFallback className="text-2xl">{profileUser.name?.charAt(0) ?? "U"}</AvatarFallback>
               </Avatar>
 
               <div className="flex-1">
                 <div className="flex items-center gap-3 mb-2">
-                  <h1 className="text-2xl font-bold text-foreground">
-                    {userData.name}
-                  </h1>
-                  <Badge variant="neon">Member</Badge>
+                  <h1 className="text-2xl font-bold text-foreground">{profileUser.name ?? "Member"}</h1>
+                  <Badge variant="neon">{profileUser.userType ?? "Member"}</Badge>
                 </div>
-                <p className="text-muted-foreground mb-4">
-                  {userData.bio}
-                </p>
+                <p className="text-muted-foreground mb-4">{profileUser.bio ?? "No bio yet."}</p>
                 <div className="flex gap-6 text-sm">
                   <div className="flex items-center gap-2">
                     <FolderKanban className="size-4 text-primary" />
-                    <span><strong>{userData.projects}</strong> Projects</span>
+                    <span>
+                      <strong>{projectCount}</strong> Projects
+                    </span>
                   </div>
                   <div className="flex items-center gap-2">
                     <Users className="size-4 text-neon-pink" />
-                    <span><strong>{userData.guilds}</strong> Guilds</span>
+                    <span>
+                      <strong>{guildCount}</strong> Guilds
+                    </span>
                   </div>
                   <div className="flex items-center gap-2">
                     <Calendar className="size-4 text-neon-green" />
-                    <span>Joined {userData.joinedDate}</span>
+                    <span>Joined {joinedDate}</span>
                   </div>
                 </div>
               </div>
 
               <div className="flex gap-2">
-                <Button variant="outline" size="sm">
+                <Button variant="outline" size="sm" type="button">
                   <Share2 className="size-4 mr-2" />
                   Share
                 </Button>
-                <Button variant="default" size="sm">
+                <Button variant="default" size="sm" type="button">
                   <UserPlus className="size-4 mr-2" />
                   Follow
                 </Button>
@@ -87,7 +106,6 @@ export default function UserProfilePage() {
           </CardContent>
         </Card>
 
-        {/* Profile Tabs */}
         <Tabs defaultValue="activity" className="w-full">
           <TabsList className="w-full justify-start">
             <TabsTrigger value="activity">Activity</TabsTrigger>
@@ -113,7 +131,21 @@ export default function UserProfilePage() {
                 <CardTitle>Projects</CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-muted-foreground">This user hasn't joined any projects yet.</p>
+                {projectsLoading ? (
+                  <p className="text-muted-foreground">Loading…</p>
+                ) : (userProjects?.items?.length ?? 0) === 0 ? (
+                  <p className="text-muted-foreground">No projects yet.</p>
+                ) : (
+                  <ul className="space-y-2">
+                    {userProjects!.items.map((p) => (
+                      <li key={p.id}>
+                        <Link href={`/projects/${p.slug}`} className="text-primary hover:underline font-medium">
+                          {p.title}
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -124,7 +156,21 @@ export default function UserProfilePage() {
                 <CardTitle>Guilds</CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-muted-foreground">This user hasn't joined any guilds yet.</p>
+                {guildsLoading ? (
+                  <p className="text-muted-foreground">Loading…</p>
+                ) : !ownedGuilds?.length ? (
+                  <p className="text-muted-foreground">No guilds listed.</p>
+                ) : (
+                  <ul className="space-y-2">
+                    {ownedGuilds.map((g) => (
+                      <li key={g.id}>
+                        <Link href={`/guilds/${g.slug}`} className="text-primary hover:underline font-medium">
+                          {g.name}
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -135,7 +181,9 @@ export default function UserProfilePage() {
                 <CardTitle>Contributions</CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-muted-foreground">No contributions to show.</p>
+                <p className="text-muted-foreground">
+                  Total XP: <strong>{profileUser.totalXP ?? 0}</strong> · Level {profileUser.level ?? 1}
+                </p>
               </CardContent>
             </Card>
           </TabsContent>
