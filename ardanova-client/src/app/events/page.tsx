@@ -221,19 +221,28 @@ export default function EventsPage() {
     onError: (e) => toast.error(e.message),
   });
 
+  const unregisterMutation = api.event.unregister.useMutation({
+    onSuccess: () => {
+      void utils.event.getAll.invalidate();
+      void utils.event.getRegisteredEvents.invalidate();
+      toast.success("Unregistered");
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
   const registeredIds = useMemo(() => {
     const ids = (registeredList ?? []).map((x) => String((x as { id: string }).id));
     return new Set(ids);
   }, [registeredList]);
 
-  const sampleEvents = useMemo(
+  const eventCards = useMemo(
     () =>
       (eventsResult?.items ?? []).map((e) => mapApiEventToCard(e as ApiEvent, registeredIds)),
     [eventsResult?.items, registeredIds],
   );
 
   // Filter events
-  const filteredEvents = sampleEvents.filter((event) => {
+  const filteredEvents = eventCards.filter((event) => {
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       const matchesSearch =
@@ -302,7 +311,7 @@ export default function EventsPage() {
                   Featured Events
                 </h3>
                 <div className="space-y-3">
-                  {sampleEvents
+                  {eventCards
                     .slice(0, 3)
                     .map((event) => (
                       <div
@@ -697,8 +706,16 @@ export default function EventsPage() {
                           Register
                         </Button>
                       ) : (
-                        <Button size="sm" variant="outline">
-                          View Details
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={!session?.user || unregisterMutation.isPending}
+                          onClick={(evClick) => {
+                            evClick.stopPropagation();
+                            unregisterMutation.mutate({ eventId: event.id });
+                          }}
+                        >
+                          Unregister
                         </Button>
                       )}
                     </div>

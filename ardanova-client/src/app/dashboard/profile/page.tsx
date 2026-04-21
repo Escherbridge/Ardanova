@@ -60,6 +60,11 @@ export default function ProfilePage() {
   const { data: myGuilds } = api.guild.getMyGuilds.useQuery(undefined, { enabled: !!user?.id });
   const { data: myTasks } = api.task.getMyTasks.useQuery({ limit: 200 }, { enabled: !!user?.id });
 
+  const { data: meProfile } = api.user.getById.useQuery(
+    { id: user?.id ?? "" },
+    { enabled: !!user?.id },
+  );
+
   const activeCredentials = credentials?.filter((c) => c.status === "ACTIVE") ?? [];
   const highestTier = getHighestTier(activeCredentials.map((c) => c.tier).filter(Boolean) as string[]);
 
@@ -102,7 +107,15 @@ export default function ProfilePage() {
                   </div>
                   <div className="flex items-center gap-2">
                     <Calendar className="size-4 text-neon-green" />
-                    <span>Joined Jan 2024</span>
+                    <span>
+                      Joined{" "}
+                      {meProfile?.createdAt
+                        ? new Date(meProfile.createdAt).toLocaleDateString("en-US", {
+                            month: "short",
+                            year: "numeric",
+                          })
+                        : "—"}
+                    </span>
                   </div>
                   {activeCredentials.length > 0 && (
                     <div className="flex items-center gap-2">
@@ -282,6 +295,10 @@ export default function ProfilePage() {
               <CardContent>
                 <p className="text-muted-foreground">
                   Active tasks: <strong>{myTasks?.items?.length ?? 0}</strong>
+                </p>
+                <p className="text-muted-foreground mt-2">
+                  XP: <strong>{meProfile?.totalXP ?? 0}</strong> · Level{" "}
+                  <strong>{meProfile?.level ?? 1}</strong>
                 </p>
               </CardContent>
             </Card>

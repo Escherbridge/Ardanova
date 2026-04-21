@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import {
   CheckSquare,
@@ -260,9 +261,25 @@ function TaskCard({
 
 export default function TasksPage() {
   const { data: session, status: sessionStatus } = useSession();
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+
   const [viewMode, setViewMode] = useState<"board" | "list">("board");
-  const [selectedProject, setSelectedProject] = useState<string>("all");
-  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedProject, setSelectedProject] = useState(
+    () => searchParams.get("project") ?? "all",
+  );
+  const [searchQuery, setSearchQuery] = useState(() => searchParams.get("q") ?? "");
+
+  useEffect(() => {
+    const params = new URLSearchParams();
+    const t = searchQuery.trim();
+    if (t) params.set("q", t);
+    if (selectedProject !== "all") params.set("project", selectedProject);
+    const qs = params.toString();
+    const next = qs ? `${pathname}?${qs}` : pathname;
+    router.replace(next, { scroll: false });
+  }, [searchQuery, selectedProject, pathname, router]);
 
   const { data: tasksData, isLoading, error, refetch } = api.task.getMyTasks.useQuery(
     { limit: 100 },
