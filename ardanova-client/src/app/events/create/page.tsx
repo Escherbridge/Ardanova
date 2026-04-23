@@ -153,7 +153,7 @@ export default function CreateEventPage() {
         timezone: formData.timezone,
         location: formData.location.trim() || undefined,
         virtualLink: formData.virtualLink.trim() || undefined,
-        maxAttendees: formData.maxAttendees ? parseInt(formData.maxAttendees, 10) : undefined,
+        maxAttendees: /^\d+$/.test(formData.maxAttendees) ? parseInt(formData.maxAttendees, 10) : undefined,
         tags: formData.tags.length ? formData.tags.join(",") : undefined,
       });
     } finally {
