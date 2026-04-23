@@ -446,15 +446,10 @@ export default function DashboardPage() {
                 (upcomingEventsData as CalendarEvent[]).map((ev) => {
                   const start = new Date(ev.startDate);
                   return (
-                    <div
+                    <Link
                       key={ev.id}
-                      className="p-2 border-2 border-border hover:border-primary transition-colors cursor-pointer"
-                      role="button"
-                      tabIndex={0}
-                      onClick={() => router.push("/events")}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" || e.key === " ") router.push("/events");
-                      }}
+                      href="/events"
+                      className="block p-2 border-2 border-border hover:border-primary transition-colors cursor-pointer"
                     >
                       <p className="font-medium text-sm text-foreground">{ev.title}</p>
                       <p className="text-xs text-muted-foreground">
