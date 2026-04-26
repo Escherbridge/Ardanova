@@ -795,7 +795,7 @@ export default function PeoplePage() {
               <div className="p-4">
                 <div className="flex items-start gap-3">
                   <Link
-                    href={`/dashboard/profile?id=${user.id}`}
+                    href={`/dashboard/profile/${user.id}`}
                     className="shrink-0"
                   >
                     <Avatar className="size-12 border-2 border-border hover:border-primary transition-colors">
@@ -814,7 +814,7 @@ export default function PeoplePage() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <Link
-                        href={`/dashboard/profile?id=${user.id}`}
+                        href={`/dashboard/profile/${user.id}`}
                         className="font-medium text-foreground hover:text-primary transition-colors"
                       >
                         {user.name ?? "Anonymous"}

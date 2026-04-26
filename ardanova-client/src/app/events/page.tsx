@@ -1,6 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { useSession } from "next-auth/react";
+import { api } from "~/trpc/react";
+import type { Event as ApiEvent } from "~/lib/api/ardanova/endpoints/events";
 import { Badge } from "~/components/ui/badge";
 import { Card, CardContent } from "~/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
@@ -12,6 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "~/components/ui/select";
+import Link from "next/link";
 import {
   Calendar,
   Plus,
@@ -29,6 +33,7 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { FeedLayout } from "~/components/layouts/feed-layout";
+import { toast } from "sonner";
 
 interface FeedTab {
   id: string;
@@ -77,135 +82,61 @@ const locationFilters = [
   { id: "remote", label: "Remote Only" },
 ];
 
-// Sample events data
-const sampleEvents = [
-  {
-    id: "1",
-    title: "Web3 Developer Workshop",
-    description: "Learn the fundamentals of smart contract development with hands-on exercises and real-world examples.",
-    type: "workshop",
-    format: "virtual",
-    date: "2026-02-15",
-    startTime: "14:00",
-    endTime: "17:00",
-    timezone: "UTC",
-    location: "Online - Zoom",
+type EventCard = {
+  id: string;
+  title: string;
+  description: string;
+  type: string;
+  format: "virtual" | "in-person" | "hybrid";
+  date: string;
+  startTime: string;
+  endTime: string;
+  timezone: string;
+  location: string;
+  organizer: { name: string; avatar: string };
+  attendees: number;
+  maxAttendees: number | null;
+  isRegistered: boolean;
+  tags: string[];
+  featured: boolean;
+};
+
+function mapApiEventToCard(e: ApiEvent, registeredIds: Set<string>): EventCard {
+  const start = new Date(e.startDate);
+  const end = new Date(e.endDate);
+  const org = (e as ApiEvent & { organizer?: { name?: string | null; image?: string | null } }).organizer;
+  const format: EventCard["format"] =
+    e.isOnline && e.location ? "hybrid" : e.isOnline ? "virtual" : "in-person";
+  const rawType = String(e.type ?? "meetup").toLowerCase();
+  let type = "meetup";
+  if (rawType.includes("workshop")) type = "workshop";
+  else if (rawType.includes("hack")) type = "hackathon";
+  else if (rawType.includes("conference")) type = "conference";
+  else if (rawType.includes("webinar")) type = "webinar";
+  else if (rawType.includes("ama")) type = "ama";
+
+  return {
+    id: e.id,
+    title: e.title,
+    description: e.description ?? "",
+    type,
+    format,
+    date: start.toISOString().slice(0, 10),
+    startTime: start.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+    endTime: end.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+    timezone: e.timezone,
+    location: e.location ?? "—",
     organizer: {
-      name: "Blockchain Guild",
-      avatar: "/avatars/guild1.png",
+      name: org?.name ?? "Organizer",
+      avatar: org?.image ?? "",
     },
-    attendees: 156,
-    maxAttendees: 200,
-    isRegistered: false,
-    tags: ["blockchain", "smart-contracts", "solidity"],
-    featured: true,
-  },
-  {
-    id: "2",
-    title: "ArdaNova Community Meetup",
-    description: "Monthly community meetup to discuss platform updates, new features, and connect with fellow members.",
-    type: "meetup",
-    format: "hybrid",
-    date: "2026-02-20",
-    startTime: "18:00",
-    endTime: "20:00",
-    timezone: "EST",
-    location: "New York, NY & Online",
-    organizer: {
-      name: "ArdaNova Team",
-      avatar: "/avatars/ardanova.png",
-    },
-    attendees: 89,
-    maxAttendees: 150,
-    isRegistered: true,
-    tags: ["community", "networking", "updates"],
-    featured: true,
-  },
-  {
-    id: "3",
-    title: "DeFi Hackathon 2026",
-    description: "48-hour hackathon focused on building innovative DeFi solutions. $50,000 in prizes!",
-    type: "hackathon",
-    format: "virtual",
-    date: "2026-03-01",
-    startTime: "09:00",
-    endTime: "09:00",
-    timezone: "UTC",
-    location: "Online",
-    organizer: {
-      name: "DeFi Builders",
-      avatar: "/avatars/defi.png",
-    },
-    attendees: 342,
-    maxAttendees: 500,
-    isRegistered: false,
-    tags: ["hackathon", "defi", "prizes"],
+    attendees: (e as ApiEvent & { attendeesCount?: number }).attendeesCount ?? 0,
+    maxAttendees: e.maxAttendees ?? null,
+    isRegistered: registeredIds.has(e.id),
+    tags: [],
     featured: false,
-  },
-  {
-    id: "4",
-    title: "Governance AMA with Core Team",
-    description: "Ask the core team anything about upcoming governance proposals and platform direction.",
-    type: "ama",
-    format: "virtual",
-    date: "2026-02-10",
-    startTime: "16:00",
-    endTime: "17:30",
-    timezone: "UTC",
-    location: "Discord Voice Channel",
-    organizer: {
-      name: "Governance Council",
-      avatar: "/avatars/council.png",
-    },
-    attendees: 234,
-    maxAttendees: null,
-    isRegistered: true,
-    tags: ["governance", "ama", "community"],
-    featured: false,
-  },
-  {
-    id: "5",
-    title: "AI & Blockchain Conference",
-    description: "Two-day conference exploring the intersection of AI and blockchain technology.",
-    type: "conference",
-    format: "in-person",
-    date: "2026-04-15",
-    startTime: "09:00",
-    endTime: "18:00",
-    timezone: "PST",
-    location: "San Francisco, CA",
-    organizer: {
-      name: "Tech Innovators",
-      avatar: "/avatars/tech.png",
-    },
-    attendees: 512,
-    maxAttendees: 1000,
-    isRegistered: false,
-    tags: ["ai", "blockchain", "conference"],
-    featured: true,
-  },
-  {
-    id: "6",
-    title: "NFT Art Showcase",
-    description: "Virtual gallery showcasing the best NFT art from community creators.",
-    type: "meetup",
-    format: "virtual",
-    date: "2026-02-25",
-    startTime: "19:00",
-    endTime: "21:00",
-    timezone: "EST",
-    location: "Metaverse Gallery",
-    organizer: {
-      name: "Creative Guild",
-      avatar: "/avatars/creative.png",
-    },
-    attendees: 78,
-    maxAttendees: 100,
-    isRegistered: false,
-    tags: ["nft", "art", "showcase"],
-    featured: false,
-  },
-];
+  };
+}
 
 function formatDate(dateString: string): string {
   const date = new Date(dateString);
@@ -242,6 +173,8 @@ function getFormatIcon(format: string) {
 }
 
 export default function EventsPage() {
+  const { data: session } = useSession();
+  const utils = api.useUtils();
   const [activeTab, setActiveTab] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [showFilters, setShowFilters] = useState(false);
@@ -269,8 +202,47 @@ export default function EventsPage() {
     setSearchQuery("");
   };
 
+  const { data: eventsResult, isLoading: eventsLoading } = api.event.getAll.useQuery({
+    limit: 50,
+    page: 1,
+    search: searchQuery || undefined,
+  });
+
+  const { data: registeredList } = api.event.getRegisteredEvents.useQuery(undefined, {
+    enabled: !!session?.user,
+  });
+
+  const registerMutation = api.event.register.useMutation({
+    onSuccess: () => {
+      void utils.event.getAll.invalidate();
+      void utils.event.getRegisteredEvents.invalidate();
+      toast.success("Registered");
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const unregisterMutation = api.event.unregister.useMutation({
+    onSuccess: () => {
+      void utils.event.getAll.invalidate();
+      void utils.event.getRegisteredEvents.invalidate();
+      toast.success("Unregistered");
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const registeredIds = useMemo(() => {
+    const ids = (registeredList ?? []).map((x) => String((x as { id: string }).id));
+    return new Set(ids);
+  }, [registeredList]);
+
+  const eventCards = useMemo(
+    () =>
+      (eventsResult?.items ?? []).map((e) => mapApiEventToCard(e as ApiEvent, registeredIds)),
+    [eventsResult?.items, registeredIds],
+  );
+
   // Filter events
-  const filteredEvents = sampleEvents.filter((event) => {
+  const filteredEvents = eventCards.filter((event) => {
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       const matchesSearch =
@@ -339,8 +311,7 @@ export default function EventsPage() {
                   Featured Events
                 </h3>
                 <div className="space-y-3">
-                  {sampleEvents
-                    .filter((e) => e.featured)
+                  {eventCards
                     .slice(0, 3)
                     .map((event) => (
                       <div
@@ -398,9 +369,11 @@ export default function EventsPage() {
           <div className="p-4">
             <div className="flex items-center justify-between mb-4">
               <h1 className="text-2xl font-bold">Events</h1>
-              <Button className="bg-neon hover:bg-neon/90 text-black">
-                <Plus className="h-4 w-4 mr-2" />
-                Create Event
+              <Button className="bg-neon hover:bg-neon/90 text-black" asChild>
+                <Link href="/events/create">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Create Event
+                </Link>
               </Button>
             </div>
 
@@ -610,7 +583,9 @@ export default function EventsPage() {
 
         {/* Events Feed */}
         <div className="divide-y divide-border/50">
-          {filteredEvents.length === 0 ? (
+          {eventsLoading ? (
+            <div className="p-8 text-center text-muted-foreground">Loading events…</div>
+          ) : filteredEvents.length === 0 ? (
             <div className="p-8 text-center text-muted-foreground">
               <Calendar className="h-12 w-12 mx-auto mb-4 opacity-50" />
               <p>No events found matching your criteria.</p>
@@ -718,12 +693,29 @@ export default function EventsPage() {
                         <Button
                           size="sm"
                           className="bg-neon hover:bg-neon/90 text-black"
+                          disabled={!session?.user || registerMutation.isPending}
+                          onClick={(evClick) => {
+                            evClick.stopPropagation();
+                            if (!session?.user) {
+                              toast.error("Sign in to register");
+                              return;
+                            }
+                            registerMutation.mutate({ eventId: event.id });
+                          }}
                         >
                           Register
                         </Button>
                       ) : (
-                        <Button size="sm" variant="outline">
-                          View Details
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={!session?.user || unregisterMutation.isPending}
+                          onClick={(evClick) => {
+                            evClick.stopPropagation();
+                            unregisterMutation.mutate({ eventId: event.id });
+                          }}
+                        >
+                          Unregister
                         </Button>
                       )}
                     </div>

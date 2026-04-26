@@ -1,0 +1,60 @@
+# Line endings: store text as LF in the repo; respect on checkout per platform via text=auto
+# See: https://git-scm.com/docs/gitattributes
+
+* text=auto
+
+# Web / Node / Prisma
+*.ts text eol=lf
+*.tsx text eol=lf
+*.js text eol=lf
+*.jsx text eol=lf
+*.mjs text eol=lf
+*.cjs text eol=lf
+*.json text eol=lf
+*.css text eol=lf
+*.scss text eol=lf
+*.html text eol=lf
+*.svg text eol=lf
+*.prisma text eol=lf
+*.dbml text eol=lf
+
+# Docs & config
+*.md text eol=lf
+*.mdx text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.toml text eol=lf
+*.sql text eol=lf
+*.sh text eol=lf
+Dockerfile text eol=lf
+*.dockerignore text eol=lf
+.editorconfig text eol=lf
+.gitignore text eol=lf
+.gitattributes text eol=lf
+
+# .NET / C#
+*.cs text eol=lf
+*.csproj text eol=lf
+*.sln text eol=lf
+*.props text eol=lf
+*.targets text eol=lf
+*.config text eol=lf
+*.resx text eol=lf
+*.xaml text eol=lf
+
+# Binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.pdf binary
+*.zip binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary
+*.dll binary
+*.exe binary
+*.node binary

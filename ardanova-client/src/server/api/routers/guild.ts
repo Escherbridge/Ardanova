@@ -70,6 +70,19 @@ export const guildRouter = createTRPCRouter({
       return response.data;
     }),
 
+  /** Guilds owned by a user (for public profiles). API may return one guild or an array. */
+  getGuildsForOwner: publicProcedure
+    .input(z.object({ ownerId: z.string() }))
+    .query(async ({ input }) => {
+      const response = await apiClient.guilds.getByOwnerId(input.ownerId);
+      if (response.error || response.status === 404 || !response.data) {
+        return [];
+      }
+      const raw = response.data;
+      const list = Array.isArray(raw) ? raw : [raw];
+      return list.filter(Boolean);
+    }),
+
   // Get user's guild (as owner)
   getMyGuild: protectedProcedure.query(async ({ ctx }) => {
     const userId = ctx.session.user.id;

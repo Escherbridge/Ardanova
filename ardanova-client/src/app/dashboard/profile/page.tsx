@@ -53,6 +53,18 @@ export default function ProfilePage() {
 
   const pendingInvitations = invitations?.filter((i: any) => i.status === "PENDING") ?? [];
 
+  const { data: myProjects } = api.project.getMyProjects.useQuery(
+    { limit: 100, page: 1 },
+    { enabled: !!user?.id },
+  );
+  const { data: myGuilds } = api.guild.getMyGuilds.useQuery(undefined, { enabled: !!user?.id });
+  const { data: myTasks } = api.task.getMyTasks.useQuery({ limit: 200 }, { enabled: !!user?.id });
+
+  const { data: meProfile } = api.user.getById.useQuery(
+    { id: user?.id ?? "" },
+    { enabled: !!user?.id },
+  );
+
   const activeCredentials = credentials?.filter((c) => c.status === "ACTIVE") ?? [];
   const highestTier = getHighestTier(activeCredentials.map((c) => c.tier).filter(Boolean) as string[]);
 
@@ -80,18 +92,30 @@ export default function ProfilePage() {
                 <p className="text-muted-foreground mb-4">
                   {user?.email}
                 </p>
-                <div className="flex gap-6 text-sm">
+                <div className="flex gap-6 text-sm flex-wrap">
                   <div className="flex items-center gap-2">
                     <FolderKanban className="size-4 text-primary" />
-                    <span><strong>3</strong> Projects</span>
+                    <span>
+                      <strong>{myProjects?.items?.length ?? 0}</strong> Projects
+                    </span>
                   </div>
                   <div className="flex items-center gap-2">
                     <Users className="size-4 text-neon-pink" />
-                    <span><strong>2</strong> Guilds</span>
+                    <span>
+                      <strong>{myGuilds?.length ?? 0}</strong> Guilds
+                    </span>
                   </div>
                   <div className="flex items-center gap-2">
                     <Calendar className="size-4 text-neon-green" />
-                    <span>Joined Jan 2024</span>
+                    <span>
+                      Joined{" "}
+                      {meProfile?.createdAt
+                        ? new Date(meProfile.createdAt).toLocaleDateString("en-US", {
+                            month: "short",
+                            year: "numeric",
+                          })
+                        : "—"}
+                    </span>
                   </div>
                   {activeCredentials.length > 0 && (
                     <div className="flex items-center gap-2">
@@ -238,7 +262,19 @@ export default function ProfilePage() {
                 <CardTitle>Your Guilds</CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-muted-foreground">You haven't joined any guilds yet.</p>
+                {(myGuilds?.length ?? 0) === 0 ? (
+                  <p className="text-muted-foreground">You haven&apos;t joined any guilds yet.</p>
+                ) : (
+                  <ul className="space-y-2">
+                    {myGuilds!.map((g) => (
+                      <li key={g.id}>
+                        <a href={`/guilds/${g.slug}`} className="text-primary hover:underline font-medium">
+                          {g.name}
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -257,7 +293,13 @@ export default function ProfilePage() {
                 <CardTitle>Contributions</CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-muted-foreground">No contributions to show.</p>
+                <p className="text-muted-foreground">
+                  Active tasks: <strong>{myTasks?.items?.length ?? 0}</strong>
+                </p>
+                <p className="text-muted-foreground mt-2">
+                  XP: <strong>{meProfile?.totalXP ?? 0}</strong> · Level{" "}
+                  <strong>{meProfile?.level ?? 1}</strong>
+                </p>
               </CardContent>
             </Card>
           </TabsContent>
