@@ -46,11 +46,12 @@ interface OpportunityCardProps {
 }
 
 const typeVariants: Record<string, "neon" | "neon-pink" | "neon-green" | "neon-purple" | "warning" | "secondary"> = {
-  Bounty: "neon-green",
-  Freelance: "neon-purple",
-  Contract: "neon",
-  "Part-time": "warning",
-  "Full-time": "neon-pink",
+  GUILD_POSITION: "neon-purple",
+  PROJECT_ROLE: "neon-pink",
+  TASK_BOUNTY: "neon-green",
+  FREELANCE: "neon",
+  MENTORSHIP: "warning",
+  COLLABORATION: "secondary",
 };
 
 function formatRelativeTime(date: Date): string {
@@ -83,10 +84,18 @@ function formatTimeLeft(deadline: string): string {
 }
 
 function formatCompensation(amount?: number, details?: string): string {
-  if (!amount) return "Negotiable";
-  const formatted = amount >= 1000 ? `$${(amount / 1000).toFixed(amount % 1000 === 0 ? 0 : 1)}k` : `$${amount}`;
-  if (details === "hourly") return `${formatted}/hr`;
-  return formatted;
+  if (!amount && !details) return "Negotiable";
+  const suffix: Record<string, string> = {
+    FIXED_SHARES: " shares",
+    HOURLY_SHARES: " shares/hr",
+    EQUITY_PERCENT: "% equity",
+    BOUNTY: " bounty",
+    MILESTONE: " per milestone",
+    HYBRID: " (hybrid)",
+  };
+  const unit = details && suffix[details] ? suffix[details] : "";
+  if (!amount) return details ? details.replace(/_/g, " ").toLowerCase() : "Negotiable";
+  return `${amount}${unit}`;
 }
 
 function isUrgent(status: string, deadline?: string): boolean {

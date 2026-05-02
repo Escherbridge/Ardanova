@@ -1,67 +1,60 @@
-# Events Module Specification
+# Events Module — Retroactive Specification
 
-## Overview
-This track manages the lifecycle of events (virtual or physical) and their integration with Projects and Guilds.
+> This document retroactively captures the events system implemented across early development.
 
-## Data Models
+## Status: COMPLETE
 
-### Event
-- `Id`: UUID (PK)
-- `OrganizerId`: UUID (FK)
-- `ProjectId`: UUID? (FK)
-- `GuildId`: UUID? (FK)
-- `Title`: String
-- `Slug`: String (Unique)
-- `Description`: String (Markdown)
-- `Type`: Enum (MEETING, WORKSHOP, WEBINAR, TOWN_HALL, HACKATHON, SOCIAL)
-- `Visibility`: Enum (PUBLIC, PROJECT_MEMBERS, GUILD_MEMBERS, INVITE_ONLY)
-- `Status`: Enum (DRAFT, SCHEDULED, LIVE, COMPLETED, CANCELLED)
-- `StartDate`: DateTime
-- `EndDate`: DateTime
-- `Timezone`: String (IANA format)
-- `IsOnline`: Boolean
-- `Location`: String? (Physical address)
-- `LocationUrl`: String? (Map link)
-- `MeetingUrl`: String? (Zoom/Google Meet)
-- `MaxAttendees`: Integer?
-- `AttendeesCount`: Integer
-- `CoverImage`: String?
+All backend services, controllers, API client endpoints, tRPC routers, and frontend pages are implemented and functional.
 
-### EventAttendee
-- `EventId`: UUID (FK)
-- `UserId`: UUID (FK)
-- `Status`: Enum (INVITED, GOING, MAYBE, NOT_GOING, ATTENDED)
-- `RsvpAt`: DateTime
-- `Notes`: String?
+## Architecture
 
-## API Endpoints (`EventsController`)
+### Backend
 
-| Method | Endpoint | Description | DTO |
-| :--- | :--- | :--- | :--- |
-| `GET` | `/api/events` | List events | `EventDto[]` |
-| `POST` | `/api/events` | Create event | `CreateEventDto` |
-| `GET` | `/api/events/{id}` | Get details | `EventDto` |
-| `PUT` | `/api/events/{id}` | Update details | `UpdateEventDto` |
-| `POST` | `/api/events/{id}/register` | RSVP | `RegisterEventDto` |
-| `DELETE` | `/api/events/{id}/register` | Cancel RSVP | - |
-| `GET` | `/api/events/{id}/attendees` | List attendees | `EventAttendeeDto[]` |
+**EventsController** (`ArdaNova.API/Controllers/EventsController.cs`) — 14 endpoints:
 
-## Business Logic & Validation
+| Endpoint | Purpose |
+|----------|---------|
+| `GET /api/events` | Get all events |
+| `GET /api/events/paged` | Paginated listing |
+| `GET /api/events/search` | Multi-field search (term, type, status, upcoming) |
+| `GET /api/events/{id}` | By ID |
+| `GET /api/events/slug/{slug}` | By slug |
+| `GET /api/events/upcoming` | Upcoming events |
+| `GET /api/events/organizer/{organizerId}` | By organizer |
+| `GET /api/events/user/{userId}/registered` | User's registered events |
+| `POST /api/events` | Create event |
+| `PUT /api/events/{id}` | Update event |
+| `DELETE /api/events/{id}` | Delete event |
+| `POST /api/events/{id}/register` | RSVP / register |
+| `DELETE /api/events/{id}/register` | Cancel registration |
+| `GET /api/events/{id}/attendees` | List attendees |
 
-### 1. Creation Context
-- **Personal**: Created by User (Organizer).
-- **Project**: Linked to `ProjectId`, visibility often `PROJECT_MEMBERS`.
-- **Guild**: Linked to `GuildId`, visibility often `GUILD_MEMBERS`.
+**Service:** `IEventService` / `EventService`
 
-### 2. Time & Attendance
-- **Conflicting RSVPs**: System could warn if User has another event at same time (Future feature).
-- **Capacity**: logic enforces `AttendeesCount < MaxAttendees`.
-- **Status Transition**: Scheduled -> Live -> Completed (Often manual or cron-based).
+**Search capabilities:**
+- Text search by term
+- Filter by `EventType` enum
+- Filter by `EventStatus` enum
+- Filter by upcoming (boolean)
+- Pagination support
 
-### 3. URL Handling
-- `LocationUrl` vs `MeetingUrl`: Explicit distinction allows UI to show "Get Directions" vs "Join Call".
+### Frontend
 
-## Integration Points
-- **Social**: Event creation posts to Feed.
-- **Notifications**: `EVENT_INVITATION`, `EVENT_REMINDER` (Scheduled jobs).
-- **Calendars**: .ics export (Frontend feature).
+**Pages:**
+- `/events` — Event listing page with search
+- `/events/create` — Event creation form
+
+**tRPC Router:** `event.ts` — Thin proxy to `apiClient.events.*`
+**API Client:** `endpoints/events.ts` — HTTP wrapper for all endpoints
+
+### Domain Model
+
+**Event entity fields:** id, organizerId, title, slug, description, type (EventType), status (EventStatus), startDate, endDate, location, isVirtual, virtualLink, maxAttendees, coverImage, tags, metadata, createdAt, updatedAt
+
+**EventType enum:** Values include community meetup, workshop, hackathon, demo day, etc.
+**EventStatus enum:** DRAFT, PUBLISHED, CANCELLED, COMPLETED
+
+**Related entities:**
+- `EventAttendee` — RSVP tracking (userId, eventId, status, registeredAt)
+- `EventCoHost` — Co-host management
+- `EventReminder` — Scheduled reminders

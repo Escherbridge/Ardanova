@@ -12,11 +12,17 @@ public static class GeneratedModelConfigurations
     /// </summary>
     public static void ApplyGeneratedConfigurations(this ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<ProjectMember>().HasIndex(e => new { e.projectId, e.userId }).IsUnique();
         modelBuilder.Entity<MembershipCredential>().HasIndex(e => new { e.projectId, e.userId }).IsUnique();
+        modelBuilder.Entity<MembershipCredential>().HasIndex(e => new { e.guildId, e.userId }).IsUnique();
         modelBuilder.Entity<ConversationMember>().HasIndex(e => new { e.conversationId, e.userId }).IsUnique();
         modelBuilder.Entity<ChatMessage>().HasIndex(e => new { e.conversationId, e.sentAt });
         modelBuilder.Entity<OpportunityApplication>().HasIndex(e => new { e.opportunityId, e.applicantId }).IsUnique();
         modelBuilder.Entity<OpportunityBid>().HasIndex(e => new { e.opportunityId, e.bidderId }).IsUnique();
+        modelBuilder.Entity<KycSubmission>().HasIndex(e => new { e.userId, e.status });
+        modelBuilder.Entity<KycDocument>().HasIndex(e => new { e.submissionId, e.type }).IsUnique();
+        modelBuilder.Entity<TokenBalance>().HasIndex(e => new { e.userId, e.projectTokenConfigId, e.holderClass }).IsUnique();
+        modelBuilder.Entity<ProjectInvestment>().HasIndex(e => new { e.projectTokenConfigId, e.userId });
 
         // Bidirectional FK disambiguation
         // ProjectTask.opportunityId -> Opportunity

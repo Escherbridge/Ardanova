@@ -316,6 +316,24 @@ export const governanceRouter = createTRPCRouter({
       return { success: true, proposal: response.data };
     }),
 
+  publishProposal: protectedProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.session.user.id;
+      const existing = await apiClient.governance.getById(input.id);
+      if (existing.error || !existing.data) {
+        throw new Error("Proposal not found");
+      }
+      if (existing.data.creatorId !== userId) {
+        throw new Error("Access denied: You do not own this proposal");
+      }
+      const response = await apiClient.governance.publishProposal(input.id);
+      if (response.error || !response.data) {
+        throw new Error(response.error ?? "Failed to publish proposal");
+      }
+      return response.data;
+    }),
+
   // Cancel a proposal
   cancel: protectedProcedure
     .input(z.object({ id: z.string() }))

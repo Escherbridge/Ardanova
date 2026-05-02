@@ -139,6 +139,51 @@ public class GovernanceController : ControllerBase
         return ToActionResult(result);
     }
 
+    [HttpPatch("proposals/{id}/publish")]
+    public async Task<IActionResult> PublishProposal(string id, CancellationToken ct)
+    {
+        var result = await _governanceService.PublishProposalAsync(id, ct);
+        return ToActionResult(result);
+    }
+
+    // Proposal comment endpoints
+
+    [HttpGet("proposals/{id}/comments")]
+    public async Task<IActionResult> GetProposalComments(string id, CancellationToken ct)
+    {
+        var result = await _governanceService.GetProposalCommentsAsync(id, ct);
+        return ToActionResult(result);
+    }
+
+    [HttpPost("proposals/{id}/comments")]
+    public async Task<IActionResult> CreateProposalComment(string id, [FromBody] CreateProposalCommentDto dto, CancellationToken ct)
+    {
+        var dtoWithProposal = dto with { ProposalId = id };
+        var result = await _governanceService.CreateProposalCommentAsync(dtoWithProposal, ct);
+        return result.IsSuccess
+            ? CreatedAtAction(nameof(GetProposalById), new { id }, result.Value)
+            : ToActionResult(result);
+    }
+
+    [HttpPut("proposals/{id}/comments/{commentId}")]
+    public async Task<IActionResult> UpdateProposalComment(
+        string id,
+        string commentId,
+        [FromQuery] string userId,
+        [FromBody] UpdateProposalCommentDto dto,
+        CancellationToken ct)
+    {
+        var result = await _governanceService.UpdateProposalCommentAsync(id, commentId, userId, dto, ct);
+        return ToActionResult(result);
+    }
+
+    [HttpDelete("proposals/{id}/comments/{commentId}")]
+    public async Task<IActionResult> DeleteProposalComment(string id, string commentId, [FromQuery] string userId, CancellationToken ct)
+    {
+        var result = await _governanceService.DeleteProposalCommentAsync(id, commentId, userId, ct);
+        return result.IsSuccess ? NoContent() : ToActionResult(result);
+    }
+
     private IActionResult ToActionResult<T>(Result<T> result)
     {
         if (result.IsSuccess)

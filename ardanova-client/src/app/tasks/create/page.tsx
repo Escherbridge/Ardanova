@@ -16,6 +16,8 @@ import {
   SelectValue,
 } from "~/components/ui/select";
 import { useEnumOptions } from "~/hooks/use-enum";
+import { api } from "~/trpc/react";
+import { toast } from "sonner";
 
 // Priority color indicators
 const priorityColors: Record<string, string> = {
@@ -39,16 +41,57 @@ const effortLabels: Record<string, string> = {
   XL: "XL (1-2 weeks)",
 };
 
+function mapTaskTypeEnumToRouter(
+  id: string,
+): "feature" | "bug" | "improvement" | "documentation" | "research" | "design" | "other" {
+  const u = id.toUpperCase();
+  if (u === "FEATURE") return "feature";
+  if (u === "BUG") return "bug";
+  if (u === "ENHANCEMENT") return "improvement";
+  if (u === "DOCUMENTATION") return "documentation";
+  if (u === "RESEARCH") return "research";
+  if (u === "DESIGN") return "design";
+  return "other";
+}
+
+function mapPriorityEnumToRouter(id: string): "low" | "medium" | "high" | "critical" {
+  const u = id.toUpperCase();
+  if (u === "URGENT") return "critical";
+  if (u === "HIGH") return "high";
+  if (u === "LOW") return "low";
+  return "medium";
+}
+
+function mapEffortToRouter(id: string): "xs" | "s" | "m" | "l" | "xl" | undefined {
+  if (!id) return undefined;
+  const u = id.toUpperCase();
+  if (u === "XS") return "xs";
+  if (u === "S") return "s";
+  if (u === "M") return "m";
+  if (u === "L") return "l";
+  if (u === "XL") return "xl";
+  return "m";
+}
+
 export default function CreateTaskPage() {
   const router = useRouter();
+  const { data: projectsData } = api.project.getMyProjects.useQuery({ limit: 50, page: 1 });
+  const createTask = api.task.create.useMutation({
+    onSuccess: () => {
+      toast.success("Task created");
+      router.push("/tasks");
+    },
+    onError: (e) => toast.error(e.message),
+  });
   const { options: priorityLevels } = useEnumOptions("TaskPriority");
   const { options: taskTypes } = useEnumOptions("TaskType", taskTypeLabels);
   const { options: effortEstimates } = useEnumOptions("EffortEstimate", effortLabels);
   const [formData, setFormData] = useState({
     title: "",
     description: "",
+    projectId: "",
     type: "",
-    priority: "medium",
+    priority: "MEDIUM",
     effort: "",
     dueDate: "",
     assignee: "",
@@ -94,6 +137,7 @@ export default function CreateTaskPage() {
     if (formData.description.length < 10)
       newErrors.description = "Must be at least 10 characters";
     if (!formData.type) newErrors.type = "Task type is required";
+    if (!formData.projectId) newErrors.projectId = "Project is required";
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -103,10 +147,20 @@ export default function CreateTaskPage() {
     if (!validateForm()) return;
 
     setIsSubmitting(true);
-    // TODO: Implement task creation API
-    setTimeout(() => {
-      router.push("/tasks");
-    }, 1000);
+    try {
+      await createTask.mutateAsync({
+        projectId: formData.projectId,
+        title: formData.title.trim(),
+        description: formData.description.trim(),
+        type: mapTaskTypeEnumToRouter(formData.type),
+        priority: mapPriorityEnumToRouter(formData.priority),
+        effort: mapEffortToRouter(formData.effort),
+        dueDate: formData.dueDate || undefined,
+        tags: formData.tags.length ? formData.tags.join(",") : undefined,
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -173,6 +227,30 @@ export default function CreateTaskPage() {
                   <p className="text-sm text-destructive mt-1">
                     {errors.description}
                   </p>
+                )}
+              </div>
+
+              <div>
+                <label className="text-sm font-medium mb-2 block">
+                  Project <span className="text-neon">*</span>
+                </label>
+                <Select
+                  value={formData.projectId}
+                  onValueChange={(value) => handleChange("projectId", value)}
+                >
+                  <SelectTrigger className={errors.projectId ? "border-destructive" : "border-border"}>
+                    <SelectValue placeholder="Select a project" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(projectsData?.items ?? []).map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.title}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {errors.projectId && (
+                  <p className="text-sm text-destructive mt-1">{errors.projectId}</p>
                 )}
               </div>
 

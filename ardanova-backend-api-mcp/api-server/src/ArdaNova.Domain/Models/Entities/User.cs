@@ -119,6 +119,8 @@ public class User
 
     public virtual ICollection<Vote> Votes { get; set; } = new List<Vote>();
 
+    public virtual ICollection<ProposalComment> ProposalComments { get; set; } = new List<ProposalComment>();
+
     public virtual ICollection<Guild> Guilds { get; set; } = new List<Guild>();
 
     public virtual ICollection<GuildMember> GuildMembers { get; set; } = new List<GuildMember>();
@@ -183,6 +185,14 @@ public class User
 
     public virtual ICollection<OpportunityBid> OpportunityBids { get; set; } = new List<OpportunityBid>();
 
+    public virtual ICollection<TokenAllocation> TokenAllocations { get; set; } = new List<TokenAllocation>();
+
+    public virtual ICollection<TokenBalance> TokenBalances { get; set; } = new List<TokenBalance>();
+
+    public virtual ICollection<PayoutRequest> PayoutRequests { get; set; } = new List<PayoutRequest>();
+
+    public virtual ICollection<ProjectInvestment> ProjectInvestments { get; set; } = new List<ProjectInvestment>();
+
     public virtual ICollection<Referral> ReferralsAsReferrer { get; set; } = new List<Referral>();
 
     public virtual ICollection<Referral> ReferralsAsReferred { get; set; } = new List<Referral>();
@@ -218,5 +228,9 @@ public class User
     public virtual ICollection<UserFollow> UserFollowsAsFollower { get; set; } = new List<UserFollow>();
 
     public virtual ICollection<UserFollow> UserFollowsAsFollowing { get; set; } = new List<UserFollow>();
+
+    public virtual ICollection<KycSubmission> KycSubmissionsAsUser { get; set; } = new List<KycSubmission>();
+
+    public virtual ICollection<KycSubmission> KycSubmissionsAsReviewer { get; set; } = new List<KycSubmission>();
 
 }

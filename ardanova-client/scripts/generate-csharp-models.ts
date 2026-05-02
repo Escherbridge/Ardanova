@@ -426,6 +426,11 @@ public class ${table.name}
                 content += `    [Column(TypeName = "text")]\n`;
             }
 
+            // [Column(TypeName = "jsonb")] for json/jsonb fields (PostgreSQL stores Json as jsonb)
+            if (baseTypeName === 'json' || baseTypeName === 'jsonb') {
+                content += `    [Column(TypeName = "jsonb")]\n`;
+            }
+
             // [Precision(x, y)] for decimal fields
             if (baseTypeName === 'decimal') {
                 const [precision, scale] = getDecimalPrecision(field);

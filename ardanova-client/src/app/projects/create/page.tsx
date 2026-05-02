@@ -33,6 +33,7 @@ import {
 import { cn } from "~/lib/utils";
 import { api } from "~/trpc/react";
 import { useEnumOptions, formatEnumLabel } from "~/hooks/use-enum";
+import { toast } from "sonner";
 
 const OTHER_CATEGORY_MAX_LENGTH = 50;
 
@@ -108,6 +109,7 @@ interface Role {
   shareAmount: string;
   equityPercent: string;
   isOpenForApplications: boolean;
+  projectRole: string;
 }
 
 interface Milestone {
@@ -202,6 +204,7 @@ export default function CreateProjectPage() {
     shareAmount: "",
     equityPercent: "",
     isOpenForApplications: true,
+    projectRole: "",
   });
 
   // Milestone state
@@ -384,6 +387,7 @@ export default function CreateProjectPage() {
       shareAmount: "",
       equityPercent: "",
       isOpenForApplications: true,
+      projectRole: "",
     });
     setIsAddingRole(false);
   };
@@ -396,6 +400,7 @@ export default function CreateProjectPage() {
       shareAmount: role.shareAmount,
       equityPercent: role.equityPercent,
       isOpenForApplications: role.isOpenForApplications,
+      projectRole: role.projectRole,
     });
     setEditingRoleId(role.id);
     setIsAddingRole(true);
@@ -418,6 +423,7 @@ export default function CreateProjectPage() {
       shareAmount: "",
       equityPercent: "",
       isOpenForApplications: true,
+      projectRole: "",
     });
   };
 
@@ -479,6 +485,7 @@ export default function CreateProjectPage() {
   };
 
   const handleSubmit = async (publish: boolean) => {
+    const partialWarnings: string[] = [];
     try {
       // 1. Create the project first
       // Build categories list, replacing "OTHER" with the custom value
@@ -534,8 +541,10 @@ export default function CreateProjectPage() {
             userId: session.user.id,
             role: "FOUNDER",
           });
-        } catch {
-          // Non-critical: creator might already be added by backend
+        } catch (e) {
+          partialWarnings.push(
+            `Founder membership: ${e instanceof Error ? e.message : "could not be saved"}`
+          );
         }
       }
 
@@ -549,14 +558,6 @@ export default function CreateProjectPage() {
           BOUNTY: "fixed",
           MILESTONE: "fixed",
         };
-        const typeMap: Record<string, "Bounty" | "Freelance" | "Contract" | "Part-time" | "Full-time"> = {
-          FIXED_TOKEN: "Contract",
-          HOURLY_TOKEN: "Freelance",
-          EQUITY_PERCENT: "Full-time",
-          HYBRID: "Part-time",
-          BOUNTY: "Bounty",
-          MILESTONE: "Contract",
-        };
 
         const description = role.description.length >= 20
           ? role.description
@@ -567,15 +568,25 @@ export default function CreateProjectPage() {
             projectId: project.id,
             title: role.title,
             description,
-            type: typeMap[role.compensationModel] ?? "Contract",
+            type: "PROJECT_ROLE",
             skills: formData.tags.length > 0 ? formData.tags : ["General"],
-            compensationType: compensationMap[role.compensationModel] ?? "negotiable",
+            compensationModel: compensationMap[role.compensationModel] ?? "negotiable",
             compensationAmount: role.shareAmount && Number(role.shareAmount) > 0 ? Number(role.shareAmount) : undefined,
             isRemote: true,
+            projectRole: (role.projectRole || undefined) as "FOUNDER" | "LEADER" | "CORE_CONTRIBUTOR" | "CONTRIBUTOR" | "OBSERVER" | undefined,
           });
-        } catch {
-          // Non-critical: continue saving remaining roles
+        } catch (e) {
+          partialWarnings.push(
+            `Role "${role.title}": ${e instanceof Error ? e.message : "opportunity could not be created"}`
+          );
         }
+      }
+
+      if (partialWarnings.length > 0) {
+        toast.warning("Project created, but with some issues.", {
+          description: partialWarnings.join('. '),
+          duration: 8000,
+        });
       }
 
       router.push(`/projects/${project.slug}`);
@@ -1436,6 +1447,34 @@ export default function CreateProjectPage() {
                             ))}
                           </SelectContent>
                         </Select>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium mb-2 block">
+                          Base Role
+                        </label>
+                        <Select
+                          value={roleForm.projectRole}
+                          onValueChange={(value) =>
+                            setRoleForm((prev) => ({
+                              ...prev,
+                              projectRole: value,
+                            }))
+                          }
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select base role" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="FOUNDER">Founder</SelectItem>
+                            <SelectItem value="LEADER">Leader</SelectItem>
+                            <SelectItem value="CORE_CONTRIBUTOR">Core Contributor</SelectItem>
+                            <SelectItem value="CONTRIBUTOR">Contributor</SelectItem>
+                            <SelectItem value="OBSERVER">Observer</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          The organizational role granted when this position is filled
+                        </p>
                       </div>
                       <div className="grid grid-cols-2 gap-4">
                         <div>

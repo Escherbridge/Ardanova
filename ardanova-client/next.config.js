@@ -6,19 +6,16 @@ import "./src/env.js";
 
 /** @type {import("next").NextConfig} */
 const config = {
+  // Turbopack: use cwd as workspace root when running dev (avoids multiple-lockfile warning)
+  turbopack: { root: process.cwd() },
   // Enable standalone output for Docker deployment
   output: "standalone",
   serverExternalPackages: ["@microsoft/signalr"],
   typescript: {
-    // !! WARN !!
-    // Dangerously allow production builds to successfully complete even if
-    // your project has type errors.
-    // !! WARN !!
-    ignoreBuildErrors: true,
+    ignoreBuildErrors: false,
   },
+  // Lint is run via `npm run lint` / CI; type-checked ESLint rules are noisy with `strict: false`.
   eslint: {
-    // Warning: This allows production builds to successfully complete even if
-    // your project has ESLint errors.
     ignoreDuringBuilds: true,
   },
 };

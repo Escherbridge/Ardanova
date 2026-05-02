@@ -70,6 +70,19 @@ export const guildRouter = createTRPCRouter({
       return response.data;
     }),
 
+  /** Guilds owned by a user (for public profiles). API may return one guild or an array. */
+  getGuildsForOwner: publicProcedure
+    .input(z.object({ ownerId: z.string() }))
+    .query(async ({ input }) => {
+      const response = await apiClient.guilds.getByOwnerId(input.ownerId);
+      if (response.error || response.status === 404 || !response.data) {
+        return [];
+      }
+      const raw = response.data;
+      const list = Array.isArray(raw) ? raw : [raw];
+      return list.filter(Boolean);
+    }),
+
   // Get user's guild (as owner)
   getMyGuild: protectedProcedure.query(async ({ ctx }) => {
     const userId = ctx.session.user.id;
@@ -130,7 +143,13 @@ export const guildRouter = createTRPCRouter({
       }
 
       const response = await apiClient.guilds.create({
-        ...input,
+        name: input.name,
+        description: input.description,
+        email: input.email,
+        phone: input.phone,
+        logoUrl: input.logoUrl,
+        website: input.website,
+        slug: input.slug,
         ownerId: userId,
       });
 
@@ -233,12 +252,42 @@ export const guildRouter = createTRPCRouter({
         throw new Error("Only the guild owner can add members");
       }
 
-      const response = await apiClient.guilds.addMember(input);
+      const response = await apiClient.guilds.addMember({
+        guildId: input.guildId,
+        userId: input.userId,
+        role: input.role,
+      });
 
       if (response.error || !response.data) {
         throw new Error(response.error ?? "Failed to add member");
       }
 
+      return response.data;
+    }),
+
+  updateMember: protectedProcedure
+    .input(
+      z.object({
+        guildId: z.string(),
+        memberId: z.string(),
+        role: z.string().optional(),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      const sessionUserId = ctx.session.user.id;
+      const guild = await apiClient.guilds.getById(input.guildId);
+      if (guild.error || !guild.data) {
+        throw new Error("Guild not found");
+      }
+      if (guild.data.ownerId !== sessionUserId) {
+        throw new Error("Only the guild owner can update members");
+      }
+      const response = await apiClient.guilds.updateMember(input.guildId, input.memberId, {
+        role: input.role,
+      });
+      if (response.error || !response.data) {
+        throw new Error(response.error ?? "Failed to update member");
+      }
       return response.data;
     }),
 
@@ -288,13 +337,16 @@ export const guildRouter = createTRPCRouter({
 
   // Create a review for a guild
   createReview: protectedProcedure
-    .input(CreateGuildReviewSchema.omit({ userId: true }))
+    .input(CreateGuildReviewSchema.omit({ reviewerId: true }).extend({ guildId: z.string() }))
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user.id;
 
       const response = await apiClient.guilds.createReview({
-        ...input,
-        userId,
+        guildId: input.guildId,
+        reviewerId: userId,
+        rating: input.rating,
+        title: input.title,
+        content: input.content,
       });
 
       if (response.error || !response.data) {
@@ -324,7 +376,7 @@ export const guildRouter = createTRPCRouter({
         throw new Error("Review not found");
       }
 
-      if (review.userId !== userId) {
+      if (review.reviewerId !== userId) {
         throw new Error("Access denied");
       }
 
@@ -379,7 +431,6 @@ export const guildRouter = createTRPCRouter({
       const response = await apiClient.guilds.createUpdate(input.guildId, {
         title: input.title,
         content: input.content,
-        createdById: userId,
       });
 
       if (response.error || !response.data) {
@@ -608,7 +659,7 @@ export const guildRouter = createTRPCRouter({
         throw new Error("Access denied");
       }
 
-      const response = await apiClient.guilds.respondToInvitation(input.invitationId, {
+      const response = await apiClient.guilds.respondToInvitation(input.guildId, input.invitationId, {
         accept: input.accept,
       });
 

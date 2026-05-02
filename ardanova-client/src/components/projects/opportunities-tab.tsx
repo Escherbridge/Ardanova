@@ -84,6 +84,21 @@ function formatStatus(s: string) {
   return s.replace(/_/g, " ");
 }
 
+function getRoleBadgeVariant(role: string) {
+  switch (role) {
+    case "FOUNDER": return "neon-pink-solid" as const;
+    case "LEADER": return "neon-purple" as const;
+    case "CORE_CONTRIBUTOR": return "neon-green" as const;
+    case "CONTRIBUTOR": return "info" as const;
+    case "OBSERVER": return "outline" as const;
+    default: return "secondary" as const;
+  }
+}
+
+function formatProjectRoleName(role: string) {
+  return role.split("_").map((w) => w.charAt(0) + w.slice(1).toLowerCase()).join(" ");
+}
+
 // ---------------------------------------------------------------------------
 // Level metadata
 // ---------------------------------------------------------------------------
@@ -1312,16 +1327,9 @@ function TeamPositionsView({
   projectSlug: string;
   isOwner: boolean;
 }) {
-  const { data: opportunitiesResult, isLoading } = api.opportunity.getAll.useQuery({
-    limit: 100,
+  const { data: teamPositions = [], isLoading } = api.opportunity.getByProjectId.useQuery({
+    projectId,
   });
-
-  const teamPositions = useMemo(() => {
-    const all = opportunitiesResult?.items ?? [];
-    return all.filter(
-      (o: any) => o.projectId === projectId && o.origin === "TEAM_POSITION"
-    );
-  }, [opportunitiesResult, projectId]);
 
   if (isLoading) {
     return (
@@ -1373,6 +1381,11 @@ function TeamPositionsView({
                 </Link>
               </div>
               <div className="flex items-center gap-2">
+                {opp.projectRole && (
+                  <Badge variant={getRoleBadgeVariant(opp.projectRole)} size="sm">
+                    {formatProjectRoleName(opp.projectRole)}
+                  </Badge>
+                )}
                 {opp.type && (
                   <Badge variant="neon-purple" size="sm">
                     {opp.type}

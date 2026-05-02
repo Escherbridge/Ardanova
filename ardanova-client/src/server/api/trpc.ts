@@ -12,7 +12,14 @@ import superjson from "superjson";
 import { ZodError } from "zod";
 
 import { auth } from "~/server/auth";
-import { db } from "~/server/db";
+import {
+  type UserRole,
+  type UserType,
+  type VerificationLevel,
+  checkRole,
+  checkUserType,
+  checkVerificationLevel,
+} from "~/server/api/lib/rbac";
 
 
 
@@ -32,7 +39,6 @@ export const createTRPCContext = async (opts: { headers: Headers }) => {
   const session = await auth();
 
   return {
-    db,
     session,
     ...opts,
   };
@@ -133,3 +139,108 @@ export const protectedProcedure = t.procedure
       },
     });
   });
+
+// ---------------------------------------------------------------------------
+// 4. RBAC MIDDLEWARE & PROCEDURE BUILDERS
+// ---------------------------------------------------------------------------
+
+/**
+ * Middleware that verifies the authenticated user has one of the specified roles.
+ * Must be used after the auth middleware (i.e. on top of protectedProcedure).
+ */
+const requireRole = (allowedRoles: readonly UserRole[]) =>
+  t.middleware(({ ctx, next }) => {
+    const user = ctx.session?.user;
+    if (!user) {
+      throw new TRPCError({ code: "UNAUTHORIZED" });
+    }
+    const result = checkRole(user.role, allowedRoles);
+    if (!result.allowed) {
+      throw new TRPCError({ code: "FORBIDDEN", message: result.reason });
+    }
+    return next({
+      ctx: {
+        session: { ...ctx.session!, user },
+      },
+    });
+  });
+
+/**
+ * Middleware that verifies the authenticated user has one of the specified user types.
+ */
+const requireUserType = (allowedTypes: readonly UserType[]) =>
+  t.middleware(({ ctx, next }) => {
+    const user = ctx.session?.user;
+    if (!user) {
+      throw new TRPCError({ code: "UNAUTHORIZED" });
+    }
+    const result = checkUserType(user.userType, allowedTypes);
+    if (!result.allowed) {
+      throw new TRPCError({ code: "FORBIDDEN", message: result.reason });
+    }
+    return next({
+      ctx: {
+        session: { ...ctx.session!, user },
+      },
+    });
+  });
+
+/**
+ * Middleware that verifies the authenticated user meets a minimum verification level.
+ */
+const requireVerification = (minimumLevel: VerificationLevel) =>
+  t.middleware(({ ctx, next }) => {
+    const user = ctx.session?.user;
+    if (!user) {
+      throw new TRPCError({ code: "UNAUTHORIZED" });
+    }
+    const result = checkVerificationLevel(user.verificationLevel, minimumLevel);
+    if (!result.allowed) {
+      throw new TRPCError({ code: "FORBIDDEN", message: result.reason });
+    }
+    return next({
+      ctx: {
+        session: { ...ctx.session!, user },
+      },
+    });
+  });
+
+/**
+ * Admin-only procedure: authenticated + ADMIN role.
+ *
+ * @example
+ *   export const adminRouter = createTRPCRouter({
+ *     listUsers: adminProcedure.query(async ({ ctx }) => { ... }),
+ *   });
+ */
+export const adminProcedure = protectedProcedure.use(requireRole(["ADMIN"]));
+
+/**
+ * Create a role-protected procedure for a specific set of roles.
+ *
+ * @example
+ *   const guildOrAdminProcedure = createRoleProtectedProcedure(["GUILD", "ADMIN"]);
+ */
+export function createRoleProtectedProcedure(allowedRoles: readonly UserRole[]) {
+  return protectedProcedure.use(requireRole(allowedRoles));
+}
+
+/**
+ * Create a user-type-protected procedure.
+ *
+ * @example
+ *   const freelancerProcedure = createUserTypeProtectedProcedure(["FREELANCER"]);
+ */
+export function createUserTypeProtectedProcedure(allowedTypes: readonly UserType[]) {
+  return protectedProcedure.use(requireUserType(allowedTypes));
+}
+
+/**
+ * Create a verification-level-protected procedure.
+ *
+ * @example
+ *   const verifiedProcedure = createVerificationProtectedProcedure("VERIFIED");
+ */
+export function createVerificationProtectedProcedure(minimumLevel: VerificationLevel) {
+  return protectedProcedure.use(requireVerification(minimumLevel));
+}

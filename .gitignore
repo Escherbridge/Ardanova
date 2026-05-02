@@ -40,7 +40,9 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
+# Only ignore a top-level `lib/` (e.g. Python build output). A bare `lib/` rule
+# incorrectly ignored `ardanova-client/src/lib/` and broke version control for API code.
+/lib/
 lib64/
 parts/
 sdist/
@@ -78,6 +80,12 @@ dmypy.json
 # PEP 582
 __pypackages__/
 .omc/continuation-count.json
-ardanova-backend-api-mcp/api-server/src/ArdaNova.API/appsettings.json
+# ardanova-backend-api-mcp/api-server/src/ArdaNova.API/appsettings.json
 ardanova-client/.omc/ultrapilot-state.json
 .claude/settings.local.json
+
+# Local contributor planning (not for public repo)
+CONTRIBUTOR_USD400_ROADMAP.md
+
+# Kenny's Task List
+TASKS-KENNY.md

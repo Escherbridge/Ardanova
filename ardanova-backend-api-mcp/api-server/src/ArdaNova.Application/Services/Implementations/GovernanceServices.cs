@@ -15,6 +15,7 @@ public class GovernanceService : IGovernanceService
     private readonly IRepository<ProposalExecution> _executionRepository;
     private readonly IRepository<User> _userRepository;
     private readonly IRepository<Project> _projectRepository;
+    private readonly IRepository<ProposalComment> _proposalCommentRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IMapper _mapper;
 
@@ -24,6 +25,7 @@ public class GovernanceService : IGovernanceService
         IRepository<ProposalExecution> executionRepository,
         IRepository<User> userRepository,
         IRepository<Project> projectRepository,
+        IRepository<ProposalComment> proposalCommentRepository,
         IUnitOfWork unitOfWork,
         IMapper mapper)
     {
@@ -32,6 +34,7 @@ public class GovernanceService : IGovernanceService
         _executionRepository = executionRepository;
         _userRepository = userRepository;
         _projectRepository = projectRepository;
+        _proposalCommentRepository = proposalCommentRepository;
         _unitOfWork = unitOfWork;
         _mapper = mapper;
     }
@@ -381,5 +384,148 @@ public class GovernanceService : IGovernanceService
             dtos.Add(await EnrichProposalDtoAsync(proposal, ct));
         }
         return dtos;
+    }
+
+    public async Task<Result<ProposalDto>> PublishProposalAsync(string id, CancellationToken ct = default)
+    {
+        var proposal = await _proposalRepository.GetByIdAsync(id, ct);
+        if (proposal is null)
+            return Result<ProposalDto>.NotFound($"Proposal with id {id} not found");
+
+        if (proposal.status != ProposalStatus.DRAFT)
+            return Result<ProposalDto>.Failure("Only DRAFT proposals can be published");
+
+        proposal.status = ProposalStatus.ACTIVE;
+        proposal.votingStart = DateTime.UtcNow;
+        // Use votingEnd if already set, otherwise default to 7 days from now
+        if (proposal.votingEnd is null)
+            proposal.votingEnd = DateTime.UtcNow.AddDays(7);
+        proposal.updatedAt = DateTime.UtcNow;
+
+        await _proposalRepository.UpdateAsync(proposal, ct);
+        await _unitOfWork.SaveChangesAsync(ct);
+
+        var resultDto = await EnrichProposalDtoAsync(proposal, ct);
+        return Result<ProposalDto>.Success(resultDto);
+    }
+
+    public async Task<Result<IReadOnlyList<ProposalCommentDto>>> GetProposalCommentsAsync(string proposalId, CancellationToken ct = default)
+    {
+        var proposal = await _proposalRepository.GetByIdAsync(proposalId, ct);
+        if (proposal is null)
+            return Result<IReadOnlyList<ProposalCommentDto>>.NotFound($"Proposal with id {proposalId} not found");
+
+        var allComments = await _proposalCommentRepository.FindAsync(
+            c => c.proposalId == proposalId, ct);
+        var commentsList = allComments.OrderBy(c => c.createdAt).ToList();
+
+        // Build enriched DTOs with user info
+        var userIds = commentsList.Select(c => c.userId).Distinct().ToList();
+        var users = new Dictionary<string, User>();
+        foreach (var uid in userIds)
+        {
+            var user = await _userRepository.GetByIdAsync(uid, ct);
+            if (user is not null) users[uid] = user;
+        }
+
+        var topLevel = commentsList.Where(c => c.parentId == null).ToList();
+        var repliesByParent = commentsList.Where(c => c.parentId != null)
+            .GroupBy(c => c.parentId!)
+            .ToDictionary(g => g.Key, g => g.ToList());
+
+        var result = topLevel.Select(c => MapCommentDto(c, users, repliesByParent)).ToList();
+        return Result<IReadOnlyList<ProposalCommentDto>>.Success(result);
+    }
+
+    public async Task<Result<ProposalCommentDto>> CreateProposalCommentAsync(CreateProposalCommentDto dto, CancellationToken ct = default)
+    {
+        var proposal = await _proposalRepository.GetByIdAsync(dto.ProposalId, ct);
+        if (proposal is null)
+            return Result<ProposalCommentDto>.NotFound($"Proposal with id {dto.ProposalId} not found");
+
+        var comment = new ProposalComment
+        {
+            id = Guid.NewGuid().ToString(),
+            proposalId = dto.ProposalId,
+            userId = dto.UserId,
+            content = dto.Content,
+            parentId = dto.ParentId,
+            createdAt = DateTime.UtcNow,
+            updatedAt = DateTime.UtcNow
+        };
+
+        await _proposalCommentRepository.AddAsync(comment, ct);
+        await _unitOfWork.SaveChangesAsync(ct);
+
+        var user = await _userRepository.GetByIdAsync(dto.UserId, ct);
+        var commentDto = _mapper.Map<ProposalCommentDto>(comment);
+        commentDto = commentDto with
+        {
+            User = user is not null ? _mapper.Map<ProposalCommentUserDto>(user) : null
+        };
+
+        return Result<ProposalCommentDto>.Success(commentDto);
+    }
+
+    public async Task<Result<ProposalCommentDto>> UpdateProposalCommentAsync(
+        string proposalId,
+        string commentId,
+        string userId,
+        UpdateProposalCommentDto dto,
+        CancellationToken ct = default)
+    {
+        var comment = await _proposalCommentRepository.GetByIdAsync(commentId, ct);
+        if (comment is null || comment.proposalId != proposalId)
+            return Result<ProposalCommentDto>.NotFound("Comment not found");
+        if (comment.userId != userId)
+            return Result<ProposalCommentDto>.ValidationError("Only the author can update this comment");
+
+        comment.content = dto.Content;
+        comment.updatedAt = DateTime.UtcNow;
+        await _proposalCommentRepository.UpdateAsync(comment, ct);
+        await _unitOfWork.SaveChangesAsync(ct);
+
+        var user = await _userRepository.GetByIdAsync(userId, ct);
+        var commentDto = _mapper.Map<ProposalCommentDto>(comment);
+        commentDto = commentDto with
+        {
+            User = user is not null ? _mapper.Map<ProposalCommentUserDto>(user) : null
+        };
+        return Result<ProposalCommentDto>.Success(commentDto);
+    }
+
+    public async Task<Result<bool>> DeleteProposalCommentAsync(
+        string proposalId,
+        string commentId,
+        string userId,
+        CancellationToken ct = default)
+    {
+        var comment = await _proposalCommentRepository.GetByIdAsync(commentId, ct);
+        if (comment is null || comment.proposalId != proposalId)
+            return Result<bool>.NotFound("Comment not found");
+        if (comment.userId != userId)
+            return Result<bool>.ValidationError("Only the author can delete this comment");
+
+        await _proposalCommentRepository.DeleteAsync(comment, ct);
+        await _unitOfWork.SaveChangesAsync(ct);
+        return Result<bool>.Success(true);
+    }
+
+    private ProposalCommentDto MapCommentDto(
+        ProposalComment comment,
+        Dictionary<string, User> users,
+        Dictionary<string, List<ProposalComment>> repliesByParent)
+    {
+        var dto = _mapper.Map<ProposalCommentDto>(comment);
+        dto = dto with
+        {
+            User = users.TryGetValue(comment.userId, out var user)
+                ? _mapper.Map<ProposalCommentUserDto>(user)
+                : null,
+            Replies = repliesByParent.TryGetValue(comment.id, out var replies)
+                ? replies.Select(r => MapCommentDto(r, users, repliesByParent)).ToList()
+                : null
+        };
+        return dto;
     }
 }

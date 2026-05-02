@@ -1,72 +1,55 @@
-# Guild Module Specification
+# Guild Module — Retroactive Specification
 
-## Overview
-Guilds are professional communities that provide talent, verify skills, and act as service providers to Projects.
+> This document retroactively captures the guild system that was implemented across early development iterations before conductor tracking was established.
 
-## Data Models
+## Status: COMPLETE
 
-### Guild
-- `Id`: UUID (PK)
-- `OwnerId`: UUID (FK)
-- `Name`: String
-- `Slug`: String (Unique)
-- `Description`: String (Markdown)
-- `Email`: String
-- `Phone`: String?
-- `Website`: String?
-- `Address`: String?
-- `Logo`: String?
-- `Portfolio`: String? (Markdown/Link)
-- `Specialties`: String? (Markdown/Tags)
-- `IsVerified`: Boolean
-- `Rating`: Decimal (Aggregated)
-- `ReviewsCount`: Integer
-- `ProjectsCount`: Integer (Auto-calculated)
-- `MembersCount`: Integer (Auto-calculated)
+All backend services, controllers, API client endpoints, tRPC routers, and frontend pages are implemented and functional.
 
-### GuildMember
-- `UserId`: UUID (FK)
-- `GuildId`: UUID (FK)
-- `Role`: String (Enum mapped: OWNER, ADMIN, MANAGER, MEMBER, APPRENTICE)
-- `JoinedAt`: DateTime
+## Architecture
 
-### GuildLogic
-- **GuildReview**: `Rating` (1-5), `Comment`, linked to `ProjectId` (optional) and `UserId`.
-- **GuildFollow**: User can follow Guild. Preferences: `NotifyUpdates`, `NotifyEvents`, `NotifyProjects`.
-- **GuildInvitation**: `Role`, `Message`, `Token` (for email invites).
-- **GuildApplication**: `RequestedRole`, `Message`, `Skills`, `Portfolio`, `Availability`.
+### Backend (7 Services)
 
-## API Endpoints (`GuildsController`)
+**GuildsController** (`ArdaNova.API/Controllers/GuildsController.cs`) — 35+ endpoints across 7 injected services:
 
-| Method | Endpoint | Description | DTO |
-| :--- | :--- | :--- | :--- |
-| `POST` | `/api/guilds` | Create Guild | `CreateGuildDto` |
-| `GET` | `/api/guilds/{id}` | Get details | `GuildDto` |
-| `PUT` | `/api/guilds/{id}` | Update settings | `UpdateGuildDto` |
-| `POST` | `/api/guilds/{id}/members` | Invite/Add member | `CreateGuildInvitationDto` |
-| `PUT` | `/api/guilds/{id}/members/{userId}` | Update role | `UpdateGuildMemberDto` |
-| `POST` | `/api/guilds/{id}/reviews` | Post review | `CreateGuildReviewDto` |
-| `POST` | `/api/guilds/{id}/updates` | Post update | `CreateGuildUpdateDto` |
-| `POST` | `/api/guilds/{id}/apply` | Apply to join | `CreateGuildApplicationDto` |
-| `POST` | `/api/guilds/{id}/follow` | Follow settings | `CreateGuildFollowDto` |
+| Service | Purpose |
+|---------|---------|
+| `IGuildService` | Core CRUD, search, pagination, verification |
+| `IGuildMemberService` | Member management (CRUD, role updates) |
+| `IGuildReviewService` | Guild reviews (CRUD) |
+| `IGuildUpdateService` | Guild announcements/updates (CRUD) |
+| `IGuildApplicationService` | Join applications (apply, accept, reject) |
+| `IGuildInvitationService` | Member invitations (invite, accept, reject) |
+| `IGuildFollowService` | Follow/unfollow guilds, follower lists |
 
-## Business Logic & Validation
+### API Endpoints (35+)
 
-### 1. Structure
-- **Owner**: One owner per guild (`OwnerId` unique constraint).
-- **Admins**: Can manage members and edit guild details.
+**Core Guild**
+- `GET /api/guilds` — Get all
+- `GET /api/guilds/paged` — Paginated
+- `GET /api/guilds/{id}` — By ID
+- `GET /api/guilds/slug/{slug}` — By slug
+- `GET /api/guilds/owner/{ownerId}` — By owner
+- `GET /api/guilds/verified` — Verified guilds only
+- `POST /api/guilds` — Create
+- `PUT /api/guilds/{id}` — Update
+- `DELETE /api/guilds/{id}` — Delete
+- `POST /api/guilds/{id}/verify` — Verify guild
 
-### 2. Verification & Reputation
-- **Verification**: Manual process implies `IsVerified` = true.
-- **Rating**: Weighted average of `GuildReview` entries.
-- **Specialties**: Keywords allowing projects to find guilds for specific needs (e.g., "Frontend", "Auditing").
+**Members** — `{guildId}/members/` (CRUD + role update)
+**Reviews** — `{guildId}/reviews/` (CRUD)
+**Updates** — `{guildId}/updates/` (CRUD)
+**Applications** — `{guildId}/applications/` (apply, accept, reject)
+**Invitations** — `{guildId}/invitations/` (invite, accept, reject)
+**Follows** — `{guildId}/follow` (follow, unfollow, check), `{guildId}/followers` (list)
 
-### 3. Engagement
-- **Follow System**: Users can follow to get feed updates (`GuildUpdate`) or event notifications.
-- **Applications**: Users apply -> Admins review -> Accept/Reject.
-- **Invitations**: Admins invite -> Users accept/decline.
+### Frontend
 
-## Integration Points
-- **Projects**: Guilds are "assigned" to projects (`AssignedGuildId` on Project) to provide oversight/resources.
-- **Opportunities**: Guilds can post `GUILD_POSITION` opportunities.
-- **Events**: Guild-hosted events.
+**Pages:**
+- `/guilds` — Listing page with search and filter (real API data)
+- `/guilds/create` — Guild creation form
+- `/guilds/[slug]` — Guild detail page
+- `/guilds/[slug]/edit` — Guild editing page
+
+**tRPC Router:** `guild.ts` — Thin proxy to `apiClient.guilds.*`
+**API Client:** `endpoints/guilds.ts` — HTTP wrapper for all endpoints

@@ -17,6 +17,7 @@ import {
   Loader2,
   Edit,
   Trash2,
+  Shield,
 } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
@@ -63,14 +64,18 @@ export default function GuildDetailPage() {
     { guildId: guild?.id ?? "" },
     { enabled: !!guild?.id }
   );
+  const { data: activeCredentials } = api.membershipCredential.getActiveByGuildId.useQuery(
+    { guildId: guild?.id ?? "" },
+    { enabled: !!guild?.id }
+  );
 
   // Determine if current user is owner
   const currentUserId = session?.user?.id;
   const isOwner = !!currentUserId && guild?.ownerId === currentUserId;
 
-  // Determine user's role in guild from members list
+  // Role from members list; if missing (legacy guilds created before owner row existed), infer OWNER from guild.ownerId
   const userMember = members?.find((m: any) => m.userId === currentUserId);
-  const userRole = userMember?.role;
+  const userRole = userMember?.role ?? (isOwner ? "OWNER" : undefined);
 
   if (isLoading) {
     return (
@@ -210,7 +215,7 @@ export default function GuildDetailPage() {
           </div>
 
           {/* Stats */}
-          <div className="grid grid-cols-4 gap-4 mt-6">
+          <div className="grid grid-cols-5 gap-4 mt-6">
             <Card className="bg-card border-2 border-border">
               <CardContent className="p-4 text-center">
                 <p className="text-2xl font-bold text-primary">{guild.projectsCount || 0}</p>
@@ -221,6 +226,15 @@ export default function GuildDetailPage() {
               <CardContent className="p-4 text-center">
                 <p className="text-2xl font-bold text-foreground">{members?.length || 0}</p>
                 <p className="text-sm text-muted-foreground">Members</p>
+              </CardContent>
+            </Card>
+            <Card className="bg-card border-2 border-border">
+              <CardContent className="p-4 text-center">
+                <div className="flex items-center justify-center gap-1">
+                  <Shield className="size-5 text-neon-cyan" />
+                  <p className="text-2xl font-bold text-neon-cyan">{activeCredentials?.length || 0}</p>
+                </div>
+                <p className="text-sm text-muted-foreground">Credentialed</p>
               </CardContent>
             </Card>
             <Card className="bg-card border-2 border-border">

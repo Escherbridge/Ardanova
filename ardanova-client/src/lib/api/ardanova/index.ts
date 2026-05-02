@@ -13,12 +13,47 @@ import { BacklogEndpoint } from "./endpoints/backlog";
 import { FeaturesEndpoint } from "./endpoints/features";
 import { OpportunityBidsEndpoint } from "./endpoints/opportunity-bids";
 import { MembershipCredentialsEndpoint } from "./endpoints/membership-credentials";
+import { CredentialUtilityEndpoint } from "./endpoints/credential-utility";
 import { ProductsEndpoint } from "./endpoints/products";
 import { ChatEndpoint } from "./endpoints/chat";
 import { EnumsEndpoint } from "./endpoints/enums";
+import { StreaksEndpoint } from "./endpoints/streaks";
+import { XPEventsEndpoint } from "./endpoints/xp-events";
+import { AchievementsEndpoint } from "./endpoints/achievements";
+import { LeaderboardsEndpoint } from "./endpoints/leaderboards";
+import { ReferralsEndpoint } from "./endpoints/referrals";
+import { KycEndpoint } from "./endpoints/kyc";
+import { ProjectTokensEndpoint } from "./endpoints/project-tokens";
+import { TokenBalancesEndpoint } from "./endpoints/token-balances";
+import { PayoutsEndpoint } from "./endpoints/payouts";
+import { TreasuryEndpoint } from "./endpoints/treasury";
+import { ProjectGatesEndpoint } from "./endpoints/project-gates";
+import { ExchangeEndpoint } from "./endpoints/exchange";
+import { PostsEndpoint } from "./endpoints/posts";
+import { NotificationsEndpoint } from "./endpoints/notifications";
+import { ActivitiesEndpoint } from "./endpoints/activities";
+import { WalletsEndpoint } from "./endpoints/wallets";
+import { AttachmentsEndpoint } from "./endpoints/attachments";
+import { TaskEscrowsEndpoint } from "./endpoints/task-escrows";
+import { DelegatedVotesEndpoint } from "./endpoints/delegated-votes";
 
 // Re-export types from endpoints
-export type { User, CreateUserDto, UpdateUserDto } from "./endpoints/users";
+export type {
+  User,
+  CreateUserDto,
+  UpdateUserDto,
+  AdminUpdateUserRoleDto,
+  AdminUpdateUserTypeDto,
+  AdminUpdateVerificationLevelDto,
+  UserSkill,
+  CreateUserSkillDto,
+  UpdateUserSkillDto,
+  UserExperience,
+  CreateUserExperienceDto,
+  UpdateUserExperienceDto,
+  UserFollowDto,
+  UserFollowCounts,
+} from "./endpoints/users";
 export type {
   Project,
   CreateProjectDto,
@@ -108,7 +143,15 @@ export type {
   GrantMembershipCredentialDto,
   RevokeMembershipCredentialDto,
   UpdateMembershipCredentialMintDto,
+  UpdateCredentialTierDto,
+  CredentialEligibilityDto,
 } from "./endpoints/membership-credentials";
+export type {
+  AsaInfo,
+  CredentialChainDataResponse,
+  CheckAutoGrantRequest,
+  UpdateTierDto,
+} from "./endpoints/credential-utility";
 export type {
   ChatConversation,
   ChatParticipant,
@@ -124,6 +167,115 @@ export type {
   TypingIndicatorDto,
   CursorPaginatedResult,
 } from "./endpoints/chat";
+export type {
+  UserStreak,
+  CreateUserStreakDto,
+} from "./endpoints/streaks";
+export type {
+  XPEventDto,
+  AwardXPDto,
+  XPSummaryDto,
+  LevelInfoDto,
+  XPRewardsConfigDto,
+} from "./endpoints/xp-events";
+export type {
+  AchievementDto,
+  CreateAchievementDto,
+  UpdateAchievementDto,
+  UserAchievementDto,
+  UpdateProgressDto,
+} from "./endpoints/achievements";
+export type {
+  LeaderboardDto,
+  CreateLeaderboardDto,
+  LeaderboardEntryDto,
+  CreateLeaderboardEntryDto,
+  UpdateLeaderboardEntryDto,
+} from "./endpoints/leaderboards";
+export type {
+  Referral,
+  CreateReferralDto,
+  ClaimReferralRewardDto,
+} from "./endpoints/referrals";
+export type {
+  KycSubmission,
+  KycDocument,
+  KycStatus,
+  KycDocumentType,
+  KycProvider,
+  SubmitKycDto,
+  SubmitKycDocumentDto,
+  ReviewKycDto,
+} from "./endpoints/kyc";
+export type {
+  ProjectTokenConfigDto,
+  CreateProjectTokenConfigDto,
+  TokenAllocationDto,
+  CreateTokenAllocationDto,
+  CreateInvestorAllocationDto,
+  CreateFounderAllocationDto,
+  ProjectInvestmentDto,
+  ProjectGateStatusDto,
+  GateTransitionResultDto,
+  FailProjectDto,
+  ProjectTokenStatus,
+  ProjectGateStatus,
+  TokenHolderClass,
+  AllocationStatus,
+} from "./endpoints/project-tokens";
+export type {
+  TokenBalanceDto,
+  UserPortfolioDto,
+  ProjectTokenBalanceDto,
+  ConversionPreviewDto,
+} from "./endpoints/token-balances";
+export type {
+  PayoutRequestDto,
+  CreatePayoutRequestDto,
+  PayoutStatus,
+} from "./endpoints/payouts";
+export type {
+  TreasuryStatusDto,
+  TreasuryTransactionDto,
+  TreasuryTransactionType,
+} from "./endpoints/treasury";
+export type {
+  Post,
+  PostType,
+  PostVisibility,
+  CreatePostDto,
+  UpdatePostDto,
+  PostComment,
+  CreatePostCommentDto,
+  CreatePostShareDto,
+} from "./endpoints/posts";
+export type {
+  Notification,
+  CreateNotificationDto,
+  NotificationSummary,
+} from "./endpoints/notifications";
+export type { Activity, CreateActivityDto } from "./endpoints/activities";
+export type { Wallet, CreateWalletDto, UpdateWalletDto } from "./endpoints/wallets";
+export type {
+  Attachment,
+  CreateAttachmentDto,
+  UploadRequestDto,
+  UploadResponseDto,
+  BulkUploadRequestDto,
+  BulkUploadResponseDto,
+  DownloadResponseDto,
+} from "./endpoints/attachments";
+export type {
+  TaskEscrow,
+  CreateTaskEscrowDto,
+  ReleaseEscrowDto,
+  RefundEscrowDto,
+} from "./endpoints/task-escrows";
+export type {
+  DelegatedVote,
+  CreateDelegatedVoteDto,
+  UpdateDelegatedVoteDto,
+} from "./endpoints/delegated-votes";
 
 // Re-export schemas for validation
 export {
@@ -157,8 +309,28 @@ export class ArdaNovaApiClient extends BaseApiClient {
   readonly products: ProductsEndpoint;
   readonly opportunityBids: OpportunityBidsEndpoint;
   readonly membershipCredentials: MembershipCredentialsEndpoint;
+  readonly credentialUtility: CredentialUtilityEndpoint;
   readonly chat: ChatEndpoint;
   readonly enums: EnumsEndpoint;
+  readonly streaks: StreaksEndpoint;
+  readonly xpEvents: XPEventsEndpoint;
+  readonly achievements: AchievementsEndpoint;
+  readonly leaderboards: LeaderboardsEndpoint;
+  readonly referrals: ReferralsEndpoint;
+  readonly kyc: KycEndpoint;
+  readonly projectTokens: ProjectTokensEndpoint;
+  readonly tokenBalances: TokenBalancesEndpoint;
+  readonly payouts: PayoutsEndpoint;
+  readonly treasury: TreasuryEndpoint;
+  readonly projectGates: ProjectGatesEndpoint;
+  readonly exchange: ExchangeEndpoint;
+  readonly posts: PostsEndpoint;
+  readonly notifications: NotificationsEndpoint;
+  readonly activities: ActivitiesEndpoint;
+  readonly wallets: WalletsEndpoint;
+  readonly attachments: AttachmentsEndpoint;
+  readonly taskEscrows: TaskEscrowsEndpoint;
+  readonly delegatedVotes: DelegatedVotesEndpoint;
 
   constructor(config: BaseApiClientConfig) {
     super(config);
@@ -176,8 +348,28 @@ export class ArdaNovaApiClient extends BaseApiClient {
     this.products = new ProductsEndpoint(this);
     this.opportunityBids = new OpportunityBidsEndpoint(this);
     this.membershipCredentials = new MembershipCredentialsEndpoint(this);
+    this.credentialUtility = new CredentialUtilityEndpoint(this);
     this.chat = new ChatEndpoint(this);
     this.enums = new EnumsEndpoint(this);
+    this.streaks = new StreaksEndpoint(this);
+    this.xpEvents = new XPEventsEndpoint(this);
+    this.achievements = new AchievementsEndpoint(this);
+    this.leaderboards = new LeaderboardsEndpoint(this);
+    this.referrals = new ReferralsEndpoint(this);
+    this.kyc = new KycEndpoint(this);
+    this.projectTokens = new ProjectTokensEndpoint(this);
+    this.tokenBalances = new TokenBalancesEndpoint(this);
+    this.payouts = new PayoutsEndpoint(this);
+    this.treasury = new TreasuryEndpoint(this);
+    this.projectGates = new ProjectGatesEndpoint(this);
+    this.exchange = new ExchangeEndpoint(this);
+    this.posts = new PostsEndpoint(this);
+    this.notifications = new NotificationsEndpoint(this);
+    this.activities = new ActivitiesEndpoint(this);
+    this.wallets = new WalletsEndpoint(this);
+    this.attachments = new AttachmentsEndpoint(this);
+    this.taskEscrows = new TaskEscrowsEndpoint(this);
+    this.delegatedVotes = new DelegatedVotesEndpoint(this);
   }
 
   health() {
@@ -197,3 +389,7 @@ export class ArdaNovaApiClient extends BaseApiClient {
 
 // Export singleton instance configured from environment
 export const apiClient = ArdaNovaApiClient.withApiKey(env.API_URL, env.API_KEY);
+
+if (process.env.NODE_ENV === "development") {
+  console.info("[ArdaNova] Server API base URL:", env.API_URL);
+}

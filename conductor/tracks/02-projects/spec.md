@@ -1,92 +1,76 @@
-# Project Management Specification
+# Project Management — Retroactive Specification
 
-## Overview
-This track manages the core `Project` entity, its lifecycle, the agile work hierarchy, and the governance/opportunities layer. It is the central hub for collaboration.
+> This document retroactively captures the project management system that was implemented across early development iterations before conductor tracking was established.
 
-## Data Models
+## Status: COMPLETE
 
-### Project
-- `Id`: UUID (PK)
-- `Slug`: String (Unique)
-- `Title`: String
-- `Description`: String (Markdown)
-- `ProblemStatement`: String (Markdown)
-- `Solution`: String (Markdown)
-- `Categories`: List<String> (Stored as CSV/JSON)
-- `Tags`: String (CSV)
-- `OwnerId`: UUID (FK `CreatedById`)
-- `AssignedGuildId`: UUID? (FK)
-- `Status`: Enum (DRAFT, PUBLISHED, SEEKING_SUPPORT, FUNDED, IN_PROGRESS, COMPLETED, CANCELLED)
-- `Type`: Enum (TEMPORARY, LONG_TERM, FOUNDATION, BUSINESS, PRODUCT, OPEN_SOURCE, COMMUNITY)
-- `Duration`: Enum (ONE_TWO_WEEKS ... ONGOING)
-- `FundingGoal`: Decimal?
-- `CommerceEnabled`: Boolean
-- `StorefrontDescription`: String?
+All backend services, controllers, API client endpoints, tRPC routers, and frontend pages are implemented and functional.
 
-### Agile Hierarchy
-- **ProjectMilestone**: High-level goal.
-    - Fields: `Title`, `Description`, `TargetDate`, `Status`, `Priority`, `Order`.
-- **Epic**: Large feature set. Parent: `Milestone`.
-    - Fields: `EquityBudget`, `Progress`, `StartDate`, `TargetDate`.
-- **Sprint**: Time-boxed iteration. Parent: `Epic`.
-    - Fields: `Goal`, `Velocity`, `Status` (PLANNED, ACTIVE, COMPLETED).
-- **Feature**: Specific requirement. Parent: `Sprint`.
-- **ProductBacklogItem (PBI)**: Work item. Parent: `Feature`.
-    - Type: `FEATURE`, `BUG`, `TECHNICAL_DEBT`, `SPIKE`.
-    - Fields: `StoryPoints`, `AcceptanceCriteria`.
-- **ProjectTask**: Executable unit. Parent: `Project` (Direct) OR `PBI` (Optional).
-    - Fields: `Status` (TODO...BLOCKED), `Priority`, `EstimatedHours`, `ActualHours`, `DueDate`.
-    - **Escrow**: `EscrowStatus`, `EquityReward`, `CompensationModel`.
+## Architecture
 
-### Opportunity
-Opening for engagement.
-- `Id`: UUID (PK)
-- `Type`: Enum (GUILD_POSITION, PROJECT_ROLE, TASK_BOUNTY, FREELANCE)
-- `Title`: String
-- `Description`: String
-- `ExperienceLevel`: Enum (ENTRY...EXPERT)
-- `Compensation`: Decimal?
-- `CompensationDetails`: String?
-- `IsRemote`: Boolean
-- `Location`: String?
-- `Skills`: String (CSV)
-- `MaxApplications`: Integer?
+### Backend (10+ Services, 620-line Controller)
 
-## API Endpoints (`ProjectsController`, `OpportunitiesController`)
+**ProjectsController** (`ArdaNova.API/Controllers/ProjectsController.cs`) — 60+ endpoints across 10 injected services:
 
-### Projects
-| Method | Endpoint | Description | DTO |
-| :--- | :--- | :--- | :--- |
-| `POST` | `/api/projects` | Create project | `CreateProjectDto` |
-| `PUT` | `/api/projects/{id}` | Update details | `UpdateProjectDto` |
-| `POST` | `/api/projects/{id}/publish` | Publish | - |
-| `POST` | `/api/projects/{id}/resources` | Add resource | `CreateProjectResourceDto` |
-| `POST` | `/api/projects/{id}/updates` | Post update | `CreateProjectUpdateDto` |
-| `POST` | `/api/projects/{id}/support` | Toggle backing | `CreateProjectSupportDto` |
-| `POST` | `/api/projects/{id}/milestones` | Add milestone | `CreateProjectMilestoneDto` |
+| Service | Purpose |
+|---------|---------|
+| `IProjectService` | Core CRUD, search, pagination, publish, featured |
+| `IProjectResourceService` | Resources linked to projects (CRUD, mark obtained) |
+| `IProjectMilestoneService` | Milestones (CRUD, mark complete) |
+| `IProjectMemberService` | Team members (CRUD, role management) |
+| `IProjectApplicationService` | Join applications (apply, accept, reject, withdraw) |
+| `IProjectCommentService` | Discussion comments (CRUD) |
+| `IProjectUpdateService` | Project updates/announcements (CRUD) |
+| `IProjectSupportService` | Supporter/backer management (toggle, list) |
+| `IGovernanceService` | Proposals, voting, execution (nested under project) |
+| `IProjectInvitationService` | Invite users to join (accept, reject, list) |
 
-### Opportunities
-| Method | Endpoint | Description | DTO |
-| :--- | :--- | :--- | :--- |
-| `POST` | `/api/opportunities` | Post role/bounty | `CreateOpportunityDto` |
-| `POST` | `/api/opportunities/{id}/apply` | Apply | `ApplyToOpportunityDto` |
-| `POST` | `/api/opportunities/{id}/comments` | Q&A | `CreateOpportunityCommentDto` |
-| `PATCH`| `/api/opportunities/applications/{id}/status` | Review App | `UpdateApplicationStatusDto` |
+### API Endpoints (60+)
 
-## Business Logic & Validation
+**Core Project**
+- `GET /api/projects` — Get all
+- `GET /api/projects/paged` — Paginated list
+- `GET /api/projects/search` — Multi-field search (term, status, category, type)
+- `GET /api/projects/{id}` — By ID
+- `GET /api/projects/slug/{slug}` — By slug
+- `GET /api/projects/user/{userId}` — By owner
+- `GET /api/projects/status/{status}` — By status
+- `GET /api/projects/category/{category}` — By category
+- `GET /api/projects/type/{projectType}` — By type
+- `GET /api/projects/featured` — Featured projects
+- `POST /api/projects` — Create
+- `PUT /api/projects/{id}` — Update
+- `DELETE /api/projects/{id}` — Delete
+- `POST /api/projects/{id}/publish` — Publish
+- `POST /api/projects/{id}/featured` — Toggle featured
 
-### 1. Project Lifecycle
-- **Draft Mode**: Visible only to Creator/Members.
-- **Slug Generation**: collision-resistant (append `-1`, `-2`).
-- **Commerce**: If `CommerceEnabled`, `Product` entities can be linked.
+**Resources** — `{projectId}/resources/` (CRUD + mark obtained)
+**Milestones** — `{projectId}/milestones/` (CRUD + mark complete)
+**Members** — `{projectId}/members/` (CRUD + role update)
+**Applications** — `{projectId}/applications/` (apply, accept, reject, withdraw)
+**Comments** — `{projectId}/comments/` (CRUD)
+**Updates** — `{projectId}/updates/` (CRUD)
+**Support** — `{projectId}/support/` (CRUD + toggle)
+**Proposals** — `{projectId}/proposals/` (CRUD + execute, cancel, publish, votes, comments, summary)
+**Invitations** — `{projectId}/invitations/` (CRUD + accept, reject, user invitations)
 
-### 2. Task & Agile
-- **Dependencies**: `ProjectTaskDependency` table allows `TaskId` -> `DependsOnId`.
-- **Compensation**: Tasks can have attached `EquityReward` or `TaskCompensation` record.
-- **Submissions**: Workers submit content/attachments -> `PENDING` -> Owner Reviews -> `APPROVED`.
+### Frontend
 
-### 3. Opportunity Workflow
-- **Application**: 
-    - Applicant provides Cover Letter, Portfolio.
-    - Owner updates status: `PENDING` -> `ACCEPTED` / `REJECTED`.
-    - `ACCEPTED` application often triggers Member addition or Task assignment.
+**Pages:**
+- `/projects` — Listing page with search and filters (real API data)
+- `/projects/create` — Multi-step creation wizard
+- `/projects/[slug]` — Detail page with 6 tabbed sub-views
+
+**tRPC Router:** `project.ts` — Thin proxy to `apiClient.projects.*`
+**API Client:** `endpoints/projects.ts` — HTTP wrapper for all endpoints
+
+### Agile Hierarchy (Additional Controllers)
+
+The project module includes full agile project management:
+- `EpicsController` — Epics with project/milestone scoping
+- `SprintsController` — Sprint planning and tracking
+- `FeaturesController` — Feature management within sprints
+- `ProductBacklogItemsController` — Backlog item CRUD
+- `TasksController` — Task CRUD with status tracking
+
+Each has corresponding tRPC router and API client endpoint.

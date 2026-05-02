@@ -9,7 +9,7 @@ public record EpicDto
     public string Title { get; init; } = null!;
     public string? Description { get; init; }
     public EpicStatus Status { get; init; }
-    public TaskPriority Priority { get; init; }
+    public Priority Priority { get; init; }
     public decimal? EquityBudget { get; init; }
     public decimal Progress { get; init; }
     public DateTime? StartDate { get; init; }
@@ -25,7 +25,7 @@ public record CreateEpicDto
     public required string MilestoneId { get; init; }
     public required string Title { get; init; }
     public string? Description { get; init; }
-    public TaskPriority Priority { get; init; } = TaskPriority.MEDIUM;
+    public Priority Priority { get; init; } = Priority.MEDIUM;
     public decimal? EquityBudget { get; init; }
     public DateTime? StartDate { get; init; }
     public DateTime? TargetDate { get; init; }
@@ -37,7 +37,7 @@ public record UpdateEpicDto
     public string? Title { get; init; }
     public string? Description { get; init; }
     public EpicStatus? Status { get; init; }
-    public TaskPriority? Priority { get; init; }
+    public Priority? Priority { get; init; }
     public decimal? EquityBudget { get; init; }
     public decimal? Progress { get; init; }
     public DateTime? StartDate { get; init; }
@@ -47,7 +47,7 @@ public record UpdateEpicDto
 
 public record UpdateEpicPriorityDto
 {
-    public TaskPriority Priority { get; init; }
+    public Priority Priority { get; init; }
 }
 
 public record ReorderEpicsDto

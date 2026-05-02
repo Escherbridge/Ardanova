@@ -129,6 +129,19 @@ public class ArdaNovaDbContext : DbContext
     public DbSet<Feature> Features => Set<Feature>();
     public DbSet<OpportunityBid> OpportunityBids => Set<OpportunityBid>();
     public DbSet<MembershipCredential> MembershipCredentials => Set<MembershipCredential>();
+    public DbSet<ProposalComment> ProposalComments => Set<ProposalComment>();
+    public DbSet<KycSubmission> KycSubmissions => Set<KycSubmission>();
+    public DbSet<KycDocument> KycDocuments => Set<KycDocument>();
+    public DbSet<ProjectTokenConfig> ProjectTokenConfigs => Set<ProjectTokenConfig>();
+    public DbSet<TokenAllocation> TokenAllocations => Set<TokenAllocation>();
+    public DbSet<TokenBalance> TokenBalances => Set<TokenBalance>();
+    public DbSet<PayoutRequest> PayoutRequests => Set<PayoutRequest>();
+    public DbSet<PlatformTreasury> PlatformTreasuries => Set<PlatformTreasury>();
+    public DbSet<PlatformTreasuryTransaction> PlatformTreasuryTransactions => Set<PlatformTreasuryTransaction>();
+    public DbSet<ProjectInvestment> ProjectInvestments => Set<ProjectInvestment>();
+
+
+
 
 
 
@@ -147,6 +160,14 @@ public class ArdaNovaDbContext : DbContext
         // Map jsonb columns that Prisma defines as Json
         modelBuilder.Entity<ChatMessage>()
             .Property(e => e.ChatReaction)
+            .HasColumnType("jsonb");
+
+        modelBuilder.Entity<Proposal>()
+            .Property(e => e.options)
+            .HasColumnType("jsonb");
+
+        modelBuilder.Entity<ProposalExecution>()
+            .Property(e => e.result)
             .HasColumnType("jsonb");
 
         // Composite indexes and other generated configurations

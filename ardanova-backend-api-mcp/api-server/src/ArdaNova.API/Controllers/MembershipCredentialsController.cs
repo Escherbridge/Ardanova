@@ -51,6 +51,34 @@ public class MembershipCredentialsController : ControllerBase
         return ToActionResult(result);
     }
 
+    [HttpGet("guild/{guildId}")]
+    public async Task<IActionResult> GetByGuildId(string guildId, CancellationToken ct)
+    {
+        var result = await _membershipCredentialService.GetByGuildIdAsync(guildId, ct);
+        return ToActionResult(result);
+    }
+
+    [HttpGet("guild/{guildId}/active")]
+    public async Task<IActionResult> GetActiveByGuildId(string guildId, CancellationToken ct)
+    {
+        var result = await _membershipCredentialService.GetActiveByGuildIdAsync(guildId, ct);
+        return ToActionResult(result);
+    }
+
+    [HttpGet("guild/{guildId}/user/{userId}")]
+    public async Task<IActionResult> GetByGuildAndUser(string guildId, string userId, CancellationToken ct)
+    {
+        var result = await _membershipCredentialService.GetByGuildAndUserAsync(guildId, userId, ct);
+        return ToActionResult(result);
+    }
+
+    [HttpGet("eligibility")]
+    public async Task<IActionResult> CheckEligibility([FromQuery] string userId, [FromQuery] string? projectId, [FromQuery] string? guildId, CancellationToken ct)
+    {
+        var result = await _membershipCredentialService.CheckEligibilityAsync(userId, projectId, guildId, ct);
+        return ToActionResult(result);
+    }
+
     [HttpPost]
     public async Task<IActionResult> Grant([FromBody] GrantMembershipCredentialDto dto, CancellationToken ct)
     {
@@ -85,6 +113,13 @@ public class MembershipCredentialsController : ControllerBase
     public async Task<IActionResult> UpdateMintInfo(string id, [FromBody] UpdateMembershipCredentialMintDto dto, CancellationToken ct)
     {
         var result = await _membershipCredentialService.UpdateMintInfoAsync(id, dto, ct);
+        return ToActionResult(result);
+    }
+
+    [HttpPatch("{id}/tier")]
+    public async Task<IActionResult> UpdateTier(string id, [FromBody] UpdateCredentialTierDto dto, CancellationToken ct)
+    {
+        var result = await _membershipCredentialService.UpdateTierAsync(id, dto, ct);
         return ToActionResult(result);
     }
 

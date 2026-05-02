@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
@@ -28,8 +28,10 @@ import {
   type FeedTab,
 } from "~/components/feed";
 import { useSession } from "next-auth/react";
+import { api } from "~/trpc/react";
 import { cn } from "~/lib/utils";
 import { FeedLayout } from "~/components/layouts/feed-layout";
+import type { Event as CalendarEvent } from "~/lib/api/ardanova/endpoints/events";
 
 // Sample feed data - in production this would come from API
 const sampleFeedItems: FeedCardProps[] = [
@@ -149,53 +151,6 @@ const sampleFeedItems: FeedCardProps[] = [
   },
 ];
 
-// Sample trending projects
-const trendingProjects = [
-  {
-    id: "p1",
-    name: "EcoWaste Solutions",
-    category: "Environment",
-    coOwners: 124,
-    progress: 78,
-  },
-  {
-    id: "p2",
-    name: "HealthTrack",
-    category: "Healthcare",
-    coOwners: 89,
-    progress: 45,
-  },
-  {
-    id: "p3",
-    name: "EduConnect",
-    category: "Education",
-    coOwners: 67,
-    progress: 92,
-  },
-];
-
-// Sample suggested users
-const suggestedUsers = [
-  {
-    id: "u6",
-    name: "Emma Watson",
-    avatar: "https://i.pravatar.cc/150?u=emma",
-    bio: "UX Designer | 12 projects",
-  },
-  {
-    id: "u7",
-    name: "David Park",
-    avatar: "https://i.pravatar.cc/150?u=david",
-    bio: "Full-stack Dev | Builder",
-  },
-  {
-    id: "u8",
-    name: "Lisa Chen",
-    avatar: "https://i.pravatar.cc/150?u=lisa",
-    bio: "Product Manager | 8 projects",
-  },
-];
-
 // Dashboard-specific tabs (simplified)
 const dashboardTabs: FeedTab[] = [
   { id: "feed", label: "Feed", icon: Home },
@@ -232,6 +187,58 @@ export default function DashboardPage() {
   const [selectedTimeRange, setSelectedTimeRange] = useState("all");
 
   const user = session?.user;
+
+  const { data: myProjectsData } = api.project.getMyProjects.useQuery(
+    { limit: 100, page: 1 },
+    { enabled: !!session?.user },
+  );
+
+  const { data: myGuilds } = api.guild.getMyGuilds.useQuery(undefined, {
+    enabled: !!session?.user,
+  });
+
+  const composeScopes = useMemo(() => {
+    const scopes: { type: string; id: string; name: string }[] = [];
+    for (const p of myProjectsData?.items ?? []) {
+      scopes.push({ type: "project", id: p.id, name: p.title });
+    }
+    for (const g of myGuilds ?? []) {
+      scopes.push({ type: "guild", id: g.id, name: g.name });
+    }
+    return scopes;
+  }, [myProjectsData?.items, myGuilds]);
+
+  const { data: featuredProjects } = api.project.getFeatured.useQuery();
+  const { data: discoverUsers } = api.user.getAll.useQuery({ limit: 12, page: 1 });
+  const { data: upcomingEventsData } = api.event.getUpcoming.useQuery({ limit: 3 });
+
+  const trendingProjects = useMemo(() => {
+    const items = featuredProjects ?? [];
+    return items.slice(0, 5).map((p) => ({
+      id: p.id,
+      slug: p.slug,
+      name: p.title,
+      category: p.categories?.[0] ?? "Project",
+      coOwners: p.supportersCount ?? 0,
+      progress:
+        p.fundingGoal && p.fundingGoal > 0
+          ? Math.min(100, Math.round((p.currentFunding / p.fundingGoal) * 100))
+          : 0,
+    }));
+  }, [featuredProjects]);
+
+  const suggestedUsers = useMemo(() => {
+    const items = discoverUsers?.items ?? [];
+    return items
+      .filter((u) => u.id !== user?.id)
+      .slice(0, 5)
+      .map((u) => ({
+        id: u.id,
+        name: u.name ?? "Member",
+        avatar: u.image ?? "",
+        bio: u.bio ?? "",
+      }));
+  }, [discoverUsers?.items, user?.id]);
 
   const handleAuthorClick = (author: { id: string; name: string }) => {
     // Navigate to user's own profile if clicking on themselves, otherwise to the author's profile
@@ -352,7 +359,7 @@ export default function DashboardPage() {
                       id: project.id,
                       type: "project",
                       name: project.name,
-                      slug: project.name.toLowerCase().replace(/\s+/g, "-"),
+                      slug: project.slug,
                     })
                   }
                   className="w-full text-left"
@@ -433,24 +440,34 @@ export default function DashboardPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <div className="p-2 border-2 border-border hover:border-primary transition-colors cursor-pointer">
-                <p className="font-medium text-sm text-foreground">
-                  Design Guild Critique
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  Friday, 3:00 PM EST
-                </p>
-              </div>
-              <div className="p-2 border-2 border-border hover:border-primary transition-colors cursor-pointer">
-                <p className="font-medium text-sm text-foreground">
-                  EcoWaste Town Hall
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  Saturday, 2:00 PM EST
-                </p>
-              </div>
-              <Button variant="ghost" className="w-full text-sm">
-                View calendar
+              {(upcomingEventsData ?? []).length === 0 ? (
+                <p className="text-sm text-muted-foreground">No upcoming events.</p>
+              ) : (
+                (upcomingEventsData as CalendarEvent[]).map((ev) => {
+                  const start = new Date(ev.startDate);
+                  return (
+                    <Link
+                      key={ev.id}
+                      href="/events"
+                      className="block p-2 border-2 border-border hover:border-primary transition-colors cursor-pointer"
+                    >
+                      <p className="font-medium text-sm text-foreground">{ev.title}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {start.toLocaleString(undefined, {
+                          weekday: "short",
+                          month: "short",
+                          day: "numeric",
+                          hour: "numeric",
+                          minute: "2-digit",
+                        })}{" "}
+                        {ev.timezone}
+                      </p>
+                    </div>
+                  );
+                })
+              )}
+              <Button variant="ghost" className="w-full text-sm" asChild>
+                <Link href="/events">View calendar</Link>
               </Button>
             </CardContent>
           </Card>
@@ -609,10 +626,7 @@ export default function DashboardPage() {
             }}
             onSubmit={handlePostSubmit}
             placeholder="Share an update with the community..."
-            scopes={[
-              { type: "project", id: "p1", name: "EcoWaste Solutions" },
-              { type: "guild", id: "g1", name: "Design Guild" },
-            ]}
+            scopes={composeScopes}
           />
         }
         hasMore

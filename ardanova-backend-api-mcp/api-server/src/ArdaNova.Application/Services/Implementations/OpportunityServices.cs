@@ -186,6 +186,7 @@ public class OpportunityService : IOpportunityService
             guildId = dto.GuildId,
             projectId = dto.ProjectId,
             taskId = dto.TaskId,
+            projectRole = dto.ProjectRole,
             createdAt = DateTime.UtcNow,
             updatedAt = DateTime.UtcNow
         };
@@ -218,6 +219,7 @@ public class OpportunityService : IOpportunityService
         if (dto.Deadline.HasValue) opportunity.deadline = dto.Deadline;
         if (dto.MaxApplications.HasValue) opportunity.maxApplications = dto.MaxApplications;
         if (dto.CoverImage is not null) opportunity.coverImage = dto.CoverImage;
+        if (dto.ProjectRole.HasValue) opportunity.projectRole = dto.ProjectRole.Value;
         opportunity.updatedAt = DateTime.UtcNow;
 
         await _repository.UpdateAsync(opportunity, ct);

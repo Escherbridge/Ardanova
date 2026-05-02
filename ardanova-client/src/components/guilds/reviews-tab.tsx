@@ -18,7 +18,7 @@ interface Review {
   guildId: string;
   userId: string;
   rating: number;
-  comment: string | null;
+  content: string | null;
   createdAt: string;
   user?: {
     id: string;
@@ -54,7 +54,7 @@ export function ReviewsTab({ guildId, isOwner, currentUserId }: ReviewsTabProps)
           guildId: newReview.guildId,
           userId: currentUserId ?? 'current-user',
           rating: newReview.rating,
-          comment: newReview.comment ?? null,
+          content: newReview.content ?? null,
           createdAt: new Date().toISOString(),
           user: { id: currentUserId ?? 'current-user', name: 'You', email: '', image: undefined },
         },
@@ -110,7 +110,7 @@ export function ReviewsTab({ guildId, isOwner, currentUserId }: ReviewsTabProps)
     createReviewMutation.mutate({
       guildId,
       rating,
-      comment: content.trim(),
+      content: content.trim(),
     });
   };
 
@@ -372,7 +372,7 @@ export function ReviewsTab({ guildId, isOwner, currentUserId }: ReviewsTabProps)
                       )}
                     </div>
                     <p className="text-sm text-foreground whitespace-pre-wrap">
-                      {review.comment ?? "No comment provided"}
+                      {review.content ?? "No comment provided"}
                     </p>
                   </div>
                 </div>

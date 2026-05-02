@@ -1,6 +1,7 @@
 import { type DefaultSession, type NextAuthConfig } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 
+import type { User } from "@prisma/client";
 import { db } from "~/server/db";
 import { env } from "~/env";
 
@@ -48,45 +49,43 @@ export const authConfig = {
   },
 
   callbacks: {
-    async signIn({ user, account, profile, email, credentials }) {
-      console.log("[NextAuth] SignIn attempt:", { 
-        user: user?.email, 
+    async signIn({ user, account, profile }) {
+      console.log("[NextAuth] SignIn attempt:", {
+        user: user?.email,
         account: account?.provider,
-        profile: profile?.email 
+        profile: profile?.email
       });
-      
+
       if (account?.provider === "google" && profile) {
         try {
-          // Check if user exists in database
           const existingUser = await db.user.findUnique({
             where: { email: profile.email as string }
           });
-          
+
           if (!existingUser) {
-            // Create new user
             await db.user.create({
               data: {
                 email: profile.email as string,
                 name: profile.name as string,
                 image: profile.picture as string,
                 emailVerified: new Date(),
-                role: "INDIVIDUAL", // Default role
-                userType: "VOLUNTEER", // Default user type
-                isVerified: false, // Default verification status
+                role: "INDIVIDUAL",
+                userType: "VOLUNTEER",
+                isVerified: false,
               }
             });
             console.log("[NextAuth] Created new user:", profile.email);
           } else {
             console.log("[NextAuth] User already exists:", profile.email);
           }
-          
+
           return true;
         } catch (error) {
-          console.error("[NextAuth] Database error during signIn:", error);
+          console.error("[NextAuth] signIn DB error — denying sign-in:", (error as Error).message);
           return false;
         }
       }
-      
+
       return true;
     },
     async session({ session, token }) {
@@ -117,21 +116,23 @@ export const authConfig = {
         account: account?.provider,
       });
 
-      let dbUser;
-      if (user) {
-        // user is only present on first sign in
-        dbUser = await db.user.findUnique({ where: { email: user.email as string } });
-      } else if (token.email) {
-        // subsequent calls, user is not present, but token has email
-        dbUser = await db.user.findUnique({ where: { email: token.email as string } });
-      }
+      try {
+        let dbUser: User | null = null;
+        if (user) {
+          dbUser = await db.user.findUnique({ where: { email: user.email as string } });
+        } else if (token.email) {
+          dbUser = await db.user.findUnique({ where: { email: token.email as string } });
+        }
 
-      if (dbUser) {
-        token.id = dbUser.id;
-        token.role = dbUser.role;
-        token.userType = dbUser.userType;
-        token.isVerified = dbUser.isVerified;
-        token.verificationLevel = dbUser.verificationLevel;
+        if (dbUser) {
+          token.id = dbUser.id;
+          token.role = dbUser.role;
+          token.userType = dbUser.userType;
+          token.isVerified = dbUser.isVerified;
+          token.verificationLevel = dbUser.verificationLevel;
+        }
+      } catch (error) {
+        console.warn("[NextAuth] Database not ready during JWT (fresh DB?), skipping claims:", (error as Error).message);
       }
 
       if (account?.provider === "google" && profile) {

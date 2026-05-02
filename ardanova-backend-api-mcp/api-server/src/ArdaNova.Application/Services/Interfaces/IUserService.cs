@@ -14,6 +14,9 @@ public interface IUserService
     Task<Result<UserDto>> GetByEmailAsync(string email, CancellationToken ct = default);
     Task<Result<UserDto>> VerifyAsync(string id, CancellationToken ct = default);
     Task<Result<PagedResult<UserDto>>> SearchAsync(string query, int page, int pageSize, CancellationToken ct = default);
+    Task<Result<UserDto>> UpdateRoleAsync(string id, AdminUpdateUserRoleDto dto, CancellationToken ct = default);
+    Task<Result<UserDto>> UpdateUserTypeAsync(string id, AdminUpdateUserTypeDto dto, CancellationToken ct = default);
+    Task<Result<UserDto>> UpdateVerificationLevelAsync(string id, AdminUpdateVerificationLevelDto dto, CancellationToken ct = default);
 }
 
 public interface IAccountService

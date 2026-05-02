@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
+import Link from "next/link";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "~/components/ui/card";
 import { Input } from "~/components/ui/input";
@@ -9,7 +11,7 @@ import { Label } from "~/components/ui/label";
 import { Textarea } from "~/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "~/components/ui/select";
 import { Badge } from "~/components/ui/badge";
-import { Plus, X, FileText, Video, Image, Presentation, Loader2 } from "lucide-react";
+import { Plus, X, FileText, Video, Image, Presentation, Loader2, Shield } from "lucide-react";
 import { cn } from "~/lib/utils";
 import { api } from "~/trpc/react";
 import type { RouterOutputs } from "~/trpc/react";
@@ -50,7 +52,23 @@ interface ProjectFormData {
   };
 }
 
+// Verification levels ordered by privilege
+const VERIFICATION_LEVELS = ["ANONYMOUS", "VERIFIED", "PRO", "EXPERT"] as const;
+
+function meetsVerificationLevel(
+  current: string | undefined,
+  required: typeof VERIFICATION_LEVELS[number],
+): boolean {
+  const currentIdx = VERIFICATION_LEVELS.indexOf(
+    (current ?? "ANONYMOUS") as typeof VERIFICATION_LEVELS[number],
+  );
+  const requiredIdx = VERIFICATION_LEVELS.indexOf(required);
+  return currentIdx >= requiredIdx;
+}
+
 export function ProjectForm({ mode = "create", project }: ProjectFormProps) {
+  const { data: session } = useSession();
+
   const [formData, setFormData] = useState<ProjectFormData>({
     title: "",
     problem: {
@@ -302,6 +320,41 @@ export function ProjectForm({ mode = "create", project }: ProjectFormProps) {
       createProject.mutate(projectData);
     }
   };
+
+  // KYC gate: creating a project requires PRO verification level
+  if (mode === "create" && !meetsVerificationLevel(session?.user?.verificationLevel, "PRO")) {
+    return (
+      <div className="container mx-auto max-w-2xl px-4 py-16">
+        <Card className="border-2 border-neon-cyan/30">
+          <CardContent className="pt-6">
+            <div className="flex flex-col items-center text-center space-y-4">
+              <div className="flex h-16 w-16 items-center justify-center border-2 border-neon-cyan/40 bg-neon-cyan/10">
+                <Shield className="h-8 w-8 text-neon-cyan" />
+              </div>
+              <h2 className="text-2xl font-black text-foreground">
+                Verification Required
+              </h2>
+              <p className="text-muted-foreground max-w-md">
+                To create projects on ArdaNova, you need to complete identity verification.
+                This ensures trust and accountability within the community.
+              </p>
+              <div className="flex gap-3 pt-2">
+                <Button variant="neon" asChild>
+                  <Link href="/settings/verification">
+                    <Shield className="mr-2 h-4 w-4" />
+                    Verify Identity
+                  </Link>
+                </Button>
+                <Button variant="outline" asChild>
+                  <Link href="/dashboard">Back to Dashboard</Link>
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-4xl mx-auto p-4 sm:p-6 space-y-6 sm:space-y-8">

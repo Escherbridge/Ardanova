@@ -16,14 +16,13 @@ const TaskType = z.enum([
 // Task priority enum
 const TaskPriority = z.enum(["low", "medium", "high", "critical"]);
 
-// Task status enum
+// Must match ArdaNova.Domain.Models.Enums.TaskStatus + JSON serialization
 const TaskStatus = z.enum([
-  "backlog",
-  "todo",
-  "in_progress",
-  "in_review",
-  "done",
-  "cancelled",
+  "TODO",
+  "IN_PROGRESS",
+  "REVIEW",
+  "COMPLETED",
+  "BLOCKED",
 ]);
 
 // Task effort enum

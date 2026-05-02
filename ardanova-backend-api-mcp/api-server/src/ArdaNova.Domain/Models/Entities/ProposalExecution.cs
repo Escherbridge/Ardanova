@@ -24,6 +24,7 @@ public class ProposalExecution
 
     public string? txHash { get; set; }
 
+    [Column(TypeName = "jsonb")]
     public string? result { get; set; }
 
     [ForeignKey("proposalId")]

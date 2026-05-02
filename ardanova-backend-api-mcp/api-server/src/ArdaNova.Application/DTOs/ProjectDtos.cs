@@ -369,3 +369,40 @@ public record ReviewProjectApplicationDto
     public required ApplicationStatus Status { get; init; }
     public string? ReviewMessage { get; init; }
 }
+
+public record ProjectInvitationDto
+{
+    public string Id { get; init; } = null!;
+    public string ProjectId { get; init; } = null!;
+    public string InvitedById { get; init; } = null!;
+    public string? InvitedUserId { get; init; }
+    public string? InvitedEmail { get; init; }
+    public string Role { get; init; } = null!;
+    public string? Message { get; init; }
+    public string Status { get; init; } = null!;
+    public string? Token { get; init; }
+    public DateTime CreatedAt { get; init; }
+    public DateTime? ExpiresAt { get; init; }
+    public DateTime? RespondedAt { get; init; }
+    public ProjectMemberUserDto? InvitedUser { get; init; }
+    public ProjectMemberUserDto? InvitedBy { get; init; }
+    public ProjectInvitationProjectDto? Project { get; init; }
+}
+
+public record ProjectInvitationProjectDto
+{
+    public string Id { get; init; } = null!;
+    public string Title { get; init; } = null!;
+    public string Slug { get; init; } = null!;
+    public string? Images { get; init; }
+}
+
+public record CreateProjectInvitationDto
+{
+    public required string ProjectId { get; init; }
+    public required string InvitedById { get; init; }
+    public required string Role { get; init; }
+    public string? InvitedUserId { get; init; }
+    public string? InvitedEmail { get; init; }
+    public string? Message { get; init; }
+}

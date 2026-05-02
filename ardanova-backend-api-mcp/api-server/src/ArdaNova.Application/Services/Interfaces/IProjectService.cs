@@ -117,6 +117,7 @@ public interface IProjectEquityService
     Task<Result<ProjectEquityDto>> CreateAsync(CreateProjectEquityDto dto, CancellationToken ct = default);
     Task<Result<ProjectEquityDto>> UpdateAsync(string id, UpdateProjectEquityDto dto, CancellationToken ct = default);
     Task<Result<bool>> DeleteAsync(string id, CancellationToken ct = default);
+    Task<Result<decimal>> GetTotalEquityAsync(string projectId, CancellationToken ct = default);
 }
 
 public interface IProjectMemberService
@@ -126,5 +127,16 @@ public interface IProjectMemberService
     Task<Result<IReadOnlyList<ProjectMemberDto>>> GetByUserIdAsync(string userId, CancellationToken ct = default);
     Task<Result<ProjectMemberDto>> CreateAsync(CreateProjectMemberDto dto, CancellationToken ct = default);
     Task<Result<ProjectMemberDto>> UpdateAsync(string id, UpdateProjectMemberDto dto, CancellationToken ct = default);
+    Task<Result<bool>> DeleteAsync(string id, CancellationToken ct = default);
+}
+
+public interface IProjectInvitationService
+{
+    Task<Result<ProjectInvitationDto>> GetByIdAsync(string id, CancellationToken ct = default);
+    Task<Result<IReadOnlyList<ProjectInvitationDto>>> GetByProjectIdAsync(string projectId, CancellationToken ct = default);
+    Task<Result<IReadOnlyList<ProjectInvitationDto>>> GetByUserIdAsync(string userId, CancellationToken ct = default);
+    Task<Result<ProjectInvitationDto>> CreateAsync(CreateProjectInvitationDto dto, CancellationToken ct = default);
+    Task<Result<ProjectInvitationDto>> AcceptAsync(string id, CancellationToken ct = default);
+    Task<Result<ProjectInvitationDto>> RejectAsync(string id, CancellationToken ct = default);
     Task<Result<bool>> DeleteAsync(string id, CancellationToken ct = default);
 }

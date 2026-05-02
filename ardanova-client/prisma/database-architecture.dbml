@@ -839,6 +839,10 @@ Table ProjectMember {
   votingPower decimal [not null, default: 0, note: 'Governance rights - binary (0 or 1), derived from MembershipCredential ownership']
   joinedAt datetime [not null, default: `now()`]
   invitedById varchar
+
+  indexes {
+    (projectId, userId) [unique]
+  }
 }
 Ref: ProjectMember.projectId > Project.id
 Ref: ProjectMember.userId > User.id
@@ -913,6 +917,19 @@ Table ProposalExecution {
   result json
 }
 Ref: ProposalExecution.proposalId > Proposal.id
+
+Table ProposalComment {
+  id varchar [not null, pk, default: `cuid()`]
+  proposalId varchar [not null]
+  userId varchar [not null]
+  content text [not null]
+  parentId varchar
+  createdAt datetime [not null, default: `now()`]
+  updatedAt datetime [not null, note: 'Updated at']
+}
+Ref: ProposalComment.proposalId > Proposal.id
+Ref: ProposalComment.userId > User.id
+Ref: ProposalComment.parentId > ProposalComment.id
 
 Table DelegatedVote {
   id varchar [not null, pk, default: `cuid()`]
@@ -1168,13 +1185,16 @@ Enum MembershipGrantType {
 
 Table MembershipCredential {
   id varchar [not null, pk, default: `cuid()`]
-  projectId varchar [not null]
+  projectId varchar [note: 'Nullable — credential for a project']
+  guildId varchar [note: 'Nullable — credential for a guild']
   userId varchar [not null]
   assetId varchar [note: 'Algorand ASA ID for this soulbound credential']
   status MembershipCredentialStatus [not null, default: 'ACTIVE']
-  isTransferable boolean [not null, default: false, note: 'Soulbound by default - non-transferable']
+  isTransferable boolean [not null, default: false, note: 'Soulbound — always false']
+  tier UserTier [note: 'Credential tier: BRONZE, SILVER, GOLD, PLATINUM, DIAMOND']
   grantedVia MembershipGrantType [not null]
   grantedByProposalId varchar [note: 'Populated if membership was granted via DAO vote']
+  metadataUri varchar [note: 'ARC-19 metadata URI (IPFS or HTTP)']
   mintTxHash varchar
   revokeTxHash varchar
   mintedAt datetime
@@ -1183,10 +1203,12 @@ Table MembershipCredential {
   updatedAt datetime [not null, note: 'Updated at']
 
   indexes {
-    (projectId, userId) [unique, note: 'One membership credential per user per project']
+    (projectId, userId) [unique, note: 'One credential per user per project']
+    (guildId, userId) [unique, note: 'One credential per user per guild']
   }
 }
 Ref: MembershipCredential.projectId > Project.id
+Ref: MembershipCredential.guildId > Guild.id
 Ref: MembershipCredential.userId > User.id
 Ref: MembershipCredential.grantedByProposalId > Proposal.id
 
@@ -1772,6 +1794,7 @@ Table Opportunity {
   guildId varchar
   projectId varchar
   taskId varchar
+  projectRole ProjectRole
 }
 Ref: Opportunity.posterId > User.id
 Ref: Opportunity.guildId > Guild.id
@@ -1843,3 +1866,284 @@ Table OpportunityBid {
 Ref: OpportunityBid.opportunityId > Opportunity.id
 Ref: OpportunityBid.bidderId > User.id
 Ref: OpportunityBid.guildId > Guild.id
+
+// =================================================================================================
+// 11. KYC & Identity Verification Module
+// =================================================================================================
+
+Enum KycStatus {
+  PENDING
+  IN_REVIEW
+  APPROVED
+  REJECTED
+  EXPIRED
+}
+
+Enum KycDocumentType {
+  GOVERNMENT_ID
+  PASSPORT
+  DRIVERS_LICENSE
+  SELFIE
+  PROOF_OF_ADDRESS
+}
+
+Enum KycProvider {
+  MANUAL
+  VERIFF
+}
+
+Table KycSubmission {
+  id varchar [not null, pk, default: `cuid()`]
+  userId varchar [not null]
+  provider KycProvider [not null, default: 'MANUAL']
+  status KycStatus [not null, default: 'PENDING']
+  reviewerId varchar [note: 'Admin who reviewed']
+  reviewNotes text [note: 'Internal admin notes']
+  rejectionReason varchar [note: 'User-facing rejection reason']
+  providerSessionId varchar [note: 'External provider session ID']
+  providerResult text [note: 'Raw JSON from provider']
+  submittedAt datetime [not null, default: `now()`]
+  reviewedAt datetime
+  expiresAt datetime [note: 'KYC approval expiration']
+  createdAt datetime [not null, default: `now()`]
+  updatedAt datetime [not null, note: 'Updated at']
+
+  indexes {
+    (userId, status) [note: 'Query active submissions per user']
+  }
+}
+Ref: KycSubmission.userId > User.id
+Ref: KycSubmission.reviewerId > User.id
+
+Table KycDocument {
+  id varchar [not null, pk, default: `cuid()`]
+  submissionId varchar [not null]
+  type KycDocumentType [not null]
+  fileUrl varchar [not null, note: 'S3/storage URL']
+  fileName varchar [not null]
+  mimeType varchar
+  fileSizeBytes int
+  metadata text [note: 'JSON: country, expiryDate, etc.']
+  createdAt datetime [not null, default: `now()`]
+
+  indexes {
+    (submissionId, type) [unique, note: 'One document per type per submission']
+  }
+}
+Ref: KycDocument.submissionId > KycSubmission.id
+
+// =================================================================================================
+// 12. Tokenomics & Project Equity Module (Track 09)
+//
+// Gated liquidity model with three holder classes (CONTRIBUTOR, INVESTOR, FOUNDER)
+// and two project gates controlling when tokens become liquid.
+// Three-bucket treasury: index fund (55%), liquid reserve (30%), operations (15%).
+// =================================================================================================
+
+Enum ProjectTokenStatus {
+  PENDING     [note: 'Token config created, ASA not yet minted']
+  ACTIVE      [note: 'ASA minted and operational']
+  FROZEN      [note: 'Temporarily suspended']
+  DISSOLVED   [note: 'Project ended, tokens retired']
+}
+
+Enum ProjectGateStatus {
+  FUNDING    [note: 'Raising funds. No tokens liquid. Tasks disabled.']
+  ACTIVE     [note: 'Gate 1 cleared. Tasks enabled. Contributor tokens liquid.']
+  SUCCEEDED  [note: 'Gate 2 cleared. All tokens liquid.']
+  FAILED     [note: 'Project failed. Founder tokens burned. Investor trust protection.']
+}
+
+Enum TokenHolderClass {
+  CONTRIBUTOR [note: 'Earned through task completion. Liquid after Gate 1.']
+  INVESTOR    [note: 'Purchased through crowdfunding. Locked until Gate 2.']
+  FOUNDER     [note: 'Reserved for project creator. Locked until Gate 2. Burns on failure.']
+}
+
+Enum AllocationStatus {
+  RESERVED    [note: 'Assigned to task, not yet distributed']
+  DISTRIBUTED [note: 'Given to contributor']
+  REVOKED     [note: 'Allocation cancelled']
+  BURNED      [note: 'Founder tokens destroyed on project failure']
+}
+
+Enum PayoutStatus {
+  PENDING     [note: 'Payout requested, awaiting processing']
+  PROCESSING  [note: 'Conversion/payout in progress']
+  COMPLETED   [note: 'USD delivered to contributor']
+  FAILED      [note: 'Payout failed, tokens unlocked']
+  CANCELLED   [note: 'Cancelled by user before processing']
+}
+
+Enum PlatformTreasuryTransactionType {
+  FUNDING_INFLOW       [note: 'New project funding received']
+  ALLOCATION_INDEX     [note: 'Inflow allocated to index fund']
+  ALLOCATION_LIQUID    [note: 'Inflow allocated to liquid reserve']
+  ALLOCATION_OPS       [note: 'Inflow allocated to operations']
+  PAYOUT_DEBIT         [note: 'Fiat payout to contributor/investor']
+  INDEX_RETURN         [note: 'Monthly index fund return applied']
+  PROFIT_SHARE         [note: 'Platform profit share taken from index returns']
+  REBALANCE            [note: 'Auto-rebalance from index to liquid']
+  TRUST_PROTECTION     [note: 'Investor refund on project failure']
+  FOUNDER_BURN         [note: 'Founder token burn — no treasury movement, supply reduction']
+}
+
+Table ProjectTokenConfig {
+  id varchar [not null, pk, default: `cuid()`]
+  projectId varchar [not null, unique]
+  assetId varchar [note: 'Algorand ASA ID — null until minted on-chain']
+  assetName varchar [not null, note: 'e.g., ProjectName Shares']
+  unitName varchar [not null, note: 'Max 8 chars, e.g., PSHARE']
+  totalSupply int [not null, note: 'Fixed supply = 100% equity']
+  allocatedSupply int [not null, default: 0]
+  distributedSupply int [not null, default: 0]
+  reservedSupply int [not null, default: 0, note: 'Founder/team reserve']
+  mintTxHash varchar
+  status ProjectTokenStatus [not null, default: 'PENDING']
+  createdAt datetime [not null, default: `now()`]
+  updatedAt datetime [not null, note: 'Updated at']
+
+  // Funding Gate (Gate 1)
+  fundingGoal float [not null, note: 'USD amount required to clear Gate 1']
+  fundingRaised float [not null, default: 0, note: 'USD raised so far']
+  gateStatus ProjectGateStatus [not null, default: 'FUNDING']
+  gate1ClearedAt datetime [note: 'When funding goal was met']
+  gate2ClearedAt datetime [note: 'When project success was verified']
+  failedAt datetime [note: 'When project was marked failed']
+
+  // Holder class supply breakdown
+  contributorSupply int [not null, default: 0, note: 'Tokens allocated/distributed to contributors']
+  investorSupply int [not null, default: 0, note: 'Tokens allocated to investors']
+  founderSupply int [not null, default: 0, note: 'Tokens reserved for founder(s)']
+  burnedSupply int [not null, default: 0, note: 'Founder tokens burned on failure']
+
+  // Success criteria
+  successCriteria text [note: 'Description of what constitutes Gate 2 success']
+  successVerifiedBy varchar [note: 'UserId of admin/community who verified success']
+}
+Ref: ProjectTokenConfig.projectId > Project.id
+
+Table TokenAllocation {
+  id varchar [not null, pk, default: `cuid()`]
+  projectTokenConfigId varchar [not null]
+  taskId varchar [note: 'Nullable — non-task equity allocations']
+  recipientUserId varchar [note: 'Null until distributed']
+  equityPercentage float [not null, note: 'e.g., 2.5 = 2.5%']
+  tokenAmount int [not null, note: 'Calculated: totalSupply * equityPercentage / 100']
+  status AllocationStatus [not null, default: 'RESERVED']
+  holderClass TokenHolderClass [not null, note: 'CONTRIBUTOR, INVESTOR, or FOUNDER']
+  isLiquid boolean [not null, default: false, note: 'Derived from holderClass + project gateStatus']
+  distributedAt datetime
+  distributionTxHash varchar
+  burnedAt datetime [note: 'Set when founder tokens are burned on project failure']
+  createdAt datetime [not null, default: `now()`]
+  updatedAt datetime [not null, note: 'Updated at']
+}
+Ref: TokenAllocation.projectTokenConfigId > ProjectTokenConfig.id
+Ref: TokenAllocation.taskId > ProductBacklogItem.id
+Ref: TokenAllocation.recipientUserId > User.id
+
+Table TokenBalance {
+  id varchar [not null, pk, default: `cuid()`]
+  userId varchar [not null]
+  projectTokenConfigId varchar [note: 'Null for ARDA token balance']
+  isPlatformToken boolean [not null, default: false]
+  holderClass TokenHolderClass [note: 'Which class this balance belongs to']
+  isLiquid boolean [not null, default: false, note: 'Can this balance be traded/exited?']
+  balance int [not null, default: 0]
+  lockedBalance int [not null, default: 0, note: 'Locked for pending payouts']
+  updatedAt datetime [not null, note: 'Updated at']
+
+  indexes {
+    (userId, projectTokenConfigId, holderClass) [unique, note: 'One balance per user per project token per holder class']
+  }
+}
+Ref: TokenBalance.userId > User.id
+Ref: TokenBalance.projectTokenConfigId > ProjectTokenConfig.id
+
+Table PayoutRequest {
+  id varchar [not null, pk, default: `cuid()`]
+  userId varchar [not null]
+  sourceProjectTokenConfigId varchar
+  sourceTokenAmount int [not null]
+  ardaTokenAmount int
+  usdAmount float
+  status PayoutStatus [not null, default: 'PENDING']
+  holderClass TokenHolderClass [not null, note: 'Which holder class tokens are being exited']
+  gateStatusAtRequest ProjectGateStatus [not null, note: 'Snapshot of project gate status when requested']
+  conversionTxHash varchar
+  payoutTxHash varchar
+  stripePayoutId varchar
+  failureReason varchar
+  requestedAt datetime [not null, default: `now()`]
+  processedAt datetime
+  completedAt datetime
+}
+Ref: PayoutRequest.userId > User.id
+Ref: PayoutRequest.sourceProjectTokenConfigId > ProjectTokenConfig.id
+
+Table PlatformTreasury {
+  id varchar [not null, pk, default: `cuid()`]
+  ardaTotalSupply bigint [not null]
+  ardaCirculatingSupply bigint [not null, default: 0]
+  ardaAssetId varchar [note: 'Algorand ASA ID for ARDA token']
+  ardaMintTxHash varchar
+
+  // Three-bucket treasury model
+  indexFundBalance float [not null, default: 0, note: '55% of inflows. Compounding.']
+  liquidReserveBalance float [not null, default: 0, note: '30% of inflows. Immediate payouts.']
+  operationsBalance float [not null, default: 0, note: '15% of inflows. Platform ops.']
+
+  // Allocation percentages (configurable)
+  indexFundAllocationPct float [not null, default: 0.55]
+  liquidReserveAllocationPct float [not null, default: 0.30]
+  operationsAllocationPct float [not null, default: 0.15]
+
+  // Index fund parameters
+  indexFundAnnualReturn float [not null, default: 0.08]
+  platformProfitSharePct float [not null, default: 0.25]
+  trustProtectionRate float [not null, default: 0.50, note: '% of investor capital protected on project failure']
+
+  // Tracking
+  totalInflows float [not null, default: 0]
+  totalPayouts float [not null, default: 0]
+  totalRebalanceTransfers float [not null, default: 0, note: 'Cumulative index to liquid transfers']
+  lastRebalanceAt datetime
+  lastReconciliationAt datetime
+  updatedAt datetime [not null, note: 'Updated at']
+}
+
+Table PlatformTreasuryTransaction {
+  id varchar [not null, pk, default: `cuid()`]
+  type PlatformTreasuryTransactionType [not null]
+  amount float [not null]
+  fromBucket varchar [note: 'index, liquid, operations, or external']
+  toBucket varchar [note: 'index, liquid, operations, or external']
+  relatedProjectId varchar
+  relatedPayoutRequestId varchar
+  description varchar
+  balanceAfter float [not null, note: 'Total treasury after this transaction']
+  createdAt datetime [not null, default: `now()`]
+}
+
+Table ProjectInvestment {
+  id varchar [not null, pk, default: `cuid()`]
+  projectTokenConfigId varchar [not null]
+  userId varchar [not null]
+  usdAmount float [not null, note: 'Amount invested in USD']
+  tokenAmount int [not null, note: 'Project tokens received']
+  stripePaymentIntentId varchar
+  investedAt datetime [not null, default: `now()`]
+
+  // Trust protection
+  protectionEligible boolean [not null, default: true]
+  protectionPaidOut boolean [not null, default: false]
+  protectionAmount float [note: 'USD refunded on project failure']
+  protectionPaidAt datetime
+
+  indexes {
+    (projectTokenConfigId, userId) [note: 'Can have multiple investments']
+  }
+}
+Ref: ProjectInvestment.projectTokenConfigId > ProjectTokenConfig.id
+Ref: ProjectInvestment.userId > User.id

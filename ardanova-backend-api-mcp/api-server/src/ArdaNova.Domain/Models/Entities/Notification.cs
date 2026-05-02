@@ -28,6 +28,7 @@ public class Notification
     [Column(TypeName = "text")]
     public string message { get; set; } = string.Empty;
 
+    [Column(TypeName = "jsonb")]
     public string? data { get; set; }
 
     [Required]

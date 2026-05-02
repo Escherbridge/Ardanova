@@ -95,6 +95,8 @@ public class Guild
 
     public virtual ICollection<GuildUpdate> GuildUpdates { get; set; } = new List<GuildUpdate>();
 
+    public virtual ICollection<MembershipCredential> MembershipCredentials { get; set; } = new List<MembershipCredential>();
+
     public virtual ICollection<Post> Posts { get; set; } = new List<Post>();
 
     public virtual ICollection<PostShare> PostShares { get; set; } = new List<PostShare>();
