@@ -462,7 +462,7 @@ export default function DashboardPage() {
                         })}{" "}
                         {ev.timezone}
                       </p>
-                    </div>
+                    </Link>
                   );
                 })
               )}

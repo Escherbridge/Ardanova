@@ -6,6 +6,6 @@ export const DecimalJsLikeSchema = z.object({
   e: z.number(),
   s: z.number(),
   toFixed: z.any(),
-}) as z.ZodType<Prisma.DecimalJsLike>;
+}) as z.ZodType<Prisma.DecimalJsLike>
 
 export default DecimalJsLikeSchema;
