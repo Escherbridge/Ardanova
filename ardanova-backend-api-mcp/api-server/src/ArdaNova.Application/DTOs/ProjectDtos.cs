@@ -259,8 +259,18 @@ public record ProjectCommentDto
     public string UserId { get; init; } = null!;
     public string Content { get; init; } = null!;
     public string? ParentId { get; init; }
+    public CommentTargetType TargetType { get; init; }
+    public string TargetId { get; init; } = null!;
     public DateTime CreatedAt { get; init; }
     public DateTime UpdatedAt { get; init; }
+    public ProjectCommentAuthorDto? Author { get; init; }
+}
+
+public record ProjectCommentAuthorDto
+{
+    public string Id { get; init; } = null!;
+    public string? Name { get; init; }
+    public string? Image { get; init; }
 }
 
 public record CreateProjectCommentDto
@@ -269,6 +279,8 @@ public record CreateProjectCommentDto
     public required string UserId { get; init; }
     public required string Content { get; init; }
     public string? ParentId { get; init; }
+    public CommentTargetType TargetType { get; init; } = CommentTargetType.PROJECT;
+    public string? TargetId { get; init; }
 }
 
 public record ProjectUpdateDto

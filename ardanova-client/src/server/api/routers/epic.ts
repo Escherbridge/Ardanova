@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { createTRPCRouter, publicProcedure, protectedProcedure } from "~/server/api/trpc";
 import { apiClient } from "~/lib/api";
+import { authorizeChildCreation, authorizeRootCreation } from "~/server/api/lib/hierarchy-auth";
 
 // Note: The API's EpicStatus type is 'PLANNED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED'
 // Zod schema matches the actual API
@@ -8,7 +9,8 @@ export const EpicStatus = z.enum(['PLANNED', 'IN_PROGRESS', 'COMPLETED', 'CANCEL
 export const EpicPriority = z.enum(['CRITICAL', 'HIGH', 'MEDIUM', 'LOW']);
 
 const createEpicSchema = z.object({
-  milestoneId: z.string().min(1),
+  projectId: z.string().min(1),
+  milestoneId: z.string().optional(),
   title: z.string().min(1).max(200),
   description: z.string().optional(),
   priority: EpicPriority.default('MEDIUM'),
@@ -56,12 +58,20 @@ export const epicRouter = createTRPCRouter({
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user.id;
 
-      // TODO: Milestone validation - apiClient.milestones doesn't exist as a separate endpoint.
-      // Milestones are managed through apiClient.projects, but we'd need projectId first.
-      // For now, skip milestone validation and rely on backend validation.
+      // Auth: if attaching to milestone, must be assignee or project manager
+      if (input.milestoneId) {
+        await authorizeChildCreation(
+          { userId, projectId: input.projectId },
+          "milestone",
+          input.milestoneId
+        );
+      } else {
+        await authorizeRootCreation({ userId, projectId: input.projectId });
+      }
 
       const response = await apiClient.epics.create({
-        milestoneId: input.milestoneId,
+        milestoneId: input.milestoneId || "",
+        projectId: input.projectId,
         title: input.title,
         description: input.description,
         priority: input.priority,

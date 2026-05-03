@@ -66,7 +66,7 @@ const taskStatuses: {
 ];
 
 const priorityConfig = {
-  critical: { label: "Critical", color: "text-destructive", badge: "destructive" as const },
+  urgent: { label: "Urgent", color: "text-destructive", badge: "destructive" as const },
   high: { label: "High", color: "text-neon-pink", badge: "neon-pink" as const },
   medium: { label: "Medium", color: "text-warning", badge: "warning" as const },
   low: { label: "Low", color: "text-muted-foreground", badge: "secondary" as const },
@@ -98,14 +98,17 @@ function columnToApiStatus(col: TaskColumnId): "TODO" | "IN_PROGRESS" | "REVIEW"
 
 function mapPriority(p: string | null | undefined): keyof typeof priorityConfig {
   const u = (p ?? "MEDIUM").toUpperCase();
-  if (u === "URGENT") return "critical";
+  if (u === "URGENT" || u === "CRITICAL") return "urgent";
   if (u === "HIGH") return "high";
   if (u === "LOW") return "low";
   return "medium";
 }
 
+type WorkItemKind = "task" | "pbi";
+
 type TaskRow = {
   id: string;
+  kind: WorkItemKind;
   title: string;
   description: string;
   column: TaskColumnId;
@@ -141,6 +144,7 @@ function mapApiTaskToRow(task: ApiTask): TaskRow {
 
   return {
     id: String(task.id),
+    kind: "task" as WorkItemKind,
     title: String(task.title ?? ""),
     description: (task.description as string | null | undefined) ?? "",
     column: apiStatusToColumn(String(task.status ?? "TODO")),
@@ -153,8 +157,36 @@ function mapApiTaskToRow(task: ApiTask): TaskRow {
     assignee,
     dueDate: due ? new Date(due) : null,
     reward: typeof equity === "number" ? Number(equity) : 0,
-    tags: task.type ? [String(task.type)] : [],
+    tags: task.taskType ? [String(task.taskType)] : [],
     storyPoints: typeof hours === "number" && hours > 0 ? Math.min(13, Math.max(1, Math.round(hours))) : 5,
+  };
+}
+
+function pbiStatusToColumn(status: string): TaskColumnId | null {
+  const u = status.toUpperCase();
+  if (u === "DONE") return "done";
+  if (u === "IN_PROGRESS") return "in_progress";
+  if (u === "CANCELLED") return null; // exclude cancelled
+  // NEW and READY both map to todo
+  return "todo";
+}
+
+function mapPbiToRow(pbi: any): TaskRow | null {
+  const column = pbiStatusToColumn(String(pbi.status ?? "NEW"));
+  if (column === null) return null; // exclude CANCELLED
+  return {
+    id: String(pbi.id),
+    kind: "pbi",
+    title: String(pbi.title ?? ""),
+    description: (pbi.description as string | null | undefined) ?? "",
+    column,
+    priority: mapPriority(pbi.priority as string | null),
+    project: { id: String(pbi.projectId ?? ""), name: "Project", color: "neon-yellow" },
+    assignee: null,
+    dueDate: null,
+    reward: 0,
+    tags: pbi.type ? [String(pbi.type)] : [],
+    storyPoints: typeof pbi.storyPoints === "number" ? pbi.storyPoints : 3,
   };
 }
 
@@ -195,6 +227,9 @@ function TaskCard({
     >
       <div className="flex items-start justify-between gap-2 mb-2">
         <div className="flex items-center gap-2">
+          <Badge variant={task.kind === "pbi" ? "neon-purple" : "info"} size="sm" className="text-[10px]">
+            {task.kind === "pbi" ? "PBI" : "Task"}
+          </Badge>
           <Badge variant={priority.badge} size="sm">
             {priority.label}
           </Badge>
@@ -266,6 +301,7 @@ export default function TasksPage() {
   const pathname = usePathname();
 
   const [viewMode, setViewMode] = useState<"board" | "list">("board");
+  const [itemFilter, setItemFilter] = useState<"all" | "task" | "pbi">("all");
   const [selectedProject, setSelectedProject] = useState(
     () => searchParams.get("project") ?? "all",
   );
@@ -281,13 +317,54 @@ export default function TasksPage() {
     router.replace(next, { scroll: false });
   }, [searchQuery, selectedProject, pathname, router]);
 
-  const { data: tasksData, isLoading, error, refetch } = api.task.getMyTasks.useQuery(
+  const { data: tasksData, isLoading: tasksLoading, error, refetch } = api.task.getMyTasks.useQuery(
     { limit: 100 },
     { enabled: sessionStatus === "authenticated" },
   );
 
+  // Collect unique project IDs from user's tasks for PBI fetching
+  const projectIds = useMemo(() => {
+    const ids = new Set<string>();
+    (tasksData?.items ?? []).forEach((t) => {
+      if (t.projectId) ids.add(String(t.projectId));
+    });
+    return Array.from(ids);
+  }, [tasksData?.items]);
+
+  // Fetch PBIs for the user's projects using imperative fetch to avoid dynamic hook count
+  const [pbiRows, setPbiRows] = useState<TaskRow[]>([]);
+  const [pbisLoading, setPbisLoading] = useState(false);
+  const [pbiFetchKey, setPbiFetchKey] = useState(0);
+  const isLoading = tasksLoading || pbisLoading;
+
   const utils = api.useUtils();
-  const updateStatus = api.task.updateStatus.useMutation({
+
+  useEffect(() => {
+    if (projectIds.length === 0) {
+      setPbiRows([]);
+      return;
+    }
+    let cancelled = false;
+    setPbisLoading(true);
+    Promise.all(
+      projectIds.map((pid) =>
+        utils.backlog.getPbisByProjectId.fetch({ projectId: pid }).catch(() => [] as any[]),
+      ),
+    ).then((results) => {
+      if (cancelled) return;
+      const mapped = results
+        .flat()
+        .map(mapPbiToRow)
+        .filter((r): r is TaskRow => r !== null);
+      setPbiRows(mapped);
+    }).finally(() => {
+      if (!cancelled) setPbisLoading(false);
+    });
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectIds, pbiFetchKey]);
+
+  const updateTaskStatus = api.task.updateStatus.useMutation({
     onSuccess: () => {
       void utils.task.getMyTasks.invalidate();
       toast.success("Task updated");
@@ -295,10 +372,20 @@ export default function TasksPage() {
     onError: (e) => toast.error(e.message),
   });
 
-  const rows = useMemo(() => (tasksData?.items ?? []).map(mapApiTaskToRow), [tasksData?.items]);
+  const updatePbiStatus = api.backlog.updatePbiStatus.useMutation({
+    onSuccess: () => {
+      setPbiFetchKey((k) => k + 1); // re-trigger PBI fetch
+      toast.success("PBI updated");
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const taskRows = useMemo(() => (tasksData?.items ?? []).map(mapApiTaskToRow), [tasksData?.items]);
+  const rows = useMemo(() => [...taskRows, ...pbiRows], [taskRows, pbiRows]);
 
   const filteredRows = useMemo(() => {
     return rows.filter((task) => {
+      if (itemFilter !== "all" && task.kind !== itemFilter) return false;
       if (selectedProject !== "all" && task.project.id !== selectedProject) return false;
       if (searchQuery) {
         const q = searchQuery.toLowerCase();
@@ -312,7 +399,7 @@ export default function TasksPage() {
       }
       return true;
     });
-  }, [rows, selectedProject, searchQuery]);
+  }, [rows, selectedProject, searchQuery, itemFilter]);
 
   const tasksByStatus = useMemo(() => {
     const acc = {} as Record<TaskColumnId, TaskRow[]>;
@@ -337,8 +424,20 @@ export default function TasksPage() {
     return Array.from(map.values());
   }, [rows]);
 
-  const handleMove = (taskId: string, column: TaskColumnId) => {
-    updateStatus.mutate({ id: taskId, status: columnToApiStatus(column) });
+  const handleMove = (itemId: string, column: TaskColumnId) => {
+    // Determine if this is a PBI or task by checking against known PBI rows
+    const item = rows.find((r) => r.id === itemId);
+    if (item?.kind === "pbi") {
+      const pbiStatusMap: Record<TaskColumnId, "NEW" | "READY" | "IN_PROGRESS" | "DONE"> = {
+        todo: "NEW",
+        in_progress: "IN_PROGRESS",
+        review: "READY",
+        done: "DONE",
+      };
+      updatePbiStatus.mutate({ id: itemId, status: pbiStatusMap[column] });
+    } else {
+      updateTaskStatus.mutate({ id: itemId, status: columnToApiStatus(column) });
+    }
   };
 
   if (sessionStatus === "loading") {
@@ -381,12 +480,28 @@ export default function TasksPage() {
                 </Button>
               </div>
             </div>
-            <Button variant="neon" size="sm" asChild>
-              <Link href="/tasks/create">
-                <Plus className="size-4 mr-2" />
-                New Task
-              </Link>
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="neon" size="sm">
+                  <Plus className="size-4 mr-2" />
+                  New Item
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem asChild>
+                  <Link href="/tasks/create?type=task">
+                    <CheckSquare className="size-4 mr-2" />
+                    New Task
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/tasks/create?type=pbi">
+                    <Zap className="size-4 mr-2" />
+                    New PBI
+                  </Link>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
 
           <div className="flex items-center gap-4">
@@ -400,6 +515,16 @@ export default function TasksPage() {
                 className="w-full pl-10 pr-4 py-2 bg-card border-2 border-border text-foreground text-sm placeholder:text-muted-foreground focus:border-primary focus:outline-none"
               />
             </div>
+            <Select value={itemFilter} onValueChange={(v) => setItemFilter(v as "all" | "task" | "pbi")}>
+              <SelectTrigger className="w-36 border-2">
+                <SelectValue placeholder="All Items" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Items</SelectItem>
+                <SelectItem value="task">Tasks Only</SelectItem>
+                <SelectItem value="pbi">PBIs Only</SelectItem>
+              </SelectContent>
+            </Select>
             <Select value={selectedProject} onValueChange={setSelectedProject}>
               <SelectTrigger className="w-48 border-2">
                 <FolderKanban className="size-4 mr-2 text-muted-foreground" />
@@ -501,6 +626,7 @@ export default function TasksPage() {
               <table className="w-full">
                 <thead>
                   <tr className="border-b-2 border-border">
+                    <th className="text-left p-3 text-sm font-medium text-muted-foreground">Type</th>
                     <th className="text-left p-3 text-sm font-medium text-muted-foreground">Task</th>
                     <th className="text-left p-3 text-sm font-medium text-muted-foreground">Project</th>
                     <th className="text-left p-3 text-sm font-medium text-muted-foreground">Status</th>
@@ -519,6 +645,11 @@ export default function TasksPage() {
 
                     return (
                       <tr key={task.id} className="border-b border-border hover:bg-card/50 transition-colors">
+                        <td className="p-3">
+                          <Badge variant={task.kind === "pbi" ? "neon-purple" : "info"} size="sm" className="text-[10px]">
+                            {task.kind === "pbi" ? "PBI" : "Task"}
+                          </Badge>
+                        </td>
                         <td className="p-3">
                           <div className="font-medium text-sm text-foreground">{task.title}</div>
                           <div className="text-xs text-muted-foreground line-clamp-1">{task.description}</div>

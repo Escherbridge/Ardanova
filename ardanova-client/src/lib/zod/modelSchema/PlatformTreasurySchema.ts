@@ -6,6 +6,7 @@ import { z } from 'zod';
 
 export const PlatformTreasurySchema = z.object({
   id: z.string().cuid(),
+  singletonKey: z.string(),
   ardaTotalSupply: z.bigint(),
   ardaCirculatingSupply: z.bigint(),
   ardaAssetId: z.string().nullable(),
@@ -25,8 +26,8 @@ export const PlatformTreasurySchema = z.object({
   lastRebalanceAt: z.coerce.date().nullable(),
   lastReconciliationAt: z.coerce.date().nullable(),
   updatedAt: z.coerce.date(),
-});
+})
 
-export type PlatformTreasury = z.infer<typeof PlatformTreasurySchema>;
+export type PlatformTreasury = z.infer<typeof PlatformTreasurySchema>
 
 export default PlatformTreasurySchema;

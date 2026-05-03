@@ -46,6 +46,10 @@ Table Account {
   scope varchar
   id_token text
   session_state varchar
+
+  indexes {
+    (provider, providerAccountId) [unique]
+  }
 }
 Ref: Account.userId > User.id
 
@@ -301,6 +305,10 @@ Table UserAchievement {
   achievementId varchar [not null]
   progress int [not null, default: 0]
   earnedAt datetime
+
+  indexes {
+    (userId, achievementId) [unique]
+  }
 }
 Ref: UserAchievement.userId > User.id
 Ref: UserAchievement.achievementId > Achievement.id
@@ -321,6 +329,10 @@ Table LeaderboardEntry {
   rank int [not null]
   score int [not null]
   metadata json
+
+  indexes {
+    (leaderboardId, userId) [unique]
+  }
 }
 Ref: LeaderboardEntry.leaderboardId > Leaderboard.id
 Ref: LeaderboardEntry.userId > User.id
@@ -425,6 +437,14 @@ Enum TaskType {
   REVIEW
   MAINTENANCE
   OTHER
+}
+
+Enum EffortEstimate {
+  XS  [note: '~1 hour']
+  S   [note: '~2-4 hours']
+  M   [note: '~1 day']
+  L   [note: '~2-3 days']
+  XL  [note: '~1 week+']
 }
 
 Enum SupportType {
@@ -604,12 +624,18 @@ Ref: Project.assignedGuildId > Guild.id
 Table ProjectTask {
   id varchar [not null, pk, default: `cuid()`]
   projectId varchar [not null]
-  pbiId varchar
+  pbiId varchar [note: 'Optional - can skip PBI and attach higher']
+  featureId varchar [note: 'Optional - direct feature attachment when skipping PBI']
+  sprintId varchar [note: 'Optional - direct sprint attachment']
+  epicId varchar [note: 'Optional - direct epic attachment']
+  milestoneId varchar [note: 'Optional - direct milestone attachment']
+  guildId varchar [note: 'Guild that owns/claimed this task']
   title varchar [not null]
   description text
   status TaskStatus [not null, default: 'TODO']
   priority TaskPriority [not null, default: 'MEDIUM']
   taskType TaskType [not null, default: 'FEATURE']
+  effortEstimate EffortEstimate
   estimatedHours int
   actualHours int
   equityReward decimal(18,8)
@@ -624,6 +650,11 @@ Table ProjectTask {
 Ref: ProjectTask.projectId > Project.id
 Ref: ProjectTask.assignedToId > User.id
 Ref: ProjectTask.pbiId > ProductBacklogItem.id
+Ref: ProjectTask.featureId > Feature.id
+Ref: ProjectTask.sprintId > Sprint.id
+Ref: ProjectTask.epicId > Epic.id
+Ref: ProjectTask.milestoneId > ProjectMilestone.id
+Ref: ProjectTask.guildId > Guild.id
 Ref: ProjectTask.opportunityId > Opportunity.id
 
 Table ProjectTaskDependency {
@@ -652,18 +683,21 @@ Ref: ProjectResource.projectId > Project.id
 Table ProjectMilestone {
   id varchar [not null, pk, default: `cuid()`]
   projectId varchar [not null]
+  guildId varchar [note: 'Guild that owns/claimed this milestone']
   title varchar [not null]
   description text
   targetDate datetime
   completedAt datetime
   status MilestoneStatus [not null, default: 'PLANNED']
   priority Priority [not null, default: 'MEDIUM']
+  equityBudget decimal [note: 'Token budget allocated to this milestone']
   order int [not null, default: 0]
   createdAt datetime [not null, default: `now()`]
   updatedAt datetime [not null, note: 'Updated at']
   assigneeId varchar
 }
 Ref: ProjectMilestone.projectId > Project.id
+Ref: ProjectMilestone.guildId > Guild.id
 Ref: ProjectMilestone.assigneeId > User.id
 
 Table ProjectSupport {
@@ -734,14 +768,30 @@ Ref: ProjectMembershipRequest.projectId > Project.id
 Ref: ProjectMembershipRequest.userId > User.id
 Ref: ProjectMembershipRequest.reviewedById > User.id
 
+Enum CommentTargetType {
+  PROJECT
+  MILESTONE
+  EPIC
+  SPRINT
+  FEATURE
+  PBI
+  TASK
+}
+
 Table ProjectComment {
   id varchar [not null, pk, default: `cuid()`]
   projectId varchar [not null]
   userId varchar [not null]
   content text [not null]
   parentId varchar
+  targetType CommentTargetType [not null, default: 'PROJECT', note: 'What entity this comment is on']
+  targetId varchar [not null, note: 'ID of the target entity (project, milestone, epic, etc.)']
   createdAt datetime [not null, default: `now()`]
   updatedAt datetime [not null, note: 'Updated at']
+
+  indexes {
+    (targetType, targetId)
+  }
 }
 Ref: ProjectComment.projectId > Project.id
 Ref: ProjectComment.userId > User.id
@@ -763,7 +813,9 @@ Ref: ProjectUpdate.userId > User.id
 
 Table Epic {
   id varchar [not null, pk, default: `cuid()`]
-  milestoneId varchar [not null]
+  projectId varchar [not null, note: 'Always set - project this epic belongs to']
+  milestoneId varchar [note: 'Optional - can be a root-level epic under the project']
+  guildId varchar [note: 'Guild that owns/claimed this body of work']
   title varchar [not null]
   description text
   status EpicStatus [not null, default: 'PLANNED']
@@ -776,12 +828,17 @@ Table Epic {
   updatedAt datetime [not null, note: 'Updated at']
   assigneeId varchar
 }
+Ref: Epic.projectId > Project.id
 Ref: Epic.milestoneId > ProjectMilestone.id
+Ref: Epic.guildId > Guild.id
 Ref: Epic.assigneeId > User.id
 
 Table Sprint {
   id varchar [not null, pk, default: `cuid()`]
-  epicId varchar [not null]
+  projectId varchar [not null, note: 'Always set - project this sprint belongs to']
+  epicId varchar [note: 'Optional - can skip epic and attach to project root']
+  milestoneId varchar [note: 'Optional - direct milestone attachment when skipping epic']
+  guildId varchar [note: 'Guild that owns/claimed this body of work']
   name varchar [not null]
   goal text
   startDate datetime [not null]
@@ -793,27 +850,44 @@ Table Sprint {
   updatedAt datetime [not null, note: 'Updated at']
   assigneeId varchar
 }
+Ref: Sprint.projectId > Project.id
 Ref: Sprint.epicId > Epic.id
+Ref: Sprint.milestoneId > ProjectMilestone.id
+Ref: Sprint.guildId > Guild.id
 Ref: Sprint.assigneeId > User.id
 
 Table Feature {
   id varchar [not null, pk, default: `cuid()`]
-  sprintId varchar [not null]
+  projectId varchar [not null, note: 'Always set - project this feature belongs to']
+  sprintId varchar [note: 'Optional - can skip sprint and attach higher']
+  epicId varchar [note: 'Optional - direct epic attachment when skipping sprint']
+  milestoneId varchar [note: 'Optional - direct milestone attachment when skipping epic+sprint']
+  guildId varchar [note: 'Guild that owns/claimed this body of work']
   title varchar [not null]
   description text
   status FeatureStatus [not null, default: 'PLANNED']
   priority Priority [not null, default: 'MEDIUM']
+  equityBudget decimal [note: 'Token budget allocated to this feature']
   order int [not null, default: 0]
   createdAt datetime [not null, default: `now()`]
   updatedAt datetime [not null, note: 'Updated at']
   assigneeId varchar
 }
+Ref: Feature.projectId > Project.id
 Ref: Feature.sprintId > Sprint.id
+Ref: Feature.epicId > Epic.id
+Ref: Feature.milestoneId > ProjectMilestone.id
+Ref: Feature.guildId > Guild.id
 Ref: Feature.assigneeId > User.id
 
 Table ProductBacklogItem {
   id varchar [not null, pk, default: `cuid()`]
-  featureId varchar [not null]
+  projectId varchar [not null, note: 'Always set - project this PBI belongs to']
+  featureId varchar [note: 'Optional - can skip feature and attach higher']
+  sprintId varchar [note: 'Optional - direct sprint attachment when skipping feature']
+  epicId varchar [note: 'Optional - direct epic attachment']
+  milestoneId varchar [note: 'Optional - direct milestone attachment']
+  guildId varchar [note: 'Guild that owns/claimed this body of work']
   title varchar [not null]
   description text
   type PBIType [not null, default: 'FEATURE']
@@ -821,11 +895,17 @@ Table ProductBacklogItem {
   status PBIStatus [not null, default: 'NEW']
   acceptanceCriteria text
   priority Priority [not null, default: 'MEDIUM']
+  equityReward decimal(18,8) [note: 'Token reward for completing this PBI']
   createdAt datetime [not null, default: `now()`]
   updatedAt datetime [not null, note: 'Updated at']
   assigneeId varchar
 }
+Ref: ProductBacklogItem.projectId > Project.id
 Ref: ProductBacklogItem.featureId > Feature.id
+Ref: ProductBacklogItem.sprintId > Sprint.id
+Ref: ProductBacklogItem.epicId > Epic.id
+Ref: ProductBacklogItem.milestoneId > ProjectMilestone.id
+Ref: ProductBacklogItem.guildId > Guild.id
 Ref: ProductBacklogItem.assigneeId > User.id
 
 
@@ -958,6 +1038,7 @@ Enum BidStatus {
   ACCEPTED
   REJECTED
   WITHDRAWN
+  COMPLETED
 }
 
 
@@ -992,8 +1073,12 @@ Table GuildMember {
   id varchar [not null, pk, default: `cuid()`]
   guildId varchar [not null]
   userId varchar [not null]
-  role varchar [not null]
+  role GuildMemberRole [not null, default: 'MEMBER']
   joinedAt datetime [not null, default: `now()`]
+
+  indexes {
+    (guildId, userId) [unique]
+  }
 }
 Ref: GuildMember.guildId > Guild.id
 Ref: GuildMember.userId > User.id
@@ -1332,6 +1417,34 @@ Table Wallet {
   updatedAt datetime [not null, note: 'Updated at']
 }
 Ref: Wallet.userId > User.id
+
+Table ProjectWallet {
+  id varchar [not null, pk, default: `cuid()`]
+  projectId varchar [not null, unique, note: 'One wallet per project']
+  address varchar [unique, note: 'On-chain address (Algorand) - null if custodial/off-chain']
+  provider WalletProvider [not null, default: 'PERA']
+  label varchar [default: 'Project Treasury']
+  balance decimal [not null, default: 0, note: 'Off-chain tracked balance of project tokens']
+  reservedBalance decimal [not null, default: 0, note: 'Locked for escrow/vesting']
+  isVerified boolean [not null, default: false]
+  createdAt datetime [not null, default: `now()`]
+  updatedAt datetime [not null, note: 'Updated at']
+}
+Ref: ProjectWallet.projectId > Project.id
+
+Table GuildWallet {
+  id varchar [not null, pk, default: `cuid()`]
+  guildId varchar [not null, unique, note: 'One wallet per guild']
+  address varchar [unique, note: 'On-chain address (Algorand) - null if custodial/off-chain']
+  provider WalletProvider [not null, default: 'PERA']
+  label varchar [default: 'Guild Treasury']
+  balance decimal [not null, default: 0, note: 'Off-chain tracked balance']
+  reservedBalance decimal [not null, default: 0, note: 'Locked for escrow/vesting']
+  isVerified boolean [not null, default: false]
+  createdAt datetime [not null, default: `now()`]
+  updatedAt datetime [not null, note: 'Updated at']
+}
+Ref: GuildWallet.guildId > Guild.id
 
 Table TaskEscrow {
   id varchar [not null, pk, default: `cuid()`]
@@ -1673,6 +1786,10 @@ Table EventAttendee {
   rsvpAt datetime [not null, default: `now()`]
   attendedAt datetime
   notes text
+
+  indexes {
+    (eventId, userId) [unique]
+  }
 }
 Ref: EventAttendee.eventId > Event.id
 Ref: EventAttendee.userId > User.id
@@ -1682,6 +1799,10 @@ Table EventCoHost {
   eventId varchar [not null]
   userId varchar [not null]
   addedAt datetime [not null, default: `now()`]
+
+  indexes {
+    (eventId, userId) [unique]
+  }
 }
 Ref: EventCoHost.eventId > Event.id
 Ref: EventCoHost.userId > User.id
@@ -1707,6 +1828,10 @@ Table UserFollow {
   followerId varchar [not null]
   followingId varchar [not null]
   createdAt datetime [not null, default: `now()`]
+
+  indexes {
+    (followerId, followingId) [unique]
+  }
 }
 Ref: UserFollow.followerId > User.id
 Ref: UserFollow.followingId > User.id
@@ -1719,6 +1844,10 @@ Table ProjectFollow {
   notifyMilestones boolean [not null, default: true]
   notifyProposals boolean [not null, default: false]
   createdAt datetime [not null, default: `now()`]
+
+  indexes {
+    (userId, projectId) [unique]
+  }
 }
 Ref: ProjectFollow.userId > User.id
 Ref: ProjectFollow.projectId > Project.id
@@ -1731,6 +1860,10 @@ Table GuildFollow {
   notifyEvents boolean [not null, default: true]
   notifyProjects boolean [not null, default: false]
   createdAt datetime [not null, default: `now()`]
+
+  indexes {
+    (userId, guildId) [unique]
+  }
 }
 Ref: GuildFollow.userId > User.id
 Ref: GuildFollow.guildId > Guild.id
@@ -2026,7 +2159,7 @@ Ref: ProjectTokenConfig.projectId > Project.id
 Table TokenAllocation {
   id varchar [not null, pk, default: `cuid()`]
   projectTokenConfigId varchar [not null]
-  taskId varchar [note: 'Nullable — non-task equity allocations']
+  pbiId varchar [note: 'Nullable — PBI-level equity allocation']
   recipientUserId varchar [note: 'Null until distributed']
   equityPercentage float [not null, note: 'e.g., 2.5 = 2.5%']
   tokenAmount int [not null, note: 'Calculated: totalSupply * equityPercentage / 100']
@@ -2040,7 +2173,7 @@ Table TokenAllocation {
   updatedAt datetime [not null, note: 'Updated at']
 }
 Ref: TokenAllocation.projectTokenConfigId > ProjectTokenConfig.id
-Ref: TokenAllocation.taskId > ProductBacklogItem.id
+Ref: TokenAllocation.pbiId > ProductBacklogItem.id
 Ref: TokenAllocation.recipientUserId > User.id
 
 Table TokenBalance {
@@ -2084,6 +2217,7 @@ Ref: PayoutRequest.sourceProjectTokenConfigId > ProjectTokenConfig.id
 
 Table PlatformTreasury {
   id varchar [not null, pk, default: `cuid()`]
+  singletonKey varchar [not null, unique, default: 'SINGLETON', note: 'Ensures only one treasury record exists']
   ardaTotalSupply bigint [not null]
   ardaCirculatingSupply bigint [not null, default: 0]
   ardaAssetId varchar [note: 'Algorand ASA ID for ARDA token']

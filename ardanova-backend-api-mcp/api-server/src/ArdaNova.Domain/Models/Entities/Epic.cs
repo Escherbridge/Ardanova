@@ -16,7 +16,11 @@ public class Epic
     public string id { get; set; } = string.Empty;
 
     [Required]
-    public string milestoneId { get; set; } = string.Empty;
+    public string projectId { get; set; } = string.Empty;
+
+    public string? milestoneId { get; set; }
+
+    public string? guildId { get; set; }
 
     [Required]
     public string title { get; set; } = string.Empty;
@@ -48,12 +52,24 @@ public class Epic
 
     public string? assigneeId { get; set; }
 
+    public virtual ICollection<ProjectTask> ProjectTasks { get; set; } = new List<ProjectTask>();
+
+    [ForeignKey("projectId")]
+    public virtual Project? Project { get; set; }
+
     [ForeignKey("milestoneId")]
     public virtual ProjectMilestone? Milestone { get; set; }
+
+    [ForeignKey("guildId")]
+    public virtual Guild? Guild { get; set; }
 
     [ForeignKey("assigneeId")]
     public virtual User? Assignee { get; set; }
 
     public virtual ICollection<Sprint> Sprints { get; set; } = new List<Sprint>();
+
+    public virtual ICollection<Feature> Features { get; set; } = new List<Feature>();
+
+    public virtual ICollection<ProductBacklogItem> ProductBacklogItems { get; set; } = new List<ProductBacklogItem>();
 
 }

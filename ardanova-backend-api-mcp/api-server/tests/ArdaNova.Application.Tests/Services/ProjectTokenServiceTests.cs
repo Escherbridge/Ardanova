@@ -321,14 +321,14 @@ public class ProjectTokenServiceTests
 
         var dto = new CreateTokenAllocationDto
         {
-            TaskId = "task-1",
+            PbiId = "task-1",
             EquityPercentage = 5
         };
 
         var allocationDto = new TokenAllocationDto
         {
             Id = "alloc-1",
-            TaskId = "task-1",
+            PbiId = "task-1",
             TokenAmount = 50000,
             HolderClass = TokenHolderClass.CONTRIBUTOR
         };
@@ -346,7 +346,7 @@ public class ProjectTokenServiceTests
         result.Value!.TokenAmount.Should().Be(50000);
 
         _allocationRepoMock.Verify(r => r.AddAsync(It.Is<TokenAllocation>(a =>
-            a.taskId == "task-1" &&
+            a.pbiId == "task-1" &&
             a.holderClass == TokenHolderClass.CONTRIBUTOR &&
             a.status == AllocationStatus.RESERVED &&
             a.tokenAmount == 50000 &&
@@ -381,7 +381,7 @@ public class ProjectTokenServiceTests
 
         var dto = new CreateTokenAllocationDto
         {
-            TaskId = "task-1",
+            PbiId = "task-1",
             EquityPercentage = 5
         };
 
@@ -422,7 +422,7 @@ public class ProjectTokenServiceTests
 
         var dto = new CreateTokenAllocationDto
         {
-            TaskId = "task-1",
+            PbiId = "task-1",
             EquityPercentage = 10 // 100,000 tokens, but only 50,000 available
         };
 

@@ -5,7 +5,11 @@ export type FeaturePriority = "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
 
 export interface Feature {
   id: string;
-  sprintId: string;
+  projectId: string;
+  sprintId?: string | null;
+  epicId?: string | null;
+  milestoneId?: string | null;
+  guildId?: string | null;
   title: string;
   description?: string | null;
   status: FeatureStatus;

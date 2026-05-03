@@ -67,6 +67,13 @@ public class TasksController : ControllerBase
         return ToActionResult(result);
     }
 
+    [HttpGet("pbi/{pbiId}")]
+    public async Task<IActionResult> GetByPbiId(string pbiId, CancellationToken ct)
+    {
+        var result = await _taskService.GetByPbiIdAsync(pbiId, ct);
+        return ToActionResult(result);
+    }
+
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreateTaskDto dto, CancellationToken ct)
     {

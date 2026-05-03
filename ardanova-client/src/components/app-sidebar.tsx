@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
   FolderKanban,
+  Shield,
   Users,
   Briefcase,
   Settings,
@@ -52,6 +53,11 @@ const mainNavItems = [
     href: "/projects",
     label: "Projects",
     icon: FolderKanban,
+  },
+  {
+    href: "/guilds",
+    label: "Guilds",
+    icon: Shield,
   },
   {
     href: "/people",

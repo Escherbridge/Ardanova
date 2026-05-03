@@ -12,11 +12,21 @@ public static class GeneratedModelConfigurations
     /// </summary>
     public static void ApplyGeneratedConfigurations(this ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<Account>().HasIndex(e => new { e.provider, e.providerAccountId }).IsUnique();
+        modelBuilder.Entity<UserAchievement>().HasIndex(e => new { e.userId, e.achievementId }).IsUnique();
+        modelBuilder.Entity<LeaderboardEntry>().HasIndex(e => new { e.leaderboardId, e.userId }).IsUnique();
+        modelBuilder.Entity<ProjectComment>().HasIndex(e => new { e.targetType, e.targetId });
         modelBuilder.Entity<ProjectMember>().HasIndex(e => new { e.projectId, e.userId }).IsUnique();
+        modelBuilder.Entity<GuildMember>().HasIndex(e => new { e.guildId, e.userId }).IsUnique();
         modelBuilder.Entity<MembershipCredential>().HasIndex(e => new { e.projectId, e.userId }).IsUnique();
         modelBuilder.Entity<MembershipCredential>().HasIndex(e => new { e.guildId, e.userId }).IsUnique();
         modelBuilder.Entity<ConversationMember>().HasIndex(e => new { e.conversationId, e.userId }).IsUnique();
         modelBuilder.Entity<ChatMessage>().HasIndex(e => new { e.conversationId, e.sentAt });
+        modelBuilder.Entity<EventAttendee>().HasIndex(e => new { e.eventId, e.userId }).IsUnique();
+        modelBuilder.Entity<EventCoHost>().HasIndex(e => new { e.eventId, e.userId }).IsUnique();
+        modelBuilder.Entity<UserFollow>().HasIndex(e => new { e.followerId, e.followingId }).IsUnique();
+        modelBuilder.Entity<ProjectFollow>().HasIndex(e => new { e.userId, e.projectId }).IsUnique();
+        modelBuilder.Entity<GuildFollow>().HasIndex(e => new { e.userId, e.guildId }).IsUnique();
         modelBuilder.Entity<OpportunityApplication>().HasIndex(e => new { e.opportunityId, e.applicantId }).IsUnique();
         modelBuilder.Entity<OpportunityBid>().HasIndex(e => new { e.opportunityId, e.bidderId }).IsUnique();
         modelBuilder.Entity<KycSubmission>().HasIndex(e => new { e.userId, e.status });

@@ -2,21 +2,22 @@ import { z } from "zod";
 import { createTRPCRouter, protectedProcedure, publicProcedure } from "~/server/api/trpc";
 import { apiClient } from "~/lib/api";
 
-// Task type enum
+// Enums matching DBML/backend exactly (SCREAMING_SNAKE_CASE)
 const TaskType = z.enum([
-  "feature",
-  "bug",
-  "improvement",
-  "documentation",
-  "research",
-  "design",
-  "other",
+  "FEATURE",
+  "BUG",
+  "ENHANCEMENT",
+  "DOCUMENTATION",
+  "RESEARCH",
+  "DESIGN",
+  "TESTING",
+  "REVIEW",
+  "MAINTENANCE",
+  "OTHER",
 ]);
 
-// Task priority enum
-const TaskPriority = z.enum(["low", "medium", "high", "critical"]);
+const TaskPriority = z.enum(["LOW", "MEDIUM", "HIGH", "URGENT"]);
 
-// Must match ArdaNova.Domain.Models.Enums.TaskStatus + JSON serialization
 const TaskStatus = z.enum([
   "TODO",
   "IN_PROGRESS",
@@ -25,21 +26,24 @@ const TaskStatus = z.enum([
   "BLOCKED",
 ]);
 
-// Task effort enum
-const TaskEffort = z.enum(["xs", "s", "m", "l", "xl"]);
+const EffortEstimate = z.enum(["XS", "S", "M", "L", "XL"]);
 
 // Task creation input schema
 const createTaskSchema = z.object({
   title: z.string().min(1, "Task title is required"),
   description: z.string().min(10, "Description must be at least 10 characters"),
   type: TaskType,
-  priority: TaskPriority.default("medium"),
-  effort: TaskEffort.optional(),
+  priority: TaskPriority.default("MEDIUM"),
+  effortEstimate: EffortEstimate.optional(),
   dueDate: z.string().optional(),
   assigneeId: z.string().optional(),
   projectId: z.string(),
   pbiId: z.string().optional(),
-  tags: z.string().optional(),
+  featureId: z.string().optional(),
+  sprintId: z.string().optional(),
+  epicId: z.string().optional(),
+  milestoneId: z.string().optional(),
+  guildId: z.string().optional(),
 });
 
 // Task update input schema
@@ -50,26 +54,31 @@ const updateTaskSchema = z.object({
   type: TaskType.optional(),
   priority: TaskPriority.optional(),
   status: TaskStatus.optional(),
-  effort: TaskEffort.optional(),
+  effortEstimate: EffortEstimate.optional(),
   dueDate: z.string().optional(),
   assigneeId: z.string().optional(),
   pbiId: z.string().optional(),
-  tags: z.string().optional(),
 });
 
 export const taskRouter = createTRPCRouter({
-  // Create a new task
+  // Create a new task (opportunity auto-creation handled by .NET backend)
   create: protectedProcedure
     .input(createTaskSchema)
-    .mutation(async ({ input, ctx }) => {
+    .mutation(async ({ input }) => {
       const response = await apiClient.tasks.create({
         projectId: input.projectId,
         pbiId: input.pbiId,
+        featureId: input.featureId,
+        sprintId: input.sprintId,
+        epicId: input.epicId,
+        milestoneId: input.milestoneId,
+        guildId: input.guildId,
         title: input.title,
         description: input.description,
         taskType: input.type,
         priority: input.priority,
-        estimatedHours: input.effort ? effortToHours(input.effort) : undefined,
+        effortEstimate: input.effortEstimate,
+        estimatedHours: input.effortEstimate ? effortToHours(input.effortEstimate) : undefined,
         dueDate: input.dueDate,
         assignedToId: input.assigneeId,
       });
@@ -78,29 +87,7 @@ export const taskRouter = createTRPCRouter({
         throw new Error(response.error ?? "Failed to create task");
       }
 
-      const taskData = response.data;
-
-      // Auto-create a draft opportunity for this task
-      try {
-        const slug = `task-${taskData.id}-${Date.now()}`;
-        await apiClient.opportunities.create({
-          title: taskData.title,
-          slug,
-          description: taskData.description || taskData.title,
-          type: 'TASK_BOUNTY',
-          experienceLevel: 'MID',
-          origin: 'TASK_GENERATED',
-          status: 'DRAFT',
-          projectId: input.projectId,
-          taskId: taskData.id,
-          posterId: ctx.session.user.id,
-        });
-      } catch {
-        // Don't fail task creation if opportunity auto-gen fails
-        console.error('Failed to auto-generate opportunity for task:', taskData.id);
-      }
-
-      return taskData;
+      return response.data;
     }),
 
   // Get all tasks with pagination and filters
@@ -157,15 +144,26 @@ export const taskRouter = createTRPCRouter({
 
       let items = response.data ?? [];
 
-      // Filter by status if provided
       if (input.status) {
         items = items.filter(task => task.status === input.status);
       }
 
-      // Limit results
       items = items.slice(0, input.limit);
 
       return { items, nextCursor: undefined };
+    }),
+
+  // Get tasks by PBI ID
+  getByPbiId: publicProcedure
+    .input(z.object({ pbiId: z.string() }))
+    .query(async ({ input }) => {
+      const response = await apiClient.tasks.getByPbiId(input.pbiId);
+
+      if (response.error) {
+        throw new Error(response.error);
+      }
+
+      return response.data ?? [];
     }),
 
   // Get task by ID
@@ -184,20 +182,8 @@ export const taskRouter = createTRPCRouter({
   // Update task
   update: protectedProcedure
     .input(updateTaskSchema)
-    .mutation(async ({ input, ctx }) => {
+    .mutation(async ({ input }) => {
       const { id, ...data } = input;
-      const userId = ctx.session.user.id;
-
-      // Verify access (assignee can update)
-      const existing = await apiClient.tasks.getById(id);
-      if (existing.error || !existing.data) {
-        throw new Error("Task not found");
-      }
-
-      // Allow if user is assigned to the task
-      if (existing.data.assignedToId && existing.data.assignedToId !== userId) {
-        throw new Error("Access denied: You are not assigned to this task");
-      }
 
       const response = await apiClient.tasks.update(id, {
         title: data.title,
@@ -205,7 +191,8 @@ export const taskRouter = createTRPCRouter({
         taskType: data.type,
         priority: data.priority,
         status: data.status,
-        estimatedHours: data.effort ? effortToHours(data.effort) : undefined,
+        effortEstimate: data.effortEstimate,
+        estimatedHours: data.effortEstimate ? effortToHours(data.effortEstimate) : undefined,
         dueDate: data.dueDate,
         assignedToId: data.assigneeId,
         pbiId: data.pbiId,
@@ -221,19 +208,7 @@ export const taskRouter = createTRPCRouter({
   // Update task status
   updateStatus: protectedProcedure
     .input(z.object({ id: z.string(), status: TaskStatus }))
-    .mutation(async ({ input, ctx }) => {
-      const userId = ctx.session.user.id;
-
-      // Verify access
-      const existing = await apiClient.tasks.getById(input.id);
-      if (existing.error || !existing.data) {
-        throw new Error("Task not found");
-      }
-
-      if (existing.data.assignedToId && existing.data.assignedToId !== userId) {
-        throw new Error("Access denied: You are not assigned to this task");
-      }
-
+    .mutation(async ({ input }) => {
       const response = await apiClient.tasks.updateStatus(input.id, input.status);
 
       if (response.error || !response.data) {
@@ -246,19 +221,7 @@ export const taskRouter = createTRPCRouter({
   // Delete task
   delete: protectedProcedure
     .input(z.object({ id: z.string() }))
-    .mutation(async ({ input, ctx }) => {
-      const userId = ctx.session.user.id;
-
-      // Verify access
-      const existing = await apiClient.tasks.getById(input.id);
-      if (existing.error || !existing.data) {
-        throw new Error("Task not found");
-      }
-
-      if (existing.data.assignedToId && existing.data.assignedToId !== userId) {
-        throw new Error("Access denied: You are not assigned to this task");
-      }
-
+    .mutation(async ({ input }) => {
       const response = await apiClient.tasks.delete(input.id);
 
       if (response.error) {
@@ -272,11 +235,11 @@ export const taskRouter = createTRPCRouter({
 // Helper function to convert effort enum to estimated hours
 function effortToHours(effort: string): number {
   const mapping: Record<string, number> = {
-    xs: 1,
-    s: 2,
-    m: 4,
-    l: 8,
-    xl: 16,
+    XS: 1,
+    S: 3,
+    M: 8,
+    L: 20,
+    XL: 40,
   };
-  return mapping[effort] ?? 4;
+  return mapping[effort] ?? 8;
 }

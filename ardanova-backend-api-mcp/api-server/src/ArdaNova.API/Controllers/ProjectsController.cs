@@ -382,6 +382,16 @@ public class ProjectsController : ControllerBase
         return result.IsSuccess ? NoContent() : ToActionResult(result);
     }
 
+    [HttpGet("comments/target/{targetType}/{targetId}")]
+    public async Task<IActionResult> GetCommentsByTarget(string targetType, string targetId, CancellationToken ct)
+    {
+        if (!Enum.TryParse<CommentTargetType>(targetType, true, out var parsedType))
+            return BadRequest(new { error = $"Invalid target type: {targetType}" });
+
+        var result = await _commentService.GetByTargetAsync(parsedType, targetId, ct);
+        return ToActionResult(result);
+    }
+
     // ===== PROJECT UPDATES =====
     [HttpGet("{projectId}/updates")]
     public async Task<IActionResult> GetUpdates(string projectId, CancellationToken ct)

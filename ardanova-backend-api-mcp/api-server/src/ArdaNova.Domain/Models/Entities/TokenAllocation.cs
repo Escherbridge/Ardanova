@@ -18,7 +18,7 @@ public class TokenAllocation
     [Required]
     public string projectTokenConfigId { get; set; } = string.Empty;
 
-    public string? taskId { get; set; }
+    public string? pbiId { get; set; }
 
     public string? recipientUserId { get; set; }
 
@@ -52,8 +52,8 @@ public class TokenAllocation
     [ForeignKey("projectTokenConfigId")]
     public virtual ProjectTokenConfig? ProjectTokenConfig { get; set; }
 
-    [ForeignKey("taskId")]
-    public virtual ProductBacklogItem? Task { get; set; }
+    [ForeignKey("pbiId")]
+    public virtual ProductBacklogItem? Pbi { get; set; }
 
     [ForeignKey("recipientUserId")]
     public virtual User? RecipientUser { get; set; }

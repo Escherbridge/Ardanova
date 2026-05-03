@@ -1,0 +1,50 @@
+using System;
+using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
+using Microsoft.EntityFrameworkCore;
+using ArdaNova.Domain.Models.Enums;
+
+namespace ArdaNova.Domain.Models.Entities;
+
+[Index(nameof(projectId), IsUnique = true)]
+[Index(nameof(address), IsUnique = true)]
+[Table("ProjectWallet")]
+public class ProjectWallet
+{
+
+    [Key]
+    [Required]
+    public string id { get; set; } = string.Empty;
+
+    [Required]
+    public string projectId { get; set; } = string.Empty;
+
+    public string? address { get; set; }
+
+    [Required]
+    public WalletProvider provider { get; set; }
+
+    public string? label { get; set; }
+
+    [Required]
+    [Precision(18, 8)]
+    public decimal balance { get; set; }
+
+    [Required]
+    [Precision(18, 8)]
+    public decimal reservedBalance { get; set; }
+
+    [Required]
+    public bool isVerified { get; set; }
+
+    [Required]
+    public DateTime createdAt { get; set; }
+
+    [Required]
+    public DateTime updatedAt { get; set; }
+
+    [ForeignKey("projectId")]
+    public virtual Project? Project { get; set; }
+
+}

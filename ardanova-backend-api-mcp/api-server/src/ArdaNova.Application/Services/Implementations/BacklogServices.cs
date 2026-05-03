@@ -31,12 +31,15 @@ public class ProductBacklogItemService : IProductBacklogItemService
         return Result<ProductBacklogItemDto>.Success(_mapper.Map<ProductBacklogItemDto>(item));
     }
 
+    public async Task<Result<IReadOnlyList<ProductBacklogItemDto>>> GetByFeatureIdAsync(string featureId, CancellationToken ct = default)
+    {
+        var items = await _repository.FindAsync(i => i.featureId == featureId, ct);
+        return Result<IReadOnlyList<ProductBacklogItemDto>>.Success(_mapper.Map<IReadOnlyList<ProductBacklogItemDto>>(items));
+    }
+
     public async Task<Result<IReadOnlyList<ProductBacklogItemDto>>> GetByProjectIdAsync(string projectId, CancellationToken ct = default)
     {
-        // Get all features that belong to sprints → epics → milestones for this project
-        var features = await _featureRepository.FindAsync(f => f.Sprint != null && f.Sprint.Epic != null && f.Sprint.Epic.Milestone != null && f.Sprint.Epic.Milestone.projectId == projectId, ct);
-        var featureIds = features.Select(f => f.id).ToHashSet();
-        var items = await _repository.FindAsync(i => featureIds.Contains(i.featureId), ct);
+        var items = await _repository.FindAsync(i => i.projectId == projectId, ct);
         return Result<IReadOnlyList<ProductBacklogItemDto>>.Success(_mapper.Map<IReadOnlyList<ProductBacklogItemDto>>(items));
     }
 
@@ -45,7 +48,12 @@ public class ProductBacklogItemService : IProductBacklogItemService
         var item = new ProductBacklogItem
         {
             id = Guid.NewGuid().ToString(),
+            projectId = dto.ProjectId,
             featureId = dto.FeatureId,
+            sprintId = dto.SprintId,
+            epicId = dto.EpicId,
+            milestoneId = dto.MilestoneId,
+            guildId = dto.GuildId,
             title = dto.Title,
             description = dto.Description,
             type = dto.Type,
@@ -77,6 +85,7 @@ public class ProductBacklogItemService : IProductBacklogItemService
         if (dto.AcceptanceCriteria is not null) item.acceptanceCriteria = dto.AcceptanceCriteria;
         if (dto.Priority.HasValue) item.priority = dto.Priority.Value;
         if (dto.AssigneeId is not null) item.assigneeId = dto.AssigneeId;
+        if (dto.GuildId is not null) item.guildId = dto.GuildId;
         item.updatedAt = DateTime.UtcNow;
 
         await _repository.UpdateAsync(item, ct);

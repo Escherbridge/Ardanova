@@ -94,9 +94,9 @@ public class GuildsController : ControllerBase
     }
 
     [HttpDelete("{id}")]
-    public async Task<IActionResult> Delete(string id, CancellationToken ct)
+    public async Task<IActionResult> Delete(string id, [FromQuery] string requesterId, CancellationToken ct)
     {
-        var result = await _guildService.DeleteAsync(id, ct);
+        var result = await _guildService.DeleteAsync(id, requesterId, ct);
         return result.IsSuccess ? NoContent() : ToActionResult(result);
     }
 
@@ -350,6 +350,8 @@ public class GuildsController : ControllerBase
             ResultType.ValidationError => BadRequest(new { error = result.Error }),
             ResultType.Unauthorized => Unauthorized(new { error = result.Error }),
             ResultType.Forbidden => Forbid(),
+            ResultType.Conflict => Conflict(new { error = result.Error }),
+            ResultType.BadRequest => BadRequest(new { error = result.Error }),
             _ => BadRequest(new { error = result.Error })
         };
     }

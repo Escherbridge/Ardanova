@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { api } from "~/trpc/react";
 import { toast } from "sonner";
@@ -23,7 +23,12 @@ import {
   CheckSquare,
   Briefcase,
   Users,
+  Eye,
 } from "lucide-react";
+import WorkItemDetailModal from "./work-item-detail-modal";
+import CreateWorkItemModal from "./create-work-item-modal";
+import type { WorkItemLevel } from "./work-item-detail-modal";
+import type { CreateLevel } from "./create-work-item-modal";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -49,7 +54,7 @@ interface AddFormState {
   parentId: string;
 }
 
-type ViewMode = "hierarchy" | "team-positions";
+type ViewMode = "hierarchy" | "flat-tasks" | "team-positions";
 
 // ---------------------------------------------------------------------------
 // Badge helpers
@@ -166,7 +171,7 @@ function TaskRow({
 
   const deleteMutation = api.task.delete.useMutation({
     onSuccess: () => {
-      void utils.task.getAll.invalidate();
+      void utils.task.getByPbiId.invalidate();
       toast.success("Task deleted");
     },
     onError: (e) => toast.error(e.message),
@@ -237,7 +242,6 @@ function PbiSection({
   setAddForm,
   projectId,
   opportunities,
-  allTasks,
 }: {
   featureId: string;
   isOwner: boolean;
@@ -247,7 +251,6 @@ function PbiSection({
   setAddForm: (f: AddFormState | null) => void;
   projectId: string;
   opportunities: any[];
-  allTasks: any[];
 }) {
   const { data: pbis, isLoading } = api.backlog.getPbisByFeatureId.useQuery(
     { featureId },
@@ -268,7 +271,6 @@ function PbiSection({
           setAddForm={setAddForm}
           projectId={projectId}
           opportunities={opportunities}
-          allTasks={allTasks}
         />
       ))}
       {isOwner && (
@@ -280,7 +282,7 @@ function PbiSection({
         />
       )}
       {addForm?.level === "pbi" && addForm.parentId === featureId && (
-        <PbiAddForm featureId={featureId} onClose={() => setAddForm(null)} />
+        <PbiAddForm projectId={projectId} featureId={featureId} onClose={() => setAddForm(null)} />
       )}
     </div>
   );
@@ -293,7 +295,6 @@ function PbiNode({
   setAddForm,
   projectId,
   opportunities,
-  allTasks,
 }: {
   pbi: any;
   isOwner: boolean;
@@ -301,7 +302,6 @@ function PbiNode({
   setAddForm: (f: AddFormState | null) => void;
   projectId: string;
   opportunities: any[];
-  allTasks: any[];
 }) {
   const [expanded, setExpanded] = useState(false);
   const utils = api.useUtils();
@@ -314,8 +314,11 @@ function PbiNode({
     onError: (e) => toast.error(e.message),
   });
 
-  // Tasks linked to this PBI
-  const linkedTasks = allTasks.filter((t: any) => t.pbiId === pbi.id);
+  // Fetch tasks for this PBI when expanded
+  const { data: linkedTasks = [] } = api.task.getByPbiId.useQuery(
+    { pbiId: pbi.id },
+    { enabled: expanded }
+  );
 
   return (
     <div>
@@ -383,7 +386,6 @@ function FeatureSection({
   setAddForm,
   projectId,
   opportunities,
-  allTasks,
 }: {
   sprintId: string;
   isOwner: boolean;
@@ -393,7 +395,6 @@ function FeatureSection({
   setAddForm: (f: AddFormState | null) => void;
   projectId: string;
   opportunities: any[];
-  allTasks: any[];
 }) {
   const { data: features, isLoading } = api.feature.getBySprintId.useQuery(
     { sprintId },
@@ -414,7 +415,6 @@ function FeatureSection({
           setAddForm={setAddForm}
           projectId={projectId}
           opportunities={opportunities}
-          allTasks={allTasks}
         />
       ))}
       {isOwner && (
@@ -439,7 +439,6 @@ function FeatureNode({
   setAddForm,
   projectId,
   opportunities,
-  allTasks,
 }: {
   feature: any;
   isOwner: boolean;
@@ -447,7 +446,6 @@ function FeatureNode({
   setAddForm: (f: AddFormState | null) => void;
   projectId: string;
   opportunities: any[];
-  allTasks: any[];
 }) {
   const [expanded, setExpanded] = useState(false);
   const utils = api.useUtils();
@@ -482,7 +480,6 @@ function FeatureNode({
         setAddForm={setAddForm}
         projectId={projectId}
         opportunities={opportunities}
-        allTasks={allTasks}
       />
     </div>
   );
@@ -500,7 +497,6 @@ function SprintSection({
   setAddForm,
   projectId,
   opportunities,
-  allTasks,
 }: {
   epicId: string;
   isOwner: boolean;
@@ -509,7 +505,6 @@ function SprintSection({
   setAddForm: (f: AddFormState | null) => void;
   projectId: string;
   opportunities: any[];
-  allTasks: any[];
 }) {
   const { data: sprints, isLoading } = api.sprint.getByEpicId.useQuery(
     { epicId },
@@ -530,7 +525,6 @@ function SprintSection({
           setAddForm={setAddForm}
           projectId={projectId}
           opportunities={opportunities}
-          allTasks={allTasks}
         />
       ))}
       {isOwner && (
@@ -555,7 +549,6 @@ function SprintNode({
   setAddForm,
   projectId,
   opportunities,
-  allTasks,
 }: {
   sprint: any;
   isOwner: boolean;
@@ -563,7 +556,6 @@ function SprintNode({
   setAddForm: (f: AddFormState | null) => void;
   projectId: string;
   opportunities: any[];
-  allTasks: any[];
 }) {
   const [expanded, setExpanded] = useState(false);
   const utils = api.useUtils();
@@ -607,7 +599,6 @@ function SprintNode({
         setAddForm={setAddForm}
         projectId={projectId}
         opportunities={opportunities}
-        allTasks={allTasks}
       />
     </div>
   );
@@ -625,7 +616,6 @@ function EpicSection({
   setAddForm,
   projectId,
   opportunities,
-  allTasks,
 }: {
   milestoneId: string;
   isOwner: boolean;
@@ -634,7 +624,6 @@ function EpicSection({
   setAddForm: (f: AddFormState | null) => void;
   projectId: string;
   opportunities: any[];
-  allTasks: any[];
 }) {
   const { data: epics, isLoading } = api.epic.getByMilestoneId.useQuery(
     { milestoneId },
@@ -655,7 +644,6 @@ function EpicSection({
           setAddForm={setAddForm}
           projectId={projectId}
           opportunities={opportunities}
-          allTasks={allTasks}
         />
       ))}
       {isOwner && (
@@ -680,7 +668,6 @@ function EpicNode({
   setAddForm,
   projectId,
   opportunities,
-  allTasks,
 }: {
   epic: any;
   isOwner: boolean;
@@ -688,7 +675,6 @@ function EpicNode({
   setAddForm: (f: AddFormState | null) => void;
   projectId: string;
   opportunities: any[];
-  allTasks: any[];
 }) {
   const [expanded, setExpanded] = useState(false);
   const utils = api.useUtils();
@@ -722,7 +708,6 @@ function EpicNode({
         setAddForm={setAddForm}
         projectId={projectId}
         opportunities={opportunities}
-        allTasks={allTasks}
       />
     </div>
   );
@@ -739,7 +724,6 @@ function MilestoneNode({
   setAddForm,
   projectId,
   opportunities,
-  allTasks,
 }: {
   milestone: any;
   isOwner: boolean;
@@ -747,7 +731,6 @@ function MilestoneNode({
   setAddForm: (f: AddFormState | null) => void;
   projectId: string;
   opportunities: any[];
-  allTasks: any[];
 }) {
   const [expanded, setExpanded] = useState(false);
   const utils = api.useUtils();
@@ -791,7 +774,6 @@ function MilestoneNode({
         setAddForm={setAddForm}
         projectId={projectId}
         opportunities={opportunities}
-        allTasks={allTasks}
       />
     </div>
   );
@@ -812,6 +794,7 @@ function TreeRow({
   isOwner,
   onDelete,
   isDeleting,
+  onDetail,
   extra,
 }: {
   level: HierarchyLevel;
@@ -824,6 +807,7 @@ function TreeRow({
   isOwner: boolean;
   onDelete: () => void;
   isDeleting: boolean;
+  onDetail?: () => void;
   extra?: React.ReactNode;
 }) {
   const Icon = LEVEL_ICONS[level];
@@ -842,7 +826,10 @@ function TreeRow({
         )}
       </button>
       <Icon className={cn("h-3.5 w-3.5 shrink-0", colorClass)} />
-      <span className="text-sm font-medium truncate flex-1" onClick={onToggle}>
+      <span
+        className="text-sm font-medium truncate flex-1 hover:underline"
+        onClick={onDetail ?? onToggle}
+      >
         {title}
       </span>
       {childCount !== undefined && childCount > 0 && (
@@ -858,6 +845,19 @@ function TreeRow({
         <Badge variant={priorityBadgeVariant(priority)} size="sm">
           {priority}
         </Badge>
+      )}
+      {onDetail && (
+        <Button
+          size="sm"
+          variant="ghost"
+          className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 shrink-0"
+          onClick={(e) => {
+            e.stopPropagation();
+            onDetail();
+          }}
+        >
+          <Eye className="h-3 w-3" />
+        </Button>
       )}
       {isOwner && (
         <Button
@@ -1129,10 +1129,18 @@ function FeatureAddForm({
 }
 
 function PbiAddForm({
+  projectId,
   featureId,
+  sprintId,
+  epicId,
+  milestoneId,
   onClose,
 }: {
-  featureId: string;
+  projectId: string;
+  featureId?: string;
+  sprintId?: string;
+  epicId?: string;
+  milestoneId?: string;
   onClose: () => void;
 }) {
   const [title, setTitle] = useState("");
@@ -1143,7 +1151,8 @@ function PbiAddForm({
 
   const mutation = api.backlog.createPbi.useMutation({
     onSuccess: () => {
-      void utils.backlog.getPbisByFeatureId.invalidate({ featureId });
+      if (featureId) void utils.backlog.getPbisByFeatureId.invalidate({ featureId });
+      void utils.backlog.getPbisByProjectId.invalidate({ projectId });
       toast.success("PBI created");
       onClose();
     },
@@ -1154,11 +1163,15 @@ function PbiAddForm({
     e.preventDefault();
     if (!title.trim()) return;
     mutation.mutate({
-      featureId,
+      projectId,
       title: title.trim(),
       description: description || undefined,
       type: type as any,
       priority: priority as any,
+      featureId,
+      sprintId,
+      epicId,
+      milestoneId,
     });
   };
 
@@ -1199,20 +1212,21 @@ function TaskAddForm({
   onClose,
 }: {
   projectId: string;
-  pbiId: string;
+  pbiId?: string;
   onClose: () => void;
 }) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [type, setType] = useState("feature");
-  const [priority, setPriority] = useState("medium");
-  const [effort, setEffort] = useState("m");
+  const [type, setType] = useState("FEATURE");
+  const [priority, setPriority] = useState("MEDIUM");
+  const [effort, setEffort] = useState("M");
   const utils = api.useUtils();
 
   const mutation = api.task.create.useMutation({
     onSuccess: () => {
+      if (pbiId) void utils.task.getByPbiId.invalidate({ pbiId });
       void utils.task.getAll.invalidate();
-      void utils.opportunity.getAll.invalidate();
+      void utils.opportunity.getByProjectId.invalidate();
       toast.success("Task created (opportunity auto-generated)");
       onClose();
     },
@@ -1224,12 +1238,12 @@ function TaskAddForm({
     if (!title.trim() || !description.trim()) return;
     mutation.mutate({
       projectId,
-      pbiId,
+      pbiId: pbiId || undefined,
       title: title.trim(),
       description: description.trim(),
       type: type as any,
       priority: priority as any,
-      effort: effort as any,
+      effortEstimate: effort as any,
     });
   };
 
@@ -1244,30 +1258,33 @@ function TaskAddForm({
       <div className="grid grid-cols-3 gap-2">
         <FormField label="Type">
           <select className={selectCn} value={type} onChange={(e) => setType(e.target.value)}>
-            <option value="feature">Feature</option>
-            <option value="bug">Bug</option>
-            <option value="improvement">Improvement</option>
-            <option value="documentation">Documentation</option>
-            <option value="research">Research</option>
-            <option value="design">Design</option>
-            <option value="other">Other</option>
+            <option value="FEATURE">Feature</option>
+            <option value="BUG">Bug</option>
+            <option value="ENHANCEMENT">Enhancement</option>
+            <option value="DOCUMENTATION">Documentation</option>
+            <option value="RESEARCH">Research</option>
+            <option value="DESIGN">Design</option>
+            <option value="TESTING">Testing</option>
+            <option value="REVIEW">Review</option>
+            <option value="MAINTENANCE">Maintenance</option>
+            <option value="OTHER">Other</option>
           </select>
         </FormField>
         <FormField label="Priority">
           <select className={selectCn} value={priority} onChange={(e) => setPriority(e.target.value)}>
-            <option value="low">Low</option>
-            <option value="medium">Medium</option>
-            <option value="high">High</option>
-            <option value="critical">Critical</option>
+            <option value="LOW">Low</option>
+            <option value="MEDIUM">Medium</option>
+            <option value="HIGH">High</option>
+            <option value="URGENT">Urgent</option>
           </select>
         </FormField>
         <FormField label="Effort">
           <select className={selectCn} value={effort} onChange={(e) => setEffort(e.target.value)}>
-            <option value="xs">XS (~1h)</option>
-            <option value="s">S (~2h)</option>
-            <option value="m">M (~4h)</option>
-            <option value="l">L (~8h)</option>
-            <option value="xl">XL (~16h)</option>
+            <option value="XS">XS (~1h)</option>
+            <option value="S">S (~3h)</option>
+            <option value="M">M (~1d)</option>
+            <option value="L">L (~2-3d)</option>
+            <option value="XL">XL (~1w)</option>
           </select>
         </FormField>
       </div>
@@ -1409,6 +1426,122 @@ function TeamPositionsView({
 }
 
 // ---------------------------------------------------------------------------
+// Flat Tasks view
+// ---------------------------------------------------------------------------
+
+function FlatTasksView({
+  projectId,
+  isOwner,
+  opportunities,
+}: {
+  projectId: string;
+  isOwner: boolean;
+  opportunities: any[];
+}) {
+  const [showAddTask, setShowAddTask] = useState(false);
+  const [showAddPbi, setShowAddPbi] = useState(false);
+  const { data: tasksResult, isLoading: tasksLoading } = api.task.getAll.useQuery({
+    projectId,
+    limit: 100,
+  });
+  const { data: pbis = [], isLoading: pbisLoading } = api.backlog.getPbisByProjectId.useQuery({
+    projectId,
+  });
+
+  const allTasks = tasksResult?.items ?? [];
+
+  if (tasksLoading || pbisLoading) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      {/* PBIs section */}
+      {pbis.length > 0 && (
+        <Card>
+          <CardContent className="py-3 px-3">
+            <div className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
+              <Layers className="h-3.5 w-3.5 text-neon-yellow" />
+              Product Backlog Items ({pbis.length})
+            </div>
+            <div className="space-y-0.5">
+              {pbis.map((pbi: any) => (
+                <div key={pbi.id} className="flex items-center gap-2 py-1.5 px-2 rounded hover:bg-muted/30">
+                  <Layers className="h-3.5 w-3.5 text-neon-yellow shrink-0" />
+                  <span className="text-sm flex-1 truncate">{pbi.title}</span>
+                  {pbi.type && (
+                    <Badge variant="outline" size="sm">{pbi.type}</Badge>
+                  )}
+                  {pbi.priority && (
+                    <Badge variant={priorityBadgeVariant(pbi.priority)} size="sm">{pbi.priority}</Badge>
+                  )}
+                  <Badge variant={statusBadgeVariant(pbi.status)} size="sm">
+                    {formatStatus(pbi.status)}
+                  </Badge>
+                  {pbi.guildId && (
+                    <Badge variant="neon-purple" size="sm" className="text-[9px]">Guild</Badge>
+                  )}
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Tasks section */}
+      <Card>
+        <CardContent className="py-3 px-3">
+          <div className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
+            <CheckSquare className="h-3.5 w-3.5" />
+            All Tasks ({allTasks.length})
+          </div>
+          {allTasks.length === 0 && !isOwner && (
+            <p className="text-sm text-muted-foreground py-4 text-center">No tasks yet.</p>
+          )}
+          <div className="space-y-0.5">
+            {allTasks.map((task: any) => (
+              <TaskRow
+                key={task.id}
+                task={task}
+                isOwner={isOwner}
+                projectId={projectId}
+                opportunities={opportunities}
+              />
+            ))}
+          </div>
+          {isOwner && (
+            <div className="flex gap-2 mt-2">
+              <button
+                onClick={() => { setShowAddTask(true); setShowAddPbi(false); }}
+                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground py-1 px-2 rounded hover:bg-muted/40 transition-colors"
+              >
+                <Plus className="h-3 w-3" /> Add Task
+              </button>
+              <button
+                onClick={() => { setShowAddPbi(true); setShowAddTask(false); }}
+                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground py-1 px-2 rounded hover:bg-muted/40 transition-colors"
+              >
+                <Plus className="h-3 w-3" /> Add PBI
+              </button>
+            </div>
+          )}
+          {showAddTask && (
+            <TaskAddForm projectId={projectId} onClose={() => setShowAddTask(false)} />
+          )}
+          {showAddPbi && (
+            <PbiAddForm projectId={projectId} onClose={() => setShowAddPbi(false)} />
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // MAIN COMPONENT
 // ---------------------------------------------------------------------------
 
@@ -1420,28 +1553,29 @@ export default function OpportunitiesTab({
 }: OpportunitiesTabProps) {
   const [viewMode, setViewMode] = useState<ViewMode>("hierarchy");
   const [addForm, setAddForm] = useState<AddFormState | null>(null);
+  // Detail modal state
+  const [detailModal, setDetailModal] = useState<{
+    level: WorkItemLevel;
+    item: any;
+  } | null>(null);
+  // Create modal state
+  const [createModal, setCreateModal] = useState<{
+    level: CreateLevel;
+    parentId?: string;
+  } | null>(null);
 
   const canManage = isOwner || userRole === "LEAD" || userRole === "ADMIN";
+  const utils = api.useUtils();
 
-  // Top-level data: milestones, tasks, opportunities (always fetched)
+  // Top-level data: milestones, opportunities (always fetched)
   const {
     data: milestones,
     isLoading: milestonesLoading,
   } = api.project.getMilestones.useQuery({ projectId });
 
-  const { data: tasksResult } = api.task.getAll.useQuery({
+  const { data: projectOpportunities = [] } = api.opportunity.getByProjectId.useQuery({
     projectId,
-    limit: 100,
   });
-  const allTasks = tasksResult?.items ?? [];
-
-  const { data: opportunitiesResult } = api.opportunity.getAll.useQuery({
-    limit: 100,
-  });
-  const projectOpportunities = useMemo(() => {
-    const all = opportunitiesResult?.items ?? [];
-    return all.filter((o: any) => o.projectId === projectId);
-  }, [opportunitiesResult, projectId]);
 
   return (
     <div className="space-y-4">
@@ -1463,6 +1597,18 @@ export default function OpportunitiesTab({
           <button
             className={cn(
               "px-3 py-1.5 text-sm rounded-sm transition-colors",
+              viewMode === "flat-tasks"
+                ? "bg-primary text-primary-foreground"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+            onClick={() => setViewMode("flat-tasks")}
+          >
+            <CheckSquare className="inline h-3.5 w-3.5 mr-1.5 -mt-0.5" />
+            All Tasks
+          </button>
+          <button
+            className={cn(
+              "px-3 py-1.5 text-sm rounded-sm transition-colors",
               viewMode === "team-positions"
                 ? "bg-primary text-primary-foreground"
                 : "text-muted-foreground hover:text-foreground"
@@ -1475,12 +1621,14 @@ export default function OpportunitiesTab({
         </div>
 
         {viewMode === "hierarchy" && canManage && (
-          <AddFormButton
-            level="milestone"
-            parentId={projectId}
-            addForm={addForm}
-            setAddForm={setAddForm}
-          />
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setCreateModal({ level: "milestone" })}
+          >
+            <Plus className="h-3.5 w-3.5 mr-1" />
+            Add Milestone
+          </Button>
         )}
       </div>
 
@@ -1490,6 +1638,12 @@ export default function OpportunitiesTab({
           projectId={projectId}
           projectSlug={projectSlug}
           isOwner={isOwner}
+        />
+      ) : viewMode === "flat-tasks" ? (
+        <FlatTasksView
+          projectId={projectId}
+          isOwner={canManage}
+          opportunities={projectOpportunities}
         />
       ) : (
         <div className="space-y-2">
@@ -1518,20 +1672,28 @@ export default function OpportunitiesTab({
                 </h3>
                 <p className="text-sm text-muted-foreground mb-3">
                   {canManage
-                    ? "Start by creating a milestone to organize your project's work."
+                    ? "Start by creating a milestone, or switch to 'All Tasks' for a flat list."
                     : "No work items have been created for this project yet."}
                 </p>
                 {canManage && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() =>
-                      setAddForm({ level: "milestone", parentId: projectId })
-                    }
-                  >
-                    <Plus className="mr-1.5 h-3.5 w-3.5" />
-                    Create First Milestone
-                  </Button>
+                  <div className="flex gap-2 justify-center">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCreateModal({ level: "milestone" })}
+                    >
+                      <Plus className="mr-1.5 h-3.5 w-3.5" />
+                      Create Milestone
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setViewMode("flat-tasks")}
+                    >
+                      <CheckSquare className="mr-1.5 h-3.5 w-3.5" />
+                      Quick Task List
+                    </Button>
+                  </div>
                 )}
               </CardContent>
             </Card>
@@ -1551,7 +1713,6 @@ export default function OpportunitiesTab({
                       setAddForm={setAddForm}
                       projectId={projectId}
                       opportunities={projectOpportunities}
-                      allTasks={allTasks}
                     />
                   ))}
                 </div>
@@ -1583,6 +1744,39 @@ export default function OpportunitiesTab({
             </div>
           )}
         </div>
+      )}
+
+      {/* Detail Modal */}
+      {detailModal && (
+        <WorkItemDetailModal
+          open={!!detailModal}
+          onClose={() => setDetailModal(null)}
+          level={detailModal.level}
+          item={detailModal.item}
+          projectId={projectId}
+          isOwner={canManage}
+        />
+      )}
+
+      {/* Create Modal */}
+      {createModal && (
+        <CreateWorkItemModal
+          open={!!createModal}
+          onClose={() => setCreateModal(null)}
+          level={createModal.level}
+          projectId={projectId}
+          parentId={createModal.parentId}
+          onCreated={() => {
+            void utils.project.getMilestones.invalidate({ projectId });
+            void utils.epic.getByMilestoneId.invalidate();
+            void utils.sprint.getByEpicId.invalidate();
+            void utils.feature.getBySprintId.invalidate();
+            void utils.backlog.getPbisByFeatureId.invalidate();
+            void utils.backlog.getPbisByProjectId.invalidate();
+            void utils.task.getByPbiId.invalidate();
+            void utils.task.getAll.invalidate();
+          }}
+        />
       )}
     </div>
   );

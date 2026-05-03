@@ -82,6 +82,18 @@ public class Guild
 
     public virtual ICollection<Project> Projects { get; set; } = new List<Project>();
 
+    public virtual ICollection<ProjectTask> ProjectTasks { get; set; } = new List<ProjectTask>();
+
+    public virtual ICollection<ProjectMilestone> ProjectMilestones { get; set; } = new List<ProjectMilestone>();
+
+    public virtual ICollection<Epic> Epics { get; set; } = new List<Epic>();
+
+    public virtual ICollection<Sprint> Sprints { get; set; } = new List<Sprint>();
+
+    public virtual ICollection<Feature> Features { get; set; } = new List<Feature>();
+
+    public virtual ICollection<ProductBacklogItem> ProductBacklogItems { get; set; } = new List<ProductBacklogItem>();
+
     [ForeignKey("ownerId")]
     public virtual User? Owner { get; set; }
 
@@ -96,6 +108,8 @@ public class Guild
     public virtual ICollection<GuildUpdate> GuildUpdates { get; set; } = new List<GuildUpdate>();
 
     public virtual ICollection<MembershipCredential> MembershipCredentials { get; set; } = new List<MembershipCredential>();
+
+    public virtual ICollection<GuildWallet> GuildWallets { get; set; } = new List<GuildWallet>();
 
     public virtual ICollection<Post> Posts { get; set; } = new List<Post>();
 

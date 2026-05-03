@@ -16,7 +16,17 @@ public class ProductBacklogItem
     public string id { get; set; } = string.Empty;
 
     [Required]
-    public string featureId { get; set; } = string.Empty;
+    public string projectId { get; set; } = string.Empty;
+
+    public string? featureId { get; set; }
+
+    public string? sprintId { get; set; }
+
+    public string? epicId { get; set; }
+
+    public string? milestoneId { get; set; }
+
+    public string? guildId { get; set; }
 
     [Required]
     public string title { get; set; } = string.Empty;
@@ -38,6 +48,9 @@ public class ProductBacklogItem
     [Required]
     public Priority priority { get; set; }
 
+    [Precision(18, 8)]
+    public decimal? equityReward { get; set; }
+
     [Required]
     public DateTime createdAt { get; set; }
 
@@ -48,8 +61,23 @@ public class ProductBacklogItem
 
     public virtual ICollection<ProjectTask> ProjectTasks { get; set; } = new List<ProjectTask>();
 
+    [ForeignKey("projectId")]
+    public virtual Project? Project { get; set; }
+
     [ForeignKey("featureId")]
     public virtual Feature? Feature { get; set; }
+
+    [ForeignKey("sprintId")]
+    public virtual Sprint? Sprint { get; set; }
+
+    [ForeignKey("epicId")]
+    public virtual Epic? Epic { get; set; }
+
+    [ForeignKey("milestoneId")]
+    public virtual ProjectMilestone? Milestone { get; set; }
+
+    [ForeignKey("guildId")]
+    public virtual Guild? Guild { get; set; }
 
     [ForeignKey("assigneeId")]
     public virtual User? Assignee { get; set; }

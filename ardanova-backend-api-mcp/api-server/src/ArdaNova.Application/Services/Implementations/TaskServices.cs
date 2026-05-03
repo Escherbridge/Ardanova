@@ -108,6 +108,13 @@ public class TaskService : ITaskService
         return Result<IReadOnlyList<TaskDto>>.Success(dtos);
     }
 
+    public async Task<Result<IReadOnlyList<TaskDto>>> GetByPbiIdAsync(string pbiId, CancellationToken ct = default)
+    {
+        var tasks = await _repository.FindAsync(t => t.pbiId == pbiId, ct);
+        var dtos = await EnrichTaskDtosAsync(tasks, ct);
+        return Result<IReadOnlyList<TaskDto>>.Success(dtos);
+    }
+
     public async Task<Result<TaskDto>> CreateAsync(CreateTaskDto dto, CancellationToken ct = default)
     {
         var project = await _projectRepository.GetByIdAsync(dto.ProjectId, ct);
@@ -129,6 +136,11 @@ public class TaskService : ITaskService
             dueDate = dto.DueDate,
             assignedToId = dto.AssignedToId,
             pbiId = dto.PbiId,
+            featureId = dto.FeatureId,
+            sprintId = dto.SprintId,
+            epicId = dto.EpicId,
+            milestoneId = dto.MilestoneId,
+            guildId = dto.GuildId,
             createdAt = DateTime.UtcNow,
             updatedAt = DateTime.UtcNow
         };

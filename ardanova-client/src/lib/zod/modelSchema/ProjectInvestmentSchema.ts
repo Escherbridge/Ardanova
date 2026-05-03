@@ -16,8 +16,8 @@ export const ProjectInvestmentSchema = z.object({
   protectionPaidOut: z.boolean(),
   protectionAmount: z.number().nullable(),
   protectionPaidAt: z.coerce.date().nullable(),
-});
+})
 
-export type ProjectInvestment = z.infer<typeof ProjectInvestmentSchema>;
+export type ProjectInvestment = z.infer<typeof ProjectInvestmentSchema>
 
 export default ProjectInvestmentSchema;

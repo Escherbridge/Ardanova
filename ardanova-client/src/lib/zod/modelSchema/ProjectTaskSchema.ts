@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client'
 import { TaskStatusSchema } from '../inputTypeSchemas/TaskStatusSchema'
 import { TaskPrioritySchema } from '../inputTypeSchemas/TaskPrioritySchema'
 import { TaskTypeSchema } from '../inputTypeSchemas/TaskTypeSchema'
+import { EffortEstimateSchema } from '../inputTypeSchemas/EffortEstimateSchema'
 import { EscrowStatusSchema } from '../inputTypeSchemas/EscrowStatusSchema'
 
 /////////////////////////////////////////
@@ -13,10 +14,16 @@ export const ProjectTaskSchema = z.object({
   status: TaskStatusSchema,
   priority: TaskPrioritySchema,
   taskType: TaskTypeSchema,
+  effortEstimate: EffortEstimateSchema.nullable(),
   escrowStatus: EscrowStatusSchema,
   id: z.string().cuid(),
   projectId: z.string(),
   pbiId: z.string().nullable(),
+  featureId: z.string().nullable(),
+  sprintId: z.string().nullable(),
+  epicId: z.string().nullable(),
+  milestoneId: z.string().nullable(),
+  guildId: z.string().nullable(),
   title: z.string(),
   description: z.string().nullable(),
   estimatedHours: z.number().int().nullable(),

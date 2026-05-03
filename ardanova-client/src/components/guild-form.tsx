@@ -3,14 +3,19 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { ArrowLeft, Loader2 } from "lucide-react";
 import Link from "next/link";
+import {
+  ArrowLeft,
+  Loader2,
+  Shield,
+  Info,
+  Mail,
+  MapPin,
+  Sparkles,
+} from "lucide-react";
 
 import { Button } from "~/components/ui/button";
-import { Input } from "~/components/ui/input";
-import { Textarea } from "~/components/ui/textarea";
-import { Label } from "~/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "~/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { api } from "~/trpc/react";
 import type { Guild } from "~/lib/api";
 
@@ -57,16 +62,12 @@ export function GuildForm({ mode, guild }: GuildFormProps) {
 
   const isLoading = createMutation.isPending || updateMutation.isPending;
 
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
-  ) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-    // Clear error when user starts typing
-    if (errors[name]) {
+  const handleChange = (field: string, value: string) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
+    if (errors[field]) {
       setErrors((prev) => {
         const newErrors = { ...prev };
-        delete newErrors[name];
+        delete newErrors[field];
         return newErrors;
       });
     }
@@ -134,16 +135,16 @@ export function GuildForm({ mode, guild }: GuildFormProps) {
 
   if (!session) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <Card className="w-full max-w-md">
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Card className="w-full max-w-md bg-card border-border">
           <CardHeader>
             <CardTitle>Authentication Required</CardTitle>
-            <CardDescription>
+            <p className="text-sm text-muted-foreground">
               You need to be signed in to {mode === "create" ? "create" : "edit"} a guild.
-            </CardDescription>
+            </p>
           </CardHeader>
           <CardContent>
-            <Button asChild className="w-full">
+            <Button asChild className="w-full bg-neon hover:bg-neon/90 text-black font-semibold">
               <Link href="/api/auth/signin">Sign In</Link>
             </Button>
           </CardContent>
@@ -153,201 +154,260 @@ export function GuildForm({ mode, guild }: GuildFormProps) {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      <div className="container mx-auto px-4 py-8 max-w-2xl">
-        {/* Back Button */}
-        <div className="mb-6">
-          <Button variant="ghost" asChild>
+    <div className="min-h-screen bg-background">
+      <div className="max-w-2xl mx-auto px-4 py-8">
+        {/* Header */}
+        <div className="mb-8">
+          <Button variant="ghost" asChild className="mb-4 -ml-2">
             <Link href="/guilds">
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back to Guilds
             </Link>
           </Button>
+          <h1 className="text-3xl font-bold flex items-center gap-3">
+            <div className="w-10 h-10 bg-neon/20 rounded-lg flex items-center justify-center">
+              <Shield className="h-5 w-5 text-neon" />
+            </div>
+            {mode === "create" ? "Create Guild" : "Edit Guild"}
+          </h1>
+          <p className="text-muted-foreground mt-2">
+            {mode === "create"
+              ? "Set up your professional guild to start bidding on projects"
+              : "Update your guild information"}
+          </p>
         </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>
-              {mode === "create" ? "Create a New Guild" : "Edit Guild"}
-            </CardTitle>
-            <CardDescription>
-              {mode === "create"
-                ? "Set up your professional guild to start bidding on projects"
-                : "Update your guild information"}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-6">
-              {/* Guild Name */}
-              <div className="space-y-2">
-                <Label htmlFor="name">Guild Name *</Label>
-                <Input
-                  id="name"
-                  name="name"
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Guild Details */}
+          <Card className="bg-card border-border">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg">Guild Details</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <label className="text-sm font-medium mb-2 block">
+                  Guild Name <span className="text-neon">*</span>
+                </label>
+                <input
+                  type="text"
                   value={formData.name}
-                  onChange={handleChange}
+                  onChange={(e) => handleChange("name", e.target.value)}
                   placeholder="Enter your guild name"
-                  className={errors.name ? "border-red-500" : ""}
+                  className={`w-full px-4 py-3 bg-muted/50 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-neon/50 ${
+                    errors.name ? "border-destructive" : "border-border"
+                  }`}
                 />
                 {errors.name && (
-                  <p className="text-sm text-red-500">{errors.name}</p>
+                  <p className="text-sm text-destructive mt-1">{errors.name}</p>
                 )}
               </div>
 
-              {/* Description */}
-              <div className="space-y-2">
-                <Label htmlFor="description">Description *</Label>
-                <Textarea
-                  id="description"
-                  name="description"
+              <div>
+                <label className="text-sm font-medium mb-2 block">
+                  Description <span className="text-neon">*</span>
+                </label>
+                <textarea
                   value={formData.description}
-                  onChange={handleChange}
-                  placeholder="Describe what your guild does..."
+                  onChange={(e) => handleChange("description", e.target.value)}
+                  placeholder="Describe what your guild does, your expertise, and what makes you unique..."
                   rows={4}
-                  className={errors.description ? "border-red-500" : ""}
+                  className={`w-full px-4 py-3 bg-muted/50 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-neon/50 resize-none ${
+                    errors.description ? "border-destructive" : "border-border"
+                  }`}
                 />
                 {errors.description && (
-                  <p className="text-sm text-red-500">{errors.description}</p>
+                  <p className="text-sm text-destructive mt-1">{errors.description}</p>
                 )}
               </div>
+            </CardContent>
+          </Card>
 
-              {/* Email */}
-              <div className="space-y-2">
-                <Label htmlFor="email">Contact Email *</Label>
-                <Input
-                  id="email"
-                  name="email"
+          {/* Contact Information */}
+          <Card className="bg-card border-border">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Mail className="h-5 w-5 text-neon-purple" />
+                Contact Information
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <label className="text-sm font-medium mb-2 block">
+                  Contact Email <span className="text-neon">*</span>
+                </label>
+                <input
                   type="email"
                   value={formData.email}
-                  onChange={handleChange}
+                  onChange={(e) => handleChange("email", e.target.value)}
                   placeholder="contact@yourguild.com"
-                  className={errors.email ? "border-red-500" : ""}
+                  className={`w-full px-4 py-3 bg-muted/50 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-neon/50 ${
+                    errors.email ? "border-destructive" : "border-border"
+                  }`}
                 />
                 {errors.email && (
-                  <p className="text-sm text-red-500">{errors.email}</p>
+                  <p className="text-sm text-destructive mt-1">{errors.email}</p>
                 )}
               </div>
 
-              {/* Website */}
-              <div className="space-y-2">
-                <Label htmlFor="website">Website</Label>
-                <Input
-                  id="website"
-                  name="website"
+              <div>
+                <label className="text-sm font-medium mb-2 block">
+                  Website
+                </label>
+                <input
                   type="url"
                   value={formData.website}
-                  onChange={handleChange}
+                  onChange={(e) => handleChange("website", e.target.value)}
                   placeholder="https://yourguild.com"
-                  className={errors.website ? "border-red-500" : ""}
+                  className={`w-full px-4 py-3 bg-muted/50 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-neon/50 ${
+                    errors.website ? "border-destructive" : "border-border"
+                  }`}
                 />
                 {errors.website && (
-                  <p className="text-sm text-red-500">{errors.website}</p>
+                  <p className="text-sm text-destructive mt-1">{errors.website}</p>
                 )}
               </div>
 
-              {/* Phone */}
-              <div className="space-y-2">
-                <Label htmlFor="phone">Phone Number</Label>
-                <Input
-                  id="phone"
-                  name="phone"
+              <div>
+                <label className="text-sm font-medium mb-2 block">
+                  Phone Number
+                </label>
+                <input
                   type="tel"
                   value={formData.phone}
-                  onChange={handleChange}
+                  onChange={(e) => handleChange("phone", e.target.value)}
                   placeholder="+1 (555) 000-0000"
+                  className="w-full px-4 py-3 bg-muted/50 border-2 border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-neon/50"
                 />
               </div>
+            </CardContent>
+          </Card>
 
-              {mode === "edit" && (
-                <>
-                  {/* Address */}
-                  <div className="space-y-2">
-                    <Label htmlFor="address">Address</Label>
-                    <Textarea
-                      id="address"
-                      name="address"
+          {mode === "edit" && (
+            <>
+              {/* Additional Details */}
+              <Card className="bg-card border-border">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <MapPin className="h-5 w-5 text-neon-green" />
+                    Location
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <label className="text-sm font-medium mb-2 block">
+                      Address
+                    </label>
+                    <textarea
                       value={formData.address}
-                      onChange={handleChange}
+                      onChange={(e) => handleChange("address", e.target.value)}
                       placeholder="Enter your business address"
                       rows={2}
+                      className="w-full px-4 py-3 bg-muted/50 border-2 border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-neon/50 resize-none"
                     />
                   </div>
+                </CardContent>
+              </Card>
 
-                  {/* Specialties */}
-                  <div className="space-y-2">
-                    <Label htmlFor="specialties">Specialties</Label>
-                    <Input
-                      id="specialties"
-                      name="specialties"
+              {/* Specialties & Portfolio */}
+              <Card className="bg-card border-border">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Sparkles className="h-5 w-5 text-neon" />
+                    Specialties & Portfolio
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <label className="text-sm font-medium mb-2 block">
+                      Specialties
+                    </label>
+                    <input
+                      type="text"
                       value={formData.specialties}
-                      onChange={handleChange}
-                      placeholder="Web Development, UI/UX Design, Mobile Apps (comma-separated)"
+                      onChange={(e) => handleChange("specialties", e.target.value)}
+                      placeholder="Web Development, UI/UX Design, Mobile Apps"
+                      className="w-full px-4 py-3 bg-muted/50 border-2 border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-neon/50"
                     />
-                    <p className="text-sm text-slate-500">
+                    <p className="text-sm text-muted-foreground mt-1">
                       Enter your specialties separated by commas
                     </p>
                   </div>
 
-                  {/* Portfolio */}
-                  <div className="space-y-2">
-                    <Label htmlFor="portfolio">Portfolio</Label>
-                    <Textarea
-                      id="portfolio"
-                      name="portfolio"
+                  <div>
+                    <label className="text-sm font-medium mb-2 block">
+                      Portfolio
+                    </label>
+                    <textarea
                       value={formData.portfolio}
-                      onChange={handleChange}
+                      onChange={(e) => handleChange("portfolio", e.target.value)}
                       placeholder="Describe your past work and achievements..."
                       rows={4}
+                      className="w-full px-4 py-3 bg-muted/50 border-2 border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-neon/50 resize-none"
                     />
                   </div>
 
-                  {/* Logo URL */}
-                  <div className="space-y-2">
-                    <Label htmlFor="logo">Logo URL</Label>
-                    <Input
-                      id="logo"
-                      name="logo"
+                  <div>
+                    <label className="text-sm font-medium mb-2 block">
+                      Logo URL
+                    </label>
+                    <input
                       type="url"
                       value={formData.logo}
-                      onChange={handleChange}
+                      onChange={(e) => handleChange("logo", e.target.value)}
                       placeholder="https://example.com/logo.png"
+                      className="w-full px-4 py-3 bg-muted/50 border-2 border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-neon/50"
                     />
                   </div>
+                </CardContent>
+              </Card>
+            </>
+          )}
+
+          {/* Submit Error */}
+          {errors.submit && (
+            <Card className="bg-destructive/10 border-destructive">
+              <CardContent className="py-4">
+                <p className="text-sm text-destructive">{errors.submit}</p>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Submit Button */}
+          <div className="flex gap-4">
+            <Button
+              type="submit"
+              className="flex-1 bg-neon hover:bg-neon/90 text-black font-semibold py-6"
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  {mode === "create" ? "Creating Guild..." : "Saving Changes..."}
                 </>
+              ) : mode === "create" ? (
+                "Create Guild"
+              ) : (
+                "Save Changes"
               )}
+            </Button>
+            <Button type="button" variant="outline" asChild className="py-6">
+              <Link href="/guilds">Cancel</Link>
+            </Button>
+          </div>
 
-              {/* Submit Error */}
-              {errors.submit && (
-                <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-                  <p className="text-sm text-red-600">{errors.submit}</p>
-                </div>
-              )}
-
-              {/* Submit Button */}
-              <div className="flex gap-4">
-                <Button
-                  type="submit"
-                  className="flex-1"
-                  disabled={isLoading}
-                >
-                  {isLoading ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      {mode === "create" ? "Creating..." : "Saving..."}
-                    </>
-                  ) : mode === "create" ? (
-                    "Create Guild"
-                  ) : (
-                    "Save Changes"
-                  )}
-                </Button>
-                <Button type="button" variant="outline" asChild>
-                  <Link href="/guilds">Cancel</Link>
-                </Button>
+          {/* Info Note */}
+          {mode === "create" && (
+            <div className="flex items-start gap-3 p-4 bg-muted/30 rounded-lg border border-border">
+              <Info className="h-5 w-5 text-neon mt-0.5" />
+              <div className="text-sm text-muted-foreground">
+                <p>
+                  After creating your guild, you can invite members, set up
+                  specialties, and start bidding on project opportunities.
+                </p>
               </div>
-            </form>
-          </CardContent>
-        </Card>
+            </div>
+          )}
+        </form>
       </div>
     </div>
   );

@@ -29,9 +29,22 @@ public record OpportunityDto
     public string? GuildId { get; init; }
     public string? ProjectId { get; init; }
     public string? TaskId { get; init; }
+    public OpportunityOrigin Origin { get; init; }
     public ProjectRole? ProjectRole { get; init; }
     public OpportunityPosterDto? Poster { get; init; }
     public OpportunitySourceDto? Source { get; init; }
+    public OpportunityTaskDto? Task { get; init; }
+}
+
+public record OpportunityTaskDto
+{
+    public string Id { get; init; } = null!;
+    public string Title { get; init; } = null!;
+    public TaskStatus Status { get; init; }
+    public TaskPriority Priority { get; init; }
+    public TaskType TaskType { get; init; }
+    public int? EstimatedHours { get; init; }
+    public string? PbiId { get; init; }
 }
 
 public record OpportunityPosterDto
@@ -70,6 +83,7 @@ public record CreateOpportunityDto
     public string? GuildId { get; init; }
     public string? ProjectId { get; init; }
     public string? TaskId { get; init; }
+    public OpportunityOrigin Origin { get; init; } = OpportunityOrigin.TEAM_POSITION;
     public ProjectRole? ProjectRole { get; init; }
 }
 

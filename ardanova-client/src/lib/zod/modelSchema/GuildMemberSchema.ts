@@ -1,14 +1,15 @@
 import { z } from 'zod';
+import { GuildMemberRoleSchema } from '../inputTypeSchemas/GuildMemberRoleSchema'
 
 /////////////////////////////////////////
 // GUILD MEMBER SCHEMA
 /////////////////////////////////////////
 
 export const GuildMemberSchema = z.object({
+  role: GuildMemberRoleSchema,
   id: z.string().cuid(),
   guildId: z.string(),
   userId: z.string(),
-  role: z.string(),
   joinedAt: z.coerce.date(),
 })
 

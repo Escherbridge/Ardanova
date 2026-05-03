@@ -5,6 +5,7 @@ using ArdaNova.Application.Common.Results;
 using ArdaNova.Application.DTOs;
 using ArdaNova.Application.Services.Implementations;
 using ArdaNova.Domain.Models.Entities;
+using ArdaNova.Domain.Models.Enums;
 using AutoMapper;
 using FluentAssertions;
 using Moq;
@@ -13,6 +14,7 @@ public class GuildServiceTests
 {
     private readonly Mock<IRepository<Guild>> _repositoryMock;
     private readonly Mock<IRepository<GuildMember>> _memberRepositoryMock;
+    private readonly Mock<IRepository<ProjectTask>> _taskRepositoryMock;
     private readonly Mock<IUnitOfWork> _unitOfWorkMock;
     private readonly Mock<IMapper> _mapperMock;
     private readonly GuildService _sut;
@@ -21,11 +23,13 @@ public class GuildServiceTests
     {
         _repositoryMock = new Mock<IRepository<Guild>>();
         _memberRepositoryMock = new Mock<IRepository<GuildMember>>();
+        _taskRepositoryMock = new Mock<IRepository<ProjectTask>>();
         _unitOfWorkMock = new Mock<IUnitOfWork>();
         _mapperMock = new Mock<IMapper>();
         _sut = new GuildService(
             _repositoryMock.Object,
             _memberRepositoryMock.Object,
+            _taskRepositoryMock.Object,
             _unitOfWorkMock.Object,
             _mapperMock.Object);
     }
@@ -138,7 +142,7 @@ public class GuildServiceTests
         result.Value.Should().NotBeNull();
         result.Value!.Name.Should().Be("New Guild");
         _memberRepositoryMock.Verify(
-            r => r.AddAsync(It.Is<GuildMember>(m => m.userId == ownerId && m.role == "OWNER"), It.IsAny<CancellationToken>()),
+            r => r.AddAsync(It.Is<GuildMember>(m => m.userId == ownerId && m.role == GuildMemberRole.OWNER), It.IsAny<CancellationToken>()),
             Times.Once);
     }
 
@@ -200,7 +204,7 @@ public class GuildServiceTests
             .ReturnsAsync(1);
 
         // Act
-        var result = await _sut.DeleteAsync(guildId);
+        var result = await _sut.DeleteAsync(guildId, ownerId);
 
         // Assert
         result.IsSuccess.Should().BeTrue();

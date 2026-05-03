@@ -52,7 +52,7 @@ public record GuildMemberDto
     public string Id { get; init; }
     public string GuildId { get; init; }
     public string UserId { get; init; }
-    public string Role { get; init; } = null!;
+    public GuildMemberRole Role { get; init; }
     public DateTime JoinedAt { get; init; }
 }
 
@@ -60,12 +60,12 @@ public record CreateGuildMemberDto
 {
     public required string GuildId { get; init; }
     public required string UserId { get; init; }
-    public required string Role { get; init; }
+    public required GuildMemberRole Role { get; init; }
 }
 
 public record UpdateGuildMemberDto
 {
-    public string? Role { get; init; }
+    public GuildMemberRole? Role { get; init; }
 }
 
 public record GuildReviewDto

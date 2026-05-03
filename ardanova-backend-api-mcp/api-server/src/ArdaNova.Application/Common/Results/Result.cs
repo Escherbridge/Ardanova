@@ -34,6 +34,12 @@ public class Result<T>
     public static Result<T> Forbidden(string error) =>
         new(false, default, error, ResultType.Forbidden);
 
+    public static Result<T> Conflict(string error) =>
+        new(false, default, error, ResultType.Conflict);
+
+    public static Result<T> BadRequest(string error) =>
+        new(false, default, error, ResultType.BadRequest);
+
     public TResult Match<TResult>(
         Func<T, TResult> onSuccess,
         Func<string, TResult> onFailure) =>
@@ -47,5 +53,7 @@ public enum ResultType
     NotFound,
     ValidationError,
     Unauthorized,
-    Forbidden
+    Forbidden,
+    Conflict,
+    BadRequest
 }

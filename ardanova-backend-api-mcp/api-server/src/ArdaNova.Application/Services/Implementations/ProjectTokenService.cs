@@ -158,7 +158,7 @@ public class ProjectTokenService : IProjectTokenService
         {
             id = Guid.NewGuid().ToString(),
             projectTokenConfigId = projectTokenConfigId,
-            taskId = dto.TaskId,
+            pbiId = dto.PbiId,
             recipientUserId = null,
             equityPercentage = dto.EquityPercentage,
             tokenAmount = tokenAmount,
@@ -206,7 +206,7 @@ public class ProjectTokenService : IProjectTokenService
         {
             id = Guid.NewGuid().ToString(),
             projectTokenConfigId = projectTokenConfigId,
-            taskId = null,
+            pbiId = null,
             recipientUserId = dto.UserId,
             equityPercentage = equityPercentage,
             tokenAmount = dto.TokenAmount,
@@ -267,7 +267,7 @@ public class ProjectTokenService : IProjectTokenService
         {
             id = Guid.NewGuid().ToString(),
             projectTokenConfigId = projectTokenConfigId,
-            taskId = null,
+            pbiId = null,
             recipientUserId = dto.UserId,
             equityPercentage = dto.EquityPercentage,
             tokenAmount = tokenAmount,
@@ -404,12 +404,12 @@ public class ProjectTokenService : IProjectTokenService
         return Result<IReadOnlyList<TokenAllocationDto>>.Success(dtos);
     }
 
-    public async Task<Result<IReadOnlyList<TokenAllocationDto>>> GetAllocationsByTaskAsync(
-        string taskId,
+    public async Task<Result<IReadOnlyList<TokenAllocationDto>>> GetAllocationsByPbiAsync(
+        string pbiId,
         CancellationToken ct = default)
     {
         var allocations = await _allocationRepo.FindAsync(
-            a => a.taskId == taskId,
+            a => a.pbiId == pbiId,
             ct);
 
         var dtos = _mapper.Map<IReadOnlyList<TokenAllocationDto>>(allocations);

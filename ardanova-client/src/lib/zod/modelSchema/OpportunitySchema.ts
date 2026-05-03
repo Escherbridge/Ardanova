@@ -4,6 +4,7 @@ import { OpportunityTypeSchema } from '../inputTypeSchemas/OpportunityTypeSchema
 import { OpportunityOriginSchema } from '../inputTypeSchemas/OpportunityOriginSchema'
 import { OpportunityStatusSchema } from '../inputTypeSchemas/OpportunityStatusSchema'
 import { ExperienceLevelSchema } from '../inputTypeSchemas/ExperienceLevelSchema'
+import { ProjectRoleSchema } from '../inputTypeSchemas/ProjectRoleSchema'
 
 /////////////////////////////////////////
 // OPPORTUNITY SCHEMA
@@ -14,6 +15,7 @@ export const OpportunitySchema = z.object({
   origin: OpportunityOriginSchema,
   status: OpportunityStatusSchema,
   experienceLevel: ExperienceLevelSchema,
+  projectRole: ProjectRoleSchema.nullable(),
   id: z.string().cuid(),
   title: z.string(),
   slug: z.string(),

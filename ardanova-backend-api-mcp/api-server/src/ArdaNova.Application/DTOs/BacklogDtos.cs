@@ -5,7 +5,12 @@ using ArdaNova.Domain.Models.Enums;
 public record ProductBacklogItemDto
 {
     public string Id { get; init; } = null!;
-    public string FeatureId { get; init; } = null!;
+    public string ProjectId { get; init; } = null!;
+    public string? FeatureId { get; init; }
+    public string? SprintId { get; init; }
+    public string? EpicId { get; init; }
+    public string? MilestoneId { get; init; }
+    public string? GuildId { get; init; }
     public string Title { get; init; } = null!;
     public string? Description { get; init; }
     public PBIType Type { get; init; }
@@ -20,8 +25,13 @@ public record ProductBacklogItemDto
 
 public record CreateProductBacklogItemDto
 {
-    public required string FeatureId { get; init; }
+    public required string ProjectId { get; init; }
     public required string Title { get; init; }
+    public string? FeatureId { get; init; }
+    public string? SprintId { get; init; }
+    public string? EpicId { get; init; }
+    public string? MilestoneId { get; init; }
+    public string? GuildId { get; init; }
     public string? Description { get; init; }
     public PBIType Type { get; init; } = PBIType.FEATURE;
     public int? StoryPoints { get; init; }
@@ -40,4 +50,5 @@ public record UpdateProductBacklogItemDto
     public string? AcceptanceCriteria { get; init; }
     public Priority? Priority { get; init; }
     public string? AssigneeId { get; init; }
+    public string? GuildId { get; init; }
 }

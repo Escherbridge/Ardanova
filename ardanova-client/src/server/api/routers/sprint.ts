@@ -2,11 +2,13 @@ import { z } from "zod";
 import { createTRPCRouter, publicProcedure, protectedProcedure } from "~/server/api/trpc";
 import { apiClient } from "~/lib/api";
 import type { CreateSprint } from "~/lib/api/ardanova/endpoints/sprints";
+import { authorizeChildCreation, authorizeRootCreation } from "~/server/api/lib/hierarchy-auth";
 
 export const SprintStatus = z.enum(['PLANNED', 'ACTIVE', 'COMPLETED', 'CANCELLED']);
 
 const createSprintSchema = z.object({
-  epicId: z.string().min(1),
+  projectId: z.string().min(1),
+  epicId: z.string().optional(),
   name: z.string().min(1).max(100),
   goal: z.string().optional(),
   startDate: z.string().datetime().optional(),
@@ -51,13 +53,18 @@ export const sprintRouter = createTRPCRouter({
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user.id;
 
-      // Get epic to verify ownership
-      const epic = await apiClient.epics.getById(input.epicId);
-      if (epic.error || !epic.data) {
-        throw new Error("Epic not found");
+      // Auth: if attaching to epic, must be assignee or project manager
+      if (input.epicId) {
+        await authorizeChildCreation(
+          { userId, projectId: input.projectId },
+          "epic",
+          input.epicId
+        );
+      } else {
+        await authorizeRootCreation({ userId, projectId: input.projectId });
       }
 
-      const response = await apiClient.sprints.create(input as CreateSprint);
+      const response = await apiClient.sprints.create({ ...input } as CreateSprint);
 
       if (response.error || !response.data) {
         throw new Error(response.error ?? "Failed to create sprint");
@@ -75,12 +82,6 @@ export const sprintRouter = createTRPCRouter({
       const sprint = await apiClient.sprints.getById(input.id);
       if (sprint.error || !sprint.data) {
         throw new Error("Sprint not found");
-      }
-
-      // Get epic to verify ownership
-      const epic = await apiClient.epics.getById(sprint.data.epicId);
-      if (epic.error || !epic.data) {
-        throw new Error("Epic not found");
       }
 
       const response = await apiClient.sprints.update(input.id, input.data);
@@ -103,12 +104,6 @@ export const sprintRouter = createTRPCRouter({
         throw new Error("Sprint not found");
       }
 
-      // Get epic to verify ownership
-      const epic = await apiClient.epics.getById(sprint.data.epicId);
-      if (epic.error || !epic.data) {
-        throw new Error("Epic not found");
-      }
-
       const response = await apiClient.sprints.delete(input.id);
 
       if (response.error) {
@@ -127,12 +122,6 @@ export const sprintRouter = createTRPCRouter({
       const sprint = await apiClient.sprints.getById(input.id);
       if (sprint.error || !sprint.data) {
         throw new Error("Sprint not found");
-      }
-
-      // Get epic to verify ownership
-      const epic = await apiClient.epics.getById(sprint.data.epicId);
-      if (epic.error || !epic.data) {
-        throw new Error("Epic not found");
       }
 
       const response = await apiClient.sprints.start(input.id);
@@ -155,12 +144,6 @@ export const sprintRouter = createTRPCRouter({
         throw new Error("Sprint not found");
       }
 
-      // Get epic to verify ownership
-      const epic = await apiClient.epics.getById(sprint.data.epicId);
-      if (epic.error || !epic.data) {
-        throw new Error("Epic not found");
-      }
-
       const response = await apiClient.sprints.complete(input.id);
 
       if (response.error || !response.data) {
@@ -179,12 +162,6 @@ export const sprintRouter = createTRPCRouter({
       const sprint = await apiClient.sprints.getById(input.id);
       if (sprint.error || !sprint.data) {
         throw new Error("Sprint not found");
-      }
-
-      // Get epic to verify ownership
-      const epic = await apiClient.epics.getById(sprint.data.epicId);
-      if (epic.error || !epic.data) {
-        throw new Error("Epic not found");
       }
 
       const response = await apiClient.sprints.cancel(input.id);

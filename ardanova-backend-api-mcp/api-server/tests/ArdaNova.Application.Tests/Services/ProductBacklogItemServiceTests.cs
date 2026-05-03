@@ -84,6 +84,7 @@ public class ProductBacklogItemServiceTests
         // Arrange
         var dto = new CreateProductBacklogItemDto
         {
+            ProjectId = Guid.NewGuid().ToString(),
             FeatureId = Guid.NewGuid().ToString(),
             Title = "New PBI",
             Description = "A new backlog item",
@@ -114,6 +115,7 @@ public class ProductBacklogItemServiceTests
         // Arrange
         var dto = new CreateProductBacklogItemDto
         {
+            ProjectId = Guid.NewGuid().ToString(),
             FeatureId = Guid.NewGuid().ToString(),
             Title = "New PBI"
         };

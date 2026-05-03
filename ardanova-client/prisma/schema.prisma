@@ -247,6 +247,14 @@ enum TaskType {
   OTHER
 }
 
+enum EffortEstimate {
+  XS
+  S
+  M
+  L
+  XL
+}
+
 enum SupportType {
   VOTE
   SUBSCRIPTION
@@ -376,12 +384,23 @@ enum ProposalStatus {
   EXPIRED
 }
 
+enum CommentTargetType {
+  PROJECT
+  MILESTONE
+  EPIC
+  SPRINT
+  FEATURE
+  PBI
+  TASK
+}
+
 enum BidStatus {
   SUBMITTED
   UNDER_REVIEW
   ACCEPTED
   REJECTED
   WITHDRAWN
+  COMPLETED
 }
 
 enum GuildMemberRole {
@@ -658,6 +677,8 @@ model Account {
   id_token String? @db.Text
   session_state String?
   user User @relation("Account_userId", fields: [userId], references: [id])
+
+  @@unique([provider, providerAccountId])
 }
 
 model Session {
@@ -865,6 +886,8 @@ model UserAchievement {
   earnedAt DateTime?
   user User @relation("UserAchievement_userId", fields: [userId], references: [id])
   achievement Achievement @relation("UserAchievement_achievementId", fields: [achievementId], references: [id])
+
+  @@unique([userId, achievementId])
 }
 
 model Leaderboard {
@@ -886,6 +909,8 @@ model LeaderboardEntry {
   metadata Json?
   leaderboard Leaderboard @relation("LeaderboardEntry_leaderboardId", fields: [leaderboardId], references: [id])
   user User @relation("LeaderboardEntry_userId", fields: [userId], references: [id])
+
+  @@unique([leaderboardId, userId])
 }
 
 model UserStreak {
@@ -964,6 +989,10 @@ model Project {
   projectMembershipRequests ProjectMembershipRequest[] @relation("ProjectMembershipRequest_projectId")
   projectComments ProjectComment[] @relation("ProjectComment_projectId")
   projectUpdates ProjectUpdate[] @relation("ProjectUpdate_projectId")
+  epics Epic[] @relation("Epic_projectId")
+  sprints Sprint[] @relation("Sprint_projectId")
+  features Feature[] @relation("Feature_projectId")
+  productBacklogItems ProductBacklogItem[] @relation("ProductBacklogItem_projectId")
   projectMembers ProjectMember[] @relation("ProjectMember_projectId")
   proposals Proposal[] @relation("Proposal_projectId")
   delegatedVotes DelegatedVote[] @relation("DelegatedVote_projectId")
@@ -972,6 +1001,7 @@ model Project {
   projectShares ProjectShare[] @relation("ProjectShare_projectId")
   projectEquities ProjectEquity[] @relation("ProjectEquity_projectId")
   treasuries Treasury[] @relation("Treasury_projectId")
+  projectWallets ProjectWallet[] @relation("ProjectWallet_projectId")
   posts Post[] @relation("Post_projectId")
   postShares PostShare[] @relation("PostShare_sharedToProjectId")
   events Event[] @relation("Event_projectId")
@@ -984,11 +1014,17 @@ model ProjectTask {
   id String @id @default(cuid())
   projectId String
   pbiId String?
+  featureId String?
+  sprintId String?
+  epicId String?
+  milestoneId String?
+  guildId String?
   title String
   description String? @db.Text
   status TaskStatus @default(TODO)
   priority TaskPriority @default(MEDIUM)
   taskType TaskType @default(FEATURE)
+  effortEstimate EffortEstimate?
   estimatedHours Int?
   actualHours Int?
   equityReward Decimal? @db.Decimal(18, 8)
@@ -1002,6 +1038,11 @@ model ProjectTask {
   project Project @relation("ProjectTask_projectId", fields: [projectId], references: [id])
   assignedTo User? @relation("ProjectTask_assignedToId", fields: [assignedToId], references: [id])
   pbi ProductBacklogItem? @relation("ProjectTask_pbiId", fields: [pbiId], references: [id])
+  feature Feature? @relation("ProjectTask_featureId", fields: [featureId], references: [id])
+  sprint Sprint? @relation("ProjectTask_sprintId", fields: [sprintId], references: [id])
+  epic Epic? @relation("ProjectTask_epicId", fields: [epicId], references: [id])
+  milestone ProjectMilestone? @relation("ProjectTask_milestoneId", fields: [milestoneId], references: [id])
+  guild Guild? @relation("ProjectTask_guildId", fields: [guildId], references: [id])
   opportunity Opportunity? @relation("ProjectTask_opportunityId", fields: [opportunityId], references: [id])
   projectTaskDependencies ProjectTaskDependency[] @relation("ProjectTaskDependency_taskId")
   projectTaskDependencies1 ProjectTaskDependency[] @relation("ProjectTaskDependency_dependsOnId")
@@ -1037,19 +1078,26 @@ model ProjectResource {
 model ProjectMilestone {
   id String @id @default(cuid())
   projectId String
+  guildId String?
   title String
   description String? @db.Text
   targetDate DateTime?
   completedAt DateTime?
   status MilestoneStatus @default(PLANNED)
   priority Priority @default(MEDIUM)
+  equityBudget Decimal? @db.Decimal(18, 8)
   order Int @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   assigneeId String?
+  projectTasks ProjectTask[] @relation("ProjectTask_milestoneId")
   project Project @relation("ProjectMilestone_projectId", fields: [projectId], references: [id])
+  guild Guild? @relation("ProjectMilestone_guildId", fields: [guildId], references: [id])
   assignee User? @relation("ProjectMilestone_assigneeId", fields: [assigneeId], references: [id])
   epics Epic[] @relation("Epic_milestoneId")
+  sprints Sprint[] @relation("Sprint_milestoneId")
+  features Feature[] @relation("Feature_milestoneId")
+  productBacklogItems ProductBacklogItem[] @relation("ProductBacklogItem_milestoneId")
 }
 
 model ProjectSupport {
@@ -1126,12 +1174,16 @@ model ProjectComment {
   userId String
   content String @db.Text
   parentId String?
+  targetType CommentTargetType @default(PROJECT)
+  targetId String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   project Project @relation("ProjectComment_projectId", fields: [projectId], references: [id])
   user User @relation("ProjectComment_userId", fields: [userId], references: [id])
   parent ProjectComment? @relation("ProjectComment_parentId", fields: [parentId], references: [id])
   parentChildren ProjectComment[] @relation("ProjectComment_parentId")
+
+  @@index([targetType, targetId])
 }
 
 model ProjectUpdate {
@@ -1148,7 +1200,9 @@ model ProjectUpdate {
 
 model Epic {
   id String @id @default(cuid())
-  milestoneId String
+  projectId String
+  milestoneId String?
+  guildId String?
   title String
   description String? @db.Text
   status EpicStatus @default(PLANNED)
@@ -1160,14 +1214,22 @@ model Epic {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   assigneeId String?
-  milestone ProjectMilestone @relation("Epic_milestoneId", fields: [milestoneId], references: [id])
+  projectTasks ProjectTask[] @relation("ProjectTask_epicId")
+  project Project @relation("Epic_projectId", fields: [projectId], references: [id])
+  milestone ProjectMilestone? @relation("Epic_milestoneId", fields: [milestoneId], references: [id])
+  guild Guild? @relation("Epic_guildId", fields: [guildId], references: [id])
   assignee User? @relation("Epic_assigneeId", fields: [assigneeId], references: [id])
   sprints Sprint[] @relation("Sprint_epicId")
+  features Feature[] @relation("Feature_epicId")
+  productBacklogItems ProductBacklogItem[] @relation("ProductBacklogItem_epicId")
 }
 
 model Sprint {
   id String @id @default(cuid())
-  epicId String
+  projectId String
+  epicId String?
+  milestoneId String?
+  guildId String?
   name String
   goal String? @db.Text
   startDate DateTime
@@ -1178,30 +1240,50 @@ model Sprint {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   assigneeId String?
-  epic Epic @relation("Sprint_epicId", fields: [epicId], references: [id])
+  projectTasks ProjectTask[] @relation("ProjectTask_sprintId")
+  project Project @relation("Sprint_projectId", fields: [projectId], references: [id])
+  epic Epic? @relation("Sprint_epicId", fields: [epicId], references: [id])
+  milestone ProjectMilestone? @relation("Sprint_milestoneId", fields: [milestoneId], references: [id])
+  guild Guild? @relation("Sprint_guildId", fields: [guildId], references: [id])
   assignee User? @relation("Sprint_assigneeId", fields: [assigneeId], references: [id])
   features Feature[] @relation("Feature_sprintId")
+  productBacklogItems ProductBacklogItem[] @relation("ProductBacklogItem_sprintId")
 }
 
 model Feature {
   id String @id @default(cuid())
-  sprintId String
+  projectId String
+  sprintId String?
+  epicId String?
+  milestoneId String?
+  guildId String?
   title String
   description String? @db.Text
   status FeatureStatus @default(PLANNED)
   priority Priority @default(MEDIUM)
+  equityBudget Decimal? @db.Decimal(18, 8)
   order Int @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   assigneeId String?
-  sprint Sprint @relation("Feature_sprintId", fields: [sprintId], references: [id])
+  projectTasks ProjectTask[] @relation("ProjectTask_featureId")
+  project Project @relation("Feature_projectId", fields: [projectId], references: [id])
+  sprint Sprint? @relation("Feature_sprintId", fields: [sprintId], references: [id])
+  epic Epic? @relation("Feature_epicId", fields: [epicId], references: [id])
+  milestone ProjectMilestone? @relation("Feature_milestoneId", fields: [milestoneId], references: [id])
+  guild Guild? @relation("Feature_guildId", fields: [guildId], references: [id])
   assignee User? @relation("Feature_assigneeId", fields: [assigneeId], references: [id])
   productBacklogItems ProductBacklogItem[] @relation("ProductBacklogItem_featureId")
 }
 
 model ProductBacklogItem {
   id String @id @default(cuid())
-  featureId String
+  projectId String
+  featureId String?
+  sprintId String?
+  epicId String?
+  milestoneId String?
+  guildId String?
   title String
   description String? @db.Text
   type PBIType @default(FEATURE)
@@ -1209,13 +1291,19 @@ model ProductBacklogItem {
   status PBIStatus @default(NEW)
   acceptanceCriteria String? @db.Text
   priority Priority @default(MEDIUM)
+  equityReward Decimal? @db.Decimal(18, 8)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   assigneeId String?
   projectTasks ProjectTask[] @relation("ProjectTask_pbiId")
-  feature Feature @relation("ProductBacklogItem_featureId", fields: [featureId], references: [id])
+  project Project @relation("ProductBacklogItem_projectId", fields: [projectId], references: [id])
+  feature Feature? @relation("ProductBacklogItem_featureId", fields: [featureId], references: [id])
+  sprint Sprint? @relation("ProductBacklogItem_sprintId", fields: [sprintId], references: [id])
+  epic Epic? @relation("ProductBacklogItem_epicId", fields: [epicId], references: [id])
+  milestone ProjectMilestone? @relation("ProductBacklogItem_milestoneId", fields: [milestoneId], references: [id])
+  guild Guild? @relation("ProductBacklogItem_guildId", fields: [guildId], references: [id])
   assignee User? @relation("ProductBacklogItem_assigneeId", fields: [assigneeId], references: [id])
-  tokenAllocations TokenAllocation[] @relation("TokenAllocation_taskId")
+  tokenAllocations TokenAllocation[] @relation("TokenAllocation_pbiId")
 }
 
 model ProjectMember {
@@ -1364,6 +1452,12 @@ model Guild {
   updatedAt DateTime @updatedAt
   ownerId String @unique
   projects Project[] @relation("Project_assignedGuildId")
+  projectTasks ProjectTask[] @relation("ProjectTask_guildId")
+  projectMilestones ProjectMilestone[] @relation("ProjectMilestone_guildId")
+  epics Epic[] @relation("Epic_guildId")
+  sprints Sprint[] @relation("Sprint_guildId")
+  features Feature[] @relation("Feature_guildId")
+  productBacklogItems ProductBacklogItem[] @relation("ProductBacklogItem_guildId")
   owner User @relation("Guild_ownerId", fields: [ownerId], references: [id])
   guildMembers GuildMember[] @relation("GuildMember_guildId")
   guildInvitations GuildInvitation[] @relation("GuildInvitation_guildId")
@@ -1371,6 +1465,7 @@ model Guild {
   guildReviews GuildReview[] @relation("GuildReview_guildId")
   guildUpdates GuildUpdate[] @relation("GuildUpdate_guildId")
   membershipCredentials MembershipCredential[] @relation("MembershipCredential_guildId")
+  guildWallets GuildWallet[] @relation("GuildWallet_guildId")
   posts Post[] @relation("Post_guildId")
   postShares PostShare[] @relation("PostShare_sharedToGuildId")
   events Event[] @relation("Event_guildId")
@@ -1383,10 +1478,12 @@ model GuildMember {
   id String @id @default(cuid())
   guildId String
   userId String
-  role String
+  role GuildMemberRole @default(MEMBER)
   joinedAt DateTime @default(now())
   guild Guild @relation("GuildMember_guildId", fields: [guildId], references: [id])
   user User @relation("GuildMember_userId", fields: [userId], references: [id])
+
+  @@unique([guildId, userId])
 }
 
 model GuildInvitation {
@@ -1623,6 +1720,34 @@ model Wallet {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   user User @relation("Wallet_userId", fields: [userId], references: [id])
+}
+
+model ProjectWallet {
+  id String @id @default(cuid())
+  projectId String @unique
+  address String? @unique
+  provider WalletProvider @default(PERA)
+  label String? @default("Project Treasury")
+  balance Decimal @default(0) @db.Decimal(18, 8)
+  reservedBalance Decimal @default(0) @db.Decimal(18, 8)
+  isVerified Boolean @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  project Project @relation("ProjectWallet_projectId", fields: [projectId], references: [id])
+}
+
+model GuildWallet {
+  id String @id @default(cuid())
+  guildId String @unique
+  address String? @unique
+  provider WalletProvider @default(PERA)
+  label String? @default("Guild Treasury")
+  balance Decimal @default(0) @db.Decimal(18, 8)
+  reservedBalance Decimal @default(0) @db.Decimal(18, 8)
+  isVerified Boolean @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  guild Guild @relation("GuildWallet_guildId", fields: [guildId], references: [id])
 }
 
 model TaskEscrow {
@@ -1888,6 +2013,8 @@ model EventAttendee {
   notes String? @db.Text
   event Event @relation("EventAttendee_eventId", fields: [eventId], references: [id])
   user User @relation("EventAttendee_userId", fields: [userId], references: [id])
+
+  @@unique([eventId, userId])
 }
 
 model EventCoHost {
@@ -1897,6 +2024,8 @@ model EventCoHost {
   addedAt DateTime @default(now())
   event Event @relation("EventCoHost_eventId", fields: [eventId], references: [id])
   user User @relation("EventCoHost_userId", fields: [userId], references: [id])
+
+  @@unique([eventId, userId])
 }
 
 model EventReminder {
@@ -1918,6 +2047,8 @@ model UserFollow {
   createdAt DateTime @default(now())
   follower User @relation("UserFollow_followerId", fields: [followerId], references: [id])
   following User @relation("UserFollow_followingId", fields: [followingId], references: [id])
+
+  @@unique([followerId, followingId])
 }
 
 model ProjectFollow {
@@ -1930,6 +2061,8 @@ model ProjectFollow {
   createdAt DateTime @default(now())
   user User @relation("ProjectFollow_userId", fields: [userId], references: [id])
   project Project @relation("ProjectFollow_projectId", fields: [projectId], references: [id])
+
+  @@unique([userId, projectId])
 }
 
 model GuildFollow {
@@ -1942,6 +2075,8 @@ model GuildFollow {
   createdAt DateTime @default(now())
   user User @relation("GuildFollow_userId", fields: [userId], references: [id])
   guild Guild @relation("GuildFollow_guildId", fields: [guildId], references: [id])
+
+  @@unique([userId, guildId])
 }
 
 model Opportunity {
@@ -2120,7 +2255,7 @@ model ProjectTokenConfig {
 model TokenAllocation {
   id String @id @default(cuid())
   projectTokenConfigId String
-  taskId String?
+  pbiId String?
   recipientUserId String?
   equityPercentage Float
   tokenAmount Int
@@ -2133,7 +2268,7 @@ model TokenAllocation {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   projectTokenConfig ProjectTokenConfig @relation("TokenAllocation_projectTokenConfigId", fields: [projectTokenConfigId], references: [id])
-  task ProductBacklogItem? @relation("TokenAllocation_taskId", fields: [taskId], references: [id])
+  pbi ProductBacklogItem? @relation("TokenAllocation_pbiId", fields: [pbiId], references: [id])
   recipientUser User? @relation("TokenAllocation_recipientUserId", fields: [recipientUserId], references: [id])
 }
 
@@ -2176,6 +2311,7 @@ model PayoutRequest {
 
 model PlatformTreasury {
   id String @id @default(cuid())
+  singletonKey String @unique @default("SINGLETON")
   ardaTotalSupply BigInt
   ardaCirculatingSupply BigInt @default(0)
   ardaAssetId String?

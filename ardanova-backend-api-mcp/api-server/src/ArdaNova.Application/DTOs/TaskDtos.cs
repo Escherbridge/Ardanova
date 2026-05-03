@@ -7,6 +7,11 @@ public record TaskDto
     public string Id { get; init; } = null!;
     public string ProjectId { get; init; } = null!;
     public string? PbiId { get; init; }
+    public string? FeatureId { get; init; }
+    public string? SprintId { get; init; }
+    public string? EpicId { get; init; }
+    public string? MilestoneId { get; init; }
+    public string? GuildId { get; init; }
     public string? OpportunityId { get; init; }
     public string Title { get; init; } = null!;
     public string? Description { get; init; }
@@ -52,6 +57,11 @@ public record CreateTaskDto
     public DateTime? DueDate { get; init; }
     public string? AssignedToId { get; init; }
     public string? PbiId { get; init; }
+    public string? FeatureId { get; init; }
+    public string? SprintId { get; init; }
+    public string? EpicId { get; init; }
+    public string? MilestoneId { get; init; }
+    public string? GuildId { get; init; }
 }
 
 public record UpdateTaskDto

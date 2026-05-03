@@ -22,7 +22,7 @@ public class GuildMember
     public string userId { get; set; } = string.Empty;
 
     [Required]
-    public string role { get; set; } = string.Empty;
+    public GuildMemberRole role { get; set; }
 
     [Required]
     public DateTime joinedAt { get; set; }

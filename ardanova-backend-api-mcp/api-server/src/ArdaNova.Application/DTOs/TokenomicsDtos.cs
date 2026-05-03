@@ -53,7 +53,7 @@ public record TokenAllocationDto
 {
     public string Id { get; init; } = null!;
     public string ProjectTokenConfigId { get; init; } = null!;
-    public string? TaskId { get; init; }
+    public string? PbiId { get; init; }
     public string? RecipientUserId { get; init; }
     public double EquityPercentage { get; init; }
     public int TokenAmount { get; init; }
@@ -69,7 +69,7 @@ public record TokenAllocationDto
 
 public record CreateTokenAllocationDto
 {
-    public string? TaskId { get; init; }
+    public string? PbiId { get; init; }
     public required double EquityPercentage { get; init; }
 }
 

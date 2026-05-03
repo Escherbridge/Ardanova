@@ -18,7 +18,7 @@ public interface IProjectTokenService
     Task<Result<TokenAllocationDto>> RevokeAllocationAsync(string allocationId, CancellationToken ct = default);
 
     Task<Result<IReadOnlyList<TokenAllocationDto>>> GetAllocationsByProjectAsync(string projectTokenConfigId, CancellationToken ct = default);
-    Task<Result<IReadOnlyList<TokenAllocationDto>>> GetAllocationsByTaskAsync(string taskId, CancellationToken ct = default);
+    Task<Result<IReadOnlyList<TokenAllocationDto>>> GetAllocationsByPbiAsync(string pbiId, CancellationToken ct = default);
     Task<Result<ProjectTokenConfigDto>> GetSupplyBreakdownAsync(string projectTokenConfigId, CancellationToken ct = default);
 
     // Failure handling

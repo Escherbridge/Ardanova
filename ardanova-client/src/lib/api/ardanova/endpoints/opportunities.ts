@@ -24,6 +24,9 @@ export interface Opportunity {
   applicationsCount?: number;
   bidsCount?: number;
   poster?: { id: string; name?: string | null; image?: string | null };
+  source?: { type: string; id: string; name: string; logo?: string | null; slug: string } | null;
+  task?: { id: string; title: string; status: string; priority: string; taskType: string; estimatedHours?: number | null; pbiId?: string | null } | null;
+  projectRole?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -59,6 +62,9 @@ export interface CreateOpportunityDto {
   projectId?: string | null;
   guildId?: string | null;
   taskId?: string | null;
+  origin?: string;
+  status?: string;
+  projectRole?: string;
   [key: string]: unknown;
 }
 

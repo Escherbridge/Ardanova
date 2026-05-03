@@ -139,6 +139,9 @@ public class ArdaNovaDbContext : DbContext
     public DbSet<PlatformTreasury> PlatformTreasuries => Set<PlatformTreasury>();
     public DbSet<PlatformTreasuryTransaction> PlatformTreasuryTransactions => Set<PlatformTreasuryTransaction>();
     public DbSet<ProjectInvestment> ProjectInvestments => Set<ProjectInvestment>();
+    public DbSet<ProjectWallet> ProjectWallets => Set<ProjectWallet>();
+    public DbSet<GuildWallet> GuildWallets => Set<GuildWallet>();
+
 
 
 

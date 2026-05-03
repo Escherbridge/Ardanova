@@ -21,6 +21,16 @@ public class ProjectTask
 
     public string? pbiId { get; set; }
 
+    public string? featureId { get; set; }
+
+    public string? sprintId { get; set; }
+
+    public string? epicId { get; set; }
+
+    public string? milestoneId { get; set; }
+
+    public string? guildId { get; set; }
+
     [Required]
     public string title { get; set; } = string.Empty;
 
@@ -35,6 +45,8 @@ public class ProjectTask
 
     [Required]
     public TaskType taskType { get; set; }
+
+    public EffortEstimate? effortEstimate { get; set; }
 
     public int? estimatedHours { get; set; }
 
@@ -68,6 +80,21 @@ public class ProjectTask
 
     [ForeignKey("pbiId")]
     public virtual ProductBacklogItem? Pbi { get; set; }
+
+    [ForeignKey("featureId")]
+    public virtual Feature? Feature { get; set; }
+
+    [ForeignKey("sprintId")]
+    public virtual Sprint? Sprint { get; set; }
+
+    [ForeignKey("epicId")]
+    public virtual Epic? Epic { get; set; }
+
+    [ForeignKey("milestoneId")]
+    public virtual ProjectMilestone? Milestone { get; set; }
+
+    [ForeignKey("guildId")]
+    public virtual Guild? Guild { get; set; }
 
     [ForeignKey("opportunityId")]
     public virtual Opportunity? Opportunity { get; set; }

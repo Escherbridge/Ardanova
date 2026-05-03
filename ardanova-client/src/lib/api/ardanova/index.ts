@@ -93,7 +93,7 @@ export type {
   CreateGuildReviewDto,
   UpdateGuildReviewDto,
 } from "./endpoints/guilds";
-export type { Task, TaskUser, TaskProject, CreateTaskDto, UpdateTaskDto, SearchTasksParams } from "./endpoints/tasks";
+export type { Task, CreateTaskDto, UpdateTaskDto, SearchTasksParams } from "./endpoints/tasks";
 export type { Event, EventOrganizer, EventAttendee, CreateEventDto, UpdateEventDto, RegisterEventDto, SearchEventsParams } from "./endpoints/events";
 export type { Opportunity, OpportunityApplication, CreateOpportunityDto, UpdateOpportunityDto, ApplyToOpportunityDto, SearchOpportunitiesParams } from "./endpoints/opportunities";
 export type { Proposal, Vote, ProposalVoteSummary, CreateProposalDto, UpdateProposalDto, CastVoteDto, SearchProposalsParams } from "./endpoints/governance";

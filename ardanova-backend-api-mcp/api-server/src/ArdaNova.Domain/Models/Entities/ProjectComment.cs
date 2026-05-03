@@ -28,6 +28,12 @@ public class ProjectComment
     public string? parentId { get; set; }
 
     [Required]
+    public CommentTargetType targetType { get; set; }
+
+    [Required]
+    public string targetId { get; set; } = string.Empty;
+
+    [Required]
     public DateTime createdAt { get; set; }
 
     [Required]

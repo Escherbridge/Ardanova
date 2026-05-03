@@ -4,7 +4,10 @@ export type SprintStatus = "PLANNED" | "ACTIVE" | "COMPLETED" | "CANCELLED";
 
 export interface Sprint {
   id: string;
-  epicId: string;
+  projectId: string;
+  epicId?: string | null;
+  guildId?: string | null;
+  milestoneId?: string | null;
   name?: string | null;
   goal?: string | null;
   startDate?: string | null;

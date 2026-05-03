@@ -12,17 +12,20 @@ public class GuildService : IGuildService
 {
     private readonly IRepository<Guild> _repository;
     private readonly IRepository<GuildMember> _memberRepository;
+    private readonly IRepository<ProjectTask> _taskRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IMapper _mapper;
 
     public GuildService(
         IRepository<Guild> repository,
         IRepository<GuildMember> memberRepository,
+        IRepository<ProjectTask> taskRepository,
         IUnitOfWork unitOfWork,
         IMapper mapper)
     {
         _repository = repository;
         _memberRepository = memberRepository;
+        _taskRepository = taskRepository;
         _unitOfWork = unitOfWork;
         _mapper = mapper;
     }
@@ -99,13 +102,12 @@ public class GuildService : IGuildService
 
         await _repository.AddAsync(guild, ct);
 
-        // Owner must appear in GuildMember (Phase C: members / invitations / applications).
         var ownerMembership = new GuildMember
         {
             id = Guid.NewGuid().ToString(),
             guildId = guild.id,
             userId = dto.OwnerId,
-            role = GuildMemberRole.OWNER.ToString(),
+            role = GuildMemberRole.OWNER,
             joinedAt = DateTime.UtcNow
         };
         await _memberRepository.AddAsync(ownerMembership, ct);
@@ -136,11 +138,20 @@ public class GuildService : IGuildService
         return Result<GuildDto>.Success(_mapper.Map<GuildDto>(guild));
     }
 
-    public async Task<Result<bool>> DeleteAsync(string id, CancellationToken ct = default)
+    public async Task<Result<bool>> DeleteAsync(string id, string requesterId, CancellationToken ct = default)
     {
         var guild = await _repository.GetByIdAsync(id, ct);
         if (guild is null)
             return Result<bool>.NotFound($"Guild with id {id} not found");
+
+        if (guild.ownerId != requesterId)
+            return Result<bool>.Forbidden("Only the guild owner can delete a guild");
+
+        // Check for outstanding tasks assigned to this guild
+        var outstandingTasks = await _taskRepository.FindAsync(
+            t => t.guildId == id && t.status != Domain.Models.Enums.TaskStatus.COMPLETED && t.status != Domain.Models.Enums.TaskStatus.BLOCKED, ct);
+        if (outstandingTasks.Any())
+            return Result<bool>.BadRequest($"Cannot delete guild with {outstandingTasks.Count} outstanding tasks. Reassign or complete them first.");
 
         await _repository.DeleteAsync(guild, ct);
         await _unitOfWork.SaveChangesAsync(ct);
@@ -165,12 +176,18 @@ public class GuildService : IGuildService
 public class GuildMemberService : IGuildMemberService
 {
     private readonly IRepository<GuildMember> _repository;
+    private readonly IRepository<Guild> _guildRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IMapper _mapper;
 
-    public GuildMemberService(IRepository<GuildMember> repository, IUnitOfWork unitOfWork, IMapper mapper)
+    public GuildMemberService(
+        IRepository<GuildMember> repository,
+        IRepository<Guild> guildRepository,
+        IUnitOfWork unitOfWork,
+        IMapper mapper)
     {
         _repository = repository;
+        _guildRepository = guildRepository;
         _unitOfWork = unitOfWork;
         _mapper = mapper;
     }
@@ -197,6 +214,12 @@ public class GuildMemberService : IGuildMemberService
 
     public async Task<Result<GuildMemberDto>> CreateAsync(CreateGuildMemberDto dto, CancellationToken ct = default)
     {
+        // Duplicate membership check
+        var existing = await _repository.FindOneAsync(
+            m => m.guildId == dto.GuildId && m.userId == dto.UserId, ct);
+        if (existing is not null)
+            return Result<GuildMemberDto>.Conflict($"User {dto.UserId} is already a member of guild {dto.GuildId}");
+
         var member = new GuildMember
         {
             id = Guid.NewGuid().ToString(),
@@ -207,6 +230,15 @@ public class GuildMemberService : IGuildMemberService
         };
 
         await _repository.AddAsync(member, ct);
+
+        // Atomically increment members count
+        var guild = await _guildRepository.GetByIdAsync(dto.GuildId, ct);
+        if (guild is not null)
+        {
+            guild.membersCount++;
+            await _guildRepository.UpdateAsync(guild, ct);
+        }
+
         await _unitOfWork.SaveChangesAsync(ct);
         return Result<GuildMemberDto>.Success(_mapper.Map<GuildMemberDto>(member));
     }
@@ -217,7 +249,7 @@ public class GuildMemberService : IGuildMemberService
         if (member is null)
             return Result<GuildMemberDto>.NotFound($"Member with id {id} not found");
 
-        if (dto.Role is not null) member.role = dto.Role;
+        if (dto.Role.HasValue) member.role = dto.Role.Value;
 
         await _repository.UpdateAsync(member, ct);
         await _unitOfWork.SaveChangesAsync(ct);
@@ -230,7 +262,20 @@ public class GuildMemberService : IGuildMemberService
         if (member is null)
             return Result<bool>.NotFound($"Member with id {id} not found");
 
+        // Prevent deleting the guild owner
+        if (member.role == GuildMemberRole.OWNER)
+            return Result<bool>.BadRequest("Cannot remove the guild owner. Transfer ownership first.");
+
         await _repository.DeleteAsync(member, ct);
+
+        // Atomically decrement members count
+        var guild = await _guildRepository.GetByIdAsync(member.guildId, ct);
+        if (guild is not null)
+        {
+            guild.membersCount = Math.Max(0, guild.membersCount - 1);
+            await _guildRepository.UpdateAsync(guild, ct);
+        }
+
         await _unitOfWork.SaveChangesAsync(ct);
         return Result<bool>.Success(true);
     }
@@ -239,12 +284,18 @@ public class GuildMemberService : IGuildMemberService
 public class GuildReviewService : IGuildReviewService
 {
     private readonly IRepository<GuildReview> _repository;
+    private readonly IRepository<Guild> _guildRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IMapper _mapper;
 
-    public GuildReviewService(IRepository<GuildReview> repository, IUnitOfWork unitOfWork, IMapper mapper)
+    public GuildReviewService(
+        IRepository<GuildReview> repository,
+        IRepository<Guild> guildRepository,
+        IUnitOfWork unitOfWork,
+        IMapper mapper)
     {
         _repository = repository;
+        _guildRepository = guildRepository;
         _unitOfWork = unitOfWork;
         _mapper = mapper;
     }
@@ -271,6 +322,10 @@ public class GuildReviewService : IGuildReviewService
 
     public async Task<Result<GuildReviewDto>> CreateAsync(CreateGuildReviewDto dto, CancellationToken ct = default)
     {
+        // Validate rating range
+        if (dto.Rating < 1 || dto.Rating > 5)
+            return Result<GuildReviewDto>.BadRequest("Rating must be between 1 and 5");
+
         var review = new GuildReview
         {
             id = Guid.NewGuid().ToString(),
@@ -283,6 +338,17 @@ public class GuildReviewService : IGuildReviewService
         };
 
         await _repository.AddAsync(review, ct);
+
+        // Update guild review stats
+        var guild = await _guildRepository.GetByIdAsync(dto.GuildId, ct);
+        if (guild is not null)
+        {
+            var allReviews = await _repository.FindAsync(r => r.guildId == dto.GuildId, ct);
+            guild.reviewsCount = allReviews.Count + 1;
+            guild.rating = (decimal)(allReviews.Sum(r => r.rating) + dto.Rating) / (allReviews.Count + 1);
+            await _guildRepository.UpdateAsync(guild, ct);
+        }
+
         await _unitOfWork.SaveChangesAsync(ct);
         return Result<GuildReviewDto>.Success(_mapper.Map<GuildReviewDto>(review));
     }
@@ -293,10 +359,27 @@ public class GuildReviewService : IGuildReviewService
         if (review is null)
             return Result<GuildReviewDto>.NotFound($"Review with id {id} not found");
 
-        if (dto.Rating.HasValue) review.rating = dto.Rating.Value;
+        if (dto.Rating.HasValue)
+        {
+            if (dto.Rating.Value < 1 || dto.Rating.Value > 5)
+                return Result<GuildReviewDto>.BadRequest("Rating must be between 1 and 5");
+            review.rating = dto.Rating.Value;
+        }
         if (dto.Comment is not null) review.comment = dto.Comment;
 
         await _repository.UpdateAsync(review, ct);
+
+        // Recalculate guild rating
+        var guild = await _guildRepository.GetByIdAsync(review.guildId, ct);
+        if (guild is not null)
+        {
+            var allReviews = await _repository.FindAsync(r => r.guildId == review.guildId, ct);
+            guild.rating = allReviews.Count > 0
+                ? (decimal)allReviews.Sum(r => r.rating) / allReviews.Count
+                : null;
+            await _guildRepository.UpdateAsync(guild, ct);
+        }
+
         await _unitOfWork.SaveChangesAsync(ct);
         return Result<GuildReviewDto>.Success(_mapper.Map<GuildReviewDto>(review));
     }
@@ -307,7 +390,21 @@ public class GuildReviewService : IGuildReviewService
         if (review is null)
             return Result<bool>.NotFound($"Review with id {id} not found");
 
+        var guildId = review.guildId;
         await _repository.DeleteAsync(review, ct);
+
+        // Recalculate guild rating
+        var guild = await _guildRepository.GetByIdAsync(guildId, ct);
+        if (guild is not null)
+        {
+            var remainingReviews = await _repository.FindAsync(r => r.guildId == guildId, ct);
+            guild.reviewsCount = remainingReviews.Count;
+            guild.rating = remainingReviews.Count > 0
+                ? (decimal)remainingReviews.Sum(r => r.rating) / remainingReviews.Count
+                : null;
+            await _guildRepository.UpdateAsync(guild, ct);
+        }
+
         await _unitOfWork.SaveChangesAsync(ct);
         return Result<bool>.Success(true);
     }
@@ -372,12 +469,21 @@ public class GuildUpdateService : IGuildUpdateService
 public class GuildApplicationService : IGuildApplicationService
 {
     private readonly IRepository<GuildApplication> _repository;
+    private readonly IRepository<GuildMember> _memberRepository;
+    private readonly IRepository<Guild> _guildRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IMapper _mapper;
 
-    public GuildApplicationService(IRepository<GuildApplication> repository, IUnitOfWork unitOfWork, IMapper mapper)
+    public GuildApplicationService(
+        IRepository<GuildApplication> repository,
+        IRepository<GuildMember> memberRepository,
+        IRepository<Guild> guildRepository,
+        IUnitOfWork unitOfWork,
+        IMapper mapper)
     {
         _repository = repository;
+        _memberRepository = memberRepository;
+        _guildRepository = guildRepository;
         _unitOfWork = unitOfWork;
         _mapper = mapper;
     }
@@ -426,11 +532,36 @@ public class GuildApplicationService : IGuildApplicationService
         if (application is null)
             return Result<GuildApplicationDto>.NotFound($"Application with id {id} not found");
 
+        // Check for existing membership
+        var existingMember = await _memberRepository.FindOneAsync(
+            m => m.guildId == application.guildId && m.userId == application.userId, ct);
+        if (existingMember is not null)
+            return Result<GuildApplicationDto>.Conflict($"User is already a member of this guild");
+
         application.status = MembershipRequestStatus.APPROVED;
         application.reviewMessage = reviewMessage;
         application.reviewedAt = DateTime.UtcNow;
-
         await _repository.UpdateAsync(application, ct);
+
+        // Create the GuildMember record
+        var member = new GuildMember
+        {
+            id = Guid.NewGuid().ToString(),
+            guildId = application.guildId,
+            userId = application.userId,
+            role = application.requestedRole,
+            joinedAt = DateTime.UtcNow
+        };
+        await _memberRepository.AddAsync(member, ct);
+
+        // Increment members count
+        var guild = await _guildRepository.GetByIdAsync(application.guildId, ct);
+        if (guild is not null)
+        {
+            guild.membersCount++;
+            await _guildRepository.UpdateAsync(guild, ct);
+        }
+
         await _unitOfWork.SaveChangesAsync(ct);
         return Result<GuildApplicationDto>.Success(_mapper.Map<GuildApplicationDto>(application));
     }
@@ -478,12 +609,21 @@ public class GuildApplicationService : IGuildApplicationService
 public class GuildInvitationService : IGuildInvitationService
 {
     private readonly IRepository<GuildInvitation> _repository;
+    private readonly IRepository<GuildMember> _memberRepository;
+    private readonly IRepository<Guild> _guildRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IMapper _mapper;
 
-    public GuildInvitationService(IRepository<GuildInvitation> repository, IUnitOfWork unitOfWork, IMapper mapper)
+    public GuildInvitationService(
+        IRepository<GuildInvitation> repository,
+        IRepository<GuildMember> memberRepository,
+        IRepository<Guild> guildRepository,
+        IUnitOfWork unitOfWork,
+        IMapper mapper)
     {
         _repository = repository;
+        _memberRepository = memberRepository;
+        _guildRepository = guildRepository;
         _unitOfWork = unitOfWork;
         _mapper = mapper;
     }
@@ -533,10 +673,35 @@ public class GuildInvitationService : IGuildInvitationService
         if (invitation is null)
             return Result<GuildInvitationDto>.NotFound($"Invitation with id {id} not found");
 
+        // Check for existing membership
+        var existingMember = await _memberRepository.FindOneAsync(
+            m => m.guildId == invitation.guildId && m.userId == invitation.invitedUserId, ct);
+        if (existingMember is not null)
+            return Result<GuildInvitationDto>.Conflict($"User is already a member of this guild");
+
         invitation.status = InvitationStatus.ACCEPTED;
         invitation.respondedAt = DateTime.UtcNow;
-
         await _repository.UpdateAsync(invitation, ct);
+
+        // Create the GuildMember record
+        var member = new GuildMember
+        {
+            id = Guid.NewGuid().ToString(),
+            guildId = invitation.guildId,
+            userId = invitation.invitedUserId!,
+            role = invitation.role,
+            joinedAt = DateTime.UtcNow
+        };
+        await _memberRepository.AddAsync(member, ct);
+
+        // Increment members count
+        var guild = await _guildRepository.GetByIdAsync(invitation.guildId, ct);
+        if (guild is not null)
+        {
+            guild.membersCount++;
+            await _guildRepository.UpdateAsync(guild, ct);
+        }
+
         await _unitOfWork.SaveChangesAsync(ct);
         return Result<GuildInvitationDto>.Success(_mapper.Map<GuildInvitationDto>(invitation));
     }
@@ -594,6 +759,12 @@ public class GuildFollowService : IGuildFollowService
 
     public async Task<Result<GuildFollowDto>> FollowAsync(CreateGuildFollowDto dto, CancellationToken ct = default)
     {
+        // Check for existing follow
+        var existing = await _repository.FindOneAsync(
+            f => f.guildId == dto.GuildId && f.userId == dto.UserId, ct);
+        if (existing is not null)
+            return Result<GuildFollowDto>.Conflict("Already following this guild");
+
         var follow = new GuildFollow
         {
             id = Guid.NewGuid().ToString(),

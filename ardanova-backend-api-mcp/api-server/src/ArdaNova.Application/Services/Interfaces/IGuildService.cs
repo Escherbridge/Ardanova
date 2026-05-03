@@ -14,7 +14,7 @@ public interface IGuildService
     Task<Result<IReadOnlyList<GuildDto>>> GetVerifiedAsync(CancellationToken ct = default);
     Task<Result<GuildDto>> CreateAsync(CreateGuildDto dto, CancellationToken ct = default);
     Task<Result<GuildDto>> UpdateAsync(string id, UpdateGuildDto dto, CancellationToken ct = default);
-    Task<Result<bool>> DeleteAsync(string id, CancellationToken ct = default);
+    Task<Result<bool>> DeleteAsync(string id, string requesterId, CancellationToken ct = default);
     Task<Result<GuildDto>> VerifyAsync(string id, CancellationToken ct = default);
 }
 

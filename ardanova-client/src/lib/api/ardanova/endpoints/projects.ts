@@ -281,8 +281,11 @@ export interface ProjectComment {
   userId: string;
   content: string;
   parentId?: string;
+  targetType?: string;
+  targetId?: string;
   createdAt: string;
   updatedAt: string;
+  author?: { id: string; name?: string | null; image?: string | null };
   user?: { id: string; name?: string; email: string; image?: string };
   replies?: ProjectComment[];
 }
@@ -292,6 +295,8 @@ export interface CreateCommentDto {
   userId: string;
   content: string;
   parentId?: string;
+  targetType?: string;
+  targetId?: string;
 }
 
 export interface ProjectSupport {
@@ -606,6 +611,10 @@ export class ProjectsEndpoint {
 
   getComments(projectId: string): Promise<ApiResponse<ProjectComment[]>> {
     return this.client.get<ProjectComment[]>(`/api/projects/${projectId}/comments`);
+  }
+
+  getCommentsByTarget(targetType: string, targetId: string): Promise<ApiResponse<ProjectComment[]>> {
+    return this.client.get<ProjectComment[]>(`/api/projects/comments/target/${targetType}/${targetId}`);
   }
 
   deleteComment(projectId: string, commentId: string): Promise<ApiResponse<void>> {

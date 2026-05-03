@@ -7,6 +7,7 @@ using ArdaNova.Domain.Models.Enums;
 
 namespace ArdaNova.Domain.Models.Entities;
 
+[Index(nameof(singletonKey), IsUnique = true)]
 [Table("PlatformTreasury")]
 public class PlatformTreasury
 {
@@ -14,6 +15,9 @@ public class PlatformTreasury
     [Key]
     [Required]
     public string id { get; set; } = string.Empty;
+
+    [Required]
+    public string singletonKey { get; set; } = string.Empty;
 
     [Required]
     public long ardaTotalSupply { get; set; }

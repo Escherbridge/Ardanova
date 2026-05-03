@@ -17,6 +17,7 @@ public class OpportunityService : IOpportunityService
     private readonly IRepository<User> _userRepository;
     private readonly IRepository<Guild> _guildRepository;
     private readonly IRepository<Project> _projectRepository;
+    private readonly IRepository<ProjectTask> _taskRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IMapper _mapper;
 
@@ -28,6 +29,7 @@ public class OpportunityService : IOpportunityService
         IRepository<User> userRepository,
         IRepository<Guild> guildRepository,
         IRepository<Project> projectRepository,
+        IRepository<ProjectTask> taskRepository,
         IUnitOfWork unitOfWork,
         IMapper mapper)
     {
@@ -38,6 +40,7 @@ public class OpportunityService : IOpportunityService
         _userRepository = userRepository;
         _guildRepository = guildRepository;
         _projectRepository = projectRepository;
+        _taskRepository = taskRepository;
         _unitOfWork = unitOfWork;
         _mapper = mapper;
     }
@@ -186,6 +189,7 @@ public class OpportunityService : IOpportunityService
             guildId = dto.GuildId,
             projectId = dto.ProjectId,
             taskId = dto.TaskId,
+            origin = dto.Origin,
             projectRole = dto.ProjectRole,
             createdAt = DateTime.UtcNow,
             updatedAt = DateTime.UtcNow
@@ -509,6 +513,28 @@ public class OpportunityService : IOpportunityService
         }
         if (source is not null)
             dto = dto with { Source = source };
+
+        // Enrich linked task
+        if (!string.IsNullOrWhiteSpace(opportunity.taskId))
+        {
+            var task = await _taskRepository.GetByIdAsync(opportunity.taskId, ct);
+            if (task is not null)
+            {
+                dto = dto with
+                {
+                    Task = new OpportunityTaskDto
+                    {
+                        Id = task.id,
+                        Title = task.title,
+                        Status = task.status,
+                        Priority = task.priority,
+                        TaskType = task.taskType,
+                        EstimatedHours = task.estimatedHours,
+                        PbiId = task.pbiId
+                    }
+                };
+            }
+        }
 
         return dto;
     }

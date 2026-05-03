@@ -96,6 +96,7 @@ public interface IProjectCommentService
 {
     Task<Result<ProjectCommentDto>> GetByIdAsync(string id, CancellationToken ct = default);
     Task<Result<IReadOnlyList<ProjectCommentDto>>> GetByProjectIdAsync(string projectId, CancellationToken ct = default);
+    Task<Result<IReadOnlyList<ProjectCommentDto>>> GetByTargetAsync(CommentTargetType targetType, string targetId, CancellationToken ct = default);
     Task<Result<ProjectCommentDto>> CreateAsync(CreateProjectCommentDto dto, CancellationToken ct = default);
     Task<Result<ProjectCommentDto>> UpdateAsync(string id, string content, CancellationToken ct = default);
     Task<Result<bool>> DeleteAsync(string id, CancellationToken ct = default);

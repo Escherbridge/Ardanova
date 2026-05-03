@@ -1,12 +1,14 @@
 import { z } from 'zod';
-import { ProjectTokenStatusSchema } from '../inputTypeSchemas/ProjectTokenStatusSchema';
-import { ProjectGateStatusSchema } from '../inputTypeSchemas/ProjectGateStatusSchema';
+import { ProjectTokenStatusSchema } from '../inputTypeSchemas/ProjectTokenStatusSchema'
+import { ProjectGateStatusSchema } from '../inputTypeSchemas/ProjectGateStatusSchema'
 
 /////////////////////////////////////////
 // PROJECT TOKEN CONFIG SCHEMA
 /////////////////////////////////////////
 
 export const ProjectTokenConfigSchema = z.object({
+  status: ProjectTokenStatusSchema,
+  gateStatus: ProjectGateStatusSchema,
   id: z.string().cuid(),
   projectId: z.string(),
   assetId: z.string().nullable(),
@@ -17,12 +19,10 @@ export const ProjectTokenConfigSchema = z.object({
   distributedSupply: z.number().int(),
   reservedSupply: z.number().int(),
   mintTxHash: z.string().nullable(),
-  status: ProjectTokenStatusSchema,
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date(),
   fundingGoal: z.number(),
   fundingRaised: z.number(),
-  gateStatus: ProjectGateStatusSchema,
   gate1ClearedAt: z.coerce.date().nullable(),
   gate2ClearedAt: z.coerce.date().nullable(),
   failedAt: z.coerce.date().nullable(),
@@ -32,8 +32,8 @@ export const ProjectTokenConfigSchema = z.object({
   burnedSupply: z.number().int(),
   successCriteria: z.string().nullable(),
   successVerifiedBy: z.string().nullable(),
-});
+})
 
-export type ProjectTokenConfig = z.infer<typeof ProjectTokenConfigSchema>;
+export type ProjectTokenConfig = z.infer<typeof ProjectTokenConfigSchema>
 
 export default ProjectTokenConfigSchema;

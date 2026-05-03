@@ -13,7 +13,6 @@ export type PbiStatus =
   | "NEW"
   | "READY"
   | "IN_PROGRESS"
-  | "BLOCKED"
   | "DONE"
   | "CANCELLED";
 
@@ -21,7 +20,12 @@ export type PbiPriority = "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
 
 export interface ProductBacklogItem {
   id: string;
-  featureId: string;
+  projectId: string;
+  featureId?: string | null;
+  sprintId?: string | null;
+  epicId?: string | null;
+  milestoneId?: string | null;
+  guildId?: string | null;
   title: string;
   description?: string | null;
   type: PbiType;
@@ -35,8 +39,13 @@ export interface ProductBacklogItem {
 }
 
 export interface CreateProductBacklogItem {
-  featureId: string;
+  projectId: string;
   title: string;
+  featureId?: string;
+  sprintId?: string;
+  epicId?: string;
+  milestoneId?: string;
+  guildId?: string;
   description?: string;
   type?: PbiType;
   storyPoints?: number;
@@ -70,6 +79,18 @@ export class BacklogEndpoint {
   ): Promise<ApiResponse<ProductBacklogItem[]>> {
     return this.client.get<ProductBacklogItem[]>(
       `/api/features/${featureId}/product-backlog-items`,
+    );
+  }
+
+  /**
+   * Get all PBIs for a given project.
+   * Maps to GET /api/projects/{projectId}/product-backlog-items
+   */
+  getPbisByProjectId(
+    projectId: string,
+  ): Promise<ApiResponse<ProductBacklogItem[]>> {
+    return this.client.get<ProductBacklogItem[]>(
+      `/api/projects/${projectId}/product-backlog-items`,
     );
   }
 

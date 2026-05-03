@@ -20,7 +20,7 @@ public class ProductBacklogItemsController : ControllerBase
     [HttpGet("features/{featureId}/product-backlog-items")]
     public async Task<IActionResult> GetByFeatureId(string featureId, CancellationToken ct)
     {
-        var result = await _pbiService.GetByProjectIdAsync(featureId, ct);
+        var result = await _pbiService.GetByFeatureIdAsync(featureId, ct);
         return ToActionResult(result);
     }
 

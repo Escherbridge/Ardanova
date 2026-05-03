@@ -146,6 +146,14 @@ public class Project
 
     public virtual ICollection<ProjectUpdate> ProjectUpdates { get; set; } = new List<ProjectUpdate>();
 
+    public virtual ICollection<Epic> Epics { get; set; } = new List<Epic>();
+
+    public virtual ICollection<Sprint> Sprints { get; set; } = new List<Sprint>();
+
+    public virtual ICollection<Feature> Features { get; set; } = new List<Feature>();
+
+    public virtual ICollection<ProductBacklogItem> ProductBacklogItems { get; set; } = new List<ProductBacklogItem>();
+
     public virtual ICollection<ProjectMember> ProjectMembers { get; set; } = new List<ProjectMember>();
 
     public virtual ICollection<Proposal> Proposals { get; set; } = new List<Proposal>();
@@ -161,6 +169,8 @@ public class Project
     public virtual ICollection<ProjectEquity> ProjectEquities { get; set; } = new List<ProjectEquity>();
 
     public virtual ICollection<Treasury> Treasuries { get; set; } = new List<Treasury>();
+
+    public virtual ICollection<ProjectWallet> ProjectWallets { get; set; } = new List<ProjectWallet>();
 
     public virtual ICollection<Post> Posts { get; set; } = new List<Post>();
 

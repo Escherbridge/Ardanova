@@ -844,12 +844,14 @@ public class ProjectApplicationService : IProjectApplicationService
 public class ProjectCommentService : IProjectCommentService
 {
     private readonly IRepository<ProjectComment> _repository;
+    private readonly IRepository<User> _userRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IMapper _mapper;
 
-    public ProjectCommentService(IRepository<ProjectComment> repository, IUnitOfWork unitOfWork, IMapper mapper)
+    public ProjectCommentService(IRepository<ProjectComment> repository, IRepository<User> userRepository, IUnitOfWork unitOfWork, IMapper mapper)
     {
         _repository = repository;
+        _userRepository = userRepository;
         _unitOfWork = unitOfWork;
         _mapper = mapper;
     }
@@ -868,6 +870,21 @@ public class ProjectCommentService : IProjectCommentService
         return Result<IReadOnlyList<ProjectCommentDto>>.Success(_mapper.Map<IReadOnlyList<ProjectCommentDto>>(comments));
     }
 
+    public async Task<Result<IReadOnlyList<ProjectCommentDto>>> GetByTargetAsync(CommentTargetType targetType, string targetId, CancellationToken ct = default)
+    {
+        var comments = await _repository.FindAsync(c => c.targetType == targetType && c.targetId == targetId, ct);
+        var dtos = new List<ProjectCommentDto>();
+        foreach (var comment in comments.OrderBy(c => c.createdAt))
+        {
+            var dto = _mapper.Map<ProjectCommentDto>(comment);
+            var user = await _userRepository.GetByIdAsync(comment.userId, ct);
+            if (user is not null)
+                dto = dto with { Author = new ProjectCommentAuthorDto { Id = user.id, Name = user.name, Image = user.image } };
+            dtos.Add(dto);
+        }
+        return Result<IReadOnlyList<ProjectCommentDto>>.Success(dtos);
+    }
+
     public async Task<Result<ProjectCommentDto>> CreateAsync(CreateProjectCommentDto dto, CancellationToken ct = default)
     {
         var comment = new ProjectComment
@@ -877,12 +894,19 @@ public class ProjectCommentService : IProjectCommentService
             userId = dto.UserId,
             content = dto.Content,
             parentId = dto.ParentId,
+            targetType = dto.TargetType,
+            targetId = dto.TargetId ?? dto.ProjectId,
             createdAt = DateTime.UtcNow,
             updatedAt = DateTime.UtcNow
         };
         await _repository.AddAsync(comment, ct);
         await _unitOfWork.SaveChangesAsync(ct);
-        return Result<ProjectCommentDto>.Success(_mapper.Map<ProjectCommentDto>(comment));
+
+        var resultDto = _mapper.Map<ProjectCommentDto>(comment);
+        var user = await _userRepository.GetByIdAsync(comment.userId, ct);
+        if (user is not null)
+            resultDto = resultDto with { Author = new ProjectCommentAuthorDto { Id = user.id, Name = user.name, Image = user.image } };
+        return Result<ProjectCommentDto>.Success(resultDto);
     }
 
     public async Task<Result<ProjectCommentDto>> UpdateAsync(string id, string content, CancellationToken ct = default)

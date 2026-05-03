@@ -3,29 +3,28 @@ import { type BaseApiClient, type ApiResponse, type PagedResult } from "../../ba
 export interface Task {
   id: string;
   projectId: string;
+  pbiId?: string | null;
+  featureId?: string | null;
+  sprintId?: string | null;
+  epicId?: string | null;
+  milestoneId?: string | null;
+  guildId?: string | null;
   title: string;
   description?: string | null;
   status: string;
-  priority?: string | null;
-  type?: string | null;
-  assigneeId?: string | null;
-  createdById: string;
+  priority: string;
+  taskType: string;
+  effortEstimate?: string | null;
+  estimatedHours?: number | null;
+  actualHours?: number | null;
+  equityReward?: number | null;
+  escrowStatus: string;
+  dueDate?: string | null;
+  completedAt?: string | null;
   createdAt: string;
   updatedAt: string;
-  [key: string]: unknown;
-}
-
-export interface TaskUser {
-  id: string;
-  name?: string | null;
-  email: string;
-  image?: string | null;
-}
-
-export interface TaskProject {
-  id: string;
-  title: string;
-  slug: string;
+  assignedToId?: string | null;
+  opportunityId?: string | null;
 }
 
 export interface CreateTaskDto {
@@ -33,25 +32,31 @@ export interface CreateTaskDto {
   title: string;
   description?: string;
   priority?: string;
-  /** Task type (backend TaskType enum, e.g. FEATURE, BUG) */
   taskType?: string;
-  type?: string;
-  assigneeId?: string | null;
+  effortEstimate?: string;
   assignedToId?: string | null;
   pbiId?: string;
+  featureId?: string;
+  sprintId?: string;
+  epicId?: string;
+  milestoneId?: string;
+  guildId?: string;
   estimatedHours?: number;
   dueDate?: string;
   equityReward?: number;
-  [key: string]: unknown;
 }
 
 export interface UpdateTaskDto {
   title?: string;
   description?: string;
   priority?: string;
-  type?: string;
-  assigneeId?: string | null;
-  [key: string]: unknown;
+  taskType?: string;
+  status?: string;
+  effortEstimate?: string;
+  assignedToId?: string | null;
+  pbiId?: string;
+  estimatedHours?: number;
+  dueDate?: string;
 }
 
 export interface SearchTasksParams {
@@ -97,6 +102,10 @@ export class TasksEndpoint {
 
   updateStatus(id: string, status: string): Promise<ApiResponse<Task>> {
     return this.client.patch<Task>(`/api/tasks/${id}/status`, { status });
+  }
+
+  getByPbiId(pbiId: string): Promise<ApiResponse<Task[]>> {
+    return this.client.get<Task[]>(`/api/tasks/pbi/${pbiId}`);
   }
 
   delete(id: string): Promise<ApiResponse<void>> {

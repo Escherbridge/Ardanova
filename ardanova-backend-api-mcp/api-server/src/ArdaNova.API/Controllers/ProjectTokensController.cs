@@ -96,10 +96,10 @@ public class ProjectTokensController : ControllerBase
         return ToActionResult(result);
     }
 
-    [HttpGet("allocations/by-task/{taskId}")]
-    public async Task<IActionResult> GetAllocationsByTask(string taskId, CancellationToken ct)
+    [HttpGet("allocations/by-pbi/{pbiId}")]
+    public async Task<IActionResult> GetAllocationsByPbi(string pbiId, CancellationToken ct)
     {
-        var result = await _projectTokenService.GetAllocationsByTaskAsync(taskId, ct);
+        var result = await _projectTokenService.GetAllocationsByPbiAsync(pbiId, ct);
         return ToActionResult(result);
     }
 

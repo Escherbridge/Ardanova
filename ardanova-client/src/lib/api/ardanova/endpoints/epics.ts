@@ -5,7 +5,9 @@ export type EpicPriority = "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
 
 export interface Epic {
   id: string;
-  milestoneId: string;
+  projectId: string;
+  milestoneId?: string | null;
+  guildId?: string | null;
   title: string;
   description?: string | null;
   priority: EpicPriority;

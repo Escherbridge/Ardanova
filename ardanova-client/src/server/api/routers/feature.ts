@@ -1,12 +1,14 @@
 import { z } from "zod";
 import { createTRPCRouter, publicProcedure, protectedProcedure } from "~/server/api/trpc";
 import { apiClient } from "~/lib/api";
+import { authorizeChildCreation, authorizeRootCreation } from "~/server/api/lib/hierarchy-auth";
 
 export const FeatureStatusEnum = z.enum(['PLANNED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED']);
 export const FeaturePriority = z.enum(['CRITICAL', 'HIGH', 'MEDIUM', 'LOW']);
 
 const createFeatureSchema = z.object({
-  sprintId: z.string().min(1),
+  projectId: z.string().min(1),
+  sprintId: z.string().optional(),
   title: z.string().min(1).max(200),
   description: z.string().optional(),
   priority: FeaturePriority.optional(),
@@ -52,22 +54,19 @@ export const featureRouter = createTRPCRouter({
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user.id;
 
-      // Get sprint to verify ownership
-      const sprint = await apiClient.sprints.getById(input.sprintId);
-      if (sprint.error || !sprint.data) {
-        throw new Error("Sprint not found");
+      // Auth: if attaching to sprint, must be assignee or project manager
+      if (input.sprintId) {
+        await authorizeChildCreation(
+          { userId, projectId: input.projectId },
+          "sprint",
+          input.sprintId
+        );
+      } else {
+        await authorizeRootCreation({ userId, projectId: input.projectId });
       }
-
-      // Get epic to verify ownership
-      const epic = await apiClient.epics.getById(sprint.data.epicId);
-      if (epic.error || !epic.data) {
-        throw new Error("Epic not found");
-      }
-
-      // TODO: Milestone validation - apiClient.milestones doesn't exist as a separate endpoint.
-      // Skipping milestone validation for now.
 
       const response = await apiClient.features.create({
+        projectId: input.projectId,
         sprintId: input.sprintId,
         title: input.title,
         description: input.description,
@@ -93,21 +92,6 @@ export const featureRouter = createTRPCRouter({
         throw new Error("Feature not found");
       }
 
-      // Get sprint to verify ownership
-      const sprint = await apiClient.sprints.getById(feature.data.sprintId);
-      if (sprint.error || !sprint.data) {
-        throw new Error("Sprint not found");
-      }
-
-      // Get epic to verify ownership
-      const epic = await apiClient.epics.getById(sprint.data.epicId);
-      if (epic.error || !epic.data) {
-        throw new Error("Epic not found");
-      }
-
-      // TODO: Milestone validation - apiClient.milestones doesn't exist as a separate endpoint.
-      // Skipping milestone validation for now.
-
       const response = await apiClient.features.update(input.id, input.data);
 
       if (response.error || !response.data) {
@@ -127,21 +111,6 @@ export const featureRouter = createTRPCRouter({
       if (feature.error || !feature.data) {
         throw new Error("Feature not found");
       }
-
-      // Get sprint to verify ownership
-      const sprint = await apiClient.sprints.getById(feature.data.sprintId);
-      if (sprint.error || !sprint.data) {
-        throw new Error("Sprint not found");
-      }
-
-      // Get epic to verify ownership
-      const epic = await apiClient.epics.getById(sprint.data.epicId);
-      if (epic.error || !epic.data) {
-        throw new Error("Epic not found");
-      }
-
-      // TODO: Milestone validation - apiClient.milestones doesn't exist as a separate endpoint.
-      // Skipping milestone validation for now.
 
       const response = await apiClient.features.delete(input.id);
 
@@ -163,21 +132,6 @@ export const featureRouter = createTRPCRouter({
         throw new Error("Feature not found");
       }
 
-      // Get sprint to verify ownership
-      const sprint = await apiClient.sprints.getById(feature.data.sprintId);
-      if (sprint.error || !sprint.data) {
-        throw new Error("Sprint not found");
-      }
-
-      // Get epic to verify ownership
-      const epic = await apiClient.epics.getById(sprint.data.epicId);
-      if (epic.error || !epic.data) {
-        throw new Error("Epic not found");
-      }
-
-      // TODO: Milestone validation - apiClient.milestones doesn't exist as a separate endpoint.
-      // Skipping milestone validation for now.
-
       const response = await apiClient.features.assign(input.id, input.userId);
 
       if (response.error || !response.data) {
@@ -198,21 +152,6 @@ export const featureRouter = createTRPCRouter({
         throw new Error("Feature not found");
       }
 
-      // Get sprint to verify ownership
-      const sprint = await apiClient.sprints.getById(feature.data.sprintId);
-      if (sprint.error || !sprint.data) {
-        throw new Error("Sprint not found");
-      }
-
-      // Get epic to verify ownership
-      const epic = await apiClient.epics.getById(sprint.data.epicId);
-      if (epic.error || !epic.data) {
-        throw new Error("Epic not found");
-      }
-
-      // TODO: Milestone validation - apiClient.milestones doesn't exist as a separate endpoint.
-      // Skipping milestone validation for now.
-
       const response = await apiClient.features.updateStatus(input.id, input.status as 'PLANNED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED');
 
       if (response.error || !response.data) {
@@ -232,21 +171,6 @@ export const featureRouter = createTRPCRouter({
       if (feature.error || !feature.data) {
         throw new Error("Feature not found");
       }
-
-      // Get sprint to verify ownership
-      const sprint = await apiClient.sprints.getById(feature.data.sprintId);
-      if (sprint.error || !sprint.data) {
-        throw new Error("Sprint not found");
-      }
-
-      // Get epic to verify ownership
-      const epic = await apiClient.epics.getById(sprint.data.epicId);
-      if (epic.error || !epic.data) {
-        throw new Error("Epic not found");
-      }
-
-      // TODO: Milestone validation - apiClient.milestones doesn't exist as a separate endpoint.
-      // Skipping milestone validation for now.
 
       const response = await apiClient.features.updatePriority(input.id, input.priority as 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW');
 

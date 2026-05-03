@@ -12,8 +12,8 @@ export const ProposalCommentSchema = z.object({
   parentId: z.string().nullable(),
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date(),
-});
+})
 
-export type ProposalComment = z.infer<typeof ProposalCommentSchema>;
+export type ProposalComment = z.infer<typeof ProposalCommentSchema>
 
 export default ProposalCommentSchema;

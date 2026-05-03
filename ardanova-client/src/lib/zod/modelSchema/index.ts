@@ -53,6 +53,8 @@ export * from './ShareVestingSchema';
 export * from './FundraisingSchema';
 export * from './FundraisingContributionSchema';
 export * from './WalletSchema';
+export * from './ProjectWalletSchema';
+export * from './GuildWalletSchema';
 export * from './TaskEscrowSchema';
 export * from './ShareSwapSchema';
 export * from './LiquidityPoolSchema';
