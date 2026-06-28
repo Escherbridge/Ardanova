@@ -98,6 +98,23 @@ Set-Location $ProjectRoot
 
 Write-ColorOutput $Yellow "Tearing down ArdaNova development environment..."
 
+# Kill any local processes still running on dev ports (legacy local mode)
+function Stop-PortProcess($Port) {
+    $conn = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue
+    if ($conn) {
+        foreach ($c in $conn) {
+            Write-Host "  Killing local process PID $($c.OwningProcess) on port $Port" -ForegroundColor $Yellow
+            Stop-Process -Id $c.OwningProcess -Force -ErrorAction SilentlyContinue
+        }
+    }
+}
+
+Write-ColorOutput $Yellow "Checking for local processes..."
+Stop-PortProcess 3000
+Stop-PortProcess 5147
+Stop-PortProcess 7160
+Stop-PortProcess 8080
+
 # Apply -All flag
 if ($All) {
     $Volumes = $true

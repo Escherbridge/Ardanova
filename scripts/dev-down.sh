@@ -62,6 +62,23 @@ cd "$PROJECT_ROOT"
 
 echo -e "${YELLOW}Tearing down ArdaNova development environment...${NC}"
 
+# Kill any local processes still running on dev ports (legacy local mode)
+kill_port() {
+    local port=$1
+    local pid
+    pid=$(lsof -t -i:"$port" 2>/dev/null || ss -tlnp 2>/dev/null | grep ":$port " | sed -n 's/.*pid=\([0-9]*\).*/\1/p')
+    if [ -n "$pid" ]; then
+        echo -e "${YELLOW}Killing local process PID $pid on port $port${NC}"
+        kill -9 $pid 2>/dev/null || true
+    fi
+}
+
+echo -e "${YELLOW}Checking for local processes...${NC}"
+kill_port 3000
+kill_port 5147
+kill_port 7160
+kill_port 8080
+
 # Parse arguments
 REMOVE_VOLUMES=false
 REMOVE_IMAGES=false

@@ -114,6 +114,7 @@ public static class DependencyInjection
         services.AddScoped<IProjectTokenService, ProjectTokenService>();
         services.AddScoped<ITokenBalanceService, TokenBalanceService>();
         services.AddScoped<IExchangeService, ExchangeService>();
+        services.AddScoped<ISwapService, SwapService>();
         services.AddScoped<IPayoutService, PayoutService>();
         services.AddScoped<ITreasuryService, TreasuryService>();
         services.AddScoped<IProjectGateService, ProjectGateService>();

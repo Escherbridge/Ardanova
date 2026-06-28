@@ -74,7 +74,12 @@
       "Bash(podman --version)",
       "Bash(podman ps:*)",
       "Bash(1:*)",
-      "Bash(grep -rn \"TaskUser\\\\|TaskProject\" c:/Users/atooz/Documents/Escherbridge/ardanova/ardanova-client/src/ --include=*.ts --include=*.tsx)"
+      "Bash(grep -rn \"TaskUser\\\\|TaskProject\" c:/Users/atooz/Documents/Escherbridge/ardanova/ardanova-client/src/ --include=*.ts --include=*.tsx)",
+      "Bash(dotnet watch:*)",
+      "Bash(taskkill //F //PID 124048)",
+      "Bash(taskkill //F //PID 112280)",
+      "Bash(taskkill //F //IM \"ArdaNova.API.exe\")",
+      "Bash(taskkill //F //IM \"dotnet.exe\")"
     ],
     "additionalDirectories": [
       "c:\\Users\\atooz\\Documents\\Escherbridge\\ardanova"

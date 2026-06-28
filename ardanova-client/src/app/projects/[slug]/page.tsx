@@ -20,6 +20,11 @@ import {
   Trash2,
   Target,
   Shield,
+  DollarSign,
+  PieChart,
+  CheckSquare,
+  Map,
+  Zap,
 } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
@@ -43,14 +48,24 @@ import {
   ProposalsTab,
   CommentsTab,
   OpportunitiesTab,
+  FundingTab,
+  EquityTab,
+  TasksTab,
+  RoadmapTab,
+  SprintsTab,
 } from "~/components/projects";
 
 const tabs = [
   { id: "overview", label: "Overview", icon: FileText },
   { id: "updates", label: "Updates", icon: Bell },
   { id: "team", label: "Team", icon: Users },
+  { id: "funding", label: "Funding", icon: DollarSign },
+  { id: "equity", label: "Equity", icon: PieChart },
   { id: "proposals", label: "Proposals", icon: Vote },
   { id: "opportunities", label: "Work", icon: Target },
+  { id: "tasks", label: "Tasks", icon: CheckSquare },
+  { id: "roadmap", label: "Roadmap", icon: Map },
+  { id: "sprints", label: "Sprints", icon: Zap },
   { id: "comments", label: "Comments", icon: MessageCircle },
 ];
 
@@ -318,6 +333,8 @@ export default function ProjectDetailPage() {
         {activeTab === "overview" && <OverviewTab project={project} />}
         {activeTab === "updates" && <UpdatesTab projectId={project.id} isOwner={isOwner} />}
         {activeTab === "team" && <TeamTab projectId={project.id} projectSlug={slug} isOwner={isOwner} />}
+        {activeTab === "funding" && <FundingTab projectId={project.id} projectSlug={slug} />}
+        {activeTab === "equity" && <EquityTab projectId={project.id} isOwner={isOwner} />}
         {activeTab === "proposals" && (
           <ProposalsTab
             projectId={project.id}
@@ -328,6 +345,9 @@ export default function ProjectDetailPage() {
           />
         )}
         {activeTab === "opportunities" && <OpportunitiesTab projectId={project.id} projectSlug={slug} isOwner={isOwner} userRole={userRole} />}
+        {activeTab === "tasks" && <TasksTab projectId={project.id} isOwner={isOwner} />}
+        {activeTab === "roadmap" && <RoadmapTab projectId={project.id} isOwner={isOwner} />}
+        {activeTab === "sprints" && <SprintsTab projectId={project.id} isOwner={isOwner} />}
         {activeTab === "comments" && <CommentsTab projectId={project.id} />}
       </div>
     </div>

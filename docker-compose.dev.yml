@@ -15,7 +15,13 @@ services:
     image: mcr.microsoft.com/dotnet/sdk:8.0
     container_name: ardanova-api-dev
     working_dir: /src/api-server/src/ArdaNova.API
-    command: dotnet watch run --no-launch-profile
+    command: >
+      sh -c "
+        find /src -type d -name obj -prune -exec rm -rf {} + 2>/dev/null || true &&
+        find /src -type d -name bin -prune -exec rm -rf {} + 2>/dev/null || true &&
+        dotnet restore &&
+        dotnet watch run --no-launch-profile
+      "
     env_file:
       - .env
     environment:
@@ -45,12 +51,14 @@ services:
       - ./ardanova-backend-api-mcp:/src
       # Mount local uploads directory
       - ./uploads:/app/uploads
+      # Persist NuGet packages to avoid re-download on every restart
+      - nuget-packages:/root/.nuget/packages
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 60s
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 120s
 
   # ===========================================
   # Next.js Client (Development - Hot Reload)
@@ -83,7 +91,7 @@ services:
       - /app/.next
     depends_on:
       api:
-        condition: service_healthy
+        condition: service_started
 
   # # ===========================================
   # # AI Orchestrator Service (Development)
@@ -109,3 +117,6 @@ services:
   #   depends_on:
   #     api:
   #       condition: service_healthy
+
+volumes:
+  nuget-packages:
