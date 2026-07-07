@@ -21,6 +21,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy source code
 COPY src/ ./src/
 
+# crewai resolves its storage dir at import time under $HOME; the --system user
+# has HOME=/nonexistent, so give it a writable HOME and an explicit storage dir.
+RUN mkdir -p /app/.crewai_storage
+
 # Set ownership
 RUN chown -R appuser:appgroup /app
 
@@ -29,6 +33,8 @@ ENV PYTHONPATH=/app
 ENV PORT=8081
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
+ENV HOME=/app
+ENV CREWAI_STORAGE_DIR=/app/.crewai_storage
 
 # Switch to non-root user
 USER appuser
