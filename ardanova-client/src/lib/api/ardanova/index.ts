@@ -36,6 +36,7 @@ import { WalletsEndpoint } from "./endpoints/wallets";
 import { AttachmentsEndpoint } from "./endpoints/attachments";
 import { TaskEscrowsEndpoint } from "./endpoints/task-escrows";
 import { DelegatedVotesEndpoint } from "./endpoints/delegated-votes";
+import { AzoaAvatarEndpoint } from "./endpoints/azoa-avatar";
 
 // Re-export types from endpoints
 export type {
@@ -276,6 +277,10 @@ export type {
   CreateDelegatedVoteDto,
   UpdateDelegatedVoteDto,
 } from "./endpoints/delegated-votes";
+export type {
+  AzoaAvatarStatusDto,
+  AzoaTier2ReadinessDto,
+} from "./endpoints/azoa-avatar";
 
 // Re-export schemas for validation
 export {
@@ -331,6 +336,7 @@ export class ArdaNovaApiClient extends BaseApiClient {
   readonly attachments: AttachmentsEndpoint;
   readonly taskEscrows: TaskEscrowsEndpoint;
   readonly delegatedVotes: DelegatedVotesEndpoint;
+  readonly azoaAvatar: AzoaAvatarEndpoint;
 
   constructor(config: BaseApiClientConfig) {
     super(config);
@@ -370,6 +376,7 @@ export class ArdaNovaApiClient extends BaseApiClient {
     this.attachments = new AttachmentsEndpoint(this);
     this.taskEscrows = new TaskEscrowsEndpoint(this);
     this.delegatedVotes = new DelegatedVotesEndpoint(this);
+    this.azoaAvatar = new AzoaAvatarEndpoint(this);
   }
 
   health() {

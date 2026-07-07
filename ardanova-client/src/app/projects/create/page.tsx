@@ -180,6 +180,7 @@ export default function CreateProjectPage() {
   });
   const [newTag, setNewTag] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Resource state
   const [isAddingResource, setIsAddingResource] = useState(false);
@@ -221,6 +222,7 @@ export default function CreateProjectPage() {
   const addMilestoneMutation = api.project.addMilestone.useMutation();
   const addMemberMutation = api.project.addMember.useMutation();
   const createOpportunityMutation = api.opportunity.create.useMutation();
+  const deleteProjectMutation = api.project.delete.useMutation();
 
   const handleChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -270,7 +272,29 @@ export default function CreateProjectPage() {
       }
     }
 
-    // Steps 1-3: No required fields, just informational
+    // Step 1: Resources - validate costs are numeric if provided
+    if (step === 1) {
+      for (const resource of formData.resources) {
+        if (resource.estimatedCost && isNaN(Number(resource.estimatedCost))) {
+          newErrors.resources = "Estimated cost must be a number";
+        }
+        if (resource.recurringCost && isNaN(Number(resource.recurringCost))) {
+          newErrors.resources = "Recurring cost must be a number";
+        }
+      }
+    }
+
+    // Step 3: Milestones - validate dates are valid if provided
+    if (step === 3) {
+      for (const milestone of formData.milestones) {
+        if (milestone.targetDate) {
+          const date = new Date(milestone.targetDate);
+          if (isNaN(date.getTime())) {
+            newErrors.milestones = "Invalid date format";
+          }
+        }
+      }
+    }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -486,6 +510,9 @@ export default function CreateProjectPage() {
 
   const handleSubmit = async (publish: boolean) => {
     const partialWarnings: string[] = [];
+    let createdProjectId: string | null = null;
+    
+    setIsSubmitting(true);
     try {
       // 1. Create the project first
       // Build categories list, replacing "OTHER" with the custom value
@@ -509,28 +536,38 @@ export default function CreateProjectPage() {
         tags: formData.tags.join(", ") || undefined,
       });
 
+      createdProjectId = project.id;
+
       // 2. Save resources
       for (const resource of formData.resources) {
-        await addResourceMutation.mutateAsync({
-          projectId: project.id,
-          name: resource.name,
-          description: resource.description || undefined,
-          quantity: resource.quantity,
-          estimatedCost: resource.estimatedCost ? Number(resource.estimatedCost) : undefined,
-          recurringCost: resource.recurringCost ? Number(resource.recurringCost) : undefined,
-          recurringIntervalDays: resource.recurringIntervalDays ?? undefined,
-          isRequired: resource.isRequired,
-        });
+        try {
+          await addResourceMutation.mutateAsync({
+            projectId: project.id,
+            name: resource.name,
+            description: resource.description || undefined,
+            quantity: resource.quantity,
+            estimatedCost: resource.estimatedCost && !isNaN(Number(resource.estimatedCost)) ? Number(resource.estimatedCost) : undefined,
+            recurringCost: resource.recurringCost && !isNaN(Number(resource.recurringCost)) ? Number(resource.recurringCost) : undefined,
+            recurringIntervalDays: resource.recurringIntervalDays ?? undefined,
+            isRequired: resource.isRequired,
+          });
+        } catch (e) {
+          partialWarnings.push(`Resource "${resource.name}": ${e instanceof Error ? e.message : "could not be saved"}`);
+        }
       }
 
       // 3. Save milestones
       for (const milestone of formData.milestones) {
-        await addMilestoneMutation.mutateAsync({
-          projectId: project.id,
-          title: milestone.title,
-          description: milestone.description || undefined,
-          targetDate: milestone.targetDate,
-        });
+        try {
+          await addMilestoneMutation.mutateAsync({
+            projectId: project.id,
+            title: milestone.title,
+            description: milestone.description || undefined,
+            targetDate: milestone.targetDate,
+          });
+        } catch (e) {
+          partialWarnings.push(`Milestone "${milestone.title}": ${e instanceof Error ? e.message : "could not be saved"}`);
+        }
       }
 
       // 4. Auto-add creator as FOUNDER member
@@ -591,9 +628,24 @@ export default function CreateProjectPage() {
 
       router.push(`/projects/${project.slug}`);
     } catch (error) {
+      // Rollback: delete the project if it was created but later steps failed
+      if (createdProjectId) {
+        try {
+          await new Promise<void>((resolve, reject) => {
+            deleteProjectMutation.mutate(
+              { id: createdProjectId },
+              { onSuccess: () => resolve(), onError: () => reject() }
+            );
+          });
+        } catch {
+          // Best effort rollback - can't do much if this fails
+        }
+      }
       setErrors({
         submit: error instanceof Error ? error.message : "Failed to create project",
       });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -2134,9 +2186,9 @@ export default function CreateProjectPage() {
               <Button
                 variant="outline"
                 onClick={() => handleSubmit(false)}
-                disabled={createMutation.isPending}
+                disabled={isSubmitting}
               >
-                {createMutation.isPending ? (
+                {isSubmitting ? (
                   <>
                     <Loader2 className="size-4 mr-2 animate-spin" />
                     Saving...
@@ -2149,9 +2201,9 @@ export default function CreateProjectPage() {
                 variant="default"
                 className="bg-neon hover:bg-neon/90 text-black font-semibold"
                 onClick={() => handleSubmit(true)}
-                disabled={createMutation.isPending}
+                disabled={isSubmitting}
               >
-                {createMutation.isPending ? (
+                {isSubmitting ? (
                   <>
                     <Loader2 className="size-4 mr-2 animate-spin" />
                     Creating...

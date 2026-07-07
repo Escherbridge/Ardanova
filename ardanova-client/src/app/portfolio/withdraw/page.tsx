@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
@@ -73,7 +73,7 @@ function holderClassColor(hc: HolderClass): string {
   return "text-neon-pink";
 }
 
-export default function WithdrawPage() {
+function WithdrawPageInner() {
   const { data: session, status: sessionStatus } = useSession();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -429,5 +429,19 @@ export default function WithdrawPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function WithdrawPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-neon-cyan" />
+        </div>
+      }
+    >
+      <WithdrawPageInner />
+    </Suspense>
   );
 }

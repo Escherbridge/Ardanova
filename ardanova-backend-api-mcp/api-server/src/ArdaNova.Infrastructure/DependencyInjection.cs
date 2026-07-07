@@ -6,6 +6,7 @@ using System.Reflection;
 using ArdaNova.Domain.Models.Entities;
 using ArdaNova.Domain.Models.Enums;
 using ArdaNova.Infrastructure.Algorand;
+using ArdaNova.Infrastructure.Azoa;
 using ArdaNova.Infrastructure.Data;
 using ArdaNova.Infrastructure.Repositories;
 using ArdaNova.Infrastructure.UnitOfWork;
@@ -61,10 +62,49 @@ public static class DependencyInjection
         // Unit of Work
         services.AddScoped<IUnitOfWork, UnitOfWork.UnitOfWork>();
 
-        // Algorand blockchain service
+        // AZOA shared-node integration (contract §2/§3/§11).
+        services.Configure<AzoaSettings>(
+            configuration.GetSection(AzoaSettings.SectionName));
+        var azoaSettings = configuration.GetSection(AzoaSettings.SectionName).Get<AzoaSettings>()
+            ?? new AzoaSettings();
+        services.AddHttpClient<IAzoaNodeClient, AzoaNodeClient>(client =>
+        {
+            if (!string.IsNullOrWhiteSpace(azoaSettings.BaseUrl))
+                client.BaseAddress = new Uri(azoaSettings.BaseUrl);
+            // Tenant API key — deploy-time secret (Azoa__TenantApiKey), never committed.
+            if (!string.IsNullOrWhiteSpace(azoaSettings.TenantApiKey))
+                client.DefaultRequestHeaders.Add("X-Api-Key", azoaSettings.TenantApiKey);
+            client.Timeout = TimeSpan.FromSeconds(
+                azoaSettings.TimeoutSeconds > 0 ? azoaSettings.TimeoutSeconds : 30);
+        });
+        // Application-layer ports onto the node (dependency-inversion seam, like IAlgorandService).
+        services.AddScoped<IAzoaAvatarNode, AzoaAvatarNodeAdapter>();
+        services.AddScoped<IAzoaQuestNode, AzoaQuestNodeAdapter>();
+        services.AddScoped<IAzoaAllocationNode, AzoaAllocationNodeAdapter>();
+
+        // Algorand blockchain service.
+        // The IAlgorandService implementation is selected by the Algorand:Provider
+        // flag (Legacy | Azoa | Simulated). Default Legacy preserves current
+        // behavior; the Azoa-backed adapter is registered by the provider-adapter track.
+        // The interface is the seam — every consumer (CredentialUtilityService,
+        // tokenomics, …) binds to IAlgorandService and is unaffected by the choice.
         services.Configure<AlgorandSettings>(
             configuration.GetSection(AlgorandSettings.SectionName));
-        services.AddHttpClient<IAlgorandService, AlgorandService>();
+
+        var algorandProvider = configuration[$"{AlgorandSettings.SectionName}:Provider"];
+        if (string.Equals(algorandProvider, "Azoa", StringComparison.OrdinalIgnoreCase))
+        {
+            // Azoa-backed adapter: routes value moves to the shared/managed AZOA
+            // node via IAzoaNodeClient (registered in the AZOA block above). No
+            // HttpClient of its own — the node client owns transport.
+            services.AddScoped<IAlgorandService, AzoaBackedAlgorandService>();
+        }
+        else
+        {
+            // Legacy (default) and Simulated both use the custodial-mnemonic
+            // signer; Simulated is driven by AlgorandSettings/network config.
+            services.AddHttpClient<IAlgorandService, AlgorandService>();
+        }
 
         return services;
     }

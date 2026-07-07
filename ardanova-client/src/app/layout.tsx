@@ -4,6 +4,7 @@ import { type Metadata } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 
 import { TRPCReactProvider } from "~/trpc/react";
+import { AuthSessionProvider } from "~/providers/session-provider";
 
 export const metadata: Metadata = {
   title: "ArdaNova - Community-Owned Project Management",
@@ -47,7 +48,9 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${inter.variable} ${jetbrainsMono.variable} dark`}>
       <body className="min-h-screen bg-background font-sans antialiased">
-        <TRPCReactProvider>{children}</TRPCReactProvider>
+        <AuthSessionProvider>
+          <TRPCReactProvider>{children}</TRPCReactProvider>
+        </AuthSessionProvider>
       </body>
     </html>
   );

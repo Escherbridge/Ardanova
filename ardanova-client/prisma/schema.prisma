@@ -709,6 +709,9 @@ model User {
   tier UserTier @default(BRONZE)
   trustScore Decimal @default(0) @db.Decimal(18, 8)
   verificationLevel VerificationLevel @default(ANONYMOUS)
+  azoaAvatarId String? @unique
+  azoaWalletId String?
+  azoaWalletAddress String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   accounts Account[] @relation("Account_userId")

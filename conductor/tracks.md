@@ -32,3 +32,15 @@
 - [ ] [Reviews & Trust Enhancement](tracks/21-reviews-trust/spec.md) - Guild/project reviews, trust scores. **P3**
 - [ ] [Settings & Preferences](tracks/22-settings-preferences/spec.md) - Profile settings, notification prefs, Stripe Connect, wallets. **P2**
 - [ ] [Analytics & Admin Dashboard](tracks/23-analytics-admin/spec.md) - Platform metrics, treasury overview, financial reports. **P3**
+
+## AZOA Blockchain-Node Integration — Phase E
+> Authored against [`ARDANOVA-AZOA-INTEGRATION-CONTRACT.md`](ARDANOVA-AZOA-INTEGRATION-CONTRACT.md) §10/§11.
+> Locked decisions: shared/managed node (operator custodies), self-register +
+> self-run avatars (no fleet map, no `tenant:provision`, no acting-as).
+> Dependency order: avatar-onboarding → provider-adapter → quest-authoring →
+> treasury-allocation. Real-value allocation gated on AZOA-side P7.
+
+- [ ] [AZOA Avatar Onboarding](tracks/azoa-avatar-onboarding/spec.md) - Link each user to a self-sovereign AZOA avatar; wallet-bound check before Tier-2. **Dependency root.**
+- [ ] [AZOA Provider Adapter](tracks/azoa-provider-adapter/spec.md) - `AzoaBackedAlgorandService` behind `IAlgorandService`, feature-flagged, platform mnemonic removed. **Backend-only.**
+- [ ] [AZOA Quest Authoring](tracks/azoa-quest-authoring/spec.md) - Publish scrum-lifecycle quest definitions/templates; avatars self-run; board events → gate signals.
+- [ ] [Treasury / Reward → AZOA Allocation](tracks/treasury-reward-to-azoa-allocation/spec.md) - Funding + task reward → `POST /api/allocation` with stable idempotency keys. **Real-value flip gated on AZOA P7.**

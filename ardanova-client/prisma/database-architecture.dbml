@@ -81,6 +81,9 @@ Table User {
   tier UserTier [not null, default: 'BRONZE']
   trustScore decimal(18,8) [not null, default: 0]
   verificationLevel VerificationLevel [not null, default: 'ANONYMOUS']
+  azoaAvatarId varchar [unique, note: 'Self-sovereign AZOA avatar id (shared node). Thin reference only — no keys stored client-side.']
+  azoaWalletId varchar [note: 'Cached AZOA wallet id once bound. Chain is source of truth.']
+  azoaWalletAddress varchar [note: 'Cached AZOA wallet address once bound.']
   createdAt datetime [not null, default: `now()`]
   updatedAt datetime [not null, note: 'Updated at']
 }

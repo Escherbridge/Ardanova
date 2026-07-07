@@ -8,6 +8,7 @@ using ArdaNova.Domain.Models.Enums;
 namespace ArdaNova.Domain.Models.Entities;
 
 [Index(nameof(email), IsUnique = true)]
+[Index(nameof(azoaAvatarId), IsUnique = true)]
 [Table("User")]
 public class User
 {
@@ -62,6 +63,12 @@ public class User
 
     [Required]
     public VerificationLevel verificationLevel { get; set; }
+
+    public string? azoaAvatarId { get; set; }
+
+    public string? azoaWalletId { get; set; }
+
+    public string? azoaWalletAddress { get; set; }
 
     [Required]
     public DateTime createdAt { get; set; }

@@ -38,6 +38,7 @@ import { taskEscrowRouter } from "~/server/api/routers/task-escrow";
 import { delegatedVoteRouter } from "~/server/api/routers/delegated-vote";
 import { commentRouter } from "~/server/api/routers/comment";
 import { swapRouter } from "~/server/api/routers/swap";
+import { azoaAvatarRouter } from "~/server/api/routers/azoaAvatar";
 import { createCallerFactory, createTRPCRouter } from "~/server/api/trpc";
 
 /**
@@ -86,6 +87,7 @@ export const appRouter = createTRPCRouter({
   delegatedVote: delegatedVoteRouter,
   comment: commentRouter,
   swap: swapRouter,
+  azoaAvatar: azoaAvatarRouter,
 });
 
 // export type definition of API

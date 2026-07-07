@@ -66,7 +66,7 @@ public class StripeWebhookController : ControllerBase
             // Dispatch by event type
             switch (stripeEvent.Type)
             {
-                case Events.PaymentIntentSucceeded:
+                case EventTypes.PaymentIntentSucceeded:
                     var paymentIntent = stripeEvent.Data.Object as PaymentIntent;
                     if (paymentIntent != null)
                     {
@@ -78,7 +78,7 @@ public class StripeWebhookController : ControllerBase
                     }
                     break;
 
-                case Events.PaymentIntentPaymentFailed:
+                case EventTypes.PaymentIntentPaymentFailed:
                     var failedIntent = stripeEvent.Data.Object as PaymentIntent;
                     if (failedIntent != null)
                     {
@@ -87,12 +87,12 @@ public class StripeWebhookController : ControllerBase
                     }
                     break;
 
-                case Events.TransferCreated:
+                case EventTypes.TransferCreated:
                     // Transfer created successfully, no action needed (handled in CreatePayoutTransferAsync)
                     _logger.LogInformation("Transfer created: {TransferId}", (stripeEvent.Data.Object as Transfer)?.Id);
                     break;
 
-                case Events.TransferReversed:
+                case EventTypes.TransferReversed:
                     // Transfer was reversed (payout failed)
                     var reversedTransfer = stripeEvent.Data.Object as Transfer;
                     if (reversedTransfer != null)
@@ -104,7 +104,7 @@ public class StripeWebhookController : ControllerBase
                     }
                     break;
 
-                case Events.TransferUpdated:
+                case EventTypes.TransferUpdated:
                     // Transfer status updated - check if it succeeded
                     var updatedTransfer = stripeEvent.Data.Object as Transfer;
                     if (updatedTransfer != null)

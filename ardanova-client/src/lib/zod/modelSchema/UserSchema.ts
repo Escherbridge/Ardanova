@@ -29,6 +29,9 @@ export const UserSchema = z.object({
   totalXP: z.number().int(),
   level: z.number().int(),
   trustScore: z.instanceof(Prisma.Decimal, { message: "Field 'trustScore' must be a Decimal. Location: ['Models', 'User']"}),
+  azoaAvatarId: z.string().nullable(),
+  azoaWalletId: z.string().nullable(),
+  azoaWalletAddress: z.string().nullable(),
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date(),
 })

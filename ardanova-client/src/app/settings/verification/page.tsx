@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { api } from "~/trpc/react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "~/components/ui/card";
@@ -10,6 +10,7 @@ import { Label } from "~/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "~/components/ui/select";
 import { Badge } from "~/components/ui/badge";
 import { KycStatusBanner } from "~/components/kyc/kyc-status-banner";
+import { AvatarReadinessCard } from "~/components/azoa/avatar-readiness-card";
 import { cn } from "~/lib/utils";
 import { Shield, ShieldCheck, Upload, FileText, Loader2, X, Plus } from "lucide-react";
 import type { KycDocumentType } from "~/lib/api/ardanova/endpoints/kyc";
@@ -31,6 +32,27 @@ export default function VerificationPage() {
   const [documents, setDocuments] = useState<DocumentEntry[]>([
     { type: "GOVERNMENT_ID", fileUrl: "", fileName: "" },
   ]);
+
+  // Avatar readiness
+  const { data: avatarStatus } = api.azoaAvatar.getStatus.useQuery(undefined, {
+    retry: false,
+  });
+  const ensureAvatarMutation = api.azoaAvatar.ensureAvatar.useMutation();
+  const [avatarEnsureError, setAvatarEnsureError] = useState<string | null>(null);
+
+  // Silently ensure the avatar exists on mount — idempotent, non-blocking.
+  useEffect(() => {
+    ensureAvatarMutation.mutate(undefined, {
+      onError: (err) => {
+        // KYC_FORBIDDEN is expected before KYC approval — suppress it.
+        if (err.data?.code !== "FORBIDDEN") {
+          setAvatarEnsureError(err.message);
+        }
+      },
+    });
+    // Run once on mount only.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const submitMutation = api.kyc.submit.useMutation({
     onSuccess: () => {
@@ -96,6 +118,13 @@ export default function VerificationPage() {
 
         {/* Status Banner */}
         <KycStatusBanner />
+
+        {/* Blockchain Readiness */}
+        <AvatarReadinessCard
+          avatarStatus={avatarStatus}
+          isKycApproved={isApproved}
+          ensureError={avatarEnsureError}
+        />
 
         {/* Approved State */}
         {isApproved && (
