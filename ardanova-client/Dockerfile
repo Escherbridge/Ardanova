@@ -26,7 +26,11 @@ COPY . .
 # Set environment variables for build
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
-ARG SKIP_ENV_VALIDATION
+# Skip T3 env validation at build time — real values are injected by Railway at
+# runtime, so build-time validation only fails the image build. Default true so
+# the build never depends on Railway passing the build arg (railway.toml can still
+# override). See src/env.js (skipValidation).
+ARG SKIP_ENV_VALIDATION=true
 ENV SKIP_ENV_VALIDATION=${SKIP_ENV_VALIDATION}
 
 # Build the application
