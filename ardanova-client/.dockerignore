@@ -74,5 +74,8 @@ db.sqlite
 *.log
 logs/
 
-# Scripts (not needed in production)
-scripts/
+# Scripts — npm postinstall runs scripts/patch-zod-prisma.mjs during `npm ci`,
+# so the build context must include it. Ignore everything under scripts/ except
+# the patcher the build actually needs.
+scripts/*
+!scripts/patch-zod-prisma.mjs

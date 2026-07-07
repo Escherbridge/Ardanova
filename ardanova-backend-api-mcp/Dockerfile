@@ -24,9 +24,6 @@ RUN dotnet publish -c Release -o /app/publish --no-restore
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
 
-# Create non-root user for security
-RUN adduser --disabled-password --gecos "" appuser
-
 # Copy published app
 COPY --from=build /app/publish .
 
@@ -38,12 +35,9 @@ ENV DOTNET_RUNNING_IN_CONTAINER=true
 # Expose port
 EXPOSE 8080
 
-# Switch to non-root user
-USER appuser
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD curl -f http://localhost:8080/health || exit 1
+# Run as the non-root 'app' user (UID 1654) pre-created in the .NET 8+ runtime image.
+# Railway performs its own /health healthcheck (see railway.toml); no in-image curl needed.
+USER app
 
 # Start the application
 ENTRYPOINT ["dotnet", "ArdaNova.API.dll"]

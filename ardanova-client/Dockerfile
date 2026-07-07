@@ -6,6 +6,8 @@ WORKDIR /app
 # Copy package files
 COPY package.json package-lock.json* ./
 COPY prisma ./prisma/
+# scripts/ holds patch-zod-prisma.mjs, invoked by the postinstall hook during npm ci
+COPY scripts ./scripts/
 
 # Install dependencies
 RUN npm ci
