@@ -14,6 +14,7 @@ export const ProjectTokenConfigSchema = z.object({
   assetId: z.string().nullable(),
   assetName: z.string(),
   unitName: z.string(),
+  assetScale: z.number().int(),
   totalSupply: z.number().int(),
   allocatedSupply: z.number().int(),
   distributedSupply: z.number().int(),

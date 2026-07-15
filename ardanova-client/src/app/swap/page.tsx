@@ -60,7 +60,7 @@ export default function SwapPage() {
   // Data queries
   const { data: portfolio, isLoading: portfolioLoading } =
     api.tokenBalances.getPortfolio.useQuery(
-      { userId },
+      undefined,
       { enabled: !!userId },
     );
 
@@ -71,7 +71,6 @@ export default function SwapPage() {
     refetch: refetchPreview,
   } = api.swap.getPreview.useQuery(
     {
-      userId,
       sourceConfigId: debouncedSourceConfig,
       targetConfigId: debouncedTargetConfig,
       sourceTokenAmount: debouncedSourceAmount || 1,
@@ -81,7 +80,7 @@ export default function SwapPage() {
 
   const { data: history, isLoading: historyLoading, refetch: refetchHistory } =
     api.swap.getHistory.useQuery(
-      { userId },
+      {},
       { enabled: !!userId },
     );
 
@@ -104,12 +103,11 @@ export default function SwapPage() {
     setSwapSuccess(false);
     setSwapError(null);
     executeSwap.mutate({
-      userId,
       sourceConfigId,
       targetConfigId,
       sourceTokenAmount: sourceAmount,
     });
-  }, [previewEnabled, validAmount, userId, sourceConfigId, targetConfigId, sourceAmount, executeSwap]);
+  }, [previewEnabled, validAmount, sourceConfigId, targetConfigId, sourceAmount, executeSwap]);
 
   // Redirect if unauthenticated
   useEffect(() => {

@@ -39,8 +39,7 @@ public class PayoutServiceTests
             _unitOfWork.Object,
             _mapper.Object,
             _tokenBalanceService.Object,
-            _exchangeService.Object,
-            _treasuryService.Object
+            _exchangeService.Object
         );
     }
 
@@ -373,171 +372,18 @@ public class PayoutServiceTests
     }
 
     [Fact]
-    public async Task ProcessPayoutAsync_HappyPath_CompletesPayment()
+    public async Task ProcessPayoutAsync_FailsClosedWithoutMovingValue()
     {
-        // Arrange
-        var payoutId = "payout-1";
-        var userId = "user-1";
-        var configId = "config-1";
-        var sourceAmount = 1000;
-        var ardaAmount = 500;
-        var usdAmount = 100.0;
-        var holderClass = TokenHolderClass.CONTRIBUTOR;
+        var result = await _sut.ProcessPayoutAsync("payout-1", CancellationToken.None);
 
-        var payout = new PayoutRequest
-        {
-            id = payoutId,
-            userId = userId,
-            sourceProjectTokenConfigId = configId,
-            sourceTokenAmount = sourceAmount,
-            ardaTokenAmount = ardaAmount,
-            usdAmount = usdAmount,
-            status = PayoutStatus.PENDING,
-            holderClass = holderClass,
-            gateStatusAtRequest = ProjectGateStatus.ACTIVE,
-            requestedAt = DateTime.UtcNow
-        };
-
-        var payoutDto = new PayoutRequestDto
-        {
-            Id = payoutId,
-            UserId = userId,
-            Status = PayoutStatus.COMPLETED
-        };
-
-        _payoutRepo.Setup(r => r.GetByIdAsync(payoutId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(payout);
-
-        _payoutRepo.Setup(r => r.UpdateAsync(It.IsAny<PayoutRequest>(), It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
-
-        _unitOfWork.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(1);
-
-        _treasuryService.Setup(s => s.RebalanceIfNeededAsync(usdAmount, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Result<double>.Success(0));
-
-        _tokenBalanceService.Setup(s => s.DebitAsync(userId, configId, sourceAmount, holderClass, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Result<TokenBalanceDto>.Success(new TokenBalanceDto()));
-
-        _mapper.Setup(m => m.Map<PayoutRequestDto>(It.IsAny<PayoutRequest>()))
-            .Returns(payoutDto);
-
-        // Act
-        var result = await _sut.ProcessPayoutAsync(payoutId, CancellationToken.None);
-
-        // Assert
-        result.IsSuccess.Should().BeTrue();
-        result.Value.Should().NotBeNull();
-        result.Value!.Status.Should().Be(PayoutStatus.COMPLETED);
-
-        _payoutRepo.Verify(r => r.UpdateAsync(It.Is<PayoutRequest>(p =>
-            p.status == PayoutStatus.COMPLETED &&
-            p.processedAt != null &&
-            p.completedAt != null
-        ), It.IsAny<CancellationToken>()), Times.Exactly(2));
-
-        _treasuryService.Verify(s => s.RebalanceIfNeededAsync(usdAmount, It.IsAny<CancellationToken>()), Times.Once);
-        _tokenBalanceService.Verify(s => s.DebitAsync(userId, configId, sourceAmount, holderClass, It.IsAny<CancellationToken>()), Times.Once);
-    }
-
-    [Fact]
-    public async Task ProcessPayoutAsync_NotFound_ReturnsFailure()
-    {
-        // Arrange
-        var payoutId = "nonexistent";
-
-        _payoutRepo.Setup(r => r.GetByIdAsync(payoutId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync((PayoutRequest?)null);
-
-        // Act
-        var result = await _sut.ProcessPayoutAsync(payoutId, CancellationToken.None);
-
-        // Assert
         result.IsSuccess.Should().BeFalse();
-        result.Error.Should().Contain("not found");
-
-        _treasuryService.Verify(s => s.RebalanceIfNeededAsync(It.IsAny<double>(), It.IsAny<CancellationToken>()), Times.Never);
-    }
-
-    [Fact]
-    public async Task ProcessPayoutAsync_NotPending_ReturnsFailure()
-    {
-        // Arrange
-        var payoutId = "payout-1";
-
-        var payout = new PayoutRequest
-        {
-            id = payoutId,
-            userId = "user-1",
-            sourceProjectTokenConfigId = "config-1",
-            sourceTokenAmount = 1000,
-            status = PayoutStatus.COMPLETED,
-            holderClass = TokenHolderClass.CONTRIBUTOR,
-            gateStatusAtRequest = ProjectGateStatus.ACTIVE,
-            requestedAt = DateTime.UtcNow
-        };
-
-        _payoutRepo.Setup(r => r.GetByIdAsync(payoutId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(payout);
-
-        // Act
-        var result = await _sut.ProcessPayoutAsync(payoutId, CancellationToken.None);
-
-        // Assert
-        result.IsSuccess.Should().BeFalse();
-        result.Error.Should().Contain("Only PENDING payouts can be processed");
-
-        _treasuryService.Verify(s => s.RebalanceIfNeededAsync(It.IsAny<double>(), It.IsAny<CancellationToken>()), Times.Never);
-    }
-
-    [Fact]
-    public async Task ProcessPayoutAsync_RebalanceFails_RevertsTooPending()
-    {
-        // Arrange
-        var payoutId = "payout-1";
-        var userId = "user-1";
-        var configId = "config-1";
-        var usdAmount = 100.0;
-
-        var payout = new PayoutRequest
-        {
-            id = payoutId,
-            userId = userId,
-            sourceProjectTokenConfigId = configId,
-            sourceTokenAmount = 1000,
-            ardaTokenAmount = 500,
-            usdAmount = usdAmount,
-            status = PayoutStatus.PENDING,
-            holderClass = TokenHolderClass.CONTRIBUTOR,
-            gateStatusAtRequest = ProjectGateStatus.ACTIVE,
-            requestedAt = DateTime.UtcNow
-        };
-
-        _payoutRepo.Setup(r => r.GetByIdAsync(payoutId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(payout);
-
-        _payoutRepo.Setup(r => r.UpdateAsync(It.IsAny<PayoutRequest>(), It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
-
-        _unitOfWork.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(1);
-
-        _treasuryService.Setup(s => s.RebalanceIfNeededAsync(usdAmount, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Result<double>.Failure("Rebalance failed"));
-
-        // Act
-        var result = await _sut.ProcessPayoutAsync(payoutId, CancellationToken.None);
-
-        // Assert
-        result.IsSuccess.Should().BeFalse();
-        result.Error.Should().Contain("Rebalance failed");
-
-        _payoutRepo.Verify(r => r.UpdateAsync(It.Is<PayoutRequest>(p =>
-            p.status == PayoutStatus.PENDING
-        ), It.IsAny<CancellationToken>()), Times.AtLeastOnce);
-
-        _tokenBalanceService.Verify(s => s.DebitAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<TokenHolderClass>(), It.IsAny<CancellationToken>()), Times.Never);
+        result.Error.Should().Contain("disabled");
+        _payoutRepo.Verify(repository => repository.GetByIdAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        _payoutRepo.Verify(repository => repository.UpdateAsync(It.IsAny<PayoutRequest>(), It.IsAny<CancellationToken>()), Times.Never);
+        _unitOfWork.Verify(unitOfWork => unitOfWork.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+        _treasuryService.Verify(service => service.RebalanceIfNeededAsync(It.IsAny<double>(), It.IsAny<CancellationToken>()), Times.Never);
+        _tokenBalanceService.Verify(service => service.DebitAsync(
+            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<TokenHolderClass>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]

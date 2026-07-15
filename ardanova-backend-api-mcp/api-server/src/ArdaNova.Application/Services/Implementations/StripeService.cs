@@ -1,6 +1,7 @@
 namespace ArdaNova.Application.Services.Implementations;
 
 using System;
+using System.Globalization;
 using System.Threading;
 using System.Threading.Tasks;
 using ArdaNova.Application.Common.Interfaces;
@@ -18,7 +19,6 @@ using StripeCheckoutSessionService = Stripe.Checkout.SessionService;
 using StripeAccountService = Stripe.AccountService;
 using StripeAccountLinkService = Stripe.AccountLinkService;
 using StripeTransferService = Stripe.TransferService;
-using StripePaymentIntentService = Stripe.PaymentIntentService;
 
 /// <summary>
 /// Stripe SDK wrapper for crowdfunding inflow (Checkout) and payout outflow (Connect).
@@ -36,6 +36,7 @@ public class StripeService : IStripeService
     private readonly ITokenBalanceService _tokenBalanceService;
     private readonly ITreasuryService _treasuryService;
     private readonly IProjectGateService _projectGateService;
+    private readonly IStripePaymentIntentGateway _paymentIntentGateway;
     private readonly ILogger<StripeService> _logger;
 
     public StripeService(
@@ -49,6 +50,7 @@ public class StripeService : IStripeService
         ITokenBalanceService tokenBalanceService,
         ITreasuryService treasuryService,
         IProjectGateService projectGateService,
+        IStripePaymentIntentGateway paymentIntentGateway,
         ILogger<StripeService> logger)
     {
         _configuration = configuration;
@@ -61,6 +63,7 @@ public class StripeService : IStripeService
         _tokenBalanceService = tokenBalanceService;
         _treasuryService = treasuryService;
         _projectGateService = projectGateService;
+        _paymentIntentGateway = paymentIntentGateway;
         _logger = logger;
 
         // Set Stripe API key
@@ -84,6 +87,13 @@ public class StripeService : IStripeService
             var config = await _configRepo.GetByIdAsync(projectTokenConfigId, ct);
             if (config == null)
                 return Result<StripeCheckoutSessionDto>.Failure("ProjectTokenConfig not found");
+
+            var fundingMetadata = new Dictionary<string, string>
+            {
+                { "projectTokenConfigId", projectTokenConfigId },
+                { "userId", userId },
+                { "usdAmount", usdAmount.ToString("F2", CultureInfo.InvariantCulture) }
+            };
 
             // Create Stripe Checkout Session
             var options = new SessionCreateOptions
@@ -109,11 +119,10 @@ public class StripeService : IStripeService
                 Mode = "payment",
                 SuccessUrl = _configuration["Stripe:SuccessUrl"] ?? "https://ardanova.com/success",
                 CancelUrl = _configuration["Stripe:CancelUrl"] ?? "https://ardanova.com/cancel",
-                Metadata = new Dictionary<string, string>
+                Metadata = fundingMetadata,
+                PaymentIntentData = new SessionPaymentIntentDataOptions
                 {
-                    { "projectTokenConfigId", projectTokenConfigId },
-                    { "userId", userId },
-                    { "usdAmount", usdAmount.ToString("F2") }
+                    Metadata = new Dictionary<string, string>(fundingMetadata)
                 }
             };
 
@@ -146,109 +155,92 @@ public class StripeService : IStripeService
         string paymentIntentId,
         CancellationToken ct = default)
     {
+        var priorInvestment = await _investmentRepo.FindOneAsync(
+            investment => investment.stripePaymentIntentId == paymentIntentId,
+            ct);
+        if (priorInvestment is not null)
+            return Result<ProjectInvestmentDto>.Success(_mapper.Map<ProjectInvestmentDto>(priorInvestment));
+
+        var paymentIntent = await _paymentIntentGateway.GetAsync(paymentIntentId, ct);
+        if (paymentIntent == null)
+            return Result<ProjectInvestmentDto>.Failure("PaymentIntent not found");
+
+        var metadata = paymentIntent.Metadata;
+        if (metadata is null
+            || !metadata.ContainsKey("projectTokenConfigId")
+            || !metadata.ContainsKey("userId")
+            || !metadata.ContainsKey("usdAmount"))
+        {
+            _logger.LogWarning("PaymentIntent {PaymentIntentId} missing required metadata", paymentIntentId);
+            return Result<ProjectInvestmentDto>.Failure("PaymentIntent missing required metadata");
+        }
+
+        if (!double.TryParse(
+                metadata["usdAmount"],
+                NumberStyles.AllowDecimalPoint,
+                CultureInfo.InvariantCulture,
+                out var usdAmount)
+            || usdAmount <= 0)
+        {
+            return Result<ProjectInvestmentDto>.Failure("PaymentIntent has an invalid funding amount");
+        }
+
+        var projectTokenConfigId = metadata["projectTokenConfigId"];
+        var userId = metadata["userId"];
+        var config = await _configRepo.GetByIdAsync(projectTokenConfigId, ct);
+        if (config == null)
+            return Result<ProjectInvestmentDto>.Failure("ProjectTokenConfig not found");
+
+        var valuationBase = config.fundingRaised > 0 ? config.fundingRaised : config.fundingGoal;
+        if (valuationBase <= 0)
+            return Result<ProjectInvestmentDto>.Failure("ProjectTokenConfig has an invalid funding valuation");
+
+        var tokenAmount = (int)((usdAmount / valuationBase) * config.totalSupply);
+        if (tokenAmount <= 0)
+            return Result<ProjectInvestmentDto>.Failure("Funding amount is below the minimum token allocation");
+
+        await _unitOfWork.BeginTransactionAsync(ct);
         try
         {
-            // Retrieve PaymentIntent from Stripe to get metadata
-            var paymentIntentService = new StripePaymentIntentService();
-            var paymentIntent = await paymentIntentService.GetAsync(paymentIntentId, cancellationToken: ct);
-
-            if (paymentIntent == null)
-                return Result<ProjectInvestmentDto>.Failure("PaymentIntent not found");
-
-            // Extract metadata
-            var metadata = paymentIntent.Metadata;
-            if (!metadata.ContainsKey("projectTokenConfigId") ||
-                !metadata.ContainsKey("userId") ||
-                !metadata.ContainsKey("usdAmount"))
-            {
-                _logger.LogWarning("PaymentIntent {PaymentIntentId} missing required metadata", paymentIntentId);
-                return Result<ProjectInvestmentDto>.Failure("PaymentIntent missing required metadata");
-            }
-
-            var projectTokenConfigId = metadata["projectTokenConfigId"];
-            var userId = metadata["userId"];
-            var usdAmount = double.Parse(metadata["usdAmount"]);
-
-            // Get ProjectTokenConfig
-            var config = await _configRepo.GetByIdAsync(projectTokenConfigId, ct);
-            if (config == null)
-                return Result<ProjectInvestmentDto>.Failure("ProjectTokenConfig not found");
-
-            // Calculate token allocation based on current project valuation
-            // Token value = fundingRaised / totalSupply
-            // Token amount = usdAmount / tokenValue = (usdAmount * totalSupply) / fundingRaised
-            // But for early investors (fundingRaised is small), we use the fundingGoal as the valuation base
-            var valuationBase = config.fundingRaised > 0 ? config.fundingRaised : config.fundingGoal;
-            var tokenAmount = (int)((usdAmount / valuationBase) * config.totalSupply);
-
-            // Allocate tokens to investor
             var allocationDto = new CreateInvestorAllocationDto
             {
                 UserId = userId,
                 UsdAmount = usdAmount,
                 TokenAmount = tokenAmount
             };
-
             var allocationResult = await _projectTokenService.AllocateToInvestorAsync(
                 projectTokenConfigId,
                 allocationDto,
-                ct);
-
+                ct,
+                stripePaymentIntentId: paymentIntentId);
             if (!allocationResult.IsSuccess)
             {
-                _logger.LogError("Failed to allocate tokens for investment: {Error}", allocationResult.Error);
-                return Result<ProjectInvestmentDto>.Failure(allocationResult.Error);
+                await _unitOfWork.RollbackTransactionAsync(CancellationToken.None);
+                return Result<ProjectInvestmentDto>.Failure(allocationResult.Error ?? "Investor allocation failed");
             }
 
-            // Credit TokenBalance (INVESTOR, not locked initially, gate-enforced liquidity)
             var creditResult = await _tokenBalanceService.CreditAsync(
                 userId,
                 projectTokenConfigId,
                 tokenAmount,
                 TokenHolderClass.INVESTOR,
                 ct);
-
             if (!creditResult.IsSuccess)
             {
-                _logger.LogError("Failed to credit token balance for investment: {Error}", creditResult.Error);
-                return Result<ProjectInvestmentDto>.Failure(creditResult.Error);
+                await _unitOfWork.RollbackTransactionAsync(CancellationToken.None);
+                return Result<ProjectInvestmentDto>.Failure(creditResult.Error ?? "Investor balance credit failed");
             }
 
-            // Process treasury inflow (55/30/15 split)
             var treasuryResult = await _treasuryService.ProcessFundingInflowAsync(
                 usdAmount,
                 config.projectId,
                 ct);
-
             if (!treasuryResult.IsSuccess)
             {
-                _logger.LogError("Failed to process treasury inflow: {Error}", treasuryResult.Error);
-                return Result<ProjectInvestmentDto>.Failure(treasuryResult.Error);
+                await _unitOfWork.RollbackTransactionAsync(CancellationToken.None);
+                return Result<ProjectInvestmentDto>.Failure(treasuryResult.Error ?? "Treasury funding inflow failed");
             }
 
-            // Update fundingRaised
-            config.fundingRaised += usdAmount;
-            config.updatedAt = DateTime.UtcNow;
-            await _configRepo.UpdateAsync(config, ct);
-
-            // Create ProjectInvestment record
-            var investment = new ProjectInvestment
-            {
-                id = Guid.NewGuid().ToString(),
-                projectTokenConfigId = projectTokenConfigId,
-                userId = userId,
-                usdAmount = usdAmount,
-                tokenAmount = tokenAmount,
-                stripePaymentIntentId = paymentIntentId,
-                investedAt = DateTime.UtcNow,
-                protectionEligible = true,
-                protectionPaidOut = false
-            };
-
-            await _investmentRepo.AddAsync(investment, ct);
-            await _unitOfWork.SaveChangesAsync(ct);
-
-            // Evaluate Gate 1 (funding goal met?)
             var gateResult = await _projectGateService.EvaluateGate1Async(projectTokenConfigId, ct);
             if (gateResult.IsSuccess && gateResult.Value?.Transitioned == true)
             {
@@ -257,13 +249,19 @@ public class StripeService : IStripeService
                     config.projectId);
             }
 
-            var investmentDto = _mapper.Map<ProjectInvestmentDto>(investment);
-            return Result<ProjectInvestmentDto>.Success(investmentDto);
+            var investment = await _investmentRepo.FindOneAsync(
+                item => item.stripePaymentIntentId == paymentIntentId,
+                ct)
+                ?? throw new InvalidOperationException(
+                    $"Investor allocation did not persist Stripe payment intent '{paymentIntentId}'.");
+
+            await _unitOfWork.CommitTransactionAsync(ct);
+            return Result<ProjectInvestmentDto>.Success(_mapper.Map<ProjectInvestmentDto>(investment));
         }
-        catch (Exception ex)
+        catch
         {
-            _logger.LogError(ex, "Error handling payment succeeded for PaymentIntent {PaymentIntentId}", paymentIntentId);
-            return Result<ProjectInvestmentDto>.Failure($"Error: {ex.Message}");
+            await _unitOfWork.RollbackTransactionAsync(CancellationToken.None);
+            throw;
         }
     }
 

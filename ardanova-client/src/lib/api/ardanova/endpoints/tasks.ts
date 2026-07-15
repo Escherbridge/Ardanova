@@ -27,6 +27,18 @@ export interface Task {
   opportunityId?: string | null;
 }
 
+export interface TaskCommerceView {
+  taskId: string;
+  agreementId: string;
+  title: string;
+  description?: string | null;
+  assetCode: string;
+  awardAmount: number;
+  scale: number;
+  agreementStatus: string;
+  escrowStatus: string;
+}
+
 export interface CreateTaskDto {
   projectId: string;
   title: string;
@@ -76,8 +88,12 @@ export class TasksEndpoint {
     return this.client.get<Task>(`/api/tasks/${id}`);
   }
 
-  getByUserId(userId: string): Promise<ApiResponse<Task[]>> {
-    return this.client.get<Task[]>(`/api/tasks/user/${userId}`);
+  getCommerce(id: string): Promise<ApiResponse<TaskCommerceView>> {
+    return this.client.get<TaskCommerceView>(`/api/task-commerce/${encodeURIComponent(id)}`);
+  }
+
+  getMine(): Promise<ApiResponse<Task[]>> {
+    return this.client.get<Task[]>("/api/tasks/me");
   }
 
   search(params: SearchTasksParams = {}): Promise<ApiResponse<PagedResult<Task>>> {

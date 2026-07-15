@@ -159,11 +159,9 @@ export default function AdminDisputesPage() {
   const { data: session } = useSession();
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  const adminFunderId = session?.user?.id ?? "";
-
   const { data: escrows, isLoading, error } = api.taskEscrow.getByFunderId.useQuery(
-    { funderId: adminFunderId },
-    { enabled: !!adminFunderId }
+    undefined,
+    { enabled: !!session?.user?.id }
   );
 
   const escrowList = (escrows as unknown as EscrowRecord[] | undefined) ?? [];

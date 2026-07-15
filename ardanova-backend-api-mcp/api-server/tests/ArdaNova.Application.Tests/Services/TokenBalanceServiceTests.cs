@@ -709,7 +709,7 @@ public class TokenBalanceServiceTests
             .ReturnsAsync(projectTokenConfig);
 
         // Act
-        var result = await _sut.IsBalanceLiquidAsync(userId, projectTokenConfigId, TokenHolderClass.CONTRIBUTOR, CancellationToken.None);
+        var result = await _sut.IsBalanceLiquidAsync(userId, projectTokenConfigId, TokenHolderClass.INVESTOR, CancellationToken.None);
 
         // Assert
         result.IsSuccess.Should().BeTrue();

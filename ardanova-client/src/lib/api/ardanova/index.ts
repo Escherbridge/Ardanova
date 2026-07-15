@@ -37,6 +37,7 @@ import { AttachmentsEndpoint } from "./endpoints/attachments";
 import { TaskEscrowsEndpoint } from "./endpoints/task-escrows";
 import { DelegatedVotesEndpoint } from "./endpoints/delegated-votes";
 import { AzoaAvatarEndpoint } from "./endpoints/azoa-avatar";
+import { FundingIntentsEndpoint } from "./endpoints/funding-intents";
 
 // Re-export types from endpoints
 export type {
@@ -94,10 +95,39 @@ export type {
   CreateGuildReviewDto,
   UpdateGuildReviewDto,
 } from "./endpoints/guilds";
-export type { Task, CreateTaskDto, UpdateTaskDto, SearchTasksParams } from "./endpoints/tasks";
-export type { Event, EventOrganizer, EventAttendee, CreateEventDto, UpdateEventDto, RegisterEventDto, SearchEventsParams } from "./endpoints/events";
-export type { Opportunity, OpportunityApplication, CreateOpportunityDto, UpdateOpportunityDto, ApplyToOpportunityDto, SearchOpportunitiesParams } from "./endpoints/opportunities";
-export type { Proposal, Vote, ProposalVoteSummary, CreateProposalDto, UpdateProposalDto, CastVoteDto, SearchProposalsParams } from "./endpoints/governance";
+export type {
+  Task,
+  TaskCommerceView,
+  CreateTaskDto,
+  UpdateTaskDto,
+  SearchTasksParams,
+} from "./endpoints/tasks";
+export type {
+  Event,
+  EventOrganizer,
+  EventAttendee,
+  CreateEventDto,
+  UpdateEventDto,
+  RegisterEventDto,
+  SearchEventsParams,
+} from "./endpoints/events";
+export type {
+  Opportunity,
+  OpportunityApplication,
+  CreateOpportunityDto,
+  UpdateOpportunityDto,
+  ApplyToOpportunityDto,
+  SearchOpportunitiesParams,
+} from "./endpoints/opportunities";
+export type {
+  Proposal,
+  Vote,
+  ProposalVoteSummary,
+  CreateProposalDto,
+  UpdateProposalDto,
+  CastVoteDto,
+  SearchProposalsParams,
+} from "./endpoints/governance";
 export type {
   Sprint,
   SprintStatus,
@@ -168,10 +198,7 @@ export type {
   TypingIndicatorDto,
   CursorPaginatedResult,
 } from "./endpoints/chat";
-export type {
-  UserStreak,
-  CreateUserStreakDto,
-} from "./endpoints/streaks";
+export type { UserStreak, CreateUserStreakDto } from "./endpoints/streaks";
 export type {
   XPEventDto,
   AwardXPDto,
@@ -256,7 +283,14 @@ export type {
   NotificationSummary,
 } from "./endpoints/notifications";
 export type { Activity, CreateActivityDto } from "./endpoints/activities";
-export type { Wallet, CreateWalletDto, UpdateWalletDto } from "./endpoints/wallets";
+export type {
+  Wallet,
+  WalletProvider,
+  CreateWalletDto,
+  UpdateWalletDto,
+  WalletVerificationChallenge,
+  CompleteWalletVerificationDto,
+} from "./endpoints/wallets";
 export type {
   Attachment,
   CreateAttachmentDto,
@@ -281,6 +315,11 @@ export type {
   AzoaAvatarStatusDto,
   AzoaTier2ReadinessDto,
 } from "./endpoints/azoa-avatar";
+export type {
+  CreateFundingIntentRequest,
+  FundingCheckout,
+  FundingIntentStatus,
+} from "./endpoints/funding-intents";
 
 // Re-export schemas for validation
 export {
@@ -337,6 +376,7 @@ export class ArdaNovaApiClient extends BaseApiClient {
   readonly taskEscrows: TaskEscrowsEndpoint;
   readonly delegatedVotes: DelegatedVotesEndpoint;
   readonly azoaAvatar: AzoaAvatarEndpoint;
+  readonly fundingIntents: FundingIntentsEndpoint;
 
   constructor(config: BaseApiClientConfig) {
     super(config);
@@ -377,6 +417,7 @@ export class ArdaNovaApiClient extends BaseApiClient {
     this.taskEscrows = new TaskEscrowsEndpoint(this);
     this.delegatedVotes = new DelegatedVotesEndpoint(this);
     this.azoaAvatar = new AzoaAvatarEndpoint(this);
+    this.fundingIntents = new FundingIntentsEndpoint(this);
   }
 
   health() {

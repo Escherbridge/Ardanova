@@ -20,6 +20,8 @@ import {
   CheckSquare,
   Calendar,
   ShieldCheck,
+  Landmark,
+  WalletCards,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -85,6 +87,11 @@ const mainNavItems = [
     icon: CheckSquare,
   },
   {
+    href: "/portfolio",
+    label: "Portfolio",
+    icon: Landmark,
+  },
+  {
     href: "/chats",
     label: "Chats",
     icon: MessageCircle,
@@ -92,6 +99,11 @@ const mainNavItems = [
 ];
 
 const secondaryNavItems = [
+  {
+    href: "/settings/wallets",
+    label: "Wallets",
+    icon: WalletCards,
+  },
   {
     href: "/settings",
     label: "Settings",
@@ -119,12 +131,12 @@ export function AppSidebar({ user }: AppSidebarProps) {
     <TooltipProvider delayDuration={0}>
       <aside
         className={cn(
-          "sticky top-0 self-start z-40 flex h-screen shrink-0 flex-col border-r-2 border-sidebar-border bg-sidebar transition-all duration-300 mr-[.5vw]",
-          isCollapsed ? "w-16" : "w-64"
+          "border-sidebar-border bg-sidebar sticky top-0 z-40 mr-[.5vw] flex h-screen shrink-0 flex-col self-start border-r-2 transition-all duration-300",
+          isCollapsed ? "w-16" : "w-64",
         )}
       >
         {/* Logo */}
-        <div className="flex h-16 items-center justify-between border-b-2 border-sidebar-border px-4">
+        <div className="border-sidebar-border flex h-16 items-center justify-between border-b-2 px-4">
           {!isCollapsed && (
             <Link href="/" className="flex items-center gap-2">
               <span className="text-xl font-bold tracking-tight">
@@ -147,7 +159,6 @@ export function AppSidebar({ user }: AppSidebarProps) {
           </Button>
         </div>
 
-
         {/* Main Navigation */}
         <nav className="flex-1 space-y-1 px-3 py-2">
           {mainNavItems.map((item) => {
@@ -163,8 +174,8 @@ export function AppSidebar({ user }: AppSidebarProps) {
                       className={cn(
                         "flex h-10 w-full items-center justify-center transition-colors",
                         active
-                          ? "bg-sidebar-accent text-sidebar-primary border-l-2 border-sidebar-primary"
-                          : "text-sidebar-muted hover:bg-sidebar-accent hover:text-sidebar-foreground"
+                          ? "bg-sidebar-accent text-sidebar-primary border-sidebar-primary border-l-2"
+                          : "text-sidebar-muted hover:bg-sidebar-accent hover:text-sidebar-foreground",
                       )}
                     >
                       <Icon className="size-5" />
@@ -182,8 +193,8 @@ export function AppSidebar({ user }: AppSidebarProps) {
                 className={cn(
                   "flex h-10 items-center gap-3 px-3 text-sm font-medium transition-colors",
                   active
-                    ? "bg-sidebar-accent text-sidebar-primary border-l-2 border-sidebar-primary -ml-px"
-                    : "text-sidebar-muted hover:bg-sidebar-accent hover:text-sidebar-foreground"
+                    ? "bg-sidebar-accent text-sidebar-primary border-sidebar-primary -ml-px border-l-2"
+                    : "text-sidebar-muted hover:bg-sidebar-accent hover:text-sidebar-foreground",
                 )}
               >
                 <Icon className="size-5" />
@@ -196,7 +207,7 @@ export function AppSidebar({ user }: AppSidebarProps) {
         {/* Admin Navigation */}
         {user?.role === "ADMIN" && (
           <>
-            <Separator className=" bg-sidebar-border" />
+            <Separator className="bg-sidebar-border" />
             <nav className="space-y-1 px-3 py-2">
               {isCollapsed ? (
                 <Tooltip>
@@ -206,8 +217,8 @@ export function AppSidebar({ user }: AppSidebarProps) {
                       className={cn(
                         "flex h-10 w-full items-center justify-center transition-colors",
                         isActive("/admin")
-                          ? "bg-sidebar-accent text-neon-green border-l-2 border-neon-green"
-                          : "text-sidebar-muted hover:bg-sidebar-accent hover:text-neon-green"
+                          ? "bg-sidebar-accent text-neon-green border-neon-green border-l-2"
+                          : "text-sidebar-muted hover:bg-sidebar-accent hover:text-neon-green",
                       )}
                     >
                       <ShieldCheck className="size-5" />
@@ -221,8 +232,8 @@ export function AppSidebar({ user }: AppSidebarProps) {
                   className={cn(
                     "flex h-10 items-center gap-3 px-3 text-sm font-medium transition-colors",
                     isActive("/admin")
-                      ? "bg-sidebar-accent text-neon-green border-l-2 border-neon-green -ml-px"
-                      : "text-sidebar-muted hover:bg-sidebar-accent hover:text-neon-green"
+                      ? "bg-sidebar-accent text-neon-green border-neon-green -ml-px border-l-2"
+                      : "text-sidebar-muted hover:bg-sidebar-accent hover:text-neon-green",
                   )}
                 >
                   <ShieldCheck className="size-5" />
@@ -251,7 +262,7 @@ export function AppSidebar({ user }: AppSidebarProps) {
                         "flex h-10 w-full items-center justify-center transition-colors",
                         active
                           ? "bg-sidebar-accent text-sidebar-primary"
-                          : "text-sidebar-muted hover:bg-sidebar-accent hover:text-sidebar-foreground"
+                          : "text-sidebar-muted hover:bg-sidebar-accent hover:text-sidebar-foreground",
                       )}
                     >
                       <Icon className="size-5" />
@@ -270,7 +281,7 @@ export function AppSidebar({ user }: AppSidebarProps) {
                   "flex h-10 items-center gap-3 px-3 text-sm font-medium transition-colors",
                   active
                     ? "bg-sidebar-accent text-sidebar-primary"
-                    : "text-sidebar-muted hover:bg-sidebar-accent hover:text-sidebar-foreground"
+                    : "text-sidebar-muted hover:bg-sidebar-accent hover:text-sidebar-foreground",
                 )}
               >
                 <Icon className="size-5" />
@@ -286,11 +297,11 @@ export function AppSidebar({ user }: AppSidebarProps) {
             <div
               className={cn(
                 "flex items-center gap-3",
-                isCollapsed && "justify-center"
+                isCollapsed && "justify-center",
               )}
             >
               <Link href="/dashboard/profile" className="shrink-0">
-                <Avatar className="size-9 border-2 border-sidebar-border hover:border-sidebar-primary transition-colors">
+                <Avatar className="border-sidebar-border hover:border-sidebar-primary size-9 border-2 transition-colors">
                   <AvatarImage src={user.image ?? ""} alt={user.name ?? ""} />
                   <AvatarFallback className="bg-sidebar-accent text-sidebar-foreground">
                     {user.name?.charAt(0) ?? "U"}
@@ -298,11 +309,11 @@ export function AppSidebar({ user }: AppSidebarProps) {
                 </Avatar>
               </Link>
               {!isCollapsed && (
-                <Link href="/dashboard/profile" className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-sidebar-foreground truncate hover:text-sidebar-primary transition-colors">
+                <Link href="/dashboard/profile" className="min-w-0 flex-1">
+                  <p className="text-sidebar-foreground hover:text-sidebar-primary truncate text-sm font-medium transition-colors">
                     {user.name}
                   </p>
-                  <p className="text-xs text-sidebar-muted truncate">
+                  <p className="text-sidebar-muted truncate text-xs">
                     {user.email}
                   </p>
                 </Link>
@@ -341,13 +352,13 @@ export function AppSidebar({ user }: AppSidebarProps) {
             </div>
           )}
           {isCollapsed && user && (
-            <div className="flex flex-col gap-1 mt-2">
+            <div className="mt-2 flex flex-col gap-1">
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
                     variant="ghost"
                     size="icon-sm"
-                    className="w-full text-sidebar-muted hover:text-sidebar-foreground hover:bg-sidebar-accent"
+                    className="text-sidebar-muted hover:text-sidebar-foreground hover:bg-sidebar-accent w-full"
                   >
                     <Bell className="size-4" />
                   </Button>
@@ -359,7 +370,7 @@ export function AppSidebar({ user }: AppSidebarProps) {
                   <Button
                     variant="ghost"
                     size="icon-sm"
-                    className="w-full text-sidebar-muted hover:text-sidebar-foreground hover:bg-sidebar-accent"
+                    className="text-sidebar-muted hover:text-sidebar-foreground hover:bg-sidebar-accent w-full"
                     asChild
                   >
                     <Link href="/api/auth/signout">
@@ -379,8 +390,6 @@ export function AppSidebar({ user }: AppSidebarProps) {
 
 export function SidebarInset({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex-1 min-w-0 transition-all duration-300">
-      {children}
-    </div>
+    <div className="min-w-0 flex-1 transition-all duration-300">{children}</div>
   );
 }

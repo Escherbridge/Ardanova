@@ -50,6 +50,7 @@ export const env = createEnv({
       z.string().url().default("http://127.0.0.1:5147"),
     ),
     API_KEY: z.string().min(1),
+    ADMIN_API_KEY: z.string().min(1).optional(),
   },
 
   /**
@@ -73,6 +74,7 @@ export const env = createEnv({
     NODE_ENV: process.env.NODE_ENV,
     API_URL: process.env.API_URL,
     API_KEY: process.env.API_KEY,
+    ADMIN_API_KEY: process.env.ADMIN_API_KEY,
   },
   /**
    * Run `build` or `dev` with `SKIP_ENV_VALIDATION` to skip env validation. This is especially

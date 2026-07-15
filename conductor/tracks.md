@@ -1,3 +1,6 @@
+---
+type: index
+---
 # ArdaNova Tracks Registry
 
 ## Core Modules (Tracks 01-11)
@@ -9,7 +12,7 @@
 - [x] [Events Module](tracks/06-events/spec.md) - Event lifecycle, RSVP, co-hosts, reminders. *(Retroactive documentation)*
 - [x] [Credential Utility & Blockchain](tracks/07-credential-utility/spec.md) - Soulbound credentials, Algorand ASA minting, tier system.
 - [x] [KYC & Identity Verification](tracks/08-kyc/spec.md) - KYC submission, provider abstraction, verification gating.
-- [x] [Tokenomics & Project Equity](tracks/09-tokenomics/spec.md) - Project tokens, ARDA platform token, equity distribution, payouts, Stripe integration. **All 12 phases complete (schema, services, controllers, tests, Stripe SDK, API client/tRPC, flow tests).**
+- [ ] [Tokenomics & Project Equity](tracks/09-tokenomics/spec.md) - Project tokens, ARDA platform token, equity distribution, payouts, and Stripe integration. **Core implementation exists; gated-commerce correctness, authorization, settlement durability, and live evidence remain P0.**
 - [x] [Credential Frontend UI & Game SDK](tracks/10-credential-ui-gamesdk/spec.md) - Credential badges, tier UI, profile/project/guild integration, Unity/Godot SDK setup. **P0-P1 complete. P2 items remaining (grant modals, admin dashboard, component tests).**
 - [ ] [Position Management, Equity & Treasury Pool](tracks/11-position-equity-treasury/spec.md) - Position detail/edit pages, equity cap enforcement, treasury pool allocation UI. **P0 complete. P1 in progress (editable pool targets, per-member equity view).**
 
@@ -40,6 +43,7 @@
 > Dependency order: avatar-onboarding → provider-adapter → quest-authoring →
 > treasury-allocation. Real-value allocation gated on AZOA-side P7.
 
+- [ ] [Gated Commerce and AZOA Settlement](tracks/gated-commerce-and-azoa-settlement/spec.md) - Durable bid, funding, task-award, project-token/ARDA exchange, wallet, and settlement flows. **P0 launch prerequisite.**
 - [ ] [AZOA Avatar Onboarding](tracks/azoa-avatar-onboarding/spec.md) - Link each user to a self-sovereign AZOA avatar; wallet-bound check before Tier-2. **Dependency root.**
 - [ ] [AZOA Provider Adapter](tracks/azoa-provider-adapter/spec.md) - `AzoaBackedAlgorandService` behind `IAlgorandService`, feature-flagged, platform mnemonic removed. **Backend-only.**
 - [ ] [AZOA Quest Authoring](tracks/azoa-quest-authoring/spec.md) - Publish scrum-lifecycle quest definitions/templates; avatars self-run; board events → gate signals.

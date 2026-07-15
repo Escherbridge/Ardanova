@@ -184,4 +184,10 @@ public class Project
 
     public virtual ICollection<ProjectTokenConfig> ProjectTokenConfigs { get; set; } = new List<ProjectTokenConfig>();
 
+    public virtual ICollection<EconomicSettlement> EconomicSettlements { get; set; } = new List<EconomicSettlement>();
+
+    public virtual ICollection<FundingIntent> FundingIntents { get; set; } = new List<FundingIntent>();
+
+    public virtual ICollection<TaskCommerceAgreement> TaskCommerceAgreements { get; set; } = new List<TaskCommerceAgreement>();
+
 }

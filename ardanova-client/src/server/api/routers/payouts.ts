@@ -2,12 +2,12 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { createTRPCRouter, adminProcedure, protectedProcedure } from "~/server/api/trpc";
 import { apiClient } from "~/lib/api";
+import { getAdminApiClient } from "~/server/admin-api-client";
 
 // ---------------------------------------------------------------------------
 // Zod schemas
 // ---------------------------------------------------------------------------
 
-const PayoutStatusSchema = z.enum(["PENDING", "PROCESSING", "COMPLETED", "FAILED", "CANCELLED"]);
 const TokenHolderClassSchema = z.enum(["CONTRIBUTOR", "INVESTOR", "FOUNDER"]);
 
 const createPayoutRequestSchema = z.object({
@@ -24,9 +24,9 @@ export const payoutsRouter = createTRPCRouter({
   // ---- Mutations ----
 
   requestPayout: protectedProcedure
-    .input(z.object({ userId: z.string().min(1) }).merge(createPayoutRequestSchema))
+    .input(createPayoutRequestSchema)
     .mutation(async ({ input }) => {
-      const response = await apiClient.payouts.requestPayout(input.userId, {
+      const response = await apiClient.payouts.requestPayout({
         sourceProjectTokenConfigId: input.sourceProjectTokenConfigId,
         sourceTokenAmount: input.sourceTokenAmount,
         holderClass: input.holderClass,
@@ -45,7 +45,7 @@ export const payoutsRouter = createTRPCRouter({
   processPayout: adminProcedure
     .input(z.object({ payoutRequestId: z.string().min(1) }))
     .mutation(async ({ input }) => {
-      const response = await apiClient.payouts.processPayout(input.payoutRequestId);
+      const response = await getAdminApiClient().payouts.processPayout(input.payoutRequestId);
 
       if (response.error || !response.data) {
         throw new TRPCError({
@@ -57,7 +57,7 @@ export const payoutsRouter = createTRPCRouter({
       return response.data;
     }),
 
-  cancelPayout: adminProcedure
+  cancelPayout: protectedProcedure
     .input(z.object({ payoutRequestId: z.string().min(1) }))
     .mutation(async ({ input }) => {
       const response = await apiClient.payouts.cancelPayout(input.payoutRequestId);
@@ -75,9 +75,8 @@ export const payoutsRouter = createTRPCRouter({
   // ---- Queries ----
 
   getPayoutsByUser: protectedProcedure
-    .input(z.object({ userId: z.string().min(1) }))
-    .query(async ({ input }) => {
-      const response = await apiClient.payouts.getPayoutsByUser(input.userId);
+    .query(async () => {
+      const response = await apiClient.payouts.getMine();
 
       if (response.error || !response.data) {
         throw new TRPCError({
@@ -89,9 +88,9 @@ export const payoutsRouter = createTRPCRouter({
       return response.data;
     }),
 
-  getPendingPayouts: protectedProcedure
+  getPendingPayouts: adminProcedure
     .query(async () => {
-      const response = await apiClient.payouts.getPendingPayouts();
+      const response = await getAdminApiClient().payouts.getPendingPayouts();
 
       if (response.error || !response.data) {
         throw new TRPCError({

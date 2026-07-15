@@ -19,9 +19,8 @@ export interface CreatePayoutRequestDto {
 export class PayoutsEndpoint {
   constructor(private client: BaseApiClient) {}
 
-  requestPayout(userId: string, dto: CreatePayoutRequestDto): Promise<ApiResponse<PayoutRequestDto>> {
-    const q = `?userId=${encodeURIComponent(userId)}`;
-    return this.client.post<PayoutRequestDto>(`/api/Payouts${q}`, dto);
+  requestPayout(dto: CreatePayoutRequestDto): Promise<ApiResponse<PayoutRequestDto>> {
+    return this.client.post<PayoutRequestDto>("/api/Payouts", dto);
   }
 
   processPayout(payoutRequestId: string): Promise<ApiResponse<PayoutRequestDto>> {
@@ -38,8 +37,8 @@ export class PayoutsEndpoint {
     );
   }
 
-  getPayoutsByUser(userId: string): Promise<ApiResponse<PayoutRequestDto[]>> {
-    return this.client.get<PayoutRequestDto[]>(`/api/Payouts/by-user/${encodeURIComponent(userId)}`);
+  getMine(): Promise<ApiResponse<PayoutRequestDto[]>> {
+    return this.client.get<PayoutRequestDto[]>("/api/Payouts/me");
   }
 
   getPendingPayouts(): Promise<ApiResponse<PayoutRequestDto[]>> {

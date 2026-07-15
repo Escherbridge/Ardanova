@@ -21,8 +21,22 @@
     <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\ArdaNova.Application\ArdaNova.Application.csproj" />
+  </ItemGroup>
+
   <!-- Link EventBus and WebSocket source files, excluding Extensions which have extra ASP.NET dependencies -->
   <ItemGroup>
+    <Compile Include="..\..\src\ArdaNova.API\Controllers\StripeWebhookController.cs" Link="Controllers\StripeWebhookController.cs" />
+    <Compile Include="..\..\src\ArdaNova.API\Controllers\FundingIntentsController.cs" Link="Controllers\FundingIntentsController.cs" />
+    <Compile Include="..\..\src\ArdaNova.API\Controllers\WalletsController.cs" Link="Controllers\WalletsController.cs" />
+    <Compile Include="..\..\src\ArdaNova.API\Controllers\PayoutsController.cs" Link="Controllers\PayoutsController.cs" />
+    <Compile Include="..\..\src\ArdaNova.API\Controllers\TokenBalanceController.cs" Link="Controllers\TokenBalanceController.cs" />
+    <Compile Include="..\..\src\ArdaNova.API\Controllers\TaskEscrowsController.cs" Link="Controllers\TaskEscrowsController.cs" />
+    <Compile Include="..\..\src\ArdaNova.API\Controllers\OpportunityBidsController.cs" Link="Controllers\OpportunityBidsController.cs" />
+    <Compile Include="..\..\src\ArdaNova.API\Controllers\TasksController.cs" Link="Controllers\TasksController.cs" />
+    <Compile Include="..\..\src\ArdaNova.API\Middleware\ApiKeyMiddleware.cs" Link="Middleware\ApiKeyMiddleware.cs" />
+    <Compile Include="..\..\src\ArdaNova.API\Middleware\ActorAssertionMiddleware.cs" Link="Middleware\ActorAssertionMiddleware.cs" />
     <Compile Include="..\..\src\ArdaNova.API\EventBus\Abstractions\*.cs" Link="EventBus\Abstractions\%(Filename)%(Extension)" />
     <Compile Include="..\..\src\ArdaNova.API\EventBus\Events\*.cs" Link="EventBus\Events\%(Filename)%(Extension)" />
     <Compile Include="..\..\src\ArdaNova.API\EventBus\Implementation\*.cs" Link="EventBus\Implementation\%(Filename)%(Extension)" />

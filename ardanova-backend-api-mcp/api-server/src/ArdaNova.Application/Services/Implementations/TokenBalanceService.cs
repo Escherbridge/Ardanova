@@ -5,6 +5,7 @@ using ArdaNova.Application.DTOs;
 using ArdaNova.Application.Services.Interfaces;
 using ArdaNova.Domain.Models.Entities;
 using ArdaNova.Domain.Models.Enums;
+using ArdaNova.Domain.Policies;
 using AutoMapper;
 
 namespace ArdaNova.Application.Services.Implementations;
@@ -282,20 +283,6 @@ public class TokenBalanceService : ITokenBalanceService
             return Result<bool>.Failure("Project token configuration not found");
         }
 
-        // According to the business rules:
-        // - CONTRIBUTOR: liquid when gate is ACTIVE or SUCCEEDED
-        // - INVESTOR/FOUNDER: liquid only when SUCCEEDED
-        // - FOUNDER tokens are burned if project FAILED
-
-        bool isLiquid = (holderClass, config.gateStatus) switch
-        {
-            (TokenHolderClass.CONTRIBUTOR, ProjectGateStatus.ACTIVE) => true,
-            (TokenHolderClass.CONTRIBUTOR, ProjectGateStatus.SUCCEEDED) => true,
-            (TokenHolderClass.INVESTOR, ProjectGateStatus.SUCCEEDED) => true,
-            (TokenHolderClass.FOUNDER, ProjectGateStatus.SUCCEEDED) => true,
-            _ => false
-        };
-
-        return Result<bool>.Success(isLiquid);
+        return Result<bool>.Success(TokenLiquidityPolicy.IsLiquid(holderClass, config.gateStatus));
     }
 }

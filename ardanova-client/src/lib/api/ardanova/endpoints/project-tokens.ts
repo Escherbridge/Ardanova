@@ -16,6 +16,7 @@ export interface CreateProjectTokenConfigDto {
   totalSupply: number;
   fundingGoal: number;
   unitName: string;
+  assetScale: number;
   assetName?: string;
   successCriteria?: string;
 }

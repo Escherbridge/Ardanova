@@ -38,23 +38,17 @@ export class AzoaAvatarEndpoint {
   constructor(private client: BaseApiClient) {}
 
   /** Idempotently link the user to an AZOA avatar. */
-  ensureAvatar(userId: string): Promise<ApiResponse<AzoaAvatarStatusDto>> {
-    return this.client.post<AzoaAvatarStatusDto>(
-      `/api/azoa/avatar/ensure?userId=${encodeURIComponent(userId)}`,
-    );
+  ensureAvatar(_userId?: string): Promise<ApiResponse<AzoaAvatarStatusDto>> {
+    return this.client.post<AzoaAvatarStatusDto>("/api/azoa/avatar/ensure");
   }
 
   /** Ensure a wallet reference is bound/cached for the user's avatar. */
-  ensureWallet(userId: string): Promise<ApiResponse<AzoaAvatarStatusDto>> {
-    return this.client.post<AzoaAvatarStatusDto>(
-      `/api/azoa/avatar/wallet?userId=${encodeURIComponent(userId)}`,
-    );
+  ensureWallet(_userId?: string): Promise<ApiResponse<AzoaAvatarStatusDto>> {
+    return this.client.post<AzoaAvatarStatusDto>("/api/azoa/avatar/wallet");
   }
 
   /** Read the user's avatar/wallet linkage status. */
-  getStatus(userId: string): Promise<ApiResponse<AzoaAvatarStatusDto>> {
-    return this.client.get<AzoaAvatarStatusDto>(
-      `/api/azoa/avatar/status?userId=${encodeURIComponent(userId)}`,
-    );
+  getStatus(_userId?: string): Promise<ApiResponse<AzoaAvatarStatusDto>> {
+    return this.client.get<AzoaAvatarStatusDto>("/api/azoa/avatar/status");
   }
 }

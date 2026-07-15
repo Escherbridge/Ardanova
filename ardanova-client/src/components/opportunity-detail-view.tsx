@@ -15,6 +15,7 @@ import {
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Badge } from "~/components/ui/badge";
+import { OpportunityBidsPanel } from "~/components/opportunities/opportunity-bids-panel";
 import { formatEnumLabel } from "~/hooks/use-enum";
 
 interface OpportunityData {
@@ -248,6 +249,8 @@ export function OpportunityDetailView({ opportunity, isOwner }: OpportunityDetai
               </div>
             </CardContent>
           </Card>
+
+          {isOwner ? <OpportunityBidsPanel opportunityId={opportunity.id} /> : null}
         </div>
       </div>
     </div>

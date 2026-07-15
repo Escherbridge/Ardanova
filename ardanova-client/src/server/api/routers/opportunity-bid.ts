@@ -48,10 +48,8 @@ export const opportunityBidRouter = createTRPCRouter({
     }),
 
   getByBidderId: protectedProcedure
-    .input(z.object({ bidderId: z.string().optional() }))
-    .query(async ({ input, ctx }) => {
-      const userId = input.bidderId ?? ctx.session.user.id;
-      const response = await apiClient.opportunityBids.getByBidderId(userId);
+    .query(async () => {
+      const response = await apiClient.opportunityBids.getMine();
 
       if (response.error) {
         throw new Error(response.error);
@@ -98,7 +96,6 @@ export const opportunityBidRouter = createTRPCRouter({
 
       const response = await apiClient.opportunityBids.create({
         opportunityId: input.opportunityId,
-        bidderId: userId,
         guildId: input.guildId,
         proposedAmount: input.proposedAmount,
         proposal: input.proposal,

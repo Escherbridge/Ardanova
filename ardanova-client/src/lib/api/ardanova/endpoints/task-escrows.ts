@@ -19,7 +19,6 @@ export interface TaskEscrow {
 
 export interface CreateTaskEscrowDto {
   taskId: string;
-  funderId: string;
   shareId: string;
   amount: number;
   txHashFund?: string;
@@ -47,8 +46,8 @@ export class TaskEscrowsEndpoint {
     return this.client.get<TaskEscrow>(`/api/taskescrows/task/${encodeURIComponent(taskId)}`);
   }
 
-  getByFunderId(funderId: string): Promise<ApiResponse<TaskEscrow[]>> {
-    return this.client.get<TaskEscrow[]>(`/api/taskescrows/funder/${encodeURIComponent(funderId)}`);
+  getMine(): Promise<ApiResponse<TaskEscrow[]>> {
+    return this.client.get<TaskEscrow[]>("/api/taskescrows/me");
   }
 
   create(data: CreateTaskEscrowDto): Promise<ApiResponse<TaskEscrow>> {

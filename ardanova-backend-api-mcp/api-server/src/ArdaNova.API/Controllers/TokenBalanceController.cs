@@ -1,9 +1,11 @@
 namespace ArdaNova.API.Controllers;
 
+using System.Security.Claims;
+using ArdaNova.API.Middleware;
 using ArdaNova.Application.Common.Results;
-using ArdaNova.Application.DTOs;
 using ArdaNova.Application.Services.Interfaces;
 using ArdaNova.Domain.Models.Enums;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 [ApiController]
@@ -21,39 +23,41 @@ public class TokenBalanceController : ControllerBase
         _exchangeService = exchangeService;
     }
 
-    [HttpGet("{userId}/balance")]
+    [HttpGet("me/balance")]
+    [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
     public async Task<IActionResult> GetBalance(
-        string userId,
         [FromQuery] string projectTokenConfigId,
         [FromQuery] TokenHolderClass holderClass,
         CancellationToken ct)
     {
-        var result = await _tokenBalanceService.GetBalanceAsync(userId, projectTokenConfigId, holderClass, ct);
+        var result = await _tokenBalanceService.GetBalanceAsync(ActorId, projectTokenConfigId, holderClass, ct);
         return ToActionResult(result);
     }
 
-    [HttpGet("{userId}/arda")]
-    public async Task<IActionResult> GetArdaBalance(string userId, CancellationToken ct)
+    [HttpGet("me/arda")]
+    [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
+    public async Task<IActionResult> GetArdaBalance(CancellationToken ct)
     {
-        var result = await _tokenBalanceService.GetArdaBalanceAsync(userId, ct);
+        var result = await _tokenBalanceService.GetArdaBalanceAsync(ActorId, ct);
         return ToActionResult(result);
     }
 
-    [HttpGet("{userId}/portfolio")]
-    public async Task<IActionResult> GetPortfolio(string userId, CancellationToken ct)
+    [HttpGet("me/portfolio")]
+    [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
+    public async Task<IActionResult> GetPortfolio(CancellationToken ct)
     {
-        var result = await _tokenBalanceService.GetPortfolioAsync(userId, ct);
+        var result = await _tokenBalanceService.GetPortfolioAsync(ActorId, ct);
         return ToActionResult(result);
     }
 
-    [HttpGet("{userId}/liquidity")]
+    [HttpGet("me/liquidity")]
+    [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
     public async Task<IActionResult> IsBalanceLiquid(
-        string userId,
         [FromQuery] string projectTokenConfigId,
         [FromQuery] TokenHolderClass holderClass,
         CancellationToken ct)
     {
-        var result = await _tokenBalanceService.IsBalanceLiquidAsync(userId, projectTokenConfigId, holderClass, ct);
+        var result = await _tokenBalanceService.IsBalanceLiquidAsync(ActorId, projectTokenConfigId, holderClass, ct);
         return ToActionResult(result);
     }
 
@@ -82,6 +86,8 @@ public class TokenBalanceController : ControllerBase
         var result = await _exchangeService.CalculateConversionAsync(projectTokenConfigId, tokenAmount, ct);
         return ToActionResult(result);
     }
+
+    private string ActorId => User.FindFirstValue(ClaimTypes.NameIdentifier)!;
 
     private IActionResult ToActionResult<T>(Result<T> result)
     {

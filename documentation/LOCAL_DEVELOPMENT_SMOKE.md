@@ -38,6 +38,13 @@ Details: [.env.example](../.env.example).
 
 **Frontend env:** If you run only from `ardanova-client`, ensure Next sees these variables (e.g. symlink or copy root `.env` to `ardanova-client/.env`, or use tooling your team documents).
 
+**Backend database config:** The API and MCP server do not read a database
+credential from `appsettings.json`. Docker Compose passes root `.env`
+`DATABASE_URL` through automatically. For a direct `dotnet run`, export
+`DATABASE_URL` (or `ConnectionStrings__DefaultConnection`) in the terminal.
+Missing database configuration stops startup before either process accepts
+requests.
+
 **Optional:** `NEXT_PUBLIC_TRPC_DEBUG=true` — enables verbose tRPC client logs (`>>` / `<<` per procedure). Off by default so the browser console is not flooded; use when debugging network/tRPC issues.
 
 ---

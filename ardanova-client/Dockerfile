@@ -32,6 +32,10 @@ ENV NODE_ENV=production
 # override). See src/env.js (skipValidation).
 ARG SKIP_ENV_VALIDATION=true
 ENV SKIP_ENV_VALIDATION=${SKIP_ENV_VALIDATION}
+# NEXT_PUBLIC_* values are inlined at build time; Railway passes service
+# variables as build args only when declared here (see railway.toml build.args).
+ARG NEXT_PUBLIC_AZOA_BASE_URL
+ENV NEXT_PUBLIC_AZOA_BASE_URL=${NEXT_PUBLIC_AZOA_BASE_URL}
 
 # Build the application
 RUN npm run build

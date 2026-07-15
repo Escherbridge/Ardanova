@@ -104,7 +104,7 @@ function WithdrawPageInner() {
 
   const { data: portfolioRaw, isLoading: portfolioLoading } =
     api.tokenBalances.getPortfolio.useQuery(
-      { userId },
+      undefined,
       { enabled: !!userId },
     );
 
@@ -168,7 +168,6 @@ function WithdrawPageInner() {
     if (!validate()) return;
     const parsed = parseFloat(rawAmount);
     requestPayout.mutate({
-      userId,
       sourceProjectTokenConfigId: configId,
       sourceTokenAmount: Math.floor(parsed),
       holderClass: holderClassParam,

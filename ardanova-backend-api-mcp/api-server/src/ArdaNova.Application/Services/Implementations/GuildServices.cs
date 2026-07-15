@@ -149,7 +149,8 @@ public class GuildService : IGuildService
 
         // Check for outstanding tasks assigned to this guild
         var outstandingTasks = await _taskRepository.FindAsync(
-            t => t.guildId == id && t.status != Domain.Models.Enums.TaskStatus.COMPLETED && t.status != Domain.Models.Enums.TaskStatus.BLOCKED, ct);
+            t => t.guildId == id && t.status != Domain.Models.Enums.TaskStatus.COMPLETED && t.status != Domain.Models.Enums.TaskStatus.BLOCKED, ct)
+            ?? Array.Empty<ProjectTask>();
         if (outstandingTasks.Any())
             return Result<bool>.BadRequest($"Cannot delete guild with {outstandingTasks.Count} outstanding tasks. Reassign or complete them first.");
 

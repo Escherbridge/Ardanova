@@ -54,14 +54,4 @@ public class WalletTools
         var result = await _walletService.GetPrimaryWalletAsync(userId, ct);
         return result.IsSuccess ? result.Value : null;
     }
-
-    [McpServerTool(Name = "wallet_verify")]
-    [Description("Marks a wallet as verified")]
-    public async Task<WalletDto?> VerifyWallet(
-        [Description("The wallet ID to verify")] string id,
-        CancellationToken ct = default)
-    {
-        var result = await _walletService.VerifyAsync(id, ct);
-        return result.IsSuccess ? result.Value : null;
-    }
 }

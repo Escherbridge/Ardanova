@@ -21,7 +21,6 @@ namespace ArdaNova.Application.Services.Implementations
         private readonly IMapper _mapper;
         private readonly ITokenBalanceService _tokenBalanceService;
         private readonly IExchangeService _exchangeService;
-        private readonly ITreasuryService _treasuryService;
 
         public PayoutService(
             IRepository<PayoutRequest> payoutRepository,
@@ -29,8 +28,7 @@ namespace ArdaNova.Application.Services.Implementations
             IUnitOfWork unitOfWork,
             IMapper mapper,
             ITokenBalanceService tokenBalanceService,
-            IExchangeService exchangeService,
-            ITreasuryService treasuryService)
+            IExchangeService exchangeService)
         {
             _payoutRepository = payoutRepository;
             _projectTokenConfigRepository = projectTokenConfigRepository;
@@ -38,7 +36,6 @@ namespace ArdaNova.Application.Services.Implementations
             _mapper = mapper;
             _tokenBalanceService = tokenBalanceService;
             _exchangeService = exchangeService;
-            _treasuryService = treasuryService;
         }
 
         public async Task<Result<PayoutRequestDto>> RequestPayoutAsync(string userId, CreatePayoutRequestDto dto, CancellationToken ct = default)
@@ -140,68 +137,11 @@ namespace ArdaNova.Application.Services.Implementations
             return Result<PayoutRequestDto>.Success(resultDto);
         }
 
-        public async Task<Result<PayoutRequestDto>> ProcessPayoutAsync(string payoutRequestId, CancellationToken ct = default)
-        {
-            // 1. Get payout request and validate status
-            var payoutRequest = await _payoutRepository.GetByIdAsync(payoutRequestId, ct);
-            if (payoutRequest == null)
-            {
-                return Result<PayoutRequestDto>.Failure("Payout request not found.");
-            }
-
-            if (payoutRequest.status != PayoutStatus.PENDING)
-            {
-                return Result<PayoutRequestDto>.Failure($"Cannot process payout with status {payoutRequest.status}. Only PENDING payouts can be processed.");
-            }
-
-            // 2. Set status to PROCESSING
-            payoutRequest.status = PayoutStatus.PROCESSING;
-            await _payoutRepository.UpdateAsync(payoutRequest, ct);
-            await _unitOfWork.SaveChangesAsync(ct);
-
-            // 3. Check if treasury has enough liquid balance
-            var rebalanceResult = await _treasuryService.RebalanceIfNeededAsync(
-                payoutRequest.usdAmount ?? 0,
-                ct);
-
-            if (!rebalanceResult.IsSuccess)
-            {
-                payoutRequest.status = PayoutStatus.PENDING;
-                await _payoutRepository.UpdateAsync(payoutRequest, ct);
-                await _unitOfWork.SaveChangesAsync(ct);
-
-                return Result<PayoutRequestDto>.Failure($"Treasury rebalancing failed: {rebalanceResult.Error}");
-            }
-
-            // 4. Debit tokens
-            var debitResult = await _tokenBalanceService.DebitAsync(
-                payoutRequest.userId,
-                payoutRequest.sourceProjectTokenConfigId ?? string.Empty,
-                payoutRequest.sourceTokenAmount,
-                payoutRequest.holderClass,
-                ct);
-
-            if (!debitResult.IsSuccess)
-            {
-                payoutRequest.status = PayoutStatus.PENDING;
-                await _payoutRepository.UpdateAsync(payoutRequest, ct);
-                await _unitOfWork.SaveChangesAsync(ct);
-
-                return Result<PayoutRequestDto>.Failure($"Token debit failed: {debitResult.Error}");
-            }
-
-            // 5. Set status to COMPLETED
-            payoutRequest.status = PayoutStatus.COMPLETED;
-            payoutRequest.processedAt = DateTime.UtcNow;
-            payoutRequest.completedAt = DateTime.UtcNow;
-
-            // 6. Save and return
-            await _payoutRepository.UpdateAsync(payoutRequest, ct);
-            await _unitOfWork.SaveChangesAsync(ct);
-
-            var resultDto = _mapper.Map<PayoutRequestDto>(payoutRequest);
-            return Result<PayoutRequestDto>.Success(resultDto);
-        }
+        /// <inheritdoc/>
+        public Task<Result<PayoutRequestDto>> ProcessPayoutAsync(string payoutRequestId, CancellationToken ct = default)
+            // See conductor/tracks/gated-commerce-and-azoa-settlement/plan.md §retro note.
+            => Task.FromResult(Result<PayoutRequestDto>.Failure(
+                "Payout processing is disabled until a verified provider transfer and durable settlement reconciliation are available."));
 
         public async Task<Result<PayoutRequestDto>> CancelPayoutAsync(string payoutRequestId, CancellationToken ct = default)
         {

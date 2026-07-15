@@ -1,3 +1,6 @@
+---
+type: plan
+---
 # Track — AZOA Quest Authoring
 
 > Contract: [`ARDANOVA-AZOA-INTEGRATION-CONTRACT.md`](../../ARDANOVA-AZOA-INTEGRATION-CONTRACT.md) §4, §5.

@@ -43,6 +43,18 @@ public class AzoaSettings
     /// </summary>
     public int TimeoutSeconds { get; set; } = 30;
 
+    /// <summary>
+    /// Explicit operator opt-in for payment collection. This remains false until
+    /// a real selected-node gateway also exposes current dispatch and reconciliation attestation.
+    /// </summary>
+    public bool EnableFundingCheckout { get; set; }
+
+    /// <summary>
+    /// Immutable identifier of the node authorized to settle collected funding.
+    /// Configuration alone is insufficient; it must match the gateway capability.
+    /// </summary>
+    public string SelectedSettlementNodeId { get; set; } = string.Empty;
+
     public bool IsSimulated =>
         Mode.Equals("Simulated", StringComparison.OrdinalIgnoreCase);
 }

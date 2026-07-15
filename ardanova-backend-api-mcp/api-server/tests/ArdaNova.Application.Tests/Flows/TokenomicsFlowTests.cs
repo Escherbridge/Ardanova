@@ -126,8 +126,7 @@ namespace ArdaNova.Application.Tests.Flows
                 _unitOfWorkMock.Object,
                 _mapper,
                 _tokenBalanceService,
-                _exchangeService,
-                _treasuryService);
+                _exchangeService);
         }
 
         private void SetupRepositoryMocks()

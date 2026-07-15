@@ -3,6 +3,8 @@ namespace ArdaNova.API.Controllers;
 using ArdaNova.Application.Common.Results;
 using ArdaNova.Application.DTOs;
 using ArdaNova.Application.Services.Interfaces;
+using ArdaNova.API.Middleware;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 [ApiController]
@@ -23,6 +25,7 @@ public class ProjectTokensController : ControllerBase
     // === Config CRUD ===
 
     [HttpPost("config")]
+    [Authorize(Policy = AuthorizationPolicies.AdminApiKey)]
     public async Task<IActionResult> CreateConfig([FromBody] CreateProjectTokenConfigDto dto, CancellationToken ct)
     {
         var result = await _projectTokenService.CreateConfigAsync(dto, ct);
@@ -55,6 +58,7 @@ public class ProjectTokensController : ControllerBase
     // === Allocations ===
 
     [HttpPost("{configId}/allocate/task")]
+    [Authorize(Policy = AuthorizationPolicies.AdminApiKey)]
     public async Task<IActionResult> AllocateToTask(string configId, [FromBody] CreateTokenAllocationDto dto, CancellationToken ct)
     {
         var result = await _projectTokenService.AllocateToTaskAsync(configId, dto, ct);
@@ -62,6 +66,7 @@ public class ProjectTokensController : ControllerBase
     }
 
     [HttpPost("{configId}/allocate/investor")]
+    [Authorize(Policy = AuthorizationPolicies.AdminApiKey)]
     public async Task<IActionResult> AllocateToInvestor(string configId, [FromBody] CreateInvestorAllocationDto dto, CancellationToken ct)
     {
         var result = await _projectTokenService.AllocateToInvestorAsync(configId, dto, ct);
@@ -69,6 +74,7 @@ public class ProjectTokensController : ControllerBase
     }
 
     [HttpPost("{configId}/allocate/founder")]
+    [Authorize(Policy = AuthorizationPolicies.AdminApiKey)]
     public async Task<IActionResult> AllocateToFounder(string configId, [FromBody] CreateFounderAllocationDto dto, CancellationToken ct)
     {
         var result = await _projectTokenService.AllocateToFounderAsync(configId, dto, ct);
@@ -76,6 +82,7 @@ public class ProjectTokensController : ControllerBase
     }
 
     [HttpPost("allocations/{allocationId}/distribute")]
+    [Authorize(Policy = AuthorizationPolicies.AdminApiKey)]
     public async Task<IActionResult> Distribute(string allocationId, [FromQuery] string recipientUserId, CancellationToken ct)
     {
         var result = await _projectTokenService.DistributeAsync(allocationId, recipientUserId, ct);
@@ -83,6 +90,7 @@ public class ProjectTokensController : ControllerBase
     }
 
     [HttpPost("allocations/{allocationId}/revoke")]
+    [Authorize(Policy = AuthorizationPolicies.AdminApiKey)]
     public async Task<IActionResult> Revoke(string allocationId, CancellationToken ct)
     {
         var result = await _projectTokenService.RevokeAllocationAsync(allocationId, ct);
@@ -120,6 +128,7 @@ public class ProjectTokensController : ControllerBase
     }
 
     [HttpPost("{configId}/gate/evaluate")]
+    [Authorize(Policy = AuthorizationPolicies.AdminApiKey)]
     public async Task<IActionResult> EvaluateGate1(string configId, CancellationToken ct)
     {
         var result = await _projectGateService.EvaluateGate1Async(configId, ct);
@@ -127,6 +136,7 @@ public class ProjectTokensController : ControllerBase
     }
 
     [HttpPost("{configId}/gate/clear")]
+    [Authorize(Policy = AuthorizationPolicies.AdminApiKey)]
     public async Task<IActionResult> ClearGate2(string configId, [FromQuery] string verifiedByUserId, CancellationToken ct)
     {
         var result = await _projectGateService.ClearGate2Async(configId, verifiedByUserId, ct);
@@ -134,6 +144,7 @@ public class ProjectTokensController : ControllerBase
     }
 
     [HttpPost("{configId}/gate/fail")]
+    [Authorize(Policy = AuthorizationPolicies.AdminApiKey)]
     public async Task<IActionResult> FailProject(string configId, [FromBody] FailProjectRequest request, CancellationToken ct)
     {
         var result = await _projectGateService.FailProjectAsync(configId, request.Reason, ct);
@@ -143,6 +154,7 @@ public class ProjectTokensController : ControllerBase
     // === Failure Handling ===
 
     [HttpPost("{configId}/burn-founder")]
+    [Authorize(Policy = AuthorizationPolicies.AdminApiKey)]
     public async Task<IActionResult> BurnFounderTokens(string configId, CancellationToken ct)
     {
         var result = await _projectTokenService.BurnFounderTokensAsync(configId, ct);
@@ -150,6 +162,7 @@ public class ProjectTokensController : ControllerBase
     }
 
     [HttpPost("{configId}/trust-protection")]
+    [Authorize(Policy = AuthorizationPolicies.AdminApiKey)]
     public async Task<IActionResult> ProcessTrustProtection(string configId, CancellationToken ct)
     {
         var result = await _projectTokenService.ProcessInvestorTrustProtectionAsync(configId, ct);

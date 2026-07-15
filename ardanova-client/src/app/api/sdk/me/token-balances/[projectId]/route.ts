@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { apiClient } from "~/lib/api";
+import { runWithActorAssertion } from "~/server/actor-assertion";
 import { getSessionOrError } from "../../../_lib/session";
 
 /**
@@ -16,12 +17,15 @@ export async function GET(
 
   const { projectId } = await params;
 
-  const response = await apiClient.tokenBalances.getPortfolio(session!.user.id);
+  const response = await runWithActorAssertion(
+    { subject: session!.user.id, role: session!.user.role },
+    () => apiClient.tokenBalances.getPortfolio(),
+  );
   if (response.error) {
     return NextResponse.json({ error: response.error }, { status: response.status });
   }
 
-  const row = response.data?.balances?.find((b) => b.projectTokenConfigId === projectId);
+  const row = response.data?.holdings?.find((b) => b.projectTokenConfigId === projectId);
   return NextResponse.json({
     userId: session!.user.id,
     projectTokenConfigId: projectId,

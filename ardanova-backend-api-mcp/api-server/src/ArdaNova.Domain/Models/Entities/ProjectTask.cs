@@ -107,6 +107,10 @@ public class ProjectTask
 
     public virtual ICollection<Opportunity> Opportunities { get; set; } = new List<Opportunity>();
 
+    public virtual ICollection<EconomicSettlement> EconomicSettlements { get; set; } = new List<EconomicSettlement>();
+
+    public virtual ICollection<TaskCommerceAgreement> TaskCommerceAgreements { get; set; } = new List<TaskCommerceAgreement>();
+
     public virtual ICollection<ProjectTaskDependency> ProjectTaskDependenciesAsTask { get; set; } = new List<ProjectTaskDependency>();
 
     public virtual ICollection<ProjectTaskDependency> ProjectTaskDependenciesAsDependsOn { get; set; } = new List<ProjectTaskDependency>();

@@ -1415,11 +1415,53 @@ Table Wallet {
   provider WalletProvider [not null]
   label varchar
   isVerified boolean [not null, default: false]
+  verifiedAt datetime
+  verificationChain varchar
+  verificationNetwork varchar
+  verificationChallengeId varchar
   isPrimary boolean [not null, default: false]
   createdAt datetime [not null, default: `now()`]
   updatedAt datetime [not null, note: 'Updated at']
 }
 Ref: Wallet.userId > User.id
+
+Table WalletVerificationChallenge {
+  id varchar [not null, pk, default: `cuid()`]
+  userId varchar [not null]
+  walletId varchar [not null]
+  address varchar [not null, note: 'Canonical public Algorand address only']
+  chain varchar [not null, note: 'Canonical chain identifier']
+  network varchar [not null, note: 'Canonical network identifier']
+  nonceHash varchar [not null, note: 'SHA-256 of a CSPRNG nonce; never persist the nonce']
+  issuedAt datetime [not null, default: `now()`]
+  expiresAt datetime [not null]
+  consumedAt datetime
+  proofVerified boolean
+  signatureHash varchar [note: 'SHA-256 audit digest; never persist the submitted signature']
+  failureCode varchar
+
+  indexes {
+    (walletId, consumedAt)
+    (userId, expiresAt)
+  }
+}
+Ref: WalletVerificationChallenge.userId > User.id
+Ref: WalletVerificationChallenge.walletId > Wallet.id
+
+// A signed BFF actor assertion is single-use. The primary key is deliberately
+// retained after expiry so an assertion id can never be reclaimed.
+Table ActorAssertionReplay {
+  jti varchar [not null, pk, note: 'Single-use assertion UUID; never reclaimed']
+  expiresAt datetime [not null]
+  consumedAt datetime [not null, default: `now()`]
+  subject varchar [not null]
+  requestTarget varchar [not null]
+  bodySha256 varchar [not null]
+
+  indexes {
+    (expiresAt)
+  }
+}
 
 Table ProjectWallet {
   id varchar [not null, pk, default: `cuid()`]
@@ -2130,6 +2172,7 @@ Table ProjectTokenConfig {
   assetId varchar [note: 'Algorand ASA ID — null until minted on-chain']
   assetName varchar [not null, note: 'e.g., ProjectName Shares']
   unitName varchar [not null, note: 'Max 8 chars, e.g., PSHARE']
+  assetScale int [not null, default: 6, note: 'Canonical asset decimals fixed when the project token configuration is created']
   totalSupply int [not null, note: 'Fixed supply = 100% equity']
   allocatedSupply int [not null, default: 0]
   distributedSupply int [not null, default: 0]
@@ -2269,7 +2312,7 @@ Table ProjectInvestment {
   userId varchar [not null]
   usdAmount float [not null, note: 'Amount invested in USD']
   tokenAmount int [not null, note: 'Project tokens received']
-  stripePaymentIntentId varchar
+  stripePaymentIntentId varchar [unique, note: 'Stripe payment-intent id; database idempotency key for a completed funding allocation']
   investedAt datetime [not null, default: `now()`]
 
   // Trust protection
@@ -2284,3 +2327,241 @@ Table ProjectInvestment {
 }
 Ref: ProjectInvestment.projectTokenConfigId > ProjectTokenConfig.id
 Ref: ProjectInvestment.userId > User.id
+
+// =================================================================================================
+// 18. Gated Commerce Settlement Module
+// =================================================================================================
+
+// ArdaNova owns the economic decision; AZOA owns the eventual custody operation.
+// These records are intentionally inert until a transactionally-safe dispatcher is introduced.
+Enum EconomicSettlementKind {
+  TASK_REWARD
+  FUNDING_ALLOCATION
+  ESCROW_REFUND
+  SWAP_SETTLEMENT
+}
+
+Enum EconomicSettlementStatus {
+  DRAFT
+  AUTHORIZED
+  PENDING_DISPATCH
+  SUBMITTED
+  AWAITING_RECONCILIATION
+  CONFIRMED
+  REJECTED
+  CANCELLED
+  FAILED
+}
+
+Enum EconomicOutboxStatus {
+  PENDING
+  LEASED
+  SUBMITTED
+  AWAITING_RECONCILIATION
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+// A funding intent is the server-owned commerce record that a funding screen
+// reads. Browser redirects and payment-provider callbacks never create or
+// confirm an investment by themselves.
+Enum FundingIntentStatus {
+  DRAFT
+  AWAITING_PAYMENT
+  PAYMENT_VERIFIED
+  SETTLEMENT_PENDING
+  SETTLED
+  REJECTED
+  CANCELLED
+  FAILED
+}
+
+// The accepted award terms never change. Operational links are added only as
+// the task moves through escrow, quest, and settlement stages.
+Enum TaskCommerceAgreementStatus {
+  DRAFT
+  ACCEPTED
+  ESCROW_FUNDED
+  QUEST_LINKED
+  RELEASE_AUTHORIZED
+  SETTLEMENT_PENDING
+  SETTLED
+  CANCELLED
+  FAILED
+}
+
+// Stripe deliveries are acknowledged only after their signed event has a durable
+// receipt. A short processing lease prevents a crashed worker from suppressing
+// all later provider retries.
+Enum StripeWebhookEventStatus {
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+Table StripeWebhookEvent {
+  id varchar [not null, pk, note: 'Stripe event id; provider-level idempotency key']
+  eventType varchar [not null]
+  status StripeWebhookEventStatus [not null, default: 'PROCESSING']
+  attemptCount int [not null, default: 1]
+  receivedAt datetime [not null, default: `now()`]
+  processingLeaseExpiresAt datetime [not null]
+  completedAt datetime
+  lastFailedAt datetime
+
+  indexes {
+    (status, processingLeaseExpiresAt)
+  }
+}
+
+Table EconomicSettlement {
+  id varchar [not null, pk, default: `cuid()`]
+  kind EconomicSettlementKind [not null]
+  status EconomicSettlementStatus [not null, default: 'DRAFT']
+  idempotencyKey varchar [not null, unique, note: 'Stable semantic economic-event key; never random or timestamped']
+  externalEventId varchar [unique, note: 'Payment-provider or other external event id when applicable']
+  beneficiaryUserId varchar [not null]
+  authorizedByUserId varchar
+  projectId varchar
+  taskId varchar
+  escrowId varchar
+  assetCode varchar [not null, note: 'Asset/currency identifier; no wallet secret material']
+  amount decimal(38,18) [not null, note: 'Fixed-scale settlement amount; floating point is forbidden']
+  scale int [not null, default: 18]
+  termsSnapshot json [note: 'Immutable authorization, gate, quote, and allocation-command snapshot']
+  azoaOperationId varchar
+  azoaReceipt json
+  azoaReplayed boolean
+  failureCode varchar
+  failureDetail varchar
+  version int [not null, default: 0, note: 'Optimistic-concurrency version for state transitions']
+  createdAt datetime [not null, default: `now()`]
+  authorizedAt datetime
+  submittedAt datetime
+  confirmedAt datetime
+  updatedAt datetime [not null, note: 'Updated at']
+
+  indexes {
+    (beneficiaryUserId, status)
+    (projectId, status)
+    (taskId, kind)
+  }
+}
+Ref: EconomicSettlement.beneficiaryUserId > User.id
+Ref: EconomicSettlement.authorizedByUserId > User.id
+Ref: EconomicSettlement.projectId > Project.id
+Ref: EconomicSettlement.taskId > ProjectTask.id
+Ref: EconomicSettlement.escrowId > TaskEscrow.id
+
+Table EconomicOutbox {
+  id varchar [not null, pk, default: `cuid()`]
+  settlementId varchar [not null, unique]
+  status EconomicOutboxStatus [not null, default: 'PENDING']
+  payloadVersion int [not null, default: 1]
+  attemptCount int [not null, default: 0]
+  availableAt datetime [not null, default: `now()`]
+  leaseToken varchar
+  leaseExpiresAt datetime
+  lastAttemptAt datetime
+  dispatchedAt datetime
+  reconciliationRequiredAt datetime
+  failureCode varchar
+  failureDetail varchar
+  createdAt datetime [not null, default: `now()`]
+  updatedAt datetime [not null, note: 'Updated at']
+
+  indexes {
+    (status, availableAt)
+    (leaseExpiresAt)
+  }
+}
+// The unique settlementId enforces one durable dispatch claim per settlement.
+// Use a normal FK here because the DBML generator cannot emit paired one-to-one
+// Prisma relation names reliably; the database uniqueness is the authority.
+Ref: EconomicOutbox.settlementId > EconomicSettlement.id
+
+// Funding is local, durable, and actor-owned before a payment provider or
+// custody operation is contacted. Settlement/outbox activation is deliberately
+// deferred to a transactional orchestration slice.
+Table FundingIntent {
+  id varchar [not null, pk, default: `cuid()`]
+  semanticKey varchar [not null, unique, note: 'Stable intent key scoped to funder, project token configuration, and disclosed terms']
+  idempotencyKey varchar [not null, note: 'Caller replay key, unique within the funding actor']
+  status FundingIntentStatus [not null, default: 'DRAFT']
+  funderUserId varchar [not null]
+  projectId varchar [not null]
+  projectTokenConfigId varchar [not null]
+  currencyCode varchar [not null, note: 'ISO currency code for the payment amount']
+  amount decimal(38,18) [not null, note: 'Fixed-scale amount; floating point is forbidden']
+  scale int [not null, default: 2]
+  disclosureVersion varchar [not null]
+  eligibilitySnapshot json [not null, note: 'Immutable eligibility and gate evidence at intent creation']
+  termsSnapshot json [not null, note: 'Immutable funding terms, pricing, and allocation snapshot']
+  termsHash varchar [not null, note: 'Canonical hash of the immutable terms snapshot']
+  paymentProvider varchar
+  providerCheckoutSessionId varchar [unique, note: 'Stripe Checkout session id; never returned by intent status']
+  providerPaymentIntentId varchar [unique, note: 'Provider payment intent id once checkout is created']
+  verifiedProviderEventId varchar [unique, note: 'Verified provider event id that authorizes local funding']
+  settlementId varchar [unique, note: 'At most one local funding settlement; its outbox is reached through this settlement']
+  expiresAt datetime
+  paymentVerifiedAt datetime
+  settledAt datetime
+  cancelledAt datetime
+  createdAt datetime [not null, default: `now()`]
+  updatedAt datetime [not null, note: 'Updated at']
+
+  indexes {
+    (funderUserId, idempotencyKey) [unique]
+    (funderUserId, status)
+    (projectId, status)
+    (projectTokenConfigId, status)
+  }
+}
+Ref: FundingIntent.funderUserId > User.id
+Ref: FundingIntent.projectId > Project.id
+Ref: FundingIntent.projectTokenConfigId > ProjectTokenConfig.id
+// The unique settlementId establishes a one-intent/one-economic-decision link.
+// EconomicOutbox remains reachable through EconomicSettlement to avoid a
+// duplicate dispatch relationship.
+Ref: FundingIntent.settlementId > EconomicSettlement.id
+
+// An accepted task award freezes commercial terms independently from mutable
+// task, bid, escrow, or quest operational state.
+Table TaskCommerceAgreement {
+  id varchar [not null, pk, default: `cuid()`]
+  semanticKey varchar [not null, unique, note: 'Stable accepted-award key; never random or timestamped']
+  status TaskCommerceAgreementStatus [not null, default: 'DRAFT']
+  projectId varchar [not null]
+  taskId varchar [not null, unique, note: 'One commercial agreement per assigned task']
+  bidId varchar [not null, unique, note: 'One accepted commercial agreement per bid']
+  contributorUserId varchar [not null]
+  projectTokenConfigId varchar
+  assetCode varchar [not null, note: 'Award asset identifier']
+  awardAmount decimal(38,18) [not null, note: 'Fixed-scale project-token award; floating point is forbidden']
+  scale int [not null, default: 18]
+  acceptedTermsSnapshot json [not null, note: 'Immutable accepted bid, award, gate, and release terms']
+  termsHash varchar [not null, note: 'Canonical hash of the immutable accepted terms']
+  escrowId varchar [unique, note: 'Escrow linked after funding']
+  questRunId varchar [note: 'AZOA quest-run reference; no AZOA credentials or secret material']
+  settlementId varchar [unique, note: 'At most one reward/refund economic decision for this agreement']
+  acceptedAt datetime
+  releaseAuthorizedAt datetime
+  settledAt datetime
+  cancelledAt datetime
+  createdAt datetime [not null, default: `now()`]
+  updatedAt datetime [not null, note: 'Updated at']
+
+  indexes {
+    (contributorUserId, status)
+    (projectId, status)
+    (questRunId)
+  }
+}
+Ref: TaskCommerceAgreement.projectId > Project.id
+Ref: TaskCommerceAgreement.taskId > ProjectTask.id
+Ref: TaskCommerceAgreement.bidId > OpportunityBid.id
+Ref: TaskCommerceAgreement.contributorUserId > User.id
+Ref: TaskCommerceAgreement.projectTokenConfigId > ProjectTokenConfig.id
+Ref: TaskCommerceAgreement.escrowId > TaskEscrow.id
+Ref: TaskCommerceAgreement.settlementId > EconomicSettlement.id

@@ -60,9 +60,11 @@ public static class DependencyInjection
 
         // Wallet services
         services.AddScoped<IWalletService, WalletService>();
+        services.AddScoped<IWalletVerificationService, WalletVerificationService>();
 
         // Task Escrow services
         services.AddScoped<ITaskEscrowService, TaskEscrowService>();
+        services.AddScoped<ITaskCommerceService, TaskCommerceService>();
 
         // Gamification extended services
         services.AddScoped<IUserStreakService, UserStreakService>();
@@ -118,7 +120,11 @@ public static class DependencyInjection
         services.AddScoped<IPayoutService, PayoutService>();
         services.AddScoped<ITreasuryService, TreasuryService>();
         services.AddScoped<IProjectGateService, ProjectGateService>();
+        services.AddScoped<IStripeCheckoutGateway, StripeCheckoutGateway>();
+        services.AddScoped<IFundingIntentService, FundingIntentService>();
+        services.AddScoped<IStripePaymentIntentGateway, StripePaymentIntentGateway>();
         services.AddScoped<IStripeService, StripeService>();
+        services.AddScoped<IEconomicOutboxDispatchService, EconomicOutboxDispatchService>();
 
         // AZOA shared-node integration services (contract §4/§5/§6/§9).
         // Each AZOA track registers its own service on its own line below.

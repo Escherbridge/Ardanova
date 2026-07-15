@@ -1,5 +1,6 @@
 namespace ArdaNova.Application.DTOs;
 
+using System.ComponentModel.DataAnnotations;
 using ArdaNova.Domain.Models.Enums;
 
 // ==================== Project Token Config ====================
@@ -11,6 +12,7 @@ public record ProjectTokenConfigDto
     public string? AssetId { get; init; }
     public string AssetName { get; init; } = null!;
     public string UnitName { get; init; } = null!;
+    public int AssetScale { get; init; }
     public int TotalSupply { get; init; }
     public int AllocatedSupply { get; init; }
     public int DistributedSupply { get; init; }
@@ -41,6 +43,9 @@ public record CreateProjectTokenConfigDto
     public required string ProjectId { get; init; }
     public required string AssetName { get; init; }
     public required string UnitName { get; init; }
+    [Required]
+    [Range(0, 18)]
+    public required int? AssetScale { get; init; }
     public required int TotalSupply { get; init; }
     public required double FundingGoal { get; init; }
     public double ReservedPercentage { get; init; }

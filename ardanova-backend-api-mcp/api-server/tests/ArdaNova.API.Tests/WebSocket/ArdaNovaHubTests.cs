@@ -1,4 +1,5 @@
 using ArdaNova.API.WebSocket.Hubs;
+using ArdaNova.Application.Services.Interfaces;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -32,7 +33,12 @@ public class ArdaNovaHubTests
     public void Constructor_WithValidDependencies_CreatesHub()
     {
         // Act
-        var hub = new ArdaNovaHub(NullLogger<ArdaNovaHub>.Instance, _configuration);
+        var hub = new ArdaNovaHub(
+            NullLogger<ArdaNovaHub>.Instance,
+            _configuration,
+            new Mock<IProjectMemberService>().Object,
+            new Mock<IGuildService>().Object,
+            new Mock<IGuildMemberService>().Object);
 
         // Assert
         hub.Should().NotBeNull();

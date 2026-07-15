@@ -148,6 +148,8 @@ public class User
 
     public virtual ICollection<Wallet> Wallets { get; set; } = new List<Wallet>();
 
+    public virtual ICollection<WalletVerificationChallenge> WalletVerificationChallenges { get; set; } = new List<WalletVerificationChallenge>();
+
     public virtual ICollection<TaskEscrow> TaskEscrows { get; set; } = new List<TaskEscrow>();
 
     public virtual ICollection<ShareSwap> ShareSwaps { get; set; } = new List<ShareSwap>();
@@ -200,6 +202,10 @@ public class User
 
     public virtual ICollection<ProjectInvestment> ProjectInvestments { get; set; } = new List<ProjectInvestment>();
 
+    public virtual ICollection<FundingIntent> FundingIntents { get; set; } = new List<FundingIntent>();
+
+    public virtual ICollection<TaskCommerceAgreement> TaskCommerceAgreements { get; set; } = new List<TaskCommerceAgreement>();
+
     public virtual ICollection<Referral> ReferralsAsReferrer { get; set; } = new List<Referral>();
 
     public virtual ICollection<Referral> ReferralsAsReferred { get; set; } = new List<Referral>();
@@ -239,5 +245,9 @@ public class User
     public virtual ICollection<KycSubmission> KycSubmissionsAsUser { get; set; } = new List<KycSubmission>();
 
     public virtual ICollection<KycSubmission> KycSubmissionsAsReviewer { get; set; } = new List<KycSubmission>();
+
+    public virtual ICollection<EconomicSettlement> EconomicSettlementsAsBeneficiaryUser { get; set; } = new List<EconomicSettlement>();
+
+    public virtual ICollection<EconomicSettlement> EconomicSettlementsAsAuthorizedByUser { get; set; } = new List<EconomicSettlement>();
 
 }

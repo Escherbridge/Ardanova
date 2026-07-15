@@ -1,3 +1,7 @@
+---
+type: contract
+---
+
 # AZOA Blockchain-Node Integration Contract
 
 **Status:** Phase-1 keystone (consolidation + extension). This is the single
@@ -108,9 +112,9 @@ JWT. Scopes gate capability:
   *fleet of avatars it owns* (the custodial / acting-as path of §5.2). A
   publish-only consumer that lets avatars self-run does **not** need it.
 
-The consumer's AZOA API key is a **deploy-time secret** (`AZOA_TENANT_API_KEY` in
-`DEPLOY-STEPS-TODO.md`; read on the consumer side from secret store, e.g.
-`AZOA__TenantApiKey`). **Never committed.** AZOA holds **no** payment-provider
+The consumer's AZOA API key is a **deploy-time secret** (`AZOA_TENANT_API_KEY`,
+bound by the consumer's secret store to `Azoa:TenantApiKey` / `AZOA__TenantApiKey`).
+**Never commit or document the key value.** AZOA holds **no** payment-provider
 secret — webhook verification is the consumer's job.
 
 ---

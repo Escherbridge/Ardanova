@@ -12,6 +12,7 @@ import superjson from "superjson";
 import { ZodError } from "zod";
 
 import { auth } from "~/server/auth";
+import { runWithActorAssertion } from "~/server/actor-assertion";
 import {
   type UserRole,
   type UserType,
@@ -132,12 +133,15 @@ export const protectedProcedure = t.procedure
     if (!ctx.session?.user) {
       throw new TRPCError({ code: "UNAUTHORIZED" });
     }
-    return next({
-      ctx: {
-        // infers the `session` as non-nullable
-        session: { ...ctx.session, user: ctx.session.user },
-      },
-    });
+    return runWithActorAssertion(
+      { subject: ctx.session.user.id, role: ctx.session.user.role },
+      () => next({
+        ctx: {
+          // infers the `session` as non-nullable
+          session: { ...ctx.session, user: ctx.session.user },
+        },
+      }),
+    );
   });
 
 // ---------------------------------------------------------------------------

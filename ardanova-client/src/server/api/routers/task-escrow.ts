@@ -15,9 +15,8 @@ export const taskEscrowRouter = createTRPCRouter({
     }),
 
   getByFunderId: protectedProcedure
-    .input(z.object({ funderId: z.string() }))
-    .query(async ({ input }) => {
-      const response = await apiClient.taskEscrows.getByFunderId(input.funderId);
+    .query(async () => {
+      const response = await apiClient.taskEscrows.getMine();
       if (response.error) {
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: response.error });
       }
@@ -28,7 +27,6 @@ export const taskEscrowRouter = createTRPCRouter({
     .input(
       z.object({
         taskId: z.string(),
-        funderId: z.string(),
         shareId: z.string(),
         amount: z.number(),
         txHashFund: z.string().optional(),
@@ -37,7 +35,6 @@ export const taskEscrowRouter = createTRPCRouter({
     .mutation(async ({ input }) => {
       const response = await apiClient.taskEscrows.create({
         taskId: input.taskId,
-        funderId: input.funderId,
         shareId: input.shareId,
         amount: input.amount,
         txHashFund: input.txHashFund,

@@ -14,9 +14,8 @@ export interface Wallet {
 }
 
 export interface CreateWalletDto {
-  userId: string;
   address: string;
-  provider?: string;
+  provider?: WalletProvider;
   label?: string;
   isPrimary?: boolean;
   [key: string]: unknown;
@@ -28,6 +27,27 @@ export interface UpdateWalletDto {
   [key: string]: unknown;
 }
 
+export type WalletProvider =
+  | "PERA"
+  | "DEFLY"
+  | "ALGOSIGNER"
+  | "WALLETCONNECT"
+  | "OTHER";
+
+export interface WalletVerificationChallenge {
+  challengeId: string;
+  message: string;
+  chain: string;
+  network: string;
+  expiresAt: string;
+}
+
+export interface CompleteWalletVerificationDto {
+  challengeId: string;
+  nonce: string;
+  signature: string;
+}
+
 export class WalletsEndpoint {
   constructor(private client: BaseApiClient) {}
 
@@ -35,16 +55,18 @@ export class WalletsEndpoint {
     return this.client.get<Wallet>(`/api/wallets/${encodeURIComponent(id)}`);
   }
 
-  getByUserId(userId: string): Promise<ApiResponse<Wallet[]>> {
-    return this.client.get<Wallet[]>(`/api/wallets/user/${encodeURIComponent(userId)}`);
+  getMine(): Promise<ApiResponse<Wallet[]>> {
+    return this.client.get<Wallet[]>("/api/wallets/me");
   }
 
   getByAddress(address: string): Promise<ApiResponse<Wallet>> {
-    return this.client.get<Wallet>(`/api/wallets/address/${encodeURIComponent(address)}`);
+    return this.client.get<Wallet>(
+      `/api/wallets/address/${encodeURIComponent(address)}`,
+    );
   }
 
-  getPrimary(userId: string): Promise<ApiResponse<Wallet>> {
-    return this.client.get<Wallet>(`/api/wallets/user/${encodeURIComponent(userId)}/primary`);
+  getMyPrimary(): Promise<ApiResponse<Wallet>> {
+    return this.client.get<Wallet>("/api/wallets/me/primary");
   }
 
   create(data: CreateWalletDto): Promise<ApiResponse<Wallet>> {
@@ -52,15 +74,36 @@ export class WalletsEndpoint {
   }
 
   update(id: string, data: UpdateWalletDto): Promise<ApiResponse<Wallet>> {
-    return this.client.put<Wallet>(`/api/wallets/${encodeURIComponent(id)}`, data);
+    return this.client.put<Wallet>(
+      `/api/wallets/${encodeURIComponent(id)}`,
+      data,
+    );
   }
 
-  verify(id: string): Promise<ApiResponse<Wallet>> {
-    return this.client.post<Wallet>(`/api/wallets/${encodeURIComponent(id)}/verify`, {});
+  issueVerificationChallenge(
+    id: string,
+  ): Promise<ApiResponse<WalletVerificationChallenge>> {
+    return this.client.post<WalletVerificationChallenge>(
+      `/api/wallets/${encodeURIComponent(id)}/verification-challenge`,
+      {},
+    );
+  }
+
+  completeVerificationChallenge(
+    id: string,
+    data: CompleteWalletVerificationDto,
+  ): Promise<ApiResponse<Wallet>> {
+    return this.client.post<Wallet>(
+      `/api/wallets/${encodeURIComponent(id)}/verification-challenge/complete`,
+      data,
+    );
   }
 
   setPrimary(id: string): Promise<ApiResponse<Wallet>> {
-    return this.client.post<Wallet>(`/api/wallets/${encodeURIComponent(id)}/set-primary`, {});
+    return this.client.post<Wallet>(
+      `/api/wallets/${encodeURIComponent(id)}/set-primary`,
+      {},
+    );
   }
 
   delete(id: string): Promise<ApiResponse<void>> {

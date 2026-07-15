@@ -56,4 +56,8 @@ public class TaskEscrow
     [ForeignKey("shareId")]
     public virtual ProjectShare? Share { get; set; }
 
+    public virtual ICollection<EconomicSettlement> EconomicSettlements { get; set; } = new List<EconomicSettlement>();
+
+    public virtual ICollection<TaskCommerceAgreement> TaskCommerceAgreements { get; set; } = new List<TaskCommerceAgreement>();
+
 }

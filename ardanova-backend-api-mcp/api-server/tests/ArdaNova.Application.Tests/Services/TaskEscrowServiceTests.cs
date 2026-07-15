@@ -13,6 +13,7 @@ using Moq;
 public class TaskEscrowServiceTests
 {
     private readonly Mock<IRepository<TaskEscrow>> _repositoryMock;
+    private readonly Mock<IRepository<ProjectTask>> _taskRepositoryMock;
     private readonly Mock<IUnitOfWork> _unitOfWorkMock;
     private readonly Mock<IMapper> _mapperMock;
     private readonly TaskEscrowService _sut;
@@ -20,9 +21,14 @@ public class TaskEscrowServiceTests
     public TaskEscrowServiceTests()
     {
         _repositoryMock = new Mock<IRepository<TaskEscrow>>();
+        _taskRepositoryMock = new Mock<IRepository<ProjectTask>>();
         _unitOfWorkMock = new Mock<IUnitOfWork>();
         _mapperMock = new Mock<IMapper>();
-        _sut = new TaskEscrowService(_repositoryMock.Object, _unitOfWorkMock.Object, _mapperMock.Object);
+        _sut = new TaskEscrowService(
+            _repositoryMock.Object,
+            _taskRepositoryMock.Object,
+            _unitOfWorkMock.Object,
+            _mapperMock.Object);
     }
 
     [Fact]
@@ -191,6 +197,11 @@ public class TaskEscrowServiceTests
 
         _repositoryMock.Setup(r => r.UpdateAsync(It.IsAny<TaskEscrow>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
+        var task = new ProjectTask { id = taskId, escrowStatus = EscrowStatus.FUNDED };
+        _taskRepositoryMock.Setup(r => r.GetByIdAsync(taskId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(task);
+        _taskRepositoryMock.Setup(r => r.UpdateAsync(task, It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
 
         _unitOfWorkMock.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(1);
@@ -203,6 +214,8 @@ public class TaskEscrowServiceTests
         // Assert
         result.IsSuccess.Should().BeTrue();
         result.Value!.Status.Should().Be(EscrowStatus.RELEASED);
+        task.escrowStatus.Should().Be(EscrowStatus.RELEASED);
+        _taskRepositoryMock.Verify(r => r.UpdateAsync(task, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -230,6 +243,11 @@ public class TaskEscrowServiceTests
 
         _repositoryMock.Setup(r => r.UpdateAsync(It.IsAny<TaskEscrow>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
+        var task = new ProjectTask { id = taskId, escrowStatus = EscrowStatus.FUNDED };
+        _taskRepositoryMock.Setup(r => r.GetByIdAsync(taskId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(task);
+        _taskRepositoryMock.Setup(r => r.UpdateAsync(task, It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
 
         _unitOfWorkMock.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(1);
@@ -242,6 +260,7 @@ public class TaskEscrowServiceTests
         // Assert
         result.IsSuccess.Should().BeTrue();
         result.Value!.Status.Should().Be(EscrowStatus.DISPUTED);
+        task.escrowStatus.Should().Be(EscrowStatus.DISPUTED);
     }
 
     [Fact]
@@ -269,6 +288,11 @@ public class TaskEscrowServiceTests
 
         _repositoryMock.Setup(r => r.UpdateAsync(It.IsAny<TaskEscrow>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
+        var task = new ProjectTask { id = taskId, escrowStatus = EscrowStatus.FUNDED };
+        _taskRepositoryMock.Setup(r => r.GetByIdAsync(taskId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(task);
+        _taskRepositoryMock.Setup(r => r.UpdateAsync(task, It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
 
         _unitOfWorkMock.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(1);
@@ -281,5 +305,6 @@ public class TaskEscrowServiceTests
         // Assert
         result.IsSuccess.Should().BeTrue();
         result.Value!.Status.Should().Be(EscrowStatus.REFUNDED);
+        task.escrowStatus.Should().Be(EscrowStatus.REFUNDED);
     }
 }

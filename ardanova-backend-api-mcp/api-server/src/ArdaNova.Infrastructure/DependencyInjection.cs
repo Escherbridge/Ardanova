@@ -8,8 +8,12 @@ using ArdaNova.Domain.Models.Enums;
 using ArdaNova.Infrastructure.Algorand;
 using ArdaNova.Infrastructure.Azoa;
 using ArdaNova.Infrastructure.Data;
+using ArdaNova.Infrastructure.Outbox;
+using ArdaNova.Infrastructure.Payments;
 using ArdaNova.Infrastructure.Repositories;
+using ArdaNova.Infrastructure.Security;
 using ArdaNova.Infrastructure.UnitOfWork;
+using ArdaNova.Infrastructure.Wallets;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -22,7 +26,7 @@ public static class DependencyInjection
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        // Get connection string - prefer DATABASE_URL env var, fallback to config
+        // Database credentials are deployment configuration; see the root environment template.
         var connectionString = GetConnectionString(configuration);
 
         // Build Npgsql data source with enum mappings for PostgreSQL native enums
@@ -55,6 +59,11 @@ public static class DependencyInjection
 
         // Generic Repository
         services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
+        services.AddScoped<IStripeWebhookInbox, StripeWebhookInbox>();
+        services.AddScoped<IActorAssertionReplayLedger, ActorAssertionReplayLedger>();
+        services.AddScoped<IWalletVerificationChallengeStore, WalletVerificationChallengeStore>();
+        services.AddScoped<IWalletProofVerifier, AlgorandWalletProofVerifier>();
+        services.AddScoped<IEconomicOutboxLeaseStore, EconomicOutboxLeaseStore>();
 
         // Entity-specific Repositories
         services.AddScoped<IProjectRepository, ProjectRepository>();
@@ -81,6 +90,8 @@ public static class DependencyInjection
         services.AddScoped<IAzoaAvatarNode, AzoaAvatarNodeAdapter>();
         services.AddScoped<IAzoaQuestNode, AzoaQuestNodeAdapter>();
         services.AddScoped<IAzoaAllocationNode, AzoaAllocationNodeAdapter>();
+        services.AddScoped<IAzoaSettlementGateway, DisabledAzoaSettlementGateway>();
+        services.AddScoped<IFundingSettlementReadiness, AzoaFundingSettlementReadiness>();
 
         // Algorand blockchain service.
         // The IAlgorandService implementation is selected by the Algorand:Provider
@@ -111,17 +122,21 @@ public static class DependencyInjection
 
     private static string GetConnectionString(IConfiguration configuration)
     {
-        // First try DATABASE_URL environment variable (used by Railway, Heroku, etc.)
         var databaseUrl = Environment.GetEnvironmentVariable("DATABASE_URL");
 
-        if (!string.IsNullOrEmpty(databaseUrl))
+        if (!string.IsNullOrWhiteSpace(databaseUrl))
         {
             return ConvertPostgresUrlToConnectionString(databaseUrl);
         }
 
-        // Fallback to traditional .NET connection string config
-        return configuration.GetConnectionString("DefaultConnection")
-            ?? throw new InvalidOperationException("Database connection string not configured. Set DATABASE_URL environment variable or ConnectionStrings:DefaultConnection in appsettings.json");
+        var connectionString = configuration.GetConnectionString("DefaultConnection");
+        if (!string.IsNullOrWhiteSpace(connectionString))
+        {
+            return connectionString;
+        }
+
+        throw new InvalidOperationException(
+            "Database connection string not configured. Set DATABASE_URL or ConnectionStrings__DefaultConnection through the deployment or local process environment.");
     }
 
     /// <summary>

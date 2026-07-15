@@ -55,14 +55,16 @@ export interface SwapHistoryDto {
 // ---------------------------------------------------------------------------
 
 const swapPreviewInputSchema = z.object({
-  userId: z.string().min(1),
+  // Retained temporarily for callers built before the server-owned identity
+  // boundary. It is deliberately ignored; the session determines the account.
+  userId: z.string().min(1).optional(),
   sourceConfigId: z.string().min(1),
   targetConfigId: z.string().min(1),
   sourceTokenAmount: z.number().int().positive(),
 });
 
 const executeSwapInputSchema = z.object({
-  userId: z.string().min(1),
+  userId: z.string().min(1).optional(),
   sourceConfigId: z.string().min(1),
   targetConfigId: z.string().min(1),
   sourceTokenAmount: z.number().int().positive(),
@@ -77,7 +79,6 @@ export const swapRouter = createTRPCRouter({
     .input(swapPreviewInputSchema)
     .query(async ({ input }) => {
       const params = new URLSearchParams({
-        userId: input.userId,
         sourceConfigId: input.sourceConfigId,
         targetConfigId: input.targetConfigId,
         sourceTokenAmount: String(input.sourceTokenAmount),
@@ -99,7 +100,7 @@ export const swapRouter = createTRPCRouter({
     .mutation(async ({ input }) => {
       const response = await (apiClient as unknown as { post: <T>(url: string, body: unknown) => Promise<{ data?: T; error?: string }> })
         .post<SwapResultDto>(
-          `/api/Swaps?userId=${encodeURIComponent(input.userId)}`,
+          "/api/Swaps",
           {
             sourceConfigId: input.sourceConfigId,
             targetConfigId: input.targetConfigId,
@@ -117,10 +118,10 @@ export const swapRouter = createTRPCRouter({
     }),
 
   getHistory: protectedProcedure
-    .input(z.object({ userId: z.string().min(1) }))
-    .query(async ({ input }) => {
+    .input(z.object({ userId: z.string().min(1).optional() }))
+    .query(async () => {
       const response = await (apiClient as unknown as { get: <T>(url: string) => Promise<{ data?: T; error?: string }> })
-        .get<SwapHistoryDto[]>(`/api/Swaps/history/${encodeURIComponent(input.userId)}`);
+        .get<SwapHistoryDto[]>("/api/Swaps/history");
 
       if (response.error ?? !response.data) {
         throw new TRPCError({

@@ -55,4 +55,6 @@ public class OpportunityBid
     [ForeignKey("guildId")]
     public virtual Guild? Guild { get; set; }
 
+    public virtual ICollection<TaskCommerceAgreement> TaskCommerceAgreements { get; set; } = new List<TaskCommerceAgreement>();
+
 }

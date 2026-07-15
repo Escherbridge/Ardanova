@@ -3,6 +3,8 @@ namespace ArdaNova.API.Controllers;
 using ArdaNova.Application.Common.Results;
 using ArdaNova.Application.DTOs;
 using ArdaNova.Application.Services.Interfaces;
+using ArdaNova.API.Middleware;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 [ApiController]
@@ -35,6 +37,7 @@ public class TreasuryController : ControllerBase
     }
 
     [HttpPost("funding-inflow")]
+    [Authorize(Policy = AuthorizationPolicies.AdminApiKey)]
     public async Task<IActionResult> ProcessFundingInflow(
         [FromQuery] double usdAmount,
         [FromQuery] string? projectId,
@@ -45,6 +48,7 @@ public class TreasuryController : ControllerBase
     }
 
     [HttpPost("apply-index-return")]
+    [Authorize(Policy = AuthorizationPolicies.AdminApiKey)]
     public async Task<IActionResult> ApplyIndexFundReturn(CancellationToken ct)
     {
         var result = await _treasuryService.ApplyIndexFundReturnAsync(ct);
@@ -52,6 +56,7 @@ public class TreasuryController : ControllerBase
     }
 
     [HttpPost("rebalance")]
+    [Authorize(Policy = AuthorizationPolicies.AdminApiKey)]
     public async Task<IActionResult> Rebalance([FromQuery] double requiredLiquid, CancellationToken ct)
     {
         var result = await _treasuryService.RebalanceIfNeededAsync(requiredLiquid, ct);
@@ -59,6 +64,7 @@ public class TreasuryController : ControllerBase
     }
 
     [HttpPost("reconcile")]
+    [Authorize(Policy = AuthorizationPolicies.AdminApiKey)]
     public async Task<IActionResult> Reconcile(CancellationToken ct)
     {
         var result = await _treasuryService.ReconcileAsync(ct);

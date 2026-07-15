@@ -53,6 +53,8 @@ public class ArdaNovaDbContext : DbContext
 
     // Wallet entities
     public DbSet<Wallet> Wallets => Set<Wallet>();
+    public DbSet<WalletVerificationChallenge> WalletVerificationChallenges => Set<WalletVerificationChallenge>();
+    public DbSet<ActorAssertionReplay> ActorAssertionReplays => Set<ActorAssertionReplay>();
 
     // Escrow entities
     public DbSet<TaskEscrow> TaskEscrows => Set<TaskEscrow>();
@@ -141,6 +143,13 @@ public class ArdaNovaDbContext : DbContext
     public DbSet<ProjectInvestment> ProjectInvestments => Set<ProjectInvestment>();
     public DbSet<ProjectWallet> ProjectWallets => Set<ProjectWallet>();
     public DbSet<GuildWallet> GuildWallets => Set<GuildWallet>();
+    public DbSet<StripeWebhookEvent> StripeWebhookEvents => Set<StripeWebhookEvent>();
+    public DbSet<EconomicSettlement> EconomicSettlements => Set<EconomicSettlement>();
+    public DbSet<EconomicOutbox> EconomicOutboxes => Set<EconomicOutbox>();
+    public DbSet<FundingIntent> FundingIntents => Set<FundingIntent>();
+    public DbSet<TaskCommerceAgreement> TaskCommerceAgreements => Set<TaskCommerceAgreement>();
+
+
 
 
 

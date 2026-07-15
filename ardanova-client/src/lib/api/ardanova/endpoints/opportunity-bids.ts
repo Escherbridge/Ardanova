@@ -38,19 +38,26 @@ export interface UpdateOpportunityBid {
   [key: string]: unknown;
 }
 
+export interface TaskCommerceAcceptance {
+  bidId: string;
+  taskId: string;
+  agreementId: string;
+  commerceUrl: string;
+}
+
 export class OpportunityBidsEndpoint {
   constructor(private client: BaseApiClient) {}
 
   getByOpportunityId(opportunityId: string): Promise<ApiResponse<OpportunityBid[]>> {
-    return this.client.get<OpportunityBid[]>(`/api/opportunity-bids?opportunityId=${encodeURIComponent(opportunityId)}`);
+    return this.client.get<OpportunityBid[]>(`/api/opportunities/${encodeURIComponent(opportunityId)}/bids`);
   }
 
   getById(id: string): Promise<ApiResponse<OpportunityBid>> {
     return this.client.get<OpportunityBid>(`/api/opportunity-bids/${id}`);
   }
 
-  getByBidderId(bidderId: string): Promise<ApiResponse<OpportunityBid[]>> {
-    return this.client.get<OpportunityBid[]>(`/api/opportunity-bids/bidder/${bidderId}`);
+  getMine(): Promise<ApiResponse<OpportunityBid[]>> {
+    return this.client.get<OpportunityBid[]>("/api/opportunity-bids/me");
   }
 
   getByGuildId(guildId: string): Promise<ApiResponse<OpportunityBid[]>> {
@@ -65,8 +72,8 @@ export class OpportunityBidsEndpoint {
     return this.client.put<OpportunityBid>(`/api/opportunity-bids/${id}`, data);
   }
 
-  accept(id: string): Promise<ApiResponse<OpportunityBid>> {
-    return this.client.post<OpportunityBid>(`/api/opportunity-bids/${id}/accept`, {});
+  accept(id: string): Promise<ApiResponse<TaskCommerceAcceptance>> {
+    return this.client.post<TaskCommerceAcceptance>(`/api/opportunity-bids/${id}/accept`, {});
   }
 
   reject(id: string): Promise<ApiResponse<OpportunityBid>> {

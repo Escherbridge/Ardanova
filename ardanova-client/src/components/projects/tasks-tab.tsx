@@ -22,6 +22,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
 import { cn } from "~/lib/utils";
 import { api } from "~/trpc/react";
 import { toast } from "sonner";
+import { TaskEconomicState } from "~/components/tasks/task-economic-state";
 
 interface TasksTabProps {
   projectId: string;
@@ -456,6 +457,10 @@ function TaskCard({ task }: { task: any }) {
               {task.equityReward}
             </span>
           )}
+          <TaskEconomicState
+            equityReward={Number(task.equityReward ?? 0)}
+            escrowStatus={task.escrowStatus}
+          />
           {task.dueDate && (
             <span className="flex items-center gap-0.5">
               <Clock className="size-3" />
@@ -579,6 +584,10 @@ function TaskListItem({ task }: { task: any }) {
           {task.equityReward}
         </span>
       )}
+      <TaskEconomicState
+        equityReward={Number(task.equityReward ?? 0)}
+        escrowStatus={task.escrowStatus}
+      />
 
       {/* Due date */}
       {task.dueDate && (

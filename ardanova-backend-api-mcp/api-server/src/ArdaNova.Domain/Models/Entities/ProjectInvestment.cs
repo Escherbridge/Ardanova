@@ -7,6 +7,7 @@ using ArdaNova.Domain.Models.Enums;
 
 namespace ArdaNova.Domain.Models.Entities;
 
+[Index(nameof(stripePaymentIntentId), IsUnique = true)]
 [Table("ProjectInvestment")]
 public class ProjectInvestment
 {

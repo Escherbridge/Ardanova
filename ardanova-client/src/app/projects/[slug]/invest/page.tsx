@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { api } from "~/trpc/react";
@@ -89,6 +89,13 @@ export default function InvestPage() {
   // Step 2 state
   const [checkLocked, setCheckLocked] = useState(false);
   const [checkTrust, setCheckTrust] = useState(false);
+  const checkoutIdempotencyKey = useRef<string | undefined>(undefined);
+  const checkout = api.fundingIntent.createCheckout.useMutation({
+    onSuccess: ({ intentId, checkoutUrl }) => {
+      window.sessionStorage.setItem(`ardanova:funding-intent:${slug}`, intentId);
+      window.location.assign(checkoutUrl);
+    },
+  });
 
   // Debounce
   useEffect(() => {
@@ -139,9 +146,22 @@ export default function InvestPage() {
 
   const handleQuickAmount = useCallback((amt: number) => setUsdInput(String(amt)), []);
 
+  const beginCheckout = () => {
+    if (!config) return;
+
+    checkoutIdempotencyKey.current ??= window.crypto.randomUUID();
+    setStep(3);
+    checkout.mutate({
+      projectTokenConfigId: config.id,
+      amount: usdInput.trim(),
+      disclosureVersion: "funding-disclosure-v1",
+      idempotencyKey: checkoutIdempotencyKey.current,
+    });
+  };
+
   const handleNext = () => {
     if (step === 1 && preview) setStep(2);
-    else if (step === 2 && checkLocked && checkTrust) setStep(3);
+    else if (step === 2 && checkLocked && checkTrust) beginCheckout();
   };
 
   const handleBack = () => {
@@ -439,15 +459,18 @@ export default function InvestPage() {
               You&apos;ll be redirected automatically. If nothing happens,{" "}
               <button
                 className="text-[#00d4ff] underline"
-                onClick={() => {
-                  // Stripe checkout would be triggered here via backend webhook
-                  console.log("Retry Stripe redirect");
-                }}
+                  onClick={beginCheckout}
               >
                 click here
               </button>
               .
             </p>
+
+            {checkout.error && (
+              <p className="text-xs text-center text-destructive">
+                {checkout.error.message}
+              </p>
+            )}
 
             <Button
               variant="outline"

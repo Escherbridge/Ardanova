@@ -1,161 +1,114 @@
 "use client";
 
-import { useParams, useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
+import { useParams } from "next/navigation";
+import { api } from "~/trpc/react";
 import Link from "next/link";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent } from "~/components/ui/card";
-import { CheckCircle2, ArrowLeft, Wallet, TrendingUp, Lock } from "lucide-react";
-
-function formatUSD(n: number) {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    minimumFractionDigits: 2,
-  }).format(n);
-}
-
-function formatToken(n: number, unit: string) {
-  return `${new Intl.NumberFormat("en-US").format(Math.round(n))} ${unit}`;
-}
-
-function formatPct(n: number) {
-  return `${n.toFixed(4)}%`;
-}
+import { Clock3, ArrowLeft, Wallet, Lock } from "lucide-react";
+import { getFundingIntentPresentation } from "~/lib/commerce/funding-intent-status";
 
 export default function InvestSuccessPage() {
   const params = useParams();
-  const searchParams = useSearchParams();
   const slug = params.slug as string;
+  const [intentId, setIntentId] = useState<string>();
 
-  // These params would be passed by the Stripe redirect callback
-  const amount = searchParams.get("amount");
-  const tokens = searchParams.get("tokens");
-  const equity = searchParams.get("equity");
-  const unitName = searchParams.get("unit") ?? "TOKEN";
+  useEffect(() => {
+    setIntentId(
+      window.sessionStorage.getItem(`ardanova:funding-intent:${slug}`) ??
+        undefined,
+    );
+  }, [slug]);
 
-  const usdAmount = amount ? parseFloat(amount) : null;
-  const tokenCount = tokens ? parseFloat(tokens) : null;
-  const equityPct = equity ? parseFloat(equity) : null;
+  const { data: intent, error } = api.fundingIntent.getStatus.useQuery(
+    { intentId: intentId ?? "" },
+    {
+      enabled: Boolean(intentId),
+      refetchInterval: (query) =>
+        getFundingIntentPresentation(query.state.data?.status).poll
+          ? 5000
+          : false,
+    },
+  );
+  const presentation = error
+    ? getFundingIntentPresentation()
+    : getFundingIntentPresentation(intent?.status);
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
-      <div className="max-w-md w-full space-y-6">
-        {/* Success hero */}
-        <div className="text-center space-y-3">
-          <div className="size-20 rounded-full border-2 border-[#00ff88] bg-[#00ff88]/10 flex items-center justify-center mx-auto shadow-[0_0_24px_rgba(0,255,136,0.3)]">
-            <CheckCircle2 className="size-10 text-[#00ff88]" />
+    <div className="bg-background flex min-h-screen items-center justify-center p-4">
+      <div className="w-full max-w-md space-y-6">
+        {/* A redirect is not a payment receipt. See conductor gated-commerce track. */}
+        <div className="space-y-3 text-center">
+          <div className="mx-auto flex size-20 items-center justify-center rounded-full border-2 border-[#00d4ff] bg-[#00d4ff]/10 shadow-[0_0_24px_rgba(0,212,255,0.3)]">
+            <Clock3 className="size-10 text-[#00d4ff]" />
           </div>
-          <h1 className="text-2xl font-bold font-mono tracking-wide text-[#00ff88]">
-            INVESTMENT CONFIRMED
+          <h1 className="font-mono text-2xl font-bold tracking-wide text-[#00d4ff]">
+            {presentation.heading}
           </h1>
-          <p className="text-muted-foreground text-sm">
-            Your investment has been processed successfully. Welcome to the project!
-          </p>
+          <p className="text-muted-foreground text-sm">{presentation.detail}</p>
         </div>
 
-        {/* Investment summary */}
-        {(usdAmount ?? tokenCount ?? equityPct) && (
-          <Card className="border-2 border-[#00ff88]/40 bg-[#00ff88]/5">
-            <CardContent className="p-5 space-y-3">
-              <span className="font-mono text-xs font-bold tracking-widest text-[#00ff88] block">
-                INVESTMENT SUMMARY
-              </span>
-
-              {usdAmount && (
-                <SummaryRow
-                  icon={<TrendingUp className="size-4 text-[#00d4ff]" />}
-                  label="Amount invested"
-                  value={formatUSD(usdAmount)}
-                  valueColor="text-[#00d4ff]"
-                />
-              )}
-              {tokenCount && (
-                <SummaryRow
-                  icon={<Wallet className="size-4 text-[#00ff88]" />}
-                  label="Tokens received"
-                  value={formatToken(tokenCount, unitName)}
-                  valueColor="text-[#00ff88]"
-                />
-              )}
-              {equityPct && (
-                <SummaryRow
-                  icon={<TrendingUp className="size-4 text-[#00ff88]" />}
-                  label="Equity stake"
-                  value={formatPct(equityPct)}
-                  valueColor="text-[#00ff88]"
-                />
-              )}
-
-              <div className="flex items-start gap-2 text-xs text-muted-foreground border border-border/40 p-2 mt-1">
-                <Lock className="size-3 mt-0.5 shrink-0 text-muted-foreground" />
-                <span>
-                  Your tokens are locked under trust protection until Gate 2 is cleared by the project founder.
-                </span>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* What happens next */}
-        <Card className="border-2 border-border">
-          <CardContent className="p-5 space-y-3">
-            <span className="font-mono text-xs font-bold tracking-widest text-muted-foreground block">
+        <Card className="border-2 border-[#00d4ff]/40 bg-[#00d4ff]/5">
+          <CardContent className="space-y-3 p-5">
+            <span className="text-muted-foreground block font-mono text-xs font-bold tracking-widest">
               WHAT HAPPENS NEXT
             </span>
-            <ol className="space-y-2 text-sm text-muted-foreground list-none">
+            <ol className="text-muted-foreground list-none space-y-2 text-sm">
               <li className="flex items-start gap-2">
-                <span className="font-mono text-xs font-bold text-[#00d4ff] mt-0.5">01</span>
-                Your tokens are held in trust and will be added to your portfolio once Gate 1 is cleared.
+                <span className="mt-0.5 font-mono text-xs font-bold text-[#00d4ff]">
+                  01
+                </span>
+                The server verifies the signed payment-provider event and
+                records your funding intent.
               </li>
               <li className="flex items-start gap-2">
-                <span className="font-mono text-xs font-bold text-[#00d4ff] mt-0.5">02</span>
-                When the project reaches its funding goal and Gate 2 is cleared, tokens are unlocked.
+                <span className="mt-0.5 font-mono text-xs font-bold text-[#00d4ff]">
+                  02
+                </span>
+                A verified payment is not an investment, token allocation,
+                equity issuance, or settlement confirmation.
               </li>
               <li className="flex items-start gap-2">
-                <span className="font-mono text-xs font-bold text-[#00d4ff] mt-0.5">03</span>
-                If the project fails to meet its goal, you will receive a full refund.
+                <span className="mt-0.5 font-mono text-xs font-bold text-[#00d4ff]">
+                  03
+                </span>
+                Project tokens and equity are never confirmed from this redirect
+                or from URL parameters.
               </li>
             </ol>
+
+            <div className="text-muted-foreground border-border/40 mt-1 flex items-start gap-2 border p-2 text-xs">
+              <Lock className="text-muted-foreground mt-0.5 size-3 shrink-0" />
+              <span>
+                A verified funding intent, project gate, and confirmed
+                settlement determine any portfolio availability.
+              </span>
+            </div>
           </CardContent>
         </Card>
 
         {/* CTAs */}
         <div className="flex flex-col gap-3">
-          <Button asChild variant="neon" className="w-full font-mono font-bold h-12">
+          <Button
+            asChild
+            variant="neon"
+            className="h-12 w-full font-mono font-bold"
+          >
             <Link href="/portfolio">
-              <Wallet className="size-4 mr-2" />
+              <Wallet className="mr-2 size-4" />
               VIEW MY PORTFOLIO
             </Link>
           </Button>
 
-          <Button asChild variant="outline" className="w-full font-mono h-12">
+          <Button asChild variant="outline" className="h-12 w-full font-mono">
             <Link href={`/projects/${slug}`}>
-              <ArrowLeft className="size-4 mr-2" />
+              <ArrowLeft className="mr-2 size-4" />
               BACK TO PROJECT
             </Link>
           </Button>
         </div>
       </div>
-    </div>
-  );
-}
-
-function SummaryRow({
-  icon,
-  label,
-  value,
-  valueColor,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-  valueColor: string;
-}) {
-  return (
-    <div className="flex items-center gap-3">
-      <div className="shrink-0">{icon}</div>
-      <span className="text-sm text-muted-foreground flex-1">{label}</span>
-      <span className={`font-mono text-sm font-bold ${valueColor}`}>{value}</span>
     </div>
   );
 }

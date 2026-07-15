@@ -82,19 +82,19 @@ export default function PortfolioPage() {
     isLoading: portfolioLoading,
     error: portfolioError,
   } = api.tokenBalances.getPortfolio.useQuery(
-    { userId },
+    undefined,
     { enabled: !!userId },
   );
 
   const { data: ardaRaw, isLoading: ardaLoading } =
     api.tokenBalances.getArdaBalance.useQuery(
-      { userId },
+      undefined,
       { enabled: !!userId },
     );
 
   const { data: payoutsRaw, isLoading: payoutsLoading } =
     api.payouts.getPayoutsByUser.useQuery(
-      { userId },
+      undefined,
       { enabled: !!userId },
     );
 

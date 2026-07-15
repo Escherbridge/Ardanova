@@ -12,6 +12,8 @@ using ArdaNova.Application.DTOs;
 using ArdaNova.Application.Services.Interfaces;
 using ArdaNova.Domain.Models.Entities;
 using ArdaNova.Domain.Models.Enums;
+using ArdaNova.Domain.Policies;
+using ArdaNova.Domain.ValueObjects;
 using AutoMapper;
 using Microsoft.Extensions.Logging;
 
@@ -72,6 +74,9 @@ public class ProjectTokenService : IProjectTokenService
             return Result<ProjectTokenConfigDto>.ValidationError(
                 $"Project token config already exists for project {dto.ProjectId}");
 
+        if (dto.AssetScale is not int assetScale || !FixedScaleAmount.IsSupportedScale(assetScale))
+            return Result<ProjectTokenConfigDto>.ValidationError("Asset scale is required and must be between 0 and 18");
+
         var reservedSupply = (int)(dto.ReservedPercentage * dto.TotalSupply / 100);
 
         var entity = new ProjectTokenConfig
@@ -80,6 +85,7 @@ public class ProjectTokenService : IProjectTokenService
             projectId = dto.ProjectId,
             assetName = dto.AssetName,
             unitName = dto.UnitName,
+            assetScale = assetScale,
             totalSupply = dto.TotalSupply,
             allocatedSupply = 0,
             distributedSupply = 0,
@@ -185,7 +191,8 @@ public class ProjectTokenService : IProjectTokenService
     public async Task<Result<TokenAllocationDto>> AllocateToInvestorAsync(
         string projectTokenConfigId,
         CreateInvestorAllocationDto dto,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        string? stripePaymentIntentId = null)
     {
         var config = await _configRepo.GetByIdAsync(projectTokenConfigId, ct);
         if (config == null)
@@ -234,6 +241,7 @@ public class ProjectTokenService : IProjectTokenService
             userId = dto.UserId,
             usdAmount = dto.UsdAmount,
             tokenAmount = dto.TokenAmount,
+            stripePaymentIntentId = stripePaymentIntentId,
             investedAt = DateTime.UtcNow,
             protectionEligible = true,
             protectionPaidOut = false
@@ -309,7 +317,7 @@ public class ProjectTokenService : IProjectTokenService
                 $"Project token config {allocation.projectTokenConfigId} not found");
 
         // Determine isLiquid based on holderClass + gateStatus
-        var isLiquid = DetermineIsLiquid(allocation.holderClass, config.gateStatus);
+        var isLiquid = TokenLiquidityPolicy.IsLiquid(allocation.holderClass, config.gateStatus);
 
         // Update allocation
         allocation.recipientUserId = recipientUserId;
@@ -580,16 +588,4 @@ public class ProjectTokenService : IProjectTokenService
         return Result<IReadOnlyList<ProjectInvestmentDto>>.Success(dtos);
     }
 
-    // Helper methods
-
-    private static bool DetermineIsLiquid(TokenHolderClass holderClass, ProjectGateStatus gateStatus)
-    {
-        return holderClass switch
-        {
-            TokenHolderClass.CONTRIBUTOR => gateStatus == ProjectGateStatus.SUCCEEDED,
-            TokenHolderClass.INVESTOR => gateStatus >= ProjectGateStatus.ACTIVE,
-            TokenHolderClass.FOUNDER => gateStatus == ProjectGateStatus.SUCCEEDED,
-            _ => false
-        };
-    }
 }

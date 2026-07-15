@@ -20,6 +20,8 @@ public static class GeneratedModelConfigurations
         modelBuilder.Entity<GuildMember>().HasIndex(e => new { e.guildId, e.userId }).IsUnique();
         modelBuilder.Entity<MembershipCredential>().HasIndex(e => new { e.projectId, e.userId }).IsUnique();
         modelBuilder.Entity<MembershipCredential>().HasIndex(e => new { e.guildId, e.userId }).IsUnique();
+        modelBuilder.Entity<WalletVerificationChallenge>().HasIndex(e => new { e.walletId, e.consumedAt });
+        modelBuilder.Entity<WalletVerificationChallenge>().HasIndex(e => new { e.userId, e.expiresAt });
         modelBuilder.Entity<ConversationMember>().HasIndex(e => new { e.conversationId, e.userId }).IsUnique();
         modelBuilder.Entity<ChatMessage>().HasIndex(e => new { e.conversationId, e.sentAt });
         modelBuilder.Entity<EventAttendee>().HasIndex(e => new { e.eventId, e.userId }).IsUnique();
@@ -33,6 +35,17 @@ public static class GeneratedModelConfigurations
         modelBuilder.Entity<KycDocument>().HasIndex(e => new { e.submissionId, e.type }).IsUnique();
         modelBuilder.Entity<TokenBalance>().HasIndex(e => new { e.userId, e.projectTokenConfigId, e.holderClass }).IsUnique();
         modelBuilder.Entity<ProjectInvestment>().HasIndex(e => new { e.projectTokenConfigId, e.userId });
+        modelBuilder.Entity<StripeWebhookEvent>().HasIndex(e => new { e.status, e.processingLeaseExpiresAt });
+        modelBuilder.Entity<EconomicSettlement>().HasIndex(e => new { e.beneficiaryUserId, e.status });
+        modelBuilder.Entity<EconomicSettlement>().HasIndex(e => new { e.projectId, e.status });
+        modelBuilder.Entity<EconomicSettlement>().HasIndex(e => new { e.taskId, e.kind });
+        modelBuilder.Entity<EconomicOutbox>().HasIndex(e => new { e.status, e.availableAt });
+        modelBuilder.Entity<FundingIntent>().HasIndex(e => new { e.funderUserId, e.idempotencyKey }).IsUnique();
+        modelBuilder.Entity<FundingIntent>().HasIndex(e => new { e.funderUserId, e.status });
+        modelBuilder.Entity<FundingIntent>().HasIndex(e => new { e.projectId, e.status });
+        modelBuilder.Entity<FundingIntent>().HasIndex(e => new { e.projectTokenConfigId, e.status });
+        modelBuilder.Entity<TaskCommerceAgreement>().HasIndex(e => new { e.contributorUserId, e.status });
+        modelBuilder.Entity<TaskCommerceAgreement>().HasIndex(e => new { e.projectId, e.status });
 
         // Bidirectional FK disambiguation
         // ProjectTask.opportunityId -> Opportunity

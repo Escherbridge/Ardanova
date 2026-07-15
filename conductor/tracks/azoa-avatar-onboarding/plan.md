@@ -1,3 +1,6 @@
+---
+type: plan
+---
 # Track — AZOA Avatar Onboarding
 
 > Contract: [`ARDANOVA-AZOA-INTEGRATION-CONTRACT.md`](../../ARDANOVA-AZOA-INTEGRATION-CONTRACT.md) §2–§5.1, §11.

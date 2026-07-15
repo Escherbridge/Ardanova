@@ -47,6 +47,7 @@ import { cn } from "~/lib/utils";
 import { api } from "~/trpc/react";
 import type { RouterOutputs } from "~/trpc/react";
 import { toast } from "sonner";
+import { TaskEconomicState } from "~/components/tasks/task-economic-state";
 
 type ApiTask = RouterOutputs["task"]["getMyTasks"]["items"][number];
 
@@ -117,6 +118,7 @@ type TaskRow = {
   assignee: { id: string; name: string; avatar?: string } | null;
   dueDate: Date | null;
   reward: number;
+  escrowStatus?: string | null;
   tags: string[];
   storyPoints: number;
 };
@@ -141,6 +143,7 @@ function mapApiTaskToRow(task: ApiTask): TaskRow {
   const due = (task as { dueDate?: string | null }).dueDate;
   const equity = (task as { equityReward?: number | null }).equityReward;
   const hours = (task as { estimatedHours?: number | null }).estimatedHours;
+  const escrowStatus = (task as { escrowStatus?: string | null }).escrowStatus;
 
   return {
     id: String(task.id),
@@ -157,6 +160,7 @@ function mapApiTaskToRow(task: ApiTask): TaskRow {
     assignee,
     dueDate: due ? new Date(due) : null,
     reward: typeof equity === "number" ? Number(equity) : 0,
+    escrowStatus,
     tags: task.taskType ? [String(task.taskType)] : [],
     storyPoints: typeof hours === "number" && hours > 0 ? Math.min(13, Math.max(1, Math.round(hours))) : 5,
   };
@@ -185,6 +189,7 @@ function mapPbiToRow(pbi: any): TaskRow | null {
     assignee: null,
     dueDate: null,
     reward: 0,
+    escrowStatus: null,
     tags: pbi.type ? [String(pbi.type)] : [],
     storyPoints: typeof pbi.storyPoints === "number" ? pbi.storyPoints : 3,
   };
@@ -285,6 +290,7 @@ function TaskCard({
         </div>
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <span className="text-neon-green font-medium">{task.reward} tokens</span>
+          <TaskEconomicState equityReward={task.reward} escrowStatus={task.escrowStatus} />
           <Badge variant="secondary" size="sm" className="text-[10px] px-1">
             {task.storyPoints} SP
           </Badge>
@@ -688,7 +694,10 @@ export default function TasksPage() {
                           </span>
                         </td>
                         <td className="p-3">
-                          <span className="text-sm text-neon-green font-medium">{task.reward} tokens</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm text-neon-green font-medium">{task.reward} tokens</span>
+                            <TaskEconomicState equityReward={task.reward} escrowStatus={task.escrowStatus} />
+                          </div>
                         </td>
                       </tr>
                     );

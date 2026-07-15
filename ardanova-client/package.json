@@ -8,6 +8,7 @@
     "check": "next lint && tsc --noEmit",
     "db:generate": "prisma migrate dev",
     "db:migrate": "prisma migrate deploy",
+    "db:preflight-commerce": "tsx scripts/commerce-migration-preflight.ts",
     "db:push": "prisma db push && node scripts/patch-zod-prisma.mjs",
     "db:studio": "prisma studio",
     "dev": "next dev --turbo",

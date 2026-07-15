@@ -30,6 +30,14 @@ public class Wallet
     [Required]
     public bool isVerified { get; set; }
 
+    public DateTime? verifiedAt { get; set; }
+
+    public string? verificationChain { get; set; }
+
+    public string? verificationNetwork { get; set; }
+
+    public string? verificationChallengeId { get; set; }
+
     [Required]
     public bool isPrimary { get; set; }
 
@@ -41,5 +49,7 @@ public class Wallet
 
     [ForeignKey("userId")]
     public virtual User? User { get; set; }
+
+    public virtual ICollection<WalletVerificationChallenge> WalletVerificationChallenges { get; set; } = new List<WalletVerificationChallenge>();
 
 }

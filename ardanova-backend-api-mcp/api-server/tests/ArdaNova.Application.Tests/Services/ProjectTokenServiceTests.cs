@@ -56,6 +56,31 @@ public class ProjectTokenServiceTests
             _loggerMock.Object);
     }
 
+    [Theory]
+    [InlineData(null)]
+    [InlineData(19)]
+    public async Task CreateConfigAsync_RejectsMissingOrUnsupportedAssetScaleBeforeWrites(int? assetScale)
+    {
+        var dto = new CreateProjectTokenConfigDto
+        {
+            ProjectId = "project-1",
+            AssetName = "Test Token",
+            UnitName = "TST",
+            AssetScale = assetScale,
+            TotalSupply = 1000000,
+            FundingGoal = 50000,
+        };
+
+        var result = await _sut.CreateConfigAsync(dto);
+
+        result.Type.Should().Be(ResultType.ValidationError);
+        result.Error.Should().Contain("Asset scale is required");
+        _configRepoMock.Verify(repository => repository.AddAsync(
+            It.IsAny<ProjectTokenConfig>(), It.IsAny<CancellationToken>()), Times.Never);
+        _unitOfWorkMock.Verify(unitOfWork => unitOfWork.SaveChangesAsync(
+            It.IsAny<CancellationToken>()), Times.Never);
+    }
+
     // ========================================================================
     // CreateConfigAsync — Happy Path
     // ========================================================================
@@ -69,6 +94,7 @@ public class ProjectTokenServiceTests
             ProjectId = "project-1",
             AssetName = "Test Token",
             UnitName = "TST",
+            AssetScale = 6,
             TotalSupply = 1000000,
             ReservedPercentage = 20,
             FundingGoal = 50000,
@@ -93,6 +119,7 @@ public class ProjectTokenServiceTests
             ProjectId = "project-1",
             AssetName = "Test Token",
             UnitName = "TST",
+            AssetScale = 6,
             TotalSupply = 1000000,
             ReservedSupply = 200000,
             FounderSupply = 200000
@@ -136,6 +163,7 @@ public class ProjectTokenServiceTests
             ProjectId = "project-1",
             AssetName = "Test Token",
             UnitName = "TST",
+            AssetScale = 6,
             TotalSupply = 1000000,
             ReservedPercentage = 20,
             FundingGoal = 50000,
@@ -708,7 +736,7 @@ public class ProjectTokenServiceTests
         _allocationRepoMock.Verify(r => r.UpdateAsync(It.Is<TokenAllocation>(a =>
             a.recipientUserId == "user-1" &&
             a.status == AllocationStatus.DISTRIBUTED &&
-            a.isLiquid == false && // CONTRIBUTOR not liquid at ACTIVE
+            a.isLiquid == true &&
             a.distributedAt != null
         ), It.IsAny<CancellationToken>()), Times.Once);
 
@@ -1184,7 +1212,7 @@ public class ProjectTokenServiceTests
     // ========================================================================
 
     [Fact]
-    public async Task DistributeAsync_InvestorAtActive_IsLiquid()
+    public async Task DistributeAsync_InvestorAtActive_IsLocked()
     {
         // Arrange
         var allocation = new TokenAllocation
@@ -1238,7 +1266,7 @@ public class ProjectTokenServiceTests
         result.IsSuccess.Should().BeTrue();
 
         _allocationRepoMock.Verify(r => r.UpdateAsync(It.Is<TokenAllocation>(a =>
-            a.isLiquid == true // INVESTOR is liquid at ACTIVE
+            a.isLiquid == false
         ), It.IsAny<CancellationToken>()), Times.Once);
     }
 

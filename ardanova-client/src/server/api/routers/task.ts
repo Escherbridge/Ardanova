@@ -134,9 +134,8 @@ export const taskRouter = createTRPCRouter({
         status: TaskStatus.optional(),
       })
     )
-    .query(async ({ input, ctx }) => {
-      const userId = ctx.session.user.id;
-      const response = await apiClient.tasks.getByUserId(userId);
+    .query(async ({ input }) => {
+      const response = await apiClient.tasks.getMine();
 
       if (response.error) {
         throw new Error(response.error);
@@ -174,6 +173,18 @@ export const taskRouter = createTRPCRouter({
 
       if (!response.data) {
         throw new Error("Task not found");
+      }
+
+      return response.data;
+    }),
+
+  getCommerce: protectedProcedure
+    .input(z.object({ id: z.string() }))
+    .query(async ({ input }) => {
+      const response = await apiClient.tasks.getCommerce(input.id);
+
+      if (response.error || !response.data) {
+        throw new Error(response.error ?? "Commerce agreement not found");
       }
 
       return response.data;

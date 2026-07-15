@@ -28,6 +28,9 @@ public class ProjectTokenConfig
     public string unitName { get; set; } = string.Empty;
 
     [Required]
+    public int assetScale { get; set; }
+
+    [Required]
     public int totalSupply { get; set; }
 
     [Required]
@@ -92,5 +95,9 @@ public class ProjectTokenConfig
     public virtual ICollection<PayoutRequest> PayoutRequests { get; set; } = new List<PayoutRequest>();
 
     public virtual ICollection<ProjectInvestment> ProjectInvestments { get; set; } = new List<ProjectInvestment>();
+
+    public virtual ICollection<FundingIntent> FundingIntents { get; set; } = new List<FundingIntent>();
+
+    public virtual ICollection<TaskCommerceAgreement> TaskCommerceAgreements { get; set; } = new List<TaskCommerceAgreement>();
 
 }

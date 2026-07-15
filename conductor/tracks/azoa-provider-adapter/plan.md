@@ -1,3 +1,6 @@
+---
+type: plan
+---
 # Track — AZOA Provider Adapter
 
 > Contract: [`ARDANOVA-AZOA-INTEGRATION-CONTRACT.md`](../../ARDANOVA-AZOA-INTEGRATION-CONTRACT.md) §9.

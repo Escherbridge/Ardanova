@@ -24,8 +24,8 @@
 #    - Click "New" -> "GitHub Repo" -> Select this repo
 #    - Set Root Directory: ardanova-backend-api-mcp
 #    - Add environment variables:
-#      * ConnectionStrings__DefaultConnection = (convert DATABASE_URL to .NET format)
-#        Format: Host=<host>;Port=<port>;Database=<db>;Username=<user>;Password=<pass>
+#      * DATABASE_URL = ${{Postgres.DATABASE_URL}}
+#        (the API converts Railway's PostgreSQL URL at startup)
 #      * API_KEY = <generate-secure-key>
 #
 # 4. Add Client Service (name it "ardanova-client"):

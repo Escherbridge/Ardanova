@@ -17,6 +17,7 @@ const createProjectTokenConfigSchema = z.object({
   totalSupply: z.number().int().positive(),
   fundingGoal: z.number().positive(),
   unitName: z.string().min(1).max(8),
+  assetScale: z.number().int().min(0).max(18),
   assetName: z.string().optional(),
   successCriteria: z.string().optional(),
 });
@@ -55,6 +56,7 @@ export const projectTokensRouter = createTRPCRouter({
         totalSupply: input.totalSupply,
         fundingGoal: input.fundingGoal,
         unitName: input.unitName,
+        assetScale: input.assetScale,
         assetName: input.assetName,
         successCriteria: input.successCriteria,
       });

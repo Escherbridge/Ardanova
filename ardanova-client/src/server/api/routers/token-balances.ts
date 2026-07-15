@@ -10,13 +10,11 @@ import { apiClient } from "~/lib/api";
 const TokenHolderClassSchema = z.enum(["CONTRIBUTOR", "INVESTOR", "FOUNDER"]);
 
 const getBalanceSchema = z.object({
-  userId: z.string().min(1),
   projectTokenConfigId: z.string().min(1),
   holderClass: TokenHolderClassSchema,
 });
 
 const checkLiquiditySchema = z.object({
-  userId: z.string().min(1),
   projectTokenConfigId: z.string().min(1),
   holderClass: TokenHolderClassSchema,
 });
@@ -37,7 +35,6 @@ export const tokenBalancesRouter = createTRPCRouter({
     .input(getBalanceSchema)
     .query(async ({ input }) => {
       const response = await apiClient.tokenBalances.getBalance(
-        input.userId,
         input.projectTokenConfigId,
         input.holderClass
       );
@@ -53,9 +50,8 @@ export const tokenBalancesRouter = createTRPCRouter({
     }),
 
   getArdaBalance: protectedProcedure
-    .input(z.object({ userId: z.string().min(1) }))
-    .query(async ({ input }) => {
-      const response = await apiClient.tokenBalances.getArdaBalance(input.userId);
+    .query(async () => {
+      const response = await apiClient.tokenBalances.getArdaBalance();
 
       if (response.error || !response.data) {
         throw new TRPCError({
@@ -68,9 +64,8 @@ export const tokenBalancesRouter = createTRPCRouter({
     }),
 
   getPortfolio: protectedProcedure
-    .input(z.object({ userId: z.string().min(1) }))
-    .query(async ({ input }) => {
-      const response = await apiClient.tokenBalances.getPortfolio(input.userId);
+    .query(async () => {
+      const response = await apiClient.tokenBalances.getPortfolio();
 
       if (response.error || !response.data) {
         throw new TRPCError({
@@ -86,7 +81,6 @@ export const tokenBalancesRouter = createTRPCRouter({
     .input(checkLiquiditySchema)
     .query(async ({ input }) => {
       const response = await apiClient.tokenBalances.checkLiquidity(
-        input.userId,
         input.projectTokenConfigId,
         input.holderClass
       );

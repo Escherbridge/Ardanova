@@ -17,7 +17,7 @@ export interface ProjectTokenBalanceDto {
 
 export interface UserPortfolioDto {
   userId: string;
-  balances: ProjectTokenBalanceDto[];
+  holdings: ProjectTokenBalanceDto[];
   [key: string]: unknown;
 }
 
@@ -31,29 +31,27 @@ export class TokenBalancesEndpoint {
   constructor(private client: BaseApiClient) {}
 
   getBalance(
-    userId: string,
     projectTokenConfigId: string,
     holderClass: TokenHolderClass | string,
   ): Promise<ApiResponse<TokenBalanceDto>> {
     const q = `?projectTokenConfigId=${encodeURIComponent(projectTokenConfigId)}&holderClass=${encodeURIComponent(holderClass)}`;
-    return this.client.get<TokenBalanceDto>(`/api/TokenBalance/${encodeURIComponent(userId)}/balance${q}`);
+    return this.client.get<TokenBalanceDto>(`/api/TokenBalance/me/balance${q}`);
   }
 
-  getArdaBalance(userId: string): Promise<ApiResponse<unknown>> {
-    return this.client.get<unknown>(`/api/TokenBalance/${encodeURIComponent(userId)}/arda`);
+  getArdaBalance(): Promise<ApiResponse<unknown>> {
+    return this.client.get<unknown>("/api/TokenBalance/me/arda");
   }
 
-  getPortfolio(userId: string): Promise<ApiResponse<UserPortfolioDto>> {
-    return this.client.get<UserPortfolioDto>(`/api/TokenBalance/${encodeURIComponent(userId)}/portfolio`);
+  getPortfolio(): Promise<ApiResponse<UserPortfolioDto>> {
+    return this.client.get<UserPortfolioDto>("/api/TokenBalance/me/portfolio");
   }
 
   checkLiquidity(
-    userId: string,
     projectTokenConfigId: string,
     holderClass: TokenHolderClass | string,
   ): Promise<ApiResponse<boolean>> {
     const q = `?projectTokenConfigId=${encodeURIComponent(projectTokenConfigId)}&holderClass=${encodeURIComponent(holderClass)}`;
-    return this.client.get<boolean>(`/api/TokenBalance/${encodeURIComponent(userId)}/liquidity${q}`);
+    return this.client.get<boolean>(`/api/TokenBalance/me/liquidity${q}`);
   }
 
   getProjectTokenValue(configId: string): Promise<ApiResponse<unknown>> {

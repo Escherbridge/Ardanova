@@ -62,6 +62,7 @@ builder.Services.AddControllers()
         options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
     });
 builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddArdaNovaAuthorization();
 builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new() { Title = "ArdaNova API", Version = "v1" });
@@ -103,6 +104,8 @@ app.UseHttpsRedirection();
 app.UseCors("SignalR");
 
 app.UseApiKeyAuthentication();
+
+app.UseActorAssertions();
 
 app.UseAuthorization();
 

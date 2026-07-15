@@ -94,8 +94,8 @@ export function AvatarReadinessCard({
           {/* Explainer line */}
           <p className="text-xs text-muted-foreground leading-relaxed pt-1">
             {isKycApproved
-              ? "Your blockchain identity is ready. Rewards and token actions are unlocked."
-              : "Your blockchain identity is being prepared. Complete KYC to unlock rewards and token actions — the node enforces this fail-closed."}
+              ? "KYC permits node value actions. Project gates, funded escrow, and settlement still control when an equity reward is available."
+              : "Complete KYC before any value move. Project gates and escrow remain separate safeguards, and the node enforces KYC fail-closed."}
           </p>
 
           {/* Silent ensure error — subtle, non-fatal */}

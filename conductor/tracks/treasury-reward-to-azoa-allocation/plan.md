@@ -1,3 +1,6 @@
+---
+type: plan
+---
 # Track — Treasury / Reward → AZOA Allocation
 
 > Contract: [`ARDANOVA-AZOA-INTEGRATION-CONTRACT.md`](../../ARDANOVA-AZOA-INTEGRATION-CONTRACT.md) §6, §7.
@@ -7,7 +10,7 @@
 
 ## 1. Allocation client (Infrastructure/Application)
 
-- [ ] **[P0] `IAzoaAllocationService` + implementation**
+- [x] **[P0] `IAzoaAllocationService` + implementation**
     - `ArdaNova.Application/Services/Interfaces/IAzoaAllocationService.cs`
     - `ArdaNova.Application/Services/Implementations/AzoaAllocationService.cs`
     - `AllocateAsync(avatarId, kind, amount, idempotencyKey, ...)` via `AzoaNodeClient`
@@ -18,13 +21,18 @@
 
 ## 2. Idempotency key builder
 
-- [ ] **[P0] Stable per-event key helper**
+- [x] **[P0] Stable per-event key helper**
     - `reward:{taskId}` (or `reward:{taskId}:{escrowReleaseId}`)
     - funding settlement → Stripe PaymentIntent id
     - `refund:{escrowId}`
     - NEVER random / timestamped
 
 ## 3. Trigger wiring (economics decided FIRST)
+
+> **Current truth:** the allocation client and its unit tests exist, but no
+> production funding, escrow, or refund trigger dispatches it yet. The durable
+> inbox/outbox and user-facing settlement state now live in
+> `gated-commerce-and-azoa-settlement`; this track remains in progress.
 
 - [ ] **[P0] Funding settlement → allocation**
     - Hook tokenomics/Stripe settlement (consumer verifies webhook signature)

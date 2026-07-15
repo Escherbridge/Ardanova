@@ -18,6 +18,7 @@ using FluentAssertions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Moq;
+using Stripe;
 using Xunit;
 
 /// <summary>
@@ -36,6 +37,7 @@ public class StripeServiceTests
     private readonly Mock<ITokenBalanceService> _tokenBalanceServiceMock;
     private readonly Mock<ITreasuryService> _treasuryServiceMock;
     private readonly Mock<IProjectGateService> _projectGateServiceMock;
+    private readonly Mock<IStripePaymentIntentGateway> _paymentIntentGatewayMock;
     private readonly Mock<ILogger<StripeService>> _loggerMock;
     private readonly StripeService _sut;
 
@@ -51,6 +53,7 @@ public class StripeServiceTests
         _tokenBalanceServiceMock = new Mock<ITokenBalanceService>();
         _treasuryServiceMock = new Mock<ITreasuryService>();
         _projectGateServiceMock = new Mock<IProjectGateService>();
+        _paymentIntentGatewayMock = new Mock<IStripePaymentIntentGateway>();
         _loggerMock = new Mock<ILogger<StripeService>>();
 
         // Mock configuration values
@@ -70,6 +73,7 @@ public class StripeServiceTests
             _tokenBalanceServiceMock.Object,
             _treasuryServiceMock.Object,
             _projectGateServiceMock.Object,
+            _paymentIntentGatewayMock.Object,
             _loggerMock.Object);
     }
 
@@ -134,6 +138,198 @@ public class StripeServiceTests
         // Verify no repository calls were made
         _investmentRepoMock.Verify(r => r.AddAsync(It.IsAny<ProjectInvestment>(), It.IsAny<CancellationToken>()), Times.Never);
         _unitOfWorkMock.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    // ========================================================================
+    // HandlePaymentSucceededAsync — Durable local decision
+    // ========================================================================
+
+    [Fact]
+    public async Task HandlePaymentSucceededAsync_PriorInvestment_AcknowledgesWithoutReplayingEffects()
+    {
+        var paymentIntentId = "pi_already_committed";
+        var investment = new ProjectInvestment
+        {
+            id = "investment-1",
+            stripePaymentIntentId = paymentIntentId,
+            projectTokenConfigId = "config-1",
+            userId = "user-1",
+            usdAmount = 100,
+            tokenAmount = 10,
+            investedAt = DateTime.UtcNow,
+            protectionEligible = true,
+            protectionPaidOut = false
+        };
+
+        _paymentIntentGatewayMock
+            .Setup(gateway => gateway.GetAsync(paymentIntentId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PaymentIntent { Id = paymentIntentId });
+        _investmentRepoMock
+            .Setup(repository => repository.FindOneAsync(
+                It.IsAny<Expression<Func<ProjectInvestment, bool>>>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(investment);
+        _mapperMock
+            .Setup(mapper => mapper.Map<ProjectInvestmentDto>(investment))
+            .Returns(new ProjectInvestmentDto { Id = investment.id });
+
+        var result = await _sut.HandlePaymentSucceededAsync(paymentIntentId);
+
+        result.IsSuccess.Should().BeTrue();
+        _unitOfWorkMock.Verify(unitOfWork => unitOfWork.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
+        _projectTokenServiceMock.Verify(service => service.AllocateToInvestorAsync(
+            It.IsAny<string>(),
+            It.IsAny<CreateInvestorAllocationDto>(),
+            It.IsAny<CancellationToken>(),
+            It.IsAny<string?>()), Times.Never);
+        _tokenBalanceServiceMock.Verify(service => service.CreditAsync(
+            It.IsAny<string>(),
+            It.IsAny<string>(),
+            It.IsAny<int>(),
+            It.IsAny<TokenHolderClass>(),
+            It.IsAny<CancellationToken>()), Times.Never);
+        _treasuryServiceMock.Verify(service => service.ProcessFundingInflowAsync(
+            It.IsAny<double>(),
+            It.IsAny<string?>(),
+            It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task HandlePaymentSucceededAsync_LocalEffects_CommitAsOneTransaction()
+    {
+        var paymentIntentId = "pi_commit_once";
+        var paymentIntent = new PaymentIntent
+        {
+            Id = paymentIntentId,
+            Metadata = new Dictionary<string, string>
+            {
+                ["projectTokenConfigId"] = "config-1",
+                ["userId"] = "user-1",
+                ["usdAmount"] = "100.00"
+            }
+        };
+        var config = new ProjectTokenConfig
+        {
+            id = "config-1",
+            projectId = "project-1",
+            fundingGoal = 1_000,
+            fundingRaised = 0,
+            totalSupply = 10_000
+        };
+        var committedInvestment = new ProjectInvestment
+        {
+            id = "investment-1",
+            stripePaymentIntentId = paymentIntentId,
+            projectTokenConfigId = config.id,
+            userId = "user-1",
+            usdAmount = 100,
+            tokenAmount = 1_000,
+            investedAt = DateTime.UtcNow,
+            protectionEligible = true,
+            protectionPaidOut = false
+        };
+
+        _paymentIntentGatewayMock
+            .Setup(gateway => gateway.GetAsync(paymentIntentId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(paymentIntent);
+        _investmentRepoMock
+            .SetupSequence(repository => repository.FindOneAsync(
+                It.IsAny<Expression<Func<ProjectInvestment, bool>>>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync((ProjectInvestment?)null)
+            .ReturnsAsync(committedInvestment);
+        _configRepoMock
+            .Setup(repository => repository.GetByIdAsync(config.id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(config);
+        _projectTokenServiceMock
+            .Setup(service => service.AllocateToInvestorAsync(
+                config.id,
+                It.Is<CreateInvestorAllocationDto>(dto => dto.UserId == "user-1"
+                    && dto.UsdAmount == 100
+                    && dto.TokenAmount == 1_000),
+                It.IsAny<CancellationToken>(),
+                paymentIntentId))
+            .ReturnsAsync(Result<TokenAllocationDto>.Success(new TokenAllocationDto()));
+        _tokenBalanceServiceMock
+            .Setup(service => service.CreditAsync(
+                "user-1",
+                config.id,
+                1_000,
+                TokenHolderClass.INVESTOR,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<TokenBalanceDto>.Success(new TokenBalanceDto()));
+        _treasuryServiceMock
+            .Setup(service => service.ProcessFundingInflowAsync(100, config.projectId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<bool>.Success(true));
+        _projectGateServiceMock
+            .Setup(service => service.EvaluateGate1Async(config.id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<GateTransitionResultDto>.Success(new GateTransitionResultDto()));
+        _mapperMock
+            .Setup(mapper => mapper.Map<ProjectInvestmentDto>(committedInvestment))
+            .Returns(new ProjectInvestmentDto { Id = committedInvestment.id });
+
+        var result = await _sut.HandlePaymentSucceededAsync(paymentIntentId);
+
+        result.IsSuccess.Should().BeTrue();
+        _unitOfWorkMock.Verify(unitOfWork => unitOfWork.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
+        _unitOfWorkMock.Verify(unitOfWork => unitOfWork.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
+        _unitOfWorkMock.Verify(unitOfWork => unitOfWork.RollbackTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
+        _investmentRepoMock.Verify(repository => repository.AddAsync(
+            It.IsAny<ProjectInvestment>(),
+            It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task HandlePaymentSucceededAsync_LocalFailure_RollsBackBeforeProviderRetry()
+    {
+        const string paymentIntentId = "pi_rollback";
+        var config = new ProjectTokenConfig
+        {
+            id = "config-1",
+            projectId = "project-1",
+            fundingGoal = 1_000,
+            totalSupply = 10_000
+        };
+        _investmentRepoMock
+            .Setup(repository => repository.FindOneAsync(
+                It.IsAny<Expression<Func<ProjectInvestment, bool>>>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync((ProjectInvestment?)null);
+        _paymentIntentGatewayMock
+            .Setup(gateway => gateway.GetAsync(paymentIntentId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PaymentIntent
+            {
+                Id = paymentIntentId,
+                Metadata = new Dictionary<string, string>
+                {
+                    ["projectTokenConfigId"] = config.id,
+                    ["userId"] = "user-1",
+                    ["usdAmount"] = "100.00"
+                }
+            });
+        _configRepoMock
+            .Setup(repository => repository.GetByIdAsync(config.id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(config);
+        _projectTokenServiceMock
+            .Setup(service => service.AllocateToInvestorAsync(
+                config.id,
+                It.IsAny<CreateInvestorAllocationDto>(),
+                It.IsAny<CancellationToken>(),
+                paymentIntentId))
+            .ReturnsAsync(Result<TokenAllocationDto>.Failure("allocation rejected"));
+
+        var result = await _sut.HandlePaymentSucceededAsync(paymentIntentId);
+
+        result.IsSuccess.Should().BeFalse();
+        _unitOfWorkMock.Verify(unitOfWork => unitOfWork.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
+        _unitOfWorkMock.Verify(unitOfWork => unitOfWork.RollbackTransactionAsync(CancellationToken.None), Times.Once);
+        _unitOfWorkMock.Verify(unitOfWork => unitOfWork.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
+        _tokenBalanceServiceMock.Verify(service => service.CreditAsync(
+            It.IsAny<string>(),
+            It.IsAny<string>(),
+            It.IsAny<int>(),
+            It.IsAny<TokenHolderClass>(),
+            It.IsAny<CancellationToken>()), Times.Never);
     }
 
     // ========================================================================

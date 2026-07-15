@@ -100,19 +100,6 @@ public class WalletService : IWalletService
         return Result<WalletDto>.Success(_mapper.Map<WalletDto>(wallet));
     }
 
-    public async Task<Result<WalletDto>> VerifyAsync(string id, CancellationToken ct = default)
-    {
-        var wallet = await _repository.GetByIdAsync(id, ct);
-        if (wallet is null)
-            return Result<WalletDto>.NotFound($"Wallet with id {id} not found");
-
-        wallet.isVerified = true;
-        wallet.updatedAt = DateTime.UtcNow;
-        await _repository.UpdateAsync(wallet, ct);
-        await _unitOfWork.SaveChangesAsync(ct);
-        return Result<WalletDto>.Success(_mapper.Map<WalletDto>(wallet));
-    }
-
     public async Task<Result<WalletDto>> SetPrimaryAsync(string id, CancellationToken ct = default)
     {
         var wallet = await _repository.GetByIdAsync(id, ct);

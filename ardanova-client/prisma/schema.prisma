@@ -663,6 +663,64 @@ enum PlatformTreasuryTransactionType {
   FOUNDER_BURN
 }
 
+enum EconomicSettlementKind {
+  TASK_REWARD
+  FUNDING_ALLOCATION
+  ESCROW_REFUND
+  SWAP_SETTLEMENT
+}
+
+enum EconomicSettlementStatus {
+  DRAFT
+  AUTHORIZED
+  PENDING_DISPATCH
+  SUBMITTED
+  AWAITING_RECONCILIATION
+  CONFIRMED
+  REJECTED
+  CANCELLED
+  FAILED
+}
+
+enum EconomicOutboxStatus {
+  PENDING
+  LEASED
+  SUBMITTED
+  AWAITING_RECONCILIATION
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum FundingIntentStatus {
+  DRAFT
+  AWAITING_PAYMENT
+  PAYMENT_VERIFIED
+  SETTLEMENT_PENDING
+  SETTLED
+  REJECTED
+  CANCELLED
+  FAILED
+}
+
+enum TaskCommerceAgreementStatus {
+  DRAFT
+  ACCEPTED
+  ESCROW_FUNDED
+  QUEST_LINKED
+  RELEASE_AUTHORIZED
+  SETTLEMENT_PENDING
+  SETTLED
+  CANCELLED
+  FAILED
+}
+
+enum StripeWebhookEventStatus {
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
 model Account {
   id String @id @default(cuid())
   userId String
@@ -764,6 +822,7 @@ model User {
   shareHolders ShareHolder[] @relation("ShareHolder_userId")
   fundraisingContributions FundraisingContribution[] @relation("FundraisingContribution_userId")
   wallets Wallet[] @relation("Wallet_userId")
+  walletVerificationChallenges WalletVerificationChallenge[] @relation("WalletVerificationChallenge_userId")
   taskEscrows TaskEscrow[] @relation("TaskEscrow_funderId")
   shareSwaps ShareSwap[] @relation("ShareSwap_userId")
   liquidityProviders LiquidityProvider[] @relation("LiquidityProvider_userId")
@@ -796,6 +855,10 @@ model User {
   tokenBalances TokenBalance[] @relation("TokenBalance_userId")
   payoutRequests PayoutRequest[] @relation("PayoutRequest_userId")
   projectInvestments ProjectInvestment[] @relation("ProjectInvestment_userId")
+  economicSettlements EconomicSettlement[] @relation("EconomicSettlement_beneficiaryUserId")
+  economicSettlements1 EconomicSettlement[] @relation("EconomicSettlement_authorizedByUserId")
+  fundingIntents FundingIntent[] @relation("FundingIntent_funderUserId")
+  taskCommerceAgreements TaskCommerceAgreement[] @relation("TaskCommerceAgreement_contributorUserId")
 }
 
 model UserSkill {
@@ -1011,6 +1074,9 @@ model Project {
   projectFollows ProjectFollow[] @relation("ProjectFollow_projectId")
   opportunities Opportunity[] @relation("Opportunity_projectId")
   projectTokenConfigs ProjectTokenConfig[] @relation("ProjectTokenConfig_projectId")
+  economicSettlements EconomicSettlement[] @relation("EconomicSettlement_projectId")
+  fundingIntents FundingIntent[] @relation("FundingIntent_projectId")
+  taskCommerceAgreements TaskCommerceAgreement[] @relation("TaskCommerceAgreement_projectId")
 }
 
 model ProjectTask {
@@ -1053,6 +1119,8 @@ model ProjectTask {
   taskSubmissions TaskSubmission[] @relation("TaskSubmission_taskId")
   taskEscrows TaskEscrow[] @relation("TaskEscrow_taskId")
   opportunities Opportunity[] @relation("Opportunity_taskId")
+  economicSettlements EconomicSettlement[] @relation("EconomicSettlement_taskId")
+  taskCommerceAgreements TaskCommerceAgreement[] @relation("TaskCommerceAgreement_taskId")
 }
 
 model ProjectTaskDependency {
@@ -1719,10 +1787,47 @@ model Wallet {
   provider WalletProvider
   label String?
   isVerified Boolean @default(false)
+  verifiedAt DateTime?
+  verificationChain String?
+  verificationNetwork String?
+  verificationChallengeId String?
   isPrimary Boolean @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   user User @relation("Wallet_userId", fields: [userId], references: [id])
+  verificationChallenges WalletVerificationChallenge[] @relation("WalletVerificationChallenge_walletId")
+}
+
+model WalletVerificationChallenge {
+  id String @id @default(cuid())
+  userId String
+  walletId String
+  address String
+  chain String
+  network String
+  nonceHash String
+  issuedAt DateTime @default(now())
+  expiresAt DateTime
+  consumedAt DateTime?
+  proofVerified Boolean?
+  signatureHash String?
+  failureCode String?
+  user User @relation("WalletVerificationChallenge_userId", fields: [userId], references: [id])
+  wallet Wallet @relation("WalletVerificationChallenge_walletId", fields: [walletId], references: [id])
+
+  @@index([walletId, consumedAt])
+  @@index([userId, expiresAt])
+}
+
+model ActorAssertionReplay {
+  jti String @id
+  expiresAt DateTime
+  consumedAt DateTime @default(now())
+  subject String
+  requestTarget String
+  bodySha256 String
+
+  @@index([expiresAt])
 }
 
 model ProjectWallet {
@@ -1770,6 +1875,8 @@ model TaskEscrow {
   task ProjectTask @relation("TaskEscrow_taskId", fields: [taskId], references: [id])
   funder User @relation("TaskEscrow_funderId", fields: [funderId], references: [id])
   share ProjectShare @relation("TaskEscrow_shareId", fields: [shareId], references: [id])
+  economicSettlements EconomicSettlement[] @relation("EconomicSettlement_escrowId")
+  taskCommerceAgreements TaskCommerceAgreement[] @relation("TaskCommerceAgreement_escrowId")
 }
 
 model ShareSwap {
@@ -2181,6 +2288,7 @@ model OpportunityBid {
   opportunity Opportunity @relation("OpportunityBid_opportunityId", fields: [opportunityId], references: [id])
   bidder User @relation("OpportunityBid_bidderId", fields: [bidderId], references: [id])
   guild Guild? @relation("OpportunityBid_guildId", fields: [guildId], references: [id])
+  taskCommerceAgreements TaskCommerceAgreement[] @relation("TaskCommerceAgreement_bidId")
 
   @@unique([opportunityId, bidderId])
 }
@@ -2228,6 +2336,7 @@ model ProjectTokenConfig {
   assetId String?
   assetName String
   unitName String
+  assetScale Int @default(6)
   totalSupply Int
   allocatedSupply Int @default(0)
   distributedSupply Int @default(0)
@@ -2253,6 +2362,8 @@ model ProjectTokenConfig {
   tokenBalances TokenBalance[] @relation("TokenBalance_projectTokenConfigId")
   payoutRequests PayoutRequest[] @relation("PayoutRequest_sourceProjectTokenConfigId")
   projectInvestments ProjectInvestment[] @relation("ProjectInvestment_projectTokenConfigId")
+  fundingIntents FundingIntent[] @relation("FundingIntent_projectTokenConfigId")
+  taskCommerceAgreements TaskCommerceAgreement[] @relation("TaskCommerceAgreement_projectTokenConfigId")
 }
 
 model TokenAllocation {
@@ -2355,7 +2466,7 @@ model ProjectInvestment {
   userId String
   usdAmount Float
   tokenAmount Int
-  stripePaymentIntentId String?
+  stripePaymentIntentId String? @unique
   investedAt DateTime @default(now())
   protectionEligible Boolean @default(true)
   protectionPaidOut Boolean @default(false)
@@ -2367,3 +2478,150 @@ model ProjectInvestment {
   @@index([projectTokenConfigId, userId])
 }
 
+model StripeWebhookEvent {
+  id String @id
+  eventType String
+  status StripeWebhookEventStatus @default(PROCESSING)
+  attemptCount Int @default(1)
+  receivedAt DateTime @default(now())
+  processingLeaseExpiresAt DateTime
+  completedAt DateTime?
+  lastFailedAt DateTime?
+
+  @@index([status, processingLeaseExpiresAt])
+}
+
+model EconomicSettlement {
+  id String @id @default(cuid())
+  kind EconomicSettlementKind
+  status EconomicSettlementStatus @default(DRAFT)
+  idempotencyKey String @unique
+  externalEventId String? @unique
+  beneficiaryUserId String
+  authorizedByUserId String?
+  projectId String?
+  taskId String?
+  escrowId String?
+  assetCode String
+  amount Decimal @db.Decimal(38, 18)
+  scale Int @default(18)
+  termsSnapshot Json?
+  azoaOperationId String?
+  azoaReceipt Json?
+  azoaReplayed Boolean?
+  failureCode String?
+  failureDetail String?
+  version Int @default(0)
+  createdAt DateTime @default(now())
+  authorizedAt DateTime?
+  submittedAt DateTime?
+  confirmedAt DateTime?
+  updatedAt DateTime @updatedAt
+  beneficiaryUser User @relation("EconomicSettlement_beneficiaryUserId", fields: [beneficiaryUserId], references: [id])
+  authorizedByUser User? @relation("EconomicSettlement_authorizedByUserId", fields: [authorizedByUserId], references: [id])
+  project Project? @relation("EconomicSettlement_projectId", fields: [projectId], references: [id])
+  task ProjectTask? @relation("EconomicSettlement_taskId", fields: [taskId], references: [id])
+  escrow TaskEscrow? @relation("EconomicSettlement_escrowId", fields: [escrowId], references: [id])
+  economicOutboxes EconomicOutbox[] @relation("EconomicOutbox_settlementId")
+  fundingIntents FundingIntent[] @relation("FundingIntent_settlementId")
+  taskCommerceAgreements TaskCommerceAgreement[] @relation("TaskCommerceAgreement_settlementId")
+
+  @@index([beneficiaryUserId, status])
+  @@index([projectId, status])
+  @@index([taskId, kind])
+}
+
+model EconomicOutbox {
+  id String @id @default(cuid())
+  settlementId String @unique
+  status EconomicOutboxStatus @default(PENDING)
+  payloadVersion Int @default(1)
+  attemptCount Int @default(0)
+  availableAt DateTime @default(now())
+  leaseToken String?
+  leaseExpiresAt DateTime?
+  lastAttemptAt DateTime?
+  dispatchedAt DateTime?
+  reconciliationRequiredAt DateTime?
+  failureCode String?
+  failureDetail String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  settlement EconomicSettlement @relation("EconomicOutbox_settlementId", fields: [settlementId], references: [id])
+
+  @@index([status, availableAt])
+  @@index([leaseExpiresAt])
+}
+
+model FundingIntent {
+  id String @id @default(cuid())
+  semanticKey String @unique
+  idempotencyKey String
+  status FundingIntentStatus @default(DRAFT)
+  funderUserId String
+  projectId String
+  projectTokenConfigId String
+  currencyCode String
+  amount Decimal @db.Decimal(38, 18)
+  scale Int @default(2)
+  disclosureVersion String
+  eligibilitySnapshot Json
+  termsSnapshot Json
+  termsHash String
+  paymentProvider String?
+  providerCheckoutSessionId String? @unique
+  providerPaymentIntentId String? @unique
+  verifiedProviderEventId String? @unique
+  settlementId String? @unique
+  expiresAt DateTime?
+  paymentVerifiedAt DateTime?
+  settledAt DateTime?
+  cancelledAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  funderUser User @relation("FundingIntent_funderUserId", fields: [funderUserId], references: [id])
+  project Project @relation("FundingIntent_projectId", fields: [projectId], references: [id])
+  projectTokenConfig ProjectTokenConfig @relation("FundingIntent_projectTokenConfigId", fields: [projectTokenConfigId], references: [id])
+  settlement EconomicSettlement? @relation("FundingIntent_settlementId", fields: [settlementId], references: [id])
+
+  @@unique([funderUserId, idempotencyKey])
+  @@index([funderUserId, status])
+  @@index([projectId, status])
+  @@index([projectTokenConfigId, status])
+}
+
+model TaskCommerceAgreement {
+  id String @id @default(cuid())
+  semanticKey String @unique
+  status TaskCommerceAgreementStatus @default(DRAFT)
+  projectId String
+  taskId String @unique
+  bidId String @unique
+  contributorUserId String
+  projectTokenConfigId String?
+  assetCode String
+  awardAmount Decimal @db.Decimal(38, 18)
+  scale Int @default(18)
+  acceptedTermsSnapshot Json
+  termsHash String
+  escrowId String? @unique
+  questRunId String?
+  settlementId String? @unique
+  acceptedAt DateTime?
+  releaseAuthorizedAt DateTime?
+  settledAt DateTime?
+  cancelledAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  project Project @relation("TaskCommerceAgreement_projectId", fields: [projectId], references: [id])
+  task ProjectTask @relation("TaskCommerceAgreement_taskId", fields: [taskId], references: [id])
+  bid OpportunityBid @relation("TaskCommerceAgreement_bidId", fields: [bidId], references: [id])
+  contributorUser User @relation("TaskCommerceAgreement_contributorUserId", fields: [contributorUserId], references: [id])
+  projectTokenConfig ProjectTokenConfig? @relation("TaskCommerceAgreement_projectTokenConfigId", fields: [projectTokenConfigId], references: [id])
+  escrow TaskEscrow? @relation("TaskCommerceAgreement_escrowId", fields: [escrowId], references: [id])
+  settlement EconomicSettlement? @relation("TaskCommerceAgreement_settlementId", fields: [settlementId], references: [id])
+
+  @@index([contributorUserId, status])
+  @@index([projectId, status])
+  @@index([questRunId])
+}

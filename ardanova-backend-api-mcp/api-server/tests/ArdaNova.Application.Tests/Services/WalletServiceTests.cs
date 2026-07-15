@@ -148,34 +148,6 @@ public class WalletServiceTests
     }
 
     [Fact]
-    public async Task VerifyAsync_WhenWalletExists_VerifiesWallet()
-    {
-        // Arrange
-        var walletId = Guid.NewGuid().ToString();
-        var userId = Guid.NewGuid().ToString();
-        var wallet = new Wallet { id = walletId, userId = userId, address = "ALGO123456789", provider = WalletProvider.PERA, isVerified = false, isPrimary = false, createdAt = DateTime.UtcNow, updatedAt = DateTime.UtcNow };
-        var walletDto = new WalletDto { Id = walletId, IsVerified = true };
-
-        _repositoryMock.Setup(r => r.GetByIdAsync(walletId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(wallet);
-
-        _repositoryMock.Setup(r => r.UpdateAsync(It.IsAny<Wallet>(), It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
-
-        _unitOfWorkMock.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(1);
-
-        _mapperMock.Setup(m => m.Map<WalletDto>(It.IsAny<Wallet>())).Returns(walletDto);
-
-        // Act
-        var result = await _sut.VerifyAsync(walletId);
-
-        // Assert
-        result.IsSuccess.Should().BeTrue();
-        result.Value!.IsVerified.Should().BeTrue();
-    }
-
-    [Fact]
     public async Task DeleteAsync_WhenWalletExists_ReturnsSuccess()
     {
         // Arrange

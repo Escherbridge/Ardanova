@@ -1,4 +1,5 @@
 import "server-only";
+import { getActorAssertion, isActorAssertionActive } from "~/server/actor-assertion";
 
 /**
  * Generic Base API Client
@@ -47,10 +48,24 @@ export class BaseApiClient {
   ): Promise<ApiResponse<T>> {
     const url = `${this.baseUrl}${endpoint}`;
 
-    const headers: HeadersInit = {
-      ...this.defaultHeaders,
-      ...options.headers,
-    };
+    const headers = new Headers(this.defaultHeaders);
+    new Headers(options.headers).forEach((value, name) => headers.set(name, value));
+    headers.delete("X-Ardanova-Actor");
+    const hasActorAssertion = isActorAssertionActive();
+    const actorBody = hasActorAssertion
+      ? materializeActorRequestBody(options.body)
+      : undefined;
+    const bodyBytes = actorBody === undefined
+      ? undefined
+      : new TextEncoder().encode(actorBody);
+    const actorAssertion = getActorAssertion({
+      method: options.method ?? "GET",
+      url,
+      body: bodyBytes,
+      contentType: headers.get("Content-Type"),
+      idempotencyKey: headers.get("X-Idempotency-Key"),
+    });
+    if (actorAssertion) headers.set("X-Ardanova-Actor", actorAssertion);
 
     try {
       const controller = new AbortController();
@@ -58,6 +73,7 @@ export class BaseApiClient {
 
       const response = await fetch(url, {
         ...options,
+        ...(actorBody ? { body: actorBody } : {}),
         headers,
         signal: controller.signal,
       });
@@ -108,9 +124,14 @@ export class BaseApiClient {
 
   /** Multipart POST — omits `Content-Type` so the boundary is set automatically. */
   async postFormData<T>(endpoint: string, formData: FormData, extraHeaders?: Record<string, string>): Promise<ApiResponse<T>> {
+    if (isActorAssertionActive()) {
+      throw new Error("Actor-signed multipart requests are not supported.");
+    }
+
     const url = `${this.baseUrl}${endpoint}`;
     const headers: Record<string, string> = { ...this.defaultHeaders, ...extraHeaders };
     delete headers["Content-Type"];
+    delete headers["X-Ardanova-Actor"];
 
     try {
       const controller = new AbortController();
@@ -171,6 +192,14 @@ export class BaseApiClient {
   delete<T>(endpoint: string): Promise<ApiResponse<T>> {
     return this.request<T>(endpoint, { method: "DELETE" });
   }
+}
+
+function materializeActorRequestBody(body: BodyInit | null | undefined): string {
+  if (body === undefined || body === null) return "";
+  if (typeof body !== "string") {
+    throw new Error("Actor-signed requests require a materialized JSON string body.");
+  }
+  return body;
 }
 
 /**

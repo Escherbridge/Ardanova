@@ -11,12 +11,18 @@ using AutoMapper;
 public class TaskEscrowService : ITaskEscrowService
 {
     private readonly IRepository<TaskEscrow> _repository;
+    private readonly IRepository<ProjectTask> _taskRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IMapper _mapper;
 
-    public TaskEscrowService(IRepository<TaskEscrow> repository, IUnitOfWork unitOfWork, IMapper mapper)
+    public TaskEscrowService(
+        IRepository<TaskEscrow> repository,
+        IRepository<ProjectTask> taskRepository,
+        IUnitOfWork unitOfWork,
+        IMapper mapper)
     {
         _repository = repository;
+        _taskRepository = taskRepository;
         _unitOfWork = unitOfWork;
         _mapper = mapper;
     }
@@ -75,11 +81,18 @@ public class TaskEscrowService : ITaskEscrowService
         if (escrow.status != EscrowStatus.FUNDED)
             return Result<TaskEscrowDto>.ValidationError($"Cannot release escrow in status {escrow.status}");
 
+        var task = await GetTaskAsync(escrow, ct);
+        if (task is null)
+            return Result<TaskEscrowDto>.NotFound($"Task with id {escrow.taskId} not found for escrow {escrow.id}");
+
         escrow.status = EscrowStatus.RELEASED;
         escrow.txHashRelease = dto.TxHash;
         escrow.releasedAt = DateTime.UtcNow;
+        task.escrowStatus = EscrowStatus.RELEASED;
+        task.updatedAt = DateTime.UtcNow;
 
         await _repository.UpdateAsync(escrow, ct);
+        await _taskRepository.UpdateAsync(task, ct);
         await _unitOfWork.SaveChangesAsync(ct);
         return Result<TaskEscrowDto>.Success(_mapper.Map<TaskEscrowDto>(escrow));
     }
@@ -93,9 +106,16 @@ public class TaskEscrowService : ITaskEscrowService
         if (escrow.status != EscrowStatus.FUNDED)
             return Result<TaskEscrowDto>.ValidationError($"Cannot dispute escrow in status {escrow.status}");
 
+        var task = await GetTaskAsync(escrow, ct);
+        if (task is null)
+            return Result<TaskEscrowDto>.NotFound($"Task with id {escrow.taskId} not found for escrow {escrow.id}");
+
         escrow.status = EscrowStatus.DISPUTED;
+        task.escrowStatus = EscrowStatus.DISPUTED;
+        task.updatedAt = DateTime.UtcNow;
 
         await _repository.UpdateAsync(escrow, ct);
+        await _taskRepository.UpdateAsync(task, ct);
         await _unitOfWork.SaveChangesAsync(ct);
         return Result<TaskEscrowDto>.Success(_mapper.Map<TaskEscrowDto>(escrow));
     }
@@ -109,12 +129,22 @@ public class TaskEscrowService : ITaskEscrowService
         if (escrow.status != EscrowStatus.FUNDED && escrow.status != EscrowStatus.DISPUTED)
             return Result<TaskEscrowDto>.ValidationError($"Cannot refund escrow in status {escrow.status}");
 
+        var task = await GetTaskAsync(escrow, ct);
+        if (task is null)
+            return Result<TaskEscrowDto>.NotFound($"Task with id {escrow.taskId} not found for escrow {escrow.id}");
+
         escrow.status = EscrowStatus.REFUNDED;
         escrow.txHashRefund = dto.TxHash;
         escrow.refundedAt = DateTime.UtcNow;
+        task.escrowStatus = EscrowStatus.REFUNDED;
+        task.updatedAt = DateTime.UtcNow;
 
         await _repository.UpdateAsync(escrow, ct);
+        await _taskRepository.UpdateAsync(task, ct);
         await _unitOfWork.SaveChangesAsync(ct);
         return Result<TaskEscrowDto>.Success(_mapper.Map<TaskEscrowDto>(escrow));
     }
+
+    private Task<ProjectTask?> GetTaskAsync(TaskEscrow escrow, CancellationToken ct)
+        => _taskRepository.GetByIdAsync(escrow.taskId, ct);
 }

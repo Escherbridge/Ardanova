@@ -39,6 +39,7 @@ import { delegatedVoteRouter } from "~/server/api/routers/delegated-vote";
 import { commentRouter } from "~/server/api/routers/comment";
 import { swapRouter } from "~/server/api/routers/swap";
 import { azoaAvatarRouter } from "~/server/api/routers/azoaAvatar";
+import { fundingIntentRouter } from "~/server/api/routers/funding-intent";
 import { createCallerFactory, createTRPCRouter } from "~/server/api/trpc";
 
 /**
@@ -88,6 +89,7 @@ export const appRouter = createTRPCRouter({
   comment: commentRouter,
   swap: swapRouter,
   azoaAvatar: azoaAvatarRouter,
+  fundingIntent: fundingIntentRouter,
 });
 
 // export type definition of API
