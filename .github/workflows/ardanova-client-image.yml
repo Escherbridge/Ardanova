@@ -1,0 +1,92 @@
+name: ArdaNova client image
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "ardanova-client/**"
+      - ".github/workflows/ardanova-client-image.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: ardanova-client-image-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  IMAGE_NAME: ghcr.io/escherbridge/ardanova-client
+
+jobs:
+  validate-and-publish:
+    name: Validate and publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    defaults:
+      run:
+        working-directory: ardanova-client
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: ardanova-client/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run frontend release gate
+        run: npm run release:check
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Sign in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and publish immutable image
+        id: image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./ardanova-client
+          file: ./ardanova-client/Dockerfile
+          platforms: linux/amd64
+          push: true
+          pull: true
+          tags: |
+            ${{ env.IMAGE_NAME }}:${{ github.sha }}
+            ${{ env.IMAGE_NAME }}:main
+          labels: |
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+          build-args: |
+            SKIP_ENV_VALIDATION=true
+            NEXT_PUBLIC_AZOA_BASE_URL=${{ vars.NEXT_PUBLIC_AZOA_BASE_URL }}
+          cache-from: type=gha,scope=ardanova-client
+          cache-to: type=gha,mode=max,scope=ardanova-client
+
+      - name: Make the frontend image public
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          gh api --method PATCH
+          /orgs/${{ github.repository_owner }}/packages/container/ardanova-client/visibility
+          -f visibility=public
+
+      - name: Record published digest
+        run: echo "${{ env.IMAGE_NAME }}@${{ steps.image.outputs.digest }}" >> "$GITHUB_STEP_SUMMARY"
