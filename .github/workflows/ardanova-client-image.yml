@@ -48,7 +48,10 @@ jobs:
         run: npm ci
 
       - name: Generate Prisma client and schemas
-        run: npm run generate:prisma
+        run: |
+          npm run generate:prisma
+          npm exec -- prettier --write "src/lib/zod/**/*.ts" --cache
+          git diff --exit-code -- src/lib/zod
 
       - name: Run frontend release gate
         run: npm run release:check

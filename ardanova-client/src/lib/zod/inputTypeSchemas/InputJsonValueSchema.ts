@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 
 export const InputJsonValueSchema: z.ZodType<Prisma.InputJsonValue> = z.lazy(
   () =>
