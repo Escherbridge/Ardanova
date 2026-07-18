@@ -10,7 +10,8 @@ COPY prisma ./prisma/
 COPY scripts ./scripts/
 
 # Install dependencies
-RUN npm ci
+ARG DEPENDENCY_INSTALL_CACHE_KEY=stable
+RUN echo "Dependency install cache key: ${DEPENDENCY_INSTALL_CACHE_KEY}" && npm ci
 
 # Generate Prisma client
 RUN npx prisma generate

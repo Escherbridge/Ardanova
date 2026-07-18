@@ -25,6 +25,7 @@ jobs:
     name: Validate and publish
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    environment: production
 
     defaults:
       run:
@@ -45,6 +46,9 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Generate Prisma client and schemas
+        run: npm run generate:prisma
 
       - name: Run frontend release gate
         run: npm run release:check
@@ -77,6 +81,7 @@ jobs:
           build-args: |
             SKIP_ENV_VALIDATION=true
             NEXT_PUBLIC_AZOA_BASE_URL=${{ vars.NEXT_PUBLIC_AZOA_BASE_URL }}
+            DEPENDENCY_INSTALL_CACHE_KEY=${{ github.run_id }}-${{ github.run_attempt }}
           cache-from: type=gha,scope=ardanova-client
           cache-to: type=gha,mode=max,scope=ardanova-client
 
@@ -90,3 +95,8 @@ jobs:
 
       - name: Record published digest
         run: echo "${{ env.IMAGE_NAME }}@${{ steps.image.outputs.digest }}" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Apply production Prisma migrations
+        env:
+          DATABASE_URL: ${{ secrets.RAILWAY_PRODUCTION_DATABASE_URL }}
+        run: npm exec -- prisma migrate deploy --schema prisma/schema.prisma
