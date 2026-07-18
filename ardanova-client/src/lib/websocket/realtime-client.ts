@@ -14,15 +14,15 @@ import type {
  */
 export class RealtimeClient {
   private eventSource: EventSource | null = null;
-  private listeners: Map<string, Set<EventCallback>> = new Map();
-  private wildcardListeners: Set<EventCallback> = new Set();
+  private listeners = new Map<string, Set<EventCallback>>();
+  private wildcardListeners = new Set<EventCallback>();
   private connectionState: ConnectionState = "disconnected";
   private reconnectTimeout: NodeJS.Timeout | null = null;
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 10;
   private baseReconnectDelay = 1000;
 
-  private stateChangeCallbacks: Set<(state: ConnectionState) => void> = new Set();
+  private stateChangeCallbacks = new Set<(state: ConnectionState) => void>();
 
   /**
    * Connects to the SSE endpoint.
@@ -41,11 +41,10 @@ export class RealtimeClient {
       this.connectionState = "connected";
       this.reconnectAttempts = 0;
       this.notifyStateChange();
-      console.log("[RealtimeClient] Connected");
     };
 
-    this.eventSource.onerror = (error) => {
-      console.error("[RealtimeClient] Error:", error);
+    this.eventSource.onerror = () => {
+      console.error("[RealtimeClient] Connection error");
 
       if (this.eventSource?.readyState === EventSource.CLOSED) {
         this.connectionState = "disconnected";
@@ -60,18 +59,14 @@ export class RealtimeClient {
     // Handle the generic message event
     this.eventSource.onmessage = (event) => {
       try {
-        const data = JSON.parse(event.data) as ArdaNovaEvent;
-        this.emitEvent(data.eventType, data);
+        const data: unknown = JSON.parse(String(event.data));
+        if (isArdaNovaEvent(data)) {
+          this.emitEvent(data.eventType, data);
+        }
       } catch (error) {
         console.error("[RealtimeClient] Failed to parse message:", error);
       }
     };
-
-    // Handle the connected event
-    this.eventSource.addEventListener("connected", (event) => {
-      const messageEvent = event as MessageEvent;
-      console.log("[RealtimeClient] Received connected event:", messageEvent.data);
-    });
 
     // Handle typed events
     const eventTypes: ArdaNovaEventType[] = [
@@ -95,26 +90,22 @@ export class RealtimeClient {
     eventTypes.forEach((eventType) => {
       this.eventSource?.addEventListener(eventType, (event) => {
         try {
-          const messageEvent = event as MessageEvent;
-          const data = JSON.parse(messageEvent.data) as ArdaNovaEvent;
-          this.emitEvent(eventType, data);
+          const data: unknown = JSON.parse(String(event.data));
+          if (isArdaNovaEvent(data)) {
+            this.emitEvent(eventType, data);
+          }
         } catch (error) {
-          console.error(`[RealtimeClient] Failed to parse ${eventType} event:`, error);
+          console.error(
+            `[RealtimeClient] Failed to parse ${eventType} event:`,
+            error,
+          );
         }
       });
     });
 
     // Handle error event from server
-    this.eventSource.addEventListener("error", (event) => {
-      const messageEvent = event as MessageEvent;
-      if (messageEvent.data) {
-        try {
-          const errorData = JSON.parse(messageEvent.data);
-          console.error("[RealtimeClient] Server error:", errorData);
-        } catch {
-          // Ignore parse errors for SSE error events
-        }
-      }
+    this.eventSource.addEventListener("error", () => {
+      console.error("[RealtimeClient] Realtime connection reported an error");
     });
   }
 
@@ -131,7 +122,6 @@ export class RealtimeClient {
     this.eventSource = null;
     this.connectionState = "disconnected";
     this.notifyStateChange();
-    console.log("[RealtimeClient] Disconnected");
   }
 
   /**
@@ -157,20 +147,20 @@ export class RealtimeClient {
    */
   on<T extends ArdaNovaEvent = ArdaNovaEvent>(
     eventType: string,
-    callback: EventCallback<T>
+    callback: EventCallback<T>,
   ): () => void {
     if (eventType === "*") {
-      this.wildcardListeners.add(callback as EventCallback);
-      return () => this.wildcardListeners.delete(callback as EventCallback);
+      this.wildcardListeners.add(callback);
+      return () => this.wildcardListeners.delete(callback);
     }
 
     if (!this.listeners.has(eventType)) {
       this.listeners.set(eventType, new Set());
     }
-    this.listeners.get(eventType)!.add(callback as EventCallback);
+    this.listeners.get(eventType)?.add(callback);
 
     return () => {
-      this.listeners.get(eventType)?.delete(callback as EventCallback);
+      this.listeners.get(eventType)?.delete(callback);
     };
   }
 
@@ -185,8 +175,8 @@ export class RealtimeClient {
     });
 
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error ?? "Failed to send command");
+      const error: unknown = await response.json().catch(() => null);
+      throw new Error(getErrorMessage(error));
     }
   }
 
@@ -211,22 +201,22 @@ export class RealtimeClient {
   }
 
   /**
-   * Subscribe to agency events.
+   * Subscribe to guild events.
    */
-  async subscribeToAgency(agencyId: string): Promise<void> {
+  async subscribeToGuild(guildId: string): Promise<void> {
     await this.sendCommand({
-      action: "subscribeToAgency",
-      payload: { agencyId },
+      action: "subscribeToGuild",
+      payload: { guildId },
     });
   }
 
   /**
-   * Unsubscribe from agency events.
+   * Unsubscribe from guild events.
    */
-  async unsubscribeFromAgency(agencyId: string): Promise<void> {
+  async unsubscribeFromGuild(guildId: string): Promise<void> {
     await this.sendCommand({
-      action: "unsubscribeFromAgency",
-      payload: { agencyId },
+      action: "unsubscribeFromGuild",
+      payload: { guildId },
     });
   }
 
@@ -250,26 +240,6 @@ export class RealtimeClient {
     });
   }
 
-  /**
-   * Subscribe to all events.
-   */
-  async subscribeToAll(): Promise<void> {
-    await this.sendCommand({
-      action: "subscribeToAll",
-      payload: {},
-    });
-  }
-
-  /**
-   * Unsubscribe from all events.
-   */
-  async unsubscribeFromAll(): Promise<void> {
-    await this.sendCommand({
-      action: "unsubscribeFromAll",
-      payload: {},
-    });
-  }
-
   private emitEvent(eventType: string, event: ArdaNovaEvent): void {
     // Notify type-specific listeners
     const callbacks = this.listeners.get(eventType);
@@ -277,7 +247,10 @@ export class RealtimeClient {
       try {
         callback(event);
       } catch (error) {
-        console.error(`[RealtimeClient] Error in callback for ${eventType}:`, error);
+        console.error(
+          `[RealtimeClient] Error in callback for ${eventType}:`,
+          error,
+        );
       }
     });
 
@@ -296,23 +269,23 @@ export class RealtimeClient {
       try {
         callback(this.connectionState);
       } catch (error) {
-        console.error("[RealtimeClient] Error in state change callback:", error);
+        console.error(
+          "[RealtimeClient] Error in state change callback:",
+          error,
+        );
       }
     });
   }
 
   private scheduleReconnect(): void {
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      console.log("[RealtimeClient] Max reconnect attempts reached");
       return;
     }
 
     const delay = Math.min(
       this.baseReconnectDelay * Math.pow(2, this.reconnectAttempts),
-      30000
+      30000,
     );
-
-    console.log(`[RealtimeClient] Scheduling reconnect in ${delay}ms (attempt ${this.reconnectAttempts + 1})`);
 
     this.connectionState = "reconnecting";
     this.notifyStateChange();
@@ -322,4 +295,25 @@ export class RealtimeClient {
       this.connect();
     }, delay);
   }
+}
+
+function isArdaNovaEvent(value: unknown): value is ArdaNovaEvent {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "eventType" in value &&
+    typeof value.eventType === "string"
+  );
+}
+
+function getErrorMessage(value: unknown): string {
+  if (typeof value !== "object" || value === null) {
+    return "Failed to send command";
+  }
+
+  if (!("error" in value) || typeof value.error !== "string") {
+    return "Failed to send command";
+  }
+
+  return value.error;
 }

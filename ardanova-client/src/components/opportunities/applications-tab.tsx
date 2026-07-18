@@ -1,7 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { User, Mail, FileText, ExternalLink, Loader2, CheckCircle, XCircle } from "lucide-react";
+import {
+  User,
+  Mail,
+  FileText,
+  ExternalLink,
+  Loader2,
+  CheckCircle,
+  XCircle,
+} from "lucide-react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Badge } from "~/components/ui/badge";
@@ -20,13 +28,6 @@ interface ApplicationsTabProps {
   opportunityId: string;
   isOwner: boolean;
 }
-
-const statusVariants = {
-  pending: "secondary" as const,
-  reviewing: "default" as const,
-  accepted: "default" as const,
-  rejected: "destructive" as const,
-};
 
 const statusColors: Record<string, string> = {
   pending: "bg-yellow-500/20 text-yellow-500 border-yellow-500/30",
@@ -47,12 +48,15 @@ export default function ApplicationsTab({
   isOwner,
 }: ApplicationsTabProps) {
   const [updatingId, setUpdatingId] = useState<string | null>(null);
-  const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
+  const [feedback, setFeedback] = useState<{
+    type: "success" | "error";
+    message: string;
+  } | null>(null);
 
   const { data: applications, isLoading } =
     api.opportunity.getApplications.useQuery(
       { opportunityId },
-      { enabled: isOwner }
+      { enabled: isOwner },
     );
 
   const utils = api.useUtils();
@@ -67,7 +71,9 @@ export default function ApplicationsTab({
       await utils.opportunity.getApplications.cancel({ opportunityId });
 
       // Snapshot previous value
-      const previous = utils.opportunity.getApplications.getData({ opportunityId });
+      const previous = utils.opportunity.getApplications.getData({
+        opportunityId,
+      });
 
       // Optimistically update
       utils.opportunity.getApplications.setData({ opportunityId }, (old) => {
@@ -75,7 +81,7 @@ export default function ApplicationsTab({
         return old.map((app) =>
           app.id === newData.applicationId
             ? { ...app, status: newData.status }
-            : app
+            : app,
         );
       });
 
@@ -84,9 +90,15 @@ export default function ApplicationsTab({
     onError: (err, newData, context) => {
       // Roll back on error
       if (context?.previous) {
-        utils.opportunity.getApplications.setData({ opportunityId }, context.previous);
+        utils.opportunity.getApplications.setData(
+          { opportunityId },
+          context.previous,
+        );
       }
-      setFeedback({ type: "error", message: err.message || "Failed to update status" });
+      setFeedback({
+        type: "error",
+        message: err.message || "Failed to update status",
+      });
       setTimeout(() => setFeedback(null), 3000);
     },
     onSuccess: () => {
@@ -110,7 +122,7 @@ export default function ApplicationsTab({
 
   if (!isOwner) {
     return (
-      <Card className="bg-card border-2 border-border">
+      <Card className="bg-card border-border border-2">
         <CardContent className="py-12 text-center">
           <p className="text-muted-foreground">
             Only the opportunity owner can view applications.
@@ -122,7 +134,7 @@ export default function ApplicationsTab({
 
   if (isLoading) {
     return (
-      <Card className="bg-card border-2 border-border">
+      <Card className="bg-card border-border border-2">
         <CardContent className="py-12 text-center">
           <p className="text-muted-foreground">Loading applications...</p>
         </CardContent>
@@ -132,7 +144,7 @@ export default function ApplicationsTab({
 
   if (!applications || applications.length === 0) {
     return (
-      <Card className="bg-card border-2 border-border">
+      <Card className="bg-card border-border border-2">
         <CardContent className="py-12 text-center">
           <p className="text-muted-foreground">No applications yet.</p>
         </CardContent>
@@ -145,10 +157,10 @@ export default function ApplicationsTab({
       {/* Feedback notification */}
       {feedback && (
         <div
-          className={`flex items-center gap-2 p-3 rounded-lg text-sm ${
+          className={`flex items-center gap-2 rounded-none p-3 text-sm ${
             feedback.type === "success"
-              ? "bg-green-500/10 text-green-500 border border-green-500/30"
-              : "bg-red-500/10 text-red-500 border border-red-500/30"
+              ? "border border-green-500/30 bg-green-500/10 text-green-500"
+              : "border border-red-500/30 bg-red-500/10 text-red-500"
           }`}
         >
           {feedback.type === "success" ? (
@@ -161,54 +173,58 @@ export default function ApplicationsTab({
       )}
 
       {applications.map((application) => (
-        <Card key={application.id} className="bg-card border-2 border-border">
+        <Card key={application.id} className="bg-card border-border border-2">
           <CardHeader>
             <div className="flex items-start justify-between">
               <div className="flex items-center gap-3">
                 <Avatar>
-                  <AvatarImage src={application.applicant.image ?? undefined} />
+                  <AvatarImage
+                    src={application.applicant?.image ?? undefined}
+                    alt=""
+                  />
                   <AvatarFallback>
-                    {application.applicant.name?.[0]?.toUpperCase() ?? "U"}
+                    {application.applicant?.name?.[0]?.toUpperCase() ?? "U"}
                   </AvatarFallback>
                 </Avatar>
                 <div>
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <User className="size-4 text-muted-foreground" />
-                    {application.applicant.name}
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <User className="text-muted-foreground size-4" />
+                    {application.applicant?.name ?? "Unknown applicant"}
                   </CardTitle>
-                  <p className="text-sm text-muted-foreground flex items-center gap-1 mt-1">
+                  <p className="text-muted-foreground mt-1 flex items-center gap-1 text-sm">
                     <Mail className="size-3" />
-                    {application.applicant.email}
+                    {application.applicant?.email ?? "Email unavailable"}
                   </p>
                 </div>
               </div>
               <Badge
-                className={statusColors[application.status?.toLowerCase()] || statusColors.pending}
+                className={
+                  statusColors[
+                    application.status?.toLowerCase() ?? "pending"
+                  ] ?? statusColors.pending
+                }
                 variant="outline"
               >
-                {statusLabels[application.status?.toLowerCase()] || application.status}
+                {statusLabels[application.status?.toLowerCase() ?? "pending"] ??
+                  application.status ??
+                  "Pending"}
               </Badge>
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
-              <h4 className="text-sm font-semibold flex items-center gap-2 mb-2">
-                <FileText className="size-4 text-muted-foreground" />
+              <h4 className="mb-2 flex items-center gap-2 text-sm font-semibold">
+                <FileText className="text-muted-foreground size-4" />
                 Cover Letter
               </h4>
-              <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">
+              <p className="text-foreground text-sm leading-relaxed whitespace-pre-wrap">
                 {application.coverLetter}
               </p>
             </div>
 
             {application.portfolio && (
               <div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  asChild
-                  className="gap-2"
-                >
+                <Button variant="outline" size="sm" asChild className="gap-2">
                   <a
                     href={application.portfolio}
                     target="_blank"
@@ -221,8 +237,8 @@ export default function ApplicationsTab({
               </div>
             )}
 
-            <div className="flex items-center gap-3 pt-2 border-t">
-              <span className="text-sm text-muted-foreground">
+            <div className="flex items-center gap-3 border-t pt-2">
+              <span className="text-muted-foreground text-sm">
                 Update Status:
               </span>
               <Select
@@ -251,7 +267,7 @@ export default function ApplicationsTab({
               </Select>
             </div>
 
-            <div className="text-xs text-muted-foreground">
+            <div className="text-muted-foreground text-xs">
               Applied on {new Date(application.appliedAt).toLocaleDateString()}
             </div>
           </CardContent>

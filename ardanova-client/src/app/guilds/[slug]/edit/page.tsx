@@ -1,6 +1,7 @@
 import { redirect, notFound } from "next/navigation";
 import { auth } from "~/server/auth";
-import { api } from "~/trpc/server";
+import { apiClient } from "~/lib/api";
+import { buildSignInHref } from "~/lib/auth-navigation";
 import { GuildForm } from "~/components/guild-form";
 
 interface EditGuildPageProps {
@@ -10,24 +11,18 @@ interface EditGuildPageProps {
 }
 
 export default async function EditGuildPage({ params }: EditGuildPageProps) {
+  const { slug } = await params;
   const session = await auth();
 
   if (!session) {
-    redirect("/api/auth/signin");
+    redirect(buildSignInHref(`/guilds/${slug}/edit`));
   }
 
-  const { slug } = await params;
-
-  let guild;
-  try {
-    guild = await api.guild.getBySlug({ slug });
-  } catch (error) {
+  const response = await apiClient.guilds.getBySlug(slug);
+  if (response.error || !response.data) {
     notFound();
   }
-
-  if (!guild) {
-    notFound();
-  }
+  const guild = response.data;
 
   // Check ownership
   if (guild.ownerId !== session.user.id) {

@@ -1,11 +1,18 @@
 "use client";
 
 import { useState } from "react";
+import { z } from "zod";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
-import { Badge } from "~/components/ui/badge";
 import { Progress } from "~/components/ui/progress";
-import { FileText, Scale, ThumbsUp, ThumbsDown, Vote, Timer, Loader2 } from "lucide-react";
+import {
+  FileText,
+  Scale,
+  ThumbsUp,
+  ThumbsDown,
+  Vote,
+  Loader2,
+} from "lucide-react";
 import { api } from "~/trpc/react";
 
 interface OverviewTabProps {
@@ -26,17 +33,30 @@ interface OverviewTabProps {
   isCreator: boolean;
 }
 
-// Parse voting options from JSON string
-function parseVotingOptions(optionsStr: string, votesCount: number): Array<{label: string; choice: number; votes: number; percentage: number}> {
+const votingOptionsSchema = z
+  .array(
+    z
+      .object({
+        label: z.string().trim().min(1),
+        choice: z.number().int().nonnegative(),
+      })
+      .strict(),
+  )
+  .min(1);
+
+// The proposal contract stores labels and choices; vote summaries are separate.
+function parseVotingOptions(
+  optionsStr: string,
+): Array<{ label: string; choice: number; votes: number; percentage: number }> {
   try {
-    const parsed = JSON.parse(optionsStr);
-    if (Array.isArray(parsed)) {
-      const totalVotes = votesCount || 1;
-      return parsed.map((opt: any, idx: number) => ({
-        label: opt.label || `Option ${idx + 1}`,
-        choice: opt.choice ?? idx,
-        votes: opt.votes || 0,
-        percentage: Math.round(((opt.votes || 0) / totalVotes) * 100) || 0,
+    const parsed: unknown = JSON.parse(optionsStr);
+    const result = votingOptionsSchema.safeParse(parsed);
+    if (result.success) {
+      return result.data.map((option) => ({
+        label: option.label,
+        choice: option.choice,
+        votes: 0,
+        percentage: 0,
       }));
     }
   } catch {
@@ -58,7 +78,10 @@ function mapChoiceToVote(choice: number): "for" | "against" | "abstain" {
   return mapping[choice] ?? "abstain";
 }
 
-export default function OverviewTab({ proposal, isCreator }: OverviewTabProps) {
+export default function OverviewTab({
+  proposal,
+  isCreator: _isCreator,
+}: OverviewTabProps) {
   const [selectedVote, setSelectedVote] = useState<number | null>(null);
   const [voteReason, setVoteReason] = useState("");
 
@@ -75,13 +98,14 @@ export default function OverviewTab({ proposal, isCreator }: OverviewTabProps) {
     },
   });
 
-  const votingOptions = parseVotingOptions(proposal.options, proposal.votesCount);
+  const votingOptions = parseVotingOptions(proposal.options);
   const isActive = proposal.status === "Active";
 
   // Calculate quorum progress
-  const currentQuorum = proposal.totalVotingPower > 0
-    ? (proposal.votesCount / proposal.totalVotingPower) * 100
-    : 0;
+  const currentQuorum =
+    proposal.totalVotingPower > 0
+      ? (proposal.votesCount / proposal.totalVotingPower) * 100
+      : 0;
 
   const handleVote = (e: React.FormEvent) => {
     e.preventDefault();
@@ -97,28 +121,28 @@ export default function OverviewTab({ proposal, isCreator }: OverviewTabProps) {
   return (
     <div className="space-y-6">
       {/* Description */}
-      <Card className="bg-card border-2 border-border">
+      <Card className="bg-card border-border border-2">
         <CardHeader>
-          <CardTitle className="text-lg flex items-center gap-2">
-            <div className="w-8 h-8 bg-primary/20 rounded-lg flex items-center justify-center border border-primary/30">
-              <FileText className="size-4 text-primary" />
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <div className="bg-primary/20 border-primary/30 flex h-8 w-8 items-center justify-center rounded-lg border">
+              <FileText className="text-primary size-4" />
             </div>
             Description
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-foreground whitespace-pre-wrap leading-relaxed">
+          <p className="text-foreground leading-relaxed whitespace-pre-wrap">
             {proposal.description}
           </p>
         </CardContent>
       </Card>
 
       {/* Voting Results */}
-      <Card className="bg-card border-2 border-border">
+      <Card className="bg-card border-border border-2">
         <CardHeader>
-          <CardTitle className="text-lg flex items-center gap-2">
-            <div className="w-8 h-8 bg-neon-purple/20 rounded-lg flex items-center justify-center border border-neon-purple/30">
-              <Vote className="size-4 text-neon-purple" />
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <div className="bg-neon-purple/20 border-neon-purple/30 flex h-8 w-8 items-center justify-center rounded-lg border">
+              <Vote className="text-neon-purple size-4" />
             </div>
             Voting Results
           </CardTitle>
@@ -126,13 +150,14 @@ export default function OverviewTab({ proposal, isCreator }: OverviewTabProps) {
         <CardContent>
           {/* Quorum Progress */}
           <div className="mb-6">
-            <div className="flex justify-between text-sm mb-2">
+            <div className="mb-2 flex justify-between text-sm">
               <span className="text-muted-foreground">Quorum Progress</span>
-              <span className="font-medium text-foreground">
+              <span className="text-foreground font-medium">
                 {currentQuorum.toFixed(1)}% of {proposal.quorum}% required
               </span>
             </div>
             <Progress
+              aria-label="Quorum progress"
               value={Math.min(currentQuorum, 100)}
               variant={currentQuorum >= proposal.quorum ? "success" : "neon"}
             />
@@ -144,18 +169,35 @@ export default function OverviewTab({ proposal, isCreator }: OverviewTabProps) {
               <div key={i} className="space-y-2">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    {option.label === "For" && <ThumbsUp className="size-4 text-neon-green" />}
-                    {option.label === "Against" && <ThumbsDown className="size-4 text-destructive" />}
-                    <span className="font-medium text-foreground">{option.label}</span>
+                    {option.label === "For" && (
+                      <ThumbsUp className="text-neon-green size-4" />
+                    )}
+                    {option.label === "Against" && (
+                      <ThumbsDown className="text-destructive size-4" />
+                    )}
+                    <span className="text-foreground font-medium">
+                      {option.label}
+                    </span>
                   </div>
                   <div className="flex items-center gap-3">
-                    <span className="text-sm text-muted-foreground">{option.votes} votes</span>
-                    <span className="text-lg font-bold text-foreground">{option.percentage}%</span>
+                    <span className="text-muted-foreground text-sm">
+                      {option.votes} votes
+                    </span>
+                    <span className="text-foreground text-lg font-bold">
+                      {option.percentage}%
+                    </span>
                   </div>
                 </div>
                 <Progress
+                  aria-label={`${option.label} vote result`}
                   value={option.percentage}
-                  variant={option.label === "For" ? "success" : option.label === "Against" ? "warning" : "default"}
+                  variant={
+                    option.label === "For"
+                      ? "success"
+                      : option.label === "Against"
+                        ? "warning"
+                        : "default"
+                  }
                   className="h-3"
                 />
               </div>
@@ -165,11 +207,11 @@ export default function OverviewTab({ proposal, isCreator }: OverviewTabProps) {
       </Card>
 
       {/* Proposal Details */}
-      <Card className="bg-card border-2 border-border">
+      <Card className="bg-card border-border border-2">
         <CardHeader>
-          <CardTitle className="text-lg flex items-center gap-2">
-            <div className="w-8 h-8 bg-warning/20 rounded-lg flex items-center justify-center border border-warning/30">
-              <Scale className="size-4 text-warning" />
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <div className="bg-warning/20 border-warning/30 flex h-8 w-8 items-center justify-center rounded-lg border">
+              <Scale className="text-warning size-4" />
             </div>
             Proposal Details
           </CardTitle>
@@ -178,16 +220,20 @@ export default function OverviewTab({ proposal, isCreator }: OverviewTabProps) {
           <div className="space-y-3 text-sm">
             <div className="flex justify-between">
               <span className="text-muted-foreground">Quorum Required</span>
-              <span className="font-medium text-foreground">{proposal.quorum}%</span>
+              <span className="text-foreground font-medium">
+                {proposal.quorum}%
+              </span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Passing Threshold</span>
-              <span className="font-medium text-foreground">{proposal.threshold}%</span>
+              <span className="text-foreground font-medium">
+                {proposal.threshold}%
+              </span>
             </div>
             {proposal.votingStart && (
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Voting Started</span>
-                <span className="font-medium text-foreground">
+                <span className="text-foreground font-medium">
                   {new Date(proposal.votingStart).toLocaleDateString()}
                 </span>
               </div>
@@ -195,7 +241,7 @@ export default function OverviewTab({ proposal, isCreator }: OverviewTabProps) {
             {proposal.votingEnd && (
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Voting Ends</span>
-                <span className="font-medium text-foreground">
+                <span className="text-foreground font-medium">
                   {new Date(proposal.votingEnd).toLocaleDateString()}
                 </span>
               </div>
@@ -203,12 +249,14 @@ export default function OverviewTab({ proposal, isCreator }: OverviewTabProps) {
             {proposal.executionDelay && (
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Execution Delay</span>
-                <span className="font-medium text-foreground">{proposal.executionDelay} hours</span>
+                <span className="text-foreground font-medium">
+                  {proposal.executionDelay} hours
+                </span>
               </div>
             )}
             <div className="flex justify-between">
               <span className="text-muted-foreground">Created</span>
-              <span className="font-medium text-foreground">
+              <span className="text-foreground font-medium">
                 {new Date(proposal.createdAt).toLocaleDateString()}
               </span>
             </div>
@@ -218,19 +266,20 @@ export default function OverviewTab({ proposal, isCreator }: OverviewTabProps) {
 
       {/* Cast Vote Section */}
       {isActive && (
-        <Card className="bg-card border-2 border-primary">
+        <Card className="bg-card border-primary border-2">
           <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <div className="w-8 h-8 bg-neon-green/20 rounded-lg flex items-center justify-center border border-neon-green/30">
-                <Vote className="size-4 text-neon-green" />
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <div className="bg-neon-green/20 border-neon-green/30 flex h-8 w-8 items-center justify-center rounded-lg border">
+                <Vote className="text-neon-green size-4" />
               </div>
               Cast Your Vote
             </CardTitle>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleVote} className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                Select your voting choice and optionally provide a reason. Your vote is final and cannot be changed.
+              <p className="text-muted-foreground text-sm">
+                Select your voting choice and optionally provide a reason. Your
+                vote is final and cannot be changed.
               </p>
 
               {/* Vote Options */}
@@ -244,15 +293,19 @@ export default function OverviewTab({ proposal, isCreator }: OverviewTabProps) {
                         ? option.label === "For"
                           ? "neon-green"
                           : option.label === "Against"
-                          ? "destructive"
-                          : "secondary"
+                            ? "destructive"
+                            : "secondary"
                         : "outline"
                     }
-                    className="flex-1 min-w-[150px]"
+                    className="min-w-[150px] flex-1"
                     onClick={() => setSelectedVote(option.choice)}
                   >
-                    {option.label === "For" && <ThumbsUp className="size-4 mr-2" />}
-                    {option.label === "Against" && <ThumbsDown className="size-4 mr-2" />}
+                    {option.label === "For" && (
+                      <ThumbsUp className="mr-2 size-4" />
+                    )}
+                    {option.label === "Against" && (
+                      <ThumbsDown className="mr-2 size-4" />
+                    )}
                     {option.label}
                   </Button>
                 ))}
@@ -261,7 +314,10 @@ export default function OverviewTab({ proposal, isCreator }: OverviewTabProps) {
               {/* Reason (Optional) */}
               {selectedVote !== null && (
                 <div>
-                  <label htmlFor="voteReason" className="text-sm font-medium block mb-1.5">
+                  <label
+                    htmlFor="voteReason"
+                    className="mb-1.5 block text-sm font-medium"
+                  >
                     Reason (Optional)
                   </label>
                   <textarea
@@ -269,23 +325,32 @@ export default function OverviewTab({ proposal, isCreator }: OverviewTabProps) {
                     value={voteReason}
                     onChange={(e) => setVoteReason(e.target.value)}
                     placeholder="Share why you voted this way..."
-                    className="w-full px-3 py-2 border border-border rounded bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary min-h-[80px] resize-y"
+                    className="border-border bg-background text-foreground focus:ring-primary min-h-[80px] w-full resize-y rounded border px-3 py-2 focus:ring-2 focus:outline-none"
                   />
                 </div>
               )}
 
               {/* Submit Button */}
               {selectedVote !== null && (
-                <Button type="submit" variant="neon" className="w-full" disabled={voteMutation.isPending}>
+                <Button
+                  type="submit"
+                  variant="neon"
+                  className="w-full"
+                  disabled={voteMutation.isPending}
+                >
                   {voteMutation.isPending ? (
                     <>
-                      <Loader2 className="size-4 mr-2 animate-spin" />
+                      <Loader2 className="mr-2 size-4 animate-spin" />
                       Submitting Vote...
                     </>
                   ) : (
                     <>
-                      <Vote className="size-4 mr-2" />
-                      Submit Vote: {votingOptions.find(o => o.choice === selectedVote)?.label}
+                      <Vote className="mr-2 size-4" />
+                      Submit Vote:{" "}
+                      {
+                        votingOptions.find((o) => o.choice === selectedVote)
+                          ?.label
+                      }
                     </>
                   )}
                 </Button>

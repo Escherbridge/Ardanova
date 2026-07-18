@@ -1448,10 +1448,10 @@ Table WalletVerificationChallenge {
 Ref: WalletVerificationChallenge.userId > User.id
 Ref: WalletVerificationChallenge.walletId > Wallet.id
 
-// A signed BFF actor assertion is single-use. The primary key is deliberately
-// retained after expiry so an assertion id can never be reclaimed.
+// A signed BFF actor assertion is single-use while it can still validate. The
+// primary key is retained beyond expiry/skew, then removed by bounded cleanup.
 Table ActorAssertionReplay {
-  jti varchar [not null, pk, note: 'Single-use assertion UUID; never reclaimed']
+  jti varchar [not null, pk, note: 'Single-use assertion UUID retained beyond its validation window']
   expiresAt datetime [not null]
   consumedAt datetime [not null, default: `now()`]
   subject varchar [not null]
@@ -1459,7 +1459,7 @@ Table ActorAssertionReplay {
   bodySha256 varchar [not null]
 
   indexes {
-    (expiresAt)
+    (expiresAt, jti)
   }
 }
 
@@ -1501,10 +1501,14 @@ Table TaskEscrow {
   txHashFund varchar
   txHashRelease varchar
   txHashRefund varchar
+  disputeReason varchar
+  disputeDescription text
+  disputedByUserId varchar
   createdAt datetime [not null, default: `now()`]
   fundedAt datetime
   releasedAt datetime
   refundedAt datetime
+  disputedAt datetime
 }
 Ref: TaskEscrow.taskId > ProjectTask.id
 Ref: TaskEscrow.funderId > User.id
@@ -2172,7 +2176,7 @@ Table ProjectTokenConfig {
   assetId varchar [note: 'Algorand ASA ID — null until minted on-chain']
   assetName varchar [not null, note: 'e.g., ProjectName Shares']
   unitName varchar [not null, note: 'Max 8 chars, e.g., PSHARE']
-  assetScale int [not null, default: 6, note: 'Canonical asset decimals fixed when the project token configuration is created']
+  assetScale int [note: 'Canonical asset decimals supplied explicitly for new configs and reconciled from authoritative chain evidence for historical rows; never defaulted']
   totalSupply int [not null, note: 'Fixed supply = 100% equity']
   allocatedSupply int [not null, default: 0]
   distributedSupply int [not null, default: 0]

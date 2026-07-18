@@ -15,11 +15,14 @@ interface OpportunityBidsPanelProps {
 const actionableStatuses = new Set(["SUBMITTED", "UNDER_REVIEW"]);
 
 /** Shows an opportunity owner the bids eligible for the server-owned acceptance flow. */
-export function OpportunityBidsPanel({ opportunityId }: OpportunityBidsPanelProps) {
-  const { data, isLoading, error } = api.opportunityBid.getByOpportunityId.useQuery({
-    opportunityId,
-  });
-  const bids = (data ?? []) as OpportunityBid[];
+export function OpportunityBidsPanel({
+  opportunityId,
+}: OpportunityBidsPanelProps) {
+  const { data, isLoading, error } =
+    api.opportunityBid.getByOpportunityId.useQuery({
+      opportunityId,
+    });
+  const bids: OpportunityBid[] = data ?? [];
 
   return (
     <Card className="bg-card border-border">
@@ -28,20 +31,20 @@ export function OpportunityBidsPanel({ opportunityId }: OpportunityBidsPanelProp
       </CardHeader>
       <CardContent className="space-y-3">
         {isLoading ? (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <div className="text-muted-foreground flex items-center gap-2 text-sm">
             <Loader2 className="size-4 animate-spin" />
             Loading bids...
           </div>
         ) : error ? (
-          <p className="text-sm text-destructive">Unable to load bids.</p>
+          <p className="text-destructive text-sm">Unable to load bids.</p>
         ) : bids.length ? (
           bids.map((bid) => (
-            <div key={bid.id} className="rounded-md border border-border p-3">
+            <div key={bid.id} className="border-border rounded-md border p-3">
               <div className="flex items-start justify-between gap-3">
                 <div className="space-y-1">
                   <p className="text-sm whitespace-pre-wrap">{bid.proposal}</p>
                   {bid.proposedAmount != null ? (
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-muted-foreground text-xs">
                       Proposed amount: {bid.proposedAmount}
                     </p>
                   ) : null}
@@ -56,7 +59,7 @@ export function OpportunityBidsPanel({ opportunityId }: OpportunityBidsPanelProp
             </div>
           ))
         ) : (
-          <p className="text-sm text-muted-foreground">No bids yet.</p>
+          <p className="text-muted-foreground text-sm">No bids yet.</p>
         )}
       </CardContent>
     </Card>

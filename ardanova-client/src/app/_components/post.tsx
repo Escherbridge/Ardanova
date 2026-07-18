@@ -1,7 +1,3 @@
-"use client";
-
-import { api } from "~/trpc/react";
-
 export function Post() {
   return (
     <div className="text-center">

@@ -18,70 +18,36 @@ import { EscrowStatusBadge } from "~/components/escrow/escrow-status-badge";
 import { DisputeDetail } from "~/components/escrow/dispute-detail";
 import { EscrowTimeline } from "~/components/escrow/escrow-timeline";
 import { cn } from "~/lib/utils";
-
-type EscrowStatus =
-  | "PENDING"
-  | "FUNDED"
-  | "PARTIALLY_RELEASED"
-  | "DISPUTED"
-  | "RESOLVED"
-  | "RELEASED";
-
-interface EscrowRecord {
-  id: string;
-  taskId: string;
-  funderId: string;
-  shareId?: string | null;
-  amount: number;
-  status: EscrowStatus;
-  txHashFund?: string | null;
-  txHashRelease?: string | null;
-  createdAt: Date | string;
-  releasedAt?: Date | string | null;
-  disputedAt?: Date | string | null;
-}
-
-function formatDate(date: Date | string | null | undefined): string {
-  if (!date) return "—";
-  return new Date(date).toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
+import type { TaskEscrowDto } from "~/lib/contracts/task-escrow-contract";
 
 function DisputeCard({
   escrow,
   expanded,
   onToggle,
 }: {
-  escrow: EscrowRecord;
+  escrow: TaskEscrowDto;
   expanded: boolean;
   onToggle: () => void;
 }) {
-  const [resolved, setResolved] = useState(false);
-
-  if (resolved) return null;
-
   return (
     <Card
       className={cn(
         "border-2 transition-colors",
-        expanded ? "border-neon-pink/40" : "border-white/10 hover:border-white/20"
+        expanded
+          ? "border-neon-pink/40"
+          : "border-white/10 hover:border-white/20",
       )}
     >
       {/* Summary row */}
       <CardHeader className="pb-3">
         <div className="flex items-start gap-4">
           {/* Alert icon */}
-          <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 border-neon-pink/30 bg-neon-pink/10">
-            <AlertTriangle className="h-4 w-4 text-neon-pink" />
+          <div className="border-neon-pink/30 bg-neon-pink/10 mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-none border-2">
+            <AlertTriangle className="text-neon-pink h-4 w-4" />
           </div>
 
           {/* Info */}
-          <div className="flex-1 min-w-0 space-y-1">
+          <div className="min-w-0 flex-1 space-y-1">
             <div className="flex flex-wrap items-center gap-2">
               <p className="font-mono text-sm font-medium">
                 Task{" "}
@@ -91,23 +57,22 @@ function DisputeCard({
               </p>
               <EscrowStatusBadge status={escrow.status} size="sm" />
             </div>
-            <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+            <div className="text-muted-foreground flex flex-wrap gap-x-4 gap-y-1 text-xs">
               <span>
                 Funder:{" "}
-                <span className="font-mono">{escrow.funderId.slice(0, 12)}...</span>
+                <span className="font-mono">
+                  {escrow.funderId.slice(0, 12)}...
+                </span>
               </span>
               <span>
                 Amount:{" "}
-                <span className="font-mono font-bold text-neon-pink">
+                <span className="text-neon-pink font-mono font-bold">
                   {escrow.amount.toLocaleString("en-US", {
                     minimumFractionDigits: 2,
                     maximumFractionDigits: 6,
                   })}
                 </span>
               </span>
-              {escrow.disputedAt && (
-                <span>Disputed: {formatDate(escrow.disputedAt)}</span>
-              )}
             </div>
           </div>
 
@@ -135,17 +100,12 @@ function DisputeCard({
       {expanded && (
         <CardContent className="space-y-6 border-t border-white/10 pt-6">
           <div className="grid gap-6 lg:grid-cols-2">
-            <DisputeDetail
-              escrow={escrow}
-              onResolveRelease={() => setResolved(true)}
-              onResolveRefund={() => setResolved(true)}
-            />
+            <DisputeDetail escrow={escrow} />
             <EscrowTimeline
               escrow={{
                 createdAt: escrow.createdAt,
                 fundedAt: escrow.txHashFund ? escrow.createdAt : undefined,
                 releasedAt: escrow.releasedAt,
-                disputedAt: escrow.disputedAt,
               }}
             />
           </div>
@@ -159,13 +119,17 @@ export default function AdminDisputesPage() {
   const { data: session } = useSession();
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  const { data: escrows, isLoading, error } = api.taskEscrow.getByFunderId.useQuery(
-    undefined,
-    { enabled: !!session?.user?.id }
-  );
+  const {
+    data: escrows,
+    isLoading,
+    error,
+  } = api.taskEscrow.getByFunderId.useQuery(undefined, {
+    enabled: !!session?.user?.id,
+  });
 
-  const escrowList = (escrows as unknown as EscrowRecord[] | undefined) ?? [];
-  const disputedEscrows = escrowList.filter((e) => e.status === "DISPUTED");
+  const disputedEscrows = (escrows ?? []).filter(
+    (escrow) => escrow.status === "DISPUTED",
+  );
 
   const toggleExpand = (id: string) => {
     setExpandedId((prev) => (prev === id ? null : id));
@@ -174,7 +138,7 @@ export default function AdminDisputesPage() {
   if (!session?.user) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-neon-green" />
+        <Loader2 className="text-neon-green h-8 w-8 animate-spin" />
       </div>
     );
   }
@@ -182,7 +146,9 @@ export default function AdminDisputesPage() {
   if (session.user.role !== "ADMIN") {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
-        <p className="text-white/60">You do not have permission to view this page.</p>
+        <p className="text-white/60">
+          You do not have permission to view this page.
+        </p>
       </div>
     );
   }
@@ -192,21 +158,17 @@ export default function AdminDisputesPage() {
       {/* Header */}
       <div className="space-y-2 border-b border-white/10 pb-6">
         <div className="flex items-center gap-3">
-          <Gavel className="h-8 w-8 text-neon-pink" />
+          <Gavel className="text-neon-pink h-8 w-8" />
           <div>
             <h1 className="text-3xl font-bold tracking-tight">
-              Dispute Resolution
+              Dispute Review
             </h1>
-            <p className="text-sm text-muted-foreground">
-              Review and resolve active escrow disputes.
+            <p className="text-muted-foreground text-sm">
+              Review active escrow disputes without moving funds.
             </p>
           </div>
           {!isLoading && (
-            <Badge
-              variant="neon-pink"
-              size="lg"
-              className="ml-auto shrink-0"
-            >
+            <Badge variant="neon-pink" size="lg" className="ml-auto shrink-0">
               {disputedEscrows.length} open
             </Badge>
           )}
@@ -214,30 +176,36 @@ export default function AdminDisputesPage() {
       </div>
 
       {/* Production note */}
-      <div className="flex items-start gap-3 rounded-md border border-neon-cyan/20 bg-neon-cyan/5 p-4 text-sm">
-        <Info className="mt-0.5 h-4 w-4 shrink-0 text-neon-cyan" />
+      <div className="border-neon-cyan/20 bg-neon-cyan/5 flex items-start gap-3 rounded-md border p-4 text-sm">
+        <Info className="text-neon-cyan mt-0.5 h-4 w-4 shrink-0" />
         <p className="text-neon-cyan/80">
-          <span className="font-semibold">Development note:</span> This page
-          queries escrows by the current admin&apos;s funder ID as a demo. A
-          production deployment requires a <code className="font-mono text-xs">getAllDisputed</code> endpoint on
-          the .NET API to surface all disputed escrows across all funders.
+          <span className="font-semibold">Read-only contract:</span> This page
+          currently queries escrows by the signed-in administrator&apos;s funder
+          ID. The .NET API needs authenticated{" "}
+          <code className="font-mono text-xs">getAllDisputed</code> and
+          auditable administrator-resolution endpoints before this can become a
+          platform-wide adjudication workspace.
         </p>
       </div>
 
       {/* Loading */}
       {isLoading && (
         <div className="flex items-center justify-center py-20">
-          <Loader2 className="h-8 w-8 animate-spin text-neon-pink" />
+          <Loader2 className="text-neon-pink h-8 w-8 animate-spin" />
         </div>
       )}
 
       {/* Error */}
       {error && !isLoading && (
-        <Card className="border-2 border-destructive/30">
+        <Card className="border-destructive/30 border-2">
           <CardContent className="flex flex-col items-center justify-center py-12">
-            <AlertTriangle className="mb-3 h-10 w-10 text-destructive" />
-            <p className="font-medium text-destructive">Failed to load disputes</p>
-            <p className="mt-1 text-sm text-muted-foreground">{error.message}</p>
+            <AlertTriangle className="text-destructive mb-3 h-10 w-10" />
+            <p className="text-destructive font-medium">
+              Failed to load disputes
+            </p>
+            <p className="text-muted-foreground mt-1 text-sm">
+              {error.message}
+            </p>
           </CardContent>
         </Card>
       )}
@@ -246,11 +214,11 @@ export default function AdminDisputesPage() {
       {!isLoading && !error && disputedEscrows.length === 0 && (
         <Card className="border-2 border-white/10">
           <CardContent className="flex flex-col items-center justify-center py-20">
-            <Gavel className="mb-4 h-16 w-16 text-muted-foreground/30" />
-            <p className="text-lg font-medium text-muted-foreground">
+            <Gavel className="text-muted-foreground/30 mb-4 h-16 w-16" />
+            <p className="text-muted-foreground text-lg font-medium">
               No open disputes
             </p>
-            <p className="mt-1 text-sm text-muted-foreground/60">
+            <p className="text-muted-foreground/60 mt-1 text-sm">
               All escrows are in good standing.
             </p>
           </CardContent>

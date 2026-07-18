@@ -2,10 +2,24 @@
 
 import { useEffect } from "react";
 import { api } from "~/trpc/react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "~/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
 import { Badge } from "~/components/ui/badge";
-import { Loader2, Briefcase, Plus, Users, DollarSign, MapPin, Calendar } from "lucide-react";
+import {
+  Loader2,
+  Briefcase,
+  Plus,
+  Users,
+  DollarSign,
+  MapPin,
+  Calendar,
+} from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 
@@ -17,7 +31,10 @@ interface OpportunitiesTabProps {
 }
 
 // Type badge variants
-const typeVariants: Record<string, "neon" | "neon-pink" | "neon-green" | "neon-purple" | "warning" | "secondary"> = {
+const typeVariants: Record<
+  string,
+  "neon" | "neon-pink" | "neon-green" | "neon-purple" | "warning" | "secondary"
+> = {
   Bounty: "neon-green",
   Freelance: "neon-purple",
   Contract: "neon",
@@ -26,7 +43,16 @@ const typeVariants: Record<string, "neon" | "neon-pink" | "neon-green" | "neon-p
 };
 
 // Status badge variants
-const statusVariants: Record<string, "neon" | "neon-pink" | "neon-green" | "neon-purple" | "warning" | "secondary" | "destructive"> = {
+const statusVariants: Record<
+  string,
+  | "neon"
+  | "neon-pink"
+  | "neon-green"
+  | "neon-purple"
+  | "warning"
+  | "secondary"
+  | "destructive"
+> = {
   DRAFT: "secondary",
   OPEN: "neon",
   IN_REVIEW: "warning",
@@ -35,17 +61,32 @@ const statusVariants: Record<string, "neon" | "neon-pink" | "neon-green" | "neon
   CANCELLED: "destructive",
 };
 
-export function OpportunitiesTab({ guildId, guildSlug, isOwner, userRole }: OpportunitiesTabProps) {
+export function OpportunitiesTab({
+  guildId,
+  guildSlug,
+  isOwner,
+  userRole,
+}: OpportunitiesTabProps) {
   // Check if user has permission to create opportunities
-  const canCreateOpportunity = isOwner || userRole === "OWNER" || userRole === "ADMIN" || userRole === "RECRUITER";
+  const canCreateOpportunity =
+    isOwner ||
+    userRole === "OWNER" ||
+    userRole === "ADMIN" ||
+    userRole === "RECRUITER";
 
   // Query for fetching all opportunities and filter by guildId
-  const { data: opportunitiesResult, isLoading, error } = api.opportunity.getAll.useQuery({
+  const {
+    data: opportunitiesResult,
+    isLoading,
+    error,
+  } = api.opportunity.getAll.useQuery({
     limit: 100,
   });
 
   // Filter opportunities by guildId
-  const opportunities = (opportunitiesResult?.items || []).filter((opp) => opp.guildId === guildId);
+  const opportunities = (opportunitiesResult?.items || []).filter(
+    (opp) => opp.guildId === guildId,
+  );
 
   // Show toast notification on error
   useEffect(() => {
@@ -57,7 +98,7 @@ export function OpportunitiesTab({ guildId, guildSlug, isOwner, userRole }: Oppo
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 className="size-6 animate-spin text-muted-foreground" />
+        <Loader2 className="text-muted-foreground size-6 animate-spin" />
       </div>
     );
   }
@@ -66,7 +107,7 @@ export function OpportunitiesTab({ guildId, guildSlug, isOwner, userRole }: Oppo
     return (
       <Card className="border-destructive">
         <CardContent className="pt-6">
-          <p className="text-sm text-destructive">
+          <p className="text-destructive text-sm">
             Failed to load opportunities: {error.message}
           </p>
         </CardContent>
@@ -89,13 +130,11 @@ export function OpportunitiesTab({ guildId, guildSlug, isOwner, userRole }: Oppo
               </CardDescription>
             </div>
             {canCreateOpportunity && (
-              <Button
-                asChild
-                variant="default"
-                size="sm"
-              >
-                <Link href={`/opportunities/create?entityType=guild&entityId=${guildId}&entitySlug=${guildSlug}`}>
-                  <Plus className="size-4 mr-2" />
+              <Button asChild variant="default" size="sm">
+                <Link
+                  href={`/opportunities/create?entityType=guild&entityId=${guildId}&entitySlug=${guildSlug}`}
+                >
+                  <Plus className="mr-2 size-4" />
                   Post Opportunity
                 </Link>
               </Button>
@@ -104,18 +143,22 @@ export function OpportunitiesTab({ guildId, guildSlug, isOwner, userRole }: Oppo
         </CardHeader>
         <CardContent>
           {opportunities.length === 0 ? (
-            <div className="text-center py-12">
-              <Briefcase className="size-12 mx-auto text-muted-foreground mb-4" />
-              <h3 className="text-lg font-semibold mb-2">No opportunities yet</h3>
-              <p className="text-sm text-muted-foreground mb-4">
+            <div className="py-12 text-center">
+              <Briefcase className="text-muted-foreground mx-auto mb-4 size-12" />
+              <h3 className="mb-2 text-lg font-semibold">
+                No opportunities yet
+              </h3>
+              <p className="text-muted-foreground mb-4 text-sm">
                 {canCreateOpportunity
                   ? "Post your first opportunity to attract talented developers."
                   : "This guild hasn't posted any opportunities yet."}
               </p>
               {canCreateOpportunity && (
                 <Button asChild variant="neon" size="sm">
-                  <Link href={`/opportunities/create?entityType=guild&entityId=${guildId}&entitySlug=${guildSlug}`}>
-                    <Plus className="size-4 mr-2" />
+                  <Link
+                    href={`/opportunities/create?entityType=guild&entityId=${guildId}&entitySlug=${guildSlug}`}
+                  >
+                    <Plus className="mr-2 size-4" />
                     Post Opportunity
                   </Link>
                 </Button>
@@ -126,7 +169,7 @@ export function OpportunitiesTab({ guildId, guildSlug, isOwner, userRole }: Oppo
               {opportunities.map((opportunity) => (
                 <Card
                   key={opportunity.id}
-                  className="border border-border hover:bg-muted/50 transition-colors"
+                  className="border-border hover:bg-muted/50 border transition-colors"
                 >
                   <CardContent className="pt-6">
                     <div className="space-y-4">
@@ -137,22 +180,35 @@ export function OpportunitiesTab({ guildId, guildSlug, isOwner, userRole }: Oppo
                             href={`/opportunities/${opportunity.slug || opportunity.id}`}
                             className="group"
                           >
-                            <h3 className="text-lg font-semibold group-hover:text-primary transition-colors">
+                            <h3 className="group-hover:text-primary text-lg font-semibold transition-colors">
                               {opportunity.title}
                             </h3>
                           </Link>
                           {opportunity.description && (
-                            <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
+                            <p className="text-muted-foreground mt-1 line-clamp-2 text-sm">
                               {opportunity.description}
                             </p>
                           )}
                         </div>
-                        <div className="flex flex-col gap-2 items-end">
-                          <Badge variant={statusVariants[opportunity.status] || "secondary"}>
-                            {opportunity.status.replace("_", " ")}
+                        <div className="flex flex-col items-end gap-2">
+                          <Badge
+                            variant={
+                              statusVariants[opportunity.status ?? ""] ||
+                              "secondary"
+                            }
+                          >
+                            {(opportunity.status ?? "Unknown").replace(
+                              "_",
+                              " ",
+                            )}
                           </Badge>
-                          <Badge variant={typeVariants[opportunity.type] || "secondary"}>
-                            {opportunity.type}
+                          <Badge
+                            variant={
+                              typeVariants[opportunity.type ?? ""] ||
+                              "secondary"
+                            }
+                          >
+                            {opportunity.type ?? "Unspecified"}
                           </Badge>
                         </div>
                       </div>
@@ -160,27 +216,37 @@ export function OpportunitiesTab({ guildId, guildSlug, isOwner, userRole }: Oppo
                       {/* Skills */}
                       {opportunity.skills && (
                         <div className="flex flex-wrap gap-2">
-                          {opportunity.skills.split(",").slice(0, 5).map((skill, i) => (
-                            <Badge key={i} variant="outline" size="sm">
-                              {skill.trim()}
-                            </Badge>
-                          ))}
+                          {opportunity.skills
+                            .split(",")
+                            .slice(0, 5)
+                            .map((skill, i) => (
+                              <Badge key={i} variant="outline" size="sm">
+                                {skill.trim()}
+                              </Badge>
+                            ))}
                         </div>
                       )}
 
                       {/* Details */}
-                      <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
+                      <div className="text-muted-foreground flex flex-wrap items-center gap-4 text-sm">
                         {/* Applicants count */}
                         <div className="flex items-center gap-1.5">
                           <Users className="size-4" />
-                          <span>{opportunity.applicationsCount || 0} applicants</span>
+                          <span>
+                            {opportunity.applicationsCount || 0} applicants
+                          </span>
                         </div>
 
                         {/* Compensation */}
                         {opportunity.compensation && (
                           <div className="flex items-center gap-1.5">
                             <DollarSign className="size-4" />
-                            <span>${Number(opportunity.compensation).toLocaleString()}</span>
+                            <span>
+                              $
+                              {Number(
+                                opportunity.compensation,
+                              ).toLocaleString()}
+                            </span>
                           </div>
                         )}
 
@@ -203,7 +269,12 @@ export function OpportunitiesTab({ guildId, guildSlug, isOwner, userRole }: Oppo
                         {opportunity.deadline && (
                           <div className="flex items-center gap-1.5">
                             <Calendar className="size-4" />
-                            <span>Deadline: {new Date(opportunity.deadline).toLocaleDateString()}</span>
+                            <span>
+                              Deadline:{" "}
+                              {new Date(
+                                opportunity.deadline,
+                              ).toLocaleDateString()}
+                            </span>
                           </div>
                         )}
                       </div>
@@ -211,14 +282,18 @@ export function OpportunitiesTab({ guildId, guildSlug, isOwner, userRole }: Oppo
                       {/* Actions */}
                       <div className="flex items-center gap-2 pt-2">
                         <Button asChild variant="neon" size="sm">
-                          <Link href={`/opportunities/${opportunity.slug || opportunity.id}`}>
+                          <Link
+                            href={`/opportunities/${opportunity.slug || opportunity.id}`}
+                          >
                             View Details
                           </Link>
                         </Button>
                         {opportunity.status === "OPEN" && (
                           <Button asChild variant="outline" size="sm">
-                            <Link href={`/opportunities/${opportunity.slug || opportunity.id}`}>
-                              Apply Now
+                            <Link
+                              href={`/opportunities/${opportunity.slug || opportunity.id}`}
+                            >
+                              Review &amp; apply
                             </Link>
                           </Button>
                         )}
@@ -239,30 +314,37 @@ export function OpportunitiesTab({ guildId, guildSlug, isOwner, userRole }: Oppo
             <CardTitle>Opportunity Statistics</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="text-center p-4 border border-border rounded">
-                <div className="text-2xl font-bold text-primary">
+            <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+              <div className="border-border rounded border p-4 text-center">
+                <div className="text-primary text-2xl font-bold">
                   {opportunities.length}
                 </div>
-                <div className="text-sm text-muted-foreground">Total Opportunities</div>
+                <div className="text-muted-foreground text-sm">
+                  Total Opportunities
+                </div>
               </div>
-              <div className="text-center p-4 border border-border rounded">
-                <div className="text-2xl font-bold text-neon">
+              <div className="border-border rounded border p-4 text-center">
+                <div className="text-system text-2xl font-bold">
                   {opportunities.filter((o) => o.status === "OPEN").length}
                 </div>
-                <div className="text-sm text-muted-foreground">Open</div>
+                <div className="text-muted-foreground text-sm">Open</div>
               </div>
-              <div className="text-center p-4 border border-border rounded">
-                <div className="text-2xl font-bold text-neon-green">
+              <div className="border-border rounded border p-4 text-center">
+                <div className="text-success text-2xl font-bold">
                   {opportunities.filter((o) => o.status === "FILLED").length}
                 </div>
-                <div className="text-sm text-muted-foreground">Filled</div>
+                <div className="text-muted-foreground text-sm">Filled</div>
               </div>
-              <div className="text-center p-4 border border-border rounded">
-                <div className="text-2xl font-bold text-foreground">
-                  {opportunities.reduce((sum, o) => sum + (o.applicationsCount || 0), 0)}
+              <div className="border-border rounded border p-4 text-center">
+                <div className="text-foreground text-2xl font-bold">
+                  {opportunities.reduce(
+                    (sum, o) => sum + (o.applicationsCount || 0),
+                    0,
+                  )}
                 </div>
-                <div className="text-sm text-muted-foreground">Total Applicants</div>
+                <div className="text-muted-foreground text-sm">
+                  Total Applicants
+                </div>
               </div>
             </div>
           </CardContent>

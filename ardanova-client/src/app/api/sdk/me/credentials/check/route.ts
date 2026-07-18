@@ -32,11 +32,14 @@ export async function GET(request: NextRequest) {
   const guildId = searchParams.get("guildId");
   const minTier = searchParams.get("minTier");
 
-  const userId = session!.user.id;
+  const userId = session.user.id;
 
   // Check credential by project or guild
   if (projectId) {
-    const response = await apiClient.membershipCredentials.getByProjectAndUser(projectId, userId);
+    const response = await apiClient.membershipCredentials.getByProjectAndUser(
+      projectId,
+      userId,
+    );
 
     if (response.error || !response.data) {
       return NextResponse.json({
@@ -61,7 +64,10 @@ export async function GET(request: NextRequest) {
   }
 
   if (guildId) {
-    const response = await apiClient.membershipCredentials.getByGuildAndUser(guildId, userId);
+    const response = await apiClient.membershipCredentials.getByGuildAndUser(
+      guildId,
+      userId,
+    );
 
     if (response.error || !response.data) {
       return NextResponse.json({
@@ -99,7 +105,8 @@ export async function GET(request: NextRequest) {
     });
   }
 
-  const credTierRank = TIER_RANK[activeCredential.tier?.toUpperCase() ?? ""] ?? 0;
+  const credTierRank =
+    TIER_RANK[activeCredential.tier?.toUpperCase() ?? ""] ?? 0;
   const minTierRank = TIER_RANK[minTier?.toUpperCase() ?? ""] ?? 0;
 
   return NextResponse.json({

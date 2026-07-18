@@ -134,8 +134,20 @@ describe("checkUserType", () => {
 
   it("should match any type from the allowed list", () => {
     const allowed: Array<
-      "INNOVATOR" | "SUPPORTER" | "VOLUNTEER" | "FREELANCER" | "SME_OWNER" | "GUILD_MEMBER"
-    > = ["INNOVATOR", "SUPPORTER", "VOLUNTEER", "FREELANCER", "SME_OWNER", "GUILD_MEMBER"];
+      | "INNOVATOR"
+      | "SUPPORTER"
+      | "VOLUNTEER"
+      | "FREELANCER"
+      | "SME_OWNER"
+      | "GUILD_MEMBER"
+    > = [
+      "INNOVATOR",
+      "SUPPORTER",
+      "VOLUNTEER",
+      "FREELANCER",
+      "SME_OWNER",
+      "GUILD_MEMBER",
+    ];
     for (const type of allowed) {
       const result = checkUserType(type, allowed);
       expect(result.allowed).toBe(true);
@@ -217,8 +229,8 @@ describe("meetsMinimumVerificationLevel", () => {
     ];
     for (let i = 0; i < levels.length; i++) {
       for (let j = 0; j < levels.length; j++) {
-        const current = levels[i] as "ANONYMOUS" | "VERIFIED" | "PRO" | "EXPERT";
-        const minimum = levels[j] as "ANONYMOUS" | "VERIFIED" | "PRO" | "EXPERT";
+        const current = levels[i];
+        const minimum = levels[j];
         const result = meetsMinimumVerificationLevel(current, minimum);
         expect(result).toBe(i >= j);
       }

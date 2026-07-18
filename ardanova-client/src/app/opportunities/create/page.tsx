@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
-import { auth } from "~/server/auth";
+import { authForPage } from "~/server/auth";
+import { buildSignInHref } from "~/lib/auth-navigation";
 import { OpportunityForm } from "~/components/opportunity-form";
 
 interface CreateOpportunityPageProps {
@@ -12,21 +13,28 @@ interface CreateOpportunityPageProps {
   }>;
 }
 
-export default async function CreateOpportunityPage({ searchParams }: CreateOpportunityPageProps) {
-  const session = await auth();
+export default async function CreateOpportunityPage({
+  searchParams,
+}: CreateOpportunityPageProps) {
+  const params = await searchParams;
+  const callbackSearch = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value) callbackSearch.set(key, value);
+  }
+  const callbackUrl = `/opportunities/create${callbackSearch.size > 0 ? `?${callbackSearch.toString()}` : ""}`;
+  const session = await authForPage();
 
   if (!session) {
-    redirect("/api/auth/signin");
+    redirect(buildSignInHref(callbackUrl));
   }
 
-  const params = await searchParams;
-  const entityType = params.projectId ? "project" : params.guildId ? "guild" : undefined;
+  const entityType = params.projectId
+    ? "project"
+    : params.guildId
+      ? "guild"
+      : undefined;
   const entityId = params.projectId ?? params.guildId;
   const entitySlug = params.projectSlug ?? params.guildSlug;
-
-  const defaultOpportunity = params.projectRole
-    ? { projectRole: params.projectRole }
-    : undefined;
 
   return (
     <OpportunityForm
@@ -34,7 +42,7 @@ export default async function CreateOpportunityPage({ searchParams }: CreateOppo
       entityType={entityType}
       entityId={entityId}
       entitySlug={entitySlug}
-      opportunity={defaultOpportunity as any}
+      defaultProjectRole={params.projectRole}
     />
   );
 }

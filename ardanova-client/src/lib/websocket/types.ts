@@ -2,6 +2,7 @@
  * WebSocket/Realtime Types for ArdaNova
  * Matches the event types from the backend EventBus
  */
+import { z } from "zod";
 
 // Base event interface matching backend IDomainEvent
 export interface DomainEvent {
@@ -225,18 +226,50 @@ export interface WebSocketOptions {
   onError?: (error: Error) => void;
 }
 
-// Subscription action types
-export type SubscriptionAction =
-  | { action: "subscribeToProject"; payload: { projectId: string } }
-  | { action: "unsubscribeFromProject"; payload: { projectId: string } }
-  | { action: "subscribeToAgency"; payload: { agencyId: string } }
-  | { action: "unsubscribeFromAgency"; payload: { agencyId: string } }
-  | { action: "subscribeToUser"; payload: { userId: string } }
-  | { action: "unsubscribeFromUser"; payload: { userId: string } }
-  | { action: "subscribeToConversation"; payload: { conversationId: string } }
-  | { action: "unsubscribeFromConversation"; payload: { conversationId: string } }
-  | { action: "subscribeToAll"; payload: Record<string, never> }
-  | { action: "unsubscribeFromAll"; payload: Record<string, never> };
+const subscriptionIdSchema = z.string().trim().min(1).max(256);
+
+export const subscriptionActionSchema = z.discriminatedUnion("action", [
+  z
+    .object({
+      action: z.literal("subscribeToProject"),
+      payload: z.object({ projectId: subscriptionIdSchema }).strict(),
+    })
+    .strict(),
+  z
+    .object({
+      action: z.literal("unsubscribeFromProject"),
+      payload: z.object({ projectId: subscriptionIdSchema }).strict(),
+    })
+    .strict(),
+  z
+    .object({
+      action: z.literal("subscribeToGuild"),
+      payload: z.object({ guildId: subscriptionIdSchema }).strict(),
+    })
+    .strict(),
+  z
+    .object({
+      action: z.literal("unsubscribeFromGuild"),
+      payload: z.object({ guildId: subscriptionIdSchema }).strict(),
+    })
+    .strict(),
+  z
+    .object({
+      action: z.literal("subscribeToConversation"),
+      payload: z.object({ conversationId: subscriptionIdSchema }).strict(),
+    })
+    .strict(),
+  z
+    .object({
+      action: z.literal("unsubscribeFromConversation"),
+      payload: z.object({ conversationId: subscriptionIdSchema }).strict(),
+    })
+    .strict(),
+]);
+
+export type SubscriptionAction = z.infer<typeof subscriptionActionSchema>;
 
 // Event callback type
-export type EventCallback<T extends ArdaNovaEvent = ArdaNovaEvent> = (event: T) => void;
+export type EventCallback<T extends ArdaNovaEvent = ArdaNovaEvent> = (
+  event: T,
+) => void;

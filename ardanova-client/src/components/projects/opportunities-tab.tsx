@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { cloneElement, useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
-import { api } from "~/trpc/react";
+import { api, type RouterInputs, type RouterOutputs } from "~/trpc/react";
 import { toast } from "sonner";
 import { Card, CardContent } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
@@ -25,10 +25,12 @@ import {
   Users,
   Eye,
 } from "lucide-react";
-import WorkItemDetailModal from "./work-item-detail-modal";
+import WorkItemDetailModal, {
+  type WorkItemDetailSelection,
+} from "./work-item-detail-modal";
 import CreateWorkItemModal from "./create-work-item-modal";
-import type { WorkItemLevel } from "./work-item-detail-modal";
 import type { CreateLevel } from "./create-work-item-modal";
+import type { ProjectRole } from "~/lib/contracts/project-contract";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -38,7 +40,8 @@ interface OpportunitiesTabProps {
   projectId: string;
   projectSlug: string;
   isOwner: boolean;
-  userRole?: string;
+  canComment: boolean;
+  userRole?: ProjectRole;
 }
 
 type HierarchyLevel =
@@ -52,70 +55,179 @@ type HierarchyLevel =
 interface AddFormState {
   level: HierarchyLevel;
   parentId: string;
+  returnFocusId: string;
 }
 
 type ViewMode = "hierarchy" | "flat-tasks" | "team-positions";
+type ProjectMilestone = RouterOutputs["project"]["getMilestones"][number];
+type Epic = RouterOutputs["epic"]["getByMilestoneId"][number];
+type Sprint = RouterOutputs["sprint"]["getByEpicId"][number];
+type Feature = RouterOutputs["feature"]["getBySprintId"][number];
+type Pbi = RouterOutputs["backlog"]["getPbisByFeatureId"][number];
+type ProjectTask = RouterOutputs["task"]["getAll"]["items"][number];
+type ProjectOpportunity =
+  RouterOutputs["opportunity"]["getByProjectId"][number];
+type OpenWorkItemDetail = (selection: WorkItemDetailSelection) => void;
+
+type EpicPriority = NonNullable<RouterInputs["epic"]["create"]["priority"]>;
+type FeaturePriority = NonNullable<
+  RouterInputs["feature"]["create"]["priority"]
+>;
+type PbiType = NonNullable<RouterInputs["backlog"]["createPbi"]["type"]>;
+type PbiPriority = NonNullable<
+  RouterInputs["backlog"]["createPbi"]["priority"]
+>;
+type TaskType = RouterInputs["task"]["create"]["type"];
+type TaskPriority = NonNullable<RouterInputs["task"]["create"]["priority"]>;
+type TaskEstimatedHours = NonNullable<
+  RouterInputs["task"]["create"]["estimatedHours"]
+>;
+
+const HIERARCHY_LEVELS = [
+  "milestone",
+  "epic",
+  "sprint",
+  "feature",
+  "pbi",
+  "task",
+] as const satisfies readonly HierarchyLevel[];
+const HIERARCHY_PRIORITIES = [
+  "LOW",
+  "MEDIUM",
+  "HIGH",
+  "CRITICAL",
+] as const satisfies readonly EpicPriority[];
+const PBI_TYPES = [
+  "FEATURE",
+  "ENHANCEMENT",
+  "BUG",
+  "TECHNICAL_DEBT",
+  "SPIKE",
+] as const satisfies readonly PbiType[];
+const TASK_TYPES = [
+  "FEATURE",
+  "BUG",
+  "ENHANCEMENT",
+  "DOCUMENTATION",
+  "RESEARCH",
+  "DESIGN",
+  "TESTING",
+  "REVIEW",
+  "MAINTENANCE",
+  "OTHER",
+] as const satisfies readonly TaskType[];
+const TASK_PRIORITIES = [
+  "LOW",
+  "MEDIUM",
+  "HIGH",
+  "URGENT",
+] as const satisfies readonly TaskPriority[];
+const TASK_HOUR_OPTIONS = [
+  { value: 1, label: "1h estimate" },
+  { value: 3, label: "3h estimate" },
+  { value: 8, label: "8h estimate" },
+  { value: 20, label: "20h estimate" },
+  { value: 40, label: "40h estimate" },
+] as const satisfies readonly {
+  value: TaskEstimatedHours;
+  label: string;
+}[];
+
+function isOption<const T extends readonly string[]>(
+  options: T,
+  value: string,
+): value is T[number] {
+  return options.some((option) => option === value);
+}
+
+function parseTaskEstimatedHours(value: string): TaskEstimatedHours | null {
+  const hours = Number(value);
+  return TASK_HOUR_OPTIONS.some((option) => option.value === hours)
+    ? hours
+    : null;
+}
 
 // ---------------------------------------------------------------------------
 // Badge helpers
 // ---------------------------------------------------------------------------
 
 function statusBadgeVariant(
-  status: string
+  status: string | null | undefined,
 ): "secondary" | "neon" | "neon-green" | "destructive" | "info" {
-  const s = status.toUpperCase();
-  if (
-    ["PLANNED", "DRAFT", "NEW", "BACKLOG", "PLANNING", "TODO"].includes(s)
-  )
+  const s = status?.toUpperCase() ?? "";
+  if (["PLANNED", "DRAFT", "NEW", "BACKLOG", "PLANNING", "TODO"].includes(s))
     return "secondary";
   if (["IN_PROGRESS", "ACTIVE", "READY", "IN_REVIEW"].includes(s))
     return "neon";
   if (["COMPLETED", "DONE"].includes(s)) return "neon-green";
-  if (["CANCELLED", "REMOVED"].includes(s)) return "destructive";
+  if (["CANCELLED", "REMOVED", "BLOCKED"].includes(s)) return "destructive";
   return "secondary";
 }
 
 function priorityBadgeVariant(
-  priority: string
+  priority: string | null | undefined,
 ): "destructive" | "warning" | "secondary" | "outline" {
-  const p = priority.toUpperCase();
-  if (p === "CRITICAL") return "destructive";
+  const p = priority?.toUpperCase() ?? "";
+  if (p === "CRITICAL" || p === "URGENT") return "destructive";
   if (p === "HIGH") return "warning";
   if (p === "MEDIUM") return "secondary";
   return "outline";
 }
 
-function formatStatus(s: string) {
-  return s.replace(/_/g, " ");
+function formatStatus(status: string | null | undefined) {
+  return (status ?? "UNKNOWN").replace(/_/g, " ");
 }
 
 function getRoleBadgeVariant(role: string) {
   switch (role) {
-    case "FOUNDER": return "neon-pink-solid" as const;
-    case "LEADER": return "neon-purple" as const;
-    case "CORE_CONTRIBUTOR": return "neon-green" as const;
-    case "CONTRIBUTOR": return "info" as const;
-    case "OBSERVER": return "outline" as const;
-    default: return "secondary" as const;
+    case "FOUNDER":
+      return "neon-pink-solid" as const;
+    case "LEADER":
+      return "neon-purple" as const;
+    case "CORE_CONTRIBUTOR":
+      return "neon-green" as const;
+    case "CONTRIBUTOR":
+      return "info" as const;
+    case "OBSERVER":
+      return "outline" as const;
+    default:
+      return "secondary" as const;
   }
 }
 
 function formatProjectRoleName(role: string) {
-  return role.split("_").map((w) => w.charAt(0) + w.slice(1).toLowerCase()).join(" ");
+  return role
+    .split("_")
+    .map((w) => w.charAt(0) + w.slice(1).toLowerCase())
+    .join(" ");
 }
 
 // ---------------------------------------------------------------------------
 // Level metadata
 // ---------------------------------------------------------------------------
 
-const LEVEL_ICONS: Record<HierarchyLevel, React.ElementType> = {
-  milestone: Flag,
-  epic: Target,
-  sprint: Zap,
-  feature: Box,
-  pbi: Layers,
-  task: CheckSquare,
-};
+function HierarchyIcon({
+  level,
+  className,
+}: {
+  level: HierarchyLevel;
+  className: string;
+}) {
+  switch (level) {
+    case "milestone":
+      return <Flag className={className} aria-hidden="true" />;
+    case "epic":
+      return <Target className={className} aria-hidden="true" />;
+    case "sprint":
+      return <Zap className={className} aria-hidden="true" />;
+    case "feature":
+      return <Box className={className} aria-hidden="true" />;
+    case "pbi":
+      return <Layers className={className} aria-hidden="true" />;
+    case "task":
+      return <CheckSquare className={className} aria-hidden="true" />;
+  }
+}
 
 const LEVEL_COLORS: Record<HierarchyLevel, string> = {
   milestone: "text-neon-pink",
@@ -135,22 +247,85 @@ function FormField({
   children,
 }: {
   label: string;
-  children: React.ReactNode;
+  children: React.ReactElement<{ id?: string }>;
 }) {
+  const generatedId = useId();
+  const controlId = children.props.id ?? generatedId;
+
   return (
     <div>
-      <label className="block text-xs font-medium text-muted-foreground mb-1">
+      <label
+        htmlFor={controlId}
+        className="text-muted-foreground mb-1 block text-xs font-medium"
+      >
         {label}
       </label>
-      {children}
+      {cloneElement(children, { id: controlId })}
+    </div>
+  );
+}
+
+function QueryError({
+  label,
+  message,
+  onRetry,
+}: {
+  label: string;
+  message: string;
+  onRetry: () => void;
+}) {
+  return (
+    <div
+      role="alert"
+      className="border-destructive/40 bg-destructive/5 my-2 flex min-w-0 flex-wrap items-center gap-3 rounded-md border p-3"
+    >
+      <div className="min-w-0 flex-1">
+        <p className="text-destructive text-sm font-medium">
+          Couldn&apos;t load {label}
+        </p>
+        <p className="text-muted-foreground truncate text-xs" title={message}>
+          {message}
+        </p>
+      </div>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="min-h-11 shrink-0"
+        onClick={onRetry}
+        aria-label={`Retry loading ${label}`}
+      >
+        Retry
+      </Button>
+    </div>
+  );
+}
+
+function LoadingState({
+  label,
+  className,
+}: {
+  label: string;
+  className?: string;
+}) {
+  return (
+    <div
+      className={cn("flex items-center justify-center", className)}
+      role="status"
+    >
+      <Loader2
+        className="text-muted-foreground h-4 w-4 animate-spin"
+        aria-hidden="true"
+      />
+      <span className="sr-only">Loading {label}...</span>
     </div>
   );
 }
 
 const inputCn =
-  "w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary";
+  "min-h-11 w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary";
 const selectCn =
-  "w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary";
+  "min-h-11 w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary";
 
 // ---------------------------------------------------------------------------
 // Sub-components for each hierarchy level
@@ -159,13 +334,13 @@ const selectCn =
 function TaskRow({
   task,
   isOwner,
-  projectId,
   opportunities,
+  onOpenDetail,
 }: {
-  task: any;
+  task: ProjectTask;
   isOwner: boolean;
-  projectId: string;
-  opportunities: any[];
+  opportunities: ProjectOpportunity[];
+  onOpenDetail: OpenWorkItemDetail;
 }) {
   const utils = api.useUtils();
 
@@ -177,15 +352,23 @@ function TaskRow({
     onError: (e) => toast.error(e.message),
   });
 
-  // Find the auto-generated opportunity for this task
+  // Match an opportunity explicitly linked to this task.
   const linkedOpp = opportunities.find(
-    (o: any) => o.taskId === task.id
+    (opportunity) => opportunity.taskId === task.id,
   );
 
   return (
-    <div className="flex items-center gap-2 py-1.5 px-2 rounded hover:bg-muted/30 group">
-      <CheckSquare className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-      <span className="text-sm flex-1 truncate">{task.title}</span>
+    <div className="hover:bg-muted/30 group flex min-h-11 min-w-0 flex-wrap items-center gap-2 rounded px-2 py-1">
+      <CheckSquare className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
+      <button
+        type="button"
+        onClick={() => onOpenDetail({ level: "task", item: task })}
+        aria-label={`View task details: ${task.title}`}
+        className="focus-visible:ring-primary flex min-h-11 min-w-0 flex-1 basis-40 items-center gap-1 rounded py-2 text-left text-sm focus-visible:ring-2 focus-visible:outline-none"
+      >
+        <span className="truncate">{task.title}</span>
+        <Eye className="h-3.5 w-3.5 shrink-0 opacity-60" aria-hidden="true" />
+      </button>
       {task.priority && (
         <Badge variant={priorityBadgeVariant(task.priority)} size="sm">
           {task.priority}
@@ -196,9 +379,9 @@ function TaskRow({
           {formatStatus(task.status)}
         </Badge>
       )}
-      {task.effort && (
+      {task.estimatedHours != null && (
         <Badge variant="outline" size="sm">
-          {task.effort.toUpperCase()}
+          {task.estimatedHours}h estimate
         </Badge>
       )}
       {linkedOpp && (
@@ -214,8 +397,18 @@ function TaskRow({
         <Button
           size="sm"
           variant="ghost"
-          className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100"
-          onClick={() => deleteMutation.mutate({ id: task.id })}
+          className="text-destructive hover:text-destructive h-11 w-11 shrink-0 p-0"
+          onClick={(event) => {
+            event.stopPropagation();
+            if (
+              window.confirm(
+                `Delete task "${task.title}"? This action cannot be undone.`,
+              )
+            ) {
+              deleteMutation.mutate({ id: task.id });
+            }
+          }}
+          aria-label={`Delete task: ${task.title}`}
           disabled={deleteMutation.isPending}
         >
           {deleteMutation.isPending ? (
@@ -237,32 +430,48 @@ function PbiSection({
   featureId,
   isOwner,
   isExpanded,
-  onToggle,
   addForm,
   setAddForm,
   projectId,
   opportunities,
+  onOpenDetail,
 }: {
   featureId: string;
   isOwner: boolean;
   isExpanded: boolean;
-  onToggle: () => void;
   addForm: AddFormState | null;
   setAddForm: (f: AddFormState | null) => void;
   projectId: string;
-  opportunities: any[];
+  opportunities: ProjectOpportunity[];
+  onOpenDetail: OpenWorkItemDetail;
 }) {
-  const { data: pbis, isLoading } = api.backlog.getPbisByFeatureId.useQuery(
+  const {
+    data: pbis,
+    isLoading,
+    error,
+    refetch,
+  } = api.backlog.getPbisByFeatureId.useQuery(
     { featureId },
-    { enabled: isExpanded }
+    { enabled: isExpanded },
   );
 
   if (!isExpanded) return null;
-  if (isLoading) return <Loader2 className="h-4 w-4 animate-spin ml-8 my-2" />;
+  if (isLoading) {
+    return <LoadingState label="backlog items" className="my-2 ml-8 w-4" />;
+  }
+  if (error) {
+    return (
+      <QueryError
+        label="backlog items"
+        message={error.message}
+        onRetry={() => void refetch()}
+      />
+    );
+  }
 
   return (
-    <div className="ml-6 border-l border-border pl-3 space-y-1">
-      {(pbis ?? []).map((pbi: any) => (
+    <div className="border-border ml-2 min-w-0 space-y-1 border-l pl-2 sm:ml-6 sm:pl-3">
+      {(pbis ?? []).map((pbi) => (
         <PbiNode
           key={pbi.id}
           pbi={pbi}
@@ -271,6 +480,7 @@ function PbiSection({
           setAddForm={setAddForm}
           projectId={projectId}
           opportunities={opportunities}
+          onOpenDetail={onOpenDetail}
         />
       ))}
       {isOwner && (
@@ -282,7 +492,11 @@ function PbiSection({
         />
       )}
       {addForm?.level === "pbi" && addForm.parentId === featureId && (
-        <PbiAddForm projectId={projectId} featureId={featureId} onClose={() => setAddForm(null)} />
+        <PbiAddForm
+          projectId={projectId}
+          featureId={featureId}
+          onClose={() => setAddForm(null)}
+        />
       )}
     </div>
   );
@@ -295,13 +509,15 @@ function PbiNode({
   setAddForm,
   projectId,
   opportunities,
+  onOpenDetail,
 }: {
-  pbi: any;
+  pbi: Pbi;
   isOwner: boolean;
   addForm: AddFormState | null;
   setAddForm: (f: AddFormState | null) => void;
   projectId: string;
-  opportunities: any[];
+  opportunities: ProjectOpportunity[];
+  onOpenDetail: OpenWorkItemDetail;
 }) {
   const [expanded, setExpanded] = useState(false);
   const utils = api.useUtils();
@@ -315,10 +531,12 @@ function PbiNode({
   });
 
   // Fetch tasks for this PBI when expanded
-  const { data: linkedTasks = [] } = api.task.getByPbiId.useQuery(
-    { pbiId: pbi.id },
-    { enabled: expanded }
-  );
+  const {
+    data: linkedTasks = [],
+    isLoading: tasksLoading,
+    error: tasksError,
+    refetch: refetchTasks,
+  } = api.task.getByPbiId.useQuery({ pbiId: pbi.id }, { enabled: expanded });
 
   return (
     <div>
@@ -333,6 +551,7 @@ function PbiNode({
         isOwner={isOwner}
         onDelete={() => deleteMutation.mutate({ id: pbi.id })}
         isDeleting={deleteMutation.isPending}
+        onDetail={() => onOpenDetail({ level: "pbi", item: pbi })}
         extra={
           pbi.type ? (
             <Badge variant="outline" size="sm">
@@ -342,16 +561,26 @@ function PbiNode({
         }
       />
       {expanded && (
-        <div className="ml-6 border-l border-border pl-3 space-y-0.5">
-          {linkedTasks.map((task: any) => (
-            <TaskRow
-              key={task.id}
-              task={task}
-              isOwner={isOwner}
-              projectId={projectId}
-              opportunities={opportunities}
+        <div className="border-border ml-2 min-w-0 space-y-0.5 border-l pl-2 sm:ml-6 sm:pl-3">
+          {tasksLoading && <LoadingState label="tasks" className="my-3 w-4" />}
+          {tasksError && (
+            <QueryError
+              label="tasks"
+              message={tasksError.message}
+              onRetry={() => void refetchTasks()}
             />
-          ))}
+          )}
+          {!tasksLoading &&
+            !tasksError &&
+            linkedTasks.map((task) => (
+              <TaskRow
+                key={task.id}
+                task={task}
+                isOwner={isOwner}
+                opportunities={opportunities}
+                onOpenDetail={onOpenDetail}
+              />
+            ))}
           {isOwner && (
             <AddFormButton
               level="task"
@@ -381,32 +610,45 @@ function FeatureSection({
   sprintId,
   isOwner,
   isExpanded,
-  onToggle,
   addForm,
   setAddForm,
   projectId,
   opportunities,
+  onOpenDetail,
 }: {
   sprintId: string;
   isOwner: boolean;
   isExpanded: boolean;
-  onToggle: () => void;
   addForm: AddFormState | null;
   setAddForm: (f: AddFormState | null) => void;
   projectId: string;
-  opportunities: any[];
+  opportunities: ProjectOpportunity[];
+  onOpenDetail: OpenWorkItemDetail;
 }) {
-  const { data: features, isLoading } = api.feature.getBySprintId.useQuery(
-    { sprintId },
-    { enabled: isExpanded }
-  );
+  const {
+    data: features,
+    isLoading,
+    error,
+    refetch,
+  } = api.feature.getBySprintId.useQuery({ sprintId }, { enabled: isExpanded });
 
   if (!isExpanded) return null;
-  if (isLoading) return <Loader2 className="h-4 w-4 animate-spin ml-8 my-2" />;
+  if (isLoading) {
+    return <LoadingState label="features" className="my-2 ml-8 w-4" />;
+  }
+  if (error) {
+    return (
+      <QueryError
+        label="features"
+        message={error.message}
+        onRetry={() => void refetch()}
+      />
+    );
+  }
 
   return (
-    <div className="ml-6 border-l border-border pl-3 space-y-1">
-      {(features ?? []).map((feature: any) => (
+    <div className="border-border ml-2 min-w-0 space-y-1 border-l pl-2 sm:ml-6 sm:pl-3">
+      {(features ?? []).map((feature) => (
         <FeatureNode
           key={feature.id}
           feature={feature}
@@ -415,6 +657,7 @@ function FeatureSection({
           setAddForm={setAddForm}
           projectId={projectId}
           opportunities={opportunities}
+          onOpenDetail={onOpenDetail}
         />
       ))}
       {isOwner && (
@@ -426,7 +669,11 @@ function FeatureSection({
         />
       )}
       {addForm?.level === "feature" && addForm.parentId === sprintId && (
-        <FeatureAddForm sprintId={sprintId} onClose={() => setAddForm(null)} />
+        <FeatureAddForm
+          projectId={projectId}
+          sprintId={sprintId}
+          onClose={() => setAddForm(null)}
+        />
       )}
     </div>
   );
@@ -439,13 +686,15 @@ function FeatureNode({
   setAddForm,
   projectId,
   opportunities,
+  onOpenDetail,
 }: {
-  feature: any;
+  feature: Feature;
   isOwner: boolean;
   addForm: AddFormState | null;
   setAddForm: (f: AddFormState | null) => void;
   projectId: string;
-  opportunities: any[];
+  opportunities: ProjectOpportunity[];
+  onOpenDetail: OpenWorkItemDetail;
 }) {
   const [expanded, setExpanded] = useState(false);
   const utils = api.useUtils();
@@ -470,16 +719,17 @@ function FeatureNode({
         isOwner={isOwner}
         onDelete={() => deleteMutation.mutate({ id: feature.id })}
         isDeleting={deleteMutation.isPending}
+        onDetail={() => onOpenDetail({ level: "feature", item: feature })}
       />
       <PbiSection
         featureId={feature.id}
         isOwner={isOwner}
         isExpanded={expanded}
-        onToggle={() => setExpanded(!expanded)}
         addForm={addForm}
         setAddForm={setAddForm}
         projectId={projectId}
         opportunities={opportunities}
+        onOpenDetail={onOpenDetail}
       />
     </div>
   );
@@ -497,6 +747,7 @@ function SprintSection({
   setAddForm,
   projectId,
   opportunities,
+  onOpenDetail,
 }: {
   epicId: string;
   isOwner: boolean;
@@ -504,19 +755,33 @@ function SprintSection({
   addForm: AddFormState | null;
   setAddForm: (f: AddFormState | null) => void;
   projectId: string;
-  opportunities: any[];
+  opportunities: ProjectOpportunity[];
+  onOpenDetail: OpenWorkItemDetail;
 }) {
-  const { data: sprints, isLoading } = api.sprint.getByEpicId.useQuery(
-    { epicId },
-    { enabled: isExpanded }
-  );
+  const {
+    data: sprints,
+    isLoading,
+    error,
+    refetch,
+  } = api.sprint.getByEpicId.useQuery({ epicId }, { enabled: isExpanded });
 
   if (!isExpanded) return null;
-  if (isLoading) return <Loader2 className="h-4 w-4 animate-spin ml-8 my-2" />;
+  if (isLoading) {
+    return <LoadingState label="sprints" className="my-2 ml-8 w-4" />;
+  }
+  if (error) {
+    return (
+      <QueryError
+        label="sprints"
+        message={error.message}
+        onRetry={() => void refetch()}
+      />
+    );
+  }
 
   return (
-    <div className="ml-6 border-l border-border pl-3 space-y-1">
-      {(sprints ?? []).map((sprint: any) => (
+    <div className="border-border ml-2 min-w-0 space-y-1 border-l pl-2 sm:ml-6 sm:pl-3">
+      {(sprints ?? []).map((sprint) => (
         <SprintNode
           key={sprint.id}
           sprint={sprint}
@@ -525,6 +790,7 @@ function SprintSection({
           setAddForm={setAddForm}
           projectId={projectId}
           opportunities={opportunities}
+          onOpenDetail={onOpenDetail}
         />
       ))}
       {isOwner && (
@@ -536,7 +802,11 @@ function SprintSection({
         />
       )}
       {addForm?.level === "sprint" && addForm.parentId === epicId && (
-        <SprintAddForm epicId={epicId} onClose={() => setAddForm(null)} />
+        <SprintAddForm
+          projectId={projectId}
+          epicId={epicId}
+          onClose={() => setAddForm(null)}
+        />
       )}
     </div>
   );
@@ -549,13 +819,15 @@ function SprintNode({
   setAddForm,
   projectId,
   opportunities,
+  onOpenDetail,
 }: {
-  sprint: any;
+  sprint: Sprint;
   isOwner: boolean;
   addForm: AddFormState | null;
   setAddForm: (f: AddFormState | null) => void;
   projectId: string;
-  opportunities: any[];
+  opportunities: ProjectOpportunity[];
+  onOpenDetail: OpenWorkItemDetail;
 }) {
   const [expanded, setExpanded] = useState(false);
   const utils = api.useUtils();
@@ -577,16 +849,19 @@ function SprintNode({
     <div>
       <TreeRow
         level="sprint"
-        title={sprint.name}
+        title={sprint.name ?? "Untitled sprint"}
         status={sprint.status}
         isExpanded={expanded}
         onToggle={() => setExpanded(!expanded)}
         isOwner={isOwner}
         onDelete={() => deleteMutation.mutate({ id: sprint.id })}
         isDeleting={deleteMutation.isPending}
+        onDetail={() => onOpenDetail({ level: "sprint", item: sprint })}
         extra={
           dateLabel ? (
-            <span className="text-[10px] text-muted-foreground">{dateLabel}</span>
+            <span className="text-muted-foreground text-[10px]">
+              {dateLabel}
+            </span>
           ) : null
         }
       />
@@ -594,11 +869,11 @@ function SprintNode({
         sprintId={sprint.id}
         isOwner={isOwner}
         isExpanded={expanded}
-        onToggle={() => setExpanded(!expanded)}
         addForm={addForm}
         setAddForm={setAddForm}
         projectId={projectId}
         opportunities={opportunities}
+        onOpenDetail={onOpenDetail}
       />
     </div>
   );
@@ -616,6 +891,7 @@ function EpicSection({
   setAddForm,
   projectId,
   opportunities,
+  onOpenDetail,
 }: {
   milestoneId: string;
   isOwner: boolean;
@@ -623,19 +899,36 @@ function EpicSection({
   addForm: AddFormState | null;
   setAddForm: (f: AddFormState | null) => void;
   projectId: string;
-  opportunities: any[];
+  opportunities: ProjectOpportunity[];
+  onOpenDetail: OpenWorkItemDetail;
 }) {
-  const { data: epics, isLoading } = api.epic.getByMilestoneId.useQuery(
+  const {
+    data: epics,
+    isLoading,
+    error,
+    refetch,
+  } = api.epic.getByMilestoneId.useQuery(
     { milestoneId },
-    { enabled: isExpanded }
+    { enabled: isExpanded },
   );
 
   if (!isExpanded) return null;
-  if (isLoading) return <Loader2 className="h-4 w-4 animate-spin ml-8 my-2" />;
+  if (isLoading) {
+    return <LoadingState label="epics" className="my-2 ml-8 w-4" />;
+  }
+  if (error) {
+    return (
+      <QueryError
+        label="epics"
+        message={error.message}
+        onRetry={() => void refetch()}
+      />
+    );
+  }
 
   return (
-    <div className="ml-6 border-l border-border pl-3 space-y-1">
-      {(epics ?? []).map((epic: any) => (
+    <div className="border-border ml-2 min-w-0 space-y-1 border-l pl-2 sm:ml-6 sm:pl-3">
+      {(epics ?? []).map((epic) => (
         <EpicNode
           key={epic.id}
           epic={epic}
@@ -644,6 +937,7 @@ function EpicSection({
           setAddForm={setAddForm}
           projectId={projectId}
           opportunities={opportunities}
+          onOpenDetail={onOpenDetail}
         />
       ))}
       {isOwner && (
@@ -655,7 +949,11 @@ function EpicSection({
         />
       )}
       {addForm?.level === "epic" && addForm.parentId === milestoneId && (
-        <EpicAddForm milestoneId={milestoneId} onClose={() => setAddForm(null)} />
+        <EpicAddForm
+          projectId={projectId}
+          milestoneId={milestoneId}
+          onClose={() => setAddForm(null)}
+        />
       )}
     </div>
   );
@@ -668,13 +966,15 @@ function EpicNode({
   setAddForm,
   projectId,
   opportunities,
+  onOpenDetail,
 }: {
-  epic: any;
+  epic: Epic;
   isOwner: boolean;
   addForm: AddFormState | null;
   setAddForm: (f: AddFormState | null) => void;
   projectId: string;
-  opportunities: any[];
+  opportunities: ProjectOpportunity[];
+  onOpenDetail: OpenWorkItemDetail;
 }) {
   const [expanded, setExpanded] = useState(false);
   const utils = api.useUtils();
@@ -699,6 +999,7 @@ function EpicNode({
         isOwner={isOwner}
         onDelete={() => deleteMutation.mutate({ id: epic.id })}
         isDeleting={deleteMutation.isPending}
+        onDetail={() => onOpenDetail({ level: "epic", item: epic })}
       />
       <SprintSection
         epicId={epic.id}
@@ -708,6 +1009,7 @@ function EpicNode({
         setAddForm={setAddForm}
         projectId={projectId}
         opportunities={opportunities}
+        onOpenDetail={onOpenDetail}
       />
     </div>
   );
@@ -724,13 +1026,15 @@ function MilestoneNode({
   setAddForm,
   projectId,
   opportunities,
+  onOpenDetail,
 }: {
-  milestone: any;
+  milestone: ProjectMilestone;
   isOwner: boolean;
   addForm: AddFormState | null;
   setAddForm: (f: AddFormState | null) => void;
   projectId: string;
-  opportunities: any[];
+  opportunities: ProjectOpportunity[];
+  onOpenDetail: OpenWorkItemDetail;
 }) {
   const [expanded, setExpanded] = useState(false);
   const utils = api.useUtils();
@@ -743,14 +1047,12 @@ function MilestoneNode({
     onError: (e) => toast.error(e.message),
   });
 
-  const milestoneStatus = milestone.isCompleted ? "COMPLETED" : "PLANNED";
-
   return (
     <div>
       <TreeRow
         level="milestone"
         title={milestone.title}
-        status={milestoneStatus}
+        status={milestone.status}
         isExpanded={expanded}
         onToggle={() => setExpanded(!expanded)}
         isOwner={isOwner}
@@ -758,9 +1060,10 @@ function MilestoneNode({
           deleteMutation.mutate({ projectId, milestoneId: milestone.id })
         }
         isDeleting={deleteMutation.isPending}
+        onDetail={() => onOpenDetail({ level: "milestone", item: milestone })}
         extra={
           milestone.targetDate ? (
-            <span className="text-[10px] text-muted-foreground">
+            <span className="text-muted-foreground text-[10px]">
               Target: {new Date(milestone.targetDate).toLocaleDateString()}
             </span>
           ) : null
@@ -774,6 +1077,7 @@ function MilestoneNode({
         setAddForm={setAddForm}
         projectId={projectId}
         opportunities={opportunities}
+        onOpenDetail={onOpenDetail}
       />
     </div>
   );
@@ -807,33 +1111,42 @@ function TreeRow({
   isOwner: boolean;
   onDelete: () => void;
   isDeleting: boolean;
-  onDetail?: () => void;
+  onDetail: () => void;
   extra?: React.ReactNode;
 }) {
-  const Icon = LEVEL_ICONS[level];
   const colorClass = LEVEL_COLORS[level];
 
   return (
-    <div className="flex items-center gap-1.5 py-1.5 px-1 rounded hover:bg-muted/30 group cursor-pointer">
+    <div className="hover:bg-muted/30 group flex min-h-11 min-w-0 flex-wrap items-center gap-1 rounded px-1 py-0.5 sm:flex-nowrap">
       <button
+        type="button"
         onClick={onToggle}
-        className="shrink-0 p-0.5 hover:bg-muted rounded"
+        aria-expanded={isExpanded}
+        aria-label={`${isExpanded ? "Collapse" : "Expand"} ${title}`}
+        className="hover:bg-muted focus-visible:ring-primary flex h-11 w-11 shrink-0 items-center justify-center rounded focus-visible:ring-2 focus-visible:outline-none"
       >
         {isExpanded ? (
-          <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+          <ChevronDown className="text-muted-foreground h-3.5 w-3.5" />
         ) : (
-          <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+          <ChevronRight className="text-muted-foreground h-3.5 w-3.5" />
         )}
       </button>
-      <Icon className={cn("h-3.5 w-3.5 shrink-0", colorClass)} />
-      <span
-        className="text-sm font-medium truncate flex-1 hover:underline"
-        onClick={onDetail ?? onToggle}
+      <HierarchyIcon
+        level={level}
+        className={cn("h-3.5 w-3.5 shrink-0", colorClass)}
+      />
+      <button
+        type="button"
+        className="focus-visible:ring-primary min-h-11 min-w-0 flex-1 basis-28 truncate rounded px-1 text-left text-sm font-medium hover:underline focus-visible:ring-2 focus-visible:outline-none"
+        onClick={onDetail}
+        aria-label={`View ${level} details: ${title}`}
       >
         {title}
-      </span>
+      </button>
       {childCount !== undefined && childCount > 0 && (
-        <span className="text-[10px] text-muted-foreground">({childCount})</span>
+        <span className="text-muted-foreground text-[10px]">
+          ({childCount})
+        </span>
       )}
       {extra}
       {status && (
@@ -846,29 +1159,24 @@ function TreeRow({
           {priority}
         </Badge>
       )}
-      {onDetail && (
-        <Button
-          size="sm"
-          variant="ghost"
-          className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 shrink-0"
-          onClick={(e) => {
-            e.stopPropagation();
-            onDetail();
-          }}
-        >
-          <Eye className="h-3 w-3" />
-        </Button>
-      )}
       {isOwner && (
         <Button
+          type="button"
           size="sm"
           variant="ghost"
-          className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 shrink-0"
-          onClick={(e) => {
-            e.stopPropagation();
-            onDelete();
+          className="text-destructive hover:text-destructive h-11 w-11 shrink-0 p-0"
+          onClick={(event) => {
+            event.stopPropagation();
+            if (
+              window.confirm(
+                `Delete ${level} "${title}"? This action cannot be undone.`,
+              )
+            ) {
+              onDelete();
+            }
           }}
           disabled={isDeleting}
+          aria-label={`Delete ${level}: ${title}`}
         >
           {isDeleting ? (
             <Loader2 className="h-3 w-3 animate-spin" />
@@ -896,6 +1204,7 @@ function AddFormButton({
   addForm: AddFormState | null;
   setAddForm: (f: AddFormState | null) => void;
 }) {
+  const triggerId = useId();
   const isActive = addForm?.level === level && addForm.parentId === parentId;
   if (isActive) return null;
 
@@ -910,8 +1219,11 @@ function AddFormButton({
 
   return (
     <button
-      onClick={() => setAddForm({ level, parentId })}
-      className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground py-1 px-2 rounded hover:bg-muted/40 transition-colors"
+      id={triggerId}
+      type="button"
+      onClick={() => setAddForm({ level, parentId, returnFocusId: triggerId })}
+      aria-label={`Add ${labels[level]}`}
+      className="text-muted-foreground hover:text-foreground hover:bg-muted/40 focus-visible:ring-primary flex min-h-11 items-center gap-1 rounded px-2 py-1 text-xs transition-colors focus-visible:ring-2 focus-visible:outline-none"
     >
       <Plus className="h-3 w-3" />
       Add {labels[level]}
@@ -951,35 +1263,59 @@ function MilestoneAddForm({
       projectId,
       title: title.trim(),
       description: description || undefined,
-      targetDate,
+      targetDate: new Date(targetDate).toISOString(),
     });
   };
 
   return (
-    <InlineForm onSubmit={handleSubmit} onClose={onClose} isPending={mutation.isPending} label="Milestone">
+    <InlineForm
+      onSubmit={handleSubmit}
+      onClose={onClose}
+      isPending={mutation.isPending}
+      label="Milestone"
+    >
       <FormField label="Title *">
-        <input className={inputCn} value={title} onChange={(e) => setTitle(e.target.value)} required placeholder="Milestone title" />
+        <input
+          className={inputCn}
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          required
+          placeholder="Milestone title"
+        />
       </FormField>
       <FormField label="Description">
-        <input className={inputCn} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Optional description" />
+        <input
+          className={inputCn}
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          placeholder="Optional description"
+        />
       </FormField>
       <FormField label="Target Date *">
-        <input type="date" className={inputCn} value={targetDate} onChange={(e) => setTargetDate(e.target.value)} required />
+        <input
+          type="date"
+          className={inputCn}
+          value={targetDate}
+          onChange={(e) => setTargetDate(e.target.value)}
+          required
+        />
       </FormField>
     </InlineForm>
   );
 }
 
 function EpicAddForm({
+  projectId,
   milestoneId,
   onClose,
 }: {
+  projectId: string;
   milestoneId: string;
   onClose: () => void;
 }) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [priority, setPriority] = useState("MEDIUM");
+  const [priority, setPriority] = useState<EpicPriority>("MEDIUM");
   const utils = api.useUtils();
 
   const mutation = api.epic.create.useMutation({
@@ -995,23 +1331,47 @@ function EpicAddForm({
     e.preventDefault();
     if (!title.trim()) return;
     mutation.mutate({
+      projectId,
       milestoneId,
       title: title.trim(),
       description: description || undefined,
-      priority: priority as any,
+      priority,
     });
   };
 
   return (
-    <InlineForm onSubmit={handleSubmit} onClose={onClose} isPending={mutation.isPending} label="Epic">
+    <InlineForm
+      onSubmit={handleSubmit}
+      onClose={onClose}
+      isPending={mutation.isPending}
+      label="Epic"
+    >
       <FormField label="Title *">
-        <input className={inputCn} value={title} onChange={(e) => setTitle(e.target.value)} required placeholder="Epic title" />
+        <input
+          className={inputCn}
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          required
+          placeholder="Epic title"
+        />
       </FormField>
       <FormField label="Description">
-        <input className={inputCn} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Optional description" />
+        <input
+          className={inputCn}
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          placeholder="Optional description"
+        />
       </FormField>
       <FormField label="Priority">
-        <select className={selectCn} value={priority} onChange={(e) => setPriority(e.target.value)}>
+        <select
+          className={selectCn}
+          value={priority}
+          onChange={(e) => {
+            const value = e.target.value;
+            if (isOption(HIERARCHY_PRIORITIES, value)) setPriority(value);
+          }}
+        >
           <option value="LOW">Low</option>
           <option value="MEDIUM">Medium</option>
           <option value="HIGH">High</option>
@@ -1023,9 +1383,11 @@ function EpicAddForm({
 }
 
 function SprintAddForm({
+  projectId,
   epicId,
   onClose,
 }: {
+  projectId: string;
   epicId: string;
   onClose: () => void;
 }) {
@@ -1047,7 +1409,12 @@ function SprintAddForm({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() || !startDate || !endDate) return;
+    if (endDate < startDate) {
+      toast.error("End date must be on or after the start date");
+      return;
+    }
     mutation.mutate({
+      projectId,
       epicId,
       name: name.trim(),
       goal: goal || undefined,
@@ -1057,19 +1424,49 @@ function SprintAddForm({
   };
 
   return (
-    <InlineForm onSubmit={handleSubmit} onClose={onClose} isPending={mutation.isPending} label="Sprint">
+    <InlineForm
+      onSubmit={handleSubmit}
+      onClose={onClose}
+      isPending={mutation.isPending}
+      label="Sprint"
+    >
       <FormField label="Name *">
-        <input className={inputCn} value={name} onChange={(e) => setName(e.target.value)} required placeholder="Sprint name" />
+        <input
+          className={inputCn}
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          required
+          placeholder="Sprint name"
+        />
       </FormField>
       <FormField label="Goal">
-        <input className={inputCn} value={goal} onChange={(e) => setGoal(e.target.value)} placeholder="Sprint goal" />
+        <input
+          className={inputCn}
+          value={goal}
+          onChange={(e) => setGoal(e.target.value)}
+          placeholder="Sprint goal"
+        />
       </FormField>
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         <FormField label="Start Date *">
-          <input type="date" className={inputCn} value={startDate} onChange={(e) => setStartDate(e.target.value)} required />
+          <input
+            type="date"
+            className={inputCn}
+            value={startDate}
+            max={endDate || undefined}
+            onChange={(e) => setStartDate(e.target.value)}
+            required
+          />
         </FormField>
         <FormField label="End Date *">
-          <input type="date" className={inputCn} value={endDate} onChange={(e) => setEndDate(e.target.value)} required />
+          <input
+            type="date"
+            className={inputCn}
+            value={endDate}
+            min={startDate || undefined}
+            onChange={(e) => setEndDate(e.target.value)}
+            required
+          />
         </FormField>
       </div>
     </InlineForm>
@@ -1077,15 +1474,17 @@ function SprintAddForm({
 }
 
 function FeatureAddForm({
+  projectId,
   sprintId,
   onClose,
 }: {
+  projectId: string;
   sprintId: string;
   onClose: () => void;
 }) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [priority, setPriority] = useState("MEDIUM");
+  const [priority, setPriority] = useState<FeaturePriority>("MEDIUM");
   const utils = api.useUtils();
 
   const mutation = api.feature.create.useMutation({
@@ -1101,23 +1500,47 @@ function FeatureAddForm({
     e.preventDefault();
     if (!title.trim()) return;
     mutation.mutate({
+      projectId,
       sprintId,
       title: title.trim(),
       description: description || undefined,
-      priority: priority as any,
+      priority,
     });
   };
 
   return (
-    <InlineForm onSubmit={handleSubmit} onClose={onClose} isPending={mutation.isPending} label="Feature">
+    <InlineForm
+      onSubmit={handleSubmit}
+      onClose={onClose}
+      isPending={mutation.isPending}
+      label="Feature"
+    >
       <FormField label="Title *">
-        <input className={inputCn} value={title} onChange={(e) => setTitle(e.target.value)} required placeholder="Feature title" />
+        <input
+          className={inputCn}
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          required
+          placeholder="Feature title"
+        />
       </FormField>
       <FormField label="Description">
-        <input className={inputCn} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Optional description" />
+        <input
+          className={inputCn}
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          placeholder="Optional description"
+        />
       </FormField>
       <FormField label="Priority">
-        <select className={selectCn} value={priority} onChange={(e) => setPriority(e.target.value)}>
+        <select
+          className={selectCn}
+          value={priority}
+          onChange={(e) => {
+            const value = e.target.value;
+            if (isOption(HIERARCHY_PRIORITIES, value)) setPriority(value);
+          }}
+        >
           <option value="LOW">Low</option>
           <option value="MEDIUM">Medium</option>
           <option value="HIGH">High</option>
@@ -1145,13 +1568,14 @@ function PbiAddForm({
 }) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [type, setType] = useState("FEATURE");
-  const [priority, setPriority] = useState("MEDIUM");
+  const [type, setType] = useState<PbiType>("FEATURE");
+  const [priority, setPriority] = useState<PbiPriority>("MEDIUM");
   const utils = api.useUtils();
 
   const mutation = api.backlog.createPbi.useMutation({
     onSuccess: () => {
-      if (featureId) void utils.backlog.getPbisByFeatureId.invalidate({ featureId });
+      if (featureId)
+        void utils.backlog.getPbisByFeatureId.invalidate({ featureId });
       void utils.backlog.getPbisByProjectId.invalidate({ projectId });
       toast.success("PBI created");
       onClose();
@@ -1166,8 +1590,8 @@ function PbiAddForm({
       projectId,
       title: title.trim(),
       description: description || undefined,
-      type: type as any,
-      priority: priority as any,
+      type,
+      priority,
       featureId,
       sprintId,
       epicId,
@@ -1176,16 +1600,39 @@ function PbiAddForm({
   };
 
   return (
-    <InlineForm onSubmit={handleSubmit} onClose={onClose} isPending={mutation.isPending} label="PBI">
+    <InlineForm
+      onSubmit={handleSubmit}
+      onClose={onClose}
+      isPending={mutation.isPending}
+      label="PBI"
+    >
       <FormField label="Title *">
-        <input className={inputCn} value={title} onChange={(e) => setTitle(e.target.value)} required placeholder="PBI title" />
+        <input
+          className={inputCn}
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          required
+          placeholder="PBI title"
+        />
       </FormField>
       <FormField label="Description">
-        <input className={inputCn} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Optional description" />
+        <input
+          className={inputCn}
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          placeholder="Optional description"
+        />
       </FormField>
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         <FormField label="Type">
-          <select className={selectCn} value={type} onChange={(e) => setType(e.target.value)}>
+          <select
+            className={selectCn}
+            value={type}
+            onChange={(e) => {
+              const value = e.target.value;
+              if (isOption(PBI_TYPES, value)) setType(value);
+            }}
+          >
             <option value="FEATURE">Feature</option>
             <option value="ENHANCEMENT">Enhancement</option>
             <option value="BUG">Bug</option>
@@ -1194,7 +1641,14 @@ function PbiAddForm({
           </select>
         </FormField>
         <FormField label="Priority">
-          <select className={selectCn} value={priority} onChange={(e) => setPriority(e.target.value)}>
+          <select
+            className={selectCn}
+            value={priority}
+            onChange={(e) => {
+              const value = e.target.value;
+              if (isOption(HIERARCHY_PRIORITIES, value)) setPriority(value);
+            }}
+          >
             <option value="LOW">Low</option>
             <option value="MEDIUM">Medium</option>
             <option value="HIGH">High</option>
@@ -1217,9 +1671,9 @@ function TaskAddForm({
 }) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [type, setType] = useState("FEATURE");
-  const [priority, setPriority] = useState("MEDIUM");
-  const [effort, setEffort] = useState("M");
+  const [type, setType] = useState<TaskType>("FEATURE");
+  const [priority, setPriority] = useState<TaskPriority>("MEDIUM");
+  const [estimatedHours, setEstimatedHours] = useState<TaskEstimatedHours>(8);
   const utils = api.useUtils();
 
   const mutation = api.task.create.useMutation({
@@ -1227,7 +1681,7 @@ function TaskAddForm({
       if (pbiId) void utils.task.getByPbiId.invalidate({ pbiId });
       void utils.task.getAll.invalidate();
       void utils.opportunity.getByProjectId.invalidate();
-      toast.success("Task created (opportunity auto-generated)");
+      toast.success("Task created");
       onClose();
     },
     onError: (e) => toast.error(e.message),
@@ -1235,29 +1689,58 @@ function TaskAddForm({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim() || !description.trim()) return;
+    const taskDescription = description.trim();
+    if (!title.trim() || taskDescription.length < 10) {
+      toast.error("Task description must be at least 10 characters");
+      return;
+    }
     mutation.mutate({
       projectId,
       pbiId: pbiId || undefined,
       title: title.trim(),
-      description: description.trim(),
-      type: type as any,
-      priority: priority as any,
-      effortEstimate: effort as any,
+      description: taskDescription,
+      type,
+      priority,
+      estimatedHours,
     });
   };
 
   return (
-    <InlineForm onSubmit={handleSubmit} onClose={onClose} isPending={mutation.isPending} label="Task">
+    <InlineForm
+      onSubmit={handleSubmit}
+      onClose={onClose}
+      isPending={mutation.isPending}
+      label="Task"
+    >
       <FormField label="Title *">
-        <input className={inputCn} value={title} onChange={(e) => setTitle(e.target.value)} required placeholder="Task title" />
+        <input
+          className={inputCn}
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          required
+          placeholder="Task title"
+        />
       </FormField>
       <FormField label="Description * (min 10 chars)">
-        <input className={inputCn} value={description} onChange={(e) => setDescription(e.target.value)} required placeholder="Task description" minLength={10} />
+        <input
+          className={inputCn}
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          required
+          placeholder="Task description"
+          minLength={10}
+        />
       </FormField>
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
         <FormField label="Type">
-          <select className={selectCn} value={type} onChange={(e) => setType(e.target.value)}>
+          <select
+            className={selectCn}
+            value={type}
+            onChange={(e) => {
+              const value = e.target.value;
+              if (isOption(TASK_TYPES, value)) setType(value);
+            }}
+          >
             <option value="FEATURE">Feature</option>
             <option value="BUG">Bug</option>
             <option value="ENHANCEMENT">Enhancement</option>
@@ -1271,20 +1754,34 @@ function TaskAddForm({
           </select>
         </FormField>
         <FormField label="Priority">
-          <select className={selectCn} value={priority} onChange={(e) => setPriority(e.target.value)}>
+          <select
+            className={selectCn}
+            value={priority}
+            onChange={(e) => {
+              const value = e.target.value;
+              if (isOption(TASK_PRIORITIES, value)) setPriority(value);
+            }}
+          >
             <option value="LOW">Low</option>
             <option value="MEDIUM">Medium</option>
             <option value="HIGH">High</option>
             <option value="URGENT">Urgent</option>
           </select>
         </FormField>
-        <FormField label="Effort">
-          <select className={selectCn} value={effort} onChange={(e) => setEffort(e.target.value)}>
-            <option value="XS">XS (~1h)</option>
-            <option value="S">S (~3h)</option>
-            <option value="M">M (~1d)</option>
-            <option value="L">L (~2-3d)</option>
-            <option value="XL">XL (~1w)</option>
+        <FormField label="Estimate">
+          <select
+            className={selectCn}
+            value={estimatedHours}
+            onChange={(e) => {
+              const hours = parseTaskEstimatedHours(e.target.value);
+              if (hours !== null) setEstimatedHours(hours);
+            }}
+          >
+            {TASK_HOUR_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
           </select>
         </FormField>
       </div>
@@ -1309,21 +1806,41 @@ function InlineForm({
   label: string;
   children: React.ReactNode;
 }) {
+  const formRef = useRef<HTMLFormElement>(null);
+
+  useEffect(() => {
+    formRef.current
+      ?.querySelector<HTMLElement>("input, textarea, select")
+      ?.focus();
+  }, []);
+
   return (
     <form
+      ref={formRef}
       onSubmit={onSubmit}
-      className="rounded-md border border-border bg-card p-3 space-y-2 my-1"
+      className="border-border bg-card my-1 space-y-2 rounded-md border p-3"
     >
-      <div className="text-xs font-semibold text-muted-foreground mb-1">
+      <div className="text-muted-foreground mb-1 text-xs font-semibold">
         New {label}
       </div>
       {children}
       <div className="flex gap-2 pt-1">
-        <Button type="submit" size="sm" disabled={isPending}>
+        <Button
+          type="submit"
+          size="sm"
+          className="min-h-11"
+          disabled={isPending}
+        >
           {isPending && <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />}
           Create
         </Button>
-        <Button type="button" size="sm" variant="ghost" onClick={onClose}>
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          className="min-h-11"
+          onClick={onClose}
+        >
           Cancel
         </Button>
       </div>
@@ -1338,37 +1855,53 @@ function InlineForm({
 function TeamPositionsView({
   projectId,
   projectSlug,
-  isOwner,
+  canManage,
 }: {
   projectId: string;
   projectSlug: string;
-  isOwner: boolean;
+  canManage: boolean;
 }) {
-  const { data: teamPositions = [], isLoading } = api.opportunity.getByProjectId.useQuery({
+  const {
+    data: teamPositions = [],
+    isLoading,
+    error,
+    refetch,
+  } = api.opportunity.getByProjectId.useQuery({
     projectId,
   });
+  const positions = teamPositions.filter(
+    (opportunity) =>
+      opportunity.origin === "TEAM_POSITION" &&
+      Boolean(opportunity.projectRole),
+  );
 
   if (isLoading) {
+    return <LoadingState label="team positions" className="py-8" />;
+  }
+
+  if (error) {
     return (
-      <div className="flex items-center justify-center py-8">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-      </div>
+      <QueryError
+        label="team positions"
+        message={error.message}
+        onRetry={() => void refetch()}
+      />
     );
   }
 
-  if (teamPositions.length === 0) {
+  if (positions.length === 0) {
     return (
       <Card>
         <CardContent className="py-10 text-center">
-          <Users className="mx-auto h-10 w-10 text-muted-foreground/50 mb-3" />
-          <h3 className="text-base font-medium mb-1">No team positions</h3>
-          <p className="text-sm text-muted-foreground mb-3">
-            {isOwner
+          <Users className="text-muted-foreground/50 mx-auto mb-3 h-10 w-10" />
+          <h3 className="mb-1 text-base font-medium">No team positions</h3>
+          <p className="text-muted-foreground mb-3 text-sm">
+            {canManage
               ? "Create team position opportunities from the Opportunities page."
               : "No team positions have been posted yet."}
           </p>
-          {isOwner && (
-            <Button asChild variant="outline" size="sm">
+          {canManage && (
+            <Button asChild variant="outline" size="sm" className="min-h-11">
               <Link
                 href={`/opportunities/create?entityType=project&entityId=${projectId}&entitySlug=${projectSlug}`}
               >
@@ -1384,22 +1917,25 @@ function TeamPositionsView({
 
   return (
     <div className="space-y-3">
-      {teamPositions.map((opp: any) => (
+      {positions.map((opp) => (
         <Card key={opp.id}>
           <CardContent className="py-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Briefcase className="h-4 w-4 text-muted-foreground" />
+            <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
+              <div className="flex min-w-0 items-center gap-2">
+                <Briefcase className="text-muted-foreground h-4 w-4" />
                 <Link
                   href={`/opportunities/${opp.slug || opp.id}`}
-                  className="font-medium text-sm hover:text-primary transition-colors"
+                  className="hover:text-primary focus-visible:ring-primary flex min-h-11 min-w-0 items-center truncate rounded text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none"
                 >
                   {opp.title}
                 </Link>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 {opp.projectRole && (
-                  <Badge variant={getRoleBadgeVariant(opp.projectRole)} size="sm">
+                  <Badge
+                    variant={getRoleBadgeVariant(opp.projectRole)}
+                    size="sm"
+                  >
                     {formatProjectRoleName(opp.projectRole)}
                   </Badge>
                 )}
@@ -1414,7 +1950,7 @@ function TeamPositionsView({
               </div>
             </div>
             {opp.description && (
-              <p className="text-xs text-muted-foreground mt-1.5 line-clamp-2 ml-6">
+              <p className="text-muted-foreground mt-1.5 ml-6 line-clamp-2 text-xs">
                 {opp.description}
               </p>
             )}
@@ -1433,27 +1969,56 @@ function FlatTasksView({
   projectId,
   isOwner,
   opportunities,
+  onOpenDetail,
 }: {
   projectId: string;
   isOwner: boolean;
-  opportunities: any[];
+  opportunities: ProjectOpportunity[];
+  onOpenDetail: OpenWorkItemDetail;
 }) {
   const [showAddTask, setShowAddTask] = useState(false);
   const [showAddPbi, setShowAddPbi] = useState(false);
-  const { data: tasksResult, isLoading: tasksLoading } = api.task.getAll.useQuery({
+  const {
+    data: tasksResult,
+    isLoading: tasksLoading,
+    error: tasksError,
+    refetch: refetchTasks,
+  } = api.task.getAll.useQuery({
     projectId,
     limit: 100,
   });
-  const { data: pbis = [], isLoading: pbisLoading } = api.backlog.getPbisByProjectId.useQuery({
+  const {
+    data: pbis = [],
+    isLoading: pbisLoading,
+    error: pbisError,
+    refetch: refetchPbis,
+  } = api.backlog.getPbisByProjectId.useQuery({
     projectId,
   });
 
   const allTasks = tasksResult?.items ?? [];
 
   if (tasksLoading || pbisLoading) {
+    return <LoadingState label="project work" className="py-8" />;
+  }
+
+  if (tasksError || pbisError) {
     return (
-      <div className="flex items-center justify-center py-8">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      <div className="space-y-2">
+        {tasksError && (
+          <QueryError
+            label="tasks"
+            message={tasksError.message}
+            onRetry={() => void refetchTasks()}
+          />
+        )}
+        {pbisError && (
+          <QueryError
+            label="backlog items"
+            message={pbisError.message}
+            onRetry={() => void refetchPbis()}
+          />
+        )}
       </div>
     );
   }
@@ -1463,27 +2028,54 @@ function FlatTasksView({
       {/* PBIs section */}
       {pbis.length > 0 && (
         <Card>
-          <CardContent className="py-3 px-3">
-            <div className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
-              <Layers className="h-3.5 w-3.5 text-neon-yellow" />
+          <CardContent className="min-w-0 overflow-hidden px-3 py-3">
+            <div className="text-muted-foreground mb-2 flex items-center gap-1.5 text-xs font-semibold">
+              <Layers className="text-neon-yellow h-3.5 w-3.5" />
               Product Backlog Items ({pbis.length})
             </div>
             <div className="space-y-0.5">
-              {pbis.map((pbi: any) => (
-                <div key={pbi.id} className="flex items-center gap-2 py-1.5 px-2 rounded hover:bg-muted/30">
-                  <Layers className="h-3.5 w-3.5 text-neon-yellow shrink-0" />
-                  <span className="text-sm flex-1 truncate">{pbi.title}</span>
+              {pbis.map((pbi) => (
+                <div
+                  key={pbi.id}
+                  className="hover:bg-muted/30 flex min-h-11 min-w-0 flex-wrap items-center gap-2 rounded px-2 py-1 sm:flex-nowrap"
+                >
+                  <Layers className="text-neon-yellow h-3.5 w-3.5 shrink-0" />
+                  <button
+                    type="button"
+                    onClick={() => onOpenDetail({ level: "pbi", item: pbi })}
+                    aria-label={`View PBI details: ${pbi.title}`}
+                    className="focus-visible:ring-primary flex min-h-11 min-w-0 flex-1 items-center gap-1 rounded text-left text-sm focus-visible:ring-2 focus-visible:outline-none"
+                  >
+                    <span className="truncate">{pbi.title}</span>
+                    <Eye
+                      className="h-3.5 w-3.5 shrink-0 opacity-60"
+                      aria-hidden="true"
+                    />
+                  </button>
                   {pbi.type && (
-                    <Badge variant="outline" size="sm">{pbi.type}</Badge>
+                    <Badge variant="outline" size="sm">
+                      {pbi.type}
+                    </Badge>
                   )}
                   {pbi.priority && (
-                    <Badge variant={priorityBadgeVariant(pbi.priority)} size="sm">{pbi.priority}</Badge>
+                    <Badge
+                      variant={priorityBadgeVariant(pbi.priority)}
+                      size="sm"
+                    >
+                      {pbi.priority}
+                    </Badge>
                   )}
                   <Badge variant={statusBadgeVariant(pbi.status)} size="sm">
                     {formatStatus(pbi.status)}
                   </Badge>
                   {pbi.guildId && (
-                    <Badge variant="neon-purple" size="sm" className="text-[9px]">Guild</Badge>
+                    <Badge
+                      variant="neon-purple"
+                      size="sm"
+                      className="text-[9px]"
+                    >
+                      Guild
+                    </Badge>
                   )}
                 </div>
               ))}
@@ -1494,46 +2086,64 @@ function FlatTasksView({
 
       {/* Tasks section */}
       <Card>
-        <CardContent className="py-3 px-3">
-          <div className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
+        <CardContent className="min-w-0 overflow-hidden px-3 py-3">
+          <div className="text-muted-foreground mb-2 flex items-center gap-1.5 text-xs font-semibold">
             <CheckSquare className="h-3.5 w-3.5" />
             All Tasks ({allTasks.length})
           </div>
           {allTasks.length === 0 && !isOwner && (
-            <p className="text-sm text-muted-foreground py-4 text-center">No tasks yet.</p>
+            <p className="text-muted-foreground py-4 text-center text-sm">
+              No tasks yet.
+            </p>
           )}
           <div className="space-y-0.5">
-            {allTasks.map((task: any) => (
+            {allTasks.map((task) => (
               <TaskRow
                 key={task.id}
                 task={task}
                 isOwner={isOwner}
-                projectId={projectId}
                 opportunities={opportunities}
+                onOpenDetail={onOpenDetail}
               />
             ))}
           </div>
           {isOwner && (
-            <div className="flex gap-2 mt-2">
+            <div className="mt-2 flex gap-2">
               <button
-                onClick={() => { setShowAddTask(true); setShowAddPbi(false); }}
-                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground py-1 px-2 rounded hover:bg-muted/40 transition-colors"
+                type="button"
+                onClick={() => {
+                  setShowAddTask(true);
+                  setShowAddPbi(false);
+                }}
+                aria-label="Add task"
+                className="text-muted-foreground hover:text-foreground hover:bg-muted/40 focus-visible:ring-primary flex min-h-11 items-center gap-1 rounded px-2 py-1 text-xs transition-colors focus-visible:ring-2 focus-visible:outline-none"
               >
                 <Plus className="h-3 w-3" /> Add Task
               </button>
               <button
-                onClick={() => { setShowAddPbi(true); setShowAddTask(false); }}
-                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground py-1 px-2 rounded hover:bg-muted/40 transition-colors"
+                type="button"
+                onClick={() => {
+                  setShowAddPbi(true);
+                  setShowAddTask(false);
+                }}
+                aria-label="Add product backlog item"
+                className="text-muted-foreground hover:text-foreground hover:bg-muted/40 focus-visible:ring-primary flex min-h-11 items-center gap-1 rounded px-2 py-1 text-xs transition-colors focus-visible:ring-2 focus-visible:outline-none"
               >
                 <Plus className="h-3 w-3" /> Add PBI
               </button>
             </div>
           )}
           {showAddTask && (
-            <TaskAddForm projectId={projectId} onClose={() => setShowAddTask(false)} />
+            <TaskAddForm
+              projectId={projectId}
+              onClose={() => setShowAddTask(false)}
+            />
           )}
           {showAddPbi && (
-            <PbiAddForm projectId={projectId} onClose={() => setShowAddPbi(false)} />
+            <PbiAddForm
+              projectId={projectId}
+              onClose={() => setShowAddPbi(false)}
+            />
           )}
         </CardContent>
       </Card>
@@ -1549,73 +2159,109 @@ export default function OpportunitiesTab({
   projectId,
   projectSlug,
   isOwner,
+  canComment,
   userRole,
 }: OpportunitiesTabProps) {
   const [viewMode, setViewMode] = useState<ViewMode>("hierarchy");
-  const [addForm, setAddForm] = useState<AddFormState | null>(null);
+  const [addForm, setAddFormState] = useState<AddFormState | null>(null);
   // Detail modal state
-  const [detailModal, setDetailModal] = useState<{
-    level: WorkItemLevel;
-    item: any;
-  } | null>(null);
+  const [detailModal, setDetailModal] =
+    useState<WorkItemDetailSelection | null>(null);
+  const detailTriggerRef = useRef<HTMLElement | null>(null);
   // Create modal state
   const [createModal, setCreateModal] = useState<{
     level: CreateLevel;
     parentId?: string;
   } | null>(null);
 
-  const canManage = isOwner || userRole === "LEAD" || userRole === "ADMIN";
+  const canManage =
+    isOwner ||
+    userRole === "FOUNDER" ||
+    userRole === "LEADER" ||
+    userRole === "CORE_CONTRIBUTOR";
+  const setAddForm = (next: AddFormState | null) => {
+    const returnFocusId = addForm?.returnFocusId;
+    setAddFormState(next);
+    if (next === null && returnFocusId) {
+      window.requestAnimationFrame(() =>
+        document.getElementById(returnFocusId)?.focus(),
+      );
+    }
+  };
   const utils = api.useUtils();
+  const openWorkItemDetail: OpenWorkItemDetail = (selection) => {
+    detailTriggerRef.current =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
+    setDetailModal(selection);
+  };
+  const closeWorkItemDetail = () => {
+    setDetailModal(null);
+    window.requestAnimationFrame(() => detailTriggerRef.current?.focus());
+  };
 
   // Top-level data: milestones, opportunities (always fetched)
   const {
     data: milestones,
     isLoading: milestonesLoading,
+    error: milestonesError,
+    refetch: refetchMilestones,
   } = api.project.getMilestones.useQuery({ projectId });
 
-  const { data: projectOpportunities = [] } = api.opportunity.getByProjectId.useQuery({
+  const {
+    data: projectOpportunities = [],
+    error: projectOpportunitiesError,
+    refetch: refetchProjectOpportunities,
+  } = api.opportunity.getByProjectId.useQuery({
     projectId,
   });
 
   return (
     <div className="space-y-4">
       {/* View Toggle */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-1 rounded-md border border-border p-0.5">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="border-border flex w-full max-w-full items-center gap-1 overflow-x-auto rounded-md border p-0.5 sm:w-auto">
           <button
+            type="button"
             className={cn(
-              "px-3 py-1.5 text-sm rounded-sm transition-colors",
+              "min-h-11 shrink-0 rounded-sm px-3 py-1.5 text-sm transition-colors",
               viewMode === "hierarchy"
                 ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground hover:text-foreground"
+                : "text-muted-foreground hover:text-foreground",
             )}
             onClick={() => setViewMode("hierarchy")}
+            aria-pressed={viewMode === "hierarchy"}
           >
-            <ListTodo className="inline h-3.5 w-3.5 mr-1.5 -mt-0.5" />
+            <ListTodo className="-mt-0.5 mr-1.5 inline h-3.5 w-3.5" />
             Hierarchy
           </button>
           <button
+            type="button"
             className={cn(
-              "px-3 py-1.5 text-sm rounded-sm transition-colors",
+              "min-h-11 shrink-0 rounded-sm px-3 py-1.5 text-sm transition-colors",
               viewMode === "flat-tasks"
                 ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground hover:text-foreground"
+                : "text-muted-foreground hover:text-foreground",
             )}
             onClick={() => setViewMode("flat-tasks")}
+            aria-pressed={viewMode === "flat-tasks"}
           >
-            <CheckSquare className="inline h-3.5 w-3.5 mr-1.5 -mt-0.5" />
+            <CheckSquare className="-mt-0.5 mr-1.5 inline h-3.5 w-3.5" />
             All Tasks
           </button>
           <button
+            type="button"
             className={cn(
-              "px-3 py-1.5 text-sm rounded-sm transition-colors",
+              "min-h-11 shrink-0 rounded-sm px-3 py-1.5 text-sm transition-colors",
               viewMode === "team-positions"
                 ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground hover:text-foreground"
+                : "text-muted-foreground hover:text-foreground",
             )}
             onClick={() => setViewMode("team-positions")}
+            aria-pressed={viewMode === "team-positions"}
           >
-            <Users className="inline h-3.5 w-3.5 mr-1.5 -mt-0.5" />
+            <Users className="-mt-0.5 mr-1.5 inline h-3.5 w-3.5" />
             Team Positions
           </button>
         </div>
@@ -1625,25 +2271,42 @@ export default function OpportunitiesTab({
             size="sm"
             variant="outline"
             onClick={() => setCreateModal({ level: "milestone" })}
+            className="min-h-11 w-full sm:w-auto"
           >
-            <Plus className="h-3.5 w-3.5 mr-1" />
+            <Plus className="mr-1 h-3.5 w-3.5" />
             Add Milestone
           </Button>
         )}
       </div>
+
+      {viewMode === "hierarchy" && milestonesError && (
+        <QueryError
+          label="milestones"
+          message={milestonesError.message}
+          onRetry={() => void refetchMilestones()}
+        />
+      )}
+      {viewMode !== "team-positions" && projectOpportunitiesError && (
+        <QueryError
+          label="linked opportunities"
+          message={projectOpportunitiesError.message}
+          onRetry={() => void refetchProjectOpportunities()}
+        />
+      )}
 
       {/* Views */}
       {viewMode === "team-positions" ? (
         <TeamPositionsView
           projectId={projectId}
           projectSlug={projectSlug}
-          isOwner={isOwner}
+          canManage={canManage}
         />
       ) : viewMode === "flat-tasks" ? (
         <FlatTasksView
           projectId={projectId}
           isOwner={canManage}
           opportunities={projectOpportunities}
+          onOpenDetail={openWorkItemDetail}
         />
       ) : (
         <div className="space-y-2">
@@ -1657,54 +2320,56 @@ export default function OpportunitiesTab({
 
           {/* Loading state */}
           {milestonesLoading && (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-            </div>
+            <LoadingState label="milestones" className="py-12" />
           )}
 
           {/* Empty state */}
-          {!milestonesLoading && (!milestones || milestones.length === 0) && (
-            <Card>
-              <CardContent className="py-10 text-center">
-                <Flag className="mx-auto h-10 w-10 text-muted-foreground/50 mb-3" />
-                <h3 className="text-base font-medium mb-1">
-                  No work items yet
-                </h3>
-                <p className="text-sm text-muted-foreground mb-3">
-                  {canManage
-                    ? "Start by creating a milestone, or switch to 'All Tasks' for a flat list."
-                    : "No work items have been created for this project yet."}
-                </p>
-                {canManage && (
-                  <div className="flex gap-2 justify-center">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setCreateModal({ level: "milestone" })}
-                    >
-                      <Plus className="mr-1.5 h-3.5 w-3.5" />
-                      Create Milestone
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setViewMode("flat-tasks")}
-                    >
-                      <CheckSquare className="mr-1.5 h-3.5 w-3.5" />
-                      Quick Task List
-                    </Button>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          )}
+          {!milestonesLoading &&
+            !milestonesError &&
+            (!milestones || milestones.length === 0) && (
+              <Card>
+                <CardContent className="py-10 text-center">
+                  <Flag className="text-muted-foreground/50 mx-auto mb-3 h-10 w-10" />
+                  <h3 className="mb-1 text-base font-medium">
+                    No work items yet
+                  </h3>
+                  <p className="text-muted-foreground mb-3 text-sm">
+                    {canManage
+                      ? "Start by creating a milestone, or switch to 'All Tasks' for a flat list."
+                      : "No work items have been created for this project yet."}
+                  </p>
+                  {canManage && (
+                    <div className="flex justify-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="min-h-11"
+                        onClick={() => setCreateModal({ level: "milestone" })}
+                      >
+                        <Plus className="mr-1.5 h-3.5 w-3.5" />
+                        Create Milestone
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="min-h-11"
+                        onClick={() => setViewMode("flat-tasks")}
+                      >
+                        <CheckSquare className="mr-1.5 h-3.5 w-3.5" />
+                        Quick Task List
+                      </Button>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
 
           {/* Hierarchy tree */}
-          {milestones && milestones.length > 0 && (
+          {!milestonesError && milestones && milestones.length > 0 && (
             <Card>
-              <CardContent className="py-3 px-3">
+              <CardContent className="min-w-0 overflow-hidden px-3 py-3">
                 <div className="space-y-0.5">
-                  {milestones.map((milestone: any) => (
+                  {milestones.map((milestone) => (
                     <MilestoneNode
                       key={milestone.id}
                       milestone={milestone}
@@ -1713,6 +2378,7 @@ export default function OpportunitiesTab({
                       setAddForm={setAddForm}
                       projectId={projectId}
                       opportunities={projectOpportunities}
+                      onOpenDetail={openWorkItemDetail}
                     />
                   ))}
                 </div>
@@ -1721,26 +2387,17 @@ export default function OpportunitiesTab({
           )}
 
           {/* Legend */}
-          {milestones && milestones.length > 0 && (
-            <div className="flex flex-wrap gap-3 px-1 text-[10px] text-muted-foreground">
-              {(
-                [
-                  "milestone",
-                  "epic",
-                  "sprint",
-                  "feature",
-                  "pbi",
-                  "task",
-                ] as HierarchyLevel[]
-              ).map((level) => {
-                const Icon = LEVEL_ICONS[level];
-                return (
-                  <span key={level} className="flex items-center gap-1">
-                    <Icon className={cn("h-3 w-3", LEVEL_COLORS[level])} />
-                    {level.charAt(0).toUpperCase() + level.slice(1)}
-                  </span>
-                );
-              })}
+          {!milestonesError && milestones && milestones.length > 0 && (
+            <div className="text-muted-foreground flex flex-wrap gap-3 px-1 text-[10px]">
+              {HIERARCHY_LEVELS.map((level) => (
+                <span key={level} className="flex items-center gap-1">
+                  <HierarchyIcon
+                    level={level}
+                    className={cn("h-3 w-3", LEVEL_COLORS[level])}
+                  />
+                  {level.charAt(0).toUpperCase() + level.slice(1)}
+                </span>
+              ))}
             </div>
           )}
         </div>
@@ -1750,11 +2407,11 @@ export default function OpportunitiesTab({
       {detailModal && (
         <WorkItemDetailModal
           open={!!detailModal}
-          onClose={() => setDetailModal(null)}
-          level={detailModal.level}
-          item={detailModal.item}
+          onClose={closeWorkItemDetail}
+          selection={detailModal}
           projectId={projectId}
-          isOwner={canManage}
+          canComment={canComment}
+          signInHref={`/auth/signin?callbackUrl=${encodeURIComponent(`/projects/${projectSlug}`)}`}
         />
       )}
 

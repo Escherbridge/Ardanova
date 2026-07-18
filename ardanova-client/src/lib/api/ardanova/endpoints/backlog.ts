@@ -7,14 +7,14 @@ import { type BaseApiClient, type ApiResponse } from "../../base-client";
 // - PBIStatus
 // - TaskPriority (exposed here as PbiPriority)
 
-export type PbiType = "FEATURE" | "ENHANCEMENT" | "BUG" | "TECHNICAL_DEBT" | "SPIKE";
+export type PbiType =
+  | "FEATURE"
+  | "ENHANCEMENT"
+  | "BUG"
+  | "TECHNICAL_DEBT"
+  | "SPIKE";
 
-export type PbiStatus =
-  | "NEW"
-  | "READY"
-  | "IN_PROGRESS"
-  | "DONE"
-  | "CANCELLED";
+export type PbiStatus = "NEW" | "READY" | "IN_PROGRESS" | "DONE" | "CANCELLED";
 
 export type PbiPriority = "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
 
@@ -62,7 +62,6 @@ export interface UpdateProductBacklogItem {
   status?: PbiStatus;
   acceptanceCriteria?: string;
   priority?: PbiPriority;
-  assigneeId?: string | null;
 }
 
 // ============ Backlog Endpoint ============
@@ -99,7 +98,9 @@ export class BacklogEndpoint {
    * Maps to GET /api/product-backlog-items/{id}
    */
   getPbiById(id: string): Promise<ApiResponse<ProductBacklogItem>> {
-    return this.client.get<ProductBacklogItem>(`/api/product-backlog-items/${id}`);
+    return this.client.get<ProductBacklogItem>(
+      `/api/product-backlog-items/${id}`,
+    );
   }
 
   /**
@@ -165,4 +166,3 @@ export class BacklogEndpoint {
     );
   }
 }
-

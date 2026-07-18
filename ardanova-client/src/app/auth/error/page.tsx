@@ -1,73 +1,110 @@
-import { Button } from "~/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "~/components/ui/card";
+import { AlertTriangle, ArrowLeft, RotateCcw } from "lucide-react";
 import Link from "next/link";
 
+import { ArdaNovaWordmark } from "~/components/brand/wordmark";
+import { Button } from "~/components/ui/button";
+
 interface ErrorPageProps {
-  searchParams: Promise<{
-    error?: string;
-  }>;
+  searchParams: Promise<{ error?: string }>;
 }
 
-const errorMessages: Record<string, { title: string; description: string }> = {
+const errorMessages = {
   Configuration: {
-    title: "Server Configuration Error",
-    description: "There is a problem with the server configuration. Please contact support.",
+    title: "Sign-in is not configured here.",
+    description:
+      "This environment cannot reach its authentication provider. No account or workspace action was completed.",
   },
   AccessDenied: {
-    title: "Access Denied",
-    description: "You do not have permission to sign in.",
+    title: "This account cannot enter.",
+    description:
+      "The provider returned an access denial. Check the account you selected or ask a workspace steward for help.",
   },
   Verification: {
-    title: "Verification Required",
-    description: "The sign in link is no longer valid. Please try again.",
+    title: "That verification is no longer valid.",
+    description:
+      "The sign-in verification expired or was already used. Start a new sign-in request.",
   },
   Default: {
-    title: "Authentication Error",
-    description: "An error occurred during authentication. Please try again.",
+    title: "Sign-in did not complete.",
+    description:
+      "Your workspace remains unchanged. Try again, or return to the public site while the connection is checked.",
   },
-};
+} as const;
 
 export default async function ErrorPage({ searchParams }: ErrorPageProps) {
-  const params = await searchParams;
-  const error = params.error ?? "Default";
-  const errorInfo = errorMessages[error] ?? errorMessages.Default;
+  const { error } = await searchParams;
+  const reference =
+    error && Object.hasOwn(errorMessages, error)
+      ? (error as keyof typeof errorMessages)
+      : "Default";
+  const errorInfo = errorMessages[reference];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-red-100">
-            <svg
-              className="h-8 w-8 text-red-600"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
+    <main className="grid min-h-screen bg-[#151513] text-[#f6f0eb] lg:grid-cols-[minmax(0,1fr)_minmax(26rem,0.7fr)]">
+      <section className="flex min-h-[40vh] flex-col justify-between border-b-2 border-[#f6f0eb]/35 p-6 lg:min-h-screen lg:border-r-2 lg:border-b-0 lg:p-12">
+        <Link
+          href="/"
+          aria-label="ArdaNova home"
+          className="inline-flex min-h-11 w-fit items-center"
+        >
+          <ArdaNovaWordmark className="text-lg" />
+        </Link>
+
+        <div className="my-16 max-w-4xl">
+          <p className="mb-5 font-mono text-xs font-bold tracking-[0.16em] text-[#70d7e2] uppercase">
+            Authentication / no state changed
+          </p>
+          <h1 className="max-w-3xl text-[clamp(3.5rem,9vw,8rem)] leading-[0.82] font-black tracking-[-0.075em] uppercase">
+            Pause.
+            <br />
+            Keep the work safe.
+          </h1>
+        </div>
+
+        <p className="max-w-xl border-t border-[#f6f0eb]/35 pt-5 text-sm leading-relaxed text-[#c9c3bd]">
+          Authentication proves who is entering. Publishing, approvals, funds,
+          settlement, and rights remain separate actions inside the workspace.
+        </p>
+      </section>
+
+      <section className="flex items-center bg-[#20201d] px-6 py-14 sm:px-10 lg:px-14">
+        <div className="w-full max-w-lg">
+          <div className="mb-8 flex size-16 items-center justify-center border-2 border-[#ef4638] text-[#ef4638]">
+            <AlertTriangle className="size-8" aria-hidden="true" />
+          </div>
+          <p className="font-mono text-xs font-bold tracking-[0.16em] text-[#70d7e2] uppercase">
+            Reference / {reference}
+          </p>
+          <h2 className="mt-4 text-4xl leading-[0.92] font-black tracking-[-0.05em] uppercase sm:text-5xl">
+            {errorInfo.title}
+          </h2>
+          <p className="mt-6 text-base leading-relaxed text-[#c9c3bd]">
+            {errorInfo.description}
+          </p>
+
+          <div className="mt-10 grid gap-3 border-t border-[#f6f0eb]/35 pt-8 sm:grid-cols-2">
+            <Button
+              asChild
+              className="border-[#f6f0eb] bg-[#f6f0eb] text-[#151513] hover:bg-[#dcd6d0]"
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"
-              />
-            </svg>
-          </div>
-          <CardTitle className="text-xl">{errorInfo?.title ?? "Authentication Error"}</CardTitle>
-          <CardDescription>{errorInfo?.description ?? "An error occurred during authentication. Please try again."}</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="text-center text-sm text-muted-foreground">
-            Error: {error}
-          </div>
-          <div className="flex flex-col space-y-2">
-            <Button asChild className="w-full">
-              <Link href="/">Return Home</Link>
+              <Link href="/auth/signin">
+                <RotateCcw className="size-4" aria-hidden="true" />
+                Try sign-in again
+              </Link>
             </Button>
-            <Button variant="outline" asChild className="w-full">
-              <Link href="/auth/signin">Try Again</Link>
+            <Button
+              asChild
+              variant="outline"
+              className="border-[#f6f0eb]/60 text-[#f6f0eb] hover:bg-[#f6f0eb] hover:text-[#151513]"
+            >
+              <Link href="/">
+                <ArrowLeft className="size-4" aria-hidden="true" />
+                Public site
+              </Link>
             </Button>
           </div>
-        </CardContent>
-      </Card>
-    </div>
+        </div>
+      </section>
+    </main>
   );
 }

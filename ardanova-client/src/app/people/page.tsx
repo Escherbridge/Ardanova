@@ -12,11 +12,8 @@ import {
   CheckCircle,
   Plus,
   MessageCircle,
-  Share2,
-  Bookmark,
-  MoreHorizontal,
+  ArrowUpRight,
   Sparkles,
-  Clock,
   Award,
   SlidersHorizontal,
   X,
@@ -29,34 +26,29 @@ import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Badge } from "~/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "~/components/ui/dropdown-menu";
 import { cn } from "~/lib/utils";
+import { handleTabListKeyDown } from "~/lib/accessibility";
 import { api } from "~/trpc/react";
 import { FeedLayout } from "~/components/layouts/feed-layout";
 
 // Primary section tabs
-const sectionTabs = [
-  { id: "guilds", label: "Guilds", icon: Users },
-  { id: "people", label: "People", icon: UserIcon },
+const sectionTabs: { id: string; label: string }[] = [
+  { id: "guilds", label: "Guilds" },
+  { id: "people", label: "People" },
 ];
 
 // Sub-tabs for guilds
-const guildSubTabs = [
-  { id: "all", label: "All Guilds", icon: Users },
-  { id: "verified", label: "Verified", icon: CheckCircle },
-  { id: "newest", label: "Newest", icon: Clock },
+const guildSubTabs: { id: string; label: string }[] = [
+  { id: "all", label: "All Guilds" },
+  { id: "verified", label: "Verified" },
+  { id: "newest", label: "Newest" },
 ];
 
 // Sub-tabs for people
-const peopleSubTabs = [
-  { id: "all", label: "All People", icon: UserIcon },
-  { id: "verified", label: "Verified", icon: Shield },
-  { id: "newest", label: "Newest", icon: Clock },
+const peopleSubTabs: { id: string; label: string }[] = [
+  { id: "all", label: "All People" },
+  { id: "verified", label: "Verified" },
+  { id: "newest", label: "Newest" },
 ];
 
 // Specialty badge variants
@@ -75,7 +67,10 @@ const specialtyVariants: Record<
 };
 
 // User type badge variants
-const userTypeVariants: Record<string, "neon" | "neon-pink" | "neon-green" | "neon-purple" | "warning" | "secondary"> = {
+const userTypeVariants: Record<
+  string,
+  "neon" | "neon-pink" | "neon-green" | "neon-purple" | "warning" | "secondary"
+> = {
   INNOVATOR: "neon",
   SUPPORTER: "neon-green",
   VOLUNTEER: "neon-purple",
@@ -99,12 +94,12 @@ function formatRelativeTime(date: Date): string {
   return date.toLocaleDateString();
 }
 
-function renderRating(rating: number | null) {
+function renderRating(rating: number | null | undefined) {
   if (!rating) return null;
   return (
     <div className="flex items-center gap-1 text-sm">
-      <Star className="size-4 fill-neon-yellow text-neon-yellow" />
-      <span className="font-medium text-foreground">
+      <Star className="fill-neon-yellow text-neon-yellow size-4" />
+      <span className="text-foreground font-medium">
         {Number(rating).toFixed(1)}
       </span>
     </div>
@@ -119,10 +114,11 @@ function FollowButton({
   className?: string;
 }) {
   const utils = api.useUtils();
-  const { data: isFollowing, isLoading } = api.user.isFollowing.useQuery(
-    { userId },
-    { retry: false }
-  );
+  const {
+    data: isFollowing,
+    isLoading,
+    error: followStateError,
+  } = api.user.isFollowing.useQuery({ userId }, { retry: false });
 
   const followMutation = api.user.follow.useMutation({
     onSuccess: () => {
@@ -140,7 +136,7 @@ function FollowButton({
 
   const isPending = followMutation.isPending || unfollowMutation.isPending;
 
-  if (isLoading) return null;
+  if (isLoading || followStateError) return null;
 
   if (isFollowing) {
     return (
@@ -191,18 +187,24 @@ export default function PeoplePage() {
   const [selectedRating, setSelectedRating] = useState("all");
 
   // Fetch guilds from API
-  const { data: guildsResult, isLoading: guildsLoading } =
-    api.guild.getAll.useQuery({
-      limit: 50,
-      page: 1,
-    });
+  const {
+    data: guildsResult,
+    isLoading: guildsLoading,
+    error: guildsError,
+  } = api.guild.getAll.useQuery({
+    limit: 50,
+    page: 1,
+  });
 
   // Fetch users from API
-  const { data: usersResult, isLoading: usersLoading } =
-    api.user.getAll.useQuery({
-      limit: 50,
-      page: 1,
-    });
+  const {
+    data: usersResult,
+    isLoading: usersLoading,
+    error: usersError,
+  } = api.user.getAll.useQuery({
+    limit: 50,
+    page: 1,
+  });
 
   const guilds = guildsResult?.items ?? [];
   const users = usersResult?.items ?? [];
@@ -249,7 +251,7 @@ export default function PeoplePage() {
     guildTab === "newest"
       ? [...filteredGuilds].sort(
           (a, b) =>
-            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
         )
       : filteredGuilds;
 
@@ -276,7 +278,7 @@ export default function PeoplePage() {
     peopleTab === "newest"
       ? [...filteredUsers].sort(
           (a, b) =>
-            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
         )
       : filteredUsers;
 
@@ -284,6 +286,8 @@ export default function PeoplePage() {
     searchQuery || selectedSpecialty !== "all" || selectedRating !== "all";
 
   const clearFilters = () => {
+    setGuildTab("all");
+    setPeopleTab("all");
     setSearchQuery("");
     setSelectedSpecialty("all");
     setSelectedRating("all");
@@ -291,17 +295,18 @@ export default function PeoplePage() {
 
   // Stats for sidebar
   const guildStats = {
-    total: guilds.length,
-    verified: guilds.filter((g) => g.isVerified).length,
+    total: filteredGuilds.length,
+    verified: filteredGuilds.filter((g) => g.isVerified).length,
   };
 
   const userStats = {
-    total: users.length,
-    verified: users.filter((u) => u.verificationLevel !== "ANONYMOUS").length,
+    total: filteredUsers.length,
+    verified: filteredUsers.filter((u) => u.verificationLevel !== "ANONYMOUS")
+      .length,
   };
 
-  // Top rated guilds for sidebar
-  const topRatedGuilds = [...guilds]
+  // Highest-rated guilds among the records returned by this query.
+  const highestRatedGuildsInView = [...filteredGuilds]
     .sort((a, b) => (Number(b.rating) || 0) - (Number(a.rating) || 0))
     .slice(0, 3);
 
@@ -318,63 +323,63 @@ export default function PeoplePage() {
           {/* Stats */}
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Sparkles className="size-4 text-neon-yellow" />
-                Community Stats
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Sparkles className="text-neon-yellow size-4" />
+                Visible results
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="flex justify-between">
-                <span className="text-sm text-muted-foreground">
-                  Total People
+                <span className="text-muted-foreground text-sm">
+                  People in this view
                 </span>
-                <span className="font-medium text-foreground">
-                  {userStats.total}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-sm text-muted-foreground">
-                  Verified People
-                </span>
-                <span className="font-medium text-neon-green">
-                  {userStats.verified}
+                <span className="text-foreground font-medium">
+                  {usersError ? "—" : userStats.total}
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-sm text-muted-foreground">
-                  Total Guilds
+                <span className="text-muted-foreground text-sm">
+                  Verified people in view
                 </span>
-                <span className="font-medium text-foreground">
-                  {guildStats.total}
+                <span className="text-neon-green font-medium">
+                  {usersError ? "—" : userStats.verified}
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-sm text-muted-foreground">
-                  Verified Guilds
+                <span className="text-muted-foreground text-sm">
+                  Guilds in this view
                 </span>
-                <span className="font-medium text-neon-green">
-                  {guildStats.verified}
+                <span className="text-foreground font-medium">
+                  {guildsError ? "—" : guildStats.total}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground text-sm">
+                  Verified guilds in view
+                </span>
+                <span className="text-neon-green font-medium">
+                  {guildsError ? "—" : guildStats.verified}
                 </span>
               </div>
             </CardContent>
           </Card>
 
-          {/* Top Rated Guilds */}
+          {/* Highest rated among visible results */}
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Award className="size-4 text-neon-yellow" />
-                Top Rated Guilds
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Award className="text-neon-yellow size-4" />
+                Highest rated in this view
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              {topRatedGuilds.map((guild) => (
+              {highestRatedGuildsInView.map((guild) => (
                 <Link
                   key={guild.id}
                   href={`/guilds/${guild.slug}`}
                   className="flex items-center gap-3"
                 >
-                  <Avatar className="size-10 border-2 border-border">
+                  <Avatar className="border-border size-10 border-2">
                     {guild.logo ? (
                       <AvatarImage src={guild.logo} alt={guild.name} />
                     ) : null}
@@ -382,14 +387,14 @@ export default function PeoplePage() {
                       <Briefcase className="size-4" />
                     </AvatarFallback>
                   </Avatar>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-sm text-foreground hover:text-primary transition-colors truncate">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-foreground hover:text-primary truncate text-sm font-medium transition-colors">
                       {guild.name}
                     </p>
                     <div className="flex items-center gap-2">
                       {renderRating(guild.rating)}
                       {guild.isVerified && (
-                        <CheckCircle className="size-3 text-neon-green" />
+                        <CheckCircle className="text-neon-green size-3" />
                       )}
                     </div>
                   </div>
@@ -402,60 +407,56 @@ export default function PeoplePage() {
           {activeSection === "guilds" && (
             <Card>
               <CardHeader className="pb-3">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Filter className="size-4 text-neon-pink" />
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Filter className="text-neon-pink size-4" />
                   Specialties
                 </CardTitle>
               </CardHeader>
               <CardContent className="flex flex-wrap gap-2">
                 {Object.keys(specialtyVariants).map((specialty) => (
-                  <Badge
+                  <button
                     key={specialty}
-                    variant={specialtyVariants[specialty]}
-                    size="sm"
-                    className="cursor-pointer hover:opacity-80"
+                    type="button"
+                    aria-pressed={selectedSpecialty === specialty}
                     onClick={() =>
                       setSelectedSpecialty(
-                        selectedSpecialty === specialty ? "all" : specialty
+                        selectedSpecialty === specialty ? "all" : specialty,
                       )
                     }
+                    className="focus-visible:ring-ring min-h-11 focus-visible:ring-2 focus-visible:outline-none"
                   >
-                    {specialty}
-                  </Badge>
+                    <Badge
+                      variant={specialtyVariants[specialty]}
+                      size="sm"
+                      className="cursor-pointer hover:opacity-80"
+                    >
+                      {specialty}
+                    </Badge>
+                  </button>
                 ))}
               </CardContent>
             </Card>
           )}
 
           {/* Footer */}
-          <div className="text-xs text-muted-foreground space-x-2 px-2">
-            <Link href="/terms" className="hover:underline">
-              Terms
-            </Link>
-            <span>&middot;</span>
-            <Link href="/privacy" className="hover:underline">
-              Privacy
-            </Link>
-            <span>&middot;</span>
-            <Link href="/help" className="hover:underline">
-              Help
-            </Link>
-            <p className="mt-2">&copy; 2024 ArdaNova</p>
+          <div className="text-muted-foreground px-2 text-xs">
+            <p>&copy; 2026 ArdaNova</p>
+            <p className="mt-1">Counts reflect the current filtered view.</p>
           </div>
         </>
       }
     >
       {/* Header */}
-      <div className="sticky top-0 z-10 bg-background/95 backdrop-blur border-b-2 border-border">
-        <div className="p-4 flex items-center justify-between">
-          <h1 className="text-xl font-bold text-foreground flex items-center gap-2">
-            <Users className="size-5 text-neon-pink" />
+      <div className="border-border bg-background relative z-10 border-b-2">
+        <div className="flex items-center justify-between p-4">
+          <h1 className="text-foreground flex items-center gap-2 text-xl font-bold">
+            <Users className="text-neon-pink size-5" />
             People
           </h1>
           {activeSection === "guilds" && (
             <Button variant="neon" size="sm" asChild>
               <Link href="/guilds/create">
-                <Plus className="size-4 mr-2" />
+                <Plus className="mr-2 size-4" />
                 Create Guild
               </Link>
             </Button>
@@ -463,184 +464,257 @@ export default function PeoplePage() {
         </div>
 
         {/* Primary Section Tabs */}
-        <div className="flex border-b-2 border-border">
+        <div
+          className="border-border flex overflow-x-auto border-b-2"
+          role="tablist"
+          aria-label="People directory section"
+          onKeyDown={handleTabListKeyDown}
+        >
           {sectionTabs.map((tab) => {
-            const Icon = tab.icon;
             return (
               <button
                 key={tab.id}
+                type="button"
                 onClick={() => {
                   setActiveSection(tab.id);
                   setSearchQuery("");
                 }}
+                role="tab"
+                id={`people-section-tab-${tab.id}`}
+                aria-selected={activeSection === tab.id}
+                aria-controls={`people-section-panel-${tab.id}`}
+                tabIndex={activeSection === tab.id ? 0 : -1}
                 className={cn(
-                  "flex-1 flex items-center justify-center gap-2 py-3 text-sm font-medium transition-colors relative",
+                  "relative flex min-h-11 min-w-28 flex-1 items-center justify-center gap-2 px-3 py-3 text-sm font-medium whitespace-nowrap transition-colors",
                   activeSection === tab.id
                     ? "text-primary"
-                    : "text-muted-foreground hover:text-foreground hover:bg-card"
+                    : "text-muted-foreground hover:text-foreground hover:bg-card",
                 )}
               >
-                <Icon className="size-4" />
                 {tab.label}
                 {activeSection === tab.id && (
-                  <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
+                  <span className="bg-primary absolute right-0 bottom-0 left-0 h-0.5" />
                 )}
               </button>
             );
           })}
         </div>
 
-        {/* Search */}
-        <div className="px-4 py-3 flex items-center gap-2">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder={
-                activeSection === "guilds"
-                  ? "Search guilds..."
-                  : "Search people..."
-              }
-              className="w-full pl-10 pr-4 py-2 bg-card border-2 border-border text-foreground text-sm placeholder:text-muted-foreground focus:border-primary focus:outline-none"
-            />
-            {searchQuery && (
-              <button
-                onClick={() => setSearchQuery("")}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-              >
-                <X className="size-4" />
-              </button>
-            )}
-          </div>
-          {activeSection === "guilds" && (
-            <Button
-              variant={showFilters ? "neon" : "outline"}
-              size="sm"
-              onClick={() => setShowFilters(!showFilters)}
-              className="gap-1.5"
-            >
-              <SlidersHorizontal className="size-4" />
-              Filters
-            </Button>
-          )}
-        </div>
-
-        {/* Expanded Filters (guilds only) */}
-        {showFilters && activeSection === "guilds" && (
-          <div className="px-4 pb-4 space-y-3 border-t border-border pt-3">
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs text-muted-foreground mb-1.5 block">
-                  Specialty
-                </label>
-                <select
-                  value={selectedSpecialty}
-                  onChange={(e) => setSelectedSpecialty(e.target.value)}
-                  className="w-full px-3 py-2 bg-card border-2 border-border text-foreground text-sm focus:border-primary focus:outline-none appearance-none cursor-pointer"
+        <div
+          role="tabpanel"
+          id={`people-section-panel-${activeSection}`}
+          aria-labelledby={`people-section-tab-${activeSection}`}
+        >
+          {/* Search */}
+          <div className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center">
+            <div className="relative flex-1">
+              <label htmlFor="people-search" className="sr-only">
+                {activeSection === "guilds" ? "Search guilds" : "Search people"}
+              </label>
+              <Search className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2" />
+              <input
+                type="text"
+                id="people-search"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder={
+                  activeSection === "guilds"
+                    ? "Search guilds..."
+                    : "Search people..."
+                }
+                className="bg-card border-border text-foreground placeholder:text-muted-foreground focus:border-primary w-full border-2 py-2 pr-4 pl-10 text-sm focus:outline-none"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery("")}
+                  aria-label={`Clear ${activeSection === "guilds" ? "guild" : "people"} search`}
+                  className="text-muted-foreground hover:text-foreground absolute top-1/2 right-0 flex min-h-11 min-w-11 -translate-y-1/2 items-center justify-center"
                 >
-                  <option value="all">All Specialties</option>
-                  {Object.keys(specialtyVariants).map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground mb-1.5 block">
-                  Minimum Rating
-                </label>
-                <select
-                  value={selectedRating}
-                  onChange={(e) => setSelectedRating(e.target.value)}
-                  className="w-full px-3 py-2 bg-card border-2 border-border text-foreground text-sm focus:border-primary focus:outline-none appearance-none cursor-pointer"
-                >
-                  <option value="all">Any Rating</option>
-                  <option value="4+">4+ Stars</option>
-                  <option value="3+">3+ Stars</option>
-                </select>
-              </div>
+                  <X className="size-4" />
+                </button>
+              )}
             </div>
-            {hasActiveFilters && (
-              <div className="flex items-center justify-end pt-2">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={clearFilters}
-                  className="text-muted-foreground"
-                >
-                  Clear all
-                </Button>
-              </div>
+            {activeSection === "guilds" && (
+              <Button
+                variant={showFilters ? "neon" : "outline"}
+                size="sm"
+                onClick={() => setShowFilters(!showFilters)}
+                aria-expanded={showFilters}
+                aria-controls="people-guild-filters"
+                className="w-full gap-1.5 sm:w-auto"
+              >
+                <SlidersHorizontal className="size-4" />
+                Filters
+              </Button>
             )}
           </div>
-        )}
 
-        {/* Sub-Tabs */}
-        <div className="flex border-b-2 border-border">
-          {currentSubTabs.map((tab) => {
-            const Icon = tab.icon;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setCurrentSubTab(tab.id)}
-                className={cn(
-                  "flex-1 flex items-center justify-center gap-2 py-2.5 text-xs font-medium transition-colors relative",
-                  currentSubTab === tab.id
-                    ? "text-primary"
-                    : "text-muted-foreground hover:text-foreground hover:bg-card"
-                )}
-              >
-                <Icon className="size-3.5" />
-                <span className="hidden sm:inline">{tab.label}</span>
-                {currentSubTab === tab.id && (
-                  <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
-                )}
-              </button>
-            );
-          })}
+          {/* Expanded Filters (guilds only) */}
+          {showFilters && activeSection === "guilds" && (
+            <div
+              id="people-guild-filters"
+              className="border-border space-y-3 border-t px-4 pt-3 pb-4"
+            >
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div>
+                  <label
+                    htmlFor="people-specialty-filter"
+                    className="text-muted-foreground mb-1.5 block text-xs"
+                  >
+                    Specialty
+                  </label>
+                  <select
+                    id="people-specialty-filter"
+                    value={selectedSpecialty}
+                    onChange={(e) => setSelectedSpecialty(e.target.value)}
+                    className="bg-card border-border text-foreground focus:border-primary min-h-11 w-full cursor-pointer appearance-none border-2 px-3 py-2 text-sm focus:outline-none"
+                  >
+                    <option value="all">All Specialties</option>
+                    {Object.keys(specialtyVariants).map((s) => (
+                      <option key={s} value={s}>
+                        {s}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label
+                    htmlFor="people-rating-filter"
+                    className="text-muted-foreground mb-1.5 block text-xs"
+                  >
+                    Minimum Rating
+                  </label>
+                  <select
+                    id="people-rating-filter"
+                    value={selectedRating}
+                    onChange={(e) => setSelectedRating(e.target.value)}
+                    className="bg-card border-border text-foreground focus:border-primary min-h-11 w-full cursor-pointer appearance-none border-2 px-3 py-2 text-sm focus:outline-none"
+                  >
+                    <option value="all">Any Rating</option>
+                    <option value="4+">4+ Stars</option>
+                    <option value="3+">3+ Stars</option>
+                  </select>
+                </div>
+              </div>
+              {hasActiveFilters && (
+                <div className="flex items-center justify-end pt-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={clearFilters}
+                    className="text-muted-foreground"
+                  >
+                    Clear all
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Sub-Tabs */}
+          <div
+            className="border-border flex overflow-x-auto border-b-2"
+            role="tablist"
+            aria-label={`${activeSection === "guilds" ? "Guild" : "People"} filters`}
+            onKeyDown={handleTabListKeyDown}
+          >
+            {currentSubTabs.map((tab) => {
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setCurrentSubTab(tab.id)}
+                  role="tab"
+                  id={`people-${activeSection}-filter-tab-${tab.id}`}
+                  aria-selected={currentSubTab === tab.id}
+                  aria-controls={`people-${activeSection}-panel-${tab.id}`}
+                  tabIndex={currentSubTab === tab.id ? 0 : -1}
+                  aria-label={tab.label}
+                  className={cn(
+                    "relative flex min-h-11 min-w-24 flex-1 items-center justify-center gap-2 px-3 py-2.5 text-xs font-medium whitespace-nowrap transition-colors",
+                    currentSubTab === tab.id
+                      ? "text-primary"
+                      : "text-muted-foreground hover:text-foreground hover:bg-card",
+                  )}
+                >
+                  <span className="hidden sm:inline">{tab.label}</span>
+                  {currentSubTab === tab.id && (
+                    <span className="bg-primary absolute right-0 bottom-0 left-0 h-0.5" />
+                  )}
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
 
       {/* Content */}
-      <div>
+      <div
+        role="tabpanel"
+        id={`people-${activeSection}-panel-${currentSubTab}`}
+        aria-labelledby={`people-${activeSection}-filter-tab-${currentSubTab}`}
+      >
         {activeSection === "guilds" ? (
           // Guilds Feed
           guildsLoading ? (
             <div className="flex items-center justify-center py-20">
-              <div className="size-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+              <div className="border-primary size-8 animate-spin rounded-full border-2 border-t-transparent" />
+            </div>
+          ) : guildsError ? (
+            <div
+              role="alert"
+              className="border-destructive bg-destructive/10 border-b-2 px-4 py-10 text-center"
+            >
+              <p className="text-destructive font-medium">
+                Guilds could not be loaded.
+              </p>
+              <p className="text-muted-foreground mt-1 text-sm">
+                No guild counts or results are shown.
+              </p>
             </div>
           ) : sortedGuilds.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-20 px-4">
-              <Users className="size-12 text-muted-foreground mb-4" />
-              <p className="text-lg font-medium text-foreground">
+            <div className="flex flex-col items-center justify-center px-4 py-20">
+              <Users className="text-muted-foreground mb-4 size-12" />
+              <p className="text-foreground text-lg font-medium">
                 No guilds found
               </p>
               <p className="text-muted-foreground mt-1">
-                Be the first to create one!
+                {guilds.length > 0
+                  ? "No guilds match the current view."
+                  : "No guild records were returned."}
               </p>
-              <Button variant="neon" className="mt-4" asChild>
-                <Link href="/guilds/create">
-                  <Plus className="size-4 mr-2" />
-                  Create Guild
-                </Link>
-              </Button>
+              {guilds.length > 0 ? (
+                <Button
+                  variant="outline"
+                  className="mt-4"
+                  onClick={clearFilters}
+                >
+                  Clear filters
+                </Button>
+              ) : (
+                <Button variant="neon" className="mt-4" asChild>
+                  <Link href="/guilds/create">
+                    <Plus className="mr-2 size-4" />
+                    Create Guild
+                  </Link>
+                </Button>
+              )}
             </div>
           ) : (
             sortedGuilds.map((guild) => (
               <article
                 key={guild.id}
-                className="border-b-2 border-border bg-card hover:bg-card/80 transition-colors"
+                className="border-border bg-card hover:bg-card/80 border-b-2 transition-colors"
               >
                 <div className="p-4">
                   <div className="flex items-start gap-3">
                     <Link
                       href={`/guilds/${guild.slug}`}
+                      aria-label={`Open ${guild.name} guild profile`}
                       className="shrink-0"
                     >
-                      <Avatar className="size-12 border-2 border-border hover:border-primary transition-colors">
+                      <Avatar className="border-border hover:border-primary size-12 border-2 transition-colors">
                         {guild.logo ? (
                           <AvatarImage src={guild.logo} alt={guild.name} />
                         ) : null}
@@ -650,16 +724,16 @@ export default function PeoplePage() {
                       </Avatar>
                     </Link>
 
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
                         <Link
                           href={`/guilds/${guild.slug}`}
-                          className="font-medium text-foreground hover:text-primary transition-colors"
+                          className="text-foreground hover:text-primary font-medium transition-colors"
                         >
                           {guild.name}
                         </Link>
                         {guild.isVerified && (
-                          <CheckCircle className="size-4 text-neon-green" />
+                          <CheckCircle className="text-neon-green size-4" />
                         )}
                         <Badge variant="neon-pink" size="sm">
                           Guild
@@ -671,37 +745,25 @@ export default function PeoplePage() {
                           {formatRelativeTime(new Date(guild.createdAt))}
                         </span>
                       </div>
-                      <div className="flex items-center gap-3 mt-1">
+                      <div className="mt-1 flex items-center gap-3">
                         {renderRating(guild.rating)}
-                        <span className="text-sm text-muted-foreground">
+                        <span className="text-muted-foreground text-sm">
                           {guild.projectsCount ?? 0} projects completed
                         </span>
                       </div>
                     </div>
-
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon-sm">
-                          <MoreHorizontal className="size-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem>Copy link</DropdownMenuItem>
-                        <DropdownMenuItem>Report</DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
                   </div>
 
                   <Link
                     href={`/guilds/${guild.slug}`}
-                    className="block mt-3 pl-15"
+                    className="mt-3 block pl-15"
                   >
                     <p className="text-foreground line-clamp-3">
                       {guild.description}
                     </p>
 
                     {guild.specialties && (
-                      <div className="flex flex-wrap gap-2 mt-3">
+                      <div className="mt-3 flex flex-wrap gap-2">
                         {guild.specialties
                           .split(",")
                           .slice(0, 4)
@@ -722,7 +784,7 @@ export default function PeoplePage() {
                       </div>
                     )}
 
-                    <div className="flex items-center gap-4 mt-3 text-sm text-muted-foreground">
+                    <div className="text-muted-foreground mt-3 flex items-center gap-4 text-sm">
                       <div className="flex items-center gap-1">
                         <Briefcase className="size-4" />
                         <span>{guild.projectsCount ?? 0} projects</span>
@@ -734,37 +796,12 @@ export default function PeoplePage() {
                     </div>
                   </Link>
 
-                  <div className="mt-4 pl-15 flex items-center gap-1">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="gap-1.5 text-muted-foreground hover:text-neon-pink"
-                    >
-                      <Star className="size-4" />
-                      <span className="text-xs">Rate</span>
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="gap-1.5 text-muted-foreground hover:text-primary"
-                    >
-                      <MessageCircle className="size-4" />
-                      <span className="text-xs">Contact</span>
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="gap-1.5 text-muted-foreground hover:text-neon-green"
-                    >
-                      <Share2 className="size-4" />
-                    </Button>
-                    <div className="flex-1" />
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      className="text-muted-foreground hover:text-neon-yellow"
-                    >
-                      <Bookmark className="size-4" />
+                  <div className="mt-4 flex justify-end pl-15">
+                    <Button variant="outline" size="sm" asChild>
+                      <Link href={`/guilds/${guild.slug}`}>
+                        Open guild
+                        <ArrowUpRight className="ml-2 size-4" />
+                      </Link>
                     </Button>
                   </div>
                 </div>
@@ -774,31 +811,51 @@ export default function PeoplePage() {
         ) : // People Feed
         usersLoading ? (
           <div className="flex items-center justify-center py-20">
-            <div className="size-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+            <div className="border-primary size-8 animate-spin rounded-full border-2 border-t-transparent" />
+          </div>
+        ) : usersError ? (
+          <div
+            role="alert"
+            className="border-destructive bg-destructive/10 border-b-2 px-4 py-10 text-center"
+          >
+            <p className="text-destructive font-medium">
+              People could not be loaded.
+            </p>
+            <p className="text-muted-foreground mt-1 text-sm">
+              No people counts or profiles are shown.
+            </p>
           </div>
         ) : sortedUsers.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 px-4">
-            <UserIcon className="size-12 text-muted-foreground mb-4" />
-            <p className="text-lg font-medium text-foreground">
+          <div className="flex flex-col items-center justify-center px-4 py-20">
+            <UserIcon className="text-muted-foreground mb-4 size-12" />
+            <p className="text-foreground text-lg font-medium">
               No people found
             </p>
             <p className="text-muted-foreground mt-1">
-              Try adjusting your search or filters.
+              {users.length > 0
+                ? "No people match the current view."
+                : "No people records were returned."}
             </p>
+            {users.length > 0 && (
+              <Button variant="outline" className="mt-4" onClick={clearFilters}>
+                Clear filters
+              </Button>
+            )}
           </div>
         ) : (
           sortedUsers.map((user) => (
             <article
               key={user.id}
-              className="border-b-2 border-border bg-card hover:bg-card/80 transition-colors"
+              className="border-border bg-card hover:bg-card/80 border-b-2 transition-colors"
             >
               <div className="p-4">
                 <div className="flex items-start gap-3">
                   <Link
                     href={`/dashboard/profile/${user.id}`}
+                    aria-label={`Open ${user.name ?? "Anonymous member"} profile`}
                     className="shrink-0"
                   >
-                    <Avatar className="size-12 border-2 border-border hover:border-primary transition-colors">
+                    <Avatar className="border-border hover:border-primary size-12 border-2 transition-colors">
                       {user.image ? (
                         <AvatarImage
                           src={user.image}
@@ -811,21 +868,19 @@ export default function PeoplePage() {
                     </Avatar>
                   </Link>
 
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
                       <Link
                         href={`/dashboard/profile/${user.id}`}
-                        className="font-medium text-foreground hover:text-primary transition-colors"
+                        className="text-foreground hover:text-primary font-medium transition-colors"
                       >
                         {user.name ?? "Anonymous"}
                       </Link>
                       {user.verificationLevel !== "ANONYMOUS" && (
-                        <Shield className="size-4 text-neon-green" />
+                        <Shield className="text-neon-green size-4" />
                       )}
                       <Badge
-                        variant={
-                          userTypeVariants[user.userType] ?? "secondary"
-                        }
+                        variant={userTypeVariants[user.userType] ?? "secondary"}
                         size="sm"
                       >
                         {user.userType.replace("_", " ")}
@@ -837,35 +892,22 @@ export default function PeoplePage() {
                         {formatRelativeTime(new Date(user.createdAt))}
                       </span>
                     </div>
-                    <div className="flex items-center gap-3 mt-1">
-                      <span className="text-sm text-muted-foreground">
+                    <div className="mt-1 flex items-center gap-3">
+                      <span className="text-muted-foreground text-sm">
                         Level {user.level}
                       </span>
                       <Badge variant="secondary" size="sm">
                         {user.tier}
                       </Badge>
                       {user.location && (
-                        <span className="text-sm text-muted-foreground">
+                        <span className="text-muted-foreground text-sm">
                           {user.location}
                         </span>
                       )}
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2">
-                    <FollowButton userId={user.id} />
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon-sm">
-                          <MoreHorizontal className="size-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem>Copy profile link</DropdownMenuItem>
-                        <DropdownMenuItem>Report</DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
+                  <FollowButton userId={user.id} />
                 </div>
 
                 {user.bio && (
@@ -874,14 +916,14 @@ export default function PeoplePage() {
                   </div>
                 )}
 
-                <div className="mt-3 pl-15 flex items-center gap-4 text-sm text-muted-foreground">
+                <div className="text-muted-foreground mt-3 flex items-center gap-4 pl-15 text-sm">
                   <div className="flex items-center gap-1">
                     <Sparkles className="size-4" />
                     <span>{user.totalXP} XP</span>
                   </div>
                   {user.verificationLevel !== "ANONYMOUS" && (
                     <div className="flex items-center gap-1">
-                      <Shield className="size-4 text-neon-green" />
+                      <Shield className="text-neon-green size-4" />
                       <span className="text-neon-green">
                         {user.verificationLevel}
                       </span>
@@ -889,44 +931,17 @@ export default function PeoplePage() {
                   )}
                 </div>
 
-                <div className="mt-4 pl-15 flex items-center gap-1">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="gap-1.5 text-muted-foreground hover:text-primary"
-                  >
-                    <MessageCircle className="size-4" />
-                    <span className="text-xs">Message</span>
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="gap-1.5 text-muted-foreground hover:text-neon-green"
-                  >
-                    <Share2 className="size-4" />
-                  </Button>
-                  <div className="flex-1" />
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    className="text-muted-foreground hover:text-neon-yellow"
-                  >
-                    <Bookmark className="size-4" />
+                <div className="mt-4 flex justify-end pl-15">
+                  <Button variant="outline" size="sm" asChild>
+                    <Link href={`/dashboard/profile/${user.id}`}>
+                      View profile
+                      <ArrowUpRight className="ml-2 size-4" />
+                    </Link>
                   </Button>
                 </div>
               </div>
             </article>
           ))
-        )}
-
-        {/* Load More */}
-        {((activeSection === "guilds" && sortedGuilds.length > 0) ||
-          (activeSection === "people" && sortedUsers.length > 0)) && (
-          <div className="flex justify-center py-6">
-            <Button variant="outline">
-              Load more {activeSection === "guilds" ? "guilds" : "people"}
-            </Button>
-          </div>
         )}
       </div>
     </FeedLayout>

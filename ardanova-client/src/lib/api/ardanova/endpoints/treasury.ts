@@ -20,7 +20,7 @@ export interface TreasuryStatusDto {
 
 export interface TreasuryTransactionDto {
   id: string;
-  type: TreasuryTransactionType | string;
+  type: TreasuryTransactionType;
   amount?: number;
   createdAt?: string;
   [key: string]: unknown;
@@ -33,15 +33,24 @@ export class TreasuryEndpoint {
     return this.client.get<TreasuryStatusDto>("/api/Treasury/status");
   }
 
-  getTransactions(limit: number): Promise<ApiResponse<TreasuryTransactionDto[]>> {
-    return this.client.get<TreasuryTransactionDto[]>(`/api/Treasury/transactions?limit=${limit}`);
+  getTransactions(
+    limit: number,
+  ): Promise<ApiResponse<TreasuryTransactionDto[]>> {
+    return this.client.get<TreasuryTransactionDto[]>(
+      `/api/Treasury/transactions?limit=${limit}`,
+    );
   }
 
   getExchangeTreasuryStatus(): Promise<ApiResponse<TreasuryStatusDto>> {
-    return this.client.get<TreasuryStatusDto>("/api/Treasury/exchange/treasury-status");
+    return this.client.get<TreasuryStatusDto>(
+      "/api/Treasury/exchange/treasury-status",
+    );
   }
 
-  processFundingInflow(usdAmount: number, projectId?: string): Promise<ApiResponse<unknown>> {
+  processFundingInflow(
+    usdAmount: number,
+    projectId?: string,
+  ): Promise<ApiResponse<unknown>> {
     let q = `?usdAmount=${encodeURIComponent(String(usdAmount))}`;
     if (projectId) q += `&projectId=${encodeURIComponent(projectId)}`;
     return this.client.post<unknown>(`/api/Treasury/funding-inflow${q}`, {});
@@ -52,7 +61,10 @@ export class TreasuryEndpoint {
   }
 
   rebalance(requiredLiquid: number): Promise<ApiResponse<unknown>> {
-    return this.client.post<unknown>(`/api/Treasury/rebalance?requiredLiquid=${encodeURIComponent(String(requiredLiquid))}`, {});
+    return this.client.post<unknown>(
+      `/api/Treasury/rebalance?requiredLiquid=${encodeURIComponent(String(requiredLiquid))}`,
+      {},
+    );
   }
 
   reconcile(): Promise<ApiResponse<unknown>> {

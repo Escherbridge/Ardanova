@@ -1,5 +1,9 @@
 import { z } from "zod";
-import { createTRPCRouter, protectedProcedure, publicProcedure } from "~/server/api/trpc";
+import {
+  createTRPCRouter,
+  protectedProcedure,
+  publicProcedure,
+} from "~/server/api/trpc";
 import { apiClient } from "~/lib/api";
 
 // Event type enum
@@ -58,10 +62,16 @@ export const eventRouter = createTRPCRouter({
       const userId = ctx.session.user.id;
 
       // Combine date and time into ISO format
-      const startDate = combineDateTime(input.date, input.startTime, input.timezone);
+      const startDate = combineDateTime(
+        input.date,
+        input.startTime,
+        input.timezone,
+      );
       const endDate = input.endTime
         ? combineDateTime(input.date, input.endTime, input.timezone)
-        : new Date(new Date(startDate).getTime() + 2 * 60 * 60 * 1000).toISOString();
+        : new Date(
+            new Date(startDate).getTime() + 2 * 60 * 60 * 1000,
+          ).toISOString();
 
       const response = await apiClient.events.create({
         organizerId: userId,
@@ -96,7 +106,7 @@ export const eventRouter = createTRPCRouter({
         type: EventType.optional(),
         format: EventFormat.optional(),
         upcoming: z.boolean().optional(),
-      })
+      }),
     )
     .query(async ({ input }) => {
       const response = await apiClient.events.search({
@@ -113,7 +123,9 @@ export const eventRouter = createTRPCRouter({
 
       return {
         items: response.data?.items ?? [],
-        nextCursor: response.data?.hasNextPage ? String(input.page + 1) : undefined,
+        nextCursor: response.data?.hasNextPage
+          ? String(input.page + 1)
+          : undefined,
         totalCount: response.data?.totalCount ?? 0,
         totalPages: response.data?.totalPages ?? 0,
       };
@@ -242,7 +254,9 @@ export const eventRouter = createTRPCRouter({
         title: data.title,
         description: data.description,
         type: data.type ? mapEventType(data.type) : undefined,
-        isOnline: data.format ? (data.format === "virtual" || data.format === "hybrid") : undefined,
+        isOnline: data.format
+          ? data.format === "virtual" || data.format === "hybrid"
+          : undefined,
         location: data.location,
         meetingUrl: data.virtualLink,
         timezone: data.timezone,
@@ -251,10 +265,18 @@ export const eventRouter = createTRPCRouter({
 
       // Handle date/time updates
       if (data.date && data.startTime) {
-        updateData.startDate = combineDateTime(data.date, data.startTime, data.timezone ?? existing.data.timezone);
+        updateData.startDate = combineDateTime(
+          data.date,
+          data.startTime,
+          data.timezone ?? existing.data.timezone,
+        );
       }
       if (data.date && data.endTime) {
-        updateData.endDate = combineDateTime(data.date, data.endTime, data.timezone ?? existing.data.timezone);
+        updateData.endDate = combineDateTime(
+          data.date,
+          data.endTime,
+          data.timezone ?? existing.data.timezone,
+        );
       }
 
       const response = await apiClient.events.update(id, updateData);
@@ -293,7 +315,11 @@ export const eventRouter = createTRPCRouter({
 });
 
 // Helper function to combine date and time into ISO string
-function combineDateTime(date: string, time: string, timezone: string): string {
+function combineDateTime(
+  date: string,
+  time: string,
+  _timezone: string,
+): string {
   // Simple implementation - in production, use a proper date library like date-fns or luxon
   const dateTime = new Date(`${date}T${time}`);
   return dateTime.toISOString();

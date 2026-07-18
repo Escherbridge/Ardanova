@@ -2,9 +2,17 @@
 
 import { SessionProvider } from "next-auth/react";
 
-/** Client-side NextAuth session context for the whole app (see src/app/AGENTS.md). */
+/** Client-side NextAuth session context for the whole app (see src/AGENTS.md). */
 export function AuthSessionProvider({
   children,
-}: Readonly<{ children: React.ReactNode }>) {
-  return <SessionProvider>{children}</SessionProvider>;
+  refetchOnWindowFocus = true,
+}: Readonly<{
+  children: React.ReactNode;
+  refetchOnWindowFocus?: boolean;
+}>) {
+  return (
+    <SessionProvider refetchOnWindowFocus={refetchOnWindowFocus}>
+      {children}
+    </SessionProvider>
+  );
 }

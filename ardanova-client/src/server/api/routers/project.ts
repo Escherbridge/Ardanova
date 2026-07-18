@@ -1,57 +1,50 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { createTRPCRouter, adminProcedure, protectedProcedure, publicProcedure } from "~/server/api/trpc";
+import {
+  createTRPCRouter,
+  adminProcedure,
+  protectedProcedure,
+  publicProcedure,
+} from "~/server/api/trpc";
 import { apiClient } from "~/lib/api";
+import {
+  createProjectMilestoneDtoSchema,
+  pagedProjectsDtoSchema,
+  projectMilestoneDtoSchema,
+  projectDtoSchema,
+  projectDurationSchema,
+  projectRoleSchema,
+  projectStatusSchema,
+  projectTypeSchema,
+  updateProjectMilestoneDtoSchema,
+} from "~/lib/contracts/project-contract";
+import { hierarchyAuthorization } from "~/server/api/lib/hierarchy-auth";
 
-// Project type enum - what kind of project this is
-const ProjectType = z.enum([
-  "TEMPORARY",
-  "LONG_TERM",
-  "FOUNDATION",
-  "BUSINESS",
-  "PRODUCT",
-  "OPEN_SOURCE",
-  "COMMUNITY",
-]);
-
-// Project duration enum - expected timeline
-const ProjectDuration = z.enum([
-  "ONE_TWO_WEEKS",
-  "ONE_THREE_MONTHS",
-  "THREE_SIX_MONTHS",
-  "SIX_TWELVE_MONTHS",
-  "ONE_TWO_YEARS",
-  "TWO_PLUS_YEARS",
-  "ONGOING",
-]);
-
-// Project status enum (matches .NET backend)
-const ProjectStatus = z.enum([
-  "DRAFT",
-  "PUBLISHED",
-  "SEEKING_SUPPORT",
-  "FUNDED",
-  "IN_PROGRESS",
-  "COMPLETED",
-  "CANCELLED",
-]);
+const ProjectType = projectTypeSchema;
+const ProjectDuration = projectDurationSchema;
+const ProjectStatus = projectStatusSchema;
 
 // Project creation input schema
 const createProjectSchema = z.object({
   title: z.string().min(1, "Project title is required"),
   description: z.string().min(10, "Description must be at least 10 characters"),
-  problemStatement: z.string().min(10, "Problem statement must be at least 10 characters"),
+  problemStatement: z
+    .string()
+    .min(10, "Problem statement must be at least 10 characters"),
   solution: z.string().min(10, "Solution must be at least 10 characters"),
   categories: z.array(z.string()).min(1, "At least one category is required"),
   projectType: ProjectType.optional(),
-  duration: ProjectDuration.optional(),
-  targetAudience: z.string().optional(),
-  expectedImpact: z.string().optional(),
-  timeline: z.string().optional(),
-  tags: z.string().optional(),
-  images: z.string().optional(),
-  videos: z.string().optional(),
-  documents: z.string().optional(),
+  duration: ProjectDuration.nullable().optional(),
+  fundingGoal: z.number().nonnegative().nullable().optional(),
+  targetAudience: z.string().nullable().optional(),
+  expectedImpact: z.string().nullable().optional(),
+  timeline: z.string().nullable().optional(),
+  tags: z.string().nullable().optional(),
+  images: z.string().nullable().optional(),
+  videos: z.string().nullable().optional(),
+  documents: z.string().nullable().optional(),
+  commerceEnabled: z.boolean().optional(),
+  storefrontDescription: z.string().nullable().optional(),
 });
 
 // Project update input schema
@@ -63,26 +56,42 @@ const updateProjectSchema = z.object({
   solution: z.string().min(10).optional(),
   categories: z.array(z.string()).min(1).optional(),
   projectType: ProjectType.optional(),
-  duration: ProjectDuration.optional(),
+  duration: ProjectDuration.nullable().optional(),
   status: ProjectStatus.optional(),
-  targetAudience: z.string().optional(),
-  expectedImpact: z.string().optional(),
-  timeline: z.string().optional(),
-  tags: z.string().optional(),
-  images: z.string().optional(),
-  videos: z.string().optional(),
-  documents: z.string().optional(),
-  fundingGoal: z.number().optional(),
+  targetAudience: z.string().nullable().optional(),
+  expectedImpact: z.string().nullable().optional(),
+  timeline: z.string().nullable().optional(),
+  tags: z.string().nullable().optional(),
+  images: z.string().nullable().optional(),
+  videos: z.string().nullable().optional(),
+  documents: z.string().nullable().optional(),
+  fundingGoal: z.number().nonnegative().nullable().optional(),
+  commerceEnabled: z.boolean().optional(),
+  storefrontDescription: z.string().nullable().optional(),
 });
 
-// Member role enum
-const MemberRole = z.enum([
-  "FOUNDER",
-  "LEADER",
-  "CORE_CONTRIBUTOR",
-  "CONTRIBUTOR",
-  "OBSERVER",
-]);
+const projectArraySchema = z.array(projectDtoSchema);
+
+function invalidProjectContract(context: string): TRPCError {
+  return new TRPCError({
+    code: "BAD_GATEWAY",
+    message: `${context} did not match the project API contract`,
+  });
+}
+
+function parseProject(data: unknown, context: string) {
+  const result = projectDtoSchema.safeParse(data);
+  if (!result.success) throw invalidProjectContract(context);
+  return result.data;
+}
+
+function parseProjects(data: unknown, context: string) {
+  const result = projectArraySchema.safeParse(data);
+  if (!result.success) throw invalidProjectContract(context);
+  return result.data;
+}
+
+const MemberRole = projectRoleSchema;
 
 // Application status enum
 const ApplicationStatus = z.enum([
@@ -102,12 +111,7 @@ const ProposalType = z.enum([
 ]);
 
 // Support type enum
-const SupportType = z.enum([
-  "VOTE",
-  "SUBSCRIPTION",
-  "VOLUNTEER",
-  "RESOURCE",
-]);
+const SupportType = z.enum(["VOTE", "SUBSCRIPTION", "VOLUNTEER", "RESOURCE"]);
 
 // Resource schemas
 const addResourceSchema = z.object({
@@ -134,20 +138,30 @@ const updateResourceSchema = z.object({
 });
 
 // Milestone schemas
-const addMilestoneSchema = z.object({
-  projectId: z.string(),
-  title: z.string().min(1),
-  description: z.string().optional(),
-  targetDate: z.string(),
-});
+const addMilestoneSchema = z
+  .object({ projectId: z.string().min(1) })
+  .merge(createProjectMilestoneDtoSchema);
 
-const updateMilestoneSchema = z.object({
-  projectId: z.string(),
-  milestoneId: z.string(),
-  title: z.string().min(1).optional(),
-  description: z.string().optional(),
-  targetDate: z.string().optional(),
-});
+const updateMilestoneSchema = z
+  .object({
+    projectId: z.string().min(1),
+    milestoneId: z.string().min(1),
+  })
+  .merge(updateProjectMilestoneDtoSchema);
+
+const projectMilestoneListSchema = z.array(projectMilestoneDtoSchema);
+
+function parseMilestoneContract(data: unknown) {
+  const result = projectMilestoneDtoSchema.safeParse(data);
+  if (!result.success) {
+    throw new TRPCError({
+      code: "INTERNAL_SERVER_ERROR",
+      message: "Backend returned an invalid project milestone contract",
+    });
+  }
+
+  return result.data;
+}
 
 // Member schemas
 const addMemberSchema = z.object({
@@ -221,6 +235,9 @@ const createProposalCommentSchema = z.object({
   parentId: z.string().optional(),
 });
 
+const votingEndFromDays = (days: number): string =>
+  new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString();
+
 // Update schemas
 const createUpdateSchema = z.object({
   projectId: z.string(),
@@ -248,21 +265,14 @@ export const projectRouter = createTRPCRouter({
   // Create a new project
   create: protectedProcedure
     .input(createProjectSchema)
-    .mutation(async ({ input, ctx }) => {
-      const userId = ctx.session.user.id;
-
-      const { categories, ...rest } = input;
-      const response = await apiClient.projects.create({
-        ...rest,
-        categories: categories,
-        createdById: userId,
-      } as any);
+    .mutation(async ({ input }) => {
+      const response = await apiClient.projects.create(input);
 
       if (response.error || !response.data) {
         throw new Error(response.error ?? "Failed to create project");
       }
 
-      return response.data;
+      return parseProject(response.data, "Create project response");
     }),
 
   // Get all projects with pagination and filters
@@ -272,18 +282,20 @@ export const projectRouter = createTRPCRouter({
         limit: z.number().min(1).max(100).default(20),
         page: z.number().min(1).default(1),
         category: z.string().optional(),
+        projectType: ProjectType.optional(),
         status: ProjectStatus.optional(),
         search: z.string().optional(),
-      })
+      }),
     )
     .query(async ({ input }) => {
-      const { limit, page, category, status, search } = input;
+      const { limit, page, category, projectType, status, search } = input;
 
       // Use search endpoint for all queries (handles filters and pagination)
       const response = await apiClient.projects.search({
         searchTerm: search,
         status: status,
         category: category,
+        projectType,
         page: page,
         pageSize: limit,
       });
@@ -292,11 +304,20 @@ export const projectRouter = createTRPCRouter({
         throw new Error(response.error);
       }
 
+      if (!response.data) {
+        throw invalidProjectContract("Project search response");
+      }
+
+      const result = pagedProjectsDtoSchema.safeParse(response.data);
+      if (!result.success) {
+        throw invalidProjectContract("Project search response");
+      }
+
       return {
-        items: response.data?.items ?? [],
-        nextCursor: response.data?.hasNextPage ? String(page + 1) : undefined,
-        totalCount: response.data?.totalCount,
-        totalPages: response.data?.totalPages,
+        items: result.data.items,
+        nextCursor: result.data.hasNextPage ? String(page + 1) : undefined,
+        totalCount: result.data.totalCount,
+        totalPages: result.data.totalPages,
       };
     }),
 
@@ -316,7 +337,7 @@ export const projectRouter = createTRPCRouter({
         throw new Error(response.error ?? "Project not found");
       }
 
-      return response.data;
+      return parseProject(response.data, "Project detail response");
     }),
 
   // Get user's projects
@@ -326,7 +347,7 @@ export const projectRouter = createTRPCRouter({
         limit: z.number().min(1).max(100).default(20),
         page: z.number().min(1).default(1),
         status: ProjectStatus.optional(),
-      })
+      }),
     )
     .query(async ({ input, ctx }) => {
       const userId = ctx.session.user.id;
@@ -337,11 +358,15 @@ export const projectRouter = createTRPCRouter({
         throw new Error(response.error);
       }
 
-      let items = response.data ?? [];
+      const itemsResult = parseProjects(
+        response.data ?? [],
+        "User projects response",
+      );
+      let items = itemsResult;
 
       // Filter by status if provided
       if (input.status) {
-        items = items.filter(p => p.status === input.status);
+        items = items.filter((p) => p.status === input.status);
       }
 
       return { items, nextCursor: undefined };
@@ -360,7 +385,10 @@ export const projectRouter = createTRPCRouter({
       if (response.error) {
         throw new Error(response.error);
       }
-      const items = (response.data ?? []).slice(0, input.limit);
+      const items = parseProjects(
+        response.data ?? [],
+        "Profile projects response",
+      ).slice(0, input.limit);
       return { items };
     }),
 
@@ -372,7 +400,7 @@ export const projectRouter = createTRPCRouter({
       throw new Error(response.error);
     }
 
-    return response.data ?? [];
+    return parseProjects(response.data ?? [], "Featured projects response");
   }),
 
   // Update project
@@ -382,23 +410,19 @@ export const projectRouter = createTRPCRouter({
       const { id, ...data } = input;
       const userId = ctx.session.user.id;
 
-      // Verify ownership by fetching the project first
-      const existing = await apiClient.projects.getById(id);
-      if (existing.error || !existing.data) {
-        throw new Error("Project not found");
-      }
+      await hierarchyAuthorization.requireProjectManager({
+        userId,
+        projectId: id,
+        isAdmin: ctx.session.user.role === "ADMIN",
+      });
 
-      if (existing.data.createdById !== userId) {
-        throw new Error("Access denied");
-      }
-
-      const response = await apiClient.projects.update(id, data as any);
+      const response = await apiClient.projects.update(id, data);
 
       if (response.error || !response.data) {
         throw new Error(response.error ?? "Failed to update project");
       }
 
-      return response.data;
+      return parseProject(response.data, "Update project response");
     }),
 
   // Delete project
@@ -408,15 +432,11 @@ export const projectRouter = createTRPCRouter({
       const { id } = input;
       const userId = ctx.session.user.id;
 
-      // Verify ownership by fetching the project first
-      const existing = await apiClient.projects.getById(id);
-      if (existing.error || !existing.data) {
-        throw new Error("Project not found");
-      }
-
-      if (existing.data.createdById !== userId) {
-        throw new Error("Access denied");
-      }
+      await hierarchyAuthorization.requireProjectManager({
+        userId,
+        projectId: id,
+        isAdmin: ctx.session.user.role === "ADMIN",
+      });
 
       const response = await apiClient.projects.delete(id);
 
@@ -434,15 +454,15 @@ export const projectRouter = createTRPCRouter({
       const { id } = input;
       const userId = ctx.session.user.id;
 
-      // Verify ownership by fetching the project first
       const existing = await apiClient.projects.getById(id);
       if (existing.error || !existing.data) {
         throw new Error("Project not found");
       }
-
-      if (existing.data.createdById !== userId) {
-        throw new Error("Access denied");
-      }
+      await hierarchyAuthorization.requireProjectManager({
+        userId,
+        projectId: existing.data.id,
+        isAdmin: ctx.session.user.role === "ADMIN",
+      });
 
       if (existing.data.status !== "DRAFT") {
         throw new Error("Only draft projects can be published");
@@ -454,7 +474,7 @@ export const projectRouter = createTRPCRouter({
         throw new Error(response.error ?? "Failed to publish project");
       }
 
-      return response.data;
+      return parseProject(response.data, "Publish project response");
     }),
 
   // Set featured status
@@ -469,7 +489,7 @@ export const projectRouter = createTRPCRouter({
         throw new Error(response.error ?? "Failed to update featured status");
       }
 
-      return response.data;
+      return parseProject(response.data, "Featured project response");
     }),
 
   // ========================================
@@ -482,14 +502,11 @@ export const projectRouter = createTRPCRouter({
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user.id;
 
-      // Verify project ownership
-      const project = await apiClient.projects.getById(input.projectId);
-      if (project.error || !project.data) {
-        throw new Error("Project not found");
-      }
-      if (project.data.createdById !== userId) {
-        throw new Error("Access denied");
-      }
+      await hierarchyAuthorization.requireProjectManager({
+        userId,
+        projectId: input.projectId,
+        isAdmin: ctx.session.user.role === "ADMIN",
+      });
 
       // Call API endpoint
       const response = await apiClient.projects.addResource(input.projectId, {
@@ -517,24 +534,28 @@ export const projectRouter = createTRPCRouter({
       const { projectId, resourceId, ...data } = input;
 
       // Get resource to verify ownership
-      const resource = await apiClient.projects.getResourceById(projectId, resourceId);
+      const resource = await apiClient.projects.getResourceById(
+        projectId,
+        resourceId,
+      );
       if (resource.error || !resource.data) {
         throw new Error("Resource not found");
       }
 
-      // Verify project ownership
-      const project = await apiClient.projects.getById(resource.data.projectId);
-      if (project.error || !project.data) {
-        throw new Error("Project not found");
-      }
       if (resource.data.projectId !== projectId) {
         throw new Error("Resource does not belong to this project");
       }
-      if (project.data.createdById !== userId) {
-        throw new Error("Access denied");
-      }
+      await hierarchyAuthorization.requireProjectManager({
+        userId,
+        projectId: resource.data.projectId,
+        isAdmin: ctx.session.user.role === "ADMIN",
+      });
 
-      const response = await apiClient.projects.updateResource(projectId, resourceId, data);
+      const response = await apiClient.projects.updateResource(
+        projectId,
+        resourceId,
+        data,
+      );
 
       if (response.error || !response.data) {
         throw new Error(response.error ?? "Failed to update resource");
@@ -550,21 +571,27 @@ export const projectRouter = createTRPCRouter({
       const userId = ctx.session.user.id;
 
       // Get resource to verify ownership
-      const resource = await apiClient.projects.getResourceById(input.projectId, input.resourceId);
+      const resource = await apiClient.projects.getResourceById(
+        input.projectId,
+        input.resourceId,
+      );
       if (resource.error || !resource.data) {
         throw new Error("Resource not found");
       }
 
-      // Verify project ownership
-      const project = await apiClient.projects.getById(resource.data.projectId);
-      if (project.error || !project.data) {
-        throw new Error("Project not found");
+      if (resource.data.projectId !== input.projectId) {
+        throw new Error("Resource does not belong to this project");
       }
-      if (project.data.createdById !== userId) {
-        throw new Error("Access denied");
-      }
+      await hierarchyAuthorization.requireProjectManager({
+        userId,
+        projectId: resource.data.projectId,
+        isAdmin: ctx.session.user.role === "ADMIN",
+      });
 
-      const response = await apiClient.projects.deleteResource(input.projectId, input.resourceId);
+      const response = await apiClient.projects.deleteResource(
+        input.projectId,
+        input.resourceId,
+      );
 
       if (response.error) {
         throw new Error(response.error ?? "Failed to delete resource");
@@ -596,26 +623,25 @@ export const projectRouter = createTRPCRouter({
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user.id;
 
-      // Verify project ownership
-      const project = await apiClient.projects.getById(input.projectId);
-      if (project.error || !project.data) {
-        throw new Error("Project not found");
-      }
-      if (project.data.createdById !== userId) {
-        throw new Error("Access denied");
-      }
+      await hierarchyAuthorization.requireProjectManager({
+        userId,
+        projectId: input.projectId,
+        isAdmin: ctx.session.user.role === "ADMIN",
+      });
 
       const response = await apiClient.projects.addMilestone(input.projectId, {
         title: input.title,
         description: input.description,
         targetDate: input.targetDate,
+        status: input.status,
+        priority: input.priority,
       });
 
       if (response.error || !response.data) {
         throw new Error(response.error ?? "Failed to add milestone");
       }
 
-      return response.data;
+      return parseMilestoneContract(response.data);
     }),
 
   // Update milestone
@@ -625,22 +651,24 @@ export const projectRouter = createTRPCRouter({
       const userId = ctx.session.user.id;
       const { projectId, milestoneId, ...data } = input;
 
-      // Verify project ownership
-      const project = await apiClient.projects.getById(projectId);
-      if (project.error || !project.data) {
-        throw new Error("Project not found");
-      }
-      if (project.data.createdById !== userId) {
-        throw new Error("Access denied");
-      }
+      await hierarchyAuthorization.requireProjectManager({
+        userId,
+        projectId,
+        isAdmin: ctx.session.user.role === "ADMIN",
+      });
+      await hierarchyAuthorization.resolve("milestone", milestoneId, projectId);
 
-      const response = await apiClient.projects.updateMilestone(projectId, milestoneId, data);
+      const response = await apiClient.projects.updateMilestone(
+        projectId,
+        milestoneId,
+        data,
+      );
 
       if (response.error || !response.data) {
         throw new Error(response.error ?? "Failed to update milestone");
       }
 
-      return response.data;
+      return parseMilestoneContract(response.data);
     }),
 
   // Delete milestone
@@ -649,16 +677,21 @@ export const projectRouter = createTRPCRouter({
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user.id;
 
-      // Verify project ownership
-      const project = await apiClient.projects.getById(input.projectId);
-      if (project.error || !project.data) {
-        throw new Error("Project not found");
-      }
-      if (project.data.createdById !== userId) {
-        throw new Error("Access denied");
-      }
+      await hierarchyAuthorization.requireProjectManager({
+        userId,
+        projectId: input.projectId,
+        isAdmin: ctx.session.user.role === "ADMIN",
+      });
+      await hierarchyAuthorization.resolve(
+        "milestone",
+        input.milestoneId,
+        input.projectId,
+      );
 
-      const response = await apiClient.projects.deleteMilestone(input.projectId, input.milestoneId);
+      const response = await apiClient.projects.deleteMilestone(
+        input.projectId,
+        input.milestoneId,
+      );
 
       if (response.error) {
         throw new Error(response.error ?? "Failed to delete milestone");
@@ -677,7 +710,15 @@ export const projectRouter = createTRPCRouter({
         throw new Error(response.error);
       }
 
-      return response.data ?? [];
+      const result = projectMilestoneListSchema.safeParse(response.data ?? []);
+      if (!result.success) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Backend returned an invalid project milestone list",
+        });
+      }
+
+      return result.data;
     }),
 
   // Complete milestone
@@ -686,22 +727,27 @@ export const projectRouter = createTRPCRouter({
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user.id;
 
-      // Verify project ownership
-      const project = await apiClient.projects.getById(input.projectId);
-      if (project.error || !project.data) {
-        throw new Error("Project not found");
-      }
-      if (project.data.createdById !== userId) {
-        throw new Error("Access denied");
-      }
+      await hierarchyAuthorization.requireProjectManager({
+        userId,
+        projectId: input.projectId,
+        isAdmin: ctx.session.user.role === "ADMIN",
+      });
+      await hierarchyAuthorization.resolve(
+        "milestone",
+        input.milestoneId,
+        input.projectId,
+      );
 
-      const response = await apiClient.projects.completeMilestone(input.projectId, input.milestoneId);
+      const response = await apiClient.projects.completeMilestone(
+        input.projectId,
+        input.milestoneId,
+      );
 
       if (response.error || !response.data) {
         throw new Error(response.error ?? "Failed to complete milestone");
       }
 
-      return response.data;
+      return parseMilestoneContract(response.data);
     }),
 
   // ========================================
@@ -714,18 +760,19 @@ export const projectRouter = createTRPCRouter({
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user.id;
 
-      // Verify project ownership
-      const project = await apiClient.projects.getById(input.projectId);
-      if (project.error || !project.data) {
-        throw new Error("Project not found");
-      }
-      if (project.data.createdById !== userId) {
-        throw new Error("Access denied");
-      }
+      await hierarchyAuthorization.requireProjectManager({
+        userId,
+        projectId: input.projectId,
+        isAdmin: ctx.session.user.role === "ADMIN",
+      });
 
       // Enforce one role per user per project
-      const existingMembers = await apiClient.projects.getMembers(input.projectId);
-      if (existingMembers.data?.some((m: any) => m.userId === input.userId)) {
+      const existingMembers = await apiClient.projects.getMembers(
+        input.projectId,
+      );
+      if (
+        existingMembers.data?.some((member) => member.userId === input.userId)
+      ) {
         throw new Error("User already has a role on this project");
       }
 
@@ -748,26 +795,30 @@ export const projectRouter = createTRPCRouter({
       const userId = ctx.session.user.id;
 
       // Get member to verify ownership
-      const member = await apiClient.projects.getMemberById(input.projectId, input.memberId);
+      const member = await apiClient.projects.getMemberById(
+        input.projectId,
+        input.memberId,
+      );
       if (member.error || !member.data) {
         throw new Error("Member not found");
       }
 
-      // Verify project ownership
-      const project = await apiClient.projects.getById(input.projectId);
-      if (project.error || !project.data) {
-        throw new Error("Project not found");
-      }
       if (member.data.projectId !== input.projectId) {
         throw new Error("Member does not belong to this project");
       }
-      if (project.data.createdById !== userId) {
-        throw new Error("Access denied");
-      }
-
-      const response = await apiClient.projects.updateMemberRole(input.projectId, input.memberId, {
-        role: input.role,
+      await hierarchyAuthorization.requireProjectManager({
+        userId,
+        projectId: member.data.projectId,
+        isAdmin: ctx.session.user.role === "ADMIN",
       });
+
+      const response = await apiClient.projects.updateMemberRole(
+        input.projectId,
+        input.memberId,
+        {
+          role: input.role,
+        },
+      );
 
       if (response.error || !response.data) {
         throw new Error(response.error ?? "Failed to update member role");
@@ -783,21 +834,27 @@ export const projectRouter = createTRPCRouter({
       const userId = ctx.session.user.id;
 
       // Get member to verify ownership
-      const member = await apiClient.projects.getMemberById(input.projectId, input.memberId);
+      const member = await apiClient.projects.getMemberById(
+        input.projectId,
+        input.memberId,
+      );
       if (member.error || !member.data) {
         throw new Error("Member not found");
       }
 
-      // Verify project ownership
-      const project = await apiClient.projects.getById(input.projectId);
-      if (project.error || !project.data) {
-        throw new Error("Project not found");
+      if (member.data.projectId !== input.projectId) {
+        throw new Error("Member does not belong to this project");
       }
-      if (project.data.createdById !== userId) {
-        throw new Error("Access denied");
-      }
+      await hierarchyAuthorization.requireProjectManager({
+        userId,
+        projectId: member.data.projectId,
+        isAdmin: ctx.session.user.role === "ADMIN",
+      });
 
-      const response = await apiClient.projects.removeMember(input.projectId, input.memberId);
+      const response = await apiClient.projects.removeMember(
+        input.projectId,
+        input.memberId,
+      );
 
       if (response.error) {
         throw new Error(response.error ?? "Failed to remove member");
@@ -829,14 +886,17 @@ export const projectRouter = createTRPCRouter({
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user.id;
 
-      const response = await apiClient.projects.applyToProject(input.projectId, {
-        userId: userId,
-        roleTitle: input.roleTitle,
-        message: input.message,
-        skills: input.skills,
-        experience: input.experience,
-        availability: input.availability,
-      });
+      const response = await apiClient.projects.applyToProject(
+        input.projectId,
+        {
+          userId: userId,
+          roleTitle: input.roleTitle,
+          message: input.message,
+          skills: input.skills,
+          experience: input.experience,
+          availability: input.availability,
+        },
+      );
 
       if (response.error || !response.data) {
         throw new Error(response.error ?? "Failed to submit application");
@@ -851,16 +911,15 @@ export const projectRouter = createTRPCRouter({
     .query(async ({ input, ctx }) => {
       const userId = ctx.session.user.id;
 
-      // Verify project ownership
-      const project = await apiClient.projects.getById(input.projectId);
-      if (project.error || !project.data) {
-        throw new Error("Project not found");
-      }
-      if (project.data.createdById !== userId) {
-        throw new Error("Access denied");
-      }
+      await hierarchyAuthorization.requireProjectManager({
+        userId,
+        projectId: input.projectId,
+        isAdmin: ctx.session.user.role === "ADMIN",
+      });
 
-      const response = await apiClient.projects.getApplications(input.projectId);
+      const response = await apiClient.projects.getApplications(
+        input.projectId,
+      );
 
       if (response.error) {
         throw new Error(response.error);
@@ -876,27 +935,31 @@ export const projectRouter = createTRPCRouter({
       const userId = ctx.session.user.id;
 
       // Get application to verify ownership
-      const application = await apiClient.projects.getApplicationById(input.projectId, input.applicationId);
+      const application = await apiClient.projects.getApplicationById(
+        input.projectId,
+        input.applicationId,
+      );
       if (application.error || !application.data) {
         throw new Error("Application not found");
       }
 
-      // Verify project ownership
-      const project = await apiClient.projects.getById(application.data.projectId);
-      if (project.error || !project.data) {
-        throw new Error("Project not found");
-      }
       if (application.data.projectId !== input.projectId) {
         throw new Error("Application does not belong to this project");
       }
-      if (project.data.createdById !== userId) {
-        throw new Error("Access denied");
-      }
-
-      const response = await apiClient.projects.reviewApplication(input.projectId, input.applicationId, {
-        status: input.status,
-        reviewMessage: input.reviewMessage,
+      await hierarchyAuthorization.requireProjectManager({
+        userId,
+        projectId: application.data.projectId,
+        isAdmin: ctx.session.user.role === "ADMIN",
       });
+
+      const response = await apiClient.projects.reviewApplication(
+        input.projectId,
+        input.applicationId,
+        {
+          status: input.status,
+          reviewMessage: input.reviewMessage,
+        },
+      );
 
       if (response.error || !response.data) {
         throw new Error(response.error ?? "Failed to review application");
@@ -929,21 +992,25 @@ export const projectRouter = createTRPCRouter({
       }
 
       const isFounder = project.data.createdById === userId;
-      const isMember = members.data.some((m: any) => m.userId === userId);
+      const isMember = members.data.some((member) => member.userId === userId);
       if (!isFounder && !isMember) {
         throw new Error("Only project members can create proposals");
       }
 
-      const response = await apiClient.projects.createProposal(input.projectId, {
-        createdById: userId,
-        type: input.type,
-        title: input.title,
-        description: input.description,
-        options: input.options,
-        quorum: input.quorum,
-        threshold: input.threshold,
-        votingDays: input.votingDays,
-      });
+      const response = await apiClient.projects.createProposal(
+        input.projectId,
+        {
+          projectId: input.projectId,
+          creatorId: userId,
+          type: input.type,
+          title: input.title,
+          description: input.description,
+          options: JSON.stringify(input.options),
+          quorum: input.quorum,
+          threshold: input.threshold,
+          votingEnd: votingEndFromDays(input.votingDays),
+        },
+      );
 
       if (response.error || !response.data) {
         throw new Error(response.error ?? "Failed to create proposal");
@@ -962,21 +1029,17 @@ export const projectRouter = createTRPCRouter({
         throw new Error(response.error);
       }
 
-      // Handle paged response from backend (returns { items: [...], page, totalCount, etc. })
-      const data = response.data;
-      if (data && typeof data === 'object' && 'items' in data) {
-        return (data as { items: any[] }).items ?? [];
-      }
-
-      // Fallback for direct array response
-      return Array.isArray(data) ? data : [];
+      return response.data?.items ?? [];
     }),
 
   // Get proposal by ID
   getProposalById: publicProcedure
     .input(z.object({ projectId: z.string(), proposalId: z.string() }))
     .query(async ({ input }) => {
-      const response = await apiClient.projects.getProposalById(input.projectId, input.proposalId);
+      const response = await apiClient.projects.getProposalById(
+        input.projectId,
+        input.proposalId,
+      );
 
       if (response.error || !response.data) {
         throw new Error(response.error ?? "Proposal not found");
@@ -992,7 +1055,10 @@ export const projectRouter = createTRPCRouter({
       const userId = ctx.session.user.id;
 
       // Get proposal to verify membership
-      const proposal = await apiClient.projects.getProposalById(input.projectId, input.proposalId);
+      const proposal = await apiClient.projects.getProposalById(
+        input.projectId,
+        input.proposalId,
+      );
       if (proposal.error || !proposal.data) {
         throw new Error("Proposal not found");
       }
@@ -1015,14 +1081,21 @@ export const projectRouter = createTRPCRouter({
       }
 
       const isFounder = project.data.createdById === userId;
-      const isMember = members.data.some((m: any) => m.userId === userId);
+      const isMember = members.data.some((member) => member.userId === userId);
       if (!isFounder && !isMember) {
         throw new Error("Only project members can vote");
       }
 
       // Verify user has an active MembershipCredential (governance right)
-      const credential = await apiClient.membershipCredentials.getByProjectAndUser(proposal.data.projectId, userId);
-      const hasActiveCredential = !credential.error && credential.data && credential.data.status === 'ACTIVE';
+      const credential =
+        await apiClient.membershipCredentials.getByProjectAndUser(
+          proposal.data.projectId,
+          userId,
+        );
+      const hasActiveCredential =
+        !credential.error &&
+        credential.data &&
+        credential.data.status === "ACTIVE";
 
       if (!hasActiveCredential) {
         if (isFounder) {
@@ -1033,19 +1106,27 @@ export const projectRouter = createTRPCRouter({
             grantedVia: "FOUNDER",
           });
           if (granted.error || !granted.data) {
-            throw new Error("Failed to auto-grant founder credential. Please try again.");
+            throw new Error(
+              "Failed to auto-grant founder credential. Please try again.",
+            );
           }
         } else {
           // Non-founders must complete KYC to get a credential
-          throw new Error("CREDENTIAL_REQUIRED: You need an active membership credential to vote. Please complete identity verification (KYC) to receive your credential.");
+          throw new Error(
+            "CREDENTIAL_REQUIRED: You need an active membership credential to vote. Please complete identity verification (KYC) to receive your credential.",
+          );
         }
       }
 
-      const response = await apiClient.projects.castVote(input.projectId, input.proposalId, {
-        userId: userId,
-        choice: input.choice,
-        reason: input.reason,
-      });
+      const response = await apiClient.projects.castVote(
+        input.projectId,
+        input.proposalId,
+        {
+          voterId: userId,
+          choice: input.choice,
+          reason: input.reason,
+        },
+      );
 
       if (response.error || !response.data) {
         throw new Error(response.error ?? "Failed to cast vote");
@@ -1061,24 +1142,27 @@ export const projectRouter = createTRPCRouter({
       const userId = ctx.session.user.id;
 
       // Get proposal to verify ownership
-      const proposal = await apiClient.projects.getProposalById(input.projectId, input.proposalId);
+      const proposal = await apiClient.projects.getProposalById(
+        input.projectId,
+        input.proposalId,
+      );
       if (proposal.error || !proposal.data) {
         throw new Error("Proposal not found");
       }
 
-      // Verify project ownership
-      const project = await apiClient.projects.getById(proposal.data.projectId);
-      if (project.error || !project.data) {
-        throw new Error("Project not found");
-      }
       if (proposal.data.projectId !== input.projectId) {
         throw new Error("Proposal does not belong to this project");
       }
-      if (project.data.createdById !== userId) {
-        throw new Error("Access denied");
-      }
+      await hierarchyAuthorization.requireProjectManager({
+        userId,
+        projectId: proposal.data.projectId,
+        isAdmin: ctx.session.user.role === "ADMIN",
+      });
 
-      const response = await apiClient.projects.closeProposal(input.projectId, input.proposalId);
+      const response = await apiClient.projects.closeProposal(
+        input.projectId,
+        input.proposalId,
+      );
 
       if (response.error || !response.data) {
         throw new Error(response.error ?? "Failed to close proposal");
@@ -1091,14 +1175,19 @@ export const projectRouter = createTRPCRouter({
   getProposalWithVotes: publicProcedure
     .input(z.object({ projectId: z.string(), proposalId: z.string() }))
     .query(async ({ input }) => {
-      const proposalResponse = await apiClient.projects.getProposalById(input.projectId, input.proposalId);
+      const proposalResponse = await apiClient.projects.getProposalById(
+        input.projectId,
+        input.proposalId,
+      );
 
       if (proposalResponse.error || !proposalResponse.data) {
         throw new Error(proposalResponse.error ?? "Proposal not found");
       }
 
       // Try to get vote summary from governance endpoint
-      const voteSummary = await apiClient.governance.getVoteSummary(input.proposalId);
+      const voteSummary = await apiClient.governance.getVoteSummary(
+        input.proposalId,
+      );
 
       return {
         ...proposalResponse.data,
@@ -1126,7 +1215,10 @@ export const projectRouter = createTRPCRouter({
       const userId = ctx.session.user.id;
 
       // Get proposal to verify ownership
-      const proposal = await apiClient.projects.getProposalById(input.projectId, input.proposalId);
+      const proposal = await apiClient.projects.getProposalById(
+        input.projectId,
+        input.proposalId,
+      );
       if (proposal.error || !proposal.data) {
         throw new Error("Proposal not found");
       }
@@ -1134,14 +1226,21 @@ export const projectRouter = createTRPCRouter({
         throw new Error("Only the proposal creator can edit");
       }
 
-      const response = await apiClient.projects.updateProposal(input.projectId, input.proposalId, {
-        title: input.title,
-        description: input.description,
-        options: input.options ? JSON.stringify(input.options) : undefined,
-        quorum: input.quorum,
-        threshold: input.threshold,
-        votingDays: input.votingDays,
-      });
+      const response = await apiClient.projects.updateProposal(
+        input.projectId,
+        input.proposalId,
+        {
+          title: input.title,
+          description: input.description,
+          options: input.options ? JSON.stringify(input.options) : undefined,
+          quorum: input.quorum,
+          threshold: input.threshold,
+          votingEnd:
+            input.votingDays === undefined
+              ? undefined
+              : votingEndFromDays(input.votingDays),
+        },
+      );
 
       if (response.error || !response.data) {
         throw new Error(response.error ?? "Failed to update proposal");
@@ -1157,7 +1256,10 @@ export const projectRouter = createTRPCRouter({
       const userId = ctx.session.user.id;
 
       // Get proposal to verify ownership
-      const proposal = await apiClient.projects.getProposalById(input.projectId, input.proposalId);
+      const proposal = await apiClient.projects.getProposalById(
+        input.projectId,
+        input.proposalId,
+      );
       if (proposal.error || !proposal.data) {
         throw new Error("Proposal not found");
       }
@@ -1165,7 +1267,10 @@ export const projectRouter = createTRPCRouter({
         throw new Error("Only the proposal creator can publish");
       }
 
-      const response = await apiClient.projects.publishProposal(input.projectId, input.proposalId);
+      const response = await apiClient.projects.publishProposal(
+        input.projectId,
+        input.proposalId,
+      );
 
       if (response.error || !response.data) {
         throw new Error(response.error ?? "Failed to publish proposal");
@@ -1178,7 +1283,10 @@ export const projectRouter = createTRPCRouter({
   getProposalComments: publicProcedure
     .input(z.object({ projectId: z.string(), proposalId: z.string() }))
     .query(async ({ input }) => {
-      const response = await apiClient.projects.getProposalComments(input.projectId, input.proposalId);
+      const response = await apiClient.projects.getProposalComments(
+        input.projectId,
+        input.proposalId,
+      );
 
       if (response.error) {
         throw new Error(response.error);
@@ -1193,11 +1301,15 @@ export const projectRouter = createTRPCRouter({
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user.id;
 
-      const response = await apiClient.projects.createProposalComment(input.projectId, input.proposalId, {
-        userId,
-        content: input.content,
-        parentId: input.parentId,
-      });
+      const response = await apiClient.projects.createProposalComment(
+        input.projectId,
+        input.proposalId,
+        {
+          userId,
+          content: input.content,
+          parentId: input.parentId,
+        },
+      );
 
       if (response.error || !response.data) {
         throw new Error(response.error ?? "Failed to create comment");
@@ -1230,7 +1342,9 @@ export const projectRouter = createTRPCRouter({
           throw new Error("Failed to verify membership");
         }
 
-        const isMember = members.data.some((m: any) => m.userId === userId);
+        const isMember = members.data.some(
+          (member) => member.userId === userId,
+        );
         if (!isMember) {
           throw new Error("Only project owner or members can post updates");
         }
@@ -1270,7 +1384,10 @@ export const projectRouter = createTRPCRouter({
       const userId = ctx.session.user.id;
 
       // Get update to verify ownership
-      const update = await apiClient.projects.getUpdateById(input.projectId, input.updateId);
+      const update = await apiClient.projects.getUpdateById(
+        input.projectId,
+        input.updateId,
+      );
       if (update.error || !update.data) {
         throw new Error("Update not found");
       }
@@ -1284,7 +1401,10 @@ export const projectRouter = createTRPCRouter({
         throw new Error("Access denied");
       }
 
-      const response = await apiClient.projects.deleteUpdate(input.projectId, input.updateId);
+      const response = await apiClient.projects.deleteUpdate(
+        input.projectId,
+        input.updateId,
+      );
 
       if (response.error) {
         throw new Error(response.error ?? "Failed to delete update");
@@ -1300,12 +1420,9 @@ export const projectRouter = createTRPCRouter({
   // Add comment to project
   addComment: protectedProcedure
     .input(addCommentSchema)
-    .mutation(async ({ input, ctx }) => {
-      const userId = ctx.session.user.id;
-
+    .mutation(async ({ input }) => {
       const response = await apiClient.projects.addComment(input.projectId, {
         projectId: input.projectId,
-        userId: userId,
         content: input.content,
         parentId: input.parentId,
       });
@@ -1337,7 +1454,10 @@ export const projectRouter = createTRPCRouter({
       const userId = ctx.session.user.id;
 
       // Get comment to verify ownership
-      const comment = await apiClient.projects.getCommentById(input.projectId, input.commentId);
+      const comment = await apiClient.projects.getCommentById(
+        input.projectId,
+        input.commentId,
+      );
       if (comment.error || !comment.data) {
         throw new Error("Comment not found");
       }
@@ -1346,12 +1466,21 @@ export const projectRouter = createTRPCRouter({
         throw new Error("Comment does not belong to this project");
       }
 
-      // Verify comment ownership
-      if (comment.data.userId !== userId) {
+      if (
+        comment.data.userId !== userId &&
+        !(await hierarchyAuthorization.canManageProject({
+          userId,
+          projectId: comment.data.projectId,
+          isAdmin: ctx.session.user.role === "ADMIN",
+        }))
+      ) {
         throw new Error("Access denied");
       }
 
-      const response = await apiClient.projects.deleteComment(input.projectId, input.commentId);
+      const response = await apiClient.projects.deleteComment(
+        input.projectId,
+        input.commentId,
+      );
 
       if (response.error) {
         throw new Error(response.error ?? "Failed to delete comment");
@@ -1370,12 +1499,15 @@ export const projectRouter = createTRPCRouter({
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user.id;
 
-      const response = await apiClient.projects.supportProject(input.projectId, {
-        userId: userId,
-        supportType: input.supportType,
-        monthlyAmount: input.monthlyAmount,
-        message: input.message,
-      });
+      const response = await apiClient.projects.supportProject(
+        input.projectId,
+        {
+          userId: userId,
+          supportType: input.supportType,
+          monthlyAmount: input.monthlyAmount,
+          message: input.message,
+        },
+      );
 
       if (response.error || !response.data) {
         throw new Error(response.error ?? "Failed to support project");
@@ -1391,7 +1523,10 @@ export const projectRouter = createTRPCRouter({
       const userId = ctx.session.user.id;
 
       // Get support to verify ownership
-      const support = await apiClient.projects.getSupportById(input.projectId, input.supportId);
+      const support = await apiClient.projects.getSupportById(
+        input.projectId,
+        input.supportId,
+      );
       if (support.error || !support.data) {
         throw new Error("Support not found");
       }
@@ -1405,7 +1540,10 @@ export const projectRouter = createTRPCRouter({
         throw new Error("Access denied");
       }
 
-      const response = await apiClient.projects.cancelSupport(input.projectId, input.supportId);
+      const response = await apiClient.projects.cancelSupport(
+        input.projectId,
+        input.supportId,
+      );
 
       if (response.error) {
         throw new Error(response.error ?? "Failed to cancel support");
@@ -1416,7 +1554,10 @@ export const projectRouter = createTRPCRouter({
 
   // Get user's supported projects
   getMySupports: protectedProcedure.query(async () => {
-    throw new TRPCError({ code: "NOT_IMPLEMENTED", message: "User supports endpoint is not yet available" });
+    throw new TRPCError({
+      code: "NOT_IMPLEMENTED",
+      message: "User supports endpoint is not yet available",
+    });
   }),
 
   // Get supporters of a project
@@ -1442,14 +1583,11 @@ export const projectRouter = createTRPCRouter({
     .query(async ({ input, ctx }) => {
       const userId = ctx.session.user.id;
 
-      // Verify project ownership
-      const project = await apiClient.projects.getById(input.projectId);
-      if (project.error || !project.data) {
-        throw new Error("Project not found");
-      }
-      if (project.data.createdById !== userId) {
-        throw new Error("Access denied");
-      }
+      await hierarchyAuthorization.requireProjectManager({
+        userId,
+        projectId: input.projectId,
+        isAdmin: ctx.session.user.role === "ADMIN",
+      });
 
       const response = await apiClient.projects.getInvitations(input.projectId);
 
@@ -1480,26 +1618,26 @@ export const projectRouter = createTRPCRouter({
         invitedUserId: z.string(),
         role: z.string(),
         message: z.string().optional(),
-      })
+      }),
     )
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user.id;
 
-      // Verify project ownership
-      const project = await apiClient.projects.getById(input.projectId);
-      if (project.error || !project.data) {
-        throw new Error("Project not found");
-      }
-      if (project.data.createdById !== userId) {
-        throw new Error("Access denied");
-      }
-
-      const response = await apiClient.projects.createInvitation(input.projectId, {
-        invitedById: userId,
-        invitedUserId: input.invitedUserId,
-        role: input.role,
-        message: input.message,
+      await hierarchyAuthorization.requireProjectManager({
+        userId,
+        projectId: input.projectId,
+        isAdmin: ctx.session.user.role === "ADMIN",
       });
+
+      const response = await apiClient.projects.createInvitation(
+        input.projectId,
+        {
+          invitedById: userId,
+          invitedUserId: input.invitedUserId,
+          role: input.role,
+          message: input.message,
+        },
+      );
 
       if (response.error || !response.data) {
         throw new Error(response.error ?? "Failed to create invitation");
@@ -1512,7 +1650,10 @@ export const projectRouter = createTRPCRouter({
   acceptInvitation: protectedProcedure
     .input(z.object({ projectId: z.string(), invitationId: z.string() }))
     .mutation(async ({ input }) => {
-      const response = await apiClient.projects.acceptInvitation(input.projectId, input.invitationId);
+      const response = await apiClient.projects.acceptInvitation(
+        input.projectId,
+        input.invitationId,
+      );
 
       if (response.error || !response.data) {
         throw new Error(response.error ?? "Failed to accept invitation");
@@ -1525,7 +1666,10 @@ export const projectRouter = createTRPCRouter({
   rejectInvitation: protectedProcedure
     .input(z.object({ projectId: z.string(), invitationId: z.string() }))
     .mutation(async ({ input }) => {
-      const response = await apiClient.projects.rejectInvitation(input.projectId, input.invitationId);
+      const response = await apiClient.projects.rejectInvitation(
+        input.projectId,
+        input.invitationId,
+      );
 
       if (response.error || !response.data) {
         throw new Error(response.error ?? "Failed to reject invitation");

@@ -1,7 +1,9 @@
 import { redirect, notFound } from "next/navigation";
 import { auth } from "~/server/auth";
-import { api } from "~/trpc/server";
+import { apiClient } from "~/lib/api";
+import { buildSignInHref } from "~/lib/auth-navigation";
 import { OpportunityForm } from "~/components/opportunity-form";
+import { toOpportunityPageData } from "../opportunity-page-contract";
 
 interface EditOpportunityPageProps {
   params: Promise<{
@@ -9,25 +11,21 @@ interface EditOpportunityPageProps {
   }>;
 }
 
-export default async function EditOpportunityPage({ params }: EditOpportunityPageProps) {
+export default async function EditOpportunityPage({
+  params,
+}: EditOpportunityPageProps) {
+  const { slug } = await params;
   const session = await auth();
 
   if (!session) {
-    redirect("/api/auth/signin");
+    redirect(buildSignInHref(`/opportunities/${slug}/edit`));
   }
 
-  const { slug } = await params;
-
-  let opportunity;
-  try {
-    opportunity = await api.opportunity.getById({ id: slug });
-  } catch {
+  const response = await apiClient.opportunities.getBySlug(slug);
+  if (response.error || !response.data) {
     notFound();
   }
-
-  if (!opportunity) {
-    notFound();
-  }
+  const opportunity = toOpportunityPageData(response.data);
 
   // Check ownership
   if (opportunity.posterId !== session.user.id) {

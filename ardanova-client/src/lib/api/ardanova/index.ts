@@ -22,7 +22,6 @@ import { XPEventsEndpoint } from "./endpoints/xp-events";
 import { AchievementsEndpoint } from "./endpoints/achievements";
 import { LeaderboardsEndpoint } from "./endpoints/leaderboards";
 import { ReferralsEndpoint } from "./endpoints/referrals";
-import { KycEndpoint } from "./endpoints/kyc";
 import { ProjectTokensEndpoint } from "./endpoints/project-tokens";
 import { TokenBalancesEndpoint } from "./endpoints/token-balances";
 import { PayoutsEndpoint } from "./endpoints/payouts";
@@ -36,7 +35,7 @@ import { WalletsEndpoint } from "./endpoints/wallets";
 import { AttachmentsEndpoint } from "./endpoints/attachments";
 import { TaskEscrowsEndpoint } from "./endpoints/task-escrows";
 import { DelegatedVotesEndpoint } from "./endpoints/delegated-votes";
-import { AzoaAvatarEndpoint } from "./endpoints/azoa-avatar";
+import { AzoaCustodialAccountEndpoint } from "./endpoints/azoa-custodial-account";
 import { FundingIntentsEndpoint } from "./endpoints/funding-intents";
 
 // Re-export types from endpoints
@@ -46,7 +45,6 @@ export type {
   UpdateUserDto,
   AdminUpdateUserRoleDto,
   AdminUpdateUserTypeDto,
-  AdminUpdateVerificationLevelDto,
   UserSkill,
   CreateUserSkillDto,
   UpdateUserSkillDto,
@@ -226,16 +224,6 @@ export type {
   ClaimReferralRewardDto,
 } from "./endpoints/referrals";
 export type {
-  KycSubmission,
-  KycDocument,
-  KycStatus,
-  KycDocumentType,
-  KycProvider,
-  SubmitKycDto,
-  SubmitKycDocumentDto,
-  ReviewKycDto,
-} from "./endpoints/kyc";
-export type {
   ProjectTokenConfigDto,
   CreateProjectTokenConfigDto,
   TokenAllocationDto,
@@ -312,9 +300,11 @@ export type {
   UpdateDelegatedVoteDto,
 } from "./endpoints/delegated-votes";
 export type {
-  AzoaAvatarStatusDto,
-  AzoaTier2ReadinessDto,
-} from "./endpoints/azoa-avatar";
+  AzoaCustodialAccountCapabilitiesDto,
+  AzoaCustodialAccountStatusDto,
+  AzoaKycSessionDto,
+  AzoaKycStatus,
+} from "./endpoints/azoa-custodial-account";
 export type {
   CreateFundingIntentRequest,
   FundingCheckout,
@@ -361,7 +351,6 @@ export class ArdaNovaApiClient extends BaseApiClient {
   readonly achievements: AchievementsEndpoint;
   readonly leaderboards: LeaderboardsEndpoint;
   readonly referrals: ReferralsEndpoint;
-  readonly kyc: KycEndpoint;
   readonly projectTokens: ProjectTokensEndpoint;
   readonly tokenBalances: TokenBalancesEndpoint;
   readonly payouts: PayoutsEndpoint;
@@ -375,7 +364,7 @@ export class ArdaNovaApiClient extends BaseApiClient {
   readonly attachments: AttachmentsEndpoint;
   readonly taskEscrows: TaskEscrowsEndpoint;
   readonly delegatedVotes: DelegatedVotesEndpoint;
-  readonly azoaAvatar: AzoaAvatarEndpoint;
+  readonly azoaCustodialAccount: AzoaCustodialAccountEndpoint;
   readonly fundingIntents: FundingIntentsEndpoint;
 
   constructor(config: BaseApiClientConfig) {
@@ -402,7 +391,6 @@ export class ArdaNovaApiClient extends BaseApiClient {
     this.achievements = new AchievementsEndpoint(this);
     this.leaderboards = new LeaderboardsEndpoint(this);
     this.referrals = new ReferralsEndpoint(this);
-    this.kyc = new KycEndpoint(this);
     this.projectTokens = new ProjectTokensEndpoint(this);
     this.tokenBalances = new TokenBalancesEndpoint(this);
     this.payouts = new PayoutsEndpoint(this);
@@ -416,7 +404,7 @@ export class ArdaNovaApiClient extends BaseApiClient {
     this.attachments = new AttachmentsEndpoint(this);
     this.taskEscrows = new TaskEscrowsEndpoint(this);
     this.delegatedVotes = new DelegatedVotesEndpoint(this);
-    this.azoaAvatar = new AzoaAvatarEndpoint(this);
+    this.azoaCustodialAccount = new AzoaCustodialAccountEndpoint(this);
     this.fundingIntents = new FundingIntentsEndpoint(this);
   }
 

@@ -3,7 +3,16 @@
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Loader2, Plus, X, Info, CheckSquare, Calendar, Tag } from "lucide-react";
+import {
+  ArrowLeft,
+  Loader2,
+  Plus,
+  X,
+  Info,
+  CheckSquare,
+  Calendar,
+  Tag,
+} from "lucide-react";
 
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
@@ -45,20 +54,29 @@ const pbiTypeLabels: Record<string, string> = {
   SPIKE: "Spike",
 };
 
-const effortLabels: Record<string, string> = {
-  XS: "XS (~1 hour)",
-  S: "S (~2-4 hours)",
-  M: "M (~1 day)",
-  L: "L (~2-3 days)",
-  XL: "XL (~1 week+)",
-};
+const estimatedHourOptions = [1, 3, 8, 20, 40] as const;
+
+interface WorkItemFormData {
+  title: string;
+  description: string;
+  projectId: string;
+  type: string;
+  priority: string;
+  estimatedHours: string;
+  dueDate: string;
+  assignee: string;
+  tags: string[];
+}
 
 export default function CreateTaskPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const initialType = searchParams.get("type") === "pbi" ? "pbi" : "task";
   const [itemType, setItemType] = useState<"task" | "pbi">(initialType);
-  const { data: projectsData } = api.project.getMyProjects.useQuery({ limit: 50, page: 1 });
+  const { data: projectsData } = api.project.getMyProjects.useQuery({
+    limit: 50,
+    page: 1,
+  });
   const createTask = api.task.create.useMutation({
     onSuccess: () => {
       toast.success("Task created");
@@ -76,23 +94,25 @@ export default function CreateTaskPage() {
   const { options: priorityLevels } = useEnumOptions("TaskPriority");
   const { options: taskTypes } = useEnumOptions("TaskType", taskTypeLabels);
   const { options: pbiTypes } = useEnumOptions("PBIType", pbiTypeLabels);
-  const { options: effortEstimates } = useEnumOptions("EffortEstimate", effortLabels);
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<WorkItemFormData>({
     title: "",
     description: "",
     projectId: "",
     type: "",
     priority: "MEDIUM",
-    effort: "",
+    estimatedHours: "",
     dueDate: "",
     assignee: "",
-    tags: [] as string[],
+    tags: [],
   });
   const [newTag, setNewTag] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleChange = (field: string, value: string) => {
+  const handleChange = <Key extends keyof WorkItemFormData>(
+    field: Key,
+    value: WorkItemFormData[Key],
+  ) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
     if (errors[field]) {
       setErrors((prev) => {
@@ -129,7 +149,8 @@ export default function CreateTaskPage() {
     } else if (trimmedDesc.length < 10) {
       newErrors.description = "Must be at least 10 characters";
     }
-    if (!formData.type) newErrors.type = `${itemType === "pbi" ? "PBI" : "Task"} type is required`;
+    if (!formData.type)
+      newErrors.type = `${itemType === "pbi" ? "PBI" : "Task"} type is required`;
     if (!formData.projectId) newErrors.projectId = "Project is required";
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -149,68 +170,108 @@ export default function CreateTaskPage() {
           projectId: formData.projectId,
           title: formData.title.trim(),
           description: formData.description.trim(),
-          type: (formData.type || "FEATURE") as "FEATURE" | "ENHANCEMENT" | "BUG" | "TECHNICAL_DEBT" | "SPIKE",
-          priority: (formData.priority || "MEDIUM") as "CRITICAL" | "HIGH" | "MEDIUM" | "LOW",
+          type: (formData.type || "FEATURE") as
+            | "FEATURE"
+            | "ENHANCEMENT"
+            | "BUG"
+            | "TECHNICAL_DEBT"
+            | "SPIKE",
+          priority: (formData.priority || "MEDIUM") as
+            | "CRITICAL"
+            | "HIGH"
+            | "MEDIUM"
+            | "LOW",
         });
       } else {
         await createTask.mutateAsync({
           projectId: formData.projectId,
           title: formData.title.trim(),
           description: formData.description.trim(),
-          type: formData.type as "FEATURE" | "BUG" | "ENHANCEMENT" | "DOCUMENTATION" | "RESEARCH" | "DESIGN" | "TESTING" | "REVIEW" | "MAINTENANCE" | "OTHER",
+          type: formData.type as
+            | "FEATURE"
+            | "BUG"
+            | "ENHANCEMENT"
+            | "DOCUMENTATION"
+            | "RESEARCH"
+            | "DESIGN"
+            | "TESTING"
+            | "REVIEW"
+            | "MAINTENANCE"
+            | "OTHER",
           priority: formData.priority as "LOW" | "MEDIUM" | "HIGH" | "URGENT",
-          effortEstimate: formData.effort ? formData.effort as "XS" | "S" | "M" | "L" | "XL" : undefined,
+          estimatedHours: formData.estimatedHours
+            ? Number(formData.estimatedHours)
+            : undefined,
           dueDate: formData.dueDate || undefined,
         });
       }
+    } catch (error) {
+      setErrors({
+        submit:
+          error instanceof Error
+            ? error.message
+            : "Work item could not be created",
+      });
     } finally {
       setIsSubmitting(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="max-w-2xl mx-auto px-4 py-8">
+    <div className="bg-background min-h-screen">
+      <div className="mx-auto max-w-2xl px-4 py-8">
         {/* Header */}
         <div className="mb-8">
           <Button variant="ghost" asChild className="mb-4 -ml-2">
             <Link href="/tasks">
-              <ArrowLeft className="h-4 w-4 mr-2" />
+              <ArrowLeft className="mr-2 h-4 w-4" />
               Back to Tasks
             </Link>
           </Button>
-          <h1 className="text-3xl font-bold flex items-center gap-3">
-            <div className="w-10 h-10 bg-neon/20 rounded-lg flex items-center justify-center">
-              <CheckSquare className="h-5 w-5 text-neon" />
+          <h1 className="flex items-center gap-3 text-3xl font-bold">
+            <div className="bg-system/20 flex h-10 w-10 items-center justify-center rounded-none">
+              <CheckSquare className="text-system h-5 w-5" />
             </div>
             Create New {itemType === "pbi" ? "PBI" : "Task"}
           </h1>
           <p className="text-muted-foreground mt-2">
             Add a new work item to track progress
           </p>
-          <div className="flex items-center gap-2 mt-3">
+          <div
+            className="mt-3 flex flex-wrap items-center gap-2"
+            role="group"
+            aria-label="Work item type"
+          >
             <button
               type="button"
-              onClick={() => { setItemType("task"); handleChange("type", ""); }}
-              className={`px-4 py-2 rounded-lg border-2 text-sm font-medium transition-all ${
+              onClick={() => {
+                setItemType("task");
+                handleChange("type", "");
+              }}
+              aria-pressed={itemType === "task"}
+              className={`min-h-11 rounded-none border-2 px-4 py-2 text-sm font-medium transition-all ${
                 itemType === "task"
-                  ? "border-neon bg-neon/10 text-neon"
-                  : "border-border hover:border-neon/50"
+                  ? "border-system bg-system/10 text-system"
+                  : "border-border hover:border-system/50"
               }`}
             >
-              <CheckSquare className="inline h-4 w-4 mr-1.5 -mt-0.5" />
+              <CheckSquare className="-mt-0.5 mr-1.5 inline h-4 w-4" />
               Task
             </button>
             <button
               type="button"
-              onClick={() => { setItemType("pbi"); handleChange("type", ""); }}
-              className={`px-4 py-2 rounded-lg border-2 text-sm font-medium transition-all ${
+              onClick={() => {
+                setItemType("pbi");
+                handleChange("type", "");
+              }}
+              aria-pressed={itemType === "pbi"}
+              className={`min-h-11 rounded-none border-2 px-4 py-2 text-sm font-medium transition-all ${
                 itemType === "pbi"
-                  ? "border-neon-purple bg-neon-purple/10 text-neon-purple"
-                  : "border-border hover:border-neon-purple/50"
+                  ? "border-system bg-system/10 text-system"
+                  : "border-border hover:border-system-purple/50"
               }`}
             >
-              <Tag className="inline h-4 w-4 mr-1.5 -mt-0.5" />
+              <Tag className="-mt-0.5 mr-1.5 inline h-4 w-4" />
               PBI
             </button>
           </div>
@@ -220,56 +281,99 @@ export default function CreateTaskPage() {
           {/* Task Info */}
           <Card className="bg-card border-border">
             <CardHeader className="pb-3">
-              <CardTitle className="text-lg">{itemType === "pbi" ? "PBI" : "Task"} Details</CardTitle>
+              <CardTitle className="text-lg">
+                {itemType === "pbi" ? "PBI" : "Task"} Details
+              </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
-                <label className="text-sm font-medium mb-2 block">
-                  Title <span className="text-neon">*</span>
+                <label
+                  htmlFor="task-title"
+                  className="mb-2 block text-sm font-medium"
+                >
+                  Title <span className="text-system">*</span>
                 </label>
                 <input
                   type="text"
+                  id="task-title"
+                  required
+                  aria-invalid={Boolean(errors.title)}
+                  aria-describedby={
+                    errors.title ? "task-title-error" : undefined
+                  }
                   value={formData.title}
                   onChange={(e) => handleChange("title", e.target.value)}
                   placeholder="e.g., Implement user authentication flow"
-                  className={`w-full px-4 py-3 bg-muted/50 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-neon/50 ${
+                  className={`bg-muted/50 focus-visible:ring-ring/50 w-full rounded-none border-2 px-4 py-3 focus:ring-2 focus:outline-none ${
                     errors.title ? "border-destructive" : "border-border"
                   }`}
                 />
                 {errors.title && (
-                  <p className="text-sm text-destructive mt-1">{errors.title}</p>
+                  <p
+                    id="task-title-error"
+                    role="alert"
+                    className="text-destructive mt-1 text-sm"
+                  >
+                    {errors.title}
+                  </p>
                 )}
               </div>
 
               <div>
-                <label className="text-sm font-medium mb-2 block">
-                  Description <span className="text-neon">*</span>
+                <label
+                  htmlFor="task-description"
+                  className="mb-2 block text-sm font-medium"
+                >
+                  Description <span className="text-system">*</span>
                 </label>
                 <textarea
+                  id="task-description"
+                  required
+                  aria-invalid={Boolean(errors.description)}
+                  aria-describedby={
+                    errors.description ? "task-description-error" : undefined
+                  }
                   value={formData.description}
                   onChange={(e) => handleChange("description", e.target.value)}
                   placeholder="Describe the task in detail. Include acceptance criteria if applicable..."
                   rows={4}
-                  className={`w-full px-4 py-3 bg-muted/50 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-neon/50 resize-none ${
+                  className={`bg-muted/50 focus-visible:ring-ring/50 w-full resize-none rounded-none border-2 px-4 py-3 focus:ring-2 focus:outline-none ${
                     errors.description ? "border-destructive" : "border-border"
                   }`}
                 />
                 {errors.description && (
-                  <p className="text-sm text-destructive mt-1">
+                  <p
+                    id="task-description-error"
+                    role="alert"
+                    className="text-destructive mt-1 text-sm"
+                  >
                     {errors.description}
                   </p>
                 )}
               </div>
 
               <div>
-                <label className="text-sm font-medium mb-2 block">
-                  Project <span className="text-neon">*</span>
+                <label
+                  htmlFor="task-project"
+                  className="mb-2 block text-sm font-medium"
+                >
+                  Project <span className="text-system">*</span>
                 </label>
                 <Select
                   value={formData.projectId}
                   onValueChange={(value) => handleChange("projectId", value)}
                 >
-                  <SelectTrigger className={errors.projectId ? "border-destructive" : "border-border"}>
+                  <SelectTrigger
+                    id="task-project"
+                    aria-required="true"
+                    aria-invalid={Boolean(errors.projectId)}
+                    aria-describedby={
+                      errors.projectId ? "task-project-error" : undefined
+                    }
+                    className={
+                      errors.projectId ? "border-destructive" : "border-border"
+                    }
+                  >
                     <SelectValue placeholder="Select a project" />
                   </SelectTrigger>
                   <SelectContent>
@@ -281,20 +385,35 @@ export default function CreateTaskPage() {
                   </SelectContent>
                 </Select>
                 {errors.projectId && (
-                  <p className="text-sm text-destructive mt-1">{errors.projectId}</p>
+                  <p
+                    id="task-project-error"
+                    role="alert"
+                    className="text-destructive mt-1 text-sm"
+                  >
+                    {errors.projectId}
+                  </p>
                 )}
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
-                  <label className="text-sm font-medium mb-2 block">
-                    Type <span className="text-neon">*</span>
+                  <label
+                    htmlFor="task-type"
+                    className="mb-2 block text-sm font-medium"
+                  >
+                    Type <span className="text-system">*</span>
                   </label>
                   <Select
                     value={formData.type}
                     onValueChange={(value) => handleChange("type", value)}
                   >
                     <SelectTrigger
+                      id="task-type"
+                      aria-required="true"
+                      aria-invalid={Boolean(errors.type)}
+                      aria-describedby={
+                        errors.type ? "task-type-error" : undefined
+                      }
                       className={
                         errors.type ? "border-destructive" : "border-border"
                       }
@@ -310,26 +429,37 @@ export default function CreateTaskPage() {
                     </SelectContent>
                   </Select>
                   {errors.type && (
-                    <p className="text-sm text-destructive mt-1">{errors.type}</p>
+                    <p
+                      id="task-type-error"
+                      role="alert"
+                      className="text-destructive mt-1 text-sm"
+                    >
+                      {errors.type}
+                    </p>
                   )}
                 </div>
 
                 {itemType === "task" && (
                   <div>
-                    <label className="text-sm font-medium mb-2 block">
-                      Effort Estimate
+                    <label
+                      htmlFor="task-estimated-hours"
+                      className="mb-2 block text-sm font-medium"
+                    >
+                      Estimated hours
                     </label>
                     <Select
-                      value={formData.effort}
-                      onValueChange={(value) => handleChange("effort", value)}
+                      value={formData.estimatedHours}
+                      onValueChange={(value) =>
+                        handleChange("estimatedHours", value)
+                      }
                     >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select effort" />
+                      <SelectTrigger id="task-estimated-hours">
+                        <SelectValue placeholder="Select stored hour estimate" />
                       </SelectTrigger>
                       <SelectContent>
-                        {effortEstimates.map((est) => (
-                          <SelectItem key={est.id} value={est.id}>
-                            {est.label}
+                        {estimatedHourOptions.map((hours) => (
+                          <SelectItem key={hours} value={String(hours)}>
+                            {hours} {hours === 1 ? "hour" : "hours"}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -343,59 +473,70 @@ export default function CreateTaskPage() {
           {/* Priority & Scheduling */}
           <Card className="bg-card border-border">
             <CardHeader className="pb-3">
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Calendar className="h-5 w-5 text-neon-purple" />
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Calendar className="text-system h-5 w-5" />
                 Priority & Scheduling
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div>
-                <label className="text-sm font-medium mb-2 block">Priority</label>
-                <div className="grid grid-cols-4 gap-2">
+              <fieldset>
+                <legend className="mb-2 block text-sm font-medium">
+                  Priority
+                </legend>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                   {priorityLevels.map((level) => (
                     <button
                       key={level.id}
                       type="button"
                       onClick={() => handleChange("priority", level.id)}
-                      className={`px-4 py-3 rounded-lg border-2 text-sm font-medium transition-all ${
+                      aria-pressed={formData.priority === level.id}
+                      className={`min-h-11 rounded-none border-2 px-4 py-3 text-sm font-medium transition-all ${
                         formData.priority === level.id
-                          ? "border-neon bg-neon/10 text-neon"
-                          : "border-border hover:border-neon/50"
+                          ? "border-system bg-system/10 text-system"
+                          : "border-border hover:border-system/50"
                       }`}
                     >
                       <div
-                        className={`w-2 h-2 rounded-full ${priorityColors[level.id] ?? "bg-gray-500"} inline-block mr-2`}
+                        className={`h-2 w-2 rounded-none ${priorityColors[level.id] ?? "bg-gray-500"} mr-2 inline-block`}
                       />
                       {level.label}
                     </button>
                   ))}
                 </div>
-              </div>
+              </fieldset>
 
               {itemType === "task" && (
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div>
-                    <label className="text-sm font-medium mb-2 block">
+                    <label
+                      htmlFor="task-due-date"
+                      className="mb-2 block text-sm font-medium"
+                    >
                       Due Date
                     </label>
                     <input
                       type="date"
+                      id="task-due-date"
                       value={formData.dueDate}
                       onChange={(e) => handleChange("dueDate", e.target.value)}
-                      className="w-full px-4 py-3 bg-muted/50 border-2 border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-neon/50"
+                      className="bg-muted/50 border-border focus-visible:ring-ring/50 w-full rounded-none border-2 px-4 py-3 focus:ring-2 focus:outline-none"
                     />
                   </div>
 
                   <div>
-                    <label className="text-sm font-medium mb-2 block">
+                    <label
+                      htmlFor="task-assignee"
+                      className="mb-2 block text-sm font-medium"
+                    >
                       Assignee
                     </label>
                     <input
                       type="text"
+                      id="task-assignee"
                       value={formData.assignee}
                       onChange={(e) => handleChange("assignee", e.target.value)}
                       placeholder="@username or email"
-                      className="w-full px-4 py-3 bg-muted/50 border-2 border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-neon/50"
+                      className="bg-muted/50 border-border focus-visible:ring-ring/50 w-full rounded-none border-2 px-4 py-3 focus:ring-2 focus:outline-none"
                     />
                   </div>
                 </div>
@@ -407,15 +548,19 @@ export default function CreateTaskPage() {
           {itemType === "task" && (
             <Card className="bg-card border-border">
               <CardHeader className="pb-3">
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <Tag className="h-5 w-5 text-neon-pink" />
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <Tag className="text-primary h-5 w-5" />
                   Tags
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
+                <label htmlFor="task-tag" className="sr-only">
+                  Add a task tag
+                </label>
                 <div className="flex gap-2">
                   <input
                     type="text"
+                    id="task-tag"
                     value={newTag}
                     onChange={(e) => setNewTag(e.target.value)}
                     placeholder="Add a tag..."
@@ -425,13 +570,14 @@ export default function CreateTaskPage() {
                         addTag();
                       }
                     }}
-                    className="flex-1 px-4 py-3 bg-muted/50 border-2 border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-neon/50"
+                    className="bg-muted/50 border-border focus-visible:ring-ring/50 flex-1 rounded-none border-2 px-4 py-3 focus:ring-2 focus:outline-none"
                   />
                   <Button
                     type="button"
                     variant="outline"
                     onClick={addTag}
-                    className="px-4"
+                    className="min-h-11 min-w-11 px-4"
+                    aria-label="Add tag"
                   >
                     <Plus className="h-4 w-4" />
                   </Button>
@@ -442,11 +588,17 @@ export default function CreateTaskPage() {
                       <Badge
                         key={tag}
                         variant="secondary"
-                        className="gap-1 cursor-pointer hover:bg-destructive/20"
-                        onClick={() => removeTag(tag)}
+                        className="gap-1 pr-0 pl-3"
                       >
                         {tag}
-                        <X className="h-3 w-3" />
+                        <button
+                          type="button"
+                          onClick={() => removeTag(tag)}
+                          aria-label={`Remove ${tag} tag`}
+                          className="focus-visible:ring-ring hover:bg-destructive/20 flex min-h-11 min-w-11 items-center justify-center focus-visible:ring-2 focus-visible:outline-none"
+                        >
+                          <X className="h-3 w-3" aria-hidden="true" />
+                        </button>
                       </Badge>
                     ))}
                   </div>
@@ -459,25 +611,29 @@ export default function CreateTaskPage() {
           {errors.submit && (
             <Card className="bg-destructive/10 border-destructive">
               <CardContent className="py-4">
-                <p className="text-sm text-destructive">{errors.submit}</p>
+                <p role="alert" className="text-destructive text-sm">
+                  {errors.submit}
+                </p>
               </CardContent>
             </Card>
           )}
 
           {/* Submit Button */}
-          <div className="flex gap-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:gap-4">
             <Button
               type="submit"
-              className="flex-1 bg-neon hover:bg-neon/90 text-black font-semibold py-6"
+              className="bg-system text-system-foreground hover:bg-system/90 flex-1 py-6 font-semibold"
               disabled={isSubmitting}
             >
               {isSubmitting ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Creating {itemType === "pbi" ? "PBI" : "Task"}...
                 </>
+              ) : itemType === "pbi" ? (
+                "Create PBI"
               ) : (
-                itemType === "pbi" ? "Create PBI" : "Create Task"
+                "Create Task"
               )}
             </Button>
             <Button type="button" variant="outline" asChild className="py-6">
@@ -486,9 +642,9 @@ export default function CreateTaskPage() {
           </div>
 
           {/* Info Note */}
-          <div className="flex items-start gap-3 p-4 bg-muted/30 rounded-lg border border-border">
-            <Info className="h-5 w-5 text-neon mt-0.5" />
-            <div className="text-sm text-muted-foreground">
+          <div className="bg-muted/30 border-border flex items-start gap-3 rounded-none border p-4">
+            <Info className="text-system mt-0.5 h-5 w-5" />
+            <div className="text-muted-foreground text-sm">
               <p>
                 {itemType === "pbi"
                   ? "PBIs represent user stories or work items in your product backlog. They can be broken down into tasks."

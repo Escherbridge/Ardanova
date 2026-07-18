@@ -4,7 +4,12 @@ import { Check, Clock, Loader2, X, XCircle } from "lucide-react";
 import { cn } from "~/lib/utils";
 import { Button } from "~/components/ui/button";
 
-type PayoutStatus = "PENDING" | "PROCESSING" | "COMPLETED" | "FAILED" | "CANCELLED";
+type PayoutStatus =
+  | "PENDING"
+  | "PROCESSING"
+  | "COMPLETED"
+  | "FAILED"
+  | "CANCELLED";
 
 interface PayoutStatusTrackerProps {
   status: PayoutStatus;
@@ -47,14 +52,13 @@ export function PayoutStatusTracker({
 }: PayoutStatusTrackerProps) {
   const isFailed = status === "FAILED";
   const isCancelled = status === "CANCELLED";
-  const isTerminal = isFailed || isCancelled || status === "COMPLETED";
   const currentStep = getStepIndex(status);
 
   return (
     <div
       className={cn(
-        "rounded-none border-2 border-border bg-card p-5 space-y-5",
-        status === "COMPLETED" && "border-neon-green/50",
+        "border-border bg-card space-y-5 rounded-none border-2 p-5",
+        status === "COMPLETED" && "border-success/50",
         isFailed && "border-destructive/50",
         isCancelled && "border-border",
         className,
@@ -63,15 +67,15 @@ export function PayoutStatusTracker({
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <p className="font-mono text-xs uppercase tracking-widest text-muted-foreground">
+          <p className="text-muted-foreground font-mono text-xs tracking-widest uppercase">
             Payout Request
           </p>
-          <p className="font-mono text-xs text-muted-foreground/60 mt-0.5">
+          <p className="text-muted-foreground/60 mt-0.5 font-mono text-xs">
             #{payoutId.slice(0, 8).toUpperCase()}
           </p>
         </div>
         {usdAmount !== undefined && (
-          <p className="font-mono text-xl font-bold text-foreground">
+          <p className="text-foreground font-mono text-xl font-bold">
             {formatUsd(usdAmount)}
           </p>
         )}
@@ -85,33 +89,35 @@ export function PayoutStatusTracker({
             const isActive = currentStep === idx;
 
             return (
-              <div key={step.key} className="flex items-center flex-1 last:flex-none">
+              <div
+                key={step.key}
+                className="flex flex-1 items-center last:flex-none"
+              >
                 {/* Step dot */}
                 <div className="flex flex-col items-center gap-1.5">
                   <div
                     className={cn(
-                      "w-8 h-8 rounded-none border-2 flex items-center justify-center transition-colors",
-                      isDone &&
-                        "border-neon-green bg-neon-green/20",
-                      isActive && !isDone &&
-                        "border-neon-cyan bg-neon-cyan/10 animate-pulse",
-                      !isDone && !isActive &&
-                        "border-border bg-muted/30",
+                      "flex h-8 w-8 items-center justify-center rounded-none border-2 transition-colors",
+                      isDone && "border-success bg-success/20",
+                      isActive &&
+                        !isDone &&
+                        "border-system bg-system/10 animate-pulse",
+                      !isDone && !isActive && "border-border bg-muted/30",
                     )}
                   >
                     {isDone ? (
-                      <Check className="h-4 w-4 text-neon-green" />
+                      <Check className="text-success h-4 w-4" />
                     ) : isActive ? (
-                      <Loader2 className="h-4 w-4 text-neon-cyan animate-spin" />
+                      <Loader2 className="text-system h-4 w-4 animate-spin" />
                     ) : (
-                      <Clock className="h-4 w-4 text-muted-foreground/40" />
+                      <Clock className="text-muted-foreground/40 h-4 w-4" />
                     )}
                   </div>
                   <span
                     className={cn(
-                      "font-mono text-[10px] uppercase tracking-wide",
-                      isDone && "text-neon-green",
-                      isActive && "text-neon-cyan",
+                      "font-mono text-[10px] tracking-wide uppercase",
+                      isDone && "text-success",
+                      isActive && "text-system",
                       !isDone && !isActive && "text-muted-foreground/40",
                     )}
                   >
@@ -123,8 +129,8 @@ export function PayoutStatusTracker({
                 {idx < STEPS.length - 1 && (
                   <div
                     className={cn(
-                      "flex-1 h-0.5 mx-1 mb-5 transition-colors",
-                      currentStep > idx ? "bg-neon-green/60" : "bg-border",
+                      "mx-1 mb-5 h-0.5 flex-1 transition-colors",
+                      currentStep > idx ? "bg-success/60" : "bg-border",
                     )}
                   />
                 )}
@@ -143,9 +149,9 @@ export function PayoutStatusTracker({
           )}
         >
           {isFailed ? (
-            <XCircle className="h-5 w-5 text-destructive shrink-0" />
+            <XCircle className="text-destructive h-5 w-5 shrink-0" />
           ) : (
-            <X className="h-5 w-5 text-muted-foreground shrink-0" />
+            <X className="text-muted-foreground h-5 w-5 shrink-0" />
           )}
           <div>
             <p
@@ -156,7 +162,7 @@ export function PayoutStatusTracker({
             >
               {isFailed ? "Payout Failed" : "Payout Cancelled"}
             </p>
-            <p className="font-mono text-xs text-muted-foreground mt-0.5">
+            <p className="text-muted-foreground mt-0.5 font-mono text-xs">
               {isFailed
                 ? "Something went wrong. Contact support if this persists."
                 : "This payout request has been cancelled."}
@@ -172,11 +178,11 @@ export function PayoutStatusTracker({
           size="sm"
           onClick={onCancel}
           disabled={isCancelling}
-          className="w-full border-border font-mono text-xs uppercase tracking-wide"
+          className="border-border w-full font-mono text-xs tracking-wide uppercase"
         >
           {isCancelling ? (
             <>
-              <Loader2 className="h-3 w-3 mr-2 animate-spin" />
+              <Loader2 className="mr-2 h-3 w-3 animate-spin" />
               Cancelling...
             </>
           ) : (
@@ -187,9 +193,9 @@ export function PayoutStatusTracker({
 
       {/* Completed message */}
       {status === "COMPLETED" && (
-        <div className="flex items-center gap-2 rounded-none border border-neon-green/30 bg-neon-green/5 px-3 py-2">
-          <Check className="h-4 w-4 text-neon-green shrink-0" />
-          <p className="font-mono text-xs text-neon-green">
+        <div className="border-success/30 bg-success/5 flex items-center gap-2 rounded-none border px-3 py-2">
+          <Check className="text-success h-4 w-4 shrink-0" />
+          <p className="text-success font-mono text-xs">
             Funds transferred to your account
           </p>
         </div>

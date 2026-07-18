@@ -1,18 +1,26 @@
-import { type BaseApiClient, type ApiResponse, type PagedResult } from "../../base-client";
+import {
+  type BaseApiClient,
+  type ApiResponse,
+  type PagedResult,
+} from "../../base-client";
 
 /** Mirrors `ArdaNova.Domain.Models.Enums.PostType` JSON values. */
-export type PostType = "POST" | "ANNOUNCEMENT" | "MILESTONE" | "UPDATE" | string;
+export type PostType = "POST" | "ANNOUNCEMENT" | "MILESTONE" | "UPDATE";
 
 /** Mirrors `ArdaNova.Domain.Models.Enums.PostVisibility` JSON values. */
-export type PostVisibility = "PUBLIC" | "FOLLOWERS" | "PROJECT_MEMBERS" | "PRIVATE" | string;
+export type PostVisibility =
+  | "PUBLIC"
+  | "FOLLOWERS"
+  | "PROJECT_MEMBERS"
+  | "PRIVATE";
 
 export interface Post {
   id: string;
   authorId: string;
   projectId?: string | null;
   guildId?: string | null;
-  type: string;
-  visibility: string;
+  type: PostType;
+  visibility: PostVisibility;
   title?: string | null;
   content: string;
   metadata?: string | null;
@@ -89,63 +97,100 @@ export class PostsEndpoint {
   }
 
   getByUserId(userId: string): Promise<ApiResponse<Post[]>> {
-    return this.client.get<Post[]>(`/api/posts/user/${encodeURIComponent(userId)}`);
+    return this.client.get<Post[]>(
+      `/api/posts/user/${encodeURIComponent(userId)}`,
+    );
   }
 
   create(data: CreatePostDto): Promise<ApiResponse<Post>> {
     return this.client.post<Post>("/api/posts", data);
   }
 
-  update(id: string, authorId: string, data: UpdatePostDto): Promise<ApiResponse<Post>> {
+  update(
+    id: string,
+    authorId: string,
+    data: UpdatePostDto,
+  ): Promise<ApiResponse<Post>> {
     const q = new URLSearchParams({ authorId });
-    return this.client.put<Post>(`/api/posts/${encodeURIComponent(id)}?${q.toString()}`, data);
+    return this.client.put<Post>(
+      `/api/posts/${encodeURIComponent(id)}?${q.toString()}`,
+      data,
+    );
   }
 
   delete(id: string, authorId: string): Promise<ApiResponse<void>> {
     const q = new URLSearchParams({ authorId });
-    return this.client.delete(`/api/posts/${encodeURIComponent(id)}?${q.toString()}`);
+    return this.client.delete(
+      `/api/posts/${encodeURIComponent(id)}?${q.toString()}`,
+    );
   }
 
   like(id: string, userId: string): Promise<ApiResponse<Post>> {
     const q = new URLSearchParams({ userId });
-    return this.client.post<Post>(`/api/posts/${encodeURIComponent(id)}/like?${q.toString()}`, {});
+    return this.client.post<Post>(
+      `/api/posts/${encodeURIComponent(id)}/like?${q.toString()}`,
+      {},
+    );
   }
 
   unlike(id: string, userId: string): Promise<ApiResponse<Post>> {
     const q = new URLSearchParams({ userId });
-    return this.client.delete(`/api/posts/${encodeURIComponent(id)}/like?${q.toString()}`);
+    return this.client.delete(
+      `/api/posts/${encodeURIComponent(id)}/like?${q.toString()}`,
+    );
   }
 
-  share(id: string, userId: string, data?: CreatePostShareDto): Promise<ApiResponse<Post>> {
+  share(
+    id: string,
+    userId: string,
+    data?: CreatePostShareDto,
+  ): Promise<ApiResponse<Post>> {
     const q = new URLSearchParams({ userId });
     return this.client.post<Post>(
       `/api/posts/${encodeURIComponent(id)}/share?${q.toString()}`,
-      data ?? {}
+      data ?? {},
     );
   }
 
   bookmark(id: string, userId: string): Promise<ApiResponse<boolean>> {
     const q = new URLSearchParams({ userId });
-    return this.client.post<boolean>(`/api/posts/${encodeURIComponent(id)}/bookmark?${q.toString()}`, {});
+    return this.client.post<boolean>(
+      `/api/posts/${encodeURIComponent(id)}/bookmark?${q.toString()}`,
+      {},
+    );
   }
 
   unbookmark(id: string, userId: string): Promise<ApiResponse<boolean>> {
     const q = new URLSearchParams({ userId });
-    return this.client.delete(`/api/posts/${encodeURIComponent(id)}/bookmark?${q.toString()}`);
+    return this.client.delete(
+      `/api/posts/${encodeURIComponent(id)}/bookmark?${q.toString()}`,
+    );
   }
 
   getComments(id: string): Promise<ApiResponse<PostComment[]>> {
-    return this.client.get<PostComment[]>(`/api/posts/${encodeURIComponent(id)}/comments`);
+    return this.client.get<PostComment[]>(
+      `/api/posts/${encodeURIComponent(id)}/comments`,
+    );
   }
 
-  addComment(id: string, data: CreatePostCommentDto): Promise<ApiResponse<PostComment>> {
-    return this.client.post<PostComment>(`/api/posts/${encodeURIComponent(id)}/comments`, data);
+  addComment(
+    id: string,
+    data: CreatePostCommentDto,
+  ): Promise<ApiResponse<PostComment>> {
+    return this.client.post<PostComment>(
+      `/api/posts/${encodeURIComponent(id)}/comments`,
+      data,
+    );
   }
 
-  deleteComment(id: string, commentId: string, authorId: string): Promise<ApiResponse<void>> {
+  deleteComment(
+    id: string,
+    commentId: string,
+    authorId: string,
+  ): Promise<ApiResponse<void>> {
     const q = new URLSearchParams({ authorId });
     return this.client.delete(
-      `/api/posts/${encodeURIComponent(id)}/comments/${encodeURIComponent(commentId)}?${q.toString()}`
+      `/api/posts/${encodeURIComponent(id)}/comments/${encodeURIComponent(commentId)}?${q.toString()}`,
     );
   }
 }

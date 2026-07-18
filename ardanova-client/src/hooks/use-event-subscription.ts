@@ -1,7 +1,11 @@
 "use client";
 
 import { useEffect, useCallback, useRef } from "react";
-import type { ArdaNovaEvent, ArdaNovaEventType, EventCallback } from "~/lib/websocket/types";
+import type {
+  ArdaNovaEvent,
+  ArdaNovaEventType,
+  EventCallback,
+} from "~/lib/websocket/types";
 import { useRealtimeContext } from "~/providers/realtime-provider";
 
 /**
@@ -11,7 +15,7 @@ import { useRealtimeContext } from "~/providers/realtime-provider";
 export function useEventSubscription<T extends ArdaNovaEvent = ArdaNovaEvent>(
   eventType: ArdaNovaEventType | "*",
   callback: EventCallback<T>,
-  deps: React.DependencyList = []
+  deps: React.DependencyList = [],
 ) {
   const { subscribe } = useRealtimeContext();
   const callbackRef = useRef(callback);
@@ -24,7 +28,7 @@ export function useEventSubscription<T extends ArdaNovaEvent = ArdaNovaEvent>(
   // Stable callback that uses ref
   const stableCallback = useCallback((event: T) => {
     callbackRef.current(event);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps);
 
   useEffect(() => {
@@ -38,21 +42,19 @@ export function useEventSubscription<T extends ArdaNovaEvent = ArdaNovaEvent>(
  */
 export function useEventSubscriptions(
   handlers: Partial<Record<ArdaNovaEventType | "*", EventCallback>>,
-  deps: React.DependencyList = []
+  deps: React.DependencyList = [],
 ) {
   const { subscribe } = useRealtimeContext();
 
   useEffect(() => {
-    const unsubscribes = Object.entries(handlers).map(([eventType, handler]) => {
-      if (handler) {
-        return subscribe(eventType, handler);
-      }
-      return () => {};
-    });
+    const unsubscribes = Object.entries(handlers).flatMap(
+      ([eventType, handler]) =>
+        handler ? [subscribe(eventType, handler)] : [],
+    );
 
     return () => {
       unsubscribes.forEach((unsubscribe) => unsubscribe());
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [subscribe, ...deps]);
 }

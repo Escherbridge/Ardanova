@@ -40,11 +40,11 @@ export function ConversionChain({
   return (
     <div
       className={cn(
-        "flex flex-col gap-3 rounded-none border-2 border-border bg-muted/20 p-4",
+        "border-border bg-muted/20 flex flex-col gap-3 rounded-none border-2 p-4",
         className,
       )}
     >
-      <p className="font-mono text-xs uppercase tracking-widest text-muted-foreground">
+      <p className="text-muted-foreground font-mono text-xs tracking-widest uppercase">
         Conversion Preview
       </p>
 
@@ -52,50 +52,50 @@ export function ConversionChain({
       <div className="flex items-center gap-2 overflow-x-auto pb-1">
         {/* Project tokens */}
         <div className="flex min-w-0 flex-col items-center gap-1">
-          <span className="font-mono text-lg font-bold text-neon-green">
+          <span className="text-success font-mono text-lg font-bold">
             {formatInteger(projectTokens)}
           </span>
-          <span className="font-mono text-xs text-muted-foreground">
+          <span className="text-muted-foreground font-mono text-xs">
             {tokenTicker}
           </span>
         </div>
 
         {/* Arrow 1 */}
-        <div className="flex flex-col items-center gap-1 shrink-0">
-          <ArrowRight className="h-5 w-5 text-neon-cyan" />
-          <span className="font-mono text-[10px] text-muted-foreground whitespace-nowrap">
+        <div className="flex shrink-0 flex-col items-center gap-1">
+          <ArrowRight className="text-system h-5 w-5" />
+          <span className="text-muted-foreground font-mono text-[10px] whitespace-nowrap">
             1 {tokenTicker} = {formatInteger(tokenRate)} ARDA
           </span>
         </div>
 
         {/* ARDA */}
         <div className="flex min-w-0 flex-col items-center gap-1">
-          <span className="font-mono text-lg font-bold text-neon-cyan">
+          <span className="text-system font-mono text-lg font-bold">
             {formatInteger(ardaAmount)}
           </span>
-          <span className="font-mono text-xs text-muted-foreground">ARDA</span>
+          <span className="text-muted-foreground font-mono text-xs">ARDA</span>
         </div>
 
         {/* Arrow 2 */}
-        <div className="flex flex-col items-center gap-1 shrink-0">
-          <ArrowRight className="h-5 w-5 text-neon-cyan" />
-          <span className="font-mono text-[10px] text-muted-foreground whitespace-nowrap">
+        <div className="flex shrink-0 flex-col items-center gap-1">
+          <ArrowRight className="text-system h-5 w-5" />
+          <span className="text-muted-foreground font-mono text-[10px] whitespace-nowrap">
             1 ARDA = {formatUsd(ardaRate)}
           </span>
         </div>
 
         {/* USD */}
         <div className="flex min-w-0 flex-col items-center gap-1">
-          <span className="font-mono text-lg font-bold text-foreground">
+          <span className="text-foreground font-mono text-lg font-bold">
             {formatUsd(usdAmount)}
           </span>
-          <span className="font-mono text-xs text-muted-foreground">USD</span>
+          <span className="text-muted-foreground font-mono text-xs">USD</span>
         </div>
       </div>
 
       {/* Summary line */}
-      <div className="border-t border-border pt-2">
-        <p className="font-mono text-xs text-muted-foreground">
+      <div className="border-border border-t pt-2">
+        <p className="text-muted-foreground font-mono text-xs">
           {formatInteger(projectTokens)} {tokenTicker} &rarr;{" "}
           {formatInteger(ardaAmount)} ARDA &rarr;{" "}
           <span className="text-foreground font-semibold">

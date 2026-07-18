@@ -1,24 +1,15 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { createTRPCRouter, adminProcedure, protectedProcedure } from "~/server/api/trpc";
+import {
+  createTRPCRouter,
+  adminProcedure,
+  protectedProcedure,
+} from "~/server/api/trpc";
 import { apiClient } from "~/lib/api";
 
 // ---------------------------------------------------------------------------
 // Zod schemas
 // ---------------------------------------------------------------------------
-
-const TreasuryTransactionTypeSchema = z.enum([
-  "FUNDING_INFLOW",
-  "ALLOCATION_INDEX",
-  "ALLOCATION_LIQUID",
-  "ALLOCATION_OPS",
-  "PAYOUT_DEBIT",
-  "INDEX_RETURN",
-  "PROFIT_SHARE",
-  "REBALANCE",
-  "TRUST_PROTECTION",
-  "FOUNDER_BURN",
-]);
 
 const processFundingInflowSchema = z.object({
   usdAmount: z.number().positive(),
@@ -36,24 +27,27 @@ const rebalanceSchema = z.object({
 export const treasuryRouter = createTRPCRouter({
   // ---- Queries ----
 
-  getStatus: protectedProcedure
-    .query(async () => {
-      const response = await apiClient.treasury.getStatus();
+  getStatus: protectedProcedure.query(async () => {
+    const response = await apiClient.treasury.getStatus();
 
-      if (response.error || !response.data) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: response.error ?? "Failed to get treasury status",
-        });
-      }
+    if (response.error || !response.data) {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: response.error ?? "Failed to get treasury status",
+      });
+    }
 
-      return response.data;
-    }),
+    return response.data;
+  }),
 
   getTransactions: protectedProcedure
-    .input(z.object({ limit: z.number().int().positive().default(50).optional() }))
+    .input(
+      z.object({ limit: z.number().int().positive().default(50).optional() }),
+    )
     .query(async ({ input }) => {
-      const response = await apiClient.treasury.getTransactions(input.limit ?? 50);
+      const response = await apiClient.treasury.getTransactions(
+        input.limit ?? 50,
+      );
 
       if (response.error || !response.data) {
         throw new TRPCError({
@@ -65,19 +59,18 @@ export const treasuryRouter = createTRPCRouter({
       return response.data;
     }),
 
-  getExchangeTreasuryStatus: protectedProcedure
-    .query(async () => {
-      const response = await apiClient.treasury.getExchangeTreasuryStatus();
+  getExchangeTreasuryStatus: protectedProcedure.query(async () => {
+    const response = await apiClient.treasury.getExchangeTreasuryStatus();
 
-      if (response.error || !response.data) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: response.error ?? "Failed to get exchange treasury status",
-        });
-      }
+    if (response.error || !response.data) {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: response.error ?? "Failed to get exchange treasury status",
+      });
+    }
 
-      return response.data;
-    }),
+    return response.data;
+  }),
 
   // ---- Mutations ----
 
@@ -86,7 +79,7 @@ export const treasuryRouter = createTRPCRouter({
     .mutation(async ({ input }) => {
       const response = await apiClient.treasury.processFundingInflow(
         input.usdAmount,
-        input.projectId
+        input.projectId,
       );
 
       if (response.error || !response.data) {
@@ -99,19 +92,18 @@ export const treasuryRouter = createTRPCRouter({
       return response.data;
     }),
 
-  applyIndexReturn: adminProcedure
-    .mutation(async () => {
-      const response = await apiClient.treasury.applyIndexReturn();
+  applyIndexReturn: adminProcedure.mutation(async () => {
+    const response = await apiClient.treasury.applyIndexReturn();
 
-      if (response.error || !response.data) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: response.error ?? "Failed to apply index return",
-        });
-      }
+    if (response.error || !response.data) {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: response.error ?? "Failed to apply index return",
+      });
+    }
 
-      return response.data;
-    }),
+    return response.data;
+  }),
 
   rebalance: adminProcedure
     .input(rebalanceSchema)
@@ -128,17 +120,16 @@ export const treasuryRouter = createTRPCRouter({
       return response.data;
     }),
 
-  reconcile: adminProcedure
-    .mutation(async () => {
-      const response = await apiClient.treasury.reconcile();
+  reconcile: adminProcedure.mutation(async () => {
+    const response = await apiClient.treasury.reconcile();
 
-      if (response.error || !response.data) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: response.error ?? "Failed to reconcile treasury",
-        });
-      }
+    if (response.error || !response.data) {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: response.error ?? "Failed to reconcile treasury",
+      });
+    }
 
-      return response.data;
-    }),
+    return response.data;
+  }),
 });

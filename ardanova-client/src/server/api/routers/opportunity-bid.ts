@@ -1,8 +1,19 @@
 import { z } from "zod";
-import { createTRPCRouter, publicProcedure, protectedProcedure } from "~/server/api/trpc";
+import {
+  createTRPCRouter,
+  publicProcedure,
+  protectedProcedure,
+} from "~/server/api/trpc";
 import { apiClient } from "~/lib/api";
 
-export const OpportunityBidStatus = z.enum(['SUBMITTED', 'UNDER_REVIEW', 'ACCEPTED', 'REJECTED', 'WITHDRAWN', 'COMPLETED']);
+export const OpportunityBidStatus = z.enum([
+  "SUBMITTED",
+  "UNDER_REVIEW",
+  "ACCEPTED",
+  "REJECTED",
+  "WITHDRAWN",
+  "COMPLETED",
+]);
 
 const createOpportunityBidSchema = z.object({
   opportunityId: z.string().min(1),
@@ -26,7 +37,9 @@ export const opportunityBidRouter = createTRPCRouter({
   getByOpportunityId: publicProcedure
     .input(z.object({ opportunityId: z.string() }))
     .query(async ({ input }) => {
-      const response = await apiClient.opportunityBids.getByOpportunityId(input.opportunityId);
+      const response = await apiClient.opportunityBids.getByOpportunityId(
+        input.opportunityId,
+      );
 
       if (response.error) {
         throw new Error(response.error);
@@ -47,21 +60,22 @@ export const opportunityBidRouter = createTRPCRouter({
       return response.data;
     }),
 
-  getByBidderId: protectedProcedure
-    .query(async () => {
-      const response = await apiClient.opportunityBids.getMine();
+  getByBidderId: protectedProcedure.query(async () => {
+    const response = await apiClient.opportunityBids.getMine();
 
-      if (response.error) {
-        throw new Error(response.error);
-      }
+    if (response.error) {
+      throw new Error(response.error);
+    }
 
-      return response.data ?? [];
-    }),
+    return response.data ?? [];
+  }),
 
   getByGuildId: publicProcedure
     .input(z.object({ guildId: z.string() }))
     .query(async ({ input }) => {
-      const response = await apiClient.opportunityBids.getByGuildId(input.guildId);
+      const response = await apiClient.opportunityBids.getByGuildId(
+        input.guildId,
+      );
 
       if (response.error) {
         throw new Error(response.error);
@@ -88,9 +102,13 @@ export const opportunityBidRouter = createTRPCRouter({
           throw new Error("Failed to verify guild membership");
         }
 
-        const isMember = members.data.some((m: any) => m.userId === userId);
+        const isMember = members.data.some(
+          (member) => member.userId === userId,
+        );
         if (!isMember) {
-          throw new Error("Only guild members can submit bids on behalf of the guild");
+          throw new Error(
+            "Only guild members can submit bids on behalf of the guild",
+          );
         }
       }
 
@@ -128,11 +146,19 @@ export const opportunityBidRouter = createTRPCRouter({
       }
 
       // Can only update bids in SUBMITTED or UNDER_REVIEW status
-      if (bid.data.status !== 'SUBMITTED' && bid.data.status !== 'UNDER_REVIEW') {
-        throw new Error("Can only update bids that are submitted or under review");
+      if (
+        bid.data.status !== "SUBMITTED" &&
+        bid.data.status !== "UNDER_REVIEW"
+      ) {
+        throw new Error(
+          "Can only update bids that are submitted or under review",
+        );
       }
 
-      const response = await apiClient.opportunityBids.update(input.id, input.data);
+      const response = await apiClient.opportunityBids.update(
+        input.id,
+        input.data,
+      );
 
       if (response.error || !response.data) {
         throw new Error(response.error ?? "Failed to update opportunity bid");
@@ -153,14 +179,18 @@ export const opportunityBidRouter = createTRPCRouter({
       }
 
       // Get opportunity to verify authorization
-      const opportunity = await apiClient.opportunities.getById(bid.data.opportunityId);
+      const opportunity = await apiClient.opportunities.getById(
+        bid.data.opportunityId,
+      );
       if (opportunity.error || !opportunity.data) {
         throw new Error("Opportunity not found");
       }
 
       // If opportunity has projectId, check project ownership
       if (opportunity.data.projectId) {
-        const project = await apiClient.projects.getById(opportunity.data.projectId);
+        const project = await apiClient.projects.getById(
+          opportunity.data.projectId,
+        );
         if (project.error || !project.data) {
           throw new Error("Project not found");
         }
@@ -197,14 +227,18 @@ export const opportunityBidRouter = createTRPCRouter({
       }
 
       // Get opportunity to verify authorization
-      const opportunity = await apiClient.opportunities.getById(bid.data.opportunityId);
+      const opportunity = await apiClient.opportunities.getById(
+        bid.data.opportunityId,
+      );
       if (opportunity.error || !opportunity.data) {
         throw new Error("Opportunity not found");
       }
 
       // If opportunity has projectId, check project ownership
       if (opportunity.data.projectId) {
-        const project = await apiClient.projects.getById(opportunity.data.projectId);
+        const project = await apiClient.projects.getById(
+          opportunity.data.projectId,
+        );
         if (project.error || !project.data) {
           throw new Error("Project not found");
         }
@@ -246,8 +280,13 @@ export const opportunityBidRouter = createTRPCRouter({
       }
 
       // Can only withdraw bids in SUBMITTED or UNDER_REVIEW status
-      if (bid.data.status !== 'SUBMITTED' && bid.data.status !== 'UNDER_REVIEW') {
-        throw new Error("Can only withdraw bids that are submitted or under review");
+      if (
+        bid.data.status !== "SUBMITTED" &&
+        bid.data.status !== "UNDER_REVIEW"
+      ) {
+        throw new Error(
+          "Can only withdraw bids that are submitted or under review",
+        );
       }
 
       const response = await apiClient.opportunityBids.withdraw(input.id);
@@ -271,14 +310,18 @@ export const opportunityBidRouter = createTRPCRouter({
       }
 
       // Get opportunity to verify authorization
-      const opportunity = await apiClient.opportunities.getById(bid.data.opportunityId);
+      const opportunity = await apiClient.opportunities.getById(
+        bid.data.opportunityId,
+      );
       if (opportunity.error || !opportunity.data) {
         throw new Error("Opportunity not found");
       }
 
       // If opportunity has projectId, check project ownership
       if (opportunity.data.projectId) {
-        const project = await apiClient.projects.getById(opportunity.data.projectId);
+        const project = await apiClient.projects.getById(
+          opportunity.data.projectId,
+        );
         if (project.error || !project.data) {
           throw new Error("Project not found");
         }
@@ -295,7 +338,7 @@ export const opportunityBidRouter = createTRPCRouter({
       }
 
       // Can only complete ACCEPTED bids
-      if (bid.data.status !== 'ACCEPTED') {
+      if (bid.data.status !== "ACCEPTED") {
         throw new Error("Can only complete bids that have been accepted");
       }
 
@@ -325,8 +368,14 @@ export const opportunityBidRouter = createTRPCRouter({
       }
 
       // Can only delete bids in SUBMITTED, REJECTED, or WITHDRAWN status
-      if (bid.data.status !== 'SUBMITTED' && bid.data.status !== 'REJECTED' && bid.data.status !== 'WITHDRAWN') {
-        throw new Error("Can only delete bids that are submitted, rejected, or withdrawn");
+      if (
+        bid.data.status !== "SUBMITTED" &&
+        bid.data.status !== "REJECTED" &&
+        bid.data.status !== "WITHDRAWN"
+      ) {
+        throw new Error(
+          "Can only delete bids that are submitted, rejected, or withdrawn",
+        );
       }
 
       const response = await apiClient.opportunityBids.delete(input.id);

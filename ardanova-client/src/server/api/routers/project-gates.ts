@@ -1,23 +1,46 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { createTRPCRouter, adminProcedure, protectedProcedure } from "~/server/api/trpc";
+import {
+  adminProcedure,
+  createTRPCRouter,
+  protectedProcedure,
+} from "~/server/api/trpc";
 import { apiClient } from "~/lib/api";
+import { getAdminApiClient } from "~/server/admin-api-client";
+import {
+  failProjectDtoSchema,
+  gateTransitionResultDtoSchema,
+  projectGateStatusDtoSchema,
+} from "~/lib/contracts/tokenomics-contract";
 
 // ---------------------------------------------------------------------------
 // Zod schemas
 // ---------------------------------------------------------------------------
-
-const ProjectGateStatusSchema = z.enum(["FUNDING", "ACTIVE", "SUCCEEDED", "FAILED"]);
 
 const clearGateSchema = z.object({
   configId: z.string().min(1),
   verifiedByUserId: z.string().min(1),
 });
 
-const failProjectSchema = z.object({
-  configId: z.string().min(1),
-  reason: z.string().min(1),
-});
+const failProjectSchema = z
+  .object({ configId: z.string().min(1) })
+  .merge(failProjectDtoSchema);
+
+function parseGateContract<T>(
+  schema: z.ZodType<T>,
+  data: unknown,
+  contractName: string,
+): T {
+  const result = schema.safeParse(data);
+  if (!result.success) {
+    throw new TRPCError({
+      code: "INTERNAL_SERVER_ERROR",
+      message: `Backend returned an invalid ${contractName} contract`,
+    });
+  }
+
+  return result.data;
+}
 
 // ---------------------------------------------------------------------------
 // Router - thin proxy to .NET API via apiClient
@@ -38,15 +61,21 @@ export const projectGatesRouter = createTRPCRouter({
         });
       }
 
-      return response.data;
+      return parseGateContract(
+        projectGateStatusDtoSchema,
+        response.data,
+        "project gate status",
+      );
     }),
 
   // ---- Mutations ----
 
-  evaluateGate: protectedProcedure
+  evaluateGate: adminProcedure
     .input(z.object({ configId: z.string().min(1) }))
     .mutation(async ({ input }) => {
-      const response = await apiClient.projectGates.evaluateGate(input.configId);
+      const response = await getAdminApiClient().projectGates.evaluateGate(
+        input.configId,
+      );
 
       if (response.error || !response.data) {
         throw new TRPCError({
@@ -55,15 +84,19 @@ export const projectGatesRouter = createTRPCRouter({
         });
       }
 
-      return response.data;
+      return parseGateContract(
+        gateTransitionResultDtoSchema,
+        response.data,
+        "gate transition",
+      );
     }),
 
   clearGate: adminProcedure
     .input(clearGateSchema)
     .mutation(async ({ input }) => {
-      const response = await apiClient.projectGates.clearGate(
+      const response = await getAdminApiClient().projectGates.clearGate(
         input.configId,
-        input.verifiedByUserId
+        input.verifiedByUserId,
       );
 
       if (response.error || !response.data) {
@@ -73,15 +106,20 @@ export const projectGatesRouter = createTRPCRouter({
         });
       }
 
-      return response.data;
+      return parseGateContract(
+        gateTransitionResultDtoSchema,
+        response.data,
+        "gate transition",
+      );
     }),
 
   failProject: adminProcedure
     .input(failProjectSchema)
     .mutation(async ({ input }) => {
-      const response = await apiClient.projectGates.failProject(input.configId, {
-        reason: input.reason,
-      });
+      const response = await getAdminApiClient().projectGates.failProject(
+        input.configId,
+        { reason: input.reason },
+      );
 
       if (response.error || !response.data) {
         throw new TRPCError({
@@ -90,6 +128,10 @@ export const projectGatesRouter = createTRPCRouter({
         });
       }
 
-      return response.data;
+      return parseGateContract(
+        gateTransitionResultDtoSchema,
+        response.data,
+        "gate transition",
+      );
     }),
 });

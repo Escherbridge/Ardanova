@@ -1,42 +1,29 @@
 "use client";
 
-import { useSession } from "next-auth/react";
+import { useEffect, type ReactNode } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Loader2, Wallet, TrendingUp, Lock, Zap } from "lucide-react";
+import { useSession } from "next-auth/react";
+import {
+  ArrowUpRight,
+  CircleDollarSign,
+  Layers3,
+  Loader2,
+  Lock,
+  PauseCircle,
+  Wallet,
+} from "lucide-react";
+import type { PayoutStatus } from "~/lib/api/ardanova/endpoints/payouts";
+import { buildSignInHref } from "~/lib/auth-navigation";
+import {
+  payoutStageLabel,
+  summarizePayoutRecords,
+} from "~/lib/commerce/portfolio-contract";
 import { api } from "~/trpc/react";
-import { Card, CardContent } from "~/components/ui/card";
-import { Badge } from "~/components/ui/badge";
 import { PortfolioHoldingCard } from "~/components/equity/portfolio-holding-card";
-
-type HolderClass = "CONTRIBUTOR" | "INVESTOR" | "FOUNDER";
-
-interface Holding {
-  projectName: string;
-  tokenAmount: number;
-  equityPct: number;
-  usdValue: number;
-  isLiquid: boolean;
-  holderClass: string;
-  projectTokenConfigId: string;
-}
-
-interface PortfolioData {
-  holdings: Holding[];
-}
-
-interface ArdaBalanceData {
-  balance: number;
-  usdValue: number;
-}
-
-interface PayoutRecord {
-  id: string;
-  status: string;
-  sourceTokenAmount: number;
-  usdAmount: number;
-  createdAt: string;
-  projectName: string;
-}
+import { Badge } from "~/components/ui/badge";
+import { Button } from "~/components/ui/button";
+import { Card, CardContent } from "~/components/ui/card";
 
 function formatUsd(value: number): string {
   return new Intl.NumberFormat("en-US", {
@@ -49,298 +36,402 @@ function formatUsd(value: number): string {
 
 function formatInteger(value: number): string {
   return new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(
-    Math.round(value),
+    value,
   );
 }
 
-function formatDate(dateString: string): string {
-  return new Date(dateString).toLocaleDateString("en-US", {
+function formatDate(value: string): string {
+  return new Intl.DateTimeFormat("en-US", {
     month: "short",
     day: "numeric",
     year: "numeric",
-  });
+  }).format(new Date(value));
 }
 
-const statusBadgeVariant: Record<
-  string,
-  "neon" | "neon-green" | "neon-pink" | "warning" | "outline" | "destructive"
-> = {
+function shortenReference(value: string | null): string {
+  if (!value) return "Platform token";
+  return value.length > 18 ? `${value.slice(0, 8)}…${value.slice(-6)}` : value;
+}
+
+const statusBadgeVariant = {
   PENDING: "warning",
   PROCESSING: "neon",
-  COMPLETED: "neon-green",
+  COMPLETED: "outline",
   FAILED: "destructive",
   CANCELLED: "outline",
-};
+} as const satisfies Record<
+  PayoutStatus,
+  "neon" | "warning" | "outline" | "destructive"
+>;
 
 export default function PortfolioPage() {
   const { data: session, status: sessionStatus } = useSession();
   const router = useRouter();
-  const userId = session?.user?.id ?? "";
+  const queryEnabled = Boolean(session?.user?.id);
 
   const {
-    data: portfolioRaw,
+    data: portfolio,
     isLoading: portfolioLoading,
     error: portfolioError,
-  } = api.tokenBalances.getPortfolio.useQuery(
-    undefined,
-    { enabled: !!userId },
-  );
+  } = api.tokenBalances.getPortfolio.useQuery(undefined, {
+    enabled: queryEnabled,
+  });
+  const {
+    data: ardaBalance,
+    isLoading: ardaLoading,
+    error: ardaError,
+    refetch: refetchArdaBalance,
+  } = api.tokenBalances.getArdaBalance.useQuery(undefined, {
+    enabled: queryEnabled,
+    retry: false,
+  });
+  const {
+    data: payouts,
+    isLoading: payoutsLoading,
+    error: payoutsError,
+  } = api.payouts.getPayoutsByUser.useQuery(undefined, {
+    enabled: queryEnabled,
+  });
 
-  const { data: ardaRaw, isLoading: ardaLoading } =
-    api.tokenBalances.getArdaBalance.useQuery(
-      undefined,
-      { enabled: !!userId },
-    );
-
-  const { data: payoutsRaw, isLoading: payoutsLoading } =
-    api.payouts.getPayoutsByUser.useQuery(
-      undefined,
-      { enabled: !!userId },
-    );
+  useEffect(() => {
+    if (sessionStatus === "unauthenticated") {
+      router.replace(buildSignInHref("/portfolio"));
+    }
+  }, [router, sessionStatus]);
 
   if (sessionStatus === "loading") {
     return (
       <div className="flex min-h-screen items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-neon-cyan" />
+        <Loader2 className="text-primary h-8 w-8 animate-spin" />
       </div>
     );
   }
 
-  if (!session) {
-    router.push("/sign-in");
-    return null;
-  }
-
-  const portfolio = portfolioRaw as unknown as PortfolioData | undefined;
-  const ardaBalance = ardaRaw as unknown as ArdaBalanceData | undefined;
-  const payouts = payoutsRaw as unknown as PayoutRecord[] | undefined;
+  if (!session) return null;
 
   const holdings = portfolio?.holdings ?? [];
+  const payoutSummary = summarizePayoutRecords(payouts ?? []);
 
-  const totalUsd = holdings.reduce((sum, h) => sum + h.usdValue, 0);
-  const liquidUsd = holdings
-    .filter((h) => h.isLiquid)
-    .reduce((sum, h) => sum + h.usdValue, 0);
-  const lockedUsd = totalUsd - liquidUsd;
-
-  function handleWithdraw(configId: string, holderClass: HolderClass) {
+  function viewPayoutStatus(projectTokenConfigId: string) {
     router.push(
-      `/portfolio/withdraw?configId=${encodeURIComponent(configId)}&holderClass=${holderClass}`,
+      `/portfolio/withdraw?configId=${encodeURIComponent(projectTokenConfigId)}`,
     );
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="mx-auto max-w-4xl px-4 py-8 space-y-8">
-        {/* Page header */}
-        <div>
-          <h1 className="font-mono text-3xl font-bold uppercase tracking-tight text-foreground flex items-center gap-3">
-            <div className="w-10 h-10 border-2 border-neon-cyan/60 bg-neon-cyan/10 flex items-center justify-center">
-              <Wallet className="h-5 w-5 text-neon-cyan" />
+    <div className="bg-background min-h-screen">
+      <div className="mx-auto max-w-5xl space-y-8 px-4 py-8">
+        <header className="border-foreground grid gap-5 border-b-2 pb-6 md:grid-cols-[1fr_auto] md:items-end">
+          <div>
+            <p className="text-primary font-mono text-xs tracking-[0.22em] uppercase">
+              Recorded positions
+            </p>
+            <h1 className="text-foreground mt-2 flex items-center gap-3 text-4xl font-black tracking-tight uppercase">
+              <Wallet className="h-8 w-8" />
+              Portfolio
+            </h1>
+            <p className="text-muted-foreground mt-3 max-w-2xl text-sm">
+              Inspect balances and payout records returned by ArdaNova’s
+              tokenomics API. A token balance is not proof of equity, ownership,
+              or governance rights.
+            </p>
+          </div>
+          <Button asChild variant="outline" className="min-h-11 rounded-none">
+            <Link href="/portfolio/withdraw">
+              <PauseCircle className="mr-2 h-4 w-4" />
+              Payout status
+              <ArrowUpRight className="ml-2 h-4 w-4" />
+            </Link>
+          </Button>
+        </header>
+
+        <section
+          aria-labelledby="portfolio-summary-heading"
+          className="space-y-3"
+        >
+          <div className="flex items-end justify-between gap-3">
+            <div>
+              <p className="text-muted-foreground font-mono text-[10px] tracking-[0.2em] uppercase">
+                Backend record
+              </p>
+              <h2
+                id="portfolio-summary-heading"
+                className="text-xl font-black uppercase"
+              >
+                Portfolio summary
+              </h2>
             </div>
-            Portfolio
-          </h1>
-          <p className="font-mono text-sm text-muted-foreground mt-2">
-            Your equity holdings and payout history
-          </p>
-        </div>
+            {portfolioLoading && <Loader2 className="h-5 w-5 animate-spin" />}
+          </div>
 
-        {/* Summary cards */}
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-          {/* Total Value */}
-          <Card variant="elevated" padding="sm" className="rounded-none">
-            <CardContent className="p-0 space-y-1">
-              <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground flex items-center gap-1">
-                <TrendingUp className="h-3 w-3" />
-                Total Value
+          {portfolioError ? (
+            <div
+              role="alert"
+              className="border-destructive bg-destructive/10 border-2 p-5"
+            >
+              <p className="text-destructive text-sm">
+                Portfolio records could not be loaded. No balance or valuation
+                claims are shown.
               </p>
-              {portfolioLoading ? (
-                <Loader2 className="h-5 w-5 animate-spin text-neon-cyan" />
-              ) : (
-                <p className="font-mono text-xl font-bold text-foreground">
-                  {formatUsd(totalUsd)}
-                </p>
-              )}
-            </CardContent>
-          </Card>
+            </div>
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <SummaryCard
+                label="Balance records"
+                value={portfolioLoading ? "—" : formatInteger(holdings.length)}
+                icon={<Layers3 className="h-4 w-4" />}
+                detail="Project and platform token records returned by the API."
+              />
+              <SummaryCard
+                label="Recorded total USD"
+                value={
+                  portfolioLoading
+                    ? "—"
+                    : formatUsd(portfolio?.totalPortfolioValueUsd ?? 0)
+                }
+                icon={<CircleDollarSign className="h-4 w-4" />}
+                detail="Portfolio-level API field; not calculated from individual cards."
+              />
+              <SummaryCard
+                label="Recorded liquid USD"
+                value={
+                  portfolioLoading
+                    ? "—"
+                    : formatUsd(portfolio?.totalLiquidValueUsd ?? 0)
+                }
+                icon={<Wallet className="h-4 w-4" />}
+                detail="Value currently marked liquid by the portfolio endpoint."
+              />
+              <SummaryCard
+                label="Recorded locked USD"
+                value={
+                  portfolioLoading
+                    ? "—"
+                    : formatUsd(portfolio?.totalLockedValueUsd ?? 0)
+                }
+                icon={<Lock className="h-4 w-4" />}
+                detail="Value currently marked locked by the portfolio endpoint."
+              />
+            </div>
+          )}
 
-          {/* Liquid */}
-          <Card variant="neon-green" padding="sm" className="rounded-none">
-            <CardContent className="p-0 space-y-1">
-              <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground flex items-center gap-1">
-                <Zap className="h-3 w-3" />
-                Liquid
-              </p>
-              {portfolioLoading ? (
-                <Loader2 className="h-5 w-5 animate-spin text-neon-green" />
-              ) : (
-                <p className="font-mono text-xl font-bold text-neon-green">
-                  {formatUsd(liquidUsd)}
-                </p>
-              )}
-            </CardContent>
-          </Card>
+          <div
+            className={`border p-3 text-xs ${
+              ardaError
+                ? "border-destructive bg-destructive/10 text-destructive"
+                : "border-border bg-muted/20 text-muted-foreground"
+            }`}
+            role={ardaError ? "alert" : undefined}
+          >
+            <span className="text-foreground font-mono font-bold uppercase">
+              ARDA utility balance:
+            </span>{" "}
+            {ardaLoading
+              ? "Loading…"
+              : ardaError
+                ? "The ARDA balance request failed. This is not a zero balance, and no amount is shown."
+                : ardaBalance
+                  ? `${formatInteger(ardaBalance.balance)} total · ${formatInteger(ardaBalance.availableBalance)} available`
+                  : "No separate ARDA balance record was returned."}
+            {ardaError && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="mt-3 flex"
+                onClick={() => void refetchArdaBalance()}
+              >
+                Retry ARDA balance
+              </Button>
+            )}
+          </div>
+        </section>
 
-          {/* Locked */}
-          <Card padding="sm" className="rounded-none border-2 border-border">
-            <CardContent className="p-0 space-y-1">
-              <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground flex items-center gap-1">
-                <Lock className="h-3 w-3" />
-                Locked
-              </p>
-              {portfolioLoading ? (
-                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-              ) : (
-                <p className="font-mono text-xl font-bold text-foreground">
-                  {formatUsd(lockedUsd)}
-                </p>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* ARDA Balance */}
-          <Card variant="neon" padding="sm" className="rounded-none">
-            <CardContent className="p-0 space-y-1">
-              <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-                ARDA Balance
-              </p>
-              {ardaLoading ? (
-                <Loader2 className="h-5 w-5 animate-spin text-neon-cyan" />
-              ) : (
-                <>
-                  <p className="font-mono text-xl font-bold text-neon-cyan">
-                    {formatInteger(ardaBalance?.balance ?? 0)}
-                  </p>
-                  <p className="font-mono text-[10px] text-muted-foreground">
-                    {formatUsd(ardaBalance?.usdValue ?? 0)}
-                  </p>
-                </>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Holdings */}
-        <section className="space-y-4">
-          <div className="flex items-center justify-between border-b border-border pb-2">
-            <h2 className="font-mono text-sm uppercase tracking-widest text-foreground">
-              Holdings
+        <section aria-labelledby="holdings-heading" className="space-y-4">
+          <div className="border-border flex items-center justify-between border-b pb-2">
+            <h2
+              id="holdings-heading"
+              className="font-mono text-sm tracking-widest uppercase"
+            >
+              Token balance records
             </h2>
-            {!portfolioLoading && (
+            {!portfolioLoading && !portfolioError && (
               <Badge variant="outline" size="sm">
-                {holdings.length} project{holdings.length !== 1 ? "s" : ""}
+                {holdings.length} record{holdings.length === 1 ? "" : "s"}
               </Badge>
             )}
           </div>
 
           {portfolioLoading ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-8 w-8 animate-spin text-neon-cyan" />
+            <div className="flex justify-center py-12">
+              <Loader2 className="text-primary h-6 w-6 animate-spin" />
             </div>
-          ) : portfolioError ? (
-            <div className="rounded-none border-2 border-destructive/40 bg-destructive/10 p-6 text-center">
-              <p className="font-mono text-sm text-destructive">
-                Failed to load portfolio. Please refresh and try again.
-              </p>
-            </div>
-          ) : holdings.length === 0 ? (
-            <div className="rounded-none border-2 border-dashed border-border p-12 text-center">
-              <Wallet className="mx-auto h-10 w-10 text-muted-foreground/30 mb-3" />
-              <p className="font-mono text-sm text-muted-foreground">
-                No holdings yet
-              </p>
-              <p className="font-mono text-xs text-muted-foreground/60 mt-1">
-                Contribute to a project to earn equity tokens
+          ) : portfolioError ? null : holdings.length === 0 ? (
+            <div className="border-border border-2 border-dashed p-8 text-center">
+              <p className="text-muted-foreground font-mono text-sm">
+                No token balance records were returned.
               </p>
             </div>
           ) : (
-            <div className="grid gap-3 sm:grid-cols-2">
-              {holdings.map((holding) => (
-                <PortfolioHoldingCard
-                  key={holding.projectTokenConfigId}
-                  projectName={holding.projectName}
-                  tokenAmount={holding.tokenAmount}
-                  equityPct={holding.equityPct}
-                  usdValue={holding.usdValue}
-                  isLiquid={holding.isLiquid}
-                  holderClass={holding.holderClass as HolderClass}
-                  configId={holding.projectTokenConfigId}
-                  onWithdraw={handleWithdraw}
-                />
-              ))}
+            <div className="grid gap-4 md:grid-cols-2">
+              {holdings.map((holding) => {
+                const projectTokenConfigId = holding.projectTokenConfigId;
+
+                return (
+                  <PortfolioHoldingCard
+                    key={holding.id}
+                    holding={holding}
+                    onViewPayoutStatus={
+                      projectTokenConfigId
+                        ? () => viewPayoutStatus(projectTokenConfigId)
+                        : undefined
+                    }
+                  />
+                );
+              })}
             </div>
           )}
         </section>
 
-        {/* Payout history */}
-        <section className="space-y-4">
-          <div className="flex items-center justify-between border-b border-border pb-2">
-            <h2 className="font-mono text-sm uppercase tracking-widest text-foreground">
-              Payout History
+        <section aria-labelledby="payout-records-heading" className="space-y-4">
+          <div className="border-border border-b pb-3">
+            <p className="text-primary font-mono text-[10px] tracking-[0.2em] uppercase">
+              Submitted ≠ confirmed ≠ reconciled
+            </p>
+            <h2
+              id="payout-records-heading"
+              className="mt-1 text-xl font-black uppercase"
+            >
+              Payout records
             </h2>
-            {!payoutsLoading && (
-              <Badge variant="outline" size="sm">
-                {(payouts ?? []).length} request
-                {(payouts ?? []).length !== 1 ? "s" : ""}
-              </Badge>
-            )}
           </div>
 
-          {payoutsLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin text-neon-cyan" />
+          {!payoutsLoading && !payoutsError && (
+            <div className="grid gap-3 sm:grid-cols-2">
+              <SummaryCard
+                label="Submitted / processing USD"
+                value={formatUsd(payoutSummary.submittedUsd)}
+                icon={<PauseCircle className="h-4 w-4" />}
+                detail={`${payoutSummary.pendingCount} pending record${payoutSummary.pendingCount === 1 ? "" : "s"}; this is not confirmed settlement.`}
+              />
+              <SummaryCard
+                label="API completed-record USD"
+                value={formatUsd(payoutSummary.completedRecordUsd)}
+                icon={<CircleDollarSign className="h-4 w-4" />}
+                detail="The current API has no durable reconciliation field, so this is not labeled reconciled."
+              />
             </div>
-          ) : !payouts || payouts.length === 0 ? (
-            <div className="rounded-none border-2 border-dashed border-border p-8 text-center">
-              <p className="font-mono text-sm text-muted-foreground">
-                No payout requests yet
+          )}
+
+          {payoutsLoading ? (
+            <div className="flex justify-center py-8">
+              <Loader2 className="text-primary h-6 w-6 animate-spin" />
+            </div>
+          ) : payoutsError ? (
+            <div
+              role="alert"
+              className="border-destructive bg-destructive/10 border-2 p-5"
+            >
+              <p className="text-destructive text-sm">
+                Payout records could not be loaded. No settlement totals are
+                shown.
+              </p>
+            </div>
+          ) : !payouts?.length ? (
+            <div className="border-border border-2 border-dashed p-8 text-center">
+              <p className="text-muted-foreground font-mono text-sm">
+                No payout records were returned.
               </p>
             </div>
           ) : (
-            <div className="rounded-none border-2 border-border overflow-hidden">
-              {/* Table header */}
-              <div className="grid grid-cols-4 gap-3 bg-muted/30 px-4 py-2 border-b border-border">
-                {["Date", "Project", "Amount", "Status"].map((col, i) => (
-                  <p
-                    key={col}
-                    className={`font-mono text-[10px] uppercase tracking-widest text-muted-foreground ${i >= 2 ? "text-right" : ""}`}
-                  >
-                    {col}
-                  </p>
-                ))}
-              </div>
-
-              {/* Rows */}
-              {payouts.map((payout, idx) => (
-                <div
-                  key={payout.id}
-                  className={`grid grid-cols-4 gap-3 px-4 py-3 items-center ${
-                    idx < payouts.length - 1 ? "border-b border-border" : ""
-                  }`}
-                >
-                  <p className="font-mono text-xs text-muted-foreground">
-                    {formatDate(payout.createdAt)}
-                  </p>
-                  <p className="font-mono text-xs text-foreground truncate">
-                    {payout.projectName}
-                  </p>
-                  <p className="font-mono text-xs font-semibold text-foreground text-right">
-                    {formatUsd(payout.usdAmount)}
-                  </p>
-                  <div className="flex justify-end">
-                    <Badge
-                      variant={statusBadgeVariant[payout.status] ?? "outline"}
-                      size="sm"
+            <div className="border-border overflow-x-auto border-2">
+              <table className="w-full min-w-[46rem] border-collapse">
+                <caption className="sr-only">
+                  Payout requests returned by the API and their recorded status
+                </caption>
+                <thead className="border-border bg-muted/30 border-b">
+                  <tr>
+                    {[
+                      "Requested",
+                      "Source configuration",
+                      "Tokens",
+                      "Recorded USD",
+                      "API status",
+                    ].map((column) => (
+                      <th
+                        key={column}
+                        scope="col"
+                        className="text-muted-foreground px-4 py-3 text-left font-mono text-[10px] font-normal tracking-widest uppercase"
+                      >
+                        {column}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {payouts.map((payout) => (
+                    <tr
+                      key={payout.id}
+                      className="border-border border-b last:border-b-0"
                     >
-                      {payout.status}
-                    </Badge>
-                  </div>
-                </div>
-              ))}
+                      <td className="text-muted-foreground px-4 py-3 font-mono text-xs">
+                        {formatDate(payout.requestedAt)}
+                      </td>
+                      <td
+                        className="max-w-56 truncate px-4 py-3 font-mono text-xs"
+                        title={payout.sourceProjectTokenConfigId ?? undefined}
+                      >
+                        {shortenReference(payout.sourceProjectTokenConfigId)}
+                      </td>
+                      <td className="px-4 py-3 font-mono text-xs">
+                        {formatInteger(payout.sourceTokenAmount)}
+                      </td>
+                      <td className="px-4 py-3 font-mono text-xs">
+                        {payout.usdAmount === null
+                          ? "Not recorded"
+                          : formatUsd(payout.usdAmount)}
+                      </td>
+                      <td className="px-4 py-3">
+                        <Badge
+                          variant={statusBadgeVariant[payout.status]}
+                          size="sm"
+                        >
+                          {payoutStageLabel[payout.status]}
+                        </Badge>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
         </section>
       </div>
     </div>
+  );
+}
+
+function SummaryCard({
+  label,
+  value,
+  detail,
+  icon,
+}: {
+  label: string;
+  value: string;
+  detail: string;
+  icon: ReactNode;
+}) {
+  return (
+    <Card className="border-border rounded-none border-2" padding="sm">
+      <CardContent className="space-y-2 p-0">
+        <p className="text-muted-foreground flex items-center gap-2 font-mono text-[10px] tracking-widest uppercase">
+          {icon}
+          {label}
+        </p>
+        <p className="text-foreground font-mono text-xl font-bold">{value}</p>
+        <p className="text-muted-foreground text-xs">{detail}</p>
+      </CardContent>
+    </Card>
   );
 }

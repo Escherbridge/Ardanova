@@ -1,153 +1,144 @@
 "use client";
 
-import { api } from "~/trpc/react";
-import { Loader2, AlertCircle } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
+import { AlertCircle, Loader2 } from "lucide-react";
 
+import EquityPreview from "~/components/equity/equity-preview";
 import GateStatusBanner from "~/components/equity/gate-status-banner";
 import GateTimeline from "~/components/equity/gate-timeline";
-import EquityPreview from "~/components/equity/equity-preview";
 import InvestorTable from "~/components/equity/investor-table";
-import FounderAllocation from "~/components/equity/founder-allocation";
+import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
+import {
+  projectGateStatusDtoSchema,
+  projectInvestmentDtoSchema,
+  type ProjectTokenConfigDto,
+} from "~/lib/contracts/tokenomics-contract";
+import { api } from "~/trpc/react";
 
 interface FundingTabProps {
   projectId: string;
   projectSlug: string;
 }
 
-export default function FundingTab({ projectId, projectSlug }: FundingTabProps) {
-  const { data: configRaw, isLoading: configLoading, error: configError } =
-    api.projectTokens.getConfigByProject.useQuery({ projectId });
-  const config = configRaw as unknown as TokenConfig | undefined;
+export default function FundingTab({
+  projectId,
+  projectSlug,
+}: FundingTabProps) {
+  const configQuery = api.projectTokens.getConfigByProject.useQuery({
+    projectId,
+  });
 
-  if (configLoading) {
+  if (configQuery.isLoading) {
     return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="size-6 animate-spin text-primary" />
+      <div className="flex items-center justify-center py-20" role="status">
+        <Loader2 className="text-primary size-6 animate-spin" />
+        <span className="sr-only">Loading funding configuration</span>
       </div>
     );
   }
 
-  if (configError ?? !config) {
+  if (configQuery.error || !configQuery.data) {
     return (
-      <div className="border-2 border-destructive/40 bg-destructive/5 p-6 flex items-start gap-3">
-        <AlertCircle className="size-5 text-destructive shrink-0 mt-0.5" />
+      <div
+        className="border-destructive bg-destructive/5 flex items-start gap-3 border p-6"
+        role="status"
+      >
+        <AlertCircle className="text-destructive mt-0.5 size-5 shrink-0" />
         <div>
-          <p className="font-mono text-sm font-bold text-destructive">FUNDING NOT CONFIGURED</p>
-          <p className="text-xs text-muted-foreground mt-1">
-            This project does not have a token configuration yet.
+          <p className="text-destructive font-mono text-sm font-bold uppercase">
+            Funding is not configured
+          </p>
+          <p className="text-muted-foreground mt-1 text-xs">
+            This project does not have a validated project-token configuration.
           </p>
         </div>
       </div>
     );
   }
 
-  return <FundingTabContent config={config} projectSlug={projectSlug} />;
+  return (
+    <FundingTabContent config={configQuery.data} projectSlug={projectSlug} />
+  );
 }
-
-type TokenConfig = {
-  id: string;
-  projectId: string;
-  totalSupply: number;
-  fundingGoal: number;
-  fundingRaised: number;
-  unitName: string;
-  assetName: string;
-  contributorSupply: number;
-  investorSupply: number;
-  founderSupply: number;
-  burnedSupply: number;
-  status: string;
-  gateStatus: string;
-};
 
 function FundingTabContent({
   config,
   projectSlug,
 }: {
-  config: TokenConfig;
+  config: ProjectTokenConfigDto;
   projectSlug: string;
 }) {
-  const gateStatus = config.gateStatus as "FUNDING" | "ACTIVE" | "SUCCEEDED" | "FAILED";
-
-  const { data: gateDataRaw } = api.projectTokens.getGateStatus.useQuery({ configId: config.id });
-  const gateData = gateDataRaw as unknown as { gateStatus: string; gate1ClearedAt?: string; gate2ClearedAt?: string; fundingRaised: number; fundingGoal: number } | undefined;
-
-  const { data: investorsRaw, isLoading: investorsLoading } = api.projectTokens.getInvestors.useQuery(
-    { configId: config.id },
-  );
-  const investors = investorsRaw as unknown as { userId: string; displayName: string; avatarUrl?: string; usdAmount: number; tokenAmount: number; equityPct: number; holderClass: string }[] | undefined;
-
-  const founderInvestors = investors?.filter((i) => i.holderClass === "FOUNDER") ?? [];
-  const regularInvestors = investors?.filter((i) => i.holderClass !== "FOUNDER") ?? [];
-
-  const founderEntry = founderInvestors[0];
+  const gateQuery = api.projectTokens.getGateStatus.useQuery({
+    configId: config.id,
+  });
+  const investorsQuery = api.projectTokens.getInvestors.useQuery({
+    configId: config.id,
+  });
+  const gateResult = projectGateStatusDtoSchema.safeParse(gateQuery.data);
+  const investmentsResult = projectInvestmentDtoSchema
+    .array()
+    .safeParse(investorsQuery.data);
+  const gate = gateResult.success ? gateResult.data : undefined;
 
   return (
     <div className="space-y-6">
-      {/* Gate Status Banner */}
       <GateStatusBanner
-        gateStatus={gateStatus}
-        fundingRaised={gateData?.fundingRaised ?? config.fundingRaised}
-        fundingGoal={gateData?.fundingGoal ?? config.fundingGoal}
-        gate1ClearedAt={gateData?.gate1ClearedAt}
-        gate2ClearedAt={gateData?.gate2ClearedAt}
+        gateStatus={gate?.gateStatus ?? config.gateStatus}
+        fundingRaised={gate?.fundingRaised ?? config.fundingRaised}
+        fundingGoal={gate?.fundingGoal ?? config.fundingGoal}
+        gate1ClearedAt={gate?.gate1ClearedAt ?? undefined}
+        gate2ClearedAt={gate?.gate2ClearedAt ?? undefined}
       />
 
-      {/* Timeline */}
-      <Card className="bg-card border-2 border-border">
-        <CardContent className="p-4">
-          <GateTimeline gateStatus={gateStatus} />
+      <Card className="border-foreground">
+        <CardContent className="space-y-3 p-4">
+          <GateTimeline gateStatus={gate?.gateStatus ?? config.gateStatus} />
+          <p className="text-muted-foreground text-xs leading-relaxed">
+            Gate status is read-only here. A status change does not itself prove
+            a token allocation, protection payment, or settled payout.
+          </p>
         </CardContent>
       </Card>
 
-      {/* Equity Preview / CTA */}
-      <Card className="bg-card border-2 border-border">
+      <Card className="border-foreground">
         <CardHeader className="pb-2">
-          <CardTitle className="text-base font-mono tracking-wide">
-            INVEST IN THIS PROJECT
+          <CardTitle className="font-mono text-base tracking-wide uppercase">
+            Fund this project
           </CardTitle>
         </CardHeader>
         <CardContent>
           <EquityPreview
             configId={config.id}
             projectSlug={projectSlug}
-            gateStatus={gateStatus}
+            gateStatus={gate?.gateStatus ?? config.gateStatus}
             unitName={config.unitName}
           />
         </CardContent>
       </Card>
 
-      {/* Founder Allocation */}
-      {founderEntry && (
-        <FounderAllocation
-          founder={{
-            displayName: founderEntry.displayName,
-            avatarUrl: founderEntry.avatarUrl,
-            equityPct: founderEntry.equityPct,
-          }}
-          isLocked={gateStatus === "FUNDING" || gateStatus === "ACTIVE"}
-        />
-      )}
-
-      {/* Investor Table */}
-      <Card className="bg-card border-2 border-border">
+      <Card className="border-foreground">
         <CardContent className="p-4">
-          {investorsLoading ? (
-            <div className="flex items-center gap-2 py-6 justify-center">
-              <Loader2 className="size-4 animate-spin text-muted-foreground" />
-              <span className="text-sm text-muted-foreground">Loading investors...</span>
+          {investorsQuery.isLoading ? (
+            <div
+              className="flex items-center justify-center gap-2 py-6"
+              role="status"
+            >
+              <Loader2 className="text-muted-foreground size-4 animate-spin" />
+              <span className="text-muted-foreground text-sm">
+                Loading recorded funding…
+              </span>
+            </div>
+          ) : investorsQuery.error || !investmentsResult.success ? (
+            <div className="border-destructive/60 border p-4" role="status">
+              <p className="text-destructive text-sm font-semibold">
+                Funding records unavailable
+              </p>
+              <p className="text-muted-foreground mt-1 text-xs">
+                No contributor identity, amount, or protection state is inferred
+                while the service is unavailable.
+              </p>
             </div>
           ) : (
-            <InvestorTable
-              investors={regularInvestors.map((i) => ({
-                displayName: i.displayName,
-                avatarUrl: i.avatarUrl,
-                usdAmount: i.usdAmount,
-                equityPct: i.equityPct,
-                holderClass: i.holderClass,
-              }))}
-            />
+            <InvestorTable investments={investmentsResult.data} />
           )}
         </CardContent>
       </Card>

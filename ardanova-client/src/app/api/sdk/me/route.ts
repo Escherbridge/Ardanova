@@ -12,7 +12,7 @@ export async function GET() {
   const { session, error } = await getSessionOrError();
   if (error) return error;
 
-  const response = await apiClient.users.getById(session!.user.id);
+  const response = await apiClient.users.getById(session.user.id);
 
   if (response.error || !response.data) {
     return NextResponse.json(

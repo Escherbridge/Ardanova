@@ -1,179 +1,137 @@
 "use client";
 
-import { Lock, ShieldCheck, TrendingUp } from "lucide-react";
+import { ArrowUpRight, Lock, PauseCircle } from "lucide-react";
+import type { TokenBalanceDto } from "~/lib/api/ardanova/endpoints/token-balances";
 import { cn } from "~/lib/utils";
-import { Card, CardContent } from "~/components/ui/card";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
-
-type HolderClass = "CONTRIBUTOR" | "INVESTOR" | "FOUNDER";
+import { Card, CardContent } from "~/components/ui/card";
 
 interface PortfolioHoldingCardProps {
-  projectName: string;
-  tokenAmount: number;
-  equityPct: number;
-  usdValue: number;
-  isLiquid: boolean;
-  holderClass: HolderClass;
-  configId: string;
-  /** e.g. "Gate 2" */
-  gateStatus?: string;
-  /** Whether this project has failed / trust protection applies */
-  projectFailed?: boolean;
-  onWithdraw?: (configId: string, holderClass: HolderClass) => void;
+  holding: TokenBalanceDto;
+  onViewPayoutStatus?: () => void;
   className?: string;
-}
-
-function formatUsd(value: number): string {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(value);
 }
 
 function formatInteger(value: number): string {
   return new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(
-    Math.round(value),
+    value,
   );
 }
 
-function formatEquity(value: number): string {
-  return value.toFixed(2) + "%";
+function formatDate(value: string): string {
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  }).format(new Date(value));
 }
 
-const holderClassMeta: Record<
-  HolderClass,
-  { label: string; badgeVariant: "neon" | "neon-green" | "neon-pink" }
-> = {
-  CONTRIBUTOR: { label: "Contributor", badgeVariant: "neon-green" },
-  INVESTOR: { label: "Investor", badgeVariant: "neon" },
-  FOUNDER: { label: "Founder", badgeVariant: "neon-pink" },
-};
+function shortenReference(value: string): string {
+  return value.length > 18 ? `${value.slice(0, 8)}…${value.slice(-6)}` : value;
+}
 
 export function PortfolioHoldingCard({
-  projectName,
-  tokenAmount,
-  equityPct,
-  usdValue,
-  isLiquid,
-  holderClass,
-  configId,
-  gateStatus,
-  projectFailed,
-  onWithdraw,
+  holding,
+  onViewPayoutStatus,
   className,
 }: PortfolioHoldingCardProps) {
-  const meta = holderClassMeta[holderClass];
-  const canWithdraw = isLiquid && !projectFailed;
-
-  const borderClass = projectFailed
-    ? "border-border"
-    : isLiquid && holderClass === "CONTRIBUTOR"
-      ? "border-neon-green/60 shadow-[0_0_8px_rgba(0,255,136,0.08)]"
-      : holderClass === "INVESTOR"
-        ? "border-primary/40"
-        : holderClass === "FOUNDER"
-          ? "border-neon-pink/40"
-          : "border-border";
+  const reference = holding.projectTokenConfigId ?? holding.id;
+  const hasPayoutContext =
+    holding.projectTokenConfigId !== null && holding.holderClass !== null;
 
   return (
     <Card
-      className={cn("rounded-none", borderClass, className)}
+      className={cn("border-border rounded-none border-2", className)}
       padding="none"
     >
-      <CardContent className="p-4 space-y-3">
-        {/* Top row: project name + badges */}
-        <div className="flex items-start justify-between gap-3">
+      <CardContent className="space-y-4 p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0">
-            <p className="font-mono text-sm font-bold truncate text-foreground">
-              {projectName}
-            </p>
-          </div>
-          <div className="flex items-center gap-1.5 shrink-0">
-            <Badge variant={meta.badgeVariant} size="sm">
-              {meta.label}
-            </Badge>
-            {isLiquid && !projectFailed ? (
-              <Badge variant="neon-green" size="sm">
-                LIQUID
-              </Badge>
-            ) : projectFailed ? (
-              <Badge variant="outline" size="sm">
-                FAILED
-              </Badge>
-            ) : (
-              <Badge variant="outline" size="sm">
-                LOCKED
-              </Badge>
-            )}
-          </div>
-        </div>
-
-        {/* Stats row */}
-        <div className="grid grid-cols-3 gap-2">
-          <div className="space-y-0.5">
-            <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-              Tokens
-            </p>
-            <p className="font-mono text-base font-bold text-foreground">
-              {formatInteger(tokenAmount)}
-            </p>
-          </div>
-          <div className="space-y-0.5">
-            <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-              Equity
-            </p>
-            <p className="font-mono text-base font-bold text-foreground">
-              {formatEquity(equityPct)}
-            </p>
-          </div>
-          <div className="space-y-0.5">
-            <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-              USD Value
+            <p className="text-muted-foreground font-mono text-[10px] tracking-widest uppercase">
+              {holding.isPlatformToken
+                ? "ARDA utility token record"
+                : "Project token configuration"}
             </p>
             <p
-              className={cn(
-                "font-mono text-base font-bold",
-                isLiquid && !projectFailed
-                  ? "text-neon-green"
-                  : "text-foreground",
-              )}
+              className="text-foreground mt-1 truncate font-mono text-sm font-bold"
+              title={reference}
             >
-              {formatUsd(usdValue)}
+              {shortenReference(reference)}
             </p>
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {holding.holderClass && (
+              <Badge variant="outline" size="sm">
+                {holding.holderClass.toLowerCase()}
+              </Badge>
+            )}
+            <Badge
+              variant={holding.isLiquid ? "neon-green" : "outline"}
+              size="sm"
+            >
+              {holding.isLiquid ? "API: liquid" : "API: time-locked"}
+            </Badge>
           </div>
         </div>
 
-        {/* Lock info / trust protection */}
-        {!isLiquid && !projectFailed && gateStatus && (
-          <div className="flex items-center gap-2 rounded-none border border-border bg-muted/20 px-3 py-2">
-            <Lock className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-            <p className="font-mono text-xs text-muted-foreground">
-              Locked until {gateStatus}
+        <dl className="border-border grid grid-cols-3 gap-3 border-y py-3">
+          <div>
+            <dt className="text-muted-foreground font-mono text-[10px] tracking-widest uppercase">
+              Balance
+            </dt>
+            <dd className="text-foreground mt-1 font-mono text-base font-bold">
+              {formatInteger(holding.balance)}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-muted-foreground font-mono text-[10px] tracking-widest uppercase">
+              Available
+            </dt>
+            <dd className="text-foreground mt-1 font-mono text-base font-bold">
+              {formatInteger(holding.availableBalance)}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-muted-foreground font-mono text-[10px] tracking-widest uppercase">
+              Locked
+            </dt>
+            <dd className="text-foreground mt-1 font-mono text-base font-bold">
+              {formatInteger(holding.lockedBalance)}
+            </dd>
+          </div>
+        </dl>
+
+        {holding.lockedBalance > 0 && (
+          <div className="border-border bg-muted/20 flex items-start gap-2 border p-3">
+            <Lock className="text-muted-foreground mt-0.5 h-4 w-4 shrink-0" />
+            <p className="text-muted-foreground text-xs">
+              The API records {formatInteger(holding.lockedBalance)} tokens as
+              locked. This screen does not infer an unlock date.
             </p>
           </div>
         )}
 
-        {projectFailed && holderClass === "INVESTOR" && (
-          <div className="flex items-center gap-2 rounded-none border border-neon-cyan/30 bg-neon-cyan/5 px-3 py-2">
-            <ShieldCheck className="h-3.5 w-3.5 text-neon-cyan shrink-0" />
-            <p className="font-mono text-xs text-neon-cyan">
-              Trust protection active — recovery in progress
-            </p>
-          </div>
-        )}
+        <div className="text-muted-foreground space-y-2 text-xs">
+          <p>
+            A token balance is not proof of equity, ownership, or governance
+            rights. Those rights require a separate approved agreement.
+          </p>
+          <p className="font-mono text-[10px] tracking-wide uppercase">
+            API updated {formatDate(holding.updatedAt)}
+          </p>
+        </div>
 
-        {/* Action */}
-        {canWithdraw && onWithdraw && (
+        {hasPayoutContext && onViewPayoutStatus && (
           <Button
-            size="sm"
-            onClick={() => onWithdraw(configId, holderClass)}
-            className="w-full rounded-none bg-neon-green text-black font-mono text-xs uppercase tracking-widest font-bold hover:bg-neon-green/90"
+            type="button"
+            variant="outline"
+            onClick={onViewPayoutStatus}
+            className="min-h-11 w-full rounded-none font-mono text-xs tracking-widest uppercase"
           >
-            <TrendingUp className="h-3.5 w-3.5 mr-1.5" />
-            Withdraw
+            <PauseCircle className="mr-2 h-4 w-4" />
+            Payout status
+            <ArrowUpRight className="ml-auto h-4 w-4" />
           </Button>
         )}
       </CardContent>

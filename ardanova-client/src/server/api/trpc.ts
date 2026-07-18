@@ -22,8 +22,6 @@ import {
   checkVerificationLevel,
 } from "~/server/api/lib/rbac";
 
-
-
 /**
  * 1. CONTEXT
  *
@@ -104,8 +102,10 @@ const timingMiddleware = t.middleware(async ({ next, path }) => {
 
   const result = await next();
 
-  const end = Date.now();
-  console.log(`[TRPC] ${path} took ${end - start}ms to execute`);
+  if (t._config.isDev) {
+    const end = Date.now();
+    console.info(`[TRPC] ${path} took ${end - start}ms to execute`);
+  }
 
   return result;
 });
@@ -130,15 +130,16 @@ export const publicProcedure = t.procedure.use(timingMiddleware);
 export const protectedProcedure = t.procedure
   .use(timingMiddleware)
   .use(({ ctx, next }) => {
-    if (!ctx.session?.user) {
+    const session = ctx.session;
+    const user = session?.user;
+    if (!user?.id) {
       throw new TRPCError({ code: "UNAUTHORIZED" });
     }
-    return runWithActorAssertion(
-      { subject: ctx.session.user.id, role: ctx.session.user.role },
-      () => next({
+    return runWithActorAssertion({ subject: user.id, role: user.role }, () =>
+      next({
         ctx: {
           // infers the `session` as non-nullable
-          session: { ...ctx.session, user: ctx.session.user },
+          session: { ...session, user },
         },
       }),
     );
@@ -225,7 +226,9 @@ export const adminProcedure = protectedProcedure.use(requireRole(["ADMIN"]));
  * @example
  *   const guildOrAdminProcedure = createRoleProtectedProcedure(["GUILD", "ADMIN"]);
  */
-export function createRoleProtectedProcedure(allowedRoles: readonly UserRole[]) {
+export function createRoleProtectedProcedure(
+  allowedRoles: readonly UserRole[],
+) {
   return protectedProcedure.use(requireRole(allowedRoles));
 }
 
@@ -235,7 +238,9 @@ export function createRoleProtectedProcedure(allowedRoles: readonly UserRole[]) 
  * @example
  *   const freelancerProcedure = createUserTypeProtectedProcedure(["FREELANCER"]);
  */
-export function createUserTypeProtectedProcedure(allowedTypes: readonly UserType[]) {
+export function createUserTypeProtectedProcedure(
+  allowedTypes: readonly UserType[],
+) {
   return protectedProcedure.use(requireUserType(allowedTypes));
 }
 
@@ -245,6 +250,8 @@ export function createUserTypeProtectedProcedure(allowedTypes: readonly UserType
  * @example
  *   const verifiedProcedure = createVerificationProtectedProcedure("VERIFIED");
  */
-export function createVerificationProtectedProcedure(minimumLevel: VerificationLevel) {
+export function createVerificationProtectedProcedure(
+  minimumLevel: VerificationLevel,
+) {
   return protectedProcedure.use(requireVerification(minimumLevel));
 }

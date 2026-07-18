@@ -2,9 +2,15 @@
 
 import { useState } from "react";
 import { api } from "~/trpc/react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "~/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
-import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
+import { Avatar, AvatarFallback } from "~/components/ui/avatar";
 import { Loader2, Star, MessageSquare, Trash2, Send } from "lucide-react";
 
 interface ReviewsTabProps {
@@ -13,22 +19,11 @@ interface ReviewsTabProps {
   currentUserId?: string;
 }
 
-interface Review {
-  id: string;
-  guildId: string;
-  userId: string;
-  rating: number;
-  content: string | null;
-  createdAt: string;
-  user?: {
-    id: string;
-    name?: string | null;
-    email?: string | null;
-    image?: string | null;
-  };
-}
-
-export function ReviewsTab({ guildId, isOwner, currentUserId }: ReviewsTabProps) {
+export function ReviewsTab({
+  guildId,
+  isOwner,
+  currentUserId,
+}: ReviewsTabProps) {
   const [showReviewForm, setShowReviewForm] = useState(false);
   const [rating, setRating] = useState(5);
   const [content, setContent] = useState("");
@@ -37,7 +32,11 @@ export function ReviewsTab({ guildId, isOwner, currentUserId }: ReviewsTabProps)
   const utils = api.useUtils();
 
   // Query for fetching reviews
-  const { data: reviews, isLoading, error } = api.guild.getReviews.useQuery({
+  const {
+    data: reviews,
+    isLoading,
+    error,
+  } = api.guild.getReviews.useQuery({
     guildId,
   });
 
@@ -50,13 +49,12 @@ export function ReviewsTab({ guildId, isOwner, currentUserId }: ReviewsTabProps)
 
       utils.guild.getReviews.setData({ guildId }, (old) => [
         {
-          id: 'temp-' + Date.now(),
+          id: "temp-" + Date.now(),
           guildId: newReview.guildId,
-          userId: currentUserId ?? 'current-user',
+          reviewerId: currentUserId ?? "current-user",
           rating: newReview.rating,
           content: newReview.content ?? null,
           createdAt: new Date().toISOString(),
-          user: { id: currentUserId ?? 'current-user', name: 'You', email: '', image: undefined },
         },
         ...(old ?? []),
       ]);
@@ -87,7 +85,7 @@ export function ReviewsTab({ guildId, isOwner, currentUserId }: ReviewsTabProps)
       const previous = utils.guild.getReviews.getData({ guildId });
 
       utils.guild.getReviews.setData({ guildId }, (old) =>
-        (old ?? []).filter((review) => review.id !== variables.reviewId)
+        (old ?? []).filter((review) => review.id !== variables.reviewId),
       );
 
       return { previous };
@@ -129,21 +127,20 @@ export function ReviewsTab({ guildId, isOwner, currentUserId }: ReviewsTabProps)
     });
   };
 
-  const getInitials = (name?: string) => {
-    if (!name) return "?";
-    return name
-      .split(" ")
-      .map((n) => n[0])
-      .join("")
-      .toUpperCase()
-      .slice(0, 2);
-  };
+  const averageRating =
+    reviews && reviews.length > 0
+      ? reviews.reduce((acc, review) => acc + review.rating, 0) / reviews.length
+      : 0;
 
-  const averageRating = reviews && reviews.length > 0
-    ? reviews.reduce((acc: number, r: Review) => acc + r.rating, 0) / reviews.length
-    : 0;
-
-  const StarRating = ({ rating: starRating, interactive = false, onChange }: { rating: number; interactive?: boolean; onChange?: (rating: number) => void }) => {
+  const StarRating = ({
+    rating: starRating,
+    interactive = false,
+    onChange,
+  }: {
+    rating: number;
+    interactive?: boolean;
+    onChange?: (rating: number) => void;
+  }) => {
     return (
       <div className="flex gap-1">
         {[1, 2, 3, 4, 5].map((star) => (
@@ -154,11 +151,15 @@ export function ReviewsTab({ guildId, isOwner, currentUserId }: ReviewsTabProps)
             onClick={() => interactive && onChange?.(star)}
             onMouseEnter={() => interactive && setHoveredRating(star)}
             onMouseLeave={() => interactive && setHoveredRating(0)}
-            className={interactive ? "cursor-pointer transition-transform hover:scale-110" : "cursor-default"}
+            className={
+              interactive
+                ? "cursor-pointer transition-transform hover:scale-110"
+                : "cursor-default"
+            }
           >
             <Star
               className={`size-5 ${
-                star <= (interactive ? (hoveredRating || starRating) : starRating)
+                star <= (interactive ? hoveredRating || starRating : starRating)
                   ? "fill-yellow-400 text-yellow-400"
                   : "text-gray-300"
               }`}
@@ -172,7 +173,7 @@ export function ReviewsTab({ guildId, isOwner, currentUserId }: ReviewsTabProps)
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 className="size-6 animate-spin text-muted-foreground" />
+        <Loader2 className="text-muted-foreground size-6 animate-spin" />
       </div>
     );
   }
@@ -181,7 +182,7 @@ export function ReviewsTab({ guildId, isOwner, currentUserId }: ReviewsTabProps)
     return (
       <Card className="border-destructive">
         <CardContent className="pt-6">
-          <p className="text-sm text-destructive">
+          <p className="text-destructive text-sm">
             Failed to load reviews: {error.message}
           </p>
         </CardContent>
@@ -212,7 +213,7 @@ export function ReviewsTab({ guildId, isOwner, currentUserId }: ReviewsTabProps)
                 variant="default"
                 size="sm"
               >
-                <MessageSquare className="size-4 mr-2" />
+                <MessageSquare className="mr-2 size-4" />
                 Write Review
               </Button>
             )}
@@ -222,28 +223,32 @@ export function ReviewsTab({ guildId, isOwner, currentUserId }: ReviewsTabProps)
           <CardContent>
             <div className="flex items-center gap-4">
               <div className="text-center">
-                <div className="text-4xl font-bold text-primary">
+                <div className="text-primary text-4xl font-bold">
                   {averageRating.toFixed(1)}
                 </div>
                 <StarRating rating={Math.round(averageRating)} />
-                <div className="text-sm text-muted-foreground mt-1">
+                <div className="text-muted-foreground mt-1 text-sm">
                   Average Rating
                 </div>
               </div>
               <div className="flex-1 space-y-2">
                 {[5, 4, 3, 2, 1].map((stars) => {
-                  const count = reviews.filter((r: Review) => r.rating === stars).length;
+                  const count = reviews.filter(
+                    (review) => review.rating === stars,
+                  ).length;
                   const percentage = (count / reviews.length) * 100;
                   return (
                     <div key={stars} className="flex items-center gap-2">
-                      <span className="text-sm w-8">{stars} ★</span>
-                      <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
+                      <span className="w-8 text-sm">{stars} ★</span>
+                      <div className="bg-muted h-2 flex-1 overflow-hidden rounded-none">
                         <div
                           className="h-full bg-yellow-400"
                           style={{ width: `${percentage}%` }}
                         />
                       </div>
-                      <span className="text-sm text-muted-foreground w-8">{count}</span>
+                      <span className="text-muted-foreground w-8 text-sm">
+                        {count}
+                      </span>
                     </div>
                   );
                 })}
@@ -265,13 +270,16 @@ export function ReviewsTab({ guildId, isOwner, currentUserId }: ReviewsTabProps)
           <CardContent>
             <form onSubmit={handleSubmitReview} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium mb-2">
+                <label className="mb-2 block text-sm font-medium">
                   Rating *
                 </label>
                 <StarRating rating={rating} interactive onChange={setRating} />
               </div>
               <div>
-                <label htmlFor="content" className="block text-sm font-medium mb-1">
+                <label
+                  htmlFor="content"
+                  className="mb-1 block text-sm font-medium"
+                >
                   Review *
                 </label>
                 <textarea
@@ -280,7 +288,7 @@ export function ReviewsTab({ guildId, isOwner, currentUserId }: ReviewsTabProps)
                   onChange={(e) => setContent(e.target.value)}
                   placeholder="Share your thoughts about working with this guild..."
                   rows={4}
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="border-input bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring w-full rounded-md border px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
                   required
                 />
               </div>
@@ -320,9 +328,9 @@ export function ReviewsTab({ guildId, isOwner, currentUserId }: ReviewsTabProps)
       {(!reviews || reviews.length === 0) && (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
-            <MessageSquare className="h-12 w-12 text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold mb-2">No reviews yet</h3>
-            <p className="text-sm text-muted-foreground text-center max-w-sm">
+            <MessageSquare className="text-muted-foreground mb-4 h-12 w-12" />
+            <h3 className="mb-2 text-lg font-semibold">No reviews yet</h3>
+            <p className="text-muted-foreground max-w-sm text-center text-sm">
               {isOwner
                 ? "Your guild doesn't have any reviews yet. Encourage clients to share their experiences."
                 : "Be the first to review this guild and share your experience."}
@@ -334,44 +342,54 @@ export function ReviewsTab({ guildId, isOwner, currentUserId }: ReviewsTabProps)
       {/* Reviews List */}
       {reviews && reviews.length > 0 && (
         <div className="space-y-4">
-          {reviews.map((review: Review) => (
+          {reviews.map((review) => (
             <Card key={review.id}>
               <CardContent className="pt-6">
                 <div className="flex items-start gap-4">
                   <Avatar className="h-10 w-10">
-                    <AvatarImage src={review.user?.image ?? undefined} alt={review.user?.name ?? "User"} />
-                    <AvatarFallback>{getInitials(review.user?.name)}</AvatarFallback>
+                    <AvatarFallback>
+                      {review.reviewerId === currentUserId ? "YO" : "R"}
+                    </AvatarFallback>
                   </Avatar>
                   <div className="flex-1 space-y-2">
                     <div className="flex items-start justify-between gap-2">
                       <div>
                         <div className="flex items-center gap-2">
                           <span className="font-semibold">
-                            {review.user?.name ?? "Anonymous"}
+                            {review.reviewerId === currentUserId
+                              ? "You"
+                              : "Guild reviewer"}
                           </span>
                           <StarRating rating={review.rating} />
                         </div>
-                        <div className="text-xs text-muted-foreground">
+                        <div className="text-muted-foreground text-xs">
                           {formatDate(review.createdAt)}
                         </div>
                       </div>
-                      {currentUserId === review.userId && (
+                      {currentUserId === review.reviewerId && (
                         <Button
                           variant="ghost"
                           size="sm"
                           onClick={() => handleDeleteReview(review.id)}
                           disabled={deleteReviewMutation.isPending}
-                          className="h-8 w-8 p-0"
+                          className="size-11 p-0"
+                          aria-label={`Delete your ${review.rating}-star guild review`}
                         >
                           {deleteReviewMutation.isPending ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
+                            <Loader2
+                              className="h-4 w-4 animate-spin"
+                              aria-hidden="true"
+                            />
                           ) : (
-                            <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
+                            <Trash2
+                              className="text-muted-foreground hover:text-destructive h-4 w-4"
+                              aria-hidden="true"
+                            />
                           )}
                         </Button>
                       )}
                     </div>
-                    <p className="text-sm text-foreground whitespace-pre-wrap">
+                    <p className="text-foreground text-sm whitespace-pre-wrap">
                       {review.content ?? "No comment provided"}
                     </p>
                   </div>

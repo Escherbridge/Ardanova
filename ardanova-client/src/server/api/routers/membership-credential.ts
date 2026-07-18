@@ -1,8 +1,15 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { createTRPCRouter, publicProcedure, protectedProcedure } from "~/server/api/trpc";
+import {
+  createTRPCRouter,
+  publicProcedure,
+  protectedProcedure,
+} from "~/server/api/trpc";
 import { apiClient } from "~/lib/api";
-import type { MembershipGrantType } from "~/lib/api/ardanova/endpoints/membership-credentials";
+import type {
+  MembershipCredential,
+  MembershipGrantType,
+} from "~/lib/api/ardanova/endpoints/membership-credentials";
 
 // ---------------------------------------------------------------------------
 // Zod schemas
@@ -44,6 +51,35 @@ async function verifyProjectOwner(projectId: string, callerId: string) {
   return projectResponse.data;
 }
 
+async function verifyCredentialOwner(
+  credential: Pick<MembershipCredential, "projectId" | "guildId">,
+  callerId: string,
+) {
+  if (credential.projectId) {
+    await verifyProjectOwner(credential.projectId, callerId);
+    return;
+  }
+
+  if (credential.guildId) {
+    const guildResponse = await apiClient.guilds.getById(credential.guildId);
+    if (guildResponse.error || !guildResponse.data) {
+      throw new TRPCError({ code: "NOT_FOUND", message: "Guild not found" });
+    }
+    if (guildResponse.data.ownerId !== callerId) {
+      throw new TRPCError({
+        code: "FORBIDDEN",
+        message: "Only the guild owner can perform this action",
+      });
+    }
+    return;
+  }
+
+  throw new TRPCError({
+    code: "BAD_REQUEST",
+    message: "Membership credential has no project or guild scope",
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Router - thin proxy to .NET API via apiClient
 // ---------------------------------------------------------------------------
@@ -54,9 +90,14 @@ export const membershipCredentialRouter = createTRPCRouter({
   getByProjectId: publicProcedure
     .input(z.object({ projectId: z.string().min(1) }))
     .query(async ({ input }) => {
-      const response = await apiClient.membershipCredentials.getByProjectId(input.projectId);
+      const response = await apiClient.membershipCredentials.getByProjectId(
+        input.projectId,
+      );
       if (response.error) {
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: response.error });
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: response.error,
+        });
       }
       return response.data ?? [];
     }),
@@ -64,9 +105,15 @@ export const membershipCredentialRouter = createTRPCRouter({
   getActiveByProjectId: publicProcedure
     .input(z.object({ projectId: z.string().min(1) }))
     .query(async ({ input }) => {
-      const response = await apiClient.membershipCredentials.getActiveByProjectId(input.projectId);
+      const response =
+        await apiClient.membershipCredentials.getActiveByProjectId(
+          input.projectId,
+        );
       if (response.error) {
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: response.error });
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: response.error,
+        });
       }
       return response.data ?? [];
     }),
@@ -88,9 +135,13 @@ export const membershipCredentialRouter = createTRPCRouter({
     .input(z.object({ userId: z.string().optional() }))
     .query(async ({ input, ctx }) => {
       const userId = input.userId ?? ctx.session.user.id;
-      const response = await apiClient.membershipCredentials.getByUserId(userId);
+      const response =
+        await apiClient.membershipCredentials.getByUserId(userId);
       if (response.error) {
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: response.error });
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: response.error,
+        });
       }
       return response.data ?? [];
     }),
@@ -99,10 +150,11 @@ export const membershipCredentialRouter = createTRPCRouter({
     .input(z.object({ projectId: z.string().min(1) }))
     .query(async ({ input, ctx }) => {
       const userId = ctx.session.user.id;
-      const response = await apiClient.membershipCredentials.getByProjectAndUser(
-        input.projectId,
-        userId
-      );
+      const response =
+        await apiClient.membershipCredentials.getByProjectAndUser(
+          input.projectId,
+          userId,
+        );
       // Return null if not found (expected for users without credentials)
       if (response.error || !response.data) {
         return null;
@@ -113,9 +165,14 @@ export const membershipCredentialRouter = createTRPCRouter({
   getByGuildId: publicProcedure
     .input(z.object({ guildId: z.string().min(1) }))
     .query(async ({ input }) => {
-      const response = await apiClient.membershipCredentials.getByGuildId(input.guildId);
+      const response = await apiClient.membershipCredentials.getByGuildId(
+        input.guildId,
+      );
       if (response.error) {
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: response.error });
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: response.error,
+        });
       }
       return response.data ?? [];
     }),
@@ -123,20 +180,28 @@ export const membershipCredentialRouter = createTRPCRouter({
   getActiveByGuildId: publicProcedure
     .input(z.object({ guildId: z.string().min(1) }))
     .query(async ({ input }) => {
-      const response = await apiClient.membershipCredentials.getActiveByGuildId(input.guildId);
+      const response = await apiClient.membershipCredentials.getActiveByGuildId(
+        input.guildId,
+      );
       if (response.error) {
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: response.error });
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: response.error,
+        });
       }
       return response.data ?? [];
     }),
 
   checkCredential: publicProcedure
-    .input(z.object({ projectId: z.string().min(1), userId: z.string().min(1) }))
+    .input(
+      z.object({ projectId: z.string().min(1), userId: z.string().min(1) }),
+    )
     .query(async ({ input }) => {
-      const response = await apiClient.membershipCredentials.getByProjectAndUser(
-        input.projectId,
-        input.userId
-      );
+      const response =
+        await apiClient.membershipCredentials.getByProjectAndUser(
+          input.projectId,
+          input.userId,
+        );
 
       if (response.error || !response.data) {
         return { hasCredential: false, status: null as string | null };
@@ -176,12 +241,16 @@ export const membershipCredentialRouter = createTRPCRouter({
     }),
 
   revoke: protectedProcedure
-    .input(z.object({ id: z.string().min(1), revokeTxHash: z.string().optional() }))
+    .input(
+      z.object({ id: z.string().min(1), revokeTxHash: z.string().optional() }),
+    )
     .mutation(async ({ input, ctx }) => {
       const callerId = ctx.session.user.id;
 
       // Fetch credential to find associated project for authorization
-      const credentialResponse = await apiClient.membershipCredentials.getById(input.id);
+      const credentialResponse = await apiClient.membershipCredentials.getById(
+        input.id,
+      );
       if (credentialResponse.error || !credentialResponse.data) {
         throw new TRPCError({
           code: "NOT_FOUND",
@@ -189,7 +258,7 @@ export const membershipCredentialRouter = createTRPCRouter({
         });
       }
 
-      await verifyProjectOwner(credentialResponse.data.projectId, callerId);
+      await verifyCredentialOwner(credentialResponse.data, callerId);
 
       const response = await apiClient.membershipCredentials.revoke(input.id, {
         revokeTxHash: input.revokeTxHash,
@@ -210,7 +279,9 @@ export const membershipCredentialRouter = createTRPCRouter({
     .mutation(async ({ input, ctx }) => {
       const callerId = ctx.session.user.id;
 
-      const credentialResponse = await apiClient.membershipCredentials.getById(input.id);
+      const credentialResponse = await apiClient.membershipCredentials.getById(
+        input.id,
+      );
       if (credentialResponse.error || !credentialResponse.data) {
         throw new TRPCError({
           code: "NOT_FOUND",
@@ -218,7 +289,7 @@ export const membershipCredentialRouter = createTRPCRouter({
         });
       }
 
-      await verifyProjectOwner(credentialResponse.data.projectId, callerId);
+      await verifyCredentialOwner(credentialResponse.data, callerId);
 
       const response = await apiClient.membershipCredentials.suspend(input.id);
 
@@ -237,7 +308,9 @@ export const membershipCredentialRouter = createTRPCRouter({
     .mutation(async ({ input, ctx }) => {
       const callerId = ctx.session.user.id;
 
-      const credentialResponse = await apiClient.membershipCredentials.getById(input.id);
+      const credentialResponse = await apiClient.membershipCredentials.getById(
+        input.id,
+      );
       if (credentialResponse.error || !credentialResponse.data) {
         throw new TRPCError({
           code: "NOT_FOUND",
@@ -245,14 +318,17 @@ export const membershipCredentialRouter = createTRPCRouter({
         });
       }
 
-      await verifyProjectOwner(credentialResponse.data.projectId, callerId);
+      await verifyCredentialOwner(credentialResponse.data, callerId);
 
-      const response = await apiClient.membershipCredentials.reactivate(input.id);
+      const response = await apiClient.membershipCredentials.reactivate(
+        input.id,
+      );
 
       if (response.error || !response.data) {
         throw new TRPCError({
           code: "BAD_REQUEST",
-          message: response.error ?? "Failed to reactivate membership credential",
+          message:
+            response.error ?? "Failed to reactivate membership credential",
         });
       }
 
@@ -264,12 +340,14 @@ export const membershipCredentialRouter = createTRPCRouter({
       z.object({
         credentialId: z.string().min(1),
         tier: z.enum(["BRONZE", "SILVER", "GOLD", "PLATINUM", "DIAMOND"]),
-      })
+      }),
     )
     .mutation(async ({ input, ctx }) => {
       const callerId = ctx.session.user.id;
 
-      const credentialResponse = await apiClient.membershipCredentials.getById(input.credentialId);
+      const credentialResponse = await apiClient.membershipCredentials.getById(
+        input.credentialId,
+      );
       if (credentialResponse.error || !credentialResponse.data) {
         throw new TRPCError({
           code: "NOT_FOUND",
@@ -277,11 +355,14 @@ export const membershipCredentialRouter = createTRPCRouter({
         });
       }
 
-      await verifyProjectOwner(credentialResponse.data.projectId, callerId);
+      await verifyCredentialOwner(credentialResponse.data, callerId);
 
-      const response = await apiClient.membershipCredentials.updateTier(input.credentialId, {
-        tier: input.tier,
-      });
+      const response = await apiClient.membershipCredentials.updateTier(
+        input.credentialId,
+        {
+          tier: input.tier,
+        },
+      );
 
       if (response.error || !response.data) {
         throw new TRPCError({

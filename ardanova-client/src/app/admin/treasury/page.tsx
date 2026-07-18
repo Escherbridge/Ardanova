@@ -31,17 +31,55 @@ interface TreasuryStatus {
   ardaValueUsd: number;
 }
 
+const treasuryTransactionTypes = [
+  "FUNDING_INFLOW",
+  "ALLOCATION_INDEX",
+  "ALLOCATION_LIQUID",
+  "ALLOCATION_OPS",
+  "PAYOUT_DEBIT",
+  "INDEX_RETURN",
+  "PROFIT_SHARE",
+  "REBALANCE",
+  "TRUST_PROTECTION",
+  "FOUNDER_BURN",
+] as const;
+
+type TreasuryTransactionType = (typeof treasuryTransactionTypes)[number];
+
 interface TreasuryTransaction {
   id: string;
-  type: string;
+  type: TreasuryTransactionType;
   amountUsd: number;
   description: string;
   createdAt: Date | string;
   projectId?: string;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function readString(value: unknown): string {
+  return typeof value === "string" ? value : "";
+}
+
+function isTreasuryTransactionType(
+  value: unknown,
+): value is TreasuryTransactionType {
+  return (
+    typeof value === "string" &&
+    treasuryTransactionTypes.some((candidate) => candidate === value)
+  );
+}
+
+function readDate(value: unknown): Date | string {
+  return value instanceof Date || typeof value === "string"
+    ? value
+    : new Date();
+}
+
 function asStatus(raw: unknown): TreasuryStatus {
-  const r = raw as Record<string, unknown>;
+  const r = isRecord(raw) ? raw : {};
   return {
     indexFundUsd: Number(r.indexFundUsd ?? 0),
     liquidReserveUsd: Number(r.liquidReserveUsd ?? 0),
@@ -54,16 +92,18 @@ function asStatus(raw: unknown): TreasuryStatus {
 
 function asTransactions(raw: unknown): TreasuryTransaction[] {
   if (!Array.isArray(raw)) return [];
-  return raw.map((item: unknown) => {
-    const r = item as Record<string, unknown>;
+  return raw.flatMap((item: unknown) => {
+    if (!isRecord(item) || !isTreasuryTransactionType(item.type)) return [];
+
+    const r = item;
     return {
-      id: String(r.id ?? ""),
-      type: String(r.type ?? ""),
+      id: readString(r.id),
+      type: item.type,
       amountUsd: Number(r.amountUsd ?? 0),
-      description: String(r.description ?? ""),
-      createdAt: (r.createdAt as string | Date) ?? new Date(),
-      projectId: r.projectId != null ? String(r.projectId) : undefined,
-    };
+      description: readString(r.description),
+      createdAt: readDate(r.createdAt),
+      projectId: typeof r.projectId === "string" ? r.projectId : undefined,
+    } satisfies TreasuryTransaction;
   });
 }
 
@@ -85,10 +125,8 @@ export default function TreasuryDashboard() {
     error: statusError,
   } = api.treasury.getStatus.useQuery();
 
-  const {
-    data: transactions,
-    isLoading: txLoading,
-  } = api.treasury.getTransactions.useQuery({ limit: 100 });
+  const { data: transactions, isLoading: txLoading } =
+    api.treasury.getTransactions.useQuery({ limit: 100 });
 
   const applyIndexReturn = api.treasury.applyIndexReturn.useMutation({
     onSuccess: () => {
@@ -119,7 +157,7 @@ export default function TreasuryDashboard() {
   if (!session) {
     return (
       <div className="flex min-h-screen items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-neon-cyan" />
+        <Loader2 className="text-system h-8 w-8 animate-spin" />
       </div>
     );
   }
@@ -127,11 +165,11 @@ export default function TreasuryDashboard() {
   if (session.user?.role !== "ADMIN") {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-4">
-        <div className="border-2 border-neon-pink px-8 py-6 text-center">
-          <p className="font-mono text-xl font-bold text-neon-pink">
+        <div className="border-destructive border-2 px-8 py-6 text-center">
+          <p className="text-destructive font-mono text-xl font-bold">
             UNAUTHORIZED
           </p>
-          <p className="mt-2 text-sm text-muted-foreground">
+          <p className="text-muted-foreground mt-2 text-sm">
             Admin access required to view treasury data.
           </p>
         </div>
@@ -142,7 +180,7 @@ export default function TreasuryDashboard() {
   if (statusLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-neon-cyan" />
+        <Loader2 className="text-system h-8 w-8 animate-spin" />
       </div>
     );
   }
@@ -150,11 +188,11 @@ export default function TreasuryDashboard() {
   if (statusError || !status) {
     return (
       <div className="flex min-h-screen items-center justify-center">
-        <div className="border-2 border-neon-pink px-8 py-6 text-center">
-          <p className="font-mono text-neon-pink">
+        <div className="border-destructive border-2 px-8 py-6 text-center">
+          <p className="text-destructive font-mono">
             Failed to load treasury data
           </p>
-          <p className="mt-1 text-xs text-muted-foreground">
+          <p className="text-muted-foreground mt-1 text-xs">
             {statusError?.message ?? "Unknown error"}
           </p>
         </div>
@@ -174,10 +212,10 @@ export default function TreasuryDashboard() {
     <div className="container mx-auto max-w-7xl space-y-10 py-8">
       {/* Header */}
       <div className="space-y-2 border-b-2 border-white/10 pb-6">
-        <h1 className="font-mono text-3xl font-bold uppercase tracking-tight">
+        <h1 className="font-mono text-3xl font-bold tracking-tight uppercase">
           Treasury Dashboard
         </h1>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-muted-foreground text-sm">
           Real-time overview of ARDA treasury allocation buckets and transaction
           history.
         </p>
@@ -185,7 +223,7 @@ export default function TreasuryDashboard() {
 
       {/* Bucket visualization */}
       <section className="space-y-3">
-        <h2 className="font-mono text-xs uppercase tracking-widest text-muted-foreground">
+        <h2 className="text-muted-foreground font-mono text-xs tracking-widest uppercase">
           Allocation Buckets
         </h2>
         <TreasuryBuckets
@@ -200,7 +238,7 @@ export default function TreasuryDashboard() {
 
       {/* Admin actions */}
       <section className="space-y-3">
-        <h2 className="font-mono text-xs uppercase tracking-widest text-muted-foreground">
+        <h2 className="text-muted-foreground font-mono text-xs tracking-widest uppercase">
           Admin Actions
         </h2>
         <div className="flex flex-wrap gap-3">
@@ -209,7 +247,7 @@ export default function TreasuryDashboard() {
             <DialogTrigger asChild>
               <Button
                 variant="outline"
-                className="border-2 border-neon-green font-mono text-neon-green hover:bg-neon-green/10"
+                className="border-success text-success hover:bg-success/10 border-2 font-mono"
               >
                 <TrendingUp className="mr-2 h-4 w-4" />
                 Apply Index Return
@@ -217,7 +255,9 @@ export default function TreasuryDashboard() {
             </DialogTrigger>
             <DialogContent className="border-2 border-white/20">
               <DialogHeader>
-                <DialogTitle className="font-mono">Apply Index Return</DialogTitle>
+                <DialogTitle className="font-mono">
+                  Apply Index Return
+                </DialogTitle>
                 <DialogDescription>
                   Distribute index fund returns proportionally to all ARDA
                   holders. This action cannot be undone.
@@ -232,7 +272,7 @@ export default function TreasuryDashboard() {
                   Cancel
                 </Button>
                 <Button
-                  className="border-2 border-neon-green bg-transparent font-mono text-neon-green hover:bg-neon-green/20"
+                  className="border-success text-success hover:bg-success/20 border-2 bg-transparent font-mono"
                   onClick={() => applyIndexReturn.mutate()}
                   disabled={applyIndexReturn.isPending}
                 >
@@ -252,7 +292,7 @@ export default function TreasuryDashboard() {
             <DialogTrigger asChild>
               <Button
                 variant="outline"
-                className="border-2 border-neon-cyan font-mono text-neon-cyan hover:bg-neon-cyan/10"
+                className="border-system text-system hover:bg-system/10 border-2 font-mono"
               >
                 <Scale className="mr-2 h-4 w-4" />
                 Rebalance
@@ -260,14 +300,16 @@ export default function TreasuryDashboard() {
             </DialogTrigger>
             <DialogContent className="border-2 border-white/20">
               <DialogHeader>
-                <DialogTitle className="font-mono">Rebalance Treasury</DialogTitle>
+                <DialogTitle className="font-mono">
+                  Rebalance Treasury
+                </DialogTitle>
                 <DialogDescription>
                   Rebalance bucket allocations. Specify the required liquid
                   reserve amount in USD.
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-2 py-2">
-                <label className="font-mono text-xs uppercase tracking-widest text-muted-foreground">
+                <label className="text-muted-foreground font-mono text-xs tracking-widest uppercase">
                   Required Liquid (USD)
                 </label>
                 <Input
@@ -292,10 +334,12 @@ export default function TreasuryDashboard() {
                   Cancel
                 </Button>
                 <Button
-                  className="border-2 border-neon-cyan bg-transparent font-mono text-neon-cyan hover:bg-neon-cyan/20"
+                  className="border-system text-system hover:bg-system/20 border-2 bg-transparent font-mono"
                   onClick={() => {
                     if (isRebalanceValid) {
-                      rebalance.mutate({ requiredLiquid: rebalanceLiquidAmount });
+                      rebalance.mutate({
+                        requiredLiquid: rebalanceLiquidAmount,
+                      });
                     }
                   }}
                   disabled={!isRebalanceValid || rebalance.isPending}
@@ -324,7 +368,9 @@ export default function TreasuryDashboard() {
             </DialogTrigger>
             <DialogContent className="border-2 border-white/20">
               <DialogHeader>
-                <DialogTitle className="font-mono">Reconcile Treasury</DialogTitle>
+                <DialogTitle className="font-mono">
+                  Reconcile Treasury
+                </DialogTitle>
                 <DialogDescription>
                   Run a full reconciliation pass to sync on-chain and off-chain
                   balances. This may take a few seconds.
@@ -359,7 +405,7 @@ export default function TreasuryDashboard() {
         {(applyIndexReturn.isError ||
           rebalance.isError ||
           reconcile.isError) && (
-          <p className="font-mono text-xs text-neon-pink">
+          <p className="text-destructive font-mono text-xs">
             Error:{" "}
             {(applyIndexReturn.error ?? rebalance.error ?? reconcile.error)
               ?.message ?? "Unknown error"}
@@ -369,12 +415,12 @@ export default function TreasuryDashboard() {
 
       {/* Transaction log */}
       <section className="space-y-3">
-        <h2 className="font-mono text-xs uppercase tracking-widest text-muted-foreground">
+        <h2 className="text-muted-foreground font-mono text-xs tracking-widest uppercase">
           Transaction Audit Log
         </h2>
         {txLoading ? (
           <div className="flex items-center justify-center py-12">
-            <Loader2 className="h-6 w-6 animate-spin text-neon-cyan" />
+            <Loader2 className="text-system h-6 w-6 animate-spin" />
           </div>
         ) : (
           <TreasuryTransactionLog

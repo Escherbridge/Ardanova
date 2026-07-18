@@ -5,14 +5,19 @@ import { apiClient } from "~/lib/api";
 // Create group conversation schema
 const createGroupSchema = z.object({
   name: z.string().min(1, "Group name is required"),
-  participantIds: z.array(z.string()).min(1, "At least one participant is required"),
+  participantIds: z
+    .array(z.string())
+    .min(1, "At least one participant is required"),
   avatarUrl: z.string().url().optional(),
 });
 
 // Send message schema
 const sendMessageSchema = z.object({
   conversationId: z.string(),
-  content: z.string().min(1, "Message content is required").max(10000, "Message cannot exceed 10000 characters"),
+  content: z
+    .string()
+    .min(1, "Message content is required")
+    .max(10000, "Message cannot exceed 10000 characters"),
   replyToId: z.string().optional(),
 });
 
@@ -23,12 +28,16 @@ export const chatRouter = createTRPCRouter({
       z.object({
         query: z.string().default(""),
         limit: z.number().min(1).max(50).default(20),
-      })
+      }),
     )
     .query(async ({ input, ctx }) => {
       const userId = ctx.session.user.id;
 
-      const response = await apiClient.users.search(input.query, 1, input.limit);
+      const response = await apiClient.users.search(
+        input.query,
+        1,
+        input.limit,
+      );
 
       if (response.error) {
         throw new Error(response.error);
@@ -51,7 +60,7 @@ export const chatRouter = createTRPCRouter({
       z.object({
         limit: z.number().min(1).max(50).default(20),
         cursor: z.string().optional(),
-      })
+      }),
     )
     .query(async ({ input, ctx }) => {
       const userId = ctx.session.user.id;
@@ -71,7 +80,9 @@ export const chatRouter = createTRPCRouter({
       const data = response.data;
       return {
         items: data?.items ?? [],
-        nextCursor: (data as { hasMore?: boolean })?.hasMore ? String(page + 1) : undefined,
+        nextCursor: (data as { hasMore?: boolean })?.hasMore
+          ? String(page + 1)
+          : undefined,
       };
     }),
 
@@ -81,7 +92,10 @@ export const chatRouter = createTRPCRouter({
     .query(async ({ input, ctx }) => {
       const userId = ctx.session.user.id;
 
-      const response = await apiClient.chat.getConversation(input.conversationId, userId);
+      const response = await apiClient.chat.getConversation(
+        input.conversationId,
+        userId,
+      );
 
       if (response.error || !response.data) {
         throw new Error(response.error ?? "Conversation not found");
@@ -101,7 +115,9 @@ export const chatRouter = createTRPCRouter({
       });
 
       if (response.error || !response.data) {
-        throw new Error(response.error ?? "Failed to get or create conversation");
+        throw new Error(
+          response.error ?? "Failed to get or create conversation",
+        );
       }
 
       return response.data;
@@ -123,7 +139,9 @@ export const chatRouter = createTRPCRouter({
       });
 
       if (response.error || !response.data) {
-        throw new Error(response.error ?? "Failed to create group conversation");
+        throw new Error(
+          response.error ?? "Failed to create group conversation",
+        );
       }
 
       return response.data;
@@ -136,13 +154,18 @@ export const chatRouter = createTRPCRouter({
         conversationId: z.string(),
         limit: z.number().min(1).max(100).default(50),
         cursor: z.string().optional(),
-      })
+      }),
     )
     .query(async ({ input, ctx }) => {
       const userId = ctx.session.user.id;
       const { conversationId, limit, cursor } = input;
 
-      const response = await apiClient.chat.getMessages(conversationId, userId, limit, cursor);
+      const response = await apiClient.chat.getMessages(
+        conversationId,
+        userId,
+        limit,
+        cursor,
+      );
 
       if (response.error) {
         throw new Error(response.error);
@@ -179,14 +202,15 @@ export const chatRouter = createTRPCRouter({
     .input(
       z.object({
         conversationId: z.string(),
-      })
+        readUpTo: z.string().datetime({ offset: true }),
+      }),
     )
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user.id;
 
       const response = await apiClient.chat.markAsRead(userId, {
         conversationId: input.conversationId,
-        readUpTo: new Date().toISOString(),
+        readUpTo: input.readUpTo,
       });
 
       if (response.error) {
@@ -202,7 +226,7 @@ export const chatRouter = createTRPCRouter({
       z.object({
         conversationId: z.string(),
         isTyping: z.boolean().default(true),
-      })
+      }),
     )
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user.id;
@@ -224,13 +248,17 @@ export const chatRouter = createTRPCRouter({
       z.object({
         messageId: z.string(),
         message: z.string().min(1).max(10000),
-      })
+      }),
     )
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user.id;
-      const response = await apiClient.chat.updateMessage(input.messageId, userId, {
-        message: input.message,
-      });
+      const response = await apiClient.chat.updateMessage(
+        input.messageId,
+        userId,
+        {
+          message: input.message,
+        },
+      );
       if (response.error || !response.data) {
         throw new Error(response.error ?? "Failed to update message");
       }
@@ -241,7 +269,10 @@ export const chatRouter = createTRPCRouter({
     .input(z.object({ messageId: z.string() }))
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user.id;
-      const response = await apiClient.chat.deleteMessage(input.messageId, userId);
+      const response = await apiClient.chat.deleteMessage(
+        input.messageId,
+        userId,
+      );
       if (response.error) {
         throw new Error(response.error ?? "Failed to delete message");
       }
@@ -254,12 +285,16 @@ export const chatRouter = createTRPCRouter({
         conversationId: z.string(),
         name: z.string().min(1).optional(),
         avatarUrl: z.string().url().optional(),
-      })
+      }),
     )
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user.id;
       const { conversationId, ...dto } = input;
-      const response = await apiClient.chat.updateGroup(conversationId, userId, dto);
+      const response = await apiClient.chat.updateGroup(
+        conversationId,
+        userId,
+        dto,
+      );
       if (response.error || !response.data) {
         throw new Error(response.error ?? "Failed to update group");
       }
@@ -272,14 +307,18 @@ export const chatRouter = createTRPCRouter({
         conversationId: z.string(),
         memberUserId: z.string(),
         role: z.enum(["OWNER", "ADMIN", "MEMBER"]).optional(),
-      })
+      }),
     )
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user.id;
-      const response = await apiClient.chat.addMember(input.conversationId, userId, {
-        userId: input.memberUserId,
-        role: input.role,
-      });
+      const response = await apiClient.chat.addMember(
+        input.conversationId,
+        userId,
+        {
+          userId: input.memberUserId,
+          role: input.role,
+        },
+      );
       if (response.error || !response.data) {
         throw new Error(response.error ?? "Failed to add member");
       }
@@ -291,11 +330,15 @@ export const chatRouter = createTRPCRouter({
       z.object({
         conversationId: z.string(),
         memberUserId: z.string(),
-      })
+      }),
     )
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user.id;
-      const response = await apiClient.chat.removeMember(input.conversationId, input.memberUserId, userId);
+      const response = await apiClient.chat.removeMember(
+        input.conversationId,
+        input.memberUserId,
+        userId,
+      );
       if (response.error) {
         throw new Error(response.error ?? "Failed to remove member");
       }
@@ -306,7 +349,10 @@ export const chatRouter = createTRPCRouter({
     .input(z.object({ conversationId: z.string() }))
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user.id;
-      const response = await apiClient.chat.leaveConversation(input.conversationId, userId);
+      const response = await apiClient.chat.leaveConversation(
+        input.conversationId,
+        userId,
+      );
       if (response.error) {
         throw new Error(response.error ?? "Failed to leave conversation");
       }

@@ -1,4 +1,8 @@
-import { type BaseApiClient, type ApiResponse, type PagedResult } from "../../base-client";
+import {
+  type BaseApiClient,
+  type ApiResponse,
+  type PagedResult,
+} from "../../base-client";
 
 export interface Opportunity {
   id: string;
@@ -11,6 +15,8 @@ export interface Opportunity {
   requirements?: string | null;
   compensation?: number | null;
   compensationDetails?: string | null;
+  equityPercent?: number | null;
+  isOpenForApplications?: boolean;
   location?: string | null;
   isRemote?: boolean;
   deadline?: string | null;
@@ -24,8 +30,22 @@ export interface Opportunity {
   applicationsCount?: number;
   bidsCount?: number;
   poster?: { id: string; name?: string | null; image?: string | null };
-  source?: { type: string; id: string; name: string; logo?: string | null; slug: string } | null;
-  task?: { id: string; title: string; status: string; priority: string; taskType: string; estimatedHours?: number | null; pbiId?: string | null } | null;
+  source?: {
+    type: string;
+    id: string;
+    name: string;
+    logo?: string | null;
+    slug: string;
+  } | null;
+  task?: {
+    id: string;
+    title: string;
+    status: string;
+    priority: string;
+    taskType: string;
+    estimatedHours?: number | null;
+    pbiId?: string | null;
+  } | null;
   projectRole?: string | null;
   createdAt: string;
   updatedAt: string;
@@ -42,7 +62,12 @@ export interface OpportunityApplication {
   status?: string | null;
   message?: string | null;
   appliedAt: string;
-  applicant?: { id: string; name?: string | null; image?: string | null; email?: string | null };
+  applicant?: {
+    id: string;
+    name?: string | null;
+    image?: string | null;
+    email?: string | null;
+  };
 }
 
 export interface CreateOpportunityDto {
@@ -55,6 +80,8 @@ export interface CreateOpportunityDto {
   requirements?: string;
   compensation?: number;
   compensationDetails?: string;
+  equityPercent?: number;
+  isOpenForApplications?: boolean;
   location?: string;
   isRemote?: boolean;
   deadline?: string;
@@ -114,7 +141,12 @@ export interface OpportunityCommentDto {
   parentId?: string | null;
   createdAt: string;
   updatedAt: string;
-  author?: { id: string; name?: string | null; image?: string | null; email?: string | null };
+  author?: {
+    id: string;
+    name?: string | null;
+    image?: string | null;
+    email?: string | null;
+  };
 }
 
 export interface CreateOpportunityCommentDto {
@@ -153,40 +185,64 @@ export class OpportunitiesEndpoint {
   }
 
   getBySlug(slug: string): Promise<ApiResponse<Opportunity>> {
-    return this.client.get<Opportunity>(`/api/opportunities/slug/${encodeURIComponent(slug)}`);
+    return this.client.get<Opportunity>(
+      `/api/opportunities/slug/${encodeURIComponent(slug)}`,
+    );
   }
 
   getByPosterId(posterId: string): Promise<ApiResponse<Opportunity[]>> {
-    return this.client.get<Opportunity[]>(`/api/opportunities/poster/${posterId}`);
+    return this.client.get<Opportunity[]>(
+      `/api/opportunities/poster/${posterId}`,
+    );
   }
 
   getByGuildId(guildId: string): Promise<ApiResponse<Opportunity[]>> {
-    return this.client.get<Opportunity[]>(`/api/opportunities/guild/${guildId}`);
+    return this.client.get<Opportunity[]>(
+      `/api/opportunities/guild/${guildId}`,
+    );
   }
 
   getByProjectId(projectId: string): Promise<ApiResponse<Opportunity[]>> {
-    return this.client.get<Opportunity[]>(`/api/opportunities/project/${projectId}`);
+    return this.client.get<Opportunity[]>(
+      `/api/opportunities/project/${projectId}`,
+    );
   }
 
-  search(params: SearchOpportunitiesParams = {}): Promise<ApiResponse<PagedResult<Opportunity> & { totalCount?: number; totalPages?: number; hasNextPage?: boolean }>> {
+  search(params: SearchOpportunitiesParams = {}): Promise<
+    ApiResponse<
+      PagedResult<Opportunity> & {
+        totalCount?: number;
+        totalPages?: number;
+        hasNextPage?: boolean;
+      }
+    >
+  > {
     const sp = new URLSearchParams();
     if (params.searchTerm) sp.set("searchTerm", params.searchTerm);
     if (params.type) sp.set("type", params.type);
-    if (params.experienceLevel) sp.set("experienceLevel", params.experienceLevel);
+    if (params.experienceLevel)
+      sp.set("experienceLevel", params.experienceLevel);
     if (params.skills) sp.set("skills", params.skills);
     if (params.sourceType) sp.set("sourceType", params.sourceType ?? "");
     sp.set("page", String(params.page ?? 1));
     sp.set("pageSize", String(params.pageSize ?? 10));
-    return this.client.get<PagedResult<Opportunity> & { totalCount?: number; totalPages?: number; hasNextPage?: boolean }>(
-      `/api/opportunities/search?${sp.toString()}`
-    );
+    return this.client.get<
+      PagedResult<Opportunity> & {
+        totalCount?: number;
+        totalPages?: number;
+        hasNextPage?: boolean;
+      }
+    >(`/api/opportunities/search?${sp.toString()}`);
   }
 
   create(data: CreateOpportunityDto): Promise<ApiResponse<Opportunity>> {
     return this.client.post<Opportunity>("/api/opportunities", data);
   }
 
-  update(id: string, data: UpdateOpportunityDto): Promise<ApiResponse<Opportunity>> {
+  update(
+    id: string,
+    data: UpdateOpportunityDto,
+  ): Promise<ApiResponse<Opportunity>> {
     return this.client.put<Opportunity>(`/api/opportunities/${id}`, data);
   }
 
@@ -198,45 +254,70 @@ export class OpportunitiesEndpoint {
     return this.client.delete(`/api/opportunities/${id}`);
   }
 
-  apply(opportunityId: string, dto: ApplyToOpportunityDto): Promise<ApiResponse<OpportunityApplication>> {
-    return this.client.post<OpportunityApplication>(`/api/opportunities/${opportunityId}/apply`, dto);
+  apply(
+    opportunityId: string,
+    dto: ApplyToOpportunityDto,
+  ): Promise<ApiResponse<OpportunityApplication>> {
+    return this.client.post<OpportunityApplication>(
+      `/api/opportunities/${opportunityId}/apply`,
+      dto,
+    );
   }
 
-  getApplications(opportunityId: string): Promise<ApiResponse<OpportunityApplication[]>> {
-    return this.client.get<OpportunityApplication[]>(`/api/opportunities/${opportunityId}/applications`);
+  getApplications(
+    opportunityId: string,
+  ): Promise<ApiResponse<OpportunityApplication[]>> {
+    return this.client.get<OpportunityApplication[]>(
+      `/api/opportunities/${opportunityId}/applications`,
+    );
   }
 
   updateApplicationStatus(
     applicationId: string,
-    data: UpdateApplicationStatusDto
+    data: UpdateApplicationStatusDto,
   ): Promise<ApiResponse<OpportunityApplication>> {
-    return this.client.patch<OpportunityApplication>(`/api/opportunities/applications/${applicationId}/status`, data);
+    return this.client.patch<OpportunityApplication>(
+      `/api/opportunities/applications/${applicationId}/status`,
+      data,
+    );
   }
 
   getUpdates(opportunityId: string): Promise<ApiResponse<OpportunityUpdate[]>> {
-    return this.client.get<OpportunityUpdate[]>(`/api/opportunities/${opportunityId}/updates`);
+    return this.client.get<OpportunityUpdate[]>(
+      `/api/opportunities/${opportunityId}/updates`,
+    );
   }
 
   createUpdate(
     opportunityId: string,
-    data: CreateOpportunityUpdateDto
+    data: CreateOpportunityUpdateDto,
   ): Promise<ApiResponse<OpportunityUpdate>> {
-    return this.client.post<OpportunityUpdate>(`/api/opportunities/${opportunityId}/updates`, data);
+    return this.client.post<OpportunityUpdate>(
+      `/api/opportunities/${opportunityId}/updates`,
+      data,
+    );
   }
 
   deleteUpdate(updateId: string): Promise<ApiResponse<void>> {
     return this.client.delete(`/api/opportunities/updates/${updateId}`);
   }
 
-  getComments(opportunityId: string): Promise<ApiResponse<OpportunityCommentDto[]>> {
-    return this.client.get<OpportunityCommentDto[]>(`/api/opportunities/${opportunityId}/comments`);
+  getComments(
+    opportunityId: string,
+  ): Promise<ApiResponse<OpportunityCommentDto[]>> {
+    return this.client.get<OpportunityCommentDto[]>(
+      `/api/opportunities/${opportunityId}/comments`,
+    );
   }
 
   addComment(
     opportunityId: string,
-    data: CreateOpportunityCommentDto
+    data: CreateOpportunityCommentDto,
   ): Promise<ApiResponse<OpportunityCommentDto>> {
-    return this.client.post<OpportunityCommentDto>(`/api/opportunities/${opportunityId}/comments`, data);
+    return this.client.post<OpportunityCommentDto>(
+      `/api/opportunities/${opportunityId}/comments`,
+      data,
+    );
   }
 
   deleteComment(commentId: string): Promise<ApiResponse<void>> {

@@ -3,14 +3,31 @@ import { Shield, ShieldCheck, Crown, Star, Gem } from "lucide-react";
 import { Badge, type badgeVariants } from "~/components/ui/badge";
 import { cn } from "~/lib/utils";
 
-type CredentialTier = "BRONZE" | "SILVER" | "GOLD" | "PLATINUM" | "DIAMOND";
-type CredentialStatus = "ACTIVE" | "SUSPENDED" | "REVOKED";
+const CREDENTIAL_TIERS = [
+  "BRONZE",
+  "SILVER",
+  "GOLD",
+  "PLATINUM",
+  "DIAMOND",
+] as const;
+const CREDENTIAL_STATUSES = ["ACTIVE", "SUSPENDED", "REVOKED"] as const;
+
+type CredentialTier = (typeof CREDENTIAL_TIERS)[number];
+type CredentialStatus = (typeof CREDENTIAL_STATUSES)[number];
+
+function isCredentialTier(value: string): value is CredentialTier {
+  return CREDENTIAL_TIERS.some((tier) => tier === value);
+}
+
+function isCredentialStatus(value: string): value is CredentialStatus {
+  return CREDENTIAL_STATUSES.some((status) => status === value);
+}
 
 type BadgeVariant = NonNullable<VariantProps<typeof badgeVariants>["variant"]>;
 
 interface CredentialBadgeProps {
-  tier?: CredentialTier | string | null;
-  status?: CredentialStatus | string;
+  tier?: string | null;
+  status?: string | null;
   size?: "sm" | "md" | "lg";
   showStatus?: boolean;
   className?: string;
@@ -18,35 +35,30 @@ interface CredentialBadgeProps {
 
 const tierConfig: Record<
   CredentialTier,
-  { variant: BadgeVariant; icon: typeof Shield; label: string; accent: string }
+  { variant: BadgeVariant; label: string; accent: string }
 > = {
   BRONZE: {
     variant: "outline",
-    icon: Shield,
     label: "Bronze",
     accent: "border-amber-500 text-amber-500",
   },
   SILVER: {
     variant: "secondary",
-    icon: ShieldCheck,
     label: "Silver",
     accent: "border-slate-400 text-slate-400",
   },
   GOLD: {
     variant: "neon",
-    icon: Crown,
     label: "Gold",
     accent: "border-yellow-400 text-yellow-400",
   },
   PLATINUM: {
     variant: "neon-purple",
-    icon: Star,
     label: "Platinum",
     accent: "border-purple-500 text-purple-500",
   },
   DIAMOND: {
     variant: "neon-pink",
-    icon: Gem,
     label: "Diamond",
     accent: "border-pink-500 text-pink-500",
   },
@@ -73,6 +85,42 @@ const iconSizes = {
   lg: "size-4",
 } as const;
 
+export function normalizeCredentialTier(
+  value: string | null | undefined,
+): CredentialTier | undefined {
+  const normalized = value?.toUpperCase();
+  return normalized && isCredentialTier(normalized) ? normalized : undefined;
+}
+
+function normalizeCredentialStatus(
+  value: string | null | undefined,
+): CredentialStatus {
+  const normalized = value?.toUpperCase();
+  return normalized && isCredentialStatus(normalized) ? normalized : "ACTIVE";
+}
+
+export function CredentialTierIcon({
+  tier,
+  className,
+}: {
+  tier?: CredentialTier;
+  className: string;
+}) {
+  switch (tier) {
+    case "SILVER":
+      return <ShieldCheck className={className} aria-hidden="true" />;
+    case "GOLD":
+      return <Crown className={className} aria-hidden="true" />;
+    case "PLATINUM":
+      return <Star className={className} aria-hidden="true" />;
+    case "DIAMOND":
+      return <Gem className={className} aria-hidden="true" />;
+    case "BRONZE":
+    default:
+      return <Shield className={className} aria-hidden="true" />;
+  }
+}
+
 export function CredentialBadge({
   tier,
   status = "ACTIVE",
@@ -80,11 +128,10 @@ export function CredentialBadge({
   showStatus = false,
   className,
 }: CredentialBadgeProps) {
-  const normalizedTier = tier?.toUpperCase() as CredentialTier | undefined;
-  const normalizedStatus = (status?.toUpperCase() ?? "ACTIVE") as CredentialStatus;
+  const normalizedTier = normalizeCredentialTier(tier);
+  const normalizedStatus = normalizeCredentialStatus(status);
   const config = normalizedTier ? tierConfig[normalizedTier] : null;
   const statusCfg = statusConfig[normalizedStatus] ?? statusConfig.ACTIVE;
-  const Icon = config?.icon ?? Shield;
 
   return (
     <div className={cn("inline-flex items-center gap-1", className)}>
@@ -93,7 +140,7 @@ export function CredentialBadge({
         size={size === "lg" ? "lg" : size === "sm" ? "sm" : "default"}
         className={cn(config?.accent, sizeClasses[size])}
       >
-        <Icon className={iconSizes[size]} />
+        <CredentialTierIcon tier={normalizedTier} className={iconSizes[size]} />
         {config?.label ?? "No Tier"}
       </Badge>
       {showStatus && (

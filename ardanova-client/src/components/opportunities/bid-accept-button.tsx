@@ -18,9 +18,13 @@ export function BidAcceptButton({ bidId }: BidAcceptButtonProps) {
   const acceptBid = api.opportunityBid.accept.useMutation({
     onSuccess: ({ commerceUrl }) => {
       try {
-        navigateToAcceptedBidCommerce(commerceUrl, router.push);
+        navigateToAcceptedBidCommerce(commerceUrl, (href) => router.push(href));
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Unable to open task commerce.");
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : "Unable to open task commerce.",
+        );
       }
     },
     onError: (error) => toast.error(error.message),

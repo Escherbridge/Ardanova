@@ -14,12 +14,13 @@ import {
   Trash2,
   WalletCards,
 } from "lucide-react";
-import { api } from "~/trpc/react";
+import { api, type RouterInputs, type RouterOutputs } from "~/trpc/react";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent } from "~/components/ui/card";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
+import { buildSignInHref } from "~/lib/auth-navigation";
 import {
   Select,
   SelectContent,
@@ -28,22 +29,19 @@ import {
   SelectValue,
 } from "~/components/ui/select";
 
+type WalletProvider = RouterInputs["wallet"]["create"]["provider"];
+type ManagedWallet = RouterOutputs["wallet"]["getMyWallets"][number];
+
 const providers = [
   "PERA",
   "DEFLY",
   "ALGOSIGNER",
   "WALLETCONNECT",
   "OTHER",
-] as const;
-type WalletProvider = (typeof providers)[number];
+] as const satisfies readonly WalletProvider[];
 
-interface ManagedWallet {
-  id: string;
-  address: string;
-  provider: string;
-  label?: string | null;
-  isPrimary: boolean;
-  isVerified: boolean;
+function isWalletProvider(value: string): value is WalletProvider {
+  return providers.some((candidate) => candidate === value);
 }
 
 function shortenAddress(address: string): string {
@@ -62,11 +60,11 @@ export default function WalletSettingsPage() {
   const walletsQuery = api.wallet.getMyWallets.useQuery(undefined, {
     enabled: Boolean(session),
   });
-  const avatarQuery = api.azoaAvatar.getStatus.useQuery(undefined, {
+  const custodyQuery = api.azoaCustodialAccount.getStatus.useQuery(undefined, {
     enabled: Boolean(session),
     retry: false,
   });
-  const wallets = (walletsQuery.data ?? []) as unknown as ManagedWallet[];
+  const wallets = walletsQuery.data ?? [];
 
   const createWallet = api.wallet.create.useMutation({
     onSuccess: () => {
@@ -113,7 +111,7 @@ export default function WalletSettingsPage() {
   if (sessionStatus === "loading") {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
-        <Loader2 className="text-neon-cyan size-8 animate-spin" />
+        <Loader2 className="text-system size-8 animate-spin" />
       </div>
     );
   }
@@ -121,13 +119,13 @@ export default function WalletSettingsPage() {
   if (!session) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center p-4">
-        <Card className="border-neon-pink/50 max-w-sm">
+        <Card className="border-primary/50 max-w-sm">
           <CardContent className="space-y-3 pt-6 text-center">
-            <p className="text-neon-pink font-mono">
+            <p className="text-primary font-mono">
               Sign in to manage external wallets.
             </p>
             <Button asChild variant="outline">
-              <Link href="/auth/signin">SIGN IN</Link>
+              <Link href={buildSignInHref("/settings/wallets")}>SIGN IN</Link>
             </Button>
           </CardContent>
         </Card>
@@ -137,9 +135,9 @@ export default function WalletSettingsPage() {
 
   return (
     <div className="container mx-auto max-w-3xl space-y-8 py-8">
-      <div className="space-y-2 border-b-2 border-white/10 pb-6">
+      <div className="border-border space-y-2 border-b-2 pb-6">
         <div className="flex items-center gap-3">
-          <WalletCards className="text-neon-cyan size-7" />
+          <WalletCards className="text-system size-7" />
           <h1 className="font-mono text-2xl font-bold tracking-tight uppercase">
             External Wallets
           </h1>
@@ -150,10 +148,10 @@ export default function WalletSettingsPage() {
         </p>
       </div>
 
-      <Card className="border-neon-cyan/20 bg-neon-cyan/5">
+      <Card className="border-system/20 bg-system/5">
         <CardContent className="space-y-3 pt-6">
           <div className="flex items-start gap-3">
-            <LockKeyhole className="text-neon-cyan mt-0.5 size-5 shrink-0" />
+            <LockKeyhole className="text-system mt-0.5 size-5 shrink-0" />
             <div>
               <p className="font-mono text-sm font-semibold">Safety status</p>
               <p className="text-muted-foreground text-sm">
@@ -164,17 +162,17 @@ export default function WalletSettingsPage() {
               </p>
             </div>
           </div>
-          {avatarQuery.data?.avatarLinked ? (
-            <div className="text-neon-green flex items-center gap-2 text-xs">
+          {custodyQuery.data?.ready ? (
+            <div className="text-success flex items-center gap-2 text-xs">
               <CheckCircle2 className="size-3.5" />
-              Your AZOA avatar reference is linked. Asset custody and settlement
-              remain separate.
+              Your Azoa-managed wallet is ready. External addresses listed here
+              remain non-custodial and require their own ownership proof.
             </div>
           ) : (
             <div className="text-muted-foreground flex items-center gap-2 text-xs">
               <CircleAlert className="size-3.5" />
-              AZOA avatar linking is managed from identity verification and is
-              not a wallet export flow.
+              Azoa account setup and identity verification are managed from your
+              profile. This external-wallet list never exports custody keys.
             </div>
           )}
         </CardContent>
@@ -190,7 +188,7 @@ export default function WalletSettingsPage() {
 
         {walletsQuery.isLoading ? (
           <div className="flex justify-center py-8">
-            <Loader2 className="text-neon-cyan size-6 animate-spin" />
+            <Loader2 className="text-system size-6 animate-spin" />
           </div>
         ) : walletsQuery.error ? (
           <Card className="border-destructive/50">
@@ -266,7 +264,7 @@ export default function WalletSettingsPage() {
         <CardContent className="pt-6">
           <form className="space-y-4" onSubmit={addWallet}>
             <div className="flex items-center gap-2">
-              <Plus className="text-neon-cyan size-4" />
+              <Plus className="text-system size-4" />
               <h2 className="font-mono text-sm font-bold tracking-widest uppercase">
                 Add a public address
               </h2>
@@ -293,14 +291,14 @@ export default function WalletSettingsPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label>Wallet provider</Label>
+                <Label htmlFor="wallet-provider">Wallet provider</Label>
                 <Select
                   value={provider}
-                  onValueChange={(value) =>
-                    setProvider(value as WalletProvider)
-                  }
+                  onValueChange={(value) => {
+                    if (isWalletProvider(value)) setProvider(value);
+                  }}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="wallet-provider">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -318,7 +316,7 @@ export default function WalletSettingsPage() {
             )}
             <Button
               type="submit"
-              variant="neon"
+              variant="default"
               disabled={createWallet.isPending}
             >
               <Plus className="mr-2 size-4" />
@@ -335,7 +333,7 @@ export default function WalletSettingsPage() {
               Fund a project or review your holdings
             </p>
             <p className="text-muted-foreground text-sm">
-              Funding occurs through a project's server-issued checkout. A
+              Funding occurs through a project&apos;s server-issued checkout. A
               redirect alone is never a payment or allocation receipt.
             </p>
           </div>

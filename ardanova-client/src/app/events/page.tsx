@@ -27,25 +27,22 @@ import {
   Users,
   Video,
   Globe,
-  Star,
   CalendarDays,
-  Sparkles,
-  TrendingUp,
 } from "lucide-react";
 import { FeedLayout } from "~/components/layouts/feed-layout";
+import { handleTabListKeyDown } from "~/lib/accessibility";
 import { toast } from "sonner";
 
 interface FeedTab {
   id: string;
   label: string;
-  icon: React.ComponentType<{ className?: string }>;
 }
 
 const eventTabs: FeedTab[] = [
-  { id: "all", label: "All Events", icon: Calendar },
-  { id: "upcoming", label: "Upcoming", icon: CalendarDays },
-  { id: "past", label: "Past", icon: Clock },
-  { id: "my-events", label: "My Events", icon: Star },
+  { id: "all", label: "All Events" },
+  { id: "upcoming", label: "Upcoming" },
+  { id: "past", label: "Past" },
+  { id: "my-events", label: "My Events" },
 ];
 
 const eventTypeFilters = [
@@ -75,10 +72,6 @@ const dateFilters = [
 
 const locationFilters = [
   { id: "all", label: "All Locations" },
-  { id: "global", label: "Global" },
-  { id: "americas", label: "Americas" },
-  { id: "europe", label: "Europe" },
-  { id: "asia", label: "Asia" },
   { id: "remote", label: "Remote Only" },
 ];
 
@@ -94,17 +87,22 @@ type EventCard = {
   timezone: string;
   location: string;
   organizer: { name: string; avatar: string };
-  attendees: number;
+  attendees: number | null;
   maxAttendees: number | null;
   isRegistered: boolean;
   tags: string[];
-  featured: boolean;
 };
 
 function mapApiEventToCard(e: ApiEvent, registeredIds: Set<string>): EventCard {
   const start = new Date(e.startDate);
   const end = new Date(e.endDate);
-  const org = (e as ApiEvent & { organizer?: { name?: string | null; image?: string | null } }).organizer;
+  const org = (
+    e as ApiEvent & {
+      organizer?: { name?: string | null; image?: string | null };
+    }
+  ).organizer;
+  const attendeesCount = (e as ApiEvent & { attendeesCount?: number })
+    .attendeesCount;
   const format: EventCard["format"] =
     e.isOnline && e.location ? "hybrid" : e.isOnline ? "virtual" : "in-person";
   const rawType = String(e.type ?? "meetup").toLowerCase();
@@ -122,7 +120,10 @@ function mapApiEventToCard(e: ApiEvent, registeredIds: Set<string>): EventCard {
     type,
     format,
     date: start.toISOString().slice(0, 10),
-    startTime: start.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+    startTime: start.toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    }),
     endTime: end.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
     timezone: e.timezone,
     location: e.location ?? "—",
@@ -130,11 +131,10 @@ function mapApiEventToCard(e: ApiEvent, registeredIds: Set<string>): EventCard {
       name: org?.name ?? "Organizer",
       avatar: org?.image ?? "",
     },
-    attendees: (e as ApiEvent & { attendeesCount?: number }).attendeesCount ?? 0,
+    attendees: typeof attendeesCount === "number" ? attendeesCount : null,
     maxAttendees: e.maxAttendees ?? null,
     isRegistered: registeredIds.has(e.id),
     tags: [],
-    featured: false,
   };
 }
 
@@ -202,15 +202,20 @@ export default function EventsPage() {
     setSearchQuery("");
   };
 
-  const { data: eventsResult, isLoading: eventsLoading } = api.event.getAll.useQuery({
+  const {
+    data: eventsResult,
+    isLoading: eventsLoading,
+    error: eventsError,
+  } = api.event.getAll.useQuery({
     limit: 50,
     page: 1,
     search: searchQuery || undefined,
   });
 
-  const { data: registeredList } = api.event.getRegisteredEvents.useQuery(undefined, {
-    enabled: !!session?.user,
-  });
+  const { data: registeredList, error: registeredEventsError } =
+    api.event.getRegisteredEvents.useQuery(undefined, {
+      enabled: !!session?.user,
+    });
 
   const registerMutation = api.event.register.useMutation({
     onSuccess: () => {
@@ -231,18 +236,24 @@ export default function EventsPage() {
   });
 
   const registeredIds = useMemo(() => {
-    const ids = (registeredList ?? []).map((x) => String((x as { id: string }).id));
+    const ids = (registeredList ?? []).map((event) => event.id);
     return new Set(ids);
   }, [registeredList]);
 
   const eventCards = useMemo(
     () =>
-      (eventsResult?.items ?? []).map((e) => mapApiEventToCard(e as ApiEvent, registeredIds)),
+      (eventsResult?.items ?? []).map((event) =>
+        mapApiEventToCard(event, registeredIds),
+      ),
     [eventsResult?.items, registeredIds],
   );
 
   // Filter events
   const filteredEvents = eventCards.filter((event) => {
+    const eventDate = new Date(`${event.date}T00:00:00`);
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       const matchesSearch =
@@ -255,8 +266,53 @@ export default function EventsPage() {
     if (eventTypeFilter !== "all" && event.type !== eventTypeFilter)
       return false;
     if (formatFilter !== "all" && event.format !== formatFilter) return false;
+    if (
+      locationFilter === "remote" &&
+      event.format !== "virtual" &&
+      !event.location.toLowerCase().includes("remote") &&
+      !event.location.toLowerCase().includes("online")
+    ) {
+      return false;
+    }
+
+    if (dateFilter !== "all") {
+      const tomorrow = new Date(today);
+      tomorrow.setDate(today.getDate() + 1);
+      const weekEnd = new Date(today);
+      weekEnd.setDate(today.getDate() + 7);
+      const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+      const nextMonthStart = monthEnd;
+      const nextMonthEnd = new Date(
+        today.getFullYear(),
+        today.getMonth() + 2,
+        1,
+      );
+
+      if (
+        dateFilter === "today" &&
+        (eventDate < today || eventDate >= tomorrow)
+      )
+        return false;
+      if (
+        dateFilter === "this-week" &&
+        (eventDate < today || eventDate >= weekEnd)
+      )
+        return false;
+      if (
+        dateFilter === "this-month" &&
+        (eventDate < today || eventDate >= monthEnd)
+      )
+        return false;
+      if (
+        dateFilter === "next-month" &&
+        (eventDate < nextMonthStart || eventDate >= nextMonthEnd)
+      )
+        return false;
+    }
 
     // Tab filtering
+    if (activeTab === "upcoming" && eventDate < today) return false;
+    if (activeTab === "past" && eventDate >= today) return false;
     if (activeTab === "my-events" && !event.isRegistered) return false;
 
     return true;
@@ -303,38 +359,40 @@ export default function EventsPage() {
               </CardContent>
             </Card> */}
 
-            {/* Featured Events */}
+            {/* A finite preview of the records loaded for this page. */}
             <Card className="bg-muted/30 border-border/50">
               <CardContent className="p-4">
-                <h3 className="font-semibold mb-4 flex items-center gap-2">
-                  <Sparkles className="h-4 w-4 text-neon-pink" />
-                  Featured Events
+                <h3 className="mb-4 flex items-center gap-2 font-semibold">
+                  <CalendarDays className="text-neon-pink h-4 w-4" />
+                  First events in this page
                 </h3>
                 <div className="space-y-3">
-                  {eventCards
-                    .slice(0, 3)
-                    .map((event) => (
-                      <div
-                        key={event.id}
-                        className="p-2 rounded-lg hover:bg-muted/50 transition-colors cursor-pointer"
-                      >
-                        <div className="flex items-center gap-2 mb-1">
-                          <Badge
-                            variant="outline"
-                            className={`text-xs ${getEventTypeColor(event.type)}`}
-                          >
-                            {event.type}
-                          </Badge>
-                          <span className="text-xs text-muted-foreground">
-                            {formatDate(event.date)}
-                          </span>
-                        </div>
-                        <p className="text-sm font-medium truncate">{event.title}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {event.attendees} attending
-                        </p>
+                  {eventCards.slice(0, 3).map((event) => (
+                    <div
+                      key={event.id}
+                      className="border-border rounded-lg border p-2"
+                    >
+                      <div className="mb-1 flex items-center gap-2">
+                        <Badge
+                          variant="outline"
+                          className={`text-xs ${getEventTypeColor(event.type)}`}
+                        >
+                          {event.type}
+                        </Badge>
+                        <span className="text-muted-foreground text-xs">
+                          {formatDate(event.date)}
+                        </span>
                       </div>
-                    ))}
+                      <p className="truncate text-sm font-medium">
+                        {event.title}
+                      </p>
+                      <p className="text-muted-foreground text-xs">
+                        {event.attendees === null
+                          ? "Attendance unavailable"
+                          : `${event.attendees} attending`}
+                      </p>
+                    </div>
+                  ))}
                 </div>
               </CardContent>
             </Card>
@@ -342,20 +400,26 @@ export default function EventsPage() {
             {/* Event Categories */}
             <Card className="bg-muted/30 border-border/50">
               <CardContent className="p-4">
-                <h3 className="font-semibold mb-4">Popular Categories</h3>
+                <h3 className="mb-4 font-semibold">Popular Categories</h3>
                 <div className="flex flex-wrap gap-2">
                   {eventTypeFilters.slice(1).map((type) => (
-                    <Badge
+                    <button
                       key={type.id}
-                      variant="outline"
-                      className="cursor-pointer hover:bg-neon/20 hover:border-neon transition-colors"
+                      type="button"
+                      aria-pressed={eventTypeFilter === type.id}
+                      className="focus-visible:ring-ring min-h-11 focus-visible:ring-2 focus-visible:outline-none"
                       onClick={() => {
                         setEventTypeFilter(type.id);
                         setShowFilters(true);
                       }}
                     >
-                      {type.label}
-                    </Badge>
+                      <Badge
+                        variant="outline"
+                        className="hover:bg-neon/20 hover:border-neon transition-colors"
+                      >
+                        {type.label}
+                      </Badge>
+                    </button>
                   ))}
                 </div>
               </CardContent>
@@ -365,366 +429,468 @@ export default function EventsPage() {
       }
     >
       {/* Sticky Header */}
-      <div className="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b border-border/50">
-          <div className="p-4">
-            <div className="flex items-center justify-between mb-4">
-              <h1 className="text-2xl font-bold">Events</h1>
-              <Button className="bg-neon hover:bg-neon/90 text-black" asChild>
-                <Link href="/events/create">
-                  <Plus className="h-4 w-4 mr-2" />
-                  Create Event
-                </Link>
-              </Button>
-            </div>
-
-            {/* Search Bar */}
-            <div className="flex gap-2 mb-4">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <input
-                  type="text"
-                  placeholder="Search events..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-10 py-2 bg-muted/50 border border-border/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-neon/50 focus:border-neon/50"
-                />
-                {searchQuery && (
-                  <button
-                    onClick={() => setSearchQuery("")}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                )}
-              </div>
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={() => setShowFilters(!showFilters)}
-                className={showFilters ? "bg-neon/20 border-neon" : ""}
-              >
-                <Filter className="h-4 w-4" />
-                {activeFilterCount > 0 && (
-                  <span className="absolute -top-1 -right-1 h-4 w-4 bg-neon text-black text-xs rounded-full flex items-center justify-center">
-                    {activeFilterCount}
-                  </span>
-                )}
-              </Button>
-            </div>
-
-            {/* Expandable Filters */}
-            {showFilters && (
-              <div className="mb-4 p-4 bg-muted/30 rounded-lg border border-border/50">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-xs text-muted-foreground mb-1 block">
-                      Event Type
-                    </label>
-                    <Select
-                      value={eventTypeFilter}
-                      onValueChange={setEventTypeFilter}
-                    >
-                      <SelectTrigger className="w-full">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {eventTypeFilters.map((filter) => (
-                          <SelectItem key={filter.id} value={filter.id}>
-                            {filter.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <label className="text-xs text-muted-foreground mb-1 block">
-                      Format
-                    </label>
-                    <Select value={formatFilter} onValueChange={setFormatFilter}>
-                      <SelectTrigger className="w-full">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {formatFilters.map((filter) => (
-                          <SelectItem key={filter.id} value={filter.id}>
-                            {filter.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <label className="text-xs text-muted-foreground mb-1 block">
-                      Date
-                    </label>
-                    <Select value={dateFilter} onValueChange={setDateFilter}>
-                      <SelectTrigger className="w-full">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {dateFilters.map((filter) => (
-                          <SelectItem key={filter.id} value={filter.id}>
-                            {filter.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <label className="text-xs text-muted-foreground mb-1 block">
-                      Location
-                    </label>
-                    <Select
-                      value={locationFilter}
-                      onValueChange={setLocationFilter}
-                    >
-                      <SelectTrigger className="w-full">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {locationFilters.map((filter) => (
-                          <SelectItem key={filter.id} value={filter.id}>
-                            {filter.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Active Filters Display */}
-            {hasActiveFilters && (
-              <div className="flex flex-wrap gap-2 mb-4">
-                {searchQuery && (
-                  <Badge
-                    variant="secondary"
-                    className="gap-1 cursor-pointer hover:bg-destructive/20"
-                    onClick={() => setSearchQuery("")}
-                  >
-                    Search: {searchQuery}
-                    <X className="h-3 w-3" />
-                  </Badge>
-                )}
-                {eventTypeFilter !== "all" && (
-                  <Badge
-                    variant="secondary"
-                    className="gap-1 cursor-pointer hover:bg-destructive/20"
-                    onClick={() => setEventTypeFilter("all")}
-                  >
-                    Type:{" "}
-                    {eventTypeFilters.find((f) => f.id === eventTypeFilter)?.label}
-                    <X className="h-3 w-3" />
-                  </Badge>
-                )}
-                {formatFilter !== "all" && (
-                  <Badge
-                    variant="secondary"
-                    className="gap-1 cursor-pointer hover:bg-destructive/20"
-                    onClick={() => setFormatFilter("all")}
-                  >
-                    Format:{" "}
-                    {formatFilters.find((f) => f.id === formatFilter)?.label}
-                    <X className="h-3 w-3" />
-                  </Badge>
-                )}
-                {dateFilter !== "all" && (
-                  <Badge
-                    variant="secondary"
-                    className="gap-1 cursor-pointer hover:bg-destructive/20"
-                    onClick={() => setDateFilter("all")}
-                  >
-                    Date: {dateFilters.find((f) => f.id === dateFilter)?.label}
-                    <X className="h-3 w-3" />
-                  </Badge>
-                )}
-                {locationFilter !== "all" && (
-                  <Badge
-                    variant="secondary"
-                    className="gap-1 cursor-pointer hover:bg-destructive/20"
-                    onClick={() => setLocationFilter("all")}
-                  >
-                    Location:{" "}
-                    {locationFilters.find((f) => f.id === locationFilter)?.label}
-                    <X className="h-3 w-3" />
-                  </Badge>
-                )}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={clearFilters}
-                  className="h-6 text-xs text-muted-foreground hover:text-foreground"
-                >
-                  Clear all
-                </Button>
-              </div>
-            )}
-
-            {/* Tabs */}
-            <div className="flex gap-1 overflow-x-auto">
-              {eventTabs.map((tab) => (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
-                    activeTab === tab.id
-                      ? "bg-neon/20 text-neon"
-                      : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
-                  }`}
-                >
-                  <tab.icon className="h-4 w-4" />
-                  {tab.label}
-                </button>
-              ))}
-            </div>
+      <div className="border-border bg-background relative z-10 border-b">
+        <div className="p-4">
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <h1 className="text-2xl font-bold">Events</h1>
+            <Button className="bg-neon hover:bg-neon/90 text-black" asChild>
+              <Link href="/events/create">
+                <Plus className="mr-2 h-4 w-4" />
+                Create Event
+              </Link>
+            </Button>
           </div>
-        </div>
 
-        {/* Events Feed */}
-        <div className="divide-y divide-border/50">
-          {eventsLoading ? (
-            <div className="p-8 text-center text-muted-foreground">Loading events…</div>
-          ) : filteredEvents.length === 0 ? (
-            <div className="p-8 text-center text-muted-foreground">
-              <Calendar className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p>No events found matching your criteria.</p>
-              {hasActiveFilters && (
-                <Button
-                  variant="link"
-                  onClick={clearFilters}
-                  className="mt-2 text-neon"
+          {/* Search Bar */}
+          <div className="mb-4 flex flex-col gap-2 sm:flex-row">
+            <div className="relative flex-1">
+              <label htmlFor="events-search" className="sr-only">
+                Search events
+              </label>
+              <Search className="text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
+              <input
+                type="text"
+                id="events-search"
+                placeholder="Search events..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="bg-muted/50 border-border/50 focus:ring-neon/50 focus:border-neon/50 w-full rounded-lg border py-2 pr-10 pl-10 focus:ring-2 focus:outline-none"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery("")}
+                  aria-label="Clear event search"
+                  className="text-muted-foreground hover:text-foreground absolute top-1/2 right-0 flex min-h-11 min-w-11 -translate-y-1/2 items-center justify-center"
                 >
-                  Clear filters
-                </Button>
+                  <X className="h-4 w-4" />
+                </button>
               )}
             </div>
-          ) : (
-            filteredEvents.map((event) => (
-              <div
-                key={event.id}
-                className="p-4 hover:bg-muted/30 transition-colors cursor-pointer"
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => setShowFilters(!showFilters)}
+              aria-label="Event filters"
+              aria-expanded={showFilters}
+              aria-controls="event-filters"
+              className={
+                showFilters ? "bg-neon/20 border-neon" : "self-end sm:self-auto"
+              }
+            >
+              <Filter className="h-4 w-4" />
+              {activeFilterCount > 0 && (
+                <span className="bg-neon absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-none text-xs text-black">
+                  {activeFilterCount}
+                </span>
+              )}
+            </Button>
+          </div>
+
+          {/* Expandable Filters */}
+          {showFilters && (
+            <div
+              id="event-filters"
+              className="bg-muted/30 border-border/50 mb-4 rounded-lg border p-4"
+            >
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div>
+                  <label
+                    htmlFor="event-type-filter"
+                    className="text-muted-foreground mb-1 block text-xs"
+                  >
+                    Event Type
+                  </label>
+                  <Select
+                    value={eventTypeFilter}
+                    onValueChange={setEventTypeFilter}
+                  >
+                    <SelectTrigger id="event-type-filter" className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {eventTypeFilters.map((filter) => (
+                        <SelectItem key={filter.id} value={filter.id}>
+                          {filter.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <label
+                    htmlFor="event-format-filter"
+                    className="text-muted-foreground mb-1 block text-xs"
+                  >
+                    Format
+                  </label>
+                  <Select value={formatFilter} onValueChange={setFormatFilter}>
+                    <SelectTrigger id="event-format-filter" className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {formatFilters.map((filter) => (
+                        <SelectItem key={filter.id} value={filter.id}>
+                          {filter.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <label
+                    htmlFor="event-date-filter"
+                    className="text-muted-foreground mb-1 block text-xs"
+                  >
+                    Date
+                  </label>
+                  <Select value={dateFilter} onValueChange={setDateFilter}>
+                    <SelectTrigger id="event-date-filter" className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {dateFilters.map((filter) => (
+                        <SelectItem key={filter.id} value={filter.id}>
+                          {filter.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <label
+                    htmlFor="event-location-filter"
+                    className="text-muted-foreground mb-1 block text-xs"
+                  >
+                    Location
+                  </label>
+                  <Select
+                    value={locationFilter}
+                    onValueChange={setLocationFilter}
+                  >
+                    <SelectTrigger
+                      id="event-location-filter"
+                      className="w-full"
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {locationFilters.map((filter) => (
+                        <SelectItem key={filter.id} value={filter.id}>
+                          {filter.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Active Filters Display */}
+          {hasActiveFilters && (
+            <div className="mb-4 flex flex-wrap gap-2">
+              {searchQuery && (
+                <Badge variant="secondary" className="gap-1 pr-0">
+                  Search: {searchQuery}
+                  <button
+                    type="button"
+                    aria-label="Remove search filter"
+                    className="hover:bg-destructive/20 flex min-h-11 min-w-11 items-center justify-center"
+                    onClick={() => setSearchQuery("")}
+                  >
+                    <X className="h-3 w-3" aria-hidden="true" />
+                  </button>
+                </Badge>
+              )}
+              {eventTypeFilter !== "all" && (
+                <Badge variant="secondary" className="gap-1 pr-0">
+                  Type:{" "}
+                  {
+                    eventTypeFilters.find((f) => f.id === eventTypeFilter)
+                      ?.label
+                  }
+                  <button
+                    type="button"
+                    aria-label="Remove event type filter"
+                    className="hover:bg-destructive/20 flex min-h-11 min-w-11 items-center justify-center"
+                    onClick={() => setEventTypeFilter("all")}
+                  >
+                    <X className="h-3 w-3" aria-hidden="true" />
+                  </button>
+                </Badge>
+              )}
+              {formatFilter !== "all" && (
+                <Badge variant="secondary" className="gap-1 pr-0">
+                  Format:{" "}
+                  {formatFilters.find((f) => f.id === formatFilter)?.label}
+                  <button
+                    type="button"
+                    aria-label="Remove event format filter"
+                    className="hover:bg-destructive/20 flex min-h-11 min-w-11 items-center justify-center"
+                    onClick={() => setFormatFilter("all")}
+                  >
+                    <X className="h-3 w-3" aria-hidden="true" />
+                  </button>
+                </Badge>
+              )}
+              {dateFilter !== "all" && (
+                <Badge variant="secondary" className="gap-1 pr-0">
+                  Date: {dateFilters.find((f) => f.id === dateFilter)?.label}
+                  <button
+                    type="button"
+                    aria-label="Remove event date filter"
+                    className="hover:bg-destructive/20 flex min-h-11 min-w-11 items-center justify-center"
+                    onClick={() => setDateFilter("all")}
+                  >
+                    <X className="h-3 w-3" aria-hidden="true" />
+                  </button>
+                </Badge>
+              )}
+              {locationFilter !== "all" && (
+                <Badge variant="secondary" className="gap-1 pr-0">
+                  Location:{" "}
+                  {locationFilters.find((f) => f.id === locationFilter)?.label}
+                  <button
+                    type="button"
+                    aria-label="Remove event location filter"
+                    className="hover:bg-destructive/20 flex min-h-11 min-w-11 items-center justify-center"
+                    onClick={() => setLocationFilter("all")}
+                  >
+                    <X className="h-3 w-3" aria-hidden="true" />
+                  </button>
+                </Badge>
+              )}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={clearFilters}
+                className="text-muted-foreground hover:text-foreground text-xs"
               >
-                <div className="flex gap-4">
-                  {/* Date Block */}
-                  <div className="flex-shrink-0 w-16 text-center">
-                    <div className="bg-neon/20 rounded-lg p-2 border border-neon/30">
-                      <div className="text-xs text-neon font-medium uppercase">
-                        {new Date(event.date).toLocaleDateString("en-US", {
-                          month: "short",
-                        })}
-                      </div>
-                      <div className="text-2xl font-bold text-foreground">
-                        {new Date(event.date).getDate()}
-                      </div>
+                Clear all
+              </Button>
+            </div>
+          )}
+
+          {/* Tabs */}
+          <div
+            className="flex gap-1 overflow-x-auto"
+            role="tablist"
+            aria-label="Event scope"
+            onKeyDown={handleTabListKeyDown}
+          >
+            {eventTabs.map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveTab(tab.id)}
+                role="tab"
+                id={`events-tab-${tab.id}`}
+                aria-selected={activeTab === tab.id}
+                aria-controls={`events-panel-${tab.id}`}
+                tabIndex={activeTab === tab.id ? 0 : -1}
+                className={`flex min-h-11 items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium whitespace-nowrap transition-colors ${
+                  activeTab === tab.id
+                    ? "bg-neon/20 text-neon"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Events Feed */}
+      <div
+        className="divide-border/50 divide-y"
+        role="tabpanel"
+        id={`events-panel-${activeTab}`}
+        aria-labelledby={`events-tab-${activeTab}`}
+      >
+        {eventsLoading ? (
+          <div className="text-muted-foreground p-8 text-center">
+            Loading events…
+          </div>
+        ) : eventsError ? (
+          <div
+            role="alert"
+            className="border-destructive bg-destructive/10 p-8 text-center"
+          >
+            <p className="text-destructive font-medium">
+              Events could not be loaded.
+            </p>
+            <p className="text-muted-foreground mt-1 text-sm">
+              No event records or registration actions are shown.
+            </p>
+          </div>
+        ) : activeTab === "my-events" && registeredEventsError ? (
+          <div
+            role="alert"
+            className="border-destructive bg-destructive/10 p-8 text-center"
+          >
+            <p className="text-destructive font-medium">
+              Your event registrations could not be loaded.
+            </p>
+            <p className="text-muted-foreground mt-1 text-sm">
+              No registration state is inferred from missing data.
+            </p>
+          </div>
+        ) : filteredEvents.length === 0 ? (
+          <div className="text-muted-foreground p-8 text-center">
+            <Calendar className="mx-auto mb-4 h-12 w-12 opacity-50" />
+            <p>No events found matching your criteria.</p>
+            {hasActiveFilters && (
+              <Button
+                variant="link"
+                onClick={clearFilters}
+                className="text-neon mt-2"
+              >
+                Clear filters
+              </Button>
+            )}
+          </div>
+        ) : (
+          filteredEvents.map((event) => (
+            <article key={event.id} className="p-4">
+              <div className="flex gap-4">
+                {/* Date Block */}
+                <div className="w-16 flex-shrink-0 text-center">
+                  <div className="bg-neon/20 border-neon/30 rounded-lg border p-2">
+                    <div className="text-neon text-xs font-medium uppercase">
+                      {new Date(event.date).toLocaleDateString("en-US", {
+                        month: "short",
+                      })}
                     </div>
-                  </div>
-
-                  {/* Event Details */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-2 mb-2">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <Badge
-                          variant="outline"
-                          className={getEventTypeColor(event.type)}
-                        >
-                          {event.type}
-                        </Badge>
-                        <Badge
-                          variant="outline"
-                          className="gap-1 text-muted-foreground"
-                        >
-                          {getFormatIcon(event.format)}
-                          {event.format}
-                        </Badge>
-                        {event.featured && (
-                          <Badge className="bg-neon-pink/20 text-neon-pink border-neon-pink/30 gap-1">
-                            <Sparkles className="h-3 w-3" />
-                            Featured
-                          </Badge>
-                        )}
-                      </div>
-                      {event.isRegistered && (
-                        <Badge className="bg-neon-green/20 text-neon-green border-neon-green/30">
-                          Registered
-                        </Badge>
-                      )}
-                    </div>
-
-                    <h3 className="font-semibold text-lg mb-1 truncate">
-                      {event.title}
-                    </h3>
-                    <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
-                      {event.description}
-                    </p>
-
-                    <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm text-muted-foreground mb-3">
-                      <div className="flex items-center gap-1">
-                        <Clock className="h-4 w-4" />
-                        {event.startTime} - {event.endTime} {event.timezone}
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <MapPin className="h-4 w-4" />
-                        {event.location}
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Users className="h-4 w-4" />
-                        {event.attendees}
-                        {event.maxAttendees && ` / ${event.maxAttendees}`} attending
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Avatar className="h-6 w-6">
-                          <AvatarImage src={event.organizer.avatar} />
-                          <AvatarFallback className="text-xs">
-                            {event.organizer.name.charAt(0)}
-                          </AvatarFallback>
-                        </Avatar>
-                        <span className="text-sm text-muted-foreground">
-                          Hosted by{" "}
-                          <span className="text-foreground">
-                            {event.organizer.name}
-                          </span>
-                        </span>
-                      </div>
-                      {!event.isRegistered ? (
-                        <Button
-                          size="sm"
-                          className="bg-neon hover:bg-neon/90 text-black"
-                          disabled={!session?.user || registerMutation.isPending}
-                          onClick={(evClick) => {
-                            evClick.stopPropagation();
-                            if (!session?.user) {
-                              toast.error("Sign in to register");
-                              return;
-                            }
-                            registerMutation.mutate({ eventId: event.id });
-                          }}
-                        >
-                          Register
-                        </Button>
-                      ) : (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={!session?.user || unregisterMutation.isPending}
-                          onClick={(evClick) => {
-                            evClick.stopPropagation();
-                            unregisterMutation.mutate({ eventId: event.id });
-                          }}
-                        >
-                          Unregister
-                        </Button>
-                      )}
+                    <div className="text-foreground text-2xl font-bold">
+                      {new Date(event.date).getDate()}
                     </div>
                   </div>
                 </div>
+
+                {/* Event Details */}
+                <div className="min-w-0 flex-1">
+                  <div className="mb-2 flex items-start justify-between gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge
+                        variant="outline"
+                        className={getEventTypeColor(event.type)}
+                      >
+                        {event.type}
+                      </Badge>
+                      <Badge
+                        variant="outline"
+                        className="text-muted-foreground gap-1"
+                      >
+                        {getFormatIcon(event.format)}
+                        {event.format}
+                      </Badge>
+                    </div>
+                    {event.isRegistered && (
+                      <Badge className="bg-neon-green/20 text-neon-green border-neon-green/30">
+                        Registered
+                      </Badge>
+                    )}
+                  </div>
+
+                  <h3 className="mb-1 truncate text-lg font-semibold">
+                    {event.title}
+                  </h3>
+                  <p className="text-muted-foreground mb-3 line-clamp-2 text-sm">
+                    {event.description}
+                  </p>
+
+                  <div className="text-muted-foreground mb-3 flex flex-wrap gap-x-4 gap-y-2 text-sm">
+                    <div className="flex items-center gap-1">
+                      <Clock className="h-4 w-4" />
+                      {event.startTime} - {event.endTime} {event.timezone}
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <MapPin className="h-4 w-4" />
+                      {event.location}
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Users className="h-4 w-4" />
+                      {event.attendees === null
+                        ? "Attendance unavailable"
+                        : `${event.attendees}${event.maxAttendees ? ` / ${event.maxAttendees}` : ""} attending`}
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex items-center gap-2">
+                      <Avatar className="h-6 w-6">
+                        <AvatarImage src={event.organizer.avatar} alt="" />
+                        <AvatarFallback className="text-xs">
+                          {event.organizer.name.charAt(0)}
+                        </AvatarFallback>
+                      </Avatar>
+                      <span className="text-muted-foreground text-sm">
+                        Hosted by{" "}
+                        <span className="text-foreground">
+                          {event.organizer.name}
+                        </span>
+                      </span>
+                    </div>
+                    {!session?.user ? (
+                      <Button size="sm" variant="outline" asChild>
+                        <Link href="/auth/signin?callbackUrl=%2Fevents">
+                          Sign in to register
+                        </Link>
+                      </Button>
+                    ) : registeredEventsError ? (
+                      <span
+                        role="status"
+                        className="text-muted-foreground text-sm"
+                      >
+                        Registration status unavailable
+                      </span>
+                    ) : !event.isRegistered ? (
+                      <Button
+                        size="sm"
+                        className="bg-neon hover:bg-neon/90 text-black"
+                        disabled={registerMutation.isPending}
+                        onClick={(evClick) => {
+                          evClick.stopPropagation();
+                          registerMutation.mutate({ eventId: event.id });
+                        }}
+                      >
+                        Register
+                      </Button>
+                    ) : (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={unregisterMutation.isPending}
+                        onClick={(evClick) => {
+                          evClick.stopPropagation();
+                          unregisterMutation.mutate({ eventId: event.id });
+                        }}
+                      >
+                        Unregister
+                      </Button>
+                    )}
+                  </div>
+                </div>
               </div>
-            ))
-          )}
-        </div>
+            </article>
+          ))
+        )}
+        {!eventsLoading && !eventsError && filteredEvents.length > 0 && (
+          <div
+            className="text-muted-foreground border-border border-t p-4 text-center text-sm"
+            role="status"
+          >
+            End of current results · {filteredEvents.length} shown from{" "}
+            {eventCards.length} loaded
+            {typeof eventsResult?.totalCount === "number"
+              ? ` · ${eventsResult.totalCount} total reported`
+              : ""}
+            .
+          </div>
+        )}
+      </div>
     </FeedLayout>
   );
 }

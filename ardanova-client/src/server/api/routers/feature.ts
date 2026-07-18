@@ -1,28 +1,38 @@
 import { z } from "zod";
-import { createTRPCRouter, publicProcedure, protectedProcedure } from "~/server/api/trpc";
+import {
+  createTRPCRouter,
+  publicProcedure,
+  protectedProcedure,
+} from "~/server/api/trpc";
 import { apiClient } from "~/lib/api";
-import { authorizeChildCreation, authorizeRootCreation } from "~/server/api/lib/hierarchy-auth";
+import { hierarchyAuthorization } from "~/server/api/lib/hierarchy-auth";
 
-export const FeatureStatusEnum = z.enum(['PLANNED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED']);
-export const FeaturePriority = z.enum(['CRITICAL', 'HIGH', 'MEDIUM', 'LOW']);
+export const FeatureStatusEnum = z.enum([
+  "PLANNED",
+  "IN_PROGRESS",
+  "COMPLETED",
+  "CANCELLED",
+]);
+export const FeaturePriority = z.enum(["CRITICAL", "HIGH", "MEDIUM", "LOW"]);
 
 const createFeatureSchema = z.object({
   projectId: z.string().min(1),
-  sprintId: z.string().optional(),
+  sprintId: z.string().min(1),
   title: z.string().min(1).max(200),
   description: z.string().optional(),
   priority: FeaturePriority.optional(),
   order: z.number().optional(),
 });
 
-const updateFeatureSchema = z.object({
-  title: z.string().min(1).max(200).optional(),
-  description: z.string().optional(),
-  priority: FeaturePriority.optional(),
-  status: FeatureStatusEnum.optional(),
-  order: z.number().optional(),
-  assigneeId: z.string().nullable().optional(),
-});
+const updateFeatureSchema = z
+  .object({
+    title: z.string().min(1).max(200).optional(),
+    description: z.string().optional(),
+    priority: FeaturePriority.optional(),
+    status: FeatureStatusEnum.optional(),
+    order: z.number().optional(),
+  })
+  .strict();
 
 export const featureRouter = createTRPCRouter({
   getBySprintId: publicProcedure
@@ -54,19 +64,23 @@ export const featureRouter = createTRPCRouter({
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user.id;
 
-      // Auth: if attaching to sprint, must be assignee or project manager
-      if (input.sprintId) {
-        await authorizeChildCreation(
-          { userId, projectId: input.projectId },
-          "sprint",
-          input.sprintId
-        );
-      } else {
-        await authorizeRootCreation({ userId, projectId: input.projectId });
+      await hierarchyAuthorization.authorizeCreation(
+        {
+          userId,
+          projectId: input.projectId,
+          isAdmin: ctx.session.user.role === "ADMIN",
+        },
+        [{ level: "sprint", id: input.sprintId }],
+      );
+      if (input.order !== undefined) {
+        await hierarchyAuthorization.requireProjectManager({
+          userId,
+          projectId: input.projectId,
+          isAdmin: ctx.session.user.role === "ADMIN",
+        });
       }
 
       const response = await apiClient.features.create({
-        projectId: input.projectId,
         sprintId: input.sprintId,
         title: input.title,
         description: input.description,
@@ -86,11 +100,13 @@ export const featureRouter = createTRPCRouter({
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user.id;
 
-      // Get feature to verify ownership
-      const feature = await apiClient.features.getById(input.id);
-      if (feature.error || !feature.data) {
-        throw new Error("Feature not found");
-      }
+      await hierarchyAuthorization.authorizeMutation(
+        userId,
+        "feature",
+        input.id,
+        input.data.order !== undefined ? "structure" : "work",
+        ctx.session.user.role === "ADMIN",
+      );
 
       const response = await apiClient.features.update(input.id, input.data);
 
@@ -106,11 +122,13 @@ export const featureRouter = createTRPCRouter({
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user.id;
 
-      // Get feature to verify ownership
-      const feature = await apiClient.features.getById(input.id);
-      if (feature.error || !feature.data) {
-        throw new Error("Feature not found");
-      }
+      await hierarchyAuthorization.authorizeMutation(
+        userId,
+        "feature",
+        input.id,
+        "structure",
+        ctx.session.user.role === "ADMIN",
+      );
 
       const response = await apiClient.features.delete(input.id);
 
@@ -126,10 +144,18 @@ export const featureRouter = createTRPCRouter({
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user.id;
 
-      // Get feature to verify ownership
-      const feature = await apiClient.features.getById(input.id);
-      if (feature.error || !feature.data) {
-        throw new Error("Feature not found");
+      const feature = await hierarchyAuthorization.authorizeMutation(
+        userId,
+        "feature",
+        input.id,
+        "structure",
+        ctx.session.user.role === "ADMIN",
+      );
+      if (input.userId) {
+        await hierarchyAuthorization.requireProjectMember(
+          feature.projectId,
+          input.userId,
+        );
       }
 
       const response = await apiClient.features.assign(input.id, input.userId);
@@ -146,13 +172,18 @@ export const featureRouter = createTRPCRouter({
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user.id;
 
-      // Get feature to verify ownership
-      const feature = await apiClient.features.getById(input.id);
-      if (feature.error || !feature.data) {
-        throw new Error("Feature not found");
-      }
+      await hierarchyAuthorization.authorizeMutation(
+        userId,
+        "feature",
+        input.id,
+        "work",
+        ctx.session.user.role === "ADMIN",
+      );
 
-      const response = await apiClient.features.updateStatus(input.id, input.status as 'PLANNED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED');
+      const response = await apiClient.features.updateStatus(
+        input.id,
+        input.status,
+      );
 
       if (response.error || !response.data) {
         throw new Error(response.error ?? "Failed to update feature status");
@@ -166,13 +197,18 @@ export const featureRouter = createTRPCRouter({
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user.id;
 
-      // Get feature to verify ownership
-      const feature = await apiClient.features.getById(input.id);
-      if (feature.error || !feature.data) {
-        throw new Error("Feature not found");
-      }
+      await hierarchyAuthorization.authorizeMutation(
+        userId,
+        "feature",
+        input.id,
+        "work",
+        ctx.session.user.role === "ADMIN",
+      );
 
-      const response = await apiClient.features.updatePriority(input.id, input.priority as 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW');
+      const response = await apiClient.features.updatePriority(
+        input.id,
+        input.priority,
+      );
 
       if (response.error || !response.data) {
         throw new Error(response.error ?? "Failed to update feature priority");

@@ -1,36 +1,22 @@
-import * as React from "react"
-import { cva, type VariantProps } from "class-variance-authority"
+import * as React from "react";
+import { cva, type VariantProps } from "class-variance-authority";
 
-import { cn } from "~/lib/utils"
+import { cn } from "~/lib/utils";
 
 const cardVariants = cva(
-  "bg-card text-card-foreground flex flex-col border-2 transition-all",
+  "flex flex-col border bg-card text-card-foreground transition-colors",
   {
     variants: {
       variant: {
-        // Default - Clean brutalist
-        default: "border-border hover:border-primary/50",
-
-        // Elevated - Hard shadow effect
-        elevated: "border-border shadow-[4px_4px_0_0_var(--border)] hover:shadow-[6px_6px_0_0_var(--primary)] hover:border-primary",
-
-        // Outlined - Prominent border
-        outlined: "border-primary/30 hover:border-primary",
-
-        // Ghost - Minimal
-        ghost: "border-transparent bg-transparent hover:bg-card/50 hover:border-border",
-
-        // Neon - Subtle glow
-        neon: "border-neon-cyan/40 hover:border-neon-cyan hover:shadow-[0_0_12px_rgba(0,212,255,0.15)]",
-
-        // Neon Pink
-        "neon-pink": "border-neon-pink/40 hover:border-neon-pink hover:shadow-[0_0_12px_rgba(255,0,128,0.15)]",
-
-        // Neon Green
-        "neon-green": "border-neon-green/40 hover:border-neon-green hover:shadow-[0_0_12px_rgba(0,255,136,0.15)]",
-
-        // Interactive - For clickable cards
-        interactive: "border-border cursor-pointer hover:border-primary hover:bg-card/80 active:scale-[0.99]",
+        default: "border-border",
+        elevated: "border-foreground/35 bg-card",
+        outlined: "border-primary",
+        ghost: "border-transparent bg-transparent",
+        neon: "border-system",
+        "neon-pink": "border-primary",
+        "neon-green": "border-success",
+        interactive:
+          "cursor-pointer border-border hover:border-primary hover:bg-secondary/55",
       },
       padding: {
         none: "",
@@ -43,8 +29,8 @@ const cardVariants = cva(
       variant: "default",
       padding: "default",
     },
-  }
-)
+  },
+);
 
 export interface CardProps
   extends React.ComponentProps<"div">,
@@ -57,20 +43,17 @@ function Card({ className, variant, padding, ...props }: CardProps) {
       className={cn(cardVariants({ variant, padding }), className)}
       {...props}
     />
-  )
+  );
 }
 
 function CardHeader({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="card-header"
-      className={cn(
-        "flex flex-col gap-1.5 [.border-b]:pb-4",
-        className
-      )}
+      className={cn("flex flex-col gap-1.5 [.border-b]:pb-4", className)}
       {...props}
     />
-  )
+  );
 }
 
 function CardTitle({ className, ...props }: React.ComponentProps<"div">) {
@@ -80,7 +63,7 @@ function CardTitle({ className, ...props }: React.ComponentProps<"div">) {
       className={cn("text-lg font-bold tracking-tight", className)}
       {...props}
     />
-  )
+  );
 }
 
 function CardDescription({ className, ...props }: React.ComponentProps<"div">) {
@@ -90,7 +73,7 @@ function CardDescription({ className, ...props }: React.ComponentProps<"div">) {
       className={cn("text-muted-foreground text-sm", className)}
       {...props}
     />
-  )
+  );
 }
 
 function CardAction({ className, ...props }: React.ComponentProps<"div">) {
@@ -100,7 +83,7 @@ function CardAction({ className, ...props }: React.ComponentProps<"div">) {
       className={cn("ml-auto flex items-center gap-2", className)}
       {...props}
     />
-  )
+  );
 }
 
 function CardContent({ className, ...props }: React.ComponentProps<"div">) {
@@ -110,17 +93,20 @@ function CardContent({ className, ...props }: React.ComponentProps<"div">) {
       className={cn("flex-1", className)}
       {...props}
     />
-  )
+  );
 }
 
 function CardFooter({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="card-footer"
-      className={cn("flex items-center gap-4 pt-4 [.border-t]:pt-4 border-t border-border", className)}
+      className={cn(
+        "border-border flex items-center gap-4 border-t pt-4",
+        className,
+      )}
       {...props}
     />
-  )
+  );
 }
 
 export {
@@ -132,4 +118,4 @@ export {
   CardDescription,
   CardContent,
   cardVariants,
-}
+};

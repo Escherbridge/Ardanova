@@ -7,7 +7,12 @@ import { apiClient } from "~/lib/api";
 // Types
 // ---------------------------------------------------------------------------
 
-export type SwapStatus = "PENDING" | "PROCESSING" | "COMPLETED" | "FAILED" | "CANCELLED";
+export type SwapStatus =
+  | "PENDING"
+  | "PROCESSING"
+  | "COMPLETED"
+  | "FAILED"
+  | "CANCELLED";
 
 export interface SwapPreviewDto {
   sourceTokenAmount: number;
@@ -54,21 +59,93 @@ export interface SwapHistoryDto {
 // Zod schemas
 // ---------------------------------------------------------------------------
 
-const swapPreviewInputSchema = z.object({
-  // Retained temporarily for callers built before the server-owned identity
-  // boundary. It is deliberately ignored; the session determines the account.
-  userId: z.string().min(1).optional(),
-  sourceConfigId: z.string().min(1),
-  targetConfigId: z.string().min(1),
-  sourceTokenAmount: z.number().int().positive(),
-});
+const swapPreviewInputSchema = z
+  .object({
+    sourceConfigId: z.string().min(1),
+    targetConfigId: z.string().min(1),
+    sourceTokenAmount: z.number().int().positive(),
+  })
+  .strict();
 
-const executeSwapInputSchema = z.object({
-  userId: z.string().min(1).optional(),
-  sourceConfigId: z.string().min(1),
-  targetConfigId: z.string().min(1),
-  sourceTokenAmount: z.number().int().positive(),
-});
+const executeSwapInputSchema = z
+  .object({
+    sourceConfigId: z.string().min(1),
+    targetConfigId: z.string().min(1),
+    sourceTokenAmount: z.number().int().positive(),
+  })
+  .strict();
+
+const swapStatusSchema = z.enum([
+  "PENDING",
+  "PROCESSING",
+  "COMPLETED",
+  "FAILED",
+  "CANCELLED",
+]);
+
+const swapPreviewSchema = z
+  .object({
+    sourceTokenAmount: z.number().int().positive(),
+    sourceUnitName: z.string().min(1),
+    sourceUsdValue: z.number().finite().nonnegative(),
+    ardaAmount: z.number().finite().nonnegative(),
+    targetTokenAmount: z.number().int().nonnegative(),
+    targetUnitName: z.string().min(1),
+    targetUsdValue: z.number().finite().nonnegative(),
+    sourceTokenRate: z.number().finite().nonnegative(),
+    targetTokenRate: z.number().finite().nonnegative(),
+    ardaRate: z.number().finite().nonnegative(),
+  })
+  .strict() satisfies z.ZodType<SwapPreviewDto>;
+
+const swapResultSchema = z
+  .object({
+    id: z.string().min(1),
+    userId: z.string().min(1),
+    sourceConfigId: z.string().min(1),
+    targetConfigId: z.string().min(1),
+    sourceTokenAmount: z.number().int().positive(),
+    sourceUnitName: z.string().min(1),
+    sourceUsdValue: z.number().finite().nonnegative(),
+    ardaAmount: z.number().finite().nonnegative(),
+    targetTokenAmount: z.number().int().nonnegative(),
+    targetUnitName: z.string().min(1),
+    targetUsdValue: z.number().finite().nonnegative(),
+    status: swapStatusSchema,
+    createdAt: z.string().min(1),
+  })
+  .strict() satisfies z.ZodType<SwapResultDto>;
+
+const swapHistoryItemSchema = z
+  .object({
+    id: z.string().min(1),
+    sourceUnitName: z.string().min(1),
+    sourceTokenAmount: z.number().int().positive(),
+    targetUnitName: z.string().min(1),
+    targetTokenAmount: z.number().int().nonnegative(),
+    sourceUsdValue: z.number().finite().nonnegative(),
+    targetUsdValue: z.number().finite().nonnegative(),
+    status: swapStatusSchema,
+    createdAt: z.string().min(1),
+  })
+  .strict() satisfies z.ZodType<SwapHistoryDto>;
+
+const swapHistorySchema = z.array(swapHistoryItemSchema);
+
+function parseSwapResponse<T>(
+  schema: z.ZodType<T>,
+  payload: unknown,
+  label: string,
+): T {
+  const parsed = schema.safeParse(payload);
+  if (!parsed.success) {
+    throw new TRPCError({
+      code: "INTERNAL_SERVER_ERROR",
+      message: `The backend returned an invalid ${label} response.`,
+    });
+  }
+  return parsed.data;
+}
 
 // ---------------------------------------------------------------------------
 // Router — thin proxy to .NET API via apiClient
@@ -83,52 +160,50 @@ export const swapRouter = createTRPCRouter({
         targetConfigId: input.targetConfigId,
         sourceTokenAmount: String(input.sourceTokenAmount),
       });
-      const response = await (apiClient as unknown as { get: <T>(url: string) => Promise<{ data?: T; error?: string }> })
-        .get<SwapPreviewDto>(`/api/Swaps/preview?${params.toString()}`);
+      const response = await apiClient.get<unknown>(
+        `/api/Swaps/preview?${params.toString()}`,
+      );
 
-      if (response.error ?? !response.data) {
+      if (response.error || response.data === undefined) {
         throw new TRPCError({
           code: "BAD_REQUEST",
           message: response.error ?? "Failed to get swap preview",
         });
       }
-      return response.data!;
+      return parseSwapResponse(
+        swapPreviewSchema,
+        response.data,
+        "swap preview",
+      );
     }),
 
   executeSwap: protectedProcedure
     .input(executeSwapInputSchema)
     .mutation(async ({ input }) => {
-      const response = await (apiClient as unknown as { post: <T>(url: string, body: unknown) => Promise<{ data?: T; error?: string }> })
-        .post<SwapResultDto>(
-          "/api/Swaps",
-          {
-            sourceConfigId: input.sourceConfigId,
-            targetConfigId: input.targetConfigId,
-            sourceTokenAmount: input.sourceTokenAmount,
-          },
-        );
+      const response = await apiClient.post<unknown>("/api/Swaps", {
+        sourceConfigId: input.sourceConfigId,
+        targetConfigId: input.targetConfigId,
+        sourceTokenAmount: input.sourceTokenAmount,
+      });
 
-      if (response.error ?? !response.data) {
+      if (response.error || response.data === undefined) {
         throw new TRPCError({
           code: "BAD_REQUEST",
           message: response.error ?? "Failed to execute swap",
         });
       }
-      return response.data!;
+      return parseSwapResponse(swapResultSchema, response.data, "swap result");
     }),
 
-  getHistory: protectedProcedure
-    .input(z.object({ userId: z.string().min(1).optional() }))
-    .query(async () => {
-      const response = await (apiClient as unknown as { get: <T>(url: string) => Promise<{ data?: T; error?: string }> })
-        .get<SwapHistoryDto[]>("/api/Swaps/history");
+  getHistory: protectedProcedure.query(async () => {
+    const response = await apiClient.get<unknown>("/api/Swaps/history");
 
-      if (response.error ?? !response.data) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: response.error ?? "Failed to get swap history",
-        });
-      }
-      return response.data!;
-    }),
+    if (response.error || response.data === undefined) {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: response.error ?? "Failed to get swap history",
+      });
+    }
+    return parseSwapResponse(swapHistorySchema, response.data, "swap history");
+  }),
 });

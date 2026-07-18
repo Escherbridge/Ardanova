@@ -57,9 +57,8 @@ export function TRPCReactProvider(props: { children: React.ReactNode }) {
             return process.env.NEXT_PUBLIC_TRPC_DEBUG === "true";
           },
         }),
-        httpBatchStreamLink({
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          transformer: SuperJSON as any,
+        httpBatchStreamLink<AppRouter>({
+          transformer: SuperJSON,
           url: getBaseUrl() + "/api/trpc",
           headers: () => {
             const headers = new Headers();

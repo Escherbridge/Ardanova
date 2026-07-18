@@ -1,63 +1,67 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { createTRPCRouter, adminProcedure, protectedProcedure } from "~/server/api/trpc";
+import {
+  createTRPCRouter,
+  adminProcedure,
+  protectedProcedure,
+} from "~/server/api/trpc";
 import { apiClient } from "~/lib/api";
+import { getAdminApiClient } from "~/server/admin-api-client";
+import {
+  createFounderAllocationDtoSchema,
+  createInvestorAllocationDtoSchema,
+  createProjectTokenConfigDtoSchema,
+  createTokenAllocationDtoSchema,
+  failProjectDtoSchema,
+  gateTransitionResultDtoSchema,
+  projectGateStatusDtoSchema,
+  projectInvestmentDtoSchema,
+  projectTokenConfigDtoSchema,
+  projectTokenMetadataBatchDtoSchema,
+  tokenAllocationDtoSchema,
+} from "~/lib/contracts/tokenomics-contract";
 
 // ---------------------------------------------------------------------------
 // Zod schemas
 // ---------------------------------------------------------------------------
 
-const ProjectTokenStatusSchema = z.enum(["PENDING", "ACTIVE", "FROZEN", "DISSOLVED"]);
-const ProjectGateStatusSchema = z.enum(["FUNDING", "ACTIVE", "SUCCEEDED", "FAILED"]);
-const TokenHolderClassSchema = z.enum(["CONTRIBUTOR", "INVESTOR", "FOUNDER"]);
-const AllocationStatusSchema = z.enum(["RESERVED", "DISTRIBUTED", "REVOKED", "BURNED"]);
+const tokenAllocationListSchema = z.array(tokenAllocationDtoSchema);
+const projectInvestmentListSchema = z.array(projectInvestmentDtoSchema);
 
-const createProjectTokenConfigSchema = z.object({
-  projectId: z.string().min(1),
-  totalSupply: z.number().int().positive(),
-  fundingGoal: z.number().positive(),
-  unitName: z.string().min(1).max(8),
-  assetScale: z.number().int().min(0).max(18),
-  assetName: z.string().optional(),
-  successCriteria: z.string().optional(),
-});
+function parseBackendContract<T>(
+  schema: z.ZodType<T>,
+  data: unknown,
+  contractName: string,
+): T {
+  const result = schema.safeParse(data);
+  if (!result.success) {
+    throw new TRPCError({
+      code: "INTERNAL_SERVER_ERROR",
+      message: `Backend returned an invalid ${contractName} contract`,
+    });
+  }
 
-const createTokenAllocationSchema = z.object({
-  taskId: z.string().min(1),
-  equityPercentage: z.number().positive(),
-});
-
-const createInvestorAllocationSchema = z.object({
-  userId: z.string().min(1),
-  usdAmount: z.number().positive(),
-});
-
-const createFounderAllocationSchema = z.object({
-  userId: z.string().min(1),
-  equityPercentage: z.number().positive(),
-});
-
-const failProjectSchema = z.object({
-  reason: z.string().min(1),
-});
+  return result.data;
+}
 
 // ---------------------------------------------------------------------------
-// Router - thin proxy to .NET API via apiClient
+// Router - read operations use the service client; privileged mutations use the admin client.
 // ---------------------------------------------------------------------------
 
 export const projectTokensRouter = createTRPCRouter({
   // ---- Config CRUD ----
 
-  createConfig: protectedProcedure
-    .input(createProjectTokenConfigSchema)
+  createConfig: adminProcedure
+    .input(createProjectTokenConfigDtoSchema)
     .mutation(async ({ input }) => {
-      const response = await apiClient.projectTokens.createConfig({
+      const response = await getAdminApiClient().projectTokens.createConfig({
         projectId: input.projectId,
         totalSupply: input.totalSupply,
         fundingGoal: input.fundingGoal,
         unitName: input.unitName,
         assetScale: input.assetScale,
         assetName: input.assetName,
+        reservedPercentage: input.reservedPercentage,
         successCriteria: input.successCriteria,
       });
 
@@ -68,7 +72,11 @@ export const projectTokensRouter = createTRPCRouter({
         });
       }
 
-      return response.data;
+      return parseBackendContract(
+        projectTokenConfigDtoSchema,
+        response.data,
+        "project-token config",
+      );
     }),
 
   getConfig: protectedProcedure
@@ -83,22 +91,57 @@ export const projectTokensRouter = createTRPCRouter({
         });
       }
 
-      return response.data;
+      return parseBackendContract(
+        projectTokenConfigDtoSchema,
+        response.data,
+        "project-token config",
+      );
+    }),
+
+  getMetadata: protectedProcedure
+    .input(
+      z.object({
+        ids: z.array(z.string().trim().min(1).max(200)).min(1).max(500),
+      }),
+    )
+    .query(async ({ input }) => {
+      const ids = [...new Set(input.ids.map((id) => id.trim()))];
+      const response = await apiClient.projectTokens.getMetadata(ids);
+
+      if (response.error || !response.data) {
+        throw new TRPCError({
+          code: "BAD_GATEWAY",
+          message: response.error ?? "Failed to load project-token metadata",
+        });
+      }
+
+      return parseBackendContract(
+        projectTokenMetadataBatchDtoSchema,
+        response.data,
+        "project-token metadata batch",
+      );
     }),
 
   getConfigByProject: protectedProcedure
     .input(z.object({ projectId: z.string().min(1) }))
     .query(async ({ input }) => {
-      const response = await apiClient.projectTokens.getConfigByProject(input.projectId);
+      const response = await apiClient.projectTokens.getConfigByProject(
+        input.projectId,
+      );
 
       if (response.error || !response.data) {
         throw new TRPCError({
           code: "NOT_FOUND",
-          message: response.error ?? "Project token config not found for project",
+          message:
+            response.error ?? "Project token config not found for project",
         });
       }
 
-      return response.data;
+      return parseBackendContract(
+        projectTokenConfigDtoSchema,
+        response.data,
+        "project-token config",
+      );
     }),
 
   getSupply: protectedProcedure
@@ -113,36 +156,60 @@ export const projectTokensRouter = createTRPCRouter({
         });
       }
 
-      return response.data;
+      return parseBackendContract(
+        projectTokenConfigDtoSchema,
+        response.data,
+        "project-token supply",
+      );
     }),
 
   // ---- Allocations ----
 
-  allocateToTask: protectedProcedure
-    .input(z.object({ configId: z.string().min(1) }).merge(createTokenAllocationSchema))
+  allocateToPbi: adminProcedure
+    .input(
+      z
+        .object({ configId: z.string().min(1) })
+        .merge(createTokenAllocationDtoSchema),
+    )
     .mutation(async ({ input }) => {
-      const response = await apiClient.projectTokens.allocateToTask(input.configId, {
-        taskId: input.taskId,
-        equityPercentage: input.equityPercentage,
-      });
+      const response = await getAdminApiClient().projectTokens.allocateToPbi(
+        input.configId,
+        {
+          pbiId: input.pbiId,
+          equityPercentage: input.equityPercentage,
+        },
+      );
 
       if (response.error || !response.data) {
         throw new TRPCError({
           code: "BAD_REQUEST",
-          message: response.error ?? "Failed to allocate tokens to task",
+          message: response.error ?? "Failed to allocate tokens to PBI",
         });
       }
 
-      return response.data;
+      return parseBackendContract(
+        tokenAllocationDtoSchema,
+        response.data,
+        "PBI token allocation",
+      );
     }),
 
-  allocateToInvestor: protectedProcedure
-    .input(z.object({ configId: z.string().min(1) }).merge(createInvestorAllocationSchema))
+  allocateToInvestor: adminProcedure
+    .input(
+      z
+        .object({ configId: z.string().min(1) })
+        .merge(createInvestorAllocationDtoSchema),
+    )
     .mutation(async ({ input }) => {
-      const response = await apiClient.projectTokens.allocateToInvestor(input.configId, {
-        userId: input.userId,
-        usdAmount: input.usdAmount,
-      });
+      const response =
+        await getAdminApiClient().projectTokens.allocateToInvestor(
+          input.configId,
+          {
+            userId: input.userId,
+            usdAmount: input.usdAmount,
+            tokenAmount: input.tokenAmount,
+          },
+        );
 
       if (response.error || !response.data) {
         throw new TRPCError({
@@ -151,16 +218,28 @@ export const projectTokensRouter = createTRPCRouter({
         });
       }
 
-      return response.data;
+      return parseBackendContract(
+        tokenAllocationDtoSchema,
+        response.data,
+        "investor token allocation",
+      );
     }),
 
-  allocateToFounder: protectedProcedure
-    .input(z.object({ configId: z.string().min(1) }).merge(createFounderAllocationSchema))
+  allocateToFounder: adminProcedure
+    .input(
+      z
+        .object({ configId: z.string().min(1) })
+        .merge(createFounderAllocationDtoSchema),
+    )
     .mutation(async ({ input }) => {
-      const response = await apiClient.projectTokens.allocateToFounder(input.configId, {
-        userId: input.userId,
-        equityPercentage: input.equityPercentage,
-      });
+      const response =
+        await getAdminApiClient().projectTokens.allocateToFounder(
+          input.configId,
+          {
+            userId: input.userId,
+            equityPercentage: input.equityPercentage,
+          },
+        );
 
       if (response.error || !response.data) {
         throw new TRPCError({
@@ -169,18 +248,24 @@ export const projectTokensRouter = createTRPCRouter({
         });
       }
 
-      return response.data;
+      return parseBackendContract(
+        tokenAllocationDtoSchema,
+        response.data,
+        "founder token allocation",
+      );
     }),
 
-  distribute: protectedProcedure
-    .input(z.object({
-      allocationId: z.string().min(1),
-      recipientUserId: z.string().min(1),
-    }))
+  distribute: adminProcedure
+    .input(
+      z.object({
+        allocationId: z.string().min(1),
+        recipientUserId: z.string().min(1),
+      }),
+    )
     .mutation(async ({ input }) => {
-      const response = await apiClient.projectTokens.distribute(
+      const response = await getAdminApiClient().projectTokens.distribute(
         input.allocationId,
-        input.recipientUserId
+        input.recipientUserId,
       );
 
       if (response.error || !response.data) {
@@ -190,13 +275,19 @@ export const projectTokensRouter = createTRPCRouter({
         });
       }
 
-      return response.data;
+      return parseBackendContract(
+        tokenAllocationDtoSchema,
+        response.data,
+        "distributed token allocation",
+      );
     }),
 
-  revoke: protectedProcedure
+  revoke: adminProcedure
     .input(z.object({ allocationId: z.string().min(1) }))
     .mutation(async ({ input }) => {
-      const response = await apiClient.projectTokens.revoke(input.allocationId);
+      const response = await getAdminApiClient().projectTokens.revoke(
+        input.allocationId,
+      );
 
       if (response.error || !response.data) {
         throw new TRPCError({
@@ -205,13 +296,19 @@ export const projectTokensRouter = createTRPCRouter({
         });
       }
 
-      return response.data;
+      return parseBackendContract(
+        tokenAllocationDtoSchema,
+        response.data,
+        "revoked token allocation",
+      );
     }),
 
   getAllocations: protectedProcedure
     .input(z.object({ configId: z.string().min(1) }))
     .query(async ({ input }) => {
-      const response = await apiClient.projectTokens.getAllocations(input.configId);
+      const response = await apiClient.projectTokens.getAllocations(
+        input.configId,
+      );
 
       if (response.error || !response.data) {
         throw new TRPCError({
@@ -220,28 +317,40 @@ export const projectTokensRouter = createTRPCRouter({
         });
       }
 
-      return response.data;
+      return parseBackendContract(
+        tokenAllocationListSchema,
+        response.data,
+        "token allocation list",
+      );
     }),
 
-  getAllocationsByTask: protectedProcedure
-    .input(z.object({ taskId: z.string().min(1) }))
+  getAllocationsByPbi: protectedProcedure
+    .input(z.object({ pbiId: z.string().min(1) }))
     .query(async ({ input }) => {
-      const response = await apiClient.projectTokens.getAllocationsByTask(input.taskId);
+      const response = await apiClient.projectTokens.getAllocationsByPbi(
+        input.pbiId,
+      );
 
       if (response.error || !response.data) {
         throw new TRPCError({
           code: "BAD_REQUEST",
-          message: response.error ?? "Failed to get task allocations",
+          message: response.error ?? "Failed to get PBI allocations",
         });
       }
 
-      return response.data;
+      return parseBackendContract(
+        tokenAllocationListSchema,
+        response.data,
+        "PBI token allocation list",
+      );
     }),
 
   getInvestors: protectedProcedure
     .input(z.object({ configId: z.string().min(1) }))
     .query(async ({ input }) => {
-      const response = await apiClient.projectTokens.getInvestors(input.configId);
+      const response = await apiClient.projectTokens.getInvestors(
+        input.configId,
+      );
 
       if (response.error || !response.data) {
         throw new TRPCError({
@@ -250,7 +359,11 @@ export const projectTokensRouter = createTRPCRouter({
         });
       }
 
-      return response.data;
+      return parseBackendContract(
+        projectInvestmentListSchema,
+        response.data,
+        "project investment list",
+      );
     }),
 
   // ---- Gate Management ----
@@ -258,7 +371,9 @@ export const projectTokensRouter = createTRPCRouter({
   getGateStatus: protectedProcedure
     .input(z.object({ configId: z.string().min(1) }))
     .query(async ({ input }) => {
-      const response = await apiClient.projectTokens.getGateStatus(input.configId);
+      const response = await apiClient.projectTokens.getGateStatus(
+        input.configId,
+      );
 
       if (response.error || !response.data) {
         throw new TRPCError({
@@ -267,13 +382,19 @@ export const projectTokensRouter = createTRPCRouter({
         });
       }
 
-      return response.data;
+      return parseBackendContract(
+        projectGateStatusDtoSchema,
+        response.data,
+        "project gate status",
+      );
     }),
 
-  evaluateGate: protectedProcedure
+  evaluateGate: adminProcedure
     .input(z.object({ configId: z.string().min(1) }))
     .mutation(async ({ input }) => {
-      const response = await apiClient.projectTokens.evaluateGate(input.configId);
+      const response = await getAdminApiClient().projectTokens.evaluateGate(
+        input.configId,
+      );
 
       if (response.error || !response.data) {
         throw new TRPCError({
@@ -282,18 +403,24 @@ export const projectTokensRouter = createTRPCRouter({
         });
       }
 
-      return response.data;
+      return parseBackendContract(
+        gateTransitionResultDtoSchema,
+        response.data,
+        "gate transition",
+      );
     }),
 
   clearGate: adminProcedure
-    .input(z.object({
-      configId: z.string().min(1),
-      verifiedByUserId: z.string().min(1),
-    }))
+    .input(
+      z.object({
+        configId: z.string().min(1),
+        verifiedByUserId: z.string().min(1),
+      }),
+    )
     .mutation(async ({ input }) => {
-      const response = await apiClient.projectTokens.clearGate(
+      const response = await getAdminApiClient().projectTokens.clearGate(
         input.configId,
-        input.verifiedByUserId
+        input.verifiedByUserId,
       );
 
       if (response.error || !response.data) {
@@ -303,15 +430,24 @@ export const projectTokensRouter = createTRPCRouter({
         });
       }
 
-      return response.data;
+      return parseBackendContract(
+        gateTransitionResultDtoSchema,
+        response.data,
+        "gate transition",
+      );
     }),
 
-  failProject: protectedProcedure
-    .input(z.object({ configId: z.string().min(1) }).merge(failProjectSchema))
+  failProject: adminProcedure
+    .input(
+      z.object({ configId: z.string().min(1) }).merge(failProjectDtoSchema),
+    )
     .mutation(async ({ input }) => {
-      const response = await apiClient.projectTokens.failProject(input.configId, {
-        reason: input.reason,
-      });
+      const response = await getAdminApiClient().projectTokens.failProject(
+        input.configId,
+        {
+          reason: input.reason,
+        },
+      );
 
       if (response.error || !response.data) {
         throw new TRPCError({
@@ -320,7 +456,11 @@ export const projectTokensRouter = createTRPCRouter({
         });
       }
 
-      return response.data;
+      return parseBackendContract(
+        gateTransitionResultDtoSchema,
+        response.data,
+        "gate transition",
+      );
     }),
 
   // ---- Failure Handling ----
@@ -328,30 +468,42 @@ export const projectTokensRouter = createTRPCRouter({
   burnFounder: adminProcedure
     .input(z.object({ configId: z.string().min(1) }))
     .mutation(async ({ input }) => {
-      const response = await apiClient.projectTokens.burnFounder(input.configId);
+      const response = await getAdminApiClient().projectTokens.burnFounder(
+        input.configId,
+      );
 
-      if (response.error || !response.data) {
+      if (response.error || response.data === undefined) {
         throw new TRPCError({
           code: "BAD_REQUEST",
           message: response.error ?? "Failed to burn founder tokens",
         });
       }
 
-      return response.data;
+      return parseBackendContract(
+        z.boolean(),
+        response.data,
+        "founder token burn result",
+      );
     }),
 
   trustProtection: adminProcedure
     .input(z.object({ configId: z.string().min(1) }))
     .mutation(async ({ input }) => {
-      const response = await apiClient.projectTokens.trustProtection(input.configId);
+      const response = await getAdminApiClient().projectTokens.trustProtection(
+        input.configId,
+      );
 
-      if (response.error || !response.data) {
+      if (response.error || response.data === undefined) {
         throw new TRPCError({
           code: "BAD_REQUEST",
           message: response.error ?? "Failed to process trust protection",
         });
       }
 
-      return response.data;
+      return parseBackendContract(
+        z.boolean(),
+        response.data,
+        "trust-protection processing result",
+      );
     }),
 });

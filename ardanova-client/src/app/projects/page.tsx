@@ -1,749 +1,698 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import {
-  Search,
-  Filter,
-  Heart,
-  Users,
-  TrendingUp,
+  ArrowRight,
+  Clock,
   FolderKanban,
   Plus,
-  MessageCircle,
-  Share2,
-  Bookmark,
-  MoreHorizontal,
+  RefreshCw,
+  Search,
   Sparkles,
-  Clock,
-  SlidersHorizontal,
+  Users,
+  Vote,
   X,
 } from "lucide-react";
 
+import { api } from "~/trpc/react";
+import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
+import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
-import { Badge } from "~/components/ui/badge";
-import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
-import { Progress } from "~/components/ui/progress";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "~/components/ui/dropdown-menu";
-import { cn } from "~/lib/utils";
-import { api } from "~/trpc/react";
-import { useEnumOptions } from "~/hooks/use-enum";
 import { FeedLayout } from "~/components/layouts/feed-layout";
+import { Progress } from "~/components/ui/progress";
+import { useEnumOptions } from "~/hooks/use-enum";
+import type { Project } from "~/lib/api/ardanova/endpoints/projects";
+import { handleTabListKeyDown } from "~/lib/accessibility";
+import {
+  isProjectStatus,
+  isProjectType,
+  PROJECT_STATUSES,
+  PROJECT_TYPES,
+  type ProjectStatus,
+  type ProjectType,
+} from "~/lib/contracts/project-contract";
+import { cn } from "~/lib/utils";
 
-// Feed tabs for projects
 const projectTabs = [
-  { id: "all", label: "All Projects", icon: FolderKanban },
-  { id: "trending", label: "Trending", icon: TrendingUp },
-  { id: "newest", label: "Newest", icon: Clock },
-  { id: "funded", label: "Funded", icon: Sparkles },
-];
+  {
+    id: "all",
+    label: "All",
+    icon: <FolderKanban className="size-4" aria-hidden="true" />,
+  },
+  {
+    id: "active",
+    label: "Recent activity",
+    icon: <RefreshCw className="size-4" aria-hidden="true" />,
+  },
+  {
+    id: "newest",
+    label: "Newest",
+    icon: <Clock className="size-4" aria-hidden="true" />,
+  },
+  {
+    id: "funded",
+    label: "Funded",
+    icon: <Sparkles className="size-4" aria-hidden="true" />,
+  },
+] as const;
 
-// Category badge variants
-const categoryVariants: Record<string, "neon" | "neon-pink" | "neon-green" | "neon-purple" | "warning" | "secondary"> = {
-  TECHNOLOGY: "neon",
-  HEALTHCARE: "neon-pink",
-  EDUCATION: "neon-purple",
-  ENVIRONMENT: "neon-green",
-  SOCIAL_IMPACT: "neon-pink",
-  BUSINESS: "secondary",
-  ARTS_CULTURE: "neon-purple",
-  AGRICULTURE: "neon-green",
-  FINANCE: "warning",
-  OTHER: "secondary",
+type ProjectTab = (typeof projectTabs)[number]["id"];
+
+const projectTypeLabels: Record<ProjectType, string> = {
+  TEMPORARY: "Temporary",
+  LONG_TERM: "Long term",
+  FOUNDATION: "Foundation",
+  BUSINESS: "Business",
+  PRODUCT: "Product",
+  OPEN_SOURCE: "Open source",
+  COMMUNITY: "Community",
 };
 
-// Status badge variants
-const statusVariants: Record<string, "neon" | "neon-pink" | "neon-green" | "neon-purple" | "warning" | "secondary" | "destructive"> = {
-  DRAFT: "secondary",
-  PUBLISHED: "neon",
-  SEEKING_SUPPORT: "warning",
-  FUNDED: "neon-green",
-  IN_PROGRESS: "neon-purple",
-  COMPLETED: "neon-green",
-  CANCELLED: "destructive",
-};
+function humanize(value: string) {
+  return value
+    .split("_")
+    .map((part) => part.charAt(0) + part.slice(1).toLowerCase())
+    .join(" ");
+}
 
-function formatRelativeTime(date: Date): string {
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffSec = Math.floor(diffMs / 1000);
-  const diffMin = Math.floor(diffSec / 60);
-  const diffHour = Math.floor(diffMin / 60);
-  const diffDay = Math.floor(diffHour / 24);
+function formatUSD(value: number) {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0,
+  }).format(value);
+}
 
-  if (diffSec < 60) return "just now";
-  if (diffMin < 60) return `${diffMin}m ago`;
-  if (diffHour < 24) return `${diffHour}h ago`;
-  if (diffDay < 7) return `${diffDay}d ago`;
+function formatRelativeTime(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Date unavailable";
+
+  const elapsed = Date.now() - date.getTime();
+  const days = Math.floor(elapsed / 86_400_000);
+  if (days < 0) return date.toLocaleDateString();
+  if (days === 0) return "Today";
+  if (days < 7) return `${days}d ago`;
   return date.toLocaleDateString();
 }
 
-
-const fundingFilters = [
-  { id: "all", label: "Any Funding" },
-  { id: "0-1000", label: "Under $1,000" },
-  { id: "1000-10000", label: "$1,000 - $10,000" },
-  { id: "10000-50000", label: "$10,000 - $50,000" },
-  { id: "50000+", label: "Over $50,000" },
-];
-
-const timeFilters = [
-  { id: "all", label: "All Time" },
-  { id: "today", label: "Today" },
-  { id: "week", label: "This Week" },
-  { id: "month", label: "This Month" },
-  { id: "year", label: "This Year" },
-];
-
-export default function ProjectsPage() {
-  const [activeTab, setActiveTab] = useState("all");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [showFilters, setShowFilters] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState("all");
-  const [selectedProjectType, setSelectedProjectType] = useState("all");
-  const [selectedStatus, setSelectedStatus] = useState("all");
-  const [selectedFunding, setSelectedFunding] = useState("all");
-  const [selectedTime, setSelectedTime] = useState("all");
-
-  // API-driven enum filters
-  const { options: categoryOptions } = useEnumOptions("ProjectCategory");
-  const categoryFilters = [{ id: "all", label: "All Categories" }, ...categoryOptions];
-  const { options: projectTypeOptions } = useEnumOptions("ProjectType");
-  const projectTypeFilters = [{ id: "all", label: "All Types" }, ...projectTypeOptions];
-  const { options: statusOptions } = useEnumOptions("ProjectStatus");
-  const statusFilters = [{ id: "all", label: "All Statuses" }, ...statusOptions];
-
-  // Fetch projects from API
-  const { data: projectsResult, isLoading } = api.project.getAll.useQuery({
-    limit: 50,
-  });
-
-  const projects = projectsResult?.items || [];
-
-  // Filter projects based on all criteria
-  const filteredProjects = projects.filter((project) => {
-    // Tab filter
-    if (activeTab === "trending" && (project.votesCount ?? 0) === 0) return false;
-    if (activeTab === "funded" && project.status !== "FUNDED" && project.status !== "COMPLETED") return false;
-
-    // Search query
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      const matchesTitle = project.title.toLowerCase().includes(query);
-      const matchesDescription = project.description?.toLowerCase().includes(query);
-      const matchesTags = project.tags?.toLowerCase().includes(query);
-      if (!matchesTitle && !matchesDescription && !matchesTags) return false;
+function filterAndSortProjects(
+  projects: Project[],
+  options: {
+    tab: ProjectTab;
+    search: string;
+    category: string;
+    projectType: ProjectType | "all";
+    status: ProjectStatus | "all";
+  },
+) {
+  const query = options.search.trim().toLowerCase();
+  const filtered = projects.filter((project) => {
+    if (
+      options.tab === "funded" &&
+      project.status !== "FUNDED" &&
+      project.status !== "COMPLETED"
+    ) {
+      return false;
     }
-
-    // Category filter
-    if (selectedCategory !== "all" && !((project as any).categories as string[] ?? []).includes(selectedCategory)) return false;
-
-    // Project type filter
-    if (selectedProjectType !== "all" && (project as any).projectType !== selectedProjectType) return false;
-
-    // Status filter
-    if (selectedStatus !== "all" && project.status !== selectedStatus) return false;
-
-    // Funding filter
-    if (selectedFunding !== "all") {
-      const funding = Number(project.currentFunding || 0);
-      if (selectedFunding === "0-1000" && funding >= 1000) return false;
-      if (selectedFunding === "1000-10000" && (funding < 1000 || funding >= 10000)) return false;
-      if (selectedFunding === "10000-50000" && (funding < 10000 || funding >= 50000)) return false;
-      if (selectedFunding === "50000+" && funding < 50000) return false;
+    if (
+      query &&
+      !project.title.toLowerCase().includes(query) &&
+      !project.description.toLowerCase().includes(query) &&
+      !project.problemStatement.toLowerCase().includes(query) &&
+      !project.tags?.toLowerCase().includes(query)
+    ) {
+      return false;
     }
-
-    // Time filter
-    if (selectedTime !== "all") {
-      const now = new Date();
-      const projectDate = new Date(project.createdAt);
-      const diffDays = (now.getTime() - projectDate.getTime()) / (1000 * 60 * 60 * 24);
-
-      if (selectedTime === "today" && diffDays > 1) return false;
-      if (selectedTime === "week" && diffDays > 7) return false;
-      if (selectedTime === "month" && diffDays > 30) return false;
-      if (selectedTime === "year" && diffDays > 365) return false;
+    if (
+      options.category !== "all" &&
+      !project.categories.includes(options.category)
+    ) {
+      return false;
     }
-
+    if (
+      options.projectType !== "all" &&
+      project.projectType !== options.projectType
+    ) {
+      return false;
+    }
+    if (options.status !== "all" && project.status !== options.status) {
+      return false;
+    }
     return true;
   });
 
-  const hasActiveFilters =
-    searchQuery ||
+  if (options.tab === "active") {
+    return filtered.sort(
+      (a, b) =>
+        new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
+    );
+  }
+  if (options.tab === "newest") {
+    return filtered.sort(
+      (a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    );
+  }
+  return filtered;
+}
+
+export default function ProjectsPage() {
+  const [activeTab, setActiveTab] = useState<ProjectTab>("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("all");
+  const [selectedProjectType, setSelectedProjectType] = useState<
+    ProjectType | "all"
+  >("all");
+  const [selectedStatus, setSelectedStatus] = useState<ProjectStatus | "all">(
+    "all",
+  );
+
+  const categoryQuery = useEnumOptions("ProjectCategory");
+  const projectsQuery = api.project.getAll.useQuery({ limit: 50, page: 1 });
+  const projects = useMemo(
+    () => projectsQuery.data?.items ?? [],
+    [projectsQuery.data?.items],
+  );
+
+  const categories = useMemo(
+    () =>
+      Array.from(
+        new Set([
+          ...categoryQuery.options.map(({ id }) => id),
+          ...projects.flatMap(({ categories: values }) => values),
+        ]),
+      ).sort(),
+    [categoryQuery.options, projects],
+  );
+
+  const filteredProjects = filterAndSortProjects(projects, {
+    tab: activeTab,
+    search: searchQuery,
+    category: selectedCategory,
+    projectType: selectedProjectType,
+    status: selectedStatus,
+  });
+  const hasFilters =
+    searchQuery.trim().length > 0 ||
     selectedCategory !== "all" ||
     selectedProjectType !== "all" ||
-    selectedStatus !== "all" ||
-    selectedFunding !== "all" ||
-    selectedTime !== "all";
-
+    selectedStatus !== "all";
   const clearFilters = () => {
     setSearchQuery("");
     setSelectedCategory("all");
     setSelectedProjectType("all");
     setSelectedStatus("all");
-    setSelectedFunding("all");
-    setSelectedTime("all");
   };
 
-  const activeFilterCount =
-    (selectedCategory !== "all" ? 1 : 0) +
-    (selectedProjectType !== "all" ? 1 : 0) +
-    (selectedStatus !== "all" ? 1 : 0) +
-    (selectedFunding !== "all" ? 1 : 0) +
-    (selectedTime !== "all" ? 1 : 0);
-
-  // Stats for sidebar
-  const stats = {
-    total: projects.length,
-    funded: projects.filter((p) => p.status === "FUNDED" || p.status === "COMPLETED").length,
-    totalFunding: projects.reduce((sum, p) => sum + Number(p.currentFunding || 0), 0),
-    totalSupporters: projects.reduce((sum, p) => sum + (p.supportersCount || 0), 0),
+  const currentViewStats = {
+    loaded: projects.length,
+    funded: projects.filter(
+      ({ status }) => status === "FUNDED" || status === "COMPLETED",
+    ).length,
+    recordedFunding: projects.reduce(
+      (total, project) => total + project.currentFunding,
+      0,
+    ),
+    supporters: projects.reduce(
+      (total, project) => total + project.supportersCount,
+      0,
+    ),
   };
-
-  // Trending projects for sidebar
-  const trendingProjects = [...projects]
-    .sort((a, b) => (b.votesCount || 0) - (a.votesCount || 0))
+  const recentlyUpdatedInView = [...projects]
+    .sort(
+      (a, b) =>
+        new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
+    )
     .slice(0, 3);
 
   return (
     <FeedLayout
       sidebar={
-        <>
-          {/* Stats */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Sparkles className="size-4 text-neon-yellow" />
-                Platform Stats
-              </CardTitle>
+        <div className="space-y-4">
+          <Card className="border-foreground">
+            <CardHeader className="border-border border-b pb-4">
+              <CardTitle className="text-base">Current API page</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex justify-between">
-                <span className="text-sm text-muted-foreground">Total Projects</span>
-                <span className="font-medium text-foreground">{stats.total}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-sm text-muted-foreground">Funded Projects</span>
-                <span className="font-medium text-neon-green">{stats.funded}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-sm text-muted-foreground">Total Raised</span>
-                <span className="font-medium text-foreground">${stats.totalFunding.toLocaleString()}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-sm text-muted-foreground">Total Supporters</span>
-                <span className="font-medium text-foreground">{stats.totalSupporters}</span>
-              </div>
+            <CardContent className="space-y-3 p-4">
+              <Stat
+                label="Projects loaded"
+                value={String(currentViewStats.loaded)}
+              />
+              <Stat
+                label="Funded or complete"
+                value={String(currentViewStats.funded)}
+              />
+              <Stat
+                label="Funding recorded"
+                value={formatUSD(currentViewStats.recordedFunding)}
+              />
+              <Stat
+                label="Supporters recorded"
+                value={String(currentViewStats.supporters)}
+              />
+              <p className="border-border text-muted-foreground border-t pt-3 text-xs">
+                These totals summarize the loaded first page, not the entire
+                platform.
+              </p>
             </CardContent>
           </Card>
 
-          {/* Trending Projects */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <TrendingUp className="size-4 text-primary" />
-                Trending Projects
+          <Card className="border-border">
+            <CardHeader className="border-border border-b pb-4">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <RefreshCw className="text-primary size-4" />
+                Recently updated in this view
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              {trendingProjects.map((project) => (
-                <Link
-                  key={project.id}
-                  href={`/projects/${project.id}`}
-                  className="block"
-                >
-                  <div className="flex items-start justify-between mb-2">
-                    <div>
-                      <p className="font-medium text-sm text-foreground hover:text-primary transition-colors line-clamp-1">
-                        {project.title}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {project.supportersCount || 0} supporters
-                      </p>
-                    </div>
-                    {((project as any).categories as string[] ?? []).slice(0, 1).map((cat: string) => (
-                      <Badge
-                        key={cat}
-                        variant={categoryVariants[cat] || "secondary"}
-                        size="sm"
-                      >
-                        {cat.replace("_", " ")}
-                      </Badge>
-                    ))}
-                  </div>
-                  {project.fundingGoal && Number(project.fundingGoal) > 0 && (
-                    <Progress
-                      value={Math.min((Number(project.currentFunding || 0) / Number(project.fundingGoal)) * 100, 100)}
-                      variant="neon"
-                      className="h-1"
-                    />
-                  )}
-                </Link>
-              ))}
-              <Button variant="ghost" className="w-full text-sm" asChild>
-                <Link href="/projects?tab=trending">View all trending</Link>
-              </Button>
+            <CardContent className="divide-border divide-y p-0">
+              {recentlyUpdatedInView.length === 0 ? (
+                <p className="text-muted-foreground p-4 text-sm">
+                  No loaded records.
+                </p>
+              ) : (
+                recentlyUpdatedInView.map((project) => (
+                  <Link
+                    key={project.id}
+                    href={`/projects/${project.slug || project.id}`}
+                    className="hover:bg-secondary flex min-h-14 items-center justify-between gap-3 p-4"
+                  >
+                    <span className="line-clamp-2 text-sm font-semibold">
+                      {project.title}
+                    </span>
+                    <span className="text-muted-foreground shrink-0 font-mono text-xs">
+                      {formatRelativeTime(project.updatedAt)}
+                    </span>
+                  </Link>
+                ))
+              )}
             </CardContent>
           </Card>
-
-          {/* Categories */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Filter className="size-4 text-neon-pink" />
-                Categories
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-wrap gap-2">
-              {Object.keys(categoryVariants).map((category) => (
-                <Badge
-                  key={category}
-                  variant={categoryVariants[category]}
-                  size="sm"
-                  className="cursor-pointer hover:opacity-80"
-                >
-                  {category.replace("_", " ")}
-                </Badge>
-              ))}
-            </CardContent>
-          </Card>
-
-          {/* Footer */}
-          <div className="text-xs text-muted-foreground space-x-2 px-2">
-            <Link href="/terms" className="hover:underline">Terms</Link>
-            <span>·</span>
-            <Link href="/privacy" className="hover:underline">Privacy</Link>
-            <span>·</span>
-            <Link href="/help" className="hover:underline">Help</Link>
-            <p className="mt-2">&copy; 2024 ArdaNova</p>
-          </div>
-        </>
+        </div>
       }
     >
-      {/* Header */}
-      <div className="sticky top-0 bg-background/95 backdrop-blur border-b-2 border-border">
-            <div className="p-4 flex items-center justify-between">
-              <h1 className="text-xl font-bold text-foreground flex items-center gap-2">
-                <FolderKanban className="size-5 text-primary" />
-                Projects
-              </h1>
-              <Button variant="neon" size="sm" asChild>
-                <Link href="/projects/create">
-                  <Plus className="size-4 mr-2" />
-                  New Project
-                </Link>
-              </Button>
-            </div>
-
-            {/* Search */}
-            <div className="px-4 pb-3 flex items-center gap-2">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search projects..."
-                  className="w-full pl-10 pr-4 py-2 bg-card border-2 border-border text-foreground text-sm placeholder:text-muted-foreground focus:border-primary focus:outline-none"
-                />
-                {searchQuery && (
-                  <button
-                    onClick={() => setSearchQuery("")}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                  >
-                    <X className="size-4" />
-                  </button>
-                )}
-              </div>
-              <Button
-                variant={showFilters ? "neon" : "outline"}
-                size="sm"
-                onClick={() => setShowFilters(!showFilters)}
-                className="gap-1.5"
-              >
-                <SlidersHorizontal className="size-4" />
-                Filters
-                {activeFilterCount > 0 && !showFilters && (
-                  <Badge variant="neon" size="sm" className="ml-1">
-                    {activeFilterCount}
-                  </Badge>
-                )}
-              </Button>
-            </div>
-
-            {/* Expanded Filters */}
-            {showFilters && (
-              <div className="px-4 pb-4 space-y-3 border-t border-border pt-3">
-                <div className="grid grid-cols-2 gap-3">
-                  {/* Category Filter */}
-                  <div>
-                    <label className="text-xs text-muted-foreground mb-1.5 block">
-                      Category
-                    </label>
-                    <select
-                      value={selectedCategory}
-                      onChange={(e) => setSelectedCategory(e.target.value)}
-                      className="w-full px-3 py-2 bg-card border-2 border-border text-foreground text-sm focus:border-primary focus:outline-none appearance-none cursor-pointer"
-                    >
-                      {categoryFilters.map((filter) => (
-                        <option key={filter.id} value={filter.id}>
-                          {filter.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Project Type Filter */}
-                  <div>
-                    <label className="text-xs text-muted-foreground mb-1.5 block">
-                      Project Type
-                    </label>
-                    <select
-                      value={selectedProjectType}
-                      onChange={(e) => setSelectedProjectType(e.target.value)}
-                      className="w-full px-3 py-2 bg-card border-2 border-border text-foreground text-sm focus:border-primary focus:outline-none appearance-none cursor-pointer"
-                    >
-                      {projectTypeFilters.map((filter) => (
-                        <option key={filter.id} value={filter.id}>
-                          {filter.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Status Filter */}
-                  <div>
-                    <label className="text-xs text-muted-foreground mb-1.5 block">
-                      Status
-                    </label>
-                    <select
-                      value={selectedStatus}
-                      onChange={(e) => setSelectedStatus(e.target.value)}
-                      className="w-full px-3 py-2 bg-card border-2 border-border text-foreground text-sm focus:border-primary focus:outline-none appearance-none cursor-pointer"
-                    >
-                      {statusFilters.map((filter) => (
-                        <option key={filter.id} value={filter.id}>
-                          {filter.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Funding Filter */}
-                  <div>
-                    <label className="text-xs text-muted-foreground mb-1.5 block">
-                      Funding Range
-                    </label>
-                    <select
-                      value={selectedFunding}
-                      onChange={(e) => setSelectedFunding(e.target.value)}
-                      className="w-full px-3 py-2 bg-card border-2 border-border text-foreground text-sm focus:border-primary focus:outline-none appearance-none cursor-pointer"
-                    >
-                      {fundingFilters.map((filter) => (
-                        <option key={filter.id} value={filter.id}>
-                          {filter.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Time Filter */}
-                  <div>
-                    <label className="text-xs text-muted-foreground mb-1.5 block">
-                      Time Period
-                    </label>
-                    <select
-                      value={selectedTime}
-                      onChange={(e) => setSelectedTime(e.target.value)}
-                      className="w-full px-3 py-2 bg-card border-2 border-border text-foreground text-sm focus:border-primary focus:outline-none appearance-none cursor-pointer"
-                    >
-                      {timeFilters.map((filter) => (
-                        <option key={filter.id} value={filter.id}>
-                          {filter.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                {hasActiveFilters && (
-                  <div className="flex items-center justify-between pt-2">
-                    <div className="flex flex-wrap gap-2">
-                      {searchQuery && (
-                        <Badge variant="secondary" size="sm" className="gap-1">
-                          Search: {searchQuery}
-                          <button onClick={() => setSearchQuery("")}>
-                            <X className="size-3" />
-                          </button>
-                        </Badge>
-                      )}
-                      {selectedCategory !== "all" && (
-                        <Badge variant="secondary" size="sm" className="gap-1">
-                          {categoryFilters.find((f) => f.id === selectedCategory)?.label}
-                          <button onClick={() => setSelectedCategory("all")}>
-                            <X className="size-3" />
-                          </button>
-                        </Badge>
-                      )}
-                      {selectedProjectType !== "all" && (
-                        <Badge variant="secondary" size="sm" className="gap-1">
-                          {projectTypeFilters.find((f) => f.id === selectedProjectType)?.label}
-                          <button onClick={() => setSelectedProjectType("all")}>
-                            <X className="size-3" />
-                          </button>
-                        </Badge>
-                      )}
-                      {selectedStatus !== "all" && (
-                        <Badge variant="secondary" size="sm" className="gap-1">
-                          {statusFilters.find((f) => f.id === selectedStatus)?.label}
-                          <button onClick={() => setSelectedStatus("all")}>
-                            <X className="size-3" />
-                          </button>
-                        </Badge>
-                      )}
-                      {selectedFunding !== "all" && (
-                        <Badge variant="secondary" size="sm" className="gap-1">
-                          {fundingFilters.find((f) => f.id === selectedFunding)?.label}
-                          <button onClick={() => setSelectedFunding("all")}>
-                            <X className="size-3" />
-                          </button>
-                        </Badge>
-                      )}
-                      {selectedTime !== "all" && (
-                        <Badge variant="secondary" size="sm" className="gap-1">
-                          {timeFilters.find((f) => f.id === selectedTime)?.label}
-                          <button onClick={() => setSelectedTime("all")}>
-                            <X className="size-3" />
-                          </button>
-                        </Badge>
-                      )}
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={clearFilters}
-                      className="text-muted-foreground"
-                    >
-                      Clear all
-                    </Button>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Tabs */}
-            <div className="flex border-b-2 border-border">
-              {projectTabs.map((tab) => {
-                const Icon = tab.icon;
-                return (
-                  <button
-                    key={tab.id}
-                    onClick={() => setActiveTab(tab.id)}
-                    className={cn(
-                      "flex-1 flex items-center justify-center gap-2 py-3 text-sm font-medium transition-colors relative",
-                      activeTab === tab.id
-                        ? "text-primary"
-                        : "text-muted-foreground hover:text-foreground hover:bg-card"
-                    )}
-                  >
-                    <Icon className="size-4" />
-                    <span className="hidden sm:inline">{tab.label}</span>
-                    {activeTab === tab.id && (
-                      <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Projects Feed */}
+      <header className="border-foreground bg-background border-b p-4 sm:p-6">
+        <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            {isLoading ? (
-              <div className="flex items-center justify-center py-20">
-                <div className="size-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-              </div>
-            ) : filteredProjects.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-20 px-4">
-                <FolderKanban className="size-12 text-muted-foreground mb-4" />
-                <p className="text-lg font-medium text-foreground">No projects found</p>
-                <p className="text-muted-foreground mt-1">Be the first to create one!</p>
-                <Button variant="neon" className="mt-4" asChild>
-                  <Link href="/projects/create">
-                    <Plus className="size-4 mr-2" />
-                    Create Project
-                  </Link>
-                </Button>
-              </div>
-            ) : (
-              filteredProjects.map((project) => (
-                <article
-                  key={project.id}
-                  className="border-b-2 border-border bg-card hover:bg-card/80 transition-colors"
-                >
-                  <div className="p-4">
-                    {/* Header */}
-                    <div className="flex items-start gap-3">
-                      <Link
-                        href={`/dashboard/profile/${project.createdById}`}
-                        className="shrink-0"
-                      >
-                        <Avatar className="size-10 border-2 border-border hover:border-primary transition-colors">
-                          <AvatarImage src={(project as any).createdBy?.image || undefined} />
-                          <AvatarFallback>
-                            {(project as any).createdBy?.name?.charAt(0) || "U"}
-                          </AvatarFallback>
-                        </Avatar>
-                      </Link>
+            <p className="text-primary font-mono text-xs font-bold tracking-[0.2em] uppercase">
+              Discover a problem / define a solution / iterate
+            </p>
+            <h1 className="mt-2 text-3xl font-black sm:text-5xl">
+              Projects for doing
+            </h1>
+            <p className="text-muted-foreground mt-2 max-w-2xl text-sm sm:text-base">
+              Open a project to understand the problem, inspect the proposed
+              solution, and find the work that moves it forward.
+            </p>
+          </div>
+          <Button asChild>
+            <Link href="/projects/create">
+              <Plus className="size-4" />
+              Define a project
+            </Link>
+          </Button>
+        </div>
 
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <Link
-                            href={`/dashboard/profile/${project.createdById}`}
-                            className="font-medium text-foreground hover:text-primary transition-colors"
-                          >
-                            {(project as any).createdBy?.name || "Unknown User"}
-                          </Link>
-                          <Badge variant="secondary" size="sm">Founder</Badge>
-                          <span className="text-muted-foreground text-sm">·</span>
-                          <span className="text-muted-foreground text-sm">
-                            {formatRelativeTime(new Date(project.createdAt))}
-                          </span>
-                        </div>
-                        <p className="text-sm text-muted-foreground mt-0.5">
-                          created a new project
-                        </p>
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        <Badge
-                          variant={statusVariants[project.status] || "secondary"}
-                          size="sm"
-                        >
-                          {project.status.replace("_", " ")}
-                        </Badge>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon-sm">
-                              <MoreHorizontal className="size-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem>Copy link</DropdownMenuItem>
-                            <DropdownMenuItem>Report</DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
-                    </div>
-
-                    {/* Project Content */}
-                    <Link href={`/projects/${project.id}`} className="block mt-3 pl-13 overflow-hidden">
-                      <h3 className="font-semibold text-lg text-foreground hover:text-primary transition-colors">
-                        {project.title}
-                      </h3>
-                      <p className="text-foreground mt-2 line-clamp-3 break-words">
-                        {project.description}
-                      </p>
-
-                      {/* Category & Tags */}
-                      <div className="flex flex-wrap gap-2 mt-3">
-                        {((project as any).categories as string[] ?? []).map((cat: string) => (
-                          <Badge
-                            key={cat}
-                            variant={categoryVariants[cat] || "secondary"}
-                            size="sm"
-                          >
-                            {cat.replace("_", " ")}
-                          </Badge>
-                        ))}
-                        {project.tags?.split(",").slice(0, 2).map((tag, i) => (
-                          <Badge key={i} variant="secondary" size="sm">
-                            {tag.trim()}
-                          </Badge>
-                        ))}
-                      </div>
-
-                      {/* Funding Progress */}
-                      {project.fundingGoal && Number(project.fundingGoal) > 0 && (
-                        <div className="mt-4">
-                          <div className="flex justify-between text-sm mb-1">
-                            <span className="text-muted-foreground">Funding Progress</span>
-                            <span className="font-medium text-foreground">
-                              ${Number(project.currentFunding || 0).toLocaleString()} / ${Number(project.fundingGoal).toLocaleString()}
-                            </span>
-                          </div>
-                          <Progress
-                            value={Math.min((Number(project.currentFunding || 0) / Number(project.fundingGoal)) * 100, 100)}
-                            variant="neon"
-                            className="h-2"
-                          />
-                        </div>
-                      )}
-
-                      {/* Stats */}
-                      <div className="flex items-center gap-4 mt-3 text-sm text-muted-foreground">
-                        <div className="flex items-center gap-1">
-                          <Users className="size-4" />
-                          <span>{project.supportersCount || 0} supporters</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Heart className="size-4" />
-                          <span>{project.votesCount || 0} votes</span>
-                        </div>
-                      </div>
-                    </Link>
-
-                    {/* Actions */}
-                    <div className="mt-4 pl-13 flex items-center gap-1">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="gap-1.5 text-muted-foreground hover:text-neon-pink"
-                      >
-                        <Heart className="size-4" />
-                        <span className="text-xs">{project.votesCount || ""}</span>
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="gap-1.5 text-muted-foreground hover:text-primary"
-                      >
-                        <MessageCircle className="size-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="gap-1.5 text-muted-foreground hover:text-neon-green"
-                      >
-                        <Share2 className="size-4" />
-                      </Button>
-                      <div className="flex-1" />
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        className="text-muted-foreground hover:text-neon-yellow"
-                      >
-                        <Bookmark className="size-4" />
-                      </Button>
-                    </div>
-                  </div>
-                </article>
-              ))
+        <div className="mt-6 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto_auto_auto]">
+          <label className="relative block">
+            <span className="sr-only">Search loaded projects</span>
+            <Search
+              className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2"
+              aria-hidden="true"
+            />
+            <input
+              type="search"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="Search problems, solutions, or tags"
+              className="border-foreground bg-background min-h-11 w-full border py-2 pr-10 pl-10 text-sm outline-none"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery("")}
+                className="text-muted-foreground hover:text-foreground absolute top-1/2 right-1 flex size-10 -translate-y-1/2 items-center justify-center"
+                aria-label="Clear search"
+              >
+                <X className="size-4" />
+              </button>
             )}
+          </label>
 
-            {/* Load More */}
-            {filteredProjects.length > 0 && (
-              <div className="flex justify-center py-6">
-                <Button variant="outline">Load more projects</Button>
-              </div>
+          <FilterSelect
+            label="Category"
+            value={selectedCategory}
+            onChange={setSelectedCategory}
+            options={categories.map((value) => ({
+              value,
+              label: humanize(value),
+            }))}
+          />
+          <FilterSelect
+            label="Type"
+            value={selectedProjectType}
+            onChange={(value) => {
+              if (value === "all" || isProjectType(value)) {
+                setSelectedProjectType(value);
+              }
+            }}
+            options={PROJECT_TYPES.map((value) => ({
+              value,
+              label: projectTypeLabels[value],
+            }))}
+          />
+          <FilterSelect
+            label="Status"
+            value={selectedStatus}
+            onChange={(value) => {
+              if (value === "all" || isProjectStatus(value)) {
+                setSelectedStatus(value);
+              }
+            }}
+            options={PROJECT_STATUSES.map((value) => ({
+              value,
+              label: humanize(value),
+            }))}
+          />
+        </div>
+
+        {hasFilters && (
+          <div className="border-border mt-3 flex items-center justify-between border-t pt-3">
+            <p className="text-muted-foreground text-xs">
+              Filters apply to the currently loaded API page.
+            </p>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={clearFilters}
+            >
+              Clear filters
+            </Button>
+          </div>
+        )}
+      </header>
+
+      <div
+        className="border-border grid grid-cols-4 border-b"
+        role="tablist"
+        aria-label="Project ordering"
+        onKeyDown={handleTabListKeyDown}
+      >
+        {projectTabs.map((tab) => {
+          const selected = activeTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              role="tab"
+              id={`projects-tab-${tab.id}`}
+              aria-label={tab.label}
+              aria-selected={selected}
+              aria-controls={`projects-panel-${tab.id}`}
+              tabIndex={selected ? 0 : -1}
+              onClick={() => setActiveTab(tab.id)}
+              className={cn(
+                "border-border flex min-h-12 items-center justify-center gap-2 border-r px-2 text-xs font-semibold last:border-r-0 sm:text-sm",
+                selected
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:bg-secondary hover:text-foreground",
+              )}
+            >
+              {tab.icon}
+              <span className="hidden sm:inline">{tab.label}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      <div
+        role="tabpanel"
+        id={`projects-panel-${activeTab}`}
+        aria-labelledby={`projects-tab-${activeTab}`}
+        aria-live="polite"
+      >
+        {projectsQuery.isLoading ? (
+          <div
+            className="flex min-h-64 items-center justify-center"
+            role="status"
+          >
+            <div className="flex items-center gap-3">
+              <span className="border-primary size-5 animate-spin border-2 border-t-transparent" />
+              <span className="font-mono text-sm">
+                Loading project records...
+              </span>
+            </div>
+          </div>
+        ) : projectsQuery.error ? (
+          <div className="flex min-h-64 flex-col items-start justify-center gap-4 p-6">
+            <div>
+              <p className="text-destructive font-mono text-xs font-bold tracking-widest uppercase">
+                Project query failed
+              </p>
+              <h2 className="mt-2 text-2xl font-bold">
+                The current project page is unavailable
+              </h2>
+              <p className="text-muted-foreground mt-2 text-sm">
+                No sample records are substituted when the API fails.
+              </p>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => projectsQuery.refetch()}
+            >
+              Try again
+            </Button>
+          </div>
+        ) : filteredProjects.length === 0 ? (
+          <div className="flex min-h-64 flex-col items-start justify-center gap-4 p-6">
+            <FolderKanban
+              className="text-muted-foreground size-10"
+              aria-hidden="true"
+            />
+            <div>
+              <h2 className="text-2xl font-bold">
+                {projects.length === 0
+                  ? "No projects returned"
+                  : "No current-view matches"}
+              </h2>
+              <p className="text-muted-foreground mt-2 text-sm">
+                {projects.length === 0
+                  ? "The first API page is empty. Define a project to start a problem-solving loop."
+                  : "Change or clear the local filters to inspect the loaded records."}
+              </p>
+            </div>
+            {projects.length === 0 ? (
+              <Button asChild>
+                <Link href="/projects/create">Define a project</Link>
+              </Button>
+            ) : (
+              <Button type="button" variant="outline" onClick={clearFilters}>
+                Clear filters
+              </Button>
             )}
           </div>
+        ) : (
+          <div className="divide-border divide-y">
+            {filteredProjects.map((project) => (
+              <ProjectRecord key={project.id} project={project} />
+            ))}
+            <div className="text-muted-foreground p-5 text-center text-xs">
+              End of current results: showing {filteredProjects.length} from the
+              loaded first page
+              {projectsQuery.data?.totalCount !== undefined
+                ? ` (${projectsQuery.data.totalCount} total reported by the API).`
+                : "."}
+            </div>
+          </div>
+        )}
+      </div>
     </FeedLayout>
+  );
+}
+
+function ProjectRecord({ project }: { project: Project }) {
+  const creatorName = project.createdBy?.name ?? "Creator name unavailable";
+  const creatorInitial =
+    project.createdBy?.name?.charAt(0).toUpperCase() ?? "?";
+  const routeId = project.slug || project.id;
+  const fundingProgress =
+    project.fundingGoal && project.fundingGoal > 0
+      ? Math.min((project.currentFunding / project.fundingGoal) * 100, 100)
+      : null;
+
+  return (
+    <article className="bg-card p-4 sm:p-6">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <Link
+          href={`/dashboard/profile/${project.createdById}`}
+          className="flex min-h-11 items-center gap-3"
+        >
+          <Avatar className="border-border size-10 border">
+            <AvatarImage src={project.createdBy?.image ?? undefined} />
+            <AvatarFallback>{creatorInitial}</AvatarFallback>
+          </Avatar>
+          <span>
+            <span className="block text-sm font-semibold">{creatorName}</span>
+            <span className="text-muted-foreground block text-xs">
+              Project creator / {formatRelativeTime(project.createdAt)}
+            </span>
+          </span>
+        </Link>
+        <div className="flex flex-wrap gap-2">
+          <Badge variant="secondary">{humanize(project.status)}</Badge>
+          <Badge variant="secondary">
+            {projectTypeLabels[project.projectType]}
+          </Badge>
+          {project.featured && <Badge variant="warning">Featured</Badge>}
+        </div>
+      </div>
+
+      <div className="mt-5 grid gap-5 sm:grid-cols-[minmax(0,1fr)_14rem]">
+        <div>
+          <h2 className="text-2xl font-black tracking-tight">
+            <Link
+              href={`/projects/${routeId}`}
+              className="hover:text-primary inline-flex min-h-11 items-center"
+            >
+              {project.title}
+            </Link>
+          </h2>
+          <div className="mt-4 grid gap-4 md:grid-cols-2">
+            <div className="border-accent border-l-4 pl-3">
+              <p className="text-muted-foreground font-mono text-xs font-bold tracking-widest uppercase">
+                Problem
+              </p>
+              <p className="mt-2 line-clamp-3 text-sm leading-relaxed">
+                {project.problemStatement}
+              </p>
+            </div>
+            <div className="border-primary border-l-4 pl-3">
+              <p className="text-muted-foreground font-mono text-xs font-bold tracking-widest uppercase">
+                Proposed solution
+              </p>
+              <p className="mt-2 line-clamp-3 text-sm leading-relaxed">
+                {project.solution}
+              </p>
+            </div>
+          </div>
+          <div className="mt-4 flex flex-wrap gap-2">
+            {project.categories.map((category) => (
+              <Badge key={category} variant="secondary">
+                {humanize(category)}
+              </Badge>
+            ))}
+            {project.tags
+              ?.split(",")
+              .map((tag) => tag.trim())
+              .filter(Boolean)
+              .slice(0, 3)
+              .map((tag) => (
+                <Badge key={tag} variant="secondary">
+                  {tag}
+                </Badge>
+              ))}
+          </div>
+        </div>
+
+        <div className="border-border border p-4">
+          <dl className="space-y-3">
+            <CompactStat
+              icon={<Users className="size-3.5" aria-hidden="true" />}
+              label="Supporters"
+              value={project.supportersCount}
+            />
+            <CompactStat
+              icon={<Vote className="size-3.5" aria-hidden="true" />}
+              label="Votes recorded"
+              value={project.votesCount}
+            />
+          </dl>
+          {fundingProgress !== null && project.fundingGoal !== null && (
+            <div className="border-border mt-4 border-t pt-4">
+              <div className="mb-2 flex justify-between gap-3 font-mono text-xs">
+                <span>{formatUSD(project.currentFunding)}</span>
+                <span className="text-muted-foreground">
+                  {formatUSD(project.fundingGoal)} goal
+                </span>
+              </div>
+              <Progress
+                value={fundingProgress}
+                variant="neon"
+                aria-label={`Funding progress for ${project.title}`}
+              />
+            </div>
+          )}
+          <Button asChild variant="outline" className="mt-5 w-full">
+            <Link href={`/projects/${routeId}`}>
+              Open project
+              <ArrowRight className="size-4" />
+            </Link>
+          </Button>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function FilterSelect({
+  label,
+  value,
+  onChange,
+  options,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  options: Array<{ value: string; label: string }>;
+}) {
+  return (
+    <label className="text-muted-foreground grid gap-1 text-xs font-semibold">
+      <span className="sr-only">{label}</span>
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="border-border bg-background text-foreground min-h-11 border px-3 text-sm"
+        aria-label={label}
+      >
+        <option value="all">All</option>
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-baseline justify-between gap-4">
+      <span className="text-muted-foreground text-sm">{label}</span>
+      <span className="font-mono text-sm font-bold">{value}</span>
+    </div>
+  );
+}
+
+function CompactStat({
+  icon,
+  label,
+  value,
+}: {
+  icon: ReactNode;
+  label: string;
+  value: number;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <dt className="text-muted-foreground flex items-center gap-2 text-xs">
+        {icon}
+        {label}
+      </dt>
+      <dd className="font-mono text-sm font-bold">{value.toLocaleString()}</dd>
+    </div>
   );
 }

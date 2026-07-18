@@ -1,6 +1,14 @@
 import { z } from "zod";
-import { createTRPCRouter, protectedProcedure, publicProcedure } from "~/server/api/trpc";
+import {
+  createTRPCRouter,
+  protectedProcedure,
+  publicProcedure,
+} from "~/server/api/trpc";
 import { apiClient } from "~/lib/api";
+import {
+  hierarchyAuthorization,
+  type HierarchyParent,
+} from "~/server/api/lib/hierarchy-auth";
 
 // Enums matching DBML/backend exactly (SCREAMING_SNAKE_CASE)
 const TaskType = z.enum([
@@ -26,15 +34,14 @@ const TaskStatus = z.enum([
   "BLOCKED",
 ]);
 
-const EffortEstimate = z.enum(["XS", "S", "M", "L", "XL"]);
-
 // Task creation input schema
 const createTaskSchema = z.object({
   title: z.string().min(1, "Task title is required"),
-  description: z.string().min(10, "Description must be at least 10 characters"),
+  description: z.string().optional(),
   type: TaskType,
   priority: TaskPriority.default("MEDIUM"),
-  effortEstimate: EffortEstimate.optional(),
+  estimatedHours: z.number().int().min(0).max(10_000).optional(),
+  equityReward: z.number().nonnegative().optional(),
   dueDate: z.string().optional(),
   assigneeId: z.string().optional(),
   projectId: z.string(),
@@ -47,24 +54,76 @@ const createTaskSchema = z.object({
 });
 
 // Task update input schema
-const updateTaskSchema = z.object({
-  id: z.string(),
-  title: z.string().min(1).optional(),
-  description: z.string().min(10).optional(),
-  type: TaskType.optional(),
-  priority: TaskPriority.optional(),
-  status: TaskStatus.optional(),
-  effortEstimate: EffortEstimate.optional(),
-  dueDate: z.string().optional(),
-  assigneeId: z.string().optional(),
-  pbiId: z.string().optional(),
-});
+const updateTaskSchema = z
+  .object({
+    id: z.string(),
+    title: z.string().min(1).optional(),
+    description: z.string().optional(),
+    type: TaskType.optional(),
+    priority: TaskPriority.optional(),
+    status: TaskStatus.optional(),
+    estimatedHours: z.number().int().min(0).max(10_000).optional(),
+    actualHours: z.number().int().min(0).max(10_000).optional(),
+    equityReward: z.number().nonnegative().optional(),
+    dueDate: z.string().optional(),
+  })
+  .strict();
 
 export const taskRouter = createTRPCRouter({
-  // Create a new task (opportunity auto-creation handled by .NET backend)
+  // Create a new task.
   create: protectedProcedure
     .input(createTaskSchema)
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.session.user.id;
+      const parents: HierarchyParent[] = [];
+      if (input.milestoneId) {
+        parents.push({ level: "milestone", id: input.milestoneId });
+      }
+      if (input.epicId) {
+        parents.push({ level: "epic", id: input.epicId });
+      }
+      if (input.sprintId) {
+        parents.push({ level: "sprint", id: input.sprintId });
+      }
+      if (input.featureId) {
+        parents.push({ level: "feature", id: input.featureId });
+      }
+      if (input.pbiId) {
+        parents.push({ level: "pbi", id: input.pbiId });
+      }
+
+      await hierarchyAuthorization.authorizeCreation(
+        {
+          userId,
+          projectId: input.projectId,
+          isAdmin: ctx.session.user.role === "ADMIN",
+        },
+        parents,
+      );
+      if (
+        input.assigneeId ||
+        input.guildId ||
+        input.equityReward !== undefined
+      ) {
+        await hierarchyAuthorization.requireProjectManager({
+          userId,
+          projectId: input.projectId,
+          isAdmin: ctx.session.user.role === "ADMIN",
+        });
+      }
+      if (input.assigneeId) {
+        await hierarchyAuthorization.requireProjectMember(
+          input.projectId,
+          input.assigneeId,
+        );
+      }
+      if (input.guildId) {
+        await hierarchyAuthorization.requireAssignedGuild(
+          input.projectId,
+          input.guildId,
+        );
+      }
+
       const response = await apiClient.tasks.create({
         projectId: input.projectId,
         pbiId: input.pbiId,
@@ -77,8 +136,8 @@ export const taskRouter = createTRPCRouter({
         description: input.description,
         taskType: input.type,
         priority: input.priority,
-        effortEstimate: input.effortEstimate,
-        estimatedHours: input.effortEstimate ? effortToHours(input.effortEstimate) : undefined,
+        estimatedHours: input.estimatedHours,
+        equityReward: input.equityReward,
         dueDate: input.dueDate,
         assignedToId: input.assigneeId,
       });
@@ -101,7 +160,7 @@ export const taskRouter = createTRPCRouter({
         priority: TaskPriority.optional(),
         type: TaskType.optional(),
         projectId: z.string().optional(),
-      })
+      }),
     )
     .query(async ({ input }) => {
       const response = await apiClient.tasks.search({
@@ -120,7 +179,9 @@ export const taskRouter = createTRPCRouter({
 
       return {
         items: response.data?.items ?? [],
-        nextCursor: response.data?.hasNextPage ? String(input.page + 1) : undefined,
+        nextCursor: response.data?.hasNextPage
+          ? String(input.page + 1)
+          : undefined,
         totalCount: response.data?.totalCount ?? 0,
         totalPages: response.data?.totalPages ?? 0,
       };
@@ -132,7 +193,7 @@ export const taskRouter = createTRPCRouter({
       z.object({
         limit: z.number().min(1).max(100).default(20),
         status: TaskStatus.optional(),
-      })
+      }),
     )
     .query(async ({ input }) => {
       const response = await apiClient.tasks.getMine();
@@ -144,7 +205,7 @@ export const taskRouter = createTRPCRouter({
       let items = response.data ?? [];
 
       if (input.status) {
-        items = items.filter(task => task.status === input.status);
+        items = items.filter((task) => task.status === input.status);
       }
 
       items = items.slice(0, input.limit);
@@ -171,8 +232,8 @@ export const taskRouter = createTRPCRouter({
     .query(async ({ input }) => {
       const response = await apiClient.tasks.getById(input.id);
 
-      if (!response.data) {
-        throw new Error("Task not found");
+      if (response.error || !response.data) {
+        throw new Error(response.error ?? "Task not found");
       }
 
       return response.data;
@@ -193,8 +254,15 @@ export const taskRouter = createTRPCRouter({
   // Update task
   update: protectedProcedure
     .input(updateTaskSchema)
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const { id, ...data } = input;
+      await hierarchyAuthorization.authorizeMutation(
+        ctx.session.user.id,
+        "task",
+        id,
+        data.equityReward !== undefined ? "structure" : "work",
+        ctx.session.user.role === "ADMIN",
+      );
 
       const response = await apiClient.tasks.update(id, {
         title: data.title,
@@ -202,11 +270,10 @@ export const taskRouter = createTRPCRouter({
         taskType: data.type,
         priority: data.priority,
         status: data.status,
-        effortEstimate: data.effortEstimate,
-        estimatedHours: data.effortEstimate ? effortToHours(data.effortEstimate) : undefined,
+        estimatedHours: data.estimatedHours,
+        actualHours: data.actualHours,
+        equityReward: data.equityReward,
         dueDate: data.dueDate,
-        assignedToId: data.assigneeId,
-        pbiId: data.pbiId,
       });
 
       if (response.error || !response.data) {
@@ -219,8 +286,19 @@ export const taskRouter = createTRPCRouter({
   // Update task status
   updateStatus: protectedProcedure
     .input(z.object({ id: z.string(), status: TaskStatus }))
-    .mutation(async ({ input }) => {
-      const response = await apiClient.tasks.updateStatus(input.id, input.status);
+    .mutation(async ({ input, ctx }) => {
+      await hierarchyAuthorization.authorizeMutation(
+        ctx.session.user.id,
+        "task",
+        input.id,
+        "work",
+        ctx.session.user.role === "ADMIN",
+      );
+
+      const response = await apiClient.tasks.updateStatus(
+        input.id,
+        input.status,
+      );
 
       if (response.error || !response.data) {
         throw new Error(response.error ?? "Failed to update task status");
@@ -232,7 +310,15 @@ export const taskRouter = createTRPCRouter({
   // Delete task
   delete: protectedProcedure
     .input(z.object({ id: z.string() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      await hierarchyAuthorization.authorizeMutation(
+        ctx.session.user.id,
+        "task",
+        input.id,
+        "structure",
+        ctx.session.user.role === "ADMIN",
+      );
+
       const response = await apiClient.tasks.delete(input.id);
 
       if (response.error) {
@@ -242,15 +328,3 @@ export const taskRouter = createTRPCRouter({
       return { success: true };
     }),
 });
-
-// Helper function to convert effort enum to estimated hours
-function effortToHours(effort: string): number {
-  const mapping: Record<string, number> = {
-    XS: 1,
-    S: 3,
-    M: 8,
-    L: 20,
-    XL: 40,
-  };
-  return mapping[effort] ?? 8;
-}

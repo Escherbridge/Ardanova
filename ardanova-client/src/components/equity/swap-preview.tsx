@@ -51,23 +51,23 @@ export function SwapPreview({
   return (
     <div className="space-y-3">
       {/* Main conversion card */}
-      <div className="grid grid-cols-[1fr_auto_1fr] gap-2 items-stretch">
+      <div className="grid grid-cols-[1fr_auto_1fr] items-stretch gap-2">
         {/* Source side */}
         <Card variant="neon-pink" padding="sm" className="rounded-none">
-          <CardContent className="p-3 space-y-2">
-            <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+          <CardContent className="space-y-2 p-3">
+            <p className="text-muted-foreground font-mono text-[10px] tracking-widest uppercase">
               You Send
             </p>
-            <p className="font-mono text-2xl font-bold text-neon-pink">
+            <p className="text-destructive font-mono text-2xl font-bold">
               {sourceAmount.toLocaleString()}
             </p>
             <Badge variant="neon-pink" size="sm">
               {sourceUnit}
             </Badge>
-            <p className="font-mono text-xs text-muted-foreground">
+            <p className="text-muted-foreground font-mono text-xs">
               {formatUsd(sourceUsd)}
             </p>
-            <p className="font-mono text-[10px] text-muted-foreground/60">
+            <p className="text-muted-foreground/60 font-mono text-[10px]">
               {formatRate(sourceRate)}
             </p>
           </CardContent>
@@ -75,37 +75,37 @@ export function SwapPreview({
 
         {/* ARDA intermediary */}
         <div className="flex flex-col items-center justify-center gap-2 px-1">
-          <ArrowRight className="h-4 w-4 text-muted-foreground/40" />
-          <div className="border border-neon-cyan/30 bg-neon-cyan/5 px-2 py-3 flex flex-col items-center gap-1">
-            <p className="font-mono text-[9px] uppercase tracking-widest text-neon-cyan/70">
+          <ArrowRight className="text-muted-foreground/40 h-4 w-4" />
+          <div className="border-system/30 bg-system/5 flex flex-col items-center gap-1 border px-2 py-3">
+            <p className="text-system/70 font-mono text-[9px] tracking-widest uppercase">
               via ARDA
             </p>
-            <p className="font-mono text-sm font-bold text-neon-cyan">
+            <p className="text-system font-mono text-sm font-bold">
               {formatArdaAmount(ardaAmount)}
             </p>
-            <p className="font-mono text-[9px] text-muted-foreground/50">
+            <p className="text-muted-foreground/50 font-mono text-[9px]">
               {formatUsd(ardaRate)}/ARDA
             </p>
           </div>
-          <ArrowRight className="h-4 w-4 text-muted-foreground/40" />
+          <ArrowRight className="text-muted-foreground/40 h-4 w-4" />
         </div>
 
         {/* Target side */}
         <Card variant="neon-green" padding="sm" className="rounded-none">
-          <CardContent className="p-3 space-y-2">
-            <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+          <CardContent className="space-y-2 p-3">
+            <p className="text-muted-foreground font-mono text-[10px] tracking-widest uppercase">
               You Receive
             </p>
-            <p className="font-mono text-2xl font-bold text-neon-green">
+            <p className="text-success font-mono text-2xl font-bold">
               {targetAmount.toLocaleString()}
             </p>
             <Badge variant="neon-green" size="sm">
               {targetUnit}
             </Badge>
-            <p className="font-mono text-xs text-muted-foreground">
+            <p className="text-muted-foreground font-mono text-xs">
               {formatUsd(targetUsd)}
             </p>
-            <p className="font-mono text-[10px] text-muted-foreground/60">
+            <p className="text-muted-foreground/60 font-mono text-[10px]">
               {formatRate(targetRate)}
             </p>
           </CardContent>
@@ -113,14 +113,16 @@ export function SwapPreview({
       </div>
 
       {/* Rate summary row */}
-      <div className="border border-border bg-muted/10 px-4 py-2 flex items-center gap-3">
-        <TrendingUp className="h-3 w-3 text-muted-foreground/60 shrink-0" />
-        <p className="font-mono text-[10px] text-muted-foreground/70">
-          <span className="text-neon-pink">{sourceUnit}</span>
+      <div className="border-border bg-muted/10 flex items-center gap-3 border px-4 py-2">
+        <TrendingUp className="text-muted-foreground/60 h-3 w-3 shrink-0" />
+        <p className="text-muted-foreground/70 font-mono text-[10px]">
+          <span className="text-destructive">{sourceUnit}</span>
           {" → ARDA → "}
-          <span className="text-neon-green">{targetUnit}</span>
+          <span className="text-success">{targetUnit}</span>
           {" | Rate: "}
-          <span className="text-foreground">{(targetAmount / (sourceAmount || 1)).toFixed(4)}</span>
+          <span className="text-foreground">
+            {(targetAmount / (sourceAmount || 1)).toFixed(4)}
+          </span>
           {` ${targetUnit}/${sourceUnit}`}
         </p>
       </div>

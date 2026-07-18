@@ -5,27 +5,27 @@ export type SprintStatus = "PLANNED" | "ACTIVE" | "COMPLETED" | "CANCELLED";
 export interface Sprint {
   id: string;
   projectId: string;
-  epicId?: string | null;
-  guildId?: string | null;
-  milestoneId?: string | null;
-  name?: string | null;
+  epicId: string;
+  name: string;
   goal?: string | null;
   startDate?: string | null;
   endDate?: string | null;
+  equityBudget?: number | null;
+  velocity?: number | null;
   status: SprintStatus;
-  order?: number | null;
+  assigneeId?: string | null;
   createdAt: string;
   updatedAt: string;
-  [key: string]: unknown;
 }
 
 export interface CreateSprint {
   epicId: string;
-  name?: string;
+  name: string;
   goal?: string;
   startDate?: string;
   endDate?: string;
-  [key: string]: unknown;
+  equityBudget?: number;
+  assigneeId?: string;
 }
 
 export interface UpdateSprint {
@@ -33,8 +33,9 @@ export interface UpdateSprint {
   goal?: string;
   startDate?: string;
   endDate?: string;
+  equityBudget?: number;
+  velocity?: number;
   status?: SprintStatus;
-  [key: string]: unknown;
 }
 
 export class SprintsEndpoint {

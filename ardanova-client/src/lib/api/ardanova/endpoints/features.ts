@@ -1,24 +1,24 @@
 import { type BaseApiClient, type ApiResponse } from "../../base-client";
 
-export type FeatureStatus = "PLANNED" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
+export type FeatureStatus =
+  | "PLANNED"
+  | "IN_PROGRESS"
+  | "COMPLETED"
+  | "CANCELLED";
 export type FeaturePriority = "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
 
 export interface Feature {
   id: string;
   projectId: string;
-  sprintId?: string | null;
-  epicId?: string | null;
-  milestoneId?: string | null;
-  guildId?: string | null;
+  sprintId: string;
   title: string;
   description?: string | null;
   status: FeatureStatus;
   priority: FeaturePriority;
-  order?: number | null;
+  order: number;
   assigneeId?: string | null;
   createdAt: string;
   updatedAt: string;
-  [key: string]: unknown;
 }
 
 export interface CreateFeature {
@@ -26,7 +26,7 @@ export interface CreateFeature {
   title: string;
   description?: string;
   priority?: FeaturePriority;
-  [key: string]: unknown;
+  order?: number;
 }
 
 export interface UpdateFeature {
@@ -34,8 +34,7 @@ export interface UpdateFeature {
   description?: string;
   priority?: FeaturePriority;
   status?: FeatureStatus;
-  assigneeId?: string | null;
-  [key: string]: unknown;
+  order?: number;
 }
 
 export class FeaturesEndpoint {
@@ -65,11 +64,19 @@ export class FeaturesEndpoint {
     return this.client.put<Feature>(`/api/features/${id}/assign`, { userId });
   }
 
-  updateStatus(id: string, status: FeatureStatus): Promise<ApiResponse<Feature>> {
+  updateStatus(
+    id: string,
+    status: FeatureStatus,
+  ): Promise<ApiResponse<Feature>> {
     return this.client.put<Feature>(`/api/features/${id}/status`, { status });
   }
 
-  updatePriority(id: string, priority: FeaturePriority): Promise<ApiResponse<Feature>> {
-    return this.client.put<Feature>(`/api/features/${id}/priority`, { priority });
+  updatePriority(
+    id: string,
+    priority: FeaturePriority,
+  ): Promise<ApiResponse<Feature>> {
+    return this.client.put<Feature>(`/api/features/${id}/priority`, {
+      priority,
+    });
   }
 }

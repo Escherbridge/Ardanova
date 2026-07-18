@@ -10,9 +10,16 @@ export const GATED_COMMERCE_TABLES = [
   "WalletVerificationChallenge",
 ] as const;
 
-export const BASELINE_TABLES = ["ProjectInvestment", "ProjectTokenConfig", "Wallet"] as const;
+export const BASELINE_TABLES = [
+  "ProjectInvestment",
+  "ProjectTokenConfig",
+  "Wallet",
+] as const;
 
-export type CommerceMigrationPhase = "baseline" | "additive";
+export type CommerceMigrationPhase =
+  | "baseline"
+  | "additive-source"
+  | "additive";
 
 export type CatalogColumn = {
   tableName: string;
@@ -84,9 +91,18 @@ type IndexExpectation = {
 };
 
 const absentDefault: DefaultRequirement = { kind: "absent" };
-const nowDefault: DefaultRequirement = { kind: "present", tokens: ["now()", "current_timestamp"] };
-const numericDefault = (value: string): DefaultRequirement => ({ kind: "present", tokens: [value] });
-const enumDefault = (value: string): DefaultRequirement => ({ kind: "present", tokens: [value.toLowerCase()] });
+const nowDefault: DefaultRequirement = {
+  kind: "present",
+  tokens: ["now()", "current_timestamp"],
+};
+const numericDefault = (value: string): DefaultRequirement => ({
+  kind: "present",
+  tokens: [value],
+});
+const enumDefault = (value: string): DefaultRequirement => ({
+  kind: "present",
+  tokens: [value.toLowerCase()],
+});
 
 const column = (
   tableName: string,
@@ -95,38 +111,86 @@ const column = (
   udtName: string,
   nullable: readonly ("YES" | "NO")[],
   defaultRequirement: DefaultRequirement = absentDefault,
-): ColumnExpectation => ({ tableName, columnName, dataType, udtName, nullable, defaultRequirement });
+): ColumnExpectation => ({
+  tableName,
+  columnName,
+  dataType,
+  udtName,
+  nullable,
+  defaultRequirement,
+});
 
 const varchar = (
   tableName: string,
   columnName: string,
   nullable: readonly ("YES" | "NO")[],
   defaultRequirement: DefaultRequirement = absentDefault,
-) => column(tableName, columnName, "character varying", "varchar", nullable, defaultRequirement);
+) =>
+  column(
+    tableName,
+    columnName,
+    "character varying",
+    "varchar",
+    nullable,
+    defaultRequirement,
+  );
 const timestamp = (
   tableName: string,
   columnName: string,
   nullable: readonly ("YES" | "NO")[],
   defaultRequirement: DefaultRequirement = absentDefault,
-) => column(tableName, columnName, "timestamp without time zone", "timestamp", nullable, defaultRequirement);
+) =>
+  column(
+    tableName,
+    columnName,
+    "timestamp without time zone",
+    "timestamp",
+    nullable,
+    defaultRequirement,
+  );
 const integer = (
   tableName: string,
   columnName: string,
   nullable: readonly ("YES" | "NO")[],
   defaultRequirement: DefaultRequirement = absentDefault,
-) => column(tableName, columnName, "integer", "int4", nullable, defaultRequirement);
-const boolean = (tableName: string, columnName: string, nullable: readonly ("YES" | "NO")[]) =>
-  column(tableName, columnName, "boolean", "bool", nullable);
-const json = (tableName: string, columnName: string, nullable: readonly ("YES" | "NO")[]) =>
-  column(tableName, columnName, "jsonb", "jsonb", nullable);
-const decimal = (tableName: string, columnName: string, nullable: readonly ("YES" | "NO")[]) =>
-  column(tableName, columnName, "numeric", "numeric", nullable);
+) =>
+  column(
+    tableName,
+    columnName,
+    "integer",
+    "int4",
+    nullable,
+    defaultRequirement,
+  );
+const boolean = (
+  tableName: string,
+  columnName: string,
+  nullable: readonly ("YES" | "NO")[],
+) => column(tableName, columnName, "boolean", "bool", nullable);
+const json = (
+  tableName: string,
+  columnName: string,
+  nullable: readonly ("YES" | "NO")[],
+) => column(tableName, columnName, "jsonb", "jsonb", nullable);
+const decimal = (
+  tableName: string,
+  columnName: string,
+  nullable: readonly ("YES" | "NO")[],
+) => column(tableName, columnName, "numeric", "numeric", nullable);
 const enumColumn = (
   tableName: string,
   columnName: string,
   enumName: string,
   defaultRequirement: DefaultRequirement,
-) => column(tableName, columnName, "USER-DEFINED", enumName, ["NO"], defaultRequirement);
+) =>
+  column(
+    tableName,
+    columnName,
+    "USER-DEFINED",
+    enumName,
+    ["NO"],
+    defaultRequirement,
+  );
 
 // These columns existed before gated commerce. A unique payment-intent index is additive.
 export const REQUIRED_BASELINE_COLUMNS: readonly ColumnExpectation[] = [
@@ -166,7 +230,12 @@ export const REQUIRED_ADDITIVE_COLUMNS: readonly ColumnExpectation[] = [
 
   varchar("StripeWebhookEvent", "id", ["NO"]),
   varchar("StripeWebhookEvent", "eventType", ["NO"]),
-  enumColumn("StripeWebhookEvent", "status", "StripeWebhookEventStatus", enumDefault("PROCESSING")),
+  enumColumn(
+    "StripeWebhookEvent",
+    "status",
+    "StripeWebhookEventStatus",
+    enumDefault("PROCESSING"),
+  ),
   integer("StripeWebhookEvent", "attemptCount", ["NO"], numericDefault("1")),
   timestamp("StripeWebhookEvent", "receivedAt", ["NO"], nowDefault),
   timestamp("StripeWebhookEvent", "processingLeaseExpiresAt", ["NO"]),
@@ -174,8 +243,18 @@ export const REQUIRED_ADDITIVE_COLUMNS: readonly ColumnExpectation[] = [
   timestamp("StripeWebhookEvent", "lastFailedAt", ["YES"]),
 
   varchar("EconomicSettlement", "id", ["NO"]),
-  enumColumn("EconomicSettlement", "kind", "EconomicSettlementKind", absentDefault),
-  enumColumn("EconomicSettlement", "status", "EconomicSettlementStatus", enumDefault("DRAFT")),
+  enumColumn(
+    "EconomicSettlement",
+    "kind",
+    "EconomicSettlementKind",
+    absentDefault,
+  ),
+  enumColumn(
+    "EconomicSettlement",
+    "status",
+    "EconomicSettlementStatus",
+    enumDefault("DRAFT"),
+  ),
   varchar("EconomicSettlement", "idempotencyKey", ["NO"]),
   varchar("EconomicSettlement", "externalEventId", ["YES"]),
   varchar("EconomicSettlement", "beneficiaryUserId", ["NO"]),
@@ -201,7 +280,12 @@ export const REQUIRED_ADDITIVE_COLUMNS: readonly ColumnExpectation[] = [
 
   varchar("EconomicOutbox", "id", ["NO"]),
   varchar("EconomicOutbox", "settlementId", ["NO"]),
-  enumColumn("EconomicOutbox", "status", "EconomicOutboxStatus", enumDefault("PENDING")),
+  enumColumn(
+    "EconomicOutbox",
+    "status",
+    "EconomicOutboxStatus",
+    enumDefault("PENDING"),
+  ),
   integer("EconomicOutbox", "payloadVersion", ["NO"], numericDefault("1")),
   integer("EconomicOutbox", "attemptCount", ["NO"], numericDefault("0")),
   timestamp("EconomicOutbox", "availableAt", ["NO"], nowDefault),
@@ -218,7 +302,12 @@ export const REQUIRED_ADDITIVE_COLUMNS: readonly ColumnExpectation[] = [
   varchar("FundingIntent", "id", ["NO"]),
   varchar("FundingIntent", "semanticKey", ["NO"]),
   varchar("FundingIntent", "idempotencyKey", ["NO"]),
-  enumColumn("FundingIntent", "status", "FundingIntentStatus", enumDefault("DRAFT")),
+  enumColumn(
+    "FundingIntent",
+    "status",
+    "FundingIntentStatus",
+    enumDefault("DRAFT"),
+  ),
   varchar("FundingIntent", "funderUserId", ["NO"]),
   varchar("FundingIntent", "projectId", ["NO"]),
   varchar("FundingIntent", "projectTokenConfigId", ["NO"]),
@@ -243,7 +332,12 @@ export const REQUIRED_ADDITIVE_COLUMNS: readonly ColumnExpectation[] = [
 
   varchar("TaskCommerceAgreement", "id", ["NO"]),
   varchar("TaskCommerceAgreement", "semanticKey", ["NO"]),
-  enumColumn("TaskCommerceAgreement", "status", "TaskCommerceAgreementStatus", enumDefault("DRAFT")),
+  enumColumn(
+    "TaskCommerceAgreement",
+    "status",
+    "TaskCommerceAgreementStatus",
+    enumDefault("DRAFT"),
+  ),
   varchar("TaskCommerceAgreement", "projectId", ["NO"]),
   varchar("TaskCommerceAgreement", "taskId", ["NO"]),
   varchar("TaskCommerceAgreement", "bidId", ["NO"]),
@@ -266,36 +360,128 @@ export const REQUIRED_ADDITIVE_COLUMNS: readonly ColumnExpectation[] = [
 ];
 
 export const REQUIRED_ADDITIVE_INDEXES: readonly IndexExpectation[] = [
-  { tableName: "ProjectInvestment", columns: ["stripePaymentIntentId"], unique: true },
-  { tableName: "WalletVerificationChallenge", columns: ["walletId", "consumedAt"], unique: false },
-  { tableName: "WalletVerificationChallenge", columns: ["userId", "expiresAt"], unique: false },
-  { tableName: "ActorAssertionReplay", columns: ["expiresAt"], unique: false },
-  { tableName: "StripeWebhookEvent", columns: ["status", "processingLeaseExpiresAt"], unique: false },
-  { tableName: "EconomicSettlement", columns: ["idempotencyKey"], unique: true },
-  { tableName: "EconomicSettlement", columns: ["externalEventId"], unique: true },
-  { tableName: "EconomicSettlement", columns: ["beneficiaryUserId", "status"], unique: false },
-  { tableName: "EconomicSettlement", columns: ["projectId", "status"], unique: false },
-  { tableName: "EconomicSettlement", columns: ["taskId", "kind"], unique: false },
+  {
+    tableName: "ProjectInvestment",
+    columns: ["stripePaymentIntentId"],
+    unique: true,
+  },
+  {
+    tableName: "WalletVerificationChallenge",
+    columns: ["walletId", "consumedAt"],
+    unique: false,
+  },
+  {
+    tableName: "WalletVerificationChallenge",
+    columns: ["userId", "expiresAt"],
+    unique: false,
+  },
+  {
+    tableName: "ActorAssertionReplay",
+    columns: ["expiresAt", "jti"],
+    unique: false,
+  },
+  {
+    tableName: "StripeWebhookEvent",
+    columns: ["status", "processingLeaseExpiresAt"],
+    unique: false,
+  },
+  {
+    tableName: "EconomicSettlement",
+    columns: ["idempotencyKey"],
+    unique: true,
+  },
+  {
+    tableName: "EconomicSettlement",
+    columns: ["externalEventId"],
+    unique: true,
+  },
+  {
+    tableName: "EconomicSettlement",
+    columns: ["beneficiaryUserId", "status"],
+    unique: false,
+  },
+  {
+    tableName: "EconomicSettlement",
+    columns: ["projectId", "status"],
+    unique: false,
+  },
+  {
+    tableName: "EconomicSettlement",
+    columns: ["taskId", "kind"],
+    unique: false,
+  },
   { tableName: "EconomicOutbox", columns: ["settlementId"], unique: true },
-  { tableName: "EconomicOutbox", columns: ["status", "availableAt"], unique: false },
+  {
+    tableName: "EconomicOutbox",
+    columns: ["status", "availableAt"],
+    unique: false,
+  },
   { tableName: "EconomicOutbox", columns: ["leaseExpiresAt"], unique: false },
   { tableName: "FundingIntent", columns: ["semanticKey"], unique: true },
-  { tableName: "FundingIntent", columns: ["providerCheckoutSessionId"], unique: true },
-  { tableName: "FundingIntent", columns: ["providerPaymentIntentId"], unique: true },
-  { tableName: "FundingIntent", columns: ["verifiedProviderEventId"], unique: true },
+  {
+    tableName: "FundingIntent",
+    columns: ["providerCheckoutSessionId"],
+    unique: true,
+  },
+  {
+    tableName: "FundingIntent",
+    columns: ["providerPaymentIntentId"],
+    unique: true,
+  },
+  {
+    tableName: "FundingIntent",
+    columns: ["verifiedProviderEventId"],
+    unique: true,
+  },
   { tableName: "FundingIntent", columns: ["settlementId"], unique: true },
-  { tableName: "FundingIntent", columns: ["funderUserId", "idempotencyKey"], unique: true },
-  { tableName: "FundingIntent", columns: ["funderUserId", "status"], unique: false },
-  { tableName: "FundingIntent", columns: ["projectId", "status"], unique: false },
-  { tableName: "FundingIntent", columns: ["projectTokenConfigId", "status"], unique: false },
-  { tableName: "TaskCommerceAgreement", columns: ["semanticKey"], unique: true },
+  {
+    tableName: "FundingIntent",
+    columns: ["funderUserId", "idempotencyKey"],
+    unique: true,
+  },
+  {
+    tableName: "FundingIntent",
+    columns: ["funderUserId", "status"],
+    unique: false,
+  },
+  {
+    tableName: "FundingIntent",
+    columns: ["projectId", "status"],
+    unique: false,
+  },
+  {
+    tableName: "FundingIntent",
+    columns: ["projectTokenConfigId", "status"],
+    unique: false,
+  },
+  {
+    tableName: "TaskCommerceAgreement",
+    columns: ["semanticKey"],
+    unique: true,
+  },
   { tableName: "TaskCommerceAgreement", columns: ["taskId"], unique: true },
   { tableName: "TaskCommerceAgreement", columns: ["bidId"], unique: true },
   { tableName: "TaskCommerceAgreement", columns: ["escrowId"], unique: true },
-  { tableName: "TaskCommerceAgreement", columns: ["settlementId"], unique: true },
-  { tableName: "TaskCommerceAgreement", columns: ["contributorUserId", "status"], unique: false },
-  { tableName: "TaskCommerceAgreement", columns: ["projectId", "status"], unique: false },
-  { tableName: "TaskCommerceAgreement", columns: ["questRunId"], unique: false },
+  {
+    tableName: "TaskCommerceAgreement",
+    columns: ["settlementId"],
+    unique: true,
+  },
+  {
+    tableName: "TaskCommerceAgreement",
+    columns: ["contributorUserId", "status"],
+    unique: false,
+  },
+  {
+    tableName: "TaskCommerceAgreement",
+    columns: ["projectId", "status"],
+    unique: false,
+  },
+  {
+    tableName: "TaskCommerceAgreement",
+    columns: ["questRunId"],
+    unique: false,
+  },
 ];
 
 export function fingerprintCatalog(
@@ -305,11 +491,26 @@ export function fingerprintCatalog(
 ): string {
   const canonical = JSON.stringify({
     columns: [...columns]
-      .map((column) => ({ ...column, columnDefault: column.columnDefault ?? null }))
-      .sort((left, right) => `${left.tableName}.${left.columnName}`.localeCompare(`${right.tableName}.${right.columnName}`)),
+      .map((column) => ({
+        ...column,
+        columnDefault: column.columnDefault ?? null,
+      }))
+      .sort((left, right) =>
+        `${left.tableName}.${left.columnName}`.localeCompare(
+          `${right.tableName}.${right.columnName}`,
+        ),
+      ),
     indexes: [...indexes]
-      .map((index) => ({ ...index, columns: [...index.columns], predicate: index.predicate ?? null }))
-      .sort((left, right) => `${left.tableName}.${left.columns.join(",")}`.localeCompare(`${right.tableName}.${right.columns.join(",")}`)),
+      .map((index) => ({
+        ...index,
+        columns: [...index.columns],
+        predicate: index.predicate ?? null,
+      }))
+      .sort((left, right) =>
+        `${left.tableName}.${left.columns.join(",")}`.localeCompare(
+          `${right.tableName}.${right.columns.join(",")}`,
+        ),
+      ),
     tables: [...tables].sort(),
   });
   return createHash("sha256").update(canonical).digest("hex");
@@ -325,83 +526,215 @@ export function evaluateCommerceMigrationPreflight(
   const presentTables = new Set(observation.presentTables);
 
   if (observation.fingerprint !== expectedFingerprint) {
-    blocked.push({ code: "baseline-fingerprint-mismatch", message: "The inspected migration surface does not match the operator-approved baseline fingerprint." });
+    blocked.push({
+      code: "baseline-fingerprint-mismatch",
+      message:
+        "The inspected migration surface does not match the operator-approved baseline fingerprint.",
+    });
   }
 
   for (const table of BASELINE_TABLES) {
-    if (!presentTables.has(table)) blocked.push({ code: "missing-baseline-table", message: `Required baseline table ${table} is absent.` });
+    if (!presentTables.has(table))
+      blocked.push({
+        code: "missing-baseline-table",
+        message: `Required baseline table ${table} is absent.`,
+      });
   }
   validateColumns(REQUIRED_BASELINE_COLUMNS, observation.columns, blocked);
 
-  const targetTablesPresent = GATED_COMMERCE_TABLES.filter((table) => presentTables.has(table));
-  const additiveColumnsPresent = REQUIRED_ADDITIVE_COLUMNS.filter((expected) =>
-    observation.columns.some((column) => column.tableName === expected.tableName && column.columnName === expected.columnName),
+  const targetTablesPresent = GATED_COMMERCE_TABLES.filter((table) =>
+    presentTables.has(table),
   );
-  const paymentIntentUnique = hasExactIndex(observation.indexes, REQUIRED_ADDITIVE_INDEXES[0]);
+  const additiveColumnsPresent = REQUIRED_ADDITIVE_COLUMNS.filter((expected) =>
+    observation.columns.some(
+      (column) =>
+        column.tableName === expected.tableName &&
+        column.columnName === expected.columnName,
+    ),
+  );
+  const paymentIntentUnique = hasExactIndex(
+    observation.indexes,
+    REQUIRED_ADDITIVE_INDEXES[0],
+  );
 
   if (phase === "baseline") {
-    if (targetTablesPresent.length > 0) blocked.push({ code: "additive-tables-already-present", message: `Baseline phase requires all gated-commerce tables to be absent; found ${targetTablesPresent.join(", ")}.` });
-    if (additiveColumnsPresent.length > 0) blocked.push({ code: "additive-columns-already-present", message: `Baseline phase requires gated-commerce columns to be absent; found ${additiveColumnsPresent.map((column) => `${column.tableName}.${column.columnName}`).join(", ")}.` });
-    if (paymentIntentUnique) blocked.push({ code: "payment-intent-unique-index-already-present", message: "Baseline phase requires ProjectInvestment.stripePaymentIntentId to remain non-unique until the reviewed additive index migration." });
+    if (targetTablesPresent.length > 0)
+      blocked.push({
+        code: "additive-tables-already-present",
+        message: `Baseline phase requires all gated-commerce tables to be absent; found ${targetTablesPresent.join(", ")}.`,
+      });
+    if (additiveColumnsPresent.length > 0)
+      blocked.push({
+        code: "additive-columns-already-present",
+        message: `Baseline phase requires gated-commerce columns to be absent; found ${additiveColumnsPresent.map((column) => `${column.tableName}.${column.columnName}`).join(", ")}.`,
+      });
+    if (paymentIntentUnique)
+      blocked.push({
+        code: "payment-intent-unique-index-already-present",
+        message:
+          "Baseline phase requires ProjectInvestment.stripePaymentIntentId to remain non-unique until the reviewed additive index migration.",
+      });
   } else {
-    const missingTables = GATED_COMMERCE_TABLES.filter((table) => !presentTables.has(table));
-    if (missingTables.length > 0) blocked.push({ code: "missing-additive-tables", message: `Additive phase requires all gated-commerce tables; missing ${missingTables.join(", ")}.` });
+    const missingTables = GATED_COMMERCE_TABLES.filter(
+      (table) => !presentTables.has(table),
+    );
+    if (missingTables.length > 0)
+      blocked.push({
+        code: "missing-additive-tables",
+        message: `Additive phase requires all gated-commerce tables; missing ${missingTables.join(", ")}.`,
+      });
     validateColumns(REQUIRED_ADDITIVE_COLUMNS, observation.columns, blocked);
-    validateIndexes(REQUIRED_ADDITIVE_INDEXES, observation.indexes, blocked);
+    const requiredIndexes =
+      phase === "additive-source"
+        ? REQUIRED_ADDITIVE_INDEXES.filter(
+            (index) => index.tableName !== "ActorAssertionReplay",
+          )
+        : REQUIRED_ADDITIVE_INDEXES;
+    validateIndexes(requiredIndexes, observation.indexes, blocked);
   }
 
-  const paymentIntentColumnPresent = observation.columns.some((column) => column.tableName === "ProjectInvestment" && column.columnName === "stripePaymentIntentId");
-  if (paymentIntentColumnPresent && observation.duplicatePaymentIntents.length > 0) {
-    blocked.push({ code: "duplicate-payment-intents", message: "Existing non-null Stripe payment-intent ids are duplicated; reconcile them before adding or relying on the unique constraint." });
+  const paymentIntentColumnPresent = observation.columns.some(
+    (column) =>
+      column.tableName === "ProjectInvestment" &&
+      column.columnName === "stripePaymentIntentId",
+  );
+  if (
+    paymentIntentColumnPresent &&
+    observation.duplicatePaymentIntents.length > 0
+  ) {
+    blocked.push({
+      code: "duplicate-payment-intents",
+      message:
+        "Existing non-null Stripe payment-intent ids are duplicated; reconcile them before adding or relying on the unique constraint.",
+    });
   }
 
-  const assetScale = observation.columns.find((column) => column.tableName === "ProjectTokenConfig" && column.columnName === "assetScale");
+  const assetScale = observation.columns.find(
+    (column) =>
+      column.tableName === "ProjectTokenConfig" &&
+      column.columnName === "assetScale",
+  );
   if (assetScale && hasDefault(assetScale)) {
-    blocked.push({ code: "unsafe-asset-scale-default", message: "ProjectTokenConfig.assetScale has a database default. A default cannot be used as evidence for historical asset-scale backfill." });
+    blocked.push({
+      code: "unsafe-asset-scale-default",
+      message:
+        "ProjectTokenConfig.assetScale has a database default. A default cannot be used as evidence for historical asset-scale backfill.",
+    });
   }
   if (assetScale) {
     for (const config of observation.projectTokenConfigBackfills ?? []) {
-      if (config.assetScale === null) blocked.push({ code: "asset-scale-backfill-required", message: `ProjectTokenConfig ${config.id} has no canonical assetScale.` });
-      if (config.assetId === null) blocked.push({ code: "asset-id-chain-backfill-required", message: `ProjectTokenConfig ${config.id} has no on-chain assetId; obtain it from the authoritative chain record before enabling settlement.` });
+      if (config.assetScale === null)
+        blocked.push({
+          code: "asset-scale-backfill-required",
+          message: `ProjectTokenConfig ${config.id} has no canonical assetScale.`,
+        });
+      if (config.assetId === null)
+        blocked.push({
+          code: "asset-id-chain-backfill-required",
+          message: `ProjectTokenConfig ${config.id} has no on-chain assetId; obtain it from the authoritative chain record before enabling settlement.`,
+        });
     }
   } else {
-    warnings.push({ code: "asset-backfill-not-yet-queryable", message: "ProjectTokenConfig.assetScale is absent, so canonical scale backfill cannot be evaluated until the reviewed additive schema stage." });
+    warnings.push({
+      code: "asset-backfill-not-yet-queryable",
+      message:
+        "ProjectTokenConfig.assetScale is absent, so canonical scale backfill cannot be evaluated until the reviewed additive schema stage.",
+    });
   }
 
   return { blocked, warnings };
 }
 
-function validateColumns(expectedColumns: readonly ColumnExpectation[], columns: readonly CatalogColumn[], blocked: PreflightFinding[]): void {
-  const actualByName = new Map(columns.map((column) => [`${column.tableName}.${column.columnName}`, column]));
+function validateColumns(
+  expectedColumns: readonly ColumnExpectation[],
+  columns: readonly CatalogColumn[],
+  blocked: PreflightFinding[],
+): void {
+  const actualByName = new Map(
+    columns.map((column) => [
+      `${column.tableName}.${column.columnName}`,
+      column,
+    ]),
+  );
   for (const expected of expectedColumns) {
     const name = `${expected.tableName}.${expected.columnName}`;
     const actual = actualByName.get(name);
-    if (!actual) { blocked.push({ code: "missing-required-column", message: `Required column ${name} is absent.` }); continue; }
-    if (actual.dataType !== expected.dataType || actual.udtName !== expected.udtName) blocked.push({ code: "column-type-mismatch", message: `Column ${name} must be ${expected.dataType}/${expected.udtName}, found ${actual.dataType}/${actual.udtName}.` });
-    if (!expected.nullable.includes(actual.isNullable as "YES" | "NO")) blocked.push({ code: "column-nullability-mismatch", message: `Column ${name} has unexpected nullability ${actual.isNullable}.` });
-    if (!matchesDefault(actual, expected.defaultRequirement)) blocked.push({ code: "column-default-mismatch", message: `Column ${name} has an unsafe or unexpected database default.` });
+    if (!actual) {
+      blocked.push({
+        code: "missing-required-column",
+        message: `Required column ${name} is absent.`,
+      });
+      continue;
+    }
+    if (
+      actual.dataType !== expected.dataType ||
+      actual.udtName !== expected.udtName
+    )
+      blocked.push({
+        code: "column-type-mismatch",
+        message: `Column ${name} must be ${expected.dataType}/${expected.udtName}, found ${actual.dataType}/${actual.udtName}.`,
+      });
+    if (!expected.nullable.includes(actual.isNullable as "YES" | "NO"))
+      blocked.push({
+        code: "column-nullability-mismatch",
+        message: `Column ${name} has unexpected nullability ${actual.isNullable}.`,
+      });
+    if (!matchesDefault(actual, expected.defaultRequirement))
+      blocked.push({
+        code: "column-default-mismatch",
+        message: `Column ${name} has an unsafe or unexpected database default.`,
+      });
   }
 }
 
-function validateIndexes(expectedIndexes: readonly IndexExpectation[], indexes: readonly CatalogIndex[], blocked: PreflightFinding[]): void {
+function validateIndexes(
+  expectedIndexes: readonly IndexExpectation[],
+  indexes: readonly CatalogIndex[],
+  blocked: PreflightFinding[],
+): void {
   for (const expected of expectedIndexes) {
-    if (!hasExactIndex(indexes, expected)) blocked.push({ code: "missing-or-unsafe-index", message: `Required ${expected.unique ? "unique " : ""}index on ${expected.tableName}(${expected.columns.join(", ")}) is missing, partial, invalid, unready, or has the wrong key order.` });
+    if (!hasExactIndex(indexes, expected))
+      blocked.push({
+        code: "missing-or-unsafe-index",
+        message: `Required ${expected.unique ? "unique " : ""}index on ${expected.tableName}(${expected.columns.join(", ")}) is missing, partial, invalid, unready, or has the wrong key order.`,
+      });
   }
 }
 
-function hasExactIndex(indexes: readonly CatalogIndex[], expected: IndexExpectation): boolean {
-  return indexes.some((index) => index.tableName === expected.tableName && index.isUnique === expected.unique && index.isValid && index.isReady && !index.predicate && index.columns.length === expected.columns.length && index.columns.every((column, indexPosition) => column === expected.columns[indexPosition]));
+function hasExactIndex(
+  indexes: readonly CatalogIndex[],
+  expected: IndexExpectation,
+): boolean {
+  return indexes.some(
+    (index) =>
+      index.tableName === expected.tableName &&
+      index.isUnique === expected.unique &&
+      index.isValid &&
+      index.isReady &&
+      !index.predicate &&
+      index.columns.length === expected.columns.length &&
+      index.columns.every(
+        (column, indexPosition) => column === expected.columns[indexPosition],
+      ),
+  );
 }
 
-function hasDefault(column: CatalogColumn): boolean { return String.prototype.trim.call(column.columnDefault ?? "") !== ""; }
+function hasDefault(column: CatalogColumn): boolean {
+  return String.prototype.trim.call(column.columnDefault ?? "") !== "";
+}
 
-function matchesDefault(column: CatalogColumn, requirement: DefaultRequirement): boolean {
+function matchesDefault(
+  column: CatalogColumn,
+  requirement: DefaultRequirement,
+): boolean {
   if (requirement.kind === "ignore") return true;
   if (requirement.kind === "absent") return !hasDefault(column);
   if (!hasDefault(column)) return false;
   if (!requirement.tokens?.length) return true;
   const normalized = column.columnDefault!.replace(/\s+/g, "").toLowerCase();
-  return requirement.tokens.some((token) => normalized.includes(token.replace(/\s+/g, "").toLowerCase()));
+  return requirement.tokens.some((token) =>
+    normalized.includes(token.replace(/\s+/g, "").toLowerCase()),
+  );
 }
 
 export function maskPaymentIntentId(value: string): string {

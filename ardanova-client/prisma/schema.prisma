@@ -722,1809 +722,1813 @@ enum StripeWebhookEventStatus {
 }
 
 model Account {
-  id String @id @default(cuid())
-  userId String
-  type String
-  provider String
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
   providerAccountId String
-  refresh_token String? @db.Text
-  access_token String? @db.Text
-  expires_at Int?
-  token_type String?
-  scope String?
-  id_token String? @db.Text
-  session_state String?
-  user User @relation("Account_userId", fields: [userId], references: [id])
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+  user              User    @relation("Account_userId", fields: [userId], references: [id])
 
   @@unique([provider, providerAccountId])
 }
 
 model Session {
-  id String @id @default(cuid())
-  sessionToken String @unique
-  userId String
-  expires DateTime
-  user User @relation("Session_userId", fields: [userId], references: [id])
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation("Session_userId", fields: [userId], references: [id])
 }
 
 model User {
-  id String @id @default(cuid())
-  email String @unique
-  emailVerified DateTime?
-  name String?
-  image String?
-  bio String? @db.Text
-  location String?
-  phone String?
-  website String?
-  linkedIn String?
-  twitter String?
-  role UserRole @default(INDIVIDUAL)
-  userType UserType @default(INNOVATOR)
-  isVerified Boolean @default(false)
-  totalXP Int @default(0)
-  level Int @default(1)
-  tier UserTier @default(BRONZE)
-  trustScore Decimal @default(0) @db.Decimal(18, 8)
-  verificationLevel VerificationLevel @default(ANONYMOUS)
-  azoaAvatarId String? @unique
-  azoaWalletId String?
-  azoaWalletAddress String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  accounts Account[] @relation("Account_userId")
-  sessions Session[] @relation("Session_userId")
-  userSkills UserSkill[] @relation("UserSkill_userId")
-  userExperiences UserExperience[] @relation("UserExperience_userId")
-  verificationTokens VerificationToken[] @relation("VerificationToken_identifier")
-  notifications Notification[] @relation("Notification_userId")
-  activities Activity[] @relation("Activity_userId")
-  xPEvents XPEvent[] @relation("XPEvent_userId")
-  userAchievements UserAchievement[] @relation("UserAchievement_userId")
-  leaderboardEntries LeaderboardEntry[] @relation("LeaderboardEntry_userId")
-  userStreaks UserStreak[] @relation("UserStreak_userId")
-  referrals Referral[] @relation("Referral_referrerId")
-  referrals1 Referral[] @relation("Referral_referredId")
-  projects Project[] @relation("Project_createdById")
-  projectTasks ProjectTask[] @relation("ProjectTask_assignedToId")
-  projectMilestones ProjectMilestone[] @relation("ProjectMilestone_assigneeId")
-  projectSupports ProjectSupport[] @relation("ProjectSupport_userId")
-  projectApplications ProjectApplication[] @relation("ProjectApplication_userId")
-  projectInvitations ProjectInvitation[] @relation("ProjectInvitation_invitedById")
-  projectInvitations1 ProjectInvitation[] @relation("ProjectInvitation_invitedUserId")
-  projectMembershipRequests ProjectMembershipRequest[] @relation("ProjectMembershipRequest_userId")
-  projectMembershipRequests1 ProjectMembershipRequest[] @relation("ProjectMembershipRequest_reviewedById")
-  projectComments ProjectComment[] @relation("ProjectComment_userId")
-  projectUpdates ProjectUpdate[] @relation("ProjectUpdate_userId")
-  epics Epic[] @relation("Epic_assigneeId")
-  sprints Sprint[] @relation("Sprint_assigneeId")
-  features Feature[] @relation("Feature_assigneeId")
-  productBacklogItems ProductBacklogItem[] @relation("ProductBacklogItem_assigneeId")
-  projectMembers ProjectMember[] @relation("ProjectMember_userId")
-  taskSubmissions TaskSubmission[] @relation("TaskSubmission_submittedById")
-  taskSubmissions1 TaskSubmission[] @relation("TaskSubmission_reviewedById")
-  proposals Proposal[] @relation("Proposal_creatorId")
-  votes Vote[] @relation("Vote_voterId")
-  proposalComments ProposalComment[] @relation("ProposalComment_userId")
-  delegatedVotes DelegatedVote[] @relation("DelegatedVote_delegatorId")
-  delegatedVotes1 DelegatedVote[] @relation("DelegatedVote_delegateeId")
-  guilds Guild[] @relation("Guild_ownerId")
-  guildMembers GuildMember[] @relation("GuildMember_userId")
-  guildInvitations GuildInvitation[] @relation("GuildInvitation_invitedById")
-  guildInvitations1 GuildInvitation[] @relation("GuildInvitation_invitedUserId")
-  guildApplications GuildApplication[] @relation("GuildApplication_userId")
-  guildApplications1 GuildApplication[] @relation("GuildApplication_reviewedById")
-  guildReviews GuildReview[] @relation("GuildReview_userId")
-  guildUpdates GuildUpdate[] @relation("GuildUpdate_createdById")
-  products Product[] @relation("Product_userId")
-  membershipCredentials MembershipCredential[] @relation("MembershipCredential_userId")
-  projectEquities ProjectEquity[] @relation("ProjectEquity_userId")
-  shareHolders ShareHolder[] @relation("ShareHolder_userId")
-  fundraisingContributions FundraisingContribution[] @relation("FundraisingContribution_userId")
-  wallets Wallet[] @relation("Wallet_userId")
+  id                           String                        @id @default(cuid())
+  email                        String                        @unique
+  emailVerified                DateTime?
+  name                         String?
+  image                        String?
+  bio                          String?                       @db.Text
+  location                     String?
+  phone                        String?
+  website                      String?
+  linkedIn                     String?
+  twitter                      String?
+  role                         UserRole                      @default(INDIVIDUAL)
+  userType                     UserType                      @default(INNOVATOR)
+  isVerified                   Boolean                       @default(false)
+  totalXP                      Int                           @default(0)
+  level                        Int                           @default(1)
+  tier                         UserTier                      @default(BRONZE)
+  trustScore                   Decimal                       @default(0) @db.Decimal(18, 8)
+  verificationLevel            VerificationLevel             @default(ANONYMOUS)
+  azoaAvatarId                 String?                       @unique
+  azoaWalletId                 String?
+  azoaWalletAddress            String?
+  createdAt                    DateTime                      @default(now())
+  updatedAt                    DateTime                      @updatedAt
+  accounts                     Account[]                     @relation("Account_userId")
+  sessions                     Session[]                     @relation("Session_userId")
+  userSkills                   UserSkill[]                   @relation("UserSkill_userId")
+  userExperiences              UserExperience[]              @relation("UserExperience_userId")
+  verificationTokens           VerificationToken[]           @relation("VerificationToken_identifier")
+  notifications                Notification[]                @relation("Notification_userId")
+  activities                   Activity[]                    @relation("Activity_userId")
+  xPEvents                     XPEvent[]                     @relation("XPEvent_userId")
+  userAchievements             UserAchievement[]             @relation("UserAchievement_userId")
+  leaderboardEntries           LeaderboardEntry[]            @relation("LeaderboardEntry_userId")
+  userStreaks                  UserStreak[]                  @relation("UserStreak_userId")
+  referrals                    Referral[]                    @relation("Referral_referrerId")
+  referrals1                   Referral[]                    @relation("Referral_referredId")
+  projects                     Project[]                     @relation("Project_createdById")
+  projectTasks                 ProjectTask[]                 @relation("ProjectTask_assignedToId")
+  projectMilestones            ProjectMilestone[]            @relation("ProjectMilestone_assigneeId")
+  projectSupports              ProjectSupport[]              @relation("ProjectSupport_userId")
+  projectApplications          ProjectApplication[]          @relation("ProjectApplication_userId")
+  projectInvitations           ProjectInvitation[]           @relation("ProjectInvitation_invitedById")
+  projectInvitations1          ProjectInvitation[]           @relation("ProjectInvitation_invitedUserId")
+  projectMembershipRequests    ProjectMembershipRequest[]    @relation("ProjectMembershipRequest_userId")
+  projectMembershipRequests1   ProjectMembershipRequest[]    @relation("ProjectMembershipRequest_reviewedById")
+  projectComments              ProjectComment[]              @relation("ProjectComment_userId")
+  projectUpdates               ProjectUpdate[]               @relation("ProjectUpdate_userId")
+  epics                        Epic[]                        @relation("Epic_assigneeId")
+  sprints                      Sprint[]                      @relation("Sprint_assigneeId")
+  features                     Feature[]                     @relation("Feature_assigneeId")
+  productBacklogItems          ProductBacklogItem[]          @relation("ProductBacklogItem_assigneeId")
+  projectMembers               ProjectMember[]               @relation("ProjectMember_userId")
+  taskSubmissions              TaskSubmission[]              @relation("TaskSubmission_submittedById")
+  taskSubmissions1             TaskSubmission[]              @relation("TaskSubmission_reviewedById")
+  proposals                    Proposal[]                    @relation("Proposal_creatorId")
+  votes                        Vote[]                        @relation("Vote_voterId")
+  proposalComments             ProposalComment[]             @relation("ProposalComment_userId")
+  delegatedVotes               DelegatedVote[]               @relation("DelegatedVote_delegatorId")
+  delegatedVotes1              DelegatedVote[]               @relation("DelegatedVote_delegateeId")
+  guilds                       Guild[]                       @relation("Guild_ownerId")
+  guildMembers                 GuildMember[]                 @relation("GuildMember_userId")
+  guildInvitations             GuildInvitation[]             @relation("GuildInvitation_invitedById")
+  guildInvitations1            GuildInvitation[]             @relation("GuildInvitation_invitedUserId")
+  guildApplications            GuildApplication[]            @relation("GuildApplication_userId")
+  guildApplications1           GuildApplication[]            @relation("GuildApplication_reviewedById")
+  guildReviews                 GuildReview[]                 @relation("GuildReview_userId")
+  guildUpdates                 GuildUpdate[]                 @relation("GuildUpdate_createdById")
+  products                     Product[]                     @relation("Product_userId")
+  membershipCredentials        MembershipCredential[]        @relation("MembershipCredential_userId")
+  projectEquities              ProjectEquity[]               @relation("ProjectEquity_userId")
+  shareHolders                 ShareHolder[]                 @relation("ShareHolder_userId")
+  fundraisingContributions     FundraisingContribution[]     @relation("FundraisingContribution_userId")
+  wallets                      Wallet[]                      @relation("Wallet_userId")
   walletVerificationChallenges WalletVerificationChallenge[] @relation("WalletVerificationChallenge_userId")
-  taskEscrows TaskEscrow[] @relation("TaskEscrow_funderId")
-  shareSwaps ShareSwap[] @relation("ShareSwap_userId")
-  liquidityProviders LiquidityProvider[] @relation("LiquidityProvider_userId")
-  posts Post[] @relation("Post_authorId")
-  postLikes PostLike[] @relation("PostLike_userId")
-  postComments PostComment[] @relation("PostComment_authorId")
-  postBookmarks PostBookmark[] @relation("PostBookmark_userId")
-  postShares PostShare[] @relation("PostShare_userId")
-  conversations Conversation[] @relation("Conversation_createdById")
-  conversationMembers ConversationMember[] @relation("ConversationMember_userId")
-  chatMessages ChatMessage[] @relation("ChatMessage_userToId")
-  chatMessages1 ChatMessage[] @relation("ChatMessage_userFromId")
-  attachments Attachment[] @relation("Attachment_uploadedById")
-  events Event[] @relation("Event_organizerId")
-  eventAttendees EventAttendee[] @relation("EventAttendee_userId")
-  eventCoHosts EventCoHost[] @relation("EventCoHost_userId")
-  eventReminders EventReminder[] @relation("EventReminder_userId")
-  userFollows UserFollow[] @relation("UserFollow_followerId")
-  userFollows1 UserFollow[] @relation("UserFollow_followingId")
-  projectFollows ProjectFollow[] @relation("ProjectFollow_userId")
-  guildFollows GuildFollow[] @relation("GuildFollow_userId")
-  opportunities Opportunity[] @relation("Opportunity_posterId")
-  opportunityApplications OpportunityApplication[] @relation("OpportunityApplication_applicantId")
-  opportunityUpdates OpportunityUpdate[] @relation("OpportunityUpdate_userId")
-  opportunityComments OpportunityComment[] @relation("OpportunityComment_userId")
-  opportunityBids OpportunityBid[] @relation("OpportunityBid_bidderId")
-  kycSubmissions KycSubmission[] @relation("KycSubmission_userId")
-  kycSubmissions1 KycSubmission[] @relation("KycSubmission_reviewerId")
-  tokenAllocations TokenAllocation[] @relation("TokenAllocation_recipientUserId")
-  tokenBalances TokenBalance[] @relation("TokenBalance_userId")
-  payoutRequests PayoutRequest[] @relation("PayoutRequest_userId")
-  projectInvestments ProjectInvestment[] @relation("ProjectInvestment_userId")
-  economicSettlements EconomicSettlement[] @relation("EconomicSettlement_beneficiaryUserId")
-  economicSettlements1 EconomicSettlement[] @relation("EconomicSettlement_authorizedByUserId")
-  fundingIntents FundingIntent[] @relation("FundingIntent_funderUserId")
-  taskCommerceAgreements TaskCommerceAgreement[] @relation("TaskCommerceAgreement_contributorUserId")
+  taskEscrows                  TaskEscrow[]                  @relation("TaskEscrow_funderId")
+  shareSwaps                   ShareSwap[]                   @relation("ShareSwap_userId")
+  liquidityProviders           LiquidityProvider[]           @relation("LiquidityProvider_userId")
+  posts                        Post[]                        @relation("Post_authorId")
+  postLikes                    PostLike[]                    @relation("PostLike_userId")
+  postComments                 PostComment[]                 @relation("PostComment_authorId")
+  postBookmarks                PostBookmark[]                @relation("PostBookmark_userId")
+  postShares                   PostShare[]                   @relation("PostShare_userId")
+  conversations                Conversation[]                @relation("Conversation_createdById")
+  conversationMembers          ConversationMember[]          @relation("ConversationMember_userId")
+  chatMessages                 ChatMessage[]                 @relation("ChatMessage_userToId")
+  chatMessages1                ChatMessage[]                 @relation("ChatMessage_userFromId")
+  attachments                  Attachment[]                  @relation("Attachment_uploadedById")
+  events                       Event[]                       @relation("Event_organizerId")
+  eventAttendees               EventAttendee[]               @relation("EventAttendee_userId")
+  eventCoHosts                 EventCoHost[]                 @relation("EventCoHost_userId")
+  eventReminders               EventReminder[]               @relation("EventReminder_userId")
+  userFollows                  UserFollow[]                  @relation("UserFollow_followerId")
+  userFollows1                 UserFollow[]                  @relation("UserFollow_followingId")
+  projectFollows               ProjectFollow[]               @relation("ProjectFollow_userId")
+  guildFollows                 GuildFollow[]                 @relation("GuildFollow_userId")
+  opportunities                Opportunity[]                 @relation("Opportunity_posterId")
+  opportunityApplications      OpportunityApplication[]      @relation("OpportunityApplication_applicantId")
+  opportunityUpdates           OpportunityUpdate[]           @relation("OpportunityUpdate_userId")
+  opportunityComments          OpportunityComment[]          @relation("OpportunityComment_userId")
+  opportunityBids              OpportunityBid[]              @relation("OpportunityBid_bidderId")
+  kycSubmissions               KycSubmission[]               @relation("KycSubmission_userId")
+  kycSubmissions1              KycSubmission[]               @relation("KycSubmission_reviewerId")
+  tokenAllocations             TokenAllocation[]             @relation("TokenAllocation_recipientUserId")
+  tokenBalances                TokenBalance[]                @relation("TokenBalance_userId")
+  payoutRequests               PayoutRequest[]               @relation("PayoutRequest_userId")
+  projectInvestments           ProjectInvestment[]           @relation("ProjectInvestment_userId")
+  economicSettlements          EconomicSettlement[]          @relation("EconomicSettlement_beneficiaryUserId")
+  economicSettlements1         EconomicSettlement[]          @relation("EconomicSettlement_authorizedByUserId")
+  fundingIntents               FundingIntent[]               @relation("FundingIntent_funderUserId")
+  taskCommerceAgreements       TaskCommerceAgreement[]       @relation("TaskCommerceAgreement_contributorUserId")
 }
 
 model UserSkill {
-  id String @id @default(cuid())
+  id     String @id @default(cuid())
   userId String
-  skill String
-  level Int @default(1)
-  user User @relation("UserSkill_userId", fields: [userId], references: [id])
+  skill  String
+  level  Int    @default(1)
+  user   User   @relation("UserSkill_userId", fields: [userId], references: [id])
 }
 
 model UserExperience {
-  id String @id @default(cuid())
-  userId String
-  title String
-  company String
-  description String? @db.Text
-  startDate DateTime
-  endDate DateTime?
-  isCurrent Boolean @default(false)
-  user User @relation("UserExperience_userId", fields: [userId], references: [id])
+  id          String    @id @default(cuid())
+  userId      String
+  title       String
+  company     String
+  description String?   @db.Text
+  startDate   DateTime
+  endDate     DateTime?
+  isCurrent   Boolean   @default(false)
+  user        User      @relation("UserExperience_userId", fields: [userId], references: [id])
 }
 
 model VerificationToken {
-  id String @id @default(cuid())
+  id         String   @id @default(cuid())
   identifier String
-  token String @unique
-  expires DateTime
-  user User @relation("VerificationToken_identifier", fields: [identifier], references: [id])
+  token      String   @unique
+  expires    DateTime
+  user       User     @relation("VerificationToken_identifier", fields: [identifier], references: [id])
 }
 
 model Notification {
-  id String @id @default(cuid())
-  userId String
-  type NotificationType
-  title String
-  message String @db.Text
-  data Json?
-  isRead Boolean @default(false)
-  readAt DateTime?
+  id        String           @id @default(cuid())
+  userId    String
+  type      NotificationType
+  title     String
+  message   String           @db.Text
+  data      Json?
+  isRead    Boolean          @default(false)
+  readAt    DateTime?
   actionUrl String?
-  createdAt DateTime @default(now())
-  user User @relation("Notification_userId", fields: [userId], references: [id])
+  createdAt DateTime         @default(now())
+  user      User             @relation("Notification_userId", fields: [userId], references: [id])
 }
 
 model Activity {
-  id String @id @default(cuid())
-  userId String
-  projectId String?
-  type ActivityType
+  id         String       @id @default(cuid())
+  userId     String
+  projectId  String?
+  type       ActivityType
   entityType String
-  entityId String
-  action String
-  metadata Json?
-  createdAt DateTime @default(now())
-  user User @relation("Activity_userId", fields: [userId], references: [id])
-  project Project? @relation("Activity_projectId", fields: [projectId], references: [id])
+  entityId   String
+  action     String
+  metadata   Json?
+  createdAt  DateTime     @default(now())
+  user       User         @relation("Activity_userId", fields: [userId], references: [id])
+  project    Project?     @relation("Activity_projectId", fields: [projectId], references: [id])
 }
 
 model XPEvent {
-  id String @id @default(cuid())
-  userId String
+  id        String      @id @default(cuid())
+  userId    String
   eventType XPEventType
-  amount Int
-  source String
-  sourceId String?
-  metadata Json?
-  createdAt DateTime @default(now())
-  user User @relation("XPEvent_userId", fields: [userId], references: [id])
+  amount    Int
+  source    String
+  sourceId  String?
+  metadata  Json?
+  createdAt DateTime    @default(now())
+  user      User        @relation("XPEvent_userId", fields: [userId], references: [id])
 }
 
 model Achievement {
-  id String @id @default(cuid())
-  name String @unique
-  description String
-  category AchievementCategory
-  criteria Json
-  xpReward Int
-  equityReward Decimal? @db.Decimal(18, 8)
-  rarity AchievementRarity @default(COMMON)
-  icon String?
-  isActive Boolean @default(true)
-  createdAt DateTime @default(now())
-  userAchievements UserAchievement[] @relation("UserAchievement_achievementId")
+  id               String              @id @default(cuid())
+  name             String              @unique
+  description      String
+  category         AchievementCategory
+  criteria         Json
+  xpReward         Int
+  equityReward     Decimal?            @db.Decimal(18, 8)
+  rarity           AchievementRarity   @default(COMMON)
+  icon             String?
+  isActive         Boolean             @default(true)
+  createdAt        DateTime            @default(now())
+  userAchievements UserAchievement[]   @relation("UserAchievement_achievementId")
 }
 
 model UserAchievement {
-  id String @id @default(cuid())
-  userId String
+  id            String      @id @default(cuid())
+  userId        String
   achievementId String
-  progress Int @default(0)
-  earnedAt DateTime?
-  user User @relation("UserAchievement_userId", fields: [userId], references: [id])
-  achievement Achievement @relation("UserAchievement_achievementId", fields: [achievementId], references: [id])
+  progress      Int         @default(0)
+  earnedAt      DateTime?
+  user          User        @relation("UserAchievement_userId", fields: [userId], references: [id])
+  achievement   Achievement @relation("UserAchievement_achievementId", fields: [achievementId], references: [id])
 
   @@unique([userId, achievementId])
 }
 
 model Leaderboard {
-  id String @id @default(cuid())
-  period LeaderboardPeriod
-  category LeaderboardCategory
-  startDate DateTime
-  endDate DateTime
-  createdAt DateTime @default(now())
-  leaderboardEntries LeaderboardEntry[] @relation("LeaderboardEntry_leaderboardId")
+  id                 String              @id @default(cuid())
+  period             LeaderboardPeriod
+  category           LeaderboardCategory
+  startDate          DateTime
+  endDate            DateTime
+  createdAt          DateTime            @default(now())
+  leaderboardEntries LeaderboardEntry[]  @relation("LeaderboardEntry_leaderboardId")
 }
 
 model LeaderboardEntry {
-  id String @id @default(cuid())
+  id            String      @id @default(cuid())
   leaderboardId String
-  userId String
-  rank Int
-  score Int
-  metadata Json?
-  leaderboard Leaderboard @relation("LeaderboardEntry_leaderboardId", fields: [leaderboardId], references: [id])
-  user User @relation("LeaderboardEntry_userId", fields: [userId], references: [id])
+  userId        String
+  rank          Int
+  score         Int
+  metadata      Json?
+  leaderboard   Leaderboard @relation("LeaderboardEntry_leaderboardId", fields: [leaderboardId], references: [id])
+  user          User        @relation("LeaderboardEntry_userId", fields: [userId], references: [id])
 
   @@unique([leaderboardId, userId])
 }
 
 model UserStreak {
-  id String @id @default(cuid())
-  userId String @unique
-  currentStreak Int @default(0)
-  longestStreak Int @default(0)
+  id               String     @id @default(cuid())
+  userId           String     @unique
+  currentStreak    Int        @default(0)
+  longestStreak    Int        @default(0)
   lastActivityDate DateTime?
-  streakType StreakType @default(DAILY_LOGIN)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  user User @relation("UserStreak_userId", fields: [userId], references: [id])
+  streakType       StreakType @default(DAILY_LOGIN)
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+  user             User       @relation("UserStreak_userId", fields: [userId], references: [id])
 }
 
 model Referral {
-  id String @id @default(cuid())
-  referrerId String
-  referredId String @unique
-  referralCode String?
-  status ReferralStatus @default(PENDING)
-  rewardClaimed Boolean @default(false)
-  xpRewarded Int?
-  equityRewarded Decimal? @db.Decimal(18, 8)
-  createdAt DateTime @default(now())
-  completedAt DateTime?
-  referrer User @relation("Referral_referrerId", fields: [referrerId], references: [id])
-  referred User @relation("Referral_referredId", fields: [referredId], references: [id])
+  id             String         @id @default(cuid())
+  referrerId     String
+  referredId     String         @unique
+  referralCode   String?
+  status         ReferralStatus @default(PENDING)
+  rewardClaimed  Boolean        @default(false)
+  xpRewarded     Int?
+  equityRewarded Decimal?       @db.Decimal(18, 8)
+  createdAt      DateTime       @default(now())
+  completedAt    DateTime?
+  referrer       User           @relation("Referral_referrerId", fields: [referrerId], references: [id])
+  referred       User           @relation("Referral_referredId", fields: [referredId], references: [id])
 }
 
 model Project {
-  id String @id @default(cuid())
-  title String
-  slug String @unique
-  description String @db.Text
-  problemStatement String @db.Text
-  solution String @db.Text
-  categories String @default("OTHER") @db.Text
-  projectType ProjectType @default(TEMPORARY)
-  duration ProjectDuration?
-  status ProjectStatus @default(DRAFT)
-  fundingGoal Decimal? @db.Decimal(18, 8)
-  currentFunding Decimal @default(0) @db.Decimal(18, 8)
-  supportersCount Int @default(0)
-  votesCount Int @default(0)
-  viewsCount Int @default(0)
-  featured Boolean @default(false)
-  isTrending Boolean @default(false)
-  trendingScore Decimal @default(0) @db.Decimal(18, 8)
-  trendingRank Int?
-  trendingAt DateTime?
-  tags String? @db.Text
-  images String? @db.Text
-  videos String? @db.Text
-  documents String? @db.Text
-  targetAudience String? @db.Text
-  expectedImpact String? @db.Text
-  timeline String? @db.Text
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  publishedAt DateTime?
-  fundedAt DateTime?
-  completedAt DateTime?
-  commerceEnabled Boolean @default(false)
-  storefrontDescription String? @db.Text
-  createdById String
-  assignedGuildId String?
-  activities Activity[] @relation("Activity_projectId")
-  createdBy User @relation("Project_createdById", fields: [createdById], references: [id])
-  assignedGuild Guild? @relation("Project_assignedGuildId", fields: [assignedGuildId], references: [id])
-  projectTasks ProjectTask[] @relation("ProjectTask_projectId")
-  projectResources ProjectResource[] @relation("ProjectResource_projectId")
-  projectMilestones ProjectMilestone[] @relation("ProjectMilestone_projectId")
-  projectSupports ProjectSupport[] @relation("ProjectSupport_projectId")
-  projectApplications ProjectApplication[] @relation("ProjectApplication_projectId")
-  projectInvitations ProjectInvitation[] @relation("ProjectInvitation_projectId")
+  id                        String                     @id @default(cuid())
+  title                     String
+  slug                      String                     @unique
+  description               String                     @db.Text
+  problemStatement          String                     @db.Text
+  solution                  String                     @db.Text
+  categories                String                     @default("OTHER") @db.Text
+  projectType               ProjectType                @default(TEMPORARY)
+  duration                  ProjectDuration?
+  status                    ProjectStatus              @default(DRAFT)
+  fundingGoal               Decimal?                   @db.Decimal(18, 8)
+  currentFunding            Decimal                    @default(0) @db.Decimal(18, 8)
+  supportersCount           Int                        @default(0)
+  votesCount                Int                        @default(0)
+  viewsCount                Int                        @default(0)
+  featured                  Boolean                    @default(false)
+  isTrending                Boolean                    @default(false)
+  trendingScore             Decimal                    @default(0) @db.Decimal(18, 8)
+  trendingRank              Int?
+  trendingAt                DateTime?
+  tags                      String?                    @db.Text
+  images                    String?                    @db.Text
+  videos                    String?                    @db.Text
+  documents                 String?                    @db.Text
+  targetAudience            String?                    @db.Text
+  expectedImpact            String?                    @db.Text
+  timeline                  String?                    @db.Text
+  createdAt                 DateTime                   @default(now())
+  updatedAt                 DateTime                   @updatedAt
+  publishedAt               DateTime?
+  fundedAt                  DateTime?
+  completedAt               DateTime?
+  commerceEnabled           Boolean                    @default(false)
+  storefrontDescription     String?                    @db.Text
+  createdById               String
+  assignedGuildId           String?
+  activities                Activity[]                 @relation("Activity_projectId")
+  createdBy                 User                       @relation("Project_createdById", fields: [createdById], references: [id])
+  assignedGuild             Guild?                     @relation("Project_assignedGuildId", fields: [assignedGuildId], references: [id])
+  projectTasks              ProjectTask[]              @relation("ProjectTask_projectId")
+  projectResources          ProjectResource[]          @relation("ProjectResource_projectId")
+  projectMilestones         ProjectMilestone[]         @relation("ProjectMilestone_projectId")
+  projectSupports           ProjectSupport[]           @relation("ProjectSupport_projectId")
+  projectApplications       ProjectApplication[]       @relation("ProjectApplication_projectId")
+  projectInvitations        ProjectInvitation[]        @relation("ProjectInvitation_projectId")
   projectMembershipRequests ProjectMembershipRequest[] @relation("ProjectMembershipRequest_projectId")
-  projectComments ProjectComment[] @relation("ProjectComment_projectId")
-  projectUpdates ProjectUpdate[] @relation("ProjectUpdate_projectId")
-  epics Epic[] @relation("Epic_projectId")
-  sprints Sprint[] @relation("Sprint_projectId")
-  features Feature[] @relation("Feature_projectId")
-  productBacklogItems ProductBacklogItem[] @relation("ProductBacklogItem_projectId")
-  projectMembers ProjectMember[] @relation("ProjectMember_projectId")
-  proposals Proposal[] @relation("Proposal_projectId")
-  delegatedVotes DelegatedVote[] @relation("DelegatedVote_projectId")
-  products Product[] @relation("Product_projectId")
-  membershipCredentials MembershipCredential[] @relation("MembershipCredential_projectId")
-  projectShares ProjectShare[] @relation("ProjectShare_projectId")
-  projectEquities ProjectEquity[] @relation("ProjectEquity_projectId")
-  treasuries Treasury[] @relation("Treasury_projectId")
-  projectWallets ProjectWallet[] @relation("ProjectWallet_projectId")
-  posts Post[] @relation("Post_projectId")
-  postShares PostShare[] @relation("PostShare_sharedToProjectId")
-  events Event[] @relation("Event_projectId")
-  projectFollows ProjectFollow[] @relation("ProjectFollow_projectId")
-  opportunities Opportunity[] @relation("Opportunity_projectId")
-  projectTokenConfigs ProjectTokenConfig[] @relation("ProjectTokenConfig_projectId")
-  economicSettlements EconomicSettlement[] @relation("EconomicSettlement_projectId")
-  fundingIntents FundingIntent[] @relation("FundingIntent_projectId")
-  taskCommerceAgreements TaskCommerceAgreement[] @relation("TaskCommerceAgreement_projectId")
+  projectComments           ProjectComment[]           @relation("ProjectComment_projectId")
+  projectUpdates            ProjectUpdate[]            @relation("ProjectUpdate_projectId")
+  epics                     Epic[]                     @relation("Epic_projectId")
+  sprints                   Sprint[]                   @relation("Sprint_projectId")
+  features                  Feature[]                  @relation("Feature_projectId")
+  productBacklogItems       ProductBacklogItem[]       @relation("ProductBacklogItem_projectId")
+  projectMembers            ProjectMember[]            @relation("ProjectMember_projectId")
+  proposals                 Proposal[]                 @relation("Proposal_projectId")
+  delegatedVotes            DelegatedVote[]            @relation("DelegatedVote_projectId")
+  products                  Product[]                  @relation("Product_projectId")
+  membershipCredentials     MembershipCredential[]     @relation("MembershipCredential_projectId")
+  projectShares             ProjectShare[]             @relation("ProjectShare_projectId")
+  projectEquities           ProjectEquity[]            @relation("ProjectEquity_projectId")
+  treasuries                Treasury[]                 @relation("Treasury_projectId")
+  projectWallets            ProjectWallet[]            @relation("ProjectWallet_projectId")
+  posts                     Post[]                     @relation("Post_projectId")
+  postShares                PostShare[]                @relation("PostShare_sharedToProjectId")
+  events                    Event[]                    @relation("Event_projectId")
+  projectFollows            ProjectFollow[]            @relation("ProjectFollow_projectId")
+  opportunities             Opportunity[]              @relation("Opportunity_projectId")
+  projectTokenConfigs       ProjectTokenConfig[]       @relation("ProjectTokenConfig_projectId")
+  economicSettlements       EconomicSettlement[]       @relation("EconomicSettlement_projectId")
+  fundingIntents            FundingIntent[]            @relation("FundingIntent_projectId")
+  taskCommerceAgreements    TaskCommerceAgreement[]    @relation("TaskCommerceAgreement_projectId")
 }
 
 model ProjectTask {
-  id String @id @default(cuid())
-  projectId String
-  pbiId String?
-  featureId String?
-  sprintId String?
-  epicId String?
-  milestoneId String?
-  guildId String?
-  title String
-  description String? @db.Text
-  status TaskStatus @default(TODO)
-  priority TaskPriority @default(MEDIUM)
-  taskType TaskType @default(FEATURE)
-  effortEstimate EffortEstimate?
-  estimatedHours Int?
-  actualHours Int?
-  equityReward Decimal? @db.Decimal(18, 8)
-  escrowStatus EscrowStatus @default(NONE)
-  dueDate DateTime?
-  completedAt DateTime?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  assignedToId String?
-  opportunityId String? @unique
-  project Project @relation("ProjectTask_projectId", fields: [projectId], references: [id])
-  assignedTo User? @relation("ProjectTask_assignedToId", fields: [assignedToId], references: [id])
-  pbi ProductBacklogItem? @relation("ProjectTask_pbiId", fields: [pbiId], references: [id])
-  feature Feature? @relation("ProjectTask_featureId", fields: [featureId], references: [id])
-  sprint Sprint? @relation("ProjectTask_sprintId", fields: [sprintId], references: [id])
-  epic Epic? @relation("ProjectTask_epicId", fields: [epicId], references: [id])
-  milestone ProjectMilestone? @relation("ProjectTask_milestoneId", fields: [milestoneId], references: [id])
-  guild Guild? @relation("ProjectTask_guildId", fields: [guildId], references: [id])
-  opportunity Opportunity? @relation("ProjectTask_opportunityId", fields: [opportunityId], references: [id])
-  projectTaskDependencies ProjectTaskDependency[] @relation("ProjectTaskDependency_taskId")
+  id                       String                  @id @default(cuid())
+  projectId                String
+  pbiId                    String?
+  featureId                String?
+  sprintId                 String?
+  epicId                   String?
+  milestoneId              String?
+  guildId                  String?
+  title                    String
+  description              String?                 @db.Text
+  status                   TaskStatus              @default(TODO)
+  priority                 TaskPriority            @default(MEDIUM)
+  taskType                 TaskType                @default(FEATURE)
+  effortEstimate           EffortEstimate?
+  estimatedHours           Int?
+  actualHours              Int?
+  equityReward             Decimal?                @db.Decimal(18, 8)
+  escrowStatus             EscrowStatus            @default(NONE)
+  dueDate                  DateTime?
+  completedAt              DateTime?
+  createdAt                DateTime                @default(now())
+  updatedAt                DateTime                @updatedAt
+  assignedToId             String?
+  opportunityId            String?                 @unique
+  project                  Project                 @relation("ProjectTask_projectId", fields: [projectId], references: [id])
+  assignedTo               User?                   @relation("ProjectTask_assignedToId", fields: [assignedToId], references: [id])
+  pbi                      ProductBacklogItem?     @relation("ProjectTask_pbiId", fields: [pbiId], references: [id])
+  feature                  Feature?                @relation("ProjectTask_featureId", fields: [featureId], references: [id])
+  sprint                   Sprint?                 @relation("ProjectTask_sprintId", fields: [sprintId], references: [id])
+  epic                     Epic?                   @relation("ProjectTask_epicId", fields: [epicId], references: [id])
+  milestone                ProjectMilestone?       @relation("ProjectTask_milestoneId", fields: [milestoneId], references: [id])
+  guild                    Guild?                  @relation("ProjectTask_guildId", fields: [guildId], references: [id])
+  opportunity              Opportunity?            @relation("ProjectTask_opportunityId", fields: [opportunityId], references: [id])
+  projectTaskDependencies  ProjectTaskDependency[] @relation("ProjectTaskDependency_taskId")
   projectTaskDependencies1 ProjectTaskDependency[] @relation("ProjectTaskDependency_dependsOnId")
-  taskCompensations TaskCompensation[] @relation("TaskCompensation_taskId")
-  taskSubmissions TaskSubmission[] @relation("TaskSubmission_taskId")
-  taskEscrows TaskEscrow[] @relation("TaskEscrow_taskId")
-  opportunities Opportunity[] @relation("Opportunity_taskId")
-  economicSettlements EconomicSettlement[] @relation("EconomicSettlement_taskId")
-  taskCommerceAgreements TaskCommerceAgreement[] @relation("TaskCommerceAgreement_taskId")
+  taskCompensations        TaskCompensation[]      @relation("TaskCompensation_taskId")
+  taskSubmissions          TaskSubmission[]        @relation("TaskSubmission_taskId")
+  taskEscrows              TaskEscrow[]            @relation("TaskEscrow_taskId")
+  opportunities            Opportunity[]           @relation("Opportunity_taskId")
+  economicSettlements      EconomicSettlement[]    @relation("EconomicSettlement_taskId")
+  taskCommerceAgreements   TaskCommerceAgreement[] @relation("TaskCommerceAgreement_taskId")
 }
 
 model ProjectTaskDependency {
-  id String @id @default(cuid())
-  taskId String
+  id          String      @id @default(cuid())
+  taskId      String
   dependsOnId String
-  task ProjectTask @relation("ProjectTaskDependency_taskId", fields: [taskId], references: [id])
-  dependsOn ProjectTask @relation("ProjectTaskDependency_dependsOnId", fields: [dependsOnId], references: [id])
+  task        ProjectTask @relation("ProjectTaskDependency_taskId", fields: [taskId], references: [id])
+  dependsOn   ProjectTask @relation("ProjectTaskDependency_dependsOnId", fields: [dependsOnId], references: [id])
 }
 
 model ProjectResource {
-  id String @id @default(cuid())
-  projectId String
-  name String
-  description String? @db.Text
-  quantity Int @default(1)
-  estimatedCost Decimal? @db.Decimal(18, 8)
-  recurringCost Decimal? @db.Decimal(18, 8)
+  id                    String   @id @default(cuid())
+  projectId             String
+  name                  String
+  description           String?  @db.Text
+  quantity              Int      @default(1)
+  estimatedCost         Decimal? @db.Decimal(18, 8)
+  recurringCost         Decimal? @db.Decimal(18, 8)
   recurringIntervalDays Int?
-  isRequired Boolean @default(true)
-  isObtained Boolean @default(false)
-  createdAt DateTime @default(now())
-  project Project @relation("ProjectResource_projectId", fields: [projectId], references: [id])
+  isRequired            Boolean  @default(true)
+  isObtained            Boolean  @default(false)
+  createdAt             DateTime @default(now())
+  project               Project  @relation("ProjectResource_projectId", fields: [projectId], references: [id])
 }
 
 model ProjectMilestone {
-  id String @id @default(cuid())
-  projectId String
-  guildId String?
-  title String
-  description String? @db.Text
-  targetDate DateTime?
-  completedAt DateTime?
-  status MilestoneStatus @default(PLANNED)
-  priority Priority @default(MEDIUM)
-  equityBudget Decimal? @db.Decimal(18, 8)
-  order Int @default(0)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  assigneeId String?
-  projectTasks ProjectTask[] @relation("ProjectTask_milestoneId")
-  project Project @relation("ProjectMilestone_projectId", fields: [projectId], references: [id])
-  guild Guild? @relation("ProjectMilestone_guildId", fields: [guildId], references: [id])
-  assignee User? @relation("ProjectMilestone_assigneeId", fields: [assigneeId], references: [id])
-  epics Epic[] @relation("Epic_milestoneId")
-  sprints Sprint[] @relation("Sprint_milestoneId")
-  features Feature[] @relation("Feature_milestoneId")
+  id                  String               @id @default(cuid())
+  projectId           String
+  guildId             String?
+  title               String
+  description         String?              @db.Text
+  targetDate          DateTime?
+  completedAt         DateTime?
+  status              MilestoneStatus      @default(PLANNED)
+  priority            Priority             @default(MEDIUM)
+  equityBudget        Decimal?             @db.Decimal(18, 8)
+  order               Int                  @default(0)
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  assigneeId          String?
+  projectTasks        ProjectTask[]        @relation("ProjectTask_milestoneId")
+  project             Project              @relation("ProjectMilestone_projectId", fields: [projectId], references: [id])
+  guild               Guild?               @relation("ProjectMilestone_guildId", fields: [guildId], references: [id])
+  assignee            User?                @relation("ProjectMilestone_assigneeId", fields: [assigneeId], references: [id])
+  epics               Epic[]               @relation("Epic_milestoneId")
+  sprints             Sprint[]             @relation("Sprint_milestoneId")
+  features            Feature[]            @relation("Feature_milestoneId")
   productBacklogItems ProductBacklogItem[] @relation("ProductBacklogItem_milestoneId")
 }
 
 model ProjectSupport {
-  id String @id @default(cuid())
-  projectId String
-  userId String
-  supportType SupportType
-  monthlyAmount Decimal? @db.Decimal(18, 8)
-  message String? @db.Text
-  isActive Boolean @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  project Project @relation("ProjectSupport_projectId", fields: [projectId], references: [id])
-  user User @relation("ProjectSupport_userId", fields: [userId], references: [id])
+  id            String      @id @default(cuid())
+  projectId     String
+  userId        String
+  supportType   SupportType
+  monthlyAmount Decimal?    @db.Decimal(18, 8)
+  message       String?     @db.Text
+  isActive      Boolean     @default(true)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  project       Project     @relation("ProjectSupport_projectId", fields: [projectId], references: [id])
+  user          User        @relation("ProjectSupport_userId", fields: [userId], references: [id])
 }
 
 model ProjectApplication {
-  id String @id @default(cuid())
-  projectId String
-  userId String
-  roleTitle String
-  message String @db.Text
-  skills String? @db.Text
-  experience String? @db.Text
-  availability String?
-  status ApplicationStatus @default(PENDING)
-  appliedAt DateTime @default(now())
-  reviewedAt DateTime?
-  reviewMessage String? @db.Text
-  project Project @relation("ProjectApplication_projectId", fields: [projectId], references: [id])
-  user User @relation("ProjectApplication_userId", fields: [userId], references: [id])
+  id            String            @id @default(cuid())
+  projectId     String
+  userId        String
+  roleTitle     String
+  message       String            @db.Text
+  skills        String?           @db.Text
+  experience    String?           @db.Text
+  availability  String?
+  status        ApplicationStatus @default(PENDING)
+  appliedAt     DateTime          @default(now())
+  reviewedAt    DateTime?
+  reviewMessage String?           @db.Text
+  project       Project           @relation("ProjectApplication_projectId", fields: [projectId], references: [id])
+  user          User              @relation("ProjectApplication_userId", fields: [userId], references: [id])
 }
 
 model ProjectInvitation {
-  id String @id @default(cuid())
-  projectId String
-  invitedById String
+  id            String           @id @default(cuid())
+  projectId     String
+  invitedById   String
   invitedUserId String?
-  invitedEmail String?
-  role ProjectRole @default(CONTRIBUTOR)
-  message String? @db.Text
-  status InvitationStatus @default(PENDING)
-  token String? @unique
-  expiresAt DateTime?
-  createdAt DateTime @default(now())
-  respondedAt DateTime?
-  project Project @relation("ProjectInvitation_projectId", fields: [projectId], references: [id])
-  invitedBy User @relation("ProjectInvitation_invitedById", fields: [invitedById], references: [id])
-  invitedUser User? @relation("ProjectInvitation_invitedUserId", fields: [invitedUserId], references: [id])
+  invitedEmail  String?
+  role          ProjectRole      @default(CONTRIBUTOR)
+  message       String?          @db.Text
+  status        InvitationStatus @default(PENDING)
+  token         String?          @unique
+  expiresAt     DateTime?
+  createdAt     DateTime         @default(now())
+  respondedAt   DateTime?
+  project       Project          @relation("ProjectInvitation_projectId", fields: [projectId], references: [id])
+  invitedBy     User             @relation("ProjectInvitation_invitedById", fields: [invitedById], references: [id])
+  invitedUser   User?            @relation("ProjectInvitation_invitedUserId", fields: [invitedUserId], references: [id])
 }
 
 model ProjectMembershipRequest {
-  id String @id @default(cuid())
-  projectId String
-  userId String
-  requestedRole ProjectRole @default(CONTRIBUTOR)
-  message String @db.Text
-  skills String? @db.Text
-  motivation String? @db.Text
-  portfolio String? @db.Text
-  status MembershipRequestStatus @default(PENDING)
-  reviewedById String?
-  reviewMessage String? @db.Text
-  createdAt DateTime @default(now())
-  reviewedAt DateTime?
-  project Project @relation("ProjectMembershipRequest_projectId", fields: [projectId], references: [id])
-  user User @relation("ProjectMembershipRequest_userId", fields: [userId], references: [id])
-  reviewedBy User? @relation("ProjectMembershipRequest_reviewedById", fields: [reviewedById], references: [id])
+  id            String                  @id @default(cuid())
+  projectId     String
+  userId        String
+  requestedRole ProjectRole             @default(CONTRIBUTOR)
+  message       String                  @db.Text
+  skills        String?                 @db.Text
+  motivation    String?                 @db.Text
+  portfolio     String?                 @db.Text
+  status        MembershipRequestStatus @default(PENDING)
+  reviewedById  String?
+  reviewMessage String?                 @db.Text
+  createdAt     DateTime                @default(now())
+  reviewedAt    DateTime?
+  project       Project                 @relation("ProjectMembershipRequest_projectId", fields: [projectId], references: [id])
+  user          User                    @relation("ProjectMembershipRequest_userId", fields: [userId], references: [id])
+  reviewedBy    User?                   @relation("ProjectMembershipRequest_reviewedById", fields: [reviewedById], references: [id])
 }
 
 model ProjectComment {
-  id String @id @default(cuid())
-  projectId String
-  userId String
-  content String @db.Text
-  parentId String?
-  targetType CommentTargetType @default(PROJECT)
-  targetId String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  project Project @relation("ProjectComment_projectId", fields: [projectId], references: [id])
-  user User @relation("ProjectComment_userId", fields: [userId], references: [id])
-  parent ProjectComment? @relation("ProjectComment_parentId", fields: [parentId], references: [id])
-  parentChildren ProjectComment[] @relation("ProjectComment_parentId")
+  id             String            @id @default(cuid())
+  projectId      String
+  userId         String
+  content        String            @db.Text
+  parentId       String?
+  targetType     CommentTargetType @default(PROJECT)
+  targetId       String
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  project        Project           @relation("ProjectComment_projectId", fields: [projectId], references: [id])
+  user           User              @relation("ProjectComment_userId", fields: [userId], references: [id])
+  parent         ProjectComment?   @relation("ProjectComment_parentId", fields: [parentId], references: [id])
+  parentChildren ProjectComment[]  @relation("ProjectComment_parentId")
 
   @@index([targetType, targetId])
 }
 
 model ProjectUpdate {
-  id String @id @default(cuid())
+  id        String   @id @default(cuid())
   projectId String
-  userId String
-  title String
-  content String @db.Text
-  images String? @db.Text
+  userId    String
+  title     String
+  content   String   @db.Text
+  images    String?  @db.Text
   createdAt DateTime @default(now())
-  project Project @relation("ProjectUpdate_projectId", fields: [projectId], references: [id])
-  user User @relation("ProjectUpdate_userId", fields: [userId], references: [id])
+  project   Project  @relation("ProjectUpdate_projectId", fields: [projectId], references: [id])
+  user      User     @relation("ProjectUpdate_userId", fields: [userId], references: [id])
 }
 
 model Epic {
-  id String @id @default(cuid())
-  projectId String
-  milestoneId String?
-  guildId String?
-  title String
-  description String? @db.Text
-  status EpicStatus @default(PLANNED)
-  priority Priority @default(MEDIUM)
-  equityBudget Decimal? @db.Decimal(18, 8)
-  progress Int @default(0)
-  startDate DateTime?
-  targetDate DateTime?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  assigneeId String?
-  projectTasks ProjectTask[] @relation("ProjectTask_epicId")
-  project Project @relation("Epic_projectId", fields: [projectId], references: [id])
-  milestone ProjectMilestone? @relation("Epic_milestoneId", fields: [milestoneId], references: [id])
-  guild Guild? @relation("Epic_guildId", fields: [guildId], references: [id])
-  assignee User? @relation("Epic_assigneeId", fields: [assigneeId], references: [id])
-  sprints Sprint[] @relation("Sprint_epicId")
-  features Feature[] @relation("Feature_epicId")
+  id                  String               @id @default(cuid())
+  projectId           String
+  milestoneId         String?
+  guildId             String?
+  title               String
+  description         String?              @db.Text
+  status              EpicStatus           @default(PLANNED)
+  priority            Priority             @default(MEDIUM)
+  equityBudget        Decimal?             @db.Decimal(18, 8)
+  progress            Int                  @default(0)
+  startDate           DateTime?
+  targetDate          DateTime?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  assigneeId          String?
+  projectTasks        ProjectTask[]        @relation("ProjectTask_epicId")
+  project             Project              @relation("Epic_projectId", fields: [projectId], references: [id])
+  milestone           ProjectMilestone?    @relation("Epic_milestoneId", fields: [milestoneId], references: [id])
+  guild               Guild?               @relation("Epic_guildId", fields: [guildId], references: [id])
+  assignee            User?                @relation("Epic_assigneeId", fields: [assigneeId], references: [id])
+  sprints             Sprint[]             @relation("Sprint_epicId")
+  features            Feature[]            @relation("Feature_epicId")
   productBacklogItems ProductBacklogItem[] @relation("ProductBacklogItem_epicId")
 }
 
 model Sprint {
-  id String @id @default(cuid())
-  projectId String
-  epicId String?
-  milestoneId String?
-  guildId String?
-  name String
-  goal String? @db.Text
-  startDate DateTime
-  endDate DateTime
-  equityBudget Decimal? @db.Decimal(18, 8)
-  velocity Int?
-  status SprintStatus @default(PLANNED)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  assigneeId String?
-  projectTasks ProjectTask[] @relation("ProjectTask_sprintId")
-  project Project @relation("Sprint_projectId", fields: [projectId], references: [id])
-  epic Epic? @relation("Sprint_epicId", fields: [epicId], references: [id])
-  milestone ProjectMilestone? @relation("Sprint_milestoneId", fields: [milestoneId], references: [id])
-  guild Guild? @relation("Sprint_guildId", fields: [guildId], references: [id])
-  assignee User? @relation("Sprint_assigneeId", fields: [assigneeId], references: [id])
-  features Feature[] @relation("Feature_sprintId")
+  id                  String               @id @default(cuid())
+  projectId           String
+  epicId              String?
+  milestoneId         String?
+  guildId             String?
+  name                String
+  goal                String?              @db.Text
+  startDate           DateTime
+  endDate             DateTime
+  equityBudget        Decimal?             @db.Decimal(18, 8)
+  velocity            Int?
+  status              SprintStatus         @default(PLANNED)
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  assigneeId          String?
+  projectTasks        ProjectTask[]        @relation("ProjectTask_sprintId")
+  project             Project              @relation("Sprint_projectId", fields: [projectId], references: [id])
+  epic                Epic?                @relation("Sprint_epicId", fields: [epicId], references: [id])
+  milestone           ProjectMilestone?    @relation("Sprint_milestoneId", fields: [milestoneId], references: [id])
+  guild               Guild?               @relation("Sprint_guildId", fields: [guildId], references: [id])
+  assignee            User?                @relation("Sprint_assigneeId", fields: [assigneeId], references: [id])
+  features            Feature[]            @relation("Feature_sprintId")
   productBacklogItems ProductBacklogItem[] @relation("ProductBacklogItem_sprintId")
 }
 
 model Feature {
-  id String @id @default(cuid())
-  projectId String
-  sprintId String?
-  epicId String?
-  milestoneId String?
-  guildId String?
-  title String
-  description String? @db.Text
-  status FeatureStatus @default(PLANNED)
-  priority Priority @default(MEDIUM)
-  equityBudget Decimal? @db.Decimal(18, 8)
-  order Int @default(0)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  assigneeId String?
-  projectTasks ProjectTask[] @relation("ProjectTask_featureId")
-  project Project @relation("Feature_projectId", fields: [projectId], references: [id])
-  sprint Sprint? @relation("Feature_sprintId", fields: [sprintId], references: [id])
-  epic Epic? @relation("Feature_epicId", fields: [epicId], references: [id])
-  milestone ProjectMilestone? @relation("Feature_milestoneId", fields: [milestoneId], references: [id])
-  guild Guild? @relation("Feature_guildId", fields: [guildId], references: [id])
-  assignee User? @relation("Feature_assigneeId", fields: [assigneeId], references: [id])
+  id                  String               @id @default(cuid())
+  projectId           String
+  sprintId            String?
+  epicId              String?
+  milestoneId         String?
+  guildId             String?
+  title               String
+  description         String?              @db.Text
+  status              FeatureStatus        @default(PLANNED)
+  priority            Priority             @default(MEDIUM)
+  equityBudget        Decimal?             @db.Decimal(18, 8)
+  order               Int                  @default(0)
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  assigneeId          String?
+  projectTasks        ProjectTask[]        @relation("ProjectTask_featureId")
+  project             Project              @relation("Feature_projectId", fields: [projectId], references: [id])
+  sprint              Sprint?              @relation("Feature_sprintId", fields: [sprintId], references: [id])
+  epic                Epic?                @relation("Feature_epicId", fields: [epicId], references: [id])
+  milestone           ProjectMilestone?    @relation("Feature_milestoneId", fields: [milestoneId], references: [id])
+  guild               Guild?               @relation("Feature_guildId", fields: [guildId], references: [id])
+  assignee            User?                @relation("Feature_assigneeId", fields: [assigneeId], references: [id])
   productBacklogItems ProductBacklogItem[] @relation("ProductBacklogItem_featureId")
 }
 
 model ProductBacklogItem {
-  id String @id @default(cuid())
-  projectId String
-  featureId String?
-  sprintId String?
-  epicId String?
-  milestoneId String?
-  guildId String?
-  title String
-  description String? @db.Text
-  type PBIType @default(FEATURE)
-  storyPoints Int?
-  status PBIStatus @default(NEW)
-  acceptanceCriteria String? @db.Text
-  priority Priority @default(MEDIUM)
-  equityReward Decimal? @db.Decimal(18, 8)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  assigneeId String?
-  projectTasks ProjectTask[] @relation("ProjectTask_pbiId")
-  project Project @relation("ProductBacklogItem_projectId", fields: [projectId], references: [id])
-  feature Feature? @relation("ProductBacklogItem_featureId", fields: [featureId], references: [id])
-  sprint Sprint? @relation("ProductBacklogItem_sprintId", fields: [sprintId], references: [id])
-  epic Epic? @relation("ProductBacklogItem_epicId", fields: [epicId], references: [id])
-  milestone ProjectMilestone? @relation("ProductBacklogItem_milestoneId", fields: [milestoneId], references: [id])
-  guild Guild? @relation("ProductBacklogItem_guildId", fields: [guildId], references: [id])
-  assignee User? @relation("ProductBacklogItem_assigneeId", fields: [assigneeId], references: [id])
-  tokenAllocations TokenAllocation[] @relation("TokenAllocation_pbiId")
+  id                 String            @id @default(cuid())
+  projectId          String
+  featureId          String?
+  sprintId           String?
+  epicId             String?
+  milestoneId        String?
+  guildId            String?
+  title              String
+  description        String?           @db.Text
+  type               PBIType           @default(FEATURE)
+  storyPoints        Int?
+  status             PBIStatus         @default(NEW)
+  acceptanceCriteria String?           @db.Text
+  priority           Priority          @default(MEDIUM)
+  equityReward       Decimal?          @db.Decimal(18, 8)
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+  assigneeId         String?
+  projectTasks       ProjectTask[]     @relation("ProjectTask_pbiId")
+  project            Project           @relation("ProductBacklogItem_projectId", fields: [projectId], references: [id])
+  feature            Feature?          @relation("ProductBacklogItem_featureId", fields: [featureId], references: [id])
+  sprint             Sprint?           @relation("ProductBacklogItem_sprintId", fields: [sprintId], references: [id])
+  epic               Epic?             @relation("ProductBacklogItem_epicId", fields: [epicId], references: [id])
+  milestone          ProjectMilestone? @relation("ProductBacklogItem_milestoneId", fields: [milestoneId], references: [id])
+  guild              Guild?            @relation("ProductBacklogItem_guildId", fields: [guildId], references: [id])
+  assignee           User?             @relation("ProductBacklogItem_assigneeId", fields: [assigneeId], references: [id])
+  tokenAllocations   TokenAllocation[] @relation("TokenAllocation_pbiId")
 }
 
 model ProjectMember {
-  id String @id @default(cuid())
-  projectId String
-  userId String
-  role ProjectRole @default(OBSERVER)
-  shareBalance Decimal @default(0) @db.Decimal(18, 8)
-  votingPower Decimal @default(0) @db.Decimal(18, 8)
-  joinedAt DateTime @default(now())
-  invitedById String?
-  project Project @relation("ProjectMember_projectId", fields: [projectId], references: [id])
-  user User @relation("ProjectMember_userId", fields: [userId], references: [id])
+  id           String      @id @default(cuid())
+  projectId    String
+  userId       String
+  role         ProjectRole @default(OBSERVER)
+  shareBalance Decimal     @default(0) @db.Decimal(18, 8)
+  votingPower  Decimal     @default(0) @db.Decimal(18, 8)
+  joinedAt     DateTime    @default(now())
+  invitedById  String?
+  project      Project     @relation("ProjectMember_projectId", fields: [projectId], references: [id])
+  user         User        @relation("ProjectMember_userId", fields: [userId], references: [id])
 
   @@unique([projectId, userId])
 }
 
 model TaskCompensation {
-  id String @id @default(cuid())
-  taskId String @unique
+  id                String            @id @default(cuid())
+  taskId            String            @unique
   compensationModel CompensationModel @default(FIXED_SHARES)
-  shareAmount Decimal? @db.Decimal(18, 8)
-  hourlyRate Decimal? @db.Decimal(18, 8)
-  equityPercent Decimal? @db.Decimal(18, 8)
-  stableCoinAmount Decimal? @db.Decimal(18, 8)
-  vestingMonths Int?
-  createdAt DateTime @default(now())
-  task ProjectTask @relation("TaskCompensation_taskId", fields: [taskId], references: [id])
+  shareAmount       Decimal?          @db.Decimal(18, 8)
+  hourlyRate        Decimal?          @db.Decimal(18, 8)
+  equityPercent     Decimal?          @db.Decimal(18, 8)
+  stableCoinAmount  Decimal?          @db.Decimal(18, 8)
+  vestingMonths     Int?
+  createdAt         DateTime          @default(now())
+  task              ProjectTask       @relation("TaskCompensation_taskId", fields: [taskId], references: [id])
 }
 
 model TaskSubmission {
-  id String @id @default(cuid())
-  taskId String
+  id            String           @id @default(cuid())
+  taskId        String
   submittedById String
-  content String @db.Text
-  attachments String? @db.Text
-  status SubmissionStatus @default(PENDING)
-  reviewedById String?
-  feedback String? @db.Text
-  submittedAt DateTime @default(now())
-  reviewedAt DateTime?
-  task ProjectTask @relation("TaskSubmission_taskId", fields: [taskId], references: [id])
-  submittedBy User @relation("TaskSubmission_submittedById", fields: [submittedById], references: [id])
-  reviewedBy User? @relation("TaskSubmission_reviewedById", fields: [reviewedById], references: [id])
+  content       String           @db.Text
+  attachments   String?          @db.Text
+  status        SubmissionStatus @default(PENDING)
+  reviewedById  String?
+  feedback      String?          @db.Text
+  submittedAt   DateTime         @default(now())
+  reviewedAt    DateTime?
+  task          ProjectTask      @relation("TaskSubmission_taskId", fields: [taskId], references: [id])
+  submittedBy   User             @relation("TaskSubmission_submittedById", fields: [submittedById], references: [id])
+  reviewedBy    User?            @relation("TaskSubmission_reviewedById", fields: [reviewedById], references: [id])
 }
 
 model Proposal {
-  id String @id @default(cuid())
-  projectId String
-  creatorId String
-  type ProposalType
-  title String
-  description String @db.Text
-  options Json
-  quorum Int
-  threshold Int
-  status ProposalStatus @default(DRAFT)
-  votingStart DateTime?
-  votingEnd DateTime?
-  executionDelay Int?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  project Project @relation("Proposal_projectId", fields: [projectId], references: [id])
-  creator User @relation("Proposal_creatorId", fields: [creatorId], references: [id])
-  votes Vote[] @relation("Vote_proposalId")
-  proposalExecutions ProposalExecution[] @relation("ProposalExecution_proposalId")
-  proposalComments ProposalComment[] @relation("ProposalComment_proposalId")
+  id                    String                 @id @default(cuid())
+  projectId             String
+  creatorId             String
+  type                  ProposalType
+  title                 String
+  description           String                 @db.Text
+  options               Json
+  quorum                Int
+  threshold             Int
+  status                ProposalStatus         @default(DRAFT)
+  votingStart           DateTime?
+  votingEnd             DateTime?
+  executionDelay        Int?
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  project               Project                @relation("Proposal_projectId", fields: [projectId], references: [id])
+  creator               User                   @relation("Proposal_creatorId", fields: [creatorId], references: [id])
+  votes                 Vote[]                 @relation("Vote_proposalId")
+  proposalExecutions    ProposalExecution[]    @relation("ProposalExecution_proposalId")
+  proposalComments      ProposalComment[]      @relation("ProposalComment_proposalId")
   membershipCredentials MembershipCredential[] @relation("MembershipCredential_grantedByProposalId")
 }
 
 model Vote {
-  id String @id @default(cuid())
+  id         String   @id @default(cuid())
   proposalId String
-  voterId String
-  choice Int
-  weight Decimal @db.Decimal(18, 8)
-  reason String? @db.Text
-  txHash String?
-  createdAt DateTime @default(now())
-  proposal Proposal @relation("Vote_proposalId", fields: [proposalId], references: [id])
-  voter User @relation("Vote_voterId", fields: [voterId], references: [id])
+  voterId    String
+  choice     Int
+  weight     Decimal  @db.Decimal(18, 8)
+  reason     String?  @db.Text
+  txHash     String?
+  createdAt  DateTime @default(now())
+  proposal   Proposal @relation("Vote_proposalId", fields: [proposalId], references: [id])
+  voter      User     @relation("Vote_voterId", fields: [voterId], references: [id])
 }
 
 model ProposalExecution {
-  id String @id @default(cuid())
-  proposalId String @unique
+  id         String   @id @default(cuid())
+  proposalId String   @unique
   executedAt DateTime @default(now())
-  txHash String?
-  result Json?
-  proposal Proposal @relation("ProposalExecution_proposalId", fields: [proposalId], references: [id])
+  txHash     String?
+  result     Json?
+  proposal   Proposal @relation("ProposalExecution_proposalId", fields: [proposalId], references: [id])
 }
 
 model ProposalComment {
-  id String @id @default(cuid())
-  proposalId String
-  userId String
-  content String @db.Text
-  parentId String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  proposal Proposal @relation("ProposalComment_proposalId", fields: [proposalId], references: [id])
-  user User @relation("ProposalComment_userId", fields: [userId], references: [id])
-  parent ProposalComment? @relation("ProposalComment_parentId", fields: [parentId], references: [id])
+  id             String            @id @default(cuid())
+  proposalId     String
+  userId         String
+  content        String            @db.Text
+  parentId       String?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  proposal       Proposal          @relation("ProposalComment_proposalId", fields: [proposalId], references: [id])
+  user           User              @relation("ProposalComment_userId", fields: [userId], references: [id])
+  parent         ProposalComment?  @relation("ProposalComment_parentId", fields: [parentId], references: [id])
   parentChildren ProposalComment[] @relation("ProposalComment_parentId")
 }
 
 model DelegatedVote {
-  id String @id @default(cuid())
-  projectId String
+  id          String       @id @default(cuid())
+  projectId   String
   delegatorId String
   delegateeId String
-  shareId String
-  amount Decimal @db.Decimal(18, 8)
-  isActive Boolean @default(true)
-  createdAt DateTime @default(now())
-  expiresAt DateTime?
-  revokedAt DateTime?
-  project Project @relation("DelegatedVote_projectId", fields: [projectId], references: [id])
-  delegator User @relation("DelegatedVote_delegatorId", fields: [delegatorId], references: [id])
-  delegatee User @relation("DelegatedVote_delegateeId", fields: [delegateeId], references: [id])
-  share ProjectShare @relation("DelegatedVote_shareId", fields: [shareId], references: [id])
+  shareId     String
+  amount      Decimal      @db.Decimal(18, 8)
+  isActive    Boolean      @default(true)
+  createdAt   DateTime     @default(now())
+  expiresAt   DateTime?
+  revokedAt   DateTime?
+  project     Project      @relation("DelegatedVote_projectId", fields: [projectId], references: [id])
+  delegator   User         @relation("DelegatedVote_delegatorId", fields: [delegatorId], references: [id])
+  delegatee   User         @relation("DelegatedVote_delegateeId", fields: [delegateeId], references: [id])
+  share       ProjectShare @relation("DelegatedVote_shareId", fields: [shareId], references: [id])
 }
 
 model Guild {
-  id String @id @default(cuid())
-  name String
-  slug String @unique
-  description String @db.Text
-  website String?
-  email String
-  phone String?
-  address String? @db.Text
-  logo String?
-  portfolio String? @db.Text
-  specialties String? @db.Text
-  isVerified Boolean @default(false)
-  rating Decimal? @db.Decimal(18, 8)
-  reviewsCount Int @default(0)
-  projectsCount Int @default(0)
-  membersCount Int @default(0)
-  isTrending Boolean @default(false)
-  trendingScore Decimal @default(0) @db.Decimal(18, 8)
-  trendingRank Int?
-  trendingAt DateTime?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  ownerId String @unique
-  projects Project[] @relation("Project_assignedGuildId")
-  projectTasks ProjectTask[] @relation("ProjectTask_guildId")
-  projectMilestones ProjectMilestone[] @relation("ProjectMilestone_guildId")
-  epics Epic[] @relation("Epic_guildId")
-  sprints Sprint[] @relation("Sprint_guildId")
-  features Feature[] @relation("Feature_guildId")
-  productBacklogItems ProductBacklogItem[] @relation("ProductBacklogItem_guildId")
-  owner User @relation("Guild_ownerId", fields: [ownerId], references: [id])
-  guildMembers GuildMember[] @relation("GuildMember_guildId")
-  guildInvitations GuildInvitation[] @relation("GuildInvitation_guildId")
-  guildApplications GuildApplication[] @relation("GuildApplication_guildId")
-  guildReviews GuildReview[] @relation("GuildReview_guildId")
-  guildUpdates GuildUpdate[] @relation("GuildUpdate_guildId")
+  id                    String                 @id @default(cuid())
+  name                  String
+  slug                  String                 @unique
+  description           String                 @db.Text
+  website               String?
+  email                 String
+  phone                 String?
+  address               String?                @db.Text
+  logo                  String?
+  portfolio             String?                @db.Text
+  specialties           String?                @db.Text
+  isVerified            Boolean                @default(false)
+  rating                Decimal?               @db.Decimal(18, 8)
+  reviewsCount          Int                    @default(0)
+  projectsCount         Int                    @default(0)
+  membersCount          Int                    @default(0)
+  isTrending            Boolean                @default(false)
+  trendingScore         Decimal                @default(0) @db.Decimal(18, 8)
+  trendingRank          Int?
+  trendingAt            DateTime?
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  ownerId               String                 @unique
+  projects              Project[]              @relation("Project_assignedGuildId")
+  projectTasks          ProjectTask[]          @relation("ProjectTask_guildId")
+  projectMilestones     ProjectMilestone[]     @relation("ProjectMilestone_guildId")
+  epics                 Epic[]                 @relation("Epic_guildId")
+  sprints               Sprint[]               @relation("Sprint_guildId")
+  features              Feature[]              @relation("Feature_guildId")
+  productBacklogItems   ProductBacklogItem[]   @relation("ProductBacklogItem_guildId")
+  owner                 User                   @relation("Guild_ownerId", fields: [ownerId], references: [id])
+  guildMembers          GuildMember[]          @relation("GuildMember_guildId")
+  guildInvitations      GuildInvitation[]      @relation("GuildInvitation_guildId")
+  guildApplications     GuildApplication[]     @relation("GuildApplication_guildId")
+  guildReviews          GuildReview[]          @relation("GuildReview_guildId")
+  guildUpdates          GuildUpdate[]          @relation("GuildUpdate_guildId")
   membershipCredentials MembershipCredential[] @relation("MembershipCredential_guildId")
-  guildWallets GuildWallet[] @relation("GuildWallet_guildId")
-  posts Post[] @relation("Post_guildId")
-  postShares PostShare[] @relation("PostShare_sharedToGuildId")
-  events Event[] @relation("Event_guildId")
-  guildFollows GuildFollow[] @relation("GuildFollow_guildId")
-  opportunities Opportunity[] @relation("Opportunity_guildId")
-  opportunityBids OpportunityBid[] @relation("OpportunityBid_guildId")
+  guildWallets          GuildWallet[]          @relation("GuildWallet_guildId")
+  posts                 Post[]                 @relation("Post_guildId")
+  postShares            PostShare[]            @relation("PostShare_sharedToGuildId")
+  events                Event[]                @relation("Event_guildId")
+  guildFollows          GuildFollow[]          @relation("GuildFollow_guildId")
+  opportunities         Opportunity[]          @relation("Opportunity_guildId")
+  opportunityBids       OpportunityBid[]       @relation("OpportunityBid_guildId")
 }
 
 model GuildMember {
-  id String @id @default(cuid())
-  guildId String
-  userId String
-  role GuildMemberRole @default(MEMBER)
-  joinedAt DateTime @default(now())
-  guild Guild @relation("GuildMember_guildId", fields: [guildId], references: [id])
-  user User @relation("GuildMember_userId", fields: [userId], references: [id])
+  id       String          @id @default(cuid())
+  guildId  String
+  userId   String
+  role     GuildMemberRole @default(MEMBER)
+  joinedAt DateTime        @default(now())
+  guild    Guild           @relation("GuildMember_guildId", fields: [guildId], references: [id])
+  user     User            @relation("GuildMember_userId", fields: [userId], references: [id])
 
   @@unique([guildId, userId])
 }
 
 model GuildInvitation {
-  id String @id @default(cuid())
-  guildId String
-  invitedById String
+  id            String           @id @default(cuid())
+  guildId       String
+  invitedById   String
   invitedUserId String?
-  invitedEmail String?
-  role GuildMemberRole @default(MEMBER)
-  message String? @db.Text
-  status InvitationStatus @default(PENDING)
-  token String? @unique
-  expiresAt DateTime?
-  createdAt DateTime @default(now())
-  respondedAt DateTime?
-  guild Guild @relation("GuildInvitation_guildId", fields: [guildId], references: [id])
-  invitedBy User @relation("GuildInvitation_invitedById", fields: [invitedById], references: [id])
-  invitedUser User? @relation("GuildInvitation_invitedUserId", fields: [invitedUserId], references: [id])
+  invitedEmail  String?
+  role          GuildMemberRole  @default(MEMBER)
+  message       String?          @db.Text
+  status        InvitationStatus @default(PENDING)
+  token         String?          @unique
+  expiresAt     DateTime?
+  createdAt     DateTime         @default(now())
+  respondedAt   DateTime?
+  guild         Guild            @relation("GuildInvitation_guildId", fields: [guildId], references: [id])
+  invitedBy     User             @relation("GuildInvitation_invitedById", fields: [invitedById], references: [id])
+  invitedUser   User?            @relation("GuildInvitation_invitedUserId", fields: [invitedUserId], references: [id])
 }
 
 model GuildApplication {
-  id String @id @default(cuid())
-  guildId String
-  userId String
-  requestedRole GuildMemberRole @default(MEMBER)
-  message String @db.Text
-  skills String? @db.Text
-  experience String? @db.Text
-  portfolio String? @db.Text
-  availability String?
-  status MembershipRequestStatus @default(PENDING)
-  reviewedById String?
-  reviewMessage String? @db.Text
-  appliedAt DateTime @default(now())
-  reviewedAt DateTime?
-  guild Guild @relation("GuildApplication_guildId", fields: [guildId], references: [id])
-  user User @relation("GuildApplication_userId", fields: [userId], references: [id])
-  reviewedBy User? @relation("GuildApplication_reviewedById", fields: [reviewedById], references: [id])
+  id            String                  @id @default(cuid())
+  guildId       String
+  userId        String
+  requestedRole GuildMemberRole         @default(MEMBER)
+  message       String                  @db.Text
+  skills        String?                 @db.Text
+  experience    String?                 @db.Text
+  portfolio     String?                 @db.Text
+  availability  String?
+  status        MembershipRequestStatus @default(PENDING)
+  reviewedById  String?
+  reviewMessage String?                 @db.Text
+  appliedAt     DateTime                @default(now())
+  reviewedAt    DateTime?
+  guild         Guild                   @relation("GuildApplication_guildId", fields: [guildId], references: [id])
+  user          User                    @relation("GuildApplication_userId", fields: [userId], references: [id])
+  reviewedBy    User?                   @relation("GuildApplication_reviewedById", fields: [reviewedById], references: [id])
 }
 
 model GuildReview {
-  id String @id @default(cuid())
-  guildId String
+  id        String   @id @default(cuid())
+  guildId   String
   projectId String?
-  userId String
-  rating Int
-  comment String? @db.Text
+  userId    String
+  rating    Int
+  comment   String?  @db.Text
   createdAt DateTime @default(now())
-  guild Guild @relation("GuildReview_guildId", fields: [guildId], references: [id])
-  user User @relation("GuildReview_userId", fields: [userId], references: [id])
+  guild     Guild    @relation("GuildReview_guildId", fields: [guildId], references: [id])
+  user      User     @relation("GuildReview_userId", fields: [userId], references: [id])
 }
 
 model GuildUpdate {
-  id String @id @default(cuid())
-  guildId String
+  id          String   @id @default(cuid())
+  guildId     String
   createdById String
-  title String
-  content String @db.Text
-  images String? @db.Text
-  createdAt DateTime @default(now())
-  guild Guild @relation("GuildUpdate_guildId", fields: [guildId], references: [id])
-  createdBy User @relation("GuildUpdate_createdById", fields: [createdById], references: [id])
+  title       String
+  content     String   @db.Text
+  images      String?  @db.Text
+  createdAt   DateTime @default(now())
+  guild       Guild    @relation("GuildUpdate_guildId", fields: [guildId], references: [id])
+  createdBy   User     @relation("GuildUpdate_createdById", fields: [createdById], references: [id])
 }
 
 model Product {
-  id String @id @default(cuid())
-  projectId String
-  name String
-  description String? @db.Text
-  sku String?
-  price Decimal @db.Decimal(18, 8)
-  cost Decimal? @db.Decimal(18, 8)
-  category String?
-  isActive Boolean @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  userId String
-  project Project @relation("Product_projectId", fields: [projectId], references: [id])
-  user User @relation("Product_userId", fields: [userId], references: [id])
+  id          String   @id @default(cuid())
+  projectId   String
+  name        String
+  description String?  @db.Text
+  sku         String?
+  price       Decimal  @db.Decimal(18, 8)
+  cost        Decimal? @db.Decimal(18, 8)
+  category    String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  userId      String
+  project     Project  @relation("Product_projectId", fields: [projectId], references: [id])
+  user        User     @relation("Product_userId", fields: [userId], references: [id])
 }
 
 model MembershipCredential {
-  id String @id @default(cuid())
-  projectId String?
-  guildId String?
-  userId String
-  assetId String?
-  status MembershipCredentialStatus @default(ACTIVE)
-  isTransferable Boolean @default(false)
-  tier UserTier?
-  grantedVia MembershipGrantType
+  id                  String                     @id @default(cuid())
+  projectId           String?
+  guildId             String?
+  userId              String
+  assetId             String?
+  status              MembershipCredentialStatus @default(ACTIVE)
+  isTransferable      Boolean                    @default(false)
+  tier                UserTier?
+  grantedVia          MembershipGrantType
   grantedByProposalId String?
-  metadataUri String?
-  mintTxHash String?
-  revokeTxHash String?
-  mintedAt DateTime?
-  revokedAt DateTime?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  project Project? @relation("MembershipCredential_projectId", fields: [projectId], references: [id])
-  guild Guild? @relation("MembershipCredential_guildId", fields: [guildId], references: [id])
-  user User @relation("MembershipCredential_userId", fields: [userId], references: [id])
-  grantedByProposal Proposal? @relation("MembershipCredential_grantedByProposalId", fields: [grantedByProposalId], references: [id])
+  metadataUri         String?
+  mintTxHash          String?
+  revokeTxHash        String?
+  mintedAt            DateTime?
+  revokedAt           DateTime?
+  createdAt           DateTime                   @default(now())
+  updatedAt           DateTime                   @updatedAt
+  project             Project?                   @relation("MembershipCredential_projectId", fields: [projectId], references: [id])
+  guild               Guild?                     @relation("MembershipCredential_guildId", fields: [guildId], references: [id])
+  user                User                       @relation("MembershipCredential_userId", fields: [userId], references: [id])
+  grantedByProposal   Proposal?                  @relation("MembershipCredential_grantedByProposalId", fields: [grantedByProposalId], references: [id])
 
   @@unique([projectId, userId])
   @@unique([guildId, userId])
 }
 
 model ProjectShare {
-  id String @id @default(cuid())
-  projectId String @unique
-  assetId String?
-  name String
-  symbol String
-  totalSupply Decimal @db.Decimal(18, 8)
-  decimals Int @default(6)
-  allocation Json
-  vestingConfig Json?
-  isDeployed Boolean @default(false)
-  deployedAt DateTime?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  delegatedVotes DelegatedVote[] @relation("DelegatedVote_shareId")
-  project Project @relation("ProjectShare_projectId", fields: [projectId], references: [id])
-  shareHolders ShareHolder[] @relation("ShareHolder_shareId")
-  fundraisings Fundraising[] @relation("Fundraising_shareId")
-  taskEscrows TaskEscrow[] @relation("TaskEscrow_shareId")
-  shareSwaps ShareSwap[] @relation("ShareSwap_fromShareId")
-  shareSwaps1 ShareSwap[] @relation("ShareSwap_toShareId")
-  liquidityPools LiquidityPool[] @relation("LiquidityPool_share1Id")
+  id              String          @id @default(cuid())
+  projectId       String          @unique
+  assetId         String?
+  name            String
+  symbol          String
+  totalSupply     Decimal         @db.Decimal(18, 8)
+  decimals        Int             @default(6)
+  allocation      Json
+  vestingConfig   Json?
+  isDeployed      Boolean         @default(false)
+  deployedAt      DateTime?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  delegatedVotes  DelegatedVote[] @relation("DelegatedVote_shareId")
+  project         Project         @relation("ProjectShare_projectId", fields: [projectId], references: [id])
+  shareHolders    ShareHolder[]   @relation("ShareHolder_shareId")
+  fundraisings    Fundraising[]   @relation("Fundraising_shareId")
+  taskEscrows     TaskEscrow[]    @relation("TaskEscrow_shareId")
+  shareSwaps      ShareSwap[]     @relation("ShareSwap_fromShareId")
+  shareSwaps1     ShareSwap[]     @relation("ShareSwap_toShareId")
+  liquidityPools  LiquidityPool[] @relation("LiquidityPool_share1Id")
   liquidityPools1 LiquidityPool[] @relation("LiquidityPool_share2Id")
 }
 
 model ProjectEquity {
-  id String @id @default(cuid())
-  projectId String
-  userId String
-  sharePercent Decimal @db.Decimal(18, 8)
-  investmentAmount Decimal @db.Decimal(18, 8)
-  grantedAt DateTime @default(now())
-  project Project @relation("ProjectEquity_projectId", fields: [projectId], references: [id])
-  user User @relation("ProjectEquity_userId", fields: [userId], references: [id])
+  id               String   @id @default(cuid())
+  projectId        String
+  userId           String
+  sharePercent     Decimal  @db.Decimal(18, 8)
+  investmentAmount Decimal  @db.Decimal(18, 8)
+  grantedAt        DateTime @default(now())
+  project          Project  @relation("ProjectEquity_projectId", fields: [projectId], references: [id])
+  user             User     @relation("ProjectEquity_userId", fields: [userId], references: [id])
 }
 
 model Treasury {
-  id String @id @default(cuid())
-  projectId String @unique
-  balance Decimal @default(0) @db.Decimal(18, 8)
-  shareAssetId String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  project Project @relation("Treasury_projectId", fields: [projectId], references: [id])
+  id                   String                @id @default(cuid())
+  projectId            String                @unique
+  balance              Decimal               @default(0) @db.Decimal(18, 8)
+  shareAssetId         String?
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  project              Project               @relation("Treasury_projectId", fields: [projectId], references: [id])
   treasuryTransactions TreasuryTransaction[] @relation("TreasuryTransaction_treasuryId")
 }
 
 model TreasuryTransaction {
-  id String @id @default(cuid())
-  treasuryId String
-  type TransactionType
-  amount Decimal @db.Decimal(18, 8)
+  id          String          @id @default(cuid())
+  treasuryId  String
+  type        TransactionType
+  amount      Decimal         @db.Decimal(18, 8)
   description String?
-  txHash String?
-  proposalId String?
-  createdAt DateTime @default(now())
-  treasury Treasury @relation("TreasuryTransaction_treasuryId", fields: [treasuryId], references: [id])
+  txHash      String?
+  proposalId  String?
+  createdAt   DateTime        @default(now())
+  treasury    Treasury        @relation("TreasuryTransaction_treasuryId", fields: [treasuryId], references: [id])
 }
 
 model ShareHolder {
-  id String @id @default(cuid())
-  shareId String
-  userId String
-  balance Decimal @db.Decimal(18, 8)
-  stakedAmount Decimal @default(0) @db.Decimal(18, 8)
-  lockedAmount Decimal @default(0) @db.Decimal(18, 8)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  share ProjectShare @relation("ShareHolder_shareId", fields: [shareId], references: [id])
-  user User @relation("ShareHolder_userId", fields: [userId], references: [id])
+  id            String         @id @default(cuid())
+  shareId       String
+  userId        String
+  balance       Decimal        @db.Decimal(18, 8)
+  stakedAmount  Decimal        @default(0) @db.Decimal(18, 8)
+  lockedAmount  Decimal        @default(0) @db.Decimal(18, 8)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  share         ProjectShare   @relation("ShareHolder_shareId", fields: [shareId], references: [id])
+  user          User           @relation("ShareHolder_userId", fields: [userId], references: [id])
   shareVestings ShareVesting[] @relation("ShareVesting_holderId")
 }
 
 model ShareVesting {
-  id String @id @default(cuid())
-  holderId String
-  totalAmount Decimal @db.Decimal(18, 8)
-  releasedAmount Decimal @default(0) @db.Decimal(18, 8)
-  startDate DateTime
-  cliffEnd DateTime
-  vestingEnd DateTime
+  id               String           @id @default(cuid())
+  holderId         String
+  totalAmount      Decimal          @db.Decimal(18, 8)
+  releasedAmount   Decimal          @default(0) @db.Decimal(18, 8)
+  startDate        DateTime
+  cliffEnd         DateTime
+  vestingEnd       DateTime
   releaseFrequency VestingFrequency @default(MONTHLY)
-  createdAt DateTime @default(now())
-  holder ShareHolder @relation("ShareVesting_holderId", fields: [holderId], references: [id])
+  createdAt        DateTime         @default(now())
+  holder           ShareHolder      @relation("ShareVesting_holderId", fields: [holderId], references: [id])
 }
 
 model Fundraising {
-  id String @id @default(cuid())
-  shareId String @unique
-  fundingGoal Decimal @db.Decimal(18, 8)
-  currentFunding Decimal @default(0) @db.Decimal(18, 8)
-  minContribution Decimal? @db.Decimal(18, 8)
-  maxContribution Decimal? @db.Decimal(18, 8)
-  sharePrice Decimal @db.Decimal(18, 8)
-  startDate DateTime
-  endDate DateTime
-  status FundraisingStatus @default(PENDING)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  share ProjectShare @relation("Fundraising_shareId", fields: [shareId], references: [id])
+  id                       String                    @id @default(cuid())
+  shareId                  String                    @unique
+  fundingGoal              Decimal                   @db.Decimal(18, 8)
+  currentFunding           Decimal                   @default(0) @db.Decimal(18, 8)
+  minContribution          Decimal?                  @db.Decimal(18, 8)
+  maxContribution          Decimal?                  @db.Decimal(18, 8)
+  sharePrice               Decimal                   @db.Decimal(18, 8)
+  startDate                DateTime
+  endDate                  DateTime
+  status                   FundraisingStatus         @default(PENDING)
+  createdAt                DateTime                  @default(now())
+  updatedAt                DateTime                  @updatedAt
+  share                    ProjectShare              @relation("Fundraising_shareId", fields: [shareId], references: [id])
   fundraisingContributions FundraisingContribution[] @relation("FundraisingContribution_fundraisingId")
 }
 
 model FundraisingContribution {
-  id String @id @default(cuid())
+  id            String             @id @default(cuid())
   fundraisingId String
-  userId String
-  amount Decimal @db.Decimal(18, 8)
-  shareAmount Decimal @db.Decimal(18, 8)
-  paymentAsset String
-  txHash String?
-  status ContributionStatus @default(PENDING)
-  createdAt DateTime @default(now())
-  fundraising Fundraising @relation("FundraisingContribution_fundraisingId", fields: [fundraisingId], references: [id])
-  user User @relation("FundraisingContribution_userId", fields: [userId], references: [id])
+  userId        String
+  amount        Decimal            @db.Decimal(18, 8)
+  shareAmount   Decimal            @db.Decimal(18, 8)
+  paymentAsset  String
+  txHash        String?
+  status        ContributionStatus @default(PENDING)
+  createdAt     DateTime           @default(now())
+  fundraising   Fundraising        @relation("FundraisingContribution_fundraisingId", fields: [fundraisingId], references: [id])
+  user          User               @relation("FundraisingContribution_userId", fields: [userId], references: [id])
 }
 
 model Wallet {
-  id String @id @default(cuid())
-  userId String
-  address String @unique
-  provider WalletProvider
-  label String?
-  isVerified Boolean @default(false)
-  verifiedAt DateTime?
-  verificationChain String?
-  verificationNetwork String?
+  id                      String                        @id @default(cuid())
+  userId                  String
+  address                 String                        @unique
+  provider                WalletProvider
+  label                   String?
+  isVerified              Boolean                       @default(false)
+  verifiedAt              DateTime?
+  verificationChain       String?
+  verificationNetwork     String?
   verificationChallengeId String?
-  isPrimary Boolean @default(false)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  user User @relation("Wallet_userId", fields: [userId], references: [id])
-  verificationChallenges WalletVerificationChallenge[] @relation("WalletVerificationChallenge_walletId")
+  isPrimary               Boolean                       @default(false)
+  createdAt               DateTime                      @default(now())
+  updatedAt               DateTime                      @updatedAt
+  user                    User                          @relation("Wallet_userId", fields: [userId], references: [id])
+  verificationChallenges  WalletVerificationChallenge[] @relation("WalletVerificationChallenge_walletId")
 }
 
 model WalletVerificationChallenge {
-  id String @id @default(cuid())
-  userId String
-  walletId String
-  address String
-  chain String
-  network String
-  nonceHash String
-  issuedAt DateTime @default(now())
-  expiresAt DateTime
-  consumedAt DateTime?
+  id            String    @id @default(cuid())
+  userId        String
+  walletId      String
+  address       String
+  chain         String
+  network       String
+  nonceHash     String
+  issuedAt      DateTime  @default(now())
+  expiresAt     DateTime
+  consumedAt    DateTime?
   proofVerified Boolean?
   signatureHash String?
-  failureCode String?
-  user User @relation("WalletVerificationChallenge_userId", fields: [userId], references: [id])
-  wallet Wallet @relation("WalletVerificationChallenge_walletId", fields: [walletId], references: [id])
+  failureCode   String?
+  user          User      @relation("WalletVerificationChallenge_userId", fields: [userId], references: [id])
+  wallet        Wallet    @relation("WalletVerificationChallenge_walletId", fields: [walletId], references: [id])
 
   @@index([walletId, consumedAt])
   @@index([userId, expiresAt])
 }
 
 model ActorAssertionReplay {
-  jti String @id
-  expiresAt DateTime
-  consumedAt DateTime @default(now())
-  subject String
+  jti           String   @id
+  expiresAt     DateTime
+  consumedAt    DateTime @default(now())
+  subject       String
   requestTarget String
-  bodySha256 String
+  bodySha256    String
 
-  @@index([expiresAt])
+  @@index([expiresAt, jti])
 }
 
 model ProjectWallet {
-  id String @id @default(cuid())
-  projectId String @unique
-  address String? @unique
-  provider WalletProvider @default(PERA)
-  label String? @default("Project Treasury")
-  balance Decimal @default(0) @db.Decimal(18, 8)
-  reservedBalance Decimal @default(0) @db.Decimal(18, 8)
-  isVerified Boolean @default(false)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  project Project @relation("ProjectWallet_projectId", fields: [projectId], references: [id])
+  id              String         @id @default(cuid())
+  projectId       String         @unique
+  address         String?        @unique
+  provider        WalletProvider @default(PERA)
+  label           String?        @default("Project Treasury")
+  balance         Decimal        @default(0) @db.Decimal(18, 8)
+  reservedBalance Decimal        @default(0) @db.Decimal(18, 8)
+  isVerified      Boolean        @default(false)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  project         Project        @relation("ProjectWallet_projectId", fields: [projectId], references: [id])
 }
 
 model GuildWallet {
-  id String @id @default(cuid())
-  guildId String @unique
-  address String? @unique
-  provider WalletProvider @default(PERA)
-  label String? @default("Guild Treasury")
-  balance Decimal @default(0) @db.Decimal(18, 8)
-  reservedBalance Decimal @default(0) @db.Decimal(18, 8)
-  isVerified Boolean @default(false)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  guild Guild @relation("GuildWallet_guildId", fields: [guildId], references: [id])
+  id              String         @id @default(cuid())
+  guildId         String         @unique
+  address         String?        @unique
+  provider        WalletProvider @default(PERA)
+  label           String?        @default("Guild Treasury")
+  balance         Decimal        @default(0) @db.Decimal(18, 8)
+  reservedBalance Decimal        @default(0) @db.Decimal(18, 8)
+  isVerified      Boolean        @default(false)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  guild           Guild          @relation("GuildWallet_guildId", fields: [guildId], references: [id])
 }
 
 model TaskEscrow {
-  id String @id @default(cuid())
-  taskId String @unique
-  funderId String
-  shareId String
-  amount Decimal @db.Decimal(18, 8)
-  status EscrowStatus @default(FUNDED)
-  txHashFund String?
-  txHashRelease String?
-  txHashRefund String?
-  createdAt DateTime @default(now())
-  fundedAt DateTime?
-  releasedAt DateTime?
-  refundedAt DateTime?
-  task ProjectTask @relation("TaskEscrow_taskId", fields: [taskId], references: [id])
-  funder User @relation("TaskEscrow_funderId", fields: [funderId], references: [id])
-  share ProjectShare @relation("TaskEscrow_shareId", fields: [shareId], references: [id])
-  economicSettlements EconomicSettlement[] @relation("EconomicSettlement_escrowId")
+  id                     String                  @id @default(cuid())
+  taskId                 String                  @unique
+  funderId               String
+  shareId                String
+  amount                 Decimal                 @db.Decimal(18, 8)
+  status                 EscrowStatus            @default(FUNDED)
+  txHashFund             String?
+  txHashRelease          String?
+  txHashRefund           String?
+  disputeReason          String?
+  disputeDescription     String?                 @db.Text
+  disputedByUserId       String?
+  createdAt              DateTime                @default(now())
+  fundedAt               DateTime?
+  releasedAt             DateTime?
+  refundedAt             DateTime?
+  disputedAt             DateTime?
+  task                   ProjectTask             @relation("TaskEscrow_taskId", fields: [taskId], references: [id])
+  funder                 User                    @relation("TaskEscrow_funderId", fields: [funderId], references: [id])
+  share                  ProjectShare            @relation("TaskEscrow_shareId", fields: [shareId], references: [id])
+  economicSettlements    EconomicSettlement[]    @relation("EconomicSettlement_escrowId")
   taskCommerceAgreements TaskCommerceAgreement[] @relation("TaskCommerceAgreement_escrowId")
 }
 
 model ShareSwap {
-  id String @id @default(cuid())
-  userId String
-  fromShareId String
-  toShareId String
-  fromAmount Decimal @db.Decimal(18, 8)
-  toAmount Decimal @db.Decimal(18, 8)
-  exchangeRate Decimal @db.Decimal(18, 8)
-  fee Decimal @default(0) @db.Decimal(18, 8)
-  txHash String?
-  status SwapStatus @default(PENDING)
-  createdAt DateTime @default(now())
-  completedAt DateTime?
-  user User @relation("ShareSwap_userId", fields: [userId], references: [id])
-  fromShare ProjectShare @relation("ShareSwap_fromShareId", fields: [fromShareId], references: [id])
-  toShare ProjectShare @relation("ShareSwap_toShareId", fields: [toShareId], references: [id])
+  id           String       @id @default(cuid())
+  userId       String
+  fromShareId  String
+  toShareId    String
+  fromAmount   Decimal      @db.Decimal(18, 8)
+  toAmount     Decimal      @db.Decimal(18, 8)
+  exchangeRate Decimal      @db.Decimal(18, 8)
+  fee          Decimal      @default(0) @db.Decimal(18, 8)
+  txHash       String?
+  status       SwapStatus   @default(PENDING)
+  createdAt    DateTime     @default(now())
+  completedAt  DateTime?
+  user         User         @relation("ShareSwap_userId", fields: [userId], references: [id])
+  fromShare    ProjectShare @relation("ShareSwap_fromShareId", fields: [fromShareId], references: [id])
+  toShare      ProjectShare @relation("ShareSwap_toShareId", fields: [toShareId], references: [id])
 }
 
 model LiquidityPool {
-  id String @id @default(cuid())
-  share1Id String
-  share2Id String
-  reserve1 Decimal @default(0) @db.Decimal(18, 8)
-  reserve2 Decimal @default(0) @db.Decimal(18, 8)
-  totalShares Decimal @default(0) @db.Decimal(18, 8)
-  feePercent Decimal @default(0.003) @db.Decimal(18, 8)
-  isActive Boolean @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  share1 ProjectShare @relation("LiquidityPool_share1Id", fields: [share1Id], references: [id])
-  share2 ProjectShare @relation("LiquidityPool_share2Id", fields: [share2Id], references: [id])
+  id                 String              @id @default(cuid())
+  share1Id           String
+  share2Id           String
+  reserve1           Decimal             @default(0) @db.Decimal(18, 8)
+  reserve2           Decimal             @default(0) @db.Decimal(18, 8)
+  totalShares        Decimal             @default(0) @db.Decimal(18, 8)
+  feePercent         Decimal             @default(0.003) @db.Decimal(18, 8)
+  isActive           Boolean             @default(true)
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  share1             ProjectShare        @relation("LiquidityPool_share1Id", fields: [share1Id], references: [id])
+  share2             ProjectShare        @relation("LiquidityPool_share2Id", fields: [share2Id], references: [id])
   liquidityProviders LiquidityProvider[] @relation("LiquidityProvider_poolId")
 }
 
 model LiquidityProvider {
-  id String @id @default(cuid())
-  poolId String
-  userId String
-  shares Decimal @db.Decimal(18, 8)
-  share1In Decimal @default(0) @db.Decimal(18, 8)
-  share2In Decimal @default(0) @db.Decimal(18, 8)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  pool LiquidityPool @relation("LiquidityProvider_poolId", fields: [poolId], references: [id])
-  user User @relation("LiquidityProvider_userId", fields: [userId], references: [id])
+  id        String        @id @default(cuid())
+  poolId    String
+  userId    String
+  shares    Decimal       @db.Decimal(18, 8)
+  share1In  Decimal       @default(0) @db.Decimal(18, 8)
+  share2In  Decimal       @default(0) @db.Decimal(18, 8)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  pool      LiquidityPool @relation("LiquidityProvider_poolId", fields: [poolId], references: [id])
+  user      User          @relation("LiquidityProvider_userId", fields: [userId], references: [id])
 }
 
 model Post {
-  id String @id @default(cuid())
-  authorId String
-  projectId String?
-  guildId String?
-  type PostType @default(POST)
-  visibility PostVisibility @default(PUBLIC)
-  title String?
-  content String @db.Text
-  metadata Json?
-  likesCount Int @default(0)
-  commentsCount Int @default(0)
-  sharesCount Int @default(0)
-  viewsCount Int @default(0)
-  isPinned Boolean @default(false)
-  isTrending Boolean @default(false)
-  trendingScore Decimal @default(0) @db.Decimal(18, 8)
-  trendingRank Int?
-  trendingAt DateTime?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  author User @relation("Post_authorId", fields: [authorId], references: [id])
-  project Project? @relation("Post_projectId", fields: [projectId], references: [id])
-  guild Guild? @relation("Post_guildId", fields: [guildId], references: [id])
-  postMedias PostMedia[] @relation("PostMedia_postId")
-  postLikes PostLike[] @relation("PostLike_postId")
-  postComments PostComment[] @relation("PostComment_postId")
+  id            String         @id @default(cuid())
+  authorId      String
+  projectId     String?
+  guildId       String?
+  type          PostType       @default(POST)
+  visibility    PostVisibility @default(PUBLIC)
+  title         String?
+  content       String         @db.Text
+  metadata      Json?
+  likesCount    Int            @default(0)
+  commentsCount Int            @default(0)
+  sharesCount   Int            @default(0)
+  viewsCount    Int            @default(0)
+  isPinned      Boolean        @default(false)
+  isTrending    Boolean        @default(false)
+  trendingScore Decimal        @default(0) @db.Decimal(18, 8)
+  trendingRank  Int?
+  trendingAt    DateTime?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  author        User           @relation("Post_authorId", fields: [authorId], references: [id])
+  project       Project?       @relation("Post_projectId", fields: [projectId], references: [id])
+  guild         Guild?         @relation("Post_guildId", fields: [guildId], references: [id])
+  postMedias    PostMedia[]    @relation("PostMedia_postId")
+  postLikes     PostLike[]     @relation("PostLike_postId")
+  postComments  PostComment[]  @relation("PostComment_postId")
   postBookmarks PostBookmark[] @relation("PostBookmark_postId")
-  postShares PostShare[] @relation("PostShare_postId")
+  postShares    PostShare[]    @relation("PostShare_postId")
 }
 
 model PostMedia {
-  id String @id @default(cuid())
-  postId String
-  type MimeType
-  url String
+  id           String   @id @default(cuid())
+  postId       String
+  type         MimeType
+  url          String
   thumbnailUrl String?
-  altText String?
-  order Int @default(0)
-  createdAt DateTime @default(now())
-  post Post @relation("PostMedia_postId", fields: [postId], references: [id])
+  altText      String?
+  order        Int      @default(0)
+  createdAt    DateTime @default(now())
+  post         Post     @relation("PostMedia_postId", fields: [postId], references: [id])
 }
 
 model PostLike {
-  id String @id @default(cuid())
-  postId String
-  userId String
+  id        String   @id @default(cuid())
+  postId    String
+  userId    String
   createdAt DateTime @default(now())
-  post Post @relation("PostLike_postId", fields: [postId], references: [id])
-  user User @relation("PostLike_userId", fields: [userId], references: [id])
+  post      Post     @relation("PostLike_postId", fields: [postId], references: [id])
+  user      User     @relation("PostLike_userId", fields: [userId], references: [id])
 }
 
 model PostComment {
-  id String @id @default(cuid())
-  postId String
-  authorId String
-  parentId String?
-  content String @db.Text
-  likesCount Int @default(0)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  post Post @relation("PostComment_postId", fields: [postId], references: [id])
-  author User @relation("PostComment_authorId", fields: [authorId], references: [id])
-  parent PostComment? @relation("PostComment_parentId", fields: [parentId], references: [id])
+  id             String        @id @default(cuid())
+  postId         String
+  authorId       String
+  parentId       String?
+  content        String        @db.Text
+  likesCount     Int           @default(0)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  post           Post          @relation("PostComment_postId", fields: [postId], references: [id])
+  author         User          @relation("PostComment_authorId", fields: [authorId], references: [id])
+  parent         PostComment?  @relation("PostComment_parentId", fields: [parentId], references: [id])
   parentChildren PostComment[] @relation("PostComment_parentId")
 }
 
 model PostBookmark {
-  id String @id @default(cuid())
-  postId String
-  userId String
+  id        String   @id @default(cuid())
+  postId    String
+  userId    String
   createdAt DateTime @default(now())
-  post Post @relation("PostBookmark_postId", fields: [postId], references: [id])
-  user User @relation("PostBookmark_userId", fields: [userId], references: [id])
+  post      Post     @relation("PostBookmark_postId", fields: [postId], references: [id])
+  user      User     @relation("PostBookmark_userId", fields: [userId], references: [id])
 }
 
 model PostShare {
-  id String @id @default(cuid())
-  postId String
-  userId String
+  id                String   @id @default(cuid())
+  postId            String
+  userId            String
   sharedToProjectId String?
-  sharedToGuildId String?
-  comment String? @db.Text
-  createdAt DateTime @default(now())
-  post Post @relation("PostShare_postId", fields: [postId], references: [id])
-  user User @relation("PostShare_userId", fields: [userId], references: [id])
-  sharedToProject Project? @relation("PostShare_sharedToProjectId", fields: [sharedToProjectId], references: [id])
-  sharedToGuild Guild? @relation("PostShare_sharedToGuildId", fields: [sharedToGuildId], references: [id])
+  sharedToGuildId   String?
+  comment           String?  @db.Text
+  createdAt         DateTime @default(now())
+  post              Post     @relation("PostShare_postId", fields: [postId], references: [id])
+  user              User     @relation("PostShare_userId", fields: [userId], references: [id])
+  sharedToProject   Project? @relation("PostShare_sharedToProjectId", fields: [sharedToProjectId], references: [id])
+  sharedToGuild     Guild?   @relation("PostShare_sharedToGuildId", fields: [sharedToGuildId], references: [id])
 }
 
 model Conversation {
-  id String @id @default(cuid())
-  type ConversationType
-  name String?
-  avatarUrl String?
-  createdById String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @default(now())
-  lastMessageAt DateTime?
-  createdBy User? @relation("Conversation_createdById", fields: [createdById], references: [id], onDelete: SetNull)
+  id                  String               @id @default(cuid())
+  type                ConversationType
+  name                String?
+  avatarUrl           String?
+  createdById         String?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @default(now())
+  lastMessageAt       DateTime?
+  createdBy           User?                @relation("Conversation_createdById", fields: [createdById], references: [id], onDelete: SetNull)
   conversationMembers ConversationMember[] @relation("ConversationMember_conversationId")
-  chatMessages ChatMessage[] @relation("ChatMessage_conversationId")
+  chatMessages        ChatMessage[]        @relation("ChatMessage_conversationId")
 
   @@index([createdById])
 }
 
 model ConversationMember {
-  id String @id @default(cuid())
+  id             String           @id @default(cuid())
   conversationId String
-  userId String
-  role ConversationRole @default(MEMBER)
-  lastReadAt DateTime?
-  joinedAt DateTime @default(now())
-  lastActiveAt DateTime?
-  conversation Conversation @relation("ConversationMember_conversationId", fields: [conversationId], references: [id], onDelete: Cascade)
-  user User @relation("ConversationMember_userId", fields: [userId], references: [id], onDelete: Cascade)
+  userId         String
+  role           ConversationRole @default(MEMBER)
+  lastReadAt     DateTime?
+  joinedAt       DateTime         @default(now())
+  lastActiveAt   DateTime?
+  conversation   Conversation     @relation("ConversationMember_conversationId", fields: [conversationId], references: [id], onDelete: Cascade)
+  user           User             @relation("ConversationMember_userId", fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([conversationId, userId])
 }
 
 model ChatMessage {
-  id String @id @default(cuid())
-  userToId String
-  userFromId String
-  message String?
-  status MessageStatus @default(NOTSEEN)
-  ChatReaction Json?
+  id               String        @id @default(cuid())
+  userToId         String
+  userFromId       String
+  message          String?
+  status           MessageStatus @default(NOTSEEN)
+  ChatReaction     Json?
   chatAttachmentId String?
-  sentAt DateTime @default(now())
-  seenAt DateTime?
-  conversationId String?
-  replyToId String?
-  deliveredAt DateTime?
-  isDeleted Boolean @default(false)
-  editedAt DateTime?
-  userTo User @relation("ChatMessage_userToId", fields: [userToId], references: [id])
-  userFrom User @relation("ChatMessage_userFromId", fields: [userFromId], references: [id])
-  chatAttachment Attachment? @relation("ChatMessage_chatAttachmentId", fields: [chatAttachmentId], references: [id])
-  conversation Conversation? @relation("ChatMessage_conversationId", fields: [conversationId], references: [id], onDelete: Cascade)
-  replyTo ChatMessage? @relation("ChatMessage_replyToId", fields: [replyToId], references: [id], onDelete: Restrict)
-  replyToChildren ChatMessage[] @relation("ChatMessage_replyToId")
+  sentAt           DateTime      @default(now())
+  seenAt           DateTime?
+  conversationId   String?
+  replyToId        String?
+  deliveredAt      DateTime?
+  isDeleted        Boolean       @default(false)
+  editedAt         DateTime?
+  userTo           User          @relation("ChatMessage_userToId", fields: [userToId], references: [id])
+  userFrom         User          @relation("ChatMessage_userFromId", fields: [userFromId], references: [id])
+  chatAttachment   Attachment?   @relation("ChatMessage_chatAttachmentId", fields: [chatAttachmentId], references: [id])
+  conversation     Conversation? @relation("ChatMessage_conversationId", fields: [conversationId], references: [id], onDelete: Cascade)
+  replyTo          ChatMessage?  @relation("ChatMessage_replyToId", fields: [replyToId], references: [id], onDelete: Restrict)
+  replyToChildren  ChatMessage[] @relation("ChatMessage_replyToId")
 
   @@index([conversationId, sentAt])
 }
 
 model Attachment {
-  id String @id @default(cuid())
+  id           String        @id @default(cuid())
   uploadedById String
-  bucketPath String?
-  type MimeType
-  createdAt DateTime @default(now())
-  lastUsedAt DateTime?
+  bucketPath   String?
+  type         MimeType
+  createdAt    DateTime      @default(now())
+  lastUsedAt   DateTime?
   chatMessages ChatMessage[] @relation("ChatMessage_chatAttachmentId")
-  uploadedBy User @relation("Attachment_uploadedById", fields: [uploadedById], references: [id])
+  uploadedBy   User          @relation("Attachment_uploadedById", fields: [uploadedById], references: [id])
 }
 
 model Event {
-  id String @id @default(cuid())
-  title String
-  slug String @unique
-  description String? @db.Text
-  type EventType @default(MEETING)
-  visibility EventVisibility @default(PUBLIC)
-  status EventStatus @default(SCHEDULED)
-  location String?
-  locationUrl String?
-  isOnline Boolean @default(false)
-  meetingUrl String?
-  timezone String @default("UTC")
-  startDate DateTime
-  endDate DateTime
-  maxAttendees Int?
-  attendeesCount Int @default(0)
-  coverImage String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  organizerId String
-  projectId String?
-  guildId String?
-  organizer User @relation("Event_organizerId", fields: [organizerId], references: [id])
-  project Project? @relation("Event_projectId", fields: [projectId], references: [id])
-  guild Guild? @relation("Event_guildId", fields: [guildId], references: [id])
+  id             String          @id @default(cuid())
+  title          String
+  slug           String          @unique
+  description    String?         @db.Text
+  type           EventType       @default(MEETING)
+  visibility     EventVisibility @default(PUBLIC)
+  status         EventStatus     @default(SCHEDULED)
+  location       String?
+  locationUrl    String?
+  isOnline       Boolean         @default(false)
+  meetingUrl     String?
+  timezone       String          @default("UTC")
+  startDate      DateTime
+  endDate        DateTime
+  maxAttendees   Int?
+  attendeesCount Int             @default(0)
+  coverImage     String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  organizerId    String
+  projectId      String?
+  guildId        String?
+  organizer      User            @relation("Event_organizerId", fields: [organizerId], references: [id])
+  project        Project?        @relation("Event_projectId", fields: [projectId], references: [id])
+  guild          Guild?          @relation("Event_guildId", fields: [guildId], references: [id])
   eventAttendees EventAttendee[] @relation("EventAttendee_eventId")
-  eventCoHosts EventCoHost[] @relation("EventCoHost_eventId")
+  eventCoHosts   EventCoHost[]   @relation("EventCoHost_eventId")
   eventReminders EventReminder[] @relation("EventReminder_eventId")
 }
 
 model EventAttendee {
-  id String @id @default(cuid())
-  eventId String
-  userId String
-  status AttendeeStatus @default(GOING)
-  rsvpAt DateTime @default(now())
+  id         String         @id @default(cuid())
+  eventId    String
+  userId     String
+  status     AttendeeStatus @default(GOING)
+  rsvpAt     DateTime       @default(now())
   attendedAt DateTime?
-  notes String? @db.Text
-  event Event @relation("EventAttendee_eventId", fields: [eventId], references: [id])
-  user User @relation("EventAttendee_userId", fields: [userId], references: [id])
+  notes      String?        @db.Text
+  event      Event          @relation("EventAttendee_eventId", fields: [eventId], references: [id])
+  user       User           @relation("EventAttendee_userId", fields: [userId], references: [id])
 
   @@unique([eventId, userId])
 }
 
 model EventCoHost {
-  id String @id @default(cuid())
+  id      String   @id @default(cuid())
   eventId String
-  userId String
+  userId  String
   addedAt DateTime @default(now())
-  event Event @relation("EventCoHost_eventId", fields: [eventId], references: [id])
-  user User @relation("EventCoHost_userId", fields: [userId], references: [id])
+  event   Event    @relation("EventCoHost_eventId", fields: [eventId], references: [id])
+  user    User     @relation("EventCoHost_userId", fields: [userId], references: [id])
 
   @@unique([eventId, userId])
 }
 
 model EventReminder {
-  id String @id @default(cuid())
-  eventId String
-  userId String
-  remindAt DateTime
-  isSent Boolean @default(false)
-  sentAt DateTime?
-  createdAt DateTime @default(now())
-  event Event @relation("EventReminder_eventId", fields: [eventId], references: [id])
-  user User @relation("EventReminder_userId", fields: [userId], references: [id])
+  id        String    @id @default(cuid())
+  eventId   String
+  userId    String
+  remindAt  DateTime
+  isSent    Boolean   @default(false)
+  sentAt    DateTime?
+  createdAt DateTime  @default(now())
+  event     Event     @relation("EventReminder_eventId", fields: [eventId], references: [id])
+  user      User      @relation("EventReminder_userId", fields: [userId], references: [id])
 }
 
 model UserFollow {
-  id String @id @default(cuid())
-  followerId String
+  id          String   @id @default(cuid())
+  followerId  String
   followingId String
-  createdAt DateTime @default(now())
-  follower User @relation("UserFollow_followerId", fields: [followerId], references: [id])
-  following User @relation("UserFollow_followingId", fields: [followingId], references: [id])
+  createdAt   DateTime @default(now())
+  follower    User     @relation("UserFollow_followerId", fields: [followerId], references: [id])
+  following   User     @relation("UserFollow_followingId", fields: [followingId], references: [id])
 
   @@unique([followerId, followingId])
 }
 
 model ProjectFollow {
-  id String @id @default(cuid())
-  userId String
-  projectId String
-  notifyUpdates Boolean @default(true)
-  notifyMilestones Boolean @default(true)
-  notifyProposals Boolean @default(false)
-  createdAt DateTime @default(now())
-  user User @relation("ProjectFollow_userId", fields: [userId], references: [id])
-  project Project @relation("ProjectFollow_projectId", fields: [projectId], references: [id])
+  id               String   @id @default(cuid())
+  userId           String
+  projectId        String
+  notifyUpdates    Boolean  @default(true)
+  notifyMilestones Boolean  @default(true)
+  notifyProposals  Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  user             User     @relation("ProjectFollow_userId", fields: [userId], references: [id])
+  project          Project  @relation("ProjectFollow_projectId", fields: [projectId], references: [id])
 
   @@unique([userId, projectId])
 }
 
 model GuildFollow {
-  id String @id @default(cuid())
-  userId String
-  guildId String
-  notifyUpdates Boolean @default(true)
-  notifyEvents Boolean @default(true)
-  notifyProjects Boolean @default(false)
-  createdAt DateTime @default(now())
-  user User @relation("GuildFollow_userId", fields: [userId], references: [id])
-  guild Guild @relation("GuildFollow_guildId", fields: [guildId], references: [id])
+  id             String   @id @default(cuid())
+  userId         String
+  guildId        String
+  notifyUpdates  Boolean  @default(true)
+  notifyEvents   Boolean  @default(true)
+  notifyProjects Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  user           User     @relation("GuildFollow_userId", fields: [userId], references: [id])
+  guild          Guild    @relation("GuildFollow_guildId", fields: [guildId], references: [id])
 
   @@unique([userId, guildId])
 }
 
 model Opportunity {
-  id String @id @default(cuid())
-  title String
-  slug String @unique
-  description String @db.Text
-  type OpportunityType
-  origin OpportunityOrigin @default(TEAM_POSITION)
-  status OpportunityStatus @default(DRAFT)
-  experienceLevel ExperienceLevel @default(MID)
-  requirements String? @db.Text
-  skills String? @db.Text
-  benefits String? @db.Text
-  location String?
-  isRemote Boolean @default(true)
-  compensation Decimal? @db.Decimal(18, 8)
-  compensationDetails String?
-  deadline DateTime?
-  maxApplications Int?
-  applicationsCount Int @default(0)
-  bidsCount Int @default(0)
-  coverImage String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  closedAt DateTime?
-  posterId String
-  guildId String?
-  projectId String?
-  taskId String?
-  projectRole ProjectRole?
-  projectTasks ProjectTask[] @relation("ProjectTask_opportunityId")
-  poster User @relation("Opportunity_posterId", fields: [posterId], references: [id])
-  guild Guild? @relation("Opportunity_guildId", fields: [guildId], references: [id])
-  project Project? @relation("Opportunity_projectId", fields: [projectId], references: [id])
-  task ProjectTask? @relation("Opportunity_taskId", fields: [taskId], references: [id])
+  id                      String                   @id @default(cuid())
+  title                   String
+  slug                    String                   @unique
+  description             String                   @db.Text
+  type                    OpportunityType
+  origin                  OpportunityOrigin        @default(TEAM_POSITION)
+  status                  OpportunityStatus        @default(DRAFT)
+  experienceLevel         ExperienceLevel          @default(MID)
+  requirements            String?                  @db.Text
+  skills                  String?                  @db.Text
+  benefits                String?                  @db.Text
+  location                String?
+  isRemote                Boolean                  @default(true)
+  compensation            Decimal?                 @db.Decimal(18, 8)
+  compensationDetails     String?
+  deadline                DateTime?
+  maxApplications         Int?
+  applicationsCount       Int                      @default(0)
+  bidsCount               Int                      @default(0)
+  coverImage              String?
+  createdAt               DateTime                 @default(now())
+  updatedAt               DateTime                 @updatedAt
+  closedAt                DateTime?
+  posterId                String
+  guildId                 String?
+  projectId               String?
+  taskId                  String?
+  projectRole             ProjectRole?
+  projectTasks            ProjectTask[]            @relation("ProjectTask_opportunityId")
+  poster                  User                     @relation("Opportunity_posterId", fields: [posterId], references: [id])
+  guild                   Guild?                   @relation("Opportunity_guildId", fields: [guildId], references: [id])
+  project                 Project?                 @relation("Opportunity_projectId", fields: [projectId], references: [id])
+  task                    ProjectTask?             @relation("Opportunity_taskId", fields: [taskId], references: [id])
   opportunityApplications OpportunityApplication[] @relation("OpportunityApplication_opportunityId")
-  opportunityUpdates OpportunityUpdate[] @relation("OpportunityUpdate_opportunityId")
-  opportunityComments OpportunityComment[] @relation("OpportunityComment_opportunityId")
-  opportunityBids OpportunityBid[] @relation("OpportunityBid_opportunityId")
+  opportunityUpdates      OpportunityUpdate[]      @relation("OpportunityUpdate_opportunityId")
+  opportunityComments     OpportunityComment[]     @relation("OpportunityComment_opportunityId")
+  opportunityBids         OpportunityBid[]         @relation("OpportunityBid_opportunityId")
 }
 
 model OpportunityApplication {
-  id String @id @default(cuid())
-  opportunityId String
-  applicantId String
-  coverLetter String @db.Text
-  portfolio String? @db.Text
-  additionalInfo String? @db.Text
-  status ApplicationStatus @default(PENDING)
-  reviewNotes String? @db.Text
-  appliedAt DateTime @default(now())
-  reviewedAt DateTime?
-  opportunity Opportunity @relation("OpportunityApplication_opportunityId", fields: [opportunityId], references: [id])
-  applicant User @relation("OpportunityApplication_applicantId", fields: [applicantId], references: [id])
+  id             String            @id @default(cuid())
+  opportunityId  String
+  applicantId    String
+  coverLetter    String            @db.Text
+  portfolio      String?           @db.Text
+  additionalInfo String?           @db.Text
+  status         ApplicationStatus @default(PENDING)
+  reviewNotes    String?           @db.Text
+  appliedAt      DateTime          @default(now())
+  reviewedAt     DateTime?
+  opportunity    Opportunity       @relation("OpportunityApplication_opportunityId", fields: [opportunityId], references: [id])
+  applicant      User              @relation("OpportunityApplication_applicantId", fields: [applicantId], references: [id])
 
   @@unique([opportunityId, applicantId])
 }
 
 model OpportunityUpdate {
-  id String @id @default(cuid())
+  id            String      @id @default(cuid())
   opportunityId String
-  userId String
-  title String
-  content String @db.Text
-  images String? @db.Text
-  createdAt DateTime @default(now())
-  opportunity Opportunity @relation("OpportunityUpdate_opportunityId", fields: [opportunityId], references: [id])
-  user User @relation("OpportunityUpdate_userId", fields: [userId], references: [id])
+  userId        String
+  title         String
+  content       String      @db.Text
+  images        String?     @db.Text
+  createdAt     DateTime    @default(now())
+  opportunity   Opportunity @relation("OpportunityUpdate_opportunityId", fields: [opportunityId], references: [id])
+  user          User        @relation("OpportunityUpdate_userId", fields: [userId], references: [id])
 }
 
 model OpportunityComment {
-  id String @id @default(cuid())
-  opportunityId String
-  userId String
-  content String @db.Text
-  parentId String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  opportunity Opportunity @relation("OpportunityComment_opportunityId", fields: [opportunityId], references: [id])
-  user User @relation("OpportunityComment_userId", fields: [userId], references: [id])
-  parent OpportunityComment? @relation("OpportunityComment_parentId", fields: [parentId], references: [id])
+  id             String               @id @default(cuid())
+  opportunityId  String
+  userId         String
+  content        String               @db.Text
+  parentId       String?
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+  opportunity    Opportunity          @relation("OpportunityComment_opportunityId", fields: [opportunityId], references: [id])
+  user           User                 @relation("OpportunityComment_userId", fields: [userId], references: [id])
+  parent         OpportunityComment?  @relation("OpportunityComment_parentId", fields: [parentId], references: [id])
   parentChildren OpportunityComment[] @relation("OpportunityComment_parentId")
 }
 
 model OpportunityBid {
-  id String @id @default(cuid())
-  opportunityId String
-  bidderId String
-  guildId String?
-  proposedAmount Decimal? @db.Decimal(18, 8)
-  proposal String @db.Text
-  estimatedHours Int?
-  timeline String? @db.Text
-  deliverables String? @db.Text
-  status BidStatus @default(SUBMITTED)
-  createdAt DateTime @default(now())
-  reviewedAt DateTime?
-  opportunity Opportunity @relation("OpportunityBid_opportunityId", fields: [opportunityId], references: [id])
-  bidder User @relation("OpportunityBid_bidderId", fields: [bidderId], references: [id])
-  guild Guild? @relation("OpportunityBid_guildId", fields: [guildId], references: [id])
+  id                     String                  @id @default(cuid())
+  opportunityId          String
+  bidderId               String
+  guildId                String?
+  proposedAmount         Decimal?                @db.Decimal(18, 8)
+  proposal               String                  @db.Text
+  estimatedHours         Int?
+  timeline               String?                 @db.Text
+  deliverables           String?                 @db.Text
+  status                 BidStatus               @default(SUBMITTED)
+  createdAt              DateTime                @default(now())
+  reviewedAt             DateTime?
+  opportunity            Opportunity             @relation("OpportunityBid_opportunityId", fields: [opportunityId], references: [id])
+  bidder                 User                    @relation("OpportunityBid_bidderId", fields: [bidderId], references: [id])
+  guild                  Guild?                  @relation("OpportunityBid_guildId", fields: [guildId], references: [id])
   taskCommerceAgreements TaskCommerceAgreement[] @relation("TaskCommerceAgreement_bidId")
 
   @@unique([opportunityId, bidderId])
 }
 
 model KycSubmission {
-  id String @id @default(cuid())
-  userId String
-  provider KycProvider @default(MANUAL)
-  status KycStatus @default(PENDING)
-  reviewerId String?
-  reviewNotes String? @db.Text
-  rejectionReason String?
+  id                String        @id @default(cuid())
+  userId            String
+  provider          KycProvider   @default(MANUAL)
+  status            KycStatus     @default(PENDING)
+  reviewerId        String?
+  reviewNotes       String?       @db.Text
+  rejectionReason   String?
   providerSessionId String?
-  providerResult String? @db.Text
-  submittedAt DateTime @default(now())
-  reviewedAt DateTime?
-  expiresAt DateTime?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  user User @relation("KycSubmission_userId", fields: [userId], references: [id])
-  reviewer User? @relation("KycSubmission_reviewerId", fields: [reviewerId], references: [id])
-  kycDocuments KycDocument[] @relation("KycDocument_submissionId")
+  providerResult    String?       @db.Text
+  submittedAt       DateTime      @default(now())
+  reviewedAt        DateTime?
+  expiresAt         DateTime?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  user              User          @relation("KycSubmission_userId", fields: [userId], references: [id])
+  reviewer          User?         @relation("KycSubmission_reviewerId", fields: [reviewerId], references: [id])
+  kycDocuments      KycDocument[] @relation("KycDocument_submissionId")
 
   @@index([userId, status])
 }
 
 model KycDocument {
-  id String @id @default(cuid())
-  submissionId String
-  type KycDocumentType
-  fileUrl String
-  fileName String
-  mimeType String?
+  id            String          @id @default(cuid())
+  submissionId  String
+  type          KycDocumentType
+  fileUrl       String
+  fileName      String
+  mimeType      String?
   fileSizeBytes Int?
-  metadata String? @db.Text
-  createdAt DateTime @default(now())
-  submission KycSubmission @relation("KycDocument_submissionId", fields: [submissionId], references: [id])
+  metadata      String?         @db.Text
+  createdAt     DateTime        @default(now())
+  submission    KycSubmission   @relation("KycDocument_submissionId", fields: [submissionId], references: [id])
 
   @@unique([submissionId, type])
 }
 
 model ProjectTokenConfig {
-  id String @id @default(cuid())
-  projectId String @unique
-  assetId String?
-  assetName String
-  unitName String
-  assetScale Int @default(6)
-  totalSupply Int
-  allocatedSupply Int @default(0)
-  distributedSupply Int @default(0)
-  reservedSupply Int @default(0)
-  mintTxHash String?
-  status ProjectTokenStatus @default(PENDING)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  fundingGoal Float
-  fundingRaised Float @default(0)
-  gateStatus ProjectGateStatus @default(FUNDING)
-  gate1ClearedAt DateTime?
-  gate2ClearedAt DateTime?
-  failedAt DateTime?
-  contributorSupply Int @default(0)
-  investorSupply Int @default(0)
-  founderSupply Int @default(0)
-  burnedSupply Int @default(0)
-  successCriteria String? @db.Text
-  successVerifiedBy String?
-  project Project @relation("ProjectTokenConfig_projectId", fields: [projectId], references: [id])
-  tokenAllocations TokenAllocation[] @relation("TokenAllocation_projectTokenConfigId")
-  tokenBalances TokenBalance[] @relation("TokenBalance_projectTokenConfigId")
-  payoutRequests PayoutRequest[] @relation("PayoutRequest_sourceProjectTokenConfigId")
-  projectInvestments ProjectInvestment[] @relation("ProjectInvestment_projectTokenConfigId")
-  fundingIntents FundingIntent[] @relation("FundingIntent_projectTokenConfigId")
+  id                     String                  @id @default(cuid())
+  projectId              String                  @unique
+  assetId                String?
+  assetName              String
+  unitName               String
+  assetScale             Int?
+  totalSupply            Int
+  allocatedSupply        Int                     @default(0)
+  distributedSupply      Int                     @default(0)
+  reservedSupply         Int                     @default(0)
+  mintTxHash             String?
+  status                 ProjectTokenStatus      @default(PENDING)
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+  fundingGoal            Float
+  fundingRaised          Float                   @default(0)
+  gateStatus             ProjectGateStatus       @default(FUNDING)
+  gate1ClearedAt         DateTime?
+  gate2ClearedAt         DateTime?
+  failedAt               DateTime?
+  contributorSupply      Int                     @default(0)
+  investorSupply         Int                     @default(0)
+  founderSupply          Int                     @default(0)
+  burnedSupply           Int                     @default(0)
+  successCriteria        String?                 @db.Text
+  successVerifiedBy      String?
+  project                Project                 @relation("ProjectTokenConfig_projectId", fields: [projectId], references: [id])
+  tokenAllocations       TokenAllocation[]       @relation("TokenAllocation_projectTokenConfigId")
+  tokenBalances          TokenBalance[]          @relation("TokenBalance_projectTokenConfigId")
+  payoutRequests         PayoutRequest[]         @relation("PayoutRequest_sourceProjectTokenConfigId")
+  projectInvestments     ProjectInvestment[]     @relation("ProjectInvestment_projectTokenConfigId")
+  fundingIntents         FundingIntent[]         @relation("FundingIntent_projectTokenConfigId")
   taskCommerceAgreements TaskCommerceAgreement[] @relation("TaskCommerceAgreement_projectTokenConfigId")
 }
 
 model TokenAllocation {
-  id String @id @default(cuid())
+  id                   String              @id @default(cuid())
   projectTokenConfigId String
-  pbiId String?
-  recipientUserId String?
-  equityPercentage Float
-  tokenAmount Int
-  status AllocationStatus @default(RESERVED)
-  holderClass TokenHolderClass
-  isLiquid Boolean @default(false)
-  distributedAt DateTime?
-  distributionTxHash String?
-  burnedAt DateTime?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  projectTokenConfig ProjectTokenConfig @relation("TokenAllocation_projectTokenConfigId", fields: [projectTokenConfigId], references: [id])
-  pbi ProductBacklogItem? @relation("TokenAllocation_pbiId", fields: [pbiId], references: [id])
-  recipientUser User? @relation("TokenAllocation_recipientUserId", fields: [recipientUserId], references: [id])
+  pbiId                String?
+  recipientUserId      String?
+  equityPercentage     Float
+  tokenAmount          Int
+  status               AllocationStatus    @default(RESERVED)
+  holderClass          TokenHolderClass
+  isLiquid             Boolean             @default(false)
+  distributedAt        DateTime?
+  distributionTxHash   String?
+  burnedAt             DateTime?
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+  projectTokenConfig   ProjectTokenConfig  @relation("TokenAllocation_projectTokenConfigId", fields: [projectTokenConfigId], references: [id])
+  pbi                  ProductBacklogItem? @relation("TokenAllocation_pbiId", fields: [pbiId], references: [id])
+  recipientUser        User?               @relation("TokenAllocation_recipientUserId", fields: [recipientUserId], references: [id])
 }
 
 model TokenBalance {
-  id String @id @default(cuid())
-  userId String
+  id                   String              @id @default(cuid())
+  userId               String
   projectTokenConfigId String?
-  isPlatformToken Boolean @default(false)
-  holderClass TokenHolderClass?
-  isLiquid Boolean @default(false)
-  balance Int @default(0)
-  lockedBalance Int @default(0)
-  updatedAt DateTime @updatedAt
-  user User @relation("TokenBalance_userId", fields: [userId], references: [id])
-  projectTokenConfig ProjectTokenConfig? @relation("TokenBalance_projectTokenConfigId", fields: [projectTokenConfigId], references: [id])
+  isPlatformToken      Boolean             @default(false)
+  holderClass          TokenHolderClass?
+  isLiquid             Boolean             @default(false)
+  balance              Int                 @default(0)
+  lockedBalance        Int                 @default(0)
+  updatedAt            DateTime            @updatedAt
+  user                 User                @relation("TokenBalance_userId", fields: [userId], references: [id])
+  projectTokenConfig   ProjectTokenConfig? @relation("TokenBalance_projectTokenConfigId", fields: [projectTokenConfigId], references: [id])
 
   @@unique([userId, projectTokenConfigId, holderClass])
 }
 
 model PayoutRequest {
-  id String @id @default(cuid())
-  userId String
+  id                         String              @id @default(cuid())
+  userId                     String
   sourceProjectTokenConfigId String?
-  sourceTokenAmount Int
-  ardaTokenAmount Int?
-  usdAmount Float?
-  status PayoutStatus @default(PENDING)
-  holderClass TokenHolderClass
-  gateStatusAtRequest ProjectGateStatus
-  conversionTxHash String?
-  payoutTxHash String?
-  stripePayoutId String?
-  failureReason String?
-  requestedAt DateTime @default(now())
-  processedAt DateTime?
-  completedAt DateTime?
-  user User @relation("PayoutRequest_userId", fields: [userId], references: [id])
-  sourceProjectTokenConfig ProjectTokenConfig? @relation("PayoutRequest_sourceProjectTokenConfigId", fields: [sourceProjectTokenConfigId], references: [id])
+  sourceTokenAmount          Int
+  ardaTokenAmount            Int?
+  usdAmount                  Float?
+  status                     PayoutStatus        @default(PENDING)
+  holderClass                TokenHolderClass
+  gateStatusAtRequest        ProjectGateStatus
+  conversionTxHash           String?
+  payoutTxHash               String?
+  stripePayoutId             String?
+  failureReason              String?
+  requestedAt                DateTime            @default(now())
+  processedAt                DateTime?
+  completedAt                DateTime?
+  user                       User                @relation("PayoutRequest_userId", fields: [userId], references: [id])
+  sourceProjectTokenConfig   ProjectTokenConfig? @relation("PayoutRequest_sourceProjectTokenConfigId", fields: [sourceProjectTokenConfigId], references: [id])
 }
 
 model PlatformTreasury {
-  id String @id @default(cuid())
-  singletonKey String @unique @default("SINGLETON")
-  ardaTotalSupply BigInt
-  ardaCirculatingSupply BigInt @default(0)
-  ardaAssetId String?
-  ardaMintTxHash String?
-  indexFundBalance Float @default(0)
-  liquidReserveBalance Float @default(0)
-  operationsBalance Float @default(0)
-  indexFundAllocationPct Float @default(0.55)
-  liquidReserveAllocationPct Float @default(0.3)
-  operationsAllocationPct Float @default(0.15)
-  indexFundAnnualReturn Float @default(0.08)
-  platformProfitSharePct Float @default(0.25)
-  trustProtectionRate Float @default(0.5)
-  totalInflows Float @default(0)
-  totalPayouts Float @default(0)
-  totalRebalanceTransfers Float @default(0)
-  lastRebalanceAt DateTime?
-  lastReconciliationAt DateTime?
-  updatedAt DateTime @updatedAt
+  id                         String    @id @default(cuid())
+  singletonKey               String    @unique @default("SINGLETON")
+  ardaTotalSupply            BigInt
+  ardaCirculatingSupply      BigInt    @default(0)
+  ardaAssetId                String?
+  ardaMintTxHash             String?
+  indexFundBalance           Float     @default(0)
+  liquidReserveBalance       Float     @default(0)
+  operationsBalance          Float     @default(0)
+  indexFundAllocationPct     Float     @default(0.55)
+  liquidReserveAllocationPct Float     @default(0.3)
+  operationsAllocationPct    Float     @default(0.15)
+  indexFundAnnualReturn      Float     @default(0.08)
+  platformProfitSharePct     Float     @default(0.25)
+  trustProtectionRate        Float     @default(0.5)
+  totalInflows               Float     @default(0)
+  totalPayouts               Float     @default(0)
+  totalRebalanceTransfers    Float     @default(0)
+  lastRebalanceAt            DateTime?
+  lastReconciliationAt       DateTime?
+  updatedAt                  DateTime  @updatedAt
 }
 
 model PlatformTreasuryTransaction {
-  id String @id @default(cuid())
-  type PlatformTreasuryTransactionType
-  amount Float
-  fromBucket String?
-  toBucket String?
-  relatedProjectId String?
+  id                     String                          @id @default(cuid())
+  type                   PlatformTreasuryTransactionType
+  amount                 Float
+  fromBucket             String?
+  toBucket               String?
+  relatedProjectId       String?
   relatedPayoutRequestId String?
-  description String?
-  balanceAfter Float
-  createdAt DateTime @default(now())
+  description            String?
+  balanceAfter           Float
+  createdAt              DateTime                        @default(now())
 }
 
 model ProjectInvestment {
-  id String @id @default(cuid())
-  projectTokenConfigId String
-  userId String
-  usdAmount Float
-  tokenAmount Int
-  stripePaymentIntentId String? @unique
-  investedAt DateTime @default(now())
-  protectionEligible Boolean @default(true)
-  protectionPaidOut Boolean @default(false)
-  protectionAmount Float?
-  protectionPaidAt DateTime?
-  projectTokenConfig ProjectTokenConfig @relation("ProjectInvestment_projectTokenConfigId", fields: [projectTokenConfigId], references: [id])
-  user User @relation("ProjectInvestment_userId", fields: [userId], references: [id])
+  id                    String             @id @default(cuid())
+  projectTokenConfigId  String
+  userId                String
+  usdAmount             Float
+  tokenAmount           Int
+  stripePaymentIntentId String?            @unique
+  investedAt            DateTime           @default(now())
+  protectionEligible    Boolean            @default(true)
+  protectionPaidOut     Boolean            @default(false)
+  protectionAmount      Float?
+  protectionPaidAt      DateTime?
+  projectTokenConfig    ProjectTokenConfig @relation("ProjectInvestment_projectTokenConfigId", fields: [projectTokenConfigId], references: [id])
+  user                  User               @relation("ProjectInvestment_userId", fields: [userId], references: [id])
 
   @@index([projectTokenConfigId, userId])
 }
 
 model StripeWebhookEvent {
-  id String @id
-  eventType String
-  status StripeWebhookEventStatus @default(PROCESSING)
-  attemptCount Int @default(1)
-  receivedAt DateTime @default(now())
+  id                       String                   @id
+  eventType                String
+  status                   StripeWebhookEventStatus @default(PROCESSING)
+  attemptCount             Int                      @default(1)
+  receivedAt               DateTime                 @default(now())
   processingLeaseExpiresAt DateTime
-  completedAt DateTime?
-  lastFailedAt DateTime?
+  completedAt              DateTime?
+  lastFailedAt             DateTime?
 
   @@index([status, processingLeaseExpiresAt])
 }
 
 model EconomicSettlement {
-  id String @id @default(cuid())
-  kind EconomicSettlementKind
-  status EconomicSettlementStatus @default(DRAFT)
-  idempotencyKey String @unique
-  externalEventId String? @unique
-  beneficiaryUserId String
-  authorizedByUserId String?
-  projectId String?
-  taskId String?
-  escrowId String?
-  assetCode String
-  amount Decimal @db.Decimal(38, 18)
-  scale Int @default(18)
-  termsSnapshot Json?
-  azoaOperationId String?
-  azoaReceipt Json?
-  azoaReplayed Boolean?
-  failureCode String?
-  failureDetail String?
-  version Int @default(0)
-  createdAt DateTime @default(now())
-  authorizedAt DateTime?
-  submittedAt DateTime?
-  confirmedAt DateTime?
-  updatedAt DateTime @updatedAt
-  beneficiaryUser User @relation("EconomicSettlement_beneficiaryUserId", fields: [beneficiaryUserId], references: [id])
-  authorizedByUser User? @relation("EconomicSettlement_authorizedByUserId", fields: [authorizedByUserId], references: [id])
-  project Project? @relation("EconomicSettlement_projectId", fields: [projectId], references: [id])
-  task ProjectTask? @relation("EconomicSettlement_taskId", fields: [taskId], references: [id])
-  escrow TaskEscrow? @relation("EconomicSettlement_escrowId", fields: [escrowId], references: [id])
-  economicOutboxes EconomicOutbox[] @relation("EconomicOutbox_settlementId")
-  fundingIntents FundingIntent[] @relation("FundingIntent_settlementId")
-  taskCommerceAgreements TaskCommerceAgreement[] @relation("TaskCommerceAgreement_settlementId")
+  id                     String                   @id @default(cuid())
+  kind                   EconomicSettlementKind
+  status                 EconomicSettlementStatus @default(DRAFT)
+  idempotencyKey         String                   @unique
+  externalEventId        String?                  @unique
+  beneficiaryUserId      String
+  authorizedByUserId     String?
+  projectId              String?
+  taskId                 String?
+  escrowId               String?
+  assetCode              String
+  amount                 Decimal                  @db.Decimal(38, 18)
+  scale                  Int                      @default(18)
+  termsSnapshot          Json?
+  azoaOperationId        String?
+  azoaReceipt            Json?
+  azoaReplayed           Boolean?
+  failureCode            String?
+  failureDetail          String?
+  version                Int                      @default(0)
+  createdAt              DateTime                 @default(now())
+  authorizedAt           DateTime?
+  submittedAt            DateTime?
+  confirmedAt            DateTime?
+  updatedAt              DateTime                 @updatedAt
+  beneficiaryUser        User                     @relation("EconomicSettlement_beneficiaryUserId", fields: [beneficiaryUserId], references: [id])
+  authorizedByUser       User?                    @relation("EconomicSettlement_authorizedByUserId", fields: [authorizedByUserId], references: [id])
+  project                Project?                 @relation("EconomicSettlement_projectId", fields: [projectId], references: [id])
+  task                   ProjectTask?             @relation("EconomicSettlement_taskId", fields: [taskId], references: [id])
+  escrow                 TaskEscrow?              @relation("EconomicSettlement_escrowId", fields: [escrowId], references: [id])
+  economicOutboxes       EconomicOutbox[]         @relation("EconomicOutbox_settlementId")
+  fundingIntents         FundingIntent[]          @relation("FundingIntent_settlementId")
+  taskCommerceAgreements TaskCommerceAgreement[]  @relation("TaskCommerceAgreement_settlementId")
 
   @@index([beneficiaryUserId, status])
   @@index([projectId, status])
@@ -2532,57 +2536,57 @@ model EconomicSettlement {
 }
 
 model EconomicOutbox {
-  id String @id @default(cuid())
-  settlementId String @unique
-  status EconomicOutboxStatus @default(PENDING)
-  payloadVersion Int @default(1)
-  attemptCount Int @default(0)
-  availableAt DateTime @default(now())
-  leaseToken String?
-  leaseExpiresAt DateTime?
-  lastAttemptAt DateTime?
-  dispatchedAt DateTime?
+  id                       String               @id @default(cuid())
+  settlementId             String               @unique
+  status                   EconomicOutboxStatus @default(PENDING)
+  payloadVersion           Int                  @default(1)
+  attemptCount             Int                  @default(0)
+  availableAt              DateTime             @default(now())
+  leaseToken               String?
+  leaseExpiresAt           DateTime?
+  lastAttemptAt            DateTime?
+  dispatchedAt             DateTime?
   reconciliationRequiredAt DateTime?
-  failureCode String?
-  failureDetail String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  settlement EconomicSettlement @relation("EconomicOutbox_settlementId", fields: [settlementId], references: [id])
+  failureCode              String?
+  failureDetail            String?
+  createdAt                DateTime             @default(now())
+  updatedAt                DateTime             @updatedAt
+  settlement               EconomicSettlement   @relation("EconomicOutbox_settlementId", fields: [settlementId], references: [id])
 
   @@index([status, availableAt])
   @@index([leaseExpiresAt])
 }
 
 model FundingIntent {
-  id String @id @default(cuid())
-  semanticKey String @unique
-  idempotencyKey String
-  status FundingIntentStatus @default(DRAFT)
-  funderUserId String
-  projectId String
-  projectTokenConfigId String
-  currencyCode String
-  amount Decimal @db.Decimal(38, 18)
-  scale Int @default(2)
-  disclosureVersion String
-  eligibilitySnapshot Json
-  termsSnapshot Json
-  termsHash String
-  paymentProvider String?
-  providerCheckoutSessionId String? @unique
-  providerPaymentIntentId String? @unique
-  verifiedProviderEventId String? @unique
-  settlementId String? @unique
-  expiresAt DateTime?
-  paymentVerifiedAt DateTime?
-  settledAt DateTime?
-  cancelledAt DateTime?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  funderUser User @relation("FundingIntent_funderUserId", fields: [funderUserId], references: [id])
-  project Project @relation("FundingIntent_projectId", fields: [projectId], references: [id])
-  projectTokenConfig ProjectTokenConfig @relation("FundingIntent_projectTokenConfigId", fields: [projectTokenConfigId], references: [id])
-  settlement EconomicSettlement? @relation("FundingIntent_settlementId", fields: [settlementId], references: [id])
+  id                        String              @id @default(cuid())
+  semanticKey               String              @unique
+  idempotencyKey            String
+  status                    FundingIntentStatus @default(DRAFT)
+  funderUserId              String
+  projectId                 String
+  projectTokenConfigId      String
+  currencyCode              String
+  amount                    Decimal             @db.Decimal(38, 18)
+  scale                     Int                 @default(2)
+  disclosureVersion         String
+  eligibilitySnapshot       Json
+  termsSnapshot             Json
+  termsHash                 String
+  paymentProvider           String?
+  providerCheckoutSessionId String?             @unique
+  providerPaymentIntentId   String?             @unique
+  verifiedProviderEventId   String?             @unique
+  settlementId              String?             @unique
+  expiresAt                 DateTime?
+  paymentVerifiedAt         DateTime?
+  settledAt                 DateTime?
+  cancelledAt               DateTime?
+  createdAt                 DateTime            @default(now())
+  updatedAt                 DateTime            @updatedAt
+  funderUser                User                @relation("FundingIntent_funderUserId", fields: [funderUserId], references: [id])
+  project                   Project             @relation("FundingIntent_projectId", fields: [projectId], references: [id])
+  projectTokenConfig        ProjectTokenConfig  @relation("FundingIntent_projectTokenConfigId", fields: [projectTokenConfigId], references: [id])
+  settlement                EconomicSettlement? @relation("FundingIntent_settlementId", fields: [settlementId], references: [id])
 
   @@unique([funderUserId, idempotencyKey])
   @@index([funderUserId, status])
@@ -2591,35 +2595,35 @@ model FundingIntent {
 }
 
 model TaskCommerceAgreement {
-  id String @id @default(cuid())
-  semanticKey String @unique
-  status TaskCommerceAgreementStatus @default(DRAFT)
-  projectId String
-  taskId String @unique
-  bidId String @unique
-  contributorUserId String
-  projectTokenConfigId String?
-  assetCode String
-  awardAmount Decimal @db.Decimal(38, 18)
-  scale Int @default(18)
+  id                    String                      @id @default(cuid())
+  semanticKey           String                      @unique
+  status                TaskCommerceAgreementStatus @default(DRAFT)
+  projectId             String
+  taskId                String                      @unique
+  bidId                 String                      @unique
+  contributorUserId     String
+  projectTokenConfigId  String?
+  assetCode             String
+  awardAmount           Decimal                     @db.Decimal(38, 18)
+  scale                 Int                         @default(18)
   acceptedTermsSnapshot Json
-  termsHash String
-  escrowId String? @unique
-  questRunId String?
-  settlementId String? @unique
-  acceptedAt DateTime?
-  releaseAuthorizedAt DateTime?
-  settledAt DateTime?
-  cancelledAt DateTime?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  project Project @relation("TaskCommerceAgreement_projectId", fields: [projectId], references: [id])
-  task ProjectTask @relation("TaskCommerceAgreement_taskId", fields: [taskId], references: [id])
-  bid OpportunityBid @relation("TaskCommerceAgreement_bidId", fields: [bidId], references: [id])
-  contributorUser User @relation("TaskCommerceAgreement_contributorUserId", fields: [contributorUserId], references: [id])
-  projectTokenConfig ProjectTokenConfig? @relation("TaskCommerceAgreement_projectTokenConfigId", fields: [projectTokenConfigId], references: [id])
-  escrow TaskEscrow? @relation("TaskCommerceAgreement_escrowId", fields: [escrowId], references: [id])
-  settlement EconomicSettlement? @relation("TaskCommerceAgreement_settlementId", fields: [settlementId], references: [id])
+  termsHash             String
+  escrowId              String?                     @unique
+  questRunId            String?
+  settlementId          String?                     @unique
+  acceptedAt            DateTime?
+  releaseAuthorizedAt   DateTime?
+  settledAt             DateTime?
+  cancelledAt           DateTime?
+  createdAt             DateTime                    @default(now())
+  updatedAt             DateTime                    @updatedAt
+  project               Project                     @relation("TaskCommerceAgreement_projectId", fields: [projectId], references: [id])
+  task                  ProjectTask                 @relation("TaskCommerceAgreement_taskId", fields: [taskId], references: [id])
+  bid                   OpportunityBid              @relation("TaskCommerceAgreement_bidId", fields: [bidId], references: [id])
+  contributorUser       User                        @relation("TaskCommerceAgreement_contributorUserId", fields: [contributorUserId], references: [id])
+  projectTokenConfig    ProjectTokenConfig?         @relation("TaskCommerceAgreement_projectTokenConfigId", fields: [projectTokenConfigId], references: [id])
+  escrow                TaskEscrow?                 @relation("TaskCommerceAgreement_escrowId", fields: [escrowId], references: [id])
+  settlement            EconomicSettlement?         @relation("TaskCommerceAgreement_settlementId", fields: [settlementId], references: [id])
 
   @@index([contributorUserId, status])
   @@index([projectId, status])

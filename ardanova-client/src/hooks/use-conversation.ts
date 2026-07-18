@@ -6,22 +6,28 @@ import { useEventSubscription } from "./use-event-subscription";
 import type {
   ChatMessageSentEvent,
   ChatMessageReadEvent,
-  ChatTypingEvent
+  ChatTypingEvent,
 } from "~/lib/websocket/types";
+import { createReadReceiptQueue } from "~/lib/chat/read-receipt";
 
 interface UseConversationOptions {
   conversationId: string;
   enabled?: boolean;
 }
 
-export function useConversation({ conversationId, enabled = true }: UseConversationOptions) {
+export function useConversation({
+  conversationId,
+  enabled = true,
+}: UseConversationOptions) {
   const utils = api.useUtils();
-  const [typingUsers, setTypingUsers] = useState<Map<string, { name: string; timeout: NodeJS.Timeout }>>(new Map());
+  const [typingUsers, setTypingUsers] = useState<
+    Map<string, { name: string; timeout: ReturnType<typeof setTimeout> }>
+  >(new Map());
 
   // Fetch conversation details
   const conversationQuery = api.chat.getConversation.useQuery(
     { conversationId },
-    { enabled: enabled && !!conversationId }
+    { enabled: enabled && !!conversationId, retry: false },
   );
 
   // Fetch messages with infinite scroll (older messages)
@@ -30,7 +36,8 @@ export function useConversation({ conversationId, enabled = true }: UseConversat
     {
       enabled: enabled && !!conversationId,
       getNextPageParam: (lastPage) => lastPage.nextCursor,
-    }
+      retry: false,
+    },
   );
 
   // Send message mutation
@@ -57,97 +64,110 @@ export function useConversation({ conversationId, enabled = true }: UseConversat
   // Real-time: new message in this conversation
   useEventSubscription<ChatMessageSentEvent>(
     "chat.message_sent",
-    useCallback((event) => {
-      if (event.conversationId !== conversationId) return;
-      void utils.chat.getMessages.invalidate({ conversationId });
-    }, [conversationId, utils]),
-    [conversationId]
+    useCallback(
+      (event) => {
+        if (event.conversationId !== conversationId) return;
+        void utils.chat.getMessages.invalidate({ conversationId });
+      },
+      [conversationId, utils],
+    ),
+    [conversationId],
   );
 
   // Real-time: message read - only update conversation list (unread counts), not messages
   useEventSubscription<ChatMessageReadEvent>(
     "chat.message_read",
-    useCallback((event) => {
-      if (event.conversationId !== conversationId) return;
-      void utils.chat.getConversations.invalidate();
-    }, [conversationId, utils]),
-    [conversationId]
+    useCallback(
+      (event) => {
+        if (event.conversationId !== conversationId) return;
+        void utils.chat.getConversations.invalidate();
+      },
+      [conversationId, utils],
+    ),
+    [conversationId],
   );
 
   // Real-time: typing indicator
   useEventSubscription<ChatTypingEvent>(
     "chat.typing",
-    useCallback((event) => {
-      if (event.conversationId !== conversationId) return;
+    useCallback(
+      (event) => {
+        if (event.conversationId !== conversationId) return;
 
-      setTypingUsers(prev => {
-        const updated = new Map(prev);
+        setTypingUsers((prev) => {
+          const updated = new Map(prev);
 
-        // Clear existing timeout
-        const existing = updated.get(event.userId);
-        if (existing) {
-          clearTimeout(existing.timeout);
-        }
+          // Clear existing timeout
+          const existing = updated.get(event.userId);
+          if (existing) {
+            clearTimeout(existing.timeout);
+          }
 
-        if (event.isTyping) {
-          // Add/update with new timeout (3 seconds)
-          const timeout = setTimeout(() => {
-            setTypingUsers(p => {
-              const u = new Map(p);
-              u.delete(event.userId);
-              return u;
-            });
-          }, 3000);
+          if (event.isTyping) {
+            // Add/update with new timeout (3 seconds)
+            const timeout = setTimeout(() => {
+              setTypingUsers((p) => {
+                const u = new Map(p);
+                u.delete(event.userId);
+                return u;
+              });
+            }, 3000);
 
-          updated.set(event.userId, { name: event.userName, timeout });
-        } else {
-          updated.delete(event.userId);
-        }
+            updated.set(event.userId, { name: event.userName, timeout });
+          } else {
+            updated.delete(event.userId);
+          }
 
-        return updated;
-      });
-    }, [conversationId]),
-    [conversationId]
+          return updated;
+        });
+      },
+      [conversationId],
+    ),
+    [conversationId],
   );
 
   // Memoize messages to prevent new array reference on every render
   const messages = useMemo(
-    () => messagesQuery.data?.pages.flatMap(p => p.items).reverse() ?? [],
-    [messagesQuery.data]
+    () => messagesQuery.data?.pages.flatMap((p) => p.items).reverse() ?? [],
+    [messagesQuery.data],
   );
 
-  // Dedupe markAsRead calls - track what we've already marked
-  const lastMarkedKeyRef = useRef<string | null>(null);
+  const readReceiptQueue = useMemo(
+    () =>
+      createReadReceiptQueue((marker) =>
+        markAsReadRef.current.mutateAsync({
+          conversationId,
+          readUpTo: marker.readUpTo,
+        }),
+      ),
+    [conversationId],
+  );
 
-  const handleMarkAsRead = useCallback(() => {
-    const lastMsg = markAsReadRef.current;
-    if (lastMarkedKeyRef.current === conversationId) return;
-    if (lastMsg.isPending) return;
-    lastMarkedKeyRef.current = conversationId;
-    void lastMsg.mutateAsync({ conversationId });
-  }, [conversationId]);
-
-  // Reset the dedup key when a new message arrives
-  const lastMessageId = messages[messages.length - 1]?.id;
-  const prevLastMessageIdRef = useRef(lastMessageId);
-  if (lastMessageId !== prevLastMessageIdRef.current) {
-    prevLastMessageIdRef.current = lastMessageId;
-    lastMarkedKeyRef.current = null;
-  }
+  const handleMarkAsRead = useCallback(
+    (messageId: string, sentAt: string) => {
+      readReceiptQueue.enqueue({ messageId, readUpTo: sentAt });
+    },
+    [readReceiptQueue],
+  );
 
   return {
     conversation: conversationQuery.data,
+    conversationError: conversationQuery.error,
+    refetchConversation: conversationQuery.refetch,
     messages,
+    messagesError: messagesQuery.error,
+    refetchMessages: messagesQuery.refetch,
     isLoading: conversationQuery.isLoading || messagesQuery.isLoading,
     isFetchingNextPage: messagesQuery.isFetchingNextPage,
     hasNextPage: messagesQuery.hasNextPage,
     fetchNextPage: messagesQuery.fetchNextPage,
-    typingUsers: Array.from(typingUsers.values()).map(v => v.name),
+    typingUsers: Array.from(typingUsers.values()).map((v) => v.name),
     sendMessage: (message: string, replyToId?: string) =>
       sendMessage.mutateAsync({ conversationId, content: message, replyToId }),
     markAsRead: handleMarkAsRead,
     sendTypingIndicator: (isTyping: boolean) =>
       sendTyping.mutateAsync({ conversationId, isTyping }),
     isSending: sendMessage.isPending,
+    sendError: sendMessage.error,
   };
 }

@@ -23,11 +23,18 @@ export default function CommentsTab({ opportunityId }: CommentsTabProps) {
   const [newComment, setNewComment] = useState("");
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const [replyContent, setReplyContent] = useState("");
-  const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
+  const [feedback, setFeedback] = useState<{
+    type: "success" | "error";
+    message: string;
+  } | null>(null);
 
   const utils = api.useUtils();
 
-  const { data: comments, isLoading, error } = api.opportunity.getComments.useQuery({
+  const {
+    data: comments,
+    isLoading,
+    error,
+  } = api.opportunity.getComments.useQuery({
     opportunityId,
   });
 
@@ -61,9 +68,15 @@ export default function CommentsTab({ opportunityId }: CommentsTabProps) {
     },
     onError: (err, vars, context) => {
       if (context?.previous) {
-        utils.opportunity.getComments.setData({ opportunityId }, context.previous);
+        utils.opportunity.getComments.setData(
+          { opportunityId },
+          context.previous,
+        );
       }
-      setFeedback({ type: "error", message: err.message || "Failed to post comment" });
+      setFeedback({
+        type: "error",
+        message: err.message || "Failed to post comment",
+      });
       setTimeout(() => setFeedback(null), 3000);
     },
     onSettled: () => {
@@ -83,16 +96,22 @@ export default function CommentsTab({ opportunityId }: CommentsTabProps) {
       const previous = utils.opportunity.getComments.getData({ opportunityId });
 
       utils.opportunity.getComments.setData({ opportunityId }, (old) =>
-        (old ?? []).filter((comment) => comment.id !== variables.commentId)
+        (old ?? []).filter((comment) => comment.id !== variables.commentId),
       );
 
       return { previous };
     },
     onError: (err, variables, context) => {
       if (context?.previous) {
-        utils.opportunity.getComments.setData({ opportunityId }, context.previous);
+        utils.opportunity.getComments.setData(
+          { opportunityId },
+          context.previous,
+        );
       }
-      setFeedback({ type: "error", message: err.message || "Failed to delete comment" });
+      setFeedback({
+        type: "error",
+        message: err.message || "Failed to delete comment",
+      });
       setTimeout(() => setFeedback(null), 3000);
     },
     onSettled: () => {
@@ -169,7 +188,7 @@ export default function CommentsTab({ opportunityId }: CommentsTabProps) {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Loader2 className="text-muted-foreground h-8 w-8 animate-spin" />
       </div>
     );
   }
@@ -178,7 +197,7 @@ export default function CommentsTab({ opportunityId }: CommentsTabProps) {
     return (
       <Card className="border-destructive">
         <CardContent className="pt-6">
-          <p className="text-sm text-destructive">
+          <p className="text-destructive text-sm">
             Failed to load comments: {error.message}
           </p>
         </CardContent>
@@ -191,10 +210,10 @@ export default function CommentsTab({ opportunityId }: CommentsTabProps) {
       {/* Feedback notification */}
       {feedback && (
         <div
-          className={`flex items-center gap-2 p-3 rounded-lg text-sm ${
+          className={`flex items-center gap-2 rounded-none p-3 text-sm ${
             feedback.type === "success"
-              ? "bg-green-500/10 text-green-500 border border-green-500/30"
-              : "bg-red-500/10 text-red-500 border border-red-500/30"
+              ? "border border-green-500/30 bg-green-500/10 text-green-500"
+              : "border border-red-500/30 bg-red-500/10 text-red-500"
           }`}
         >
           {feedback.type === "success" ? (
@@ -208,21 +227,21 @@ export default function CommentsTab({ opportunityId }: CommentsTabProps) {
 
       {/* Header */}
       <div className="flex items-center gap-2">
-        <MessageCircle className="h-5 w-5 text-muted-foreground" />
+        <MessageCircle className="text-muted-foreground h-5 w-5" />
         <h2 className="text-xl font-semibold">
           Comments {comments && comments.length > 0 && `(${comments.length})`}
         </h2>
       </div>
 
       {/* Add Comment Form */}
-      <Card className="bg-card border-2 border-border">
+      <Card className="bg-card border-border border-2">
         <CardContent className="pt-6">
           <form onSubmit={handleAddComment} className="space-y-4">
             <div>
               <textarea
                 value={newComment}
                 onChange={(e) => setNewComment(e.target.value)}
-                className="min-h-24 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="border-input bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring min-h-24 w-full rounded-md border px-3 py-2 text-sm focus-visible:ring-2 focus-visible:outline-none"
                 placeholder="Share your thoughts about this opportunity..."
               />
             </div>
@@ -245,11 +264,11 @@ export default function CommentsTab({ opportunityId }: CommentsTabProps) {
 
       {/* Comments List */}
       {topLevelComments.length === 0 ? (
-        <Card className="bg-card border-2 border-border">
+        <Card className="bg-card border-border border-2">
           <CardContent className="flex flex-col items-center justify-center py-12">
-            <MessageCircle className="h-12 w-12 text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold mb-2">No comments yet</h3>
-            <p className="text-sm text-muted-foreground text-center max-w-sm">
+            <MessageCircle className="text-muted-foreground mb-4 h-12 w-12" />
+            <h3 className="mb-2 text-lg font-semibold">No comments yet</h3>
+            <p className="text-muted-foreground max-w-sm text-center text-sm">
               Be the first to share your thoughts on this opportunity
             </p>
           </CardContent>
@@ -259,13 +278,14 @@ export default function CommentsTab({ opportunityId }: CommentsTabProps) {
           {topLevelComments.map((comment) => (
             <div key={comment.id}>
               {/* Top-level Comment */}
-              <Card className="bg-card border-2 border-border">
+              <Card className="bg-card border-border border-2">
                 <CardContent className="pt-6">
                   <div className="flex gap-4">
                     <Avatar className="h-10 w-10">
                       <AvatarImage src={comment.author?.image ?? undefined} />
                       <AvatarFallback>
-                        {comment.author?.name?.substring(0, 2).toUpperCase() ?? "U"}
+                        {comment.author?.name?.substring(0, 2).toUpperCase() ??
+                          "U"}
                       </AvatarFallback>
                     </Avatar>
 
@@ -275,7 +295,7 @@ export default function CommentsTab({ opportunityId }: CommentsTabProps) {
                           <p className="font-semibold">
                             {comment.author?.name ?? "Anonymous"}
                           </p>
-                          <p className="text-xs text-muted-foreground">
+                          <p className="text-muted-foreground text-xs">
                             {formatDate(comment.createdAt)}
                           </p>
                         </div>
@@ -292,20 +312,22 @@ export default function CommentsTab({ opportunityId }: CommentsTabProps) {
                         )}
                       </div>
 
-                      <p className="mt-2 text-sm whitespace-pre-wrap">{comment.content}</p>
+                      <p className="mt-2 text-sm whitespace-pre-wrap">
+                        {comment.content}
+                      </p>
 
                       <div className="mt-3 flex items-center gap-4">
-                        <button className="flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground">
+                        <button className="text-muted-foreground hover:text-foreground flex items-center gap-1 text-sm transition-colors">
                           <Heart className="h-4 w-4" />
                           <span>0</span>
                         </button>
                         <Button
                           size="sm"
                           variant="ghost"
-                          className="h-auto p-0 text-sm text-muted-foreground hover:text-foreground"
+                          className="text-muted-foreground hover:text-foreground h-auto p-0 text-sm"
                           onClick={() =>
                             setReplyingTo(
-                              replyingTo === comment.id ? null : comment.id
+                              replyingTo === comment.id ? null : comment.id,
                             )
                           }
                         >
@@ -319,7 +341,7 @@ export default function CommentsTab({ opportunityId }: CommentsTabProps) {
                           <textarea
                             value={replyContent}
                             onChange={(e) => setReplyContent(e.target.value)}
-                            className="min-h-20 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                            className="border-input bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring min-h-20 w-full rounded-md border px-3 py-2 text-sm focus-visible:ring-2 focus-visible:outline-none"
                             placeholder="Write a reply..."
                           />
                           <div className="flex justify-end gap-2">
@@ -336,7 +358,9 @@ export default function CommentsTab({ opportunityId }: CommentsTabProps) {
                             <Button
                               size="sm"
                               onClick={() => handleAddReply(comment.id)}
-                              disabled={!replyContent.trim() || addComment.isPending}
+                              disabled={
+                                !replyContent.trim() || addComment.isPending
+                              }
                             >
                               {addComment.isPending ? (
                                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -355,15 +379,22 @@ export default function CommentsTab({ opportunityId }: CommentsTabProps) {
 
               {/* Replies */}
               {getReplies(comment.id).length > 0 && (
-                <div className="ml-12 mt-3 space-y-3">
+                <div className="mt-3 ml-12 space-y-3">
                   {getReplies(comment.id).map((reply) => (
-                    <Card key={reply.id} className="border-l-2 border-primary bg-card">
+                    <Card
+                      key={reply.id}
+                      className="border-primary bg-card border-l-2"
+                    >
                       <CardContent className="pt-4">
                         <div className="flex gap-4">
                           <Avatar className="h-8 w-8">
-                            <AvatarImage src={reply.author?.image ?? undefined} />
+                            <AvatarImage
+                              src={reply.author?.image ?? undefined}
+                            />
                             <AvatarFallback>
-                              {reply.author?.name?.substring(0, 2).toUpperCase() ?? "U"}
+                              {reply.author?.name
+                                ?.substring(0, 2)
+                                .toUpperCase() ?? "U"}
                             </AvatarFallback>
                           </Avatar>
 
@@ -373,7 +404,7 @@ export default function CommentsTab({ opportunityId }: CommentsTabProps) {
                                 <p className="text-sm font-semibold">
                                   {reply.author?.name ?? "Anonymous"}
                                 </p>
-                                <p className="text-xs text-muted-foreground">
+                                <p className="text-muted-foreground text-xs">
                                   {formatDate(reply.createdAt)}
                                 </p>
                               </div>
@@ -390,10 +421,12 @@ export default function CommentsTab({ opportunityId }: CommentsTabProps) {
                               )}
                             </div>
 
-                            <p className="mt-2 text-sm whitespace-pre-wrap">{reply.content}</p>
+                            <p className="mt-2 text-sm whitespace-pre-wrap">
+                              {reply.content}
+                            </p>
 
                             <div className="mt-2 flex items-center gap-4">
-                              <button className="flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground">
+                              <button className="text-muted-foreground hover:text-foreground flex items-center gap-1 text-xs transition-colors">
                                 <Heart className="h-3 w-3" />
                                 <span>0</span>
                               </button>

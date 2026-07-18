@@ -1,75 +1,86 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
-import { useParams, useSearchParams, useRouter } from "next/navigation";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { api } from "~/trpc/react";
-import { Button } from "~/components/ui/button";
-import { Input } from "~/components/ui/input";
-import { Checkbox } from "~/components/ui/checkbox";
-import { Card, CardContent } from "~/components/ui/card";
-import { Progress } from "~/components/ui/progress";
-import { cn } from "~/lib/utils";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import {
+  AlertCircle,
   ArrowLeft,
   ArrowRight,
   Check,
+  Info,
   Loader2,
   Lock,
-  TrendingUp,
-  ExternalLink,
-  AlertCircle,
-  DollarSign,
-  Shield,
+  ShieldCheck,
 } from "lucide-react";
 
-const QUICK_AMOUNTS = [100, 500, 1000, 5000];
+import { api } from "~/trpc/react";
+import { Button } from "~/components/ui/button";
+import { Card, CardContent } from "~/components/ui/card";
+import { Checkbox } from "~/components/ui/checkbox";
+import { Input } from "~/components/ui/input";
+import {
+  fundingProjectTokenConfigSchema,
+  parseFundingAmount,
+} from "~/lib/commerce/investment-preview-contract";
+import { cn } from "~/lib/utils";
 
-function formatUSD(n: number) {
+const QUICK_AMOUNTS = [100, 500, 1000, 5000];
+const STEP_LABELS = ["Amount", "Review", "Checkout"];
+
+function formatUSD(value: number) {
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD",
     minimumFractionDigits: 2,
-  }).format(n);
+  }).format(value);
 }
 
-function formatToken(n: number, unit: string) {
-  return `${new Intl.NumberFormat("en-US").format(Math.round(n))} ${unit}`;
+function formatToken(value: number, unit: string) {
+  return `${new Intl.NumberFormat("en-US").format(value)} ${unit}`;
 }
 
-function formatPct(n: number) {
-  return `${n.toFixed(4)}%`;
+function formatPct(value: number) {
+  return `${value.toFixed(4)}%`;
 }
 
-// Step indicator
-function StepIndicator({ current, total }: { current: number; total: number }) {
+function StepIndicator({ current }: { current: number }) {
   return (
-    <div className="flex items-center gap-2">
-      {Array.from({ length: total }, (_, i) => (
-        <div key={i} className="flex items-center gap-2">
-          <div
+    <ol
+      className="border-border grid grid-cols-3 border"
+      aria-label="Funding progress"
+    >
+      {STEP_LABELS.map((label, index) => {
+        const number = index + 1;
+        const complete = number < current;
+        const active = number === current;
+
+        return (
+          <li
+            key={label}
             className={cn(
-              "size-7 rounded-full border-2 flex items-center justify-center font-mono text-xs font-bold transition-colors",
-              i + 1 < current
-                ? "border-[#00ff88] bg-[#00ff88] text-background"
-                : i + 1 === current
-                ? "border-[#00d4ff] bg-[#00d4ff]/10 text-[#00d4ff]"
-                : "border-border text-muted-foreground",
+              "border-border flex min-h-12 items-center gap-2 border-r px-3 last:border-r-0",
+              active && "bg-primary text-primary-foreground",
+              complete && "bg-secondary text-foreground",
             )}
+            aria-current={active ? "step" : undefined}
           >
-            {i + 1 < current ? <Check className="size-3" /> : i + 1}
-          </div>
-          {i < total - 1 && (
-            <div
+            <span
               className={cn(
-                "h-0.5 w-8",
-                i + 1 < current ? "bg-[#00ff88]" : "bg-border",
+                "flex size-6 shrink-0 items-center justify-center border font-mono text-xs font-bold",
+                active ? "border-primary-foreground" : "border-current",
               )}
-            />
-          )}
-        </div>
-      ))}
-    </div>
+              aria-hidden="true"
+            >
+              {complete ? <Check className="size-3.5" /> : number}
+            </span>
+            <span className="hidden text-xs font-bold tracking-wide uppercase sm:inline">
+              {label}
+            </span>
+          </li>
+        );
+      })}
+    </ol>
   );
 }
 
@@ -78,422 +89,619 @@ export default function InvestPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const slug = params.slug as string;
-
   const initialAmount = searchParams.get("amount") ?? "100";
+
   const [step, setStep] = useState(1);
-
-  // Step 1 state
   const [usdInput, setUsdInput] = useState(initialAmount);
-  const [debouncedUsd, setDebouncedUsd] = useState(parseFloat(initialAmount) || 100);
-
-  // Step 2 state
+  const [debouncedInput, setDebouncedInput] = useState(initialAmount);
   const [checkLocked, setCheckLocked] = useState(false);
   const [checkTrust, setCheckTrust] = useState(false);
+  const [handoffError, setHandoffError] = useState<string | null>(null);
   const checkoutIdempotencyKey = useRef<string | undefined>(undefined);
+
   const checkout = api.fundingIntent.createCheckout.useMutation({
     onSuccess: ({ intentId, checkoutUrl }) => {
-      window.sessionStorage.setItem(`ardanova:funding-intent:${slug}`, intentId);
-      window.location.assign(checkoutUrl);
+      try {
+        const destination = new URL(checkoutUrl);
+        if (destination.protocol !== "https:") {
+          throw new Error("Checkout destination must use HTTPS");
+        }
+
+        window.sessionStorage.setItem(
+          `ardanova:funding-intent:${slug}`,
+          intentId,
+        );
+        window.location.assign(destination.href);
+      } catch {
+        setHandoffError(
+          "The server returned an invalid checkout destination. No payment or settlement is confirmed.",
+        );
+      }
     },
   });
 
-  // Debounce
   useEffect(() => {
-    const t = setTimeout(() => {
-      const v = parseFloat(usdInput);
-      if (!isNaN(v) && v > 0) setDebouncedUsd(v);
-    }, 400);
-    return () => clearTimeout(t);
+    const timer = window.setTimeout(() => setDebouncedInput(usdInput), 400);
+    return () => window.clearTimeout(timer);
   }, [usdInput]);
 
-  // Fetch project by slug to get projectId
-  const { data: project, isLoading: projectLoading } = api.project.getById.useQuery({ id: slug });
+  const projectQuery = api.project.getById.useQuery({ id: slug });
+  const configQuery = api.projectTokens.getConfigByProject.useQuery(
+    { projectId: projectQuery.data?.id ?? "" },
+    { enabled: Boolean(projectQuery.data?.id) },
+  );
+  const configResult = fundingProjectTokenConfigSchema.safeParse(
+    configQuery.data,
+  );
+  const config = configResult.success ? configResult.data : undefined;
+  const configContractInvalid =
+    configQuery.data !== undefined && !configResult.success;
 
-  const { data: configRaw, isLoading: configLoading } =
-    api.projectTokens.getConfigByProject.useQuery(
-      { projectId: project?.id ?? "" },
-      { enabled: !!project?.id },
-    );
-  const config = configRaw as unknown as { id: string; unitName: string; assetName: string; gateStatus: string } | undefined;
+  const currentAmount = parseFundingAmount(usdInput);
+  const previewAmount = parseFundingAmount(debouncedInput);
+  const previewMatchesInput =
+    currentAmount !== null &&
+    previewAmount !== null &&
+    currentAmount.apiAmount === previewAmount.apiAmount;
 
-  const { data: tokenValueRaw } = api.exchange.getProjectTokenValue.useQuery(
+  const tokenValueQuery = api.exchange.getProjectTokenValue.useQuery(
     { configId: config?.id ?? "" },
-    { enabled: !!config?.id },
+    { enabled: Boolean(config?.id) },
   );
-  const tokenValue = tokenValueRaw as unknown as number | undefined;
-
-  const tokenAmount = tokenValue && tokenValue > 0 ? Math.max(1, Math.round(debouncedUsd / tokenValue)) : null;
-
-  const { data: previewRaw, isLoading: previewLoading } = api.exchange.getConversionPreview.useQuery(
-    { projectTokenConfigId: config?.id ?? "", tokenAmount: tokenAmount ?? 1 },
-    { enabled: !!config?.id && !!tokenAmount && tokenAmount >= 1 },
+  const tokenAmount =
+    previewAmount && tokenValueQuery.data && tokenValueQuery.data > 0
+      ? Math.max(1, Math.round(previewAmount.value / tokenValueQuery.data))
+      : null;
+  const previewQuery = api.exchange.getConversionPreview.useQuery(
+    {
+      projectTokenConfigId: config?.id ?? "",
+      tokenAmount: tokenAmount ?? 1,
+    },
+    {
+      enabled: Boolean(config?.id && tokenAmount && tokenAmount > 0),
+    },
   );
-  const preview = previewRaw as unknown as { projectTokens: number; ardaAmount: number; usdAmount: number; tokenRate: number; ardaRate: number } | undefined;
-
-  const { data: supplyRaw } = api.projectTokens.getSupply.useQuery(
-    { id: config?.id ?? "" },
-    { enabled: !!config?.id },
-  );
-  const supply = supplyRaw as unknown as { totalSupply: number; contributorSupply: number; investorSupply: number; founderSupply: number; burnedSupply: number } | undefined;
-
-  const equityPct =
-    preview && supply && supply.totalSupply > 0
-      ? (preview.projectTokens / supply.totalSupply) * 100
+  const estimateError = tokenValueQuery.error ?? previewQuery.error;
+  const preview =
+    previewMatchesInput && !estimateError ? previewQuery.data : undefined;
+  const supplyShare =
+    preview && config && config.totalSupply > 0
+      ? (preview.sourceTokenAmount / config.totalSupply) * 100
       : null;
 
-  const gateStatus = config?.gateStatus as "FUNDING" | "ACTIVE" | "SUCCEEDED" | "FAILED" | undefined;
-  const isOpen = gateStatus === "FUNDING";
-
-  const handleQuickAmount = useCallback((amt: number) => setUsdInput(String(amt)), []);
+  const handleQuickAmount = useCallback((amount: number) => {
+    const next = String(amount);
+    setUsdInput(next);
+    setDebouncedInput(next);
+  }, []);
 
   const beginCheckout = () => {
-    if (!config) return;
+    if (!config || !currentAmount || !preview || !previewMatchesInput) return;
 
     checkoutIdempotencyKey.current ??= window.crypto.randomUUID();
+    setHandoffError(null);
     setStep(3);
     checkout.mutate({
       projectTokenConfigId: config.id,
-      amount: usdInput.trim(),
+      amount: currentAmount.apiAmount,
       disclosureVersion: "funding-disclosure-v1",
       idempotencyKey: checkoutIdempotencyKey.current,
     });
   };
 
   const handleNext = () => {
-    if (step === 1 && preview) setStep(2);
-    else if (step === 2 && checkLocked && checkTrust) beginCheckout();
+    if (step === 1 && preview && previewMatchesInput) setStep(2);
+    if (step === 2 && checkLocked && checkTrust) beginCheckout();
   };
 
   const handleBack = () => {
-    if (step > 1) setStep((s) => s - 1);
-    else router.push(`/projects/${slug}`);
+    if (step > 1) {
+      setStep((current) => current - 1);
+      return;
+    }
+    router.push(`/projects/${slug}`);
   };
 
-  if (projectLoading || configLoading) {
+  if (projectQuery.isLoading || configQuery.isLoading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <Loader2 className="size-8 animate-spin text-primary" />
+      <div className="flex min-h-[60vh] items-center justify-center p-6">
+        <div className="flex items-center gap-3" role="status">
+          <Loader2 className="text-primary size-5 animate-spin" />
+          <span className="font-mono text-sm">Loading funding terms…</span>
+        </div>
       </div>
     );
   }
 
-  if (!project || !config) {
+  if (
+    projectQuery.error ||
+    configQuery.error ||
+    !projectQuery.data ||
+    !config ||
+    configContractInvalid
+  ) {
     return (
-      <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-4 p-4">
-        <AlertCircle className="size-10 text-destructive" />
-        <p className="font-mono font-bold text-destructive">CONFIGURATION NOT FOUND</p>
-        <Button asChild variant="outline">
-          <Link href={`/projects/${slug}`}>
-            <ArrowLeft className="size-4 mr-2" />
-            Back to Project
-          </Link>
-        </Button>
-      </div>
-    );
-  }
-
-  if (!isOpen) {
-    return (
-      <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-4 p-4">
-        <Lock className="size-10 text-muted-foreground" />
-        <p className="font-mono font-bold text-muted-foreground">
-          FUNDING IS NOT OPEN
-        </p>
-        <p className="text-sm text-muted-foreground text-center max-w-sm">
-          This project is currently in <span className="font-mono font-bold text-[#00d4ff]">{gateStatus}</span> status and is not accepting new investments.
-        </p>
-        <Button asChild variant="outline">
-          <Link href={`/projects/${slug}`}>
-            <ArrowLeft className="size-4 mr-2" />
-            Back to Project
-          </Link>
-        </Button>
-      </div>
-    );
-  }
-
-  return (
-    <div className="min-h-screen bg-background">
-      <div className="max-w-lg mx-auto px-4 py-8">
-        {/* Back nav */}
-        <Button variant="ghost" onClick={handleBack} className="-ml-2 mb-6">
-          <ArrowLeft className="size-4 mr-2" />
-          {step === 1 ? "Back to Project" : "Back"}
-        </Button>
-
-        {/* Header */}
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold font-mono tracking-wide">
-            INVEST IN {project.title?.toUpperCase()}
+      <div className="mx-auto flex min-h-[60vh] max-w-xl flex-col items-start justify-center gap-5 p-6">
+        <AlertCircle className="text-destructive size-10" aria-hidden="true" />
+        <div>
+          <h1 className="font-mono text-2xl font-bold">
+            Funding terms unavailable
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            {config.unitName} · {config.assetName}
+          <p className="text-muted-foreground mt-2 text-sm">
+            We could not verify this project&apos;s token configuration against
+            the funding contract. Checkout is disabled until the data is
+            available and valid.
           </p>
         </div>
+        <Button asChild variant="outline">
+          <Link href={`/projects/${slug}`}>
+            <ArrowLeft className="size-4" />
+            Back to project
+          </Link>
+        </Button>
+      </div>
+    );
+  }
 
-        {/* Step indicator */}
-        <div className="flex items-center justify-between mb-8">
-          <StepIndicator current={step} total={3} />
-          <span className="font-mono text-xs text-muted-foreground">
-            STEP {step} OF 3
-          </span>
+  if (config.gateStatus !== "FUNDING") {
+    return (
+      <div className="mx-auto flex min-h-[60vh] max-w-xl flex-col items-start justify-center gap-5 p-6">
+        <Lock className="text-muted-foreground size-10" aria-hidden="true" />
+        <div>
+          <p className="text-muted-foreground font-mono text-xs font-bold tracking-widest uppercase">
+            Gate status · {config.gateStatus}
+          </p>
+          <h1 className="mt-2 font-mono text-2xl font-bold">
+            Funding is not open
+          </h1>
+          <p className="text-muted-foreground mt-2 text-sm">
+            This project is not accepting new funding intents in its current
+            gate state.
+          </p>
         </div>
+        <Button asChild variant="outline">
+          <Link href={`/projects/${slug}`}>
+            <ArrowLeft className="size-4" />
+            Back to project
+          </Link>
+        </Button>
+      </div>
+    );
+  }
 
-        {/* Step 1: Amount */}
-        {step === 1 && (
-          <div className="space-y-5">
-            <Card className="border-2 border-border">
-              <CardContent className="p-5 space-y-4">
-                <span className="font-mono text-xs font-bold tracking-widest text-muted-foreground block">
-                  INVESTMENT AMOUNT
-                </span>
+  const projectTitle = projectQuery.data.title ?? "this project";
 
-                {/* Quick amounts */}
-                <div className="flex gap-2 flex-wrap">
-                  {QUICK_AMOUNTS.map((amt) => (
-                    <button
-                      key={amt}
-                      onClick={() => handleQuickAmount(amt)}
-                      className={cn(
-                        "font-mono text-xs border-2 px-3 py-1.5 transition-colors",
-                        usdInput === String(amt)
-                          ? "border-[#00d4ff] bg-[#00d4ff]/10 text-[#00d4ff]"
-                          : "border-border text-muted-foreground hover:border-foreground hover:text-foreground",
-                      )}
-                    >
-                      ${amt.toLocaleString()}
-                    </button>
-                  ))}
-                </div>
+  return (
+    <div className="mx-auto w-full max-w-3xl px-4 py-6 sm:px-6 sm:py-10">
+      <Button
+        type="button"
+        variant="ghost"
+        onClick={handleBack}
+        className="mb-6 -ml-3"
+        disabled={step === 3 && checkout.isPending}
+      >
+        <ArrowLeft className="size-4" />
+        {step === 1 ? "Back to project" : "Back"}
+      </Button>
 
-                {/* Custom input */}
-                <div className="relative">
-                  <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-                  <Input
-                    type="number"
-                    value={usdInput}
-                    onChange={(e) => setUsdInput(e.target.value)}
-                    className="pl-9 font-mono border-2 text-lg h-12"
-                    placeholder="0.00"
-                    min="1"
-                  />
-                </div>
-              </CardContent>
-            </Card>
+      <header className="border-foreground border-y py-6 sm:py-8">
+        <p className="text-primary font-mono text-xs font-bold tracking-[0.2em] uppercase">
+          Project funding
+        </p>
+        <h1 className="mt-3 text-3xl font-black tracking-tight sm:text-5xl">
+          Fund {projectTitle}
+        </h1>
+        <p className="text-muted-foreground mt-3 max-w-2xl text-sm sm:text-base">
+          Review an estimate, acknowledge the current terms, then create a
+          durable funding intent. Provider checkout is a handoff—not proof of
+          payment, token allocation, or reconciled settlement.
+        </p>
+      </header>
 
-            {/* Conversion preview */}
-            <Card className="border-2 border-[#00d4ff]/30 bg-[#00d4ff]/5">
-              <CardContent className="p-5 space-y-3">
-                <span className="font-mono text-xs font-bold tracking-widest text-[#00d4ff] block">
-                  EQUITY BREAKDOWN
-                </span>
+      <div className="my-6">
+        <StepIndicator current={step} />
+      </div>
 
-                {previewLoading ? (
-                  <div className="flex items-center gap-2 text-muted-foreground text-sm py-2">
-                    <Loader2 className="size-4 animate-spin" />
-                    Calculating...
-                  </div>
-                ) : preview ? (
-                  <div className="space-y-2">
-                    <Row label="You pay" value={formatUSD(debouncedUsd)} accent="#ffffff" />
-                    <Row
-                      label={`${config.unitName} tokens`}
-                      value={formatToken(preview.projectTokens, config.unitName)}
-                      accent="#00d4ff"
-                    />
-                    <Row
-                      label="Equity stake"
-                      value={equityPct !== null ? formatPct(equityPct) : "—"}
-                      accent="#00ff88"
-                    />
-                    <Row
-                      label="ARDA equivalent"
-                      value={preview.ardaAmount ? `${new Intl.NumberFormat("en-US").format(Math.round(preview.ardaAmount))} ARDA` : "—"}
-                      accent="#a855f7"
-                    />
-                    {preview.tokenRate && (
-                      <Row
-                        label="Rate"
-                        value={`${formatUSD(preview.tokenRate)} / token`}
-                        accent="#fbbf24"
-                      />
+      {step === 1 && (
+        <section className="space-y-5" aria-labelledby="amount-heading">
+          <Card className="border-foreground">
+            <CardContent className="space-y-5 p-5 sm:p-6">
+              <div>
+                <p className="text-muted-foreground font-mono text-xs font-bold tracking-widest uppercase">
+                  01 · Define an amount
+                </p>
+                <h2 id="amount-heading" className="mt-2 text-2xl font-bold">
+                  Funding amount
+                </h2>
+              </div>
+
+              <div className="flex flex-wrap gap-2" aria-label="Quick amounts">
+                {QUICK_AMOUNTS.map((amount) => (
+                  <button
+                    key={amount}
+                    type="button"
+                    onClick={() => handleQuickAmount(amount)}
+                    aria-pressed={usdInput === String(amount)}
+                    className={cn(
+                      "min-h-11 border px-4 font-mono text-sm font-bold transition-colors",
+                      usdInput === String(amount)
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-border bg-background text-foreground hover:border-foreground",
                     )}
-                  </div>
-                ) : (
-                  <p className="text-xs text-muted-foreground">Enter an amount to see your equity.</p>
-                )}
-              </CardContent>
-            </Card>
+                  >
+                    ${amount.toLocaleString()}
+                  </button>
+                ))}
+              </div>
 
-            <Button
-              className="w-full font-mono font-bold h-12"
-              variant="neon"
-              disabled={!preview}
-              onClick={handleNext}
-            >
-              CONTINUE TO REVIEW
-              <ArrowRight className="size-4 ml-2" />
-            </Button>
-          </div>
-        )}
-
-        {/* Step 2: Review & Confirm */}
-        {step === 2 && preview && (
-          <div className="space-y-5">
-            <Card className="border-2 border-border">
-              <CardContent className="p-5 space-y-3">
-                <span className="font-mono text-xs font-bold tracking-widest text-muted-foreground block">
-                  ORDER SUMMARY
-                </span>
-                <div className="space-y-2">
-                  <Row label="Investment" value={formatUSD(debouncedUsd)} accent="#ffffff" />
-                  <Row label={`${config.unitName} tokens`} value={formatToken(preview.projectTokens, config.unitName)} accent="#00d4ff" />
-                  <Row label="Equity" value={equityPct !== null ? formatPct(equityPct) : "—"} accent="#00ff88" />
-                  <Row
-                    label="Project"
-                    value={project.title ?? slug}
-                    accent="#ffffff"
-                  />
-                </div>
-                <div className="border-t-2 border-border pt-3 flex justify-between">
-                  <span className="font-mono text-sm font-bold">TOTAL</span>
-                  <span className="font-mono text-lg font-bold text-[#00d4ff]">
-                    {formatUSD(debouncedUsd)}
+              <div>
+                <label
+                  htmlFor="funding-amount"
+                  className="mb-2 block text-sm font-semibold"
+                >
+                  Custom amount in USD
+                </label>
+                <div className="relative">
+                  <span
+                    className="text-muted-foreground absolute top-1/2 left-3 -translate-y-1/2 font-mono"
+                    aria-hidden="true"
+                  >
+                    $
                   </span>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Checkboxes */}
-            <Card className="border-2 border-border">
-              <CardContent className="p-5 space-y-4">
-                <span className="font-mono text-xs font-bold tracking-widest text-muted-foreground block">
-                  AGREEMENTS
-                </span>
-
-                <label className="flex items-start gap-3 cursor-pointer group">
-                  <Checkbox
-                    checked={checkLocked}
-                    onCheckedChange={(v) => setCheckLocked(!!v)}
-                    className="mt-0.5 border-2"
+                  <Input
+                    id="funding-amount"
+                    type="number"
+                    inputMode="decimal"
+                    value={usdInput}
+                    onChange={(event) => setUsdInput(event.target.value)}
+                    className="border-foreground h-12 pl-8 font-mono text-lg"
+                    placeholder="0.00"
+                    min="0.01"
+                    step="0.01"
+                    aria-invalid={currentAmount === null}
+                    aria-describedby="funding-amount-help"
                   />
-                  <div>
-                    <p className="text-sm font-medium">Token Lock Period</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      I understand that my tokens are locked and cannot be transferred until Gate 2 is cleared by the project founder.
-                    </p>
-                  </div>
-                </label>
-
-                <label className="flex items-start gap-3 cursor-pointer group">
-                  <Checkbox
-                    checked={checkTrust}
-                    onCheckedChange={(v) => setCheckTrust(!!v)}
-                    className="mt-0.5 border-2"
-                  />
-                  <div>
-                    <p className="text-sm font-medium">Trust Protection</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      I understand this investment is protected by ArdaNova trust protocol. In case of project failure, I will be refunded my investment amount.
-                    </p>
-                  </div>
-                </label>
-              </CardContent>
-            </Card>
-
-            <Button
-              className="w-full font-mono font-bold h-12"
-              variant="neon"
-              disabled={!checkLocked || !checkTrust}
-              onClick={handleNext}
-            >
-              PROCEED TO PAYMENT
-              <ArrowRight className="size-4 ml-2" />
-            </Button>
-          </div>
-        )}
-
-        {/* Step 3: Stripe redirect placeholder */}
-        {step === 3 && (
-          <div className="space-y-5">
-            <Card className="border-2 border-[#00ff88]/40 bg-[#00ff88]/5">
-              <CardContent className="p-8 flex flex-col items-center gap-4 text-center">
-                <div className="size-16 rounded-full border-2 border-[#00ff88] bg-[#00ff88]/10 flex items-center justify-center">
-                  <Loader2 className="size-8 animate-spin text-[#00ff88]" />
                 </div>
+                <p
+                  id="funding-amount-help"
+                  className={cn(
+                    "mt-2 text-xs",
+                    currentAmount
+                      ? "text-muted-foreground"
+                      : "text-destructive",
+                  )}
+                >
+                  {currentAmount
+                    ? "Use a positive amount with no more than two decimal places."
+                    : "Enter a positive USD amount with no more than two decimal places."}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-primary bg-primary/5">
+            <CardContent className="space-y-4 p-5 sm:p-6">
+              <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className="font-mono text-lg font-bold text-[#00ff88]">REDIRECTING TO STRIPE</p>
-                  <p className="text-sm text-muted-foreground mt-2">
-                    Preparing your secure checkout session for {formatUSD(debouncedUsd)}...
+                  <p className="text-primary font-mono text-xs font-bold tracking-widest uppercase">
+                    Project-token position estimate
+                  </p>
+                  <h2 className="mt-2 text-xl font-bold">
+                    What the API can preview
+                  </h2>
+                </div>
+                <Info
+                  className="text-primary size-5 shrink-0"
+                  aria-hidden="true"
+                />
+              </div>
+
+              {!currentAmount ? (
+                <p className="text-muted-foreground text-sm">
+                  Enter a valid amount to request an estimate.
+                </p>
+              ) : !previewMatchesInput ||
+                tokenValueQuery.isLoading ||
+                previewQuery.isLoading ? (
+                <div
+                  className="text-muted-foreground flex items-center gap-2 text-sm"
+                  role="status"
+                >
+                  <Loader2 className="size-4 animate-spin" />
+                  Updating the estimate…
+                </div>
+              ) : estimateError ? (
+                <div className="border-destructive border p-3" role="alert">
+                  <p className="text-destructive text-sm font-semibold">
+                    Estimate unavailable
+                  </p>
+                  <p className="text-muted-foreground mt-1 text-xs">
+                    The conversion service did not return a valid preview.
+                    Checkout remains disabled.
                   </p>
                 </div>
+              ) : preview ? (
+                <dl className="divide-border border-border divide-y border-y">
+                  <DataRow
+                    label="Funding amount"
+                    value={formatUSD(currentAmount.value)}
+                  />
+                  <DataRow
+                    label="Estimated project-token units"
+                    value={formatToken(
+                      preview.sourceTokenAmount,
+                      config.unitName,
+                    )}
+                    emphasis
+                  />
+                  <DataRow
+                    label="Share of configured token supply"
+                    value={
+                      supplyShare === null
+                        ? "Not available"
+                        : formatPct(supplyShare)
+                    }
+                  />
+                  <DataRow
+                    label="Reference value per project token"
+                    value={formatUSD(preview.projectTokenValueUsd)}
+                  />
+                  <DataRow
+                    label="Reference value of estimated units"
+                    value={formatUSD(preview.usdValue)}
+                  />
+                  <DataRow
+                    label="Informational ARDA equivalent"
+                    value={`${new Intl.NumberFormat("en-US").format(preview.ardaAmount)} ARDA`}
+                  />
+                  <DataRow
+                    label="Reference value per ARDA"
+                    value={formatUSD(preview.ardaValueUsd)}
+                  />
+                </dl>
+              ) : (
+                <p className="text-muted-foreground text-sm">
+                  No preview is available for this amount. Checkout remains
+                  disabled.
+                </p>
+              )}
 
-                <div className="flex items-center gap-2 text-xs text-muted-foreground border border-border/40 px-3 py-2">
-                  <Shield className="size-3 text-[#00d4ff]" />
-                  Secured by Stripe · 256-bit TLS
-                </div>
+              <div className="border-primary text-muted-foreground border-l-4 pl-4 text-xs leading-relaxed">
+                <p>
+                  This estimate does not execute a project-token-to-ARDA
+                  conversion. Rates can change before settlement.
+                </p>
+                <p className="text-foreground mt-2 font-semibold">
+                  A project-token supply percentage is not equity, governance
+                  power, a redemption right, or a guaranteed USD value.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
 
-                <div className="space-y-1 text-xs text-muted-foreground w-full text-left border-t border-border/40 pt-3">
-                  <p className="font-mono font-bold text-muted-foreground mb-2">ORDER DETAILS</p>
-                  <div className="flex justify-between">
-                    <span>Amount</span>
-                    <span className="font-mono font-bold text-foreground">{formatUSD(debouncedUsd)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Tokens</span>
-                    <span className="font-mono font-bold text-[#00d4ff]">
-                      {preview ? formatToken(preview.projectTokens, config.unitName) : "—"}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Equity</span>
-                    <span className="font-mono font-bold text-[#00ff88]">
-                      {equityPct !== null ? formatPct(equityPct) : "—"}
-                    </span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+          <Button
+            type="button"
+            className="h-12 w-full font-mono font-bold tracking-wide uppercase"
+            disabled={!preview || !previewMatchesInput}
+            onClick={handleNext}
+          >
+            Review the funding intent
+            <ArrowRight className="size-4" />
+          </Button>
+        </section>
+      )}
 
-            <p className="text-xs text-center text-muted-foreground">
-              You&apos;ll be redirected automatically. If nothing happens,{" "}
-              <button
-                className="text-[#00d4ff] underline"
-                  onClick={beginCheckout}
-              >
-                click here
-              </button>
-              .
-            </p>
-
-            {checkout.error && (
-              <p className="text-xs text-center text-destructive">
-                {checkout.error.message}
+      {step === 2 && preview && currentAmount && (
+        <section className="space-y-5" aria-labelledby="review-heading">
+          <Card className="border-foreground">
+            <CardContent className="space-y-4 p-5 sm:p-6">
+              <div>
+                <p className="text-muted-foreground font-mono text-xs font-bold tracking-widest uppercase">
+                  02 · Review the intent
+                </p>
+                <h2 id="review-heading" className="mt-2 text-2xl font-bold">
+                  Funding intent summary
+                </h2>
+              </div>
+              <dl className="divide-border border-border divide-y border-y">
+                <DataRow label="Project" value={projectTitle} />
+                <DataRow
+                  label="Funding amount"
+                  value={formatUSD(currentAmount.value)}
+                  emphasis
+                />
+                <DataRow
+                  label="Estimated project-token units"
+                  value={formatToken(
+                    preview.sourceTokenAmount,
+                    config.unitName,
+                  )}
+                />
+                <DataRow
+                  label="Configured supply share"
+                  value={
+                    supplyShare === null
+                      ? "Not available"
+                      : formatPct(supplyShare)
+                  }
+                />
+              </dl>
+              <p className="text-muted-foreground text-xs leading-relaxed">
+                The server will create an actor-owned, idempotent funding intent
+                before opening Stripe. A provider return does not confirm
+                payment, allocate project tokens, or prove reconciled
+                settlement.
               </p>
-            )}
+            </CardContent>
+          </Card>
 
-            <Button
-              variant="outline"
-              className="w-full font-mono"
-              onClick={() => setStep(2)}
-            >
-              <ArrowLeft className="size-4 mr-2" />
-              GO BACK
-            </Button>
-          </div>
-        )}
-      </div>
+          <Card className="border-foreground">
+            <CardContent className="space-y-5 p-5 sm:p-6">
+              <p className="text-muted-foreground font-mono text-xs font-bold tracking-widest uppercase">
+                Required acknowledgements
+              </p>
+
+              <label className="border-border flex cursor-pointer items-start gap-3 border p-4">
+                <Checkbox
+                  checked={checkLocked}
+                  onCheckedChange={(value) => setCheckLocked(Boolean(value))}
+                  className="mt-0.5"
+                />
+                <span>
+                  <span className="block text-sm font-semibold">
+                    Project-token availability
+                  </span>
+                  <span className="text-muted-foreground mt-1 block text-xs leading-relaxed">
+                    I understand any resulting project-token position follows
+                    the recorded gate and settlement state. This preview does
+                    not make the position liquid or transferable.
+                  </span>
+                </span>
+              </label>
+
+              <label className="border-border flex cursor-pointer items-start gap-3 border p-4">
+                <Checkbox
+                  checked={checkTrust}
+                  onCheckedChange={(value) => setCheckTrust(Boolean(value))}
+                  className="mt-0.5"
+                />
+                <span>
+                  <span className="block text-sm font-semibold">
+                    Protection is conditional
+                  </span>
+                  <span className="text-muted-foreground mt-1 block text-xs leading-relaxed">
+                    I understand protection eligibility and amount depend on the
+                    recorded terms, gate state, configured treasury rate, and
+                    payout processing. It is not a guaranteed full refund. A
+                    protection record is not proof that funds were paid out.
+                  </span>
+                </span>
+              </label>
+            </CardContent>
+          </Card>
+
+          <Button
+            type="button"
+            className="h-12 w-full font-mono font-bold tracking-wide uppercase"
+            disabled={!checkLocked || !checkTrust || checkout.isPending}
+            onClick={handleNext}
+          >
+            Create secure checkout
+            <ArrowRight className="size-4" />
+          </Button>
+        </section>
+      )}
+
+      {step === 3 && (
+        <section aria-labelledby="checkout-heading">
+          <Card
+            className={cn(
+              "border-foreground",
+              (checkout.error || handoffError) && "border-destructive",
+            )}
+          >
+            <CardContent className="flex flex-col items-start gap-5 p-6 sm:p-8">
+              {checkout.isPending ? (
+                <Loader2
+                  className="text-primary size-10 animate-spin"
+                  aria-hidden="true"
+                />
+              ) : checkout.error || handoffError ? (
+                <AlertCircle
+                  className="text-destructive size-10"
+                  aria-hidden="true"
+                />
+              ) : (
+                <ShieldCheck
+                  className="text-primary size-10"
+                  aria-hidden="true"
+                />
+              )}
+
+              <div>
+                <p className="text-muted-foreground font-mono text-xs font-bold tracking-widest uppercase">
+                  03 · Checkout handoff
+                </p>
+                <h2 id="checkout-heading" className="mt-2 text-2xl font-bold">
+                  {checkout.isPending
+                    ? "Creating a durable funding intent"
+                    : checkout.error || handoffError
+                      ? "Checkout handoff unavailable"
+                      : "Opening secure checkout"}
+                </h2>
+                <p className="text-muted-foreground mt-2 text-sm leading-relaxed">
+                  {checkout.isPending
+                    ? "The server is recording your intent before requesting a provider checkout. No payment is confirmed yet."
+                    : (handoffError ??
+                      checkout.error?.message ??
+                      "Your provider checkout is opening. Funding remains unconfirmed until server verification and settlement processing complete.")}
+                </p>
+              </div>
+
+              <div className="border-border w-full border-y py-3 text-sm">
+                <div className="flex justify-between gap-4">
+                  <span className="text-muted-foreground">Funding amount</span>
+                  <span className="font-mono font-bold">
+                    {currentAmount
+                      ? formatUSD(currentAmount.value)
+                      : "Unavailable"}
+                  </span>
+                </div>
+              </div>
+
+              {(checkout.error || handoffError) && (
+                <div className="w-full space-y-3">
+                  <p className="text-muted-foreground text-xs leading-relaxed">
+                    No payment or settlement is confirmed. Retry uses the same
+                    idempotency key so the server can safely replay the intent.
+                  </p>
+                  <Button
+                    type="button"
+                    onClick={beginCheckout}
+                    className="w-full"
+                  >
+                    Retry checkout handoff
+                  </Button>
+                </div>
+              )}
+
+              <div className="border-border text-muted-foreground flex items-start gap-2 border p-3 text-xs">
+                <ShieldCheck
+                  className="text-primary mt-0.5 size-4 shrink-0"
+                  aria-hidden="true"
+                />
+                Checkout destinations must use HTTPS. Final status comes from
+                the actor-scoped funding record, not browser redirect
+                parameters.
+              </div>
+            </CardContent>
+          </Card>
+        </section>
+      )}
     </div>
   );
 }
 
-function Row({ label, value, accent }: { label: string; value: string; accent: string }) {
+function DataRow({
+  label,
+  value,
+  emphasis = false,
+}: {
+  label: string;
+  value: string;
+  emphasis?: boolean;
+}) {
   return (
-    <div className="flex items-center justify-between">
-      <span className="text-xs text-muted-foreground">{label}</span>
-      <span className="font-mono text-xs font-bold" style={{ color: accent }}>
+    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-4 py-3">
+      <dt className="text-muted-foreground text-xs">{label}</dt>
+      <dd
+        className={cn(
+          "text-right font-mono text-xs font-bold",
+          emphasis && "text-primary",
+        )}
+      >
         {value}
-      </span>
+      </dd>
     </div>
   );
 }

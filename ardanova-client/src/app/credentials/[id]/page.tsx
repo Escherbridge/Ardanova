@@ -3,11 +3,19 @@
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { api } from "~/trpc/react";
-import type { CredentialChainDataResponse } from "~/lib/api/ardanova/endpoints/credential-utility";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "~/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "~/components/ui/card";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
-import { CredentialBadge, statusConfig } from "~/components/credentials/credential-badge";
+import {
+  CredentialBadge,
+  statusConfig,
+} from "~/components/credentials/credential-badge";
 import { TierProgress } from "~/components/credentials/tier-progress";
 import {
   ArrowLeft,
@@ -16,7 +24,6 @@ import {
   Shield,
   Link2,
   CheckCircle2,
-  XCircle,
   Clock,
 } from "lucide-react";
 
@@ -24,27 +31,30 @@ export default function CredentialDetailPage() {
   const params = useParams();
   const id = params.id as string;
 
-  const { data: chainData, isLoading } = api.credentialUtility.getChainData.useQuery({ id });
+  const { data: chainData, isLoading } =
+    api.credentialUtility.getChainData.useQuery({ id });
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <Loader2 className="size-8 animate-spin text-primary" />
+      <div className="bg-background flex min-h-screen items-center justify-center">
+        <Loader2 className="text-primary size-8 animate-spin" />
       </div>
     );
   }
 
   if (!chainData) {
     return (
-      <div className="min-h-screen bg-background flex flex-col items-center justify-center">
-        <Shield className="size-12 text-muted-foreground mb-4" />
-        <h1 className="text-2xl font-bold text-foreground">Credential not found</h1>
+      <div className="bg-background flex min-h-screen flex-col items-center justify-center">
+        <Shield className="text-muted-foreground mb-4 size-12" />
+        <h1 className="text-foreground text-2xl font-bold">
+          Credential not found
+        </h1>
         <p className="text-muted-foreground mt-2">
-          This credential may have been revoked or doesn't exist.
+          This credential may have been revoked or doesn&apos;t exist.
         </p>
         <Link href="/dashboard/profile">
           <Button variant="outline" className="mt-4">
-            <ArrowLeft className="size-4 mr-2" />
+            <ArrowLeft className="mr-2 size-4" />
             Back to Profile
           </Button>
         </Link>
@@ -52,21 +62,27 @@ export default function CredentialDetailPage() {
     );
   }
 
-  const { credential, asaInfo, isOnChain, chainVerified } = chainData as CredentialChainDataResponse;
+  const { credential, asaInfo, isOnChain, chainVerified } = chainData;
   const scope = credential.projectId ? "PROJECT" : "GUILD";
-  const statusCfg = statusConfig[credential.status as keyof typeof statusConfig];
+  const statusCfg = statusConfig[credential.status];
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="max-w-3xl mx-auto p-6">
+    <div className="bg-background min-h-screen">
+      <div className="mx-auto max-w-3xl p-6">
         {/* Back button */}
-        <Link href="/dashboard/profile" className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground mb-6 transition-colors">
+        <Link
+          href="/dashboard/profile"
+          className="text-muted-foreground hover:text-foreground mb-6 inline-flex items-center gap-2 transition-colors"
+        >
           <ArrowLeft className="size-4" />
           Back to Profile
         </Link>
 
         {/* Credential Header */}
-        <Card className="mb-6" variant={credential.status === "ACTIVE" ? "neon" : "default"}>
+        <Card
+          className="mb-6"
+          variant={credential.status === "ACTIVE" ? "neon" : "default"}
+        >
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle className="flex items-center gap-3">
@@ -81,14 +97,14 @@ export default function CredentialDetailPage() {
               />
             </div>
             <CardDescription>
-              {scope} credential {credential.status === "ACTIVE" ? "granted" : "revoked"} via {credential.grantedVia.replace(/_/g, " ").toLowerCase()}
+              {scope} credential{" "}
+              {credential.status === "ACTIVE" ? "granted" : "revoked"} via{" "}
+              {credential.grantedVia.replace(/_/g, " ").toLowerCase()}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {/* Tier Progress */}
-            {credential.tier && (
-              <TierProgress currentTier={credential.tier} />
-            )}
+            {credential.tier && <TierProgress currentTier={credential.tier} />}
 
             {/* Details grid */}
             <div className="grid grid-cols-2 gap-4">
@@ -98,10 +114,17 @@ export default function CredentialDetailPage() {
                   {credential.status}
                 </Badge>
               </DetailItem>
-              <DetailItem label="Grant Method" value={credential.grantedVia.replace(/_/g, " ")} />
+              <DetailItem
+                label="Grant Method"
+                value={credential.grantedVia.replace(/_/g, " ")}
+              />
               <DetailItem
                 label="Granted"
-                value={new Date(credential.createdAt).toLocaleDateString()}
+                value={
+                  credential.createdAt
+                    ? new Date(credential.createdAt).toLocaleDateString()
+                    : "Not recorded"
+                }
               />
               {credential.revokedAt && (
                 <DetailItem
@@ -109,7 +132,10 @@ export default function CredentialDetailPage() {
                   value={new Date(credential.revokedAt).toLocaleDateString()}
                 />
               )}
-              <DetailItem label="Transferable" value={credential.isTransferable ? "Yes" : "No (Soulbound)"} />
+              <DetailItem
+                label="Transferable"
+                value={credential.isTransferable ? "Yes" : "No (Soulbound)"}
+              />
             </div>
           </CardContent>
         </Card>
@@ -123,17 +149,17 @@ export default function CredentialDetailPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex items-center gap-3 p-3 border border-border rounded">
+            <div className="border-border flex items-center gap-3 rounded border p-3">
               {isOnChain ? (
-                <CheckCircle2 className="size-5 text-neon-green" />
+                <CheckCircle2 className="text-neon-green size-5" />
               ) : (
-                <Clock className="size-5 text-neon-yellow" />
+                <Clock className="text-neon-yellow size-5" />
               )}
               <div>
                 <div className="font-medium">
                   {isOnChain ? "Minted on Algorand" : "Pending mint"}
                 </div>
-                <div className="text-xs text-muted-foreground">
+                <div className="text-muted-foreground text-xs">
                   {isOnChain
                     ? "This credential is verified on the Algorand blockchain"
                     : "This credential has not yet been minted on-chain"}
@@ -142,11 +168,13 @@ export default function CredentialDetailPage() {
             </div>
 
             {chainVerified && (
-              <div className="flex items-center gap-3 p-3 border border-neon-green/30 rounded bg-neon-green/5">
-                <CheckCircle2 className="size-5 text-neon-green" />
+              <div className="border-neon-green/30 bg-neon-green/5 flex items-center gap-3 rounded border p-3">
+                <CheckCircle2 className="text-neon-green size-5" />
                 <div>
-                  <div className="font-medium text-neon-green">Chain Verified</div>
-                  <div className="text-xs text-muted-foreground">
+                  <div className="text-neon-green font-medium">
+                    Chain Verified
+                  </div>
+                  <div className="text-muted-foreground text-xs">
                     On-chain data matches platform records
                   </div>
                 </div>
@@ -157,14 +185,14 @@ export default function CredentialDetailPage() {
             <div className="grid grid-cols-2 gap-4">
               {credential.mintTxHash && (
                 <DetailItem label="Mint Transaction">
-                  <span className="font-mono text-xs truncate max-w-[200px] inline-block">
+                  <span className="inline-block max-w-[200px] truncate font-mono text-xs">
                     {credential.mintTxHash}
                   </span>
                 </DetailItem>
               )}
               {credential.revokeTxHash && (
                 <DetailItem label="Revoke Transaction">
-                  <span className="font-mono text-xs truncate max-w-[200px] inline-block">
+                  <span className="inline-block max-w-[200px] truncate font-mono text-xs">
                     {credential.revokeTxHash}
                   </span>
                 </DetailItem>
@@ -181,9 +209,7 @@ export default function CredentialDetailPage() {
                 <ExternalLink className="size-5" />
                 Algorand Standard Asset
               </CardTitle>
-              <CardDescription>
-                ASA #{asaInfo.assetId}
-              </CardDescription>
+              <CardDescription>ASA #{asaInfo.assetId}</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-2 gap-4">
@@ -194,7 +220,10 @@ export default function CredentialDetailPage() {
                 {asaInfo.unitName && (
                   <DetailItem label="Unit Name" value={asaInfo.unitName} />
                 )}
-                <DetailItem label="Total Supply" value={String(asaInfo.total)} />
+                <DetailItem
+                  label="Total Supply"
+                  value={String(asaInfo.total)}
+                />
                 <DetailItem label="Decimals" value={String(asaInfo.decimals)} />
                 <DetailItem
                   label="Default Frozen"
@@ -206,7 +235,7 @@ export default function CredentialDetailPage() {
                 />
                 {asaInfo.creatorAddress && (
                   <DetailItem label="Creator">
-                    <span className="font-mono text-xs truncate max-w-[200px] inline-block">
+                    <span className="inline-block max-w-[200px] truncate font-mono text-xs">
                       {asaInfo.creatorAddress}
                     </span>
                   </DetailItem>
@@ -231,7 +260,9 @@ function DetailItem({
 }) {
   return (
     <div>
-      <div className="text-xs font-medium text-muted-foreground mb-1">{label}</div>
+      <div className="text-muted-foreground mb-1 text-xs font-medium">
+        {label}
+      </div>
       {children ?? <div className="text-sm font-medium">{value}</div>}
     </div>
   );

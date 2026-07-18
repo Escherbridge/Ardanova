@@ -1,27 +1,42 @@
 import { z } from "zod";
-import { createTRPCRouter, publicProcedure, protectedProcedure } from "~/server/api/trpc";
+import {
+  createTRPCRouter,
+  publicProcedure,
+  protectedProcedure,
+} from "~/server/api/trpc";
 import { apiClient } from "~/lib/api";
 import type { CreateSprint } from "~/lib/api/ardanova/endpoints/sprints";
-import { authorizeChildCreation, authorizeRootCreation } from "~/server/api/lib/hierarchy-auth";
+import { hierarchyAuthorization } from "~/server/api/lib/hierarchy-auth";
 
-export const SprintStatus = z.enum(['PLANNED', 'ACTIVE', 'COMPLETED', 'CANCELLED']);
+export const SprintStatus = z.enum([
+  "PLANNED",
+  "ACTIVE",
+  "COMPLETED",
+  "CANCELLED",
+]);
 
 const createSprintSchema = z.object({
   projectId: z.string().min(1),
-  epicId: z.string().optional(),
+  epicId: z.string().min(1),
   name: z.string().min(1).max(100),
   goal: z.string().optional(),
   startDate: z.string().datetime().optional(),
   endDate: z.string().datetime().optional(),
+  equityBudget: z.number().nonnegative().optional(),
+  assigneeId: z.string().min(1).optional(),
 });
 
-const updateSprintSchema = z.object({
-  name: z.string().min(1).max(100).optional(),
-  goal: z.string().optional(),
-  startDate: z.string().datetime().optional(),
-  endDate: z.string().datetime().optional(),
-  status: SprintStatus.optional(),
-});
+const updateSprintSchema = z
+  .object({
+    name: z.string().min(1).max(100).optional(),
+    goal: z.string().optional(),
+    startDate: z.string().datetime().optional(),
+    endDate: z.string().datetime().optional(),
+    equityBudget: z.number().nonnegative().optional(),
+    velocity: z.number().nonnegative().optional(),
+    status: SprintStatus.optional(),
+  })
+  .strict();
 
 export const sprintRouter = createTRPCRouter({
   getByEpicId: publicProcedure
@@ -53,18 +68,37 @@ export const sprintRouter = createTRPCRouter({
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user.id;
 
-      // Auth: if attaching to epic, must be assignee or project manager
-      if (input.epicId) {
-        await authorizeChildCreation(
-          { userId, projectId: input.projectId },
-          "epic",
-          input.epicId
+      await hierarchyAuthorization.authorizeCreation(
+        {
+          userId,
+          projectId: input.projectId,
+          isAdmin: ctx.session.user.role === "ADMIN",
+        },
+        [{ level: "epic", id: input.epicId }],
+      );
+      if (input.assigneeId || input.equityBudget !== undefined) {
+        await hierarchyAuthorization.requireProjectManager({
+          userId,
+          projectId: input.projectId,
+          isAdmin: ctx.session.user.role === "ADMIN",
+        });
+      }
+      if (input.assigneeId) {
+        await hierarchyAuthorization.requireProjectMember(
+          input.projectId,
+          input.assigneeId,
         );
-      } else {
-        await authorizeRootCreation({ userId, projectId: input.projectId });
       }
 
-      const response = await apiClient.sprints.create({ ...input } as CreateSprint);
+      const response = await apiClient.sprints.create({
+        epicId: input.epicId,
+        name: input.name,
+        goal: input.goal,
+        startDate: input.startDate,
+        endDate: input.endDate,
+        equityBudget: input.equityBudget,
+        assigneeId: input.assigneeId,
+      } satisfies CreateSprint);
 
       if (response.error || !response.data) {
         throw new Error(response.error ?? "Failed to create sprint");
@@ -78,11 +112,13 @@ export const sprintRouter = createTRPCRouter({
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user.id;
 
-      // Get sprint to verify ownership
-      const sprint = await apiClient.sprints.getById(input.id);
-      if (sprint.error || !sprint.data) {
-        throw new Error("Sprint not found");
-      }
+      await hierarchyAuthorization.authorizeMutation(
+        userId,
+        "sprint",
+        input.id,
+        input.data.equityBudget !== undefined ? "structure" : "work",
+        ctx.session.user.role === "ADMIN",
+      );
 
       const response = await apiClient.sprints.update(input.id, input.data);
 
@@ -98,11 +134,13 @@ export const sprintRouter = createTRPCRouter({
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user.id;
 
-      // Get sprint to verify ownership
-      const sprint = await apiClient.sprints.getById(input.id);
-      if (sprint.error || !sprint.data) {
-        throw new Error("Sprint not found");
-      }
+      await hierarchyAuthorization.authorizeMutation(
+        userId,
+        "sprint",
+        input.id,
+        "structure",
+        ctx.session.user.role === "ADMIN",
+      );
 
       const response = await apiClient.sprints.delete(input.id);
 
@@ -118,11 +156,13 @@ export const sprintRouter = createTRPCRouter({
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user.id;
 
-      // Get sprint to verify ownership
-      const sprint = await apiClient.sprints.getById(input.id);
-      if (sprint.error || !sprint.data) {
-        throw new Error("Sprint not found");
-      }
+      await hierarchyAuthorization.authorizeMutation(
+        userId,
+        "sprint",
+        input.id,
+        "work",
+        ctx.session.user.role === "ADMIN",
+      );
 
       const response = await apiClient.sprints.start(input.id);
 
@@ -138,11 +178,13 @@ export const sprintRouter = createTRPCRouter({
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user.id;
 
-      // Get sprint to verify ownership
-      const sprint = await apiClient.sprints.getById(input.id);
-      if (sprint.error || !sprint.data) {
-        throw new Error("Sprint not found");
-      }
+      await hierarchyAuthorization.authorizeMutation(
+        userId,
+        "sprint",
+        input.id,
+        "work",
+        ctx.session.user.role === "ADMIN",
+      );
 
       const response = await apiClient.sprints.complete(input.id);
 
@@ -158,11 +200,13 @@ export const sprintRouter = createTRPCRouter({
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user.id;
 
-      // Get sprint to verify ownership
-      const sprint = await apiClient.sprints.getById(input.id);
-      if (sprint.error || !sprint.data) {
-        throw new Error("Sprint not found");
-      }
+      await hierarchyAuthorization.authorizeMutation(
+        userId,
+        "sprint",
+        input.id,
+        "work",
+        ctx.session.user.role === "ADMIN",
+      );
 
       const response = await apiClient.sprints.cancel(input.id);
 

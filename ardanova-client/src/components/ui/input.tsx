@@ -1,40 +1,28 @@
-import * as React from "react"
-import { cva, type VariantProps } from "class-variance-authority"
+import * as React from "react";
+import { cva, type VariantProps } from "class-variance-authority";
 
-import { cn } from "~/lib/utils"
+import { cn } from "~/lib/utils";
 
 const inputVariants = cva(
-  "flex w-full min-w-0 bg-transparent text-foreground transition-all outline-none disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 placeholder:text-muted-foreground file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground",
+  "flex w-full min-w-0 bg-transparent text-foreground transition-colors disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 placeholder:text-muted-foreground file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground aria-invalid:border-destructive aria-invalid:ring-2 aria-invalid:ring-destructive/20",
   {
     variants: {
       variant: {
-        // Default - Clean brutalist
         default:
-          "border-2 border-input bg-background focus:border-primary focus:ring-2 focus:ring-primary/20",
-
-        // Ghost - Minimal border
+          "border border-input bg-background focus:border-system focus:ring-2 focus:ring-system/20",
         ghost:
-          "border-2 border-transparent bg-secondary/50 focus:border-border focus:bg-background",
-
-        // Underline - Bottom border only
+          "border border-transparent bg-secondary/50 focus:border-border focus:bg-background",
         underline:
-          "border-0 border-b-2 border-input bg-transparent px-0 focus:border-primary",
-
-        // Neon - Cyberpunk glow on focus
-        neon:
-          "border-2 border-input bg-background focus:border-neon-cyan focus:shadow-[0_0_10px_rgba(0,240,255,0.2)]",
-
-        // Neon Pink
+          "border-0 border-b border-input bg-transparent px-0 focus:border-system",
+        neon: "border border-input bg-background focus:border-system focus:ring-2 focus:ring-system/20",
         "neon-pink":
-          "border-2 border-input bg-background focus:border-neon-pink focus:shadow-[0_0_10px_rgba(255,0,170,0.2)]",
-
-        // Filled - Solid background
+          "border border-input bg-background focus:border-primary focus:ring-2 focus:ring-primary/20",
         filled:
-          "border-2 border-transparent bg-secondary focus:border-primary focus:bg-background",
+          "border border-transparent bg-secondary focus:border-system focus:bg-background",
       },
       inputSize: {
-        default: "h-10 px-4 py-2 text-sm",
-        sm: "h-8 px-3 py-1 text-xs",
+        default: "h-11 px-4 py-2 text-sm",
+        sm: "h-11 px-3 py-1 text-xs",
         lg: "h-12 px-5 py-3 text-base",
       },
     },
@@ -42,20 +30,14 @@ const inputVariants = cva(
       variant: "default",
       inputSize: "default",
     },
-  }
-)
+  },
+);
 
 export interface InputProps
   extends Omit<React.ComponentProps<"input">, "size">,
     VariantProps<typeof inputVariants> {}
 
-function Input({
-  className,
-  type,
-  variant,
-  inputSize,
-  ...props
-}: InputProps) {
+function Input({ className, type, variant, inputSize, ...props }: InputProps) {
   return (
     <input
       type={type}
@@ -63,7 +45,7 @@ function Input({
       className={cn(inputVariants({ variant, inputSize }), className)}
       {...props}
     />
-  )
+  );
 }
 
-export { Input, inputVariants }
+export { Input, inputVariants };

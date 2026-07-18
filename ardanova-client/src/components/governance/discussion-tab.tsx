@@ -8,53 +8,58 @@ interface DiscussionTabProps {
   proposalId: string;
 }
 
-export default function DiscussionTab({ proposalId }: DiscussionTabProps) {
+export default function DiscussionTab({
+  proposalId: _proposalId,
+}: DiscussionTabProps) {
   return (
     <div className="space-y-6">
       {/* Discussion Card */}
-      <Card className="bg-card border-2 border-border">
+      <Card className="bg-card border-border border-2">
         <CardHeader>
-          <CardTitle className="text-lg flex items-center gap-2">
-            <div className="w-8 h-8 bg-primary/20 rounded-lg flex items-center justify-center border border-primary/30">
-              <MessageCircle className="size-4 text-primary" />
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <div className="bg-primary/20 border-primary/30 flex h-8 w-8 items-center justify-center rounded-lg border">
+              <MessageCircle className="text-primary size-4" />
             </div>
             Discussion
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="text-center py-8 space-y-4">
+          <div className="space-y-4 py-8 text-center">
             <div className="flex justify-center">
-              <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center">
-                <MessageCircle className="size-8 text-muted-foreground" />
+              <div className="bg-muted flex h-16 w-16 items-center justify-center rounded-none">
+                <MessageCircle className="text-muted-foreground size-8" />
               </div>
             </div>
             <div className="space-y-2">
-              <h3 className="text-lg font-semibold text-foreground">
+              <h3 className="text-foreground text-lg font-semibold">
                 Discussion Coming Soon
               </h3>
-              <p className="text-muted-foreground max-w-md mx-auto">
+              <p className="text-muted-foreground mx-auto max-w-md">
                 This feature will allow proposal discussions and debates.
-                Community members will be able to share their thoughts, ask questions,
-                and engage in meaningful dialogue about proposals.
+                Community members will be able to share their thoughts, ask
+                questions, and engage in meaningful dialogue about proposals.
               </p>
             </div>
           </div>
 
           {/* Future Discussion Form (Disabled) */}
-          <div className="mt-6 space-y-3 opacity-50 pointer-events-none">
+          <div className="pointer-events-none mt-6 space-y-3 opacity-50">
             <div>
-              <label htmlFor="comment" className="text-sm font-medium block mb-1.5">
+              <label
+                htmlFor="comment"
+                className="mb-1.5 block text-sm font-medium"
+              >
                 Add Your Comment
               </label>
               <textarea
                 id="comment"
                 disabled
                 placeholder="Share your thoughts on this proposal..."
-                className="w-full px-3 py-2 border border-border rounded bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary min-h-[100px] resize-y"
+                className="border-border bg-background text-foreground focus:ring-primary min-h-[100px] w-full resize-y rounded border px-3 py-2 focus:ring-2 focus:outline-none"
               />
             </div>
             <Button type="button" variant="neon" className="w-full" disabled>
-              <MessageCircle className="size-4 mr-2" />
+              <MessageCircle className="mr-2 size-4" />
               Post Comment
             </Button>
           </div>

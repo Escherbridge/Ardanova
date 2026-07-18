@@ -1,56 +1,43 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { Suspense, useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { ArrowLeft, Loader2, AlertCircle, TrendingUp } from "lucide-react";
+import {
+  AlertCircle,
+  ArrowLeft,
+  Ban,
+  CheckCircle2,
+  Loader2,
+  LockKeyhole,
+  PauseCircle,
+  XCircle,
+} from "lucide-react";
+import type { PayoutRequestDto } from "~/lib/api/ardanova/endpoints/payouts";
+import { buildSignInHref } from "~/lib/auth-navigation";
+import {
+  getCancellablePayouts,
+  payoutStageLabel,
+} from "~/lib/commerce/portfolio-contract";
 import { api } from "~/trpc/react";
+import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
-import { Input } from "~/components/ui/input";
-import { ConversionChain } from "~/components/equity/conversion-chain";
-import { PayoutStatusTracker } from "~/components/equity/payout-status-tracker";
-import { cn } from "~/lib/utils";
+import { Card, CardContent } from "~/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "~/components/ui/dialog";
 
-type HolderClass = "CONTRIBUTOR" | "INVESTOR" | "FOUNDER";
-type PayoutStatus =
-  | "PENDING"
-  | "PROCESSING"
-  | "COMPLETED"
-  | "FAILED"
-  | "CANCELLED";
-
-interface Holding {
-  projectName: string;
-  tokenAmount: number;
-  equityPct: number;
-  usdValue: number;
-  isLiquid: boolean;
-  holderClass: string;
-  projectTokenConfigId: string;
+function formatInteger(value: number): string {
+  return new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(
+    value,
+  );
 }
-
-interface PortfolioData {
-  holdings: Holding[];
-}
-
-interface ConversionPreview {
-  projectTokens: number;
-  ardaAmount: number;
-  usdAmount: number;
-  tokenRate: number;
-  ardaRate: number;
-}
-
-interface CreatedPayout {
-  id: string;
-  status: PayoutStatus;
-  usdAmount: number;
-}
-
-const QUICK_PCT = [25, 50, 75, 100] as const;
-const TOKEN_TICKER = "TOKENS";
 
 function formatUsd(value: number): string {
   return new Intl.NumberFormat("en-US", {
@@ -61,372 +48,443 @@ function formatUsd(value: number): string {
   }).format(value);
 }
 
-function formatInteger(value: number): string {
-  return new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(
-    Math.round(value),
-  );
+function formatDate(value: string): string {
+  return new Intl.DateTimeFormat("en-US", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(value));
 }
 
-function holderClassColor(hc: HolderClass): string {
-  if (hc === "CONTRIBUTOR") return "text-neon-green";
-  if (hc === "INVESTOR") return "text-neon-cyan";
-  return "text-neon-pink";
+function shortenReference(value: string): string {
+  return value.length > 22
+    ? `${value.slice(0, 10)}...${value.slice(-8)}`
+    : value;
 }
 
 function WithdrawPageInner() {
   const { data: session, status: sessionStatus } = useSession();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const utils = api.useUtils();
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [cancelledId, setCancelledId] = useState<string | null>(null);
+  const [pendingCancellation, setPendingCancellation] =
+    useState<PayoutRequestDto | null>(null);
 
-  const configId = searchParams.get("configId") ?? "";
-  const holderClassParam = (searchParams.get("holderClass") ??
-    "CONTRIBUTOR") as HolderClass;
-
-  const userId = session?.user?.id ?? "";
-
-  const [rawAmount, setRawAmount] = useState("");
-  const [debouncedAmount, setDebouncedAmount] = useState(0);
-  const [inputError, setInputError] = useState<string | null>(null);
-  const [createdPayout, setCreatedPayout] = useState<CreatedPayout | null>(
-    null,
-  );
-
-  // Debounce 400 ms
-  useEffect(() => {
-    const parsed = parseFloat(rawAmount);
-    if (!rawAmount || isNaN(parsed) || parsed <= 0) {
-      setDebouncedAmount(0);
-      return;
-    }
-    const timer = setTimeout(() => setDebouncedAmount(parsed), 400);
-    return () => clearTimeout(timer);
-  }, [rawAmount]);
-
-  const { data: portfolioRaw, isLoading: portfolioLoading } =
-    api.tokenBalances.getPortfolio.useQuery(
-      undefined,
-      { enabled: !!userId },
-    );
-
-  const portfolio = portfolioRaw as unknown as PortfolioData | undefined;
-  const holding = portfolio?.holdings.find(
-    (h) => h.projectTokenConfigId === configId,
-  );
-
+  const selectedConfigId = searchParams.get("configId") ?? undefined;
+  const queryEnabled = Boolean(session?.user?.id);
   const {
-    data: previewRaw,
-    isLoading: previewLoading,
-    error: previewError,
-  } = api.exchange.getConversionPreview.useQuery(
-    { projectTokenConfigId: configId, tokenAmount: debouncedAmount },
-    { enabled: !!configId && debouncedAmount > 0 },
-  );
-
-  const preview = previewRaw as unknown as ConversionPreview | undefined;
-
-  const requestPayout = api.payouts.requestPayout.useMutation({
-    onSuccess: (data) => {
-      const result = data as { id: string };
-      setCreatedPayout({
-        id: result.id ?? "unknown",
-        status: "PENDING",
-        usdAmount: preview?.usdAmount ?? 0,
-      });
-    },
+    data: payouts,
+    isLoading,
+    error: payoutsError,
+  } = api.payouts.getPayoutsByUser.useQuery(undefined, {
+    enabled: queryEnabled,
   });
 
   const cancelPayout = api.payouts.cancelPayout.useMutation({
-    onSuccess: () => {
-      if (createdPayout) {
-        setCreatedPayout({ ...createdPayout, status: "CANCELLED" });
-      }
+    onMutate: ({ payoutRequestId }) => {
+      setCancelledId(null);
+      setCancellingId(payoutRequestId);
     },
+    onSuccess: async (cancelled) => {
+      setCancelledId(cancelled.id);
+      setPendingCancellation(null);
+      await Promise.all([
+        utils.payouts.getPayoutsByUser.invalidate(),
+        utils.tokenBalances.getPortfolio.invalidate(),
+        utils.tokenBalances.getArdaBalance.invalidate(),
+      ]);
+    },
+    onSettled: () => setCancellingId(null),
   });
 
-  function applyQuickPct(pct: number) {
-    if (!holding) return;
-    const amount = Math.floor((holding.tokenAmount * pct) / 100);
-    setRawAmount(String(amount));
-    setInputError(null);
-  }
-
-  function validate(): boolean {
-    const parsed = parseFloat(rawAmount);
-    if (!rawAmount || isNaN(parsed) || parsed <= 0) {
-      setInputError("Enter a valid token amount");
-      return false;
+  useEffect(() => {
+    if (sessionStatus === "unauthenticated") {
+      const callbackUrl = selectedConfigId
+        ? `/portfolio/withdraw?configId=${encodeURIComponent(selectedConfigId)}`
+        : "/portfolio/withdraw";
+      router.replace(buildSignInHref(callbackUrl));
     }
-    if (holding && parsed > holding.tokenAmount) {
-      setInputError(`Maximum is ${formatInteger(holding.tokenAmount)} tokens`);
-      return false;
-    }
-    setInputError(null);
-    return true;
-  }
+  }, [router, selectedConfigId, sessionStatus]);
 
-  function handleSubmit() {
-    if (!validate()) return;
-    const parsed = parseFloat(rawAmount);
-    requestPayout.mutate({
-      sourceProjectTokenConfigId: configId,
-      sourceTokenAmount: Math.floor(parsed),
-      holderClass: holderClassParam,
-    });
-  }
-
-  if (sessionStatus === "loading" || portfolioLoading) {
+  if (sessionStatus === "loading") {
     return (
       <div className="flex min-h-screen items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-neon-cyan" />
+        <Loader2 className="text-primary h-8 w-8 animate-spin" />
       </div>
     );
   }
 
-  if (!session) {
-    router.push("/sign-in");
-    return null;
+  if (!session) return null;
+
+  const cancellablePayouts = getCancellablePayouts(
+    payouts ?? [],
+    selectedConfigId,
+  );
+  const relevantRecords = selectedConfigId
+    ? (payouts ?? []).filter(
+        (payout) => payout.sourceProjectTokenConfigId === selectedConfigId,
+      )
+    : (payouts ?? []);
+
+  function cancel(record: PayoutRequestDto) {
+    if (getCancellablePayouts([record]).length !== 1) return;
+    cancelPayout.reset();
+    setPendingCancellation(record);
   }
 
-  if (!configId) {
-    return (
-      <div className="flex min-h-screen items-center justify-center px-4">
-        <div className="rounded-none border-2 border-destructive/50 bg-destructive/10 p-8 max-w-sm text-center space-y-3">
-          <AlertCircle className="mx-auto h-8 w-8 text-destructive" />
-          <p className="font-mono text-sm text-destructive">
-            Missing token configuration. Return to portfolio and try again.
-          </p>
-          <Button variant="outline" asChild className="w-full">
-            <Link href="/portfolio">Back to Portfolio</Link>
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
-  if (!holding) {
-    return (
-      <div className="flex min-h-screen items-center justify-center px-4">
-        <div className="rounded-none border-2 border-border bg-muted/20 p-8 max-w-sm text-center space-y-3">
-          <AlertCircle className="mx-auto h-8 w-8 text-muted-foreground" />
-          <p className="font-mono text-sm text-muted-foreground">
-            Holding not found or no longer available.
-          </p>
-          <Button variant="outline" asChild className="w-full">
-            <Link href="/portfolio">Back to Portfolio</Link>
-          </Button>
-        </div>
-      </div>
-    );
+  function confirmCancellation() {
+    if (
+      !pendingCancellation ||
+      getCancellablePayouts([pendingCancellation]).length !== 1
+    ) {
+      return;
+    }
+    cancelPayout.mutate({ payoutRequestId: pendingCancellation.id });
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="mx-auto max-w-xl px-4 py-8 space-y-6">
-        {/* Header */}
-        <div>
-          <Button variant="ghost" asChild className="-ml-2 mb-4">
+    <div className="bg-background min-h-screen">
+      <div className="mx-auto max-w-3xl space-y-6 px-4 py-8">
+        <header className="border-foreground border-b-2 pb-6">
+          <Button asChild variant="ghost" className="mb-5 -ml-3 rounded-none">
             <Link href="/portfolio">
-              <ArrowLeft className="h-4 w-4 mr-2" />
+              <ArrowLeft className="mr-2 h-4 w-4" />
               Portfolio
             </Link>
           </Button>
-
-          <h1 className="font-mono text-2xl font-bold uppercase tracking-tight text-foreground flex items-center gap-3">
-            <div className="w-9 h-9 border-2 border-neon-green/60 bg-neon-green/10 flex items-center justify-center">
-              <TrendingUp className="h-4 w-4 text-neon-green" />
-            </div>
-            Withdraw
-          </h1>
-          <p className="font-mono text-sm text-muted-foreground mt-1">
-            {holding.projectName}
-            {" · "}
-            <span
-              className={cn("font-semibold", holderClassColor(holderClassParam))}
-            >
-              {holderClassParam}
-            </span>
+          <p className="text-primary font-mono text-xs tracking-[0.22em] uppercase">
+            Safety hold
           </p>
-        </div>
+          <h1 className="mt-2 flex items-center gap-3 text-4xl font-black tracking-tight uppercase">
+            <PauseCircle className="h-8 w-8" />
+            Payouts paused
+          </h1>
+          <p className="text-muted-foreground mt-3 max-w-2xl text-sm">
+            New payout requests are unavailable until ArdaNova has a verified
+            provider transfer and durable settlement reconciliation. Visiting
+            this page does not submit a request or move or lock any tokens.
+          </p>
+        </header>
 
-        {createdPayout ? (
-          /* Post-submit: status tracker */
-          <div className="space-y-4">
-            <PayoutStatusTracker
-              status={createdPayout.status}
-              payoutId={createdPayout.id}
-              usdAmount={createdPayout.usdAmount}
-              onCancel={
-                createdPayout.status === "PENDING"
-                  ? () =>
-                      cancelPayout.mutate({
-                        payoutRequestId: createdPayout.id,
-                      })
-                  : undefined
-              }
-              isCancelling={cancelPayout.isPending}
-            />
-            {(createdPayout.status === "COMPLETED" ||
-              createdPayout.status === "CANCELLED" ||
-              createdPayout.status === "FAILED") && (
-              <Button
-                variant="outline"
-                asChild
-                className="w-full rounded-none font-mono text-xs uppercase tracking-widest"
-              >
-                <Link href="/portfolio">Back to Portfolio</Link>
-              </Button>
-            )}
+        <section
+          aria-labelledby="processing-contract-heading"
+          className="border-foreground bg-foreground grid gap-px border-2 md:grid-cols-3"
+        >
+          <ContractStep
+            label="01 / Submit"
+            value="Paused"
+            detail="No new request action is exposed."
+            icon={<Ban className="h-5 w-5" />}
+          />
+          <ContractStep
+            label="02 / Confirm transfer"
+            value="Unavailable"
+            detail="The processing endpoint intentionally returns HTTP 503."
+            icon={<XCircle className="h-5 w-5" />}
+          />
+          <ContractStep
+            label="03 / Reconcile"
+            value="Unavailable"
+            detail="The current DTO has no durable reconciliation field."
+            icon={<LockKeyhole className="h-5 w-5" />}
+          />
+          <h2 id="processing-contract-heading" className="sr-only">
+            Payout processing contract
+          </h2>
+        </section>
+
+        {selectedConfigId && (
+          <div className="border-border bg-muted/20 text-muted-foreground border p-3 text-xs">
+            Showing records for token configuration{" "}
+            <span
+              className="text-foreground font-mono"
+              title={selectedConfigId}
+            >
+              {shortenReference(selectedConfigId)}
+            </span>
+            .
           </div>
-        ) : (
-          /* Pre-submit: form */
-          <>
-            {/* Available balance */}
-            <Card className="rounded-none border-2 border-neon-green/30 bg-neon-green/5">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <p className="font-mono text-xs uppercase tracking-widest text-muted-foreground">
-                    Available to Withdraw
-                  </p>
-                  <div className="text-right">
-                    <p className="font-mono text-lg font-bold text-neon-green">
-                      {formatInteger(holding.tokenAmount)} {TOKEN_TICKER}
-                    </p>
-                    <p className="font-mono text-xs text-muted-foreground">
-                      {formatUsd(holding.usdValue)}
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+        )}
 
-            {/* Amount input */}
-            <Card className="rounded-none" padding="none">
-              <CardHeader className="p-4 pb-2">
-                <CardTitle className="font-mono text-sm uppercase tracking-widest">
-                  Enter Amount
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-4 pt-0 space-y-3">
-                {/* Quick % buttons */}
-                <div className="grid grid-cols-4 gap-2">
-                  {QUICK_PCT.map((pct) => (
-                    <button
-                      key={pct}
+        {cancelledId && (
+          <div
+            role="status"
+            className="border-primary bg-primary/10 flex gap-3 border-2 p-4"
+          >
+            <CheckCircle2 className="text-primary mt-0.5 h-5 w-5 shrink-0" />
+            <div>
+              <p className="font-mono text-sm font-bold uppercase">
+                Cancellation confirmed by the API
+              </p>
+              <p className="text-muted-foreground mt-1 text-xs">
+                The cancellation service unlocks the recorded tokens before it
+                changes a pending request to cancelled. Reference{" "}
+                <span className="font-mono">
+                  {shortenReference(cancelledId)}
+                </span>
+                .
+              </p>
+            </div>
+          </div>
+        )}
+
+        {cancelPayout.error && !pendingCancellation && (
+          <div
+            role="alert"
+            className="border-destructive bg-destructive/10 flex gap-3 border-2 p-4"
+          >
+            <AlertCircle className="text-destructive mt-0.5 h-5 w-5 shrink-0" />
+            <div>
+              <p className="text-destructive font-mono text-sm font-bold uppercase">
+                Cancellation not confirmed
+              </p>
+              <p className="text-destructive mt-1 text-xs">
+                {cancelPayout.error.message}
+              </p>
+              <p className="text-muted-foreground mt-1 text-xs">
+                No token-unlock claim is made unless the API returns success.
+              </p>
+            </div>
+          </div>
+        )}
+
+        <section
+          aria-labelledby="pending-cancellations-heading"
+          className="space-y-4"
+        >
+          <div className="border-border border-b pb-3">
+            <p className="text-primary font-mono text-[10px] tracking-[0.2em] uppercase">
+              Recovery action
+            </p>
+            <h2
+              id="pending-cancellations-heading"
+              className="mt-1 text-xl font-black uppercase"
+            >
+              Existing pending requests
+            </h2>
+            <p className="text-muted-foreground mt-2 text-xs">
+              Only an existing token-conversion record with status PENDING, a
+              source configuration, and a positive source-token amount can be
+              cancelled safely. Cancellation is the only mutation available on
+              this screen.
+            </p>
+          </div>
+
+          {isLoading ? (
+            <div className="flex justify-center py-10">
+              <Loader2 className="text-primary h-6 w-6 animate-spin" />
+            </div>
+          ) : payoutsError ? (
+            <div
+              role="alert"
+              className="border-destructive bg-destructive/10 border-2 p-5"
+            >
+              <p className="text-destructive text-sm">
+                Existing payout records could not be loaded. No cancellation
+                controls are shown.
+              </p>
+            </div>
+          ) : cancellablePayouts.length === 0 ? (
+            <div className="border-border border-2 border-dashed p-7 text-center">
+              <p className="text-muted-foreground font-mono text-sm">
+                {selectedConfigId
+                  ? "No cancellable pending request was returned for this token configuration."
+                  : "No cancellable pending payout request was returned."}
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {cancellablePayouts.map((payout) => (
+                <Card
+                  key={payout.id}
+                  className="border-border rounded-none border-2"
+                  padding="none"
+                >
+                  <CardContent className="space-y-4 p-4">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <p className="text-muted-foreground font-mono text-[10px] tracking-widest uppercase">
+                          Submitted {formatDate(payout.requestedAt)}
+                        </p>
+                        <p className="mt-1 font-mono text-sm font-bold">
+                          {shortenReference(payout.id)}
+                        </p>
+                      </div>
+                      <Badge variant="warning" size="sm">
+                        {payoutStageLabel[payout.status]}
+                      </Badge>
+                    </div>
+
+                    <dl className="border-border grid grid-cols-2 gap-3 border-y py-3 sm:grid-cols-4">
+                      <RecordDatum
+                        label="Tokens"
+                        value={formatInteger(payout.sourceTokenAmount)}
+                      />
+                      <RecordDatum
+                        label="Recorded USD"
+                        value={
+                          payout.usdAmount === null
+                            ? "Not recorded"
+                            : formatUsd(payout.usdAmount)
+                        }
+                      />
+                      <RecordDatum
+                        label="Holder class"
+                        value={payout.holderClass}
+                      />
+                      <RecordDatum
+                        label="Gate at request"
+                        value={payout.gateStatusAtRequest}
+                      />
+                    </dl>
+
+                    <Button
                       type="button"
-                      onClick={() => applyQuickPct(pct)}
-                      className="rounded-none border-2 border-border bg-muted/20 py-1.5 font-mono text-xs uppercase tracking-wide text-foreground hover:border-neon-cyan/60 hover:bg-neon-cyan/5 hover:text-neon-cyan transition-colors"
+                      variant="outline"
+                      onClick={() => cancel(payout)}
+                      disabled={cancellingId !== null}
+                      className="border-destructive text-destructive hover:bg-destructive/10 min-h-11 w-full rounded-none font-mono text-xs tracking-widest uppercase"
                     >
-                      {pct}%
-                    </button>
-                  ))}
-                </div>
-
-                {/* Text input */}
-                <div className="space-y-1">
-                  <div className="relative">
-                    <Input
-                      type="number"
-                      min={1}
-                      max={holding.tokenAmount}
-                      step={1}
-                      value={rawAmount}
-                      onChange={(e) => {
-                        setRawAmount(e.target.value);
-                        setInputError(null);
-                      }}
-                      placeholder={`0 — max ${formatInteger(holding.tokenAmount)}`}
-                      className={cn(
-                        "rounded-none border-2 font-mono pr-20",
-                        inputError ? "border-destructive" : "border-border",
+                      {cancellingId === payout.id ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Confirming cancellation...
+                        </>
+                      ) : (
+                        <>
+                          <XCircle className="mr-2 h-4 w-4" />
+                          Cancel pending request
+                        </>
                       )}
-                    />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 font-mono text-xs text-muted-foreground pointer-events-none">
-                      {TOKEN_TICKER}
-                    </span>
-                  </div>
-                  {inputError && (
-                    <p className="font-mono text-xs text-destructive">
-                      {inputError}
-                    </p>
+                    </Button>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </section>
+
+        {!isLoading && !payoutsError && relevantRecords.length > 0 && (
+          <section className="border-border text-muted-foreground border-t pt-4 text-xs">
+            <p>
+              {relevantRecords.length} matching API record
+              {relevantRecords.length === 1 ? " is" : "s are"} visible in the
+              portfolio history. Status labels preserve the difference between
+              submitted, confirmed, and reconciled; the latter two are not
+              inferred when the contract does not provide them.
+            </p>
+          </section>
+        )}
+
+        <Dialog
+          open={pendingCancellation !== null}
+          onOpenChange={(nextOpen) => {
+            if (!nextOpen && !cancelPayout.isPending) {
+              setPendingCancellation(null);
+              cancelPayout.reset();
+            }
+          }}
+        >
+          <DialogContent className="rounded-none border-2 sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Cancel this pending payout request?</DialogTitle>
+              <DialogDescription>
+                This asks the backend to unlock the recorded source tokens and
+                change the pending request to cancelled. No unlock or status
+                change is assumed until the API confirms success.
+              </DialogDescription>
+            </DialogHeader>
+
+            {pendingCancellation && (
+              <dl className="border-border grid gap-3 border-y py-4 text-sm">
+                <RecordDatum
+                  label="Source tokens"
+                  value={formatInteger(pendingCancellation.sourceTokenAmount)}
+                />
+                <RecordDatum
+                  label="Token configuration"
+                  value={shortenReference(
+                    pendingCancellation.sourceProjectTokenConfigId ??
+                      "Not recorded",
                   )}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Conversion preview */}
-            {debouncedAmount > 0 && (
-              <div className="relative">
-                {previewLoading && (
-                  <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/60 rounded-none">
-                    <Loader2 className="h-5 w-5 animate-spin text-neon-cyan" />
-                  </div>
-                )}
-                {previewError ? (
-                  <div className="rounded-none border-2 border-destructive/40 bg-destructive/10 p-4">
-                    <p className="font-mono text-xs text-destructive flex items-center gap-2">
-                      <AlertCircle className="h-3.5 w-3.5" />
-                      Could not load conversion preview
-                    </p>
-                  </div>
-                ) : preview ? (
-                  <ConversionChain
-                    projectTokens={preview.projectTokens}
-                    tokenTicker={TOKEN_TICKER}
-                    ardaAmount={preview.ardaAmount}
-                    usdAmount={preview.usdAmount}
-                    tokenRate={preview.tokenRate}
-                    ardaRate={preview.ardaRate}
-                  />
-                ) : null}
-              </div>
+                />
+              </dl>
             )}
 
-            {/* Mutation error */}
-            {requestPayout.error && (
-              <div className="rounded-none border-2 border-destructive/40 bg-destructive/10 p-4">
-                <p className="font-mono text-xs text-destructive flex items-center gap-2">
-                  <AlertCircle className="h-3.5 w-3.5" />
-                  {requestPayout.error.message}
-                </p>
-              </div>
-            )}
-
-            {/* Submit */}
-            <div className="flex gap-3">
-              <Button
-                onClick={handleSubmit}
-                disabled={requestPayout.isPending || !rawAmount}
-                className="flex-1 rounded-none bg-neon-green text-black font-mono text-xs uppercase tracking-widest font-bold hover:bg-neon-green/90 py-5 disabled:opacity-50"
+            {cancelPayout.error && (
+              <p
+                className="border-destructive bg-destructive/10 text-destructive border-2 p-3 text-sm"
+                role="alert"
               >
-                {requestPayout.isPending ? (
+                Cancellation was not confirmed: {cancelPayout.error.message}
+              </p>
+            )}
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setPendingCancellation(null)}
+                disabled={cancelPayout.isPending}
+              >
+                Keep request
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                onClick={confirmCancellation}
+                disabled={cancelPayout.isPending || !pendingCancellation}
+              >
+                {cancelPayout.isPending ? (
                   <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Submitting...
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Confirming...
                   </>
                 ) : (
-                  <>
-                    <TrendingUp className="h-4 w-4 mr-2" />
-                    Request Payout
-                  </>
+                  "Confirm cancellation"
                 )}
               </Button>
-              <Button
-                variant="outline"
-                asChild
-                className="rounded-none font-mono text-xs uppercase tracking-widest py-5"
-              >
-                <Link href="/portfolio">Cancel</Link>
-              </Button>
-            </div>
-
-            {/* Disclaimer */}
-            <p className="font-mono text-[10px] text-muted-foreground/60 text-center leading-relaxed">
-              Payout requests are processed within 1–3 business days. Rates
-              shown are indicative and may vary at execution time.
-            </p>
-          </>
-        )}
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
+    </div>
+  );
+}
+
+function ContractStep({
+  label,
+  value,
+  detail,
+  icon,
+}: {
+  label: string;
+  value: string;
+  detail: string;
+  icon: ReactNode;
+}) {
+  return (
+    <div className="bg-background p-4">
+      <p className="text-muted-foreground font-mono text-[10px] tracking-widest uppercase">
+        {label}
+      </p>
+      <div className="mt-3 flex items-center gap-2">
+        {icon}
+        <p className="font-mono text-sm font-bold uppercase">{value}</p>
+      </div>
+      <p className="text-muted-foreground mt-2 text-xs">{detail}</p>
+    </div>
+  );
+}
+
+function RecordDatum({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <dt className="text-muted-foreground font-mono text-[10px] tracking-widest uppercase">
+        {label}
+      </dt>
+      <dd className="text-foreground mt-1 font-mono text-xs">{value}</dd>
     </div>
   );
 }
@@ -436,7 +494,7 @@ export default function WithdrawPage() {
     <Suspense
       fallback={
         <div className="flex min-h-screen items-center justify-center">
-          <Loader2 className="h-8 w-8 animate-spin text-neon-cyan" />
+          <Loader2 className="text-primary h-8 w-8 animate-spin" />
         </div>
       }
     >

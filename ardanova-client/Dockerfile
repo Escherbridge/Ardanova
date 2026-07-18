@@ -26,14 +26,14 @@ COPY . .
 # Set environment variables for build
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
-# Skip T3 env validation at build time — real values are injected by Railway at
+# Skip T3 env validation at build time; real values are injected by Railway at
 # runtime, so build-time validation only fails the image build. Default true so
-# the build never depends on Railway passing the build arg (railway.toml can still
-# override). See src/env.js (skipValidation).
+# the build never depends on Railway passing the build arg. See src/env.js
+# (skipValidation).
 ARG SKIP_ENV_VALIDATION=true
 ENV SKIP_ENV_VALIDATION=${SKIP_ENV_VALIDATION}
 # NEXT_PUBLIC_* values are inlined at build time; Railway passes service
-# variables as build args only when declared here (see railway.toml build.args).
+# variables as build args when declared here.
 ARG NEXT_PUBLIC_AZOA_BASE_URL
 ENV NEXT_PUBLIC_AZOA_BASE_URL=${NEXT_PUBLIC_AZOA_BASE_URL}
 
@@ -74,8 +74,8 @@ USER nextjs
 
 EXPOSE 3000
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:3000/api/health || exit 1
+# Readiness includes bounded runtime configuration and backend checks.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD wget --no-verbose --tries=1 --spider http://localhost:3000/api/ready || exit 1
 
 CMD ["node", "server.js"]

@@ -1,7 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { AlertTriangle, Loader2, AlertCircle, SendHorizonal } from "lucide-react";
+import {
+  AlertTriangle,
+  Loader2,
+  AlertCircle,
+  SendHorizonal,
+} from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { Textarea } from "~/components/ui/textarea";
 import {
@@ -61,30 +66,45 @@ export function DisputeForm({ escrowId, onSubmit }: DisputeFormProps) {
       setError("Please provide a description of at least 20 characters.");
       return;
     }
+    if (description.trim().length > 4000) {
+      setError("Please keep the dispute description within 4,000 characters.");
+      return;
+    }
     setError(null);
-    disputeMutation.mutate({ id: escrowId });
+    disputeMutation.mutate({
+      id: escrowId,
+      reason,
+      description: description.trim(),
+    });
   };
 
-  const isValid = reason !== "" && description.trim().length >= 20;
+  const descriptionLength = description.trim().length;
+  const isValid =
+    reason !== "" && descriptionLength >= 20 && descriptionLength <= 4000;
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="flex items-center gap-2 rounded-md border border-neon-pink/30 bg-neon-pink/5 p-3">
-        <AlertTriangle className="h-4 w-4 shrink-0 text-neon-pink" />
-        <p className="text-sm text-neon-pink">
+      <div className="border-destructive bg-destructive/10 flex items-center gap-2 border p-3">
+        <AlertTriangle
+          className="text-destructive h-4 w-4 shrink-0"
+          aria-hidden="true"
+        />
+        <p id="dispute-warning" className="text-destructive text-sm">
           Raising a dispute will freeze funds until resolution. Use this only if
           you cannot resolve the issue directly.
         </p>
       </div>
 
       <div className="space-y-2">
-        <label className="text-sm font-medium">Dispute Reason *</label>
+        <label htmlFor="dispute-reason" className="text-sm font-medium">
+          Dispute Reason *
+        </label>
         <Select
           value={reason}
           onValueChange={(val) => setReason(val as DisputeReason)}
           disabled={disputeMutation.isPending}
         >
-          <SelectTrigger>
+          <SelectTrigger id="dispute-reason" aria-describedby="dispute-warning">
             <SelectValue placeholder="Select a reason..." />
           </SelectTrigger>
           <SelectContent>
@@ -93,32 +113,44 @@ export function DisputeForm({ escrowId, onSubmit }: DisputeFormProps) {
                 <SelectItem key={key} value={key}>
                   {DISPUTE_REASON_LABELS[key]}
                 </SelectItem>
-              )
+              ),
             )}
           </SelectContent>
         </Select>
       </div>
 
       <div className="space-y-2">
-        <label className="text-sm font-medium">
+        <label htmlFor="dispute-description" className="text-sm font-medium">
           Description *{" "}
-          <span className="text-xs text-muted-foreground">
-            ({description.trim().length}/20 min)
+          <span
+            id="dispute-description-requirement"
+            className="text-muted-foreground text-xs"
+          >
+            ({descriptionLength}/4000; 20 minimum)
           </span>
         </label>
         <Textarea
+          id="dispute-description"
           placeholder="Describe the issue in detail. Include relevant dates, deliverable references, and what resolution you are seeking."
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           className="min-h-[120px] resize-none"
           disabled={disputeMutation.isPending}
+          aria-describedby="dispute-description-requirement dispute-warning"
+          maxLength={4000}
         />
       </div>
 
       {error && (
-        <div className="flex items-start gap-2 rounded-md border border-destructive/50 bg-destructive/10 p-3">
-          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
-          <p className="text-sm text-destructive">{error}</p>
+        <div
+          className="border-destructive bg-destructive/10 flex items-start gap-2 border p-3"
+          role="alert"
+        >
+          <AlertCircle
+            className="text-destructive mt-0.5 h-4 w-4 shrink-0"
+            aria-hidden="true"
+          />
+          <p className="text-destructive text-sm">{error}</p>
         </div>
       )}
 

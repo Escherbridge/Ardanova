@@ -20,20 +20,20 @@ const steps: Step[] = [
   {
     id: "FUNDING",
     label: "FUNDING",
-    description: "Collecting investor contributions",
-    icon: <Clock className="size-4" />,
+    description: "Funding gate",
+    icon: <Clock className="size-4" aria-hidden="true" />,
   },
   {
     id: "ACTIVE",
     label: "ACTIVE",
-    description: "Funded & project in progress",
-    icon: <Zap className="size-4" />,
+    description: "Active project gate",
+    icon: <Zap className="size-4" aria-hidden="true" />,
   },
   {
     id: "SUCCEEDED",
     label: "SUCCEEDED",
-    description: "Project completed successfully",
-    icon: <Trophy className="size-4" />,
+    description: "Success gate cleared",
+    icon: <Trophy className="size-4" aria-hidden="true" />,
   },
 ];
 
@@ -41,7 +41,6 @@ type StepState = "completed" | "current" | "upcoming" | "failed";
 
 function getStepState(stepId: string, gateStatus: GateStatus): StepState {
   if (gateStatus === "FAILED") {
-    if (stepId === "FUNDING") return "failed";
     return "upcoming";
   }
   const order: GateStatus[] = ["FUNDING", "ACTIVE", "SUCCEEDED"];
@@ -52,15 +51,18 @@ function getStepState(stepId: string, gateStatus: GateStatus): StepState {
   return "upcoming";
 }
 
-const stateStyles: Record<StepState, { dot: string; text: string; connector: string }> = {
+const stateStyles: Record<
+  StepState,
+  { dot: string; text: string; connector: string }
+> = {
   completed: {
-    dot: "bg-[#00ff88] border-[#00ff88] text-background",
-    text: "text-[#00ff88]",
-    connector: "bg-[#00ff88]",
+    dot: "bg-success border-success text-success-foreground",
+    text: "text-success",
+    connector: "bg-success",
   },
   current: {
-    dot: "bg-[#00d4ff] border-[#00d4ff] text-background shadow-[0_0_12px_rgba(0,212,255,0.6)]",
-    text: "text-[#00d4ff]",
+    dot: "bg-system border-system text-system-foreground",
+    text: "text-system",
     connector: "bg-border",
   },
   upcoming: {
@@ -69,48 +71,57 @@ const stateStyles: Record<StepState, { dot: string; text: string; connector: str
     connector: "bg-border",
   },
   failed: {
-    dot: "bg-[#ff0080] border-[#ff0080] text-background shadow-[0_0_12px_rgba(255,0,128,0.6)]",
-    text: "text-[#ff0080]",
-    connector: "bg-[#ff0080]",
+    dot: "bg-destructive border-destructive text-destructive-foreground",
+    text: "text-destructive",
+    connector: "bg-destructive",
   },
 };
 
 export default function GateTimeline({ gateStatus }: GateTimelineProps) {
   return (
     <div className="space-y-2">
-      <span className="font-mono text-xs font-bold tracking-widest text-muted-foreground">
+      <span className="text-muted-foreground font-mono text-xs font-bold tracking-widest">
         PROJECT TIMELINE
       </span>
 
-      <div className="flex items-start gap-0">
+      <ol className="flex items-start gap-0">
         {steps.map((step, idx) => {
           const state = getStepState(step.id, gateStatus);
           const styles = stateStyles[state];
           const isLast = idx === steps.length - 1;
 
           return (
-            <div key={step.id} className="flex items-start flex-1">
+            <li
+              key={step.id}
+              className="flex flex-1 items-start"
+              aria-current={state === "current" ? "step" : undefined}
+            >
               {/* Step dot + label */}
               <div className="flex flex-col items-center">
                 <div
                   className={cn(
-                    "size-8 rounded-full border-2 flex items-center justify-center shrink-0",
+                    "flex size-8 shrink-0 items-center justify-center rounded-full border-2",
                     styles.dot,
                   )}
                 >
                   {state === "completed" ? (
-                    <Check className="size-4" />
+                    <Check className="size-4" aria-hidden="true" />
                   ) : state === "failed" ? (
-                    <X className="size-4" />
+                    <X className="size-4" aria-hidden="true" />
                   ) : (
                     step.icon
                   )}
                 </div>
-                <div className="mt-2 text-center max-w-[80px]">
-                  <p className={cn("font-mono text-[10px] font-bold tracking-wide", styles.text)}>
+                <div className="mt-2 max-w-[80px] text-center">
+                  <p
+                    className={cn(
+                      "font-mono text-[10px] font-bold tracking-wide",
+                      styles.text,
+                    )}
+                  >
                     {step.label}
                   </p>
-                  <p className="text-[9px] text-muted-foreground leading-tight mt-0.5">
+                  <p className="text-muted-foreground mt-0.5 text-[9px] leading-tight">
                     {step.description}
                   </p>
                 </div>
@@ -118,31 +129,33 @@ export default function GateTimeline({ gateStatus }: GateTimelineProps) {
 
               {/* Connector line */}
               {!isLast && (
-                <div className="flex-1 flex items-center mt-4">
+                <div className="mt-4 flex flex-1 items-center">
                   <div
                     className={cn(
                       "h-0.5 w-full transition-colors",
-                      state === "completed" ? "bg-[#00ff88]" : "bg-border",
+                      state === "completed" ? "bg-success" : "bg-border",
                     )}
                   />
                 </div>
               )}
-            </div>
+            </li>
           );
         })}
-      </div>
+      </ol>
 
       {/* Failed branch */}
       {gateStatus === "FAILED" && (
-        <div className="mt-4 border-2 border-[#ff0080]/40 bg-[#ff0080]/5 p-3">
+        <div className="border-destructive bg-destructive/10 mt-4 border-2 p-3">
           <div className="flex items-center gap-2">
-            <X className="size-4 text-[#ff0080]" />
-            <span className="font-mono text-xs font-bold text-[#ff0080] tracking-wide">
-              FUNDING FAILED
+            <X className="text-destructive size-4" aria-hidden="true" />
+            <span className="text-destructive font-mono text-xs font-bold tracking-wide">
+              PROJECT GATE FAILED
             </span>
           </div>
-          <p className="text-xs text-muted-foreground mt-1">
-            The project did not reach its funding goal. Investors will be refunded.
+          <p className="text-muted-foreground mt-1 text-xs">
+            Failure is recorded. Token burns, protection processing, and any
+            payout remain separate backend records; this status does not prove
+            that any funds were returned.
           </p>
         </div>
       )}

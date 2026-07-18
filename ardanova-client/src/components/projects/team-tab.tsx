@@ -2,12 +2,23 @@
 
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
-import { api } from "~/trpc/react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "~/components/ui/card";
+import { api, type RouterInputs, type RouterOutputs } from "~/trpc/react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
 import { Badge } from "~/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "~/components/ui/accordion";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "~/components/ui/accordion";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -31,7 +42,21 @@ import {
   DialogTrigger,
 } from "~/components/ui/dialog";
 import { CredentialBadge } from "~/components/credentials/credential-badge";
-import { Loader2, Users, Plus, Check, X, Shield, ChevronUp, UserPlus, Search, ExternalLink, PieChart, Pencil } from "lucide-react";
+import {
+  Loader2,
+  Users,
+  Plus,
+  Check,
+  X,
+  Shield,
+  ChevronUp,
+  UserPlus,
+  Search,
+  PieChart,
+  Pencil,
+  AlertCircle,
+  RefreshCw,
+} from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { cn } from "~/lib/utils";
@@ -42,45 +67,14 @@ interface TeamTabProps {
   isOwner: boolean;
 }
 
-export type MemberRole = "FOUNDER" | "LEADER" | "CORE_CONTRIBUTOR" | "CONTRIBUTOR" | "OBSERVER";
-type ApplicationStatus = "PENDING" | "ACCEPTED" | "REJECTED" | "WITHDRAWN";
+export type MemberRole = RouterInputs["project"]["updateMemberRole"]["role"];
+type ApplicationStatus = RouterInputs["project"]["reviewApplication"]["status"];
+type ProjectOpportunity =
+  RouterOutputs["opportunity"]["getByProjectId"][number];
+type MembershipCredential =
+  RouterOutputs["membershipCredential"]["getByProjectId"][number];
 
-interface Member {
-  id: string;
-  userId: string;
-  projectId: string;
-  role: MemberRole;
-  joinedAt: string;
-  user?: {
-    id: string;
-    name?: string | null;
-    email?: string | null;
-    image?: string | null;
-  };
-}
-
-interface Application {
-  id: string;
-  userId: string;
-  projectId: string;
-  roleTitle: string;
-  message: string;
-  skills?: string;
-  experience?: string;
-  availability?: string;
-  status: ApplicationStatus;
-  submittedAt: string;
-  reviewedAt?: string;
-  reviewMessage?: string;
-  user?: {
-    id: string;
-    name?: string | null;
-    email?: string | null;
-    image?: string | null;
-  };
-}
-
-export const getRoleBadgeVariant = (role: MemberRole | string) => {
+export const getRoleBadgeVariant = (role: string) => {
   switch (role) {
     case "FOUNDER":
       return "neon-pink-solid" as const;
@@ -97,7 +91,7 @@ export const getRoleBadgeVariant = (role: MemberRole | string) => {
   }
 };
 
-export const formatRoleName = (role: MemberRole | string) => {
+export const formatRoleName = (role: string) => {
   return role
     .split("_")
     .map((word) => word.charAt(0) + word.slice(1).toLowerCase())
@@ -107,12 +101,45 @@ export const formatRoleName = (role: MemberRole | string) => {
 const TIERS = ["BRONZE", "SILVER", "GOLD", "PLATINUM", "DIAMOND"] as const;
 
 const DEFAULT_ROLES = [
-  { id: "FOUNDER", name: "Founder", description: "Project creator with full administrative access" },
-  { id: "LEADER", name: "Leader", description: "Team lead with management responsibilities" },
-  { id: "CORE_CONTRIBUTOR", name: "Core Contributor", description: "Key contributor with significant ongoing involvement" },
-  { id: "CONTRIBUTOR", name: "Contributor", description: "Active contributor to the project" },
-  { id: "OBSERVER", name: "Observer", description: "Following the project with limited participation" },
-] as const;
+  {
+    id: "FOUNDER",
+    name: "Founder",
+    description:
+      "Founding steward with project work-management capability; creator-only controls remain separate",
+  },
+  {
+    id: "LEADER",
+    name: "Leader",
+    description: "Can manage project work and publish project opportunities",
+  },
+  {
+    id: "CORE_CONTRIBUTOR",
+    name: "Core Contributor",
+    description: "Can manage project work and publish project opportunities",
+  },
+  {
+    id: "CONTRIBUTOR",
+    name: "Contributor",
+    description: "Can contribute to assigned work without management access",
+  },
+  {
+    id: "OBSERVER",
+    name: "Observer",
+    description: "Can follow progress without project-management access",
+  },
+] as const satisfies ReadonlyArray<{
+  id: MemberRole;
+  name: string;
+  description: string;
+}>;
+
+function isMemberRole(value: string): value is MemberRole {
+  return DEFAULT_ROLES.some((role) => role.id === value);
+}
+
+function getOpportunityPath(opportunity: ProjectOpportunity, suffix = "") {
+  return `/opportunities/${opportunity.slug ?? opportunity.id}${suffix}`;
+}
 
 // Invite Member Dialog Component
 function InviteMemberDialog({
@@ -123,7 +150,7 @@ function InviteMemberDialog({
   currentUserId,
 }: {
   projectId: string;
-  role: string;
+  role: MemberRole;
   existingMemberIds: string[];
   isOwner: boolean;
   currentUserId?: string;
@@ -144,24 +171,29 @@ function InviteMemberDialog({
   }, [searchTerm]);
 
   // Paginated user search — only fires when 2+ characters typed
-  const { data: searchResults, isLoading: searchLoading } = api.user.search.useQuery(
-    { query: debouncedSearch, page: 1, limit: 10 },
-    { enabled: open && isOwner && debouncedSearch.length >= 2 }
-  );
+  const { data: searchResults, isLoading: searchLoading } =
+    api.user.search.useQuery(
+      { query: debouncedSearch, page: 1, limit: 10 },
+      { enabled: open && isOwner && debouncedSearch.length >= 2 },
+    );
 
   // Filter out existing members from results
   const availableUsers = (searchResults?.items ?? []).filter(
-    (user: any) => !existingMemberIds.includes(user.id)
+    (user) => !existingMemberIds.includes(user.id),
   );
 
   // Fetch followed users when "Following" tab is active
-  const { data: followedUsers, isLoading: followingLoading } = api.user.getFollowingWithUsers.useQuery(
-    { userId: currentUserId! },
-    { enabled: open && isOwner && sourceTab === "following" && !!currentUserId }
-  );
+  const { data: followedUsers, isLoading: followingLoading } =
+    api.user.getFollowingWithUsers.useQuery(
+      { userId: currentUserId! },
+      {
+        enabled:
+          open && isOwner && sourceTab === "following" && !!currentUserId,
+      },
+    );
 
   const availableFollowedUsers = (followedUsers ?? []).filter(
-    (user: any) => !existingMemberIds.includes(user.id)
+    (user) => !existingMemberIds.includes(user.id),
   );
 
   const createInvitationMutation = api.project.createInvitation.useMutation({
@@ -185,7 +217,7 @@ function InviteMemberDialog({
     createInvitationMutation.mutate({
       projectId,
       invitedUserId: selectedUserId,
-      role: role as "FOUNDER" | "LEADER" | "CORE_CONTRIBUTOR" | "CONTRIBUTOR" | "OBSERVER",
+      role,
       message: inviteMessage || undefined,
     });
   };
@@ -193,20 +225,28 @@ function InviteMemberDialog({
   if (!isOwner) return null;
 
   return (
-    <Dialog open={open} onOpenChange={(v) => {
-      setOpen(v);
-      if (!v) {
-        setSearchTerm("");
-        setDebouncedSearch("");
-        setSelectedUserId(null);
-        setSelectedUserName(null);
-        setInviteMessage("");
-        setSourceTab("search");
-      }
-    }}>
+    <Dialog
+      open={open}
+      onOpenChange={(v) => {
+        setOpen(v);
+        if (!v) {
+          setSearchTerm("");
+          setDebouncedSearch("");
+          setSelectedUserId(null);
+          setSelectedUserName(null);
+          setInviteMessage("");
+          setSourceTab("search");
+        }
+      }}
+    >
       <DialogTrigger asChild>
-        <Button variant="ghost" size="sm" className="h-7 px-2 text-xs">
-          <UserPlus className="size-3.5 mr-1" />
+        <Button
+          variant="ghost"
+          size="sm"
+          className="min-h-11 px-2 text-xs"
+          aria-label={`Invite member as ${formatRoleName(role)}`}
+        >
+          <UserPlus className="mr-1 size-3.5" aria-hidden="true" />
           Invite
         </Button>
       </DialogTrigger>
@@ -220,31 +260,31 @@ function InviteMemberDialog({
         <div className="space-y-4">
           {/* Source tab toggle */}
           {!selectedUserId && (
-            <div className="flex gap-1 border-b border-border">
+            <div className="border-border flex gap-1 border-b">
               <button
                 type="button"
                 className={cn(
-                  "text-xs px-3 py-1.5 border-b-2 transition-colors",
+                  "border-b-2 px-3 py-1.5 text-xs transition-colors",
                   sourceTab === "search"
                     ? "border-primary text-primary font-medium"
-                    : "border-transparent text-muted-foreground hover:text-foreground"
+                    : "text-muted-foreground hover:text-foreground border-transparent",
                 )}
                 onClick={() => setSourceTab("search")}
               >
-                <Search className="size-3 inline mr-1" />
+                <Search className="mr-1 inline size-3" />
                 Search
               </button>
               <button
                 type="button"
                 className={cn(
-                  "text-xs px-3 py-1.5 border-b-2 transition-colors",
+                  "border-b-2 px-3 py-1.5 text-xs transition-colors",
                   sourceTab === "following"
                     ? "border-primary text-primary font-medium"
-                    : "border-transparent text-muted-foreground hover:text-foreground"
+                    : "text-muted-foreground hover:text-foreground border-transparent",
                 )}
                 onClick={() => setSourceTab("following")}
               >
-                <Users className="size-3 inline mr-1" />
+                <Users className="mr-1 inline size-3" />
                 Following
               </button>
             </div>
@@ -252,11 +292,16 @@ function InviteMemberDialog({
 
           {/* Selected user chip */}
           {selectedUserId && selectedUserName && (
-            <div className="flex items-center gap-2 bg-primary/10 border border-primary rounded px-3 py-1.5">
-              <Check className="size-3.5 text-primary" />
-              <span className="text-sm font-medium flex-1">{selectedUserName}</span>
+            <div className="bg-primary/10 border-primary flex items-center gap-2 rounded border px-3 py-1.5">
+              <Check className="text-primary size-3.5" />
+              <span className="flex-1 text-sm font-medium">
+                {selectedUserName}
+              </span>
               <button
-                onClick={() => { setSelectedUserId(null); setSelectedUserName(null); }}
+                onClick={() => {
+                  setSelectedUserId(null);
+                  setSelectedUserName(null);
+                }}
                 className="text-muted-foreground hover:text-foreground"
               >
                 <X className="size-3.5" />
@@ -268,50 +313,58 @@ function InviteMemberDialog({
           {!selectedUserId && sourceTab === "search" && (
             <>
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                <Search className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2" />
                 <input
                   type="text"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   placeholder="Search users by name..."
-                  className="w-full pl-9 pr-3 py-2 border border-border rounded bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                  className="border-border bg-background text-foreground focus:ring-primary w-full rounded border py-2 pr-3 pl-9 text-sm focus:ring-2 focus:outline-none"
                   autoFocus
                 />
               </div>
 
-              <div className="max-h-48 overflow-y-auto space-y-1">
+              <div className="max-h-48 space-y-1 overflow-y-auto">
                 {debouncedSearch.length < 2 ? (
-                  <div className="text-center py-4 text-sm text-muted-foreground">
+                  <div className="text-muted-foreground py-4 text-center text-sm">
                     Type at least 2 characters to search
                   </div>
                 ) : searchLoading ? (
                   <div className="flex items-center justify-center py-4">
-                    <Loader2 className="size-4 animate-spin text-muted-foreground" />
+                    <Loader2 className="text-muted-foreground size-4 animate-spin" />
                   </div>
                 ) : availableUsers.length === 0 ? (
-                  <div className="text-center py-4 text-sm text-muted-foreground">
+                  <div className="text-muted-foreground py-4 text-center text-sm">
                     No matching users found
                   </div>
                 ) : (
-                  availableUsers.map((user: any) => (
+                  availableUsers.map((user) => (
                     <button
                       key={user.id}
                       onClick={() => {
                         setSelectedUserId(user.id);
-                        setSelectedUserName(user.name ?? user.email ?? "Unknown");
+                        setSelectedUserName(
+                          user.name ?? user.email ?? "Unknown",
+                        );
                       }}
-                      className="w-full flex items-center gap-3 p-2 rounded transition-colors text-left hover:bg-muted/50 border border-transparent"
+                      className="hover:bg-muted/50 flex w-full items-center gap-3 rounded border border-transparent p-2 text-left transition-colors"
                     >
                       <Avatar className="size-8">
                         <AvatarImage src={user.image ?? undefined} />
                         <AvatarFallback className="text-xs">
-                          {(user.name ?? user.email ?? "U").charAt(0).toUpperCase()}
+                          {(user.name ?? user.email ?? "U")
+                            .charAt(0)
+                            .toUpperCase()}
                         </AvatarFallback>
                       </Avatar>
                       <div className="flex flex-col">
-                        <span className="text-sm font-medium">{user.name ?? "Unnamed"}</span>
+                        <span className="text-sm font-medium">
+                          {user.name ?? "Unnamed"}
+                        </span>
                         {user.email && (
-                          <span className="text-xs text-muted-foreground">{user.email}</span>
+                          <span className="text-muted-foreground text-xs">
+                            {user.email}
+                          </span>
                         )}
                       </div>
                     </button>
@@ -323,37 +376,43 @@ function InviteMemberDialog({
 
           {/* Following list */}
           {!selectedUserId && sourceTab === "following" && (
-            <div className="max-h-48 overflow-y-auto space-y-1">
+            <div className="max-h-48 space-y-1 overflow-y-auto">
               {followingLoading ? (
                 <div className="flex items-center justify-center py-4">
-                  <Loader2 className="size-4 animate-spin text-muted-foreground" />
+                  <Loader2 className="text-muted-foreground size-4 animate-spin" />
                 </div>
               ) : availableFollowedUsers.length === 0 ? (
-                <div className="text-center py-4 text-sm text-muted-foreground">
+                <div className="text-muted-foreground py-4 text-center text-sm">
                   {(followedUsers?.length ?? 0) === 0
                     ? "You're not following anyone yet"
                     : "All followed users are already members"}
                 </div>
               ) : (
-                availableFollowedUsers.map((user: any) => (
+                availableFollowedUsers.map((user) => (
                   <button
                     key={user.id}
                     onClick={() => {
                       setSelectedUserId(user.id);
                       setSelectedUserName(user.name ?? user.email ?? "Unknown");
                     }}
-                    className="w-full flex items-center gap-3 p-2 rounded transition-colors text-left hover:bg-muted/50 border border-transparent"
+                    className="hover:bg-muted/50 flex w-full items-center gap-3 rounded border border-transparent p-2 text-left transition-colors"
                   >
                     <Avatar className="size-8">
                       <AvatarImage src={user.image ?? undefined} />
                       <AvatarFallback className="text-xs">
-                        {(user.name ?? user.email ?? "U").charAt(0).toUpperCase()}
+                        {(user.name ?? user.email ?? "U")
+                          .charAt(0)
+                          .toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
                     <div className="flex flex-col">
-                      <span className="text-sm font-medium">{user.name ?? "Unnamed"}</span>
+                      <span className="text-sm font-medium">
+                        {user.name ?? "Unnamed"}
+                      </span>
                       {user.email && (
-                        <span className="text-xs text-muted-foreground">{user.email}</span>
+                        <span className="text-muted-foreground text-xs">
+                          {user.email}
+                        </span>
                       )}
                     </div>
                   </button>
@@ -364,14 +423,14 @@ function InviteMemberDialog({
 
           {selectedUserId && (
             <div>
-              <label className="text-sm font-medium block mb-1.5">
+              <label className="mb-1.5 block text-sm font-medium">
                 Message (optional)
               </label>
               <textarea
                 value={inviteMessage}
                 onChange={(e) => setInviteMessage(e.target.value)}
                 placeholder="Add a personal message to the invitation..."
-                className="w-full px-3 py-2 border border-border rounded bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary min-h-[60px] resize-y text-sm"
+                className="border-border bg-background text-foreground focus:ring-primary min-h-[60px] w-full resize-y rounded border px-3 py-2 text-sm focus:ring-2 focus:outline-none"
               />
             </div>
           )}
@@ -386,7 +445,7 @@ function InviteMemberDialog({
           >
             {createInvitationMutation.isPending ? (
               <>
-                <Loader2 className="size-4 mr-2 animate-spin" />
+                <Loader2 className="mr-2 size-4 animate-spin" />
                 Sending...
               </>
             ) : (
@@ -399,42 +458,52 @@ function InviteMemberDialog({
   );
 }
 
-export default function TeamTab({ projectId, projectSlug, isOwner }: TeamTabProps) {
+export default function TeamTab({
+  projectId,
+  projectSlug,
+  isOwner,
+}: TeamTabProps) {
   const [showApplicationForm, setShowApplicationForm] = useState(false);
   const [roleTitle, setRoleTitle] = useState("");
   const [message, setMessage] = useState("");
   const [skills, setSkills] = useState("");
   const [experience, setExperience] = useState("");
   const [availability, setAvailability] = useState("");
+  const { data: session } = useSession();
 
   const utils = api.useUtils();
 
   // Queries
-  const { data: members, isLoading: membersLoading } = api.project.getMembers.useQuery({
-    projectId,
-  });
+  const {
+    data: members,
+    error: membersError,
+    isLoading: membersLoading,
+    refetch: retryMembers,
+  } = api.project.getMembers.useQuery({ projectId });
 
-  const { data: opportunities } = api.opportunity.getByProjectId.useQuery({
-    projectId,
-  });
+  const {
+    data: opportunities,
+    error: opportunitiesError,
+    refetch: retryOpportunities,
+  } = api.opportunity.getByProjectId.useQuery({ projectId });
 
-  const { data: applications, isLoading: applicationsLoading } = api.project.getApplications.useQuery(
-    { projectId },
-    { enabled: isOwner }
-  );
+  const { data: applications, isLoading: applicationsLoading } =
+    api.project.getApplications.useQuery({ projectId }, { enabled: isOwner });
 
-  const { data: projectCredentials } = api.membershipCredential.getByProjectId.useQuery({
-    projectId,
-  });
+  const { data: projectCredentials } =
+    api.membershipCredential.getByProjectId.useQuery({
+      projectId,
+    });
 
   const { data: tokenConfig } = api.projectTokens.getConfigByProject.useQuery(
     { projectId },
-    { retry: false }
+    { retry: false },
   );
 
-  const credentialsByUserId = new Map(
-    (projectCredentials ?? []).map((c: any) => [c.userId, c]),
-  );
+  const credentialsByUserId = new Map<string, MembershipCredential>();
+  for (const credential of projectCredentials ?? []) {
+    credentialsByUserId.set(credential.userId, credential);
+  }
 
   // Mutations
   const applyMutation = api.project.applyToProject.useMutation({
@@ -458,7 +527,9 @@ export default function TeamTab({ projectId, projectSlug, isOwner }: TeamTabProp
       await utils.project.getApplications.cancel({ projectId });
       const previous = utils.project.getApplications.getData({ projectId });
       utils.project.getApplications.setData({ projectId }, (old) =>
-        old?.map((app) => (app.id === applicationId ? { ...app, status } : app))
+        old?.map((app) =>
+          app.id === applicationId ? { ...app, status } : app,
+        ),
       );
       return { previous };
     },
@@ -545,31 +616,64 @@ export default function TeamTab({ projectId, projectSlug, isOwner }: TeamTabProp
   if (membersLoading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 className="size-6 animate-spin text-muted-foreground" />
+        <Loader2 className="text-muted-foreground size-6 animate-spin" />
       </div>
     );
   }
 
-  const pendingApplications = applications?.filter((app) => app.status === "PENDING") ?? [];
+  if (membersError || opportunitiesError) {
+    const teamError = membersError ?? opportunitiesError;
+    return (
+      <div className="border-destructive/40 bg-destructive/5 flex flex-col items-start gap-4 border-2 p-6 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-start gap-3">
+          <AlertCircle className="text-destructive mt-0.5 size-5 shrink-0" />
+          <div>
+            <p className="text-destructive font-mono text-sm font-bold">
+              TEAM COULD NOT BE LOADED
+            </p>
+            <p className="text-muted-foreground mt-1 text-xs">
+              {teamError?.message ?? "Unknown error"}
+            </p>
+          </div>
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          className="min-h-11 shrink-0"
+          onClick={() => {
+            if (membersError) void retryMembers();
+            if (opportunitiesError) void retryOpportunities();
+          }}
+        >
+          <RefreshCw className="mr-2 size-4" />
+          Retry
+        </Button>
+      </div>
+    );
+  }
+
+  const pendingApplications =
+    applications?.filter((app) => app.status === "PENDING") ?? [];
 
   // Group opportunities by their linked projectRole
-  const opportunitiesByRole = new Map<string, any[]>();
-  const unlinkedOpportunities: any[] = [];
-  (opportunities ?? []).forEach((opp: any) => {
-    if (opp.projectRole) {
-      const existing = opportunitiesByRole.get(opp.projectRole) ?? [];
-      existing.push(opp);
-      opportunitiesByRole.set(opp.projectRole, existing);
+  const opportunitiesByRole = new Map<MemberRole, ProjectOpportunity[]>();
+  const unlinkedOpportunities: ProjectOpportunity[] = [];
+  for (const opportunity of opportunities ?? []) {
+    if (opportunity.projectRole && isMemberRole(opportunity.projectRole)) {
+      const existing = opportunitiesByRole.get(opportunity.projectRole) ?? [];
+      existing.push(opportunity);
+      opportunitiesByRole.set(opportunity.projectRole, existing);
     } else {
-      unlinkedOpportunities.push(opp);
+      unlinkedOpportunities.push(opportunity);
     }
-  });
+  }
 
-  const existingMemberIds = (members ?? []).map((m: any) => m.userId);
+  const existingMemberIds = (members ?? []).map((member) => member.userId);
 
-  const { data: session } = useSession();
   const currentUserId = session?.user?.id;
-  const isCurrentUserMember = currentUserId ? existingMemberIds.includes(currentUserId) : false;
+  const isCurrentUserMember = currentUserId
+    ? existingMemberIds.includes(currentUserId)
+    : false;
 
   return (
     <div className="space-y-6">
@@ -582,7 +686,9 @@ export default function TeamTab({ projectId, projectSlug, isOwner }: TeamTabProp
                 <Users className="size-5" />
                 Team & Roles
               </CardTitle>
-              <CardDescription>Team positions, members, and open opportunities</CardDescription>
+              <CardDescription>
+                Team positions, members, and open opportunities
+              </CardDescription>
             </div>
             {!isOwner && !isCurrentUserMember && (
               <Button
@@ -590,7 +696,7 @@ export default function TeamTab({ projectId, projectSlug, isOwner }: TeamTabProp
                 variant="default"
                 size="sm"
               >
-                <Plus className="size-4 mr-2" />
+                <Plus className="mr-2 size-4" />
                 Apply to Join
               </Button>
             )}
@@ -599,23 +705,33 @@ export default function TeamTab({ projectId, projectSlug, isOwner }: TeamTabProp
         <CardContent>
           <Accordion type="multiple" defaultValue={["FOUNDER", "LEADER"]}>
             {DEFAULT_ROLES.map((role) => {
-              const filledMembers = members?.filter((m: any) => m.role === role.id) ?? [];
+              const filledMembers =
+                members?.filter((member) => member.role === role.id) ?? [];
               const linkedPositions = opportunitiesByRole.get(role.id) ?? [];
               const openPositions = linkedPositions.filter(
-                (opp: any) => opp.status !== "FILLED" && opp.status !== "CLOSED"
+                (opportunity) =>
+                  opportunity.status !== "FILLED" &&
+                  opportunity.status !== "CLOSED",
               );
 
               return (
                 <AccordionItem key={role.id} value={role.id}>
                   <AccordionTrigger className="hover:no-underline">
                     <div className="flex items-center gap-2">
-                      <Badge variant={getRoleBadgeVariant(role.id as MemberRole)}>
+                      <Badge variant={getRoleBadgeVariant(role.id)}>
                         {role.name}
                       </Badge>
-                      <span className="text-xs text-muted-foreground">
-                        {filledMembers.length} {filledMembers.length === 1 ? "member" : "members"}
+                      <span className="text-muted-foreground text-xs">
+                        {filledMembers.length}{" "}
+                        {filledMembers.length === 1 ? "member" : "members"}
                         {openPositions.length > 0 && (
-                          <> · {openPositions.length} open {openPositions.length === 1 ? "position" : "positions"}</>
+                          <>
+                            {" "}
+                            · {openPositions.length} open{" "}
+                            {openPositions.length === 1
+                              ? "position"
+                              : "positions"}
+                          </>
                         )}
                       </span>
                     </div>
@@ -623,59 +739,78 @@ export default function TeamTab({ projectId, projectSlug, isOwner }: TeamTabProp
                   <AccordionContent>
                     <div className="space-y-3 pt-1">
                       {/* Role description */}
-                      <p className="text-sm text-muted-foreground">{role.description}</p>
+                      <p className="text-muted-foreground text-sm">
+                        {role.description}
+                      </p>
 
                       {/* Members in this role */}
                       {filledMembers.length > 0 && (
                         <div className="space-y-2">
-                          {filledMembers.map((member: any) => {
-                            const credential = credentialsByUserId.get(member.userId);
-                            const hasCredential = credential?.status === "ACTIVE";
+                          {filledMembers.map((member) => {
+                            const credential = credentialsByUserId.get(
+                              member.userId,
+                            );
+                            const hasCredential =
+                              credential?.status === "ACTIVE";
                             return (
                               <div
                                 key={member.id}
-                                className="flex items-center justify-between p-3 border border-border rounded hover:bg-muted/50 transition-colors"
+                                className="border-border hover:bg-muted/50 flex items-center justify-between rounded border p-3 transition-colors"
                               >
                                 <div className="flex items-center gap-3">
                                   <Avatar className="size-8">
-                                    <AvatarImage src={member.user?.image ?? undefined} />
+                                    <AvatarImage
+                                      src={member.user?.image ?? undefined}
+                                    />
                                     <AvatarFallback className="text-xs">
-                                      {member.user?.name?.charAt(0).toUpperCase() ?? "U"}
+                                      {member.user?.name
+                                        ?.charAt(0)
+                                        .toUpperCase() ?? "U"}
                                     </AvatarFallback>
                                   </Avatar>
                                   <div>
                                     <div className="text-sm font-medium">
-                                      {member.user?.name ?? member.user?.email ?? "Unknown User"}
+                                      {member.user?.name ??
+                                        member.user?.email ??
+                                        "Unknown User"}
                                     </div>
-                                    <div className="text-xs text-muted-foreground">
-                                      Joined {new Date(member.joinedAt).toLocaleDateString()}
+                                    <div className="text-muted-foreground text-xs">
+                                      Joined{" "}
+                                      {new Date(
+                                        member.joinedAt,
+                                      ).toLocaleDateString()}
                                     </div>
                                   </div>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                  {isOwner && member.userId !== currentUserId && (
-                                    <Select
-                                      defaultValue={member.role}
-                                      onValueChange={(value) => {
-                                        updateMemberRoleMutation.mutate({
-                                          projectId,
-                                          memberId: member.id,
-                                          role: value as "FOUNDER" | "LEADER" | "CORE_CONTRIBUTOR" | "CONTRIBUTOR" | "OBSERVER",
-                                        });
-                                      }}
-                                    >
-                                      <SelectTrigger className="h-7 w-[140px] text-xs">
-                                        <SelectValue />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        {DEFAULT_ROLES.map((r) => (
-                                          <SelectItem key={r.id} value={r.id}>
-                                            {r.name}
-                                          </SelectItem>
-                                        ))}
-                                      </SelectContent>
-                                    </Select>
-                                  )}
+                                  {isOwner &&
+                                    member.userId !== currentUserId && (
+                                      <Select
+                                        defaultValue={member.role}
+                                        onValueChange={(value) => {
+                                          if (!isMemberRole(value)) return;
+                                          updateMemberRoleMutation.mutate({
+                                            projectId,
+                                            memberId: member.id,
+                                            role: value,
+                                          });
+                                        }}
+                                      >
+                                        <SelectTrigger
+                                          className="min-h-11 w-[140px] text-xs"
+                                          aria-label={`Change role for ${member.user?.name ?? member.user?.email ?? "member"}`}
+                                        >
+                                          <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          {DEFAULT_ROLES.map((r) => (
+                                            <SelectItem key={r.id} value={r.id}>
+                                              {r.name}
+                                            </SelectItem>
+                                          ))}
+                                        </SelectContent>
+                                      </Select>
+                                    )}
                                   {hasCredential && (
                                     <>
                                       <CredentialBadge
@@ -689,17 +824,24 @@ export default function TeamTab({ projectId, projectSlug, isOwner }: TeamTabProp
                                             <Button
                                               variant="ghost"
                                               size="sm"
-                                              className="h-6 w-6 p-0"
+                                              className="size-11 p-0"
+                                              aria-label={`Upgrade credential tier for ${member.user?.name ?? member.user?.email ?? "member"}`}
                                               title="Upgrade credential tier"
                                             >
-                                              <ChevronUp className="size-3.5" />
+                                              <ChevronUp
+                                                className="size-3.5"
+                                                aria-hidden="true"
+                                              />
                                             </Button>
                                           </DropdownMenuTrigger>
                                           <DropdownMenuContent align="end">
                                             {TIERS.map((tier) => (
                                               <DropdownMenuItem
                                                 key={tier}
-                                                disabled={credential?.tier === tier || updateTierMutation.isPending}
+                                                disabled={
+                                                  credential?.tier === tier ||
+                                                  updateTierMutation.isPending
+                                                }
                                                 onClick={() =>
                                                   updateTierMutation.mutate({
                                                     credentialId: credential.id,
@@ -707,11 +849,21 @@ export default function TeamTab({ projectId, projectSlug, isOwner }: TeamTabProp
                                                   })
                                                 }
                                               >
-                                                <span className={credential?.tier === tier ? "font-bold" : ""}>
-                                                  {tier.charAt(0) + tier.slice(1).toLowerCase()}
+                                                <span
+                                                  className={
+                                                    credential?.tier === tier
+                                                      ? "font-bold"
+                                                      : ""
+                                                  }
+                                                >
+                                                  {tier.charAt(0) +
+                                                    tier.slice(1).toLowerCase()}
                                                 </span>
                                                 {credential?.tier === tier && (
-                                                  <Check className="size-3.5 ml-auto" />
+                                                  <Check
+                                                    className="ml-auto size-3.5"
+                                                    aria-hidden="true"
+                                                  />
                                                 )}
                                               </DropdownMenuItem>
                                             ))}
@@ -724,20 +876,42 @@ export default function TeamTab({ projectId, projectSlug, isOwner }: TeamTabProp
                                     <Button
                                       variant="ghost"
                                       size="sm"
-                                      className="h-7 px-2 text-xs text-muted-foreground hover:text-primary"
-                                      onClick={() => handleGrantCredential(member.userId)}
-                                      disabled={grantCredentialMutation.isPending}
+                                      className="text-muted-foreground hover:text-primary min-h-11 px-2 text-xs"
+                                      onClick={() =>
+                                        handleGrantCredential(member.userId)
+                                      }
+                                      disabled={
+                                        grantCredentialMutation.isPending
+                                      }
+                                      aria-label={`Grant membership credential to ${member.user?.name ?? member.user?.email ?? "member"}`}
                                       title="Grant membership credential"
                                     >
-                                      <Shield className="size-3.5 mr-1" />
+                                      <Shield
+                                        className="mr-1 size-3.5"
+                                        aria-hidden="true"
+                                      />
                                       Grant
                                     </Button>
                                   )}
                                   {/* Edit linked opportunity (owner only) */}
                                   {isOwner && linkedPositions.length === 1 && (
-                                    <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" asChild>
-                                      <Link href={`/opportunities/${linkedPositions[0].slug}/edit`}>
-                                        <Pencil className="size-3.5 mr-1" />
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="min-h-11 px-2 text-xs"
+                                      asChild
+                                    >
+                                      <Link
+                                        href={getOpportunityPath(
+                                          linkedPositions[0],
+                                          "/edit",
+                                        )}
+                                        aria-label={`Edit ${linkedPositions[0]?.title ?? "linked"} position`}
+                                      >
+                                        <Pencil
+                                          className="mr-1 size-3.5"
+                                          aria-hidden="true"
+                                        />
                                         Edit Position
                                       </Link>
                                     </Button>
@@ -745,15 +919,31 @@ export default function TeamTab({ projectId, projectSlug, isOwner }: TeamTabProp
                                   {isOwner && linkedPositions.length > 1 && (
                                     <DropdownMenu>
                                       <DropdownMenuTrigger asChild>
-                                        <Button variant="ghost" size="sm" className="h-7 px-2 text-xs">
-                                          <Pencil className="size-3.5 mr-1" />
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          className="min-h-11 px-2 text-xs"
+                                          aria-label={`Choose a position to edit for ${member.user?.name ?? member.user?.email ?? "member"}`}
+                                        >
+                                          <Pencil
+                                            className="mr-1 size-3.5"
+                                            aria-hidden="true"
+                                          />
                                           Edit Position
                                         </Button>
                                       </DropdownMenuTrigger>
                                       <DropdownMenuContent align="end">
-                                        {linkedPositions.map((opp: any) => (
-                                          <DropdownMenuItem key={opp.id} asChild>
-                                            <Link href={`/opportunities/${opp.slug}/edit`}>
+                                        {linkedPositions.map((opp) => (
+                                          <DropdownMenuItem
+                                            key={opp.id}
+                                            asChild
+                                          >
+                                            <Link
+                                              href={getOpportunityPath(
+                                                opp,
+                                                "/edit",
+                                              )}
+                                            >
                                               {opp.title}
                                             </Link>
                                           </DropdownMenuItem>
@@ -769,54 +959,83 @@ export default function TeamTab({ projectId, projectSlug, isOwner }: TeamTabProp
                       )}
 
                       {/* Define position for role without opportunity (owner only) */}
-                      {isOwner && linkedPositions.length === 0 && filledMembers.length > 0 && (
-                        <div className="pt-1">
-                          <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" asChild>
-                            <Link href={`/opportunities/create?projectId=${projectId}${projectSlug ? `&projectSlug=${projectSlug}` : ""}&projectRole=${role.id}`}>
-                              <Plus className="size-3.5 mr-1" />
-                              Define {role.name} Position
-                            </Link>
-                          </Button>
-                        </div>
-                      )}
+                      {isOwner &&
+                        linkedPositions.length === 0 &&
+                        filledMembers.length > 0 && (
+                          <div className="pt-1">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="min-h-11 px-2 text-xs"
+                              asChild
+                            >
+                              <Link
+                                href={`/opportunities/create?projectId=${projectId}${projectSlug ? `&projectSlug=${projectSlug}` : ""}&projectRole=${role.id}`}
+                                aria-label={`Define ${role.name} position`}
+                              >
+                                <Plus
+                                  className="mr-1 size-3.5"
+                                  aria-hidden="true"
+                                />
+                                Define {role.name} Position
+                              </Link>
+                            </Button>
+                          </div>
+                        )}
 
                       {/* Linked team positions */}
                       {linkedPositions.length > 0 && (
                         <div className="space-y-1.5">
-                          <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                          <div className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
                             Positions
                           </div>
-                          {linkedPositions.map((opp: any) => (
-                            <div key={opp.id} className="flex items-center gap-2 text-xs text-muted-foreground pl-2">
-                              <span className="w-1.5 h-1.5 rounded-full bg-neon shrink-0" />
+                          {linkedPositions.map((opp) => (
+                            <div
+                              key={opp.id}
+                              className="text-muted-foreground flex items-center gap-2 pl-2 text-xs"
+                            >
+                              <span className="bg-neon h-1.5 w-1.5 shrink-0 rounded-none" />
                               <Link
-                                href={`/opportunities/${opp.slug}`}
-                                className="font-medium text-foreground hover:text-neon hover:underline transition-colors"
+                                href={getOpportunityPath(opp)}
+                                className="text-foreground hover:text-neon font-medium transition-colors hover:underline"
                               >
                                 {opp.title}
                               </Link>
-                              {opp.applicationsCount > 0 && (
+                              {(opp.applicationsCount ?? 0) > 0 && (
                                 <span>
-                                  ({opp.applicationsCount} {opp.applicationsCount === 1 ? "applicant" : "applicants"})
+                                  ({opp.applicationsCount}{" "}
+                                  {(opp.applicationsCount ?? 0) === 1
+                                    ? "applicant"
+                                    : "applicants"}
+                                  )
                                 </span>
                               )}
                               <Badge
-                                variant={opp.status === "FILLED" || opp.status === "CLOSED" ? "secondary" : "outline"}
-                                className="text-[10px] h-4 px-1.5"
+                                variant={
+                                  opp.status === "FILLED" ||
+                                  opp.status === "CLOSED"
+                                    ? "secondary"
+                                    : "outline"
+                                }
+                                className="h-4 px-1.5 text-[10px]"
                               >
-                                {opp.status === "FILLED" || opp.status === "CLOSED" ? "Filled" : "Open"}
+                                {opp.status === "FILLED" ||
+                                opp.status === "CLOSED"
+                                  ? "Filled"
+                                  : "Open"}
                               </Badge>
                               {isOwner && (
                                 <Select
-                                  defaultValue={opp.projectRole}
+                                  defaultValue={opp.projectRole ?? undefined}
                                   onValueChange={(value) => {
+                                    if (!isMemberRole(value)) return;
                                     updateOpportunityRoleMutation.mutate({
                                       id: opp.id,
-                                      projectRole: value as "FOUNDER" | "LEADER" | "CORE_CONTRIBUTOR" | "CONTRIBUTOR" | "OBSERVER",
+                                      projectRole: value,
                                     });
                                   }}
                                 >
-                                  <SelectTrigger className="h-5 w-[120px] text-[10px] ml-auto">
+                                  <SelectTrigger className="ml-auto min-h-11 w-[120px] text-[10px]">
                                     <SelectValue />
                                   </SelectTrigger>
                                   <SelectContent>
@@ -847,11 +1066,13 @@ export default function TeamTab({ projectId, projectSlug, isOwner }: TeamTabProp
                       )}
 
                       {/* Empty state */}
-                      {filledMembers.length === 0 && linkedPositions.length === 0 && !isOwner && (
-                        <div className="text-sm text-muted-foreground italic">
-                          No members or positions yet.
-                        </div>
-                      )}
+                      {filledMembers.length === 0 &&
+                        linkedPositions.length === 0 &&
+                        !isOwner && (
+                          <div className="text-muted-foreground text-sm italic">
+                            No members or positions yet.
+                          </div>
+                        )}
                     </div>
                   </AccordionContent>
                 </AccordionItem>
@@ -862,44 +1083,55 @@ export default function TeamTab({ projectId, projectSlug, isOwner }: TeamTabProp
           {/* Custom Positions (unlinked to a role) */}
           {unlinkedOpportunities.length > 0 && (
             <div className="mt-4 space-y-2">
-              <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              <div className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
                 Custom Positions
               </div>
-              {unlinkedOpportunities.map((opp: any) => {
-                const isFilled = opp.status === "FILLED" || opp.status === "CLOSED";
+              {unlinkedOpportunities.map((opp) => {
+                const isFilled =
+                  opp.status === "FILLED" || opp.status === "CLOSED";
                 return (
                   <div
                     key={opp.id}
-                    className="flex items-center justify-between p-3 border border-border rounded hover:bg-muted/30 transition-colors"
+                    className="border-border hover:bg-muted/30 flex items-center justify-between rounded border p-3 transition-colors"
                   >
                     <div className="flex-1">
                       <div className="flex items-center gap-2">
-                        <Link href={`/opportunities/${opp.slug}`}>
-                          <Badge variant="neon" className="cursor-pointer hover:opacity-80 transition-opacity">
+                        <Link href={getOpportunityPath(opp)}>
+                          <Badge
+                            variant="neon"
+                            className="cursor-pointer transition-opacity hover:opacity-80"
+                          >
                             {opp.title}
                           </Badge>
                         </Link>
-                        {opp.applicationsCount > 0 && (
-                          <span className="text-xs text-muted-foreground">
-                            ({opp.applicationsCount} {opp.applicationsCount === 1 ? "applicant" : "applicants"})
+                        {(opp.applicationsCount ?? 0) > 0 && (
+                          <span className="text-muted-foreground text-xs">
+                            ({opp.applicationsCount}{" "}
+                            {(opp.applicationsCount ?? 0) === 1
+                              ? "applicant"
+                              : "applicants"}
+                            )
                           </span>
                         )}
                       </div>
                       {opp.description && (
-                        <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{opp.description}</p>
+                        <p className="text-muted-foreground mt-1 line-clamp-2 text-sm">
+                          {opp.description}
+                        </p>
                       )}
                     </div>
                     <div className="ml-4 flex items-center gap-2">
                       {isOwner && (
                         <Select
                           onValueChange={(value) => {
+                            if (!isMemberRole(value)) return;
                             updateOpportunityRoleMutation.mutate({
                               id: opp.id,
-                              projectRole: value as "FOUNDER" | "LEADER" | "CORE_CONTRIBUTOR" | "CONTRIBUTOR" | "OBSERVER",
+                              projectRole: value,
                             });
                           }}
                         >
-                          <SelectTrigger className="h-7 w-[140px] text-xs">
+                          <SelectTrigger className="min-h-11 w-[140px] text-xs">
                             <SelectValue placeholder="Assign role" />
                           </SelectTrigger>
                           <SelectContent>
@@ -911,7 +1143,10 @@ export default function TeamTab({ projectId, projectSlug, isOwner }: TeamTabProp
                           </SelectContent>
                         </Select>
                       )}
-                      <Badge variant={isFilled ? "secondary" : "outline"} className="text-xs">
+                      <Badge
+                        variant={isFilled ? "secondary" : "outline"}
+                        className="text-xs"
+                      >
                         {isFilled ? "Filled" : "Open"}
                       </Badge>
                     </div>
@@ -929,13 +1164,17 @@ export default function TeamTab({ projectId, projectSlug, isOwner }: TeamTabProp
           <CardHeader>
             <CardTitle>Apply to Join Project</CardTitle>
             <CardDescription>
-              Tell the project owner why you'd like to join and what you can contribute
+              Tell the project owner why you&apos;d like to join and what you
+              can contribute
             </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleApply} className="space-y-4">
               <div>
-                <label htmlFor="roleTitle" className="text-sm font-medium block mb-1.5">
+                <label
+                  htmlFor="roleTitle"
+                  className="mb-1.5 block text-sm font-medium"
+                >
                   Desired Role Title *
                 </label>
                 <input
@@ -944,13 +1183,16 @@ export default function TeamTab({ projectId, projectSlug, isOwner }: TeamTabProp
                   value={roleTitle}
                   onChange={(e) => setRoleTitle(e.target.value)}
                   placeholder="e.g., Frontend Developer, Designer, Marketing Lead"
-                  className="w-full px-3 py-2 border border-border rounded bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                  className="border-border bg-background text-foreground focus:ring-primary w-full rounded border px-3 py-2 focus:ring-2 focus:outline-none"
                   required
                 />
               </div>
 
               <div>
-                <label htmlFor="message" className="text-sm font-medium block mb-1.5">
+                <label
+                  htmlFor="message"
+                  className="mb-1.5 block text-sm font-medium"
+                >
                   Application Message * (min 20 characters)
                 </label>
                 <textarea
@@ -958,14 +1200,17 @@ export default function TeamTab({ projectId, projectSlug, isOwner }: TeamTabProp
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
                   placeholder="Explain why you want to join this project and what you can contribute..."
-                  className="w-full px-3 py-2 border border-border rounded bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary min-h-[100px] resize-y"
+                  className="border-border bg-background text-foreground focus:ring-primary min-h-[100px] w-full resize-y rounded border px-3 py-2 focus:ring-2 focus:outline-none"
                   required
                   minLength={20}
                 />
               </div>
 
               <div>
-                <label htmlFor="skills" className="text-sm font-medium block mb-1.5">
+                <label
+                  htmlFor="skills"
+                  className="mb-1.5 block text-sm font-medium"
+                >
                   Skills (Optional)
                 </label>
                 <input
@@ -974,12 +1219,15 @@ export default function TeamTab({ projectId, projectSlug, isOwner }: TeamTabProp
                   value={skills}
                   onChange={(e) => setSkills(e.target.value)}
                   placeholder="e.g., React, TypeScript, UX Design"
-                  className="w-full px-3 py-2 border border-border rounded bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                  className="border-border bg-background text-foreground focus:ring-primary w-full rounded border px-3 py-2 focus:ring-2 focus:outline-none"
                 />
               </div>
 
               <div>
-                <label htmlFor="experience" className="text-sm font-medium block mb-1.5">
+                <label
+                  htmlFor="experience"
+                  className="mb-1.5 block text-sm font-medium"
+                >
                   Experience (Optional)
                 </label>
                 <textarea
@@ -987,12 +1235,15 @@ export default function TeamTab({ projectId, projectSlug, isOwner }: TeamTabProp
                   value={experience}
                   onChange={(e) => setExperience(e.target.value)}
                   placeholder="Briefly describe your relevant experience..."
-                  className="w-full px-3 py-2 border border-border rounded bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary min-h-[80px] resize-y"
+                  className="border-border bg-background text-foreground focus:ring-primary min-h-[80px] w-full resize-y rounded border px-3 py-2 focus:ring-2 focus:outline-none"
                 />
               </div>
 
               <div>
-                <label htmlFor="availability" className="text-sm font-medium block mb-1.5">
+                <label
+                  htmlFor="availability"
+                  className="mb-1.5 block text-sm font-medium"
+                >
                   Availability (Optional)
                 </label>
                 <input
@@ -1001,7 +1252,7 @@ export default function TeamTab({ projectId, projectSlug, isOwner }: TeamTabProp
                   value={availability}
                   onChange={(e) => setAvailability(e.target.value)}
                   placeholder="e.g., 10 hours/week, Weekends, Full-time"
-                  className="w-full px-3 py-2 border border-border rounded bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                  className="border-border bg-background text-foreground focus:ring-primary w-full rounded border px-3 py-2 focus:ring-2 focus:outline-none"
                 />
               </div>
 
@@ -1009,7 +1260,7 @@ export default function TeamTab({ projectId, projectSlug, isOwner }: TeamTabProp
                 <Button type="submit" disabled={applyMutation.isPending}>
                   {applyMutation.isPending ? (
                     <>
-                      <Loader2 className="size-4 mr-2 animate-spin" />
+                      <Loader2 className="mr-2 size-4 animate-spin" />
                       Submitting...
                     </>
                   ) : (
@@ -1037,7 +1288,9 @@ export default function TeamTab({ projectId, projectSlug, isOwner }: TeamTabProp
               <PieChart className="size-5" />
               Token Pool Allocation
             </CardTitle>
-            <CardDescription>How project tokens are distributed across holder classes</CardDescription>
+            <CardDescription>
+              How project tokens are distributed across holder classes
+            </CardDescription>
           </CardHeader>
           <CardContent>
             {(() => {
@@ -1046,11 +1299,19 @@ export default function TeamTab({ projectId, projectSlug, isOwner }: TeamTabProp
               const investorSupply = Number(tokenConfig.investorSupply);
               const founderSupply = Number(tokenConfig.founderSupply);
               const burnedSupply = Number(tokenConfig.burnedSupply);
-              const contributorPct = ((contributorSupply / total) * 100).toFixed(1);
+              const contributorPct = (
+                (contributorSupply / total) *
+                100
+              ).toFixed(1);
               const investorPct = ((investorSupply / total) * 100).toFixed(1);
               const founderPct = ((founderSupply / total) * 100).toFixed(1);
               const burnedPct = ((burnedSupply / total) * 100).toFixed(1);
-              const availableSupply = total - contributorSupply - investorSupply - founderSupply - burnedSupply;
+              const availableSupply =
+                total -
+                contributorSupply -
+                investorSupply -
+                founderSupply -
+                burnedSupply;
               const availablePct = ((availableSupply / total) * 100).toFixed(1);
 
               return (
@@ -1058,52 +1319,88 @@ export default function TeamTab({ projectId, projectSlug, isOwner }: TeamTabProp
                   {/* Pool bars */}
                   <div className="space-y-3">
                     <div>
-                      <div className="flex justify-between text-sm mb-1">
+                      <div className="mb-1 flex justify-between text-sm">
                         <span className="font-medium">Contributor Pool</span>
-                        <span className="text-muted-foreground">{contributorPct}% ({contributorSupply.toLocaleString()} tokens)</span>
+                        <span className="text-muted-foreground">
+                          {contributorPct}% (
+                          {contributorSupply.toLocaleString()} tokens)
+                        </span>
                       </div>
-                      <div className="h-2 bg-muted rounded-full overflow-hidden">
-                        <div className="h-full bg-neon-green rounded-full transition-all" style={{ width: `${contributorPct}%` }} />
+                      <div className="bg-muted h-2 overflow-hidden rounded-none">
+                        <div
+                          className="bg-neon-green h-full rounded-none transition-all"
+                          style={{ width: `${contributorPct}%` }}
+                        />
                       </div>
                     </div>
                     <div>
-                      <div className="flex justify-between text-sm mb-1">
+                      <div className="mb-1 flex justify-between text-sm">
                         <span className="font-medium">Investor Pool</span>
-                        <span className="text-muted-foreground">{investorPct}% ({investorSupply.toLocaleString()} tokens)</span>
+                        <span className="text-muted-foreground">
+                          {investorPct}% ({investorSupply.toLocaleString()}{" "}
+                          tokens)
+                        </span>
                       </div>
-                      <div className="h-2 bg-muted rounded-full overflow-hidden">
-                        <div className="h-full bg-neon rounded-full transition-all" style={{ width: `${investorPct}%` }} />
+                      <div className="bg-muted h-2 overflow-hidden rounded-none">
+                        <div
+                          className="bg-neon h-full rounded-none transition-all"
+                          style={{ width: `${investorPct}%` }}
+                        />
                       </div>
                     </div>
                     <div>
-                      <div className="flex justify-between text-sm mb-1">
-                        <span className="font-medium">Founder / Member Pool</span>
-                        <span className="text-muted-foreground">{founderPct}% ({founderSupply.toLocaleString()} tokens)</span>
+                      <div className="mb-1 flex justify-between text-sm">
+                        <span className="font-medium">
+                          Founder / Member Pool
+                        </span>
+                        <span className="text-muted-foreground">
+                          {founderPct}% ({founderSupply.toLocaleString()}{" "}
+                          tokens)
+                        </span>
                       </div>
-                      <div className="h-2 bg-muted rounded-full overflow-hidden">
-                        <div className="h-full bg-neon-pink rounded-full transition-all" style={{ width: `${founderPct}%` }} />
+                      <div className="bg-muted h-2 overflow-hidden rounded-none">
+                        <div
+                          className="bg-neon-pink h-full rounded-none transition-all"
+                          style={{ width: `${founderPct}%` }}
+                        />
                       </div>
                     </div>
                     {burnedSupply > 0 && (
                       <div>
-                        <div className="flex justify-between text-sm mb-1">
-                          <span className="font-medium text-muted-foreground">Burned</span>
-                          <span className="text-muted-foreground">{burnedPct}% ({burnedSupply.toLocaleString()} tokens)</span>
+                        <div className="mb-1 flex justify-between text-sm">
+                          <span className="text-muted-foreground font-medium">
+                            Burned
+                          </span>
+                          <span className="text-muted-foreground">
+                            {burnedPct}% ({burnedSupply.toLocaleString()}{" "}
+                            tokens)
+                          </span>
                         </div>
-                        <div className="h-2 bg-muted rounded-full overflow-hidden">
-                          <div className="h-full bg-destructive/50 rounded-full transition-all" style={{ width: `${burnedPct}%` }} />
+                        <div className="bg-muted h-2 overflow-hidden rounded-none">
+                          <div
+                            className="bg-destructive/50 h-full rounded-none transition-all"
+                            style={{ width: `${burnedPct}%` }}
+                          />
                         </div>
                       </div>
                     )}
                   </div>
 
                   {/* Summary */}
-                  <div className="flex items-center justify-between pt-2 border-t border-border text-sm">
+                  <div className="border-border flex items-center justify-between border-t pt-2 text-sm">
                     <span className="text-muted-foreground">
-                      Total Supply: <span className="font-medium text-foreground">{total.toLocaleString()}</span> tokens
+                      Total Supply:{" "}
+                      <span className="text-foreground font-medium">
+                        {total.toLocaleString()}
+                      </span>{" "}
+                      tokens
                     </span>
                     <span className="text-muted-foreground">
-                      Unallocated: <span className="font-medium text-foreground">{availablePct}%</span> ({availableSupply.toLocaleString()})
+                      Unallocated:{" "}
+                      <span className="text-foreground font-medium">
+                        {availablePct}%
+                      </span>{" "}
+                      ({availableSupply.toLocaleString()})
                     </span>
                   </div>
                 </div>
@@ -1118,37 +1415,44 @@ export default function TeamTab({ projectId, projectSlug, isOwner }: TeamTabProp
         <Card>
           <CardHeader>
             <CardTitle>Pending Applications</CardTitle>
-            <CardDescription>Review applications from people who want to join your project</CardDescription>
+            <CardDescription>
+              Review applications from people who want to join your project
+            </CardDescription>
           </CardHeader>
           <CardContent>
             {applicationsLoading ? (
               <div className="flex items-center justify-center py-8">
-                <Loader2 className="size-6 animate-spin text-muted-foreground" />
+                <Loader2 className="text-muted-foreground size-6 animate-spin" />
               </div>
             ) : pendingApplications.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
+              <div className="text-muted-foreground py-8 text-center">
                 No pending applications
               </div>
             ) : (
               <div className="space-y-4">
-                {pendingApplications.map((application: any) => (
+                {pendingApplications.map((application) => (
                   <div
                     key={application.id}
-                    className="p-4 border border-border rounded space-y-3"
+                    className="border-border space-y-3 rounded border p-4"
                   >
                     <div className="flex items-start justify-between">
                       <div className="flex items-center gap-3">
                         <Avatar>
-                          <AvatarImage src={application.user?.image ?? undefined} />
+                          <AvatarImage
+                            src={application.user?.image ?? undefined}
+                          />
                           <AvatarFallback>
-                            {application.user?.name?.charAt(0).toUpperCase() ?? "U"}
+                            {application.user?.name?.charAt(0).toUpperCase() ??
+                              "U"}
                           </AvatarFallback>
                         </Avatar>
                         <div>
                           <div className="font-medium">
-                            {application.user?.name ?? application.user?.email ?? "Unknown User"}
+                            {application.user?.name ??
+                              application.user?.email ??
+                              "Unknown User"}
                           </div>
-                          <div className="text-sm text-muted-foreground">
+                          <div className="text-muted-foreground text-sm">
                             Applied for: {application.roleTitle}
                           </div>
                         </div>
@@ -1158,7 +1462,7 @@ export default function TeamTab({ projectId, projectSlug, isOwner }: TeamTabProp
 
                     <div className="space-y-2">
                       <div>
-                        <div className="text-xs font-medium text-muted-foreground mb-1">
+                        <div className="text-muted-foreground mb-1 text-xs font-medium">
                           Message:
                         </div>
                         <div className="text-sm">{application.message}</div>
@@ -1166,7 +1470,7 @@ export default function TeamTab({ projectId, projectSlug, isOwner }: TeamTabProp
 
                       {application.skills && (
                         <div>
-                          <div className="text-xs font-medium text-muted-foreground mb-1">
+                          <div className="text-muted-foreground mb-1 text-xs font-medium">
                             Skills:
                           </div>
                           <div className="text-sm">{application.skills}</div>
@@ -1175,19 +1479,23 @@ export default function TeamTab({ projectId, projectSlug, isOwner }: TeamTabProp
 
                       {application.experience && (
                         <div>
-                          <div className="text-xs font-medium text-muted-foreground mb-1">
+                          <div className="text-muted-foreground mb-1 text-xs font-medium">
                             Experience:
                           </div>
-                          <div className="text-sm">{application.experience}</div>
+                          <div className="text-sm">
+                            {application.experience}
+                          </div>
                         </div>
                       )}
 
                       {application.availability && (
                         <div>
-                          <div className="text-xs font-medium text-muted-foreground mb-1">
+                          <div className="text-muted-foreground mb-1 text-xs font-medium">
                             Availability:
                           </div>
-                          <div className="text-sm">{application.availability}</div>
+                          <div className="text-sm">
+                            {application.availability}
+                          </div>
                         </div>
                       )}
                     </div>
@@ -1199,7 +1507,7 @@ export default function TeamTab({ projectId, projectSlug, isOwner }: TeamTabProp
                         onClick={() => handleReview(application.id, "ACCEPTED")}
                         disabled={reviewMutation.isPending}
                       >
-                        <Check className="size-4 mr-2" />
+                        <Check className="mr-2 size-4" />
                         Accept
                       </Button>
                       <Button
@@ -1208,7 +1516,7 @@ export default function TeamTab({ projectId, projectSlug, isOwner }: TeamTabProp
                         onClick={() => handleReview(application.id, "REJECTED")}
                         disabled={reviewMutation.isPending}
                       >
-                        <X className="size-4 mr-2" />
+                        <X className="mr-2 size-4" />
                         Reject
                       </Button>
                     </div>

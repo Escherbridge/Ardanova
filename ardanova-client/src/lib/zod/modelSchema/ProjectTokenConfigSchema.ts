@@ -1,6 +1,6 @@
-import { z } from 'zod';
-import { ProjectTokenStatusSchema } from '../inputTypeSchemas/ProjectTokenStatusSchema'
-import { ProjectGateStatusSchema } from '../inputTypeSchemas/ProjectGateStatusSchema'
+import { z } from "zod";
+import { ProjectTokenStatusSchema } from "../inputTypeSchemas/ProjectTokenStatusSchema";
+import { ProjectGateStatusSchema } from "../inputTypeSchemas/ProjectGateStatusSchema";
 
 /////////////////////////////////////////
 // PROJECT TOKEN CONFIG SCHEMA
@@ -14,7 +14,7 @@ export const ProjectTokenConfigSchema = z.object({
   assetId: z.string().nullable(),
   assetName: z.string(),
   unitName: z.string(),
-  assetScale: z.number().int(),
+  assetScale: z.number().int().nullable(),
   totalSupply: z.number().int(),
   allocatedSupply: z.number().int(),
   distributedSupply: z.number().int(),
@@ -33,8 +33,8 @@ export const ProjectTokenConfigSchema = z.object({
   burnedSupply: z.number().int(),
   successCriteria: z.string().nullable(),
   successVerifiedBy: z.string().nullable(),
-})
+});
 
-export type ProjectTokenConfig = z.infer<typeof ProjectTokenConfigSchema>
+export type ProjectTokenConfig = z.infer<typeof ProjectTokenConfigSchema>;
 
 export default ProjectTokenConfigSchema;

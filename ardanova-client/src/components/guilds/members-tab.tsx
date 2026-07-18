@@ -2,7 +2,13 @@
 
 import { useState } from "react";
 import { api } from "~/trpc/react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "~/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
 import { Badge } from "~/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
@@ -22,7 +28,7 @@ import {
   SelectValue,
 } from "~/components/ui/select";
 import { CredentialBadge } from "~/components/credentials/credential-badge";
-import { Loader2, Users, Plus, UserMinus, Mail } from "lucide-react";
+import { Loader2, Users, UserMinus, Mail } from "lucide-react";
 import type { GuildMember } from "~/lib/api/ardanova/endpoints/guilds";
 
 interface MembersTabProps {
@@ -61,9 +67,10 @@ export function MembersTab({ guildId, isOwner }: MembersTabProps) {
     guildId,
   });
 
-  const { data: guildCredentials } = api.membershipCredential.getByGuildId.useQuery({
-    guildId,
-  });
+  const { data: guildCredentials } =
+    api.membershipCredential.getByGuildId.useQuery({
+      guildId,
+    });
 
   const credentialsByUserId = new Map(
     (guildCredentials ?? []).map((c) => [c.userId, c]),
@@ -86,14 +93,14 @@ export function MembersTab({ guildId, isOwner }: MembersTabProps) {
         joinedAt: new Date().toISOString(),
         user: {
           id: `pending-${Date.now()}`,
-          name: null,
+          name: undefined,
           email: invitedEmail ?? "",
-          image: null,
+          image: undefined,
         },
       };
 
       utils.guild.getMembers.setData({ guildId }, (old) =>
-        old ? [...old, optimisticMember] : [optimisticMember]
+        old ? [...old, optimisticMember] : [optimisticMember],
       );
 
       return { previous };
@@ -123,7 +130,7 @@ export function MembersTab({ guildId, isOwner }: MembersTabProps) {
       await utils.guild.getMembers.cancel({ guildId });
       const previous = utils.guild.getMembers.getData({ guildId });
       utils.guild.getMembers.setData({ guildId }, (old) =>
-        old?.filter((m) => m.id !== memberId)
+        old?.filter((m) => m.id !== memberId),
       );
       return { previous };
     },
@@ -161,7 +168,7 @@ export function MembersTab({ guildId, isOwner }: MembersTabProps) {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 className="size-6 animate-spin text-muted-foreground" />
+        <Loader2 className="text-muted-foreground size-6 animate-spin" />
       </div>
     );
   }
@@ -177,7 +184,9 @@ export function MembersTab({ guildId, isOwner }: MembersTabProps) {
                 <Users className="size-5" />
                 Guild Members
               </CardTitle>
-              <CardDescription>People who are part of this guild</CardDescription>
+              <CardDescription>
+                People who are part of this guild
+              </CardDescription>
             </div>
             {isOwner && (
               <Button
@@ -185,7 +194,7 @@ export function MembersTab({ guildId, isOwner }: MembersTabProps) {
                 variant="default"
                 size="sm"
               >
-                <Mail className="size-4 mr-2" />
+                <Mail className="mr-2 size-4" />
                 Invite Member
               </Button>
             )}
@@ -193,7 +202,7 @@ export function MembersTab({ guildId, isOwner }: MembersTabProps) {
         </CardHeader>
         <CardContent>
           {!members || members.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
+            <div className="text-muted-foreground py-8 text-center">
               No members yet.
             </div>
           ) : (
@@ -201,10 +210,10 @@ export function MembersTab({ guildId, isOwner }: MembersTabProps) {
               {members.map((member) => (
                 <Card
                   key={member.id}
-                  className="border border-border hover:bg-muted/50 transition-colors"
+                  className="border-border hover:bg-muted/50 border transition-colors"
                 >
                   <CardContent className="pt-6">
-                    <div className="flex flex-col items-center text-center space-y-3">
+                    <div className="flex flex-col items-center space-y-3 text-center">
                       <Avatar className="size-16">
                         <AvatarImage src={member.user?.image ?? undefined} />
                         <AvatarFallback className="text-lg">
@@ -213,28 +222,37 @@ export function MembersTab({ guildId, isOwner }: MembersTabProps) {
                       </Avatar>
                       <div className="space-y-1">
                         <div className="font-medium">
-                          {member.user?.name ?? member.user?.email ?? "Unknown User"}
+                          {member.user?.name ??
+                            member.user?.email ??
+                            "Unknown User"}
                         </div>
-                        <div className="flex items-center gap-1.5 justify-center">
-                          <Badge variant={getRoleBadgeVariant((member.role ?? "MEMBER") as MemberRole)}>
+                        <div className="flex items-center justify-center gap-1.5">
+                          <Badge
+                            variant={getRoleBadgeVariant(
+                              (member.role ?? "MEMBER") as MemberRole,
+                            )}
+                          >
                             {member.role ?? "MEMBER"}
                           </Badge>
-                          {credentialsByUserId.get(member.userId)?.status === "ACTIVE" && (
+                          {credentialsByUserId.get(member.userId)?.status ===
+                            "ACTIVE" && (
                             <CredentialBadge
-                              tier={credentialsByUserId.get(member.userId)?.tier}
+                              tier={
+                                credentialsByUserId.get(member.userId)?.tier
+                              }
                               size="sm"
                             />
                           )}
                         </div>
                       </div>
-                      <div className="text-xs text-muted-foreground">
+                      <div className="text-muted-foreground text-xs">
                         Joined {new Date(member.joinedAt).toLocaleDateString()}
                       </div>
                       {isOwner && member.role !== "OWNER" && (
                         <Button
                           variant="outline"
                           size="sm"
-                          className="w-full text-destructive hover:text-destructive"
+                          className="text-destructive hover:text-destructive w-full"
                           onClick={() =>
                             setMemberToRemove({
                               id: member.id,
@@ -251,9 +269,9 @@ export function MembersTab({ guildId, isOwner }: MembersTabProps) {
                         >
                           {removeMemberMutation.isPending &&
                           memberToRemove?.id === member.id ? (
-                            <Loader2 className="size-4 mr-2 animate-spin" />
+                            <Loader2 className="mr-2 size-4 animate-spin" />
                           ) : (
-                            <UserMinus className="size-4 mr-2" />
+                            <UserMinus className="mr-2 size-4" />
                           )}
                           Remove
                         </Button>
@@ -282,7 +300,7 @@ export function MembersTab({ guildId, isOwner }: MembersTabProps) {
               <div>
                 <label
                   htmlFor="email"
-                  className="text-sm font-medium block mb-1.5"
+                  className="mb-1.5 block text-sm font-medium"
                 >
                   Email Address
                 </label>
@@ -292,19 +310,24 @@ export function MembersTab({ guildId, isOwner }: MembersTabProps) {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="user@example.com"
-                  className="w-full px-3 py-2 border border-border rounded bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                  className="border-border bg-background text-foreground focus:ring-primary w-full rounded border px-3 py-2 focus:ring-2 focus:outline-none"
                   required
                   disabled={inviteMemberMutation.isPending}
                 />
               </div>
 
               <div>
-                <label htmlFor="role" className="text-sm font-medium block mb-1.5">
+                <label
+                  htmlFor="role"
+                  className="mb-1.5 block text-sm font-medium"
+                >
                   Role
                 </label>
                 <Select
                   value={role}
-                  onValueChange={(value) => setRole(value as "MEMBER" | "ADMIN")}
+                  onValueChange={(value) =>
+                    setRole(value as "MEMBER" | "ADMIN")
+                  }
                   disabled={inviteMemberMutation.isPending}
                 >
                   <SelectTrigger id="role" className="w-full">
@@ -314,7 +337,7 @@ export function MembersTab({ guildId, isOwner }: MembersTabProps) {
                     <SelectItem value="MEMBER">
                       <div className="flex items-center gap-2">
                         <Badge variant="info">MEMBER</Badge>
-                        <span className="text-xs text-muted-foreground">
+                        <span className="text-muted-foreground text-xs">
                           Standard access
                         </span>
                       </div>
@@ -322,7 +345,7 @@ export function MembersTab({ guildId, isOwner }: MembersTabProps) {
                     <SelectItem value="ADMIN">
                       <div className="flex items-center gap-2">
                         <Badge variant="neon-purple">ADMIN</Badge>
-                        <span className="text-xs text-muted-foreground">
+                        <span className="text-muted-foreground text-xs">
                           Management access
                         </span>
                       </div>
@@ -347,12 +370,12 @@ export function MembersTab({ guildId, isOwner }: MembersTabProps) {
               <Button type="submit" disabled={inviteMemberMutation.isPending}>
                 {inviteMemberMutation.isPending ? (
                   <>
-                    <Loader2 className="size-4 mr-2 animate-spin" />
+                    <Loader2 className="mr-2 size-4 animate-spin" />
                     Sending...
                   </>
                 ) : (
                   <>
-                    <Mail className="size-4 mr-2" />
+                    <Mail className="mr-2 size-4" />
                     Send Invitation
                   </>
                 )}
@@ -372,7 +395,7 @@ export function MembersTab({ guildId, isOwner }: MembersTabProps) {
             <DialogTitle>Remove Member</DialogTitle>
             <DialogDescription>
               Are you sure you want to remove{" "}
-              <span className="font-medium text-foreground">
+              <span className="text-foreground font-medium">
                 {memberToRemove?.name}
               </span>{" "}
               from the guild? This action cannot be undone.
@@ -397,12 +420,12 @@ export function MembersTab({ guildId, isOwner }: MembersTabProps) {
             >
               {removeMemberMutation.isPending ? (
                 <>
-                  <Loader2 className="size-4 mr-2 animate-spin" />
+                  <Loader2 className="mr-2 size-4 animate-spin" />
                   Removing...
                 </>
               ) : (
                 <>
-                  <UserMinus className="size-4 mr-2" />
+                  <UserMinus className="mr-2 size-4" />
                   Remove Member
                 </>
               )}
@@ -415,25 +438,28 @@ export function MembersTab({ guildId, isOwner }: MembersTabProps) {
       <Card>
         <CardHeader>
           <CardTitle>Member Roles</CardTitle>
-          <CardDescription>Understanding guild member roles and permissions</CardDescription>
+          <CardDescription>
+            Understanding guild member roles and permissions
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
-            <div className="flex items-center gap-3 p-3 border border-border rounded">
+            <div className="border-border flex items-center gap-3 rounded border p-3">
               <Badge variant="neon-pink-solid">OWNER</Badge>
-              <p className="text-sm text-muted-foreground">
-                Full control over the guild, including adding/removing members and managing settings
+              <p className="text-muted-foreground text-sm">
+                Full control over the guild, including adding/removing members
+                and managing settings
               </p>
             </div>
-            <div className="flex items-center gap-3 p-3 border border-border rounded">
+            <div className="border-border flex items-center gap-3 rounded border p-3">
               <Badge variant="neon-purple">ADMIN</Badge>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-muted-foreground text-sm">
                 Can manage guild content and moderate members
               </p>
             </div>
-            <div className="flex items-center gap-3 p-3 border border-border rounded">
+            <div className="border-border flex items-center gap-3 rounded border p-3">
               <Badge variant="info">MEMBER</Badge>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-muted-foreground text-sm">
                 Standard guild member with basic access
               </p>
             </div>

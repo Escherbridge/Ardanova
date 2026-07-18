@@ -7,9 +7,9 @@ import { SignalRBackendClient } from "./signalr-backend-client";
  * Uses reference counting to share connections across multiple SSE streams for the same user.
  */
 class ConnectionManager {
-  private connections: Map<string, SignalRBackendClient> = new Map();
-  private refCounts: Map<string, number> = new Map();
-  private connectPromises: Map<string, Promise<SignalRBackendClient>> = new Map();
+  private connections = new Map<string, SignalRBackendClient>();
+  private refCounts = new Map<string, number>();
+  private connectPromises = new Map<string, Promise<SignalRBackendClient>>();
 
   /**
    * Gets or creates a connection for the specified user.
@@ -58,26 +58,26 @@ class ConnectionManager {
         await client.disconnect();
         this.connections.delete(userId);
         this.refCounts.delete(userId);
-        console.log(`[ConnectionManager] Released connection for user ${userId}`);
       }
-    } else {
-      console.log(`[ConnectionManager] Decremented ref count for user ${userId} to ${count}`);
     }
   }
 
   /**
    * Creates a new SignalR connection for the user.
    */
-  private async createConnection(userId: string): Promise<SignalRBackendClient> {
+  private async createConnection(
+    userId: string,
+  ): Promise<SignalRBackendClient> {
     const client = new SignalRBackendClient(userId);
 
     try {
       await client.connect();
       this.connections.set(userId, client);
-      console.log(`[ConnectionManager] Created connection for user ${userId}`);
       return client;
     } catch (error) {
-      console.error(`[ConnectionManager] Failed to connect for user ${userId}:`, error);
+      console.error(
+        "[ConnectionManager] Failed to connect to the realtime backend",
+      );
       throw error;
     }
   }

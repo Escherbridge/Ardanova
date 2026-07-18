@@ -3,7 +3,12 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { ArrowLeft, CheckSquare, CircleDollarSign, Loader2 } from "lucide-react";
+import {
+  ArrowLeft,
+  CheckSquare,
+  CircleDollarSign,
+  Loader2,
+} from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { TaskEconomicState } from "~/components/tasks/task-economic-state";
@@ -13,7 +18,11 @@ export default function TaskCommercePage() {
   const params = useParams<{ id: string }>();
   const taskId = params.id;
   const { status } = useSession();
-  const { data: commerce, isLoading, error } = api.task.getCommerce.useQuery(
+  const {
+    data: commerce,
+    isLoading,
+    error,
+  } = api.task.getCommerce.useQuery(
     { id: taskId },
     { enabled: status === "authenticated" && Boolean(taskId) },
   );
@@ -25,7 +34,9 @@ export default function TaskCommercePage() {
   if (status !== "authenticated") {
     return (
       <CommerceShell title="Sign in required">
-        <p className="text-muted-foreground">Sign in to view this task's commerce status.</p>
+        <p className="text-muted-foreground">
+          Sign in to view this task&apos;s commerce status.
+        </p>
       </CommerceShell>
     );
   }
@@ -33,7 +44,9 @@ export default function TaskCommercePage() {
   if (error || !commerce) {
     return (
       <CommerceShell title="Commerce task unavailable">
-        <p className="text-muted-foreground">The task could not be loaded, or is no longer available to you.</p>
+        <p className="text-muted-foreground">
+          The task could not be loaded, or is no longer available to you.
+        </p>
       </CommerceShell>
     );
   }
@@ -45,27 +58,38 @@ export default function TaskCommercePage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <CheckSquare className="size-5 text-neon" />
+            <CheckSquare className="text-neon size-5" />
             {commerce.title}
           </CardTitle>
-          <p className="text-sm text-muted-foreground">{commerce.description ?? "No task description was supplied."}</p>
+          <p className="text-muted-foreground text-sm">
+            {commerce.description ?? "No task description was supplied."}
+          </p>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="rounded-lg border border-border bg-muted/30 p-4">
+          <div className="border-border bg-muted/30 rounded-lg border p-4">
             <p className="text-sm font-medium">Accepted agreement</p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              The local task agreement is accepted. It is not an escrow, token allocation, payment, or settlement receipt.
+            <p className="text-muted-foreground mt-1 text-sm">
+              The local task agreement is accepted. It is not an escrow, token
+              allocation, payment, or settlement receipt.
             </p>
           </div>
-          <div className="flex items-center justify-between gap-3 rounded-lg border border-border p-4">
+          <div className="border-border flex items-center justify-between gap-3 rounded-lg border p-4">
             <div>
               <p className="text-sm font-medium">Project-token award</p>
-              <p className="text-sm text-muted-foreground">{award} {commerce.assetCode} units are reserved in the agreement.</p>
+              <p className="text-muted-foreground text-sm">
+                {award} {commerce.assetCode} units are reserved in the
+                agreement.
+              </p>
             </div>
-            <TaskEconomicState equityReward={award} escrowStatus={commerce.escrowStatus} />
+            <TaskEconomicState
+              allocationUnits={award}
+              escrowStatus={commerce.escrowStatus}
+            />
           </div>
-          <div className="rounded-lg border border-warning/40 bg-warning/10 p-4 text-sm text-muted-foreground">
-            Funding, escrow, quest linking, release approval, and AZOA settlement are separate gated steps. No value has moved from viewing this page.
+          <div className="border-warning/40 bg-warning/10 text-muted-foreground rounded-lg border p-4 text-sm">
+            Funding, escrow, quest linking, release approval, and AZOA
+            settlement are separate gated steps. No value has moved from viewing
+            this page.
           </div>
         </CardContent>
       </Card>
@@ -73,14 +97,25 @@ export default function TaskCommercePage() {
   );
 }
 
-function CommerceShell({ title, children }: { title: string; children: React.ReactNode }) {
+function CommerceShell({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
   return (
     <div className="mx-auto max-w-3xl space-y-6 px-4 py-8">
       <Button variant="ghost" asChild className="-ml-2">
-        <Link href="/tasks"><ArrowLeft className="mr-2 size-4" />Back to tasks</Link>
+        <Link href="/tasks">
+          <ArrowLeft className="mr-2 size-4" />
+          Back to tasks
+        </Link>
       </Button>
       <div className="flex items-center gap-3">
-        <div className="rounded-lg bg-neon/10 p-3"><CircleDollarSign className="size-6 text-neon" /></div>
+        <div className="bg-neon/10 rounded-lg p-3">
+          <CircleDollarSign className="text-neon size-6" />
+        </div>
         <h1 className="text-3xl font-bold">{title}</h1>
       </div>
       {children}
@@ -91,7 +126,7 @@ function CommerceShell({ title, children }: { title: string; children: React.Rea
 function LoadingState() {
   return (
     <div className="flex min-h-64 items-center justify-center">
-      <Loader2 className="size-6 animate-spin text-neon" />
+      <Loader2 className="text-neon size-6 animate-spin" />
     </div>
   );
 }

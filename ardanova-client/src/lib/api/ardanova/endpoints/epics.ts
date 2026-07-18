@@ -6,19 +6,18 @@ export type EpicPriority = "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
 export interface Epic {
   id: string;
   projectId: string;
-  milestoneId?: string | null;
-  guildId?: string | null;
+  milestoneId: string;
   title: string;
   description?: string | null;
   priority: EpicPriority;
   status: EpicStatus;
+  equityBudget?: number | null;
+  progress: number;
   startDate?: string | null;
-  endDate?: string | null;
+  targetDate?: string | null;
   assigneeId?: string | null;
-  order?: number | null;
   createdAt: string;
   updatedAt: string;
-  [key: string]: unknown;
 }
 
 export interface CreateEpic {
@@ -26,9 +25,10 @@ export interface CreateEpic {
   title: string;
   description?: string;
   priority?: EpicPriority;
+  equityBudget?: number;
   startDate?: string;
-  endDate?: string;
-  [key: string]: unknown;
+  targetDate?: string;
+  assigneeId?: string;
 }
 
 export interface UpdateEpic {
@@ -36,10 +36,10 @@ export interface UpdateEpic {
   description?: string;
   priority?: EpicPriority;
   status?: EpicStatus;
+  equityBudget?: number;
+  progress?: number;
   startDate?: string;
-  endDate?: string;
-  assigneeId?: string | null;
-  [key: string]: unknown;
+  targetDate?: string;
 }
 
 export class EpicsEndpoint {
@@ -47,6 +47,10 @@ export class EpicsEndpoint {
 
   getByMilestoneId(milestoneId: string): Promise<ApiResponse<Epic[]>> {
     return this.client.get<Epic[]>(`/api/milestones/${milestoneId}/epics`);
+  }
+
+  getByProjectId(projectId: string): Promise<ApiResponse<Epic[]>> {
+    return this.client.get<Epic[]>(`/api/projects/${projectId}/epics`);
   }
 
   getById(id: string): Promise<ApiResponse<Epic>> {
@@ -69,7 +73,10 @@ export class EpicsEndpoint {
     return this.client.put<Epic>(`/api/epics/${id}/status`, { status });
   }
 
-  updatePriority(id: string, priority: EpicPriority): Promise<ApiResponse<Epic>> {
+  updatePriority(
+    id: string,
+    priority: EpicPriority,
+  ): Promise<ApiResponse<Epic>> {
     return this.client.put<Epic>(`/api/epics/${id}/priority`, { priority });
   }
 

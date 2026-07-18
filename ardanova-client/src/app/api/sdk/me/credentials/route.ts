@@ -12,13 +12,12 @@ export async function GET() {
   const { session, error } = await getSessionOrError();
   if (error) return error;
 
-  const response = await apiClient.membershipCredentials.getByUserId(session!.user.id);
+  const response = await apiClient.membershipCredentials.getByUserId(
+    session.user.id,
+  );
 
   if (response.error) {
-    return NextResponse.json(
-      { error: response.error },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: response.error }, { status: 500 });
   }
 
   return NextResponse.json(response.data ?? []);

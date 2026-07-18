@@ -20,7 +20,11 @@ export default function UpdatesTab({ projectId, isOwner }: UpdatesTabProps) {
   const utils = api.useUtils();
 
   // Query for fetching updates
-  const { data: updates, isLoading, error } = api.project.getUpdates.useQuery({ projectId });
+  const {
+    data: updates,
+    isLoading,
+    error,
+  } = api.project.getUpdates.useQuery({ projectId });
 
   // Mutation for creating update with optimistic updates
   const createMutation = api.project.createUpdate.useMutation({
@@ -35,14 +39,19 @@ export default function UpdatesTab({ projectId, isOwner }: UpdatesTabProps) {
       // Optimistically update to the new value
       utils.project.getUpdates.setData({ projectId }, (old) => [
         {
-          id: 'temp-' + Date.now(),
+          id: "temp-" + Date.now(),
           projectId: newUpdate.projectId,
-          userId: 'current-user',
+          userId: "current-user",
           title: newUpdate.title,
           content: newUpdate.content,
           images: newUpdate.images,
           createdAt: new Date().toISOString(),
-          user: { id: 'current-user', name: 'You', email: '', image: undefined },
+          user: {
+            id: "current-user",
+            name: "You",
+            email: "",
+            image: undefined,
+          },
         },
         ...(old ?? []),
       ]);
@@ -75,7 +84,7 @@ export default function UpdatesTab({ projectId, isOwner }: UpdatesTabProps) {
       const previous = utils.project.getUpdates.getData({ projectId });
 
       utils.project.getUpdates.setData({ projectId }, (old) =>
-        (old ?? []).filter((update) => update.id !== variables.updateId)
+        (old ?? []).filter((update) => update.id !== variables.updateId),
       );
 
       return { previous };
@@ -146,7 +155,7 @@ export default function UpdatesTab({ projectId, isOwner }: UpdatesTabProps) {
       {/* Header with Create Button */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Bell className="h-5 w-5 text-muted-foreground" />
+          <Bell className="text-muted-foreground h-5 w-5" />
           <h2 className="text-xl font-semibold">Project Updates</h2>
         </div>
         {isOwner && !isFormOpen && (
@@ -166,7 +175,10 @@ export default function UpdatesTab({ projectId, isOwner }: UpdatesTabProps) {
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label htmlFor="title" className="block text-sm font-medium mb-1">
+                <label
+                  htmlFor="title"
+                  className="mb-1 block text-sm font-medium"
+                >
                   Title
                 </label>
                 <input
@@ -175,12 +187,15 @@ export default function UpdatesTab({ projectId, isOwner }: UpdatesTabProps) {
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   placeholder="Update title"
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="border-input bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring w-full rounded-md border px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
                   required
                 />
               </div>
               <div>
-                <label htmlFor="content" className="block text-sm font-medium mb-1">
+                <label
+                  htmlFor="content"
+                  className="mb-1 block text-sm font-medium"
+                >
                   Content
                 </label>
                 <textarea
@@ -189,7 +204,7 @@ export default function UpdatesTab({ projectId, isOwner }: UpdatesTabProps) {
                   onChange={(e) => setContent(e.target.value)}
                   placeholder="Share your progress, achievements, or news..."
                   rows={4}
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="border-input bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring w-full rounded-md border px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
                   required
                 />
               </div>
@@ -221,7 +236,7 @@ export default function UpdatesTab({ projectId, isOwner }: UpdatesTabProps) {
                 </Button>
               </div>
               {createMutation.error && (
-                <div className="p-3 bg-destructive/10 border border-destructive/30 rounded text-sm text-destructive">
+                <div className="bg-destructive/10 border-destructive/30 text-destructive rounded border p-3 text-sm">
                   Error: {createMutation.error.message}
                 </div>
               )}
@@ -233,7 +248,7 @@ export default function UpdatesTab({ projectId, isOwner }: UpdatesTabProps) {
       {/* Loading State */}
       {isLoading && (
         <div className="flex items-center justify-center py-12">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          <Loader2 className="text-muted-foreground h-8 w-8 animate-spin" />
         </div>
       )}
 
@@ -241,7 +256,7 @@ export default function UpdatesTab({ projectId, isOwner }: UpdatesTabProps) {
       {error && (
         <Card className="border-destructive">
           <CardContent className="pt-6">
-            <p className="text-sm text-destructive">
+            <p className="text-destructive text-sm">
               Failed to load updates: {error.message}
             </p>
           </CardContent>
@@ -252,9 +267,9 @@ export default function UpdatesTab({ projectId, isOwner }: UpdatesTabProps) {
       {!isLoading && !error && (!updates || updates.length === 0) && (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
-            <Bell className="h-12 w-12 text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold mb-2">No updates yet</h3>
-            <p className="text-sm text-muted-foreground text-center max-w-sm">
+            <Bell className="text-muted-foreground mb-4 h-12 w-12" />
+            <h3 className="mb-2 text-lg font-semibold">No updates yet</h3>
+            <p className="text-muted-foreground max-w-sm text-center text-sm">
               {isOwner
                 ? "Share your progress with supporters by posting your first update."
                 : "Check back later for project updates from the team."}
@@ -271,41 +286,53 @@ export default function UpdatesTab({ projectId, isOwner }: UpdatesTabProps) {
               <CardContent className="pt-6">
                 <div className="flex items-start gap-4">
                   <Avatar className="h-10 w-10">
-                    <AvatarImage src={update.user?.image} alt={update.user?.name} />
-                    <AvatarFallback>{getInitials(update.user?.name)}</AvatarFallback>
+                    <AvatarImage
+                      src={update.user?.image}
+                      alt={update.user?.name}
+                    />
+                    <AvatarFallback>
+                      {getInitials(update.user?.name)}
+                    </AvatarFallback>
                   </Avatar>
                   <div className="flex-1 space-y-2">
                     <div className="flex items-start justify-between gap-2">
                       <div>
                         <h3 className="font-semibold">{update.title}</h3>
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <div className="text-muted-foreground flex items-center gap-2 text-xs">
                           <span>{update.user?.name ?? "Unknown User"}</span>
                           <span>•</span>
                           <span>{formatDate(update.createdAt)}</span>
                         </div>
                       </div>
-                      {isOwner && update.userId === 'current-user' && (
+                      {isOwner && update.userId === "current-user" && (
                         <Button
                           variant="ghost"
                           size="sm"
                           onClick={() => handleDelete(update.id)}
                           disabled={deleteMutation.isPending}
-                          className="h-8 w-8 p-0"
+                          className="size-11 p-0"
+                          aria-label={`Delete project update “${update.title}”`}
                         >
                           {deleteMutation.isPending ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
+                            <Loader2
+                              className="h-4 w-4 animate-spin"
+                              aria-hidden="true"
+                            />
                           ) : (
-                            <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
+                            <Trash2
+                              className="text-muted-foreground hover:text-destructive h-4 w-4"
+                              aria-hidden="true"
+                            />
                           )}
                         </Button>
                       )}
                     </div>
-                    <p className="text-sm text-foreground whitespace-pre-wrap">
+                    <p className="text-foreground text-sm whitespace-pre-wrap">
                       {update.content}
                     </p>
                     {update.images && (
                       <div className="pt-2">
-                        <p className="text-xs text-muted-foreground">
+                        <p className="text-muted-foreground text-xs">
                           Images: {update.images}
                         </p>
                       </div>

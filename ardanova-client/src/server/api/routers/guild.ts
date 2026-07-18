@@ -1,6 +1,21 @@
 import { z } from "zod";
-import { createTRPCRouter, protectedProcedure, publicProcedure } from "~/server/api/trpc";
-import { apiClient, CreateGuildSchema, UpdateGuildSchema, CreateGuildReviewSchema } from "~/lib/api";
+import {
+  createTRPCRouter,
+  protectedProcedure,
+  publicProcedure,
+} from "~/server/api/trpc";
+import {
+  apiClient,
+  CreateGuildSchema,
+  UpdateGuildSchema,
+  CreateGuildReviewSchema,
+  type Guild,
+} from "~/lib/api";
+
+function normalizeGuilds(value: Guild | Guild[] | null | undefined): Guild[] {
+  if (!value) return [];
+  return Array.isArray(value) ? value : [value];
+}
 
 export const guildRouter = createTRPCRouter({
   // Get all guilds with pagination
@@ -10,7 +25,7 @@ export const guildRouter = createTRPCRouter({
         limit: z.number().min(1).max(100).default(20),
         page: z.number().min(1).default(1),
         verified: z.boolean().optional(),
-      })
+      }),
     )
     .query(async ({ input }) => {
       const { limit, page, verified } = input;
@@ -78,9 +93,7 @@ export const guildRouter = createTRPCRouter({
       if (response.error || response.status === 404 || !response.data) {
         return [];
       }
-      const raw = response.data;
-      const list = Array.isArray(raw) ? raw : [raw];
-      return list.filter(Boolean);
+      return normalizeGuilds(response.data);
     }),
 
   // Get user's guild (as owner)
@@ -97,19 +110,17 @@ export const guildRouter = createTRPCRouter({
       throw new Error(response.error);
     }
 
-    return response.data;
+    return normalizeGuilds(response.data)[0] ?? null;
   }),
 
   // Get user's guilds (as owner or with ADMIN/RECRUITER role)
   getMyGuilds: protectedProcedure.query(async ({ ctx }) => {
     const userId = ctx.session.user.id;
-    const guilds = [];
+    const guilds: Guild[] = [];
 
     // Get guild where user is owner
     const ownedGuildResponse = await apiClient.guilds.getByOwnerId(userId);
-    if (ownedGuildResponse.data) {
-      guilds.push(ownedGuildResponse.data);
-    }
+    guilds.push(...normalizeGuilds(ownedGuildResponse.data));
 
     // Note: Currently no backend endpoint to efficiently get guilds by member role.
     // If needed in the future, add an API endpoint like:
@@ -138,7 +149,7 @@ export const guildRouter = createTRPCRouter({
 
       // Check if user already owns a guild
       const existing = await apiClient.guilds.getByOwnerId(userId);
-      if (existing.data) {
+      if (normalizeGuilds(existing.data).length > 0) {
         throw new Error("You already own a guild");
       }
 
@@ -166,7 +177,7 @@ export const guildRouter = createTRPCRouter({
       z.object({
         id: z.string(),
         data: UpdateGuildSchema,
-      })
+      }),
     )
     .mutation(async ({ input, ctx }) => {
       const { id, data } = input;
@@ -237,7 +248,7 @@ export const guildRouter = createTRPCRouter({
         guildId: z.string(),
         userId: z.string(),
         role: z.string(),
-      })
+      }),
     )
     .mutation(async ({ input, ctx }) => {
       const sessionUserId = ctx.session.user.id;
@@ -271,7 +282,7 @@ export const guildRouter = createTRPCRouter({
         guildId: z.string(),
         memberId: z.string(),
         role: z.string().optional(),
-      })
+      }),
     )
     .mutation(async ({ input, ctx }) => {
       const sessionUserId = ctx.session.user.id;
@@ -282,9 +293,13 @@ export const guildRouter = createTRPCRouter({
       if (guild.data.ownerId !== sessionUserId) {
         throw new Error("Only the guild owner can update members");
       }
-      const response = await apiClient.guilds.updateMember(input.guildId, input.memberId, {
-        role: input.role,
-      });
+      const response = await apiClient.guilds.updateMember(
+        input.guildId,
+        input.memberId,
+        {
+          role: input.role,
+        },
+      );
       if (response.error || !response.data) {
         throw new Error(response.error ?? "Failed to update member");
       }
@@ -297,7 +312,7 @@ export const guildRouter = createTRPCRouter({
       z.object({
         guildId: z.string(),
         memberId: z.string(),
-      })
+      }),
     )
     .mutation(async ({ input, ctx }) => {
       const { guildId, memberId } = input;
@@ -337,7 +352,11 @@ export const guildRouter = createTRPCRouter({
 
   // Create a review for a guild
   createReview: protectedProcedure
-    .input(CreateGuildReviewSchema.omit({ reviewerId: true }).extend({ guildId: z.string() }))
+    .input(
+      CreateGuildReviewSchema.omit({ reviewerId: true }).extend({
+        guildId: z.string(),
+      }),
+    )
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user.id;
 
@@ -362,7 +381,7 @@ export const guildRouter = createTRPCRouter({
       z.object({
         guildId: z.string(),
         reviewId: z.string(),
-      })
+      }),
     )
     .mutation(async ({ input, ctx }) => {
       const { guildId, reviewId } = input;
@@ -413,7 +432,7 @@ export const guildRouter = createTRPCRouter({
         guildId: z.string(),
         title: z.string().min(1),
         content: z.string().min(10),
-      })
+      }),
     )
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user.id;
@@ -456,7 +475,10 @@ export const guildRouter = createTRPCRouter({
         throw new Error("Only the guild owner can delete updates");
       }
 
-      const response = await apiClient.guilds.deleteUpdate(input.guildId, input.updateId);
+      const response = await apiClient.guilds.deleteUpdate(
+        input.guildId,
+        input.updateId,
+      );
 
       if (response.error) {
         throw new Error(response.error ?? "Failed to delete update");
@@ -505,7 +527,7 @@ export const guildRouter = createTRPCRouter({
         experience: z.string().optional(),
         portfolio: z.string().url().optional(),
         availability: z.string().optional(),
-      })
+      }),
     )
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user.id;
@@ -535,13 +557,16 @@ export const guildRouter = createTRPCRouter({
         applicationId: z.string(),
         status: z.enum(["APPROVED", "REJECTED"]),
         reviewMessage: z.string().optional(),
-      })
+      }),
     )
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user.id;
 
       // Get application to verify ownership
-      const application = await apiClient.guilds.getApplicationById(input.guildId, input.applicationId);
+      const application = await apiClient.guilds.getApplicationById(
+        input.guildId,
+        input.applicationId,
+      );
       if (application.error || !application.data) {
         throw new Error("Application not found");
       }
@@ -558,9 +583,18 @@ export const guildRouter = createTRPCRouter({
 
       // Call the appropriate endpoint based on status
       const reviewData = { reviewMessage: input.reviewMessage };
-      const response = input.status === "APPROVED"
-        ? await apiClient.guilds.acceptApplication(input.guildId, input.applicationId, reviewData)
-        : await apiClient.guilds.rejectApplication(input.guildId, input.applicationId, reviewData);
+      const response =
+        input.status === "APPROVED"
+          ? await apiClient.guilds.acceptApplication(
+              input.guildId,
+              input.applicationId,
+              reviewData,
+            )
+          : await apiClient.guilds.rejectApplication(
+              input.guildId,
+              input.applicationId,
+              reviewData,
+            );
 
       if (response.error || !response.data) {
         throw new Error(response.error ?? "Failed to review application");
@@ -607,7 +641,7 @@ export const guildRouter = createTRPCRouter({
         invitedEmail: z.string().email().optional(),
         role: z.string(),
         message: z.string().optional(),
-      })
+      }),
     )
     .mutation(async ({ input, ctx }) => {
       const sessionUserId = ctx.session.user.id;
@@ -644,13 +678,16 @@ export const guildRouter = createTRPCRouter({
         guildId: z.string(),
         invitationId: z.string(),
         accept: z.boolean(),
-      })
+      }),
     )
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user.id;
 
       // Get invitation to verify recipient
-      const invitation = await apiClient.guilds.getInvitationById(input.guildId, input.invitationId);
+      const invitation = await apiClient.guilds.getInvitationById(
+        input.guildId,
+        input.invitationId,
+      );
       if (invitation.error || !invitation.data) {
         throw new Error("Invitation not found");
       }
@@ -659,9 +696,13 @@ export const guildRouter = createTRPCRouter({
         throw new Error("Access denied");
       }
 
-      const response = await apiClient.guilds.respondToInvitation(input.guildId, input.invitationId, {
-        accept: input.accept,
-      });
+      const response = await apiClient.guilds.respondToInvitation(
+        input.guildId,
+        input.invitationId,
+        {
+          accept: input.accept,
+        },
+      );
 
       if (response.error || !response.data) {
         throw new Error(response.error ?? "Failed to respond to invitation");
@@ -693,7 +734,10 @@ export const guildRouter = createTRPCRouter({
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user.id;
 
-      const response = await apiClient.guilds.followGuild(input.guildId, userId);
+      const response = await apiClient.guilds.followGuild(
+        input.guildId,
+        userId,
+      );
 
       if (response.error || !response.data) {
         throw new Error(response.error ?? "Failed to follow guild");
@@ -708,7 +752,10 @@ export const guildRouter = createTRPCRouter({
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user.id;
 
-      const response = await apiClient.guilds.unfollowGuild(input.guildId, userId);
+      const response = await apiClient.guilds.unfollowGuild(
+        input.guildId,
+        userId,
+      );
 
       if (response.error) {
         throw new Error(response.error ?? "Failed to unfollow guild");
@@ -723,7 +770,10 @@ export const guildRouter = createTRPCRouter({
     .query(async ({ input, ctx }) => {
       const userId = ctx.session.user.id;
 
-      const response = await apiClient.guilds.isFollowing(input.guildId, userId);
+      const response = await apiClient.guilds.isFollowing(
+        input.guildId,
+        userId,
+      );
 
       if (response.error) {
         throw new Error(response.error);
@@ -731,5 +781,4 @@ export const guildRouter = createTRPCRouter({
 
       return response.data ?? false;
     }),
-
 });

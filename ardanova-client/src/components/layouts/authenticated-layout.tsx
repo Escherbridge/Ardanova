@@ -1,39 +1,65 @@
-import { TRPCReactProvider } from "~/trpc/react";
 import { SessionProvider } from "next-auth/react";
-import { auth } from "~/server/auth";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+
 import { AppSidebar } from "~/components/app-sidebar";
+import { AppTopbar } from "~/components/app-topbar";
+import {
+  ARDANOVA_REQUEST_PATH_HEADER,
+  buildSignInHref,
+  normalizeInternalCallbackUrl,
+} from "~/lib/auth-navigation";
+import { authForPage, isDevelopmentAuthPreviewEnabled } from "~/server/auth";
+import { cn } from "~/lib/utils";
 
 export default async function AuthenticatedLayout({
   children,
   wide,
 }: {
   children: React.ReactNode;
-  /** When true, main content uses full width (e.g. chats, tasks). */
+  /** Full-width workspaces include chats, task boards, and other dense artifacts. */
   wide?: boolean;
 }) {
-  const session = await auth();
+  const session = await authForPage();
 
   if (!session) {
-    redirect("/api/auth/signin");
+    const requestHeaders = await headers();
+    const callbackUrl = normalizeInternalCallbackUrl(
+      requestHeaders.get(ARDANOVA_REQUEST_PATH_HEADER) ?? undefined,
+    );
+    redirect(buildSignInHref(callbackUrl));
   }
 
   return (
-    <SessionProvider session={session}>
-      <TRPCReactProvider>
-        <div className={"flex min-h-screen"}>
-          <AppSidebar user={session.user} />
+    <SessionProvider
+      session={session}
+      refetchOnWindowFocus={!isDevelopmentAuthPreviewEnabled}
+    >
+      <div className="bg-background flex min-h-screen" data-workspace-shell>
+        <a className="skip-link" href="#workspace-content">
+          Skip to workspace
+        </a>
+        <AppSidebar
+          user={session.user}
+          authPreview={isDevelopmentAuthPreviewEnabled}
+        />
+        <div className="min-w-0 flex-1">
+          <AppTopbar
+            user={session.user}
+            authPreview={isDevelopmentAuthPreviewEnabled}
+          />
           <main
-            className={
-              wide
-                ? "flex-1 min-w-0 w-full transition-all duration-300"
-                : "flex-1 min-w-0 max-w-6xl mx-auto w-full px-4 sm:px-6 transition-all duration-300"
-            }
+            id="workspace-content"
+            tabIndex={-1}
+            className={cn(
+              "w-full min-w-0",
+              wide ? "p-0" : "mx-auto max-w-[96rem] px-4 pb-12 sm:px-6 lg:px-8",
+            )}
           >
             {children}
           </main>
         </div>
-      </TRPCReactProvider>
+      </div>
     </SessionProvider>
   );
 }

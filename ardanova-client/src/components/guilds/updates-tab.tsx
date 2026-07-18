@@ -4,7 +4,7 @@ import { useState } from "react";
 import { api } from "~/trpc/react";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
-import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
+import { Avatar, AvatarFallback } from "~/components/ui/avatar";
 import { Loader2, Bell, Plus, Trash2, Send } from "lucide-react";
 
 interface UpdatesTabProps {
@@ -20,7 +20,11 @@ export function UpdatesTab({ guildId, isOwner }: UpdatesTabProps) {
   const utils = api.useUtils();
 
   // Query for fetching updates (will be added by Worker 4)
-  const { data: updates, isLoading, error } = api.guild.getUpdates.useQuery({ guildId });
+  const {
+    data: updates,
+    isLoading,
+    error,
+  } = api.guild.getUpdates.useQuery({ guildId });
 
   // Mutation for creating update with optimistic updates
   const createMutation = api.guild.createUpdate.useMutation({
@@ -31,13 +35,11 @@ export function UpdatesTab({ guildId, isOwner }: UpdatesTabProps) {
 
       utils.guild.getUpdates.setData({ guildId }, (old) => [
         {
-          id: 'temp-' + Date.now(),
+          id: "temp-" + Date.now(),
           guildId: newUpdate.guildId,
-          userId: 'current-user',
           title: newUpdate.title,
           content: newUpdate.content,
           createdAt: new Date().toISOString(),
-          user: { id: 'current-user', name: 'You', email: '', image: undefined },
         },
         ...(old ?? []),
       ]);
@@ -67,7 +69,7 @@ export function UpdatesTab({ guildId, isOwner }: UpdatesTabProps) {
       const previous = utils.guild.getUpdates.getData({ guildId });
 
       utils.guild.getUpdates.setData({ guildId }, (old) =>
-        (old ?? []).filter((update) => update.id !== variables.updateId)
+        (old ?? []).filter((update) => update.id !== variables.updateId),
       );
 
       return { previous };
@@ -99,16 +101,6 @@ export function UpdatesTab({ guildId, isOwner }: UpdatesTabProps) {
     }
   };
 
-  const getInitials = (name?: string) => {
-    if (!name) return "?";
-    return name
-      .split(" ")
-      .map((n) => n[0])
-      .join("")
-      .toUpperCase()
-      .slice(0, 2);
-  };
-
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     const now = new Date();
@@ -138,7 +130,7 @@ export function UpdatesTab({ guildId, isOwner }: UpdatesTabProps) {
       {/* Header with Create Button */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Bell className="h-5 w-5 text-muted-foreground" />
+          <Bell className="text-muted-foreground h-5 w-5" />
           <h2 className="text-xl font-semibold">Guild Updates</h2>
         </div>
         {isOwner && !isFormOpen && (
@@ -158,7 +150,10 @@ export function UpdatesTab({ guildId, isOwner }: UpdatesTabProps) {
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label htmlFor="title" className="block text-sm font-medium mb-1">
+                <label
+                  htmlFor="title"
+                  className="mb-1 block text-sm font-medium"
+                >
                   Title
                 </label>
                 <input
@@ -167,12 +162,15 @@ export function UpdatesTab({ guildId, isOwner }: UpdatesTabProps) {
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   placeholder="Update title"
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="border-input bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring w-full rounded-md border px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
                   required
                 />
               </div>
               <div>
-                <label htmlFor="content" className="block text-sm font-medium mb-1">
+                <label
+                  htmlFor="content"
+                  className="mb-1 block text-sm font-medium"
+                >
                   Content
                 </label>
                 <textarea
@@ -181,7 +179,7 @@ export function UpdatesTab({ guildId, isOwner }: UpdatesTabProps) {
                   onChange={(e) => setContent(e.target.value)}
                   placeholder="Share news, achievements, or announcements..."
                   rows={4}
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="border-input bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring w-full rounded-md border px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
                   required
                 />
               </div>
@@ -213,7 +211,7 @@ export function UpdatesTab({ guildId, isOwner }: UpdatesTabProps) {
                 </Button>
               </div>
               {createMutation.error && (
-                <div className="p-3 bg-destructive/10 border border-destructive/30 rounded text-sm text-destructive">
+                <div className="bg-destructive/10 border-destructive/30 text-destructive rounded border p-3 text-sm">
                   Error: {createMutation.error.message}
                 </div>
               )}
@@ -225,7 +223,7 @@ export function UpdatesTab({ guildId, isOwner }: UpdatesTabProps) {
       {/* Loading State */}
       {isLoading && (
         <div className="flex items-center justify-center py-12">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          <Loader2 className="text-muted-foreground h-8 w-8 animate-spin" />
         </div>
       )}
 
@@ -233,7 +231,7 @@ export function UpdatesTab({ guildId, isOwner }: UpdatesTabProps) {
       {error && (
         <Card className="border-destructive">
           <CardContent className="pt-6">
-            <p className="text-sm text-destructive">
+            <p className="text-destructive text-sm">
               Failed to load updates: {error.message}
             </p>
           </CardContent>
@@ -244,9 +242,9 @@ export function UpdatesTab({ guildId, isOwner }: UpdatesTabProps) {
       {!isLoading && !error && (!updates || updates.length === 0) && (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
-            <Bell className="h-12 w-12 text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold mb-2">No updates yet</h3>
-            <p className="text-sm text-muted-foreground text-center max-w-sm">
+            <Bell className="text-muted-foreground mb-4 h-12 w-12" />
+            <h3 className="mb-2 text-lg font-semibold">No updates yet</h3>
+            <p className="text-muted-foreground max-w-sm text-center text-sm">
               {isOwner
                 ? "Share news and announcements with your community by posting your first update."
                 : "Check back later for updates from the guild."}
@@ -263,15 +261,14 @@ export function UpdatesTab({ guildId, isOwner }: UpdatesTabProps) {
               <CardContent className="pt-6">
                 <div className="flex items-start gap-4">
                   <Avatar className="h-10 w-10">
-                    <AvatarImage src={(update as any).user?.image} alt={(update as any).user?.name} />
-                    <AvatarFallback>{getInitials((update as any).user?.name)}</AvatarFallback>
+                    <AvatarFallback>GU</AvatarFallback>
                   </Avatar>
                   <div className="flex-1 space-y-2">
                     <div className="flex items-start justify-between gap-2">
                       <div>
                         <h3 className="font-semibold">{update.title}</h3>
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                          <span>{(update as any).user?.name ?? "Unknown User"}</span>
+                        <div className="text-muted-foreground flex items-center gap-2 text-xs">
+                          <span>Guild update</span>
                           <span>•</span>
                           <span>{formatDate(update.createdAt)}</span>
                         </div>
@@ -282,17 +279,24 @@ export function UpdatesTab({ guildId, isOwner }: UpdatesTabProps) {
                           size="sm"
                           onClick={() => handleDelete(update.id)}
                           disabled={deleteMutation.isPending}
-                          className="h-8 w-8 p-0"
+                          className="size-11 p-0"
+                          aria-label={`Delete guild update “${update.title}”`}
                         >
                           {deleteMutation.isPending ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
+                            <Loader2
+                              className="h-4 w-4 animate-spin"
+                              aria-hidden="true"
+                            />
                           ) : (
-                            <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
+                            <Trash2
+                              className="text-muted-foreground hover:text-destructive h-4 w-4"
+                              aria-hidden="true"
+                            />
                           )}
                         </Button>
                       )}
                     </div>
-                    <p className="text-sm text-foreground whitespace-pre-wrap">
+                    <p className="text-foreground text-sm whitespace-pre-wrap">
                       {update.content}
                     </p>
                   </div>

@@ -22,7 +22,6 @@ import { streakRouter } from "~/server/api/routers/streak";
 import { achievementRouter } from "~/server/api/routers/achievement";
 import { leaderboardRouter } from "~/server/api/routers/leaderboard";
 import { referralRouter } from "~/server/api/routers/referral";
-import { kycRouter } from "~/server/api/routers/kyc";
 import { projectTokensRouter } from "~/server/api/routers/project-tokens";
 import { tokenBalancesRouter } from "~/server/api/routers/token-balances";
 import { payoutsRouter } from "~/server/api/routers/payouts";
@@ -38,7 +37,7 @@ import { taskEscrowRouter } from "~/server/api/routers/task-escrow";
 import { delegatedVoteRouter } from "~/server/api/routers/delegated-vote";
 import { commentRouter } from "~/server/api/routers/comment";
 import { swapRouter } from "~/server/api/routers/swap";
-import { azoaAvatarRouter } from "~/server/api/routers/azoaAvatar";
+import { azoaCustodialAccountRouter } from "~/server/api/routers/azoa-custodial-account";
 import { fundingIntentRouter } from "~/server/api/routers/funding-intent";
 import { createCallerFactory, createTRPCRouter } from "~/server/api/trpc";
 
@@ -72,7 +71,6 @@ export const appRouter = createTRPCRouter({
   achievement: achievementRouter,
   leaderboard: leaderboardRouter,
   referral: referralRouter,
-  kyc: kycRouter,
   projectTokens: projectTokensRouter,
   tokenBalances: tokenBalancesRouter,
   payouts: payoutsRouter,
@@ -88,7 +86,7 @@ export const appRouter = createTRPCRouter({
   delegatedVote: delegatedVoteRouter,
   comment: commentRouter,
   swap: swapRouter,
-  azoaAvatar: azoaAvatarRouter,
+  azoaCustodialAccount: azoaCustodialAccountRouter,
   fundingIntent: fundingIntentRouter,
 });
 

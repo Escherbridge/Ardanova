@@ -1,73 +1,46 @@
-import * as React from "react"
-import { Slot } from "@radix-ui/react-slot"
-import { cva, type VariantProps } from "class-variance-authority"
+import * as React from "react";
+import { Slot } from "@radix-ui/react-slot";
+import { cva, type VariantProps } from "class-variance-authority";
 
-import { cn } from "~/lib/utils"
+import { cn } from "~/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+  "inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap border text-sm font-semibold transition-colors disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-45 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
-        // Primary - Electric cyan on dark
         default:
-          "bg-primary text-primary-foreground border-2 border-primary hover:bg-primary/90 hover:shadow-[0_0_20px_rgba(0,240,255,0.3)] active:scale-[0.98]",
-
-        // Destructive - Hot red
+          "border-primary bg-primary text-primary-foreground hover:bg-primary/85",
         destructive:
-          "bg-destructive text-destructive-foreground border-2 border-destructive hover:bg-destructive/90 hover:shadow-[0_0_20px_rgba(255,51,85,0.3)]",
-
-        // Outline - Border only, fills on hover
+          "border-destructive bg-destructive text-destructive-foreground hover:bg-destructive/85",
         outline:
-          "border-2 border-border bg-transparent hover:bg-secondary hover:border-primary text-foreground",
-
-        // Secondary - Muted surface
+          "border-border bg-background text-foreground hover:border-foreground hover:bg-secondary",
         secondary:
-          "bg-secondary text-secondary-foreground border-2 border-secondary hover:bg-secondary/80 hover:border-muted-foreground",
-
-        // Ghost - No background until hover
+          "border-secondary bg-secondary text-secondary-foreground hover:border-border hover:bg-muted",
         ghost:
-          "border-2 border-transparent hover:bg-secondary hover:border-border text-foreground",
-
-        // Link style
-        link:
-          "text-primary underline-offset-4 hover:underline border-none",
-
-        // === ACCENT VARIANTS ===
-
-        // Neon Cyan - Primary accent with subtle glow
-        neon:
-          "bg-neon-cyan text-background border-2 border-neon-cyan font-medium tracking-wide hover:shadow-[0_0_12px_rgba(0,212,255,0.4)] active:scale-[0.98]",
-
-        // Neon Pink
+          "border-transparent bg-transparent text-foreground hover:border-border hover:bg-secondary",
+        link: "border-transparent bg-transparent px-0 text-foreground underline decoration-primary decoration-2 underline-offset-4 hover:bg-primary/10",
+        neon: "border-system bg-system text-system-foreground hover:bg-system/85",
         "neon-pink":
-          "bg-neon-pink text-background border-2 border-neon-pink font-medium tracking-wide hover:shadow-[0_0_12px_rgba(255,0,128,0.4)] active:scale-[0.98]",
-
-        // Neon Green
+          "border-primary bg-primary text-primary-foreground hover:bg-primary/85",
         "neon-green":
-          "bg-neon-green text-background border-2 border-neon-green font-medium tracking-wide hover:shadow-[0_0_12px_rgba(0,255,136,0.4)] active:scale-[0.98]",
-
-        // Outline Neon - Border glow only
+          "border-success bg-success text-success-foreground hover:bg-success/85",
         "outline-neon":
-          "bg-transparent text-neon-cyan border-2 border-neon-cyan hover:bg-neon-cyan/10 hover:shadow-[0_0_8px_rgba(0,212,255,0.3)] font-medium",
-
+          "border-system bg-transparent text-foreground hover:bg-accent",
         "outline-neon-pink":
-          "bg-transparent text-neon-pink border-2 border-neon-pink hover:bg-neon-pink/10 hover:shadow-[0_0_8px_rgba(255,0,128,0.3)] font-medium",
-
+          "border-primary bg-transparent text-foreground hover:bg-primary hover:text-primary-foreground",
         "outline-neon-green":
-          "bg-transparent text-neon-green border-2 border-neon-green hover:bg-neon-green/10 hover:shadow-[0_0_8px_rgba(0,255,136,0.3)] font-medium",
-
-        // Ghost Neon - Subtle until hover
+          "border-success bg-transparent text-success hover:bg-success hover:text-success-foreground",
         "ghost-neon":
-          "bg-transparent text-neon-cyan border-2 border-transparent hover:border-neon-cyan/40 hover:bg-neon-cyan/5",
+          "border-transparent bg-transparent text-foreground hover:border-system hover:bg-accent",
       },
       size: {
-        default: "h-10 px-5 py-2",
-        sm: "h-8 gap-1.5 px-3 text-xs",
-        lg: "h-12 px-8 text-base",
-        xl: "h-14 px-10 text-lg",
-        icon: "size-10",
-        "icon-sm": "size-8",
+        default: "min-h-11 px-5 py-2",
+        sm: "min-h-11 gap-1.5 px-3 text-xs",
+        lg: "h-12 px-7 text-base",
+        xl: "h-14 px-9 text-lg",
+        icon: "size-11",
+        "icon-sm": "size-11",
         "icon-lg": "size-12",
       },
     },
@@ -75,13 +48,13 @@ const buttonVariants = cva(
       variant: "default",
       size: "default",
     },
-  }
-)
+  },
+);
 
 export interface ButtonProps
   extends React.ComponentProps<"button">,
     VariantProps<typeof buttonVariants> {
-  asChild?: boolean
+  asChild?: boolean;
 }
 
 function Button({
@@ -91,7 +64,7 @@ function Button({
   asChild = false,
   ...props
 }: ButtonProps) {
-  const Comp = asChild ? Slot : "button"
+  const Comp = asChild ? Slot : "button";
 
   return (
     <Comp
@@ -99,7 +72,7 @@ function Button({
       className={cn(buttonVariants({ variant, size, className }))}
       {...props}
     />
-  )
+  );
 }
 
-export { Button, buttonVariants }
+export { Button, buttonVariants };

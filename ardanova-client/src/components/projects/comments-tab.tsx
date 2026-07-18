@@ -1,15 +1,18 @@
 "use client";
 
 import { useState } from "react";
-import { api } from "~/trpc/react";
+import { useSession } from "next-auth/react";
+import { api, type RouterOutputs } from "~/trpc/react";
+import { toast } from "sonner";
 import { Card, CardContent } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
 import {
+  AlertCircle,
   MessageCircle,
+  RefreshCw,
   Send,
   Trash2,
-  Heart,
   Loader2,
 } from "lucide-react";
 
@@ -17,64 +20,91 @@ interface CommentsTabProps {
   projectId: string;
 }
 
+type ProjectComment = RouterOutputs["comment"]["getByTarget"][number];
+
+const projectCommentTarget = (projectId: string) => ({
+  targetType: "PROJECT" as const,
+  targetId: projectId,
+});
+
 export default function CommentsTab({ projectId }: CommentsTabProps) {
+  const { data: session } = useSession();
+  const currentUserId = session?.user?.id;
   const [newComment, setNewComment] = useState("");
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const [replyContent, setReplyContent] = useState("");
 
   const utils = api.useUtils();
 
-  const { data: comments, isLoading } = api.project.getComments.useQuery({
-    projectId,
-  });
+  const commentTarget = projectCommentTarget(projectId);
+  const {
+    data: comments,
+    error: commentsError,
+    isLoading,
+    refetch: retryComments,
+  } = api.comment.getByTarget.useQuery(commentTarget);
 
-  const addComment = api.project.addComment.useMutation({
+  const addComment = api.comment.add.useMutation({
     onMutate: async (newCommentData) => {
-      await utils.project.getComments.cancel({ projectId });
-      const previous = utils.project.getComments.getData({ projectId });
+      await utils.comment.getByTarget.cancel(commentTarget);
+      const previous = utils.comment.getByTarget.getData(commentTarget);
 
-      utils.project.getComments.setData({ projectId }, (old) => [
+      if (!currentUserId) return { previous };
+
+      utils.comment.getByTarget.setData(commentTarget, (old) => [
         ...(old ?? []),
         {
           id: "temp-" + Date.now(),
           ...newCommentData,
+          projectId,
+          userId: currentUserId,
+          parentId: newCommentData.parentId ?? null,
+          targetType: "PROJECT",
+          targetId: projectId,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
           author: {
-            id: "current-user",
-            name: "You",
-            email: null,
-            image: null,
+            id: currentUserId,
+            name: session?.user?.name ?? "You",
+            image: session?.user?.image ?? null,
           },
-          likes: 0,
-          replies: [],
-        } as any,
+        },
       ]);
 
       return { previous };
     },
-    onError: (err, vars, context) => {
+    onError: (err, _vars, context) => {
       if (context?.previous) {
-        utils.project.getComments.setData({ projectId }, context.previous);
+        utils.comment.getByTarget.setData(commentTarget, context.previous);
       }
+      toast.error(`Comment was not posted: ${err.message}`);
     },
     onSettled: () => {
-      utils.project.getComments.invalidate({ projectId });
+      void utils.comment.getByTarget.invalidate(commentTarget);
     },
   });
 
-  const deleteComment = api.project.deleteComment.useMutation({
+  const deleteComment = api.comment.delete.useMutation({
     onSuccess: () => {
-      utils.project.getComments.invalidate({ projectId });
+      void utils.comment.getByTarget.invalidate(commentTarget);
+    },
+    onError: (err) => {
+      toast.error(`Comment was not deleted: ${err.message}`);
     },
   });
 
   const handleAddComment = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newComment.trim()) return;
+    if (!currentUserId) {
+      toast.error("Sign in to join the conversation");
+      return;
+    }
 
     addComment.mutate({
       projectId,
+      targetType: "PROJECT",
+      targetId: projectId,
       content: newComment,
     });
 
@@ -83,9 +113,15 @@ export default function CommentsTab({ projectId }: CommentsTabProps) {
 
   const handleAddReply = (parentId: string) => {
     if (!replyContent.trim()) return;
+    if (!currentUserId) {
+      toast.error("Sign in to reply");
+      return;
+    }
 
     addComment.mutate({
       projectId,
+      targetType: "PROJECT",
+      targetId: projectId,
       content: replyContent,
       parentId,
     });
@@ -101,14 +137,42 @@ export default function CommentsTab({ projectId }: CommentsTabProps) {
   };
 
   // Organize comments into threads
-  const topLevelComments = comments?.filter((c: any) => !c.parentId) ?? [];
-  const getReplies = (commentId: string) =>
-    comments?.filter((c: any) => c.parentId === commentId) ?? [];
+  const topLevelComments: ProjectComment[] =
+    comments?.filter((comment) => !comment.parentId) ?? [];
+  const getReplies = (commentId: string): ProjectComment[] =>
+    comments?.filter((comment) => comment.parentId === commentId) ?? [];
 
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Loader2 className="text-muted-foreground h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
+
+  if (commentsError) {
+    return (
+      <div className="border-destructive/40 bg-destructive/5 flex flex-col items-start gap-4 border-2 p-6 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-start gap-3">
+          <AlertCircle className="text-destructive mt-0.5 size-5 shrink-0" />
+          <div>
+            <p className="text-destructive font-mono text-sm font-bold">
+              COMMENTS COULD NOT BE LOADED
+            </p>
+            <p className="text-muted-foreground mt-1 text-xs">
+              {commentsError.message}
+            </p>
+          </div>
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          className="min-h-11"
+          onClick={() => void retryComments()}
+        >
+          <RefreshCw className="mr-2 size-4" />
+          Retry
+        </Button>
       </div>
     );
   }
@@ -117,7 +181,7 @@ export default function CommentsTab({ projectId }: CommentsTabProps) {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center gap-2">
-        <MessageCircle className="h-5 w-5 text-muted-foreground" />
+        <MessageCircle className="text-muted-foreground h-5 w-5" />
         <h2 className="text-xl font-semibold">
           Comments {comments && comments.length > 0 && `(${comments.length})`}
         </h2>
@@ -131,14 +195,17 @@ export default function CommentsTab({ projectId }: CommentsTabProps) {
               <textarea
                 value={newComment}
                 onChange={(e) => setNewComment(e.target.value)}
-                className="min-h-24 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="border-input bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring min-h-24 w-full rounded-md border px-3 py-2 text-sm focus-visible:ring-2 focus-visible:outline-none"
                 placeholder="Share your thoughts..."
               />
             </div>
             <div className="flex justify-end">
               <Button
                 type="submit"
-                disabled={!newComment.trim() || addComment.isPending}
+                className="min-h-11"
+                disabled={
+                  !newComment.trim() || !currentUserId || addComment.isPending
+                }
               >
                 {addComment.isPending ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -149,7 +216,7 @@ export default function CommentsTab({ projectId }: CommentsTabProps) {
               </Button>
             </div>
             {addComment.error && (
-              <div className="p-3 bg-destructive/10 border border-destructive/30 rounded text-sm text-destructive">
+              <div className="bg-destructive/10 border-destructive/30 text-destructive rounded border p-3 text-sm">
                 Error: {addComment.error.message}
               </div>
             )}
@@ -160,17 +227,17 @@ export default function CommentsTab({ projectId }: CommentsTabProps) {
       {/* Comments List */}
       {topLevelComments.length === 0 ? (
         <div className="rounded-lg border-2 border-dashed py-12 text-center">
-          <MessageCircle className="mx-auto h-12 w-12 text-muted-foreground/50" />
-          <p className="mt-4 text-lg font-medium text-muted-foreground">
+          <MessageCircle className="text-muted-foreground/50 mx-auto h-12 w-12" />
+          <p className="text-muted-foreground mt-4 text-lg font-medium">
             No comments yet
           </p>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <p className="text-muted-foreground mt-1 text-sm">
             Be the first to share your thoughts on this project
           </p>
         </div>
       ) : (
         <div className="space-y-4">
-          {topLevelComments.map((comment: any) => (
+          {topLevelComments.map((comment) => (
             <div key={comment.id}>
               {/* Top-level Comment */}
               <Card>
@@ -190,7 +257,7 @@ export default function CommentsTab({ projectId }: CommentsTabProps) {
                           <p className="font-semibold">
                             {comment.author?.name ?? "Anonymous"}
                           </p>
-                          <p className="text-xs text-muted-foreground">
+                          <p className="text-muted-foreground text-xs">
                             {new Date(comment.createdAt).toLocaleDateString(
                               "en-US",
                               {
@@ -199,15 +266,16 @@ export default function CommentsTab({ projectId }: CommentsTabProps) {
                                 year: "numeric",
                                 hour: "numeric",
                                 minute: "2-digit",
-                              }
+                              },
                             )}
                           </p>
                         </div>
-                        {comment.author?.id === "current-user" && (
+                        {comment.userId === currentUserId && (
                           <Button
                             size="sm"
                             variant="ghost"
-                            className="text-destructive hover:text-destructive"
+                            className="text-destructive hover:text-destructive min-h-11 min-w-11"
+                            aria-label="Delete comment"
                             onClick={() => handleDeleteComment(comment.id)}
                             disabled={deleteComment.isPending}
                           >
@@ -219,17 +287,13 @@ export default function CommentsTab({ projectId }: CommentsTabProps) {
                       <p className="mt-2 text-sm">{comment.content}</p>
 
                       <div className="mt-3 flex items-center gap-4">
-                        <button className="flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground">
-                          <Heart className="h-4 w-4" />
-                          <span>{comment.likes ?? 0}</span>
-                        </button>
                         <Button
                           size="sm"
                           variant="ghost"
-                          className="h-auto p-0 text-sm text-muted-foreground hover:text-foreground"
+                          className="text-muted-foreground hover:text-foreground min-h-11 px-2 text-sm"
                           onClick={() =>
                             setReplyingTo(
-                              replyingTo === comment.id ? null : comment.id
+                              replyingTo === comment.id ? null : comment.id,
                             )
                           }
                         >
@@ -243,13 +307,14 @@ export default function CommentsTab({ projectId }: CommentsTabProps) {
                           <textarea
                             value={replyContent}
                             onChange={(e) => setReplyContent(e.target.value)}
-                            className="min-h-20 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                            className="border-input bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring min-h-20 w-full rounded-md border px-3 py-2 text-sm focus-visible:ring-2 focus-visible:outline-none"
                             placeholder="Write a reply..."
                           />
                           <div className="flex justify-end gap-2">
                             <Button
                               size="sm"
                               variant="outline"
+                              className="min-h-11"
                               onClick={() => {
                                 setReplyingTo(null);
                                 setReplyContent("");
@@ -259,9 +324,12 @@ export default function CommentsTab({ projectId }: CommentsTabProps) {
                             </Button>
                             <Button
                               size="sm"
+                              className="min-h-11"
                               onClick={() => handleAddReply(comment.id)}
                               disabled={
-                                !replyContent.trim() || addComment.isPending
+                                !replyContent.trim() ||
+                                !currentUserId ||
+                                addComment.isPending
                               }
                             >
                               {addComment.isPending ? (
@@ -281,9 +349,9 @@ export default function CommentsTab({ projectId }: CommentsTabProps) {
 
               {/* Replies */}
               {getReplies(comment.id).length > 0 && (
-                <div className="ml-12 mt-3 space-y-3">
-                  {getReplies(comment.id).map((reply: any) => (
-                    <Card key={reply.id} className="border-l-2 border-primary">
+                <div className="mt-3 ml-4 space-y-3 sm:ml-12">
+                  {getReplies(comment.id).map((reply) => (
+                    <Card key={reply.id} className="border-primary border-l-2">
                       <CardContent className="pt-4">
                         <div className="flex gap-4">
                           <Avatar className="h-8 w-8">
@@ -303,7 +371,7 @@ export default function CommentsTab({ projectId }: CommentsTabProps) {
                                 <p className="text-sm font-semibold">
                                   {reply.author?.name ?? "Anonymous"}
                                 </p>
-                                <p className="text-xs text-muted-foreground">
+                                <p className="text-muted-foreground text-xs">
                                   {new Date(reply.createdAt).toLocaleDateString(
                                     "en-US",
                                     {
@@ -312,15 +380,16 @@ export default function CommentsTab({ projectId }: CommentsTabProps) {
                                       year: "numeric",
                                       hour: "numeric",
                                       minute: "2-digit",
-                                    }
+                                    },
                                   )}
                                 </p>
                               </div>
-                              {reply.author?.id === "current-user" && (
+                              {reply.userId === currentUserId && (
                                 <Button
                                   size="sm"
                                   variant="ghost"
-                                  className="text-destructive hover:text-destructive"
+                                  className="text-destructive hover:text-destructive min-h-11 min-w-11"
+                                  aria-label="Delete reply"
                                   onClick={() => handleDeleteComment(reply.id)}
                                   disabled={deleteComment.isPending}
                                 >
@@ -330,13 +399,6 @@ export default function CommentsTab({ projectId }: CommentsTabProps) {
                             </div>
 
                             <p className="mt-2 text-sm">{reply.content}</p>
-
-                            <div className="mt-2 flex items-center gap-4">
-                              <button className="flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground">
-                                <Heart className="h-3 w-3" />
-                                <span>{reply.likes ?? 0}</span>
-                              </button>
-                            </div>
                           </div>
                         </div>
                       </CardContent>

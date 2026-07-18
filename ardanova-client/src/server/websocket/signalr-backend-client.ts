@@ -3,6 +3,7 @@ import "server-only";
 import * as signalR from "@microsoft/signalr";
 import { env } from "~/env";
 import type { ArdaNovaEvent, EventCallback } from "~/lib/websocket/types";
+import { createActorAssertion } from "~/server/actor-assertion";
 
 /**
  * SignalR client for connecting to the ArdaNova backend hub.
@@ -10,8 +11,8 @@ import type { ArdaNovaEvent, EventCallback } from "~/lib/websocket/types";
  */
 export class SignalRBackendClient {
   private connection: signalR.HubConnection | null = null;
-  private eventCallbacks: Map<string, Set<EventCallback>> = new Map();
-  private wildcardCallbacks: Set<EventCallback> = new Set();
+  private eventCallbacks = new Map<string, Set<EventCallback>>();
+  private wildcardCallbacks = new Set<EventCallback>();
   private isConnected = false;
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 10;
@@ -26,60 +27,91 @@ export class SignalRBackendClient {
       return;
     }
 
-    const hubUrl = `${env.API_URL}/hubs/ardanova?api_key=${encodeURIComponent(env.API_KEY)}&userId=${encodeURIComponent(this.userId)}`;
+    const hubUrl = `${env.API_URL}/hubs/ardanova`;
 
     this.connection = new signalR.HubConnectionBuilder()
-      .withUrl(hubUrl)
+      .withUrl(hubUrl, {
+        headers: {
+          "X-Api-Key": env.API_KEY,
+        },
+        accessTokenFactory: () =>
+          createActorAssertion(
+            { subject: this.userId },
+            { method: "GET", url: hubUrl },
+          ),
+      })
       .withAutomaticReconnect({
         nextRetryDelayInMilliseconds: (retryContext) => {
           if (retryContext.previousRetryCount >= this.maxReconnectAttempts) {
             return null; // Stop reconnecting
           }
           // Exponential backoff: 1s, 2s, 4s, 8s, ... up to 30s
-          return Math.min(1000 * Math.pow(2, retryContext.previousRetryCount), 30000);
+          return Math.min(
+            1000 * Math.pow(2, retryContext.previousRetryCount),
+            30000,
+          );
         },
       })
       .configureLogging(signalR.LogLevel.Warning)
       .build();
 
     // Register generic event handler
-    this.connection.on("ReceiveEvent", (eventType: string, payload: unknown) => {
-      this.emitEvent(eventType, payload);
-    });
+    this.connection.on(
+      "ReceiveEvent",
+      (eventType: string, payload: unknown) => {
+        this.emitEvent(eventType, payload);
+      },
+    );
 
     // Register typed event handlers
-    this.connection.on("UserCreated", (data) => this.emitEvent("user.created", data));
-    this.connection.on("UserUpdated", (data) => this.emitEvent("user.updated", data));
-    this.connection.on("ProjectCreated", (data) => this.emitEvent("project.created", data));
-    this.connection.on("ProjectUpdated", (data) => this.emitEvent("project.updated", data));
-    this.connection.on("ProjectStatusChanged", (data) => this.emitEvent("project.status_changed", data));
-    this.connection.on("TaskCompleted", (data) => this.emitEvent("project.task_completed", data));
-    this.connection.on("NotificationReceived", (data) => this.emitEvent("notification.created", data));
-    this.connection.on("ActivityLogged", (data) => this.emitEvent("activity.logged", data));
+    this.connection.on("UserCreated", (data) =>
+      this.emitEvent("user.created", data),
+    );
+    this.connection.on("UserUpdated", (data) =>
+      this.emitEvent("user.updated", data),
+    );
+    this.connection.on("ProjectCreated", (data) =>
+      this.emitEvent("project.created", data),
+    );
+    this.connection.on("ProjectUpdated", (data) =>
+      this.emitEvent("project.updated", data),
+    );
+    this.connection.on("ProjectStatusChanged", (data) =>
+      this.emitEvent("project.status_changed", data),
+    );
+    this.connection.on("TaskCompleted", (data) =>
+      this.emitEvent("project.task_completed", data),
+    );
+    this.connection.on("NotificationReceived", (data) =>
+      this.emitEvent("notification.created", data),
+    );
+    this.connection.on("ActivityLogged", (data) =>
+      this.emitEvent("activity.logged", data),
+    );
 
     // Connection state handlers
     this.connection.onreconnecting(() => {
-      console.log(`[SignalR] Reconnecting for user ${this.userId}...`);
+      console.warn("[SignalR] Reconnecting");
       this.isConnected = false;
     });
 
     this.connection.onreconnected(() => {
-      console.log(`[SignalR] Reconnected for user ${this.userId}`);
       this.isConnected = true;
       this.reconnectAttempts = 0;
     });
 
     this.connection.onclose((error) => {
-      console.log(`[SignalR] Connection closed for user ${this.userId}`, error?.message);
+      if (error) {
+        console.warn("[SignalR] Connection closed", error.message);
+      }
       this.isConnected = false;
     });
 
     try {
       await this.connection.start();
       this.isConnected = true;
-      console.log(`[SignalR] Connected for user ${this.userId}`);
     } catch (error) {
-      console.error(`[SignalR] Failed to connect for user ${this.userId}:`, error);
+      console.error("[SignalR] Connection failed", error);
       throw error;
     }
   }
@@ -92,7 +124,6 @@ export class SignalRBackendClient {
       await this.connection.stop();
       this.connection = null;
       this.isConnected = false;
-      console.log(`[SignalR] Disconnected for user ${this.userId}`);
     }
   }
 
@@ -116,7 +147,7 @@ export class SignalRBackendClient {
     if (!this.eventCallbacks.has(eventType)) {
       this.eventCallbacks.set(eventType, new Set());
     }
-    this.eventCallbacks.get(eventType)!.add(callback);
+    this.eventCallbacks.get(eventType)?.add(callback);
 
     return () => {
       this.eventCallbacks.get(eventType)?.delete(callback);
@@ -129,49 +160,41 @@ export class SignalRBackendClient {
   async subscribeToProject(projectId: string): Promise<void> {
     if (!this.connection) throw new Error("Not connected");
     await this.connection.invoke("SubscribeToProject", projectId);
-    console.log(`[SignalR] Subscribed to project ${projectId}`);
   }
 
   async unsubscribeFromProject(projectId: string): Promise<void> {
     if (!this.connection) throw new Error("Not connected");
     await this.connection.invoke("UnsubscribeFromProject", projectId);
-    console.log(`[SignalR] Unsubscribed from project ${projectId}`);
   }
 
-  async subscribeToAgency(agencyId: string): Promise<void> {
+  async subscribeToGuild(guildId: string): Promise<void> {
     if (!this.connection) throw new Error("Not connected");
-    await this.connection.invoke("SubscribeToAgency", agencyId);
-    console.log(`[SignalR] Subscribed to agency ${agencyId}`);
+    await this.connection.invoke("SubscribeToGuild", guildId);
   }
 
-  async unsubscribeFromAgency(agencyId: string): Promise<void> {
+  async unsubscribeFromGuild(guildId: string): Promise<void> {
     if (!this.connection) throw new Error("Not connected");
-    await this.connection.invoke("UnsubscribeFromAgency", agencyId);
-    console.log(`[SignalR] Unsubscribed from agency ${agencyId}`);
+    await this.connection.invoke("UnsubscribeFromGuild", guildId);
   }
 
   async subscribeToUser(targetUserId: string): Promise<void> {
     if (!this.connection) throw new Error("Not connected");
     await this.connection.invoke("SubscribeToUser", targetUserId);
-    console.log(`[SignalR] Subscribed to user ${targetUserId}`);
   }
 
   async unsubscribeFromUser(targetUserId: string): Promise<void> {
     if (!this.connection) throw new Error("Not connected");
     await this.connection.invoke("UnsubscribeFromUser", targetUserId);
-    console.log(`[SignalR] Unsubscribed from user ${targetUserId}`);
   }
 
-  async subscribeToAll(): Promise<void> {
+  async subscribeToConversation(conversationId: string): Promise<void> {
     if (!this.connection) throw new Error("Not connected");
-    await this.connection.invoke("SubscribeToAll");
-    console.log("[SignalR] Subscribed to all events");
+    await this.connection.invoke("SubscribeToConversation", conversationId);
   }
 
-  async unsubscribeFromAll(): Promise<void> {
+  async unsubscribeFromConversation(conversationId: string): Promise<void> {
     if (!this.connection) throw new Error("Not connected");
-    await this.connection.invoke("UnsubscribeFromAll");
-    console.log("[SignalR] Unsubscribed from all events");
+    await this.connection.invoke("UnsubscribeFromConversation", conversationId);
   }
 
   /**
@@ -180,7 +203,7 @@ export class SignalRBackendClient {
   private emitEvent(eventType: string, payload: unknown): void {
     const event = {
       eventType,
-      ...(typeof payload === 'object' && payload !== null ? payload : {}),
+      ...(typeof payload === "object" && payload !== null ? payload : {}),
     } as ArdaNovaEvent;
 
     // Notify type-specific listeners

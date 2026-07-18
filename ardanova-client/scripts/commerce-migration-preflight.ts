@@ -43,9 +43,13 @@ function parsePhase(): CommerceMigrationPhase {
   const phaseIndex = process.argv.indexOf("--phase");
   const fromArgs = phaseIndex >= 0 ? process.argv[phaseIndex + 1] : undefined;
   const phase = fromArgs ?? process.env.MIGRATION_PREFLIGHT_PHASE;
-  if (phase !== "baseline" && phase !== "additive") {
+  if (
+    phase !== "baseline" &&
+    phase !== "additive-source" &&
+    phase !== "additive"
+  ) {
     throw new PreflightConfigurationError(
-      "Set --phase baseline|additive (or MIGRATION_PREFLIGHT_PHASE) explicitly.",
+      "Set --phase baseline|additive-source|additive (or MIGRATION_PREFLIGHT_PHASE) explicitly.",
     );
   }
   return phase;
@@ -70,9 +74,11 @@ function requireDatabaseUrl(): void {
 }
 
 function safeErrorCode(error: unknown): string {
-  if (error instanceof PreflightConfigurationError) return "configuration-required";
+  if (error instanceof PreflightConfigurationError)
+    return "configuration-required";
   if (error instanceof Prisma.PrismaClientKnownRequestError) return error.code;
-  if (error instanceof Prisma.PrismaClientInitializationError) return "connection-initialization-failed";
+  if (error instanceof Prisma.PrismaClientInitializationError)
+    return "connection-initialization-failed";
   return "unexpected-preflight-error";
 }
 
@@ -84,7 +90,7 @@ async function run(): Promise<void> {
   requireDatabaseUrl();
   const phase = parsePhase();
   const expectedFingerprint = requiredFingerprint();
-    const tableNames = [...BASELINE_TABLES, ...GATED_COMMERCE_TABLES];
+  const tableNames = [...BASELINE_TABLES, ...GATED_COMMERCE_TABLES];
   const prisma = new PrismaClient({ log: [] });
 
   try {
@@ -141,10 +147,13 @@ async function run(): Promise<void> {
     const presentTables = tables.map((table) => table.table_name);
     const hasPaymentIntentColumn = normalizedColumns.some(
       (column) =>
-        column.tableName === "ProjectInvestment" && column.columnName === "stripePaymentIntentId",
+        column.tableName === "ProjectInvestment" &&
+        column.columnName === "stripePaymentIntentId",
     );
     const hasAssetScaleColumn = normalizedColumns.some(
-      (column) => column.tableName === "ProjectTokenConfig" && column.columnName === "assetScale",
+      (column) =>
+        column.tableName === "ProjectTokenConfig" &&
+        column.columnName === "assetScale",
     );
     const duplicatePaymentIntents = hasPaymentIntentColumn
       ? await prisma.$queryRaw<DuplicatePaymentIntentRow[]>(Prisma.sql`
@@ -174,7 +183,7 @@ async function run(): Promise<void> {
         `);
     const normalizedIndexes = indexes.map((index) => ({
       tableName: index.table_name,
-      columns: index.key_columns ? index.key_columns.split(',') : [],
+      columns: index.key_columns ? index.key_columns.split(",") : [],
       isUnique: index.is_unique,
       isValid: index.is_valid,
       isReady: index.is_ready,
@@ -185,26 +194,30 @@ async function run(): Promise<void> {
       normalizedColumns,
       normalizedIndexes,
     );
-    const report = evaluateCommerceMigrationPreflight(phase, expectedFingerprint, {
-      fingerprint,
-      presentTables,
-      columns: normalizedColumns,
-      indexes: normalizedIndexes,
-      duplicatePaymentIntents: duplicatePaymentIntents.map(
-        (duplicate): DuplicatePaymentIntent => ({
-          paymentIntentId: duplicate.payment_intent_id,
-          count: Number(duplicate.count),
-        }),
-      ),
-      projectTokenConfigBackfills: tokenConfigBackfills?.map(
-        (config): ProjectTokenConfigBackfillRow => ({
-          id: config.id,
-          projectId: config.project_id,
-          assetId: config.asset_id,
-          assetScale: config.asset_scale,
-        }),
-      ),
-    });
+    const report = evaluateCommerceMigrationPreflight(
+      phase,
+      expectedFingerprint,
+      {
+        fingerprint,
+        presentTables,
+        columns: normalizedColumns,
+        indexes: normalizedIndexes,
+        duplicatePaymentIntents: duplicatePaymentIntents.map(
+          (duplicate): DuplicatePaymentIntent => ({
+            paymentIntentId: duplicate.payment_intent_id,
+            count: Number(duplicate.count),
+          }),
+        ),
+        projectTokenConfigBackfills: tokenConfigBackfills?.map(
+          (config): ProjectTokenConfigBackfillRow => ({
+            id: config.id,
+            projectId: config.project_id,
+            assetId: config.asset_id,
+            assetScale: config.asset_scale,
+          }),
+        ),
+      },
+    );
 
     console.log(`commerce migration preflight phase: ${phase}`);
     console.log(`inspected fingerprint: ${fingerprint}`);
@@ -219,8 +232,10 @@ async function run(): Promise<void> {
         `ProjectTokenConfig ${config.id} (project ${config.project_id}): assetScale=${config.asset_scale ?? "NULL"}, assetId=${config.asset_id ?? "NULL"}`,
       );
     }
-    for (const warning of report.warnings) console.warn(`WARNING [${warning.code}] ${warning.message}`);
-    for (const finding of report.blocked) console.error(`BLOCKED [${finding.code}] ${finding.message}`);
+    for (const warning of report.warnings)
+      console.warn(`WARNING [${warning.code}] ${warning.message}`);
+    for (const finding of report.blocked)
+      console.error(`BLOCKED [${finding.code}] ${finding.message}`);
     if (report.blocked.length > 0) process.exitCode = 1;
   } finally {
     await prisma.$disconnect();
@@ -228,9 +243,13 @@ async function run(): Promise<void> {
 }
 
 run().catch((error: unknown) => {
-  console.error(`BLOCKED [${safeErrorCode(error)}] Migration preflight could not complete safely.`);
+  console.error(
+    `BLOCKED [${safeErrorCode(error)}] Migration preflight could not complete safely.`,
+  );
   const detail = safeErrorDetail(error);
   if (detail) console.error(detail);
-  console.error("See the gated-commerce migration runbook; no schema or data was changed.");
+  console.error(
+    "See the gated-commerce migration runbook; no schema or data was changed.",
+  );
   process.exitCode = 1;
 });

@@ -12,15 +12,16 @@ export function useOpportunityMutations() {
 
   // Create opportunity mutation
   const createOpportunity = api.opportunity.create.useMutation({
-    onSuccess: (data) => {
+    onSuccess: () => {
       toast.success("Opportunity created successfully!");
-      utils.opportunity.getAll.invalidate();
-      utils.opportunity.getMyOpportunities.invalidate();
+      void utils.opportunity.getAll.invalidate();
+      void utils.opportunity.getMyOpportunities.invalidate();
     },
     onError: (error) => {
-      const message = error.data?.code === "FORBIDDEN"
-        ? "You don't have permission to create this opportunity"
-        : error.message || "Failed to create opportunity";
+      const message =
+        error.data?.code === "FORBIDDEN"
+          ? "You don't have permission to create this opportunity"
+          : error.message || "Failed to create opportunity";
       toast.error(message);
     },
   });
@@ -30,14 +31,15 @@ export function useOpportunityMutations() {
     onSuccess: (data) => {
       if (!data) return;
       toast.success("Opportunity updated successfully!");
-      utils.opportunity.getById.invalidate({ id: data.id });
-      utils.opportunity.getAll.invalidate();
-      utils.opportunity.getMyOpportunities.invalidate();
+      void utils.opportunity.getById.invalidate({ id: data.id });
+      void utils.opportunity.getAll.invalidate();
+      void utils.opportunity.getMyOpportunities.invalidate();
     },
     onError: (error) => {
-      const message = error.data?.code === "FORBIDDEN"
-        ? "You don't have permission to update this opportunity"
-        : error.message || "Failed to update opportunity";
+      const message =
+        error.data?.code === "FORBIDDEN"
+          ? "You don't have permission to update this opportunity"
+          : error.message || "Failed to update opportunity";
       toast.error(message);
     },
   });
@@ -46,13 +48,14 @@ export function useOpportunityMutations() {
   const deleteOpportunity = api.opportunity.delete.useMutation({
     onSuccess: () => {
       toast.success("Opportunity deleted successfully!");
-      utils.opportunity.getAll.invalidate();
-      utils.opportunity.getMyOpportunities.invalidate();
+      void utils.opportunity.getAll.invalidate();
+      void utils.opportunity.getMyOpportunities.invalidate();
     },
     onError: (error) => {
-      const message = error.data?.code === "FORBIDDEN"
-        ? "You don't have permission to delete this opportunity"
-        : error.message || "Failed to delete opportunity";
+      const message =
+        error.data?.code === "FORBIDDEN"
+          ? "You don't have permission to delete this opportunity"
+          : error.message || "Failed to delete opportunity";
       toast.error(message);
     },
   });
@@ -61,14 +64,15 @@ export function useOpportunityMutations() {
   const closeOpportunity = api.opportunity.close.useMutation({
     onSuccess: (_data, variables: { id?: string }) => {
       toast.success("Opportunity closed!");
-      utils.opportunity.getById.invalidate({ id: variables.id ?? "" });
-      utils.opportunity.getAll.invalidate();
-      utils.opportunity.getMyOpportunities.invalidate();
+      void utils.opportunity.getById.invalidate({ id: variables.id ?? "" });
+      void utils.opportunity.getAll.invalidate();
+      void utils.opportunity.getMyOpportunities.invalidate();
     },
     onError: (error) => {
-      const message = error.data?.code === "FORBIDDEN"
-        ? "You don't have permission to close this opportunity"
-        : error.message || "Failed to close opportunity";
+      const message =
+        error.data?.code === "FORBIDDEN"
+          ? "You don't have permission to close this opportunity"
+          : error.message || "Failed to close opportunity";
       toast.error(message);
     },
   });
@@ -78,13 +82,16 @@ export function useOpportunityMutations() {
     onSuccess: (_data, variables) => {
       if (!variables) return;
       toast.success("Application submitted successfully!");
-      utils.opportunity.getById.invalidate({ id: variables.opportunityId });
-      utils.opportunity.getAll.invalidate();
+      void utils.opportunity.getById.invalidate({
+        id: variables.opportunityId,
+      });
+      void utils.opportunity.getAll.invalidate();
     },
     onError: (error) => {
-      const message = error.data?.code === "FORBIDDEN"
-        ? "You don't have permission to perform this action"
-        : error.message || "Failed to submit application";
+      const message =
+        error.data?.code === "FORBIDDEN"
+          ? "You don't have permission to perform this action"
+          : error.message || "Failed to submit application";
       toast.error(message);
     },
   });

@@ -1,4 +1,8 @@
-import { type BaseApiClient, type ApiResponse, type PagedResult } from "../../base-client";
+import {
+  type BaseApiClient,
+  type ApiResponse,
+  type PagedResult,
+} from "../../base-client";
 
 // ============ Type Definitions ============
 
@@ -51,10 +55,6 @@ export interface AdminUpdateUserRoleDto {
 
 export interface AdminUpdateUserTypeDto {
   userType: string;
-}
-
-export interface AdminUpdateVerificationLevelDto {
-  verificationLevel: string;
 }
 
 // ============ UserSkill Types ============
@@ -130,16 +130,24 @@ export class UsersEndpoint {
   }
 
   getByEmail(email: string): Promise<ApiResponse<User>> {
-    return this.client.get<User>(`/api/users/email/${encodeURIComponent(email)}`);
+    return this.client.get<User>(
+      `/api/users/email/${encodeURIComponent(email)}`,
+    );
   }
 
   getAll(page = 1, pageSize = 10): Promise<ApiResponse<PagedResult<User>>> {
-    return this.client.get<PagedResult<User>>(`/api/users/paged?page=${page}&pageSize=${pageSize}`);
+    return this.client.get<PagedResult<User>>(
+      `/api/users/paged?page=${page}&pageSize=${pageSize}`,
+    );
   }
 
-  search(query: string, page = 1, pageSize = 20): Promise<ApiResponse<PagedResult<User>>> {
+  search(
+    query: string,
+    page = 1,
+    pageSize = 20,
+  ): Promise<ApiResponse<PagedResult<User>>> {
     return this.client.get<PagedResult<User>>(
-      `/api/users/search?query=${encodeURIComponent(query)}&page=${page}&pageSize=${pageSize}`
+      `/api/users/search?query=${encodeURIComponent(query)}&page=${page}&pageSize=${pageSize}`,
     );
   }
 
@@ -155,16 +163,18 @@ export class UsersEndpoint {
     return this.client.delete(`/api/users/${id}`);
   }
 
-  updateRole(id: string, dto: AdminUpdateUserRoleDto): Promise<ApiResponse<User>> {
+  updateRole(
+    id: string,
+    dto: AdminUpdateUserRoleDto,
+  ): Promise<ApiResponse<User>> {
     return this.client.put<User>(`/api/users/${id}/role`, dto);
   }
 
-  updateUserType(id: string, dto: AdminUpdateUserTypeDto): Promise<ApiResponse<User>> {
+  updateUserType(
+    id: string,
+    dto: AdminUpdateUserTypeDto,
+  ): Promise<ApiResponse<User>> {
     return this.client.put<User>(`/api/users/${id}/user-type`, dto);
-  }
-
-  updateVerificationLevel(id: string, dto: AdminUpdateVerificationLevelDto): Promise<ApiResponse<User>> {
-    return this.client.put<User>(`/api/users/${id}/verification-level`, dto);
   }
 
   // ---- Skills ----
@@ -173,12 +183,22 @@ export class UsersEndpoint {
     return this.client.get<UserSkill[]>(`/api/users/${userId}/skills`);
   }
 
-  addSkill(userId: string, data: CreateUserSkillDto): Promise<ApiResponse<UserSkill>> {
+  addSkill(
+    userId: string,
+    data: CreateUserSkillDto,
+  ): Promise<ApiResponse<UserSkill>> {
     return this.client.post<UserSkill>(`/api/users/${userId}/skills`, data);
   }
 
-  updateSkill(userId: string, skillId: string, data: UpdateUserSkillDto): Promise<ApiResponse<UserSkill>> {
-    return this.client.put<UserSkill>(`/api/users/${userId}/skills/${skillId}`, data);
+  updateSkill(
+    userId: string,
+    skillId: string,
+    data: UpdateUserSkillDto,
+  ): Promise<ApiResponse<UserSkill>> {
+    return this.client.put<UserSkill>(
+      `/api/users/${userId}/skills/${skillId}`,
+      data,
+    );
   }
 
   deleteSkill(userId: string, skillId: string): Promise<ApiResponse<void>> {
@@ -191,26 +211,52 @@ export class UsersEndpoint {
     return this.client.get<UserExperience[]>(`/api/users/${userId}/experience`);
   }
 
-  addExperience(userId: string, data: CreateUserExperienceDto): Promise<ApiResponse<UserExperience>> {
-    return this.client.post<UserExperience>(`/api/users/${userId}/experience`, data);
+  addExperience(
+    userId: string,
+    data: CreateUserExperienceDto,
+  ): Promise<ApiResponse<UserExperience>> {
+    return this.client.post<UserExperience>(
+      `/api/users/${userId}/experience`,
+      data,
+    );
   }
 
-  updateExperience(userId: string, experienceId: string, data: UpdateUserExperienceDto): Promise<ApiResponse<UserExperience>> {
-    return this.client.put<UserExperience>(`/api/users/${userId}/experience/${experienceId}`, data);
+  updateExperience(
+    userId: string,
+    experienceId: string,
+    data: UpdateUserExperienceDto,
+  ): Promise<ApiResponse<UserExperience>> {
+    return this.client.put<UserExperience>(
+      `/api/users/${userId}/experience/${experienceId}`,
+      data,
+    );
   }
 
-  deleteExperience(userId: string, experienceId: string): Promise<ApiResponse<void>> {
-    return this.client.delete(`/api/users/${userId}/experience/${experienceId}`);
+  deleteExperience(
+    userId: string,
+    experienceId: string,
+  ): Promise<ApiResponse<void>> {
+    return this.client.delete(
+      `/api/users/${userId}/experience/${experienceId}`,
+    );
   }
 
   // ---- Follow ----
 
-  follow(userId: string, followerId: string): Promise<ApiResponse<UserFollowDto>> {
-    return this.client.post<UserFollowDto>(`/api/users/${userId}/follow`, { followerId, followingId: userId });
+  follow(
+    userId: string,
+    followerId: string,
+  ): Promise<ApiResponse<UserFollowDto>> {
+    return this.client.post<UserFollowDto>(`/api/users/${userId}/follow`, {
+      followerId,
+      followingId: userId,
+    });
   }
 
   unfollow(userId: string, followerId: string): Promise<ApiResponse<void>> {
-    return this.client.delete(`/api/users/${userId}/follow?followerId=${followerId}`);
+    return this.client.delete(
+      `/api/users/${userId}/follow?followerId=${followerId}`,
+    );
   }
 
   getFollowers(userId: string): Promise<ApiResponse<UserFollowDto[]>> {
@@ -221,11 +267,18 @@ export class UsersEndpoint {
     return this.client.get<UserFollowDto[]>(`/api/users/${userId}/following`);
   }
 
-  isFollowing(userId: string, followerId: string): Promise<ApiResponse<boolean>> {
-    return this.client.get<boolean>(`/api/users/${userId}/follow/check?followerId=${followerId}`);
+  isFollowing(
+    userId: string,
+    followerId: string,
+  ): Promise<ApiResponse<boolean>> {
+    return this.client.get<boolean>(
+      `/api/users/${userId}/follow/check?followerId=${followerId}`,
+    );
   }
 
   getFollowCounts(userId: string): Promise<ApiResponse<UserFollowCounts>> {
-    return this.client.get<UserFollowCounts>(`/api/users/${userId}/follow/counts`);
+    return this.client.get<UserFollowCounts>(
+      `/api/users/${userId}/follow/counts`,
+    );
   }
 }

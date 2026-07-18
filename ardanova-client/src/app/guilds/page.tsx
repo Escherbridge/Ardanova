@@ -11,11 +11,8 @@ import {
   CheckCircle,
   Plus,
   MessageCircle,
-  Share2,
-  Bookmark,
-  MoreHorizontal,
+  ArrowUpRight,
   Sparkles,
-  Clock,
   Award,
   SlidersHorizontal,
   X,
@@ -26,34 +23,32 @@ import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Badge } from "~/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "~/components/ui/dropdown-menu";
 import { cn } from "~/lib/utils";
+import { handleTabListKeyDown } from "~/lib/accessibility";
 import { api } from "~/trpc/react";
 import { FeedLayout } from "~/components/layouts/feed-layout";
 
 // Feed tabs for guilds
-const guildTabs = [
-  { id: "all", label: "All Guilds", icon: Users },
-  { id: "verified", label: "Verified", icon: CheckCircle },
-  { id: "top-rated", label: "Top Rated", icon: Star },
-  { id: "newest", label: "Newest", icon: Clock },
+const guildTabs: { id: string; label: string }[] = [
+  { id: "all", label: "All Guilds" },
+  { id: "verified", label: "Verified" },
+  { id: "top-rated", label: "Rated 4+" },
+  { id: "newest", label: "Newest" },
 ];
 
 // Specialty badge variants
-const specialtyVariants: Record<string, "neon" | "neon-pink" | "neon-green" | "neon-purple" | "warning" | "secondary"> = {
+const specialtyVariants: Record<
+  string,
+  "neon" | "neon-pink" | "neon-green" | "neon-purple" | "warning" | "secondary"
+> = {
   "Web Development": "neon",
   "Mobile Development": "neon-purple",
   "UI/UX Design": "neon-pink",
   "Data Science": "neon-green",
-  "Marketing": "warning",
-  "Finance": "neon-green",
-  "Legal": "secondary",
-  "Strategy": "neon-purple",
+  Marketing: "warning",
+  Finance: "neon-green",
+  Legal: "secondary",
+  Strategy: "neon-purple",
 };
 
 // Filter options
@@ -107,12 +102,14 @@ function formatRelativeTime(date: Date): string {
   return date.toLocaleDateString();
 }
 
-function renderRating(rating: number | null) {
+function renderRating(rating: number | null | undefined) {
   if (!rating) return null;
   return (
     <div className="flex items-center gap-1 text-sm">
-      <Star className="size-4 fill-neon-yellow text-neon-yellow" />
-      <span className="font-medium text-foreground">{Number(rating).toFixed(1)}</span>
+      <Star className="fill-neon-yellow text-warning size-4" />
+      <span className="text-foreground font-medium">
+        {Number(rating).toFixed(1)}
+      </span>
     </div>
   );
 }
@@ -120,22 +117,19 @@ function renderRating(rating: number | null) {
 function GuildsFeedSkeleton({ rows = 6 }: { rows?: number }) {
   return (
     <div
-      className="divide-y-2 divide-border"
+      className="divide-border divide-y-2"
       role="status"
       aria-live="polite"
       aria-busy="true"
     >
       <span className="sr-only">Loading guilds, please wait.</span>
       {Array.from({ length: rows }).map((_, i) => (
-        <div
-          key={i}
-          className="p-4 flex gap-3 bg-card"
-        >
-          <div className="size-12 rounded-full bg-muted animate-pulse shrink-0" />
-          <div className="flex-1 space-y-2.5 pt-1 min-w-0">
-            <div className="h-4 bg-muted rounded-md animate-pulse w-[min(60%,18rem)]" />
-            <div className="h-3 bg-muted rounded-md animate-pulse w-[min(40%,12rem)]" />
-            <div className="h-3 bg-muted rounded-md animate-pulse w-24" />
+        <div key={i} className="bg-card flex gap-3 p-4">
+          <div className="bg-muted size-12 shrink-0 animate-pulse rounded-full" />
+          <div className="min-w-0 flex-1 space-y-2.5 pt-1">
+            <div className="bg-muted h-4 w-[min(60%,18rem)] animate-pulse rounded-md" />
+            <div className="bg-muted h-3 w-[min(40%,12rem)] animate-pulse rounded-md" />
+            <div className="bg-muted h-3 w-24 animate-pulse rounded-md" />
           </div>
         </div>
       ))}
@@ -153,7 +147,11 @@ export default function GuildsPage() {
   const [selectedTime, setSelectedTime] = useState("all");
 
   // Fetch guilds from API
-  const { data: guildsResult, isPending: isInitialLoad } = api.guild.getAll.useQuery({
+  const {
+    data: guildsResult,
+    isPending: isInitialLoad,
+    error: guildsError,
+  } = api.guild.getAll.useQuery({
     limit: 50,
     page: 1,
   });
@@ -170,9 +168,14 @@ export default function GuildsPage() {
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       const matchesName = guild.name.toLowerCase().includes(query);
-      const matchesDescription = guild.description?.toLowerCase().includes(query);
-      const matchesSpecialties = guild.specialties?.toLowerCase().includes(query);
-      if (!matchesName && !matchesDescription && !matchesSpecialties) return false;
+      const matchesDescription = guild.description
+        ?.toLowerCase()
+        .includes(query);
+      const matchesSpecialties = guild.specialties
+        ?.toLowerCase()
+        .includes(query);
+      if (!matchesName && !matchesDescription && !matchesSpecialties)
+        return false;
     }
 
     // Specialty filter
@@ -201,7 +204,8 @@ export default function GuildsPage() {
     if (selectedTime !== "all") {
       const now = new Date();
       const guildDate = new Date(guild.createdAt);
-      const diffDays = (now.getTime() - guildDate.getTime()) / (1000 * 60 * 60 * 24);
+      const diffDays =
+        (now.getTime() - guildDate.getTime()) / (1000 * 60 * 60 * 24);
 
       if (selectedTime === "today" && diffDays > 1) return false;
       if (selectedTime === "week" && diffDays > 7) return false;
@@ -220,6 +224,7 @@ export default function GuildsPage() {
     selectedTime !== "all";
 
   const clearFilters = () => {
+    setActiveTab("all");
     setSearchQuery("");
     setSelectedSpecialty("all");
     setSelectedRating("all");
@@ -235,14 +240,20 @@ export default function GuildsPage() {
 
   // Stats for sidebar
   const stats = {
-    total: guilds.length,
-    verified: guilds.filter((g) => g.isVerified).length,
-    totalProjects: guilds.reduce((sum, g) => sum + (g.projectsCount ?? 0), 0),
-    totalReviews: guilds.reduce((sum, g) => sum + (g.reviewsCount ?? 0), 0),
+    total: filteredGuilds.length,
+    verified: filteredGuilds.filter((g) => g.isVerified).length,
+    totalProjects: filteredGuilds.reduce(
+      (sum, g) => sum + (g.projectsCount ?? 0),
+      0,
+    ),
+    totalReviews: filteredGuilds.reduce(
+      (sum, g) => sum + (g.reviewsCount ?? 0),
+      0,
+    ),
   };
 
-  // Top rated guilds for sidebar
-  const topRatedGuilds = [...guilds]
+  // Highest-rated guilds among the records returned by this query.
+  const highestRatedGuildsInView = [...filteredGuilds]
     .sort((a, b) => (Number(b.rating) || 0) - (Number(a.rating) || 0))
     .slice(0, 3);
 
@@ -253,484 +264,572 @@ export default function GuildsPage() {
           {/* Stats */}
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Sparkles className="size-4 text-neon-yellow" />
-                Guild Stats
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Sparkles className="text-warning size-4" />
+                Visible results
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="flex justify-between">
-                <span className="text-sm text-muted-foreground">Total Guilds</span>
-                <span className="font-medium text-foreground">{stats.total}</span>
+                <span className="text-muted-foreground text-sm">
+                  Guilds in this view
+                </span>
+                <span className="text-foreground font-medium">
+                  {guildsError ? "—" : stats.total}
+                </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-sm text-muted-foreground">Verified Guilds</span>
-                <span className="font-medium text-neon-green">{stats.verified}</span>
+                <span className="text-muted-foreground text-sm">
+                  Verified in this view
+                </span>
+                <span className="text-success font-medium">
+                  {guildsError ? "—" : stats.verified}
+                </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-sm text-muted-foreground">Projects Completed</span>
-                <span className="font-medium text-foreground">{stats.totalProjects}</span>
+                <span className="text-muted-foreground text-sm">
+                  Projects across visible guilds
+                </span>
+                <span className="text-foreground font-medium">
+                  {guildsError ? "—" : stats.totalProjects}
+                </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-sm text-muted-foreground">Total Reviews</span>
-                <span className="font-medium text-foreground">{stats.totalReviews}</span>
+                <span className="text-muted-foreground text-sm">
+                  Reviews across visible guilds
+                </span>
+                <span className="text-foreground font-medium">
+                  {guildsError ? "—" : stats.totalReviews}
+                </span>
               </div>
             </CardContent>
           </Card>
 
-          {/* Top Rated Guilds */}
+          {/* Highest rated among visible results */}
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Award className="size-4 text-neon-yellow" />
-                Top Rated Guilds
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Award className="text-warning size-4" />
+                Highest rated in this view
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              {topRatedGuilds.map((guild) => (
+              {highestRatedGuildsInView.map((guild) => (
                 <Link
                   key={guild.id}
                   href={`/guilds/${guild.slug}`}
                   className="flex items-center gap-3"
                 >
-                  <Avatar className="size-10 border-2 border-border">
+                  <Avatar className="border-border size-10 border-2">
                     {guild.logo ? (
                       <AvatarImage src={guild.logo} alt={guild.name} />
                     ) : null}
-                    <AvatarFallback className="bg-neon-pink/20 text-neon-pink">
+                    <AvatarFallback className="bg-primary/20 text-primary">
                       <Briefcase className="size-4" />
                     </AvatarFallback>
                   </Avatar>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-sm text-foreground hover:text-primary transition-colors truncate">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-foreground hover:text-primary truncate text-sm font-medium transition-colors">
                       {guild.name}
                     </p>
                     <div className="flex items-center gap-2">
                       {renderRating(guild.rating)}
                       {guild.isVerified && (
-                        <CheckCircle className="size-3 text-neon-green" />
+                        <CheckCircle className="text-success size-3" />
                       )}
                     </div>
                   </div>
                 </Link>
               ))}
-              <Button variant="ghost" className="w-full text-sm" asChild>
-                <Link href="/guilds?tab=top-rated">View all top rated</Link>
-              </Button>
             </CardContent>
           </Card>
 
           {/* Specialties */}
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Filter className="size-4 text-neon-pink" />
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Filter className="text-primary size-4" />
                 Specialties
               </CardTitle>
             </CardHeader>
             <CardContent className="flex flex-wrap gap-2">
               {Object.keys(specialtyVariants).map((specialty) => (
-                <Badge
+                <button
                   key={specialty}
-                  variant={specialtyVariants[specialty]}
-                  size="sm"
-                  className="cursor-pointer hover:opacity-80"
+                  type="button"
+                  aria-pressed={selectedSpecialty === specialty}
+                  onClick={() =>
+                    setSelectedSpecialty(
+                      selectedSpecialty === specialty ? "all" : specialty,
+                    )
+                  }
+                  className="focus-visible:ring-ring min-h-11 focus-visible:ring-2 focus-visible:outline-none"
                 >
-                  {specialty}
-                </Badge>
+                  <Badge
+                    variant={specialtyVariants[specialty]}
+                    size="sm"
+                    className="cursor-pointer hover:opacity-80"
+                  >
+                    {specialty}
+                  </Badge>
+                </button>
               ))}
             </CardContent>
           </Card>
 
           {/* Footer */}
-          <div className="text-xs text-muted-foreground space-x-2 px-2">
-            <Link href="/terms" className="hover:underline">Terms</Link>
-            <span>·</span>
-            <Link href="/privacy" className="hover:underline">Privacy</Link>
-            <span>·</span>
-            <Link href="/help" className="hover:underline">Help</Link>
-            <p className="mt-2">&copy; 2024 ArdaNova</p>
+          <div className="text-muted-foreground px-2 text-xs">
+            <p>&copy; 2026 ArdaNova</p>
+            <p className="mt-1">Counts reflect the current filtered view.</p>
           </div>
         </>
       }
     >
       {/* Header */}
-      <div className="sticky top-0 z-10 bg-background/95 backdrop-blur border-b-2 border-border">
-            <div className="p-4 flex items-center justify-between">
-              <h1 className="text-xl font-bold text-foreground flex items-center gap-2">
-                <Users className="size-5 text-neon-pink" />
-                Guilds
-              </h1>
-              <Button variant="neon" size="sm" asChild>
+      <div className="border-border bg-background relative z-10 border-b-2">
+        <div className="flex items-center justify-between p-4">
+          <h1 className="text-foreground flex items-center gap-2 text-xl font-bold">
+            <Users className="text-primary size-5" />
+            Guilds
+          </h1>
+          <Button variant="neon" size="sm" asChild>
+            <Link href="/guilds/create">
+              <Plus className="mr-2 size-4" />
+              Create Guild
+            </Link>
+          </Button>
+        </div>
+
+        {/* Search */}
+        <div className="flex flex-col gap-2 px-4 pb-3 sm:flex-row sm:items-center">
+          <div className="relative flex-1">
+            <label htmlFor="guilds-search" className="sr-only">
+              Search guilds
+            </label>
+            <Search className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2" />
+            <input
+              type="text"
+              id="guilds-search"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search guilds..."
+              className="bg-card border-border text-foreground placeholder:text-muted-foreground focus:border-primary w-full border-2 py-2 pr-4 pl-10 text-sm focus:outline-none"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery("")}
+                aria-label="Clear guild search"
+                className="text-muted-foreground hover:text-foreground absolute top-1/2 right-0 flex min-h-11 min-w-11 -translate-y-1/2 items-center justify-center"
+              >
+                <X className="size-4" />
+              </button>
+            )}
+          </div>
+          <Button
+            variant={showFilters ? "neon" : "outline"}
+            size="sm"
+            onClick={() => setShowFilters(!showFilters)}
+            aria-expanded={showFilters}
+            aria-controls="guild-filters"
+            className="w-full gap-1.5 sm:w-auto"
+          >
+            <SlidersHorizontal className="size-4" />
+            Filters
+            {activeFilterCount > 0 && !showFilters && (
+              <Badge variant="neon" size="sm" className="ml-1">
+                {activeFilterCount}
+              </Badge>
+            )}
+          </Button>
+        </div>
+
+        {/* Expanded Filters */}
+        {showFilters && (
+          <div
+            id="guild-filters"
+            className="border-border space-y-3 border-t px-4 pt-3 pb-4"
+          >
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {/* Specialty Filter */}
+              <div>
+                <label
+                  htmlFor="guild-specialty-filter"
+                  className="text-muted-foreground mb-1.5 block text-xs"
+                >
+                  Specialty
+                </label>
+                <select
+                  id="guild-specialty-filter"
+                  value={selectedSpecialty}
+                  onChange={(e) => setSelectedSpecialty(e.target.value)}
+                  className="bg-card border-border text-foreground focus:border-primary min-h-11 w-full cursor-pointer appearance-none border-2 px-3 py-2 text-sm focus:outline-none"
+                >
+                  {specialtyFilters.map((filter) => (
+                    <option key={filter.id} value={filter.id}>
+                      {filter.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Rating Filter */}
+              <div>
+                <label
+                  htmlFor="guild-rating-filter"
+                  className="text-muted-foreground mb-1.5 block text-xs"
+                >
+                  Minimum Rating
+                </label>
+                <select
+                  id="guild-rating-filter"
+                  value={selectedRating}
+                  onChange={(e) => setSelectedRating(e.target.value)}
+                  className="bg-card border-border text-foreground focus:border-primary min-h-11 w-full cursor-pointer appearance-none border-2 px-3 py-2 text-sm focus:outline-none"
+                >
+                  {ratingFilters.map((filter) => (
+                    <option key={filter.id} value={filter.id}>
+                      {filter.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Projects Filter */}
+              <div>
+                <label
+                  htmlFor="guild-projects-filter"
+                  className="text-muted-foreground mb-1.5 block text-xs"
+                >
+                  Projects Completed
+                </label>
+                <select
+                  id="guild-projects-filter"
+                  value={selectedProjects}
+                  onChange={(e) => setSelectedProjects(e.target.value)}
+                  className="bg-card border-border text-foreground focus:border-primary min-h-11 w-full cursor-pointer appearance-none border-2 px-3 py-2 text-sm focus:outline-none"
+                >
+                  {projectsFilters.map((filter) => (
+                    <option key={filter.id} value={filter.id}>
+                      {filter.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Time Filter */}
+              <div>
+                <label
+                  htmlFor="guild-time-filter"
+                  className="text-muted-foreground mb-1.5 block text-xs"
+                >
+                  Created
+                </label>
+                <select
+                  id="guild-time-filter"
+                  value={selectedTime}
+                  onChange={(e) => setSelectedTime(e.target.value)}
+                  className="bg-card border-border text-foreground focus:border-primary min-h-11 w-full cursor-pointer appearance-none border-2 px-3 py-2 text-sm focus:outline-none"
+                >
+                  {timeFilters.map((filter) => (
+                    <option key={filter.id} value={filter.id}>
+                      {filter.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {hasActiveFilters && (
+              <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex flex-wrap gap-2">
+                  {searchQuery && (
+                    <Badge variant="secondary" size="sm" className="gap-1">
+                      Search: {searchQuery}
+                      <button
+                        type="button"
+                        aria-label="Remove search filter"
+                        className="flex min-h-11 min-w-11 items-center justify-center"
+                        onClick={() => setSearchQuery("")}
+                      >
+                        <X className="size-3" />
+                      </button>
+                    </Badge>
+                  )}
+                  {selectedSpecialty !== "all" && (
+                    <Badge variant="secondary" size="sm" className="gap-1">
+                      {
+                        specialtyFilters.find((f) => f.id === selectedSpecialty)
+                          ?.label
+                      }
+                      <button
+                        type="button"
+                        aria-label="Remove specialty filter"
+                        className="flex min-h-11 min-w-11 items-center justify-center"
+                        onClick={() => setSelectedSpecialty("all")}
+                      >
+                        <X className="size-3" />
+                      </button>
+                    </Badge>
+                  )}
+                  {selectedRating !== "all" && (
+                    <Badge variant="secondary" size="sm" className="gap-1">
+                      {
+                        ratingFilters.find((f) => f.id === selectedRating)
+                          ?.label
+                      }
+                      <button
+                        type="button"
+                        aria-label="Remove rating filter"
+                        className="flex min-h-11 min-w-11 items-center justify-center"
+                        onClick={() => setSelectedRating("all")}
+                      >
+                        <X className="size-3" />
+                      </button>
+                    </Badge>
+                  )}
+                  {selectedProjects !== "all" && (
+                    <Badge variant="secondary" size="sm" className="gap-1">
+                      {
+                        projectsFilters.find((f) => f.id === selectedProjects)
+                          ?.label
+                      }
+                      <button
+                        type="button"
+                        aria-label="Remove projects filter"
+                        className="flex min-h-11 min-w-11 items-center justify-center"
+                        onClick={() => setSelectedProjects("all")}
+                      >
+                        <X className="size-3" />
+                      </button>
+                    </Badge>
+                  )}
+                  {selectedTime !== "all" && (
+                    <Badge variant="secondary" size="sm" className="gap-1">
+                      {timeFilters.find((f) => f.id === selectedTime)?.label}
+                      <button
+                        type="button"
+                        aria-label="Remove created-date filter"
+                        className="flex min-h-11 min-w-11 items-center justify-center"
+                        onClick={() => setSelectedTime("all")}
+                      >
+                        <X className="size-3" />
+                      </button>
+                    </Badge>
+                  )}
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={clearFilters}
+                  className="text-muted-foreground"
+                >
+                  Clear all
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Tabs */}
+        <div
+          className="border-border flex overflow-x-auto border-b-2"
+          role="tablist"
+          aria-label="Guild scope"
+          onKeyDown={handleTabListKeyDown}
+        >
+          {guildTabs.map((tab) => {
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveTab(tab.id)}
+                role="tab"
+                id={`guilds-tab-${tab.id}`}
+                aria-selected={activeTab === tab.id}
+                aria-controls={`guilds-panel-${tab.id}`}
+                tabIndex={activeTab === tab.id ? 0 : -1}
+                aria-label={tab.label}
+                className={cn(
+                  "relative flex min-h-11 min-w-24 flex-1 items-center justify-center gap-2 px-3 py-3 text-sm font-medium whitespace-nowrap transition-colors",
+                  activeTab === tab.id
+                    ? "text-primary"
+                    : "text-muted-foreground hover:text-foreground hover:bg-card",
+                )}
+              >
+                <span className="hidden sm:inline">{tab.label}</span>
+                {activeTab === tab.id && (
+                  <span className="bg-primary absolute right-0 bottom-0 left-0 h-0.5" />
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Guilds Feed */}
+      <div
+        role="tabpanel"
+        id={`guilds-panel-${activeTab}`}
+        aria-labelledby={`guilds-tab-${activeTab}`}
+      >
+        {isInitialLoad ? (
+          <div className="bg-card border-border border-b-2">
+            <div className="text-muted-foreground border-border flex items-center gap-2 border-b px-4 py-3 text-sm">
+              <Loader2
+                className="text-primary size-4 shrink-0 animate-spin"
+                aria-hidden
+              />
+              <span>Loading guilds…</span>
+            </div>
+            <GuildsFeedSkeleton />
+          </div>
+        ) : guildsError ? (
+          <div
+            role="alert"
+            className="border-destructive bg-destructive/10 border-b-2 px-4 py-10 text-center"
+          >
+            <p className="text-destructive font-medium">
+              Guilds could not be loaded.
+            </p>
+            <p className="text-muted-foreground mt-1 text-sm">
+              No guild counts or results are shown.
+            </p>
+          </div>
+        ) : filteredGuilds.length === 0 ? (
+          <div className="flex flex-col items-center justify-center px-4 py-20">
+            <Users className="text-muted-foreground mb-4 size-12" />
+            <p className="text-foreground text-lg font-medium">
+              No guilds found
+            </p>
+            <p className="text-muted-foreground mt-1">
+              {guilds.length > 0
+                ? "No guilds match the current view."
+                : "No guild records were returned."}
+            </p>
+            {guilds.length > 0 ? (
+              <Button variant="outline" className="mt-4" onClick={clearFilters}>
+                Clear filters
+              </Button>
+            ) : (
+              <Button variant="neon" className="mt-4" asChild>
                 <Link href="/guilds/create">
-                  <Plus className="size-4 mr-2" />
+                  <Plus className="mr-2 size-4" />
                   Create Guild
                 </Link>
               </Button>
-            </div>
-
-            {/* Search */}
-            <div className="px-4 pb-3 flex items-center gap-2">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search guilds..."
-                  className="w-full pl-10 pr-4 py-2 bg-card border-2 border-border text-foreground text-sm placeholder:text-muted-foreground focus:border-primary focus:outline-none"
-                />
-                {searchQuery && (
-                  <button
-                    onClick={() => setSearchQuery("")}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                  >
-                    <X className="size-4" />
-                  </button>
-                )}
-              </div>
-              <Button
-                variant={showFilters ? "neon" : "outline"}
-                size="sm"
-                onClick={() => setShowFilters(!showFilters)}
-                className="gap-1.5"
-              >
-                <SlidersHorizontal className="size-4" />
-                Filters
-                {activeFilterCount > 0 && !showFilters && (
-                  <Badge variant="neon" size="sm" className="ml-1">
-                    {activeFilterCount}
-                  </Badge>
-                )}
-              </Button>
-            </div>
-
-            {/* Expanded Filters */}
-            {showFilters && (
-              <div className="px-4 pb-4 space-y-3 border-t border-border pt-3">
-                <div className="grid grid-cols-2 gap-3">
-                  {/* Specialty Filter */}
-                  <div>
-                    <label className="text-xs text-muted-foreground mb-1.5 block">
-                      Specialty
-                    </label>
-                    <select
-                      value={selectedSpecialty}
-                      onChange={(e) => setSelectedSpecialty(e.target.value)}
-                      className="w-full px-3 py-2 bg-card border-2 border-border text-foreground text-sm focus:border-primary focus:outline-none appearance-none cursor-pointer"
-                    >
-                      {specialtyFilters.map((filter) => (
-                        <option key={filter.id} value={filter.id}>
-                          {filter.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Rating Filter */}
-                  <div>
-                    <label className="text-xs text-muted-foreground mb-1.5 block">
-                      Minimum Rating
-                    </label>
-                    <select
-                      value={selectedRating}
-                      onChange={(e) => setSelectedRating(e.target.value)}
-                      className="w-full px-3 py-2 bg-card border-2 border-border text-foreground text-sm focus:border-primary focus:outline-none appearance-none cursor-pointer"
-                    >
-                      {ratingFilters.map((filter) => (
-                        <option key={filter.id} value={filter.id}>
-                          {filter.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Projects Filter */}
-                  <div>
-                    <label className="text-xs text-muted-foreground mb-1.5 block">
-                      Projects Completed
-                    </label>
-                    <select
-                      value={selectedProjects}
-                      onChange={(e) => setSelectedProjects(e.target.value)}
-                      className="w-full px-3 py-2 bg-card border-2 border-border text-foreground text-sm focus:border-primary focus:outline-none appearance-none cursor-pointer"
-                    >
-                      {projectsFilters.map((filter) => (
-                        <option key={filter.id} value={filter.id}>
-                          {filter.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Time Filter */}
-                  <div>
-                    <label className="text-xs text-muted-foreground mb-1.5 block">
-                      Created
-                    </label>
-                    <select
-                      value={selectedTime}
-                      onChange={(e) => setSelectedTime(e.target.value)}
-                      className="w-full px-3 py-2 bg-card border-2 border-border text-foreground text-sm focus:border-primary focus:outline-none appearance-none cursor-pointer"
-                    >
-                      {timeFilters.map((filter) => (
-                        <option key={filter.id} value={filter.id}>
-                          {filter.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                {hasActiveFilters && (
-                  <div className="flex items-center justify-between pt-2">
-                    <div className="flex flex-wrap gap-2">
-                      {searchQuery && (
-                        <Badge variant="secondary" size="sm" className="gap-1">
-                          Search: {searchQuery}
-                          <button onClick={() => setSearchQuery("")}>
-                            <X className="size-3" />
-                          </button>
-                        </Badge>
-                      )}
-                      {selectedSpecialty !== "all" && (
-                        <Badge variant="secondary" size="sm" className="gap-1">
-                          {specialtyFilters.find((f) => f.id === selectedSpecialty)?.label}
-                          <button onClick={() => setSelectedSpecialty("all")}>
-                            <X className="size-3" />
-                          </button>
-                        </Badge>
-                      )}
-                      {selectedRating !== "all" && (
-                        <Badge variant="secondary" size="sm" className="gap-1">
-                          {ratingFilters.find((f) => f.id === selectedRating)?.label}
-                          <button onClick={() => setSelectedRating("all")}>
-                            <X className="size-3" />
-                          </button>
-                        </Badge>
-                      )}
-                      {selectedProjects !== "all" && (
-                        <Badge variant="secondary" size="sm" className="gap-1">
-                          {projectsFilters.find((f) => f.id === selectedProjects)?.label}
-                          <button onClick={() => setSelectedProjects("all")}>
-                            <X className="size-3" />
-                          </button>
-                        </Badge>
-                      )}
-                      {selectedTime !== "all" && (
-                        <Badge variant="secondary" size="sm" className="gap-1">
-                          {timeFilters.find((f) => f.id === selectedTime)?.label}
-                          <button onClick={() => setSelectedTime("all")}>
-                            <X className="size-3" />
-                          </button>
-                        </Badge>
-                      )}
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={clearFilters}
-                      className="text-muted-foreground"
-                    >
-                      Clear all
-                    </Button>
-                  </div>
-                )}
-              </div>
             )}
-
-            {/* Tabs */}
-            <div className="flex border-b-2 border-border">
-              {guildTabs.map((tab) => {
-                const Icon = tab.icon;
-                return (
-                  <button
-                    key={tab.id}
-                    onClick={() => setActiveTab(tab.id)}
-                    className={cn(
-                      "flex-1 flex items-center justify-center gap-2 py-3 text-sm font-medium transition-colors relative",
-                      activeTab === tab.id
-                        ? "text-primary"
-                        : "text-muted-foreground hover:text-foreground hover:bg-card"
-                    )}
-                  >
-                    <Icon className="size-4" />
-                    <span className="hidden sm:inline">{tab.label}</span>
-                    {activeTab === tab.id && (
-                      <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
-                    )}
-                  </button>
-                );
-              })}
-            </div>
           </div>
-
-          {/* Guilds Feed */}
-          <div>
-            {isInitialLoad ? (
-              <div className="bg-card border-b-2 border-border">
-                <div className="px-4 py-3 flex items-center gap-2 text-sm text-muted-foreground border-b border-border">
-                  <Loader2 className="size-4 animate-spin shrink-0 text-primary" aria-hidden />
-                  <span>Loading guilds…</span>
-                </div>
-                <GuildsFeedSkeleton />
-              </div>
-            ) : filteredGuilds.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-20 px-4">
-                <Users className="size-12 text-muted-foreground mb-4" />
-                <p className="text-lg font-medium text-foreground">No guilds found</p>
-                <p className="text-muted-foreground mt-1">Be the first to create one!</p>
-                <Button variant="neon" className="mt-4" asChild>
-                  <Link href="/guilds/create">
-                    <Plus className="size-4 mr-2" />
-                    Create Guild
+        ) : (
+          filteredGuilds.map((guild) => (
+            <article
+              key={guild.id}
+              className="border-border bg-card hover:bg-card/80 border-b-2 transition-colors"
+            >
+              <div className="p-4">
+                {/* Header */}
+                <div className="flex items-start gap-3">
+                  <Link
+                    href={`/guilds/${guild.slug}`}
+                    aria-label={`Open ${guild.name} guild profile`}
+                    className="shrink-0"
+                  >
+                    <Avatar className="border-border hover:border-primary size-12 border-2 transition-colors">
+                      {guild.logo ? (
+                        <AvatarImage src={guild.logo} alt={guild.name} />
+                      ) : null}
+                      <AvatarFallback className="bg-primary/20 text-primary">
+                        <Briefcase className="size-6" />
+                      </AvatarFallback>
+                    </Avatar>
                   </Link>
-                </Button>
-              </div>
-            ) : (
-              filteredGuilds.map((guild) => (
-                <article
-                  key={guild.id}
-                  className="border-b-2 border-border bg-card hover:bg-card/80 transition-colors"
-                >
-                  <div className="p-4">
-                    {/* Header */}
-                    <div className="flex items-start gap-3">
+
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
                       <Link
                         href={`/guilds/${guild.slug}`}
-                        className="shrink-0"
+                        className="text-foreground hover:text-primary font-medium transition-colors"
                       >
-                        <Avatar className="size-12 border-2 border-border hover:border-primary transition-colors">
-                          {guild.logo ? (
-                            <AvatarImage src={guild.logo} alt={guild.name} />
-                          ) : null}
-                          <AvatarFallback className="bg-neon-pink/20 text-neon-pink">
-                            <Briefcase className="size-6" />
-                          </AvatarFallback>
-                        </Avatar>
+                        {guild.name}
                       </Link>
-
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <Link
-                            href={`/guilds/${guild.slug}`}
-                            className="font-medium text-foreground hover:text-primary transition-colors"
-                          >
-                            {guild.name}
-                          </Link>
-                          {guild.isVerified && (
-                            <CheckCircle className="size-4 text-neon-green" />
-                          )}
-                          <Badge variant="neon-pink" size="sm">Guild</Badge>
-                          <span className="text-muted-foreground text-sm">·</span>
-                          <span className="text-muted-foreground text-sm">
-                            {formatRelativeTime(new Date(guild.createdAt))}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-3 mt-1">
-                          {renderRating(guild.rating)}
-                          <span className="text-sm text-muted-foreground">
-                            {guild.projectsCount ?? 0} projects completed
-                          </span>
-                        </div>
-                      </div>
-
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon-sm">
-                            <MoreHorizontal className="size-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem>Copy link</DropdownMenuItem>
-                          <DropdownMenuItem>Report</DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
-
-                    {/* Guild Content */}
-                    <Link href={`/guilds/${guild.slug}`} className="block mt-3 pl-15">
-                      <p className="text-foreground line-clamp-3">
-                        {guild.description}
-                      </p>
-
-                      {/* Specialties */}
-                      {guild.specialties && (
-                        <div className="flex flex-wrap gap-2 mt-3">
-                          {guild.specialties.split(",").slice(0, 4).map((specialty, i) => {
-                            const trimmed = specialty.trim();
-                            return (
-                              <Badge
-                                key={i}
-                                variant={specialtyVariants[trimmed] ?? "secondary"}
-                                size="sm"
-                              >
-                                {trimmed}
-                              </Badge>
-                            );
-                          })}
-                        </div>
+                      {guild.isVerified && (
+                        <CheckCircle className="text-success size-4" />
                       )}
-
-                      {/* Stats */}
-                      <div className="flex items-center gap-4 mt-3 text-sm text-muted-foreground">
-                        <div className="flex items-center gap-1">
-                          <Briefcase className="size-4" />
-                          <span>{guild.projectsCount ?? 0} projects</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <MessageCircle className="size-4" />
-                          <span>{guild.reviewsCount ?? 0} reviews</span>
-                        </div>
-                      </div>
-                    </Link>
-
-                    {/* Actions */}
-                    <div className="mt-4 pl-15 flex items-center gap-1">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="gap-1.5 text-muted-foreground hover:text-neon-pink"
-                      >
-                        <Star className="size-4" />
-                        <span className="text-xs">Rate</span>
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="gap-1.5 text-muted-foreground hover:text-primary"
-                      >
-                        <MessageCircle className="size-4" />
-                        <span className="text-xs">Contact</span>
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="gap-1.5 text-muted-foreground hover:text-neon-green"
-                      >
-                        <Share2 className="size-4" />
-                      </Button>
-                      <div className="flex-1" />
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        className="text-muted-foreground hover:text-neon-yellow"
-                      >
-                        <Bookmark className="size-4" />
-                      </Button>
+                      <Badge variant="neon-pink" size="sm">
+                        Guild
+                      </Badge>
+                      <span className="text-muted-foreground text-sm">·</span>
+                      <span className="text-muted-foreground text-sm">
+                        {formatRelativeTime(new Date(guild.createdAt))}
+                      </span>
+                    </div>
+                    <div className="mt-1 flex items-center gap-3">
+                      {renderRating(guild.rating)}
+                      <span className="text-muted-foreground text-sm">
+                        {guild.projectsCount ?? 0} projects completed
+                      </span>
                     </div>
                   </div>
-                </article>
-              ))
-            )}
+                </div>
 
-            {/* Load More */}
-            {filteredGuilds.length > 0 && (
-              <div className="flex justify-center py-6">
-                <Button variant="outline">Load more guilds</Button>
+                {/* Guild Content */}
+                <Link
+                  href={`/guilds/${guild.slug}`}
+                  className="mt-3 block pl-15"
+                >
+                  <p className="text-foreground line-clamp-3">
+                    {guild.description}
+                  </p>
+
+                  {/* Specialties */}
+                  {guild.specialties && (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {guild.specialties
+                        .split(",")
+                        .slice(0, 4)
+                        .map((specialty, i) => {
+                          const trimmed = specialty.trim();
+                          return (
+                            <Badge
+                              key={i}
+                              variant={
+                                specialtyVariants[trimmed] ?? "secondary"
+                              }
+                              size="sm"
+                            >
+                              {trimmed}
+                            </Badge>
+                          );
+                        })}
+                    </div>
+                  )}
+
+                  {/* Stats */}
+                  <div className="text-muted-foreground mt-3 flex items-center gap-4 text-sm">
+                    <div className="flex items-center gap-1">
+                      <Briefcase className="size-4" />
+                      <span>{guild.projectsCount ?? 0} projects</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <MessageCircle className="size-4" />
+                      <span>{guild.reviewsCount ?? 0} reviews</span>
+                    </div>
+                  </div>
+                </Link>
+
+                <div className="mt-4 flex justify-end pl-15">
+                  <Button variant="outline" size="sm" asChild>
+                    <Link href={`/guilds/${guild.slug}`}>
+                      Open guild
+                      <ArrowUpRight className="ml-2 size-4" />
+                    </Link>
+                  </Button>
+                </div>
               </div>
-            )}
-          </div>
+            </article>
+          ))
+        )}
+      </div>
     </FeedLayout>
   );
 }

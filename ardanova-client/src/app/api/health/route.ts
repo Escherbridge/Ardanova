@@ -1,12 +1,15 @@
 import { NextResponse } from "next/server";
 
-export async function GET() {
+export const dynamic = "force-dynamic";
+
+export function GET() {
   return NextResponse.json(
     {
-      status: "healthy",
+      status: "alive",
       timestamp: new Date().toISOString(),
       service: "ardanova-client",
+      uptimeSeconds: Math.floor(process.uptime()),
     },
-    { status: 200 }
+    { status: 200 },
   );
 }

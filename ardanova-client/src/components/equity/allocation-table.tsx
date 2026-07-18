@@ -1,164 +1,195 @@
 "use client";
 
 import { useState } from "react";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "~/components/ui/select";
-import { cn } from "~/lib/utils";
 import { ArrowUpDown, FileX } from "lucide-react";
 
-type HolderClass = "CONTRIBUTOR" | "INVESTOR" | "FOUNDER" | string;
-type AllocationStatus = "PENDING" | "ACTIVE" | "VESTED" | "BURNED" | string;
-
-interface Allocation {
-  id: string;
-  taskId?: string | null;
-  userId?: string | null;
-  equityPercentage: number;
-  tokenAmount: number;
-  status: AllocationStatus;
-  holderClass: HolderClass;
-  description?: string | null;
-}
+import { Badge } from "~/components/ui/badge";
+import type { TokenAllocationDto } from "~/lib/contracts/tokenomics-contract";
+import { cn } from "~/lib/utils";
 
 interface AllocationTableProps {
-  allocations: Allocation[];
+  allocations: TokenAllocationDto[];
 }
 
-const holderClassConfig: Record<string, { label: string; color: string }> = {
-  CONTRIBUTOR: { label: "Earned", color: "text-[#00ff88]" },
-  INVESTOR: { label: "Invested", color: "text-[#00d4ff]" },
-  FOUNDER: { label: "Founder", color: "text-[#ff0080]" },
-};
+const holderClassLabel = {
+  CONTRIBUTOR: "Contributor",
+  INVESTOR: "Investor",
+  FOUNDER: "Founder",
+} as const;
 
-const statusConfig: Record<string, { label: string; color: string }> = {
-  PENDING: { label: "Pending", color: "text-muted-foreground" },
-  ACTIVE: { label: "Active", color: "text-[#00d4ff]" },
-  VESTED: { label: "Vested", color: "text-[#00ff88]" },
-  BURNED: { label: "Burned", color: "text-[#ff0080]" },
-};
+const statusVariant = {
+  RESERVED: "outline",
+  DISTRIBUTED: "neon-green",
+  REVOKED: "secondary",
+  BURNED: "destructive",
+} as const;
 
-function formatPct(n: number) {
-  return `${n.toFixed(4)}%`;
+function formatPct(value: number) {
+  return `${value.toFixed(4)}%`;
 }
 
-function formatTokens(n: number) {
-  return new Intl.NumberFormat("en-US").format(Math.round(n));
+function formatTokens(value: number) {
+  return new Intl.NumberFormat("en-US").format(value);
+}
+
+function shortReference(value: string) {
+  return value.length > 14 ? `${value.slice(0, 10)}…` : value;
 }
 
 type SortKey = "equityPercentage" | "tokenAmount" | "status" | "holderClass";
 
 export default function AllocationTable({ allocations }: AllocationTableProps) {
-  const [filterClass, setFilterClass] = useState<string>("ALL");
+  const [filterClass, setFilterClass] = useState<
+    "ALL" | TokenAllocationDto["holderClass"]
+  >("ALL");
   const [sortKey, setSortKey] = useState<SortKey>("equityPercentage");
-  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
 
-  const uniqueClasses = ["ALL", ...Array.from(new Set(allocations.map((a) => a.holderClass)))];
-
+  const classes: Array<"ALL" | TokenAllocationDto["holderClass"]> = [
+    "ALL",
+    ...Array.from(
+      new Set(allocations.map((allocation) => allocation.holderClass)),
+    ),
+  ];
   const filtered = allocations.filter(
-    (a) => filterClass === "ALL" || a.holderClass === filterClass,
+    (allocation) =>
+      filterClass === "ALL" || allocation.holderClass === filterClass,
   );
+  const sorted = [...filtered].sort((left, right) => {
+    const direction = sortDirection === "desc" ? -1 : 1;
+    const leftValue = left[sortKey];
+    const rightValue = right[sortKey];
 
-  const sorted = [...filtered].sort((a, b) => {
-    const mult = sortDir === "desc" ? -1 : 1;
-    if (sortKey === "equityPercentage") return mult * (a.equityPercentage - b.equityPercentage);
-    if (sortKey === "tokenAmount") return mult * (a.tokenAmount - b.tokenAmount);
-    if (sortKey === "holderClass") return mult * a.holderClass.localeCompare(b.holderClass);
-    if (sortKey === "status") return mult * a.status.localeCompare(b.status);
-    return 0;
+    return typeof leftValue === "number" && typeof rightValue === "number"
+      ? direction * (leftValue - rightValue)
+      : direction * String(leftValue).localeCompare(String(rightValue));
   });
 
-  const handleSort = (key: SortKey) => {
-    if (sortKey === key) {
-      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-    } else {
-      setSortKey(key);
-      setSortDir("desc");
+  const handleSort = (nextKey: SortKey) => {
+    if (nextKey === sortKey) {
+      setSortDirection((current) => (current === "desc" ? "asc" : "desc"));
+      return;
     }
+
+    setSortKey(nextKey);
+    setSortDirection("desc");
   };
 
   return (
-    <div className="border-2 border-border">
-      {/* Toolbar */}
-      <div className="border-b-2 border-border px-4 py-2 flex items-center gap-3 bg-muted/30">
-        <span className="font-mono text-xs font-bold tracking-widest text-muted-foreground flex-1">
-          ALLOCATIONS ({filtered.length})
-        </span>
-        <Select value={filterClass} onValueChange={setFilterClass}>
-          <SelectTrigger className="h-7 text-xs border-2 w-36">
-            <SelectValue placeholder="All Classes" />
-          </SelectTrigger>
-          <SelectContent>
-            {uniqueClasses.map((c) => (
-              <SelectItem key={c} value={c} className="text-xs">
-                {c === "ALL" ? "All Classes" : (holderClassConfig[c]?.label ?? c)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+    <div>
+      <div className="border-border flex flex-wrap gap-2 border-b p-3">
+        {classes.map((holderClass) => (
+          <button
+            key={holderClass}
+            type="button"
+            onClick={() => setFilterClass(holderClass)}
+            aria-pressed={filterClass === holderClass}
+            className={cn(
+              "border-border min-h-11 border px-3 font-mono text-xs font-bold uppercase",
+              filterClass === holderClass
+                ? "bg-primary text-primary-foreground border-primary"
+                : "hover:border-foreground",
+            )}
+          >
+            {holderClass === "ALL" ? "All" : holderClassLabel[holderClass]}
+          </button>
+        ))}
       </div>
 
-      {/* Header */}
-      <div className="grid grid-cols-[1fr_auto_auto_auto_auto] gap-2 px-4 py-2 border-b border-border bg-muted/10 text-xs text-muted-foreground">
-        <span>Description</span>
-        <SortButton label="Class" sortKey="holderClass" current={sortKey} dir={sortDir} onSort={handleSort} />
-        <SortButton label="Status" sortKey="status" current={sortKey} dir={sortDir} onSort={handleSort} />
-        <SortButton label="Tokens" sortKey="tokenAmount" current={sortKey} dir={sortDir} onSort={handleSort} />
-        <SortButton label="Equity" sortKey="equityPercentage" current={sortKey} dir={sortDir} onSort={handleSort} />
+      <div className="border-border bg-muted/10 hidden grid-cols-[minmax(0,1fr)_auto_auto_auto_auto] gap-3 border-b px-4 py-2 text-xs md:grid">
+        <span className="text-muted-foreground">Recorded for</span>
+        <SortButton
+          label="Class"
+          sortKey="holderClass"
+          current={sortKey}
+          direction={sortDirection}
+          onSort={handleSort}
+        />
+        <SortButton
+          label="Status"
+          sortKey="status"
+          current={sortKey}
+          direction={sortDirection}
+          onSort={handleSort}
+        />
+        <SortButton
+          label="Token units"
+          sortKey="tokenAmount"
+          current={sortKey}
+          direction={sortDirection}
+          onSort={handleSort}
+        />
+        <SortButton
+          label="Allocation %"
+          sortKey="equityPercentage"
+          current={sortKey}
+          direction={sortDirection}
+          onSort={handleSort}
+        />
       </div>
 
-      {/* Rows */}
       {sorted.length === 0 ? (
         <div className="flex flex-col items-center justify-center gap-3 py-10 text-center">
-          <FileX className="size-8 text-muted-foreground" />
-          <p className="font-mono text-xs text-muted-foreground">No allocations found.</p>
+          <FileX className="text-muted-foreground size-8" />
+          <p className="text-muted-foreground font-mono text-xs">
+            No recorded allocations in this view.
+          </p>
         </div>
       ) : (
-        <div className="divide-y divide-border">
-          {sorted.map((alloc) => {
-            const hc = holderClassConfig[alloc.holderClass] ?? { label: alloc.holderClass, color: "text-foreground" };
-            const sc = statusConfig[alloc.status] ?? { label: alloc.status, color: "text-muted-foreground" };
+        <div className="divide-border divide-y">
+          {sorted.map((allocation) => {
+            const reference = allocation.pbiId
+              ? `PBI ${shortReference(allocation.pbiId)}`
+              : allocation.recipientUserId
+                ? `User ${shortReference(allocation.recipientUserId)}`
+                : "Unassigned record";
 
             return (
               <div
-                key={alloc.id}
-                className="grid grid-cols-[1fr_auto_auto_auto_auto] gap-2 px-4 py-3 items-center hover:bg-muted/10 transition-colors"
+                key={allocation.id}
+                className="grid grid-cols-2 gap-3 p-4 md:grid-cols-[minmax(0,1fr)_auto_auto_auto_auto] md:items-center"
               >
-                {/* Description */}
-                <div className="min-w-0">
-                  <p className="text-sm truncate">
-                    {alloc.description ?? (alloc.taskId ? `Task ${alloc.taskId.slice(0, 8)}` : `User allocation`)}
+                <div className="col-span-2 min-w-0 md:col-span-1">
+                  <p className="truncate text-sm font-semibold">{reference}</p>
+                  <p
+                    className="text-muted-foreground truncate font-mono text-[10px]"
+                    title={allocation.id}
+                  >
+                    allocation {shortReference(allocation.id)}
                   </p>
-                  {alloc.taskId && (
-                    <p className="font-mono text-[10px] text-muted-foreground">
-                      task: {alloc.taskId.slice(0, 8)}...
-                    </p>
-                  )}
                 </div>
-
-                {/* Holder class */}
-                <span className={cn("font-mono text-xs font-bold whitespace-nowrap", hc.color)}>
-                  {hc.label}
-                </span>
-
-                {/* Status */}
-                <span className={cn("font-mono text-xs whitespace-nowrap", sc.color)}>
-                  {sc.label}
-                </span>
-
-                {/* Token amount */}
-                <span className="font-mono text-xs text-right whitespace-nowrap">
-                  {formatTokens(alloc.tokenAmount)}
-                </span>
-
-                {/* Equity pct */}
-                <span className="font-mono text-xs font-bold text-[#00d4ff] text-right whitespace-nowrap">
-                  {formatPct(alloc.equityPercentage)}
-                </span>
+                <div>
+                  <span className="text-muted-foreground block text-[10px] md:hidden">
+                    Class
+                  </span>
+                  <span className="text-xs">
+                    {holderClassLabel[allocation.holderClass]}
+                  </span>
+                </div>
+                <div className="text-right md:text-left">
+                  <span className="text-muted-foreground block text-[10px] md:hidden">
+                    Status
+                  </span>
+                  <Badge variant={statusVariant[allocation.status]} size="sm">
+                    {allocation.status}
+                  </Badge>
+                </div>
+                <div>
+                  <span className="text-muted-foreground block text-[10px] md:hidden">
+                    Token units
+                  </span>
+                  <span className="font-mono text-xs">
+                    {formatTokens(allocation.tokenAmount)}
+                  </span>
+                </div>
+                <div className="text-right">
+                  <span className="text-muted-foreground block text-[10px] md:hidden">
+                    Allocation percentage
+                  </span>
+                  <span className="text-primary font-mono text-xs font-bold">
+                    {formatPct(allocation.equityPercentage)}
+                  </span>
+                </div>
               </div>
             );
           })}
@@ -172,26 +203,27 @@ function SortButton({
   label,
   sortKey,
   current,
-  dir,
+  direction,
   onSort,
 }: {
   label: string;
   sortKey: SortKey;
   current: SortKey;
-  dir: "asc" | "desc";
-  onSort: (k: SortKey) => void;
+  direction: "asc" | "desc";
+  onSort: (key: SortKey) => void;
 }) {
-  const active = current === sortKey;
   return (
     <button
+      type="button"
       onClick={() => onSort(sortKey)}
       className={cn(
-        "flex items-center gap-1 font-mono text-xs whitespace-nowrap",
-        active ? "text-foreground" : "text-muted-foreground hover:text-foreground",
+        "flex min-h-11 items-center justify-end gap-1 font-mono text-xs",
+        current === sortKey ? "text-foreground" : "text-muted-foreground",
       )}
+      aria-label={`Sort by ${label}, ${current === sortKey ? direction : "not selected"}`}
     >
       {label}
-      <ArrowUpDown className={cn("size-3", active ? "opacity-100" : "opacity-40")} />
+      <ArrowUpDown className="size-3" aria-hidden="true" />
     </button>
   );
 }

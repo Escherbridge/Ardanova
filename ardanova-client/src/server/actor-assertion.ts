@@ -46,7 +46,9 @@ export function isActorAssertionActive(): boolean {
 }
 
 /** Normalizes the single Content-Type representation included in a signed request. */
-export function normalizeActorAssertionContentType(value: string | null | undefined): string {
+export function normalizeActorAssertionContentType(
+  value: string | null | undefined,
+): string {
   if (!value) return "";
   return value
     .split(";")
@@ -55,9 +57,27 @@ export function normalizeActorAssertionContentType(value: string | null | undefi
 }
 
 /** Produces a single-use assertion bound to exact BFF request bytes and metadata. */
-export function getActorAssertion(request: ActorAssertionRequest): string | undefined {
+export function getActorAssertion(
+  request: ActorAssertionRequest,
+): string | undefined {
   const actor = actorStorage.getStore();
   if (!actor) return undefined;
+
+  return createActorAssertion(actor, request);
+}
+
+/** Produces the canonical assertion for an explicitly authenticated server actor. */
+export function createActorAssertion(
+  actor: Actor,
+  request: ActorAssertionRequest,
+): string {
+  if (
+    !actor.subject.trim() ||
+    actor.subject.length > 200 ||
+    [...actor.subject].some((character) => /\p{Cc}/u.test(character))
+  ) {
+    throw new Error("Actor subject is invalid.");
+  }
 
   const signingKey = process.env.ACTOR_ASSERTION_HMAC_KEY;
   if (!signingKey || Buffer.byteLength(signingKey, "utf8") < 32) {
@@ -77,12 +97,18 @@ export function getActorAssertion(request: ActorAssertionRequest): string | unde
     requestTarget: `${url.pathname}${url.search}`,
     contentType: normalizeActorAssertionContentType(request.contentType),
     bodySha256: createHash("sha256").update(body).digest("hex"),
-    ...(request.idempotencyKey ? { idempotencyKey: request.idempotencyKey } : {}),
+    ...(request.idempotencyKey
+      ? { idempotencyKey: request.idempotencyKey }
+      : {}),
     jti: randomUUID(),
     issuedAt: now,
     expiresAt: now + assertionLifetimeSeconds,
   };
-  const encodedPayload = Buffer.from(JSON.stringify(payload)).toString("base64url");
-  const signature = createHmac("sha256", signingKey).update(encodedPayload, "ascii").digest("base64url");
+  const encodedPayload = Buffer.from(JSON.stringify(payload)).toString(
+    "base64url",
+  );
+  const signature = createHmac("sha256", signingKey)
+    .update(encodedPayload, "ascii")
+    .digest("base64url");
   return `${encodedPayload}.${signature}`;
 }

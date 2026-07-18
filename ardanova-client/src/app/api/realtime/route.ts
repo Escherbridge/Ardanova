@@ -1,7 +1,10 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import { auth } from "~/server/auth";
 import { connectionManager } from "~/server/websocket";
-import type { ArdaNovaEvent, SubscriptionAction } from "~/lib/websocket/types";
+import {
+  subscriptionActionSchema,
+  type ArdaNovaEvent,
+} from "~/lib/websocket/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -32,10 +35,10 @@ export async function GET(request: NextRequest) {
         const client = await connectionManager.getConnection(userId);
 
         // Send initial connection message
-        const connectMessage = `event: connected\ndata: ${JSON.stringify({ userId, timestamp: new Date().toISOString() })}\n\n`;
+        const connectMessage = `event: connected\ndata: ${JSON.stringify({ timestamp: new Date().toISOString() })}\n\n`;
         controller.enqueue(encoder.encode(connectMessage));
 
-        // Subscribe to all events and forward to SSE stream
+        // Forward only events delivered through the actor's authorized groups.
         unsubscribe = client.on("*", (event: ArdaNovaEvent) => {
           if (!isActive) return;
 
@@ -63,17 +66,18 @@ export async function GET(request: NextRequest) {
         }, 30000); // Every 30 seconds
 
         // Handle client disconnect
-        request.signal.addEventListener("abort", async () => {
+        request.signal.addEventListener("abort", () => {
           isActive = false;
           clearInterval(heartbeatInterval);
           unsubscribe?.();
-          await connectionManager.releaseConnection(userId);
+          void connectionManager.releaseConnection(userId).catch(() => {
+            console.error("[SSE] Failed to release realtime connection");
+          });
           try {
             controller.close();
           } catch {
             // Stream already closed
           }
-          console.log(`[SSE] Client disconnected: ${userId}`);
         });
       } catch (error) {
         console.error("[SSE] Error starting stream:", error);
@@ -88,7 +92,7 @@ export async function GET(request: NextRequest) {
     headers: {
       "Content-Type": "text/event-stream",
       "Cache-Control": "no-cache, no-transform",
-      "Connection": "keep-alive",
+      Connection: "keep-alive",
       "X-Accel-Buffering": "no", // Disable nginx buffering
     },
   });
@@ -107,59 +111,67 @@ export async function POST(request: NextRequest) {
 
   const userId = session.user.id;
 
-  try {
-    const body = await request.json() as SubscriptionAction;
-    const client = await connectionManager.getConnection(userId);
+  const json: unknown = await request.json().catch(() => null);
+  const parsed = subscriptionActionSchema.safeParse(json);
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: "Invalid subscription action" },
+      { status: 400 },
+    );
+  }
 
-    switch (body.action) {
+  let connectionAcquired = false;
+  try {
+    const client = await connectionManager.getConnection(userId);
+    connectionAcquired = true;
+
+    switch (parsed.data.action) {
       case "subscribeToProject":
-        await client.subscribeToProject(body.payload.projectId);
+        await client.subscribeToProject(parsed.data.payload.projectId);
         break;
 
       case "unsubscribeFromProject":
-        await client.unsubscribeFromProject(body.payload.projectId);
+        await client.unsubscribeFromProject(parsed.data.payload.projectId);
         break;
 
-      case "subscribeToAgency":
-        await client.subscribeToAgency(body.payload.agencyId);
+      case "subscribeToGuild":
+        await client.subscribeToGuild(parsed.data.payload.guildId);
         break;
 
-      case "unsubscribeFromAgency":
-        await client.unsubscribeFromAgency(body.payload.agencyId);
+      case "unsubscribeFromGuild":
+        await client.unsubscribeFromGuild(parsed.data.payload.guildId);
         break;
 
-      case "subscribeToUser":
-        await client.subscribeToUser(body.payload.userId);
-        break;
-
-      case "unsubscribeFromUser":
-        await client.unsubscribeFromUser(body.payload.userId);
-        break;
-
-      case "subscribeToAll":
-        await client.subscribeToAll();
-        break;
-
-      case "unsubscribeFromAll":
-        await client.unsubscribeFromAll();
-        break;
-
-      default:
-        return NextResponse.json(
-          { error: "Unknown action" },
-          { status: 400 }
+      case "subscribeToConversation":
+        await client.subscribeToConversation(
+          parsed.data.payload.conversationId,
         );
-    }
+        break;
 
-    // Release the connection ref since POST is a one-shot
-    await connectionManager.releaseConnection(userId);
+      case "unsubscribeFromConversation":
+        await client.unsubscribeFromConversation(
+          parsed.data.payload.conversationId,
+        );
+        break;
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("[SSE POST] Error:", error);
+    console.error("[SSE POST] Subscription command failed", {
+      action: parsed.data.action,
+      error: error instanceof Error ? error.name : "UnknownError",
+    });
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Unknown error" },
-      { status: 500 }
+      { error: "Realtime subscription unavailable" },
+      { status: 502 },
     );
+  } finally {
+    if (connectionAcquired) {
+      try {
+        await connectionManager.releaseConnection(userId);
+      } catch {
+        console.error("[SSE POST] Failed to release realtime connection");
+      }
+    }
   }
 }

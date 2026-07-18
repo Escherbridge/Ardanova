@@ -1,4 +1,45 @@
-import { type BaseApiClient, type ApiResponse, type PagedResult } from "../../base-client";
+import {
+  type BaseApiClient,
+  type ApiResponse,
+  type PagedResult,
+} from "../../base-client";
+
+export type TaskStatus =
+  | "TODO"
+  | "IN_PROGRESS"
+  | "REVIEW"
+  | "COMPLETED"
+  | "BLOCKED";
+export type TaskPriority = "LOW" | "MEDIUM" | "HIGH" | "URGENT";
+export type TaskType =
+  | "FEATURE"
+  | "BUG"
+  | "ENHANCEMENT"
+  | "DOCUMENTATION"
+  | "RESEARCH"
+  | "DESIGN"
+  | "TESTING"
+  | "REVIEW"
+  | "MAINTENANCE"
+  | "OTHER";
+export type EscrowStatus =
+  | "NONE"
+  | "FUNDED"
+  | "RELEASED"
+  | "DISPUTED"
+  | "REFUNDED";
+
+export interface TaskUser {
+  id: string;
+  name?: string | null;
+  image?: string | null;
+}
+
+export interface TaskProject {
+  id: string;
+  title: string;
+  slug: string;
+}
 
 export interface Task {
   id: string;
@@ -11,20 +52,21 @@ export interface Task {
   guildId?: string | null;
   title: string;
   description?: string | null;
-  status: string;
-  priority: string;
-  taskType: string;
-  effortEstimate?: string | null;
+  opportunityId?: string | null;
+  status: TaskStatus;
+  priority: TaskPriority;
+  taskType: TaskType;
   estimatedHours?: number | null;
   actualHours?: number | null;
   equityReward?: number | null;
-  escrowStatus: string;
+  escrowStatus: EscrowStatus;
   dueDate?: string | null;
   completedAt?: string | null;
   createdAt: string;
   updatedAt: string;
   assignedToId?: string | null;
-  opportunityId?: string | null;
+  assignedTo?: TaskUser | null;
+  project?: TaskProject | null;
 }
 
 export interface TaskCommerceView {
@@ -43,9 +85,8 @@ export interface CreateTaskDto {
   projectId: string;
   title: string;
   description?: string;
-  priority?: string;
-  taskType?: string;
-  effortEstimate?: string;
+  priority?: TaskPriority;
+  taskType?: TaskType;
   assignedToId?: string | null;
   pbiId?: string;
   featureId?: string;
@@ -61,21 +102,20 @@ export interface CreateTaskDto {
 export interface UpdateTaskDto {
   title?: string;
   description?: string;
-  priority?: string;
-  taskType?: string;
-  status?: string;
-  effortEstimate?: string;
-  assignedToId?: string | null;
-  pbiId?: string;
+  priority?: TaskPriority;
+  taskType?: TaskType;
+  status?: TaskStatus;
   estimatedHours?: number;
+  actualHours?: number;
   dueDate?: string;
+  equityReward?: number;
 }
 
 export interface SearchTasksParams {
   searchTerm?: string;
-  status?: string;
-  priority?: string;
-  taskType?: string;
+  status?: TaskStatus;
+  priority?: TaskPriority;
+  taskType?: TaskType;
   projectId?: string;
   page?: number;
   pageSize?: number;
@@ -89,14 +129,18 @@ export class TasksEndpoint {
   }
 
   getCommerce(id: string): Promise<ApiResponse<TaskCommerceView>> {
-    return this.client.get<TaskCommerceView>(`/api/task-commerce/${encodeURIComponent(id)}`);
+    return this.client.get<TaskCommerceView>(
+      `/api/task-commerce/${encodeURIComponent(id)}`,
+    );
   }
 
   getMine(): Promise<ApiResponse<Task[]>> {
     return this.client.get<Task[]>("/api/tasks/me");
   }
 
-  search(params: SearchTasksParams = {}): Promise<ApiResponse<PagedResult<Task>>> {
+  search(
+    params: SearchTasksParams = {},
+  ): Promise<ApiResponse<PagedResult<Task>>> {
     const sp = new URLSearchParams();
     if (params.searchTerm) sp.set("searchTerm", params.searchTerm);
     if (params.status) sp.set("status", params.status);
@@ -105,7 +149,9 @@ export class TasksEndpoint {
     if (params.projectId) sp.set("projectId", params.projectId);
     sp.set("page", String(params.page ?? 1));
     sp.set("pageSize", String(params.pageSize ?? 10));
-    return this.client.get<PagedResult<Task>>(`/api/tasks/search?${sp.toString()}`);
+    return this.client.get<PagedResult<Task>>(
+      `/api/tasks/search?${sp.toString()}`,
+    );
   }
 
   create(data: CreateTaskDto): Promise<ApiResponse<Task>> {
@@ -116,7 +162,7 @@ export class TasksEndpoint {
     return this.client.put<Task>(`/api/tasks/${id}`, data);
   }
 
-  updateStatus(id: string, status: string): Promise<ApiResponse<Task>> {
+  updateStatus(id: string, status: TaskStatus): Promise<ApiResponse<Task>> {
     return this.client.patch<Task>(`/api/tasks/${id}/status`, { status });
   }
 

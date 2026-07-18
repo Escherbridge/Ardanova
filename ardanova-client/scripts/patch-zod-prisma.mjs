@@ -27,7 +27,11 @@ const ZOD_MODEL_DIR = join(ROOT, "src", "lib", "zod", "modelSchema");
 
 function parseDecimalFieldsFromDbml() {
   if (!existsSync(DBML_PATH)) {
-    console.warn("  DBML not found at", DBML_PATH, "— skipping decimal analysis");
+    console.warn(
+      "  DBML not found at",
+      DBML_PATH,
+      "— skipping decimal analysis",
+    );
     return { tables: new Map(), count: 0 };
   }
 
@@ -105,7 +109,7 @@ function patchDecimalJsLikeSchema() {
     // Replace inline annotation with cast
     return src.replace(
       /export const DecimalJsLikeSchema:\s*z\.ZodType<Prisma\.DecimalJsLike>\s*=\s*(z\.object\(\{[\s\S]*?\}\))/,
-      "export const DecimalJsLikeSchema = $1 as z.ZodType<Prisma.DecimalJsLike>"
+      "export const DecimalJsLikeSchema = $1 as z.ZodType<Prisma.DecimalJsLike>",
     );
   });
 }
@@ -132,11 +136,14 @@ function patchJsonSchemas() {
       // Ensure runtime Prisma import (not type-only)
       if (!patched.includes("import { Prisma }")) {
         if (patched.includes("import type { Prisma }")) {
-          patched = patched.replace("import type { Prisma }", "import { Prisma }");
+          patched = patched.replace(
+            "import type { Prisma }",
+            "import { Prisma }",
+          );
         } else if (!patched.includes("from '@prisma/client'")) {
           patched = patched.replace(
             "import { z } from 'zod';",
-            "import { z } from 'zod';\nimport { Prisma } from '@prisma/client';"
+            "import { z } from 'zod';\nimport { Prisma } from '@prisma/client';",
           );
         }
       }
@@ -147,7 +154,7 @@ function patchJsonSchemas() {
       // Replace inline type annotation with `as unknown as` cast
       patched = patched.replace(
         /export const (\w+):\s*z\.ZodType<(Prisma\.\w+)>\s*=\s*([\s\S]+?);/,
-        "export const $1 = $3 as unknown as z.ZodType<$2>;"
+        "export const $1 = $3 as unknown as z.ZodType<$2>;",
       );
 
       return patched;
@@ -155,22 +162,35 @@ function patchJsonSchemas() {
   }
 }
 
+function patchInputJsonValueSchema() {
+  const filepath = join(ZOD_INPUT_DIR, "InputJsonValueSchema.ts");
+  patchFile(filepath, (src) =>
+    src.replace(
+      "import { Prisma } from '@prisma/client';",
+      "import type { Prisma } from '@prisma/client';",
+    ),
+  );
+}
+
 // ---------------------------------------------------------------------------
 // 5. Main
 // ---------------------------------------------------------------------------
 
-console.log("patch-zod-prisma: Analyzing DBML and patching generated schemas...");
+console.log(
+  "patch-zod-prisma: Analyzing DBML and patching generated schemas...",
+);
 
 const { tables, count } = parseDecimalFieldsFromDbml();
-console.log(`  Found ${count} decimal fields across ${tables.size} tables in DBML`);
+console.log(
+  `  Found ${count} decimal fields across ${tables.size} tables in DBML`,
+);
 
 if (count > 0) {
-  console.log(
-    `  Tables with decimals: ${[...tables.keys()].join(", ")}`
-  );
+  console.log(`  Tables with decimals: ${[...tables.keys()].join(", ")}`);
 }
 
 patchDecimalJsLikeSchema();
 patchJsonSchemas();
+patchInputJsonValueSchema();
 
 console.log("patch-zod-prisma: Done.");

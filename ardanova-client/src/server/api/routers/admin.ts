@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { createTRPCRouter, adminProcedure } from "~/server/api/trpc";
-import { apiClient } from "~/lib/api";
+import { getAdminApiClient } from "~/server/admin-api-client";
 
 // ---------------------------------------------------------------------------
 // Zod schemas
@@ -16,13 +16,6 @@ const userTypeSchema = z.enum([
   "SME_OWNER",
   "GUILD_MEMBER",
 ]);
-const verificationLevelSchema = z.enum([
-  "ANONYMOUS",
-  "VERIFIED",
-  "PRO",
-  "EXPERT",
-]);
-
 // ---------------------------------------------------------------------------
 // Router - thin proxy to .NET API via apiClient (admin-only)
 // ---------------------------------------------------------------------------
@@ -39,9 +32,12 @@ export const adminRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input }) => {
-      const response = await apiClient.users.updateRole(input.userId, {
-        role: input.role,
-      });
+      const response = await getAdminApiClient().users.updateRole(
+        input.userId,
+        {
+          role: input.role,
+        },
+      );
 
       if (response.error || !response.data) {
         throw new TRPCError({
@@ -64,41 +60,17 @@ export const adminRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input }) => {
-      const response = await apiClient.users.updateUserType(input.userId, {
-        userType: input.userType,
-      });
-
-      if (response.error || !response.data) {
-        throw new TRPCError({
-          code: response.status === 404 ? "NOT_FOUND" : "INTERNAL_SERVER_ERROR",
-          message: response.error ?? "Failed to update user type",
-        });
-      }
-
-      return response.data;
-    }),
-
-  /**
-   * Update a user's verification level (admin only).
-   */
-  updateVerificationLevel: adminProcedure
-    .input(
-      z.object({
-        userId: z.string().min(1),
-        verificationLevel: verificationLevelSchema,
-      }),
-    )
-    .mutation(async ({ input }) => {
-      const response = await apiClient.users.updateVerificationLevel(
+      const response = await getAdminApiClient().users.updateUserType(
         input.userId,
-        { verificationLevel: input.verificationLevel },
+        {
+          userType: input.userType,
+        },
       );
 
       if (response.error || !response.data) {
         throw new TRPCError({
           code: response.status === 404 ? "NOT_FOUND" : "INTERNAL_SERVER_ERROR",
-          message:
-            response.error ?? "Failed to update user verification level",
+          message: response.error ?? "Failed to update user type",
         });
       }
 

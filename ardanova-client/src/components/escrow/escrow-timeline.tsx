@@ -7,7 +7,6 @@ import {
   AlertTriangle,
   CheckCircle2,
   Clock,
-  GitMerge,
 } from "lucide-react";
 import { cn } from "~/lib/utils";
 
@@ -24,7 +23,6 @@ interface TimelineEvent {
   label: string;
   description: string;
   date: Date | string | null | undefined;
-  icon: React.ComponentType<{ className?: string }>;
   color: string;
   dotColor: string;
   lineColor: string;
@@ -50,20 +48,19 @@ export function EscrowTimeline({ escrow, className }: EscrowTimelineProps) {
   const allEvents: TimelineEvent[] = [
     {
       key: "created",
-      label: "Escrow Created",
-      description: "Escrow record initialised, awaiting funding.",
+      label: "Escrow record created",
+      description:
+        "The record exists; funding is not yet confirmed by this event.",
       date: escrow.createdAt,
-      icon: Circle,
       color: "text-muted-foreground",
       dotColor: "bg-muted-foreground",
       lineColor: "bg-white/10",
     },
     {
       key: "funded",
-      label: "Funded",
-      description: "Funds deposited into escrow.",
+      label: "Funding recorded",
+      description: "A funding event was recorded for this escrow.",
       date: escrow.fundedAt,
-      icon: Coins,
       color: "text-neon-cyan",
       dotColor: "bg-neon-cyan",
       lineColor: "bg-neon-cyan/30",
@@ -73,27 +70,25 @@ export function EscrowTimeline({ escrow, className }: EscrowTimelineProps) {
       label: "Dispute Raised",
       description: "Funds frozen pending admin resolution.",
       date: escrow.disputedAt,
-      icon: AlertTriangle,
       color: "text-neon-pink",
       dotColor: "bg-neon-pink",
       lineColor: "bg-neon-pink/30",
     },
     {
       key: "resolved",
-      label: "Dispute Resolved",
-      description: "Admin reviewed and resolved the dispute.",
+      label: "Resolution recorded",
+      description: "A dispute resolution decision was recorded.",
       date: escrow.resolvedAt,
-      icon: CheckCircle2,
       color: "text-neon-green",
       dotColor: "bg-neon-green",
       lineColor: "bg-neon-green/30",
     },
     {
       key: "released",
-      label: "Funds Released",
-      description: "Funds transferred to the contributor.",
+      label: "Release authorization recorded",
+      description:
+        "Release was authorized; this event alone does not confirm contributor settlement.",
       date: escrow.releasedAt,
-      icon: ArrowDownCircle,
       color: "text-neon-green",
       dotColor: "bg-neon-green",
       lineColor: "bg-neon-green/30",
@@ -102,7 +97,7 @@ export function EscrowTimeline({ escrow, className }: EscrowTimelineProps) {
 
   // Filter to only events that occurred (have a date), always include created
   const occurredEvents = allEvents.filter(
-    (e) => e.key === "created" || (e.date != null)
+    (e) => e.key === "created" || e.date != null,
   );
 
   // Sort by date
@@ -112,62 +107,74 @@ export function EscrowTimeline({ escrow, className }: EscrowTimelineProps) {
     return new Date(a.date).getTime() - new Date(b.date).getTime();
   });
 
-  // Pending steps: events that haven't occurred yet, shown as upcoming
-  const pendingSteps: TimelineEvent[] = allEvents.filter(
-    (e) =>
-      e.key !== "created" &&
-      !e.date &&
-      // Only show "funded" as pending if not disputed/released
-      (e.key !== "funded" || (!escrow.fundedAt && !escrow.releasedAt && !escrow.disputedAt))
-  );
-
   const displayEvents = [...sortedEvents];
-  // Add a single "pending next step" indicator
-  const nextPending = pendingSteps[0];
+  const nextPending =
+    escrow.disputedAt && !escrow.resolvedAt
+      ? {
+          label: "Resolution pending",
+          description: "Funds remain held while the dispute is reviewed.",
+        }
+      : escrow.releasedAt
+        ? {
+            label: "Settlement reconciliation",
+            description:
+              "Confirm the contributor payout independently before treating the obligation as settled.",
+          }
+        : escrow.resolvedAt
+          ? {
+              label: "Settlement action pending",
+              description:
+                "Follow the recorded resolution, then reconcile the resulting payout or refund.",
+            }
+          : escrow.fundedAt
+            ? {
+                label: "Release decision pending",
+                description:
+                  "Funds remain in escrow until an authorized release, dispute, or refund action is recorded.",
+              }
+            : {
+                label: "Funding confirmation pending",
+                description:
+                  "Record and verify the funding event before work is treated as funded.",
+              };
 
   return (
     <div className={cn("space-y-0", className)}>
-      <p className="mb-4 text-xs font-medium uppercase tracking-widest text-muted-foreground">
+      <p className="text-muted-foreground mb-4 text-xs font-medium tracking-widest uppercase">
         Timeline
       </p>
 
       <div className="relative">
-        {displayEvents.map((event, idx) => {
-          const Icon = event.icon;
-          const isLast = idx === displayEvents.length - 1 && !nextPending;
-
+        {displayEvents.map((event) => {
           return (
             <div key={event.key} className="flex gap-3">
               {/* Dot + line column */}
               <div className="flex flex-col items-center">
                 <div
                   className={cn(
-                    "flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 border-background",
-                    event.dotColor
+                    "border-background flex h-7 w-7 shrink-0 items-center justify-center rounded-none border-2",
+                    event.dotColor,
                   )}
                 >
-                  <Icon className="h-3.5 w-3.5 text-background" />
+                  <TimelineIcon eventKey={event.key} />
                 </div>
-                {!isLast && (
-                  <div
-                    className={cn(
-                      "w-0.5 flex-1 min-h-[1.5rem]",
-                      event.lineColor
-                    )}
-                  />
-                )}
+                <div
+                  className={cn("min-h-[1.5rem] w-0.5 flex-1", event.lineColor)}
+                />
               </div>
 
               {/* Content */}
-              <div className={cn("pb-5", isLast && "pb-0")}>
-                <p className={cn("text-sm font-semibold leading-7", event.color)}>
+              <div className="pb-5">
+                <p
+                  className={cn("text-sm leading-7 font-semibold", event.color)}
+                >
                   {event.label}
                 </p>
-                <p className="text-xs text-muted-foreground">
+                <p className="text-muted-foreground text-xs">
                   {event.description}
                 </p>
                 {event.date && (
-                  <p className="mt-0.5 font-mono text-xs text-muted-foreground/70">
+                  <p className="text-muted-foreground/70 mt-0.5 font-mono text-xs">
                     {formatDate(event.date)}
                   </p>
                 )}
@@ -177,42 +184,40 @@ export function EscrowTimeline({ escrow, className }: EscrowTimelineProps) {
         })}
 
         {/* Pending next step */}
-        {nextPending && (
-          <div className="flex gap-3">
-            <div className="flex flex-col items-center">
-              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 border-dashed border-white/20 bg-transparent">
-                <Clock className="h-3.5 w-3.5 text-white/30" />
-              </div>
-            </div>
-            <div>
-              <p className="text-sm font-medium text-white/30">
-                {nextPending.label}
-              </p>
-              <p className="text-xs text-muted-foreground/50">
-                {nextPending.description}
-              </p>
-              <p className="mt-0.5 text-xs text-muted-foreground/30">Pending</p>
+        <div className="flex gap-3">
+          <div className="flex flex-col items-center">
+            <div className="border-border flex h-7 w-7 shrink-0 items-center justify-center rounded-none border-2 border-dashed bg-transparent">
+              <Clock className="text-muted-foreground h-3.5 w-3.5" />
             </div>
           </div>
-        )}
-
-        {/* If everything is done */}
-        {!nextPending && (
-          <div className="flex gap-3">
-            <div className="flex flex-col items-center">
-              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-neon-green">
-                <GitMerge className="h-3.5 w-3.5 text-background" />
-              </div>
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-neon-green">Complete</p>
-              <p className="text-xs text-muted-foreground">
-                Escrow lifecycle finished.
-              </p>
-            </div>
+          <div>
+            <p className="text-muted-foreground text-sm font-medium">
+              {nextPending.label}
+            </p>
+            <p className="text-muted-foreground text-xs">
+              {nextPending.description}
+            </p>
+            <p className="text-muted-foreground mt-0.5 text-xs">Pending</p>
           </div>
-        )}
+        </div>
       </div>
     </div>
   );
+}
+
+function TimelineIcon({ eventKey }: { eventKey: string }) {
+  const className = "text-background h-3.5 w-3.5";
+  switch (eventKey) {
+    case "funded":
+      return <Coins className={className} aria-hidden="true" />;
+    case "disputed":
+      return <AlertTriangle className={className} aria-hidden="true" />;
+    case "resolved":
+      return <CheckCircle2 className={className} aria-hidden="true" />;
+    case "released":
+      return <ArrowDownCircle className={className} aria-hidden="true" />;
+    case "created":
+    default:
+      return <Circle className={className} aria-hidden="true" />;
+  }
 }

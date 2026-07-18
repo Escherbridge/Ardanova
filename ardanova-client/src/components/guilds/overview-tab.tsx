@@ -30,138 +30,161 @@ interface OverviewTabProps {
 export function OverviewTab({ guild }: OverviewTabProps) {
   return (
     <div className="space-y-6">
-      <Card className="bg-card border-2 border-border">
+      <Card className="bg-card border-border border-2">
         <CardHeader>
-          <CardTitle className="text-lg flex items-center gap-2">
-            <div className="w-8 h-8 bg-neon-purple/20 rounded-lg flex items-center justify-center border border-neon-purple/30">
-              <Building2 className="size-4 text-neon-purple" />
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <div className="bg-system/20 border-system/30 flex h-8 w-8 items-center justify-center rounded-none border">
+              <Building2 className="text-system size-4" />
             </div>
             About the Guild
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-foreground whitespace-pre-wrap leading-relaxed">
+          <p className="text-foreground leading-relaxed whitespace-pre-wrap">
             {guild.description || "No description provided."}
           </p>
         </CardContent>
       </Card>
 
-      <Card className="bg-card border-2 border-border">
+      <Card className="bg-card border-border border-2">
         <CardHeader>
-          <CardTitle className="text-lg flex items-center gap-2">
-            <div className="w-8 h-8 bg-neon-green/20 rounded-lg flex items-center justify-center border border-neon-green/30">
-              <Mail className="size-4 text-neon-green" />
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <div className="bg-success/20 border-success/30 flex h-8 w-8 items-center justify-center rounded-none border">
+              <Mail className="text-success size-4" />
             </div>
             Contact Information
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           {guild.email && (
-            <div className="flex items-center gap-3 text-foreground">
-              <Mail className="size-4 text-muted-foreground" />
+            <div className="text-foreground flex items-center gap-3">
+              <Mail className="text-muted-foreground size-4" />
               <a
                 href={`mailto:${guild.email}`}
-                className="hover:text-primary transition-colors"
+                className="hover:text-primary inline-flex min-h-11 items-center transition-colors"
               >
                 {guild.email}
               </a>
             </div>
           )}
           {guild.phone && (
-            <div className="flex items-center gap-3 text-foreground">
-              <Phone className="size-4 text-muted-foreground" />
+            <div className="text-foreground flex items-center gap-3">
+              <Phone className="text-muted-foreground size-4" />
               <a
                 href={`tel:${guild.phone}`}
-                className="hover:text-primary transition-colors"
+                className="hover:text-primary inline-flex min-h-11 items-center transition-colors"
               >
                 {guild.phone}
               </a>
             </div>
           )}
           {guild.website && (
-            <div className="flex items-center gap-3 text-foreground">
-              <Globe className="size-4 text-muted-foreground" />
+            <div className="text-foreground flex items-center gap-3">
+              <Globe className="text-muted-foreground size-4" />
               <a
                 href={guild.website}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="hover:text-primary transition-colors"
+                className="hover:text-primary inline-flex min-h-11 items-center transition-colors"
               >
                 {guild.website}
               </a>
             </div>
           )}
           {guild.address && (
-            <div className="flex items-center gap-3 text-foreground">
-              <MapPin className="size-4 text-muted-foreground" />
+            <div className="text-foreground flex items-center gap-3">
+              <MapPin className="text-muted-foreground size-4" />
               <span>{guild.address}</span>
             </div>
           )}
           {!guild.email && !guild.phone && !guild.website && !guild.address && (
-            <p className="text-muted-foreground">No contact information provided.</p>
+            <p className="text-muted-foreground">
+              No contact information provided.
+            </p>
           )}
         </CardContent>
       </Card>
 
       {guild.specialties && (
-        <Card className="bg-card border-2 border-border">
+        <Card className="bg-card border-border border-2">
           <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <div className="w-8 h-8 bg-neon-pink/20 rounded-lg flex items-center justify-center border border-neon-pink/30">
-                <Briefcase className="size-4 text-neon-pink" />
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <div className="bg-primary/20 border-primary/30 flex h-8 w-8 items-center justify-center rounded-none border">
+                <Briefcase className="text-primary size-4" />
               </div>
               Specialties & Expertise
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex flex-wrap gap-2">
-              {guild.specialties.split(",").map((specialty: string, i: number) => (
-                <Badge key={i} variant="secondary">
-                  {specialty.trim()}
-                </Badge>
-              ))}
+              {guild.specialties
+                .split(",")
+                .map((specialty: string, i: number) => (
+                  <Badge key={i} variant="secondary">
+                    {specialty.trim()}
+                  </Badge>
+                ))}
             </div>
           </CardContent>
         </Card>
       )}
 
       {guild.portfolio && (
-        <Card className="bg-card border-2 border-border">
+        <Card className="bg-card border-border border-2">
           <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <div className="w-8 h-8 bg-primary/20 rounded-lg flex items-center justify-center border border-primary/30">
-                <FileText className="size-4 text-primary" />
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <div className="bg-primary/20 border-primary/30 flex h-8 w-8 items-center justify-center rounded-none border">
+                <FileText className="text-primary size-4" />
               </div>
               Portfolio
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-foreground whitespace-pre-wrap leading-relaxed">
+            <p className="text-foreground leading-relaxed whitespace-pre-wrap">
               {guild.portfolio}
             </p>
           </CardContent>
         </Card>
       )}
 
-      <Card className="bg-gradient-to-br from-neon-pink/10 to-neon-purple/10 border-2 border-neon-pink/30">
-        <CardContent className="pt-6">
-          <div className="flex items-start gap-4">
-            <div className="w-10 h-10 bg-neon-pink/20 rounded-lg flex items-center justify-center border border-neon-pink/30 flex-shrink-0">
-              <Target className="size-5 text-neon-pink" />
+      {(guild.email || guild.phone || guild.website) && (
+        <Card className="border-primary bg-card border-2">
+          <CardContent className="pt-6">
+            <div className="flex items-start gap-4">
+              <div className="bg-primary/20 border-primary/30 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-none border">
+                <Target className="text-primary size-5" />
+              </div>
+              <div className="flex-1">
+                <h3 className="mb-2 text-lg font-semibold">Work With Us</h3>
+                <p className="text-muted-foreground mb-4">
+                  Looking for experienced professionals to bring your project to
+                  life? Use the guild&apos;s published contact channel to
+                  discuss the work.
+                </p>
+                {guild.email ? (
+                  <Button asChild variant="default">
+                    <a href={`mailto:${guild.email}`}>Email the guild</a>
+                  </Button>
+                ) : guild.website ? (
+                  <Button asChild variant="default">
+                    <a
+                      href={guild.website}
+                      rel="noopener noreferrer"
+                      target="_blank"
+                    >
+                      Visit the guild website
+                    </a>
+                  </Button>
+                ) : (
+                  <Button asChild variant="default">
+                    <a href={`tel:${guild.phone}`}>Call the guild</a>
+                  </Button>
+                )}
+              </div>
             </div>
-            <div className="flex-1">
-              <h3 className="text-lg font-semibold mb-2">Work With Us</h3>
-              <p className="text-muted-foreground mb-4">
-                Looking for experienced professionals to bring your project to life?
-                Get in touch to discuss how we can help achieve your goals.
-              </p>
-              <Button variant="default">
-                Get in Touch
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

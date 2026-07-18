@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import type { Prisma } from "@prisma/client";
 
 /**
  * Tests for the NextAuth configuration callbacks.
@@ -11,16 +12,24 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 // Mocks -- vi.hoisted ensures these are available when vi.mock factories run
 // ---------------------------------------------------------------------------
 
-const { mockFindUnique, mockCreate } = vi.hoisted(() => ({
-  mockFindUnique: vi.fn(),
-  mockCreate: vi.fn(),
-}));
+const { mockFindUnique, mockCreate, mockAccountFindUnique } = vi.hoisted(
+  () => ({
+    mockFindUnique:
+      vi.fn<(args: Prisma.UserFindUniqueArgs) => Promise<unknown>>(),
+    mockCreate: vi.fn<(args: Prisma.UserCreateArgs) => Promise<unknown>>(),
+    mockAccountFindUnique:
+      vi.fn<(args: Prisma.AccountFindUniqueArgs) => Promise<unknown>>(),
+  }),
+);
 
 vi.mock("~/server/db", () => ({
   db: {
     user: {
       findUnique: mockFindUnique,
       create: mockCreate,
+    },
+    account: {
+      findUnique: mockAccountFindUnique,
     },
   },
 }));
@@ -65,9 +74,60 @@ const mockDbUser = {
   verificationLevel: "ANONYMOUS",
 };
 
-/** Shorthand for extracting callbacks from the config. */
-const { jwt: jwtCallback, session: sessionCallback, signIn: signInCallback } =
-  authConfig.callbacks;
+type JwtCallbackParams = Parameters<typeof authConfig.callbacks.jwt>[0];
+type SessionCallbackParams = Parameters<typeof authConfig.callbacks.session>[0];
+type SignInCallbackParams = Parameters<typeof authConfig.callbacks.signIn>[0];
+
+const jwtCallback = (params: JwtCallbackParams) =>
+  authConfig.callbacks.jwt(params);
+const sessionCallback = (params: SessionCallbackParams) =>
+  authConfig.callbacks.session(params);
+const signInCallback = (params: SignInCallbackParams) =>
+  authConfig.callbacks.signIn(params);
+
+const googleAccount = {
+  provider: "google",
+  providerAccountId: "google-user-123",
+  type: "oidc",
+} satisfies NonNullable<JwtCallbackParams["account"]>;
+
+const credentialsAccount = {
+  provider: "credentials",
+  providerAccountId: "credentials-user-123",
+  type: "credentials",
+} satisfies NonNullable<SignInCallbackParams["account"]>;
+
+function googleProfile(
+  email: string,
+  overrides: Partial<NonNullable<JwtCallbackParams["profile"]>> = {},
+): NonNullable<JwtCallbackParams["profile"]> {
+  return {
+    email,
+    email_verified: true,
+    sub: googleAccount.providerAccountId,
+    ...overrides,
+  };
+}
+
+function jwtParams(
+  overrides: Omit<Partial<JwtCallbackParams>, "token"> & {
+    token?: JwtCallbackParams["token"];
+  },
+): JwtCallbackParams {
+  return { ...overrides, token: overrides.token ?? {} };
+}
+
+function sessionParams(
+  token: SessionCallbackParams["token"],
+): SessionCallbackParams {
+  return {
+    session: {
+      user: { id: "", email: "", name: "", image: "" },
+      expires: new Date().toISOString(),
+    },
+    token,
+  };
+}
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -96,25 +156,35 @@ describe("authConfig", () => {
     });
   });
 
+  describe("custom pages", () => {
+    it("should route sign-in and errors through the branded pages", () => {
+      expect(authConfig.pages).toEqual({
+        signIn: "/auth/signin",
+        error: "/auth/error",
+      });
+    });
+  });
+
   // -------------------------------------------------------------------------
   // JWT callback
   // -------------------------------------------------------------------------
 
   describe("jwt callback", () => {
     it("should populate token with all five required claims from DB user on first sign-in", async () => {
-      mockFindUnique.mockResolvedValue(mockDbUser);
+      mockAccountFindUnique.mockResolvedValue({ user: mockDbUser });
 
-      const token = await jwtCallback({
-        token: { email: "test@example.com" },
-        user: { email: "test@example.com" },
-        account: { provider: "google" } as any,
-        profile: {
-          email: "test@example.com",
-          name: "Test User",
-          picture: "https://example.com/avatar.jpg",
-        } as any,
-        trigger: "signIn",
-      } as any);
+      const token = await jwtCallback(
+        jwtParams({
+          token: { email: "test@example.com" },
+          user: { email: "test@example.com" },
+          account: googleAccount,
+          profile: googleProfile("test@example.com", {
+            name: "Test User",
+            picture: "https://example.com/avatar.jpg",
+          }),
+          trigger: "signIn",
+        }),
+      );
 
       // All five required claims: userId (as id), email, role, userType, verificationLevel
       expect(token.id).toBe("user-123");
@@ -131,13 +201,12 @@ describe("authConfig", () => {
         verificationLevel: "VERIFIED",
       });
 
-      const token = await jwtCallback({
-        token: { email: "test@example.com" },
-        user: undefined,
-        account: undefined,
-        profile: undefined,
-        trigger: "update",
-      } as any);
+      const token = await jwtCallback(
+        jwtParams({
+          token: { id: "user-123", email: "test@example.com" },
+          trigger: "update",
+        }),
+      );
 
       expect(token.id).toBe("user-123");
       expect(token.verificationLevel).toBe("VERIFIED");
@@ -145,53 +214,113 @@ describe("authConfig", () => {
 
     it("should handle all VerificationLevel enum values", async () => {
       for (const level of ["ANONYMOUS", "VERIFIED", "PRO", "EXPERT"]) {
-        mockFindUnique.mockResolvedValue({
-          ...mockDbUser,
-          verificationLevel: level,
+        mockAccountFindUnique.mockResolvedValue({
+          user: { ...mockDbUser, verificationLevel: level },
         });
 
-        const token = await jwtCallback({
-          token: { email: "test@example.com" },
-          user: { email: "test@example.com" },
-          account: { provider: "google" } as any,
-          profile: { email: "test@example.com" } as any,
-          trigger: "signIn",
-        } as any);
+        const token = await jwtCallback(
+          jwtParams({
+            token: { email: "test@example.com" },
+            user: { email: "test@example.com" },
+            account: googleAccount,
+            profile: googleProfile("test@example.com"),
+            trigger: "signIn",
+          }),
+        );
 
         expect(token.verificationLevel).toBe(level);
       }
     });
 
-    it("should query DB by user email on first sign-in", async () => {
-      mockFindUnique.mockResolvedValue(mockDbUser);
+    it("should query the immutable provider account on first sign-in", async () => {
+      mockAccountFindUnique.mockResolvedValue({ user: mockDbUser });
 
-      await jwtCallback({
-        token: { email: "test@example.com" },
-        user: { email: "test@example.com" },
-        account: { provider: "google" } as any,
-        profile: { email: "test@example.com" } as any,
-        trigger: "signIn",
-      } as any);
+      await jwtCallback(
+        jwtParams({
+          token: { email: "test@example.com" },
+          user: { email: "test@example.com" },
+          account: googleAccount,
+          profile: googleProfile("test@example.com"),
+          trigger: "signIn",
+        }),
+      );
 
-      expect(mockFindUnique).toHaveBeenCalledWith({
-        where: { email: "test@example.com" },
-      });
+      expect(mockAccountFindUnique).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            provider_providerAccountId: {
+              provider: "google",
+              providerAccountId: "google-user-123",
+            },
+          },
+        }),
+      );
+      expect(mockFindUnique).not.toHaveBeenCalled();
     });
 
-    it("should query DB by token email when user object is absent", async () => {
+    it("should query DB by the authorized token user id on refresh", async () => {
       mockFindUnique.mockResolvedValue(mockDbUser);
 
-      await jwtCallback({
-        token: { email: "returning@example.com" },
-        user: undefined,
-        account: undefined,
-        profile: undefined,
-        trigger: "update",
-      } as any);
+      await jwtCallback(
+        jwtParams({
+          token: { id: "user-123", email: "returning@example.com" },
+          trigger: "update",
+        }),
+      );
 
-      expect(mockFindUnique).toHaveBeenCalledWith({
-        where: { email: "returning@example.com" },
-      });
+      const query = mockFindUnique.mock.calls.at(0)?.[0];
+      expect(query?.where).toEqual({ id: "user-123" });
+      expect(query?.select).toMatchObject({ id: true, email: true });
+    });
+
+    it("should remove stale authorization claims when the user no longer exists", async () => {
+      mockFindUnique.mockResolvedValue(null);
+
+      const token = await jwtCallback(
+        jwtParams({
+          token: {
+            email: "removed@example.com",
+            id: "removed-user",
+            role: "ADMIN",
+            userType: "VOLUNTEER",
+            isVerified: true,
+            verificationLevel: "EXPERT",
+          },
+          trigger: "update",
+        }),
+      );
+
+      expect(token.id).toBeUndefined();
+      expect(token.role).toBeUndefined();
+      expect(token.userType).toBeUndefined();
+      expect(token.isVerified).toBeUndefined();
+      expect(token.verificationLevel).toBeUndefined();
+    });
+
+    it("should remove stale authorization claims when the database is unavailable", async () => {
+      mockFindUnique.mockRejectedValue(new Error("DB unavailable"));
+      const warn = vi
+        .spyOn(console, "warn")
+        .mockImplementation(() => undefined);
+
+      const token = await jwtCallback(
+        jwtParams({
+          token: {
+            email: "returning@example.com",
+            id: "stale-user",
+            role: "ADMIN",
+            userType: "VOLUNTEER",
+            isVerified: true,
+            verificationLevel: "EXPERT",
+          },
+          trigger: "update",
+        }),
+      );
+
+      expect(token.id).toBeUndefined();
+      expect(token.role).toBeUndefined();
+      expect(token.verificationLevel).toBeUndefined();
+      warn.mockRestore();
     });
   });
 
@@ -212,15 +341,7 @@ describe("authConfig", () => {
         verificationLevel: "ANONYMOUS",
       };
 
-      const mockSession = {
-        user: { id: "", email: "", name: "", image: "" },
-        expires: new Date().toISOString(),
-      };
-
-      const session = await sessionCallback({
-        session: mockSession,
-        token: mockToken,
-      } as any);
+      const session = await sessionCallback(sessionParams(mockToken));
 
       // Verify all required claims are in the session
       expect(session.user.id).toBe("user-123");
@@ -244,15 +365,7 @@ describe("authConfig", () => {
           verificationLevel: level,
         };
 
-        const mockSession = {
-          user: { id: "", email: "", name: "", image: "" },
-          expires: new Date().toISOString(),
-        };
-
-        const session = await sessionCallback({
-          session: mockSession,
-          token: mockToken,
-        } as any);
+        const session = await sessionCallback(sessionParams(mockToken));
 
         expect(session.user.verificationLevel).toBe(level);
       }
@@ -263,15 +376,7 @@ describe("authConfig", () => {
         email: "test@example.com",
       };
 
-      const mockSession = {
-        user: { id: "", email: "", name: "", image: "" },
-        expires: new Date().toISOString(),
-      };
-
-      const session = await sessionCallback({
-        session: mockSession,
-        token: mockToken,
-      } as any);
+      const session = await sessionCallback(sessionParams(mockToken));
 
       // id should remain empty since token.id was not set
       expect(session.user.id).toBe("");
@@ -285,73 +390,128 @@ describe("authConfig", () => {
   // -------------------------------------------------------------------------
 
   describe("signIn callback", () => {
-    it("should return true for existing Google user", async () => {
-      mockFindUnique.mockResolvedValue(mockDbUser);
+    it("should return true for an existing linked Google identity", async () => {
+      mockAccountFindUnique.mockResolvedValue({ user: mockDbUser });
 
       const result = await signInCallback({
-        user: { email: "test@example.com" } as any,
-        account: { provider: "google" } as any,
-        profile: { email: "test@example.com", name: "Test" } as any,
-        email: undefined,
-        credentials: undefined,
-      } as any);
+        user: { email: "test@example.com" },
+        account: googleAccount,
+        profile: googleProfile("test@example.com", { name: "Test" }),
+      });
 
       expect(result).toBe(true);
+      expect(mockFindUnique).not.toHaveBeenCalled();
     });
 
-    it("should create a new user when none exists and return true", async () => {
+    it("should atomically create a new user and immutable provider link", async () => {
+      mockAccountFindUnique.mockResolvedValue(null);
       mockFindUnique.mockResolvedValue(null);
       mockCreate.mockResolvedValue(mockDbUser);
 
       const result = await signInCallback({
-        user: { email: "new@example.com" } as any,
-        account: { provider: "google" } as any,
-        profile: {
-          email: "new@example.com",
+        user: { email: "new@example.com" },
+        account: googleAccount,
+        profile: googleProfile("new@example.com", {
           name: "New User",
           picture: "https://example.com/new.jpg",
-        } as any,
-        email: undefined,
-        credentials: undefined,
-      } as any);
-
-      expect(result).toBe(true);
-      expect(mockCreate).toHaveBeenCalledWith({
-        data: expect.objectContaining({
-          email: "new@example.com",
-          name: "New User",
-          role: "INDIVIDUAL",
-          userType: "VOLUNTEER",
-          isVerified: false,
         }),
       });
+
+      expect(result).toBe(true);
+      const createArgs = mockCreate.mock.calls.at(0)?.[0];
+      expect(createArgs?.data).toMatchObject({
+        email: "new@example.com",
+        name: "New User",
+        role: "INDIVIDUAL",
+        userType: "VOLUNTEER",
+        isVerified: false,
+        accounts: {
+          create: {
+            type: "oidc",
+            provider: "google",
+            providerAccountId: "google-user-123",
+          },
+        },
+      });
+      expect(createArgs?.data.emailVerified).toBeInstanceOf(Date);
+    });
+
+    it("should deny implicit linking when a local email is already owned", async () => {
+      mockAccountFindUnique.mockResolvedValue(null);
+      mockFindUnique.mockResolvedValue({ id: "legacy-user" });
+      const error = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => undefined);
+
+      const result = await signInCallback({
+        user: { email: "test@example.com" },
+        account: googleAccount,
+        profile: googleProfile("test@example.com"),
+      });
+
+      expect(result).toBe(false);
+      expect(mockCreate).not.toHaveBeenCalled();
+      error.mockRestore();
     });
 
     it("should return false on database error", async () => {
-      mockFindUnique.mockRejectedValue(new Error("DB connection error"));
+      mockAccountFindUnique.mockRejectedValue(new Error("DB connection error"));
 
       const result = await signInCallback({
-        user: { email: "test@example.com" } as any,
-        account: { provider: "google" } as any,
-        profile: { email: "test@example.com", name: "Test" } as any,
-        email: undefined,
-        credentials: undefined,
-      } as any);
+        user: { email: "test@example.com" },
+        account: googleAccount,
+        profile: googleProfile("test@example.com", { name: "Test" }),
+      });
 
       expect(result).toBe(false);
     });
 
-    it("should return true for non-Google providers without DB interaction", async () => {
-      const result = await signInCallback({
-        user: { email: "test@example.com" } as any,
-        account: { provider: "credentials" } as any,
-        profile: undefined,
-        email: undefined,
-        credentials: undefined,
-      } as any);
+    it("should deny a Google profile without a verified email claim", async () => {
+      const error = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => undefined);
 
-      expect(result).toBe(true);
+      const result = await signInCallback({
+        user: { email: null },
+        account: googleAccount,
+        profile: googleProfile("test@example.com", { email_verified: false }),
+      });
+
+      expect(result).toBe(false);
       expect(mockFindUnique).not.toHaveBeenCalled();
+      expect(mockAccountFindUnique).not.toHaveBeenCalled();
+      error.mockRestore();
+    });
+
+    it("should deny a mismatched Google subject", async () => {
+      const error = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => undefined);
+
+      const result = await signInCallback({
+        user: { email: "test@example.com" },
+        account: googleAccount,
+        profile: googleProfile("test@example.com", { sub: "other-subject" }),
+      });
+
+      expect(result).toBe(false);
+      expect(mockAccountFindUnique).not.toHaveBeenCalled();
+      error.mockRestore();
+    });
+
+    it("should deny unexpected providers without DB interaction", async () => {
+      const error = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => undefined);
+      const result = await signInCallback({
+        user: { email: "test@example.com" },
+        account: credentialsAccount,
+      });
+
+      expect(result).toBe(false);
+      expect(mockFindUnique).not.toHaveBeenCalled();
+      expect(mockAccountFindUnique).not.toHaveBeenCalled();
+      error.mockRestore();
     });
   });
 });

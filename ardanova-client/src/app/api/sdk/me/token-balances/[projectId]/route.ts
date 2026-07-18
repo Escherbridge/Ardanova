@@ -18,16 +18,21 @@ export async function GET(
   const { projectId } = await params;
 
   const response = await runWithActorAssertion(
-    { subject: session!.user.id, role: session!.user.role },
+    { subject: session.user.id, role: session.user.role },
     () => apiClient.tokenBalances.getPortfolio(),
   );
   if (response.error) {
-    return NextResponse.json({ error: response.error }, { status: response.status });
+    return NextResponse.json(
+      { error: response.error },
+      { status: response.status },
+    );
   }
 
-  const row = response.data?.holdings?.find((b) => b.projectTokenConfigId === projectId);
+  const row = response.data?.holdings?.find(
+    (b) => b.projectTokenConfigId === projectId,
+  );
   return NextResponse.json({
-    userId: session!.user.id,
+    userId: session.user.id,
     projectTokenConfigId: projectId,
     balance: row?.balance ?? 0,
   });

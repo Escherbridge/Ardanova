@@ -1,7 +1,19 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { createTRPCRouter, protectedProcedure, publicProcedure } from "~/server/api/trpc";
+import {
+  createTRPCRouter,
+  protectedProcedure,
+  publicProcedure,
+} from "~/server/api/trpc";
 import { apiClient } from "~/lib/api";
+
+const PostTypeSchema = z.enum(["POST", "ANNOUNCEMENT", "MILESTONE", "UPDATE"]);
+const PostVisibilitySchema = z.enum([
+  "PUBLIC",
+  "FOLLOWERS",
+  "PROJECT_MEMBERS",
+  "PRIVATE",
+]);
 
 export const postRouter = createTRPCRouter({
   getFeed: publicProcedure
@@ -9,12 +21,18 @@ export const postRouter = createTRPCRouter({
       z.object({
         page: z.number().min(1).default(1),
         pageSize: z.number().min(1).max(100).default(20),
-      })
+      }),
     )
     .query(async ({ input }) => {
-      const response = await apiClient.posts.getFeed(input.page, input.pageSize);
+      const response = await apiClient.posts.getFeed(
+        input.page,
+        input.pageSize,
+      );
       if (response.error) {
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: response.error });
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: response.error,
+        });
       }
       return response.data;
     }),
@@ -24,7 +42,10 @@ export const postRouter = createTRPCRouter({
     .query(async ({ input }) => {
       const response = await apiClient.posts.getById(input.id);
       if (response.error || !response.data) {
-        throw new TRPCError({ code: "NOT_FOUND", message: response.error ?? "Post not found" });
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: response.error ?? "Post not found",
+        });
       }
       return response.data;
     }),
@@ -34,7 +55,10 @@ export const postRouter = createTRPCRouter({
     .query(async ({ input }) => {
       const response = await apiClient.posts.getByUserId(input.userId);
       if (response.error) {
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: response.error });
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: response.error,
+        });
       }
       return response.data ?? [];
     }),
@@ -44,12 +68,12 @@ export const postRouter = createTRPCRouter({
       z.object({
         projectId: z.string().optional(),
         guildId: z.string().optional(),
-        type: z.string().optional(),
-        visibility: z.string().optional(),
+        type: PostTypeSchema.optional(),
+        visibility: PostVisibilitySchema.optional(),
         title: z.string().optional(),
         content: z.string().min(1),
         metadata: z.string().optional(),
-      })
+      }),
     )
     .mutation(async ({ input, ctx }) => {
       const authorId = ctx.session.user.id;
@@ -64,7 +88,10 @@ export const postRouter = createTRPCRouter({
         metadata: input.metadata,
       });
       if (response.error || !response.data) {
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: response.error ?? "Failed to create post" });
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: response.error ?? "Failed to create post",
+        });
       }
       return response.data;
     }),
@@ -75,17 +102,20 @@ export const postRouter = createTRPCRouter({
         id: z.string(),
         title: z.string().optional(),
         content: z.string().optional(),
-        visibility: z.string().optional(),
+        visibility: PostVisibilitySchema.optional(),
         metadata: z.string().optional(),
         isPinned: z.boolean().optional(),
-      })
+      }),
     )
     .mutation(async ({ input, ctx }) => {
       const authorId = ctx.session.user.id;
       const { id, ...data } = input;
       const response = await apiClient.posts.update(id, authorId, data);
       if (response.error || !response.data) {
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: response.error ?? "Failed to update post" });
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: response.error ?? "Failed to update post",
+        });
       }
       return response.data;
     }),
@@ -96,7 +126,10 @@ export const postRouter = createTRPCRouter({
       const authorId = ctx.session.user.id;
       const response = await apiClient.posts.delete(input.id, authorId);
       if (response.error) {
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: response.error });
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: response.error,
+        });
       }
       return { success: true };
     }),
@@ -107,7 +140,10 @@ export const postRouter = createTRPCRouter({
       const userId = ctx.session.user.id;
       const response = await apiClient.posts.like(input.id, userId);
       if (response.error || !response.data) {
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: response.error ?? "Failed to like" });
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: response.error ?? "Failed to like",
+        });
       }
       return response.data;
     }),
@@ -118,7 +154,10 @@ export const postRouter = createTRPCRouter({
       const userId = ctx.session.user.id;
       const response = await apiClient.posts.unlike(input.id, userId);
       if (response.error || !response.data) {
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: response.error ?? "Failed to unlike" });
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: response.error ?? "Failed to unlike",
+        });
       }
       return response.data;
     }),
@@ -130,15 +169,23 @@ export const postRouter = createTRPCRouter({
         sharedToProjectId: z.string().optional(),
         sharedToGuildId: z.string().optional(),
         comment: z.string().optional(),
-      })
+      }),
     )
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user.id;
       const { id, ...rest } = input;
-      const hasPayload = rest.sharedToProjectId ?? rest.sharedToGuildId ?? rest.comment;
-      const response = await apiClient.posts.share(id, userId, hasPayload ? rest : undefined);
+      const hasPayload =
+        rest.sharedToProjectId ?? rest.sharedToGuildId ?? rest.comment;
+      const response = await apiClient.posts.share(
+        id,
+        userId,
+        hasPayload ? rest : undefined,
+      );
       if (response.error || !response.data) {
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: response.error ?? "Failed to share" });
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: response.error ?? "Failed to share",
+        });
       }
       return response.data;
     }),
@@ -149,7 +196,10 @@ export const postRouter = createTRPCRouter({
       const userId = ctx.session.user.id;
       const response = await apiClient.posts.bookmark(input.id, userId);
       if (response.error) {
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: response.error });
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: response.error,
+        });
       }
       return response.data ?? true;
     }),
@@ -160,7 +210,10 @@ export const postRouter = createTRPCRouter({
       const userId = ctx.session.user.id;
       const response = await apiClient.posts.unbookmark(input.id, userId);
       if (response.error) {
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: response.error });
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: response.error,
+        });
       }
       return response.data ?? true;
     }),
@@ -170,7 +223,10 @@ export const postRouter = createTRPCRouter({
     .query(async ({ input }) => {
       const response = await apiClient.posts.getComments(input.id);
       if (response.error) {
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: response.error });
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: response.error,
+        });
       }
       return response.data ?? [];
     }),
@@ -181,7 +237,7 @@ export const postRouter = createTRPCRouter({
         postId: z.string(),
         parentId: z.string().optional(),
         content: z.string().min(1),
-      })
+      }),
     )
     .mutation(async ({ input, ctx }) => {
       const authorId = ctx.session.user.id;
@@ -191,7 +247,10 @@ export const postRouter = createTRPCRouter({
         content: input.content,
       });
       if (response.error || !response.data) {
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: response.error ?? "Failed to add comment" });
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: response.error ?? "Failed to add comment",
+        });
       }
       return response.data;
     }),
@@ -201,13 +260,20 @@ export const postRouter = createTRPCRouter({
       z.object({
         postId: z.string(),
         commentId: z.string(),
-      })
+      }),
     )
     .mutation(async ({ input, ctx }) => {
       const authorId = ctx.session.user.id;
-      const response = await apiClient.posts.deleteComment(input.postId, input.commentId, authorId);
+      const response = await apiClient.posts.deleteComment(
+        input.postId,
+        input.commentId,
+        authorId,
+      );
       if (response.error) {
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: response.error });
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: response.error,
+        });
       }
       return { success: true };
     }),

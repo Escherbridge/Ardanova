@@ -1,12 +1,13 @@
 import { redirect } from "next/navigation";
-import { auth } from "~/server/auth";
+import { authForPage } from "~/server/auth";
+import { buildSignInHref } from "~/lib/auth-navigation";
 import { GuildForm } from "~/components/guild-form";
 
 export default async function CreateGuildPage() {
-  const session = await auth();
+  const session = await authForPage();
 
   if (!session) {
-    redirect("/api/auth/signin");
+    redirect(buildSignInHref("/guilds/create"));
   }
 
   return <GuildForm mode="create" />;

@@ -56,34 +56,34 @@ interface OverviewTabProps {
 export default function OverviewTab({ opportunity }: OverviewTabProps) {
   return (
     <div className="space-y-6">
-      <Card className="bg-card border-2 border-border">
+      <Card className="bg-card border-border border-2">
         <CardHeader>
-          <CardTitle className="text-lg flex items-center gap-2">
-            <div className="w-8 h-8 bg-neon-pink/20 rounded-lg flex items-center justify-center border border-neon-pink/30">
-              <FileText className="size-4 text-neon-pink" />
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <div className="bg-primary/20 border-primary/30 flex h-8 w-8 items-center justify-center rounded-none border">
+              <FileText className="text-primary size-4" />
             </div>
             Description
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-foreground whitespace-pre-wrap leading-relaxed">
+          <p className="text-foreground leading-relaxed whitespace-pre-wrap">
             {opportunity.description}
           </p>
         </CardContent>
       </Card>
 
       {opportunity.requirements && (
-        <Card className="bg-card border-2 border-border">
+        <Card className="bg-card border-border border-2">
           <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <div className="w-8 h-8 bg-neon-green/20 rounded-lg flex items-center justify-center border border-neon-green/30">
-                <CheckCircle className="size-4 text-neon-green" />
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <div className="bg-success/20 border-success/30 flex h-8 w-8 items-center justify-center rounded-none border">
+                <CheckCircle className="text-success size-4" />
               </div>
               Requirements
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-foreground whitespace-pre-wrap leading-relaxed">
+            <p className="text-foreground leading-relaxed whitespace-pre-wrap">
               {opportunity.requirements}
             </p>
           </CardContent>
@@ -91,11 +91,11 @@ export default function OverviewTab({ opportunity }: OverviewTabProps) {
       )}
 
       {opportunity.skills && (
-        <Card className="bg-card border-2 border-border">
+        <Card className="bg-card border-border border-2">
           <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <div className="w-8 h-8 bg-primary/20 rounded-lg flex items-center justify-center border border-primary/30">
-                <Award className="size-4 text-primary" />
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <div className="bg-primary/20 border-primary/30 flex h-8 w-8 items-center justify-center rounded-none border">
+                <Award className="text-primary size-4" />
               </div>
               Skills Required
             </CardTitle>
@@ -113,36 +113,37 @@ export default function OverviewTab({ opportunity }: OverviewTabProps) {
       )}
 
       {opportunity.benefits && (
-        <Card className="bg-card border-2 border-border">
+        <Card className="bg-card border-border border-2">
           <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <div className="w-8 h-8 bg-neon-purple/20 rounded-lg flex items-center justify-center border border-neon-purple/30">
-                <Award className="size-4 text-neon-purple" />
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <div className="bg-system/20 border-system/30 flex h-8 w-8 items-center justify-center rounded-none border">
+                <Award className="text-system size-4" />
               </div>
               Benefits
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-foreground whitespace-pre-wrap leading-relaxed">
+            <p className="text-foreground leading-relaxed whitespace-pre-wrap">
               {opportunity.benefits}
             </p>
           </CardContent>
         </Card>
       )}
 
-      {(opportunity.compensation !== undefined || opportunity.compensationDetails) && (
-        <Card className="bg-card border-2 border-border">
+      {(opportunity.compensation !== undefined ||
+        opportunity.compensationDetails) && (
+        <Card className="bg-card border-border border-2">
           <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <div className="w-8 h-8 bg-warning/20 rounded-lg flex items-center justify-center border border-warning/30">
-                <DollarSign className="size-4 text-warning" />
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <div className="bg-warning/20 border-warning/30 flex h-8 w-8 items-center justify-center rounded-none border">
+                <DollarSign className="text-warning size-4" />
               </div>
               Compensation
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
             {opportunity.compensation !== undefined && (
-              <p className="text-2xl font-semibold text-foreground">
+              <p className="text-foreground text-2xl font-semibold">
                 ${opportunity.compensation.toLocaleString()}
               </p>
             )}
@@ -155,25 +156,27 @@ export default function OverviewTab({ opportunity }: OverviewTabProps) {
         </Card>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Card className="bg-card border-2 border-border">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <Card className="bg-card border-border border-2">
           <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <MapPin className="size-4 text-muted-foreground" />
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <MapPin className="text-muted-foreground size-4" />
               Location
             </CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-foreground">
-              {opportunity.isRemote ? "Remote" : opportunity.location || "Not specified"}
+              {opportunity.isRemote
+                ? "Remote"
+                : opportunity.location || "Not specified"}
             </p>
           </CardContent>
         </Card>
 
-        <Card className="bg-card border-2 border-border">
+        <Card className="bg-card border-border border-2">
           <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Briefcase className="size-4 text-muted-foreground" />
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Briefcase className="text-muted-foreground size-4" />
               Experience Level
             </CardTitle>
           </CardHeader>
@@ -183,10 +186,10 @@ export default function OverviewTab({ opportunity }: OverviewTabProps) {
         </Card>
 
         {opportunity.deadline && (
-          <Card className="bg-card border-2 border-border">
+          <Card className="bg-card border-border border-2">
             <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Calendar className="size-4 text-muted-foreground" />
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Calendar className="text-muted-foreground size-4" />
                 Deadline
               </CardTitle>
             </CardHeader>
@@ -199,10 +202,10 @@ export default function OverviewTab({ opportunity }: OverviewTabProps) {
         )}
 
         {opportunity.maxApplications && (
-          <Card className="bg-card border-2 border-border">
+          <Card className="bg-card border-border border-2">
             <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Users className="size-4 text-muted-foreground" />
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Users className="text-muted-foreground size-4" />
                 Applications
               </CardTitle>
             </CardHeader>

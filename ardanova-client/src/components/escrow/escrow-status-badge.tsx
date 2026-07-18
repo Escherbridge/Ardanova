@@ -3,61 +3,51 @@
 import {
   Clock,
   Coins,
-  GitMerge,
   AlertTriangle,
-  CheckCircle,
   ArrowDownCircle,
+  RotateCcw,
 } from "lucide-react";
 import { Badge } from "~/components/ui/badge";
 import { cn } from "~/lib/utils";
 
-export type EscrowStatus =
-  | "PENDING"
-  | "FUNDED"
-  | "PARTIALLY_RELEASED"
-  | "DISPUTED"
-  | "RESOLVED"
-  | "RELEASED";
+import type { TaskEscrowStatus } from "~/lib/contracts/task-escrow-contract";
+
+export type EscrowStatus = TaskEscrowStatus;
 
 const STATUS_CONFIG: Record<
   EscrowStatus,
   {
     label: string;
     variant: Parameters<typeof Badge>[0]["variant"];
-    icon: React.ComponentType<{ className?: string }>;
+    icon: "clock" | "coins" | "alert" | "release" | "refund";
     className?: string;
   }
 > = {
-  PENDING: {
-    label: "PENDING",
-    variant: "warning",
-    icon: Clock,
+  NONE: {
+    label: "NO ESCROW",
+    variant: "outline",
+    icon: "clock",
   },
   FUNDED: {
     label: "FUNDED",
     variant: "neon",
-    icon: Coins,
-  },
-  PARTIALLY_RELEASED: {
-    label: "PARTIAL",
-    variant: "neon-green",
-    icon: GitMerge,
+    icon: "coins",
   },
   DISPUTED: {
     label: "DISPUTED",
     variant: "neon-pink",
-    icon: AlertTriangle,
+    icon: "alert",
     className: "animate-pulse",
   },
-  RESOLVED: {
-    label: "RESOLVED",
-    variant: "success",
-    icon: CheckCircle,
-  },
   RELEASED: {
-    label: "RELEASED",
+    label: "RELEASE AUTHORIZED",
     variant: "success",
-    icon: ArrowDownCircle,
+    icon: "release",
+  },
+  REFUNDED: {
+    label: "REFUND AUTHORIZED",
+    variant: "warning",
+    icon: "refund",
   },
 };
 
@@ -73,7 +63,6 @@ export function EscrowStatusBadge({
   className,
 }: EscrowStatusBadgeProps) {
   const config = STATUS_CONFIG[status];
-  const Icon = config.icon;
 
   return (
     <Badge
@@ -81,8 +70,28 @@ export function EscrowStatusBadge({
       size={size}
       className={cn(config.className, className)}
     >
-      <Icon className="shrink-0" />
+      <StatusIcon name={config.icon} />
       {config.label}
     </Badge>
   );
+}
+
+function StatusIcon({
+  name,
+}: {
+  name: "clock" | "coins" | "alert" | "release" | "refund";
+}) {
+  const className = "shrink-0";
+  switch (name) {
+    case "clock":
+      return <Clock className={className} aria-hidden="true" />;
+    case "coins":
+      return <Coins className={className} aria-hidden="true" />;
+    case "alert":
+      return <AlertTriangle className={className} aria-hidden="true" />;
+    case "release":
+      return <ArrowDownCircle className={className} aria-hidden="true" />;
+    case "refund":
+      return <RotateCcw className={className} aria-hidden="true" />;
+  }
 }

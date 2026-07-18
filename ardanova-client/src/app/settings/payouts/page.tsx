@@ -32,7 +32,7 @@ export default function PayoutsSettingsPage() {
             </p>
             <p className="text-muted-foreground text-xs">
               A future provider journey must be server-issued, policy-gated, and
-              backed by a confirmed settlementâ€”not a browser redirect.
+              backed by a confirmed settlement—not a browser redirect.
             </p>
           </div>
         </CardContent>

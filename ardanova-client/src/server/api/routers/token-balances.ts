@@ -36,7 +36,7 @@ export const tokenBalancesRouter = createTRPCRouter({
     .query(async ({ input }) => {
       const response = await apiClient.tokenBalances.getBalance(
         input.projectTokenConfigId,
-        input.holderClass
+        input.holderClass,
       );
 
       if (response.error || !response.data) {
@@ -49,43 +49,45 @@ export const tokenBalancesRouter = createTRPCRouter({
       return response.data;
     }),
 
-  getArdaBalance: protectedProcedure
-    .query(async () => {
-      const response = await apiClient.tokenBalances.getArdaBalance();
+  getArdaBalance: protectedProcedure.query(async () => {
+    const response = await apiClient.tokenBalances.getArdaBalance();
 
-      if (response.error || !response.data) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: response.error ?? "ARDA balance not found",
-        });
-      }
+    if (response.error || !response.data) {
+      throw new TRPCError({
+        code: "NOT_FOUND",
+        message: response.error ?? "ARDA balance not found",
+      });
+    }
 
-      return response.data;
-    }),
+    return response.data;
+  }),
 
-  getPortfolio: protectedProcedure
-    .query(async () => {
-      const response = await apiClient.tokenBalances.getPortfolio();
+  getPortfolio: protectedProcedure.query(async () => {
+    const response = await apiClient.tokenBalances.getPortfolio();
 
-      if (response.error || !response.data) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: response.error ?? "Portfolio not found",
-        });
-      }
+    if (response.error || !response.data) {
+      throw new TRPCError({
+        code: "NOT_FOUND",
+        message: response.error ?? "Portfolio not found",
+      });
+    }
 
-      return response.data;
-    }),
+    return response.data;
+  }),
 
   checkLiquidity: protectedProcedure
     .input(checkLiquiditySchema)
     .query(async ({ input }) => {
       const response = await apiClient.tokenBalances.checkLiquidity(
         input.projectTokenConfigId,
-        input.holderClass
+        input.holderClass,
       );
 
-      if (response.error || response.data === undefined || response.data === null) {
+      if (
+        response.error ||
+        response.data === undefined ||
+        response.data === null
+      ) {
         throw new TRPCError({
           code: "BAD_REQUEST",
           message: response.error ?? "Failed to check liquidity",
@@ -100,9 +102,15 @@ export const tokenBalancesRouter = createTRPCRouter({
   getProjectTokenValue: protectedProcedure
     .input(z.object({ configId: z.string().min(1) }))
     .query(async ({ input }) => {
-      const response = await apiClient.tokenBalances.getProjectTokenValue(input.configId);
+      const response = await apiClient.tokenBalances.getProjectTokenValue(
+        input.configId,
+      );
 
-      if (response.error || response.data === undefined || response.data === null) {
+      if (
+        response.error ||
+        response.data === undefined ||
+        response.data === null
+      ) {
         throw new TRPCError({
           code: "NOT_FOUND",
           message: response.error ?? "Project token value not found",
@@ -112,26 +120,29 @@ export const tokenBalancesRouter = createTRPCRouter({
       return response.data;
     }),
 
-  getArdaValue: protectedProcedure
-    .query(async () => {
-      const response = await apiClient.tokenBalances.getArdaValue();
+  getArdaValue: protectedProcedure.query(async () => {
+    const response = await apiClient.tokenBalances.getArdaValue();
 
-      if (response.error || response.data === undefined || response.data === null) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: response.error ?? "Failed to get ARDA value",
-        });
-      }
+    if (
+      response.error ||
+      response.data === undefined ||
+      response.data === null
+    ) {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: response.error ?? "Failed to get ARDA value",
+      });
+    }
 
-      return response.data;
-    }),
+    return response.data;
+  }),
 
   getConversionPreview: protectedProcedure
     .input(getConversionPreviewSchema)
     .query(async ({ input }) => {
       const response = await apiClient.tokenBalances.getConversionPreview(
         input.projectTokenConfigId,
-        input.tokenAmount
+        input.tokenAmount,
       );
 
       if (response.error || !response.data) {

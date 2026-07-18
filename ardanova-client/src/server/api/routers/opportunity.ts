@@ -1,6 +1,10 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { createTRPCRouter, protectedProcedure, publicProcedure } from "~/server/api/trpc";
+import {
+  createTRPCRouter,
+  protectedProcedure,
+  publicProcedure,
+} from "~/server/api/trpc";
 import { apiClient } from "~/lib/api";
 import {
   canCreateGuildOpportunity,
@@ -18,6 +22,8 @@ const createOpportunitySchema = z.object({
   experienceLevel: z.string().optional(),
   compensationModel: z.string().optional(),
   compensationAmount: z.number().positive().optional(),
+  equityPercent: z.number().min(0).max(100).optional(),
+  isOpenForApplications: z.boolean().optional(),
   location: z.string().optional(),
   isRemote: z.boolean().optional(),
   deadline: z.string().optional(),
@@ -25,7 +31,9 @@ const createOpportunitySchema = z.object({
   projectId: z.string().optional(),
   guildId: z.string().optional(),
   taskId: z.string().optional(),
-  projectRole: z.enum(["FOUNDER", "LEADER", "CORE_CONTRIBUTOR", "CONTRIBUTOR", "OBSERVER"]).optional(),
+  projectRole: z
+    .enum(["FOUNDER", "LEADER", "CORE_CONTRIBUTOR", "CONTRIBUTOR", "OBSERVER"])
+    .optional(),
 });
 
 // Opportunity update input schema
@@ -42,7 +50,9 @@ const updateOpportunitySchema = z.object({
   isRemote: z.boolean().optional(),
   deadline: z.string().optional(),
   maxApplications: z.number().positive().optional(),
-  projectRole: z.enum(["FOUNDER", "LEADER", "CORE_CONTRIBUTOR", "CONTRIBUTOR", "OBSERVER"]).optional(),
+  projectRole: z
+    .enum(["FOUNDER", "LEADER", "CORE_CONTRIBUTOR", "CONTRIBUTOR", "OBSERVER"])
+    .optional(),
 });
 
 export const opportunityRouter = createTRPCRouter({
@@ -54,19 +64,29 @@ export const opportunityRouter = createTRPCRouter({
 
       // Validate permission based on entity type
       if (input.guildId) {
-        const permission = await canCreateGuildOpportunity(userId, input.guildId);
+        const permission = await canCreateGuildOpportunity(
+          userId,
+          input.guildId,
+        );
         if (!permission.allowed) {
           throw new TRPCError({
             code: "FORBIDDEN",
-            message: permission.reason || "You don't have permission to create opportunities for this guild",
+            message:
+              permission.reason ||
+              "You don't have permission to create opportunities for this guild",
           });
         }
       } else if (input.projectId) {
-        const permission = await canCreateProjectOpportunity(userId, input.projectId);
+        const permission = await canCreateProjectOpportunity(
+          userId,
+          input.projectId,
+        );
         if (!permission.allowed) {
           throw new TRPCError({
             code: "FORBIDDEN",
-            message: permission.reason || "You don't have permission to create opportunities for this project",
+            message:
+              permission.reason ||
+              "You don't have permission to create opportunities for this project",
           });
         }
       } else {
@@ -86,6 +106,8 @@ export const opportunityRouter = createTRPCRouter({
         requirements: input.description,
         compensation: input.compensationAmount,
         compensationDetails: input.compensationModel,
+        equityPercent: input.equityPercent,
+        isOpenForApplications: input.isOpenForApplications ?? false,
         location: input.location,
         isRemote: input.isRemote ?? false,
         deadline: input.deadline,
@@ -97,7 +119,10 @@ export const opportunityRouter = createTRPCRouter({
       });
 
       if (response.error || !response.data) {
-        const errorMessage = typeof response.error === "string" ? response.error : "Failed to create opportunity";
+        const errorMessage =
+          typeof response.error === "string"
+            ? response.error
+            : "Failed to create opportunity";
         throw new Error(errorMessage);
       }
 
@@ -115,7 +140,7 @@ export const opportunityRouter = createTRPCRouter({
         experienceLevel: z.string().optional(),
         skill: z.string().optional(),
         sourceType: z.enum(["guild", "project"]).optional(),
-      })
+      }),
     )
     .query(async ({ input }) => {
       const response = await apiClient.opportunities.search({
@@ -134,7 +159,9 @@ export const opportunityRouter = createTRPCRouter({
 
       return {
         items: response.data?.items ?? [],
-        nextCursor: response.data?.hasNextPage ? String(input.page + 1) : undefined,
+        nextCursor: response.data?.hasNextPage
+          ? String(input.page + 1)
+          : undefined,
         totalCount: response.data?.totalCount ?? 0,
         totalPages: response.data?.totalPages ?? 0,
       };
@@ -174,7 +201,9 @@ export const opportunityRouter = createTRPCRouter({
   getByGuildId: publicProcedure
     .input(z.object({ guildId: z.string() }))
     .query(async ({ input }) => {
-      const response = await apiClient.opportunities.getByGuildId(input.guildId);
+      const response = await apiClient.opportunities.getByGuildId(
+        input.guildId,
+      );
 
       if (response.error) {
         throw new Error(response.error);
@@ -187,7 +216,9 @@ export const opportunityRouter = createTRPCRouter({
   getByProjectId: publicProcedure
     .input(z.object({ projectId: z.string() }))
     .query(async ({ input }) => {
-      const response = await apiClient.opportunities.getByProjectId(input.projectId);
+      const response = await apiClient.opportunities.getByProjectId(
+        input.projectId,
+      );
 
       if (response.error) {
         throw new Error(response.error);
@@ -201,20 +232,25 @@ export const opportunityRouter = createTRPCRouter({
     .input(
       z.object({
         opportunityId: z.string(),
-        coverLetter: z.string().min(20, "Cover letter must be at least 20 characters"),
+        coverLetter: z
+          .string()
+          .min(20, "Cover letter must be at least 20 characters"),
         portfolio: z.string().url().optional(),
         additionalInfo: z.string().optional(),
-      })
+      }),
     )
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user.id;
 
-      const response = await apiClient.opportunities.apply(input.opportunityId, {
-        applicantId: userId,
-        coverLetter: input.coverLetter,
-        portfolio: input.portfolio,
-        additionalInfo: input.additionalInfo,
-      });
+      const response = await apiClient.opportunities.apply(
+        input.opportunityId,
+        {
+          applicantId: userId,
+          coverLetter: input.coverLetter,
+          portfolio: input.portfolio,
+          additionalInfo: input.additionalInfo,
+        },
+      );
 
       if (response.error || !response.data) {
         throw new Error(response.error ?? "Failed to apply for opportunity");
@@ -230,7 +266,9 @@ export const opportunityRouter = createTRPCRouter({
       const userId = ctx.session.user.id;
 
       // Verify ownership
-      const opportunity = await apiClient.opportunities.getById(input.opportunityId);
+      const opportunity = await apiClient.opportunities.getById(
+        input.opportunityId,
+      );
       if (opportunity.error || !opportunity.data) {
         throw new Error("Opportunity not found");
       }
@@ -239,7 +277,9 @@ export const opportunityRouter = createTRPCRouter({
         throw new Error("Access denied: You do not own this opportunity");
       }
 
-      const response = await apiClient.opportunities.getApplications(input.opportunityId);
+      const response = await apiClient.opportunities.getApplications(
+        input.opportunityId,
+      );
 
       if (response.error) {
         throw new Error(response.error);
@@ -256,13 +296,15 @@ export const opportunityRouter = createTRPCRouter({
         opportunityId: z.string(),
         status: z.enum(["pending", "reviewing", "accepted", "rejected"]),
         reviewNotes: z.string().optional(),
-      })
+      }),
     )
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user.id;
 
       // Verify ownership of opportunity
-      const opportunity = await apiClient.opportunities.getById(input.opportunityId);
+      const opportunity = await apiClient.opportunities.getById(
+        input.opportunityId,
+      );
       if (opportunity.error || !opportunity.data) {
         throw new Error("Opportunity not found");
       }
@@ -271,13 +313,18 @@ export const opportunityRouter = createTRPCRouter({
         throw new Error("Access denied: You do not own this opportunity");
       }
 
-      const response = await apiClient.opportunities.updateApplicationStatus(input.applicationId, {
-        status: input.status,
-        reviewNotes: input.reviewNotes,
-      });
+      const response = await apiClient.opportunities.updateApplicationStatus(
+        input.applicationId,
+        {
+          status: input.status,
+          reviewNotes: input.reviewNotes,
+        },
+      );
 
       if (response.error || !response.data) {
-        throw new Error(response.error ?? "Failed to update application status");
+        throw new Error(
+          response.error ?? "Failed to update application status",
+        );
       }
 
       return response.data;
@@ -378,7 +425,9 @@ export const opportunityRouter = createTRPCRouter({
   getUpdates: publicProcedure
     .input(z.object({ opportunityId: z.string() }))
     .query(async ({ input }) => {
-      const response = await apiClient.opportunities.getUpdates(input.opportunityId);
+      const response = await apiClient.opportunities.getUpdates(
+        input.opportunityId,
+      );
 
       if (response.error) {
         throw new Error(response.error);
@@ -395,13 +444,15 @@ export const opportunityRouter = createTRPCRouter({
         title: z.string().min(1, "Title is required"),
         content: z.string().min(10, "Content must be at least 10 characters"),
         images: z.string().optional(),
-      })
+      }),
     )
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user.id;
 
       // Verify ownership
-      const opportunity = await apiClient.opportunities.getById(input.opportunityId);
+      const opportunity = await apiClient.opportunities.getById(
+        input.opportunityId,
+      );
       if (opportunity.error || !opportunity.data) {
         throw new Error("Opportunity not found");
       }
@@ -410,13 +461,16 @@ export const opportunityRouter = createTRPCRouter({
         throw new Error("Access denied: You do not own this opportunity");
       }
 
-      const response = await apiClient.opportunities.createUpdate(input.opportunityId, {
-        opportunityId: input.opportunityId,
-        userId,
-        title: input.title,
-        content: input.content,
-        images: input.images,
-      });
+      const response = await apiClient.opportunities.createUpdate(
+        input.opportunityId,
+        {
+          opportunityId: input.opportunityId,
+          userId,
+          title: input.title,
+          content: input.content,
+          images: input.images,
+        },
+      );
 
       if (response.error || !response.data) {
         throw new Error(response.error ?? "Failed to create update");
@@ -432,7 +486,9 @@ export const opportunityRouter = createTRPCRouter({
       const userId = ctx.session.user.id;
 
       // Verify ownership of opportunity
-      const opportunity = await apiClient.opportunities.getById(input.opportunityId);
+      const opportunity = await apiClient.opportunities.getById(
+        input.opportunityId,
+      );
       if (opportunity.error || !opportunity.data) {
         throw new Error("Opportunity not found");
       }
@@ -441,7 +497,9 @@ export const opportunityRouter = createTRPCRouter({
         throw new Error("Access denied: You do not own this opportunity");
       }
 
-      const response = await apiClient.opportunities.deleteUpdate(input.updateId);
+      const response = await apiClient.opportunities.deleteUpdate(
+        input.updateId,
+      );
 
       if (response.error) {
         throw new Error(response.error);
@@ -456,7 +514,9 @@ export const opportunityRouter = createTRPCRouter({
   getComments: publicProcedure
     .input(z.object({ opportunityId: z.string() }))
     .query(async ({ input }) => {
-      const response = await apiClient.opportunities.getComments(input.opportunityId);
+      const response = await apiClient.opportunities.getComments(
+        input.opportunityId,
+      );
 
       if (response.error) {
         throw new Error(response.error);
@@ -472,17 +532,20 @@ export const opportunityRouter = createTRPCRouter({
         opportunityId: z.string(),
         content: z.string().min(1, "Comment cannot be empty"),
         parentId: z.string().optional(),
-      })
+      }),
     )
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user.id;
 
-      const response = await apiClient.opportunities.addComment(input.opportunityId, {
-        opportunityId: input.opportunityId,
-        userId,
-        content: input.content,
-        parentId: input.parentId,
-      });
+      const response = await apiClient.opportunities.addComment(
+        input.opportunityId,
+        {
+          opportunityId: input.opportunityId,
+          userId,
+          content: input.content,
+          parentId: input.parentId,
+        },
+      );
 
       if (response.error || !response.data) {
         throw new Error(response.error ?? "Failed to add comment");
@@ -498,14 +561,20 @@ export const opportunityRouter = createTRPCRouter({
       const userId = ctx.session.user.id;
 
       // Get opportunity to check ownership
-      const opportunity = await apiClient.opportunities.getById(input.opportunityId);
+      const opportunity = await apiClient.opportunities.getById(
+        input.opportunityId,
+      );
       if (opportunity.error || !opportunity.data) {
         throw new Error("Opportunity not found");
       }
 
       // Get comments to find the specific comment
-      const commentsResponse = await apiClient.opportunities.getComments(input.opportunityId);
-      const comment = commentsResponse.data?.find((c) => c.id === input.commentId);
+      const commentsResponse = await apiClient.opportunities.getComments(
+        input.opportunityId,
+      );
+      const comment = commentsResponse.data?.find(
+        (c) => c.id === input.commentId,
+      );
 
       if (!comment) {
         throw new Error("Comment not found");
@@ -519,7 +588,9 @@ export const opportunityRouter = createTRPCRouter({
         throw new Error("Access denied: You cannot delete this comment");
       }
 
-      const response = await apiClient.opportunities.deleteComment(input.commentId);
+      const response = await apiClient.opportunities.deleteComment(
+        input.commentId,
+      );
 
       if (response.error) {
         throw new Error(response.error);

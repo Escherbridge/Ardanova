@@ -13,11 +13,14 @@ export async function GET() {
   if (error) return error;
 
   const response = await runWithActorAssertion(
-    { subject: session!.user.id, role: session!.user.role },
+    { subject: session.user.id, role: session.user.role },
     () => apiClient.tokenBalances.getPortfolio(),
   );
   if (response.error) {
-    return NextResponse.json({ error: response.error }, { status: response.status });
+    return NextResponse.json(
+      { error: response.error },
+      { status: response.status },
+    );
   }
   return NextResponse.json(response.data?.holdings ?? []);
 }

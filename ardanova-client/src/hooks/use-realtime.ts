@@ -3,7 +3,11 @@
 import { useEffect, useRef, useCallback, useState } from "react";
 import { useSession } from "next-auth/react";
 import { RealtimeClient } from "~/lib/websocket/realtime-client";
-import type { ArdaNovaEvent, ConnectionState, EventCallback } from "~/lib/websocket/types";
+import type {
+  ArdaNovaEvent,
+  ConnectionState,
+  EventCallback,
+} from "~/lib/websocket/types";
 
 /**
  * Main hook for real-time functionality.
@@ -12,7 +16,8 @@ import type { ArdaNovaEvent, ConnectionState, EventCallback } from "~/lib/websoc
 export function useRealtime() {
   const { status } = useSession();
   const clientRef = useRef<RealtimeClient | null>(null);
-  const [connectionState, setConnectionState] = useState<ConnectionState>("disconnected");
+  const [connectionState, setConnectionState] =
+    useState<ConnectionState>("disconnected");
 
   // Initialize client on mount
   useEffect(() => {
@@ -42,11 +47,11 @@ export function useRealtime() {
   const subscribe = useCallback(
     <T extends ArdaNovaEvent = ArdaNovaEvent>(
       eventType: string,
-      callback: EventCallback<T>
+      callback: EventCallback<T>,
     ) => {
-      return clientRef.current?.on(eventType, callback) ?? (() => {});
+      return clientRef.current?.on(eventType, callback) ?? (() => undefined);
     },
-    []
+    [],
   );
 
   /**
@@ -64,46 +69,38 @@ export function useRealtime() {
   }, []);
 
   /**
-   * Subscribe to agency events.
+   * Subscribe to guild events.
    */
-  const subscribeToAgency = useCallback(async (agencyId: string) => {
-    await clientRef.current?.subscribeToAgency(agencyId);
+  const subscribeToGuild = useCallback(async (guildId: string) => {
+    await clientRef.current?.subscribeToGuild(guildId);
   }, []);
 
   /**
-   * Unsubscribe from agency events.
+   * Unsubscribe from guild events.
    */
-  const unsubscribeFromAgency = useCallback(async (agencyId: string) => {
-    await clientRef.current?.unsubscribeFromAgency(agencyId);
+  const unsubscribeFromGuild = useCallback(async (guildId: string) => {
+    await clientRef.current?.unsubscribeFromGuild(guildId);
   }, []);
 
   /**
    * Subscribe to conversation events.
    */
-  const subscribeToConversation = useCallback(async (conversationId: string) => {
-    await clientRef.current?.subscribeToConversation(conversationId);
-  }, []);
+  const subscribeToConversation = useCallback(
+    async (conversationId: string) => {
+      await clientRef.current?.subscribeToConversation(conversationId);
+    },
+    [],
+  );
 
   /**
    * Unsubscribe from conversation events.
    */
-  const unsubscribeFromConversation = useCallback(async (conversationId: string) => {
-    await clientRef.current?.unsubscribeFromConversation(conversationId);
-  }, []);
-
-  /**
-   * Subscribe to all events.
-   */
-  const subscribeToAll = useCallback(async () => {
-    await clientRef.current?.subscribeToAll();
-  }, []);
-
-  /**
-   * Unsubscribe from all events.
-   */
-  const unsubscribeFromAll = useCallback(async () => {
-    await clientRef.current?.unsubscribeFromAll();
-  }, []);
+  const unsubscribeFromConversation = useCallback(
+    async (conversationId: string) => {
+      await clientRef.current?.unsubscribeFromConversation(conversationId);
+    },
+    [],
+  );
 
   return {
     isConnected: connectionState === "connected",
@@ -113,12 +110,10 @@ export function useRealtime() {
     subscribe,
     subscribeToProject,
     unsubscribeFromProject,
-    subscribeToAgency,
-    unsubscribeFromAgency,
+    subscribeToGuild,
+    unsubscribeFromGuild,
     subscribeToConversation,
     unsubscribeFromConversation,
-    subscribeToAll,
-    unsubscribeFromAll,
     client: clientRef.current,
   };
 }
