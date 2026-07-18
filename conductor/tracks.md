@@ -44,6 +44,7 @@ type: index
 > treasury-allocation. Real-value allocation gated on AZOA-side P7.
 
 - [ ] [Gated Commerce and AZOA Settlement](tracks/gated-commerce-and-azoa-settlement/spec.md) - Durable bid, funding, task-award, project-token/ARDA exchange, wallet, and settlement flows. **P0 launch prerequisite.**
+- [ ] [Financial Engine Domain Hardening](tracks/financial-engine-domain-hardening/spec.md) - Immutable asset definitions, utility-token versus equity/redemption-right policies, eligibility decisions, and fixed-scale migration. **P0 prerequisite; does not activate value movement.**
 - [ ] [AZOA Avatar Onboarding](tracks/azoa-avatar-onboarding/spec.md) - Link each user to a self-sovereign AZOA avatar; wallet-bound check before Tier-2. **Dependency root.**
 - [ ] [AZOA Provider Adapter](tracks/azoa-provider-adapter/spec.md) - `AzoaBackedAlgorandService` behind `IAlgorandService`, feature-flagged, platform mnemonic removed. **Backend-only.**
 - [ ] [AZOA Quest Authoring](tracks/azoa-quest-authoring/spec.md) - Publish scrum-lifecycle quest definitions/templates; avatars self-run; board events → gate signals.
