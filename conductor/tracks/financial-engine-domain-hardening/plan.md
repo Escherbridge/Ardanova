@@ -8,9 +8,24 @@ type: plan
 
 ## 1. Contract and model inventory [P0]
 
-- [ ] Map every current project token, equity, investment, funding, task award,
+- [x] Map every current project token, equity, investment, funding, task award,
   quote, order, and settlement field to a canonical asset/policy/eligibility
   owner. Reject ambiguous or implicit mappings.
+  - `ProjectTokenConfig` is the legacy utility projection but has optional
+    `assetId`, an `assetScale` default, and `fundingGoal`/`fundingRaised` as
+    `Float` in Prisma and `double` in the domain/DTO service path. It must
+    reference an immutable `AssetDefinition` and replace these value fields.
+  - `ProjectEquity` persists holdings but has no versioned rights policy or
+    eligibility decision; it cannot be the authorization source for an equity
+    or redemption-right allocation.
+  - `FundingIntent` has fixed-scale payment amount plus JSON snapshots, but no
+    foreign-keyed asset, policy, or eligibility decision reference. It must pin
+    all three in the same idempotent authorization write.
+  - `TaskCommerceAgreement` allows a nullable token configuration and only a
+    free-form `assetCode`; task awards must instead pin a utility asset/policy
+    or explicitly use the separate rights path.
+  - `EconomicSettlement` has only `assetCode`, amount, and scale. It needs the
+    immutable asset/policy references that explain the already-decided amount.
 - [ ] Specify DBML-first `AssetDefinition`, `ProjectTokenPolicy`,
   `EquityOrRedemptionRightPolicy`, and `EligibilityDecision` with immutable ids,
   versioning/effective windows, actor/audit fields, and foreign-key/index plan.
