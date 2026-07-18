@@ -46,12 +46,22 @@ public class AssetDefinition
 
     public virtual ICollection<ProjectTokenPolicy> ProjectTokenPolicies { get; set; } = new List<ProjectTokenPolicy>();
 
+    public virtual ICollection<EconomicSettlementLeg> EconomicSettlementLegs { get; set; } = new List<EconomicSettlementLeg>();
+
     public virtual ICollection<ProjectTokenConfig> ProjectTokenConfigs { get; set; } = new List<ProjectTokenConfig>();
 
     public virtual ICollection<EconomicSettlement> EconomicSettlements { get; set; } = new List<EconomicSettlement>();
 
-    public virtual ICollection<FundingIntent> FundingIntents { get; set; } = new List<FundingIntent>();
-
     public virtual ICollection<TaskCommerceAgreement> TaskCommerceAgreements { get; set; } = new List<TaskCommerceAgreement>();
+
+    public virtual ICollection<SwapQuote> SwapQuotesAsSourceAssetDefinition { get; set; } = new List<SwapQuote>();
+
+    public virtual ICollection<SwapQuote> SwapQuotesAsArdaAssetDefinition { get; set; } = new List<SwapQuote>();
+
+    public virtual ICollection<SwapQuote> SwapQuotesAsTargetAssetDefinition { get; set; } = new List<SwapQuote>();
+
+    public virtual ICollection<FundingIntent> FundingIntentsAsPaymentAssetDefinition { get; set; } = new List<FundingIntent>();
+
+    public virtual ICollection<FundingIntent> FundingIntentsAsAwardAssetDefinition { get; set; } = new List<FundingIntent>();
 
 }

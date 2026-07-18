@@ -287,7 +287,10 @@ datasource db {
 
             // Create a unique relation name for Prisma disambiguation
             // Use format: ModelName_FieldName to ensure uniqueness
-            const relationDbName = `${table.name}_${fkField}`;
+            const localFieldDef = table.fields.find((field) => field.name === fkField);
+            const relationDbName = localEp.relation === '1' && remoteEp.relation === '1' && localFieldDef?.pk
+                ? `${remoteModel}_${remoteEp.fieldNames[0]}`
+                : `${table.name}_${fkField}`;
 
             // Handle onDelete - map DBML values to Prisma PascalCase
             const onDeleteMap: Record<string, string> = {
@@ -328,7 +331,7 @@ datasource db {
 
             } else if (localEp.relation === '1' && remoteEp.relation === '1') {
                 // One-to-One
-                const hasFk = table.fields.some((f) => f.name === fkField);
+                const hasFk = localFieldDef !== undefined && !localFieldDef.pk;
                 relationFieldName = getUniqueRelationName(table.name, relationFieldName);
 
                 if (hasFk) {

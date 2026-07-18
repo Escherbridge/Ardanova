@@ -50,6 +50,9 @@ public static class GeneratedModelConfigurations
         modelBuilder.Entity<ProjectTokenPolicy>().HasIndex(e => new { e.projectId, e.version }).IsUnique();
         modelBuilder.Entity<EquityOrRedemptionRightPolicy>().HasIndex(e => new { e.projectId, e.kind, e.version }).IsUnique();
         modelBuilder.Entity<EligibilityDecision>().HasIndex(e => new { e.userId, e.equityOrRedemptionRightPolicyId, e.status });
+        modelBuilder.Entity<EconomicSettlementLeg>().HasIndex(e => new { e.economicSettlementId, e.position }).IsUnique();
+        modelBuilder.Entity<SwapQuote>().HasIndex(e => new { e.actorUserId, e.expiresAt });
+        modelBuilder.Entity<SwapOrder>().HasIndex(e => new { e.actorUserId, e.status });
 
         // Bidirectional FK disambiguation
         // ProjectTask.opportunityId -> Opportunity

@@ -101,3 +101,6 @@ export * from './AssetDefinitionSchema';
 export * from './ProjectTokenPolicySchema';
 export * from './EquityOrRedemptionRightPolicySchema';
 export * from './EligibilityDecisionSchema';
+export * from './EconomicSettlementLegSchema';
+export * from './SwapQuoteSchema';
+export * from './SwapOrderSchema';

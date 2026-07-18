@@ -505,7 +505,8 @@ public class ${table.name}
 
             } else if (localEp.relation === '1' && remoteEp.relation === '1') {
                 // One-to-One
-                const hasFk = table.fields.some((f) => f.name === fkField);
+                const localFieldDef = table.fields.find((field) => field.name === fkField);
+                const hasFk = localFieldDef !== undefined && !localFieldDef.pk;
                 let relationName = fkField?.endsWith('Id')
                     ? fkField.slice(0, -2)
                     : remoteModel;

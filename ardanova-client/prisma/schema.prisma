@@ -5,6 +5,7 @@ generator client {
   provider        = "prisma-client-js"
   previewFeatures = ["driverAdapters"]
 }
+
 generator zod {
   provider         = "zod-prisma-types"
   output           = "../src/lib/zod"
@@ -725,6 +726,7 @@ enum AssetDefinitionKind {
   ECOSYSTEM_UTILITY
   EQUITY_RIGHT
   REDEMPTION_RIGHT
+  FIAT
 }
 
 enum EquityOrRedemptionRightKind {
@@ -737,6 +739,26 @@ enum EligibilityDecisionStatus {
   REJECTED
   EXPIRED
   REVOKED
+}
+
+enum EconomicSettlementLegKind {
+  PAYMENT
+  AWARD
+  SOURCE
+  INTERMEDIARY
+  TARGET
+  FEE
+  REFUND
+}
+
+enum SwapOrderStatus {
+  DRAFT
+  AUTHORIZED
+  PENDING_SETTLEMENT
+  CONFIRMED
+  REJECTED
+  CANCELLED
+  FAILED
 }
 
 model Account {
@@ -879,6 +901,8 @@ model User {
   taskCommerceAgreements TaskCommerceAgreement[] @relation("TaskCommerceAgreement_contributorUserId")
   eligibilityDecisions EligibilityDecision[] @relation("EligibilityDecision_userId")
   eligibilityDecisions1 EligibilityDecision[] @relation("EligibilityDecision_decidedByUserId")
+  swapQuotes SwapQuote[] @relation("SwapQuote_actorUserId")
+  swapOrders SwapOrder[] @relation("SwapOrder_actorUserId")
 }
 
 model UserSkill {
@@ -2553,6 +2577,8 @@ model EconomicSettlement {
   economicOutboxes EconomicOutbox[] @relation("EconomicOutbox_settlementId")
   fundingIntents FundingIntent[] @relation("FundingIntent_settlementId")
   taskCommerceAgreements TaskCommerceAgreement[] @relation("TaskCommerceAgreement_settlementId")
+  economicSettlementLegs EconomicSettlementLeg[] @relation("EconomicSettlementLeg_economicSettlementId")
+  swapOrder SwapOrder? @relation("SwapOrder_economicSettlementId")
   assetDefinition AssetDefinition? @relation("EconomicSettlement_assetDefinitionId", fields: [assetDefinitionId], references: [id])
   projectTokenPolicy ProjectTokenPolicy? @relation("EconomicSettlement_projectTokenPolicyId", fields: [projectTokenPolicyId], references: [id])
   equityOrRedemptionRightPolicy EquityOrRedemptionRightPolicy? @relation("EconomicSettlement_equityOrRedemptionRightPolicyId", fields: [equityOrRedemptionRightPolicyId], references: [id])
@@ -2593,7 +2619,9 @@ model FundingIntent {
   funderUserId String
   projectId String
   projectTokenConfigId String
-  assetDefinitionId String?
+  paymentAssetDefinitionId String?
+  awardAssetDefinitionId String?
+  awardAmountAtoms String?
   projectTokenPolicyId String?
   equityOrRedemptionRightPolicyId String?
   eligibilityDecisionId String?
@@ -2619,7 +2647,8 @@ model FundingIntent {
   project Project @relation("FundingIntent_projectId", fields: [projectId], references: [id])
   projectTokenConfig ProjectTokenConfig @relation("FundingIntent_projectTokenConfigId", fields: [projectTokenConfigId], references: [id])
   settlement EconomicSettlement? @relation("FundingIntent_settlementId", fields: [settlementId], references: [id])
-  assetDefinition AssetDefinition? @relation("FundingIntent_assetDefinitionId", fields: [assetDefinitionId], references: [id])
+  paymentAssetDefinition AssetDefinition? @relation("FundingIntent_paymentAssetDefinitionId", fields: [paymentAssetDefinitionId], references: [id])
+  awardAssetDefinition AssetDefinition? @relation("FundingIntent_awardAssetDefinitionId", fields: [awardAssetDefinitionId], references: [id])
   projectTokenPolicy ProjectTokenPolicy? @relation("FundingIntent_projectTokenPolicyId", fields: [projectTokenPolicyId], references: [id])
   equityOrRedemptionRightPolicy EquityOrRedemptionRightPolicy? @relation("FundingIntent_equityOrRedemptionRightPolicyId", fields: [equityOrRedemptionRightPolicyId], references: [id])
   eligibilityDecision EligibilityDecision? @relation("FundingIntent_eligibilityDecisionId", fields: [eligibilityDecisionId], references: [id])
@@ -2688,9 +2717,14 @@ model AssetDefinition {
   supersedesAssetDefinition AssetDefinition? @relation("AssetDefinition_supersedesAssetDefinitionId", fields: [supersedesAssetDefinitionId], references: [id])
   supersedesAssetDefinitionChildren AssetDefinition[] @relation("AssetDefinition_supersedesAssetDefinitionId")
   projectTokenPolicies ProjectTokenPolicy[] @relation("ProjectTokenPolicy_assetDefinitionId")
+  economicSettlementLegs EconomicSettlementLeg[] @relation("EconomicSettlementLeg_assetDefinitionId")
+  swapQuotes SwapQuote[] @relation("SwapQuote_sourceAssetDefinitionId")
+  swapQuotes1 SwapQuote[] @relation("SwapQuote_ardaAssetDefinitionId")
+  swapQuotes2 SwapQuote[] @relation("SwapQuote_targetAssetDefinitionId")
   projectTokenConfigs ProjectTokenConfig[] @relation("ProjectTokenConfig_assetDefinitionId")
   economicSettlements EconomicSettlement[] @relation("EconomicSettlement_assetDefinitionId")
-  fundingIntents FundingIntent[] @relation("FundingIntent_assetDefinitionId")
+  fundingIntents FundingIntent[] @relation("FundingIntent_paymentAssetDefinitionId")
+  fundingIntents1 FundingIntent[] @relation("FundingIntent_awardAssetDefinitionId")
   taskCommerceAgreements TaskCommerceAgreement[] @relation("TaskCommerceAgreement_assetDefinitionId")
 
   @@unique([chainType, chainNetwork, canonicalAssetId])
@@ -2708,6 +2742,8 @@ model ProjectTokenPolicy {
   createdAt DateTime @default(now())
   project Project @relation("ProjectTokenPolicy_projectId", fields: [projectId], references: [id])
   assetDefinition AssetDefinition @relation("ProjectTokenPolicy_assetDefinitionId", fields: [assetDefinitionId], references: [id])
+  swapQuotes SwapQuote[] @relation("SwapQuote_sourceProjectTokenPolicyId")
+  swapQuotes1 SwapQuote[] @relation("SwapQuote_targetProjectTokenPolicyId")
   economicSettlements EconomicSettlement[] @relation("EconomicSettlement_projectTokenPolicyId")
   fundingIntents FundingIntent[] @relation("FundingIntent_projectTokenPolicyId")
   taskCommerceAgreements TaskCommerceAgreement[] @relation("TaskCommerceAgreement_projectTokenPolicyId")
@@ -2757,4 +2793,64 @@ model EligibilityDecision {
 
   @@index([userId, equityOrRedemptionRightPolicyId, status])
   @@index([expiresAt])
+}
+
+model EconomicSettlementLeg {
+  id String @id @default(cuid())
+  economicSettlementId String
+  position Int
+  kind EconomicSettlementLegKind
+  assetDefinitionId String
+  amountAtoms String
+  createdAt DateTime @default(now())
+  economicSettlement EconomicSettlement @relation("EconomicSettlementLeg_economicSettlementId", fields: [economicSettlementId], references: [id])
+  assetDefinition AssetDefinition @relation("EconomicSettlementLeg_assetDefinitionId", fields: [assetDefinitionId], references: [id])
+
+  @@unique([economicSettlementId, position])
+}
+
+model SwapQuote {
+  id String @id @default(cuid())
+  semanticKey String @unique
+  actorUserId String
+  sourceAssetDefinitionId String
+  ardaAssetDefinitionId String
+  targetAssetDefinitionId String
+  sourceProjectTokenPolicyId String
+  targetProjectTokenPolicyId String
+  sourceAmountAtoms String
+  ardaAmountAtoms String
+  targetAmountAtoms String
+  liquiditySnapshot Json
+  gateDecisionSnapshot Json
+  termsHash String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  actorUser User @relation("SwapQuote_actorUserId", fields: [actorUserId], references: [id])
+  sourceAssetDefinition AssetDefinition @relation("SwapQuote_sourceAssetDefinitionId", fields: [sourceAssetDefinitionId], references: [id])
+  ardaAssetDefinition AssetDefinition @relation("SwapQuote_ardaAssetDefinitionId", fields: [ardaAssetDefinitionId], references: [id])
+  targetAssetDefinition AssetDefinition @relation("SwapQuote_targetAssetDefinitionId", fields: [targetAssetDefinitionId], references: [id])
+  sourceProjectTokenPolicy ProjectTokenPolicy @relation("SwapQuote_sourceProjectTokenPolicyId", fields: [sourceProjectTokenPolicyId], references: [id])
+  targetProjectTokenPolicy ProjectTokenPolicy @relation("SwapQuote_targetProjectTokenPolicyId", fields: [targetProjectTokenPolicyId], references: [id])
+  swapOrders SwapOrder[] @relation("SwapOrder_quoteId")
+
+  @@index([actorUserId, expiresAt])
+}
+
+model SwapOrder {
+  id String @id @default(cuid())
+  quoteId String @unique
+  actorUserId String
+  status SwapOrderStatus @default(DRAFT)
+  economicSettlementId String? @unique
+  acceptedAt DateTime?
+  confirmedAt DateTime?
+  failureCode String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
+  quote SwapQuote @relation("SwapOrder_quoteId", fields: [quoteId], references: [id])
+  actorUser User @relation("SwapOrder_actorUserId", fields: [actorUserId], references: [id])
+  economicSettlement EconomicSettlement? @relation("SwapOrder_economicSettlementId", fields: [economicSettlementId], references: [id])
+
+  @@index([actorUserId, status])
 }

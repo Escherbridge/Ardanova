@@ -34,4 +34,28 @@ public class FixedScaleAmountTests
 
         parsed.Should().BeFalse();
     }
+
+    [Theory]
+    [InlineData("1", 0)]
+    [InlineData("123456789012345678901234567890", 18)]
+    public void TryFromPositiveBaseUnits_AcceptsCanonicalPositiveAtoms(string atoms, int scale)
+    {
+        var parsed = FixedScaleAmount.TryFromPositiveBaseUnits(atoms, scale, out var amount);
+
+        parsed.Should().BeTrue();
+        amount.BaseUnits.Should().Be(atoms);
+        amount.Scale.Should().Be(scale);
+    }
+
+    [Theory]
+    [InlineData("0", 0)]
+    [InlineData("01", 0)]
+    [InlineData("+1", 0)]
+    [InlineData("-1", 0)]
+    [InlineData("1.0", 0)]
+    [InlineData("1", 19)]
+    public void TryFromPositiveBaseUnits_RejectsNonCanonicalOrUnsupportedValues(string atoms, int scale)
+    {
+        FixedScaleAmount.TryFromPositiveBaseUnits(atoms, scale, out _).Should().BeFalse();
+    }
 }

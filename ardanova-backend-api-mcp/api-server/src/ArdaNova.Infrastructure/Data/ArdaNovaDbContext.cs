@@ -152,6 +152,10 @@ public class ArdaNovaDbContext : DbContext
     public DbSet<ProjectTokenPolicy> ProjectTokenPolicies => Set<ProjectTokenPolicy>();
     public DbSet<EquityOrRedemptionRightPolicy> EquityOrRedemptionRightPolicies => Set<EquityOrRedemptionRightPolicy>();
     public DbSet<EligibilityDecision> EligibilityDecisions => Set<EligibilityDecision>();
+    public DbSet<EconomicSettlementLeg> EconomicSettlementLegs => Set<EconomicSettlementLeg>();
+    public DbSet<SwapQuote> SwapQuotes => Set<SwapQuote>();
+    public DbSet<SwapOrder> SwapOrders => Set<SwapOrder>();
+
 
 
 

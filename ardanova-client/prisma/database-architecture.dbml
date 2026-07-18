@@ -2497,7 +2497,9 @@ Table FundingIntent {
   funderUserId varchar [not null]
   projectId varchar [not null]
   projectTokenConfigId varchar [not null]
-  assetDefinitionId varchar [note: 'Immutable canonical asset reference; nullable only during additive migration']
+  paymentAssetDefinitionId varchar [note: 'Canonical payment asset; nullable only during additive migration']
+  awardAssetDefinitionId varchar [note: 'Canonical project utility or separately governed right asset; nullable only during additive migration']
+  awardAmountAtoms varchar [note: 'Canonical non-negative base-unit string for the decided award; nullable only during additive migration']
   projectTokenPolicyId varchar [note: 'Utility-token policy frozen at authorization']
   equityOrRedemptionRightPolicyId varchar [note: 'Separate rights policy when funding is rights-bearing']
   eligibilityDecisionId varchar [note: 'Auditable rights-eligibility decision frozen at authorization']
@@ -2588,6 +2590,7 @@ Enum AssetDefinitionKind {
   ECOSYSTEM_UTILITY
   EQUITY_RIGHT
   REDEMPTION_RIGHT
+  FIAT
 }
 
 Enum EquityOrRedemptionRightKind {
@@ -2600,6 +2603,26 @@ Enum EligibilityDecisionStatus {
   REJECTED
   EXPIRED
   REVOKED
+}
+
+Enum EconomicSettlementLegKind {
+  PAYMENT
+  AWARD
+  SOURCE
+  INTERMEDIARY
+  TARGET
+  FEE
+  REFUND
+}
+
+Enum SwapOrderStatus {
+  DRAFT
+  AUTHORIZED
+  PENDING_SETTLEMENT
+  CONFIRMED
+  REJECTED
+  CANCELLED
+  FAILED
 }
 
 Table AssetDefinition {
@@ -2679,6 +2702,78 @@ Ref: EligibilityDecision.userId > User.id
 Ref: EligibilityDecision.equityOrRedemptionRightPolicyId > EquityOrRedemptionRightPolicy.id
 Ref: EligibilityDecision.decidedByUserId > User.id
 
+// A settlement is a durable local decision; every newly authorized movement is
+// represented by explicit legs rather than overloading a single amount with two
+// different asset meanings. The existing settlement amount remains a legacy
+// compatibility projection until its reviewed backfill is complete.
+Table EconomicSettlementLeg {
+  id varchar [not null, pk, default: `cuid()`]
+  economicSettlementId varchar [not null]
+  position int [not null, note: 'Zero-based immutable leg order within the settlement; migration must enforce position >= 0']
+  kind EconomicSettlementLegKind [not null]
+  assetDefinitionId varchar [not null]
+  amountAtoms varchar [not null, note: 'Canonical positive base-unit string; migration must reject zero, signs, non-digits, and leading zeroes']
+  createdAt datetime [not null, default: `now()`]
+
+  indexes {
+    (economicSettlementId, position) [unique]
+  }
+}
+Ref: EconomicSettlementLeg.economicSettlementId > EconomicSettlement.id
+Ref: EconomicSettlementLeg.assetDefinitionId > AssetDefinition.id
+
+// The only supported exchange shape is project utility -> ARDA -> project
+// utility. Rights policies are deliberately absent: equity or redemption rights
+// cannot be quoted, exchanged, or inferred from utility-token liquidity.
+Table SwapQuote {
+  id varchar [not null, pk, default: `cuid()`]
+  semanticKey varchar [not null, unique, note: 'Stable actor-scoped quote identity over immutable terms']
+  actorUserId varchar [not null]
+  sourceAssetDefinitionId varchar [not null]
+  ardaAssetDefinitionId varchar [not null]
+  targetAssetDefinitionId varchar [not null]
+  sourceProjectTokenPolicyId varchar [not null]
+  targetProjectTokenPolicyId varchar [not null]
+  sourceAmountAtoms varchar [not null, note: 'Positive source utility-token base units']
+  ardaAmountAtoms varchar [not null, note: 'Positive ARDA intermediary base units']
+  targetAmountAtoms varchar [not null, note: 'Positive target utility-token base units']
+  liquiditySnapshot json [not null]
+  gateDecisionSnapshot json [not null]
+  termsHash varchar [not null]
+  expiresAt datetime [not null]
+  createdAt datetime [not null, default: `now()`]
+
+  indexes {
+    (actorUserId, expiresAt)
+  }
+}
+Ref: SwapQuote.actorUserId > User.id
+Ref: SwapQuote.sourceAssetDefinitionId > AssetDefinition.id
+Ref: SwapQuote.ardaAssetDefinitionId > AssetDefinition.id
+Ref: SwapQuote.targetAssetDefinitionId > AssetDefinition.id
+Ref: SwapQuote.sourceProjectTokenPolicyId > ProjectTokenPolicy.id
+Ref: SwapQuote.targetProjectTokenPolicyId > ProjectTokenPolicy.id
+
+Table SwapOrder {
+  id varchar [not null, pk, default: `cuid()`]
+  quoteId varchar [not null, unique]
+  actorUserId varchar [not null]
+  status SwapOrderStatus [not null, default: 'DRAFT']
+  economicSettlementId varchar [unique, note: 'One accepted exchange order maps to at most one settlement; created only after the exact quote has been re-authorized']
+  acceptedAt datetime
+  confirmedAt datetime
+  failureCode varchar
+  createdAt datetime [not null, default: `now()`]
+  updatedAt datetime [not null, default: `now()`]
+
+  indexes {
+    (actorUserId, status)
+  }
+}
+Ref: SwapOrder.quoteId > SwapQuote.id
+Ref: SwapOrder.actorUserId > User.id
+Ref: SwapOrder.economicSettlementId - EconomicSettlement.id
+
 // Additive compatibility links. They intentionally remain nullable until the
 // reviewed backfill proves every historic value path has an authoritative asset,
 // policy, and (where applicable) eligibility decision.
@@ -2687,7 +2782,8 @@ Ref: EconomicSettlement.assetDefinitionId > AssetDefinition.id
 Ref: EconomicSettlement.projectTokenPolicyId > ProjectTokenPolicy.id
 Ref: EconomicSettlement.equityOrRedemptionRightPolicyId > EquityOrRedemptionRightPolicy.id
 Ref: EconomicSettlement.eligibilityDecisionId > EligibilityDecision.id
-Ref: FundingIntent.assetDefinitionId > AssetDefinition.id
+Ref: FundingIntent.paymentAssetDefinitionId > AssetDefinition.id
+Ref: FundingIntent.awardAssetDefinitionId > AssetDefinition.id
 Ref: FundingIntent.projectTokenPolicyId > ProjectTokenPolicy.id
 Ref: FundingIntent.equityOrRedemptionRightPolicyId > EquityOrRedemptionRightPolicy.id
 Ref: FundingIntent.eligibilityDecisionId > EligibilityDecision.id

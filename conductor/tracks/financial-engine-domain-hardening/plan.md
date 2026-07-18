@@ -33,6 +33,14 @@ type: plan
     identity, separate utility and rights policies, and auditable eligibility
     decisions. Existing value paths carry nullable compatibility links only;
     no migration, backfill, dispatch, or settlement activation is included.
+- [x] Extend the persistence contract for dual-asset funding, ordered settlement
+  legs, and the only supported exchange shape: project utility -> ARDA -> project
+  utility. Rights are structurally excluded from quotes and orders.
+  - `FundingIntent` now distinguishes payment asset from award asset and stores
+    award atoms. `EconomicSettlementLeg` prevents a payment amount and award
+    amount from being collapsed into one legacy settlement field. `SwapQuote`
+    and `SwapOrder` pin both utility policies, three assets, three atom amounts,
+    gate/liquidity snapshots, expiry, and immutable terms. No writer is wired.
 - [ ] Document which current `ProjectTokenConfig`, `ProjectEquity`, and funding
   fields become compatibility projections, and the deletion criteria for each.
 
@@ -47,6 +55,12 @@ rights-policy-to-decision consistency, and approved/unexpired decision ownership
 by the funding/task/settlement beneficiary. Independent foreign keys alone do
 not establish those cross-row facts. Asset and policy updates must be append-only
 or reject mutation; version and effective-window ordering require explicit tests.
+The migration must also enforce non-negative settlement-leg positions and
+canonical positive atom strings, while the writer validates each leg against its
+asset scale. One `SwapOrder` may reference one quote and at most one settlement;
+one settlement may serve at most one exchange order. Quote acceptance must prove
+the order actor is the quote actor. Generated Prisma/Zod model schemas are not
+authorization command schemas and must not be used as such.
 
 ## 2. Fixed-scale migration [P0]
 

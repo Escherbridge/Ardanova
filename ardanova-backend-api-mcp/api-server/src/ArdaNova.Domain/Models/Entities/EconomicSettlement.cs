@@ -109,6 +109,10 @@ public class EconomicSettlement
 
     public virtual ICollection<TaskCommerceAgreement> TaskCommerceAgreements { get; set; } = new List<TaskCommerceAgreement>();
 
+    public virtual ICollection<EconomicSettlementLeg> EconomicSettlementLegs { get; set; } = new List<EconomicSettlementLeg>();
+
+    public virtual SwapOrder? SwapOrder { get; set; }
+
     [ForeignKey("assetDefinitionId")]
     public virtual AssetDefinition? AssetDefinition { get; set; }
 

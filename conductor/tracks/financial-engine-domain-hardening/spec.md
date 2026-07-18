@@ -20,7 +20,7 @@ activate checkout, payouts, token exchange, quest rewards, or AZOA dispatch.
 
 | Record | Immutable facts | Explicitly not implied |
 | --- | --- | --- |
-| `AssetDefinition` | stable id, chain, network, canonical on-chain asset id, symbol, display name, and scale 0--18 | a price, balance, liquidity, or right to redeem |
+| `AssetDefinition` | stable id, canonical chain/network or fiat namespace identity, asset id, symbol, display name, and scale 0--18 | a price, balance, liquidity, or right to redeem |
 | `ProjectTokenPolicy` | utility purpose, issuance/allocation rules, gate/liquidity policy, and referenced project asset | equity, revenue share, ownership, or guaranteed return |
 | `EquityOrRedemptionRightPolicy` | the distinct right class, jurisdiction/disclosure version, eligibility policy, cap/vesting or redemption terms, and effective period | custody, payment confirmation, or token liquidity |
 | `EligibilityDecision` | subject, policy version, evidence references/digests, decision, decider, expiry/review time, and recorded reason code | an investment, allocation, KYC approval for another purpose, or a settlement receipt |
@@ -36,9 +36,12 @@ floating-point asset amount, or inferred chain identity is permitted.
 - Project-token utility, equity/redemption rights, eligibility, payment
   verification, gate liquidity, and AZOA settlement are separate facts. Passing
   one check does not pass another.
-- A funding intent or task agreement snapshots the exact asset definition,
+- A funding intent snapshots distinct payment and award asset definitions; a task
+  agreement snapshots its exact award asset definition. Both persist the exact
   policy version, and eligibility decision used when it was authorized. Later
   policy changes cannot rewrite that evidence.
+- A settlement with more than one asset uses ordered immutable settlement legs;
+  its legacy single amount is never used to collapse payment and award facts.
 - Fixed-scale base units are the sole amount representation across new
   financial-engine contracts. UI decimal input is parsed at its named asset
   scale and rejected when it would round, overflow, or become non-positive.
@@ -57,12 +60,14 @@ floating-point asset amount, or inferred chain identity is permitted.
 This track extends, but does not duplicate,
 [`gated-commerce-and-azoa-settlement`](../gated-commerce-and-azoa-settlement/spec.md):
 
-- `FundingIntent` stores immutable `AssetDefinition`, utility-policy and/or
-  rights-policy references, plus the applicable `EligibilityDecision` snapshot.
-- `TaskCommerceAgreement`, `EconomicSettlement`, `SwapQuote`, and `SwapOrder`
-  use canonical asset ids and fixed-scale base units. Task awards default to a
-  project utility-token policy; any separate ownership/right award needs its
-  explicit policy and decision.
+- `FundingIntent` stores distinct payment/award asset references, a canonical
+  award base-unit string, utility-policy and/or rights-policy references, plus
+  the applicable `EligibilityDecision` snapshot.
+- `EconomicSettlementLeg`, `TaskCommerceAgreement`, `SwapQuote`, and `SwapOrder`
+  use canonical asset ids and fixed-scale base units. A quote has exactly three
+  explicit legs: project utility source, ARDA intermediary, and project utility
+  target. Task awards default to a project utility-token policy; any separate
+  ownership/right award needs its explicit policy and decision.
 - The existing staged asset-scale migration remains the only permissible
   database cutover path. Do not apply a default or use `prisma db push` against
   a shared environment.

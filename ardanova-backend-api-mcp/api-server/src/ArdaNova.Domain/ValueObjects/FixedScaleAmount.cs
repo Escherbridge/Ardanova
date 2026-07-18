@@ -57,4 +57,21 @@ public readonly record struct FixedScaleAmount
         amount = new FixedScaleAmount(mantissa.ToString(CultureInfo.InvariantCulture), scale);
         return true;
     }
+
+    /// <summary>Parses a canonical positive base-unit string at the supplied scale.</summary>
+    public static bool TryFromPositiveBaseUnits(string? baseUnits, int scale, out FixedScaleAmount amount)
+    {
+        amount = default;
+        if (!IsSupportedScale(scale)
+            || string.IsNullOrWhiteSpace(baseUnits)
+            || !BigInteger.TryParse(baseUnits, NumberStyles.None, CultureInfo.InvariantCulture, out var parsed)
+            || parsed <= 0
+            || !string.Equals(parsed.ToString(CultureInfo.InvariantCulture), baseUnits, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        amount = new FixedScaleAmount(baseUnits, scale);
+        return true;
+    }
 }

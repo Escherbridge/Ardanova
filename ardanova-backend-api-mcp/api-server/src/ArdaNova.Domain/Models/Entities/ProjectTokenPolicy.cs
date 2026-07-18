@@ -51,4 +51,8 @@ public class ProjectTokenPolicy
 
     public virtual ICollection<TaskCommerceAgreement> TaskCommerceAgreements { get; set; } = new List<TaskCommerceAgreement>();
 
+    public virtual ICollection<SwapQuote> SwapQuotesAsSourceProjectTokenPolicy { get; set; } = new List<SwapQuote>();
+
+    public virtual ICollection<SwapQuote> SwapQuotesAsTargetProjectTokenPolicy { get; set; } = new List<SwapQuote>();
+
 }
