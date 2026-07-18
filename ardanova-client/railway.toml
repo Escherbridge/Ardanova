@@ -2,6 +2,9 @@
 builder = "DOCKERFILE"
 dockerfilePath = "Dockerfile"
 
+[build.args]
+SKIP_ENV_VALIDATION = "true"
+
 [deploy]
 numReplicas = 1
 healthcheckPath = "/api/ready"
