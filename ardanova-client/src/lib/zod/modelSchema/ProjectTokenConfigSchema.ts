@@ -12,6 +12,7 @@ export const ProjectTokenConfigSchema = z.object({
   id: z.string().cuid(),
   projectId: z.string(),
   assetId: z.string().nullable(),
+  assetDefinitionId: z.string().nullable(),
   assetName: z.string(),
   unitName: z.string(),
   assetScale: z.number().int(),

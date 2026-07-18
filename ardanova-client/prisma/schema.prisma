@@ -5,7 +5,6 @@ generator client {
   provider        = "prisma-client-js"
   previewFeatures = ["driverAdapters"]
 }
-
 generator zod {
   provider         = "zod-prisma-types"
   output           = "../src/lib/zod"
@@ -721,6 +720,25 @@ enum StripeWebhookEventStatus {
   FAILED
 }
 
+enum AssetDefinitionKind {
+  PROJECT_UTILITY
+  ECOSYSTEM_UTILITY
+  EQUITY_RIGHT
+  REDEMPTION_RIGHT
+}
+
+enum EquityOrRedemptionRightKind {
+  EQUITY
+  REDEMPTION
+}
+
+enum EligibilityDecisionStatus {
+  APPROVED
+  REJECTED
+  EXPIRED
+  REVOKED
+}
+
 model Account {
   id String @id @default(cuid())
   userId String
@@ -859,6 +877,8 @@ model User {
   economicSettlements1 EconomicSettlement[] @relation("EconomicSettlement_authorizedByUserId")
   fundingIntents FundingIntent[] @relation("FundingIntent_funderUserId")
   taskCommerceAgreements TaskCommerceAgreement[] @relation("TaskCommerceAgreement_contributorUserId")
+  eligibilityDecisions EligibilityDecision[] @relation("EligibilityDecision_userId")
+  eligibilityDecisions1 EligibilityDecision[] @relation("EligibilityDecision_decidedByUserId")
 }
 
 model UserSkill {
@@ -1077,6 +1097,8 @@ model Project {
   economicSettlements EconomicSettlement[] @relation("EconomicSettlement_projectId")
   fundingIntents FundingIntent[] @relation("FundingIntent_projectId")
   taskCommerceAgreements TaskCommerceAgreement[] @relation("TaskCommerceAgreement_projectId")
+  projectTokenPolicies ProjectTokenPolicy[] @relation("ProjectTokenPolicy_projectId")
+  equityOrRedemptionRightPolicies EquityOrRedemptionRightPolicy[] @relation("EquityOrRedemptionRightPolicy_projectId")
 }
 
 model ProjectTask {
@@ -1795,7 +1817,7 @@ model Wallet {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   user User @relation("Wallet_userId", fields: [userId], references: [id])
-  verificationChallenges WalletVerificationChallenge[] @relation("WalletVerificationChallenge_walletId")
+  walletVerificationChallenges WalletVerificationChallenge[] @relation("WalletVerificationChallenge_walletId")
 }
 
 model WalletVerificationChallenge {
@@ -2334,6 +2356,7 @@ model ProjectTokenConfig {
   id String @id @default(cuid())
   projectId String @unique
   assetId String?
+  assetDefinitionId String?
   assetName String
   unitName String
   assetScale Int @default(6)
@@ -2364,6 +2387,7 @@ model ProjectTokenConfig {
   projectInvestments ProjectInvestment[] @relation("ProjectInvestment_projectTokenConfigId")
   fundingIntents FundingIntent[] @relation("FundingIntent_projectTokenConfigId")
   taskCommerceAgreements TaskCommerceAgreement[] @relation("TaskCommerceAgreement_projectTokenConfigId")
+  assetDefinition AssetDefinition? @relation("ProjectTokenConfig_assetDefinitionId", fields: [assetDefinitionId], references: [id])
 }
 
 model TokenAllocation {
@@ -2503,6 +2527,10 @@ model EconomicSettlement {
   taskId String?
   escrowId String?
   assetCode String
+  assetDefinitionId String?
+  projectTokenPolicyId String?
+  equityOrRedemptionRightPolicyId String?
+  eligibilityDecisionId String?
   amount Decimal @db.Decimal(38, 18)
   scale Int @default(18)
   termsSnapshot Json?
@@ -2525,6 +2553,10 @@ model EconomicSettlement {
   economicOutboxes EconomicOutbox[] @relation("EconomicOutbox_settlementId")
   fundingIntents FundingIntent[] @relation("FundingIntent_settlementId")
   taskCommerceAgreements TaskCommerceAgreement[] @relation("TaskCommerceAgreement_settlementId")
+  assetDefinition AssetDefinition? @relation("EconomicSettlement_assetDefinitionId", fields: [assetDefinitionId], references: [id])
+  projectTokenPolicy ProjectTokenPolicy? @relation("EconomicSettlement_projectTokenPolicyId", fields: [projectTokenPolicyId], references: [id])
+  equityOrRedemptionRightPolicy EquityOrRedemptionRightPolicy? @relation("EconomicSettlement_equityOrRedemptionRightPolicyId", fields: [equityOrRedemptionRightPolicyId], references: [id])
+  eligibilityDecision EligibilityDecision? @relation("EconomicSettlement_eligibilityDecisionId", fields: [eligibilityDecisionId], references: [id])
 
   @@index([beneficiaryUserId, status])
   @@index([projectId, status])
@@ -2561,6 +2593,10 @@ model FundingIntent {
   funderUserId String
   projectId String
   projectTokenConfigId String
+  assetDefinitionId String?
+  projectTokenPolicyId String?
+  equityOrRedemptionRightPolicyId String?
+  eligibilityDecisionId String?
   currencyCode String
   amount Decimal @db.Decimal(38, 18)
   scale Int @default(2)
@@ -2583,6 +2619,10 @@ model FundingIntent {
   project Project @relation("FundingIntent_projectId", fields: [projectId], references: [id])
   projectTokenConfig ProjectTokenConfig @relation("FundingIntent_projectTokenConfigId", fields: [projectTokenConfigId], references: [id])
   settlement EconomicSettlement? @relation("FundingIntent_settlementId", fields: [settlementId], references: [id])
+  assetDefinition AssetDefinition? @relation("FundingIntent_assetDefinitionId", fields: [assetDefinitionId], references: [id])
+  projectTokenPolicy ProjectTokenPolicy? @relation("FundingIntent_projectTokenPolicyId", fields: [projectTokenPolicyId], references: [id])
+  equityOrRedemptionRightPolicy EquityOrRedemptionRightPolicy? @relation("FundingIntent_equityOrRedemptionRightPolicyId", fields: [equityOrRedemptionRightPolicyId], references: [id])
+  eligibilityDecision EligibilityDecision? @relation("FundingIntent_eligibilityDecisionId", fields: [eligibilityDecisionId], references: [id])
 
   @@unique([funderUserId, idempotencyKey])
   @@index([funderUserId, status])
@@ -2599,6 +2639,10 @@ model TaskCommerceAgreement {
   bidId String @unique
   contributorUserId String
   projectTokenConfigId String?
+  assetDefinitionId String?
+  projectTokenPolicyId String?
+  equityOrRedemptionRightPolicyId String?
+  eligibilityDecisionId String?
   assetCode String
   awardAmount Decimal @db.Decimal(38, 18)
   scale Int @default(18)
@@ -2620,8 +2664,97 @@ model TaskCommerceAgreement {
   projectTokenConfig ProjectTokenConfig? @relation("TaskCommerceAgreement_projectTokenConfigId", fields: [projectTokenConfigId], references: [id])
   escrow TaskEscrow? @relation("TaskCommerceAgreement_escrowId", fields: [escrowId], references: [id])
   settlement EconomicSettlement? @relation("TaskCommerceAgreement_settlementId", fields: [settlementId], references: [id])
+  assetDefinition AssetDefinition? @relation("TaskCommerceAgreement_assetDefinitionId", fields: [assetDefinitionId], references: [id])
+  projectTokenPolicy ProjectTokenPolicy? @relation("TaskCommerceAgreement_projectTokenPolicyId", fields: [projectTokenPolicyId], references: [id])
+  equityOrRedemptionRightPolicy EquityOrRedemptionRightPolicy? @relation("TaskCommerceAgreement_equityOrRedemptionRightPolicyId", fields: [equityOrRedemptionRightPolicyId], references: [id])
+  eligibilityDecision EligibilityDecision? @relation("TaskCommerceAgreement_eligibilityDecisionId", fields: [eligibilityDecisionId], references: [id])
 
   @@index([contributorUserId, status])
   @@index([projectId, status])
   @@index([questRunId])
+}
+
+model AssetDefinition {
+  id String @id @default(cuid())
+  kind AssetDefinitionKind
+  chainType String
+  chainNetwork String
+  canonicalAssetId String
+  symbol String
+  displayName String
+  scale Int
+  supersedesAssetDefinitionId String?
+  createdAt DateTime @default(now())
+  supersedesAssetDefinition AssetDefinition? @relation("AssetDefinition_supersedesAssetDefinitionId", fields: [supersedesAssetDefinitionId], references: [id])
+  supersedesAssetDefinitionChildren AssetDefinition[] @relation("AssetDefinition_supersedesAssetDefinitionId")
+  projectTokenPolicies ProjectTokenPolicy[] @relation("ProjectTokenPolicy_assetDefinitionId")
+  projectTokenConfigs ProjectTokenConfig[] @relation("ProjectTokenConfig_assetDefinitionId")
+  economicSettlements EconomicSettlement[] @relation("EconomicSettlement_assetDefinitionId")
+  fundingIntents FundingIntent[] @relation("FundingIntent_assetDefinitionId")
+  taskCommerceAgreements TaskCommerceAgreement[] @relation("TaskCommerceAgreement_assetDefinitionId")
+
+  @@unique([chainType, chainNetwork, canonicalAssetId])
+}
+
+model ProjectTokenPolicy {
+  id String @id @default(cuid())
+  projectId String
+  assetDefinitionId String
+  version Int
+  termsHash String
+  allocationRules Json
+  effectiveFrom DateTime
+  retiredAt DateTime?
+  createdAt DateTime @default(now())
+  project Project @relation("ProjectTokenPolicy_projectId", fields: [projectId], references: [id])
+  assetDefinition AssetDefinition @relation("ProjectTokenPolicy_assetDefinitionId", fields: [assetDefinitionId], references: [id])
+  economicSettlements EconomicSettlement[] @relation("EconomicSettlement_projectTokenPolicyId")
+  fundingIntents FundingIntent[] @relation("FundingIntent_projectTokenPolicyId")
+  taskCommerceAgreements TaskCommerceAgreement[] @relation("TaskCommerceAgreement_projectTokenPolicyId")
+
+  @@unique([projectId, version])
+}
+
+model EquityOrRedemptionRightPolicy {
+  id String @id @default(cuid())
+  projectId String
+  kind EquityOrRedemptionRightKind
+  version Int
+  jurisdiction String
+  disclosureVersion String
+  eligibilityPolicyVersion String
+  termsHash String
+  termsSnapshot Json
+  effectiveFrom DateTime
+  retiredAt DateTime?
+  createdAt DateTime @default(now())
+  project Project @relation("EquityOrRedemptionRightPolicy_projectId", fields: [projectId], references: [id])
+  eligibilityDecisions EligibilityDecision[] @relation("EligibilityDecision_equityOrRedemptionRightPolicyId")
+  economicSettlements EconomicSettlement[] @relation("EconomicSettlement_equityOrRedemptionRightPolicyId")
+  fundingIntents FundingIntent[] @relation("FundingIntent_equityOrRedemptionRightPolicyId")
+  taskCommerceAgreements TaskCommerceAgreement[] @relation("TaskCommerceAgreement_equityOrRedemptionRightPolicyId")
+
+  @@unique([projectId, kind, version])
+}
+
+model EligibilityDecision {
+  id String @id @default(cuid())
+  userId String
+  equityOrRedemptionRightPolicyId String
+  status EligibilityDecisionStatus
+  evidenceDigest String
+  reasonCode String
+  decidedByUserId String?
+  expiresAt DateTime?
+  reviewedAt DateTime?
+  createdAt DateTime @default(now())
+  user User @relation("EligibilityDecision_userId", fields: [userId], references: [id])
+  equityOrRedemptionRightPolicy EquityOrRedemptionRightPolicy @relation("EligibilityDecision_equityOrRedemptionRightPolicyId", fields: [equityOrRedemptionRightPolicyId], references: [id])
+  decidedByUser User? @relation("EligibilityDecision_decidedByUserId", fields: [decidedByUserId], references: [id])
+  economicSettlements EconomicSettlement[] @relation("EconomicSettlement_eligibilityDecisionId")
+  fundingIntents FundingIntent[] @relation("FundingIntent_eligibilityDecisionId")
+  taskCommerceAgreements TaskCommerceAgreement[] @relation("TaskCommerceAgreement_eligibilityDecisionId")
+
+  @@index([userId, equityOrRedemptionRightPolicyId, status])
+  @@index([expiresAt])
 }

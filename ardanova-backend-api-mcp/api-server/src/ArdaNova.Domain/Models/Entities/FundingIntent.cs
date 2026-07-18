@@ -38,6 +38,14 @@ public class FundingIntent
     [Required]
     public string projectTokenConfigId { get; set; } = string.Empty;
 
+    public string? assetDefinitionId { get; set; }
+
+    public string? projectTokenPolicyId { get; set; }
+
+    public string? equityOrRedemptionRightPolicyId { get; set; }
+
+    public string? eligibilityDecisionId { get; set; }
+
     [Required]
     public string currencyCode { get; set; } = string.Empty;
 
@@ -97,5 +105,17 @@ public class FundingIntent
 
     [ForeignKey("settlementId")]
     public virtual EconomicSettlement? Settlement { get; set; }
+
+    [ForeignKey("assetDefinitionId")]
+    public virtual AssetDefinition? AssetDefinition { get; set; }
+
+    [ForeignKey("projectTokenPolicyId")]
+    public virtual ProjectTokenPolicy? ProjectTokenPolicy { get; set; }
+
+    [ForeignKey("equityOrRedemptionRightPolicyId")]
+    public virtual EquityOrRedemptionRightPolicy? EquityOrRedemptionRightPolicy { get; set; }
+
+    [ForeignKey("eligibilityDecisionId")]
+    public virtual EligibilityDecision? EligibilityDecision { get; set; }
 
 }

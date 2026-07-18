@@ -26,11 +26,27 @@ type: plan
     or explicitly use the separate rights path.
   - `EconomicSettlement` has only `assetCode`, amount, and scale. It needs the
     immutable asset/policy references that explain the already-decided amount.
-- [ ] Specify DBML-first `AssetDefinition`, `ProjectTokenPolicy`,
+- [x] Specify DBML-first `AssetDefinition`, `ProjectTokenPolicy`,
   `EquityOrRedemptionRightPolicy`, and `EligibilityDecision` with immutable ids,
   versioning/effective windows, actor/audit fields, and foreign-key/index plan.
+  - Generated Prisma, Zod, and EF models now preserve immutable canonical asset
+    identity, separate utility and rights policies, and auditable eligibility
+    decisions. Existing value paths carry nullable compatibility links only;
+    no migration, backfill, dispatch, or settlement activation is included.
 - [ ] Document which current `ProjectTokenConfig`, `ProjectEquity`, and funding
   fields become compatibility projections, and the deletion criteria for each.
+
+### Persistence-slice review constraints (2026-07-18)
+
+The DBML-generated vocabulary is intentionally inert until the following P0
+controls are delivered with its writer and reviewed migration: the migration
+must add `CHECK (scale BETWEEN 0 AND 18)`, and every creation/backfill path must
+invoke the canonical scale validator. The authorization writer must atomically
+prove project consistency, utility-policy-to-utility-asset-kind consistency,
+rights-policy-to-decision consistency, and approved/unexpired decision ownership
+by the funding/task/settlement beneficiary. Independent foreign keys alone do
+not establish those cross-row facts. Asset and policy updates must be append-only
+or reject mutation; version and effective-window ordering require explicit tests.
 
 ## 2. Fixed-scale migration [P0]
 

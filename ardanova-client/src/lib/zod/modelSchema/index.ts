@@ -97,3 +97,7 @@ export * from './EconomicSettlementSchema';
 export * from './EconomicOutboxSchema';
 export * from './FundingIntentSchema';
 export * from './TaskCommerceAgreementSchema';
+export * from './AssetDefinitionSchema';
+export * from './ProjectTokenPolicySchema';
+export * from './EquityOrRedemptionRightPolicySchema';
+export * from './EligibilityDecisionSchema';

@@ -190,4 +190,8 @@ public class Project
 
     public virtual ICollection<TaskCommerceAgreement> TaskCommerceAgreements { get; set; } = new List<TaskCommerceAgreement>();
 
+    public virtual ICollection<ProjectTokenPolicy> ProjectTokenPolicies { get; set; } = new List<ProjectTokenPolicy>();
+
+    public virtual ICollection<EquityOrRedemptionRightPolicy> EquityOrRedemptionRightPolicies { get; set; } = new List<EquityOrRedemptionRightPolicy>();
+
 }

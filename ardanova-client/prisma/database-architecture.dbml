@@ -2170,6 +2170,7 @@ Table ProjectTokenConfig {
   id varchar [not null, pk, default: `cuid()`]
   projectId varchar [not null, unique]
   assetId varchar [note: 'Algorand ASA ID — null until minted on-chain']
+  assetDefinitionId varchar [note: 'Immutable canonical asset reference; nullable only during additive migration']
   assetName varchar [not null, note: 'e.g., ProjectName Shares']
   unitName varchar [not null, note: 'Max 8 chars, e.g., PSHARE']
   assetScale int [not null, default: 6, note: 'Canonical asset decimals fixed when the project token configuration is created']
@@ -2427,6 +2428,10 @@ Table EconomicSettlement {
   taskId varchar
   escrowId varchar
   assetCode varchar [not null, note: 'Asset/currency identifier; no wallet secret material']
+  assetDefinitionId varchar [note: 'Immutable canonical asset reference; nullable only during additive migration']
+  projectTokenPolicyId varchar [note: 'Utility-token policy frozen by this economic decision']
+  equityOrRedemptionRightPolicyId varchar [note: 'Separate rights policy when this decision concerns an equity or redemption right']
+  eligibilityDecisionId varchar [note: 'Auditable authorization decision for a rights-bearing allocation']
   amount decimal(38,18) [not null, note: 'Fixed-scale settlement amount; floating point is forbidden']
   scale int [not null, default: 18]
   termsSnapshot json [note: 'Immutable authorization, gate, quote, and allocation-command snapshot']
@@ -2492,6 +2497,10 @@ Table FundingIntent {
   funderUserId varchar [not null]
   projectId varchar [not null]
   projectTokenConfigId varchar [not null]
+  assetDefinitionId varchar [note: 'Immutable canonical asset reference; nullable only during additive migration']
+  projectTokenPolicyId varchar [note: 'Utility-token policy frozen at authorization']
+  equityOrRedemptionRightPolicyId varchar [note: 'Separate rights policy when funding is rights-bearing']
+  eligibilityDecisionId varchar [note: 'Auditable rights-eligibility decision frozen at authorization']
   currencyCode varchar [not null, note: 'ISO currency code for the payment amount']
   amount decimal(38,18) [not null, note: 'Fixed-scale amount; floating point is forbidden']
   scale int [not null, default: 2]
@@ -2537,6 +2546,10 @@ Table TaskCommerceAgreement {
   bidId varchar [not null, unique, note: 'One accepted commercial agreement per bid']
   contributorUserId varchar [not null]
   projectTokenConfigId varchar
+  assetDefinitionId varchar [note: 'Immutable canonical utility-asset reference; nullable only during additive migration']
+  projectTokenPolicyId varchar [note: 'Utility-token policy frozen at task acceptance']
+  equityOrRedemptionRightPolicyId varchar [note: 'Separate rights policy; task awards never infer one from utility-token state']
+  eligibilityDecisionId varchar [note: 'Required when a task award carries a separate equity or redemption right']
   assetCode varchar [not null, note: 'Award asset identifier']
   awardAmount decimal(38,18) [not null, note: 'Fixed-scale project-token award; floating point is forbidden']
   scale int [not null, default: 18]
@@ -2565,3 +2578,120 @@ Ref: TaskCommerceAgreement.contributorUserId > User.id
 Ref: TaskCommerceAgreement.projectTokenConfigId > ProjectTokenConfig.id
 Ref: TaskCommerceAgreement.escrowId > TaskEscrow.id
 Ref: TaskCommerceAgreement.settlementId > EconomicSettlement.id
+
+// Financial-engine vocabulary. These tables are intentionally additive: existing
+// config, funding, agreement, and settlement rows receive nullable links first;
+// a reviewed migration/backfill then validates historic facts before no-default
+// NOT NULL hardening. See conductor/tracks/financial-engine-domain-hardening.
+Enum AssetDefinitionKind {
+  PROJECT_UTILITY
+  ECOSYSTEM_UTILITY
+  EQUITY_RIGHT
+  REDEMPTION_RIGHT
+}
+
+Enum EquityOrRedemptionRightKind {
+  EQUITY
+  REDEMPTION
+}
+
+Enum EligibilityDecisionStatus {
+  APPROVED
+  REJECTED
+  EXPIRED
+  REVOKED
+}
+
+Table AssetDefinition {
+  id varchar [not null, pk, default: `cuid()`]
+  kind AssetDefinitionKind [not null]
+  chainType varchar [not null]
+  chainNetwork varchar [not null]
+  canonicalAssetId varchar [not null, note: 'Canonical on-chain asset id; never inferred from symbol or display name']
+  symbol varchar [not null]
+  displayName varchar [not null]
+  scale int [not null, note: 'Canonical decimal scale, inclusive range 0--18; no default is permitted']
+  supersedesAssetDefinitionId varchar [note: 'Append-only correction lineage; historic agreements retain their original id']
+  createdAt datetime [not null, default: `now()`]
+
+  indexes {
+    (chainType, chainNetwork, canonicalAssetId) [unique]
+  }
+}
+Ref: AssetDefinition.supersedesAssetDefinitionId > AssetDefinition.id
+
+Table ProjectTokenPolicy {
+  id varchar [not null, pk, default: `cuid()`]
+  projectId varchar [not null]
+  assetDefinitionId varchar [not null]
+  version int [not null]
+  termsHash varchar [not null, note: 'Canonical hash of the immutable utility-token policy']
+  allocationRules json [not null, note: 'Consumer-owned allocation, gate, and liquidity policy snapshot']
+  effectiveFrom datetime [not null]
+  retiredAt datetime
+  createdAt datetime [not null, default: `now()`]
+
+  indexes {
+    (projectId, version) [unique]
+  }
+}
+Ref: ProjectTokenPolicy.projectId > Project.id
+Ref: ProjectTokenPolicy.assetDefinitionId > AssetDefinition.id
+
+Table EquityOrRedemptionRightPolicy {
+  id varchar [not null, pk, default: `cuid()`]
+  projectId varchar [not null]
+  kind EquityOrRedemptionRightKind [not null]
+  version int [not null]
+  jurisdiction varchar [not null]
+  disclosureVersion varchar [not null]
+  eligibilityPolicyVersion varchar [not null]
+  termsHash varchar [not null, note: 'Canonical hash of the immutable rights policy']
+  termsSnapshot json [not null, note: 'Consumer-owned cap, vesting, redemption, and disclosure terms']
+  effectiveFrom datetime [not null]
+  retiredAt datetime
+  createdAt datetime [not null, default: `now()`]
+
+  indexes {
+    (projectId, kind, version) [unique]
+  }
+}
+Ref: EquityOrRedemptionRightPolicy.projectId > Project.id
+
+Table EligibilityDecision {
+  id varchar [not null, pk, default: `cuid()`]
+  userId varchar [not null]
+  equityOrRedemptionRightPolicyId varchar [not null]
+  status EligibilityDecisionStatus [not null]
+  evidenceDigest varchar [not null, note: 'Digest/reference only; no KYC document or payment secret is copied here']
+  reasonCode varchar [not null]
+  decidedByUserId varchar
+  expiresAt datetime
+  reviewedAt datetime
+  createdAt datetime [not null, default: `now()`]
+
+  indexes {
+    (userId, equityOrRedemptionRightPolicyId, status)
+    (expiresAt)
+  }
+}
+Ref: EligibilityDecision.userId > User.id
+Ref: EligibilityDecision.equityOrRedemptionRightPolicyId > EquityOrRedemptionRightPolicy.id
+Ref: EligibilityDecision.decidedByUserId > User.id
+
+// Additive compatibility links. They intentionally remain nullable until the
+// reviewed backfill proves every historic value path has an authoritative asset,
+// policy, and (where applicable) eligibility decision.
+Ref: ProjectTokenConfig.assetDefinitionId > AssetDefinition.id
+Ref: EconomicSettlement.assetDefinitionId > AssetDefinition.id
+Ref: EconomicSettlement.projectTokenPolicyId > ProjectTokenPolicy.id
+Ref: EconomicSettlement.equityOrRedemptionRightPolicyId > EquityOrRedemptionRightPolicy.id
+Ref: EconomicSettlement.eligibilityDecisionId > EligibilityDecision.id
+Ref: FundingIntent.assetDefinitionId > AssetDefinition.id
+Ref: FundingIntent.projectTokenPolicyId > ProjectTokenPolicy.id
+Ref: FundingIntent.equityOrRedemptionRightPolicyId > EquityOrRedemptionRightPolicy.id
+Ref: FundingIntent.eligibilityDecisionId > EligibilityDecision.id
+Ref: TaskCommerceAgreement.assetDefinitionId > AssetDefinition.id
+Ref: TaskCommerceAgreement.projectTokenPolicyId > ProjectTokenPolicy.id
+Ref: TaskCommerceAgreement.equityOrRedemptionRightPolicyId > EquityOrRedemptionRightPolicy.id
+Ref: TaskCommerceAgreement.eligibilityDecisionId > EligibilityDecision.id

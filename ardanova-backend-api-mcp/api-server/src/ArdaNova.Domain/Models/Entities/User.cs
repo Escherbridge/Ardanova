@@ -250,4 +250,8 @@ public class User
 
     public virtual ICollection<EconomicSettlement> EconomicSettlementsAsAuthorizedByUser { get; set; } = new List<EconomicSettlement>();
 
+    public virtual ICollection<EligibilityDecision> EligibilityDecisionsAsUser { get; set; } = new List<EligibilityDecision>();
+
+    public virtual ICollection<EligibilityDecision> EligibilityDecisionsAsDecidedByUser { get; set; } = new List<EligibilityDecision>();
+
 }

@@ -21,6 +21,8 @@ public class ProjectTokenConfig
 
     public string? assetId { get; set; }
 
+    public string? assetDefinitionId { get; set; }
+
     [Required]
     public string assetName { get; set; } = string.Empty;
 
@@ -99,5 +101,8 @@ public class ProjectTokenConfig
     public virtual ICollection<FundingIntent> FundingIntents { get; set; } = new List<FundingIntent>();
 
     public virtual ICollection<TaskCommerceAgreement> TaskCommerceAgreements { get; set; } = new List<TaskCommerceAgreement>();
+
+    [ForeignKey("assetDefinitionId")]
+    public virtual AssetDefinition? AssetDefinition { get; set; }
 
 }
