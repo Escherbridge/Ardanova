@@ -39,7 +39,7 @@ type: plan
 
 - [ ] **[P0] Execution-state read**
   - `GET /api/quest/runs/{runId}/execution-state` wrapper
-  - Map parking/terminal states; `AwaitingReconciliation` = "pending settlement" (non-error)
+  - Map all nine SDK `0.1.0` statuses one-for-one; preserve unknown raw values
 
 ## 5. API + frontend (thin proxy)
 

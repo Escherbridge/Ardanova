@@ -143,7 +143,7 @@ type: plan
 - [ ] Wire verified Stripe funding, approved escrow release/refund, and executed
       swap to the outbox — never directly to the UI action.
 - [ ] Record and surface AZOA `replayed`, KYC rejection, operation id, confirmed,
-      failed, and `AwaitingReconciliation` states.
+      failed, and local `AWAITING_RECONCILIATION` settlement states.
 
 The repository currently has no reviewed Prisma migration history. The additive
 DBML model is safe to generate locally, but a production deployment must create

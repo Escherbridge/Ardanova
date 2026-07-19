@@ -1,6 +1,13 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
+vi.mock("~/env", () => ({
+  env: {
+    API_URL: "https://api.example.test",
+    API_KEY: "test-service-key",
+    ADMIN_API_KEY: "test-admin-key",
+  },
+}));
 
 import { createAdminApiClient } from "./admin-api-client";
 

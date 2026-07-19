@@ -14,9 +14,7 @@ using Microsoft.Extensions.Logging;
 /// ArdaNova never starts or runs a quest as an avatar — avatars self-run. This
 /// service only translates observed domain facts (funding goal met, task
 /// accepted/rejected) into the matching gate signal, and reads back where a run
-/// currently sits. The parking-state mapping — including treating
-/// <c>AwaitingReconciliation</c> as a non-error pending-settlement state — lives
-/// here in the Application layer.
+/// currently sits. Status mapping lives here in the Application layer.
 ///
 /// Layering: depends only on the Application-owned <see cref="IAzoaQuestNode"/>
 /// port.
@@ -108,46 +106,23 @@ public class AzoaQuestSignalService : IAzoaQuestSignalService
         return result;
     }
 
-    /// <summary>
-    /// Maps the node's raw status string onto <see cref="AzoaRunState"/>.
-    ///
-    /// <c>AwaitingReconciliation</c> is a NON-error pending-settlement parking
-    /// state and is mapped as such (not to <see cref="AzoaRunState.Failed"/>).
-    /// Unrecognised statuses map to <see cref="AzoaRunState.Unknown"/> with the
-    /// raw value preserved on the DTO for diagnostics.
-    /// </summary>
+    /// <summary>Maps only statuses defined by the AZOA workflow contract.</summary>
     private static AzoaRunState MapRunState(string? status)
     {
         if (string.IsNullOrWhiteSpace(status))
             return AzoaRunState.Unknown;
 
-        // Normalise: case-insensitive, ignore separators the node might use
-        // (snake_case / kebab-case / PascalCase all collapse to the same key).
-        var normalized = status
-            .Replace("_", string.Empty)
-            .Replace("-", string.Empty)
-            .Replace(" ", string.Empty);
-
-        return normalized.ToLowerInvariant() switch
+        return status switch
         {
-            "pending" => AzoaRunState.Pending,
-            "created" => AzoaRunState.Pending,
-            "running" => AzoaRunState.Running,
-            "inprogress" => AzoaRunState.Running,
-            "active" => AzoaRunState.Running,
-            "awaitingsignal" => AzoaRunState.AwaitingSignal,
-            "waitingforsignal" => AzoaRunState.AwaitingSignal,
-            "gated" => AzoaRunState.AwaitingSignal,
-            "awaitingreconciliation" => AzoaRunState.AwaitingReconciliation,
-            "pendingsettlement" => AzoaRunState.AwaitingReconciliation,
-            "reconciling" => AzoaRunState.AwaitingReconciliation,
-            "completed" => AzoaRunState.Completed,
-            "complete" => AzoaRunState.Completed,
-            "succeeded" => AzoaRunState.Completed,
-            "done" => AzoaRunState.Completed,
-            "failed" => AzoaRunState.Failed,
-            "error" => AzoaRunState.Failed,
-            "errored" => AzoaRunState.Failed,
+            "Pending" => AzoaRunState.Pending,
+            "Running" => AzoaRunState.Running,
+            "Succeeded" => AzoaRunState.Succeeded,
+            "Failed" => AzoaRunState.Failed,
+            "Forked" => AzoaRunState.Forked,
+            "Cancelled" => AzoaRunState.Cancelled,
+            "Suspended" => AzoaRunState.Suspended,
+            "AwaitingSignal" => AzoaRunState.AwaitingSignal,
+            "AwaitingTimer" => AzoaRunState.AwaitingTimer,
             _ => AzoaRunState.Unknown,
         };
     }

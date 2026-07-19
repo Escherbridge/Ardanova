@@ -12,3 +12,9 @@ Commerce migration preflight expectations mirror PostgreSQL's
 `information_schema` output from the checked-in Prisma migrations. An
 unannotated Prisma `String` is `data_type=text` and `udt_name=text`; DBML's
 source-level `varchar` label is not the deployed catalog contract.
+
+## AZOA workflow statuses
+
+Use the SDK's `isAwaiting` helper for parked workflow runs, then add `Pending`
+and `Running` for pollable in-flight state. Do not introduce application-only
+workflow statuses; settlement reconciliation belongs to the economic outbox.

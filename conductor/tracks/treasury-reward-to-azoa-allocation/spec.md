@@ -1,3 +1,7 @@
+---
+type: spec
+---
+
 # Treasury / Reward → AZOA Allocation — Technical Specification
 
 ## Overview
@@ -13,10 +17,9 @@ consumer-side, §1); AZOA performs the exactly-once, KYC-gated move (§6).
 ## ⚠️ Ordering constraint (real value)
 
 AZOA-side `quest-reconcile-retry-wiring` (**P7**, the double-mint reconcile clause,
-§7) is **upstream** of this track going live on **real value**. Until P7 is
-confirmed on the chosen node, all dev/integration runs use
-`Blockchain:Mode=Simulated` (deterministic `sim:` ids). Build and test now; gate
-the real-value flip on P7.
+§7) is shipped on the reference node. Before enabling real value on another
+deployment, verify its reconcile endpoints and recovery tests. Local and CI runs
+remain on `Blockchain:Mode=Simulated` (deterministic `sim:` ids).
 
 ## Dependencies
 
@@ -60,8 +63,9 @@ send an explicit stable key.
 
 ArdaNova's consumer obligations:
 1. Send a stable `Idempotency-Key` on **every** allocation (above).
-2. Treat `AwaitingReconciliation` as a **non-terminal, non-error** board state
-   ("pending settlement") and **do not re-trigger**.
+2. Record an ambiguous outcome as local
+   `EconomicSettlementStatus.AWAITING_RECONCILIATION`, render it as
+   **non-terminal, non-error** "pending settlement," and **do not re-trigger**.
 3. Never re-POST an allocation on a timeout/ambiguous error — rely on
    idempotency + the node's reconcile-before-retry.
 
@@ -100,7 +104,7 @@ status (e.g. "reward sent / pending settlement") via a thin proxy.
   AZOA side.
 - A `403 KYC_FORBIDDEN` surfaces as an actionable "must be KYC-approved" message;
   fail-closed (no value moves).
-- `AwaitingReconciliation` is rendered as "pending settlement" and never triggers
-  a re-POST.
-- Real-value execution is flag-gated and stays on `Simulated` until AZOA P7 is
-  confirmed.
+- Local `EconomicSettlementStatus.AWAITING_RECONCILIATION` is rendered as
+  "pending settlement" and never triggers a re-POST.
+- Real-value execution is flag-gated until the chosen node verifies shipped P7
+  reconciliation plus its custody and fee-funding deploy checks.

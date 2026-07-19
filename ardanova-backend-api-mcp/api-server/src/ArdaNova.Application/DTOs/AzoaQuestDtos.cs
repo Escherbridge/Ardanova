@@ -42,13 +42,7 @@ public record AzoaPublishedQuestDto
 }
 
 /// <summary>
-/// Lifecycle/parking state of a quest run, mapped from the AZOA node's
-/// <c>execution-state</c> read (track <c>azoa-quest-authoring</c>).
-///
-/// IMPORTANT: <see cref="AwaitingReconciliation"/> is a NON-error "pending
-/// settlement" parking state — a run that has executed a value move and is waiting
-/// for on-chain settlement to be reconciled. Callers must treat it as a normal,
-/// in-flight state, not a failure.
+/// Lifecycle state of a quest run from AZOA's <c>execution-state</c> contract.
 /// </summary>
 public enum AzoaRunState
 {
@@ -58,20 +52,26 @@ public enum AzoaRunState
     /// <summary>Run is actively executing nodes.</summary>
     Running,
 
-    /// <summary>Run is parked at a GateCheck waiting for a signal to advance.</summary>
-    AwaitingSignal,
-
-    /// <summary>
-    /// Non-error pending-settlement parking state: a value move has executed and
-    /// the run is waiting for on-chain reconciliation. NOT a failure.
-    /// </summary>
-    AwaitingReconciliation,
-
-    /// <summary>Run finished all nodes successfully.</summary>
-    Completed,
+    /// <summary>Run completed successfully.</summary>
+    Succeeded,
 
     /// <summary>Run terminated with an error.</summary>
     Failed,
+
+    /// <summary>Run was replaced by a forked run.</summary>
+    Forked,
+
+    /// <summary>Run was cancelled.</summary>
+    Cancelled,
+
+    /// <summary>Run is parked until explicitly advanced.</summary>
+    Suspended,
+
+    /// <summary>Run is parked at a GateCheck waiting for a signal to advance.</summary>
+    AwaitingSignal,
+
+    /// <summary>Run is parked until its timer becomes due.</summary>
+    AwaitingTimer,
 
     /// <summary>Node returned a state ArdaNova does not yet model.</summary>
     Unknown,
@@ -92,16 +92,12 @@ public record AzoaRunExecutionStateDto
     /// <summary>Mapped lifecycle/parking state (see <see cref="AzoaRunState"/>).</summary>
     public AzoaRunState State { get; init; }
 
-    /// <summary>
-    /// True when the run is in a non-error pending-settlement state
-    /// (<see cref="AzoaRunState.AwaitingReconciliation"/>). Surfaced explicitly so
-    /// callers don't have to special-case the enum.
-    /// </summary>
-    public bool IsPendingSettlement => State == AzoaRunState.AwaitingReconciliation;
-
-    /// <summary>True when the run reached a terminal success state.</summary>
+    /// <summary>True when the run cannot transition again.</summary>
     public bool IsTerminal =>
-        State is AzoaRunState.Completed or AzoaRunState.Failed;
+        State is AzoaRunState.Succeeded
+            or AzoaRunState.Failed
+            or AzoaRunState.Forked
+            or AzoaRunState.Cancelled;
 
     /// <summary>
     /// Id of the node the run is currently parked on / executing, if the node

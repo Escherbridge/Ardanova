@@ -1,3 +1,7 @@
+---
+type: spec
+---
+
 # AZOA Quest Authoring — Technical Specification
 
 ## Overview
@@ -71,9 +75,9 @@ Author DAGs using the node's config grammar:
 | `POST /api/quest/runs/{runId}/signal` | Un-park `AwaitingSignal` gate | **ArdaNova pushes "goal met"/"approved"** |
 | `GET /api/quest/runs/{runId}/execution-state` | Poll node states for the board | reader (ArdaNova UI) |
 
-Parking states ArdaNova must handle in the board UI: `AwaitingSignal`,
-`AwaitingTimer`, `AwaitingReconciliation` (pending settlement — non-error, §7),
-`Suspended`; terminals `Succeeded`/`Failed`/`Cancelled`/`Forked`.
+Run statuses ArdaNova must handle in the board UI match AZOA SDK `0.1.0`:
+`Pending`, `Running`, `Suspended`, `AwaitingSignal`, `AwaitingTimer`,
+`Succeeded`, `Failed`, `Forked`, and `Cancelled`.
 
 ## ArdaNova responsibilities
 
@@ -85,16 +89,16 @@ Parking states ArdaNova must handle in the board UI: `AwaitingSignal`,
    met, sprint started, task accepted/rejected), translate it into a
    `signal`/`advance` against the relevant run. Economics (how much, which asset)
    are decided in ArdaNova FIRST, then passed; AZOA never computes them.
-3. **Board read-through** — `GET execution-state` to render run/node status,
-   treating `AwaitingReconciliation` as a non-error "pending settlement" state.
+3. **Board read-through** — `GET execution-state` to render the nine canonical
+   run statuses without synthesizing application-only workflow states.
 
 ## Out of scope
 
 - Acting-as/consent path (locked out, §11.2) — ArdaNova never starts a run *as*
   an avatar; avatars self-run.
 - The double-mint reconcile wiring itself (AZOA-side `quest-reconcile-retry-wiring`,
-  P7); ArdaNova only honors the obligations (stable idempotency keys, treat
-  `AwaitingReconciliation` as non-terminal).
+  P7); ArdaNova tracks indeterminate value moves in its economic settlement
+  state machine, not as a workflow-run status.
 - Direct allocation outside a run (`treasury-reward-to-azoa-allocation`).
 
 ## Acceptance criteria
@@ -107,5 +111,5 @@ Parking states ArdaNova must handle in the board UI: `AwaitingSignal`,
   fund gate; task-accepted → reward branch; task-rejected → refund branch).
 - Tier-2 nodes refuse to execute when the actor avatar has no wallet bound
   (fail-closed), with a clear surfaced reason.
-- The board UI renders all parking/terminal states, treating
-  `AwaitingReconciliation` as pending-settlement (non-error).
+- The board UI renders all nine canonical statuses and polls only the five
+  non-terminal statuses.

@@ -44,10 +44,8 @@ public interface IAzoaQuestSignalService
         string runId, object? payload = null, CancellationToken ct = default);
 
     /// <summary>
-    /// Read a run's current execution state, mapping the node's status onto
-    /// <see cref="AzoaRunState"/>. The pending-settlement parking state
-    /// (<c>AwaitingReconciliation</c>) is surfaced as a NON-error state, not a
-    /// failure.
+    /// Read a run's current execution state and map the canonical node status
+    /// onto <see cref="AzoaRunState"/>.
     /// </summary>
     Task<Result<AzoaRunExecutionStateDto>> GetRunExecutionStateAsync(
         string runId, CancellationToken ct = default);

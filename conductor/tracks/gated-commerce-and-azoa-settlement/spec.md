@@ -25,7 +25,7 @@ created -> work/review -> release approved -> settlement pending -> settled`
   wallet readiness, KYC requirement, quest state, and settlement receipt.
 - Release creates one `EconomicSettlement` intent keyed by the escrow release.
   Its outbox calls AZOA with the stable allocation key; timeouts become
-  `AwaitingReconciliation`, never a new allocation request.
+  local `AWAITING_RECONCILIATION`, never a new allocation request.
 - A contributor award is eligible for exchange only after Gate 1 and a confirmed
   settlement. Investor and founder holdings remain locked until Gate 2.
 
@@ -94,7 +94,7 @@ deployment evidence.
 `Draft -> Authorized -> PendingDispatch -> Submitted -> Confirmed`
 
 Terminal alternatives are `Rejected`, `Cancelled`, and `Failed`. An ambiguous
-AZOA/chain outcome enters `AwaitingReconciliation`; it is visible as **pending
+AZOA/chain outcome enters local `AWAITING_RECONCILIATION`; it is visible as **pending
 settlement** and can only be resolved by reconciliation, not a fresh broadcast.
 The local business decision and its outbox row commit in one transaction. Network
 calls are outside that transaction and are claimed by the outbox lease.
@@ -119,7 +119,7 @@ calls are outside that transaction and are claimed by the outbox lease.
   another user’s funding/bid data fail closed.
 - A duplicate payment webhook, release, refund, or dispatch creates exactly one
   local economic event and one AZOA allocation effect.
-- A crashed/ambiguous dispatch reaches `AwaitingReconciliation` and no retry
+- A crashed/ambiguous dispatch reaches local `AWAITING_RECONCILIATION` and no retry
   re-broadcasts it.
 - The task commerce view never labels a local `RELEASED` escrow as settled until
   the settlement receipt is confirmed.

@@ -15,7 +15,7 @@
 import { useQuery } from "@tanstack/react-query";
 import type { UseQueryOptions } from "@tanstack/react-query";
 
-import { isOk } from "azoa-sdk";
+import { isAwaiting, isOk } from "azoa-sdk";
 import type { Result, SdkError } from "azoa-sdk";
 import { API_PATHS } from "azoa-sdk/api";
 
@@ -58,25 +58,9 @@ function unwrapResult<T>(result: Result<T, SdkError>): T {
   throw result.error;
 }
 
-/**
- * The non-terminal "run is parked / making progress" statuses. We treat these
- * as a normal pending state (not an error) so callers can keep polling. Mirrors
- * the SDK's `AWAITING_STATUSES` plus the actively-progressing states.
- *
- * NOTE: the brief mentioned "AwaitingReconciliation" — no such status exists in
- * the SDK. The real awaiting/in-progress statuses are enumerated here.
- */
-const AZOA_RUN_PENDING_STATUSES: ReadonlySet<WorkflowRunStatus> = new Set([
-  "Pending",
-  "Running",
-  "Suspended",
-  "AwaitingSignal",
-  "AwaitingTimer",
-]);
-
 /** True while a quest run is still progressing/parked (keep polling). */
 export function isAzoaRunPending(status: WorkflowRunStatus): boolean {
-  return AZOA_RUN_PENDING_STATUSES.has(status);
+  return status === "Pending" || status === "Running" || isAwaiting(status);
 }
 
 /**

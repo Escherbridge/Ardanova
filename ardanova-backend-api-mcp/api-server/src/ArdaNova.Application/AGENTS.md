@@ -30,3 +30,10 @@ AutoMapper entirely.
 Azoa credentials. It enforces a minimum UTF-8 byte length and rejects
 placeholder markers plus published configuration examples. New credentialed
 integrations should reuse it instead of implementing length-only validation.
+
+## AZOA workflow statuses
+
+`AzoaRunState` mirrors every AZOA SDK `0.1.0` run status and adds only `Unknown`
+for forward compatibility. Keep settlement reconciliation in the economic
+outbox domain; it is not a workflow run status. Unknown node values retain
+`RawStatus` so contract drift is visible instead of silently remapped.

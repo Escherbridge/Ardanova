@@ -5,8 +5,8 @@ type: plan
 
 > Contract: [`ARDANOVA-AZOA-INTEGRATION-CONTRACT.md`](../../ARDANOVA-AZOA-INTEGRATION-CONTRACT.md) §6, §7.
 > Depends on `azoa-avatar-onboarding` + `azoa-provider-adapter`.
-> ⚠️ Real-value flip gated on AZOA-side P7 (`quest-reconcile-retry-wiring`).
-> Build + test on `Blockchain:Mode=Simulated` until then.
+> P7 (`quest-reconcile-retry-wiring`) is shipped in the reference implementation.
+> Gate real value on deployment verification; keep local/CI on `Blockchain:Mode=Simulated`.
 
 ## 1. Allocation client (Infrastructure/Application)
 
@@ -44,10 +44,11 @@ type: plan
 
 ## 4. Reconcile obligations (consumer side)
 
-- [ ] **[P0] Treat `AwaitingReconciliation` as non-terminal "pending settlement"**
+- [ ] **[P0] Treat local `AWAITING_RECONCILIATION` as non-terminal "pending settlement"**
     - No re-POST on timeout/ambiguous error; rely on idempotency + node reconcile
 - [ ] **[P0] Real-value feature gate**
-    - Default `Simulated`; flip to live only after AZOA P7 confirmed
+    - Default `Simulated`; flip to live only after the chosen node verifies P7,
+      custody, and fee funding
 
 ## 5. API + frontend (thin proxy)
 
@@ -62,7 +63,7 @@ type: plan
     - avatarId from route, never body; cross-owner → 404
     - amount opaque string; no economic computation on AZOA side
     - `403 KYC_FORBIDDEN` → fail-closed
-    - `AwaitingReconciliation` never triggers re-POST
+    - local `AWAITING_RECONCILIATION` never triggers re-POST
 
 ## 7. Verification
 

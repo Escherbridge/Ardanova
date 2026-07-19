@@ -128,9 +128,8 @@ public sealed record AzoaSignalAck(string RunId, bool Accepted);
 /// <summary>
 /// Raw execution-state read from the node port. The adapter populates
 /// <paramref name="Status"/> verbatim from the node; the service maps it onto the
-/// Application <see cref="AzoaRunState"/> enum (so the parking-state mapping —
-/// notably <c>AwaitingReconciliation</c> as non-error — lives in the Application
-/// layer, not Infrastructure).
+/// Application <see cref="AzoaRunState"/> enum. Unknown values remain visible
+/// instead of being aliased in Infrastructure.
 /// </summary>
 public sealed record AzoaRunExecutionState(
     string RunId,

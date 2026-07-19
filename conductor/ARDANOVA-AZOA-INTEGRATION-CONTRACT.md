@@ -218,8 +218,10 @@ custody to let the avatar transact.
 | `POST /api/quest/runs/{runId}/signal`                         | Un-park an `AwaitingSignal` gate (consumer pushes "goal met" / "task approved"). | the **running avatar** (or consumer via consent) |
 | `GET /api/quest/runs/{runId}/execution-state`                 | Poll node states for the board.                                                  | reader                                           |
 
-**Parking states:** `AwaitingSignal`, `AwaitingTimer`, `AwaitingReconciliation`
-(§6), `Suspended`; terminal `Succeeded`/`Failed`/`Cancelled`/`Forked`.
+**Run statuses (SDK 0.1.0):** in progress `Pending`/`Running`; parking
+`Suspended`/`AwaitingSignal`/`AwaitingTimer`; terminal
+`Succeeded`/`Failed`/`Forked`/`Cancelled`. Settlement reconciliation is not a
+workflow-run status.
 
 ---
 
@@ -251,7 +253,7 @@ header ⇒ deterministic content key (never random). (Full prose:
 
 ---
 
-## 7. Reconcile-before-retry — the double-mint clause (AZOA owes the wiring, P7)
+## 7. Reconcile-before-retry — the double-mint clause (P7 shipped)
 
 **Hazard.** A Tier-2 node (or allocation) that broadcasts then times out waiting
 for confirmation surfaces as an error indistinguishable from "never broadcast." A
@@ -264,14 +266,17 @@ blind retry **re-mints** — double-paying a bounty.
 2. On failure, probe chain truth (`ChainConfirmation`: Confirmed / NotFound /
    Indeterminate) before any retry.
 3. `ChainActionRecovery` branches: **Confirmed** → advance reconciled (no
-   re-broadcast); **NotFound** → safe retry; **Indeterminate** → park
-   `AwaitingReconciliation` (sweep / manual re-probe; **never** auto-re-broadcast).
+   re-broadcast); **NotFound** → safe retry; **Indeterminate** → leave the value
+   operation unresolved for sweep / manual re-probe and **never** auto-re-broadcast.
 
 **Consumer obligations:** send a **stable `Idempotency-Key`** on every allocation;
-treat `AwaitingReconciliation` as a non-terminal, non-error board state ("pending
-settlement") and do not re-trigger. **Until P7 lands**, bounty automation must
-not run on real value — use `Blockchain:Mode=Simulated` (deterministic `sim:`
-ids) for end-to-end dev.
+record an indeterminate value move in the consumer's settlement state machine
+(ArdaNova: `EconomicSettlementStatus.AWAITING_RECONCILIATION`), render it as
+non-terminal "pending settlement," and do not re-trigger. This local settlement
+state is not an AZOA `WorkflowRunStatus`. P7 is shipped on the reference node;
+real-value rollout therefore depends on deployment verification of the reconcile
+endpoints and recovery tests, while local/CI runs continue to use
+`Blockchain:Mode=Simulated` (deterministic `sim:` ids).
 
 ---
 
@@ -332,7 +337,7 @@ is **feature-flagged** so simulated/legacy paths coexist during migration.
 ### AZOA (`oasis-sleek/conductor/tracks/`)
 
 - `azoa-node-integration-contract` — this doc + contract/seam tests; neutral "consumer/operator/avatar" framing; the publish-vs-run distinction made explicit in API docs.
-- `quest-reconcile-retry-wiring` — close **P7** (§7). The double-mint blocker. Highest priority.
+- `quest-reconcile-retry-wiring` — **P7 shipped** (§7); retain deployment-level reconcile verification before enabling real value.
 - `scrum-lifecycle-quest-presets` — the create→fund→work→tasks definition(s) + public templates an avatar can instantiate and self-run (§5).
 - `smart-gates-holon-state` — holon-state predicates + transition-legality validator (§8).
 - `fungible-mint-and-render-model` — the dedicated `POST /api/nft/fungible-mint` endpoint (KYC-gated, idempotent) + render-ready balance/portfolio DTO; SDK methods + path constants; a frontend page driving both against the live backend (§11.3, §11.5). Wallet-generate stays ungated; value seams stay gated (§11.4).
@@ -352,11 +357,11 @@ is **feature-flagged** so simulated/legacy paths coexist during migration.
 
 ### Ordering constraint
 
-AZOA `quest-reconcile-retry-wiring` (P7) is **upstream** of ArdaNova
-`treasury-reward-to-azoa-allocation` going live on real value. Because ArdaNova
-uses a **shared node**, the node operator owns B3 (KMS custody) + P3 (fee-funding)
-— these are **not** ArdaNova tracks. Dev/integration runs use
-`Blockchain:Mode=Simulated` until P7 + B3 close on the chosen node.
+P7 is shipped in the AZOA reference implementation. Before ArdaNova enables real
+value against a chosen deployment, the node operator must verify P7 reconciliation,
+B3 custody, and P3 fee funding on that deployment. These are node-operator
+deploy checks, not additional ArdaNova tracks. Local and CI runs remain on
+`Blockchain:Mode=Simulated`.
 
 ---
 

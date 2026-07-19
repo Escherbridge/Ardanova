@@ -23,3 +23,10 @@ Google sign-in fails closed unless the provider reports `email_verified: true`, 
 The immutable identity anchor is the existing `Account(provider, providerAccountId)` unique key. New users and their Google account link are created atomically. A verified email collision with an unlinked local user is not enough to establish identity and therefore fails closed pending an explicit account-linking flow. Existing linked identities resolve through the provider account; subsequent JWT refreshes resolve by the already-authorized user ID, never by mutable email.
 
 Auth.js omits `user` when refreshing an existing JWT despite declaring it as required in the callback type. The local callback contract models that field as optional. Missing users and database failures clear authorization claims rather than preserving stale privileges.
+## Google OAuth deployment contract
+
+- `AUTH_URL` is the canonical public frontend origin, with no path or trailing slash.
+- The Google web client must authorize `${AUTH_URL}/api/auth/callback/google` exactly; origins alone are insufficient.
+- The production OAuth client must be owned by a Google Cloud project accessible to the deployment operators. A client ID from an inaccessible project cannot be repaired when domains change.
+- On Railway, set `AUTH_TRUST_HOST=true` and keep `AUTH_URL` pinned to the stable public domain. Trusting forwarded host headers does not replace the canonical URL or Google redirect allowlist.
+- Verify the generated Google authorization URL after every domain/client change; its `redirect_uri` must equal the callback above byte-for-byte.

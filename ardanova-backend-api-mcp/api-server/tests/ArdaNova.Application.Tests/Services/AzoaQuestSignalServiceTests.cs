@@ -120,68 +120,37 @@ public class AzoaQuestSignalServiceTests
 
     // ── GetRunExecutionStateAsync ───────────────────────────────────────────────
 
-    [Fact]
-    public async Task GetRunExecutionStateAsync_MapsAwaitingReconciliation_ToNonErrorPendingSettlement()
-    {
-        // Arrange
-        const string runId = "run-settle";
-        _nodeMock
-            .Setup(n => n.GetExecutionStateAsync(runId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Result<AzoaRunExecutionState>.Success(
-                new AzoaRunExecutionState(runId, "AwaitingReconciliation", "transfer-bounty-reward")));
-
-        // Act
-        var result = await _sut.GetRunExecutionStateAsync(runId);
-
-        // Assert — non-error pending-settlement state.
-        result.IsSuccess.Should().BeTrue();
-        result.Value!.State.Should().Be(AzoaRunState.AwaitingReconciliation);
-        result.Value!.IsPendingSettlement.Should().BeTrue();
-        result.Value!.IsTerminal.Should().BeFalse();
-        result.Value!.RawStatus.Should().Be("AwaitingReconciliation");
-        result.Value!.CurrentNodeId.Should().Be("transfer-bounty-reward");
-    }
-
     [Theory]
-    [InlineData("awaiting_reconciliation")]
-    [InlineData("pending-settlement")]
-    [InlineData("RECONCILING")]
-    public async Task GetRunExecutionStateAsync_MapsReconciliationVariants_ToPendingSettlement(string raw)
+    [InlineData("Pending", AzoaRunState.Pending, false)]
+    [InlineData("Running", AzoaRunState.Running, false)]
+    [InlineData("Succeeded", AzoaRunState.Succeeded, true)]
+    [InlineData("Failed", AzoaRunState.Failed, true)]
+    [InlineData("Forked", AzoaRunState.Forked, true)]
+    [InlineData("Cancelled", AzoaRunState.Cancelled, true)]
+    [InlineData("Suspended", AzoaRunState.Suspended, false)]
+    [InlineData("AwaitingSignal", AzoaRunState.AwaitingSignal, false)]
+    [InlineData("AwaitingTimer", AzoaRunState.AwaitingTimer, false)]
+    public async Task GetRunExecutionStateAsync_MapsCanonicalStatus(
+        string raw,
+        AzoaRunState expected,
+        bool isTerminal)
     {
         // Arrange
-        const string runId = "run-settle-variants";
+        const string runId = "run-status";
         _nodeMock
             .Setup(n => n.GetExecutionStateAsync(runId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(Result<AzoaRunExecutionState>.Success(
-                new AzoaRunExecutionState(runId, raw)));
+                new AzoaRunExecutionState(runId, raw, "current-node")));
 
         // Act
         var result = await _sut.GetRunExecutionStateAsync(runId);
 
         // Assert
         result.IsSuccess.Should().BeTrue();
-        result.Value!.State.Should().Be(AzoaRunState.AwaitingReconciliation);
-        result.Value!.IsPendingSettlement.Should().BeTrue();
-    }
-
-    [Fact]
-    public async Task GetRunExecutionStateAsync_MapsCompleted_ToTerminal()
-    {
-        // Arrange
-        const string runId = "run-done";
-        _nodeMock
-            .Setup(n => n.GetExecutionStateAsync(runId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Result<AzoaRunExecutionState>.Success(
-                new AzoaRunExecutionState(runId, "Completed")));
-
-        // Act
-        var result = await _sut.GetRunExecutionStateAsync(runId);
-
-        // Assert
-        result.IsSuccess.Should().BeTrue();
-        result.Value!.State.Should().Be(AzoaRunState.Completed);
-        result.Value!.IsTerminal.Should().BeTrue();
-        result.Value!.IsPendingSettlement.Should().BeFalse();
+        result.Value!.State.Should().Be(expected);
+        result.Value!.IsTerminal.Should().Be(isTerminal);
+        result.Value!.RawStatus.Should().Be(raw);
+        result.Value!.CurrentNodeId.Should().Be("current-node");
     }
 
     [Fact]
@@ -201,6 +170,31 @@ public class AzoaQuestSignalServiceTests
         result.IsSuccess.Should().BeTrue();
         result.Value!.State.Should().Be(AzoaRunState.Unknown);
         result.Value!.RawStatus.Should().Be("QuantumFoam");
+    }
+
+    [Theory]
+    [InlineData("Completed")]
+    [InlineData("AwaitingReconciliation")]
+    [InlineData("pending-settlement")]
+    [InlineData("succeeded")]
+    [InlineData(" Succeeded ")]
+    public async Task GetRunExecutionStateAsync_DoesNotAliasNonContractStatus(string raw)
+    {
+        // Arrange
+        const string runId = "run-non-contract";
+        _nodeMock
+            .Setup(n => n.GetExecutionStateAsync(runId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<AzoaRunExecutionState>.Success(
+                new AzoaRunExecutionState(runId, raw)));
+
+        // Act
+        var result = await _sut.GetRunExecutionStateAsync(runId);
+
+        // Assert
+        result.IsSuccess.Should().BeTrue();
+        result.Value!.State.Should().Be(AzoaRunState.Unknown);
+        result.Value!.IsTerminal.Should().BeFalse();
+        result.Value!.RawStatus.Should().Be(raw);
     }
 
     [Fact]
