@@ -4,6 +4,8 @@ import Link from "next/link";
 import { ArdaNovaWordmark } from "~/components/brand/wordmark";
 import { Button } from "~/components/ui/button";
 
+import { authErrorSecondaryButtonClass } from "./styles";
+
 interface ErrorPageProps {
   searchParams: Promise<{ error?: string }>;
 }
@@ -95,7 +97,7 @@ export default async function ErrorPage({ searchParams }: ErrorPageProps) {
             <Button
               asChild
               variant="outline"
-              className="border-[#f6f0eb]/60 text-[#f6f0eb] hover:bg-[#f6f0eb] hover:text-[#151513]"
+              className={authErrorSecondaryButtonClass}
             >
               <Link href="/">
                 <ArrowLeft className="size-4" aria-hidden="true" />
