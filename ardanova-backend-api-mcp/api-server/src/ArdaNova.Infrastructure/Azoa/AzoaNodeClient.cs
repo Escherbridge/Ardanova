@@ -16,6 +16,7 @@ public sealed class AzoaNodeClient : IAzoaNodeClient
 {
     /// <summary>Fail-closed KYC prefix the node stamps on a forbidden value move (§6).</summary>
     private const string KycForbiddenPrefix = "KYC_FORBIDDEN:";
+    private const string KycForbiddenMessage = "KYC_FORBIDDEN: AZOA approval is required.";
 
     private static readonly JsonSerializerOptions JsonOpts = new()
     {
@@ -103,20 +104,28 @@ public sealed class AzoaNodeClient : IAzoaNodeClient
                 catch (JsonException) { /* fall through to status-based mapping */ }
             }
 
-            // Map an error envelope (or a non-2xx without a parseable body) into
-            // the right Result type — preserving fail-closed KYC semantics.
+            // Provider details stay behind the transport boundary; see AGENTS.md.
             if (envelope is { IsError: true } || !response.IsSuccessStatusCode)
             {
-                var message = envelope?.Message
-                    ?? $"AZOA node returned {(int)response.StatusCode} {response.ReasonPhrase}.";
-                return MapError<T>(response.StatusCode, message);
+                logger.LogWarning(
+                    "AZOA node rejected {Method} {Path} with status {StatusCode}",
+                    msg.Method,
+                    msg.RequestUri,
+                    (int)response.StatusCode);
+                return MapError<T>(response.StatusCode, envelope?.Message);
             }
 
             if (envelope is null)
                 return Result<T>.Failure("AZOA node returned an empty/unparseable response.");
 
             if (envelope.Result is null)
-                return Result<T>.Failure(envelope.Message ?? "AZOA node returned no result payload.");
+            {
+                logger.LogWarning(
+                    "AZOA node returned no result payload for {Method} {Path}",
+                    msg.Method,
+                    msg.RequestUri);
+                return Result<T>.Failure("AZOA node returned no result payload.");
+            }
 
             return Result<T>.Success(envelope.Result);
         }
@@ -141,23 +150,24 @@ public sealed class AzoaNodeClient : IAzoaNodeClient
         }
     }
 
-    private static Result<T> MapError<T>(HttpStatusCode status, string message)
+    private static Result<T> MapError<T>(HttpStatusCode status, string? providerMessage)
     {
-        // Fail-closed KYC gate: the node returns a KYC_FORBIDDEN:-prefixed 403 on
-        // a value seam when the actor is not KYC-approved (§6, §11.4). Surface it
-        // as Forbidden with the message intact so the controller can translate it.
-        if (message.StartsWith(KycForbiddenPrefix, StringComparison.Ordinal))
-            return Result<T>.Forbidden(message);
+        // Preserve only the public KYC signal, never the provider detail.
+        if (status == HttpStatusCode.Forbidden
+            && providerMessage?.StartsWith(KycForbiddenPrefix, StringComparison.Ordinal) == true)
+        {
+            return Result<T>.Forbidden(KycForbiddenMessage);
+        }
 
         return status switch
         {
-            HttpStatusCode.NotFound => Result<T>.NotFound(message),
-            HttpStatusCode.Forbidden => Result<T>.Forbidden(message),
-            HttpStatusCode.Unauthorized => Result<T>.Unauthorized(message),
-            HttpStatusCode.Conflict => Result<T>.Conflict(message),
-            (HttpStatusCode)429 => Result<T>.Failure($"Rate limited by AZOA node: {message}"),
-            HttpStatusCode.BadRequest => Result<T>.BadRequest(message),
-            _ => Result<T>.Failure(message),
+            HttpStatusCode.NotFound => Result<T>.NotFound("AZOA resource was not found."),
+            HttpStatusCode.Forbidden => Result<T>.Forbidden("AZOA node denied the request."),
+            HttpStatusCode.Unauthorized => Result<T>.Unauthorized("AZOA node authentication failed."),
+            HttpStatusCode.Conflict => Result<T>.Conflict("AZOA request conflicted with existing state."),
+            (HttpStatusCode)429 => Result<T>.Failure("AZOA node rate limit exceeded."),
+            HttpStatusCode.BadRequest => Result<T>.BadRequest("AZOA node rejected the request."),
+            _ => Result<T>.Failure("AZOA node request failed."),
         };
     }
 }

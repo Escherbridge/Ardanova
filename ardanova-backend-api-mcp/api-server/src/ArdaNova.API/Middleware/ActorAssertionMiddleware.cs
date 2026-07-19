@@ -134,6 +134,27 @@ public sealed class ActorAssertionMiddleware
         return new ClaimsIdentity(claims, AuthenticationType);
     }
 
+    internal static bool TryGetActorId(ClaimsPrincipal principal, out string actorId)
+    {
+        actorId = string.Empty;
+        var actorIdentities = principal.Identities
+            .Where(identity => identity.IsAuthenticated
+                && string.Equals(identity.AuthenticationType, AuthenticationType, StringComparison.Ordinal)
+                && identity.HasClaim(ClaimType, "v2"))
+            .Take(2)
+            .ToArray();
+
+        if (actorIdentities.Length != 1)
+            return false;
+
+        var subject = actorIdentities[0].FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrWhiteSpace(subject))
+            return false;
+
+        actorId = subject;
+        return true;
+    }
+
     private static async Task<BodyDigest> ReadBodyDigestAsync(HttpRequest request, CancellationToken ct)
     {
         if (request.ContentLength > MaximumBodyBytes)

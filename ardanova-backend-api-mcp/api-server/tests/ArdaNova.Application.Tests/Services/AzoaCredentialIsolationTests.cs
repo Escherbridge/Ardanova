@@ -125,6 +125,56 @@ public sealed class AzoaCredentialIsolationTests
         act.Should().NotThrow();
     }
 
+    [Theory]
+    [InlineData("http://azoa.example")]
+    [InlineData("https://user:password@azoa.example")]
+    [InlineData("https://azoa.example/api")]
+    [InlineData("https://azoa.example?tenant=other")]
+    [InlineData("https://azoa.example#fragment")]
+    public void ProductionStartup_RejectsNonHttpsOrNonOriginBaseUrl(string baseUrl)
+    {
+        var values = CreateProductionConfiguration();
+        values["Azoa:BaseUrl"] = baseUrl;
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(values)
+            .Build();
+
+        var act = () => new ServiceCollection()
+            .AddInfrastructure(configuration, "Production");
+
+        act.Should().Throw<InvalidOperationException>()
+            .WithMessage("*Azoa:BaseUrl*");
+    }
+
+    [Fact]
+    public void ProductionStartup_RejectsScopedCredentialWithoutBaseUrl()
+    {
+        var values = CreateDisabledProductionConfiguration();
+        values["Azoa:CustodyApiKey"] = "custody-random-0123456789abcdef0123456789";
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(values)
+            .Build();
+
+        var act = () => new ServiceCollection()
+            .AddInfrastructure(configuration, "Production");
+
+        act.Should().Throw<InvalidOperationException>()
+            .WithMessage("*HTTPS Azoa:BaseUrl*");
+    }
+
+    [Fact]
+    public void ProductionStartup_AllowsAzoaToBeFullyDisabled()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(CreateDisabledProductionConfiguration())
+            .Build();
+
+        var act = () => new ServiceCollection()
+            .AddInfrastructure(configuration, "Production");
+
+        act.Should().NotThrow();
+    }
+
     private static Dictionary<string, string?> CreateProductionConfiguration()
         => new()
         {
@@ -137,5 +187,14 @@ public sealed class AzoaCredentialIsolationTests
             ["Azoa:CustodyApiKey"] = "custody-random-0123456789abcdef0123456789",
             ["Azoa:ValueApiKey"] = "value-random-abcdef0123456789abcdef012345",
             ["Azoa:QuestApiKey"] = "quest-random-9876543210fedcba9876543210fed",
+        };
+
+    private static Dictionary<string, string?> CreateDisabledProductionConfiguration()
+        => new()
+        {
+            ["ConnectionStrings:DefaultConnection"] = "Host=localhost;Database=ardanova_test;Username=postgres;Password=test",
+            ["Algorand:Provider"] = "Simulated",
+            ["Azoa:Mode"] = "Simulated",
+            ["Azoa:TimeoutSeconds"] = "30",
         };
 }

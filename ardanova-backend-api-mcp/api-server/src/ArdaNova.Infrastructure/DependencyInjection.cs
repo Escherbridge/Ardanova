@@ -230,12 +230,20 @@ public static class DependencyInjection
             throw new InvalidOperationException("Azoa:TimeoutSeconds must be between 1 and 120.");
 
         if (string.IsNullOrWhiteSpace(settings.BaseUrl))
+        {
+            if (isProduction && HasConfiguredAzoaCapability(settings))
+            {
+                throw new InvalidOperationException(
+                    "Configured Production AZOA capabilities require an HTTPS Azoa:BaseUrl.");
+            }
+
             return;
+        }
 
         if (!IsValidAzoaBaseUrl(settings.BaseUrl, isProduction))
         {
             throw new InvalidOperationException(
-                "Azoa:BaseUrl must be an absolute HTTP URL without embedded credentials (HTTPS in Production).");
+                "Azoa:BaseUrl must be an absolute origin URL without credentials, path, query, or fragment (HTTPS in Production).");
         }
     }
 
@@ -256,7 +264,19 @@ public static class DependencyInjection
         => Uri.TryCreate(value, UriKind.Absolute, out var uri)
             && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps)
             && (!isProduction || uri.Scheme == Uri.UriSchemeHttps)
-            && string.IsNullOrEmpty(uri.UserInfo);
+            && string.IsNullOrEmpty(uri.UserInfo)
+            && uri.AbsolutePath == "/"
+            && string.IsNullOrEmpty(uri.Query)
+            && string.IsNullOrEmpty(uri.Fragment);
+
+    private static bool HasConfiguredAzoaCapability(AzoaSettings settings)
+        => settings.EnableCustodialAccounts
+            || settings.EnableFundingCheckout
+            || settings.EnableSettlementOutboxWorker
+            || settings.Mode.Equals("Live", StringComparison.OrdinalIgnoreCase)
+            || !string.IsNullOrWhiteSpace(settings.CustodyApiKey)
+            || !string.IsNullOrWhiteSpace(settings.ValueApiKey)
+            || !string.IsNullOrWhiteSpace(settings.QuestApiKey);
 
     private static void ValidateCredentialSeparation(
         string custodyApiKey,

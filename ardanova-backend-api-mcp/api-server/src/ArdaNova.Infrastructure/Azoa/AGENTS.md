@@ -28,6 +28,19 @@ All credential-bearing clients reject absolute destinations, query/fragment
 suffixes, dot segments, and encoded path delimiters before network I/O. This
 prevents URI normalization from moving a scoped key into another route family.
 
+Node response messages are provider-controlled and never cross into API
+results verbatim. They can contain stack traces, database details, or secret
+material even when wrapped in a nominal error envelope. The transport maps
+status codes to stable public messages and logs only request metadata. The
+`KYC_FORBIDDEN` signal remains part of the public contract, but its provider
+detail is replaced with a fixed message.
+
+Production accepts AZOA as intentionally disabled only when no capability or
+scoped credential is configured. Any partial capability configuration requires
+an HTTPS base origin. Base URLs are origins, not arbitrary URIs: credentials,
+paths, queries, and fragments are rejected so every typed client has one clear
+authority and route policy.
+
 Tenant custody remains anchored to the configured tenant GUID. Every returned
 account status must match that tenant and the actor-derived ArdaNova user before
 thin avatar, wallet, or KYC references are persisted.

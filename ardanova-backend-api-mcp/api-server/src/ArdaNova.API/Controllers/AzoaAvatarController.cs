@@ -1,6 +1,5 @@
 namespace ArdaNova.API.Controllers;
 
-using System.Security.Claims;
 using ArdaNova.API.Middleware;
 using ArdaNova.Application.Common.Results;
 using ArdaNova.Application.DTOs;
@@ -55,14 +54,12 @@ public class AzoaAvatarController : ControllerBase
     [HttpGet("status")]
     public async Task<IActionResult> GetStatus(CancellationToken ct)
     {
-        var result = await _avatarService.GetStatusAsync(ActorId, ct);
+        if (!ActorAssertionMiddleware.TryGetActorId(User, out var actorId))
+            return Unauthorized();
+
+        var result = await _avatarService.GetStatusAsync(actorId, ct);
         return ToActionResult(result);
     }
-
-    /// <summary>
-    /// The actor policy guarantees this claim is present.
-    /// </summary>
-    private string ActorId => User.FindFirstValue(ClaimTypes.NameIdentifier)!;
 
     private IActionResult LegacyMutationGone()
         => Problem(

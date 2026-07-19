@@ -444,7 +444,7 @@ public class ApiKeyMiddlewareTests
     }
 
     [Fact]
-    public async Task ActorPolicy_RequiresVerifiedActorClaim()
+    public async Task ActorPolicy_RequiresOneVerifiedActorIdentityWithSubject()
     {
         var services = new ServiceCollection();
         services.AddLogging();
@@ -452,7 +452,11 @@ public class ApiKeyMiddlewareTests
         await using var provider = services.BuildServiceProvider();
         var authorization = provider.GetRequiredService<IAuthorizationService>();
         var actor = new ClaimsPrincipal(new ClaimsIdentity(
-            [new Claim(ActorAssertionMiddleware.ClaimType, "v2")], ActorAssertionMiddleware.AuthenticationType));
+            [
+                new Claim(ActorAssertionMiddleware.ClaimType, "v2"),
+                new Claim(ClaimTypes.NameIdentifier, "actor-123"),
+            ],
+            ActorAssertionMiddleware.AuthenticationType));
         var service = new ClaimsPrincipal(new ClaimsIdentity(
             [new Claim(ClaimTypes.Role, "Service")], "ApiKey"));
 
@@ -461,6 +465,30 @@ public class ApiKeyMiddlewareTests
         var legacyActor = new ClaimsPrincipal(new ClaimsIdentity(
             [new Claim(ActorAssertionMiddleware.ClaimType, "v1")], ActorAssertionMiddleware.AuthenticationType));
         (await authorization.AuthorizeAsync(legacyActor, null, AuthorizationPolicies.ActorAssertion)).Succeeded.Should().BeFalse();
+
+        var missingSubject = new ClaimsPrincipal(new ClaimsIdentity(
+            [new Claim(ActorAssertionMiddleware.ClaimType, "v2")], ActorAssertionMiddleware.AuthenticationType));
+        (await authorization.AuthorizeAsync(missingSubject, null, AuthorizationPolicies.ActorAssertion)).Succeeded.Should().BeFalse();
+
+        var spoofedIdentity = new ClaimsPrincipal(new ClaimsIdentity(
+            [
+                new Claim(ActorAssertionMiddleware.ClaimType, "v2"),
+                new Claim(ClaimTypes.NameIdentifier, "actor-123"),
+            ],
+            "ApiKey"));
+        (await authorization.AuthorizeAsync(spoofedIdentity, null, AuthorizationPolicies.ActorAssertion)).Succeeded.Should().BeFalse();
+
+        var ambiguousActors = new ClaimsPrincipal(new[]
+        {
+            actor.Identities.Single(),
+            new ClaimsIdentity(
+                [
+                    new Claim(ActorAssertionMiddleware.ClaimType, "v2"),
+                    new Claim(ClaimTypes.NameIdentifier, "actor-456"),
+                ],
+                ActorAssertionMiddleware.AuthenticationType),
+        });
+        (await authorization.AuthorizeAsync(ambiguousActors, null, AuthorizationPolicies.ActorAssertion)).Succeeded.Should().BeFalse();
     }
 
     private static ApiKeyMiddleware CreateMiddleware(

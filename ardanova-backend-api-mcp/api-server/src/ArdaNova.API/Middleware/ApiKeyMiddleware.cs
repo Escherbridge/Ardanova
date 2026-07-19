@@ -152,7 +152,8 @@ public static class ArdaNovaAuthorizationExtensions
             options.AddPolicy(AuthorizationPolicies.AdminApiKey, policy =>
                 policy.RequireAuthenticatedUser().RequireRole(ApiKeyMiddleware.AdminRole));
             options.AddPolicy(AuthorizationPolicies.ActorAssertion, policy =>
-                policy.RequireAuthenticatedUser().RequireClaim(ActorAssertionMiddleware.ClaimType, "v2"));
+                policy.RequireAssertion(context =>
+                    ActorAssertionMiddleware.TryGetActorId(context.User, out _)));
         });
 
         return services;

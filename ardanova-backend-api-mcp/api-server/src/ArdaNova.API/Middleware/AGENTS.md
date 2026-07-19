@@ -10,6 +10,13 @@ These classes use ASP.NET Core's conventional `UseMiddleware<T>` activation. Mid
 
 Actor assertions remain fail-closed and single-use. Validation binds the subject to the HTTP method, exact request target, normalized content type, optional idempotency key, and body digest before the scoped replay ledger atomically consumes the assertion ID. Do not replace the database-backed ledger with process-local replay state in production.
 
+The `ActorAssertion` authorization policy validates the identity as a unit: it
+must use the middleware's authentication type, carry the v2 marker, and contain
+one nonempty name-identifier subject. Looking up a claim across the whole
+principal is unsafe because a principal can contain service and actor
+identities simultaneously. Multiple matching actor identities are ambiguous
+and therefore denied.
+
 The accepted clock skew is shared with the replay retention policy. Replay rows may be purged only after that policy's longer post-expiry window has elapsed; see `ArdaNova.Infrastructure/Security/AGENTS.md`.
 
 The API middleware test suite includes a scope-validation regression test. Keep that test whenever constructor or invocation dependencies change.

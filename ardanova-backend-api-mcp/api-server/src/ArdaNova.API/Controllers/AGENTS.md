@@ -40,6 +40,12 @@ used anonymous avatar registration and could not prove a tenant-bound custodial
 account. New onboarding uses `/api/azoa/custodial-account`; the legacy status
 read remains only for migration visibility.
 
+The legacy status read is still an object-authorization boundary. It resolves
+the user only from the single verified `ActorAssertion` identity and does not
+accept a route, query, or body user ID. Missing or ambiguous actor identities
+fail before `IAzoaAvatarService` is called, which keeps direct controller use
+and future filter changes from reintroducing an IDOR path.
+
 ## Sensitive mutation checkpoints
 
 Token distribution, credential utility and membership lifecycle changes,
