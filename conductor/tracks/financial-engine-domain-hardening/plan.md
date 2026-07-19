@@ -6,6 +6,14 @@ type: plan
 > Depends on [Gated Commerce and AZOA Settlement](../gated-commerce-and-azoa-settlement/spec.md).
 > This is an ArdaNova-owned domain track. It does not authorize value movement.
 
+## Resumption handoff (2026-07-18)
+
+Work is paused at an inert persistence-contract checkpoint. The bounded path to
+an integration-ready ArdaNova stopping point is recorded in
+[PASSOFF.md](./PASSOFF.md). This track remains active: no financial migration,
+writer, provider dispatch, AZOA allocation, task award, payout, or swap execution
+is approved by the checkpoint.
+
 ## 1. Contract and model inventory [P0]
 
 - [x] Map every current project token, equity, investment, funding, task award,
