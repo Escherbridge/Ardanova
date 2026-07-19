@@ -34,6 +34,18 @@ public class Repository<T> : IRepository<T> where T : class
         return await _dbSet.Where(predicate).ToListAsync(cancellationToken);
     }
 
+    public virtual async Task<IReadOnlyList<TResult>> FindProjectedAsync<TResult>(
+        Expression<Func<T, bool>> predicate,
+        Expression<Func<T, TResult>> selector,
+        CancellationToken cancellationToken = default)
+    {
+        return await _dbSet
+            .AsNoTracking()
+            .Where(predicate)
+            .Select(selector)
+            .ToListAsync(cancellationToken);
+    }
+
     public virtual async Task<T?> FindOneAsync(
         Expression<Func<T, bool>> predicate,
         CancellationToken cancellationToken = default)

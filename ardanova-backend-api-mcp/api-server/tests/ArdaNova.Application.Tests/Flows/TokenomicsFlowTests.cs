@@ -61,7 +61,11 @@ namespace ArdaNova.Application.Tests.Flows
         public TokenomicsFlowTests()
         {
             // Setup AutoMapper with real MappingProfile
-            var mapperConfig = new MapperConfiguration(cfg => cfg.AddProfile<MappingProfile>());
+            var mapperConfig = new MapperConfiguration(cfg =>
+            {
+                cfg.AddProfile<MappingProfile>();
+                MappingSecurityPolicy.Apply(cfg);
+            });
             _mapper = mapperConfig.CreateMapper();
 
             // Initialize repository mocks

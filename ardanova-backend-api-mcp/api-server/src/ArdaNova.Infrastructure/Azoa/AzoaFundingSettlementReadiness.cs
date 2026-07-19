@@ -10,18 +10,22 @@ public sealed class AzoaFundingSettlementReadiness : IFundingSettlementReadiness
 
     private readonly AzoaSettings _settings;
     private readonly IAzoaSettlementGateway _gateway;
+    private readonly ISettlementOutboxRuntimeCapability _outboxRuntime;
 
     public AzoaFundingSettlementReadiness(
         IOptions<AzoaSettings> settings,
-        IAzoaSettlementGateway gateway)
+        IAzoaSettlementGateway gateway,
+        ISettlementOutboxRuntimeCapability outboxRuntime)
     {
         _settings = settings.Value;
         _gateway = gateway;
+        _outboxRuntime = outboxRuntime;
     }
 
     /// <inheritdoc/>
     public bool IsReady
         => _settings.EnableFundingCheckout
+            && _outboxRuntime.IsHostedDispatcherRegistered
             && !string.IsNullOrWhiteSpace(_settings.SelectedSettlementNodeId)
             && _gateway is ISelectedNodeSettlementCapability capability
             && string.Equals(
@@ -30,7 +34,8 @@ public sealed class AzoaFundingSettlementReadiness : IFundingSettlementReadiness
                 StringComparison.Ordinal)
             && capability.CanDispatch
             && capability.CanReconcile
-            && capability.HasCurrentOperatorAttestation;
+            && capability.HasCurrentOperatorAttestation
+            && capability.SupportsCanonicalFundingSettlement;
 
     /// <inheritdoc/>
     public string UnavailableReason => DisabledReason;

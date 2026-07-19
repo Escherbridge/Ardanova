@@ -13,6 +13,7 @@ using Moq;
 public class SprintServiceTests
 {
     private readonly Mock<IRepository<Sprint>> _repositoryMock;
+    private readonly Mock<IRepository<Epic>> _epicRepositoryMock;
     private readonly Mock<IUnitOfWork> _unitOfWorkMock;
     private readonly Mock<IMapper> _mapperMock;
     private readonly SprintService _sut;
@@ -20,10 +21,12 @@ public class SprintServiceTests
     public SprintServiceTests()
     {
         _repositoryMock = new Mock<IRepository<Sprint>>();
+        _epicRepositoryMock = new Mock<IRepository<Epic>>();
         _unitOfWorkMock = new Mock<IUnitOfWork>();
         _mapperMock = new Mock<IMapper>();
         _sut = new SprintService(
             _repositoryMock.Object,
+            _epicRepositoryMock.Object,
             _unitOfWorkMock.Object,
             _mapperMock.Object);
     }
@@ -109,11 +112,15 @@ public class SprintServiceTests
         // Arrange
         var dto = new CreateSprintDto
         {
+            ProjectId = "project-1",
             EpicId = Guid.NewGuid().ToString(),
             Name = "New Sprint",
             Goal = "Complete feature X"
         };
         var sprintDto = new SprintDto { Name = "New Sprint" };
+
+        _epicRepositoryMock.Setup(r => r.GetByIdAsync(dto.EpicId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Epic { id = dto.EpicId, projectId = dto.ProjectId, milestoneId = "milestone-1", title = "Epic" });
 
         _repositoryMock.Setup(r => r.AddAsync(It.IsAny<Sprint>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((Sprint s, CancellationToken _) => s);

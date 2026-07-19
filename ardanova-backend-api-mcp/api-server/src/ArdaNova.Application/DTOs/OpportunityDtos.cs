@@ -18,6 +18,8 @@ public record OpportunityDto
     public bool IsRemote { get; init; }
     public decimal? Compensation { get; init; }
     public string? CompensationDetails { get; init; }
+    public decimal? EquityPercent { get; init; }
+    public bool IsOpenForApplications { get; init; }
     public DateTime? Deadline { get; init; }
     public int? MaxApplications { get; init; }
     public int ApplicationsCount { get; init; }
@@ -77,6 +79,8 @@ public record CreateOpportunityDto
     public bool IsRemote { get; init; } = true;
     public decimal? Compensation { get; init; }
     public string? CompensationDetails { get; init; }
+    public decimal? EquityPercent { get; init; }
+    public bool IsOpenForApplications { get; init; }
     public DateTime? Deadline { get; init; }
     public int? MaxApplications { get; init; }
     public string? CoverImage { get; init; }

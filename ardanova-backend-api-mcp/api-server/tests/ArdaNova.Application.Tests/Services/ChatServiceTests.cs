@@ -684,5 +684,86 @@ public class ChatServiceTests
         _unitOfWorkMock.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
+    [Fact]
+    public async Task MarkMessagesReadAsync_DoesNotMoveReadMarkerBackward()
+    {
+        var userId = Guid.NewGuid().ToString();
+        var conversationId = Guid.NewGuid().ToString();
+        var currentMarker = DateTime.UtcNow.AddMinutes(-1);
+        var membership = new ConversationMember
+        {
+            id = Guid.NewGuid().ToString(),
+            conversationId = conversationId,
+            userId = userId,
+            role = ConversationRole.MEMBER,
+            joinedAt = DateTime.UtcNow.AddDays(-1),
+            lastReadAt = currentMarker
+        };
+        _memberRepositoryMock.Setup(r => r.FindOneAsync(
+                It.IsAny<System.Linq.Expressions.Expression<Func<ConversationMember, bool>>>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(membership);
+
+        var result = await _sut.MarkMessagesReadAsync(userId, new MarkMessagesReadDto
+        {
+            ConversationId = conversationId,
+            ReadUpTo = currentMarker.AddMinutes(-5)
+        });
+
+        result.IsSuccess.Should().BeTrue();
+        membership.lastReadAt.Should().Be(currentMarker);
+        _memberRepositoryMock.Verify(
+            r => r.UpdateAsync(It.IsAny<ConversationMember>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+        _messageRepositoryMock.Verify(
+            r => r.FindAsync(
+                It.IsAny<System.Linq.Expressions.Expression<Func<ChatMessage, bool>>>(),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
+        _unitOfWorkMock.Verify(
+            u => u.SaveChangesAsync(It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task MarkMessagesReadAsync_ClampsFutureMarkerToServerTime()
+    {
+        var userId = Guid.NewGuid().ToString();
+        var conversationId = Guid.NewGuid().ToString();
+        var membership = new ConversationMember
+        {
+            id = Guid.NewGuid().ToString(),
+            conversationId = conversationId,
+            userId = userId,
+            role = ConversationRole.MEMBER,
+            joinedAt = DateTime.UtcNow.AddDays(-1)
+        };
+        _memberRepositoryMock.Setup(r => r.FindOneAsync(
+                It.IsAny<System.Linq.Expressions.Expression<Func<ConversationMember, bool>>>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(membership);
+        _memberRepositoryMock.Setup(r => r.UpdateAsync(
+                It.IsAny<ConversationMember>(),
+                It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        _messageRepositoryMock.Setup(r => r.FindAsync(
+                It.IsAny<System.Linq.Expressions.Expression<Func<ChatMessage, bool>>>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+        _unitOfWorkMock.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(1);
+        var before = DateTime.UtcNow;
+
+        var result = await _sut.MarkMessagesReadAsync(userId, new MarkMessagesReadDto
+        {
+            ConversationId = conversationId,
+            ReadUpTo = DateTime.UtcNow.AddDays(1)
+        });
+
+        result.IsSuccess.Should().BeTrue();
+        membership.lastReadAt.Should().BeOnOrAfter(before);
+        membership.lastReadAt.Should().BeOnOrBefore(DateTime.UtcNow);
+    }
+
     #endregion
 }

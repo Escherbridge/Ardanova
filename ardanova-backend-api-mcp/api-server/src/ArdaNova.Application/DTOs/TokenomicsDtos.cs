@@ -12,7 +12,7 @@ public record ProjectTokenConfigDto
     public string? AssetId { get; init; }
     public string AssetName { get; init; } = null!;
     public string UnitName { get; init; } = null!;
-    public int AssetScale { get; init; }
+    public int? AssetScale { get; init; }
     public int TotalSupply { get; init; }
     public int AllocatedSupply { get; init; }
     public int DistributedSupply { get; init; }
@@ -36,6 +36,24 @@ public record ProjectTokenConfigDto
 
     /// <summary>Computed: totalSupply - contributorSupply - investorSupply - founderSupply - burnedSupply</summary>
     public int AvailableSupply => TotalSupply - ContributorSupply - InvestorSupply - FounderSupply - BurnedSupply;
+}
+
+public record ProjectTokenMetadataDto
+{
+    public string Id { get; init; } = null!;
+    public string AssetName { get; init; } = null!;
+    public string UnitName { get; init; } = null!;
+}
+
+public record ProjectTokenMetadataBatchRequestDto
+{
+    public IReadOnlyList<string> Ids { get; init; } = [];
+}
+
+public record ProjectTokenMetadataBatchDto
+{
+    public IReadOnlyList<ProjectTokenMetadataDto> Items { get; init; } = [];
+    public IReadOnlyList<string> MissingIds { get; init; } = [];
 }
 
 public record CreateProjectTokenConfigDto

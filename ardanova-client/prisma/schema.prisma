@@ -1,5 +1,5 @@
-// Auto-generated from database-archietecture.dbml
-// DO NOT EDIT DIRECTLY - modify the DBML file and run: npm run generate:prisma
+// Auto-generated from database-architecture.dbml
+// DO NOT EDIT DIRECTLY - modify the DBML file and run: npm run generate:dbml
 
 generator client {
   provider        = "prisma-client-js"
@@ -1781,21 +1781,21 @@ model FundraisingContribution {
 }
 
 model Wallet {
-  id                      String                        @id @default(cuid())
-  userId                  String
-  address                 String                        @unique
-  provider                WalletProvider
-  label                   String?
-  isVerified              Boolean                       @default(false)
-  verifiedAt              DateTime?
-  verificationChain       String?
-  verificationNetwork     String?
-  verificationChallengeId String?
-  isPrimary               Boolean                       @default(false)
-  createdAt               DateTime                      @default(now())
-  updatedAt               DateTime                      @updatedAt
-  user                    User                          @relation("Wallet_userId", fields: [userId], references: [id])
-  verificationChallenges  WalletVerificationChallenge[] @relation("WalletVerificationChallenge_walletId")
+  id                           String                        @id @default(cuid())
+  userId                       String
+  address                      String                        @unique
+  provider                     WalletProvider
+  label                        String?
+  isVerified                   Boolean                       @default(false)
+  verifiedAt                   DateTime?
+  verificationChain            String?
+  verificationNetwork          String?
+  verificationChallengeId      String?
+  isPrimary                    Boolean                       @default(false)
+  createdAt                    DateTime                      @default(now())
+  updatedAt                    DateTime                      @updatedAt
+  user                         User                          @relation("Wallet_userId", fields: [userId], references: [id])
+  walletVerificationChallenges WalletVerificationChallenge[] @relation("WalletVerificationChallenge_walletId")
 }
 
 model WalletVerificationChallenge {

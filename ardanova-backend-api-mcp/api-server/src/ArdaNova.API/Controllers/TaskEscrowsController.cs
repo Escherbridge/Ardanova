@@ -6,6 +6,7 @@ using ArdaNova.Application.Common.Results;
 using ArdaNova.Application.DTOs;
 using ArdaNova.Application.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
 [ApiController]
@@ -41,19 +42,13 @@ public class TaskEscrowsController : ControllerBase
     }
 
     [HttpPost]
-    public async Task<IActionResult> Create([FromBody] CreateTaskEscrowRequest dto, CancellationToken ct)
+    public IActionResult Create([FromBody] CreateTaskEscrowRequest dto)
     {
-        var result = await _taskEscrowService.CreateAsync(new CreateTaskEscrowDto
+        _ = dto;
+        return StatusCode(StatusCodes.Status501NotImplemented, new
         {
-            TaskId = dto.TaskId,
-            FunderId = ActorId,
-            ShareId = dto.ShareId,
-            Amount = dto.Amount,
-            TxHashFund = dto.TxHashFund
-        }, ct);
-        return result.IsSuccess
-            ? CreatedAtAction(nameof(GetById), new { id = result.Value!.Id }, result.Value)
-            : ToActionResult(result);
+            error = "Direct escrow creation is disabled until task, funding instrument, amount, and provider settlement are verified server-side."
+        });
     }
 
     [HttpPost("{id}/release")]
@@ -66,12 +61,17 @@ public class TaskEscrowsController : ControllerBase
     }
 
     [HttpPost("{id}/dispute")]
-    public async Task<IActionResult> Dispute(string id, CancellationToken ct)
+    public async Task<IActionResult> Dispute(string id, [FromBody] DisputeEscrowRequest dto, CancellationToken ct)
     {
         if (!await ActorFundsEscrowAsync(id, ct))
             return Forbid();
 
-        return ToActionResult(await _taskEscrowService.DisputeAsync(id, ct));
+        return ToActionResult(await _taskEscrowService.DisputeAsync(id, new DisputeEscrowDto
+        {
+            Reason = dto.Reason,
+            Description = dto.Description,
+            DisputedByUserId = ActorId
+        }, ct));
     }
 
     [HttpPost("{id}/refund")]
@@ -111,4 +111,6 @@ public class TaskEscrowsController : ControllerBase
         string ShareId,
         decimal Amount,
         string? TxHashFund);
+
+    public sealed record DisputeEscrowRequest(string Reason, string Description);
 }

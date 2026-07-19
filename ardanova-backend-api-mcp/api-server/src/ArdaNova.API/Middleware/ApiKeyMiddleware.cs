@@ -1,6 +1,8 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
+using ArdaNova.Application.Common.Security;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -14,6 +16,7 @@ public class ApiKeyMiddleware
 {
     private const string ApiKeyHeaderName = "X-Api-Key";
     private const string AdminApiKeyHeaderName = "X-Admin-Api-Key";
+    internal const int MinimumApiKeyBytes = GeneratedSecretValidator.MinimumUtf8Bytes;
     public const string AdminRole = "Admin";
     private readonly RequestDelegate _next;
     private readonly IConfiguration _configuration;
@@ -32,8 +35,9 @@ public class ApiKeyMiddleware
     public async Task InvokeAsync(HttpContext context)
     {
         // Stripe authenticates this one ingress route with its signed raw payload.
-        // SignalR hubs handle their own API key validation via query parameters.
+        // SignalR hubs validate their dedicated service and actor headers during connection setup.
         if (context.Request.Path.StartsWithSegments("/health") ||
+            context.Request.Path.StartsWithSegments("/ready") ||
             context.Request.Path.StartsWithSegments("/swagger") ||
             context.Request.Path.StartsWithSegments("/hubs") ||
             string.Equals(
@@ -54,13 +58,15 @@ public class ApiKeyMiddleware
         }
 
         // Get API key - prefer API_KEY env var, fallback to config
-        var apiKey = GetApiKey();
+        var apiKey = GetApiKey(_configuration);
 
-        if (string.IsNullOrEmpty(apiKey))
+        if (!IsStrongApiKey(apiKey))
         {
-            _logger.LogError("API Key is not configured");
+            _logger.LogError(
+                "API Key is not configured as a generated secret with at least {MinimumBytes} bytes",
+                MinimumApiKeyBytes);
             context.Response.StatusCode = 500;
-            await context.Response.WriteAsJsonAsync(new { error = "API Key is not configured" });
+            await context.Response.WriteAsJsonAsync(new { error = "API Key is not configured securely" });
             return;
         }
 
@@ -85,14 +91,14 @@ public class ApiKeyMiddleware
             new(ClaimTypes.Role, "Service")
         };
 
-        var adminApiKey = GetAdminApiKey();
-        if (!string.IsNullOrWhiteSpace(adminApiKey) && MatchesSecret(adminApiKey, suppliedAdminApiKey))
+        var adminApiKey = GetAdminApiKey(_configuration);
+        if (IsStrongApiKey(adminApiKey) && MatchesSecret(adminApiKey, suppliedAdminApiKey))
             claims.Add(new Claim(ClaimTypes.Role, AdminRole));
 
         return new ClaimsPrincipal(new ClaimsIdentity(claims, "ApiKey"));
     }
 
-    private string? GetApiKey()
+    internal static string? GetApiKey(IConfiguration configuration)
     {
         // First try API_KEY environment variable (shared .env file)
         var apiKey = Environment.GetEnvironmentVariable("API_KEY");
@@ -103,21 +109,29 @@ public class ApiKeyMiddleware
         }
 
         // Fallback to traditional .NET config (ApiKey:Key in appsettings.json)
-        return _configuration.GetValue<string>("ApiKey:Key");
+        return configuration.GetValue<string>("ApiKey:Key") ?? configuration["API_KEY"];
     }
 
-    private string? GetAdminApiKey()
+    internal static bool IsStrongApiKey([NotNullWhen(true)] string? apiKey)
+        => IsStrongSecret(apiKey);
+
+    internal static bool IsStrongSecret([NotNullWhen(true)] string? secret)
+        => GeneratedSecretValidator.IsValid(secret);
+
+    internal static string? GetAdminApiKey(IConfiguration configuration)
     {
         var adminApiKey = Environment.GetEnvironmentVariable("ADMIN_API_KEY");
         return string.IsNullOrWhiteSpace(adminApiKey)
-            ? _configuration.GetValue<string>("AdminApiKey:Key")
+            ? configuration.GetValue<string>("AdminApiKey:Key")
             : adminApiKey;
     }
 
-    private static bool MatchesSecret(string expected, string supplied)
-        => CryptographicOperations.FixedTimeEquals(
-            Encoding.UTF8.GetBytes(expected),
-            Encoding.UTF8.GetBytes(supplied));
+    internal static bool MatchesSecret(string expected, string supplied)
+    {
+        var expectedHash = SHA256.HashData(Encoding.UTF8.GetBytes(expected));
+        var suppliedHash = SHA256.HashData(Encoding.UTF8.GetBytes(supplied));
+        return CryptographicOperations.FixedTimeEquals(expectedHash, suppliedHash);
+    }
 }
 
 public static class AuthorizationPolicies
@@ -132,6 +146,9 @@ public static class ArdaNovaAuthorizationExtensions
     {
         services.AddAuthorization(options =>
         {
+            options.FallbackPolicy = new AuthorizationPolicyBuilder()
+                .RequireAuthenticatedUser()
+                .Build();
             options.AddPolicy(AuthorizationPolicies.AdminApiKey, policy =>
                 policy.RequireAuthenticatedUser().RequireRole(ApiKeyMiddleware.AdminRole));
             options.AddPolicy(AuthorizationPolicies.ActorAssertion, policy =>

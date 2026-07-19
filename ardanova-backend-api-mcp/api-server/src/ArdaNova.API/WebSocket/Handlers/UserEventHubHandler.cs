@@ -39,9 +39,9 @@ public class UserEventHubHandler :
             occurredAt = @event.OccurredAt
         };
 
-        // Broadcast to all connected clients (for admin dashboards, etc.)
-        await _hubContext.Clients.Group("all").UserCreated(payload);
-        await _hubContext.Clients.Group("all").ReceiveEvent(@event.EventType, payload);
+        // Email and identity fields stay in the actor's private group.
+        await _hubContext.Clients.Group($"user:{@event.UserId}").UserCreated(payload);
+        await _hubContext.Clients.Group($"user:{@event.UserId}").ReceiveEvent(@event.EventType, payload);
     }
 
     public async Task HandleAsync(UserUpdatedEvent @event, CancellationToken cancellationToken = default)
@@ -88,7 +88,6 @@ public class UserEventHubHandler :
             occurredAt = @event.OccurredAt
         };
 
-        // Broadcast to admins
-        await _hubContext.Clients.Group("all").ReceiveEvent(@event.EventType, payload);
+        await _hubContext.Clients.Group($"user:{@event.UserId}").ReceiveEvent(@event.EventType, payload);
     }
 }

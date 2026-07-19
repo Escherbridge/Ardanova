@@ -1098,24 +1098,9 @@ export const projectRouter = createTRPCRouter({
         credential.data.status === "ACTIVE";
 
       if (!hasActiveCredential) {
-        if (isFounder) {
-          // Auto-grant FOUNDER credential if founder doesn't have one yet
-          const granted = await apiClient.membershipCredentials.grant({
-            projectId: proposal.data.projectId,
-            userId,
-            grantedVia: "FOUNDER",
-          });
-          if (granted.error || !granted.data) {
-            throw new Error(
-              "Failed to auto-grant founder credential. Please try again.",
-            );
-          }
-        } else {
-          // Non-founders must complete KYC to get a credential
-          throw new Error(
-            "CREDENTIAL_REQUIRED: You need an active membership credential to vote. Please complete identity verification (KYC) to receive your credential.",
-          );
-        }
+        throw new Error(
+          "CREDENTIAL_REQUIRED: You need an active membership credential to vote. Credential issuance is a separate authorized workflow.",
+        );
       }
 
       const response = await apiClient.projects.castVote(

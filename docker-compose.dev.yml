@@ -1,4 +1,4 @@
-version: '3.8'
+version: "3.8"
 
 # ===========================================
 # ArdaNova Platform - Development Compose
@@ -7,12 +7,11 @@ version: '3.8'
 # Uses .env file from root directory
 
 services:
-
   # ===========================================
   # .NET Backend API (Development - Hot Reload)
   # ===========================================
   api:
-    image: mcr.microsoft.com/dotnet/sdk:8.0
+    image: mcr.microsoft.com/dotnet/sdk:10.0
     container_name: ardanova-api-dev
     working_dir: /src/api-server/src/ArdaNova.API
     command: >
@@ -34,6 +33,8 @@ services:
       - DATABASE_URL=${DATABASE_URL}
       # API Security
       - API_KEY=${API_KEY}
+      - ADMIN_API_KEY=${ADMIN_API_KEY}
+      - ACTOR_ASSERTION_HMAC_KEY=${ACTOR_ASSERTION_HMAC_KEY}
       # Storage Configuration
       - STORAGE_PROVIDER=${STORAGE_PROVIDER:-Local}
       - S3_ACCESS_KEY=${S3_ACCESS_KEY:-}
@@ -54,12 +55,23 @@ services:
       # Persist NuGet packages to avoid re-download on every restart
       - nuget-packages:/root/.nuget/packages
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      test:
+        [
+          "CMD",
+          "curl",
+          "--fail",
+          "--silent",
+          "--show-error",
+          "--max-time",
+          "3",
+          "--output",
+          "/dev/null",
+          "http://localhost:8080/ready",
+        ]
       interval: 10s
       timeout: 5s
-      retries: 10
+      retries: 12
       start_period: 120s
-
   # ===========================================
   # Next.js Client (Development - Hot Reload)
   # ===========================================
@@ -68,7 +80,8 @@ services:
     image: node:20
     container_name: ardanova-client-dev
     working_dir: /app
-    command: sh -c "npm install && npx prisma generate && npm run dev"
+    # npm ci installs the lockfile and its postinstall owns Prisma generation.
+    command: sh -c "npm ci && npm run dev"
     env_file:
       - .env
     environment:
@@ -76,6 +89,8 @@ services:
       - DATABASE_URL=${DATABASE_URL}
       - API_URL=http://api:8080
       - API_KEY=${API_KEY}
+      - ADMIN_API_KEY=${ADMIN_API_KEY}
+      - ACTOR_ASSERTION_HMAC_KEY=${ACTOR_ASSERTION_HMAC_KEY}
       - AUTH_SECRET=${AUTH_SECRET}
       - AUTH_URL=${AUTH_URL:-http://localhost:3000}
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
@@ -91,7 +106,7 @@ services:
       - /app/.next
     depends_on:
       api:
-        condition: service_started
+        condition: service_healthy
 
   # # ===========================================
   # # AI Orchestrator Service (Development)

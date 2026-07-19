@@ -27,8 +27,7 @@ public class ProjectTokenConfig
     [Required]
     public string unitName { get; set; } = string.Empty;
 
-    [Required]
-    public int assetScale { get; set; }
+    public int? assetScale { get; set; }
 
     [Required]
     public int totalSupply { get; set; }

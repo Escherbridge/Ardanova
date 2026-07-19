@@ -11,12 +11,18 @@ using AutoMapper;
 public class FeatureService : IFeatureService
 {
     private readonly IRepository<Feature> _repository;
+    private readonly IRepository<Sprint> _sprintRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IMapper _mapper;
 
-    public FeatureService(IRepository<Feature> repository, IUnitOfWork unitOfWork, IMapper mapper)
+    public FeatureService(
+        IRepository<Feature> repository,
+        IRepository<Sprint> sprintRepository,
+        IUnitOfWork unitOfWork,
+        IMapper mapper)
     {
         _repository = repository;
+        _sprintRepository = sprintRepository;
         _unitOfWork = unitOfWork;
         _mapper = mapper;
     }
@@ -37,15 +43,23 @@ public class FeatureService : IFeatureService
 
     public async Task<Result<FeatureDto>> CreateAsync(CreateFeatureDto dto, CancellationToken ct = default)
     {
+        var sprint = await _sprintRepository.GetByIdAsync(dto.SprintId, ct);
+        if (sprint is null)
+            return Result<FeatureDto>.NotFound($"Sprint with id {dto.SprintId} not found");
+        if (!string.IsNullOrWhiteSpace(dto.ProjectId) &&
+            !string.Equals(dto.ProjectId, sprint.projectId, StringComparison.Ordinal))
+            return Result<FeatureDto>.ValidationError("Sprint does not belong to the expected project");
+
         var feature = new Feature
         {
             id = Guid.NewGuid().ToString(),
+            projectId = sprint.projectId,
             sprintId = dto.SprintId,
             title = dto.Title,
             description = dto.Description,
             status = FeatureStatus.PLANNED,
             priority = dto.Priority,
-            order = dto.Order,
+            order = dto.Order ?? 0,
             createdAt = DateTime.UtcNow,
             updatedAt = DateTime.UtcNow
         };
@@ -66,7 +80,6 @@ public class FeatureService : IFeatureService
         if (dto.Status.HasValue) feature.status = dto.Status.Value;
         if (dto.Priority.HasValue) feature.priority = dto.Priority.Value;
         if (dto.Order.HasValue) feature.order = dto.Order.Value;
-        if (dto.AssigneeId is not null) feature.assigneeId = dto.AssigneeId;
         feature.updatedAt = DateTime.UtcNow;
 
         await _repository.UpdateAsync(feature, ct);

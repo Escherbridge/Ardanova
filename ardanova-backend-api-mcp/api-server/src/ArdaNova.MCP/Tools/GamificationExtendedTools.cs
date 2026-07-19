@@ -96,20 +96,4 @@ public class ReferralTools
         return result.IsSuccess ? result.Value : null;
     }
 
-    [McpServerTool(Name = "referral_claim_reward")]
-    [Description("Claims the reward for a completed referral")]
-    public async Task<ReferralDto?> ClaimReferralReward(
-        [Description("The referral ID")] string id,
-        [Description("XP amount to reward")] int xpAmount,
-        [Description("Optional token amount to reward")] decimal? tokenAmount = null,
-        CancellationToken ct = default)
-    {
-        var dto = new ClaimReferralRewardDto
-        {
-            XpAmount = xpAmount,
-            TokenAmount = tokenAmount
-        };
-        var result = await _referralService.ClaimRewardAsync(id, dto, ct);
-        return result.IsSuccess ? result.Value : null;
-    }
 }

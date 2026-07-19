@@ -3,7 +3,7 @@
 # ============================================
 #
 # This is a monorepo with two coupled services:
-# 1. ardanova-backend-api-mcp/ - .NET 8 API
+# 1. ardanova-backend-api-mcp/ - .NET API
 # 2. ardanova-client/ - Next.js 15 Frontend
 #
 # SHARED ENVIRONMENT:
@@ -20,27 +20,40 @@
 #    - Click "New" -> "Database" -> "PostgreSQL"
 #    - Railway provides DATABASE_URL automatically
 #
-# 3. Add API Service (name it "ardanova-api"):
-#    - Click "New" -> "GitHub Repo" -> Select this repo
-#    - Set Root Directory: ardanova-backend-api-mcp
+# 3. Run the "ArdaNova release artifacts" GitHub workflow for a reviewed
+#    commit. Retain the exact API and client digest references from its manifest.
+#
+# 4. Add API Service (name it "ardanova-api"):
+#    - Choose "Docker Image" and use the exact
+#      ghcr.io/escherbridge/ardanova-api@sha256:<digest> reference.
 #    - Add environment variables:
 #      * DATABASE_URL = ${{Postgres.DATABASE_URL}}
 #        (the API converts Railway's PostgreSQL URL at startup)
 #      * API_KEY = <generate-secure-key>
+#      * ADMIN_API_KEY = <same distinct random 32+ byte key as client>
+#      * ACTOR_ASSERTION_HMAC_KEY = <same sealed 32+ byte key as client>
 #
-# 4. Add Client Service (name it "ardanova-client"):
-#    - Click "New" -> "GitHub Repo" -> Select this repo
-#    - Set Root Directory: ardanova-client
+# 5. Add Client Service (name it "ardanova-client") after the API is ready:
+#    - Choose "Docker Image" and use the paired
+#      ghcr.io/escherbridge/ardanova-client@sha256:<digest> reference.
 #    - Add environment variables:
 #      * DATABASE_URL = ${{Postgres.DATABASE_URL}}
 #      * API_URL = http://${{ardanova-api.RAILWAY_PRIVATE_DOMAIN}}:8080
 #      * API_KEY = <same-key-as-api-service>
+#      * ADMIN_API_KEY = <same distinct random 32+ byte key as API>
+#      * ACTOR_ASSERTION_HMAC_KEY = <same sealed 32+ byte key as API>
 #      * AUTH_SECRET = <generate: openssl rand -base64 32>
 #      * AUTH_URL = https://${{RAILWAY_PUBLIC_DOMAIN}}
 #      * GOOGLE_CLIENT_ID = <your-google-client-id>
 #      * GOOGLE_CLIENT_SECRET = <your-google-client-secret>
+#    Never set DEV_AUTH_BYPASS or NODE_TLS_REJECT_UNAUTHORIZED on Railway.
 #
-# 5. Generate domain for client service (this is your public URL)
+# 6. Generate domain for client service (this is your public URL)
+#
+# Production migrations are a separate protected operator procedure. Follow
+# documentation/GATED_COMMERCE_MIGRATION_RUNBOOK.md; ordinary Git pushes never
+# touch the production database, and baseline resolution is never automatic.
+# Never use railway up, FTP, source upload, or mutable image tags for release.
 #
 # PRIVATE NETWORKING:
 # ------------------
@@ -52,4 +65,5 @@
 # 1. Copy .env.example to .env and fill in values
 # 2. Run: docker-compose up -d
 #
-# This starts PostgreSQL, API, and Client together using the shared .env
+# This starts API and Client using the shared .env. DATABASE_URL must point to
+# a reachable PostgreSQL instance; the compose file does not create one.

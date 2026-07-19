@@ -37,6 +37,14 @@ must not loop back into the verification page.
 
 The dispute form, tRPC router, REST client, and .NET API carry the selected reason and trimmed 20–4000 character narrative together. The API derives the actor from its signed assertion and persists the context atomically with the status transition. Never add a client-only dispute field or accept a caller-supplied actor ID at the public HTTP boundary.
 
+Sensitive mutations currently paused in both the BFF and backend include token
+distribution, credential issuance and lifecycle changes, governance and vote
+delegation changes, and referral reward claims. Keep their read surfaces
+available, but do not
+restore forwarding until the backend derives authority and scope, and the
+state transition is atomic, auditable, and idempotent. A caller-selected grant
+reason, user ID, beneficiary, or reward amount is data, never authorization.
+
 ## State and rights language
 
 - Draft, submitted, confirmed, and reconciled are distinct states.

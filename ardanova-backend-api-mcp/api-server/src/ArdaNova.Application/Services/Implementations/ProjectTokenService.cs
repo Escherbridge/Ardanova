@@ -120,6 +120,45 @@ public class ProjectTokenService : IProjectTokenService
         return Result<ProjectTokenConfigDto>.Success(_mapper.Map<ProjectTokenConfigDto>(entity));
     }
 
+    public async Task<Result<ProjectTokenMetadataBatchDto>> GetMetadataByIdsAsync(
+        IReadOnlyCollection<string> ids,
+        CancellationToken ct = default)
+    {
+        if (ids.Count is < 1 or > 500 ||
+            ids.Any(id => string.IsNullOrWhiteSpace(id) || id.Length > 200))
+        {
+            return Result<ProjectTokenMetadataBatchDto>.ValidationError(
+                "Request 1 to 500 project token config IDs of at most 200 characters each");
+        }
+
+        var requestedIds = ids
+            .Select(id => id.Trim())
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+
+        var items = await _configRepo.FindProjectedAsync(
+            config => requestedIds.Contains(config.id),
+            config => new ProjectTokenMetadataDto
+            {
+                Id = config.id,
+                AssetName = config.assetName,
+                UnitName = config.unitName
+            },
+            ct);
+        var byId = items.ToDictionary(item => item.Id, StringComparer.Ordinal);
+        var ordered = requestedIds
+            .Where(byId.ContainsKey)
+            .Select(id => byId[id])
+            .ToArray();
+        var missingIds = requestedIds.Where(id => !byId.ContainsKey(id)).ToArray();
+
+        return Result<ProjectTokenMetadataBatchDto>.Success(new ProjectTokenMetadataBatchDto
+        {
+            Items = ordered,
+            MissingIds = missingIds
+        });
+    }
+
     public async Task<Result<ProjectTokenConfigDto>> GetConfigByProjectIdAsync(
         string projectId,
         CancellationToken ct = default)
@@ -135,7 +174,7 @@ public class ProjectTokenService : IProjectTokenService
         return Result<ProjectTokenConfigDto>.Success(_mapper.Map<ProjectTokenConfigDto>(entity));
     }
 
-    public async Task<Result<TokenAllocationDto>> AllocateToTaskAsync(
+    public async Task<Result<TokenAllocationDto>> AllocateToPbiAsync(
         string projectTokenConfigId,
         CreateTokenAllocationDto dto,
         CancellationToken ct = default)

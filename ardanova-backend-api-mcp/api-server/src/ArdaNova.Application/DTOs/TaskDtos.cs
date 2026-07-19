@@ -75,7 +75,6 @@ public record UpdateTaskDto
     public int? ActualHours { get; init; }
     public decimal? EquityReward { get; init; }
     public DateTime? DueDate { get; init; }
-    public string? AssignedToId { get; init; }
 }
 
 public record UpdateTaskStatusDto

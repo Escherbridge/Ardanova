@@ -5,7 +5,6 @@ using System.Net.Http.Headers;
 using ArdaNova.Infrastructure.Azoa;
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -69,6 +68,7 @@ public sealed class AzoaGoldenPathE2ETests
             return; // skipped-and-logged; passes trivially so the baseline is unaffected.
 
         using var client = BuildRealNodeClient(apiKey, out var azoaClient);
+        using var publicHttp = BuildPublicNodeClient(out var publicClient);
 
         // ── (a) Avatar self-register (anonymous; §4/§11.2) ─────────────────────
         var unique = Guid.NewGuid().ToString("N")[..12];
@@ -82,7 +82,7 @@ public sealed class AzoaGoldenPathE2ETests
             LastName = "E2E",
         };
 
-        var registerResult = await azoaClient.RegisterAvatarAsync(registerRequest);
+        var registerResult = await publicClient.RegisterAvatarAsync(registerRequest);
 
         registerResult.IsSuccess.Should().BeTrue(
             $"self-register must succeed against the live node, got: {registerResult.Error}");
@@ -223,16 +223,22 @@ public sealed class AzoaGoldenPathE2ETests
         http.DefaultRequestHeaders.Accept.Add(
             new MediaTypeWithQualityHeaderValue("application/json"));
 
-        var settings = Options.Create(new AzoaSettings
-        {
-            BaseUrl = AzoaBaseUrl,
-            TenantApiKey = apiKey,
-            Mode = "Simulated",
-            ChainType = "Algorand",
-            TimeoutSeconds = 30,
-        });
+        azoaClient = new AzoaNodeClient(http, NullLogger<AzoaNodeClient>.Instance);
+        return http;
+    }
 
-        azoaClient = new AzoaNodeClient(http, settings, NullLogger<AzoaNodeClient>.Instance);
+    private static HttpClient BuildPublicNodeClient(out AzoaPublicNodeClient publicClient)
+    {
+        var http = new HttpClient
+        {
+            BaseAddress = new Uri(AzoaBaseUrl),
+            Timeout = TimeSpan.FromSeconds(30),
+        };
+        http.DefaultRequestHeaders.Accept.Add(
+            new MediaTypeWithQualityHeaderValue("application/json"));
+        publicClient = new AzoaPublicNodeClient(
+            http,
+            NullLogger<AzoaPublicNodeClient>.Instance);
         return http;
     }
 

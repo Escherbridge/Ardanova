@@ -2,7 +2,9 @@ namespace ArdaNova.Application.Tests.Services;
 
 using ArdaNova.Application.Common.Interfaces;
 using ArdaNova.Application.Common.Results;
+using ArdaNova.Application.DTOs;
 using ArdaNova.Application.Services.Implementations;
+using ArdaNova.Application.Services.Interfaces;
 using ArdaNova.Domain.Models.Entities;
 using ArdaNova.Domain.Models.Enums;
 using FluentAssertions;
@@ -11,15 +13,42 @@ using Moq;
 public class KycGateServiceTests
 {
     private readonly Mock<IRepository<User>> _userRepositoryMock;
+    private readonly Mock<IAzoaCustodialAccountService> _azoaAccountsMock;
     private readonly KycGateService _sut;
 
     public KycGateServiceTests()
     {
         _userRepositoryMock = new Mock<IRepository<User>>();
-        _sut = new KycGateService(_userRepositoryMock.Object);
+        _azoaAccountsMock = new Mock<IAzoaCustodialAccountService>();
+        _azoaAccountsMock
+            .Setup(x => x.GetStatusAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<AzoaCustodialAccountStatusDto>.Success(new()
+            {
+                KycStatus = AzoaKycStatus.Pending,
+            }));
+        _sut = new KycGateService(_userRepositoryMock.Object, _azoaAccountsMock.Object);
     }
 
     #region RequireProAsync
+
+    [Fact]
+    public async Task RequireProAsync_WhenAzoaApprovalHasNoIdentity_ReturnsForbidden()
+    {
+        var userId = Guid.NewGuid().ToString();
+        _userRepositoryMock.Setup(x => x.GetByIdAsync(userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new User { id = userId });
+        _azoaAccountsMock
+            .Setup(x => x.GetStatusAsync(userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<AzoaCustodialAccountStatusDto>.Success(new()
+            {
+                IdentityReady = false,
+                KycStatus = AzoaKycStatus.Approved,
+            }));
+
+        var result = await _sut.RequireProAsync(userId);
+
+        result.Type.Should().Be(ResultType.Forbidden);
+    }
 
     [Fact]
     public async Task RequireProAsync_WhenUserIsPro_ReturnsSuccess()
@@ -29,6 +58,7 @@ public class KycGateServiceTests
         var user = new User { id = userId, verificationLevel = VerificationLevel.PRO };
         _userRepositoryMock.Setup(x => x.GetByIdAsync(userId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(user);
+        ApproveInAzoa(userId);
 
         // Act
         var result = await _sut.RequireProAsync(userId);
@@ -41,11 +71,12 @@ public class KycGateServiceTests
     [Fact]
     public async Task RequireProAsync_WhenUserIsExpert_ReturnsSuccess()
     {
-        // Arrange — EXPERT is higher than PRO, should also pass
+        // Arrange — local rank does not replace the live AZOA decision.
         var userId = Guid.NewGuid().ToString();
         var user = new User { id = userId, verificationLevel = VerificationLevel.EXPERT };
         _userRepositoryMock.Setup(x => x.GetByIdAsync(userId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(user);
+        ApproveInAzoa(userId);
 
         // Act
         var result = await _sut.RequireProAsync(userId);
@@ -70,7 +101,7 @@ public class KycGateServiceTests
         // Assert
         result.IsFailure.Should().BeTrue();
         result.Type.Should().Be(ResultType.Forbidden);
-        result.Error.Should().Contain("KYC verification required");
+        result.Error.Should().Contain("AZOA identity approval");
         result.Error.Should().Contain("/settings/verification");
     }
 
@@ -89,7 +120,7 @@ public class KycGateServiceTests
         // Assert
         result.IsFailure.Should().BeTrue();
         result.Type.Should().Be(ResultType.Forbidden);
-        result.Error.Should().Contain("KYC verification required");
+        result.Error.Should().Contain("AZOA identity approval");
     }
 
     [Fact]
@@ -106,6 +137,22 @@ public class KycGateServiceTests
         // Assert
         result.IsFailure.Should().BeTrue();
         result.Type.Should().Be(ResultType.NotFound);
+    }
+
+    [Fact]
+    public async Task RequireProAsync_WhenLocalLevelIsProButAzoaIsUnavailable_ReturnsForbidden()
+    {
+        var userId = Guid.NewGuid().ToString();
+        _userRepositoryMock
+            .Setup(x => x.GetByIdAsync(userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new User { id = userId, verificationLevel = VerificationLevel.PRO });
+        _azoaAccountsMock
+            .Setup(x => x.GetStatusAsync(userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<AzoaCustodialAccountStatusDto>.Failure("AZOA unavailable"));
+
+        var result = await _sut.RequireProAsync(userId);
+
+        result.Type.Should().Be(ResultType.Forbidden);
     }
 
     #endregion
@@ -236,4 +283,15 @@ public class KycGateServiceTests
     }
 
     #endregion
+
+    private void ApproveInAzoa(string userId)
+    {
+        _azoaAccountsMock
+            .Setup(x => x.GetStatusAsync(userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<AzoaCustodialAccountStatusDto>.Success(new()
+            {
+                IdentityReady = true,
+                KycStatus = AzoaKycStatus.Approved,
+            }));
+    }
 }

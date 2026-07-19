@@ -1,28 +1,68 @@
-# Gated-commerce additive migration runbook
+# Gated-commerce migration runbook
 
-Use this runbook before the first production deployment of the gated-commerce
-schema. The preflight is read-only: it issues only catalog and data `SELECT`
-queries and must use a dedicated PostgreSQL role that has `CONNECT`, `USAGE`,
-and `SELECT` only. It never prints `DATABASE_URL` or other connection details.
+This repository now carries an immutable Prisma baseline plus versioned,
+idempotent release migrations. The preflight remains read-only: it issues only
+catalog and data `SELECT` queries and never prints a database URL.
+
+## Migration history
+
+- `20260718000000_schema_baseline` is the complete schema snapshot for a new
+  database and the baseline marker for an existing database.
+- `20260718000500_asset_scale_evidence_boundary` removes the historical scale
+  default and permits a nullable reconciliation window.
+- `20260718001000_actor_assertion_replay_cleanup_index` adds the ordered online
+  replay-cleanup index.
+- `20260718002000_task_escrow_dispute_context` adds nullable dispute evidence
+  fields.
+- `20260718003000_actor_assertion_replay_cleanup_index_postcondition` rejects a
+  partial, unique, invalid, unready, or wrong-key same-named cleanup index that
+  PostgreSQL's `IF NOT EXISTS` would otherwise retain.
+
+Do not edit a migration after it has been applied. Create a new timestamped
+migration for every later change. The baseline was generated with:
+
+```powershell
+npx prisma migrate diff --from-empty --to-schema-datamodel prisma/schema.prisma --script --output prisma/migrations/20260718000000_schema_baseline/migration.sql
+```
 
 ## Preconditions
 
-- The operator has a non-production clone or staging database that represents
-  the approved production baseline.
-- `DATABASE_URL` is supplied only through the operator environment and points
-  to a read-only role for preflight.
-- The database is not managed with `prisma db push`. This repository has no
-  reviewed migration history, so a reviewed, additive Prisma migration is
-  required before production deployment.
-- No funding allocation, payout, task reward, swap, escrow release, or AZOA
-  outbox dispatcher is enabled during this procedure.
+- Confirm the exact project, environment, service, and database before any
+  write. Never infer them from a local Railway link alone.
+- Use a non-production clone for rehearsal and a dedicated read-only role for
+  every preflight.
+- Disable funding allocation, payout, task reward, swap, escrow release, and
+  the Azoa outbox dispatcher throughout the procedure.
+- Back up the database and record restore evidence before migration.
+- Never use `prisma db push` or `prisma migrate dev` against shared or hosted
+  data.
 
-## 1. Pin the approved baseline
+## Path A: new, empty database
 
-Run the preflight against the approved non-production clone with a deliberately
-nonmatching placeholder fingerprint. It exits nonzero but prints the inspected
-fingerprint without exposing database credentials. A reviewer records that
-value only after inspecting the schema and data report.
+Run `npm run db:migrate`. Prisma applies the complete baseline, then the four
+idempotent release migrations. Afterward, run the `additive` preflight described
+below and retain its reviewed fingerprint.
+
+## Path B: established schema without Prisma history
+
+Do not resolve the baseline until a full catalog diff classifies the source.
+There are two supported cases:
+
+- The schema already matches the complete baseline and differs only by the
+  four versioned release migrations. Review that complete diff, resolve only
+  the baseline, then run `migrate deploy`.
+- The schema matches the captured 2026-07-18 production catalog. Use the
+  separately reviewed, one-time adoption SQL below before resolving the
+  baseline. This is the current production path.
+
+Any third shape is unsupported. Generate a new source-specific migration and
+rehearse it from a restored clone; do not adapt commands interactively against
+production.
+
+### B1. Inspect and classify the source
+
+A deliberately wrong fingerprint prints the observed value while still
+exiting nonzero. Use `baseline` for the captured pre-adoption production shape:
 
 ```powershell
 $env:DATABASE_URL = '<read-only connection supplied by the operator>'
@@ -30,77 +70,113 @@ $env:MIGRATION_PREFLIGHT_EXPECTED_FINGERPRINT = ('0' * 64)
 npm run db:preflight-commerce -- --phase baseline
 ```
 
-Do not treat the displayed value as approved merely because the command ran.
-Store the reviewed value in the release environment as
-`MIGRATION_PREFLIGHT_EXPECTED_FINGERPRINT`, then re-run the baseline preflight:
+Review the catalog and data findings independently. In particular, duplicate
+non-null Stripe payment-intent IDs must be reconciled before the adoption SQL
+creates their unique index. Record the observed fingerprint only after that
+review, then rerun the same phase with the approved value.
+
+That preflight is deliberately scoped to commerce and is **not** proof that an
+established database matches the complete Prisma baseline. Before marking the
+full baseline applied, generate and retain a full schema-to-schema diff from
+the same read-only database connection:
 
 ```powershell
-$env:MIGRATION_PREFLIGHT_EXPECTED_FINGERPRINT = '<reviewed 64-character SHA-256>'
-npm run db:preflight-commerce -- --phase baseline
+New-Item -ItemType Directory -Force .release-evidence | Out-Null
+npx prisma migrate diff --from-url $env:DATABASE_URL --to-schema-datamodel prisma/schema.prisma --script --output .release-evidence/baseline-adoption.sql
+Get-FileHash -Algorithm SHA256 .release-evidence/baseline-adoption.sql
 ```
 
-The baseline phase requires `ProjectInvestment`, `ProjectTokenConfig`, and
-`Wallet`. `ProjectInvestment.stripePaymentIntentId` is an existing baseline
-column: the additive change is its exact, valid, ready, non-partial unique
-index, not a new column. The baseline requires every gated-commerce table,
-wallet-verification column, and `assetScale` column to be absent. It also
-reports project-token configurations with no authoritative chain asset id; that
-is a future settlement blocker, not a reason to infer an id during the schema
-migration. Any nonzero exit is a stop condition; do not create or apply a
-migration from that database.
+Two reviewers must inspect the entire diff. If the database already matches the
+baseline, it may contain only the three schema-changing release effects listed above:
+the asset-scale evidence boundary, replay-cleanup index, and four correctly
+typed nullable dispute columns. A commerce fingerprint alone never authorizes
+`migrate resolve`.
 
-## 2. Create and review an additive migration off production
+For the captured production shape, the regenerated diff must instead match
+`prisma/adoption/20260718_production_to_baseline.sql` byte-for-byte. Verify both
+the comparison and the checked-in checksum:
 
-Against a disposable database cloned from the approved baseline, create a
-Prisma migration that only adds the DBML-declared columns, tables, constraints,
-and indexes. The reviewed SQL must:
+```powershell
+git diff --no-index -- `
+  prisma/adoption/20260718_production_to_baseline.sql `
+  .release-evidence/baseline-adoption.sql
+Get-FileHash -Algorithm SHA256 `
+  prisma/adoption/20260718_production_to_baseline.sql
+```
 
-1. add nullable/backfillable fields first where existing data requires it;
-2. reconcile duplicate non-null `ProjectInvestment.stripePaymentIntentId`
-   values before the unique constraint is created;
-3. add `ProjectTokenConfig.assetScale` nullable **without a database default**,
-   backfill every existing row from the authoritative token configuration, and
-   only then review a separate no-default `NOT NULL` hardening step. `DEFAULT 6`
-   is prohibited: it fabricates a historical fact and can silently mis-scale a
-   token allocation;
-4. record missing `assetId` values as a separate authoritative-chain backfill
-   obligation, not an inferred default;
-5. build and validate unique indexes and foreign keys with the production
-   locking/rollback plan reviewed by an operator.
+The reviewed checksum is recorded in `prisma/adoption/CHECKSUMS.sha256`. Any
+difference, destructive statement, type change, new non-null requirement, or
+unexpected constraint is a stop condition.
 
-`assetScale` is a four-release evidence migration, not an additive-column
-shortcut: nullable/no-default introduction; authoritative chain-source capture;
-validated, read-back reconciliation; then a separately approved `NOT NULL`
-no-default hardening migration. The current DBML `DEFAULT 6` declaration is not
-valid historic evidence and must not be used to generate the first migration.
-The range is 0--18 (inclusive), matching fixed-scale settlement precision. See
-`ASSET_SCALE_MIGRATION_CONTRACT.md` for the required manifest, source checks,
-implementation cutover points, and operator proof.
+### B2. Apply the captured production adoption
 
-`prisma db push`, `prisma migrate dev`, and any schema write are prohibited on
-the shared or production database. The migration artifact and its rollback
-decision are review inputs; this script never creates or applies either.
+First prove a current backup can be restored, disable all value-moving paths,
+and enter the approved maintenance window. Apply the reviewed SQL atomically;
+do not use `prisma db push`:
 
-## 3. Verify the deployed additive state
+```powershell
+psql $env:DATABASE_URL `
+  --file prisma/adoption/apply-20260718-production-adoption.psql
+```
 
-After the reviewed migration is deployed by the approved release path, run:
+Do not execute the generated SQL file directly. The wrapper owns the atomic
+transaction, stops on the first error, and pins unqualified generated objects
+to the `public` schema with a transaction-local `search_path`.
+
+Immediately generate the full diff again. It must be empty before migration
+history is written:
+
+```powershell
+npx prisma migrate diff `
+  --from-url $env:DATABASE_URL `
+  --to-schema-datamodel prisma/schema.prisma `
+  --script --exit-code
+```
+
+Only after the empty-diff check, mark the baseline snapshot as applied. The
+four later migrations are idempotent and record their own history when
+deployed:
+
+```powershell
+npx prisma migrate resolve --applied 20260718000000_schema_baseline
+npm run db:migrate
+npm run db:migrate
+npx prisma migrate status
+```
+
+The second deploy must report no pending migrations. `migrate resolve` records
+history; it does not execute baseline SQL. Never mark a later migration applied
+manually. If any step fails, stop traffic promotion and restore the verified
+backup rather than attempting reverse DDL.
+
+## Source data obligations
+
+Before the unique payment-intent index is relied on, reconcile duplicate
+non-null `ProjectInvestment.stripePaymentIntentId` values. The preflight reports
+only masked identifiers.
+
+`ProjectTokenConfig.assetScale` is evidence, not a convenient default. Existing
+rows must be reconciled from the authoritative chain record, with a 0–18 scale,
+and `assetId` must also come from that record. A database default must never be
+used to fabricate historical scale. Missing scale or asset IDs block live-value
+activation even if the schema migration itself succeeds. The nullable storage
+shape is intentional; every new configuration still requires an explicit,
+validated 0--18 scale at the API boundary.
+
+## Verify the deployed state
+
+Obtain and independently review the post-migration fingerprint, then run:
 
 ```powershell
 $env:DATABASE_URL = '<read-only connection supplied by the operator>'
-$env:MIGRATION_PREFLIGHT_EXPECTED_FINGERPRINT = '<reviewed post-migration fingerprint>'
+$env:MIGRATION_PREFLIGHT_EXPECTED_FINGERPRINT = '<reviewed post-migration SHA-256>'
 npm run db:preflight-commerce -- --phase additive
+npx prisma migrate status
 ```
 
-The additive phase fails closed if any target table/column has the wrong
-PostgreSQL type, nullability, or default; if any required index is missing,
-partial, invalid, unready, non-unique where uniqueness is required, or has the
-wrong key order; or if the approved fingerprint differs. It explicitly rejects
-any `assetScale` database default. It reports masked duplicate payment-intent
-ids and up to 100 project-token configurations whose `assetScale` is null or
-`assetId` is absent. A null scale blocks the release. A missing asset id is an
-explicit settlement/launch blocker until its authoritative on-chain record is
-backfilled; do not guess an asset id from a project name, wallet, or UI data.
-
-Only a zero-exit preflight plus separately reviewed deployment, concurrency,
-webhook, outbox, and reconciliation evidence permits progressing toward value
-flow activation. It does not itself authorize value-moving flows.
+The final `additive` phase requires the exact valid, ready, non-partial index on
+`ActorAssertionReplay(expiresAt, jti)` and the complete established commerce
+surface. API readiness also verifies the exact nullable text/timestamp(3)
+contract of the four dispute columns. A zero-exit preflight does
+not authorize value movement; provider, custody, KYC provenance, concurrency,
+webhook, outbox, and reconciliation evidence remain independent gates.

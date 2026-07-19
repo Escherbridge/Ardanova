@@ -60,12 +60,12 @@ public interface IAzoaAvatarService
 /// <summary>
 /// Application-layer PORT onto the AZOA node, used by <c>AzoaAvatarService</c>.
 ///
-/// Why this exists: the typed-HttpClient transport (<c>IAzoaNodeClient</c>) lives
+/// Why this exists: the typed credential-free registration transport lives
 /// in <c>ArdaNova.Infrastructure.Azoa</c>, and the Application layer must not (and
 /// at compile time cannot) reference Infrastructure. This port is the seam — the
 /// same dependency-inversion pattern already used by <c>IAlgorandService</c>
 /// (interface in Application, implementation in Infrastructure). An Infrastructure
-/// adapter wraps <c>IAzoaNodeClient.RegisterAvatarAsync</c> and registers itself
+/// adapter wraps anonymous AZOA registration and registers itself
 /// against this port.
 ///
 /// Only the avatar-onboarding surface is modelled here; allocation/quest seams

@@ -24,6 +24,10 @@ public readonly record struct FixedScaleAmount
     public static bool IsSupportedScale(int scale)
         => scale is >= 0 and <= MaximumScale;
 
+    /// <summary>Rejects a missing scale as well as values outside the supported range.</summary>
+    public static bool IsSupportedScale(int? scale)
+        => scale is int value && IsSupportedScale(value);
+
     /// <summary>Converts a positive decimal without rounding or culture-dependent formatting.</summary>
     public static bool TryFromPositiveDecimal(decimal value, int scale, out FixedScaleAmount amount)
     {

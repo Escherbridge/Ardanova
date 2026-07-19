@@ -32,6 +32,12 @@ public class PayoutServiceTests
         _tokenBalanceService = new Mock<ITokenBalanceService>();
         _exchangeService = new Mock<IExchangeService>();
         _treasuryService = new Mock<ITreasuryService>();
+        _unitOfWork.Setup(u => u.BeginTransactionAsync(It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        _unitOfWork.Setup(u => u.CommitTransactionAsync(It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        _unitOfWork.Setup(u => u.RollbackTransactionAsync(It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
 
         _sut = new PayoutService(
             _payoutRepo.Object,
@@ -443,6 +449,47 @@ public class PayoutServiceTests
         _payoutRepo.Verify(r => r.UpdateAsync(It.Is<PayoutRequest>(p =>
             p.status == PayoutStatus.CANCELLED
         ), It.IsAny<CancellationToken>()), Times.Once);
+        _unitOfWork.Verify(u => u.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
+        _unitOfWork.Verify(u => u.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
+        _unitOfWork.Verify(u => u.RollbackTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task CancelPayoutAsync_UnlockFails_RollsBackWithoutChangingStatus()
+    {
+        var payout = new PayoutRequest
+        {
+            id = "payout-1",
+            userId = "user-1",
+            sourceProjectTokenConfigId = "config-1",
+            sourceTokenAmount = 1000,
+            status = PayoutStatus.PENDING,
+            holderClass = TokenHolderClass.CONTRIBUTOR,
+            gateStatusAtRequest = ProjectGateStatus.ACTIVE,
+            requestedAt = DateTime.UtcNow
+        };
+
+        _payoutRepo.Setup(r => r.GetByIdAsync(payout.id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(payout);
+        _tokenBalanceService.Setup(s => s.UnlockAsync(
+                payout.userId,
+                payout.sourceProjectTokenConfigId,
+                payout.sourceTokenAmount,
+                payout.holderClass,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<TokenBalanceDto>.Failure("Locked balance is unavailable"));
+
+        var result = await _sut.CancelPayoutAsync(payout.id, CancellationToken.None);
+
+        result.IsSuccess.Should().BeFalse();
+        result.Error.Should().Contain("Failed to unlock tokens");
+        payout.status.Should().Be(PayoutStatus.PENDING);
+        _unitOfWork.Verify(u => u.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
+        _unitOfWork.Verify(u => u.RollbackTransactionAsync(CancellationToken.None), Times.Once);
+        _unitOfWork.Verify(u => u.ClearTrackedChanges(), Times.Once);
+        _unitOfWork.Verify(u => u.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
+        _unitOfWork.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+        _payoutRepo.Verify(r => r.UpdateAsync(It.IsAny<PayoutRequest>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]

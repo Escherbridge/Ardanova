@@ -95,6 +95,41 @@ describe("commerce migration preflight", () => {
     expect(report.blocked).toEqual([]);
   });
 
+  it("matches Prisma PostgreSQL text columns and rejects varchar drift", () => {
+    expect(REQUIRED_BASELINE_COLUMNS[0]).toMatchObject({
+      tableName: "ProjectInvestment",
+      columnName: "stripePaymentIntentId",
+      dataType: "text",
+      udtName: "text",
+    });
+    expect(
+      REQUIRED_ADDITIVE_COLUMNS.find(
+        (column) =>
+          column.tableName === "ActorAssertionReplay" &&
+          column.columnName === "jti",
+      ),
+    ).toMatchObject({ dataType: "text", udtName: "text" });
+
+    const columns = columnsFor([
+      ...REQUIRED_BASELINE_COLUMNS,
+      ...REQUIRED_ADDITIVE_COLUMNS,
+    ] as typeof REQUIRED_ADDITIVE_COLUMNS).map((column) =>
+      column.tableName === "ActorAssertionReplay" && column.columnName === "jti"
+        ? { ...column, dataType: "character varying", udtName: "varchar" }
+        : column,
+    );
+    const actual = additiveObservation({ columns });
+    const report = evaluateCommerceMigrationPreflight(
+      "additive",
+      actual.fingerprint,
+      actual,
+    );
+
+    expect(report.blocked.map((finding) => finding.code)).toContain(
+      "column-type-mismatch",
+    );
+  });
+
   it("rejects a missing baseline payment-intent column and an early unique index", () => {
     const missingColumn = observation({
       columns: columnsFor([

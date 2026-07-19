@@ -13,7 +13,7 @@ builder.Configuration.AddJsonFile("appsettings.json", optional: true);
 
 // Add application and infrastructure services
 builder.Services.AddApplication();
-builder.Services.AddInfrastructure(builder.Configuration);
+builder.Services.AddInfrastructure(builder.Configuration, builder.Environment.EnvironmentName);
 
 // Add MCP server with tools
 builder.Services

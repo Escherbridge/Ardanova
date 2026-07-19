@@ -3,6 +3,7 @@ namespace ArdaNova.API.Controllers;
 using ArdaNova.Application.Common.Results;
 using ArdaNova.Application.DTOs;
 using ArdaNova.Application.Services.Interfaces;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
 [ApiController]
@@ -59,27 +60,35 @@ public class DelegatedVotesController : ControllerBase
     }
 
     [HttpPost]
-    public async Task<IActionResult> Create([FromBody] CreateDelegatedVoteDto dto, CancellationToken ct)
+    public IActionResult Create([FromBody] CreateDelegatedVoteDto dto, CancellationToken ct)
     {
-        var result = await _delegatedVoteService.CreateAsync(dto, ct);
-        return result.IsSuccess
-            ? CreatedAtAction(nameof(GetById), new { id = result.Value!.Id }, result.Value)
-            : ToActionResult(result);
+        _ = dto;
+        _ = ct;
+        return MutationUnavailable();
     }
 
     [HttpPut("{id}")]
-    public async Task<IActionResult> Update(string id, [FromBody] UpdateDelegatedVoteDto dto, CancellationToken ct)
+    public IActionResult Update(string id, [FromBody] UpdateDelegatedVoteDto dto, CancellationToken ct)
     {
-        var result = await _delegatedVoteService.UpdateAsync(id, dto, ct);
-        return ToActionResult(result);
+        _ = id;
+        _ = dto;
+        _ = ct;
+        return MutationUnavailable();
     }
 
     [HttpPost("{id}/revoke")]
-    public async Task<IActionResult> Revoke(string id, CancellationToken ct)
+    public IActionResult Revoke(string id, CancellationToken ct)
     {
-        var result = await _delegatedVoteService.RevokeAsync(id, ct);
-        return ToActionResult(result);
+        _ = id;
+        _ = ct;
+        return MutationUnavailable();
     }
+
+    private IActionResult MutationUnavailable()
+        => Problem(
+            statusCode: StatusCodes.Status501NotImplemented,
+            title: "Vote delegation mutations are unavailable",
+            detail: "The authenticated delegator, project authority, and delegated share must be verified atomically before this mutation surface can be enabled.");
 
     private IActionResult ToActionResult<T>(Result<T> result)
     {

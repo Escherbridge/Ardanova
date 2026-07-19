@@ -18,17 +18,34 @@ public class CredentialUtilityService : ICredentialUtilityService
     private readonly IAlgorandService _algorandService;
     private readonly ILogger<CredentialUtilityService> _logger;
     private readonly string _platformAddress;
+    private readonly AlgorandProviderCapabilities _capabilities;
+
+    public CredentialUtilityService(
+        IMembershipCredentialService credentialService,
+        IAlgorandService algorandService,
+        IConfiguration configuration,
+        ILogger<CredentialUtilityService> logger,
+        AlgorandProviderCapabilities capabilities)
+    {
+        _credentialService = credentialService;
+        _algorandService = algorandService;
+        _logger = logger;
+        _capabilities = capabilities;
+        _platformAddress = configuration["Algorand:PlatformAddress"] ?? string.Empty;
+    }
 
     public CredentialUtilityService(
         IMembershipCredentialService credentialService,
         IAlgorandService algorandService,
         IConfiguration configuration,
         ILogger<CredentialUtilityService> logger)
+        : this(
+            credentialService,
+            algorandService,
+            configuration,
+            logger,
+            new AlgorandProviderCapabilities("Test", false, true))
     {
-        _credentialService = credentialService;
-        _algorandService = algorandService;
-        _logger = logger;
-        _platformAddress = configuration["Algorand:PlatformAddress"] ?? string.Empty;
     }
 
     public async Task<Result<MembershipCredentialDto>> GrantAndMintAsync(
@@ -41,6 +58,15 @@ public class CredentialUtilityService : ICredentialUtilityService
             return grantResult;
 
         var credential = grantResult.Value!;
+
+        if (!_capabilities.SupportsAddressBasedCredentialLifecycle)
+        {
+            _logger.LogWarning(
+                "Provider {Provider} does not support address-based credential minting; credential {CredentialId} remains off-chain.",
+                _capabilities.Provider,
+                credential.Id);
+            return Result<MembershipCredentialDto>.Success(credential);
+        }
 
         // 2. Determine scope
         var scope = !string.IsNullOrEmpty(dto.ProjectId) ? "PROJECT" : "GUILD";
@@ -111,6 +137,12 @@ public class CredentialUtilityService : ICredentialUtilityService
         // 2. If credential has an assetId, burn the ASA
         if (!string.IsNullOrEmpty(credential.AssetId))
         {
+            if (!_capabilities.SupportsAddressBasedCredentialLifecycle)
+            {
+                return Result<MembershipCredentialDto>.Conflict(
+                    $"Provider {_capabilities.Provider} cannot burn the existing address-based credential asset; revocation was not changed.");
+            }
+
             var burnResult = await _algorandService.BurnASAAsync(credential.AssetId, ct);
             if (burnResult.IsSuccess)
             {
@@ -199,6 +231,12 @@ public class CredentialUtilityService : ICredentialUtilityService
         string id,
         CancellationToken ct = default)
     {
+        if (!_capabilities.SupportsAddressBasedCredentialLifecycle)
+        {
+            return Result<MembershipCredentialDto>.Conflict(
+                $"Provider {_capabilities.Provider} does not support address-based credential minting.");
+        }
+
         // 1. Get credential
         var getResult = await _credentialService.GetByIdAsync(id, ct);
         if (getResult.IsFailure)

@@ -74,8 +74,10 @@ public sealed class FundingIntentService : IFundingIntentService
         var config = await _tokenConfigRepository.GetByIdAsync(request.ProjectTokenConfigId, ct);
         if (config is null)
             return Result<FundingCheckoutDto>.NotFound("Project token configuration not found");
-        if (!FixedScaleAmount.IsSupportedScale(config.assetScale))
+        if (config.assetScale is not int assetScale || !FixedScaleAmount.IsSupportedScale(assetScale))
             return Result<FundingCheckoutDto>.ValidationError("Project token configuration has an unsupported asset scale");
+        if (string.IsNullOrWhiteSpace(config.assetId))
+            return Result<FundingCheckoutDto>.ValidationError("Project token configuration requires a verified asset id before funding checkout");
         if (config.gateStatus != ProjectGateStatus.FUNDING)
             return Result<FundingCheckoutDto>.ValidationError("Funding is not open for this project token configuration");
 
@@ -94,7 +96,7 @@ public sealed class FundingIntentService : IFundingIntentService
             return await ReplayCheckoutAsync(existing, request, amount, actorId, ct);
 
         var now = DateTime.UtcNow;
-        var terms = CreateTermsSnapshot(config, project, amount, request.DisclosureVersion);
+        var terms = CreateTermsSnapshot(config, project, amount, request.DisclosureVersion, assetScale);
         var intent = new FundingIntent
         {
             id = Guid.NewGuid().ToString("D"),
@@ -250,14 +252,17 @@ public sealed class FundingIntentService : IFundingIntentService
         if (intent.status is FundingIntentStatus.CANCELLED or FundingIntentStatus.REJECTED)
             return Result<FundingCheckoutDto>.Conflict("This funding intent is not eligible for checkout replay");
 
+        var config = await _tokenConfigRepository.GetByIdAsync(intent.projectTokenConfigId, ct)
+            ?? throw new InvalidOperationException("A durable funding intent lost its project token configuration.");
+        if (!FundingTermsMatchConfig(intent.termsSnapshot, config))
+            return Result<FundingCheckoutDto>.Conflict("The immutable funding asset terms no longer match the project token configuration");
+
         if (!string.IsNullOrWhiteSpace(intent.providerCheckoutSessionId))
         {
             var url = await _checkoutGateway.GetUrlAsync(intent.providerCheckoutSessionId, ct);
             return Result<FundingCheckoutDto>.Success(new FundingCheckoutDto { IntentId = intent.id, CheckoutUrl = url });
         }
 
-        var config = await _tokenConfigRepository.GetByIdAsync(intent.projectTokenConfigId, ct)
-            ?? throw new InvalidOperationException("A durable funding intent lost its project token configuration.");
         return await CreateOrReplayProviderCheckoutAsync(intent, config, ct);
     }
 
@@ -266,6 +271,13 @@ public sealed class FundingIntentService : IFundingIntentService
         ProjectTokenConfig config,
         CancellationToken ct)
     {
+        if (string.IsNullOrWhiteSpace(config.assetId)
+            || !FixedScaleAmount.IsSupportedScale(config.assetScale))
+        {
+            return Result<FundingCheckoutDto>.ValidationError(
+                "Funding checkout requires a verified asset id and supported asset scale");
+        }
+
         var checkout = await _checkoutGateway.CreateAsync(
             new StripeCheckoutRequest(
                 intent.id,
@@ -425,7 +437,8 @@ public sealed class FundingIntentService : IFundingIntentService
         ProjectTokenConfig config,
         Project project,
         UsdMoney amount,
-        string disclosureVersion)
+        string disclosureVersion,
+        int assetScale)
         => JsonSerializer.Serialize(new
         {
             schemaVersion = 1,
@@ -436,8 +449,36 @@ public sealed class FundingIntentService : IFundingIntentService
             projectId = project.id,
             projectTokenConfigId = config.id,
             tokenSymbol = config.unitName,
-            tokenScale = config.assetScale,
+            assetId = config.assetId,
+            tokenScale = assetScale,
         });
+
+    private static bool FundingTermsMatchConfig(string termsSnapshot, ProjectTokenConfig config)
+    {
+        if (string.IsNullOrWhiteSpace(config.assetId)
+            || !FixedScaleAmount.IsSupportedScale(config.assetScale)
+            || string.IsNullOrWhiteSpace(termsSnapshot))
+        {
+            return false;
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(termsSnapshot);
+            var root = document.RootElement;
+            return root.TryGetProperty("projectTokenConfigId", out var configId)
+                && string.Equals(configId.GetString(), config.id, StringComparison.Ordinal)
+                && root.TryGetProperty("assetId", out var assetId)
+                && string.Equals(assetId.GetString(), config.assetId, StringComparison.Ordinal)
+                && root.TryGetProperty("tokenScale", out var tokenScale)
+                && tokenScale.TryGetInt32(out var capturedScale)
+                && capturedScale == config.assetScale;
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
+    }
 
     private static string Hash(string value)
         => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value))).ToLowerInvariant();

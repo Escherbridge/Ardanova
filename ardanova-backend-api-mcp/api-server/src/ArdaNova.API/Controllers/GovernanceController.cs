@@ -4,6 +4,7 @@ using ArdaNova.Application.Common.Results;
 using ArdaNova.Application.DTOs;
 using ArdaNova.Application.Services.Interfaces;
 using ArdaNova.Domain.Models.Enums;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
 [ApiController]
@@ -69,37 +70,39 @@ public class GovernanceController : ControllerBase
     }
 
     [HttpPost("proposals")]
-    public async Task<IActionResult> CreateProposal([FromBody] CreateProposalDto dto, CancellationToken ct)
+    public IActionResult CreateProposal([FromBody] CreateProposalDto dto, CancellationToken ct)
     {
-        var result = await _governanceService.CreateProposalAsync(dto, ct);
-        return result.IsSuccess
-            ? CreatedAtAction(nameof(GetProposalById), new { id = result.Value!.Id }, result.Value)
-            : ToActionResult(result);
+        _ = dto;
+        _ = ct;
+        return MutationUnavailable();
     }
 
     [HttpPut("proposals/{id}")]
-    public async Task<IActionResult> UpdateProposal(string id, [FromBody] UpdateProposalDto dto, CancellationToken ct)
+    public IActionResult UpdateProposal(string id, [FromBody] UpdateProposalDto dto, CancellationToken ct)
     {
-        var result = await _governanceService.UpdateProposalAsync(id, dto, ct);
-        return ToActionResult(result);
+        _ = id;
+        _ = dto;
+        _ = ct;
+        return MutationUnavailable();
     }
 
     [HttpDelete("proposals/{id}")]
-    public async Task<IActionResult> DeleteProposal(string id, CancellationToken ct)
+    public IActionResult DeleteProposal(string id, CancellationToken ct)
     {
-        var result = await _governanceService.DeleteProposalAsync(id, ct);
-        return result.IsSuccess ? NoContent() : ToActionResult(result);
+        _ = id;
+        _ = ct;
+        return MutationUnavailable();
     }
 
     // Voting endpoints
 
     [HttpPost("proposals/{id}/vote")]
-    public async Task<IActionResult> CastVote(string id, [FromBody] CastVoteDto dto, CancellationToken ct)
+    public IActionResult CastVote(string id, [FromBody] CastVoteDto dto, CancellationToken ct)
     {
-        var result = await _governanceService.CastVoteAsync(id, dto, ct);
-        return result.IsSuccess
-            ? CreatedAtAction(nameof(GetProposalById), new { id }, result.Value)
-            : ToActionResult(result);
+        _ = id;
+        _ = dto;
+        _ = ct;
+        return MutationUnavailable();
     }
 
     [HttpGet("proposals/{id}/votes")]
@@ -126,24 +129,27 @@ public class GovernanceController : ControllerBase
     // Proposal lifecycle endpoints
 
     [HttpPatch("proposals/{id}/execute")]
-    public async Task<IActionResult> ExecuteProposal(string id, CancellationToken ct)
+    public IActionResult ExecuteProposal(string id, CancellationToken ct)
     {
-        var result = await _governanceService.ExecuteProposalAsync(id, ct);
-        return ToActionResult(result);
+        _ = id;
+        _ = ct;
+        return MutationUnavailable();
     }
 
     [HttpPatch("proposals/{id}/cancel")]
-    public async Task<IActionResult> CancelProposal(string id, CancellationToken ct)
+    public IActionResult CancelProposal(string id, CancellationToken ct)
     {
-        var result = await _governanceService.CancelProposalAsync(id, ct);
-        return ToActionResult(result);
+        _ = id;
+        _ = ct;
+        return MutationUnavailable();
     }
 
     [HttpPatch("proposals/{id}/publish")]
-    public async Task<IActionResult> PublishProposal(string id, CancellationToken ct)
+    public IActionResult PublishProposal(string id, CancellationToken ct)
     {
-        var result = await _governanceService.PublishProposalAsync(id, ct);
-        return ToActionResult(result);
+        _ = id;
+        _ = ct;
+        return MutationUnavailable();
     }
 
     // Proposal comment endpoints
@@ -156,33 +162,45 @@ public class GovernanceController : ControllerBase
     }
 
     [HttpPost("proposals/{id}/comments")]
-    public async Task<IActionResult> CreateProposalComment(string id, [FromBody] CreateProposalCommentDto dto, CancellationToken ct)
+    public IActionResult CreateProposalComment(string id, [FromBody] CreateProposalCommentDto dto, CancellationToken ct)
     {
-        var dtoWithProposal = dto with { ProposalId = id };
-        var result = await _governanceService.CreateProposalCommentAsync(dtoWithProposal, ct);
-        return result.IsSuccess
-            ? CreatedAtAction(nameof(GetProposalById), new { id }, result.Value)
-            : ToActionResult(result);
+        _ = id;
+        _ = dto;
+        _ = ct;
+        return MutationUnavailable();
     }
 
     [HttpPut("proposals/{id}/comments/{commentId}")]
-    public async Task<IActionResult> UpdateProposalComment(
+    public IActionResult UpdateProposalComment(
         string id,
         string commentId,
         [FromQuery] string userId,
         [FromBody] UpdateProposalCommentDto dto,
         CancellationToken ct)
     {
-        var result = await _governanceService.UpdateProposalCommentAsync(id, commentId, userId, dto, ct);
-        return ToActionResult(result);
+        _ = id;
+        _ = commentId;
+        _ = userId;
+        _ = dto;
+        _ = ct;
+        return MutationUnavailable();
     }
 
     [HttpDelete("proposals/{id}/comments/{commentId}")]
-    public async Task<IActionResult> DeleteProposalComment(string id, string commentId, [FromQuery] string userId, CancellationToken ct)
+    public IActionResult DeleteProposalComment(string id, string commentId, [FromQuery] string userId, CancellationToken ct)
     {
-        var result = await _governanceService.DeleteProposalCommentAsync(id, commentId, userId, ct);
-        return result.IsSuccess ? NoContent() : ToActionResult(result);
+        _ = id;
+        _ = commentId;
+        _ = userId;
+        _ = ct;
+        return MutationUnavailable();
     }
+
+    private IActionResult MutationUnavailable()
+        => Problem(
+            statusCode: StatusCodes.Status501NotImplemented,
+            title: "Governance mutations are unavailable",
+            detail: "Actor-bound proposal, vote, and comment authority plus auditable atomic lifecycle transitions are required before this mutation surface can be enabled.");
 
     private IActionResult ToActionResult<T>(Result<T> result)
     {

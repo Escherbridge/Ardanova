@@ -18,7 +18,8 @@ public class AzoaFundingSettlementReadinessTests
 
         var readiness = new AzoaFundingSettlementReadiness(
             settings,
-            new DisabledAzoaSettlementGateway());
+            new DisabledAzoaSettlementGateway(),
+            new RuntimeCapability(true));
 
         readiness.IsReady.Should().BeFalse();
     }
@@ -33,14 +34,17 @@ public class AzoaFundingSettlementReadinessTests
         });
         var capability = new CapableGateway("node-1", canDispatch: true, canReconcile: true, attested: true);
 
-        new AzoaFundingSettlementReadiness(settings, capability).IsReady.Should().BeTrue();
+        new AzoaFundingSettlementReadiness(settings, capability, new RuntimeCapability(true)).IsReady.Should().BeTrue();
 
         capability.HasCurrentOperatorAttestation = false;
-        new AzoaFundingSettlementReadiness(settings, capability).IsReady.Should().BeFalse();
+        new AzoaFundingSettlementReadiness(settings, capability, new RuntimeCapability(true)).IsReady.Should().BeFalse();
 
         capability.HasCurrentOperatorAttestation = true;
         capability.SelectedNodeId = "node-other";
-        new AzoaFundingSettlementReadiness(settings, capability).IsReady.Should().BeFalse();
+        new AzoaFundingSettlementReadiness(settings, capability, new RuntimeCapability(true)).IsReady.Should().BeFalse();
+
+        capability.SelectedNodeId = "node-1";
+        new AzoaFundingSettlementReadiness(settings, capability, new RuntimeCapability(false)).IsReady.Should().BeFalse();
     }
 
     private sealed class CapableGateway : IAzoaSettlementGateway, ISelectedNodeSettlementCapability
@@ -57,6 +61,7 @@ public class AzoaFundingSettlementReadinessTests
         public bool CanDispatch { get; }
         public bool CanReconcile { get; }
         public bool HasCurrentOperatorAttestation { get; set; }
+        public bool SupportsCanonicalFundingSettlement => true;
 
         public Task<AzoaSettlementGatewayResult> DispatchAsync(
             AzoaSettlementRequest request,
@@ -68,4 +73,7 @@ public class AzoaFundingSettlementReadinessTests
             CancellationToken ct = default)
             => Task.FromResult(AzoaSettlementGatewayResult.Retry("TEST", "Test gateway does not reconcile."));
     }
+
+    private sealed record RuntimeCapability(bool IsHostedDispatcherRegistered)
+        : ISettlementOutboxRuntimeCapability;
 }

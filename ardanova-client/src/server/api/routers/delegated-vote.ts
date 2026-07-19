@@ -3,13 +3,26 @@ import { TRPCError } from "@trpc/server";
 import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
 import { apiClient } from "~/lib/api";
 
+function delegatedVoteMutationsUnavailable(): never {
+  throw new TRPCError({
+    code: "NOT_IMPLEMENTED",
+    message:
+      "Vote delegation changes are paused until the backend binds the delegator and verifies project authority atomically.",
+  });
+}
+
 export const delegatedVoteRouter = createTRPCRouter({
   getByDelegator: protectedProcedure
     .input(z.object({ delegatorId: z.string() }))
     .query(async ({ input }) => {
-      const response = await apiClient.delegatedVotes.getByDelegator(input.delegatorId);
+      const response = await apiClient.delegatedVotes.getByDelegator(
+        input.delegatorId,
+      );
       if (response.error) {
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: response.error });
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: response.error,
+        });
       }
       return response.data ?? [];
     }),
@@ -17,9 +30,14 @@ export const delegatedVoteRouter = createTRPCRouter({
   getByDelegatee: protectedProcedure
     .input(z.object({ delegateeId: z.string() }))
     .query(async ({ input }) => {
-      const response = await apiClient.delegatedVotes.getByDelegatee(input.delegateeId);
+      const response = await apiClient.delegatedVotes.getByDelegatee(
+        input.delegateeId,
+      );
       if (response.error) {
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: response.error });
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: response.error,
+        });
       }
       return response.data ?? [];
     }),
@@ -27,9 +45,14 @@ export const delegatedVoteRouter = createTRPCRouter({
   getByProject: protectedProcedure
     .input(z.object({ projectId: z.string() }))
     .query(async ({ input }) => {
-      const response = await apiClient.delegatedVotes.getByProject(input.projectId);
+      const response = await apiClient.delegatedVotes.getByProject(
+        input.projectId,
+      );
       if (response.error) {
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: response.error });
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: response.error,
+        });
       }
       return response.data ?? [];
     }),
@@ -37,9 +60,14 @@ export const delegatedVoteRouter = createTRPCRouter({
   getActiveByProject: protectedProcedure
     .input(z.object({ projectId: z.string() }))
     .query(async ({ input }) => {
-      const response = await apiClient.delegatedVotes.getActiveByProject(input.projectId);
+      const response = await apiClient.delegatedVotes.getActiveByProject(
+        input.projectId,
+      );
       if (response.error) {
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: response.error });
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: response.error,
+        });
       }
       return response.data ?? [];
     }),
@@ -49,12 +77,18 @@ export const delegatedVoteRouter = createTRPCRouter({
       z.object({
         delegateeId: z.string(),
         projectId: z.string(),
-      })
+      }),
     )
     .query(async ({ input }) => {
-      const response = await apiClient.delegatedVotes.getTotalPower(input.delegateeId, input.projectId);
+      const response = await apiClient.delegatedVotes.getTotalPower(
+        input.delegateeId,
+        input.projectId,
+      );
       if (response.error && response.status !== 404) {
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: response.error });
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: response.error,
+        });
       }
       return response.data ?? 0;
     }),
@@ -68,22 +102,9 @@ export const delegatedVoteRouter = createTRPCRouter({
         shareId: z.string(),
         amount: z.number(),
         expiresAt: z.string().optional(),
-      })
+      }),
     )
-    .mutation(async ({ input }) => {
-      const response = await apiClient.delegatedVotes.create({
-        projectId: input.projectId,
-        delegatorId: input.delegatorId,
-        delegateeId: input.delegateeId,
-        shareId: input.shareId,
-        amount: input.amount,
-        expiresAt: input.expiresAt,
-      });
-      if (response.error || !response.data) {
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: response.error ?? "Failed to create delegation" });
-      }
-      return response.data;
-    }),
+    .mutation(delegatedVoteMutationsUnavailable),
 
   update: protectedProcedure
     .input(
@@ -91,24 +112,11 @@ export const delegatedVoteRouter = createTRPCRouter({
         id: z.string(),
         amount: z.number().optional(),
         expiresAt: z.string().optional(),
-      })
+      }),
     )
-    .mutation(async ({ input }) => {
-      const { id, ...data } = input;
-      const response = await apiClient.delegatedVotes.update(id, data);
-      if (response.error || !response.data) {
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: response.error ?? "Failed to update delegation" });
-      }
-      return response.data;
-    }),
+    .mutation(delegatedVoteMutationsUnavailable),
 
   revoke: protectedProcedure
     .input(z.object({ id: z.string() }))
-    .mutation(async ({ input }) => {
-      const response = await apiClient.delegatedVotes.revoke(input.id);
-      if (response.error || !response.data) {
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: response.error ?? "Failed to revoke" });
-      }
-      return response.data;
-    }),
+    .mutation(delegatedVoteMutationsUnavailable),
 });

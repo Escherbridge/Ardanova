@@ -2,6 +2,7 @@ namespace ArdaNova.API.Controllers;
 
 using ArdaNova.Application.Common.Interfaces;
 using ArdaNova.Application.Services.Interfaces;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Stripe;
@@ -37,6 +38,7 @@ public class StripeWebhookController : ControllerBase
 
     /// <summary>Authenticates and processes a Stripe event exactly once per provider event id.</summary>
     [HttpPost("webhook")]
+    [AllowAnonymous]
     public async Task<IActionResult> Webhook(CancellationToken ct)
     {
         var webhookSecret = _configuration["Stripe:WebhookSecret"];

@@ -18,6 +18,7 @@ public class ProjectServiceTests
     private readonly Mock<IUnitOfWork> _unitOfWorkMock;
     private readonly Mock<IMapper> _mapperMock;
     private readonly Mock<IKycGateService> _kycGateServiceMock;
+    private readonly Mock<IAzoaCustodialAccountService> _custodialAccountServiceMock;
     private readonly ProjectService _sut;
 
     public ProjectServiceTests()
@@ -27,9 +28,19 @@ public class ProjectServiceTests
         _unitOfWorkMock = new Mock<IUnitOfWork>();
         _mapperMock = new Mock<IMapper>();
         _kycGateServiceMock = new Mock<IKycGateService>();
+        _custodialAccountServiceMock = new Mock<IAzoaCustodialAccountService>();
         _kycGateServiceMock.Setup(x => x.RequireProAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(Result<bool>.Success(true));
-        _sut = new ProjectService(_repositoryMock.Object, _userRepositoryMock.Object, _unitOfWorkMock.Object, _mapperMock.Object, _kycGateServiceMock.Object);
+        _custodialAccountServiceMock
+            .Setup(x => x.GetStatusAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<AzoaCustodialAccountStatusDto>.Success(ReadyCustodyStatus()));
+        _sut = new ProjectService(
+            _repositoryMock.Object,
+            _userRepositoryMock.Object,
+            _unitOfWorkMock.Object,
+            _mapperMock.Object,
+            _kycGateServiceMock.Object,
+            _custodialAccountServiceMock.Object);
     }
 
     [Fact]
@@ -575,6 +586,55 @@ public class ProjectServiceTests
     }
 
     [Fact]
+    public async Task CreateAsync_WhenAzoaWalletIsNotReady_ReturnsForbiddenBeforePersistence()
+    {
+        var dto = ValidCreateDto();
+        _custodialAccountServiceMock
+            .Setup(x => x.GetStatusAsync(dto.CreatedById, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<AzoaCustodialAccountStatusDto>.Success(
+                ReadyCustodyStatus() with
+                {
+                    WalletId = null,
+                    WalletAddress = null,
+                    WalletReady = false,
+                    Ready = false,
+                }));
+
+        var result = await _sut.CreateAsync(dto);
+
+        result.Type.Should().Be(ResultType.Forbidden);
+        result.Error.Should().Contain("managed wallet");
+        _repositoryMock.Verify(
+            repository => repository.AddAsync(It.IsAny<Project>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+        _kycGateServiceMock.Verify(
+            gate => gate.RequireProAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task CreateAsync_WhenAzoaAggregateReadyOmitsWalletEvidence_ReturnsForbidden()
+    {
+        var dto = ValidCreateDto();
+        _custodialAccountServiceMock
+            .Setup(x => x.GetStatusAsync(dto.CreatedById, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<AzoaCustodialAccountStatusDto>.Success(
+                ReadyCustodyStatus() with
+                {
+                    WalletId = null,
+                    WalletAddress = null,
+                    WalletReady = false,
+                }));
+
+        var result = await _sut.CreateAsync(dto);
+
+        result.Type.Should().Be(ResultType.Forbidden);
+        _repositoryMock.Verify(
+            repository => repository.AddAsync(It.IsAny<Project>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
     public async Task SearchAsync_WithCategoryFilter_ReturnsFilteredResults()
     {
         // Arrange
@@ -601,4 +661,26 @@ public class ProjectServiceTests
         result.Value.Should().NotBeNull();
         result.Value!.Items.Should().NotBeEmpty();
     }
+
+    private static CreateProjectDto ValidCreateDto() => new()
+    {
+        CreatedById = Guid.NewGuid().ToString(),
+        Title = "A ready project",
+        Description = "A sufficiently detailed project description",
+        ProblemStatement = "A sufficiently detailed problem statement",
+        Solution = "A sufficiently detailed proposed solution",
+        Categories = new List<string> { "TECHNOLOGY" },
+    };
+
+    private static AzoaCustodialAccountStatusDto ReadyCustodyStatus() => new()
+    {
+        AvatarId = "avatar-ready",
+        WalletId = "wallet-ready",
+        WalletAddress = "wallet-address-ready",
+        KycStatus = AzoaKycStatus.Approved,
+        IdentityReady = true,
+        KycReady = true,
+        WalletReady = true,
+        Ready = true,
+    };
 }

@@ -20,7 +20,10 @@ export const referralRouter = createTRPCRouter({
     .query(async ({ input }) => {
       const response = await apiClient.referrals.getById(input.id);
       if (!response.data)
-        throw new TRPCError({ code: "NOT_FOUND", message: "Referral not found" });
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Referral not found",
+        });
       return response.data;
     }),
 
@@ -34,14 +37,18 @@ export const referralRouter = createTRPCRouter({
   getByReferrerId: protectedProcedure
     .input(z.object({ referrerId: z.string().min(1) }))
     .query(async ({ input }) => {
-      const response = await apiClient.referrals.getByReferrerId(input.referrerId);
+      const response = await apiClient.referrals.getByReferrerId(
+        input.referrerId,
+      );
       return response.data ?? [];
     }),
 
   getByReferredId: protectedProcedure
     .input(z.object({ referredId: z.string().min(1) }))
     .query(async ({ input }) => {
-      const response = await apiClient.referrals.getByReferredId(input.referredId);
+      const response = await apiClient.referrals.getByReferredId(
+        input.referredId,
+      );
       if (!response.data) {
         if (response.status === 404) return null;
         throw new TRPCError({
@@ -110,18 +117,12 @@ export const referralRouter = createTRPCRouter({
         tokenAmount: z.number().optional(),
       }),
     )
-    .mutation(async ({ input }) => {
-      const response = await apiClient.referrals.claimReward(input.id, {
-        xpAmount: input.xpAmount,
-        equityAmount: input.equityAmount,
-        tokenAmount: input.tokenAmount,
+    .mutation(() => {
+      throw new TRPCError({
+        code: "NOT_IMPLEMENTED",
+        message:
+          "Referral rewards are paused until the backend derives the beneficiary and reward amounts and commits the claim atomically.",
       });
-      if (!response.data)
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: response.error ?? "Failed to claim reward",
-        });
-      return response.data;
     }),
 
   expire: adminProcedure

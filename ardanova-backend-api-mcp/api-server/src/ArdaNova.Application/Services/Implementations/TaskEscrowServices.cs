@@ -10,6 +10,14 @@ using AutoMapper;
 
 public class TaskEscrowService : ITaskEscrowService
 {
+    private static readonly HashSet<string> AllowedDisputeReasons =
+    [
+        "SCOPE_DISPUTE",
+        "QUALITY_ISSUE",
+        "NON_DELIVERY",
+        "OTHER"
+    ];
+
     private readonly IRepository<TaskEscrow> _repository;
     private readonly IRepository<ProjectTask> _taskRepository;
     private readonly IUnitOfWork _unitOfWork;
@@ -97,8 +105,17 @@ public class TaskEscrowService : ITaskEscrowService
         return Result<TaskEscrowDto>.Success(_mapper.Map<TaskEscrowDto>(escrow));
     }
 
-    public async Task<Result<TaskEscrowDto>> DisputeAsync(string id, CancellationToken ct = default)
+    public async Task<Result<TaskEscrowDto>> DisputeAsync(string id, DisputeEscrowDto dto, CancellationToken ct = default)
     {
+        var reason = dto.Reason.Trim().ToUpperInvariant();
+        var description = dto.Description.Trim();
+        if (!AllowedDisputeReasons.Contains(reason))
+            return Result<TaskEscrowDto>.ValidationError("A recognized dispute reason is required");
+        if (description.Length is < 20 or > 4000)
+            return Result<TaskEscrowDto>.ValidationError("Dispute description must contain between 20 and 4000 characters");
+        if (string.IsNullOrWhiteSpace(dto.DisputedByUserId))
+            return Result<TaskEscrowDto>.ValidationError("The dispute actor is required");
+
         var escrow = await _repository.GetByIdAsync(id, ct);
         if (escrow is null)
             return Result<TaskEscrowDto>.NotFound($"TaskEscrow with id {id} not found");
@@ -111,6 +128,10 @@ public class TaskEscrowService : ITaskEscrowService
             return Result<TaskEscrowDto>.NotFound($"Task with id {escrow.taskId} not found for escrow {escrow.id}");
 
         escrow.status = EscrowStatus.DISPUTED;
+        escrow.disputeReason = reason;
+        escrow.disputeDescription = description;
+        escrow.disputedByUserId = dto.DisputedByUserId;
+        escrow.disputedAt = DateTime.UtcNow;
         task.escrowStatus = EscrowStatus.DISPUTED;
         task.updatedAt = DateTime.UtcNow;
 

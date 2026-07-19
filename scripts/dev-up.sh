@@ -29,7 +29,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 API_PROJECT_DIR="$PROJECT_ROOT/ardanova-backend-api-mcp/api-server/src/ArdaNova.API"
 CLIENT_DIR="$PROJECT_ROOT/ardanova-client"
-ENV_FILE="$CLIENT_DIR/.env"
+ENV_FILE="$PROJECT_ROOT/.env"
 
 # --- Ports ---
 API_HTTP_PORT=5147
@@ -85,7 +85,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --client-only   Start only the Next.js client"
             echo ""
             echo -e "${GREEN}Utility Flags:${NC}"
-            echo "  --install       Install dependencies (npm install, dotnet restore)"
+            echo "  --install       Fresh lockfile install (npm ci, dotnet restore)"
             echo "  --check         Check prerequisites only, don't start anything"
             echo "  --kill          Kill all ArdaNova dev processes and free ports"
             echo "  -h, --help      Show this help"
@@ -124,6 +124,67 @@ step()  { echo -e "${GREEN}[*] $1${NC}"; }
 warn()  { echo -e "${YELLOW}[!] $1${NC}"; }
 err()   { echo -e "${RED}[X] $1${NC}"; }
 info()  { echo -e "    ${WHITE}$1${NC}"; }
+
+load_dotenv() {
+    while IFS='=' read -r key value || [ -n "$key" ]; do
+        key="${key#${key%%[![:space:]]*}}"
+        key="${key%${key##*[![:space:]]}}"
+        [[ "$key" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || continue
+        # Security overrides must never be inherited from a shared dotenv file.
+        case "$key" in
+            ALLOW_REMOTE_DEV_DATABASE|NODE_TLS_REJECT_UNAUTHORIZED) continue ;;
+        esac
+
+        value="${value#${value%%[![:space:]]*}}"
+        value="${value%${value##*[![:space:]]}}"
+        if [[ "$value" == \"*\" && "$value" == *\" ]] ||
+           [[ "$value" == \'*\' && "$value" == *\' ]]; then
+            value="${value:1:${#value}-2}"
+        fi
+
+        # Explicit process variables take precedence over the shared local file.
+        if [ -z "${!key+x}" ]; then
+            export "$key=$value"
+        fi
+    done < "$1"
+}
+
+assert_secure_tls_configuration() {
+    if [ "${NODE_TLS_REJECT_UNAUTHORIZED:-}" = "0" ]; then
+        err "Refusing to start with NODE_TLS_REJECT_UNAUTHORIZED=0."
+        info "Use a trusted local certificate or the HTTP loopback API origin instead."
+        exit 1
+    fi
+
+    # Pin the secure value so Next.js dotenv loading cannot override it.
+    export NODE_TLS_REJECT_UNAUTHORIZED=1
+}
+
+assert_local_database_target() {
+    [ -n "${DATABASE_URL:-}" ] || return 0
+
+    local database_host
+    if ! database_host="$(node -e 'try { console.log(new URL(process.env.DATABASE_URL).hostname) } catch { process.exit(1) }')"; then
+        err "DATABASE_URL is not a valid absolute PostgreSQL URL."
+        exit 1
+    fi
+
+    case "$database_host" in
+        localhost|127.0.0.1|::1|\[::1\])
+            return 0
+            ;;
+    esac
+
+    if [ "${ALLOW_REMOTE_DEV_DATABASE:-}" = "true" ]; then
+        warn "Remote development database explicitly allowed for host '$database_host'."
+        return 0
+    fi
+
+    err "Refusing to start local services against remote database host '$database_host'."
+    info "Set DATABASE_URL to a dedicated loopback database."
+    info "For an intentional remote session only, set ALLOW_REMOTE_DEV_DATABASE=true."
+    exit 1
+}
 
 banner() {
     echo ""
@@ -232,7 +293,15 @@ check_prerequisites() {
     # .env file
     if [ -f "$ENV_FILE" ]; then
         info ".env file: Found"
-        local required_vars=("DATABASE_URL" "AUTH_SECRET" "GOOGLE_CLIENT_ID" "GOOGLE_CLIENT_SECRET" "API_KEY")
+        local required_vars=(
+            "DATABASE_URL"
+            "AUTH_SECRET"
+            "GOOGLE_CLIENT_ID"
+            "GOOGLE_CLIENT_SECRET"
+            "API_KEY"
+            "ADMIN_API_KEY"
+            "ACTOR_ASSERTION_HMAC_KEY"
+        )
         for var in "${required_vars[@]}"; do
             if ! grep -q "^${var}=.\+" "$ENV_FILE" 2>/dev/null; then
                 warn "Missing or empty: $var in .env"
@@ -248,7 +317,7 @@ check_prerequisites() {
     if [ -d "$CLIENT_DIR/node_modules" ]; then
         info "node_modules: Installed"
     else
-        warn "node_modules not found. Run with --install or 'npm install' in ardanova-client/"
+        warn "node_modules not found. Run with --install or 'npm ci' in ardanova-client/"
     fi
 
     # Docker (if docker mode)
@@ -283,6 +352,15 @@ if [ "$CHECK_ONLY" = true ]; then
     exit 0
 fi
 
+if [ "$MODE" = "local" ]; then
+    step "Loading shared local environment..."
+    load_dotenv "$ENV_FILE"
+    info "Loaded repository .env without overriding process variables"
+    assert_secure_tls_configuration
+    assert_local_database_target
+    echo ""
+fi
+
 # ===========================================
 # Install Dependencies
 # ===========================================
@@ -294,13 +372,9 @@ if [ "$DO_INSTALL" = true ]; then
     fi
 
     if [ "$API_ONLY" != true ]; then
-        step "Installing npm packages..."
-        (cd "$CLIENT_DIR" && npm install) >/dev/null 2>&1
-        info "npm install complete"
-
-        step "Generating Prisma client..."
-        (cd "$CLIENT_DIR" && npx prisma generate) >/dev/null 2>&1
-        info "prisma generate complete"
+        step "Installing npm packages from package-lock.json..."
+        (cd "$CLIENT_DIR" && npm ci) >/dev/null 2>&1
+        info "npm ci complete (including npm run generate:prisma postinstall)"
     fi
     echo ""
 fi

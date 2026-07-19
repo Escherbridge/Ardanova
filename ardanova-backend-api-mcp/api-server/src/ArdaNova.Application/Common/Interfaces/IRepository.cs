@@ -10,6 +10,10 @@ public interface IRepository<T> where T : class
     Task<IReadOnlyList<T>> FindAsync(
         Expression<Func<T, bool>> predicate,
         CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<TResult>> FindProjectedAsync<TResult>(
+        Expression<Func<T, bool>> predicate,
+        Expression<Func<T, TResult>> selector,
+        CancellationToken cancellationToken = default);
     Task<T?> FindOneAsync(
         Expression<Func<T, bool>> predicate,
         CancellationToken cancellationToken = default);

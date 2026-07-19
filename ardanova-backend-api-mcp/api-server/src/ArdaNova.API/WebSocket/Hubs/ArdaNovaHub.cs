@@ -1,6 +1,12 @@
+using ArdaNova.API.Middleware;
 using ArdaNova.API.WebSocket.Clients;
+using ArdaNova.Application.Common.Interfaces;
+using ArdaNova.Application.DTOs;
 using ArdaNova.Application.Services.Interfaces;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.SignalR;
+using System.Security.Cryptography;
 
 namespace ArdaNova.API.WebSocket.Hubs;
 
@@ -8,13 +14,27 @@ namespace ArdaNova.API.WebSocket.Hubs;
 /// Main SignalR hub for real-time communication with ArdaNova clients.
 /// Supports subscription to user-specific, project-specific, and guild-specific events.
 /// </summary>
+[AllowAnonymous]
 public class ArdaNovaHub : Hub<IArdaNovaHubClient>
 {
+    public const string ApiKeyHeaderName = "X-Api-Key";
+    public const string ActorAssertionQueryName = "access_token";
+    public const string ActorAssertionRequestTarget = "/hubs/ardanova";
+    private const string ActorAssertionMethod = "GET";
+    private const string AuthorizationHeaderName = "Authorization";
+    private const string BearerPrefix = "Bearer ";
+    private static readonly string EmptyBodySha256 = Convert.ToHexString(
+        SHA256.HashData(Array.Empty<byte>())).ToLowerInvariant();
+
+    private static readonly object ActorIdContextKey = new();
     private readonly ILogger<ArdaNovaHub> _logger;
     private readonly IConfiguration _configuration;
+    private readonly IActorAssertionReplayLedger _actorAssertionReplayLedger;
+    private readonly IProjectService _projectService;
     private readonly IProjectMemberService _projectMemberService;
     private readonly IGuildService _guildService;
     private readonly IGuildMemberService _guildMemberService;
+    private readonly IChatService _chatService;
 
     private static readonly object TypingLock = new();
     private static readonly Dictionary<string, List<DateTime>> TypingWindows = new();
@@ -47,23 +67,113 @@ public class ArdaNovaHub : Hub<IArdaNovaHubClient>
     public ArdaNovaHub(
         ILogger<ArdaNovaHub> logger,
         IConfiguration configuration,
+        IActorAssertionReplayLedger actorAssertionReplayLedger,
+        IProjectService projectService,
         IProjectMemberService projectMemberService,
         IGuildService guildService,
-        IGuildMemberService guildMemberService)
+        IGuildMemberService guildMemberService,
+        IChatService chatService)
     {
         _logger = logger;
         _configuration = configuration;
+        _actorAssertionReplayLedger = actorAssertionReplayLedger;
+        _projectService = projectService;
         _projectMemberService = projectMemberService;
         _guildService = guildService;
         _guildMemberService = guildMemberService;
+        _chatService = chatService;
     }
 
     /// <summary>
-    /// Gets the user ID from the X-User-Id header or userId query parameter.
+    /// Gets the actor identity bound to the accepted connection.
     /// </summary>
-    private string? GetUserId() =>
-        Context.GetHttpContext()?.Request.Headers["X-User-Id"].FirstOrDefault()
-        ?? Context.GetHttpContext()?.Request.Query["userId"].FirstOrDefault();
+    private string? GetActorId() =>
+        Context.Items.TryGetValue(ActorIdContextKey, out var actorId)
+            ? actorId as string
+            : null;
+
+    private bool TryGetActorAssertion(out string actorAssertion)
+    {
+        actorAssertion = string.Empty;
+        var httpContext = Context.GetHttpContext();
+        if (httpContext is null)
+        {
+            return false;
+        }
+
+        string? headerAssertion = null;
+        if (httpContext.Request.Headers.TryGetValue(AuthorizationHeaderName, out var authorizationValues))
+        {
+            if (authorizationValues.Count != 1 || authorizationValues[0] is null ||
+                !authorizationValues[0]!.StartsWith(BearerPrefix, StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            headerAssertion = authorizationValues[0]![BearerPrefix.Length..].Trim();
+        }
+
+        string? queryAssertion = null;
+        if (httpContext.Request.Query.TryGetValue(ActorAssertionQueryName, out var queryValues))
+        {
+            if (queryValues.Count != 1)
+            {
+                return false;
+            }
+
+            queryAssertion = queryValues[0]?.Trim();
+        }
+
+        if (string.IsNullOrWhiteSpace(headerAssertion) == string.IsNullOrWhiteSpace(queryAssertion))
+        {
+            return false;
+        }
+
+        actorAssertion = headerAssertion ?? queryAssertion!;
+        return true;
+    }
+
+    private async Task<ActorAssertionMiddleware.ActorAssertionPayload?> ValidateActorAssertionAsync(
+        HttpContext httpContext)
+    {
+        var signingKey = ActorAssertionMiddleware.GetSigningKey(_configuration);
+        if (signingKey is null)
+        {
+            _logger.LogError("Hub actor assertion authentication is not configured securely.");
+            return null;
+        }
+
+        if (!TryGetActorAssertion(out var supplied) ||
+            !ActorAssertionMiddleware.TryValidate(
+                supplied,
+                signingKey,
+                ActorAssertionMethod,
+                ActorAssertionRequestTarget,
+                string.Empty,
+                null,
+                EmptyBodySha256,
+                out var actor))
+        {
+            return null;
+        }
+
+        var replayClaim = await _actorAssertionReplayLedger.TryConsumeAsync(
+            new ActorAssertionReplayEntry(
+                actor.Jti,
+                DateTimeOffset.FromUnixTimeSeconds(actor.ExpiresAt).UtcDateTime,
+                DateTime.UtcNow,
+                actor.Subject,
+                actor.RequestTarget,
+                actor.BodySha256),
+            Context.ConnectionAborted);
+        if (replayClaim != ActorAssertionReplayClaim.Consumed)
+        {
+            return null;
+        }
+
+        httpContext.User.AddIdentity(ActorAssertionMiddleware.CreateIdentity(actor));
+        return actor;
+    }
 
     /// <summary>
     /// Validates the API key from the request.
@@ -73,13 +183,17 @@ public class ArdaNovaHub : Hub<IArdaNovaHubClient>
         var httpContext = Context.GetHttpContext();
         if (httpContext == null) return false;
 
-        var expectedApiKey = _configuration["API_KEY"] ?? Environment.GetEnvironmentVariable("API_KEY");
-        if (string.IsNullOrEmpty(expectedApiKey)) return false;
+        var expectedApiKey = ApiKeyMiddleware.GetApiKey(_configuration);
+        if (!ApiKeyMiddleware.IsStrongApiKey(expectedApiKey) ||
+            !httpContext.Request.Headers.TryGetValue(ApiKeyHeaderName, out var values) ||
+            values.Count != 1)
+        {
+            return false;
+        }
 
-        var providedApiKey = httpContext.Request.Headers["X-Api-Key"].FirstOrDefault()
-                          ?? httpContext.Request.Query["api_key"].FirstOrDefault();
-
-        return !string.IsNullOrEmpty(providedApiKey) && providedApiKey == expectedApiKey;
+        var providedApiKey = values[0];
+        return !string.IsNullOrEmpty(providedApiKey) &&
+            ApiKeyMiddleware.MatchesSecret(expectedApiKey!, providedApiKey);
     }
 
     /// <summary>
@@ -100,19 +214,38 @@ public class ArdaNovaHub : Hub<IArdaNovaHubClient>
             return;
         }
 
-        var userId = GetUserId();
+        ActorAssertionMiddleware.ActorAssertionPayload? actor;
+        try
+        {
+            actor = await ValidateActorAssertionAsync(httpContext!);
+        }
+        catch (Exception exception) when (!Context.ConnectionAborted.IsCancellationRequested)
+        {
+            _logger.LogError(exception, "Hub connection rejected because actor assertion validation failed.");
+            Context.Abort();
+            return;
+        }
+
+        if (actor is null)
+        {
+            _logger.LogWarning(
+                "Hub connection rejected: Missing, invalid, or replayed actor assertion from {RemoteIp}",
+                httpContext?.Connection.RemoteIpAddress);
+            Context.Abort();
+            return;
+        }
+
+        var userId = actor.Subject;
+        Context.Items[ActorIdContextKey] = userId;
 
         _logger.LogInformation(
             "Client connected: {ConnectionId}, User: {UserId}",
             connectionId,
-            userId ?? "anonymous");
+            userId);
 
         // Automatically add user to their personal group for targeted notifications
-        if (!string.IsNullOrEmpty(userId))
-        {
-            await Groups.AddToGroupAsync(connectionId, $"user:{userId}");
-            _logger.LogDebug("Added connection {ConnectionId} to group user:{UserId}", connectionId, userId);
-        }
+        await Groups.AddToGroupAsync(connectionId, $"user:{userId}");
+        _logger.LogDebug("Added connection {ConnectionId} to group user:{UserId}", connectionId, userId);
 
         await base.OnConnectedAsync();
     }
@@ -122,13 +255,13 @@ public class ArdaNovaHub : Hub<IArdaNovaHubClient>
     /// </summary>
     public override async Task OnDisconnectedAsync(Exception? exception)
     {
-        var userId = GetUserId();
+        var userId = GetActorId();
         var connectionId = Context.ConnectionId;
 
         _logger.LogInformation(
             "Client disconnected: {ConnectionId}, User: {UserId}, Exception: {Exception}",
             connectionId,
-            userId ?? "anonymous",
+            userId ?? "unbound",
             exception?.Message ?? "none");
 
         // Remove from user group
@@ -146,7 +279,7 @@ public class ArdaNovaHub : Hub<IArdaNovaHubClient>
     /// <param name="projectId">The project ID to subscribe to.</param>
     public async Task SubscribeToProject(string projectId)
     {
-        var userId = GetUserId();
+        var userId = GetActorId();
         var connectionId = Context.ConnectionId;
         var groupName = $"project:{projectId}";
 
@@ -158,15 +291,27 @@ public class ArdaNovaHub : Hub<IArdaNovaHubClient>
             return;
         }
 
-        var membersResult = await _projectMemberService.GetByProjectIdAsync(projectId, CancellationToken.None);
-        if (!membersResult.IsSuccess || membersResult.Value is null ||
-            membersResult.Value.All(m => m.UserId != userId))
+        var projectResult = await _projectService.GetByIdAsync(projectId, Context.ConnectionAborted);
+        if (!projectResult.IsSuccess || projectResult.Value is null)
         {
-            _logger.LogWarning(
-                "SubscribeToProject denied: user {UserId} is not a member of project {ProjectId}",
-                userId,
-                projectId);
+            _logger.LogWarning("SubscribeToProject denied: project {ProjectId} was not found", projectId);
             return;
+        }
+
+        if (projectResult.Value.CreatedById != userId)
+        {
+            var membersResult = await _projectMemberService.GetByProjectIdAsync(
+                projectId,
+                Context.ConnectionAborted);
+            if (!membersResult.IsSuccess || membersResult.Value is null ||
+                membersResult.Value.All(member => member.UserId != userId))
+            {
+                _logger.LogWarning(
+                    "SubscribeToProject denied: user {UserId} is not a member of project {ProjectId}",
+                    userId,
+                    projectId);
+                return;
+            }
         }
 
         await Groups.AddToGroupAsync(connectionId, groupName);
@@ -201,7 +346,7 @@ public class ArdaNovaHub : Hub<IArdaNovaHubClient>
     /// <param name="guildId">The guild ID to subscribe to.</param>
     public async Task SubscribeToGuild(string guildId)
     {
-        var userId = GetUserId();
+        var userId = GetActorId();
         var connectionId = Context.ConnectionId;
         var groupName = $"guild:{guildId}";
 
@@ -267,7 +412,7 @@ public class ArdaNovaHub : Hub<IArdaNovaHubClient>
     /// <param name="targetUserId">The user ID to subscribe to.</param>
     public async Task SubscribeToUser(string targetUserId)
     {
-        var currentUserId = GetUserId();
+        var currentUserId = GetActorId();
         var connectionId = Context.ConnectionId;
 
         // For security, only allow subscribing to own user events
@@ -307,30 +452,29 @@ public class ArdaNovaHub : Hub<IArdaNovaHubClient>
             targetUserId);
     }
 
-    /// <summary>
-    /// Subscribes to all events (broadcast channel).
-    /// Use with caution as this can be noisy.
-    /// </summary>
-    public async Task SubscribeToAll()
-    {
-        var connectionId = Context.ConnectionId;
-        await Groups.AddToGroupAsync(connectionId, "all");
-
-        _logger.LogDebug("Client {ConnectionId} subscribed to all events", connectionId);
-    }
-
-    /// <summary>
-    /// Unsubscribes from all events.
-    /// </summary>
-    public async Task UnsubscribeFromAll()
-    {
-        var connectionId = Context.ConnectionId;
-        await Groups.RemoveFromGroupAsync(connectionId, "all");
-
-        _logger.LogDebug("Client {ConnectionId} unsubscribed from all events", connectionId);
-    }
-
     // ========== Chat Methods ==========
+
+    private async Task EnsureConversationAccessAsync(string conversationId, string userId)
+    {
+        if (string.IsNullOrWhiteSpace(conversationId) || conversationId.Length > 100)
+        {
+            throw new HubException("Conversation access denied.");
+        }
+
+        var result = await _chatService.GetConversationByIdAsync(
+            conversationId,
+            userId,
+            Context.ConnectionAborted);
+
+        if (!result.IsSuccess)
+        {
+            _logger.LogWarning(
+                "Conversation action denied for user {UserId} and conversation {ConversationId}",
+                userId,
+                conversationId);
+            throw new HubException("Conversation access denied.");
+        }
+    }
 
     /// <summary>
     /// Subscribes to a conversation for real-time updates.
@@ -338,25 +482,17 @@ public class ArdaNovaHub : Hub<IArdaNovaHubClient>
     /// <param name="conversationId">The conversation ID to subscribe to.</param>
     public async Task SubscribeToConversation(string conversationId)
     {
-        var userId = GetUserId();
+        var userId = GetActorId();
         var connectionId = Context.ConnectionId;
 
-        // Require authenticated user
         if (string.IsNullOrEmpty(userId))
         {
-            _logger.LogWarning(
-                "Unauthenticated subscription attempt to conversation {ConversationId}",
-                conversationId);
-            return;
+            throw new HubException("Connection identity is unavailable.");
         }
 
+        await EnsureConversationAccessAsync(conversationId, userId);
+
         var groupName = $"conversation:{conversationId}";
-
-        // NOTE: Full membership validation requires injecting IChatService
-        // For now, we rely on the API-level membership checks in ChatService
-        // The client can only call this after successfully fetching the conversation,
-        // which validates membership
-
         await Groups.AddToGroupAsync(connectionId, groupName);
 
         _logger.LogInformation(
@@ -390,16 +526,33 @@ public class ArdaNovaHub : Hub<IArdaNovaHubClient>
     /// <param name="isTyping">Whether the user is typing.</param>
     public async Task SendTypingIndicator(string conversationId, bool isTyping)
     {
-        var userId = GetUserId();
-        if (string.IsNullOrEmpty(userId)) return;
+        var userId = GetActorId();
+        if (string.IsNullOrEmpty(userId))
+        {
+            throw new HubException("Connection identity is unavailable.");
+        }
 
-        // Input validation: prevent abuse with excessively long conversation IDs
-        if (conversationId.Length > 100)
+        if (string.IsNullOrWhiteSpace(conversationId) || conversationId.Length > 100)
+        {
+            throw new HubException("Conversation access denied.");
+        }
+
+        var accessResult = await _chatService.SendTypingIndicatorAsync(
+            userId,
+            new TypingIndicatorDto
+            {
+                ConversationId = conversationId,
+                IsTyping = isTyping
+            },
+            Context.ConnectionAborted);
+
+        if (!accessResult.IsSuccess)
         {
             _logger.LogWarning(
-                "User {UserId} attempted to send typing indicator with invalid conversation ID length",
-                userId);
-            return;
+                "Typing indicator denied for user {UserId} and conversation {ConversationId}",
+                userId,
+                conversationId);
+            throw new HubException("Conversation access denied.");
         }
 
         if (!IsTypingAllowed(userId, conversationId))
@@ -436,8 +589,18 @@ public class ArdaNovaHub : Hub<IArdaNovaHubClient>
     /// <param name="lastReadMessageId">The ID of the last read message.</param>
     public async Task MarkAsRead(string conversationId, string lastReadMessageId)
     {
-        var userId = GetUserId();
-        if (string.IsNullOrEmpty(userId)) return;
+        var userId = GetActorId();
+        if (string.IsNullOrEmpty(userId))
+        {
+            throw new HubException("Connection identity is unavailable.");
+        }
+
+        if (string.IsNullOrWhiteSpace(lastReadMessageId) || lastReadMessageId.Length > 100)
+        {
+            throw new HubException("Read marker is invalid.");
+        }
+
+        await EnsureConversationAccessAsync(conversationId, userId);
 
         var groupName = $"conversation:{conversationId}";
 

@@ -1,31 +1,66 @@
-name: ArdaNova client image
+name: ArdaNova release artifacts
 
 on:
+  pull_request:
+    paths:
+      - "ardanova-backend-api-mcp/**"
+      - "ardanova-client/**"
+      - ".github/workflows/ardanova-client-image.yml"
   push:
     branches:
       - main
     paths:
+      - "ardanova-backend-api-mcp/**"
       - "ardanova-client/**"
       - ".github/workflows/ardanova-client-image.yml"
   workflow_dispatch:
 
 permissions:
   contents: read
-  packages: write
 
 concurrency:
-  group: ardanova-client-image-${{ github.ref }}
-  cancel-in-progress: true
+  group: ardanova-release-artifacts-${{ github.ref }}
+  cancel-in-progress: false
 
 env:
-  IMAGE_NAME: ghcr.io/escherbridge/ardanova-client
+  API_IMAGE: ghcr.io/escherbridge/ardanova-api
+  CLIENT_IMAGE: ghcr.io/escherbridge/ardanova-client
 
 jobs:
-  validate-and-publish:
-    name: Validate and publish
+  validate-api:
+    name: Validate .NET API
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    environment: production
+
+    defaults:
+      run:
+        working-directory: ardanova-backend-api-mcp
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore
+        run: dotnet restore ardanova.sln
+
+      - name: Build
+        run: dotnet build ardanova.sln --configuration Release --no-restore
+
+      - name: Test
+        run: dotnet test ardanova.sln --configuration Release --no-build
+
+      - name: Audit dependencies
+        run: dotnet list ardanova.sln package --vulnerable --include-transitive
+
+  validate-client:
+    name: Validate Next.js client
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     defaults:
       run:
@@ -44,17 +79,59 @@ jobs:
           cache: npm
           cache-dependency-path: ardanova-client/package-lock.json
 
-      - name: Install dependencies
+      - name: Install dependencies and generate Prisma artifacts
         run: npm ci
 
-      - name: Generate Prisma client and schemas
+      - name: Regenerate the DBML, Prisma, Zod, and C# contract
         run: |
-          npm run generate:prisma
-          npm exec -- prettier --write "src/lib/zod/**/*.ts" --cache
-          git diff --exit-code -- src/lib/zod
+          npm run generate:dbml
+          npm run generate:csharp
+
+      - name: Assert generated contract artifacts are committed
+        shell: bash
+        run: |
+          generated_status="$(git status --short --untracked-files=all -- \
+            prisma/schema.prisma \
+            src/lib/zod \
+            ../ardanova-backend-api-mcp/api-server/src/ArdaNova.Domain/Models \
+            ../ardanova-backend-api-mcp/api-server/src/ArdaNova.Infrastructure/Data/ArdaNovaDbContext.cs \
+            ../ardanova-backend-api-mcp/api-server/src/ArdaNova.Infrastructure/Data/GeneratedModelConfigurations.cs)"
+          if [[ -n "$generated_status" ]]; then
+            echo "Canonical generation produced uncommitted contract artifacts:" >&2
+            printf '%s\n' "$generated_status" >&2
+            git diff -- \
+              prisma/schema.prisma \
+              src/lib/zod \
+              ../ardanova-backend-api-mcp/api-server/src/ArdaNova.Domain/Models \
+              ../ardanova-backend-api-mcp/api-server/src/ArdaNova.Infrastructure/Data/ArdaNovaDbContext.cs \
+              ../ardanova-backend-api-mcp/api-server/src/ArdaNova.Infrastructure/Data/GeneratedModelConfigurations.cs
+            exit 1
+          fi
+
+      - name: Verify established-schema adoption checksum
+        shell: bash
+        run: (cd prisma/adoption && sha256sum --check CHECKSUMS.sha256)
 
       - name: Run frontend release gate
         run: npm run release:check
+
+  publish-api:
+    name: Publish immutable API image
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs:
+      - validate-api
+      - validate-client
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -66,8 +143,60 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and publish immutable image
-        id: image
+      - name: Build and publish API image
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: ./ardanova-backend-api-mcp
+          file: ./ardanova-backend-api-mcp/Dockerfile
+          platforms: linux/amd64
+          push: true
+          pull: true
+          tags: ${{ env.API_IMAGE }}:${{ github.sha }}
+          labels: |
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+          cache-from: type=gha,scope=ardanova-api
+          cache-to: type=gha,mode=max,scope=ardanova-api
+
+      - name: Make the API image public
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          gh api --method PATCH
+          /orgs/${{ github.repository_owner }}/packages/container/ardanova-api/visibility
+          -f visibility=public
+
+  publish-client:
+    name: Publish immutable client image
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs:
+      - validate-api
+      - validate-client
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Sign in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and publish client image
+        id: build
         uses: docker/build-push-action@v6
         with:
           context: ./ardanova-client
@@ -75,9 +204,7 @@ jobs:
           platforms: linux/amd64
           push: true
           pull: true
-          tags: |
-            ${{ env.IMAGE_NAME }}:${{ github.sha }}
-            ${{ env.IMAGE_NAME }}:main
+          tags: ${{ env.CLIENT_IMAGE }}:${{ github.sha }}
           labels: |
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
@@ -88,7 +215,7 @@ jobs:
           cache-from: type=gha,scope=ardanova-client
           cache-to: type=gha,mode=max,scope=ardanova-client
 
-      - name: Make the frontend image public
+      - name: Make the client image public
         env:
           GH_TOKEN: ${{ github.token }}
         run: >-
@@ -96,10 +223,32 @@ jobs:
           /orgs/${{ github.repository_owner }}/packages/container/ardanova-client/visibility
           -f visibility=public
 
-      - name: Record published digest
-        run: echo "${{ env.IMAGE_NAME }}@${{ steps.image.outputs.digest }}" >> "$GITHUB_STEP_SUMMARY"
+  record-release-artifacts:
+    name: Record immutable image digests
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs:
+      - publish-api
+      - publish-client
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
 
-      - name: Apply production Prisma migrations
+    steps:
+      - name: Write release manifest
         env:
-          DATABASE_URL: ${{ secrets.RAILWAY_PRODUCTION_DATABASE_URL }}
-        run: npm exec -- prisma migrate deploy --schema prisma/schema.prisma
+          API_DIGEST: ${{ needs.publish-api.outputs.digest }}
+          CLIENT_DIGEST: ${{ needs.publish-client.outputs.digest }}
+        run: |
+          printf '%s\n' \
+            "commit=${GITHUB_SHA}" \
+            "api=${API_IMAGE}@${API_DIGEST}" \
+            "client=${CLIENT_IMAGE}@${CLIENT_DIGEST}" \
+            > ardanova-release-images.txt
+          cat ardanova-release-images.txt >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload release manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: ardanova-release-images-${{ github.sha }}
+          path: ardanova-release-images.txt
+          if-no-files-found: error
+          retention-days: 30

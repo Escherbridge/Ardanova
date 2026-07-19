@@ -20,7 +20,7 @@ public class TaskActorBoundaryTests
         var tasks = new Mock<ITaskService>();
         tasks.Setup(service => service.GetByUserIdAsync("actor-1", It.IsAny<CancellationToken>()))
             .ReturnsAsync(Result<IReadOnlyList<TaskDto>>.Success([]));
-        var controller = WithActor(new TasksController(tasks.Object, new Mock<IProjectService>(MockBehavior.Strict).Object), "actor-1");
+        var controller = WithActor(CreateController(tasks.Object), "actor-1");
 
         var result = await controller.GetMine(CancellationToken.None);
 
@@ -49,7 +49,7 @@ public class TaskActorBoundaryTests
                 Slug = "foreign-project",
                 Description = ""
             }));
-        var controller = WithActor(new TasksController(tasks.Object, projects.Object), "actor-1");
+        var controller = WithActor(CreateController(tasks.Object, projects.Object), "actor-1");
 
         var result = await controller.UpdateStatus("task-1", new UpdateTaskStatusDto { Status = TaskStatus.IN_PROGRESS }, CancellationToken.None);
 
@@ -73,7 +73,7 @@ public class TaskActorBoundaryTests
                 Slug = "foreign-project",
                 Description = ""
             }));
-        var controller = WithActor(new TasksController(tasks.Object, projects.Object), "actor-1");
+        var controller = WithActor(CreateController(tasks.Object, projects.Object), "actor-1");
 
         var result = await controller.Update("task-1", new UpdateTaskDto { Title = "Unauthorized edit" }, CancellationToken.None);
 
@@ -95,7 +95,7 @@ public class TaskActorBoundaryTests
                 Slug = "foreign-project",
                 Description = ""
             }));
-        var controller = WithActor(new TasksController(tasks.Object, projects.Object), "actor-1");
+        var controller = WithActor(CreateController(tasks.Object, projects.Object), "actor-1");
 
         var result = await controller.Create(new CreateTaskDto { ProjectId = "project-1", Title = "Unauthorized task" }, CancellationToken.None);
 
@@ -119,7 +119,7 @@ public class TaskActorBoundaryTests
                 Slug = "foreign-project",
                 Description = ""
             }));
-        var controller = WithActor(new TasksController(tasks.Object, projects.Object), "actor-1");
+        var controller = WithActor(CreateController(tasks.Object, projects.Object), "actor-1");
 
         var result = await controller.Delete("task-1", CancellationToken.None);
 
@@ -135,7 +135,7 @@ public class TaskActorBoundaryTests
             .ReturnsAsync(Result<TaskDto>.Success(new TaskDto { Id = "task-1", ProjectId = "project-1", AssignedToId = "actor-1" }));
         tasks.Setup(service => service.UpdateStatusAsync("task-1", TaskStatus.IN_PROGRESS, It.IsAny<CancellationToken>()))
             .ReturnsAsync(Result<TaskDto>.Success(new TaskDto { Id = "task-1", ProjectId = "project-1", AssignedToId = "actor-1", Status = TaskStatus.IN_PROGRESS }));
-        var controller = WithActor(new TasksController(tasks.Object, new Mock<IProjectService>(MockBehavior.Strict).Object), "actor-1");
+        var controller = WithActor(CreateController(tasks.Object), "actor-1");
 
         var result = await controller.UpdateStatus("task-1", new UpdateTaskStatusDto { Status = TaskStatus.IN_PROGRESS }, CancellationToken.None);
 
@@ -151,7 +151,7 @@ public class TaskActorBoundaryTests
             .ReturnsAsync(Result<TaskDto>.Success(new TaskDto { Id = "task-1", ProjectId = "project-1" }));
         tasks.Setup(service => service.UpdateAsync("task-1", It.IsAny<UpdateTaskDto>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(Result<TaskDto>.Success(new TaskDto { Id = "task-1", ProjectId = "project-1", Title = "Admin edit" }));
-        var controller = WithActor(new TasksController(tasks.Object, new Mock<IProjectService>(MockBehavior.Strict).Object), "actor-1", UserRole.ADMIN);
+        var controller = WithActor(CreateController(tasks.Object), "actor-1", UserRole.ADMIN);
 
         var result = await controller.Update("task-1", new UpdateTaskDto { Title = "Admin edit" }, CancellationToken.None);
 
@@ -176,6 +176,50 @@ public class TaskActorBoundaryTests
         var action = typeof(TasksController).GetMethod(actionName, BindingFlags.Instance | BindingFlags.Public)!;
 
         action.GetCustomAttribute<AuthorizeAttribute>()?.Policy.Should().Be(AuthorizationPolicies.ActorAssertion);
+    }
+
+    private static TasksController CreateController(
+        ITaskService tasks,
+        IProjectService? projects = null)
+    {
+        if (projects is null)
+        {
+            var projectService = new Mock<IProjectService>();
+            projectService
+                .Setup(service => service.GetByIdAsync(
+                    It.IsAny<string>(),
+                    It.IsAny<CancellationToken>()))
+                .ReturnsAsync((string projectId, CancellationToken _) =>
+                    Result<ProjectDto>.Success(new ProjectDto
+                    {
+                        Id = projectId,
+                        CreatedById = "owner",
+                        Title = "Project",
+                        Slug = "project",
+                        Description = ""
+                    }));
+            projects = projectService.Object;
+        }
+
+        var authorization = new Mock<IHierarchyAuthorizationService>();
+        authorization
+            .Setup(service => service.CanWorkOnItemAsync(
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string?>(),
+                It.IsAny<CancellationToken>()))
+            .Returns((string actorId, string projectId, string? assigneeId, CancellationToken ct) =>
+                Task.FromResult(string.Equals(actorId, assigneeId, StringComparison.Ordinal)));
+
+        return new TasksController(
+            tasks,
+            projects,
+            new Mock<IProjectMilestoneService>(MockBehavior.Strict).Object,
+            new Mock<IEpicService>(MockBehavior.Strict).Object,
+            new Mock<ISprintService>(MockBehavior.Strict).Object,
+            new Mock<IFeatureService>(MockBehavior.Strict).Object,
+            new Mock<IProductBacklogItemService>(MockBehavior.Strict).Object,
+            authorization.Object);
     }
 
     private static T WithActor<T>(T controller, string actorId, UserRole? role = null)

@@ -3,6 +3,7 @@ namespace ArdaNova.API.Controllers;
 using ArdaNova.Application.Common.Results;
 using ArdaNova.Application.DTOs;
 using ArdaNova.Application.Services.Interfaces;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
 [ApiController]
@@ -80,48 +81,61 @@ public class MembershipCredentialsController : ControllerBase
     }
 
     [HttpPost]
-    public async Task<IActionResult> Grant([FromBody] GrantMembershipCredentialDto dto, CancellationToken ct)
+    public IActionResult Grant([FromBody] GrantMembershipCredentialDto dto, CancellationToken ct)
     {
-        var result = await _membershipCredentialService.GrantAsync(dto, ct);
-        return result.IsSuccess
-            ? CreatedAtAction(nameof(GetById), new { id = result.Value!.Id }, result.Value)
-            : ToActionResult(result);
+        _ = dto;
+        _ = ct;
+        return MutationUnavailable();
     }
 
     [HttpPost("{id}/revoke")]
-    public async Task<IActionResult> Revoke(string id, [FromBody] RevokeMembershipCredentialDto? dto, CancellationToken ct)
+    public IActionResult Revoke(string id, [FromBody] RevokeMembershipCredentialDto? dto, CancellationToken ct)
     {
-        var result = await _membershipCredentialService.RevokeAsync(id, dto, ct);
-        return ToActionResult(result);
+        _ = id;
+        _ = dto;
+        _ = ct;
+        return MutationUnavailable();
     }
 
     [HttpPost("{id}/suspend")]
-    public async Task<IActionResult> Suspend(string id, CancellationToken ct)
+    public IActionResult Suspend(string id, CancellationToken ct)
     {
-        var result = await _membershipCredentialService.SuspendAsync(id, ct);
-        return ToActionResult(result);
+        _ = id;
+        _ = ct;
+        return MutationUnavailable();
     }
 
     [HttpPost("{id}/reactivate")]
-    public async Task<IActionResult> Reactivate(string id, CancellationToken ct)
+    public IActionResult Reactivate(string id, CancellationToken ct)
     {
-        var result = await _membershipCredentialService.ReactivateAsync(id, ct);
-        return ToActionResult(result);
+        _ = id;
+        _ = ct;
+        return MutationUnavailable();
     }
 
     [HttpPatch("{id}/mint")]
-    public async Task<IActionResult> UpdateMintInfo(string id, [FromBody] UpdateMembershipCredentialMintDto dto, CancellationToken ct)
+    public IActionResult UpdateMintInfo(string id, [FromBody] UpdateMembershipCredentialMintDto dto, CancellationToken ct)
     {
-        var result = await _membershipCredentialService.UpdateMintInfoAsync(id, dto, ct);
-        return ToActionResult(result);
+        _ = id;
+        _ = dto;
+        _ = ct;
+        return MutationUnavailable();
     }
 
     [HttpPatch("{id}/tier")]
-    public async Task<IActionResult> UpdateTier(string id, [FromBody] UpdateCredentialTierDto dto, CancellationToken ct)
+    public IActionResult UpdateTier(string id, [FromBody] UpdateCredentialTierDto dto, CancellationToken ct)
     {
-        var result = await _membershipCredentialService.UpdateTierAsync(id, dto, ct);
-        return ToActionResult(result);
+        _ = id;
+        _ = dto;
+        _ = ct;
+        return MutationUnavailable();
     }
+
+    private IActionResult MutationUnavailable()
+        => Problem(
+            statusCode: StatusCodes.Status501NotImplemented,
+            title: "Membership credential mutations are unavailable",
+            detail: "Actor-bound scope, server-derived grant authority, and an auditable idempotent credential transition are required before this mutation surface can be enabled.");
 
     private IActionResult ToActionResult<T>(Result<T> result)
     {

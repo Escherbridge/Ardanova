@@ -38,7 +38,7 @@ public class AzoaBackedAlgorandServiceTests
         _settings = new AzoaSettings
         {
             BaseUrl = "https://azoa.test",
-            TenantApiKey = "test-key",
+            ValueApiKey = "test-value-key",
             Mode = "Simulated",
             ChainType = "Algorand",
         };

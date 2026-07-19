@@ -78,14 +78,16 @@ public class ExchangeService : IExchangeService
         var projectTokenValueResult = await GetProjectTokenValueAsync(projectTokenConfigId, ct);
         if (!projectTokenValueResult.IsSuccess)
         {
-            return Result<ConversionPreviewDto>.Failure(projectTokenValueResult.Error);
+            return Result<ConversionPreviewDto>.Failure(
+                projectTokenValueResult.Error ?? "Project token valuation failed");
         }
 
         // Get ARDA value
         var ardaValueResult = await GetArdaValueAsync(ct);
         if (!ardaValueResult.IsSuccess)
         {
-            return Result<ConversionPreviewDto>.Failure(ardaValueResult.Error);
+            return Result<ConversionPreviewDto>.Failure(
+                ardaValueResult.Error ?? "ARDA valuation failed");
         }
 
         var projectTokenValue = projectTokenValueResult.Value;

@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using ArdaNova.Application.Common.Interfaces;
+using ArdaNova.Application.Common.Security;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
@@ -20,27 +21,27 @@ public sealed class ActorAssertionMiddleware
     private const string ExpectedIssuer = "ardanova-next-bff";
     private const string ExpectedAudience = "ardanova-api";
     private const int MaximumLifetimeSeconds = 120;
-    private const int ClockSkewSeconds = 30;
+    private const int ClockSkewSeconds = ActorAssertionReplayRetentionPolicy.AllowedClockSkewSeconds;
     private const int MaximumBodyBytes = 1024 * 1024;
     private const int MaximumHeaderValueLength = 512;
+    private const int MaximumEnvelopeLength = 4096;
     private readonly RequestDelegate _next;
     private readonly IConfiguration _configuration;
-    private readonly IActorAssertionReplayLedger _replayLedger;
     private readonly ILogger<ActorAssertionMiddleware> _logger;
 
     public ActorAssertionMiddleware(
         RequestDelegate next,
         IConfiguration configuration,
-        IActorAssertionReplayLedger replayLedger,
         ILogger<ActorAssertionMiddleware> logger)
     {
         _next = next;
         _configuration = configuration;
-        _replayLedger = replayLedger;
         _logger = logger;
     }
 
-    public async Task InvokeAsync(HttpContext context)
+    public async Task InvokeAsync(
+        HttpContext context,
+        IActorAssertionReplayLedger replayLedger)
     {
         if (!context.Request.Headers.TryGetValue(HeaderName, out var supplied))
         {
@@ -48,7 +49,7 @@ public sealed class ActorAssertionMiddleware
             return;
         }
 
-        var key = GetSigningKey();
+        var key = GetSigningKey(_configuration);
         if (string.IsNullOrWhiteSpace(key))
         {
             _logger.LogError("Actor assertion was supplied but no signing key is configured.");
@@ -72,14 +73,22 @@ public sealed class ActorAssertionMiddleware
             return;
         }
 
-        if (!TryValidate(supplied[0]!, key, context.Request, contentType, idempotencyKey, body.Sha256, out var actor))
+        if (!TryValidate(
+                supplied[0]!,
+                key,
+                context.Request.Method,
+                RequestTarget(context.Request),
+                contentType,
+                idempotencyKey,
+                body.Sha256,
+                out var actor))
         {
             _logger.LogWarning("Rejected invalid actor assertion for {Method} {Target}", context.Request.Method, RequestTarget(context.Request));
             await RejectAsync(context, StatusCodes.Status401Unauthorized, "Invalid actor assertion.");
             return;
         }
 
-        var replayClaim = await _replayLedger.TryConsumeAsync(
+        var replayClaim = await replayLedger.TryConsumeAsync(
             new ActorAssertionReplayEntry(
                 actor.Jti,
                 DateTimeOffset.FromUnixTimeSeconds(actor.ExpiresAt).UtcDateTime,
@@ -95,6 +104,21 @@ public sealed class ActorAssertionMiddleware
             return;
         }
 
+        context.User.AddIdentity(CreateIdentity(actor));
+        await _next(context);
+    }
+
+    internal static string? GetSigningKey(IConfiguration configuration)
+    {
+        var environmentKey = Environment.GetEnvironmentVariable("ACTOR_ASSERTION_HMAC_KEY");
+        var signingKey = string.IsNullOrWhiteSpace(environmentKey)
+            ? configuration["ActorAssertion:HmacKey"]
+            : environmentKey;
+        return ApiKeyMiddleware.IsStrongSecret(signingKey) ? signingKey : null;
+    }
+
+    internal static ClaimsIdentity CreateIdentity(ActorAssertionPayload actor)
+    {
         var claims = new List<Claim>
         {
             new(ClaimTypes.NameIdentifier, actor.Subject),
@@ -107,19 +131,7 @@ public sealed class ActorAssertionMiddleware
             claims.Add(new Claim(ClaimTypes.Role, actor.Role));
         }
 
-        context.User.AddIdentity(new ClaimsIdentity(claims, AuthenticationType));
-        await _next(context);
-    }
-
-    private string? GetSigningKey()
-    {
-        var environmentKey = Environment.GetEnvironmentVariable("ACTOR_ASSERTION_HMAC_KEY");
-        var signingKey = string.IsNullOrWhiteSpace(environmentKey)
-            ? _configuration["ActorAssertion:HmacKey"]
-            : environmentKey;
-        return string.IsNullOrWhiteSpace(signingKey) || Encoding.UTF8.GetByteCount(signingKey) < 32
-            ? null
-            : signingKey;
+        return new ClaimsIdentity(claims, AuthenticationType);
     }
 
     private static async Task<BodyDigest> ReadBodyDigestAsync(HttpRequest request, CancellationToken ct)
@@ -147,16 +159,20 @@ public sealed class ActorAssertionMiddleware
         return new BodyDigest(false, Convert.ToHexString(hash.GetHashAndReset()).ToLowerInvariant());
     }
 
-    private static bool TryValidate(
+    internal static bool TryValidate(
         string supplied,
         string key,
-        HttpRequest request,
+        string method,
+        string requestTarget,
         string contentType,
         string? idempotencyKey,
         string bodySha256,
         out ActorAssertionPayload actor)
     {
         actor = default!;
+        if (supplied.Length > MaximumEnvelopeLength)
+            return false;
+
         var segments = supplied.Split('.', StringSplitOptions.None);
         if (segments.Length != 2 || string.IsNullOrWhiteSpace(segments[0]) || string.IsNullOrWhiteSpace(segments[1]))
             return false;
@@ -192,8 +208,8 @@ public sealed class ActorAssertionMiddleware
             || !string.Equals(actor.Audience, ExpectedAudience, StringComparison.Ordinal)
             || string.IsNullOrWhiteSpace(actor.Subject) || actor.Subject.Length > 200
             || actor.Role?.Length > 100
-            || !string.Equals(actor.Method, request.Method, StringComparison.Ordinal)
-            || !string.Equals(actor.RequestTarget, RequestTarget(request), StringComparison.Ordinal)
+            || !string.Equals(actor.Method, method, StringComparison.Ordinal)
+            || !string.Equals(actor.RequestTarget, requestTarget, StringComparison.Ordinal)
             || !string.Equals(actor.ContentType, contentType, StringComparison.Ordinal)
             || !string.Equals(actor.IdempotencyKey, idempotencyKey, StringComparison.Ordinal)
             || !string.Equals(actor.BodySha256, bodySha256, StringComparison.Ordinal)
@@ -260,7 +276,7 @@ public sealed class ActorAssertionMiddleware
         PropertyNameCaseInsensitive = true
     };
 
-    private sealed record ActorAssertionPayload(
+    internal sealed record ActorAssertionPayload(
         int Version,
         string Issuer,
         string Audience,

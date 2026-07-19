@@ -1,5 +1,6 @@
 namespace ArdaNova.Application.Services.Implementations;
 
+using System.Text.Json;
 using ArdaNova.Application.Common.Interfaces;
 using ArdaNova.Application.Common.Results;
 using ArdaNova.Application.DTOs;
@@ -10,6 +11,7 @@ using AutoMapper;
 
 public class OpportunityService : IOpportunityService
 {
+    private const string RoleCompensationPrefix = "ardanova-role:v1:";
     private readonly IRepository<Opportunity> _repository;
     private readonly IRepository<OpportunityApplication> _applicationRepository;
     private readonly IRepository<OpportunityUpdate> _updateRepository;
@@ -165,6 +167,9 @@ public class OpportunityService : IOpportunityService
 
     public async Task<Result<OpportunityDto>> CreateAsync(CreateOpportunityDto dto, CancellationToken ct = default)
     {
+        if (dto.EquityPercent is < 0 or > 100)
+            return Result<OpportunityDto>.ValidationError("Equity percent must be between 0 and 100.");
+
         var opportunity = new Opportunity
         {
             id = Guid.NewGuid().ToString(),
@@ -172,7 +177,7 @@ public class OpportunityService : IOpportunityService
             slug = GenerateSlug(dto.Title),
             description = dto.Description,
             type = dto.Type,
-            status = OpportunityStatus.DRAFT,
+            status = dto.IsOpenForApplications ? OpportunityStatus.OPEN : OpportunityStatus.DRAFT,
             experienceLevel = dto.ExperienceLevel,
             requirements = dto.Requirements,
             skills = dto.Skills,
@@ -180,7 +185,7 @@ public class OpportunityService : IOpportunityService
             location = dto.Location,
             isRemote = dto.IsRemote,
             compensation = dto.Compensation,
-            compensationDetails = dto.CompensationDetails,
+            compensationDetails = EncodeCompensationDetails(dto.CompensationDetails, dto.EquityPercent),
             deadline = dto.Deadline,
             maxApplications = dto.MaxApplications,
             applicationsCount = 0,
@@ -219,7 +224,13 @@ public class OpportunityService : IOpportunityService
         if (dto.Location is not null) opportunity.location = dto.Location;
         if (dto.IsRemote.HasValue) opportunity.isRemote = dto.IsRemote.Value;
         if (dto.Compensation.HasValue) opportunity.compensation = dto.Compensation;
-        if (dto.CompensationDetails is not null) opportunity.compensationDetails = dto.CompensationDetails;
+        if (dto.CompensationDetails is not null)
+        {
+            var existingCompensation = DecodeCompensationDetails(opportunity.compensationDetails);
+            opportunity.compensationDetails = EncodeCompensationDetails(
+                dto.CompensationDetails,
+                existingCompensation.EquityPercent);
+        }
         if (dto.Deadline.HasValue) opportunity.deadline = dto.Deadline;
         if (dto.MaxApplications.HasValue) opportunity.maxApplications = dto.MaxApplications;
         if (dto.CoverImage is not null) opportunity.coverImage = dto.CoverImage;
@@ -473,6 +484,13 @@ public class OpportunityService : IOpportunityService
     private async Task<OpportunityDto> EnrichOpportunityDtoAsync(Opportunity opportunity, CancellationToken ct)
     {
         var dto = _mapper.Map<OpportunityDto>(opportunity);
+        var compensation = DecodeCompensationDetails(opportunity.compensationDetails);
+        dto = dto with
+        {
+            CompensationDetails = compensation.Details,
+            EquityPercent = compensation.EquityPercent,
+            IsOpenForApplications = opportunity.status == OpportunityStatus.OPEN,
+        };
 
         var poster = await _userRepository.GetByIdAsync(opportunity.posterId, ct);
         if (poster is not null)
@@ -538,6 +556,31 @@ public class OpportunityService : IOpportunityService
 
         return dto;
     }
+
+    private static string? EncodeCompensationDetails(string? details, decimal? equityPercent)
+        => equityPercent.HasValue
+            ? RoleCompensationPrefix + JsonSerializer.Serialize(new RoleCompensationEnvelope(details, equityPercent.Value))
+            : details;
+
+    private static RoleCompensationEnvelope DecodeCompensationDetails(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)
+            || !value.StartsWith(RoleCompensationPrefix, StringComparison.Ordinal))
+            return new RoleCompensationEnvelope(value, null);
+
+        try
+        {
+            return JsonSerializer.Deserialize<RoleCompensationEnvelope>(
+                    value[RoleCompensationPrefix.Length..])
+                ?? new RoleCompensationEnvelope(value, null);
+        }
+        catch (JsonException)
+        {
+            return new RoleCompensationEnvelope(value, null);
+        }
+    }
+
+    private sealed record RoleCompensationEnvelope(string? Details, decimal? EquityPercent);
 
     private async Task<IReadOnlyList<OpportunityDto>> EnrichOpportunityDtosAsync(IEnumerable<Opportunity> opportunities, CancellationToken ct)
     {

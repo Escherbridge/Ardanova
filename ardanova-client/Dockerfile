@@ -4,7 +4,7 @@ RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
 # Copy package files
-COPY package.json package-lock.json* ./
+COPY package.json package-lock.json ./
 COPY prisma ./prisma/
 # scripts/ holds patch-zod-prisma.mjs, invoked by the postinstall hook during npm ci
 COPY scripts ./scripts/
@@ -12,9 +12,6 @@ COPY scripts ./scripts/
 # Install dependencies
 ARG DEPENDENCY_INSTALL_CACHE_KEY=stable
 RUN echo "Dependency install cache key: ${DEPENDENCY_INSTALL_CACHE_KEY}" && npm ci
-
-# Generate Prisma client
-RUN npx prisma generate
 
 # Build stage
 FROM node:20-alpine AS builder

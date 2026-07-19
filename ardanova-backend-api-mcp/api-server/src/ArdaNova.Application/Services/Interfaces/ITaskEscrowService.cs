@@ -10,6 +10,6 @@ public interface ITaskEscrowService
     Task<Result<IReadOnlyList<TaskEscrowDto>>> GetByFunderIdAsync(string funderId, CancellationToken ct = default);
     Task<Result<TaskEscrowDto>> CreateAsync(CreateTaskEscrowDto dto, CancellationToken ct = default);
     Task<Result<TaskEscrowDto>> ReleaseAsync(string id, ReleaseEscrowDto dto, CancellationToken ct = default);
-    Task<Result<TaskEscrowDto>> DisputeAsync(string id, CancellationToken ct = default);
+    Task<Result<TaskEscrowDto>> DisputeAsync(string id, DisputeEscrowDto dto, CancellationToken ct = default);
     Task<Result<TaskEscrowDto>> RefundAsync(string id, RefundEscrowDto dto, CancellationToken ct = default);
 }

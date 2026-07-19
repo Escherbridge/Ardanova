@@ -9,4 +9,8 @@ intentionally a persistence seam: it records only pending, submitted, or
 reconciliation-required state, never an allocation, payout, or confirmed
 settlement. The runtime gateway is disabled by default; a future transport must
 preserve the stable idempotency key, canonical base-unit amount, and lease check
-before enabling hosted execution.
+before enabling hosted execution. The hosted loop is registered only when
+`Azoa:EnableSettlementOutboxWorker=true`; each cycle is batch-bounded and uses a
+fresh dependency-injection scope. Funding readiness requires both that actual
+registration and a selected gateway attesting the complete canonical funding
+contract.

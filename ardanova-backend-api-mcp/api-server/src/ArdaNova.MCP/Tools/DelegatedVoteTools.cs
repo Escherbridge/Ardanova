@@ -66,37 +66,4 @@ public class DelegatedVoteTools
         return result.IsSuccess ? result.Value : 0;
     }
 
-    [McpServerTool(Name = "delegation_create")]
-    [Description("Creates a new vote delegation")]
-    public async Task<DelegatedVoteDto?> CreateDelegation(
-        [Description("The project ID")] string projectId,
-        [Description("The delegator user ID")] string delegatorId,
-        [Description("The delegatee user ID")] string delegateeId,
-        [Description("The share ID")] string shareId,
-        [Description("The amount to delegate")] decimal amount,
-        [Description("Optional expiration date")] DateTime? expiresAt = null,
-        CancellationToken ct = default)
-    {
-        var dto = new CreateDelegatedVoteDto
-        {
-            ProjectId = projectId,
-            DelegatorId = delegatorId,
-            DelegateeId = delegateeId,
-            ShareId = shareId,
-            Amount = amount,
-            ExpiresAt = expiresAt
-        };
-        var result = await _delegatedVoteService.CreateAsync(dto, ct);
-        return result.IsSuccess ? result.Value : null;
-    }
-
-    [McpServerTool(Name = "delegation_revoke")]
-    [Description("Revokes a vote delegation")]
-    public async Task<DelegatedVoteDto?> RevokeDelegation(
-        [Description("The delegation ID")] string id,
-        CancellationToken ct = default)
-    {
-        var result = await _delegatedVoteService.RevokeAsync(id, ct);
-        return result.IsSuccess ? result.Value : null;
-    }
 }

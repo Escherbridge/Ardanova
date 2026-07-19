@@ -167,7 +167,6 @@ public class TaskService : ITaskService
         if (dto.ActualHours.HasValue) task.actualHours = dto.ActualHours;
         if (dto.EquityReward.HasValue) task.equityReward = dto.EquityReward;
         if (dto.DueDate.HasValue) task.dueDate = dto.DueDate;
-        if (dto.AssignedToId is not null) task.assignedToId = dto.AssignedToId;
         task.updatedAt = DateTime.UtcNow;
 
         if (dto.Status == TaskStatus.COMPLETED && task.completedAt == null)

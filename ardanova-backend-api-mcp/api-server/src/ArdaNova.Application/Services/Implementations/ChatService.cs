@@ -737,9 +737,13 @@ public class ChatService : IChatService
             return Result<bool>.Forbidden("You are not a member of this conversation");
 
         var now = DateTime.UtcNow;
+        var readUpTo = dto.ReadUpTo > now ? now : dto.ReadUpTo;
+
+        if (membership.lastReadAt is { } previousReadAt && previousReadAt >= readUpTo)
+            return Result<bool>.Success(true);
 
         // Update lastReadAt for the member
-        membership.lastReadAt = dto.ReadUpTo;
+        membership.lastReadAt = readUpTo;
         membership.lastActiveAt = now;
         await _memberRepository.UpdateAsync(membership, ct);
 
@@ -747,7 +751,7 @@ public class ChatService : IChatService
         var unreadMessages = await _messageRepository.FindAsync(
             m => m.conversationId == dto.ConversationId &&
                  m.userFromId != userId &&
-                 m.sentAt <= dto.ReadUpTo &&
+                 m.sentAt <= readUpTo &&
                  m.status != MessageStatus.READ &&
                  !m.isDeleted, ct);
 

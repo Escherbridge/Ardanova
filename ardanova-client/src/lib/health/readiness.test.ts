@@ -62,6 +62,23 @@ describe("readiness configuration", () => {
     });
   });
 
+  it.each([
+    ["AUTH_SECRET", "your-auth-secret-min-32-chars-here"],
+    ["API_KEY", "replace-with-a-random-32-byte-minimum-service-secret"],
+    ["ADMIN_API_KEY", "replace-with-a-distinct-random-32-byte-minimum-secret"],
+    [
+      "ACTOR_ASSERTION_HMAC_KEY",
+      "placeholder-secret-012345678901234567890123456789",
+    ],
+  ] as const)("rejects a documented or sentinel %s", (name, value) => {
+    expect(
+      validateReadinessConfiguration({
+        ...validEnvironment,
+        [name]: value,
+      }),
+    ).toEqual({ ready: false, invalid: [name] });
+  });
+
   it("rejects local auth and TLS escape hatches in a hosted runtime", () => {
     expect(
       validateReadinessConfiguration({

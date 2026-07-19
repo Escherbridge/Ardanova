@@ -5,6 +5,7 @@ using ArdaNova.Application.DTOs;
 using ArdaNova.Application.Services.Interfaces;
 using ArdaNova.API.Middleware;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
 [ApiController]
@@ -41,6 +42,15 @@ public class ProjectTokensController : ControllerBase
         return ToActionResult(result);
     }
 
+    [HttpPost("config/metadata/batch")]
+    public async Task<IActionResult> GetMetadata(
+        [FromBody] ProjectTokenMetadataBatchRequestDto request,
+        CancellationToken ct)
+    {
+        var result = await _projectTokenService.GetMetadataByIdsAsync(request.Ids, ct);
+        return ToActionResult(result);
+    }
+
     [HttpGet("config/by-project/{projectId}")]
     public async Task<IActionResult> GetConfigByProject(string projectId, CancellationToken ct)
     {
@@ -57,11 +67,11 @@ public class ProjectTokensController : ControllerBase
 
     // === Allocations ===
 
-    [HttpPost("{configId}/allocate/task")]
+    [HttpPost("{configId}/allocate/pbi")]
     [Authorize(Policy = AuthorizationPolicies.AdminApiKey)]
-    public async Task<IActionResult> AllocateToTask(string configId, [FromBody] CreateTokenAllocationDto dto, CancellationToken ct)
+    public async Task<IActionResult> AllocateToPbi(string configId, [FromBody] CreateTokenAllocationDto dto, CancellationToken ct)
     {
-        var result = await _projectTokenService.AllocateToTaskAsync(configId, dto, ct);
+        var result = await _projectTokenService.AllocateToPbiAsync(configId, dto, ct);
         return ToActionResult(result);
     }
 
@@ -83,10 +93,15 @@ public class ProjectTokensController : ControllerBase
 
     [HttpPost("allocations/{allocationId}/distribute")]
     [Authorize(Policy = AuthorizationPolicies.AdminApiKey)]
-    public async Task<IActionResult> Distribute(string allocationId, [FromQuery] string recipientUserId, CancellationToken ct)
+    public IActionResult Distribute(string allocationId, [FromQuery] string recipientUserId, CancellationToken ct)
     {
-        var result = await _projectTokenService.DistributeAsync(allocationId, recipientUserId, ct);
-        return ToActionResult(result);
+        _ = allocationId;
+        _ = recipientUserId;
+        _ = ct;
+        return Problem(
+            statusCode: StatusCodes.Status501NotImplemented,
+            title: "Token distribution is unavailable",
+            detail: "Atomic RESERVED-to-DISTRIBUTED allocation transition and durable idempotency are required before token distribution can be enabled.");
     }
 
     [HttpPost("allocations/{allocationId}/revoke")]

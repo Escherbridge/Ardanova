@@ -1,4 +1,13 @@
+---
+type: spec
+---
+
 # AZOA Avatar Onboarding — Technical Specification
+
+> Historical track: credential and custody details are superseded by the
+> canonical integration contract and the tenant custodial-account flow. Public
+> self-registration is credential-free; managed onboarding uses a dedicated
+> custody key and a trusted deploy-time tenant binding.
 
 ## Overview
 
@@ -9,6 +18,7 @@ AZOA tracks — adapter, quest-authoring, and allocation all assume an avatar
 exists and (for value moves) has a wallet bound.
 
 Per the locked contract decisions (§11), ArdaNova:
+
 - integrates a **shared/managed AZOA node** — the node operator custodies keys;
   ArdaNova owns **no** KMS/B3 or fee-funding/P3 concern;
 - uses **self-register + self-run** avatars — **no fleet map, no `tenant:provision`,
@@ -18,7 +28,7 @@ Per the locked contract decisions (§11), ArdaNova:
 
 ## Dependencies
 
-- **AZOA shared node** — endpoint URL + tenant API key available (confirmed).
+- **AZOA shared node** — endpoint URL and capability-specific credentials available.
 - Track 01 (Auth) — `User` identity, NextAuth session, JWT claims.
 - Track 08 (KYC) — `verificationLevel` / KYC status, consumed by the value-gate
   (the gate itself lives on the AZOA node; ArdaNova only reads/passes status).
@@ -31,11 +41,11 @@ ArdaNova stores a **thin reference** from its `User` to the AZOA avatar — it d
 NOT store keys, balances, or wallet secrets (those live on the node). The
 reference is the minimum needed to address the avatar on subsequent API calls.
 
-| Field | Owner | Purpose |
-|---|---|---|
-| `azoaAvatarId` | ArdaNova `User` (new) | The avatar's id on the AZOA node. Null until linked. |
+| Field                                | Owner                           | Purpose                                                          |
+| ------------------------------------ | ------------------------------- | ---------------------------------------------------------------- |
+| `azoaAvatarId`                       | ArdaNova `User` (new)           | The avatar's id on the AZOA node. Null until linked.             |
 | `azoaWalletId` / `azoaWalletAddress` | ArdaNova `User` (new, nullable) | Cached wallet reference once bound. Chain stays source of truth. |
-| keys / mnemonic | **AZOA node only** | Never stored or seen by ArdaNova. |
+| keys / mnemonic                      | **AZOA node only**              | Never stored or seen by ArdaNova.                                |
 
 > DBML-first: add the `User` fields in
 > `ardanova-client/prisma/database-architecture.dbml`, then
@@ -72,10 +82,10 @@ actionable client message. Wallet creation stays ungated.
   - `EnsureWalletAsync(userId)` → calls AZOA wallet generate, caches refs.
   - `IsTier2ReadyAsync(userId)` → wallet-bound check (does NOT check KYC; that's
     the node's gate, surfaced via 403 at call time).
-- AZOA node client: a typed `HttpClient` in `ArdaNova.Infrastructure/Azoa/`
-  carrying the `X-Api-Key` (tenant key from secret store, never committed —
-  `AZOA__TenantApiKey`) plus the node base URL.
-- Config: `Azoa:BaseUrl`, `Azoa:TenantApiKey` (secret), `Azoa:Mode`
+- AZOA node clients: credential-free public registration plus separate custody,
+  value, and quest transports in `ArdaNova.Infrastructure/Azoa/`.
+- Config: `Azoa:BaseUrl`, `Azoa:CustodyApiKey`, `Azoa:ValueApiKey`,
+  `Azoa:QuestApiKey`, trusted `Azoa:TenantId`, and `Azoa:Mode`
   (Live | Simulated) — Simulated still available for dev even though the node
   is live.
 

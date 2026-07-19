@@ -1,13 +1,14 @@
 ---
 type: plan
 ---
+
 # Plan — Gated Commerce and AZOA Settlement
 
 ## 1. Correctness and boundary controls [P0]
 
 - [ ] Add claims-based authorization and ownership checks to financial, gate,
-  payout, escrow, wallet, and AZOA controller surfaces; the BFF must continue to
-  derive the current user rather than accept `userId`.
+      payout, escrow, wallet, and AZOA controller surfaces; the BFF must continue to
+      derive the current user rather than accept `userId`.
   - Partial: project-token allocation/gate/failure mutations, treasury mutations,
     and payout processing now require a distinct fail-closed `AdminApiKey` claim.
     A bounded signed BFF actor assertion now binds `sub`, role, HTTP method and
@@ -15,50 +16,51 @@ type: plan
     granting the `ActorAssertion` policy; swap and AZOA avatar routes use the
     assertion as their sole user-id source. The BFF API key remains service
     authentication only. Extend the policy to each ownership-sensitive route
-  only alongside its controller/BFF ownership tests. Wallet, token balance/portfolio/liquidity,
-  payout request/history/cancel,
-  task-escrow, and bid mutation routes now use that actor as their server-side
-  identity: the public REST/BFF contracts no longer accept a wallet owner,
-  payout user, escrow funder, or bid bidder id. They expose `/me` for self
-  reads and reject cross-user wallet/escrow/bid access; bid disposition also
-  verifies the opportunity poster or project owner in the API, rather than
-  trusting the BFF-only check. Public bid discovery remains read-only. This is
-  boundary hardening only, not a task agreement, checkout, or settlement flow.
-  Token balance self-reads now use ActorAssertion-protected `/me` controller
-  routes; the BFF and SDK routes neither accept nor forward a user id, and SDK
-  requests create the same request-bound assertion as tRPC. Public aggregate
-  exchange-value/preview reads remain identity-free. Admin payout processing and
-  pending-payout reads now use a server-only client that sends both the service
-  API key and distinct admin key, rather than broadening the service policy.
-  The admin key is documented in the BFF environment template, and both BFF and
-  API reject actor-signing material shorter than 32 bytes.
-  The actor envelope is now v2-only: an HMAC assertion binds issuer, audience,
-  subject/role, method, exact path plus query, normalized `Content-Type`, exact
-  SHA-256 of the materialized JSON bytes, optional `X-Idempotency-Key`, timing,
-  and a CSPRNG `jti`. `ActorAssertionReplay` is DBML-first and stores each `jti`
-  under a primary-key uniqueness invariant before MVC is reached; expired ids are
-  deliberately retained and never reclaimed. The API buffers a bounded request
-  body then resets its stream for MVC, and the BFF sends the exact bytes it signs.
-  V1 envelopes and actor-signed multipart requests are rejected. Focused tests
-  cover altered query/body/content type/idempotency metadata, stream preservation,
-  weak-key rejection, and one-winner concurrent replay. This still requires a
-  reviewed additive Prisma migration and deployed database concurrency evidence
-  before value-moving flows are enabled outside the trusted BFF boundary.
-  Task self-reads now use the ActorAssertion-protected `/api/tasks/me` route;
-  the prior caller-controlled `/api/tasks/user/{userId}` route is removed. Task
-  creation, full edits, and deletion require the project creator or signed
-  `ADMIN` actor; an assignee may update only that task's status. Explicit public
-  task discovery routes remain read-only. Task status is not a settlement or
-  reward signal. Controller and BFF endpoint tests cover actor-derived reads,
-  creator/assignee/admin scopes, and foreign task/project mutation denial;
-  broader task membership roles are still not modeled at this boundary.
+    only alongside its controller/BFF ownership tests. Wallet, token balance/portfolio/liquidity,
+    payout request/history/cancel,
+    task-escrow, and bid mutation routes now use that actor as their server-side
+    identity: the public REST/BFF contracts no longer accept a wallet owner,
+    payout user, escrow funder, or bid bidder id. They expose `/me` for self
+    reads and reject cross-user wallet/escrow/bid access; bid disposition also
+    verifies the opportunity poster or project owner in the API, rather than
+    trusting the BFF-only check. Public bid discovery remains read-only. This is
+    boundary hardening only, not a task agreement, checkout, or settlement flow.
+    Token balance self-reads now use ActorAssertion-protected `/me` controller
+    routes; the BFF and SDK routes neither accept nor forward a user id, and SDK
+    requests create the same request-bound assertion as tRPC. Public aggregate
+    exchange-value/preview reads remain identity-free. Admin payout processing and
+    pending-payout reads now use a server-only client that sends both the service
+    API key and distinct admin key, rather than broadening the service policy.
+    The admin key is documented in the BFF environment template, and both BFF and
+    API reject actor-signing material shorter than 32 bytes.
+    The actor envelope is now v2-only: an HMAC assertion binds issuer, audience,
+    subject/role, method, exact path plus query, normalized `Content-Type`, exact
+    SHA-256 of the materialized JSON bytes, optional `X-Idempotency-Key`, timing,
+    and a CSPRNG `jti`. `ActorAssertionReplay` is DBML-first and stores each `jti`
+    under a primary-key uniqueness invariant before MVC is reached; expired ids are
+    retained beyond the accepted expiry/skew window and then removed by a bounded,
+    replica-safe cleanup worker. The API buffers a bounded request
+    body then resets its stream for MVC, and the BFF sends the exact bytes it signs.
+    V1 envelopes and actor-signed multipart requests are rejected. Focused tests
+    cover altered query/body/content type/idempotency metadata, stream preservation,
+    weak-key rejection, and one-winner concurrent replay. This still requires a
+    reviewed additive Prisma migration and deployed database concurrency evidence
+    before value-moving flows are enabled outside the trusted BFF boundary.
+    Task self-reads now use the ActorAssertion-protected `/api/tasks/me` route;
+    the prior caller-controlled `/api/tasks/user/{userId}` route is removed. Task
+    creation, full edits, and deletion require the project creator or signed
+    `ADMIN` actor; an assignee may update only that task's status. Explicit public
+    task discovery routes remain read-only. Task status is not a settlement or
+    reward signal. Controller and BFF endpoint tests cover actor-derived reads,
+    creator/assignee/admin scopes, and foreign task/project mutation denial;
+    broader task membership roles are still not modeled at this boundary.
 - [x] Centralize holder-class x project-gate liquidity policy and replace the
-  inverted duplicate implementation with table-driven parity tests.
+      inverted duplicate implementation with table-driven parity tests.
   - `TokenLiquidityPolicy` is now the sole gate/holder-class matrix used by both
     allocation distribution and balance liquidity checks. Contributors become
     liquid at `ACTIVE`; investors and founders only at `SUCCEEDED`.
 - [ ] Replace float/double money contracts on commerce paths with fixed-scale
-  values; validate positive amounts and serialized equity-cap updates.
+      values; validate positive amounts and serialized equity-cap updates.
   - `UsdMoney` now provides the strict non-negative USD boundary: exact cents,
     invariant parsing, and rejection of sub-cent, grouped, negative, and
     overflowing input. Migrate `IStripeService` checkout/funding/payout inputs,
@@ -77,10 +79,10 @@ type: plan
 ## 2. Durable economic settlement [P0]
 
 - [x] Add dormant DBML-first `EconomicSettlement` and `EconomicOutbox` models
-  with fixed-scale decimal amounts, unique semantic/external keys, optimistic
-  version, settlement state contract, and lease/reconciliation metadata. They
-  are generated into Prisma and EF entities but have no controller, dispatcher,
-  or AZOA invocation.
+      with fixed-scale decimal amounts, unique semantic/external keys, optimistic
+      version, settlement state contract, and lease/reconciliation metadata. They
+      are generated into Prisma and EF entities but have no controller, dispatcher,
+      or AZOA invocation.
 - [~] Add DBML-first payment inbox, `FundingIntent`, `SwapQuote`, `SwapOrder`,
   and `TaskCommerceAgreement` models. `FundingIntent` and
   `TaskCommerceAgreement` are now DBML-first and generated into Prisma/EF:
@@ -139,9 +141,9 @@ type: plan
     enablement, hosted execution, and live concurrency evidence are still
     explicit activation gates.
 - [ ] Wire verified Stripe funding, approved escrow release/refund, and executed
-  swap to the outbox — never directly to the UI action.
+      swap to the outbox — never directly to the UI action.
 - [ ] Record and surface AZOA `replayed`, KYC rejection, operation id, confirmed,
-  failed, and `AwaitingReconciliation` states.
+      failed, and `AwaitingReconciliation` states.
 
 The repository currently has no reviewed Prisma migration history. The additive
 DBML model is safe to generate locally, but a production deployment must create
@@ -170,17 +172,17 @@ strict order is: pin/review a non-production baseline fingerprint; create and
 review an additive migration on a disposable clone; deploy through the approved
 release path; then run additive preflight using a separately reviewed
 post-migration fingerprint. See
-  `documentation/GATED_COMMERCE_MIGRATION_RUNBOOK.md`. This tool neither creates
-  nor applies a migration and does not make settlement eligible.
-  The asset-scale path is explicitly staged: Stage 1 adds nullable `integer`
-  with no default; Stage 2 captures an append-only, dual-reviewed authoritative
-  chain-asset manifest; Stage 3 validates, version-guards, backfills, reads
-  back, and reconciles immutable agreements/settlements; only Stage 4 adds
-  `NOT NULL`, still with no default. The current DBML `NOT NULL DEFAULT 6`
-  declaration cannot generate Stage 1. The implementation cutover must also
-  remove DTO defaults, make config creation explicitly scale-bound, and align
-  the current 0--19 service checks with `FixedScaleAmount`/`numeric(38,18)` at
-  0--18. See `documentation/ASSET_SCALE_MIGRATION_CONTRACT.md`.
+`documentation/GATED_COMMERCE_MIGRATION_RUNBOOK.md`. This tool neither creates
+nor applies a migration and does not make settlement eligible.
+The asset-scale path is explicitly staged: Stage 1 adds nullable `integer`
+with no default; Stage 2 captures an append-only, dual-reviewed authoritative
+chain-asset manifest; Stage 3 validates, version-guards, backfills, reads
+back, and reconciles immutable agreements/settlements; only Stage 4 adds
+`NOT NULL`, still with no default. The current DBML `NOT NULL DEFAULT 6`
+declaration cannot generate Stage 1. The implementation cutover must also
+remove DTO defaults, make config creation explicitly scale-bound, and align
+the current 0--19 service checks with `FixedScaleAmount`/`numeric(38,18)` at
+0--18. See `documentation/ASSET_SCALE_MIGRATION_CONTRACT.md`.
 
 ## 3. Commerce UX [P0]
 
@@ -252,18 +254,18 @@ post-migration fingerprint. See
     transport, independent attestation validation, worker registration, and
     production reconciliation evidence remain required before this gate can open.
 - [ ] Update swap UI to select eligible target assets, show an expiring quote,
-  explain ARDA intermediary legs, and display durable order/settlement status.
+      explain ARDA intermediary legs, and display durable order/settlement status.
 
 ## 4. Quest and allocation integration [P0]
 
 - [ ] Link accepted agreements to self-run quest instances or the documented
-  consented alternative; stop calling tenant-created random-password avatars
-  "self-run" until the credential/consent handoff exists.
+      consented alternative; stop calling tenant-created random-password avatars
+      "self-run" until the credential/consent handoff exists.
 - [ ] Dispatch settlement through `IAzoaAllocationService` with stable event keys;
-  retain AZOA as the custody/exactly-once layer and ArdaNova as the economics
-  authority.
+      retain AZOA as the custody/exactly-once layer and ArdaNova as the economics
+      authority.
 - [ ] Block live dispatch unless the selected node has reconciliation, custody,
-  fee-funding, and KMS/operator readiness evidence.
+      fee-funding, and KMS/operator readiness evidence.
 
 ## 5. Verification [P0]
 
@@ -272,11 +274,11 @@ post-migration fingerprint. See
     commerce identity and foreign-resource rejection. Broader financial,
     gate, and role-policy coverage remains required.
 - [ ] Duplicate payment/release/refund/swap, crash-window, timeout/reconciliation,
-  and concurrent equity/gate tests.
+      and concurrent equity/gate tests.
 - [ ] Simulated end-to-end: bid -> task agreement -> escrow -> quest -> award ->
-  project-token/ARDA quote -> order -> settlement receipt.
+      project-token/ARDA quote -> order -> settlement receipt.
 - [ ] Full backend and frontend verification; real-value cutover remains blocked
-  until every acceptance gate in the spec has evidence.
+      until every acceptance gate in the spec has evidence.
 
 ## Retro note — payout completion must follow provider proof
 

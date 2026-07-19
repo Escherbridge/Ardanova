@@ -1,10 +1,12 @@
 namespace ArdaNova.Application.DTOs;
 
+using System.Text.Json.Serialization;
 using ArdaNova.Domain.Models.Enums;
 
 public record EpicDto
 {
     public string Id { get; init; } = null!;
+    public string ProjectId { get; init; } = null!;
     public string MilestoneId { get; init; } = null!;
     public string Title { get; init; } = null!;
     public string? Description { get; init; }
@@ -22,6 +24,8 @@ public record EpicDto
 
 public record CreateEpicDto
 {
+    [JsonIgnore]
+    public string ProjectId { get; init; } = string.Empty;
     public required string MilestoneId { get; init; }
     public required string Title { get; init; }
     public string? Description { get; init; }
@@ -42,7 +46,6 @@ public record UpdateEpicDto
     public decimal? Progress { get; init; }
     public DateTime? StartDate { get; init; }
     public DateTime? TargetDate { get; init; }
-    public string? AssigneeId { get; init; }
 }
 
 public record UpdateEpicPriorityDto

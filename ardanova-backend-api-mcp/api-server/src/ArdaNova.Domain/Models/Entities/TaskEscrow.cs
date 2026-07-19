@@ -38,6 +38,13 @@ public class TaskEscrow
 
     public string? txHashRefund { get; set; }
 
+    public string? disputeReason { get; set; }
+
+    [Column(TypeName = "text")]
+    public string? disputeDescription { get; set; }
+
+    public string? disputedByUserId { get; set; }
+
     [Required]
     public DateTime createdAt { get; set; }
 
@@ -46,6 +53,8 @@ public class TaskEscrow
     public DateTime? releasedAt { get; set; }
 
     public DateTime? refundedAt { get; set; }
+
+    public DateTime? disputedAt { get; set; }
 
     [ForeignKey("taskId")]
     public virtual ProjectTask? Task { get; set; }

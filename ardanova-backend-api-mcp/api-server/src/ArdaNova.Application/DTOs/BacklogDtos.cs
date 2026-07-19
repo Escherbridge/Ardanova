@@ -49,6 +49,5 @@ public record UpdateProductBacklogItemDto
     public PBIStatus? Status { get; init; }
     public string? AcceptanceCriteria { get; init; }
     public Priority? Priority { get; init; }
-    public string? AssigneeId { get; init; }
     public string? GuildId { get; init; }
 }

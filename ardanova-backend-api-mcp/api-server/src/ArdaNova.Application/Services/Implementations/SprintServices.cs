@@ -11,12 +11,18 @@ using AutoMapper;
 public class SprintService : ISprintService
 {
     private readonly IRepository<Sprint> _repository;
+    private readonly IRepository<Epic> _epicRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IMapper _mapper;
 
-    public SprintService(IRepository<Sprint> repository, IUnitOfWork unitOfWork, IMapper mapper)
+    public SprintService(
+        IRepository<Sprint> repository,
+        IRepository<Epic> epicRepository,
+        IUnitOfWork unitOfWork,
+        IMapper mapper)
     {
         _repository = repository;
+        _epicRepository = epicRepository;
         _unitOfWork = unitOfWork;
         _mapper = mapper;
     }
@@ -45,9 +51,17 @@ public class SprintService : ISprintService
 
     public async Task<Result<SprintDto>> CreateAsync(CreateSprintDto dto, CancellationToken ct = default)
     {
+        var epic = await _epicRepository.GetByIdAsync(dto.EpicId, ct);
+        if (epic is null)
+            return Result<SprintDto>.NotFound($"Epic with id {dto.EpicId} not found");
+        if (!string.IsNullOrWhiteSpace(dto.ProjectId) &&
+            !string.Equals(dto.ProjectId, epic.projectId, StringComparison.Ordinal))
+            return Result<SprintDto>.ValidationError("Epic does not belong to the expected project");
+
         var sprint = new Sprint
         {
             id = Guid.NewGuid().ToString(),
+            projectId = epic.projectId,
             epicId = dto.EpicId,
             name = dto.Name,
             goal = dto.Goal,
@@ -78,7 +92,6 @@ public class SprintService : ISprintService
         if (dto.EquityBudget.HasValue) sprint.equityBudget = dto.EquityBudget;
         if (dto.Velocity.HasValue) sprint.velocity = (int?)dto.Velocity;
         if (dto.Status.HasValue) sprint.status = dto.Status.Value;
-        if (dto.AssigneeId is not null) sprint.assigneeId = dto.AssigneeId;
         sprint.updatedAt = DateTime.UtcNow;
 
         await _repository.UpdateAsync(sprint, ct);

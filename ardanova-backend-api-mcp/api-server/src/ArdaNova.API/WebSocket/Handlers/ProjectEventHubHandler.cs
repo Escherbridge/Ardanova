@@ -47,8 +47,6 @@ public class ProjectEventHubHandler :
         await _hubContext.Clients.Group($"user:{@event.OwnerId}").ProjectCreated(payload);
         await _hubContext.Clients.Group($"user:{@event.OwnerId}").ReceiveEvent(@event.EventType, payload);
 
-        // Also broadcast to "all" for discovery feeds
-        await _hubContext.Clients.Group("all").ProjectCreated(payload);
     }
 
     public async Task HandleAsync(ProjectUpdatedEvent @event, CancellationToken cancellationToken = default)

@@ -13,10 +13,14 @@ public record TaskEscrowDto
     public string? TxHashFund { get; init; }
     public string? TxHashRelease { get; init; }
     public string? TxHashRefund { get; init; }
+    public string? DisputeReason { get; init; }
+    public string? DisputeDescription { get; init; }
+    public string? DisputedByUserId { get; init; }
     public DateTime CreatedAt { get; init; }
     public DateTime? FundedAt { get; init; }
     public DateTime? ReleasedAt { get; init; }
     public DateTime? RefundedAt { get; init; }
+    public DateTime? DisputedAt { get; init; }
 }
 
 public record CreateTaskEscrowDto
@@ -31,6 +35,13 @@ public record CreateTaskEscrowDto
 public record ReleaseEscrowDto
 {
     public string? TxHash { get; init; }
+}
+
+public record DisputeEscrowDto
+{
+    public required string Reason { get; init; }
+    public required string Description { get; init; }
+    public required string DisputedByUserId { get; init; }
 }
 
 public record RefundEscrowDto

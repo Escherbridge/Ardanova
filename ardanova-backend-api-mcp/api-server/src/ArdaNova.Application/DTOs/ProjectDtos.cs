@@ -49,7 +49,8 @@ public record ProjectDto
 
 public record CreateProjectDto
 {
-    public required string CreatedById { get; init; }
+    [JsonIgnore]
+    public string CreatedById { get; init; } = string.Empty;
     public required string Title { get; init; }
     public required string Description { get; init; }
     public required string ProblemStatement { get; init; }
@@ -174,7 +175,7 @@ public record ProjectMilestoneDto
     public string ProjectId { get; init; } = null!;
     public string Title { get; init; } = null!;
     public string? Description { get; init; }
-    public DateTime TargetDate { get; init; }
+    public DateTime? TargetDate { get; init; }
     public DateTime? CompletedAt { get; init; }
     public MilestoneStatus Status { get; init; }
     public Priority Priority { get; init; }
@@ -276,7 +277,8 @@ public record ProjectCommentAuthorDto
 public record CreateProjectCommentDto
 {
     public string ProjectId { get; init; } = string.Empty;
-    public required string UserId { get; init; }
+    [JsonIgnore]
+    public string UserId { get; init; } = string.Empty;
     public required string Content { get; init; }
     public string? ParentId { get; init; }
     public CommentTargetType TargetType { get; init; } = CommentTargetType.PROJECT;

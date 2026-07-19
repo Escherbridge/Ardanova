@@ -14,7 +14,6 @@
 
 ---
 
-
 ---
 
 ## Core Philosophy
@@ -72,13 +71,14 @@
 
 ### Subdomain Structure (Simplified)
 
-| Subdomain | Purpose | Location |
-|-----------|---------|----------|
-| `www.ardanova.com` | Main platform (all features consolidated) | `ardanova-client/` |
-| `api.ardanova.com` | .NET 8 API gateway + MCP server ✅ | `ardanova-backend-api-mcp/` |
-| `ai.ardanova.com` | Python AI orchestrator API | `ardanova-ai-client/` |
+| Subdomain          | Purpose                                   | Location                    |
+| ------------------ | ----------------------------------------- | --------------------------- |
+| `www.ardanova.com` | Main platform (all features consolidated) | `ardanova-client/`          |
+| `api.ardanova.com` | .NET 10 API gateway + MCP server ✅       | `ardanova-backend-api-mcp/` |
+| `ai.ardanova.com`  | Python AI orchestrator API                | `ardanova-ai-client/`       |
 
 **Consolidated into Main Platform:**
+
 - DAO governance (proposals, voting)
 - Pitch Studio (Gamma integration)
 - Token Exchange (swap, liquidity)
@@ -86,6 +86,7 @@
 - AI Agent interface (via tRPC)
 
 **Provisioned Separately:**
+
 - Game SDK → NuGet package distribution
 - Documentation → `/documentation/` in repo
 
@@ -149,10 +150,9 @@ ardanova/
 │   ├── prisma/                         # Database schema & migrations
 │   └── public/                         # Static assets
 │
-├── ardanova-backend-api-mcp/           # ✅ IMPLEMENTED - .NET 8 Backend
+├── ardanova-backend-api-mcp/           # ✅ IMPLEMENTED - .NET 10 Backend
 │   ├── ardanova.sln                    # Solution (6 projects)
 │   ├── Dockerfile                      # Container deployment
-│   ├── railway.toml                    # Railway deployment config
 │   └── api-server/
 │       ├── src/
 │       │   ├── ArdaNova.Domain/        # Entities, Enums
@@ -212,6 +212,7 @@ Automated agreements source code (PyTeal) is in the root `/contracts/` folder.
 ---
 
 ## Phase 1: Foundation & Gamification Layer
+
 **Timeline: Q1 2025**
 
 ### 1.1 Gamification System
@@ -223,7 +224,7 @@ interface UserReputation {
   // Core XP System
   totalXP: number;
   level: number;
-  tier: 'Bronze' | 'Silver' | 'Gold' | 'Platinum' | 'Diamond';
+  tier: "Bronze" | "Silver" | "Gold" | "Platinum" | "Diamond";
 
   // Domain-Specific Reputation
   domains: {
@@ -238,7 +239,7 @@ interface UserReputation {
   trustScore: number;
 
   // Verification Levels
-  verificationLevel: 'Anonymous' | 'Verified' | 'Pro' | 'Expert';
+  verificationLevel: "Anonymous" | "Verified" | "Pro" | "Expert";
 
   // Token Holdings (affects governance)
   tokenHoldings: {
@@ -250,14 +251,14 @@ interface UserReputation {
 
 #### Achievement System
 
-| Category | Examples |
-|----------|----------|
-| **Contributor** | First Task, 100 Tasks, Task Streak, Quality Champion |
-| **Collaborator** | Team Player, Cross-Project, Mentor Badge |
-| **Investor** | First Backing, Portfolio Builder, Impact Investor |
-| **Governance** | First Vote, Proposal Author, Consensus Builder |
-| **Community** | Connector, Recruiter, Ambassador |
-| **Gaming** | First Earn, Power Player, Cross-Game Investor |
+| Category         | Examples                                             |
+| ---------------- | ---------------------------------------------------- |
+| **Contributor**  | First Task, 100 Tasks, Task Streak, Quality Champion |
+| **Collaborator** | Team Player, Cross-Project, Mentor Badge             |
+| **Investor**     | First Backing, Portfolio Builder, Impact Investor    |
+| **Governance**   | First Vote, Proposal Author, Consensus Builder       |
+| **Community**    | Connector, Recruiter, Ambassador                     |
+| **Gaming**       | First Earn, Power Player, Cross-Game Investor        |
 
 #### Leaderboards & Seasons
 
@@ -296,7 +297,7 @@ interface EnhancedProfile {
   // Wallet & Tokens
   wallet: {
     algorandAddress: string;
-    connectedWallets: WalletConnection[];  // Pera, Defly, MyAlgo
+    connectedWallets: WalletConnection[]; // Pera, Defly, MyAlgo
     tokenBalances: TokenBalance[];
     stakedTokens: StakedToken[];
   };
@@ -347,18 +348,19 @@ interface EnhancedProfile {
 
 #### Compensation Models (Token-Based)
 
-| Model | Description | Token Flow |
-|-------|-------------|------------|
-| **Fixed Token** | Set token amount for task | Direct ASA transfer |
-| **Hourly Token** | Time-tracked with approval | Periodic ASA release |
-| **Equity %** | Percentage of project tokens | Vested allocation |
-| **Hybrid** | Stable coin + project tokens | Split compensation |
-| **Bounty** | Open competition | Winner takes all |
-| **Milestone** | Tokens at checkpoints | Staged releases |
+| Model            | Description                  | Token Flow           |
+| ---------------- | ---------------------------- | -------------------- |
+| **Fixed Token**  | Set token amount for task    | Direct ASA transfer  |
+| **Hourly Token** | Time-tracked with approval   | Periodic ASA release |
+| **Equity %**     | Percentage of project tokens | Vested allocation    |
+| **Hybrid**       | Stable coin + project tokens | Split compensation   |
+| **Bounty**       | Open competition             | Winner takes all     |
+| **Milestone**    | Tokens at checkpoints        | Staged releases      |
 
 ---
 
 ## Phase 2: Ledger Integration & Fundraising Infrastructure
+
 **Timeline: Q2 2025**
 
 ### 2.1 Algorand Ledger Integration
@@ -366,7 +368,7 @@ interface EnhancedProfile {
 ```typescript
 // packages/@ardanova/blockchain/src/sdk - Core Algorand integration
 interface AlgorandConfig {
-  network: 'testnet' | 'mainnet';
+  network: "testnet" | "mainnet";
   nodeUrl: string;
   indexerUrl: string;
 
@@ -393,7 +395,7 @@ interface ASAToken {
   reserveAddress?: string;
 
   // Metadata
-  url?: string;       // IPFS URL for metadata
+  url?: string; // IPFS URL for metadata
   metadataHash?: string;
 }
 ```
@@ -496,16 +498,16 @@ interface ProjectTokenConfig {
   name: string;
   symbol: string;
   totalSupply: bigint;
-  decimals: number;  // Usually 6 on Algorand
+  decimals: number; // Usually 6 on Algorand
 
   // Allocation percentages (economic shares only)
   allocation: {
-    founders: number;      // 20% - vested over 2 years
-    contributors: number;  // 30% - task rewards pool
-    treasury: number;      // 20% - DAO-controlled
-    investors: number;     // 20% - ICO participants
-    community: number;     // 5% - airdrops, engagement
-    platform: number;      // 5% - ArdaNova platform fee
+    founders: number; // 20% - vested over 2 years
+    contributors: number; // 30% - task rewards pool
+    treasury: number; // 20% - DAO-controlled
+    investors: number; // 20% - ICO participants
+    community: number; // 5% - airdrops, engagement
+    platform: number; // 5% - ArdaNova platform fee
   };
 
   // Vesting schedules
@@ -513,21 +515,21 @@ interface ProjectTokenConfig {
     founders: {
       cliffMonths: 6;
       vestingMonths: 24;
-      releaseFrequency: 'monthly';
+      releaseFrequency: "monthly";
     };
     earlyContributors: {
       cliffMonths: 3;
       vestingMonths: 12;
-      releaseFrequency: 'monthly';
+      releaseFrequency: "monthly";
     };
   };
 
   // Economic utility (shares grant these rights)
   utility: {
-    revenue: true;         // Revenue sharing (proportional to holdings)
-    access: true;          // Feature access
-    staking: true;         // Staking rewards
-    redemption: true;      // Redeem for goods/services
+    revenue: true; // Revenue sharing (proportional to holdings)
+    access: true; // Feature access
+    staking: true; // Staking rewards
+    redemption: true; // Redeem for goods/services
   };
 }
 
@@ -538,25 +540,25 @@ interface MembershipCredentialConfig {
 
   // How membership is earned (not purchased)
   grantMethods: {
-    founder: true;                    // Auto-granted to project creator
-    daoVote: true;                    // Existing members vote to grant
-    contributionThreshold: true;      // Earned after sustained contribution
-    applicationApproved: true;        // Membership request accepted by project
-    gameSdkThreshold: true;           // Play-to-earn participation level
+    founder: true; // Auto-granted to project creator
+    daoVote: true; // Existing members vote to grant
+    contributionThreshold: true; // Earned after sustained contribution
+    applicationApproved: true; // Membership request accepted by project
+    gameSdkThreshold: true; // Play-to-earn participation level
   };
 
   // Governance rights (equal for all members)
   governance: {
-    votingWeight: 1;                  // Always 1 — one member, one vote
-    proposalCreation: true;           // Members can create proposals
-    delegationAllowed: true;          // Can delegate vote to another member
+    votingWeight: 1; // Always 1 — one member, one vote
+    proposalCreation: true; // Members can create proposals
+    delegationAllowed: true; // Can delegate vote to another member
   };
 
   // Revocation (requires DAO vote)
   revocation: {
     requiresProposal: true;
-    quorumThreshold: 0.66;           // 66% of members must vote
-    passThreshold: 0.75;             // 75% must approve revocation
+    quorumThreshold: 0.66; // 66% of members must vote
+    passThreshold: 0.75; // 75% must approve revocation
   };
 }
 ```
@@ -567,13 +569,13 @@ interface MembershipCredentialConfig {
 interface StableCoinConfig {
   // Platform stable coin (USDC-pegged ASA)
   assetId: number;
-  symbol: 'DSOS';  // ArdaNova Stable
-  peg: 'USDC';
+  symbol: "DSOS"; // ArdaNova Stable
+  peg: "USDC";
 
   // Liquidity management
   liquidity: {
     reserves: bigint;
-    collateralRatio: number;  // e.g., 1.05 for 105%
+    collateralRatio: number; // e.g., 1.05 for 105%
   };
 
   // Exchange rates
@@ -587,6 +589,7 @@ interface StableCoinConfig {
 ---
 
 ## Phase 3: Project Management Hierarchy
+
 **Timeline: Q2-Q3 2025**
 
 ### 3.1 Hierarchical Structure
@@ -651,10 +654,10 @@ interface StableCoinConfig {
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-
 ---
 
 ## Phase 4: DAO Governance & On-Chain Operations
+
 **Timeline: Q3 2025**
 
 ### 4.1 Governance Structure
@@ -821,6 +824,7 @@ class GovernanceContract:
 ---
 
 ## Phase 5: Gamma API & Pitch Studio
+
 **Timeline: Q3-Q4 2025**
 
 ### 5.1 Pitch Generation Workflow
@@ -863,18 +867,19 @@ class GovernanceContract:
 
 ### 5.2 Pitch Templates
 
-| Template | Purpose | Slides | Best For |
-|----------|---------|--------|----------|
-| **ICO Launch** | Token offering pitch | 12-15 | New projects seeking funding |
-| **Problem-Solution** | Standard project pitch | 8-10 | General awareness |
-| **Team Recruitment** | Attract contributors | 6-8 | Hiring token-compensated talent |
-| **Progress Update** | Stakeholder updates | 5-7 | Token holder communications |
-| **Demo Day** | Competition/showcase | 10-12 | Events, accelerators |
-| **Partnership** | B2B collaboration | 8-10 | Strategic partnerships |
+| Template             | Purpose                | Slides | Best For                        |
+| -------------------- | ---------------------- | ------ | ------------------------------- |
+| **ICO Launch**       | Token offering pitch   | 12-15  | New projects seeking funding    |
+| **Problem-Solution** | Standard project pitch | 8-10   | General awareness               |
+| **Team Recruitment** | Attract contributors   | 6-8    | Hiring token-compensated talent |
+| **Progress Update**  | Stakeholder updates    | 5-7    | Token holder communications     |
+| **Demo Day**         | Competition/showcase   | 10-12  | Events, accelerators            |
+| **Partnership**      | B2B collaboration      | 8-10   | Strategic partnerships          |
 
 ---
 
 ## Phase 6: Game SDK & Play-to-Earn
+
 **Timeline: Q4 2025**
 
 ### 6.1 Game SDK Architecture
@@ -1083,10 +1088,10 @@ namespace ArdaNova.GameSDK
 
 // Pattern 1: Achievement-based rewards
 const achievementRewards = {
-  'first_win': { tokens: 10, type: 'PROJECT_TOKEN' },
-  'level_10': { tokens: 50, type: 'PROJECT_TOKEN' },
-  'boss_defeated': { tokens: 100, type: 'PROJECT_TOKEN' },
-  'tournament_winner': { tokens: 500, type: 'PROJECT_TOKEN' },
+  first_win: { tokens: 10, type: "PROJECT_TOKEN" },
+  level_10: { tokens: 50, type: "PROJECT_TOKEN" },
+  boss_defeated: { tokens: 100, type: "PROJECT_TOKEN" },
+  tournament_winner: { tokens: 500, type: "PROJECT_TOKEN" },
 };
 
 // Pattern 2: Time-based rewards (daily login, streaks)
@@ -1094,19 +1099,19 @@ const dailyRewards = {
   day1: 5,
   day2: 10,
   day3: 15,
-  day7: 50,  // Weekly bonus
+  day7: 50, // Weekly bonus
   day30: 200, // Monthly bonus
 };
 
 // Pattern 3: Competition pools
 interface TournamentPool {
-  entryFee: number;       // Tokens to enter
-  prizePool: number;      // Total prize tokens
+  entryFee: number; // Tokens to enter
+  prizePool: number; // Total prize tokens
   distribution: {
-    first: 0.5,           // 50% to winner
-    second: 0.25,         // 25% to second
-    third: 0.15,          // 15% to third
-    platform: 0.10,       // 10% platform fee
+    first: 0.5; // 50% to winner
+    second: 0.25; // 25% to second
+    third: 0.15; // 15% to third
+    platform: 0.1; // 10% platform fee
   };
 }
 
@@ -1115,7 +1120,7 @@ interface TokenGatedContent {
   assetId: string;
   minBalance: number;
   content: {
-    type: 'character' | 'level' | 'item' | 'feature';
+    type: "character" | "level" | "item" | "feature";
     id: string;
   };
 }
@@ -1124,6 +1129,7 @@ interface TokenGatedContent {
 ---
 
 ## Phase 7: AI Agent & MCP Integration
+
 **Timeline: Q4 2025 - Q1 2026**
 
 ### 7.1 AI Agent Architecture
@@ -1169,7 +1175,7 @@ interface TokenGatedContent {
 │                              │ MCP Protocol                      │
 │                              ▼                                   │
 │  ┌─────────────────────────────────────────────────────────┐    │
-│  │        ARDANOVA-BACKEND-API-MCP (.NET 8)                 │    │
+│  │        ARDANOVA-BACKEND-API-MCP (.NET 10)                │    │
 │  │              MCP Server + REST API                       │    │
 │  ├─────────────────────────────────────────────────────────┤    │
 │  │                                                          │    │
@@ -1205,42 +1211,44 @@ interface TokenGatedContent {
 // Natural language commands supported by AI agent
 const agentCommands = {
   // Project Management
-  '/plan sprint': 'Suggest items for next sprint based on priority and velocity',
-  '/breakdown [feature]': 'Break down a feature into token-compensated tasks',
-  '/assign': 'Suggest assignments for unassigned tasks based on skills',
-  '/status': 'Generate current sprint status report',
-  '/risks': 'Identify current blockers and risks',
+  "/plan sprint":
+    "Suggest items for next sprint based on priority and velocity",
+  "/breakdown [feature]": "Break down a feature into token-compensated tasks",
+  "/assign": "Suggest assignments for unassigned tasks based on skills",
+  "/status": "Generate current sprint status report",
+  "/risks": "Identify current blockers and risks",
 
   // Content Generation
-  '/pitch [template]': 'Generate pitch presentation via Gamma',
-  '/update': 'Draft project update for token holders',
-  '/docs [topic]': 'Generate documentation for topic',
+  "/pitch [template]": "Generate pitch presentation via Gamma",
+  "/update": "Draft project update for token holders",
+  "/docs [topic]": "Generate documentation for topic",
 
   // Governance
-  '/propose [type]': 'Draft a governance proposal',
-  '/analyze proposal [id]': 'Analyze proposal implications',
-  '/voting summary': 'Summarize current voting status',
+  "/propose [type]": "Draft a governance proposal",
+  "/analyze proposal [id]": "Analyze proposal implications",
+  "/voting summary": "Summarize current voting status",
 
   // Token Economics
-  '/tokenomics': 'Generate tokenomics report',
-  '/rewards estimate [task]': 'Estimate token reward for task',
-  '/distribution': 'Show current token distribution',
+  "/tokenomics": "Generate tokenomics report",
+  "/rewards estimate [task]": "Estimate token reward for task",
+  "/distribution": "Show current token distribution",
 
   // ICO Management
-  '/ico status': 'Get ICO funding status',
-  '/ico projections': 'Project funding timeline',
-  '/investor report': 'Generate investor update',
+  "/ico status": "Get ICO funding status",
+  "/ico projections": "Project funding timeline",
+  "/investor report": "Generate investor update",
 
   // Analytics
-  '/retro': 'Generate retrospective insights',
-  '/metrics': 'Show key project metrics',
-  '/health': 'Project health check',
+  "/retro": "Generate retrospective insights",
+  "/metrics": "Show key project metrics",
+  "/health": "Project health check",
 };
 ```
 
 ---
 
 ## Phase 8: Platform DAO & $ARDA Token
+
 **Timeline: Q1-Q2 2026**
 
 ### 8.1 Platform Governance
@@ -1358,7 +1366,7 @@ const agentCommands = {
 ### Immediate (Q1 2025)
 
 1. **Backend API & MCP Server** ✅ COMPLETE
-   - ✅ .NET 8 API service (`ardanova-backend-api-mcp/`)
+   - ✅ .NET 10 API service (`ardanova-backend-api-mcp/`)
    - ✅ Clean Architecture (Domain, Application, Infrastructure, API, MCP)
    - ✅ 40+ MCP tools implemented
    - ✅ PostgreSQL with EF Core
@@ -1462,33 +1470,33 @@ const agentCommands = {
 
 ### Platform Health
 
-| Metric | Target (Year 1) | Target (Year 3) |
-|--------|-----------------|-----------------|
-| Active Projects | 500 | 10,000 |
-| Active Contributors | 5,000 | 100,000 |
-| Tasks Completed | 25,000 | 1,000,000 |
-| Total ICO Funding | $1M | $50M |
-| Games Integrated | 10 | 500 |
-| Monthly Token Transactions | 50,000 | 5,000,000 |
+| Metric                     | Target (Year 1) | Target (Year 3) |
+| -------------------------- | --------------- | --------------- |
+| Active Projects            | 500             | 10,000          |
+| Active Contributors        | 5,000           | 100,000         |
+| Tasks Completed            | 25,000          | 1,000,000       |
+| Total ICO Funding          | $1M             | $50M            |
+| Games Integrated           | 10              | 500             |
+| Monthly Token Transactions | 50,000          | 5,000,000       |
 
 ### Economic Indicators
 
-| Metric | Target (Year 1) | Target (Year 3) |
-|--------|-----------------|-----------------|
-| Avg. Contributor Token Earnings | $500/mo equiv. | $2,000/mo equiv. |
-| Project Success Rate | 40% | 60% |
-| Repeat Contributors | 30% | 50% |
-| Cross-Project Investment | 20% | 40% |
-| Play-to-Earn Active Users | 1,000 | 100,000 |
+| Metric                          | Target (Year 1) | Target (Year 3)  |
+| ------------------------------- | --------------- | ---------------- |
+| Avg. Contributor Token Earnings | $500/mo equiv.  | $2,000/mo equiv. |
+| Project Success Rate            | 40%             | 60%              |
+| Repeat Contributors             | 30%             | 50%              |
+| Cross-Project Investment        | 20%             | 40%              |
+| Play-to-Earn Active Users       | 1,000           | 100,000          |
 
 ### Governance Health
 
-| Metric | Target (Year 1) | Target (Year 3) |
-|--------|-----------------|-----------------|
-| Voter Participation | 20% | 40% |
-| Proposal Pass Rate | 60% | 70% |
-| On-chain Governance Actions | 500 | 10,000 |
-| Member Satisfaction | 4.0/5 | 4.5/5 |
+| Metric                      | Target (Year 1) | Target (Year 3) |
+| --------------------------- | --------------- | --------------- |
+| Voter Participation         | 20%             | 40%             |
+| Proposal Pass Rate          | 60%             | 70%             |
+| On-chain Governance Actions | 500             | 10,000          |
+| Member Satisfaction         | 4.0/5           | 4.5/5           |
 
 ---
 
@@ -1507,7 +1515,7 @@ Join us in building the future of work.
 
 ---
 
-*This roadmap is a living document. Updates will be made as we learn and iterate.*
+_This roadmap is a living document. Updates will be made as we learn and iterate._
 
 **Website**: [ardanova.com](https://ardanova.com)
 

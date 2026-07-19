@@ -1,237 +1,407 @@
+using System.Collections.Concurrent;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
+using ArdaNova.API.Middleware;
+using ArdaNova.API.WebSocket.Clients;
 using ArdaNova.API.WebSocket.Hubs;
+using ArdaNova.Application.Common.Interfaces;
+using ArdaNova.Application.Common.Results;
+using ArdaNova.Application.DTOs;
 using ArdaNova.Application.Services.Interfaces;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Connections.Features;
+using Microsoft.AspNetCore.Http.Features;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace ArdaNova.API.Tests.WebSocket;
 
-/// <summary>
-/// Tests for ArdaNovaHub behavior.
-/// Note: Full hub integration tests require SignalR test server setup.
-/// These tests verify the hub's construction, configuration access, and group naming conventions.
-/// </summary>
 public class ArdaNovaHubTests
 {
-    private const string ValidApiKey = "test-api-key-12345";
+    private const string ValidApiKey = "test-api-key-012345678901234567890123456789";
+    private const string ActorSigningKey = "actor-key-012345678901234567890123456789";
     private const string TestUserId = "user-123";
+    private const string ConnectionId = "connection-1";
 
-    private readonly IConfiguration _configuration;
-
-    public ArdaNovaHubTests()
-    {
-        var configData = new Dictionary<string, string?>
+    private readonly IConfiguration _configuration = new ConfigurationBuilder()
+        .AddInMemoryCollection(new Dictionary<string, string?>
         {
-            ["API_KEY"] = ValidApiKey
-        };
-        _configuration = new ConfigurationBuilder()
-            .AddInMemoryCollection(configData)
-            .Build();
-    }
+            ["API_KEY"] = ValidApiKey,
+            ["ActorAssertion:HmacKey"] = ActorSigningKey
+        })
+        .Build();
 
     [Fact]
     public void Constructor_WithValidDependencies_CreatesHub()
     {
-        // Act
+        var fixture = CreateHub();
+
+        fixture.Hub.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task OnConnectedAsync_WithBearerActorAssertion_BindsActorAndJoinsPersonalGroup()
+    {
+        var httpContext = new DefaultHttpContext();
+        httpContext.Request.Headers[ArdaNovaHub.ApiKeyHeaderName] = ValidApiKey;
+        httpContext.Request.Headers.Authorization = $"Bearer {CreateActorAssertion()}";
+        var fixture = CreateHub(httpContext);
+
+        await fixture.Hub.OnConnectedAsync();
+
+        fixture.Context.Verify(context => context.Abort(), Times.Never);
+        fixture.Groups.Verify(
+            groups => groups.AddToGroupAsync(
+                ConnectionId,
+                $"user:{TestUserId}",
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+        httpContext.User.HasClaim(ActorAssertionMiddleware.ClaimType, "v2").Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task OnConnectedAsync_WithWebSocketQueryActorAssertion_JoinsPersonalGroup()
+    {
+        var httpContext = new DefaultHttpContext();
+        httpContext.Request.Headers[ArdaNovaHub.ApiKeyHeaderName] = ValidApiKey;
+        httpContext.Request.QueryString = new QueryString(
+            $"?{ArdaNovaHub.ActorAssertionQueryName}={CreateActorAssertion()}");
+        var fixture = CreateHub(httpContext);
+
+        await fixture.Hub.OnConnectedAsync();
+
+        fixture.Context.Verify(context => context.Abort(), Times.Never);
+        fixture.Groups.Verify(
+            groups => groups.AddToGroupAsync(
+                ConnectionId,
+                $"user:{TestUserId}",
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task OnConnectedAsync_WithoutActorAssertion_RejectsConnection()
+    {
+        var httpContext = new DefaultHttpContext();
+        httpContext.Request.Headers[ArdaNovaHub.ApiKeyHeaderName] = ValidApiKey;
+        var fixture = CreateHub(httpContext);
+
+        await fixture.Hub.OnConnectedAsync();
+
+        fixture.Context.Verify(context => context.Abort(), Times.Once);
+        fixture.Groups.Verify(
+            groups => groups.AddToGroupAsync(
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task OnConnectedAsync_WithWrongApiKey_RejectsConnection()
+    {
+        var httpContext = new DefaultHttpContext();
+        httpContext.Request.Headers[ArdaNovaHub.ApiKeyHeaderName] = "wrong-key";
+        httpContext.Request.Headers.Authorization = $"Bearer {CreateActorAssertion()}";
+        var fixture = CreateHub(httpContext);
+
+        await fixture.Hub.OnConnectedAsync();
+
+        fixture.Context.Verify(context => context.Abort(), Times.Once);
+    }
+
+    [Fact]
+    public async Task OnConnectedAsync_WithUnsignedActorIdHeader_RejectsConnection()
+    {
+        var httpContext = new DefaultHttpContext();
+        httpContext.Request.Headers[ArdaNovaHub.ApiKeyHeaderName] = ValidApiKey;
+        httpContext.Request.Headers["X-Ardanova-Actor-Id"] = TestUserId;
+        var fixture = CreateHub(httpContext);
+
+        await fixture.Hub.OnConnectedAsync();
+
+        fixture.Context.Verify(context => context.Abort(), Times.Once);
+        fixture.Groups.Verify(
+            groups => groups.AddToGroupAsync(
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task OnConnectedAsync_WithReplayedActorAssertion_RejectsSecondConnection()
+    {
+        var assertion = CreateActorAssertion();
+        var ledger = new InMemoryActorAssertionReplayLedger();
+        var firstContext = ContextWithCredentials(assertion);
+        var secondContext = ContextWithCredentials(assertion);
+        var first = CreateHub(firstContext, replayLedger: ledger);
+        var second = CreateHub(secondContext, replayLedger: ledger);
+
+        await first.Hub.OnConnectedAsync();
+        await second.Hub.OnConnectedAsync();
+
+        first.Context.Verify(context => context.Abort(), Times.Never);
+        second.Context.Verify(context => context.Abort(), Times.Once);
+    }
+
+    [Fact]
+    public async Task OnConnectedAsync_WithAssertionForDifferentTarget_RejectsConnection()
+    {
+        var httpContext = ContextWithCredentials(CreateActorAssertion(requestTarget: "/api/Projects"));
+        var fixture = CreateHub(httpContext);
+
+        await fixture.Hub.OnConnectedAsync();
+
+        fixture.Context.Verify(context => context.Abort(), Times.Once);
+    }
+
+    [Fact]
+    public async Task SubscribeToProject_WhenActorCreatedProject_JoinsWithoutMemberRow()
+    {
+        const string projectId = "project-1";
+        var projectService = new Mock<IProjectService>();
+        projectService
+            .Setup(service => service.GetByIdAsync(projectId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<ProjectDto>.Success(new ProjectDto
+            {
+                Id = projectId,
+                CreatedById = TestUserId
+            }));
+        var projectMemberService = new Mock<IProjectMemberService>();
+        var fixture = CreateConnectedHub(
+            projectService: projectService,
+            projectMemberService: projectMemberService);
+
+        await fixture.Hub.SubscribeToProject(projectId);
+
+        fixture.Groups.Verify(
+            groups => groups.AddToGroupAsync(
+                ConnectionId,
+                $"project:{projectId}",
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+        projectMemberService.Verify(
+            service => service.GetByProjectIdAsync(
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task SubscribeToConversation_WhenActorIsNotMember_DoesNotJoinGroup()
+    {
+        const string conversationId = "conversation-1";
+        var chatService = new Mock<IChatService>();
+        chatService
+            .Setup(service => service.GetConversationByIdAsync(
+                conversationId,
+                TestUserId,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<ConversationDto>.Forbidden("not a member"));
+        var fixture = CreateConnectedHub(chatService);
+
+        var action = () => fixture.Hub.SubscribeToConversation(conversationId);
+
+        await action.Should().ThrowAsync<HubException>()
+            .WithMessage("Conversation access denied.");
+        fixture.Groups.Verify(
+            groups => groups.AddToGroupAsync(
+                ConnectionId,
+                $"conversation:{conversationId}",
+                It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task SendTypingIndicator_WhenActorIsNotMember_DoesNotBroadcast()
+    {
+        const string conversationId = "conversation-1";
+        var chatService = new Mock<IChatService>();
+        chatService
+            .Setup(service => service.SendTypingIndicatorAsync(
+                TestUserId,
+                It.Is<TypingIndicatorDto>(dto =>
+                    dto.ConversationId == conversationId && dto.IsTyping),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<bool>.Forbidden("not a member"));
+        var fixture = CreateConnectedHub(chatService);
+
+        var action = () => fixture.Hub.SendTypingIndicator(conversationId, true);
+
+        await action.Should().ThrowAsync<HubException>()
+            .WithMessage("Conversation access denied.");
+        fixture.Clients.Verify(
+            clients => clients.OthersInGroup(It.IsAny<string>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task MarkAsRead_WhenActorIsNotMember_DoesNotBroadcast()
+    {
+        const string conversationId = "conversation-1";
+        var chatService = new Mock<IChatService>();
+        chatService
+            .Setup(service => service.GetConversationByIdAsync(
+                conversationId,
+                TestUserId,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<ConversationDto>.Forbidden("not a member"));
+        var fixture = CreateConnectedHub(chatService);
+
+        var action = () => fixture.Hub.MarkAsRead(conversationId, "message-1");
+
+        await action.Should().ThrowAsync<HubException>()
+            .WithMessage("Conversation access denied.");
+        fixture.Clients.Verify(
+            clients => clients.OthersInGroup(It.IsAny<string>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public void Hub_DoesNotExposeGlobalSubscriptionMethods()
+    {
+        typeof(ArdaNovaHub).GetMethod("SubscribeToAll").Should().BeNull();
+        typeof(ArdaNovaHub).GetMethod("UnsubscribeFromAll").Should().BeNull();
+    }
+
+    private HubFixture CreateConnectedHub(
+        Mock<IChatService>? chatService = null,
+        Mock<IProjectService>? projectService = null,
+        Mock<IProjectMemberService>? projectMemberService = null)
+    {
+        var httpContext = ContextWithCredentials(CreateActorAssertion());
+        var fixture = CreateHub(
+            httpContext,
+            chatService,
+            projectService,
+            projectMemberService);
+        fixture.Hub.OnConnectedAsync().GetAwaiter().GetResult();
+        return fixture;
+    }
+
+    private HubFixture CreateHub(
+        HttpContext? httpContext = null,
+        Mock<IChatService>? chatService = null,
+        Mock<IProjectService>? projectService = null,
+        Mock<IProjectMemberService>? projectMemberService = null,
+        IActorAssertionReplayLedger? replayLedger = null)
+    {
+        httpContext ??= new DefaultHttpContext();
+        chatService ??= new Mock<IChatService>();
+        projectService ??= new Mock<IProjectService>();
+        projectMemberService ??= new Mock<IProjectMemberService>();
+
+        var httpContextFeature = new Mock<IHttpContextFeature>();
+        httpContextFeature.SetupGet(feature => feature.HttpContext).Returns(httpContext);
+        var features = new FeatureCollection();
+        features.Set(httpContextFeature.Object);
+
+        var context = new Mock<HubCallerContext>();
+        context.SetupGet(value => value.ConnectionId).Returns(ConnectionId);
+        context.SetupGet(value => value.ConnectionAborted).Returns(CancellationToken.None);
+        context.SetupGet(value => value.Features).Returns(features);
+        context.SetupGet(value => value.Items)
+            .Returns(new Dictionary<object, object?>());
+
+        var groups = new Mock<IGroupManager>();
+        groups
+            .Setup(manager => manager.AddToGroupAsync(
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        groups
+            .Setup(manager => manager.RemoveFromGroupAsync(
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        var clients = new Mock<IHubCallerClients<IArdaNovaHubClient>>();
+        var clientProxy = new Mock<IArdaNovaHubClient>();
+        clients
+            .Setup(value => value.OthersInGroup(It.IsAny<string>()))
+            .Returns(clientProxy.Object);
+
         var hub = new ArdaNovaHub(
             NullLogger<ArdaNovaHub>.Instance,
             _configuration,
-            new Mock<IProjectMemberService>().Object,
+            replayLedger ?? new InMemoryActorAssertionReplayLedger(),
+            projectService.Object,
+            projectMemberService.Object,
             new Mock<IGuildService>().Object,
-            new Mock<IGuildMemberService>().Object);
+            new Mock<IGuildMemberService>().Object,
+            chatService.Object)
+        {
+            Context = context.Object,
+            Groups = groups.Object,
+            Clients = clients.Object
+        };
 
-        // Assert
-        hub.Should().NotBeNull();
+        return new HubFixture(hub, context, groups, clients);
     }
 
-    [Fact]
-    public void Configuration_WithApiKey_IsAccessible()
+    private static DefaultHttpContext ContextWithCredentials(string assertion)
     {
-        // Arrange & Act
-        var apiKey = _configuration["API_KEY"];
-
-        // Assert
-        apiKey.Should().Be(ValidApiKey);
-    }
-
-    [Fact]
-    public void Configuration_WithoutApiKey_ReturnsNull()
-    {
-        // Arrange
-        var emptyConfig = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>())
-            .Build();
-
-        // Act
-        var apiKey = emptyConfig["API_KEY"];
-
-        // Assert
-        apiKey.Should().BeNull();
-    }
-
-    [Fact]
-    public void HttpContext_WithApiKeyHeader_ContainsApiKey()
-    {
-        // Arrange
         var httpContext = new DefaultHttpContext();
-        httpContext.Request.Headers["X-Api-Key"] = ValidApiKey;
-
-        // Act
-        var apiKey = httpContext.Request.Headers["X-Api-Key"].FirstOrDefault();
-
-        // Assert
-        apiKey.Should().Be(ValidApiKey);
+        httpContext.Request.Headers[ArdaNovaHub.ApiKeyHeaderName] = ValidApiKey;
+        httpContext.Request.Headers.Authorization = $"Bearer {assertion}";
+        return httpContext;
     }
 
-    [Fact]
-    public void HttpContext_WithUserIdHeader_ContainsUserId()
+    private static string CreateActorAssertion(
+        string subject = TestUserId,
+        string requestTarget = ArdaNovaHub.ActorAssertionRequestTarget)
     {
-        // Arrange
-        var httpContext = new DefaultHttpContext();
-        httpContext.Request.Headers["X-User-Id"] = TestUserId;
-
-        // Act
-        var userId = httpContext.Request.Headers["X-User-Id"].FirstOrDefault();
-
-        // Assert
-        userId.Should().Be(TestUserId);
+        var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        var payload = JsonSerializer.SerializeToUtf8Bytes(new
+        {
+            version = 2,
+            issuer = "ardanova-next-bff",
+            audience = "ardanova-api",
+            subject,
+            role = "INDIVIDUAL",
+            method = "GET",
+            requestTarget,
+            contentType = string.Empty,
+            bodySha256 = Convert.ToHexString(SHA256.HashData(Array.Empty<byte>())).ToLowerInvariant(),
+            idempotencyKey = (string?)null,
+            jti = Guid.NewGuid().ToString("D"),
+            issuedAt = now,
+            expiresAt = now + 90
+        });
+        var encodedPayload = Convert.ToBase64String(payload)
+            .TrimEnd('=')
+            .Replace('+', '-')
+            .Replace('/', '_');
+        using var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(ActorSigningKey));
+        var signature = hmac.ComputeHash(Encoding.ASCII.GetBytes(encodedPayload));
+        var encodedSignature = Convert.ToBase64String(signature)
+            .TrimEnd('=')
+            .Replace('+', '-')
+            .Replace('/', '_');
+        return $"{encodedPayload}.{encodedSignature}";
     }
 
-    [Fact]
-    public void HttpContext_WithQueryStringApiKey_ContainsApiKey()
+    private sealed class InMemoryActorAssertionReplayLedger : IActorAssertionReplayLedger
     {
-        // Arrange
-        var httpContext = new DefaultHttpContext();
-        httpContext.Request.QueryString = new QueryString($"?api_key={ValidApiKey}");
+        private readonly ConcurrentDictionary<string, byte> _entries = new(StringComparer.Ordinal);
 
-        // Act
-        var apiKey = httpContext.Request.Query["api_key"].FirstOrDefault();
-
-        // Assert
-        apiKey.Should().Be(ValidApiKey);
+        public Task<ActorAssertionReplayClaim> TryConsumeAsync(
+            ActorAssertionReplayEntry entry,
+            CancellationToken ct = default)
+            => Task.FromResult(_entries.TryAdd(entry.Jti, 0)
+                ? ActorAssertionReplayClaim.Consumed
+                : ActorAssertionReplayClaim.Replay);
     }
 
-    [Fact]
-    public void HttpContext_WithMissingApiKeyHeader_ReturnsNull()
-    {
-        // Arrange
-        var httpContext = new DefaultHttpContext();
-
-        // Act
-        var apiKey = httpContext.Request.Headers["X-Api-Key"].FirstOrDefault();
-
-        // Assert
-        apiKey.Should().BeNull();
-    }
-
-    [Fact]
-    public void GroupName_ForProject_FollowsConvention()
-    {
-        // Arrange
-        var projectId = Guid.NewGuid();
-
-        // Act
-        var groupName = $"project:{projectId}";
-
-        // Assert
-        groupName.Should().StartWith("project:");
-        groupName.Should().EndWith(projectId.ToString());
-    }
-
-    [Fact]
-    public void GroupName_ForUser_FollowsConvention()
-    {
-        // Arrange
-        var userId = "user-123";
-
-        // Act
-        var groupName = $"user:{userId}";
-
-        // Assert
-        groupName.Should().Be("user:user-123");
-    }
-
-    [Fact]
-    public void GroupName_ForAgency_FollowsConvention()
-    {
-        // Arrange
-        var agencyId = Guid.NewGuid();
-
-        // Act
-        var groupName = $"agency:{agencyId}";
-
-        // Assert
-        groupName.Should().StartWith("agency:");
-    }
-
-    [Fact]
-    public void GroupName_ForAll_IsConstant()
-    {
-        // Act
-        var groupName = "all";
-
-        // Assert
-        groupName.Should().Be("all");
-    }
-
-    [Theory]
-    [InlineData("test-api-key-12345", "test-api-key-12345", true)]
-    [InlineData("wrong-key", "test-api-key-12345", false)]
-    [InlineData("", "test-api-key-12345", false)]
-    public void ApiKeyValidation_WithVariousInputs_ReturnsExpectedResult(
-        string? providedKey,
-        string expectedKey,
-        bool shouldMatch)
-    {
-        // Act
-        var isValid = !string.IsNullOrEmpty(providedKey) && providedKey == expectedKey;
-
-        // Assert
-        isValid.Should().Be(shouldMatch);
-    }
-
-    [Fact]
-    public void ApiKeyValidation_WithNullKey_ReturnsFalse()
-    {
-        // Arrange
-        string? providedKey = null;
-        string expectedKey = ValidApiKey;
-
-        // Act
-        var isValid = !string.IsNullOrEmpty(providedKey) && providedKey == expectedKey;
-
-        // Assert
-        isValid.Should().BeFalse();
-    }
-
-    [Theory]
-    [InlineData("user-123", "user-123", true)]
-    [InlineData("user-123", "user-456", false)]
-    public void UserIdValidation_ForSubscription_EnforcesOwnership(
-        string currentUserId,
-        string targetUserId,
-        bool shouldAllow)
-    {
-        // Act - simulate the subscription check logic from the hub
-        var isAllowed = currentUserId == targetUserId;
-
-        // Assert
-        isAllowed.Should().Be(shouldAllow);
-    }
-
-    [Fact]
-    public void ApiKeyFromEnvironment_WhenConfigMissing_FallsBackToEnv()
-    {
-        // Arrange
-        var emptyConfig = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>())
-            .Build();
-
-        // Act - simulate the fallback logic from the hub
-        var apiKey = emptyConfig["API_KEY"] ?? Environment.GetEnvironmentVariable("API_KEY");
-
-        // Assert - In a real scenario with env var set, this would be non-null
-        // Here we just verify the fallback pattern works
-        (apiKey ?? "").Should().NotBeNull();
-    }
+    private sealed record HubFixture(
+        ArdaNovaHub Hub,
+        Mock<HubCallerContext> Context,
+        Mock<IGroupManager> Groups,
+        Mock<IHubCallerClients<IArdaNovaHubClient>> Clients);
 }

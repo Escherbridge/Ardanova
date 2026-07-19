@@ -35,7 +35,9 @@ public class EpicService : IEpicService
     {
         var milestones = await _milestoneRepository.FindAsync(m => m.projectId == projectId, ct);
         var milestoneIds = milestones.Select(m => m.id).ToHashSet();
-        var epics = await _repository.FindAsync(e => milestoneIds.Contains(e.milestoneId), ct);
+        var epics = await _repository.FindAsync(
+            e => e.milestoneId != null && milestoneIds.Contains(e.milestoneId),
+            ct);
         return Result<IReadOnlyList<EpicDto>>.Success(_mapper.Map<IReadOnlyList<EpicDto>>(epics));
     }
 
@@ -47,9 +49,17 @@ public class EpicService : IEpicService
 
     public async Task<Result<EpicDto>> CreateAsync(CreateEpicDto dto, CancellationToken ct = default)
     {
+        var milestone = await _milestoneRepository.GetByIdAsync(dto.MilestoneId, ct);
+        if (milestone is null)
+            return Result<EpicDto>.NotFound($"Milestone with id {dto.MilestoneId} not found");
+        if (!string.IsNullOrEmpty(dto.ProjectId) &&
+            !string.Equals(dto.ProjectId, milestone.projectId, StringComparison.Ordinal))
+            return Result<EpicDto>.ValidationError("Milestone does not belong to the expected project");
+
         var epic = new Epic
         {
             id = Guid.NewGuid().ToString(),
+            projectId = milestone.projectId,
             milestoneId = dto.MilestoneId,
             title = dto.Title,
             description = dto.Description,
@@ -83,7 +93,6 @@ public class EpicService : IEpicService
         if (dto.Progress.HasValue) epic.progress = (int)dto.Progress.Value;
         if (dto.StartDate.HasValue) epic.startDate = dto.StartDate;
         if (dto.TargetDate.HasValue) epic.targetDate = dto.TargetDate;
-        if (dto.AssigneeId is not null) epic.assigneeId = dto.AssigneeId;
         epic.updatedAt = DateTime.UtcNow;
 
         await _repository.UpdateAsync(epic, ct);

@@ -108,15 +108,21 @@ public class EpicServiceTests
     public async Task CreateAsync_WithValidDto_ReturnsCreatedEpic()
     {
         // Arrange
+        var projectId = Guid.NewGuid().ToString();
+        var milestoneId = Guid.NewGuid().ToString();
         var dto = new CreateEpicDto
         {
-            MilestoneId = Guid.NewGuid().ToString(),
+            ProjectId = projectId,
+            MilestoneId = milestoneId,
             Title = "New Epic",
             Description = "A new epic",
             Priority = Priority.HIGH
         };
         var epicDto = new EpicDto { Title = "New Epic" };
 
+        _milestoneRepositoryMock
+            .Setup(r => r.GetByIdAsync(milestoneId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ProjectMilestone { id = milestoneId, projectId = projectId });
         _repositoryMock.Setup(r => r.AddAsync(It.IsAny<Epic>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((Epic e, CancellationToken _) => e);
         _unitOfWorkMock.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()))
@@ -130,6 +136,36 @@ public class EpicServiceTests
         result.IsSuccess.Should().BeTrue();
         result.Value.Should().NotBeNull();
         result.Value!.Title.Should().Be("New Epic");
+        _repositoryMock.Verify(r => r.AddAsync(
+            It.Is<Epic>(epic => epic.projectId == projectId && epic.milestoneId == milestoneId),
+            It.IsAny<CancellationToken>()));
+    }
+
+    [Fact]
+    public async Task CreateAsync_WhenMilestoneProjectDiffers_ReturnsValidationError()
+    {
+        var milestoneId = Guid.NewGuid().ToString();
+        var dto = new CreateEpicDto
+        {
+            ProjectId = "expected-project",
+            MilestoneId = milestoneId,
+            Title = "Mixed ancestry"
+        };
+        _milestoneRepositoryMock
+            .Setup(r => r.GetByIdAsync(milestoneId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ProjectMilestone
+            {
+                id = milestoneId,
+                projectId = "different-project"
+            });
+
+        var result = await _sut.CreateAsync(dto);
+
+        result.IsSuccess.Should().BeFalse();
+        result.Type.Should().Be(ResultType.ValidationError);
+        _repositoryMock.Verify(
+            r => r.AddAsync(It.IsAny<Epic>(), It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 
     [Fact]

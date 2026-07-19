@@ -6,15 +6,15 @@ using ArdaNova.Application.Services.Interfaces;
 /// <summary>
 /// Infrastructure adapter that satisfies the Application-layer port
 /// <see cref="IAzoaAvatarNode"/> by delegating to the typed-HttpClient transport
-/// <see cref="IAzoaNodeClient"/>. Mirrors the <c>IAlgorandService</c> seam:
+/// <see cref="IAzoaPublicNodeClient"/>. Mirrors the <c>IAlgorandService</c> seam:
 /// the interface lives in Application, the implementation here in Infrastructure,
 /// so the Application layer never references Infrastructure wire models.
 /// </summary>
 public sealed class AzoaAvatarNodeAdapter : IAzoaAvatarNode
 {
-    private readonly IAzoaNodeClient _node;
+    private readonly IAzoaPublicNodeClient _node;
 
-    public AzoaAvatarNodeAdapter(IAzoaNodeClient node)
+    public AzoaAvatarNodeAdapter(IAzoaPublicNodeClient node)
     {
         _node = node;
     }

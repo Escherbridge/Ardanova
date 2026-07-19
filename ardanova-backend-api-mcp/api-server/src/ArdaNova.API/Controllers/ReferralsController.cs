@@ -3,6 +3,7 @@ namespace ArdaNova.API.Controllers;
 using ArdaNova.Application.Common.Results;
 using ArdaNova.Application.DTOs;
 using ArdaNova.Application.Services.Interfaces;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
 [ApiController]
@@ -61,10 +62,15 @@ public class ReferralsController : ControllerBase
     }
 
     [HttpPost("{id}/claim")]
-    public async Task<IActionResult> ClaimReward(string id, [FromBody] ClaimReferralRewardDto dto, CancellationToken ct)
+    public IActionResult ClaimReward(string id, [FromBody] ClaimReferralRewardDto dto, CancellationToken ct)
     {
-        var result = await _referralService.ClaimRewardAsync(id, dto, ct);
-        return ToActionResult(result);
+        _ = id;
+        _ = dto;
+        _ = ct;
+        return Problem(
+            statusCode: StatusCodes.Status501NotImplemented,
+            title: "Referral reward claims are unavailable",
+            detail: "Rewards must be server-derived, beneficiary-bound, and committed through an atomic idempotent claim before this endpoint can be enabled.");
     }
 
     [HttpPost("{id}/expire")]

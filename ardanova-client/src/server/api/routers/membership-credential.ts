@@ -6,10 +6,6 @@ import {
   protectedProcedure,
 } from "~/server/api/trpc";
 import { apiClient } from "~/lib/api";
-import type {
-  MembershipCredential,
-  MembershipGrantType,
-} from "~/lib/api/ardanova/endpoints/membership-credentials";
 
 // ---------------------------------------------------------------------------
 // Zod schemas
@@ -30,53 +26,11 @@ const grantMembershipCredentialSchema = z.object({
   grantedByProposalId: z.string().min(1).optional(),
 });
 
-// ---------------------------------------------------------------------------
-// Helper: verify caller is project owner via apiClient
-// ---------------------------------------------------------------------------
-
-async function verifyProjectOwner(projectId: string, callerId: string) {
-  const projectResponse = await apiClient.projects.getById(projectId);
-
-  if (projectResponse.error || !projectResponse.data) {
-    throw new TRPCError({ code: "NOT_FOUND", message: "Project not found" });
-  }
-
-  if (projectResponse.data.createdById !== callerId) {
-    throw new TRPCError({
-      code: "FORBIDDEN",
-      message: "Only the project owner can perform this action",
-    });
-  }
-
-  return projectResponse.data;
-}
-
-async function verifyCredentialOwner(
-  credential: Pick<MembershipCredential, "projectId" | "guildId">,
-  callerId: string,
-) {
-  if (credential.projectId) {
-    await verifyProjectOwner(credential.projectId, callerId);
-    return;
-  }
-
-  if (credential.guildId) {
-    const guildResponse = await apiClient.guilds.getById(credential.guildId);
-    if (guildResponse.error || !guildResponse.data) {
-      throw new TRPCError({ code: "NOT_FOUND", message: "Guild not found" });
-    }
-    if (guildResponse.data.ownerId !== callerId) {
-      throw new TRPCError({
-        code: "FORBIDDEN",
-        message: "Only the guild owner can perform this action",
-      });
-    }
-    return;
-  }
-
+function membershipMutationsUnavailable(): never {
   throw new TRPCError({
-    code: "BAD_REQUEST",
-    message: "Membership credential has no project or guild scope",
+    code: "NOT_IMPLEMENTED",
+    message:
+      "Membership credential changes are paused until scope and grant authority are enforced by the backend. A client-supplied grant reason is never authorization.",
   });
 }
 
@@ -214,126 +168,21 @@ export const membershipCredentialRouter = createTRPCRouter({
 
   grant: protectedProcedure
     .input(grantMembershipCredentialSchema)
-    .mutation(async ({ input, ctx }) => {
-      const callerId = ctx.session.user.id;
-
-      // For DAO_VOTE grants, the proposal system handles authorization
-      // For other grants, only the project owner can grant
-      if (input.grantedVia !== "DAO_VOTE") {
-        await verifyProjectOwner(input.projectId, callerId);
-      }
-
-      const response = await apiClient.membershipCredentials.grant({
-        projectId: input.projectId,
-        userId: input.userId,
-        grantedVia: input.grantedVia as MembershipGrantType,
-        grantedByProposalId: input.grantedByProposalId,
-      });
-
-      if (response.error || !response.data) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: response.error ?? "Failed to grant membership credential",
-        });
-      }
-
-      return response.data;
-    }),
+    .mutation(membershipMutationsUnavailable),
 
   revoke: protectedProcedure
     .input(
       z.object({ id: z.string().min(1), revokeTxHash: z.string().optional() }),
     )
-    .mutation(async ({ input, ctx }) => {
-      const callerId = ctx.session.user.id;
-
-      // Fetch credential to find associated project for authorization
-      const credentialResponse = await apiClient.membershipCredentials.getById(
-        input.id,
-      );
-      if (credentialResponse.error || !credentialResponse.data) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Membership credential not found",
-        });
-      }
-
-      await verifyCredentialOwner(credentialResponse.data, callerId);
-
-      const response = await apiClient.membershipCredentials.revoke(input.id, {
-        revokeTxHash: input.revokeTxHash,
-      });
-
-      if (response.error || !response.data) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: response.error ?? "Failed to revoke membership credential",
-        });
-      }
-
-      return response.data;
-    }),
+    .mutation(membershipMutationsUnavailable),
 
   suspend: protectedProcedure
     .input(z.object({ id: z.string().min(1) }))
-    .mutation(async ({ input, ctx }) => {
-      const callerId = ctx.session.user.id;
-
-      const credentialResponse = await apiClient.membershipCredentials.getById(
-        input.id,
-      );
-      if (credentialResponse.error || !credentialResponse.data) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Membership credential not found",
-        });
-      }
-
-      await verifyCredentialOwner(credentialResponse.data, callerId);
-
-      const response = await apiClient.membershipCredentials.suspend(input.id);
-
-      if (response.error || !response.data) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: response.error ?? "Failed to suspend membership credential",
-        });
-      }
-
-      return response.data;
-    }),
+    .mutation(membershipMutationsUnavailable),
 
   reactivate: protectedProcedure
     .input(z.object({ id: z.string().min(1) }))
-    .mutation(async ({ input, ctx }) => {
-      const callerId = ctx.session.user.id;
-
-      const credentialResponse = await apiClient.membershipCredentials.getById(
-        input.id,
-      );
-      if (credentialResponse.error || !credentialResponse.data) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Membership credential not found",
-        });
-      }
-
-      await verifyCredentialOwner(credentialResponse.data, callerId);
-
-      const response = await apiClient.membershipCredentials.reactivate(
-        input.id,
-      );
-
-      if (response.error || !response.data) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message:
-            response.error ?? "Failed to reactivate membership credential",
-        });
-      }
-
-      return response.data;
-    }),
+    .mutation(membershipMutationsUnavailable),
 
   updateTier: protectedProcedure
     .input(
@@ -342,35 +191,5 @@ export const membershipCredentialRouter = createTRPCRouter({
         tier: z.enum(["BRONZE", "SILVER", "GOLD", "PLATINUM", "DIAMOND"]),
       }),
     )
-    .mutation(async ({ input, ctx }) => {
-      const callerId = ctx.session.user.id;
-
-      const credentialResponse = await apiClient.membershipCredentials.getById(
-        input.credentialId,
-      );
-      if (credentialResponse.error || !credentialResponse.data) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Membership credential not found",
-        });
-      }
-
-      await verifyCredentialOwner(credentialResponse.data, callerId);
-
-      const response = await apiClient.membershipCredentials.updateTier(
-        input.credentialId,
-        {
-          tier: input.tier,
-        },
-      );
-
-      if (response.error || !response.data) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: response.error ?? "Failed to update credential tier",
-        });
-      }
-
-      return response.data;
-    }),
+    .mutation(membershipMutationsUnavailable),
 });

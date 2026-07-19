@@ -56,6 +56,64 @@ public class ProjectTokenServiceTests
             _loggerMock.Object);
     }
 
+    [Fact]
+    public async Task GetMetadataByIdsAsync_ProjectsOneQueryPreservesOrderAndReportsMissingIds()
+    {
+        var first = new ProjectTokenConfig
+        {
+            id = "config-1",
+            projectId = "project-1",
+            assetName = "First token",
+            unitName = "FIRST"
+        };
+        var second = new ProjectTokenConfig
+        {
+            id = "config-2",
+            projectId = "project-2",
+            assetName = "Second token",
+            unitName = "SECOND"
+        };
+        var configs = new[] { second, first };
+        _configRepoMock
+            .Setup(repository => repository.FindProjectedAsync(
+                It.IsAny<Expression<Func<ProjectTokenConfig, bool>>>(),
+                It.IsAny<Expression<Func<ProjectTokenConfig, ProjectTokenMetadataDto>>>(),
+                It.IsAny<CancellationToken>()))
+            .Returns((
+                Expression<Func<ProjectTokenConfig, bool>> predicate,
+                Expression<Func<ProjectTokenConfig, ProjectTokenMetadataDto>> selector,
+                CancellationToken _) => Task.FromResult<IReadOnlyList<ProjectTokenMetadataDto>>(
+                    configs.AsQueryable().Where(predicate).Select(selector).ToArray()));
+
+        var result = await _sut.GetMetadataByIdsAsync(
+            ["config-1", "missing", "config-2", "config-1"]);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value!.Items.Select(config => config.Id).Should().Equal("config-1", "config-2");
+        result.Value.MissingIds.Should().Equal("missing");
+        _configRepoMock.Verify(repository => repository.FindProjectedAsync(
+            It.IsAny<Expression<Func<ProjectTokenConfig, bool>>>(),
+            It.IsAny<Expression<Func<ProjectTokenConfig, ProjectTokenMetadataDto>>>(),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task GetMetadataByIdsAsync_RejectsUnboundedOrMalformedRequestsBeforeQuerying()
+    {
+        var empty = await _sut.GetMetadataByIdsAsync([]);
+        var tooMany = await _sut.GetMetadataByIdsAsync(
+            Enumerable.Repeat("duplicate", 501).ToArray());
+        var oversized = await _sut.GetMetadataByIdsAsync([new string('x', 201)]);
+
+        empty.Type.Should().Be(ResultType.ValidationError);
+        tooMany.Type.Should().Be(ResultType.ValidationError);
+        oversized.Type.Should().Be(ResultType.ValidationError);
+        _configRepoMock.Verify(repository => repository.FindProjectedAsync(
+            It.IsAny<Expression<Func<ProjectTokenConfig, bool>>>(),
+            It.IsAny<Expression<Func<ProjectTokenConfig, ProjectTokenMetadataDto>>>(),
+            It.IsAny<CancellationToken>()), Times.Never);
+    }
+
     [Theory]
     [InlineData(null)]
     [InlineData(19)]
@@ -311,11 +369,11 @@ public class ProjectTokenServiceTests
     }
 
     // ========================================================================
-    // AllocateToTaskAsync — Happy Path (ACTIVE Gate)
+    // AllocateToPbiAsync — Happy Path (ACTIVE Gate)
     // ========================================================================
 
     [Fact]
-    public async Task AllocateToTaskAsync_ActiveGate_CreatesContributorAllocation()
+    public async Task AllocateToPbiAsync_ActiveGate_CreatesContributorAllocation()
     {
         // Arrange
         var config = new ProjectTokenConfig
@@ -366,7 +424,7 @@ public class ProjectTokenServiceTests
             .Returns(allocationDto);
 
         // Act
-        var result = await _sut.AllocateToTaskAsync("config-1", dto);
+        var result = await _sut.AllocateToPbiAsync("config-1", dto);
 
         // Assert
         result.IsSuccess.Should().BeTrue();
@@ -389,11 +447,11 @@ public class ProjectTokenServiceTests
     }
 
     // ========================================================================
-    // AllocateToTaskAsync — Gate Not ACTIVE
+    // AllocateToPbiAsync — Gate Not ACTIVE
     // ========================================================================
 
     [Fact]
-    public async Task AllocateToTaskAsync_GateNotActive_ReturnsValidationError()
+    public async Task AllocateToPbiAsync_GateNotActive_ReturnsValidationError()
     {
         // Arrange
         var config = new ProjectTokenConfig
@@ -414,7 +472,7 @@ public class ProjectTokenServiceTests
         };
 
         // Act
-        var result = await _sut.AllocateToTaskAsync("config-1", dto);
+        var result = await _sut.AllocateToPbiAsync("config-1", dto);
 
         // Assert
         result.IsSuccess.Should().BeFalse();
@@ -426,11 +484,11 @@ public class ProjectTokenServiceTests
     }
 
     // ========================================================================
-    // AllocateToTaskAsync — Insufficient Supply
+    // AllocateToPbiAsync — Insufficient Supply
     // ========================================================================
 
     [Fact]
-    public async Task AllocateToTaskAsync_InsufficientSupply_ReturnsValidationError()
+    public async Task AllocateToPbiAsync_InsufficientSupply_ReturnsValidationError()
     {
         // Arrange
         var config = new ProjectTokenConfig
@@ -455,7 +513,7 @@ public class ProjectTokenServiceTests
         };
 
         // Act
-        var result = await _sut.AllocateToTaskAsync("config-1", dto);
+        var result = await _sut.AllocateToPbiAsync("config-1", dto);
 
         // Assert
         result.IsSuccess.Should().BeFalse();

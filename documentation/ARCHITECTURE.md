@@ -8,27 +8,28 @@ This document provides a detailed technical architecture for the ArdaNova platfo
 
 ### Architecture Enhancements ✅
 
-| Component | Status | Description |
-|-----------|--------|-------------|
-| `ardanova-client` | ✅ Active | Main Next.js app (all features consolidated) |
-| `ardanova-backend-api-mcp` | ✅ Complete | .NET 8 API + MCP Server (40+ tools) |
-| `Event Bus` | ✅ Complete | In-memory event bus with domain events |
-| `WebSocket/SignalR` | ✅ Complete | Real-time updates via SignalR hubs |
-| `File Storage` | ✅ Complete | S3/Local storage with env var binding |
-| `Dev Scripts` | ✅ Complete | Bash & PowerShell scripts (Docker/Podman) |
-| `C# Generator` | ✅ Complete | Attribute-based EF Core configuration |
-| `Membership Management` | ✅ Complete | Project & Guild invitations/applications |
-| `Events System` | ✅ Complete | Events, attendees, reminders, co-hosts |
-| `Social Features` | ✅ Complete | User/Project/Guild following system |
-| `Trending System` | ✅ Complete | Analytics-driven trending for discovery |
-| `ardanova-ai-client` | 🔄 Stubbed | Python AI orchestrator (structure ready) |
-| `ardanova-game-sdk` | 🔄 TODO | Unity & Godot SDKs (NuGet) |
-| `contracts` | 🔄 Stubbed | Algorand Powered Automated agreements (structure ready) |
-| `Credential Utility Service` | 🔄 In Progress | Soulbound ASA minting, guild credentials, tier system |
-| `Algorand Integration (.NET)` | 🔄 In Progress | dotnet-algorand-sdk for on-chain credential operations |
-| `KYC & Identity Verification` | 🔄 In Progress | KYC submission, provider abstraction (Manual/Veriff), PRO verification gating |
+| Component                     | Status         | Description                                                                    |
+| ----------------------------- | -------------- | ------------------------------------------------------------------------------ |
+| `ardanova-client`             | ✅ Active      | Main Next.js app (all features consolidated)                                   |
+| `ardanova-backend-api-mcp`    | ✅ Complete    | .NET 10 API + MCP Server (40+ tools)                                           |
+| `Event Bus`                   | ✅ Complete    | In-memory event bus with domain events                                         |
+| `WebSocket/SignalR`           | ✅ Complete    | Real-time updates via SignalR hubs                                             |
+| `File Storage`                | ✅ Complete    | S3/Local storage with env var binding                                          |
+| `Dev Scripts`                 | ✅ Complete    | Bash & PowerShell scripts (Docker/Podman)                                      |
+| `C# Generator`                | ✅ Complete    | Attribute-based EF Core configuration                                          |
+| `Membership Management`       | ✅ Complete    | Project & Guild invitations/applications                                       |
+| `Events System`               | ✅ Complete    | Events, attendees, reminders, co-hosts                                         |
+| `Social Features`             | ✅ Complete    | User/Project/Guild following system                                            |
+| `Trending System`             | ✅ Complete    | Analytics-driven trending for discovery                                        |
+| `ardanova-ai-client`          | 🔄 Stubbed     | Python AI orchestrator (structure ready)                                       |
+| `ardanova-game-sdk`           | 🔄 TODO        | Unity & Godot SDKs (NuGet)                                                     |
+| `contracts`                   | 🔄 Stubbed     | Algorand Powered Automated agreements (structure ready)                        |
+| `Credential Utility Service`  | 🔄 In Progress | Soulbound ASA minting, guild credentials, tier system                          |
+| `Algorand Integration (.NET)` | 🔄 In Progress | dotnet-algorand-sdk for on-chain credential operations                         |
+| `Azoa Identity & Custody`     | 🔄 In Progress | Tenant-bound account/KYC gateway complete; production KMS/provider unavailable |
 
 **Key Changes:**
+
 - DAO, Studio, Exchange, Explorer, and Agent UI consolidated into main platform
 - Event Bus implemented for domain event publishing
 - SignalR WebSocket hub for real-time client updates
@@ -98,7 +99,7 @@ This document provides a detailed technical architecture for the ArdaNova platfo
            ▼                               ▼                           ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                           ARDANOVA-BACKEND-API-MCP                          │
-│                            (.NET 8 + MCP Server)                            │
+│                            (.NET 10 + MCP Server)                           │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                              │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐    │
@@ -177,7 +178,7 @@ ardanova/
 │   ├── prisma/                         # Database schema & migrations
 │   └── public/                         # Static assets
 │
-├── ardanova-backend-api-mcp/           # .NET 8 Backend + MCP Server
+├── ardanova-backend-api-mcp/           # .NET 10 Backend + MCP Server
 │   ├── ardanova.sln                    # Solution file (6 projects)
 │   └── api-server/
 │       └── src/
@@ -233,7 +234,6 @@ ardanova/
 │
 ├── docker-compose.yml                  # Production compose
 ├── docker-compose.dev.yml              # Development compose (hot-reload) ✅ NEW
-├── railway.toml                        # Railway deployment
 ├── .env.example                        # Environment template
 └── README.md                           # Project overview
 ```
@@ -257,6 +257,7 @@ scripts/
 ### Usage
 
 **Start Development Environment (Hot-Reload):**
+
 ```bash
 # Bash (Linux/Mac/Git Bash)
 ./scripts/dev-up.sh
@@ -266,6 +267,7 @@ scripts/
 ```
 
 **Tear Down Environment:**
+
 ```bash
 # Bash - Basic tear down
 ./scripts/dev-down.sh
@@ -279,22 +281,22 @@ scripts/
 
 ### Script Options
 
-| Script | Flag | Description |
-|--------|------|-------------|
-| `dev-up` | `-p, --prod` | Use production compose |
-| `dev-up` | `-b, --build` | Force rebuild images |
-| `dev-up` | `-f, --foreground` | Run in foreground |
-| `dev-up` | `-s, --service` | Start specific service |
-| `dev-down` | `-v, --volumes` | Remove volumes |
-| `dev-down` | `-i, --images` | Remove images |
-| `dev-down` | `-p, --prune` | Prune unused resources |
-| `dev-down` | `-a, --all` | Remove everything |
+| Script     | Flag               | Description            |
+| ---------- | ------------------ | ---------------------- |
+| `dev-up`   | `-p, --prod`       | Use production compose |
+| `dev-up`   | `-b, --build`      | Force rebuild images   |
+| `dev-up`   | `-f, --foreground` | Run in foreground      |
+| `dev-up`   | `-s, --service`    | Start specific service |
+| `dev-down` | `-v, --volumes`    | Remove volumes         |
+| `dev-down` | `-i, --images`     | Remove images          |
+| `dev-down` | `-p, --prune`      | Prune unused resources |
+| `dev-down` | `-a, --all`        | Remove everything      |
 
 ### Docker Compose Files
 
-| File | Purpose |
-|------|---------|
-| `docker-compose.yml` | Production deployment |
+| File                     | Purpose                     |
+| ------------------------ | --------------------------- |
+| `docker-compose.yml`     | Production deployment       |
 | `docker-compose.dev.yml` | Development with hot-reload |
 
 ### Hot-Reload Development
@@ -310,6 +312,7 @@ The development compose file (`docker-compose.dev.yml`) enables hot-reload:
 ### Container Runtime Detection
 
 Scripts automatically detect available runtime:
+
 1. Check for `podman` first
 2. Fall back to `docker`
 3. Detect compose variant (`podman-compose`, `podman compose`, `docker-compose`, `docker compose`)
@@ -455,20 +458,20 @@ The platform uses SignalR for real-time updates with group-based message routing
 ```typescript
 // use-realtime.ts - Real-time subscription hook
 export function useRealtime<T>(eventType: string, handler: (data: T) => void) {
-    useEffect(() => {
-        const connection = getSignalRConnection();
-        connection.on(eventType, handler);
-        return () => connection.off(eventType, handler);
-    }, [eventType, handler]);
+  useEffect(() => {
+    const connection = getSignalRConnection();
+    connection.on(eventType, handler);
+    return () => connection.off(eventType, handler);
+  }, [eventType, handler]);
 }
 
 // use-event-subscription.ts - Event subscription hook
 export function useEventSubscription(projectId: string) {
-    useEffect(() => {
-        const connection = getSignalRConnection();
-        connection.invoke('SubscribeToProject', projectId);
-        return () => connection.invoke('UnsubscribeFromProject', projectId);
-    }, [projectId]);
+  useEffect(() => {
+    const connection = getSignalRConnection();
+    connection.invoke("SubscribeToProject", projectId);
+    return () => connection.invoke("UnsubscribeFromProject", projectId);
+  }, [projectId]);
 }
 ```
 
@@ -533,18 +536,18 @@ The storage service supports both `appsettings.json` format and flat environment
 
 **Environment Variables (Recommended for Docker/Production):**
 
-| Environment Variable | Description | Default |
-|---------------------|-------------|---------|
-| `STORAGE_PROVIDER` | Storage provider (S3, Local) | `Local` |
-| `S3_ACCESS_KEY` | AWS Access Key ID | - |
-| `S3_SECRET_KEY` | AWS Secret Access Key | - |
-| `S3_BUCKET_NAME` | S3 bucket name | - |
-| `S3_REGION` | AWS region | `us-east-1` |
-| `S3_SERVICE_URL` | Custom S3 endpoint (MinIO, R2) | - |
-| `S3_USE_PATH_STYLE` | Path-style addressing | `false` |
-| `S3_PUBLIC_BASE_URL` | CDN/custom public URL | - |
-| `LOCAL_STORAGE_PATH` | Local storage path | `./uploads` |
-| `LOCAL_STORAGE_BASE_URL` | Local public URL | `http://localhost:8080/files` |
+| Environment Variable     | Description                    | Default                       |
+| ------------------------ | ------------------------------ | ----------------------------- |
+| `STORAGE_PROVIDER`       | Storage provider (S3, Local)   | `Local`                       |
+| `S3_ACCESS_KEY`          | AWS Access Key ID              | -                             |
+| `S3_SECRET_KEY`          | AWS Secret Access Key          | -                             |
+| `S3_BUCKET_NAME`         | S3 bucket name                 | -                             |
+| `S3_REGION`              | AWS region                     | `us-east-1`                   |
+| `S3_SERVICE_URL`         | Custom S3 endpoint (MinIO, R2) | -                             |
+| `S3_USE_PATH_STYLE`      | Path-style addressing          | `false`                       |
+| `S3_PUBLIC_BASE_URL`     | CDN/custom public URL          | -                             |
+| `LOCAL_STORAGE_PATH`     | Local storage path             | `./uploads`                   |
+| `LOCAL_STORAGE_BASE_URL` | Local public URL               | `http://localhost:8080/files` |
 
 **Configuration Binding:**
 
@@ -652,7 +655,7 @@ The main platform is a Next.js 15 application using the App Router pattern.
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-### Backend Architecture (.NET 8)
+### Backend Architecture (.NET 10)
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -743,48 +746,48 @@ The database schema is organized into 10 modules with 70+ entities:
 4. **Guild Module** - Guilds, members, bids, reviews
 5. **Marketplace & Shop** - Shops, products, invoices, sales
 6. **Finance & Tokenomics** - ProjectShares (economic rights), treasury, escrow, ICO, liquidity
-6a. **Dual-Asset Model** - MembershipCredential (governance rights) + ProjectShare (economic rights) separation
+   6a. **Dual-Asset Model** - MembershipCredential (governance rights) + ProjectShare (economic rights) separation
 7. **Engagement & Communication** - Posts, comments, chat, attachments
 8. **Events Module** - Events, attendees, co-hosts, reminders
 9. **Social & Follow Module** - User/Project/Guild following
 
 ### Key Schema Relationships
 
-| Parent | Child | Relationship |
-|--------|-------|--------------|
-| Project | Roadmap | 1:1 |
-| Roadmap | RoadmapPhase | 1:N |
-| RoadmapPhase | Epic | 1:N |
-| Epic | PBI | 1:N |
-| PBI | BacklogItem | 1:N |
-| BacklogItem | ProjectTask | 1:N |
-| Sprint | ProjectTask | N:M (via SprintItem) |
-| Project | ProjectMember | 1:N |
-| Project | ProjectInvitation | 1:N |
-| Project | ProjectMembershipRequest | 1:N |
-| Project | ProjectFollow | 1:N |
-| Project | Proposal | 1:N |
-| Project | ProjectToken | 1:1 |
-| Project | MembershipCredential | 1:N |
-| Guild | MembershipCredential | 1:N |
-| Project | Event | 1:N |
-| ProjectToken | ICO | 1:1 |
-| MembershipCredential | User | N:1 |
-| MembershipCredential | Project | N:1 |
-| MembershipCredential | Proposal | N:1 (optional, if granted via DAO vote) |
-| Guild | GuildMember | 1:N |
-| Guild | GuildInvitation | 1:N |
-| Guild | GuildApplication | 1:N |
-| Guild | GuildFollow | 1:N |
-| Guild | Event | 1:N |
-| Event | EventAttendee | 1:N |
-| Event | EventCoHost | 1:N |
-| Event | EventReminder | 1:N |
-| User | UserFollow (as follower) | 1:N |
-| User | UserFollow (as following) | 1:N |
-| User | XPEvent | 1:N |
-| User | UserAchievement | 1:N |
-| User | Attachment | 1:N |
+| Parent               | Child                     | Relationship                            |
+| -------------------- | ------------------------- | --------------------------------------- |
+| Project              | Roadmap                   | 1:1                                     |
+| Roadmap              | RoadmapPhase              | 1:N                                     |
+| RoadmapPhase         | Epic                      | 1:N                                     |
+| Epic                 | PBI                       | 1:N                                     |
+| PBI                  | BacklogItem               | 1:N                                     |
+| BacklogItem          | ProjectTask               | 1:N                                     |
+| Sprint               | ProjectTask               | N:M (via SprintItem)                    |
+| Project              | ProjectMember             | 1:N                                     |
+| Project              | ProjectInvitation         | 1:N                                     |
+| Project              | ProjectMembershipRequest  | 1:N                                     |
+| Project              | ProjectFollow             | 1:N                                     |
+| Project              | Proposal                  | 1:N                                     |
+| Project              | ProjectToken              | 1:1                                     |
+| Project              | MembershipCredential      | 1:N                                     |
+| Guild                | MembershipCredential      | 1:N                                     |
+| Project              | Event                     | 1:N                                     |
+| ProjectToken         | ICO                       | 1:1                                     |
+| MembershipCredential | User                      | N:1                                     |
+| MembershipCredential | Project                   | N:1                                     |
+| MembershipCredential | Proposal                  | N:1 (optional, if granted via DAO vote) |
+| Guild                | GuildMember               | 1:N                                     |
+| Guild                | GuildInvitation           | 1:N                                     |
+| Guild                | GuildApplication          | 1:N                                     |
+| Guild                | GuildFollow               | 1:N                                     |
+| Guild                | Event                     | 1:N                                     |
+| Event                | EventAttendee             | 1:N                                     |
+| Event                | EventCoHost               | 1:N                                     |
+| Event                | EventReminder             | 1:N                                     |
+| User                 | UserFollow (as follower)  | 1:N                                     |
+| User                 | UserFollow (as following) | 1:N                                     |
+| User                 | XPEvent                   | 1:N                                     |
+| User                 | UserAchievement           | 1:N                                     |
+| User                 | Attachment                | 1:N                                     |
 
 ### Membership Management Models
 
@@ -1061,6 +1064,7 @@ ArdaNova uses a dual-asset architecture to separate governance rights from econo
 ```
 
 **Membership Grant Flow:**
+
 ```
 ┌──────────────────────────────────────────────────────────────────┐
 │                MEMBERSHIP CREDENTIAL GRANT FLOW                   │
@@ -1091,14 +1095,14 @@ ArdaNova uses a dual-asset architecture to separate governance rights from econo
 
 ArdaNova operates as a cooperative trust entity with the following properties:
 
-| Property | Description |
-|----------|-------------|
-| Entity Type | Cooperative Trust (pass-through taxation) |
-| Securities | Project shares are registered securities (Reg D / Reg CF / Reg A+) |
-| Governance Instruments | MembershipCredentials are non-security governance instruments |
-| Revenue | Distributed via DAO-governed treasury |
-| Compliance | Trust charter enforces cooperative principles |
-| Ownership | Platform owned by members via $ARDA token |
+| Property               | Description                                                        |
+| ---------------------- | ------------------------------------------------------------------ |
+| Entity Type            | Cooperative Trust (pass-through taxation)                          |
+| Securities             | Project shares are registered securities (Reg D / Reg CF / Reg A+) |
+| Governance Instruments | MembershipCredentials are non-security governance instruments      |
+| Revenue                | Distributed via DAO-governed treasury                              |
+| Compliance             | Trust charter enforces cooperative principles                      |
+| Ownership              | Platform owned by members via $ARDA token                          |
 
 ### Trending System
 
@@ -1113,6 +1117,7 @@ The platform uses an analytics-driven trending system for content discovery.
 | trendingAt | datetime? | When item became trending |
 
 **Trending Score Factors:**
+
 - **Views** - Page/profile views
 - **Engagement** - Likes, comments, shares
 - **Recency** - Time decay for freshness
@@ -1120,6 +1125,7 @@ The platform uses an analytics-driven trending system for content discovery.
 - **Quality Signals** - Completion rate, verification status
 
 **Analytics Job Workflow:**
+
 ```
 ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
 │  Calculate   │───>│   Rank Top   │───>│  Update DB   │
@@ -1188,28 +1194,28 @@ The platform uses an analytics-driven trending system for content discovery.
 
 ### New Notification Types
 
-| Notification Type | Trigger |
-|-------------------|---------|
-| PROJECT_INVITATION | User invited to project |
-| PROJECT_INVITATION_ACCEPTED | Invitee accepted |
-| PROJECT_INVITATION_DECLINED | Invitee declined |
-| PROJECT_MEMBERSHIP_REQUEST | User applied to project |
-| PROJECT_MEMBERSHIP_APPROVED | Application approved |
-| PROJECT_MEMBERSHIP_REJECTED | Application rejected |
-| GUILD_INVITATION | User invited to guild |
-| GUILD_INVITATION_ACCEPTED | Invitee accepted |
-| GUILD_INVITATION_DECLINED | Invitee declined |
-| GUILD_APPLICATION | User applied to guild |
-| GUILD_APPLICATION_APPROVED | Application approved |
-| GUILD_APPLICATION_REJECTED | Application rejected |
-| EVENT_INVITATION | Invited to event |
-| EVENT_REMINDER | Upcoming event reminder |
-| EVENT_STARTING_SOON | Event starting shortly |
-| EVENT_CANCELLED | Event was cancelled |
-| EVENT_UPDATED | Event details changed |
-| USER_FOLLOWED | Someone followed you |
-| PROJECT_FOLLOWED | Someone followed your project |
-| GUILD_FOLLOWED | Someone followed your guild |
+| Notification Type           | Trigger                       |
+| --------------------------- | ----------------------------- |
+| PROJECT_INVITATION          | User invited to project       |
+| PROJECT_INVITATION_ACCEPTED | Invitee accepted              |
+| PROJECT_INVITATION_DECLINED | Invitee declined              |
+| PROJECT_MEMBERSHIP_REQUEST  | User applied to project       |
+| PROJECT_MEMBERSHIP_APPROVED | Application approved          |
+| PROJECT_MEMBERSHIP_REJECTED | Application rejected          |
+| GUILD_INVITATION            | User invited to guild         |
+| GUILD_INVITATION_ACCEPTED   | Invitee accepted              |
+| GUILD_INVITATION_DECLINED   | Invitee declined              |
+| GUILD_APPLICATION           | User applied to guild         |
+| GUILD_APPLICATION_APPROVED  | Application approved          |
+| GUILD_APPLICATION_REJECTED  | Application rejected          |
+| EVENT_INVITATION            | Invited to event              |
+| EVENT_REMINDER              | Upcoming event reminder       |
+| EVENT_STARTING_SOON         | Event starting shortly        |
+| EVENT_CANCELLED             | Event was cancelled           |
+| EVENT_UPDATED               | Event details changed         |
+| USER_FOLLOWED               | Someone followed you          |
+| PROJECT_FOLLOWED            | Someone followed your project |
+| GUILD_FOLLOWED              | Someone followed your guild   |
 
 ---
 
@@ -1229,16 +1235,16 @@ The generator uses EF Core data annotations (attributes) for all model configura
 
 **Generated Attributes:**
 
-| Attribute | Source | Purpose |
-|-----------|--------|---------|
-| `[Table("Name")]` | DBML table name | Table mapping |
-| `[Key]` | DBML `pk` | Primary key |
-| `[Required]` | DBML `not null` | Required field |
-| `[Column(TypeName = "text")]` | DBML `text` type | Text column type |
-| `[Precision(18, 8)]` | DBML `decimal(x,y)` or default | Decimal precision |
-| `[Index(nameof(field), IsUnique = true)]` | DBML `unique` | Unique index |
-| `[ForeignKey("fieldId")]` | DBML references | Foreign key |
-| `[InverseProperty("Collection")]` | Multi-FK detection | Relationship disambiguation |
+| Attribute                                 | Source                         | Purpose                     |
+| ----------------------------------------- | ------------------------------ | --------------------------- |
+| `[Table("Name")]`                         | DBML table name                | Table mapping               |
+| `[Key]`                                   | DBML `pk`                      | Primary key                 |
+| `[Required]`                              | DBML `not null`                | Required field              |
+| `[Column(TypeName = "text")]`             | DBML `text` type               | Text column type            |
+| `[Precision(18, 8)]`                      | DBML `decimal(x,y)` or default | Decimal precision           |
+| `[Index(nameof(field), IsUnique = true)]` | DBML `unique`                  | Unique index                |
+| `[ForeignKey("fieldId")]`                 | DBML references                | Foreign key                 |
+| `[InverseProperty("Collection")]`         | Multi-FK detection             | Relationship disambiguation |
 
 **Example Generated Entity:**
 
@@ -1286,11 +1292,11 @@ protected override void OnModelCreating(ModelBuilder modelBuilder)
 
 **Key Files:**
 
-| File | Purpose |
-|------|---------|
-| `ArdaNova.Infrastructure/Conventions/EnumStringConvention.cs` | Converts all enum properties to strings |
-| `ArdaNova.Infrastructure/Data/GeneratedModelConfigurations.cs` | Generated composite index configurations |
-| `ArdaNova.Domain/ArdaNova.Domain.csproj` | References `Microsoft.EntityFrameworkCore.Abstractions` |
+| File                                                           | Purpose                                                 |
+| -------------------------------------------------------------- | ------------------------------------------------------- |
+| `ArdaNova.Infrastructure/Conventions/EnumStringConvention.cs`  | Converts all enum properties to strings                 |
+| `ArdaNova.Infrastructure/Data/GeneratedModelConfigurations.cs` | Generated composite index configurations                |
+| `ArdaNova.Domain/ArdaNova.Domain.csproj`                       | References `Microsoft.EntityFrameworkCore.Abstractions` |
 
 ### Multi-FK Handling with `[InverseProperty]` Attributes
 
@@ -1320,6 +1326,7 @@ public virtual User? Referred { get; set; }
 ```
 
 **Entities with Multi-FK Patterns:**
+
 - `Referral` → User (referrerId, referredId)
 - `DelegatedVote` → User (delegatorId, delegateeId)
 - `ChatMessage` → User (userFromId, userToId)
@@ -1344,6 +1351,7 @@ node --import tsx scripts/generate-csharp-models.ts
 ```
 
 The generator:
+
 1. Reads `prisma/database-archietecture.dbml`
 2. Generates C# entities in `ArdaNova.Domain/Models/Entities/`
 3. Generates C# enums in `ArdaNova.Domain/Models/Enums/`
@@ -1356,44 +1364,45 @@ The generator:
 
 ### REST Controllers (17 Total)
 
-| Controller | Endpoints | Description |
-|------------|-----------|-------------|
-| `UsersController` | 8 | User CRUD, verification |
-| `ProjectsController` | 13 | Project CRUD, publishing, featured |
-| `ActivitiesController` | 4 | Activity logging |
-| `AgenciesController` | 7 | Agency management |
-| `BusinessesController` | 6 | Business operations |
-| `DelegatedVotesController` | 5 | Governance voting |
-| `ExchangeController` | 6 | Token swap/liquidity |
-| `NotificationsController` | 5 | Notification management |
-| `ReferralsController` | 5 | Referral system |
-| `TaskEscrowsController` | 5 | Escrow services |
-| `UserStreaksController` | 4 | Gamification streaks |
-| `WalletsController` | 5 | Wallet operations |
-| `AttachmentsController` | 9 | File storage |
-| `MembershipCredentialsController` | 10 | Credential CRUD, guild queries, tier |
-| `CredentialUtilityController` | 6 | Grant-and-mint, revoke-and-burn, tier upgrade |
-| `KycController` | 7 | KYC submission, status, admin review, webhook |
+| Controller                        | Endpoints | Description                                            |
+| --------------------------------- | --------- | ------------------------------------------------------ |
+| `UsersController`                 | 8         | User CRUD, verification                                |
+| `ProjectsController`              | 13        | Project CRUD, publishing, featured                     |
+| `ActivitiesController`            | 4         | Activity logging                                       |
+| `AgenciesController`              | 7         | Agency management                                      |
+| `BusinessesController`            | 6         | Business operations                                    |
+| `DelegatedVotesController`        | 5         | Governance voting                                      |
+| `ExchangeController`              | 6         | Token swap/liquidity                                   |
+| `NotificationsController`         | 5         | Notification management                                |
+| `ReferralsController`             | 5         | Referral system                                        |
+| `TaskEscrowsController`           | 5         | Escrow services                                        |
+| `UserStreaksController`           | 4         | Gamification streaks                                   |
+| `WalletsController`               | 5         | Wallet operations                                      |
+| `AttachmentsController`           | 9         | File storage                                           |
+| `MembershipCredentialsController` | 10        | Credential CRUD, guild queries, tier                   |
+| `CredentialUtilityController`     | 6         | Grant-and-mint, revoke-and-burn, tier upgrade          |
+| `KycController`                   | 6         | Retired local KYC routes return 410                    |
+| `AzoaCustodialAccountController`  | 5         | Actor-bound capability, account, and KYC orchestration |
 
 ### Service Layer (28+ Services)
 
-| Category | Services |
-|----------|----------|
-| **User** | UserService, AccountService, SessionService, UserSkillService, UserExperienceService |
-| **Project** | ProjectService, ProjectTaskService, ProjectResourceService, ProjectMilestoneService, ProjectSupportService, ProjectApplicationService, ProjectCommentService, ProjectUpdateService, ProjectEquityService |
-| **Project Membership** | ProjectInvitationService (TODO), ProjectMembershipRequestService (TODO) |
-| **Guild** | GuildService, GuildMemberService, ProjectBidService, GuildReviewService |
-| **Guild Membership** | GuildInvitationService (TODO), GuildApplicationService (TODO) |
-| **Events** | EventService (TODO), EventAttendeeService (TODO), EventReminderService (TODO) |
-| **Social** | UserFollowService (TODO), ProjectFollowService (TODO), GuildFollowService (TODO) |
-| **Business** | BusinessService, CustomerService, ProductService, InvoiceService, SaleService, InventoryItemService, MarketingCampaignService |
-| **Financial** | WalletService, TaskEscrowService, TokenSwapService, LiquidityPoolService |
-| **Gamification** | UserStreakService, ReferralService |
-| **Communication** | NotificationService, ActivityService |
-| **Governance** | DelegatedVoteService |
-| **Credential Utility** | MembershipCredentialService, CredentialUtilityService, AlgorandService |
-| **KYC** | KycService, KycGateService, ManualKycProviderService, VeriffKycProviderService (feature flag) |
-| **Storage** | AttachmentService |
+| Category               | Services                                                                                                                                                                                                 |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **User**               | UserService, AccountService, SessionService, UserSkillService, UserExperienceService                                                                                                                     |
+| **Project**            | ProjectService, ProjectTaskService, ProjectResourceService, ProjectMilestoneService, ProjectSupportService, ProjectApplicationService, ProjectCommentService, ProjectUpdateService, ProjectEquityService |
+| **Project Membership** | ProjectInvitationService (TODO), ProjectMembershipRequestService (TODO)                                                                                                                                  |
+| **Guild**              | GuildService, GuildMemberService, ProjectBidService, GuildReviewService                                                                                                                                  |
+| **Guild Membership**   | GuildInvitationService (TODO), GuildApplicationService (TODO)                                                                                                                                            |
+| **Events**             | EventService (TODO), EventAttendeeService (TODO), EventReminderService (TODO)                                                                                                                            |
+| **Social**             | UserFollowService (TODO), ProjectFollowService (TODO), GuildFollowService (TODO)                                                                                                                         |
+| **Business**           | BusinessService, CustomerService, ProductService, InvoiceService, SaleService, InventoryItemService, MarketingCampaignService                                                                            |
+| **Financial**          | WalletService, TaskEscrowService, TokenSwapService, LiquidityPoolService                                                                                                                                 |
+| **Gamification**       | UserStreakService, ReferralService                                                                                                                                                                       |
+| **Communication**      | NotificationService, ActivityService                                                                                                                                                                     |
+| **Governance**         | DelegatedVoteService                                                                                                                                                                                     |
+| **Credential Utility** | MembershipCredentialService, CredentialUtilityService, AlgorandService                                                                                                                                   |
+| **KYC**                | AzoaCustodialAccountService + live Azoa-backed KycGateService; local KycService retained only for data compatibility                                                                                     |
+| **Storage**            | AttachmentService                                                                                                                                                                                        |
 
 ---
 
@@ -1423,13 +1432,13 @@ The generator:
 
 ### Authorization (RBAC)
 
-| Role | Level | Permissions |
-|------|-------|-------------|
-| Founder | 100 | All permissions |
-| Leader | 80 | Roadmap, treasury propose, member management |
-| Core Contributor | 60 | Epic CRUD, task assign/review, proposals |
-| Contributor | 40 | Task claim/submit, vote, agent use |
-| Observer | 20 | Read-only access |
+| Role             | Level | Permissions                                  |
+| ---------------- | ----- | -------------------------------------------- |
+| Founder          | 100   | All permissions                              |
+| Leader           | 80    | Roadmap, treasury propose, member management |
+| Core Contributor | 60    | Epic CRUD, task assign/review, proposals     |
+| Contributor      | 40    | Task claim/submit, vote, agent use           |
+| Observer         | 20    | Read-only access                             |
 
 ---
 
@@ -1459,15 +1468,15 @@ ardanova-ai-client/
 
 ### MCP Tools (40+ Implemented)
 
-| Category | Tools |
-|----------|-------|
-| **User** | user_get_by_id, user_get_by_email, user_create, user_update, user_verify |
-| **Project** | project_get_by_id, project_get_by_slug, project_create, project_update, project_publish, project_delete |
-| **Agency** | agency_get_by_id, agency_create, agency_verify, agency_delete |
-| **Business** | business_get_by_id, business_create, business_upgrade_plan |
-| **Task** | task_assign, task_complete, task_review |
-| **Governance** | proposal_create, proposal_vote |
-| **Analytics** | analytics_*, report_* |
+| Category       | Tools                                                                                                   |
+| -------------- | ------------------------------------------------------------------------------------------------------- |
+| **User**       | user_get_by_id, user_get_by_email, user_create, user_update, user_verify                                |
+| **Project**    | project_get_by_id, project_get_by_slug, project_create, project_update, project_publish, project_delete |
+| **Agency**     | agency_get_by_id, agency_create, agency_verify, agency_delete                                           |
+| **Business**   | business_get_by_id, business_create, business_upgrade_plan                                              |
+| **Task**       | task_assign, task_complete, task_review                                                                 |
+| **Governance** | proposal_create, proposal_vote                                                                          |
+| **Analytics**  | analytics*\*, report*\*                                                                                 |
 
 ---
 
@@ -1521,12 +1530,12 @@ The first Algorand integration: soulbound membership credentials minted as ASAs 
 
 ### Algorand Configuration
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `ALGORAND_NETWORK` | Network (testnet/mainnet) | `testnet` |
-| `ALGORAND_NODE_URL` | Algod API endpoint | `https://testnet-api.algonode.cloud` |
-| `ALGORAND_INDEXER_URL` | Indexer API endpoint | `https://testnet-idx.algonode.cloud` |
-| `ALGORAND_PLATFORM_MNEMONIC` | Platform account mnemonic | (required) |
+| Variable                     | Description               | Default                              |
+| ---------------------------- | ------------------------- | ------------------------------------ |
+| `ALGORAND_NETWORK`           | Network (testnet/mainnet) | `testnet`                            |
+| `ALGORAND_NODE_URL`          | Algod API endpoint        | `https://testnet-api.algonode.cloud` |
+| `ALGORAND_INDEXER_URL`       | Indexer API endpoint      | `https://testnet-idx.algonode.cloud` |
+| `ALGORAND_PLATFORM_MNEMONIC` | Platform account mnemonic | (required)                           |
 
 ### Smart Contracts (PyTeal - Stubbed)
 
@@ -1614,11 +1623,11 @@ lib/blockchain/
 
 ### Subdomains
 
-| Subdomain | Service | Description |
-|-----------|---------|-------------|
-| www.ardanova.com | ardanova-client | Main platform (all features) |
-| api.ardanova.com | ardanova-backend-api-mcp | .NET 8 API + MCP + SignalR |
-| ai.ardanova.com | ardanova-ai-client | Python AI orchestrator |
+| Subdomain        | Service                  | Description                  |
+| ---------------- | ------------------------ | ---------------------------- |
+| www.ardanova.com | ardanova-client          | Main platform (all features) |
+| api.ardanova.com | ardanova-backend-api-mcp | .NET 10 API + MCP + SignalR  |
+| ai.ardanova.com  | ardanova-ai-client       | Python AI orchestrator       |
 
 ---
 
@@ -1649,15 +1658,17 @@ lib/blockchain/
    - CORS configuration
 
 5. **Identity Verification (KYC)**
-   - PRO verification required for project creation and credential issuance
-   - Provider abstraction (Manual review / Veriff) behind feature flag
-   - KYC documents stored via S3 with presigned URLs (time-limited)
-   - No PII in logs — only submission IDs and status transitions
-   - Admin-only review endpoints with role check
+   - Sensitive gates require a fresh authoritative Azoa approval; a local PRO/EXPERT field is insufficient
+   - ArdaNova stores only tenant-bound avatar/wallet references and normalized status
+   - The tenant GUID comes only from trusted deploy-time configuration; user requests cannot select it, and mismatched node responses are rejected
+   - Local submission/review routes are retired; provider selection and review live in Azoa
+   - Public document URLs are not accepted by the ArdaNova user experience
+   - Hosted and private-upload providers remain fail-closed until their durable lifecycle is reviewed
 
 6. **Blockchain Security**
    - Soulbound ASAs (frozen, clawback-only, no transfer)
-   - Custodial model — platform account signs all transactions
+   - Custody follows the selected Azoa node operator; ArdaNova stores no wallet key or mnemonic
+   - Credential-free registration and separate custody, value (`nft:mint`), and quest (`dapp:develop`) clients prevent authority crossover
    - ARC-19 metadata for credential verification
    - Multi-sig for admin functions
    - Timelocks for governance
@@ -1669,75 +1680,74 @@ lib/blockchain/
 
 ### Completed ✅
 
-| Feature | Status | Location |
-|---------|--------|----------|
-| .NET Backend API | ✅ Complete | `ardanova-backend-api-mcp/` |
-| 14 REST Controllers | ✅ Complete | `ArdaNova.API/Controllers/` |
-| 28+ Application Services | ✅ Complete | `ArdaNova.Application/Services/` |
-| 40+ MCP Tools | ✅ Complete | `ArdaNova.MCP/` |
-| Event Bus | ✅ Complete | `ArdaNova.API/EventBus/` |
-| SignalR WebSocket | ✅ Complete | `ArdaNova.API/WebSocket/` |
-| S3 File Storage | ✅ Complete | `ArdaNova.Infrastructure/Storage/` |
-| Env Var Config Binding | ✅ Complete | `StorageServiceExtensions.cs` |
-| Attachment Controller | ✅ Complete | `ArdaNova.API/Controllers/AttachmentsController.cs` |
-| C# Model Generator | ✅ Complete | `ardanova-client/scripts/generate-csharp-models.ts` |
-| EF Core Conventions | ✅ Complete | `ArdaNova.Infrastructure/Conventions/` |
-| Dev Scripts (Bash/PS) | ✅ Complete | `scripts/` |
-| Docker Compose (Dev) | ✅ Complete | `docker-compose.dev.yml` |
-| AI Client Stub | ✅ Stubbed | `ardanova-ai-client/` |
-| Smart Contracts Stub | ✅ Stubbed | `contracts/` |
-| **Project Invitations** | ✅ Complete | `ArdaNova.Domain/Models/Entities/ProjectInvitation.cs` |
+| Feature                         | Status      | Location                                                      |
+| ------------------------------- | ----------- | ------------------------------------------------------------- |
+| .NET Backend API                | ✅ Complete | `ardanova-backend-api-mcp/`                                   |
+| 14 REST Controllers             | ✅ Complete | `ArdaNova.API/Controllers/`                                   |
+| 28+ Application Services        | ✅ Complete | `ArdaNova.Application/Services/`                              |
+| 40+ MCP Tools                   | ✅ Complete | `ArdaNova.MCP/`                                               |
+| Event Bus                       | ✅ Complete | `ArdaNova.API/EventBus/`                                      |
+| SignalR WebSocket               | ✅ Complete | `ArdaNova.API/WebSocket/`                                     |
+| S3 File Storage                 | ✅ Complete | `ArdaNova.Infrastructure/Storage/`                            |
+| Env Var Config Binding          | ✅ Complete | `StorageServiceExtensions.cs`                                 |
+| Attachment Controller           | ✅ Complete | `ArdaNova.API/Controllers/AttachmentsController.cs`           |
+| C# Model Generator              | ✅ Complete | `ardanova-client/scripts/generate-csharp-models.ts`           |
+| EF Core Conventions             | ✅ Complete | `ArdaNova.Infrastructure/Conventions/`                        |
+| Dev Scripts (Bash/PS)           | ✅ Complete | `scripts/`                                                    |
+| Docker Compose (Dev)            | ✅ Complete | `docker-compose.dev.yml`                                      |
+| AI Client Stub                  | ✅ Stubbed  | `ardanova-ai-client/`                                         |
+| Smart Contracts Stub            | ✅ Stubbed  | `contracts/`                                                  |
+| **Project Invitations**         | ✅ Complete | `ArdaNova.Domain/Models/Entities/ProjectInvitation.cs`        |
 | **Project Membership Requests** | ✅ Complete | `ArdaNova.Domain/Models/Entities/ProjectMembershipRequest.cs` |
-| **Guild Invitations** | ✅ Complete | `ArdaNova.Domain/Models/Entities/GuildInvitation.cs` |
-| **Guild Applications** | ✅ Complete | `ArdaNova.Domain/Models/Entities/GuildApplication.cs` |
-| **Events System** | ✅ Complete | `ArdaNova.Domain/Models/Entities/Event.cs` |
-| **Event Attendees** | ✅ Complete | `ArdaNova.Domain/Models/Entities/EventAttendee.cs` |
-| **Event Co-Hosts** | ✅ Complete | `ArdaNova.Domain/Models/Entities/EventCoHost.cs` |
-| **Event Reminders** | ✅ Complete | `ArdaNova.Domain/Models/Entities/EventReminder.cs` |
-| **User Following** | ✅ Complete | `ArdaNova.Domain/Models/Entities/UserFollow.cs` |
-| **Project Following** | ✅ Complete | `ArdaNova.Domain/Models/Entities/ProjectFollow.cs` |
-| **Guild Following** | ✅ Complete | `ArdaNova.Domain/Models/Entities/GuildFollow.cs` |
-| **Trending System** | ✅ Complete | Added to Project, Guild, Post entities |
-| **MembershipCredential Entity** | ✅ Complete | `ArdaNova.Domain/Models/Entities/MembershipCredential.cs` |
-| **MembershipCredential Enums** | ✅ Complete | `MembershipCredentialStatus`, `MembershipGrantType` |
-| **Dual-Asset Model Schema** | ✅ Complete | DBML updated with governance/economic separation |
+| **Guild Invitations**           | ✅ Complete | `ArdaNova.Domain/Models/Entities/GuildInvitation.cs`          |
+| **Guild Applications**          | ✅ Complete | `ArdaNova.Domain/Models/Entities/GuildApplication.cs`         |
+| **Events System**               | ✅ Complete | `ArdaNova.Domain/Models/Entities/Event.cs`                    |
+| **Event Attendees**             | ✅ Complete | `ArdaNova.Domain/Models/Entities/EventAttendee.cs`            |
+| **Event Co-Hosts**              | ✅ Complete | `ArdaNova.Domain/Models/Entities/EventCoHost.cs`              |
+| **Event Reminders**             | ✅ Complete | `ArdaNova.Domain/Models/Entities/EventReminder.cs`            |
+| **User Following**              | ✅ Complete | `ArdaNova.Domain/Models/Entities/UserFollow.cs`               |
+| **Project Following**           | ✅ Complete | `ArdaNova.Domain/Models/Entities/ProjectFollow.cs`            |
+| **Guild Following**             | ✅ Complete | `ArdaNova.Domain/Models/Entities/GuildFollow.cs`              |
+| **Trending System**             | ✅ Complete | Added to Project, Guild, Post entities                        |
+| **MembershipCredential Entity** | ✅ Complete | `ArdaNova.Domain/Models/Entities/MembershipCredential.cs`     |
+| **MembershipCredential Enums**  | ✅ Complete | `MembershipCredentialStatus`, `MembershipGrantType`           |
+| **Dual-Asset Model Schema**     | ✅ Complete | DBML updated with governance/economic separation              |
 
 ### Database Schema Stats
 
-| Metric | Count |
-|--------|-------|
-| Total Entities | 75+ |
-| Total Enums | 48+ |
-| Schema Modules | 10 |
-| New Tables (Jan 2025) | 11 |
-| New Enums (Jan 2025) | 6 |
+| Metric                | Count |
+| --------------------- | ----- |
+| Total Entities        | 75+   |
+| Total Enums           | 48+   |
+| Schema Modules        | 10    |
+| New Tables (Jan 2025) | 11    |
+| New Enums (Jan 2025)  | 6     |
 
 ### In Progress 🔄
 
-| Feature | Status | Notes |
-|---------|--------|-------|
-| **Credential Utility Service** | 🔄 In Progress | Soulbound ASA minting, guild credentials, tier system |
-| **Algorand Integration (.NET)** | 🔄 In Progress | `dotnet-algorand-sdk` for on-chain credential operations |
-| **Guild Credentials** | 🔄 In Progress | Extend MembershipCredential with guildId, XOR validation |
-| **Credential Tier System** | 🔄 In Progress | BRONZE → DIAMOND progression tracked on-chain |
-| **KYC & Identity Verification** | 🔄 In Progress | KYC submission, provider abstraction, PRO gating |
-| **KYC Gate Service** | 🔄 In Progress | Reusable PRO check for ProjectService + CredentialService |
-| Membership Services | 🔄 TODO | CRUD services for invitations/applications |
-| Events Services | 🔄 TODO | CRUD services for events system |
-| Following Services | 🔄 TODO | CRUD services for social following |
-| Trending Analytics Job | 🔄 TODO | Background job to calculate trending scores |
-| DAO UI | 🔄 TODO | Governance proposals, voting |
-| Studio UI | 🔄 TODO | Gamma API integration |
-| Exchange UI | 🔄 TODO | Token swap, liquidity |
-| Explorer UI | 🔄 TODO | Blockchain/token explorer |
-| Agent UI | 🔄 TODO | AI agent chat interface |
-| Game SDK | 🔄 TODO | Unity & Godot SDKs |
+| Feature                         | Status         | Notes                                                              |
+| ------------------------------- | -------------- | ------------------------------------------------------------------ |
+| **Credential Utility Service**  | 🔄 In Progress | Soulbound ASA minting, guild credentials, tier system              |
+| **Algorand Integration (.NET)** | 🔄 In Progress | `dotnet-algorand-sdk` for on-chain credential operations           |
+| **Guild Credentials**           | 🔄 In Progress | Extend MembershipCredential with guildId, XOR validation           |
+| **Credential Tier System**      | 🔄 In Progress | BRONZE → DIAMOND progression tracked on-chain                      |
+| **Azoa Identity & Custody**     | 🔄 In Progress | Tenant orchestration complete; production custody/provider pending |
+| **KYC Gate Service**            | ✅ Implemented | Fresh Azoa approval required by Project/Credential services        |
+| Membership Services             | 🔄 TODO        | CRUD services for invitations/applications                         |
+| Events Services                 | 🔄 TODO        | CRUD services for events system                                    |
+| Following Services              | 🔄 TODO        | CRUD services for social following                                 |
+| Trending Analytics Job          | 🔄 TODO        | Background job to calculate trending scores                        |
+| DAO UI                          | 🔄 TODO        | Governance proposals, voting                                       |
+| Studio UI                       | 🔄 TODO        | Gamma API integration                                              |
+| Exchange UI                     | 🔄 TODO        | Token swap, liquidity                                              |
+| Explorer UI                     | 🔄 TODO        | Blockchain/token explorer                                          |
+| Agent UI                        | 🔄 TODO        | AI agent chat interface                                            |
+| Game SDK                        | 🔄 TODO        | Unity & Godot SDKs                                                 |
 
 ### Known Issues
 
 | Issue | Workaround | Status |
-|-------|------------|--------|
-
+| ----- | ---------- | ------ |
 
 ---
 

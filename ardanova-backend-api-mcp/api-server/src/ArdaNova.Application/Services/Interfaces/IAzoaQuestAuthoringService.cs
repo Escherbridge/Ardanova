@@ -51,13 +51,13 @@ public interface IAzoaQuestAuthoringService
 /// Application-layer PORT onto the AZOA node's quest surface, used by
 /// <c>AzoaQuestAuthoringService</c> and <c>AzoaQuestSignalService</c>.
 ///
-/// Why this exists: the typed-HttpClient transport (<c>IAzoaNodeClient</c>) lives
+/// Why this exists: the typed-HttpClient transport (<c>IAzoaQuestNodeClient</c>) lives
 /// in <c>ArdaNova.Infrastructure.Azoa</c>, and the Application layer must not (and
 /// at compile time cannot) reference Infrastructure. This port is the seam — the
 /// same dependency-inversion pattern used by <c>IAzoaAvatarNode</c> and
 /// <c>IAlgorandService</c>. An Infrastructure adapter
 /// (<c>AzoaQuestNodeAdapter</c>) maps these calls onto
-/// <c>IAzoaNodeClient.PostAsync&lt;T&gt;</c>/<c>GetAsync&lt;T&gt;</c> and the real
+/// <c>IAzoaQuestNodeClient.PostAsync&lt;T&gt;</c>/<c>GetAsync&lt;T&gt;</c> and the real
 /// quest endpoints, and registers itself against this port.
 ///
 /// The port speaks only in Application-owned records so no Infrastructure wire

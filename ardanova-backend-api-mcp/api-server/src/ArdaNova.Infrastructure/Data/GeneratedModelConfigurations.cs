@@ -22,6 +22,7 @@ public static class GeneratedModelConfigurations
         modelBuilder.Entity<MembershipCredential>().HasIndex(e => new { e.guildId, e.userId }).IsUnique();
         modelBuilder.Entity<WalletVerificationChallenge>().HasIndex(e => new { e.walletId, e.consumedAt });
         modelBuilder.Entity<WalletVerificationChallenge>().HasIndex(e => new { e.userId, e.expiresAt });
+        modelBuilder.Entity<ActorAssertionReplay>().HasIndex(e => new { e.expiresAt, e.jti });
         modelBuilder.Entity<ConversationMember>().HasIndex(e => new { e.conversationId, e.userId }).IsUnique();
         modelBuilder.Entity<ChatMessage>().HasIndex(e => new { e.conversationId, e.sentAt });
         modelBuilder.Entity<EventAttendee>().HasIndex(e => new { e.eventId, e.userId }).IsUnique();

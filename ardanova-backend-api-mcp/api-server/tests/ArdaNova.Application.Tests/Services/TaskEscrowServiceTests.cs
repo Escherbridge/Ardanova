@@ -255,12 +255,40 @@ public class TaskEscrowServiceTests
         _mapperMock.Setup(m => m.Map<TaskEscrowDto>(It.IsAny<TaskEscrow>())).Returns(escrowDto);
 
         // Act
-        var result = await _sut.DisputeAsync(escrowId);
+        var result = await _sut.DisputeAsync(escrowId, new DisputeEscrowDto
+        {
+            Reason = "scope_dispute",
+            Description = "The requested deliverable materially exceeded the agreed scope.",
+            DisputedByUserId = funderId
+        });
 
         // Assert
         result.IsSuccess.Should().BeTrue();
         result.Value!.Status.Should().Be(EscrowStatus.DISPUTED);
         task.escrowStatus.Should().Be(EscrowStatus.DISPUTED);
+        escrow.disputeReason.Should().Be("SCOPE_DISPUTE");
+        escrow.disputeDescription.Should().Be("The requested deliverable materially exceeded the agreed scope.");
+        escrow.disputedByUserId.Should().Be(funderId);
+        escrow.disputedAt.Should().NotBeNull();
+    }
+
+    [Theory]
+    [InlineData("UNKNOWN", "The narrative is long enough to otherwise be accepted.")]
+    [InlineData("OTHER", "Too short")]
+    public async Task DisputeAsync_WithInvalidContext_ReturnsValidationError(string reason, string description)
+    {
+        var result = await _sut.DisputeAsync("escrow-1", new DisputeEscrowDto
+        {
+            Reason = reason,
+            Description = description,
+            DisputedByUserId = "actor-1"
+        });
+
+        result.IsSuccess.Should().BeFalse();
+        result.Type.Should().Be(ResultType.ValidationError);
+        _repositoryMock.Verify(
+            repository => repository.GetByIdAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 
     [Fact]

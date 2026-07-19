@@ -203,6 +203,45 @@ public class OpportunityServiceTests
     }
 
     [Fact]
+    public async Task CreateAsync_PreservesRoleEquityAndApplicationStateInTheBackendContract()
+    {
+        var posterId = Guid.NewGuid().ToString();
+        var dto = new CreateOpportunityDto
+        {
+            PosterId = posterId,
+            Title = "Neighborhood mapper",
+            Description = "Map neighborhood heat and cooling resources.",
+            Type = OpportunityType.PROJECT_ROLE,
+            ExperienceLevel = ExperienceLevel.MID,
+            CompensationDetails = "negotiable",
+            EquityPercent = 2.5m,
+            IsOpenForApplications = true,
+        };
+        Opportunity? captured = null;
+        _repositoryMock
+            .Setup(repository => repository.AddAsync(It.IsAny<Opportunity>(), It.IsAny<CancellationToken>()))
+            .Callback<Opportunity, CancellationToken>((opportunity, _) => captured = opportunity)
+            .ReturnsAsync((Opportunity opportunity, CancellationToken _) => opportunity);
+        _unitOfWorkMock.Setup(unit => unit.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(1);
+        _userRepositoryMock
+            .Setup(repository => repository.GetByIdAsync(posterId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((User?)null);
+        _mapperMock.Setup(mapper => mapper.Map<OpportunityDto>(It.IsAny<Opportunity>()))
+            .Returns(new OpportunityDto { Title = dto.Title });
+
+        var result = await _sut.CreateAsync(dto);
+
+        result.IsSuccess.Should().BeTrue();
+        captured.Should().NotBeNull();
+        captured!.status.Should().Be(OpportunityStatus.OPEN);
+        captured.compensationDetails.Should().StartWith("ardanova-role:v1:");
+        result.Value!.EquityPercent.Should().Be(2.5m);
+        result.Value.IsOpenForApplications.Should().BeTrue();
+        result.Value.CompensationDetails.Should().Be("negotiable");
+    }
+
+    [Fact]
     public async Task DeleteAsync_WhenOpportunityExists_ReturnsSuccess()
     {
         // Arrange

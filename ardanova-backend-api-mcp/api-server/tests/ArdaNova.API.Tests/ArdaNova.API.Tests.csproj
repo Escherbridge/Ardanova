@@ -10,11 +10,6 @@
   <ItemGroup>
     <PackageReference Include="coverlet.collector" Version="6.0.2" />
     <PackageReference Include="FluentAssertions" Version="6.12.2" />
-    <PackageReference Include="Microsoft.Extensions.Configuration" Version="10.0.0" />
-    <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.0" />
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.4" />
-    <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.0" />
-    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.4" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
     <PackageReference Include="Moq" Version="4.20.72" />
     <PackageReference Include="xunit" Version="2.9.2" />
@@ -35,6 +30,18 @@
     <Compile Include="..\..\src\ArdaNova.API\Controllers\TaskEscrowsController.cs" Link="Controllers\TaskEscrowsController.cs" />
     <Compile Include="..\..\src\ArdaNova.API\Controllers\OpportunityBidsController.cs" Link="Controllers\OpportunityBidsController.cs" />
     <Compile Include="..\..\src\ArdaNova.API\Controllers\TasksController.cs" Link="Controllers\TasksController.cs" />
+    <Compile Include="..\..\src\ArdaNova.API\Controllers\EpicsController.cs" Link="Controllers\EpicsController.cs" />
+    <Compile Include="..\..\src\ArdaNova.API\Controllers\SprintsController.cs" Link="Controllers\SprintsController.cs" />
+    <Compile Include="..\..\src\ArdaNova.API\Controllers\FeaturesController.cs" Link="Controllers\FeaturesController.cs" />
+    <Compile Include="..\..\src\ArdaNova.API\Controllers\ProductBacklogItemsController.cs" Link="Controllers\ProductBacklogItemsController.cs" />
+    <Compile Include="..\..\src\ArdaNova.API\Controllers\ProjectsController.cs" Link="Controllers\ProjectsController.cs" />
+    <Compile Include="..\..\src\ArdaNova.API\Controllers\ProjectTokensController.cs" Link="Controllers\ProjectTokensController.cs" />
+    <Compile Include="..\..\src\ArdaNova.API\Controllers\CredentialUtilityController.cs" Link="Controllers\CredentialUtilityController.cs" />
+    <Compile Include="..\..\src\ArdaNova.API\Controllers\MembershipCredentialsController.cs" Link="Controllers\MembershipCredentialsController.cs" />
+    <Compile Include="..\..\src\ArdaNova.API\Controllers\GovernanceController.cs" Link="Controllers\GovernanceController.cs" />
+    <Compile Include="..\..\src\ArdaNova.API\Controllers\ReferralsController.cs" Link="Controllers\ReferralsController.cs" />
+    <Compile Include="..\..\src\ArdaNova.API\Controllers\AzoaAvatarController.cs" Link="Controllers\AzoaAvatarController.cs" />
+    <Compile Include="..\..\src\ArdaNova.API\Controllers\DelegatedVotesController.cs" Link="Controllers\DelegatedVotesController.cs" />
     <Compile Include="..\..\src\ArdaNova.API\Middleware\ApiKeyMiddleware.cs" Link="Middleware\ApiKeyMiddleware.cs" />
     <Compile Include="..\..\src\ArdaNova.API\Middleware\ActorAssertionMiddleware.cs" Link="Middleware\ActorAssertionMiddleware.cs" />
     <Compile Include="..\..\src\ArdaNova.API\EventBus\Abstractions\*.cs" Link="EventBus\Abstractions\%(Filename)%(Extension)" />

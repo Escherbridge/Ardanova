@@ -48,4 +48,5 @@ public sealed class EconomicOutboxDispatchOptions
 {
     public bool Enabled { get; init; }
     public int BatchSize { get; init; } = 10;
+    public TimeSpan Interval { get; init; } = TimeSpan.FromSeconds(15);
 }

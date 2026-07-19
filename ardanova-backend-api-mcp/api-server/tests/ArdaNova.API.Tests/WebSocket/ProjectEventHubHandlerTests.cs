@@ -41,7 +41,7 @@ public class ProjectEventHubHandlerTests
     }
 
     [Fact]
-    public async Task HandleAsync_ProjectCreatedEvent_NotifiesOwnerAndAllGroups()
+    public async Task HandleAsync_ProjectCreatedEvent_NotifiesOnlyOwnerGroup()
     {
         // Arrange
         var ownerId = Guid.NewGuid().ToString();
@@ -57,9 +57,7 @@ public class ProjectEventHubHandlerTests
             o.GetType().GetProperty("projectId")!.GetValue(o)!.Equals(projectId))), Times.Once);
         ownerGroup.Verify(c => c.ReceiveEvent("project.created", It.IsAny<object>()), Times.Once);
 
-        // Assert - "all" group should receive ProjectCreated
-        var allGroup = _groupClients["all"];
-        allGroup.Verify(c => c.ProjectCreated(It.IsAny<object>()), Times.Once);
+        _groupClients.Keys.Should().NotContain("all");
     }
 
     [Fact]

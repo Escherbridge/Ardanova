@@ -16,14 +16,22 @@ public class ProjectService : IProjectService
     private readonly IUnitOfWork _unitOfWork;
     private readonly IMapper _mapper;
     private readonly IKycGateService _kycGateService;
+    private readonly IAzoaCustodialAccountService _custodialAccountService;
 
-    public ProjectService(IProjectRepository repository, IRepository<User> userRepository, IUnitOfWork unitOfWork, IMapper mapper, IKycGateService kycGateService)
+    public ProjectService(
+        IProjectRepository repository,
+        IRepository<User> userRepository,
+        IUnitOfWork unitOfWork,
+        IMapper mapper,
+        IKycGateService kycGateService,
+        IAzoaCustodialAccountService custodialAccountService)
     {
         _repository = repository;
         _userRepository = userRepository;
         _unitOfWork = unitOfWork;
         _mapper = mapper;
         _kycGateService = kycGateService;
+        _custodialAccountService = custodialAccountService;
     }
 
     public async Task<Result<ProjectDto>> GetByIdAsync(string id, CancellationToken ct = default)
@@ -167,6 +175,28 @@ public class ProjectService : IProjectService
 
     public async Task<Result<ProjectDto>> CreateAsync(CreateProjectDto dto, CancellationToken ct = default)
     {
+        var custodyResult = await _custodialAccountService.GetStatusAsync(dto.CreatedById, ct);
+        if (!custodyResult.IsSuccess)
+        {
+            return Result<ProjectDto>.Forbidden(
+                custodyResult.Error ?? "Azoa account readiness could not be confirmed.");
+        }
+
+        var custody = custodyResult.Value!;
+        if (!custody.Ready
+            || !custody.IdentityReady
+            || string.IsNullOrWhiteSpace(custody.AvatarId)
+            || !custody.KycReady
+            || custody.KycStatus != AzoaKycStatus.Approved
+            || !custody.WalletReady
+            || string.IsNullOrWhiteSpace(custody.WalletId)
+            || string.IsNullOrWhiteSpace(custody.WalletAddress))
+        {
+            return Result<ProjectDto>.Forbidden(
+                custody.UnavailableReason
+                ?? "Azoa must confirm the action account, identity verification, and managed wallet before project creation.");
+        }
+
         var gateResult = await _kycGateService.RequireProAsync(dto.CreatedById, ct);
         if (!gateResult.IsSuccess)
             return Result<ProjectDto>.Forbidden(gateResult.Error!);
@@ -358,7 +388,6 @@ public class ProjectTaskService : IProjectTaskService
         if (dto.Priority.HasValue) task.priority = dto.Priority.Value;
         if (dto.EstimatedHours.HasValue) task.estimatedHours = dto.EstimatedHours;
         if (dto.DueDate.HasValue) task.dueDate = dto.DueDate;
-        if (dto.AssignedToId is not null) task.assignedToId = dto.AssignedToId;
 
         task.updatedAt = DateTime.UtcNow;
 

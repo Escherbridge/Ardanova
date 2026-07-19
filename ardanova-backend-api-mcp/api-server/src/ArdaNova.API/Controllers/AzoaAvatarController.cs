@@ -6,6 +6,7 @@ using ArdaNova.Application.Common.Results;
 using ArdaNova.Application.DTOs;
 using ArdaNova.Application.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
 /// <summary>
@@ -28,10 +29,10 @@ public class AzoaAvatarController : ControllerBase
     /// POST /api/azoa/avatar/ensure
     /// </summary>
     [HttpPost("ensure")]
-    public async Task<IActionResult> EnsureAvatar(CancellationToken ct)
+    public IActionResult EnsureAvatar(CancellationToken ct)
     {
-        var result = await _avatarService.EnsureAvatarAsync(ActorId, ct);
-        return ToActionResult(result);
+        _ = ct;
+        return LegacyMutationGone();
     }
 
     /// <summary>
@@ -41,10 +42,10 @@ public class AzoaAvatarController : ControllerBase
     /// POST /api/azoa/avatar/wallet
     /// </summary>
     [HttpPost("wallet")]
-    public async Task<IActionResult> EnsureWallet(CancellationToken ct)
+    public IActionResult EnsureWallet(CancellationToken ct)
     {
-        var result = await _avatarService.EnsureWalletAsync(ActorId, ct);
-        return ToActionResult(result);
+        _ = ct;
+        return LegacyMutationGone();
     }
 
     /// <summary>
@@ -62,6 +63,12 @@ public class AzoaAvatarController : ControllerBase
     /// The actor policy guarantees this claim is present.
     /// </summary>
     private string ActorId => User.FindFirstValue(ClaimTypes.NameIdentifier)!;
+
+    private IActionResult LegacyMutationGone()
+        => Problem(
+            statusCode: StatusCodes.Status410Gone,
+            title: "Legacy Azoa onboarding route retired",
+            detail: "Use /api/azoa/custodial-account for tenant-bound avatar, wallet, and KYC onboarding.");
 
     private IActionResult ToActionResult<T>(Result<T> result)
     {

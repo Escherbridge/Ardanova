@@ -84,7 +84,7 @@ ANTHROPIC_API_KEY=your-api-key
 MCP_SERVER_URL=http://localhost:8080
 
 # API Key for backend
-API_KEY=your-api-key
+API_KEY=
 
 # Server
 PORT=8081
@@ -92,12 +92,12 @@ PORT=8081
 
 ## API Endpoints
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/health` | GET | Health check |
-| `/api/agent/chat` | POST | Send message to agent |
-| `/api/agent/stream` | POST | Streaming chat response |
-| `/api/agent/context` | GET | Get agent context |
+| Endpoint             | Method | Description             |
+| -------------------- | ------ | ----------------------- |
+| `/health`            | GET    | Health check            |
+| `/api/agent/chat`    | POST   | Send message to agent   |
+| `/api/agent/stream`  | POST   | Streaming chat response |
+| `/api/agent/context` | GET    | Get agent context       |
 
 ## Agent Commands
 
@@ -113,6 +113,7 @@ The AI agents support natural language commands:
 ## Integration
 
 The AI client connects to:
+
 1. **Claude API** - For LLM inference
 2. **ArdaNova MCP Server** - For tool execution (40+ tools)
 3. **Gamma API** - For pitch generation

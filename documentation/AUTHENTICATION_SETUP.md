@@ -1,164 +1,168 @@
-# ArdaNova Authentication Setup Guide
+# ArdaNova authentication setup
 
-## Overview
-This guide will help you set up authentication for the ArdaNova platform using Google, GitHub, and Discord OAuth providers.
+ArdaNova uses NextAuth v5 with Google OAuth, JWT sessions, and custom Prisma user synchronization. Google is the only configured provider in the current frontend. A successful provider callback is not sufficient on its own: protected tRPC procedures also require a persisted ArdaNova user ID in the session.
 
 ## Prerequisites
-- Node.js and npm installed
-- A Google Cloud Console account
-- A GitHub account (for GitHub OAuth)
-- A Discord account (for Discord OAuth)
-- A MySQL database (already configured in your project)
 
-## Step 1: Generate AUTH_SECRET
+- Node.js 20+ and npm 10+
+- PostgreSQL reachable through `DATABASE_URL`
+- a Google Cloud project with an OAuth 2.0 web client
+- separate Google OAuth credentials for local development and production
 
-First, generate a secure secret for NextAuth:
+## 1. Generate the session secret
+
+Generate at least 32 cryptographically random characters. For example:
 
 ```bash
-node scripts/generate-secret.js
+node -e "console.log(require('node:crypto').randomBytes(48).toString('base64url'))"
 ```
 
-Copy the generated `AUTH_SECRET` to your `.env` file.
+Store the value as `AUTH_SECRET`. Never commit it, expose it through a `NEXT_PUBLIC_` variable, or reuse the production value in local development.
 
-## Step 2: Set Up Google OAuth
+## 2. Configure Google OAuth
 
-### 2.1 Create Google Cloud Project
-1. Go to [Google Cloud Console](https://console.cloud.google.com/)
-2. Create a new project or select an existing one
-3. Enable the Google+ API (or Google Identity API)
+In Google Cloud Console, create an OAuth 2.0 client with application type **Web application**.
 
-### 2.2 Create OAuth 2.0 Credentials
-1. Go to "APIs & Services" → "Credentials"
-2. Click "Create Credentials" → "OAuth 2.0 Client IDs"
-3. Set Application Type to "Web application"
-4. Add Authorized Redirect URIs:
-   - `http://localhost:3000/api/auth/callback/google` (development)
-   - `https://yourdomain.com/api/auth/callback/google` (production)
-5. Copy the Client ID and Client Secret
+For local development, configure:
 
-### 2.3 Add to Environment Variables
-Add these to your `.env` file:
-```env
-GOOGLE_CLIENT_ID=your-google-client-id
-GOOGLE_CLIENT_SECRET=your-google-client-secret
+```text
+Authorized JavaScript origin: http://localhost:3000
+Authorized redirect URI:     http://localhost:3000/api/auth/callback/google
 ```
 
-## Step 3: Set Up GitHub OAuth
+If a different local port is used, both values must use that exact origin. For Railway, add the final HTTPS domain and its callback:
 
-### 3.1 Create GitHub OAuth App
-1. Go to [GitHub Settings → Developer settings → OAuth Apps](https://github.com/settings/developers)
-2. Click "New OAuth App"
-3. Fill in the details:
-   - Application name: "ArdaNova"
-   - Homepage URL: `http://localhost:3000` (development)
-   - Authorization callback URL: `http://localhost:3000/api/auth/callback/github`
-4. Copy the Client ID and Client Secret
-
-### 3.2 Add to Environment Variables
-Add these to your `.env` file:
-```env
-GITHUB_CLIENT_ID=your-github-client-id
-GITHUB_CLIENT_SECRET=your-github-client-secret
+```text
+Authorized JavaScript origin: https://your-frontend-domain
+Authorized redirect URI:     https://your-frontend-domain/api/auth/callback/google
 ```
 
-## Step 4: Set Up Discord OAuth
+Copy the client ID and secret into `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`.
 
-### 4.1 Create Discord Application
-1. Go to [Discord Developer Portal](https://discord.com/developers/applications)
-2. Click "New Application"
-3. Go to "OAuth2" → "General"
-4. Copy the Client ID and Client Secret
-5. Add redirect URI: `http://localhost:3000/api/auth/callback/discord`
+## 3. Configure the frontend environment
 
-### 4.2 Add to Environment Variables
-Add these to your `.env` file:
-```env
-AUTH_DISCORD_ID=your-discord-client-id
-AUTH_DISCORD_SECRET=your-discord-client-secret
-```
-
-## Step 5: Complete Environment Setup
-
-Your `.env` file should look like this:
+Use `ardanova-client/.env.example` as the source list. The authentication subset is:
 
 ```env
-# Authentication
-AUTH_SECRET=your-generated-secret-here
-
-# Google OAuth
-GOOGLE_CLIENT_ID=your-google-client-id
-GOOGLE_CLIENT_SECRET=your-google-client-secret
-
-# GitHub OAuth
-GITHUB_CLIENT_ID=your-github-client-id
-GITHUB_CLIENT_SECRET=your-github-client-secret
-
-# Discord OAuth
-AUTH_DISCORD_ID=your-discord-client-id
-AUTH_DISCORD_SECRET=your-discord-client-secret
-
-# Database
-DATABASE_URL=your-mysql-database-url
-
-# Environment
-NODE_ENV=development
+AUTH_SECRET=replace-with-a-random-secret-of-at-least-32-characters
+AUTH_URL=http://localhost:3000
+GOOGLE_CLIENT_ID=replace-with-google-client-id
+GOOGLE_CLIENT_SECRET=replace-with-google-client-secret
+DEV_AUTH_BYPASS=false
 ```
 
-## Step 6: Test Authentication
+`AUTH_URL` must be the browser-visible origin, not the .NET backend URL. In Railway it must use the final public HTTPS domain.
 
-1. Start your development server:
-   ```bash
-   npm run dev
-   ```
+The application also needs a working PostgreSQL `DATABASE_URL`. On first successful Google sign-in, the callback requires Google's verified-email claim and atomically creates both the ArdaNova user and an `Account` link keyed by Google's immutable provider subject. JWT claims resolve through that link on sign-in and through the persisted user ID on refresh; email is never the account-linking key.
 
-2. Navigate to `http://localhost:3000/auth/signin`
+An existing `User` row with the same email but no Google `Account` row is deliberately not linked during sign-in. Legacy accounts from before immutable provider linking need an explicit, operator-reviewed link or a future authenticated account-linking flow. Do not backfill provider subjects from email alone.
 
-3. Test each authentication provider:
-   - Click "Continue with Google" to test Google OAuth
-   - Click "Continue with GitHub" to test GitHub OAuth
-   - Click "Continue with Discord" to test Discord OAuth
+For an operator-reviewed legacy link:
+
+1. Have the user complete a fresh Google OpenID Connect flow for the same deployed OAuth client through a controlled server-side linking workflow. Verify the returned ID token with Google Auth Library's `OAuth2Client.verifyIdToken({ idToken, audience: GOOGLE_CLIENT_ID })`; do not merely decode it. Require the verified payload's `email_verified` to be `true`, then record only its immutable `sub`. Never place the raw token in shell history or logs.
+2. Independently confirm the intended persisted ArdaNova user ID. An email match alone is not sufficient evidence.
+3. In a shell with the target database's `DATABASE_URL`, set `LEGACY_LINK_USER_ID`, `LEGACY_LINK_GOOGLE_SUB`, and the one-run opt-in `ALLOW_LEGACY_GOOGLE_ACCOUNT_LINK=true`.
+4. From `ardanova-client`, run `npm run auth:link-google-account`. The command refuses missing users, subject collisions, and users that already have a Google link.
+5. Clear all three linking variables, then complete a normal Google sign-in and verify `/api/auth/session` contains the expected persisted user ID.
+
+Before rollout, count users that still need coordination without returning identity data:
+
+```sql
+SELECT COUNT(*) AS unlinked_google_users
+FROM "User" AS users
+WHERE NOT EXISTS (
+  SELECT 1
+  FROM "Account" AS accounts
+  WHERE accounts."userId" = users.id
+    AND accounts.provider = 'google'
+);
+```
+
+A brand-new verified Google identity can use either the sign-in or sign-up entry point: the callback creates its user and immutable account link in one write. A returning identity with an existing Google `Account` link also continues normally. Any nonzero legacy count represents users who will be denied after rollout until the explicit linking procedure is completed; do not deploy this boundary as a silent migration.
+
+## 4. Local interface preview
+
+For frontend design and browser work without Google credentials, local development can use:
+
+```env
+DEV_AUTH_BYPASS=true
+```
+
+The preview is deliberately narrow:
+
+- it is accepted only when `NODE_ENV=development` and the process is not hosted by Railway or Vercel;
+- it creates a visibly marked page session so authenticated layouts can be inspected;
+- it does not authorize tRPC, SDK, realtime, admin, ownership, or transaction APIs;
+- it must be absent or `false` in every deployed environment.
+
+Turn the flag off before testing the real provider flow.
+
+## 5. Exercise the flow locally
+
+Start the frontend and open `/auth/signin`:
+
+```bash
+npm run dev
+```
+
+Verify:
+
+1. **Continue with Google** starts the NextAuth Google flow.
+2. Google returns to `/api/auth/callback/google` on the same origin.
+3. The callback verifies the Google identity, creates or resolves its immutable account link, and redirects to `/dashboard`. Returning linked users resolve their persisted ArdaNova profile; the callback does not overwrite those profile fields from Google.
+4. `/api/auth/session` contains the persisted ArdaNova user ID.
+5. Protected tRPC operations reject requests after sign-out.
+6. `/auth/error` presents a safe branded recovery state without raw provider details.
+
+## 6. Production and Railway validation
+
+Configure all authentication variables as Railway service variables. The frontend also requires two distinct sealed server secrets: `ADMIN_API_KEY` for privileged BFF-to-API calls and `ACTOR_ASSERTION_HMAC_KEY` for binding ordinary BFF calls to the signed-in actor. Each must contain at least 32 bytes and use the same respective value on the .NET API service. Do not expose either key to the browser, and do not configure `DEV_AUTH_BYPASS`.
+
+After deploying, verify the released domain rather than only the local build:
+
+| Check                                | Expected result                                                   |
+| ------------------------------------ | ----------------------------------------------------------------- |
+| `/auth/signin`                       | Branded sign-in page renders                                      |
+| `/api/auth/providers`                | Google provider is present                                        |
+| `/api/auth/session` while signed out | No authenticated user                                             |
+| `/dashboard` while signed out        | Redirects to `/auth/signin`                                       |
+| Google authorization request         | Uses the deployed HTTPS origin                                    |
+| Google callback                      | Matches the approved production callback exactly                  |
+| `/api/ready`                         | Returns HTTP 200 with valid configuration and a reachable backend |
+
+Also inspect Railway logs for environment validation, provider, database, or callback errors. The frontend release sequence is documented in `documentation/FRONTEND_RELEASE_PLAYBOOK.md`.
 
 ## Troubleshooting
 
-### Common Issues
+### Configuration error on `/api/auth/error`
 
-1. **"Invalid redirect URI" error**
-   - Ensure the redirect URI in your OAuth app matches exactly
-   - Check for trailing slashes or protocol mismatches
+Check that all four required auth variables are present, `AUTH_SECRET` is at least 32 characters, the database is reachable, and the deployed `AUTH_URL` matches the current domain.
 
-2. **"Client ID not found" error**
-   - Verify your environment variables are set correctly
-   - Restart your development server after adding environment variables
+### Redirect URI mismatch
 
-3. **Database connection issues**
-   - Ensure your MySQL database is running
-   - Check your DATABASE_URL format
-   - Run `npm run db:push` to sync your database schema
+Compare protocol, hostname, port, path, and trailing slash character-for-character between Google Cloud and the request. The callback path is `/api/auth/callback/google`.
 
-### Environment Variable Validation
+Use `/api/auth/providers` as the runtime source of truth: its Google `callbackUrl`
+must match the browser origin and the Google Cloud allow-list. For example, a
+development server that moved from port `3100` back to `3000` must use
+`http://localhost:3000/api/auth/callback/google` in all three places: `AUTH_URL`,
+the provider response, and Google Cloud. Restart the frontend after changing
+`AUTH_URL`; NextAuth reads it when the server process starts.
 
-The app will validate your environment variables on startup. If any required variables are missing, you'll see clear error messages in the console.
+### Sign-in succeeds but protected APIs reject the session
 
-## Security Notes
+Check the Prisma user synchronization and server logs. The authorization boundary requires a non-empty persisted user ID; an OAuth profile without a synchronized ArdaNova user is intentionally not enough.
 
-- Never commit your `.env` file to version control
-- Keep your OAuth client secrets secure
-- Use different OAuth apps for development and production
-- Regularly rotate your AUTH_SECRET in production
+### Local preview does not appear
 
-## Next Steps
+Confirm `DEV_AUTH_BYPASS=true`, `NODE_ENV=development`, and restart the development server. Preview mode is intentionally ignored in hosted environments.
 
-Once authentication is working:
-1. Test user registration and login flow
-2. Verify user data is being stored in your database
-3. Test the dashboard access after authentication
-4. Implement user profile management
-5. Add role-based access control
+## Security invariants
 
-## Support
-
-If you encounter issues:
-1. Check the browser console for errors
-2. Check the server console for authentication errors
-3. Verify all environment variables are set correctly
-4. Ensure your OAuth apps are configured properly
+- Use Google OAuth through the branded server action; do not construct provider URLs manually.
+- Require `email_verified: true` and bind identity to Google's immutable subject through the Prisma `Account` unique key; never implicitly link a pre-existing local user by email.
+- Never use email addresses, predictable values, or frontend-generated strings as bearer tokens.
+- Do not add provider scopes unless a product feature requires them and the consent impact is documented.
+- Clear stale custom JWT claims when the database user is missing or synchronization fails.
+- Keep auth diagnostics free of email addresses, tokens, raw redirects, and provider secrets in production.
+- Re-run the auth route matrix after changing domains, credentials, session callbacks, or user synchronization.

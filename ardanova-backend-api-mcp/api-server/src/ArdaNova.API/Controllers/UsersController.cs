@@ -1,8 +1,11 @@
 namespace ArdaNova.API.Controllers;
 
+using System.Security.Claims;
+using ArdaNova.API.Middleware;
 using ArdaNova.Application.Common.Results;
 using ArdaNova.Application.DTOs;
 using ArdaNova.Application.Services.Interfaces;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 [ApiController]
@@ -54,6 +57,7 @@ public class UsersController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Policy = AuthorizationPolicies.AdminApiKey)]
     public async Task<IActionResult> Create([FromBody] CreateUserDto dto, CancellationToken ct)
     {
         var result = await _userService.CreateAsync(dto, ct);
@@ -63,27 +67,35 @@ public class UsersController : ControllerBase
     }
 
     [HttpPut("{id}")]
+    [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
     public async Task<IActionResult> Update(string id, [FromBody] UpdateUserDto dto, CancellationToken ct)
     {
+        if (!IsActor(id)) return Forbid();
         var result = await _userService.UpdateAsync(id, dto, ct);
         return ToActionResult(result);
     }
 
     [HttpDelete("{id}")]
+    [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
     public async Task<IActionResult> Delete(string id, CancellationToken ct)
     {
+        if (!IsActor(id)) return Forbid();
         var result = await _userService.DeleteAsync(id, ct);
         return result.IsSuccess ? NoContent() : ToActionResult(result);
     }
 
     [HttpPost("{id}/verify")]
+    [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
     public async Task<IActionResult> Verify(string id, CancellationToken ct)
     {
+        if (!IsActor(id)) return Forbid();
         var result = await _userService.VerifyAsync(id, ct);
         return ToActionResult(result);
     }
 
     [HttpPut("{id}/role")]
+    [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
+    [Authorize(Policy = AuthorizationPolicies.AdminApiKey)]
     public async Task<IActionResult> UpdateRole(string id, [FromBody] AdminUpdateUserRoleDto dto, CancellationToken ct)
     {
         var result = await _userService.UpdateRoleAsync(id, dto, ct);
@@ -91,6 +103,8 @@ public class UsersController : ControllerBase
     }
 
     [HttpPut("{id}/user-type")]
+    [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
+    [Authorize(Policy = AuthorizationPolicies.AdminApiKey)]
     public async Task<IActionResult> UpdateUserType(string id, [FromBody] AdminUpdateUserTypeDto dto, CancellationToken ct)
     {
         var result = await _userService.UpdateUserTypeAsync(id, dto, ct);
@@ -98,20 +112,23 @@ public class UsersController : ControllerBase
     }
 
     [HttpPut("{id}/verification-level")]
-    public async Task<IActionResult> UpdateVerificationLevel(string id, [FromBody] AdminUpdateVerificationLevelDto dto, CancellationToken ct)
-    {
-        var result = await _userService.UpdateVerificationLevelAsync(id, dto, ct);
-        return ToActionResult(result);
-    }
+    [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
+    [Authorize(Policy = AuthorizationPolicies.AdminApiKey)]
+    public IActionResult UpdateVerificationLevel(string id, [FromBody] AdminUpdateVerificationLevelDto dto)
+        => StatusCode(StatusCodes.Status410Gone, new
+        {
+            error = "Direct verification-level mutation is retired; AZOA KYC is authoritative."
+        });
 
     // ---- Follow Endpoints ----
 
     [HttpPost("{id}/follow")]
+    [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
     public async Task<IActionResult> Follow(string id, [FromBody] CreateUserFollowDto dto, CancellationToken ct)
     {
         var followDto = new CreateUserFollowDto
         {
-            FollowerId = dto.FollowerId,
+            FollowerId = ActorId,
             FollowingId = id
         };
         var result = await _userFollowService.FollowAsync(followDto, ct);
@@ -119,9 +136,10 @@ public class UsersController : ControllerBase
     }
 
     [HttpDelete("{id}/follow")]
+    [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
     public async Task<IActionResult> Unfollow(string id, [FromQuery] string followerId, CancellationToken ct)
     {
-        var result = await _userFollowService.UnfollowAsync(followerId, id, ct);
+        var result = await _userFollowService.UnfollowAsync(ActorId, id, ct);
         return result.IsSuccess ? NoContent() : ToActionResult(result);
     }
 
@@ -140,9 +158,10 @@ public class UsersController : ControllerBase
     }
 
     [HttpGet("{id}/follow/check")]
+    [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
     public async Task<IActionResult> IsFollowing(string id, [FromQuery] string followerId, CancellationToken ct)
     {
-        var result = await _userFollowService.IsFollowingAsync(followerId, id, ct);
+        var result = await _userFollowService.IsFollowingAsync(ActorId, id, ct);
         return ToActionResult(result);
     }
 
@@ -167,4 +186,9 @@ public class UsersController : ControllerBase
             _ => BadRequest(new { error = result.Error })
         };
     }
+
+    private string ActorId => User.FindFirstValue(ClaimTypes.NameIdentifier)!;
+
+    private bool IsActor(string userId)
+        => string.Equals(ActorId, userId, StringComparison.Ordinal);
 }

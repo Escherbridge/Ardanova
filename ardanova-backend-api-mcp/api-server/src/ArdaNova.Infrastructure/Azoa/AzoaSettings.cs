@@ -3,11 +3,11 @@ namespace ArdaNova.Infrastructure.Azoa;
 /// <summary>
 /// Configuration for the shared/managed AZOA blockchain-node integration.
 /// Bound from the "Azoa" config section and/or environment variables
-/// (e.g. <c>Azoa__TenantApiKey</c> from the secret store — never committed).
+/// (for example <c>Azoa__CustodyApiKey</c>, <c>Azoa__ValueApiKey</c>, and
+/// <c>Azoa__QuestApiKey</c>).
 ///
-/// Per the locked integration contract (§11): ArdaNova integrates a
-/// shared/managed AZOA node (the node operator custodies keys), with
-/// self-register + self-run avatars (no tenant:provision, no acting-as path).
+/// ArdaNova integrates a tenant-bound AZOA node. The node operator owns the
+/// custody and provider configuration; ArdaNova receives only safe references.
 /// </summary>
 public class AzoaSettings
 {
@@ -19,11 +19,17 @@ public class AzoaSettings
     public string BaseUrl { get; set; } = string.Empty;
 
     /// <summary>
-    /// The tenant API key sent as the <c>X-Api-Key</c> header. Deploy-time secret,
-    /// read from the secret store as <c>Azoa__TenantApiKey</c>. NEVER committed.
-    /// Must carry the <c>nft:mint</c> / <c>wallet:manage</c> scopes (NOT
-    /// <c>tenant:provision</c>, per the self-run model §11.2).
+    /// Custody-only key for tenant onboarding, managed wallets, and KYC.
     /// </summary>
+    public string CustodyApiKey { get; set; } = string.Empty;
+
+    /// <summary>Value-operation key with only the explicitly provisioned value scopes.</summary>
+    public string ValueApiKey { get; set; } = string.Empty;
+
+    /// <summary>Quest-only key; authoring requires dapp:develop and a developer-role owner.</summary>
+    public string QuestApiKey { get; set; } = string.Empty;
+
+    /// <summary>Legacy non-Production migration key; ignored in Production.</summary>
     public string TenantApiKey { get; set; } = string.Empty;
 
     /// <summary>
@@ -55,6 +61,55 @@ public class AzoaSettings
     /// </summary>
     public string SelectedSettlementNodeId { get; set; } = string.Empty;
 
+    /// <summary>Explicit operator opt-in for the hosted settlement outbox loop.</summary>
+    public bool EnableSettlementOutboxWorker { get; set; }
+
+    /// <summary>Maximum dispatch and reconciliation attempts per hosted cycle.</summary>
+    public int SettlementOutboxBatchSize { get; set; } = 10;
+
+    /// <summary>Delay between bounded hosted cycles.</summary>
+    public int SettlementOutboxIntervalSeconds { get; set; } = 15;
+
+    /// <summary>Explicitly enables tenant-bound per-user custody and KYC orchestration.</summary>
+    public bool EnableCustodialAccounts { get; set; }
+
+    /// <summary>Stable tenant binding used for per-user custodial AZOA accounts.</summary>
+    public string TenantId { get; set; } = string.Empty;
+
     public bool IsSimulated =>
         Mode.Equals("Simulated", StringComparison.OrdinalIgnoreCase);
+}
+
+public static class AzoaCredentialSelection
+{
+    public static string ResolveCustodyKey(AzoaSettings settings, bool isProduction)
+        => Resolve(settings.CustodyApiKey, settings.TenantApiKey, isProduction);
+
+    public static string ResolveValueKey(AzoaSettings settings, bool isProduction)
+        => Resolve(settings.ValueApiKey, settings.TenantApiKey, isProduction);
+
+    public static string ResolveQuestKey(AzoaSettings settings, bool isProduction)
+        => Resolve(settings.QuestApiKey, settings.TenantApiKey, isProduction);
+
+    public static bool AreCredentialsSeparated(
+        string custodyApiKey,
+        string valueApiKey,
+        string questApiKey,
+        bool isProduction)
+    {
+        if (!isProduction)
+            return true;
+
+        var configured = new[] { custodyApiKey, valueApiKey, questApiKey }
+            .Where(key => !string.IsNullOrWhiteSpace(key))
+            .ToArray();
+        return configured.Distinct(StringComparer.Ordinal).Count() == configured.Length;
+    }
+
+    private static string Resolve(string explicitKey, string legacyKey, bool isProduction)
+        => !string.IsNullOrWhiteSpace(explicitKey)
+            ? explicitKey
+            : isProduction
+                ? string.Empty
+                : legacyKey;
 }

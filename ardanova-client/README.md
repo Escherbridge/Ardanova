@@ -9,9 +9,12 @@ See the repository-level [Brand guidelines](../documentation/BRAND_GUIDELINES.md
 Requirements: Node.js 20+, npm 10+, PostgreSQL, and the environment values described in [`.env.example`](./.env.example).
 
 ```bash
-npm install
+npm ci
 npm run dev
 ```
+
+`npm ci` installs the committed lockfile exactly. After a schema edit, run
+`npm run generate:prisma` rather than invoking Prisma directly.
 
 The default development origin is `http://localhost:3000`. The repository's full-stack setup and backend port guidance are in the [local smoke runbook](../documentation/LOCAL_DEVELOPMENT_SMOKE.md).
 
@@ -117,9 +120,26 @@ Use `npm run format:check` only for deliberate repository-wide formatting cleanu
 
 Production is built from [`Dockerfile`](./Dockerfile) using the standalone Next.js output. [`railway.toml`](./railway.toml) configures the Dockerfile builder and the `/api/ready` deployment check. `/api/health` is process liveness only; `/api/ready` additionally checks required runtime configuration and the backend through a bounded request.
 
+The image accepts `DEPENDENCY_INSTALL_CACHE_KEY`; Git CI supplies a unique
+run/attempt value so the `npm ci` dependency layer is fresh for every release
+build while local image builds may retain the stable cache.
+
 Required production configuration includes the database, backend API URL/key, NextAuth secret and URL, OAuth provider credentials, `ADMIN_API_KEY`, and `ACTOR_ASSERTION_HMAC_KEY`. The service, admin, and actor keys are distinct server-only secrets; each must contain at least 32 bytes and must use the same respective value on the frontend BFF and .NET API services. Public variables are compiled into the client at build time; server secrets must remain runtime-only. Do not set `DEV_AUTH_BYPASS` or `NODE_TLS_REJECT_UNAUTHORIZED` in production.
 
-For a coordinated release, deploy and validate the sibling .NET API first, then deploy from this directory with the Railway CLI. Observe terminal success for both services and verify the generated frontend domain, `/api/health`, `/api/ready`, `/auth/signin`, and `/api/auth/providers`. The full validation and rollback sequence is in the [frontend release playbook](../documentation/FRONTEND_RELEASE_PLAYBOOK.md).
+For a coordinated release, push the reviewed, coupled API and frontend commit
+to `main`. The
+[`ArdaNova release artifacts`](../.github/workflows/ardanova-client-image.yml)
+workflow validates both services before it publishes their SHA-tagged images.
+Its release-manifest artifact records the exact
+`ghcr.io/escherbridge/ardanova-api@sha256:<digest>` and
+`ghcr.io/escherbridge/ardanova-client@sha256:<digest>` pair. Production database
+migration and Railway promotion are separate, protected operator actions: use
+the migration runbook, promote the recorded API digest first, and promote the
+client digest only after API readiness succeeds. Never use `railway up`, FTP, a
+source upload, or a mutable image tag for a release. Verify the public domain,
+`/api/health`, `/api/ready`, `/auth/signin`, and `/api/auth/providers`; the full
+validation and digest rollback sequence is in the
+[frontend release playbook](../documentation/FRONTEND_RELEASE_PLAYBOOK.md).
 
 ## Interaction invariants
 

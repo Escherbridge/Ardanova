@@ -145,6 +145,28 @@ public class FundingIntentServiceTests
     }
 
     [Fact]
+    public async Task CreateCheckoutAsync_RejectsMissingAssetIdBeforeWritesOrProviderCall()
+    {
+        var fixture = ArrangeEligibleFunding();
+        fixture.Config.assetId = null;
+
+        var result = await _sut.CreateCheckoutAsync(
+            new CreateFundingIntentDto
+            {
+                ProjectTokenConfigId = fixture.Config.id,
+                Amount = "1.00",
+                DisclosureVersion = "funding-disclosure-v1",
+            },
+            fixture.Actor.id,
+            "9e68f25a-589c-472a-ab2d-0b4161c5ab89");
+
+        result.Type.Should().Be(ResultType.ValidationError);
+        result.Error.Should().Contain("asset id");
+        _intents.Verify(repository => repository.AddAsync(It.IsAny<FundingIntent>(), It.IsAny<CancellationToken>()), Times.Never);
+        _checkout.Verify(gateway => gateway.CreateAsync(It.IsAny<StripeCheckoutRequest>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
     public async Task CreateCheckoutAsync_ExactReplayUsesExistingProviderSessionWithoutCreatingAnother()
     {
         var fixture = ArrangeEligibleFunding();
@@ -158,6 +180,7 @@ public class FundingIntentServiceTests
             disclosureVersion = "funding-disclosure-v1",
             status = FundingIntentStatus.AWAITING_PAYMENT,
             providerCheckoutSessionId = "cs_123",
+            termsSnapshot = "{\"projectTokenConfigId\":\"config-1\",\"assetId\":\"asset-123\",\"tokenScale\":6}",
         };
         _intents.Setup(repository => repository.FindOneAsync(
                 It.IsAny<System.Linq.Expressions.Expression<Func<FundingIntent, bool>>>(),
@@ -437,6 +460,7 @@ public class FundingIntentServiceTests
         {
             id = "config-1",
             projectId = project.id,
+            assetId = "asset-123",
             assetName = "Project Token",
             unitName = "PROJ",
             assetScale = 6,

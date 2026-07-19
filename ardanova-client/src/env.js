@@ -14,19 +14,40 @@ const clientRoot = path.resolve(__dirname, "..");
 loadEnvConfig(repoRoot);
 loadEnvConfig(clientRoot);
 
-const adminApiKeySchema = z
-  .string()
-  .refine(
-    (value) => new TextEncoder().encode(value).byteLength >= 32,
-    "ADMIN_API_KEY must contain at least 32 bytes",
-  );
+const unsafeSecretMarkers = [
+  "replace-with",
+  "your-api-key",
+  "your-admin-api-key",
+  "your-actor-assertion",
+  "your-auth-secret",
+  "placeholder",
+  "change-me",
+  "changeme",
+  "not-a-secret",
+];
 
-const apiKeySchema = z
-  .string()
-  .refine(
-    (value) => new TextEncoder().encode(value).byteLength >= 32,
-    "API_KEY must contain at least 32 bytes",
+function isStrongRuntimeSecret(value) {
+  if (!value.trim()) return false;
+  const normalized = value.toLowerCase();
+  return (
+    new TextEncoder().encode(value).byteLength >= 32 &&
+    !unsafeSecretMarkers.some((marker) => normalized.includes(marker))
   );
+}
+
+function runtimeSecretSchema(name) {
+  return z
+    .string()
+    .refine(
+      isStrongRuntimeSecret,
+      `${name} must be a generated secret containing at least 32 bytes`,
+    );
+}
+
+const authSecretSchema = runtimeSecretSchema("AUTH_SECRET");
+const apiKeySchema = runtimeSecretSchema("API_KEY");
+const adminApiKeySchema = runtimeSecretSchema("ADMIN_API_KEY");
+const actorAssertionKeySchema = runtimeSecretSchema("ACTOR_ASSERTION_HMAC_KEY");
 
 export const env = createEnv({
   /**
@@ -34,7 +55,7 @@ export const env = createEnv({
    * isn't built with invalid env vars.
    */
   server: {
-    AUTH_SECRET: z.string().min(32),
+    AUTH_SECRET: authSecretSchema,
     AUTH_URL: z.string().url().optional(),
     GOOGLE_CLIENT_ID: z.string(),
     GOOGLE_CLIENT_SECRET: z.string(),
@@ -71,12 +92,7 @@ export const env = createEnv({
       process.env.NODE_ENV === "production"
         ? adminApiKeySchema
         : adminApiKeySchema.optional(),
-    ACTOR_ASSERTION_HMAC_KEY: z
-      .string()
-      .refine(
-        (value) => new TextEncoder().encode(value).byteLength >= 32,
-        "ACTOR_ASSERTION_HMAC_KEY must contain at least 32 bytes",
-      ),
+    ACTOR_ASSERTION_HMAC_KEY: actorAssertionKeySchema,
   },
 
   /**

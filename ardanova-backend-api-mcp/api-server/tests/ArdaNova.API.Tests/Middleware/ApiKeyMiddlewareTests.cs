@@ -1,10 +1,14 @@
 using System.Collections.Concurrent;
+using System.Reflection;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using ArdaNova.Application.Common.Interfaces;
+using ArdaNova.API.Controllers;
 using ArdaNova.API.Middleware;
+using ArdaNova.API.WebSocket.Hubs;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -13,12 +17,35 @@ namespace ArdaNova.API.Tests.Middleware;
 
 public class ApiKeyMiddlewareTests
 {
+    private const string ValidServiceKey = "service-key-012345678901234567890123456789";
+    private const string ValidAdminKey = "admin-key-0123456789012345678901234567890";
+
+    [Theory]
+    [InlineData("/health")]
+    [InlineData("/ready")]
+    public async Task InvokeAsync_PublicDiagnostics_BypassApiKey(string path)
+    {
+        var context = new DefaultHttpContext();
+        context.Request.Path = path;
+        var nextCalled = false;
+        var middleware = CreateMiddleware(_ =>
+        {
+            nextCalled = true;
+            return Task.CompletedTask;
+        });
+
+        await middleware.InvokeAsync(context);
+
+        nextCalled.Should().BeTrue();
+        context.Response.StatusCode.Should().Be(StatusCodes.Status200OK);
+    }
+
     [Fact]
     public async Task InvokeAsync_WithAdminKey_AssignsAdminClaim()
     {
         var context = new DefaultHttpContext();
-        context.Request.Headers["X-Api-Key"] = "service-key";
-        context.Request.Headers["X-Admin-Api-Key"] = "admin-key";
+        context.Request.Headers["X-Api-Key"] = ValidServiceKey;
+        context.Request.Headers["X-Admin-Api-Key"] = ValidAdminKey;
         var nextCalled = false;
 
         var middleware = CreateMiddleware(_ =>
@@ -38,9 +65,27 @@ public class ApiKeyMiddlewareTests
     public async Task InvokeAsync_WithoutAdminKey_AssignsOnlyServiceClaim()
     {
         var context = new DefaultHttpContext();
-        context.Request.Headers["X-Api-Key"] = "service-key";
+        context.Request.Headers["X-Api-Key"] = ValidServiceKey;
 
         var middleware = CreateMiddleware(_ => Task.CompletedTask);
+
+        await middleware.InvokeAsync(context);
+
+        context.User.Identity?.IsAuthenticated.Should().BeTrue();
+        context.User.IsInRole(ApiKeyMiddleware.AdminRole).Should().BeFalse();
+        context.User.IsInRole("Service").Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task InvokeAsync_WithMatchingWeakAdminKey_DoesNotAssignAdminClaim()
+    {
+        const string weakAdminKey = "admin-key";
+        var context = new DefaultHttpContext();
+        context.Request.Headers["X-Api-Key"] = ValidServiceKey;
+        context.Request.Headers["X-Admin-Api-Key"] = weakAdminKey;
+        var middleware = CreateMiddleware(
+            _ => Task.CompletedTask,
+            adminApiKey: weakAdminKey);
 
         await middleware.InvokeAsync(context);
 
@@ -70,6 +115,70 @@ public class ApiKeyMiddlewareTests
     }
 
     [Fact]
+    public async Task InvokeAsync_WithWeakConfiguredServiceKey_FailsClosed()
+    {
+        const string weakKey = "too-short";
+        var context = new DefaultHttpContext();
+        context.Request.Headers["X-Api-Key"] = weakKey;
+        var nextCalled = false;
+        var middleware = CreateMiddleware(
+            _ =>
+            {
+                nextCalled = true;
+                return Task.CompletedTask;
+            },
+            weakKey);
+
+        await middleware.InvokeAsync(context);
+
+        nextCalled.Should().BeFalse();
+        context.Response.StatusCode.Should().Be(StatusCodes.Status500InternalServerError);
+        (context.User.Identity?.IsAuthenticated ?? false).Should().BeFalse();
+    }
+
+    [Theory]
+    [InlineData("replace-with-a-random-32-byte-minimum-service-secret")]
+    [InlineData("your-api-key-012345678901234567890123456789")]
+    [InlineData("placeholder-secret-012345678901234567890123456789")]
+    [InlineData("change-me-012345678901234567890123456789")]
+    public async Task InvokeAsync_WithDocumentedOrSentinelServiceKey_FailsClosed(string sentinelKey)
+    {
+        var context = new DefaultHttpContext();
+        context.Request.Headers["X-Api-Key"] = sentinelKey;
+        var nextCalled = false;
+        var middleware = CreateMiddleware(
+            _ =>
+            {
+                nextCalled = true;
+                return Task.CompletedTask;
+            },
+            sentinelKey);
+
+        await middleware.InvokeAsync(context);
+
+        nextCalled.Should().BeFalse();
+        context.Response.StatusCode.Should().Be(StatusCodes.Status500InternalServerError);
+        (context.User.Identity?.IsAuthenticated ?? false).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task InvokeAsync_WithMatchingDocumentedAdminKey_DoesNotAssignAdminClaim()
+    {
+        const string sentinelKey = "replace-with-a-distinct-random-32-byte-minimum-secret";
+        var context = new DefaultHttpContext();
+        context.Request.Headers["X-Api-Key"] = ValidServiceKey;
+        context.Request.Headers["X-Admin-Api-Key"] = sentinelKey;
+        var middleware = CreateMiddleware(
+            _ => Task.CompletedTask,
+            adminApiKey: sentinelKey);
+
+        await middleware.InvokeAsync(context);
+
+        context.User.Identity?.IsAuthenticated.Should().BeTrue();
+        context.User.IsInRole(ApiKeyMiddleware.AdminRole).Should().BeFalse();
+    }
+
+    [Fact]
     public async Task AdminPolicy_RequiresAdminClaim()
     {
         var services = new ServiceCollection();
@@ -87,6 +196,46 @@ public class ApiKeyMiddlewareTests
 
         adminResult.Succeeded.Should().BeTrue();
         serviceResult.Succeeded.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task FallbackPolicy_RequiresAnAuthenticatedPrincipal()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddArdaNovaAuthorization();
+        await using var provider = services.BuildServiceProvider();
+        var policyProvider = provider.GetRequiredService<IAuthorizationPolicyProvider>();
+        var authorization = provider.GetRequiredService<IAuthorizationService>();
+        var fallback = await policyProvider.GetFallbackPolicyAsync();
+        var anonymous = new ClaimsPrincipal(new ClaimsIdentity());
+        var service = new ClaimsPrincipal(new ClaimsIdentity(
+            [new Claim(ClaimTypes.Role, "Service")], "ApiKey"));
+
+        fallback.Should().NotBeNull();
+        (await authorization.AuthorizeAsync(anonymous, null, fallback!)).Succeeded.Should().BeFalse();
+        (await authorization.AuthorizeAsync(service, null, fallback!)).Succeeded.Should().BeTrue();
+    }
+
+    [Fact]
+    public void CustomAuthenticatedIngresses_AreExplicitFallbackExceptions()
+    {
+        typeof(StripeWebhookController)
+            .GetMethod(nameof(StripeWebhookController.Webhook), BindingFlags.Instance | BindingFlags.Public)!
+            .GetCustomAttribute<AllowAnonymousAttribute>()
+            .Should().NotBeNull();
+        typeof(ArdaNovaHub)
+            .GetCustomAttribute<AllowAnonymousAttribute>()
+            .Should().NotBeNull();
+    }
+
+    [Theory]
+    [InlineData("tenant-provision-wallet-manage-kyc-only-key")]
+    [InlineData("nft-mint-only-key")]
+    [InlineData("dapp-develop-only-key")]
+    public void StrongSecret_RejectsPublishedAzoaExamples(string example)
+    {
+        ApiKeyMiddleware.IsStrongSecret(example).Should().BeFalse();
     }
 
     [Fact]
@@ -120,6 +269,29 @@ public class ApiKeyMiddlewareTests
         nextCalled.Should().BeTrue();
         context.User.FindFirstValue(ClaimTypes.NameIdentifier).Should().Be("user-123");
         context.User.HasClaim(ActorAssertionMiddleware.ClaimType, "v2").Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task ActorAssertion_Middleware_ResolvesReplayLedgerFromRequestScope()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddSingleton<IConfiguration>(new ConfigurationBuilder().Build());
+        services.AddScoped<IActorAssertionReplayLedger, InMemoryActorAssertionReplayLedger>();
+        await using var provider = services.BuildServiceProvider(validateScopes: true);
+        var application = new ApplicationBuilder(provider);
+        application.UseMiddleware<ActorAssertionMiddleware>();
+        application.Run(_ => Task.CompletedTask);
+        var pipeline = application.Build();
+        await using var scope = provider.CreateAsyncScope();
+        var context = new DefaultHttpContext
+        {
+            RequestServices = scope.ServiceProvider
+        };
+
+        await pipeline(context);
+
+        context.Response.StatusCode.Should().Be(StatusCodes.Status200OK);
     }
 
     [Theory]
@@ -249,6 +421,29 @@ public class ApiKeyMiddlewareTests
     }
 
     [Fact]
+    public async Task ActorAssertion_WithDocumentedSigningKey_FailsClosed()
+    {
+        const string sentinelKey = "replace-with-a-random-32-byte-minimum-secret";
+        var context = new DefaultHttpContext();
+        context.Request.Method = HttpMethods.Get;
+        context.Request.Path = "/api/TokenBalance/me/portfolio";
+        context.Request.Headers[ActorAssertionMiddleware.HeaderName] = "not-used";
+        var nextCalled = false;
+        var middleware = CreateActorMiddleware(
+            _ =>
+            {
+                nextCalled = true;
+                return Task.CompletedTask;
+            },
+            sentinelKey);
+
+        await middleware.InvokeAsync(context);
+
+        nextCalled.Should().BeFalse();
+        context.Response.StatusCode.Should().Be(StatusCodes.Status500InternalServerError);
+    }
+
+    [Fact]
     public async Task ActorPolicy_RequiresVerifiedActorClaim()
     {
         var services = new ServiceCollection();
@@ -268,20 +463,23 @@ public class ApiKeyMiddlewareTests
         (await authorization.AuthorizeAsync(legacyActor, null, AuthorizationPolicies.ActorAssertion)).Succeeded.Should().BeFalse();
     }
 
-    private static ApiKeyMiddleware CreateMiddleware(RequestDelegate next)
+    private static ApiKeyMiddleware CreateMiddleware(
+        RequestDelegate next,
+        string apiKey = ValidServiceKey,
+        string adminApiKey = ValidAdminKey)
     {
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["ApiKey:Key"] = "service-key",
-                ["AdminApiKey:Key"] = "admin-key"
+                ["ApiKey:Key"] = apiKey,
+                ["AdminApiKey:Key"] = adminApiKey
             })
             .Build();
 
         return new ApiKeyMiddleware(next, configuration, NullLogger<ApiKeyMiddleware>.Instance);
     }
 
-    private static ActorAssertionMiddleware CreateActorMiddleware(
+    private static ActorAssertionMiddlewareHarness CreateActorMiddleware(
         RequestDelegate next,
         string signingKey = "actor-key-012345678901234567890123456789",
         IActorAssertionReplayLedger? replayLedger = null)
@@ -293,11 +491,12 @@ public class ApiKeyMiddlewareTests
             })
             .Build();
 
-        return new ActorAssertionMiddleware(
-            next,
-            configuration,
-            replayLedger ?? new InMemoryActorAssertionReplayLedger(),
-            NullLogger<ActorAssertionMiddleware>.Instance);
+        return new ActorAssertionMiddlewareHarness(
+            new ActorAssertionMiddleware(
+                next,
+                configuration,
+                NullLogger<ActorAssertionMiddleware>.Instance),
+            replayLedger ?? new InMemoryActorAssertionReplayLedger());
     }
 
     private static DefaultHttpContext CreateSignedContext(string assertion, string body)
@@ -373,5 +572,13 @@ public class ApiKeyMiddlewareTests
             => Task.FromResult(_entries.TryAdd(entry.Jti, 0)
                 ? ActorAssertionReplayClaim.Consumed
                 : ActorAssertionReplayClaim.Replay);
+    }
+
+    private sealed record ActorAssertionMiddlewareHarness(
+        ActorAssertionMiddleware Middleware,
+        IActorAssertionReplayLedger ReplayLedger)
+    {
+        public Task InvokeAsync(HttpContext context)
+            => Middleware.InvokeAsync(context, ReplayLedger);
     }
 }

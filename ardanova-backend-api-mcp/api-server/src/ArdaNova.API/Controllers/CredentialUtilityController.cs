@@ -3,6 +3,7 @@ namespace ArdaNova.API.Controllers;
 using ArdaNova.Application.Common.Results;
 using ArdaNova.Application.DTOs;
 using ArdaNova.Application.Services.Interfaces;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
 [ApiController]
@@ -17,40 +18,44 @@ public class CredentialUtilityController : ControllerBase
     }
 
     [HttpPost("grant-and-mint")]
-    public async Task<IActionResult> GrantAndMint([FromBody] GrantMembershipCredentialDto dto, CancellationToken ct)
+    public IActionResult GrantAndMint([FromBody] GrantMembershipCredentialDto dto, CancellationToken ct)
     {
-        var result = await _credentialUtilityService.GrantAndMintAsync(dto, ct);
-        return result.IsSuccess
-            ? CreatedAtAction(nameof(GetChainData), new { id = result.Value!.Id }, result.Value)
-            : ToActionResult(result);
+        _ = dto;
+        _ = ct;
+        return MutationUnavailable();
     }
 
     [HttpPost("{id}/revoke-and-burn")]
-    public async Task<IActionResult> RevokeAndBurn(string id, CancellationToken ct)
+    public IActionResult RevokeAndBurn(string id, CancellationToken ct)
     {
-        var result = await _credentialUtilityService.RevokeAndBurnAsync(id, ct);
-        return ToActionResult(result);
+        _ = id;
+        _ = ct;
+        return MutationUnavailable();
     }
 
     [HttpPatch("{id}/upgrade-tier")]
-    public async Task<IActionResult> UpgradeTier(string id, [FromBody] UpdateCredentialTierDto dto, CancellationToken ct)
+    public IActionResult UpgradeTier(string id, [FromBody] UpdateCredentialTierDto dto, CancellationToken ct)
     {
-        var result = await _credentialUtilityService.UpgradeTierAsync(id, dto.Tier, ct);
-        return ToActionResult(result);
+        _ = id;
+        _ = dto;
+        _ = ct;
+        return MutationUnavailable();
     }
 
     [HttpPost("check-auto-grant")]
-    public async Task<IActionResult> CheckAutoGrant([FromBody] CheckAutoGrantRequestDto dto, CancellationToken ct)
+    public IActionResult CheckAutoGrant([FromBody] CheckAutoGrantRequestDto dto, CancellationToken ct)
     {
-        var result = await _credentialUtilityService.CheckAndAutoGrantAsync(dto.UserId, dto.ProjectId, dto.GuildId, ct);
-        return ToActionResult(result);
+        _ = dto;
+        _ = ct;
+        return MutationUnavailable();
     }
 
     [HttpPost("{id}/retry-mint")]
-    public async Task<IActionResult> RetryMint(string id, CancellationToken ct)
+    public IActionResult RetryMint(string id, CancellationToken ct)
     {
-        var result = await _credentialUtilityService.RetryMintAsync(id, ct);
-        return ToActionResult(result);
+        _ = id;
+        _ = ct;
+        return MutationUnavailable();
     }
 
     [HttpGet("{id}/chain-data")]
@@ -59,6 +64,12 @@ public class CredentialUtilityController : ControllerBase
         var result = await _credentialUtilityService.GetCredentialWithChainDataAsync(id, ct);
         return ToActionResult(result);
     }
+
+    private IActionResult MutationUnavailable()
+        => Problem(
+            statusCode: StatusCodes.Status501NotImplemented,
+            title: "Credential lifecycle mutations are unavailable",
+            detail: "Actor-bound scope, server-derived grant authority, and an auditable idempotent credential transition are required before this mutation surface can be enabled.");
 
     private IActionResult ToActionResult<T>(Result<T> result)
     {

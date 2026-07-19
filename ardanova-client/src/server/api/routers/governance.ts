@@ -1,5 +1,10 @@
 import { z } from "zod";
-import { createTRPCRouter, protectedProcedure, publicProcedure } from "~/server/api/trpc";
+import { TRPCError } from "@trpc/server";
+import {
+  createTRPCRouter,
+  protectedProcedure,
+  publicProcedure,
+} from "~/server/api/trpc";
 import { apiClient } from "~/lib/api";
 
 // Proposal type enum
@@ -43,39 +48,19 @@ const updateProposalSchema = z.object({
   description: z.string().min(50).optional(),
 });
 
+function governanceMutationsUnavailable(): never {
+  throw new TRPCError({
+    code: "NOT_IMPLEMENTED",
+    message:
+      "Governance changes are paused until proposal, vote, and comment authority are enforced atomically by the backend.",
+  });
+}
+
 export const governanceRouter = createTRPCRouter({
   // Create a new proposal
   create: protectedProcedure
     .input(createProposalSchema)
-    .mutation(async ({ input, ctx }) => {
-      const userId = ctx.session.user.id;
-
-      // Calculate voting end date
-      const votingEnds = new Date();
-      votingEnds.setDate(votingEnds.getDate() + input.votingDuration);
-
-      const response = await apiClient.governance.create({
-        projectId: input.projectId,
-        creatorId: userId,
-        type: input.type,
-        title: input.title,
-        description: input.description,
-        options: JSON.stringify([
-          { label: "For", choice: 0 },
-          { label: "Against", choice: 1 },
-          { label: "Abstain", choice: 2 }
-        ]),
-        quorum: input.quorum,
-        threshold: 51,
-        votingEnd: votingEnds.toISOString(),
-      });
-
-      if (response.error || !response.data) {
-        throw new Error(response.error ?? "Failed to create proposal");
-      }
-
-      return response.data;
-    }),
+    .mutation(governanceMutationsUnavailable),
 
   // Get all proposals with pagination and filters
   getAll: publicProcedure
@@ -87,7 +72,7 @@ export const governanceRouter = createTRPCRouter({
         type: ProposalType.optional(),
         status: ProposalStatus.optional(),
         projectId: z.string().optional(),
-      })
+      }),
     )
     .query(async ({ input }) => {
       const response = await apiClient.governance.search({
@@ -105,7 +90,9 @@ export const governanceRouter = createTRPCRouter({
 
       return {
         items: response.data?.items ?? [],
-        nextCursor: response.data?.hasNextPage ? String(input.page + 1) : undefined,
+        nextCursor: response.data?.hasNextPage
+          ? String(input.page + 1)
+          : undefined,
         totalCount: response.data?.totalCount ?? 0,
         totalPages: response.data?.totalPages ?? 0,
       };
@@ -149,7 +136,9 @@ export const governanceRouter = createTRPCRouter({
       }
 
       // Get project for slug
-      const projectResponse = await apiClient.projects.getById(response.data.projectId);
+      const projectResponse = await apiClient.projects.getById(
+        response.data.projectId,
+      );
 
       return {
         ...response.data,
@@ -173,7 +162,9 @@ export const governanceRouter = createTRPCRouter({
   getVoteSummary: publicProcedure
     .input(z.object({ proposalId: z.string() }))
     .query(async ({ input }) => {
-      const response = await apiClient.governance.getVoteSummary(input.proposalId);
+      const response = await apiClient.governance.getVoteSummary(
+        input.proposalId,
+      );
 
       if (response.error) {
         throw new Error(response.error);
@@ -189,35 +180,9 @@ export const governanceRouter = createTRPCRouter({
         proposalId: z.string(),
         vote: VoteType,
         reason: z.string().optional(),
-      })
+      }),
     )
-    .mutation(async ({ input, ctx }) => {
-      const userId = ctx.session.user.id;
-
-      // Fetch proposal to get projectId for credential check
-      const proposal = await apiClient.governance.getById(input.proposalId);
-      if (proposal.error || !proposal.data) {
-        throw new Error("Proposal not found");
-      }
-
-      // Verify user has an active MembershipCredential (governance right)
-      const credential = await apiClient.membershipCredentials.getByProjectAndUser(proposal.data.projectId, userId);
-      if (credential.error || !credential.data || credential.data.status !== 'ACTIVE') {
-        throw new Error("Active membership credential required to vote. Credential grants governance rights (1 member = 1 vote).");
-      }
-
-      const response = await apiClient.governance.vote(input.proposalId, {
-        voterId: userId,
-        choice: mapVoteToChoice(input.vote),
-        reason: input.reason,
-      });
-
-      if (response.error || !response.data) {
-        throw new Error(response.error ?? "Failed to cast vote");
-      }
-
-      return { success: true, vote: response.data };
-    }),
+    .mutation(governanceMutationsUnavailable),
 
   // Get user's vote on a proposal
   getMyVote: protectedProcedure
@@ -225,7 +190,10 @@ export const governanceRouter = createTRPCRouter({
     .query(async ({ input, ctx }) => {
       const userId = ctx.session.user.id;
 
-      const response = await apiClient.governance.getMyVote(input.proposalId, userId);
+      const response = await apiClient.governance.getMyVote(
+        input.proposalId,
+        userId,
+      );
 
       if (response.error && response.status !== 404) {
         throw new Error(response.error);
@@ -240,7 +208,7 @@ export const governanceRouter = createTRPCRouter({
       z.object({
         proposalId: z.string(),
         limit: z.number().min(1).max(100).default(50),
-      })
+      }),
     )
     .query(async ({ input }) => {
       const response = await apiClient.governance.getVotes(input.proposalId);
@@ -257,148 +225,24 @@ export const governanceRouter = createTRPCRouter({
   // Update proposal (only draft proposals)
   update: protectedProcedure
     .input(updateProposalSchema)
-    .mutation(async ({ input, ctx }) => {
-      const { id, ...data } = input;
-      const userId = ctx.session.user.id;
-
-      // Verify ownership and status
-      const existing = await apiClient.governance.getById(id);
-      if (existing.error || !existing.data) {
-        throw new Error("Proposal not found");
-      }
-
-      if (existing.data.creatorId !== userId) {
-        throw new Error("Access denied: You do not own this proposal");
-      }
-
-      if (existing.data.status !== "Draft") {
-        throw new Error("Can only update draft proposals");
-      }
-
-      const response = await apiClient.governance.update(id, {
-        title: data.title,
-        description: data.description,
-      });
-
-      if (response.error || !response.data) {
-        throw new Error(response.error ?? "Failed to update proposal");
-      }
-
-      return response.data;
-    }),
+    .mutation(governanceMutationsUnavailable),
 
   // Execute a passed proposal
   execute: protectedProcedure
     .input(z.object({ id: z.string() }))
-    .mutation(async ({ input, ctx }) => {
-      const userId = ctx.session.user.id;
-
-      // Verify ownership and status
-      const existing = await apiClient.governance.getById(input.id);
-      if (existing.error || !existing.data) {
-        throw new Error("Proposal not found");
-      }
-
-      if (existing.data.creatorId !== userId) {
-        throw new Error("Access denied: You do not own this proposal");
-      }
-
-      if (existing.data.status !== "Passed") {
-        throw new Error("Can only execute passed proposals");
-      }
-
-      const response = await apiClient.governance.execute(input.id);
-
-      if (response.error || !response.data) {
-        throw new Error(response.error ?? "Failed to execute proposal");
-      }
-
-      return { success: true, proposal: response.data };
-    }),
+    .mutation(governanceMutationsUnavailable),
 
   publishProposal: protectedProcedure
     .input(z.object({ id: z.string() }))
-    .mutation(async ({ input, ctx }) => {
-      const userId = ctx.session.user.id;
-      const existing = await apiClient.governance.getById(input.id);
-      if (existing.error || !existing.data) {
-        throw new Error("Proposal not found");
-      }
-      if (existing.data.creatorId !== userId) {
-        throw new Error("Access denied: You do not own this proposal");
-      }
-      const response = await apiClient.governance.publishProposal(input.id);
-      if (response.error || !response.data) {
-        throw new Error(response.error ?? "Failed to publish proposal");
-      }
-      return response.data;
-    }),
+    .mutation(governanceMutationsUnavailable),
 
   // Cancel a proposal
   cancel: protectedProcedure
     .input(z.object({ id: z.string() }))
-    .mutation(async ({ input, ctx }) => {
-      const userId = ctx.session.user.id;
-
-      // Verify ownership
-      const existing = await apiClient.governance.getById(input.id);
-      if (existing.error || !existing.data) {
-        throw new Error("Proposal not found");
-      }
-
-      if (existing.data.creatorId !== userId) {
-        throw new Error("Access denied: You do not own this proposal");
-      }
-
-      if (existing.data.status !== "Draft" && existing.data.status !== "Active") {
-        throw new Error("Can only cancel draft or active proposals");
-      }
-
-      const response = await apiClient.governance.cancel(input.id);
-
-      if (response.error || !response.data) {
-        throw new Error(response.error ?? "Failed to cancel proposal");
-      }
-
-      return { success: true, proposal: response.data };
-    }),
+    .mutation(governanceMutationsUnavailable),
 
   // Delete proposal (only draft proposals)
   delete: protectedProcedure
     .input(z.object({ id: z.string() }))
-    .mutation(async ({ input, ctx }) => {
-      const userId = ctx.session.user.id;
-
-      // Verify ownership and status
-      const existing = await apiClient.governance.getById(input.id);
-      if (existing.error || !existing.data) {
-        throw new Error("Proposal not found");
-      }
-
-      if (existing.data.creatorId !== userId) {
-        throw new Error("Access denied: You do not own this proposal");
-      }
-
-      if (existing.data.status !== "Draft") {
-        throw new Error("Can only delete draft proposals");
-      }
-
-      const response = await apiClient.governance.delete(input.id);
-
-      if (response.error) {
-        throw new Error(response.error);
-      }
-
-      return { success: true, deletedId: input.id };
-    }),
+    .mutation(governanceMutationsUnavailable),
 });
-
-// Helper function to map frontend vote type to backend choice number
-function mapVoteToChoice(vote: string): number {
-  const mapping: Record<string, number> = {
-    for: 0,
-    against: 1,
-    abstain: 2,
-  };
-  return mapping[vote] ?? 0;
-}

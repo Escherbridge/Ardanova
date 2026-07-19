@@ -8,6 +8,12 @@ public class AlgorandSettings
 {
     public const string SectionName = "Algorand";
 
+    /// <summary>Explicitly requires the selected provider to support address-based credential operations.</summary>
+    public bool RequireCredentialOperations { get; set; }
+
+    /// <summary>Emergency-only opt-in for the legacy custodial signer in Production.</summary>
+    public bool AllowLegacyCustodialSignerInProduction { get; set; }
+
     /// <summary>
     /// Algorand network: "testnet", "mainnet", or "betanet"
     /// </summary>

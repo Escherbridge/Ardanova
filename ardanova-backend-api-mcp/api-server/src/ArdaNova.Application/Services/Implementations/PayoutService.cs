@@ -86,7 +86,8 @@ namespace ArdaNova.Application.Services.Implementations
 
             if (!lockResult.IsSuccess)
             {
-                return Result<PayoutRequestDto>.Failure(lockResult.Error);
+                return Result<PayoutRequestDto>.Failure(
+                    lockResult.Error ?? "Unable to lock the requested token balance");
             }
 
             // 4. Calculate conversion
@@ -105,7 +106,8 @@ namespace ArdaNova.Application.Services.Implementations
                     dto.HolderClass,
                     ct);
 
-                return Result<PayoutRequestDto>.Failure(conversionResult.Error);
+                return Result<PayoutRequestDto>.Failure(
+                    conversionResult.Error ?? "Unable to calculate the payout conversion");
             }
 
             var preview = conversionResult.Value;
@@ -156,27 +158,36 @@ namespace ArdaNova.Application.Services.Implementations
                 return Result<PayoutRequestDto>.Failure($"Cannot cancel payout with status {payoutRequest.status}. Only PENDING payouts can be cancelled.");
             }
 
-            // Unlock tokens
-            var unlockResult = await _tokenBalanceService.UnlockAsync(
-                payoutRequest.userId,
-                payoutRequest.sourceProjectTokenConfigId ?? string.Empty,
-                payoutRequest.sourceTokenAmount,
-                payoutRequest.holderClass,
-                ct);
-
-            if (!unlockResult.IsSuccess)
+            await _unitOfWork.BeginTransactionAsync(ct);
+            try
             {
-                return Result<PayoutRequestDto>.Failure($"Failed to unlock tokens: {unlockResult.Error}");
+                var unlockResult = await _tokenBalanceService.UnlockAsync(
+                    payoutRequest.userId,
+                    payoutRequest.sourceProjectTokenConfigId ?? string.Empty,
+                    payoutRequest.sourceTokenAmount,
+                    payoutRequest.holderClass,
+                    ct);
+
+                if (!unlockResult.IsSuccess)
+                {
+                    await _unitOfWork.RollbackTransactionAsync(CancellationToken.None);
+                    _unitOfWork.ClearTrackedChanges();
+                    return Result<PayoutRequestDto>.Failure($"Failed to unlock tokens: {unlockResult.Error}");
+                }
+
+                payoutRequest.status = PayoutStatus.CANCELLED;
+                await _payoutRepository.UpdateAsync(payoutRequest, ct);
+                await _unitOfWork.SaveChangesAsync(ct);
+                var resultDto = _mapper.Map<PayoutRequestDto>(payoutRequest);
+                await _unitOfWork.CommitTransactionAsync(ct);
+                return Result<PayoutRequestDto>.Success(resultDto);
             }
-
-            // Set status to CANCELLED
-            payoutRequest.status = PayoutStatus.CANCELLED;
-
-            await _payoutRepository.UpdateAsync(payoutRequest, ct);
-            await _unitOfWork.SaveChangesAsync(ct);
-
-            var resultDto = _mapper.Map<PayoutRequestDto>(payoutRequest);
-            return Result<PayoutRequestDto>.Success(resultDto);
+            catch
+            {
+                await _unitOfWork.RollbackTransactionAsync(CancellationToken.None);
+                _unitOfWork.ClearTrackedChanges();
+                throw;
+            }
         }
 
         public async Task<Result<IReadOnlyList<PayoutRequestDto>>> GetPayoutsByUserAsync(string userId, CancellationToken ct = default)

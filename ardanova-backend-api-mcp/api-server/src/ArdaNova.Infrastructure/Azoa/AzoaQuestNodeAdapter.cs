@@ -8,8 +8,8 @@ using ArdaNova.Application.Services.Interfaces;
 /// <summary>
 /// Infrastructure adapter that satisfies the Application-layer port
 /// <see cref="IAzoaQuestNode"/> by delegating to the typed-HttpClient transport
-/// <see cref="IAzoaNodeClient"/> (its generic
-/// <see cref="IAzoaNodeClient.PostAsync{T}"/> / <see cref="IAzoaNodeClient.GetAsync{T}"/>
+/// <see cref="IAzoaQuestNodeClient"/> (its generic
+/// <see cref="IAzoaQuestNodeClient.PostAsync{T}"/> / <see cref="IAzoaQuestNodeClient.GetAsync{T}"/>
 /// helpers). Mirrors <see cref="AzoaAvatarNodeAdapter"/>: the interface lives in
 /// Application, the implementation here in Infrastructure, so the Application layer
 /// never references Infrastructure wire models.
@@ -28,9 +28,9 @@ using ArdaNova.Application.Services.Interfaces;
 /// </summary>
 public sealed class AzoaQuestNodeAdapter : IAzoaQuestNode
 {
-    private readonly IAzoaNodeClient _node;
+    private readonly IAzoaQuestNodeClient _node;
 
-    public AzoaQuestNodeAdapter(IAzoaNodeClient node)
+    public AzoaQuestNodeAdapter(IAzoaQuestNodeClient node)
     {
         _node = node;
     }

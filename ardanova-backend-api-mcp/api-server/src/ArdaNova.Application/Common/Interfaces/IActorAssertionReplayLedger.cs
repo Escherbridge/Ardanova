@@ -3,7 +3,7 @@ namespace ArdaNova.Application.Common.Interfaces;
 /// <summary>Atomically records each accepted BFF actor assertion identifier.</summary>
 public interface IActorAssertionReplayLedger
 {
-    /// <summary>Consumes the assertion id once; identifiers are never reclaimed after expiry.</summary>
+    /// <summary>Consumes the assertion id once and retains it beyond the accepted expiry/skew window.</summary>
     Task<ActorAssertionReplayClaim> TryConsumeAsync(
         ActorAssertionReplayEntry entry,
         CancellationToken ct = default);

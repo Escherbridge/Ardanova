@@ -7,10 +7,11 @@ public interface IProjectTokenService
 {
     Task<Result<ProjectTokenConfigDto>> CreateConfigAsync(CreateProjectTokenConfigDto dto, CancellationToken ct = default);
     Task<Result<ProjectTokenConfigDto>> GetConfigByIdAsync(string id, CancellationToken ct = default);
+    Task<Result<ProjectTokenMetadataBatchDto>> GetMetadataByIdsAsync(IReadOnlyCollection<string> ids, CancellationToken ct = default);
     Task<Result<ProjectTokenConfigDto>> GetConfigByProjectIdAsync(string projectId, CancellationToken ct = default);
 
     // Holder-class-aware allocation
-    Task<Result<TokenAllocationDto>> AllocateToTaskAsync(string projectTokenConfigId, CreateTokenAllocationDto dto, CancellationToken ct = default);
+    Task<Result<TokenAllocationDto>> AllocateToPbiAsync(string projectTokenConfigId, CreateTokenAllocationDto dto, CancellationToken ct = default);
     Task<Result<TokenAllocationDto>> AllocateToInvestorAsync(
         string projectTokenConfigId,
         CreateInvestorAllocationDto dto,

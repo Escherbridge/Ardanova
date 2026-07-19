@@ -5,7 +5,6 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using ArdaNova.Application.Common.Results;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 
 /// <summary>
 /// Typed HttpClient transport to the AZOA node. Registered via
@@ -24,22 +23,15 @@ public sealed class AzoaNodeClient : IAzoaNodeClient
     };
 
     private readonly HttpClient _http;
-    private readonly AzoaSettings _settings;
     private readonly ILogger<AzoaNodeClient> _logger;
 
     public AzoaNodeClient(
         HttpClient http,
-        IOptions<AzoaSettings> settings,
         ILogger<AzoaNodeClient> logger)
     {
         _http = http;
-        _settings = settings.Value;
         _logger = logger;
     }
-
-    public Task<Result<AzoaAvatar>> RegisterAvatarAsync(
-        AzoaAvatarRegisterRequest request, CancellationToken ct = default)
-        => PostAsync<AzoaAvatar>("/api/avatar/register", request, ct);
 
     public async Task<Result<AzoaAllocationResult>> AllocateAsync(
         Guid avatarId,
@@ -60,11 +52,11 @@ public sealed class AzoaNodeClient : IAzoaNodeClient
         // asset moves exactly once.
         msg.Headers.Add("Idempotency-Key", idempotencyKey);
 
-        return await SendAsync<AzoaAllocationResult>(msg, ct);
+        return await SendValueAsync<AzoaAllocationResult>(
+            msg,
+            AzoaNodePathPolicy.IsAllocationPath(msg.RequestUri?.OriginalString),
+            ct);
     }
-
-    public Task<Result<T>> GetAsync<T>(string path, CancellationToken ct = default)
-        => SendAsync<T>(new HttpRequestMessage(HttpMethod.Get, path), ct);
 
     public Task<Result<T>> PostAsync<T>(string path, object? body, CancellationToken ct = default)
     {
@@ -72,14 +64,36 @@ public sealed class AzoaNodeClient : IAzoaNodeClient
         {
             Content = body is null ? null : JsonContent.Create(body),
         };
-        return SendAsync<T>(msg, ct);
+        return SendValueAsync<T>(
+            msg,
+            AzoaNodePathPolicy.IsFungibleMintPath(msg.RequestUri?.OriginalString),
+            ct);
     }
 
-    private async Task<Result<T>> SendAsync<T>(HttpRequestMessage msg, CancellationToken ct)
+    private Task<Result<T>> SendValueAsync<T>(
+        HttpRequestMessage msg,
+        bool pathAllowed,
+        CancellationToken ct)
+    {
+        if (!pathAllowed)
+        {
+            msg.Dispose();
+            return Task.FromResult(Result<T>.Forbidden(
+                "The AZOA value credential is restricted to allocation and fungible-mint endpoints."));
+        }
+
+        return SendAsync<T>(_http, _logger, msg, ct);
+    }
+
+    internal static async Task<Result<T>> SendAsync<T>(
+        HttpClient http,
+        ILogger logger,
+        HttpRequestMessage msg,
+        CancellationToken ct)
     {
         try
         {
-            using var response = await _http.SendAsync(msg, ct);
+            using var response = await http.SendAsync(msg, ct);
             var raw = await response.Content.ReadAsStringAsync(ct);
 
             AzoaResultEnvelope<T>? envelope = null;
@@ -108,13 +122,22 @@ public sealed class AzoaNodeClient : IAzoaNodeClient
         }
         catch (TaskCanceledException) when (!ct.IsCancellationRequested)
         {
-            _logger.LogError("AZOA node call timed out: {Method} {Path}", msg.Method, msg.RequestUri);
+            logger.LogError("AZOA node call timed out: {Method} {Path}", msg.Method, msg.RequestUri);
             return Result<T>.Failure("AZOA node call timed out.");
         }
         catch (HttpRequestException ex)
         {
-            _logger.LogError(ex, "AZOA node call failed: {Method} {Path}", msg.Method, msg.RequestUri);
-            return Result<T>.Failure($"AZOA node call failed: {ex.Message}");
+            logger.LogError(ex, "AZOA node call failed: {Method} {Path}", msg.Method, msg.RequestUri);
+            return Result<T>.Failure("AZOA node call failed. Retry after checking node availability.");
+        }
+        catch (InvalidOperationException ex)
+        {
+            logger.LogError(ex, "AZOA node transport is not configured: {Method} {Path}", msg.Method, msg.RequestUri);
+            return Result<T>.Failure("AZOA node transport is not configured.");
+        }
+        finally
+        {
+            msg.Dispose();
         }
     }
 

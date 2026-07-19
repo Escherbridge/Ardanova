@@ -18,6 +18,7 @@ function toClientPath(repoPath) {
   const clientPath = repoPath.startsWith(clientPrefix)
     ? repoPath.slice(clientPrefix.length)
     : repoPath;
+  if (clientPath.startsWith("src/lib/zod/")) return null;
   const localPath = existsSync(clientPath) ? clientPath : `../${repoPath}`;
   return supportedFile.test(localPath) && existsSync(localPath)
     ? localPath

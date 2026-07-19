@@ -48,8 +48,5 @@ public class ActivityHubHandler : IEventHandler<ActivityLoggedEvent>
             await _hubContext.Clients.Group($"user:{@event.UserId}").ActivityLogged(payload);
         }
 
-        // Broadcast to all for activity feeds
-        await _hubContext.Clients.Group("all").ActivityLogged(payload);
-        await _hubContext.Clients.Group("all").ReceiveEvent(@event.EventType, payload);
     }
 }

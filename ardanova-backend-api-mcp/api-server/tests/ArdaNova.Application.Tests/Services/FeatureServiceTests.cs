@@ -13,6 +13,7 @@ using Moq;
 public class FeatureServiceTests
 {
     private readonly Mock<IRepository<Feature>> _repositoryMock;
+    private readonly Mock<IRepository<Sprint>> _sprintRepositoryMock;
     private readonly Mock<IUnitOfWork> _unitOfWorkMock;
     private readonly Mock<IMapper> _mapperMock;
     private readonly FeatureService _sut;
@@ -20,10 +21,12 @@ public class FeatureServiceTests
     public FeatureServiceTests()
     {
         _repositoryMock = new Mock<IRepository<Feature>>();
+        _sprintRepositoryMock = new Mock<IRepository<Sprint>>();
         _unitOfWorkMock = new Mock<IUnitOfWork>();
         _mapperMock = new Mock<IMapper>();
         _sut = new FeatureService(
             _repositoryMock.Object,
+            _sprintRepositoryMock.Object,
             _unitOfWorkMock.Object,
             _mapperMock.Object);
     }
@@ -109,6 +112,7 @@ public class FeatureServiceTests
         // Arrange
         var dto = new CreateFeatureDto
         {
+            ProjectId = "project-1",
             SprintId = Guid.NewGuid().ToString(),
             Title = "New Feature",
             Description = "A new feature",
@@ -116,6 +120,9 @@ public class FeatureServiceTests
             Order = 1
         };
         var featureDto = new FeatureDto { Title = "New Feature" };
+
+        _sprintRepositoryMock.Setup(r => r.GetByIdAsync(dto.SprintId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Sprint { id = dto.SprintId, projectId = dto.ProjectId, epicId = "epic-1", name = "Sprint" });
 
         _repositoryMock.Setup(r => r.AddAsync(It.IsAny<Feature>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((Feature f, CancellationToken _) => f);

@@ -84,7 +84,6 @@ public class ProductBacklogItemService : IProductBacklogItemService
         if (dto.Status.HasValue) item.status = dto.Status.Value;
         if (dto.AcceptanceCriteria is not null) item.acceptanceCriteria = dto.AcceptanceCriteria;
         if (dto.Priority.HasValue) item.priority = dto.Priority.Value;
-        if (dto.AssigneeId is not null) item.assigneeId = dto.AssigneeId;
         if (dto.GuildId is not null) item.guildId = dto.GuildId;
         item.updatedAt = DateTime.UtcNow;
 

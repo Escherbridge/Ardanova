@@ -24,8 +24,26 @@ const requiredNonEmptyValues = [
   "ADMIN_API_KEY",
 ] as const;
 
+const unsafeSecretMarkers = [
+  "replace-with",
+  "your-api-key",
+  "your-admin-api-key",
+  "your-actor-assertion",
+  "your-auth-secret",
+  "placeholder",
+  "change-me",
+  "changeme",
+  "not-a-secret",
+] as const;
+
 function byteLength(value: string | undefined): number {
   return value ? new TextEncoder().encode(value).byteLength : 0;
+}
+
+function isStrongRuntimeSecret(value: string | undefined): boolean {
+  if (!value?.trim() || byteLength(value) < 32) return false;
+  const normalized = value.toLowerCase();
+  return !unsafeSecretMarkers.some((marker) => normalized.includes(marker));
 }
 
 function isHttpUrl(value: string | undefined): boolean {
@@ -73,12 +91,14 @@ export function validateReadinessConfiguration(
     (name) => !environment[name]?.trim(),
   ) as string[];
 
-  if (byteLength(environment.AUTH_SECRET) < 32) invalid.push("AUTH_SECRET");
-  if (byteLength(environment.API_KEY) < 32) invalid.push("API_KEY");
-  if (byteLength(environment.ADMIN_API_KEY) < 32) {
+  if (!isStrongRuntimeSecret(environment.AUTH_SECRET)) {
+    invalid.push("AUTH_SECRET");
+  }
+  if (!isStrongRuntimeSecret(environment.API_KEY)) invalid.push("API_KEY");
+  if (!isStrongRuntimeSecret(environment.ADMIN_API_KEY)) {
     invalid.push("ADMIN_API_KEY");
   }
-  if (byteLength(environment.ACTOR_ASSERTION_HMAC_KEY) < 32) {
+  if (!isStrongRuntimeSecret(environment.ACTOR_ASSERTION_HMAC_KEY)) {
     invalid.push("ACTOR_ASSERTION_HMAC_KEY");
   }
   if (!isHttpUrl(environment.AUTH_URL)) invalid.push("AUTH_URL");

@@ -24,4 +24,13 @@ public interface ISelectedNodeSettlementCapability
 
     /// <summary>Whether operator-reviewed capability attestation remains valid for this node.</summary>
     bool HasCurrentOperatorAttestation { get; }
+
+    /// <summary>Whether the gateway accepts the complete immutable funding asset contract.</summary>
+    bool SupportsCanonicalFundingSettlement { get; }
+}
+
+/// <summary>Describes whether the bounded hosted outbox loop was actually registered.</summary>
+public interface ISettlementOutboxRuntimeCapability
+{
+    bool IsHostedDispatcherRegistered { get; }
 }

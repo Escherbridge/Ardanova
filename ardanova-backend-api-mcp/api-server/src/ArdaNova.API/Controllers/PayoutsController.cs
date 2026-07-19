@@ -13,6 +13,8 @@ using Microsoft.AspNetCore.Mvc;
 [Route("api/[controller]")]
 public class PayoutsController : ControllerBase
 {
+    private const string PayoutRequestsDisabledMessage =
+        "New payout requests are paused while verified provider transfer and durable settlement reconciliation are unavailable.";
     private const string PayoutProcessingDisabledMessage =
         "Payout processing is disabled until a verified provider transfer and durable settlement reconciliation are available.";
 
@@ -25,13 +27,9 @@ public class PayoutsController : ControllerBase
 
     [HttpPost]
     [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
-    public async Task<IActionResult> RequestPayout([FromBody] CreatePayoutRequestDto dto, CancellationToken ct)
-    {
-        var result = await _payoutService.RequestPayoutAsync(ActorId, dto, ct);
-        return result.IsSuccess
-            ? CreatedAtAction(nameof(GetMine), null, result.Value)
-            : ToActionResult(result);
-    }
+    public Task<IActionResult> RequestPayout([FromBody] CreatePayoutRequestDto dto, CancellationToken ct)
+        => Task.FromResult<IActionResult>(StatusCode(StatusCodes.Status503ServiceUnavailable,
+            new { error = PayoutRequestsDisabledMessage }));
 
     [HttpPost("{payoutRequestId}/process")]
     [Authorize(Policy = AuthorizationPolicies.AdminApiKey)]

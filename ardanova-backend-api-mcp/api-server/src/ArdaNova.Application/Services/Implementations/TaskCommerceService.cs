@@ -91,7 +91,8 @@ public class TaskCommerceService : ITaskCommerceService
             ct);
         if (tokenConfig is null
             || string.IsNullOrWhiteSpace(tokenConfig.unitName)
-            || !FixedScaleAmount.IsSupportedScale(tokenConfig.assetScale))
+            || tokenConfig.assetScale is not int assetScale
+            || !FixedScaleAmount.IsSupportedScale(assetScale))
         {
             return Result<TaskCommerceAcceptanceDto>.ValidationError(
                 "The project needs a token configuration with a valid asset scale before a commerce bid can be accepted");
@@ -126,7 +127,7 @@ public class TaskCommerceService : ITaskCommerceService
             createdAt = now,
             updatedAt = now,
         };
-        var terms = CreateTermsSnapshot(bid, opportunity, project, tokenConfig);
+        var terms = CreateTermsSnapshot(bid, opportunity, project, tokenConfig, assetScale);
         var agreement = new TaskCommerceAgreement
         {
             id = Guid.NewGuid().ToString(),
@@ -139,7 +140,7 @@ public class TaskCommerceService : ITaskCommerceService
             projectTokenConfigId = tokenConfig.id,
             assetCode = tokenConfig.unitName,
             awardAmount = bid.proposedAmount.Value,
-            scale = tokenConfig.assetScale,
+            scale = assetScale,
             acceptedTermsSnapshot = terms,
             termsHash = Hash(terms),
             acceptedAt = now,
@@ -276,7 +277,8 @@ public class TaskCommerceService : ITaskCommerceService
         OpportunityBid bid,
         Opportunity opportunity,
         Project project,
-        ProjectTokenConfig tokenConfig)
+        ProjectTokenConfig tokenConfig,
+        int assetScale)
         => JsonSerializer.Serialize(new
         {
             schemaVersion = 1,
@@ -303,7 +305,7 @@ public class TaskCommerceService : ITaskCommerceService
             {
                 projectTokenConfigId = tokenConfig.id,
                 code = tokenConfig.unitName,
-                scale = tokenConfig.assetScale,
+                scale = assetScale,
             },
         });
 

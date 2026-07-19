@@ -1,10 +1,12 @@
 namespace ArdaNova.Application.DTOs;
 
+using System.Text.Json.Serialization;
 using ArdaNova.Domain.Models.Enums;
 
 public record SprintDto
 {
     public string Id { get; init; } = null!;
+    public string ProjectId { get; init; } = null!;
     public string EpicId { get; init; } = null!;
     public string Name { get; init; } = null!;
     public string? Goal { get; init; }
@@ -20,6 +22,8 @@ public record SprintDto
 
 public record CreateSprintDto
 {
+    [JsonIgnore]
+    public string ProjectId { get; init; } = string.Empty;
     public required string EpicId { get; init; }
     public required string Name { get; init; }
     public string? Goal { get; init; }
@@ -38,5 +42,4 @@ public record UpdateSprintDto
     public decimal? EquityBudget { get; init; }
     public decimal? Velocity { get; init; }
     public SprintStatus? Status { get; init; }
-    public string? AssigneeId { get; init; }
 }

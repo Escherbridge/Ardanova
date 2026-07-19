@@ -33,14 +33,9 @@ public class CommerceActorBoundaryTests
     }
 
     [Fact]
-    public async Task PayoutRequest_UsesActorIdentity()
+    public async Task PayoutRequest_FailsClosedBeforeInvokingTheService()
     {
-        var payouts = new Mock<IPayoutService>();
-        payouts.Setup(service => service.RequestPayoutAsync(
-                "actor-1",
-                It.IsAny<CreatePayoutRequestDto>(),
-                It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Result<PayoutRequestDto>.Success(new PayoutRequestDto { Id = "payout-1", UserId = "actor-1" }));
+        var payouts = new Mock<IPayoutService>(MockBehavior.Strict);
         var controller = WithActor(new PayoutsController(payouts.Object), "actor-1");
 
         var result = await controller.RequestPayout(new CreatePayoutRequestDto
@@ -50,8 +45,12 @@ public class CommerceActorBoundaryTests
             HolderClass = TokenHolderClass.CONTRIBUTOR
         }, CancellationToken.None);
 
-        result.Should().BeOfType<CreatedAtActionResult>();
-        payouts.VerifyAll();
+        var response = result.Should().BeOfType<ObjectResult>().Subject;
+        response.StatusCode.Should().Be(StatusCodes.Status503ServiceUnavailable);
+        payouts.Verify(service => service.RequestPayoutAsync(
+            It.IsAny<string>(),
+            It.IsAny<CreatePayoutRequestDto>(),
+            It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -129,6 +128,57 @@ public class CommerceActorBoundaryTests
 
         result.Should().BeOfType<ForbidResult>();
         escrows.Verify(service => service.ReleaseAsync(It.IsAny<string>(), It.IsAny<ReleaseEscrowDto>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public void TaskEscrowCreate_FailsClosedBeforeInvokingTheService()
+    {
+        var escrows = new Mock<ITaskEscrowService>(MockBehavior.Strict);
+        var controller = WithActor(new TaskEscrowsController(escrows.Object), "actor-1");
+
+        var result = controller.Create(new TaskEscrowsController.CreateTaskEscrowRequest(
+            "task-1",
+            "share-1",
+            100,
+            "unverified-transaction"));
+
+        var response = result.Should().BeOfType<ObjectResult>().Subject;
+        response.StatusCode.Should().Be(StatusCodes.Status501NotImplemented);
+        escrows.Verify(service => service.CreateAsync(
+            It.IsAny<CreateTaskEscrowDto>(),
+            It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task TaskEscrowDispute_UsesActorAndPreservesSubmittedContext()
+    {
+        var escrows = new Mock<ITaskEscrowService>();
+        escrows.Setup(service => service.GetByIdAsync("escrow-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<TaskEscrowDto>.Success(new TaskEscrowDto { Id = "escrow-1", FunderId = "actor-1" }));
+        escrows.Setup(service => service.DisputeAsync(
+                "escrow-1",
+                It.Is<DisputeEscrowDto>(dto =>
+                    dto.Reason == "QUALITY_ISSUE" &&
+                    dto.Description == "The delivered work does not meet the documented acceptance criteria." &&
+                    dto.DisputedByUserId == "actor-1"),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<TaskEscrowDto>.Success(new TaskEscrowDto
+            {
+                Id = "escrow-1",
+                FunderId = "actor-1",
+                Status = EscrowStatus.DISPUTED
+            }));
+        var controller = WithActor(new TaskEscrowsController(escrows.Object), "actor-1");
+
+        var result = await controller.Dispute(
+            "escrow-1",
+            new TaskEscrowsController.DisputeEscrowRequest(
+                "QUALITY_ISSUE",
+                "The delivered work does not meet the documented acceptance criteria."),
+            CancellationToken.None);
+
+        result.Should().BeOfType<OkObjectResult>();
+        escrows.VerifyAll();
     }
 
     [Fact]

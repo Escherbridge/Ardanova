@@ -262,24 +262,12 @@ export const projectTokensRouter = createTRPCRouter({
         recipientUserId: z.string().min(1),
       }),
     )
-    .mutation(async ({ input }) => {
-      const response = await getAdminApiClient().projectTokens.distribute(
-        input.allocationId,
-        input.recipientUserId,
-      );
-
-      if (response.error || !response.data) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: response.error ?? "Failed to distribute tokens",
-        });
-      }
-
-      return parseBackendContract(
-        tokenAllocationDtoSchema,
-        response.data,
-        "distributed token allocation",
-      );
+    .mutation(() => {
+      throw new TRPCError({
+        code: "NOT_IMPLEMENTED",
+        message:
+          "Token distribution is paused until the backend provides an atomic allocation transition with durable idempotency.",
+      });
     }),
 
   revoke: adminProcedure

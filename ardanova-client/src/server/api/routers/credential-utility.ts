@@ -1,6 +1,10 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { createTRPCRouter, adminProcedure, protectedProcedure } from "~/server/api/trpc";
+import {
+  createTRPCRouter,
+  adminProcedure,
+  protectedProcedure,
+} from "~/server/api/trpc";
 import { apiClient } from "~/lib/api";
 
 // ---------------------------------------------------------------------------
@@ -33,6 +37,14 @@ const checkAutoGrantSchema = z.object({
   guildId: z.string().optional(),
 });
 
+function credentialMutationsUnavailable(): never {
+  throw new TRPCError({
+    code: "NOT_IMPLEMENTED",
+    message:
+      "Credential changes are paused until scope and grant authority are bound and audited by the backend.",
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Router - thin proxy to .NET API via apiClient
 // ---------------------------------------------------------------------------
@@ -42,91 +54,23 @@ export const credentialUtilityRouter = createTRPCRouter({
 
   grantAndMint: protectedProcedure
     .input(grantAndMintSchema)
-    .mutation(async ({ input }) => {
-      const response = await apiClient.credentialUtility.grantAndMint({
-        projectId: input.projectId,
-        guildId: input.guildId,
-        userId: input.userId,
-        grantedVia: input.grantedVia,
-        grantedByProposalId: input.grantedByProposalId,
-      });
-
-      if (response.error || !response.data) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: response.error ?? "Failed to grant and mint credential",
-        });
-      }
-
-      return response.data;
-    }),
+    .mutation(credentialMutationsUnavailable),
 
   revokeAndBurn: adminProcedure
     .input(z.object({ id: z.string().min(1) }))
-    .mutation(async ({ input }) => {
-      const response = await apiClient.credentialUtility.revokeAndBurn(input.id);
-
-      if (response.error || !response.data) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: response.error ?? "Failed to revoke and burn credential",
-        });
-      }
-
-      return response.data;
-    }),
+    .mutation(credentialMutationsUnavailable),
 
   upgradeTier: adminProcedure
     .input(z.object({ id: z.string().min(1) }).merge(upgradeTierSchema))
-    .mutation(async ({ input }) => {
-      const response = await apiClient.credentialUtility.upgradeTier(input.id, {
-        tier: input.tier,
-      });
-
-      if (response.error || !response.data) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: response.error ?? "Failed to upgrade credential tier",
-        });
-      }
-
-      return response.data;
-    }),
+    .mutation(credentialMutationsUnavailable),
 
   checkAutoGrant: protectedProcedure
     .input(checkAutoGrantSchema)
-    .mutation(async ({ input }) => {
-      const response = await apiClient.credentialUtility.checkAutoGrant({
-        userId: input.userId,
-        projectId: input.projectId,
-        guildId: input.guildId,
-      });
-
-      if (response.error) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: response.error,
-        });
-      }
-
-      // Return null if no credential was auto-granted (expected behavior)
-      return response.data ?? null;
-    }),
+    .mutation(credentialMutationsUnavailable),
 
   retryMint: adminProcedure
     .input(z.object({ id: z.string().min(1) }))
-    .mutation(async ({ input }) => {
-      const response = await apiClient.credentialUtility.retryMint(input.id);
-
-      if (response.error || !response.data) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: response.error ?? "Failed to retry credential mint",
-        });
-      }
-
-      return response.data;
-    }),
+    .mutation(credentialMutationsUnavailable),
 
   // ---- Queries ----
 

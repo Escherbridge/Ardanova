@@ -28,7 +28,7 @@ $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $ProjectRoot = Split-Path -Parent $ScriptDir
 $ApiProjectDir = Join-Path $ProjectRoot "ardanova-backend-api-mcp\api-server\src\ArdaNova.API"
 $ClientDir = Join-Path $ProjectRoot "ardanova-client"
-$EnvFile = Join-Path $ClientDir ".env"
+$EnvFile = Join-Path $ProjectRoot ".env"
 
 # --- Ports ---
 $ApiHttpPort = 5147
@@ -55,7 +55,7 @@ if ($Help) {
     Write-Host "  -ClientOnly     Start only the Next.js client"
     Write-Host ""
     Write-Host "Utility Flags:" -ForegroundColor $Green
-    Write-Host "  -Install        Install dependencies (npm install, dotnet restore)"
+    Write-Host "  -Install        Fresh lockfile install (npm ci, dotnet restore)"
     Write-Host "  -Check          Check prerequisites only, don't start anything"
     Write-Host "  -Kill           Kill all ArdaNova dev processes and free ports"
     Write-Host "  -Help           Show this help"
@@ -112,6 +112,71 @@ function Write-Info($Message) {
 
 function Test-Command($Name) {
     return [bool](Get-Command $Name -ErrorAction SilentlyContinue)
+}
+
+function Import-DotEnv($Path) {
+    foreach ($line in Get-Content -LiteralPath $Path) {
+        if ($line -notmatch '^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$') {
+            continue
+        }
+
+        $name = $Matches[1]
+        # Security overrides must never be inherited from a shared dotenv file.
+        if ($name -in @("ALLOW_REMOTE_DEV_DATABASE", "NODE_TLS_REJECT_UNAUTHORIZED")) {
+            continue
+        }
+
+        $value = $Matches[2].Trim()
+        if (($value.StartsWith('"') -and $value.EndsWith('"')) -or
+            ($value.StartsWith("'") -and $value.EndsWith("'"))) {
+            $value = $value.Substring(1, $value.Length - 2)
+        }
+
+        # Explicit process variables take precedence over the shared local file.
+        if ([string]::IsNullOrEmpty([Environment]::GetEnvironmentVariable($name, "Process"))) {
+            [Environment]::SetEnvironmentVariable($name, $value, "Process")
+        }
+    }
+}
+
+function Assert-SecureTlsConfiguration {
+    if ([Environment]::GetEnvironmentVariable("NODE_TLS_REJECT_UNAUTHORIZED", "Process") -eq "0") {
+        Write-Err "Refusing to start with NODE_TLS_REJECT_UNAUTHORIZED=0."
+        Write-Info "Use a trusted local certificate or the HTTP loopback API origin instead."
+        exit 1
+    }
+
+    # Pin the secure value so Next.js dotenv loading cannot override it.
+    [Environment]::SetEnvironmentVariable("NODE_TLS_REJECT_UNAUTHORIZED", "1", "Process")
+}
+
+function Assert-LocalDatabaseTarget {
+    $databaseUrl = [Environment]::GetEnvironmentVariable("DATABASE_URL", "Process")
+    if ([string]::IsNullOrWhiteSpace($databaseUrl)) {
+        return
+    }
+
+    try {
+        $databaseHost = ([Uri]$databaseUrl).Host
+    } catch {
+        Write-Err "DATABASE_URL is not a valid absolute PostgreSQL URL."
+        exit 1
+    }
+
+    $loopbackHosts = @("localhost", "127.0.0.1", "::1", "[::1]")
+    if ($loopbackHosts -contains $databaseHost) {
+        return
+    }
+
+    if ([Environment]::GetEnvironmentVariable("ALLOW_REMOTE_DEV_DATABASE", "Process") -eq "true") {
+        Write-Warn "Remote development database explicitly allowed for host '$databaseHost'."
+        return
+    }
+
+    Write-Err "Refusing to start local services against remote database host '$databaseHost'."
+    Write-Info "Set DATABASE_URL to a dedicated loopback database."
+    Write-Info "For an intentional remote session only, set ALLOW_REMOTE_DEV_DATABASE=true."
+    exit 1
 }
 
 function Stop-PortProcesses($Port) {
@@ -206,9 +271,18 @@ function Test-Prerequisites {
 
         # Check critical env vars
         $envContent = Get-Content $EnvFile -Raw
-        $requiredVars = @("DATABASE_URL", "AUTH_SECRET", "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "API_KEY")
+        $requiredVars = @(
+            "DATABASE_URL",
+            "AUTH_SECRET",
+            "GOOGLE_CLIENT_ID",
+            "GOOGLE_CLIENT_SECRET",
+            "API_KEY",
+            "ADMIN_API_KEY",
+            "ACTOR_ASSERTION_HMAC_KEY"
+        )
         foreach ($var in $requiredVars) {
-            if ($envContent -notmatch "$var=.+") {
+            $processValue = [Environment]::GetEnvironmentVariable($var, "Process")
+            if ([string]::IsNullOrWhiteSpace($processValue) -and $envContent -notmatch "$var=.+") {
                 Write-Warn "Missing or empty: $var in .env"
             }
         }
@@ -223,7 +297,7 @@ function Test-Prerequisites {
     if (Test-Path $nodeModules) {
         Write-Info "node_modules: Installed"
     } else {
-        Write-Warn "node_modules not found. Run with -Install flag or 'npm install' in ardanova-client/"
+        Write-Warn "node_modules not found. Run with -Install or 'npm ci' in ardanova-client/"
     }
 
     # Docker (optional)
@@ -262,6 +336,15 @@ if (-not $prereqsPassed) {
     exit 1
 }
 
+if ($Mode -eq "local") {
+    Write-Step "Loading shared local environment..."
+    Import-DotEnv $EnvFile
+    Write-Info "Loaded repository .env without overriding process variables"
+    Assert-SecureTlsConfiguration
+    Assert-LocalDatabaseTarget
+    Write-Host ""
+}
+
 # ===========================================
 # Install Dependencies
 # ===========================================
@@ -274,14 +357,16 @@ if ($Install) {
     }
 
     if (-not $ApiOnly) {
-        Write-Step "Installing npm packages..."
+        Write-Step "Installing npm packages from package-lock.json..."
         Push-Location $ClientDir
-        & cmd.exe /c "npm install" 2>&1 | Out-Null
-        Write-Info "npm install complete"
-
-        Write-Step "Generating Prisma client..."
-        & cmd.exe /c "npx prisma generate" 2>&1 | Out-Null
-        Write-Info "prisma generate complete"
+        & cmd.exe /c "npm ci" 2>&1 | Out-Null
+        $npmExitCode = $LASTEXITCODE
+        if ($npmExitCode -ne 0) {
+            Pop-Location
+            Write-Err "npm ci failed"
+            exit $npmExitCode
+        }
+        Write-Info "npm ci complete (including npm run generate:prisma postinstall)"
         Pop-Location
     }
     Write-Host ""
@@ -360,6 +445,9 @@ Write-Host ""
 
 # Track child processes
 $jobs = @()
+$apiJob = $null
+$clientJob = $null
+$serviceExitCode = 0
 
 try {
     # Start .NET API
@@ -401,8 +489,11 @@ try {
     while ($true) {
         $exited = $jobs | Where-Object { $_.HasExited }
         if ($exited) {
-            $exitedName = if ($exited.Id -eq $apiJob.Id) { "API" } else { "Client" }
-            Write-Warn "$exitedName process exited. Shutting down..."
+            $exitedProcess = @($exited)[0]
+            $exitedName = if ($apiJob -and $exitedProcess.Id -eq $apiJob.Id) { "API" } else { "Client" }
+            $serviceExitCode = $exitedProcess.ExitCode
+            if ($serviceExitCode -eq 0) { $serviceExitCode = 1 }
+            Write-Warn "$exitedName process exited with code $serviceExitCode. Shutting down..."
             break
         }
         Start-Sleep -Seconds 2
@@ -423,4 +514,8 @@ finally {
     } | Stop-Process -Force -ErrorAction SilentlyContinue
 
     Write-Step "All services stopped."
+}
+
+if ($serviceExitCode -ne 0) {
+    exit $serviceExitCode
 }

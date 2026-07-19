@@ -6,7 +6,7 @@ The gate injects deterministic, non-secret loopback fixtures for required runtim
 
 The release fixtures force normal TLS certificate verification. The application environment schema rejects `NODE_TLS_REJECT_UNAUTHORIZED=0`, so a developer-shell override cannot silently become a production release setting.
 
-`format-changed.mjs` limits the release formatting gate to source changed from `HEAD` plus untracked frontend source. This keeps release diffs reviewable while the legacy tree is normalized incrementally. The broad `format:check` command remains available for repository-wide cleanup work.
+`format-changed.mjs` limits the release formatting gate to source changed from `HEAD` plus untracked frontend source. Generated `src/lib/zod/**` artifacts are excluded because the upstream generator owns their formatting; CI regenerates them and requires a clean diff instead. This keeps release diffs reviewable while the legacy tree is normalized incrementally. The broad `format:check` command remains available for repository-wide cleanup work.
 
 Keep the script orchestration-only. Product-specific assertions belong in Vitest or browser smoke checks, while deployment and rollback guidance belongs in `documentation/FRONTEND_RELEASE_PLAYBOOK.md`.
 

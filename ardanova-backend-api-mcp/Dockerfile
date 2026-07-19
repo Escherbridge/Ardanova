@@ -24,6 +24,11 @@ RUN dotnet publish -c Release -o /app/publish --no-restore
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
 
+# Compose uses the same bounded readiness endpoint as Railway.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
+
 # Copy published app
 COPY --from=build /app/publish .
 
@@ -35,8 +40,7 @@ ENV DOTNET_RUNNING_IN_CONTAINER=true
 # Expose port
 EXPOSE 8080
 
-# Run as the non-root 'app' user (UID 1654) pre-created in the .NET 8+ runtime image.
-# Railway performs its own /health healthcheck (see railway.toml); no in-image curl needed.
+# Run as the non-root 'app' user (UID 1654) pre-created in the .NET runtime image.
 USER app
 
 # Start the application
