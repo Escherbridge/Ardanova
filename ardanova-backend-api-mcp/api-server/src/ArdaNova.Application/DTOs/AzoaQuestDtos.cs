@@ -32,8 +32,8 @@ public record AzoaPublishedQuestDto
 
     /// <summary>
     /// True when this definition was published as a public template
-    /// (<c>POST /api/quest/templates</c>) rather than a plain quest
-    /// (<c>POST /api/quest</c>). Mirrors <c>AzoaQuestDefinition.IsPublic</c>.
+    /// (<c>POST /api/action/templates</c>) rather than a plain quest
+    /// (<c>POST /api/action</c>). Mirrors <c>AzoaQuestDefinition.IsPublic</c>.
     /// </summary>
     public bool PublishedAsTemplate { get; init; }
 

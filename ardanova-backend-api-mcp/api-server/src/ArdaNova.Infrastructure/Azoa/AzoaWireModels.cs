@@ -67,7 +67,7 @@ public sealed class AzoaAllocationRequest
 
 public sealed class AzoaAllocationResult
 {
-    [JsonPropertyName("avatarId")] public Guid AvatarId { get; set; }
+    [JsonPropertyName("userId")] public Guid AvatarId { get; set; }
     [JsonPropertyName("walletId")] public Guid WalletId { get; set; }
     [JsonPropertyName("walletAddress")] public string WalletAddress { get; set; } = string.Empty;
     [JsonPropertyName("walletProvisioned")] public bool WalletProvisioned { get; set; }

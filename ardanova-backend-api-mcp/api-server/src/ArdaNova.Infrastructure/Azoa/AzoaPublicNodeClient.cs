@@ -7,7 +7,7 @@ using Microsoft.Extensions.Logging;
 /// <summary>Credential-free client for anonymous AZOA registration.</summary>
 public sealed class AzoaPublicNodeClient : IAzoaPublicNodeClient
 {
-    private const string RegistrationPath = "/api/avatar/register";
+    private const string RegistrationPath = "/api/user/register";
 
     private readonly HttpClient _http;
     private readonly ILogger<AzoaPublicNodeClient> _logger;

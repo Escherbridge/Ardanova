@@ -162,6 +162,11 @@ public sealed class AzoaCustodialAccountGateway : IAzoaCustodialAccountGateway
         public string? ExternalSubject { get; init; }
         [JsonPropertyName("ardanovaUserId")]
         public string? ArdaNovaUserId { get; init; }
+        // AZOA renamed this wire field avatarId -> userId (D28). Pinned
+        // explicitly: without it, System.Text.Json's case-insensitive match
+        // silently yields null instead of throwing, which reads downstream as
+        // "identity not ready" and fail-closes every value action.
+        [JsonPropertyName("userId")]
         public string? AvatarId { get; init; }
         public string? WalletId { get; init; }
         public string? WalletAddress { get; init; }

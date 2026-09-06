@@ -32,8 +32,8 @@ public interface IAzoaQuestAuthoringService
     /// to the node, then validate each one.
     ///
     /// Public definitions (<c>IsPublic == true</c>) are published as templates
-    /// (<c>POST /api/quest/templates</c>) so any avatar may instantiate them;
-    /// restricted ones are published as plain quests (<c>POST /api/quest</c>).
+    /// (<c>POST /api/action/templates</c>) so any avatar may instantiate them;
+    /// restricted ones are published as plain quests (<c>POST /api/action</c>).
     ///
     /// Version-aware / idempotent-friendly: re-publishing may mint a new version id
     /// on the node. This method does not attempt to dedupe — it returns the ids the
@@ -69,14 +69,14 @@ public interface IAzoaQuestNode
 {
     /// <summary>
     /// Publish a quest definition as a plain (non-public) quest.
-    /// Maps to <c>POST /api/quest</c>. Returns the node-assigned quest id.
+    /// Maps to <c>POST /api/action</c>. Returns the node-assigned quest id.
     /// </summary>
     Task<Result<AzoaQuestRef>> CreateQuestAsync(
         AzoaQuestDefinition definition, CancellationToken ct = default);
 
     /// <summary>
     /// Publish a quest definition as a public template that any avatar may
-    /// instantiate. Maps to <c>POST /api/quest/templates</c>. Returns the
+    /// instantiate. Maps to <c>POST /api/action/templates</c>. Returns the
     /// node-assigned template id.
     /// </summary>
     Task<Result<AzoaQuestRef>> CreateTemplateAsync(
@@ -84,21 +84,21 @@ public interface IAzoaQuestNode
 
     /// <summary>
     /// Validate a published quest/template DAG.
-    /// Maps to <c>POST /api/quest/{id}/validate</c>.
+    /// Maps to <c>POST /api/action/{id}/validate</c>.
     /// </summary>
     Task<Result<AzoaQuestValidation>> ValidateQuestAsync(
         string questId, CancellationToken ct = default);
 
     /// <summary>
     /// Send a gate signal to a self-running quest run to advance it past a
-    /// GateCheck. Maps to <c>POST /api/quest/runs/{runId}/signal</c>.
+    /// GateCheck. Maps to <c>POST /api/action/runs/{runId}/signal</c>.
     /// </summary>
     Task<Result<AzoaSignalAck>> SignalRunAsync(
         string runId, AzoaRunSignal signal, CancellationToken ct = default);
 
     /// <summary>
     /// Read a run's execution state.
-    /// Maps to <c>GET /api/quest/runs/{runId}/execution-state</c>.
+    /// Maps to <c>GET /api/action/runs/{runId}/execution-state</c>.
     /// </summary>
     Task<Result<AzoaRunExecutionState>> GetExecutionStateAsync(
         string runId, CancellationToken ct = default);

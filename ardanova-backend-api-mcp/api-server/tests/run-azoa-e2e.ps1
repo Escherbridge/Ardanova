@@ -106,8 +106,8 @@ function Get-Result($response) {
 
 function New-DevApiKey {
     # Mints an nft:mint-scoped API key using ONLY AZOA's public HTTP API:
-    #   1. POST /api/avatar/register  (anonymous)                     -> avatar
-    #   2. POST /api/avatar/login     (anonymous)                     -> JWT (in .result)
+    #   1. POST /api/user/register  (anonymous)                     -> avatar
+    #   2. POST /api/user/login     (anonymous)                     -> JWT (in .result)
     #   3. POST /api/apikey           (Bearer JWT, scopes=nft:mint)   -> raw key (once)
     # Returns the raw key string (prefix "azoa_...").
     $suffix = [guid]::NewGuid().ToString("N").Substring(0, 10)
@@ -124,12 +124,12 @@ function New-DevApiKey {
         lastName  = "E2ERunner"
     } | ConvertTo-Json
 
-    $regResp = Invoke-RestMethod -Uri "$BaseUrl/api/avatar/register" -Method Post -ContentType "application/json" -Body $registerBody
+    $regResp = Invoke-RestMethod -Uri "$BaseUrl/api/user/register" -Method Post -ContentType "application/json" -Body $registerBody
     $avatar = Get-Result $regResp
     Write-Step "  registered avatar id=$($avatar.id)"
 
     $loginBody = @{ email = $email; password = $password } | ConvertTo-Json
-    $loginResp = Invoke-RestMethod -Uri "$BaseUrl/api/avatar/login" -Method Post -ContentType "application/json" -Body $loginBody
+    $loginResp = Invoke-RestMethod -Uri "$BaseUrl/api/user/login" -Method Post -ContentType "application/json" -Body $loginBody
     $jwt = Get-Result $loginResp
     if ([string]::IsNullOrWhiteSpace($jwt)) { throw "Login returned no JWT." }
     Write-Step "  obtained JWT (login ok)"

@@ -44,8 +44,8 @@ export const azoaKeys = {
   holon: (holonId: string) => ["azoa", "holon", holonId] as const,
   holonChildren: (holonId: string) =>
     ["azoa", "holon", holonId, "children"] as const,
-  questRunState: (runId: string) =>
-    ["azoa", "quest", "run", runId, "execution-state"] as const,
+  actionRunState: (runId: string) =>
+    ["azoa", "action", "run", runId, "execution-state"] as const,
 } as const;
 
 /* -------------------------------------------------------------------------- */
@@ -58,7 +58,7 @@ function unwrapResult<T>(result: Result<T, SdkError>): T {
   throw result.error;
 }
 
-/** True while a quest run is still progressing/parked (keep polling). */
+/** True while a action run is still progressing/parked (keep polling). */
 export function isAzoaRunPending(status: WorkflowRunStatus): boolean {
   return status === "Pending" || status === "Running" || isAwaiting(status);
 }
@@ -189,23 +189,23 @@ export function useAzoaHolonChildren(
 }
 
 /* -------------------------------------------------------------------------- */
-/* Quest run-state                                                            */
+/* Action run-state                                                            */
 /* -------------------------------------------------------------------------- */
 
 /**
- * Read a quest run's live execution-state into state. Poll-friendly: pass
+ * Read a action run's live execution-state into state. Poll-friendly: pass
  * `refetchInterval` to drive a status display. The hook does NOT error on
  * awaiting/in-progress statuses (Pending / Running / Suspended / AwaitingSignal
  * / AwaitingTimer) — those are normal pending states; use `isAzoaRunPending`
  * (or the SDK's `isTerminal`) to decide whether to keep polling.
  *
  * @example
- *   const { data } = useAzoaQuestRunState(runId, {
+ *   const { data } = useAzoaActionRunState(runId, {
  *     refetchInterval: (q) =>
  *       q.state.data && !isAzoaRunPending(q.state.data.status) ? false : 2000,
  *   });
  */
-export function useAzoaQuestRunState(
+export function useAzoaActionRunState(
   runId: string | undefined,
   options?: ReadHookOptions<WorkflowExecutionState>,
 ) {
@@ -215,13 +215,13 @@ export function useAzoaQuestRunState(
     WorkflowExecutionState,
     readonly unknown[]
   >({
-    queryKey: azoaKeys.questRunState(runId ?? ""),
+    queryKey: azoaKeys.actionRunState(runId ?? ""),
     queryFn: async () => {
       const client = getAzoaSdkClient();
       return unwrapResult(
         await client.request<WorkflowExecutionState>(
           "GET",
-          API_PATHS.QUEST_RUN_EXECUTION_STATE(runId!),
+          API_PATHS.ACTION_RUN_EXECUTION_STATE(runId!),
         ),
       );
     },

@@ -35,7 +35,7 @@ using Xunit.Abstractions;
 ///
 /// WHAT IT PROVES (contract §4/§6/§7, §11.2):
 ///   • Avatar self-register     — an anonymous end user becomes a self-sovereign
-///                                AZOA avatar via <c>POST /api/avatar/register</c>.
+///                                AZOA avatar via <c>POST /api/user/register</c>.
 ///   • Exactly-once allocation  — a redelivered economic trigger (same avatar,
 ///                                same Idempotency-Key) REPLAYS the first op
 ///                                (replayed==true, SAME operationId) and moves the

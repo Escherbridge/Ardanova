@@ -15,11 +15,11 @@ using ArdaNova.Application.Services.Interfaces;
 /// never references Infrastructure wire models.
 ///
 /// Endpoint map (track <c>azoa-quest-authoring</c>; verified):
-///   CreateQuest        → POST /api/quest
-///   CreateTemplate     → POST /api/quest/templates
-///   ValidateQuest      → POST /api/quest/{id}/validate
-///   SignalRun          → POST /api/quest/runs/{runId}/signal
-///   GetExecutionState  → GET  /api/quest/runs/{runId}/execution-state
+///   CreateQuest        → POST /api/action
+///   CreateTemplate     → POST /api/action/templates
+///   ValidateQuest      → POST /api/action/{id}/validate
+///   SignalRun          → POST /api/action/runs/{runId}/signal
+///   GetExecutionState  → GET  /api/action/runs/{runId}/execution-state
 ///
 /// The quest DEFINITION (<see cref="AzoaQuestDefinition"/>) is already an
 /// Application-owned, [JsonPropertyName]-annotated record, so it is posted as the
@@ -38,14 +38,14 @@ public sealed class AzoaQuestNodeAdapter : IAzoaQuestNode
     public async Task<Result<AzoaQuestRef>> CreateQuestAsync(
         AzoaQuestDefinition definition, CancellationToken ct = default)
     {
-        var result = await _node.PostAsync<AzoaQuestWire>("/api/quest", definition, ct);
+        var result = await _node.PostAsync<AzoaQuestWire>("/api/action", definition, ct);
         return MapQuestRef(result);
     }
 
     public async Task<Result<AzoaQuestRef>> CreateTemplateAsync(
         AzoaQuestDefinition definition, CancellationToken ct = default)
     {
-        var result = await _node.PostAsync<AzoaQuestWire>("/api/quest/templates", definition, ct);
+        var result = await _node.PostAsync<AzoaQuestWire>("/api/action/templates", definition, ct);
         return MapQuestRef(result);
     }
 
@@ -53,7 +53,7 @@ public sealed class AzoaQuestNodeAdapter : IAzoaQuestNode
         string questId, CancellationToken ct = default)
     {
         var result = await _node.PostAsync<AzoaQuestValidationWire>(
-            $"/api/quest/{questId}/validate", null, ct);
+            $"/api/action/{questId}/validate", null, ct);
 
         if (result.IsFailure)
             return MapFailure<AzoaQuestValidationWire, AzoaQuestValidation>(result);
@@ -73,7 +73,7 @@ public sealed class AzoaQuestNodeAdapter : IAzoaQuestNode
         };
 
         var result = await _node.PostAsync<AzoaSignalAckWire>(
-            $"/api/quest/runs/{runId}/signal", body, ct);
+            $"/api/action/runs/{runId}/signal", body, ct);
 
         if (result.IsFailure)
             return MapFailure<AzoaSignalAckWire, AzoaSignalAck>(result);
@@ -89,7 +89,7 @@ public sealed class AzoaQuestNodeAdapter : IAzoaQuestNode
         string runId, CancellationToken ct = default)
     {
         var result = await _node.GetAsync<AzoaRunExecutionStateWire>(
-            $"/api/quest/runs/{runId}/execution-state", ct);
+            $"/api/action/runs/{runId}/execution-state", ct);
 
         if (result.IsFailure)
             return MapFailure<AzoaRunExecutionStateWire, AzoaRunExecutionState>(result);

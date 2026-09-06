@@ -56,7 +56,7 @@ public sealed class AzoaCustodialAccountGatewayTests
                   "result": {
                     "tenantId": "11111111-1111-1111-1111-111111111111",
                     "externalSubject": "user:1",
-                    "avatarId": "avatar-1",
+                    "userId": "user-1",
                     "walletId": "wallet-1",
                     "walletAddress": "address-1",
                     "kycStatus": "Approved",
@@ -225,7 +225,7 @@ public sealed class AzoaCustodialAccountGatewayTests
             new HttpClient(handler) { BaseAddress = new Uri("https://azoa.example") },
             NullLogger<AzoaNodeClient>.Instance);
 
-        var result = await client.PostAsync<object>("/api/quest", new { name = "unsafe" });
+        var result = await client.PostAsync<object>("/api/action", new { name = "unsafe" });
 
         result.Type.Should().Be(ResultType.Forbidden);
     }
@@ -247,10 +247,10 @@ public sealed class AzoaCustodialAccountGatewayTests
     }
 
     [Theory]
-    [InlineData("/api/quest/../allocation/11111111-1111-1111-1111-111111111111")]
-    [InlineData("/api/quest/%2e%2e/allocation/11111111-1111-1111-1111-111111111111")]
-    [InlineData("/api/quest/%252e%252e/allocation/11111111-1111-1111-1111-111111111111")]
-    [InlineData("/api/quest/run%2Fsignal")]
+    [InlineData("/api/action/../allocation/11111111-1111-1111-1111-111111111111")]
+    [InlineData("/api/action/%2e%2e/allocation/11111111-1111-1111-1111-111111111111")]
+    [InlineData("/api/action/%252e%252e/allocation/11111111-1111-1111-1111-111111111111")]
+    [InlineData("/api/action/run%2Fsignal")]
     public async Task QuestClient_RejectsRouteConfusionBeforeNetwork(string path)
     {
         var handler = new StubHandler(_ => throw new InvalidOperationException("Network must not be called."));

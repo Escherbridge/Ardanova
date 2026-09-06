@@ -5,7 +5,7 @@
  * WHAT THIS IS
  * ------------
  * A browser-safe singleton `AzoaApiClient` (from `azoa-sdk/api`) used ONLY to
- * READ AZOA "oasis-objects" — wallets, portfolios, holons, and quest run-state —
+ * READ AZOA "oasis-objects" — wallets, portfolios, holons, and action run-state —
  * into client state. React Query (see `queries.ts`) is the state store: SDK
  * reads land in the query cache and that cache IS the client-held object state.
  *
@@ -25,7 +25,7 @@
  * `NEXT_PUBLIC_AZOA_BASE_URL` only.
  *
  * Two read paths, by trust level:
- *   1. PUBLIC / SESSION-SCOPED reads — wallets, portfolio, holons, quest
+ *   1. PUBLIC / SESSION-SCOPED reads — wallets, portfolio, holons, action
  *      run-state for the signed-in user. These are safe to issue from the
  *      browser using the *user's own* bearer token (their avatar JWT), which we
  *      attach per call via `getAzoaSdkClient(token)`. The token authorizes only

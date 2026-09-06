@@ -58,7 +58,7 @@
     "@trpc/client": "^11.0.0",
     "@trpc/react-query": "^11.0.0",
     "@trpc/server": "^11.0.0",
-    "azoa-sdk": "^0.1.0",
+    "azoa-sdk": "^0.3.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lightningcss": "^1.32.0",

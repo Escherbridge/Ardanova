@@ -24,10 +24,10 @@ export type {
 // API client, so we read them via the generic request path; see queries.ts).
 export type { HolonResult, HolonQueryParams } from "azoa-sdk";
 
-// Quest run-state object shapes (root export, also available from
-// "azoa-sdk/workflow"). NOTE: a quest *run* uses `WorkflowRunStatus` /
-// `WorkflowExecutionState` — distinct from a quest *definition*'s
-// `QuestStatus` / `QuestNodeState` below.
+// Action run-state object shapes (root export, also available from
+// "azoa-sdk/workflow"). NOTE: a action *run* uses `WorkflowRunStatus` /
+// `WorkflowExecutionState` — distinct from a action *definition*'s
+// `ActionStatus` / `ActionNodeState` below.
 export type {
   WorkflowExecutionState,
   WorkflowNodeExecution,
@@ -35,13 +35,13 @@ export type {
   WorkflowRunStatus,
 } from "azoa-sdk";
 
-// Quest *definition* object shapes ("./api" export) — useful when rendering the
+// Action *definition* object shapes ("./api" export) — useful when rendering the
 // static DAG alongside a live run.
 export type {
-  QuestResult,
-  QuestNodeResult,
-  QuestStatus,
-  QuestNodeState,
+  ActionResult,
+  ActionNodeResult,
+  ActionStatus,
+  ActionNodeState,
 } from "azoa-sdk/api";
 
 // Error type surfaced by every SDK call (Result<T, SdkError>).

@@ -75,7 +75,7 @@ internal static class AzoaNodePathPolicy
     private const string CustodialPrefix = "/api/tenant/custodial-accounts";
     private const string AllocationPrefix = "/api/allocation/";
     private const string FungibleMintPath = "/api/nft/fungible-mint";
-    private const string QuestPrefix = "/api/quest";
+    private const string QuestPrefix = "/api/action";
 
     public static bool IsSafeApiPath(string? path)
     {
