@@ -8,7 +8,7 @@ type: spec
 
 Wire ArdaNova's **already-decided** value moves — project funding settlement and
 task/bounty rewards — to the AZOA node's out-of-band value door,
-`POST /api/allocation/{avatarId}`, with **stable idempotency keys** so an asset
+`POST /api/allocation/{userId}`, with **stable idempotency keys** so an asset
 moves exactly once. ArdaNova decides *how much* of *which* asset (economics stay
 consumer-side, §1); AZOA performs the exactly-once, KYC-gated move (§6).
 
@@ -16,14 +16,14 @@ consumer-side, §1); AZOA performs the exactly-once, KYC-gated move (§6).
 
 ## ⚠️ Ordering constraint (real value)
 
-AZOA-side `quest-reconcile-retry-wiring` (**P7**, the double-mint reconcile clause,
+AZOA-side `action-reconcile-retry-wiring` (**P7**, the double-mint reconcile clause,
 §7) is shipped on the reference node. Before enabling real value on another
 deployment, verify its reconcile endpoints and recovery tests. Local and CI runs
 remain on `Blockchain:Mode=Simulated` (deterministic `sim:` ids).
 
 ## Dependencies
 
-- `azoa-avatar-onboarding` — avatar + wallet to receive the asset.
+- `azoa-user-onboarding` — AZOA user + wallet to receive the asset.
 - `azoa-provider-adapter` — shares the `AzoaNodeClient` / transfer-mint plumbing.
 - Track 09 (Tokenomics) — treasury split, equity math, funding-gate *valuation*,
   payout decisions (these PRODUCE the already-decided amounts; AZOA never computes
@@ -33,8 +33,8 @@ remain on `Blockchain:Mode=Simulated` (deterministic `sim:` ids).
 
 ## The allocation door (§6)
 
-`POST /api/allocation/{avatarId}`:
-- `{avatarId}` = the receiving AZOA avatar — **route only, IDOR-safe** (never a
+`POST /api/allocation/{userId}`:
+- `{userId}` = the receiving AZOA user — **route only, IDOR-safe** (never a
   redirectable body field; cross-owner → 404).
 - Headers: `X-Api-Key` (must hold `nft:mint`/`wallet:manage`),
   `Idempotency-Key` = a **stable per-event** key.
@@ -89,16 +89,16 @@ status (e.g. "reward sent / pending settlement") via a thin proxy.
 ## Out of scope
 
 - The reconcile wiring itself (AZOA P7) — consumed, not built here.
-- In-DAG value moves via quest Tier-2 nodes (`azoa-quest-authoring`); this is the
+- In-DAG value moves via action Tier-2 nodes (`azoa-action-authoring`); this is the
   out-of-band door. (Both are exactly-once + KYC-gated, §6.)
 - Treasury split / equity math (Track 09 — produces the amounts).
 
 ## Acceptance criteria
 
-- Funding settlement and task reward each call `POST /api/allocation/{avatarId}`
+- Funding settlement and task reward each call `POST /api/allocation/{userId}`
   with a **stable** idempotency key; a redelivered event reuses the same key and
   the node returns `replayed: true` (no second move).
-- `avatarId` is taken from the resolved avatar reference (route value), never a
+- The AZOA user id is taken from the resolved reference (route value), never a
   body field; cross-owner target → 404.
 - `amount` is passed as an opaque string; no economic computation happens on the
   AZOA side.

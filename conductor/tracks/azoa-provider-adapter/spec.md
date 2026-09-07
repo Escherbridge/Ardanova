@@ -1,3 +1,7 @@
+---
+type: spec
+---
+
 # AZOA Provider Adapter — Technical Specification
 
 ## Overview
@@ -35,13 +39,13 @@ coexists during migration.
 
 Introduce `AzoaBackedAlgorandService : IAlgorandService` in
 `ArdaNova.Infrastructure/Azoa/`, implementing the same surface by calling the
-AZOA node (reusing `AzoaNodeClient` from the `azoa-avatar-onboarding` track).
+AZOA node (reusing `AzoaNodeClient` from the `azoa-user-onboarding` track).
 
 | `IAlgorandService` method | AZOA call | Notes |
 |---|---|---|
-| `MintSoulboundASAAsync` | `Grant` quest node (soulbound) **or** `POST /api/allocation` kind=`Mint` | soulbound: total=1, decimals=0, frozen |
-| `CreateFungibleASAAsync` | `POST /api/nft/fungible-mint` (dedicated endpoint, §11.3) **or** `FungibleTokenCreate` quest node | total/decimals are consumer-authoritative; AZOA derives no economics |
-| `TransferASAAsync` | `POST /api/allocation/{avatarId}` kind=`Transfer` | |
+| `MintSoulboundASAAsync` | `Grant` action node (soulbound) **or** `POST /api/allocation` kind=`Mint` | soulbound: total=1, decimals=0, frozen |
+| `CreateFungibleASAAsync` | `POST /api/nft/fungible-mint` (dedicated endpoint, §11.3) **or** `FungibleTokenCreate` action node | total/decimals are consumer-authoritative; AZOA derives no economics |
+| `TransferASAAsync` | `POST /api/allocation/{userId}` kind=`Transfer` | |
 | `GetASABalanceAsync` / `GetASAInfoAsync` | AZOA wallet/portfolio read | **chain is source of truth; AZOA stores no balance** |
 | `VerifyOwnershipAsync` | AZOA NFT/holon ownership read | |
 | `BuildARC19MetadataAsync` | **stays local** (ArdaNova keeps the ARC-19 metadata *shape*; domain) | passed to AZOA as opaque shape |
@@ -70,8 +74,8 @@ all current `IAlgorandService` consumers keep working through the interface.
 
 ## Out of scope
 
-- Avatar/wallet linkage (`azoa-avatar-onboarding` — dependency).
-- Quest definitions (`azoa-quest-authoring`).
+- AZOA user/wallet linkage (`azoa-user-onboarding` — dependency).
+- Action definitions (`azoa-action-authoring`).
 - Treasury/reward allocation orchestration (`treasury-reward-to-azoa-allocation`),
   though it relies on this adapter's transfer/mint paths.
 - KMS/custody hardening (node operator concern).

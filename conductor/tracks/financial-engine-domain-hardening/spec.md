@@ -14,7 +14,7 @@ orchestration boundary; it receives already-decided asset references and
 base-unit amounts only.
 
 This track is a prerequisite for the gated-commerce journeys. It does not
-activate checkout, payouts, token exchange, quest rewards, or AZOA dispatch.
+activate checkout, payouts, token exchange, action rewards, or AZOA dispatch.
 
 ## Domain contract
 
@@ -46,7 +46,7 @@ floating-point asset amount, or inferred chain identity is permitted.
   explicitly. Its two legs are utility-asset -> ARDA -> utility-asset; it may
   not be represented as an equity-right conversion.
 - Equity/redemption decisions require their own policy and eligibility evidence.
-  A utility-token holding, avatar link, task completion, payment redirect, or
+  A utility-token holding, AZOA account link, task completion, payment redirect, or
   project gate alone never grants such a right.
 - The consumer is the system of record for all vocabulary in this track. AZOA
   receives opaque identifiers and already-decided amounts, never valuation,

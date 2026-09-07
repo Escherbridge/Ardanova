@@ -13,7 +13,7 @@ type: plan
     and payout processing now require a distinct fail-closed `AdminApiKey` claim.
     A bounded signed BFF actor assertion now binds `sub`, role, HTTP method and
     path to a 90-second HMAC envelope. The API verifies the envelope before
-    granting the `ActorAssertion` policy; swap and AZOA avatar routes use the
+    granting the `ActorAssertion` policy; swap and AZOA account routes use the
     assertion as their sole user-id source. The BFF API key remains service
     authentication only. Extend the policy to each ownership-sensitive route
     only alongside its controller/BFF ownership tests. Wallet, token balance/portfolio/liquidity,
@@ -199,14 +199,14 @@ the current 0--19 service checks with `FixedScaleAmount`/`numeric(38,18)` at
     assignment state is rejected. The decimal scale is now captured from the
     canonical project-token configuration rather than inferred at acceptance.
     This is deliberately local and
-    effect-free: it creates no escrow, quest, settlement, outbox, payment, or
+    effect-free: it creates no escrow, action run, settlement, outbox, payment, or
     token allocation. A reviewed production migration (including the new
     `ProjectTokenConfig.assetScale` column) and multi-process
     concurrency evidence remain before the transition is release-ready. The
     owner-facing bid panel invokes the BFF accept mutation and navigates only to
     its exact, validated internal `commerceUrl`; it never derives a task URL
     from client data or claims a payment, escrow, or reward outcome.
-- [~] Build the avatar/wallet panel, asset portfolio, verified external payout
+- [~] Build the AZOA account/wallet panel, asset portfolio, verified external payout
   wallet flow, funding checkout/status flow, and receipt/history export flow.
   - A DBML-first, actor-scoped Algorand wallet proof foundation now replaces the
     unsafe direct verification toggle. `WalletVerificationChallenge` binds the
@@ -220,7 +220,7 @@ the current 0--19 service checks with `FixedScaleAmount`/`numeric(38,18)` at
     This is not yet a user-facing wallet signer or payout journey: it needs a
     reviewed additive Prisma migration, browser wallet signing integration,
     production database concurrency evidence, policy-gated payout use, and the
-    avatar/portfolio/export UX. It exports neither private keys nor mnemonics.
+    account/portfolio/export UX. It exports neither private keys nor mnemonics.
   - The settings shell now exposes an actor-scoped external-wallet list and
     public-address registration, primary selection, removal, AZOA linkage
     status, portfolio navigation, and a route into project funding. The browser
@@ -256,10 +256,10 @@ the current 0--19 service checks with `FixedScaleAmount`/`numeric(38,18)` at
 - [ ] Update swap UI to select eligible target assets, show an expiring quote,
       explain ARDA intermediary legs, and display durable order/settlement status.
 
-## 4. Quest and allocation integration [P0]
+## 4. Action and allocation integration [P0]
 
-- [ ] Link accepted agreements to self-run quest instances or the documented
-      consented alternative; stop calling tenant-created random-password avatars
+- [ ] Link accepted agreements to self-run action runs or the documented
+      consented alternative; stop calling tenant-created random-password AZOA users
       "self-run" until the credential/consent handoff exists.
 - [ ] Dispatch settlement through `IAzoaAllocationService` with stable event keys;
       retain AZOA as the custody/exactly-once layer and ArdaNova as the economics
@@ -275,7 +275,7 @@ the current 0--19 service checks with `FixedScaleAmount`/`numeric(38,18)` at
     gate, and role-policy coverage remains required.
 - [ ] Duplicate payment/release/refund/swap, crash-window, timeout/reconciliation,
       and concurrent equity/gate tests.
-- [ ] Simulated end-to-end: bid -> task agreement -> escrow -> quest -> award ->
+- [ ] Simulated end-to-end: bid -> task agreement -> escrow -> action run -> award ->
       project-token/ARDA quote -> order -> settlement receipt.
 - [ ] Full backend and frontend verification; real-value cutover remains blocked
       until every acceptance gate in the spec has evidence.

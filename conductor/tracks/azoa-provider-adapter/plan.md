@@ -4,17 +4,19 @@ type: plan
 # Track — AZOA Provider Adapter
 
 > Contract: [`ARDANOVA-AZOA-INTEGRATION-CONTRACT.md`](../../ARDANOVA-AZOA-INTEGRATION-CONTRACT.md) §9.
-> Depends on `azoa-avatar-onboarding` (`AzoaNodeClient`, avatar/wallet refs).
+> Depends on `azoa-user-onboarding` (`AzoaNodeClient`, AZOA user/wallet refs).
+> **Reconciled 2026-09-07** against `f2e4bc5`: routes are `/api/action*` and
+> `POST /api/allocation/{userId}`; ArdaNova C# names keep `Avatar`/`Quest`.
 > Backend-only. Swap point: `ArdaNova.Infrastructure/DependencyInjection.cs:67`.
 
 ## 1. Adapter implementation
 
-- [ ] **[P0] `AzoaBackedAlgorandService : IAlgorandService`**
+- [x] **[P0] `AzoaBackedAlgorandService : IAlgorandService`**
     - `ArdaNova.Infrastructure/Azoa/AzoaBackedAlgorandService.cs`
-    - Reuse `AzoaNodeClient` (from avatar-onboarding track)
+    - Reuse `AzoaNodeClient` (from the `azoa-user-onboarding` track)
     - `MintSoulboundASAAsync` → Grant/allocation Mint (soulbound: total=1, dec=0, frozen)
     - `CreateFungibleASAAsync` → `POST /api/nft/fungible-mint`
-    - `TransferASAAsync` → `POST /api/allocation/{avatarId}` kind=Transfer
+    - `TransferASAAsync` → `POST /api/allocation/{userId}` kind=Transfer
     - `GetASABalanceAsync` / `GetASAInfoAsync` → AZOA wallet/portfolio read (chain = source of truth)
     - `VerifyOwnershipAsync` → AZOA ownership read
     - `BuildARC19MetadataAsync` → keep local (delegate to existing shape builder)
@@ -22,10 +24,11 @@ type: plan
 
 ## 2. Feature flag + DI
 
-- [ ] **[P0] Provider selection config**
+- [x] **[P0] Provider selection config**
     - `Algorand:Provider` = `Legacy` | `Azoa` | `Simulated` (or reuse `Azoa:Mode`)
-- [ ] **[P0] Conditional registration**
-    - Replace single line at `ArdaNova.Infrastructure/DependencyInjection.cs:67`
+- [x] **[P0] Conditional registration**
+    - Shipped at `ArdaNova.Infrastructure/DependencyInjection.cs:150-185`
+      (`AlgorandProviderSelection.Parse` → Legacy | Azoa | Simulated)
     - Default `Legacy`/`Simulated` until validated; flip to `Azoa` after
 
 ## 3. Cutover / decommission (gated on validation)
@@ -36,7 +39,7 @@ type: plan
 
 ## 4. Tests (.NET)
 
-- [ ] **[P0] `AzoaBackedAlgorandServiceTests`**
+- [x] **[P0] `AzoaBackedAlgorandServiceTests`**
     - `tests/ArdaNova.Application.Tests/Services/AzoaBackedAlgorandServiceTests.cs`
       (or Infrastructure test project if one exists)
     - Each interface method routes to the expected AZOA call (mock node client)

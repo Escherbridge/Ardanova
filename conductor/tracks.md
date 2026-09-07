@@ -39,13 +39,42 @@ type: index
 ## AZOA Blockchain-Node Integration — Phase E
 > Authored against [`ARDANOVA-AZOA-INTEGRATION-CONTRACT.md`](ARDANOVA-AZOA-INTEGRATION-CONTRACT.md) §10/§11.
 > Locked decisions: shared/managed node (operator custodies), self-register +
-> self-run avatars (no fleet map, no `tenant:provision`, no acting-as).
-> Dependency order: avatar-onboarding → provider-adapter → quest-authoring →
+> self-run users (no fleet map, no `tenant:provision`, no acting-as).
+> Dependency order: user-onboarding → provider-adapter → action-authoring →
 > treasury-allocation. Real-value allocation gated on AZOA-side P7.
 
 - [ ] [Gated Commerce and AZOA Settlement](tracks/gated-commerce-and-azoa-settlement/spec.md) - Durable bid, funding, task-award, project-token/ARDA exchange, wallet, and settlement flows. **P0 launch prerequisite.**
 - [ ] [Financial Engine Domain Hardening](tracks/financial-engine-domain-hardening/spec.md) - Immutable asset definitions, utility-token versus equity/redemption-right policies, eligibility decisions, and fixed-scale migration. **P0 prerequisite; does not activate value movement.**
-- [ ] [AZOA Avatar Onboarding](tracks/azoa-avatar-onboarding/spec.md) - Link each user to a self-sovereign AZOA avatar; wallet-bound check before Tier-2. **Dependency root.**
-- [ ] [AZOA Provider Adapter](tracks/azoa-provider-adapter/spec.md) - `AzoaBackedAlgorandService` behind `IAlgorandService`, feature-flagged, platform mnemonic removed. **Backend-only.**
-- [ ] [AZOA Quest Authoring](tracks/azoa-quest-authoring/spec.md) - Publish scrum-lifecycle quest definitions/templates; avatars self-run; board events → gate signals.
-- [ ] [Treasury / Reward → AZOA Allocation](tracks/treasury-reward-to-azoa-allocation/spec.md) - Funding + task reward → `POST /api/allocation` with stable idempotency keys. **Real-value flip gated on AZOA P7.**
+- [~] [AZOA User Onboarding](tracks/azoa-user-onboarding/spec.md) - Link each ArdaNova user to a self-sovereign AZOA user; readiness check before Tier-2. **Dependency root. Largely shipped — the legacy `/api/azoa/avatar/*` routes are retired (410 Gone); the live surface is `api/azoa/custodial-account` + the uncommitted `IAzoaValueEligibilityService`.**
+- [~] [AZOA Provider Adapter](tracks/azoa-provider-adapter/spec.md) - `AzoaBackedAlgorandService` behind `IAlgorandService`, feature-flagged (`Algorand:Provider` = Legacy | Azoa | Simulated), platform mnemonic removal still owed. **Backend-only.**
+- [~] [AZOA Action Authoring](tracks/azoa-action-authoring/spec.md) - Publish scrum-lifecycle action definitions/templates; users self-run; board events → gate signals. **Authoring + signal services and their tests shipped; no controller or frontend surface yet.**
+- [~] [Treasury / Reward → AZOA Allocation](tracks/treasury-reward-to-azoa-allocation/spec.md) - Funding + task reward → `POST /api/allocation/{userId}` with stable idempotency keys. **Allocation client + tests shipped; no production trigger dispatches it yet. Real-value flip gated on AZOA-side `action-reconcile-retry-wiring` (P7).**
+
+---
+
+## Cross-cutting status — reconciled 2026-09-07
+
+**Legend:** `[x]` shipped · `[~]` partially on disk · `[ ]` not started.
+
+### The AZOA rename cutover (`f2e4bc5`) landed
+AZOA renamed its domain nouns — **avatar → user**, **quest → action** — across
+routes, wire fields and SDK exports. ArdaNova adapted in `f2e4bc5`, which fixed a
+silent production break: `AzoaCustodialAccountGateway.StatusWire` had matched
+AZOA's `avatarId` case-insensitively with no `[JsonPropertyName]`, so AZOA's
+switch to `userId` would have yielded `null` — tripping the readiness invariant
+and making every money-moving action fail closed with no error raised.
+
+The rename was applied to the **contract surface only**. Read every doc in this
+tree with that split in mind:
+
+| Renamed (use new names) | Deliberately unchanged (old names are correct) |
+|---|---|
+| `/api/user/register`, `/api/action*`, `POST /api/allocation/{userId}` | C# types: `IAzoaAvatarService`, `AzoaQuestNodeAdapter`, `AzoaQuestNodeClient`, `IAzoaQuestAuthoringService` |
+| Wire field `userId` (`[JsonPropertyName("userId")]`) | DB column `User.azoaAvatarId`, config key `Azoa:QuestApiKey` |
+| npm `azoa-sdk` exports | Directory `ArdaNova.Application/Azoa/Quests/` |
+| Track slugs `azoa-user-onboarding`, `azoa-action-authoring` (contract §10) | |
+
+### Open items
+See [`RUNBOOK.md`](RUNBOOK.md) — in particular the **unpublished `azoa-sdk@0.3.0`**
+(CI-red, green-only-under-`npm link`) and the ~81 uncommitted files from the
+in-flight security-hardening pass.

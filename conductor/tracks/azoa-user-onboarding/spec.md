@@ -2,26 +2,63 @@
 type: spec
 ---
 
-# AZOA Avatar Onboarding — Technical Specification
+# AZOA User Onboarding — Technical Specification
 
 > Historical track: credential and custody details are superseded by the
 > canonical integration contract and the tenant custodial-account flow. Public
 > self-registration is credential-free; managed onboarding uses a dedicated
 > custody key and a trusted deploy-time tenant binding.
 
+## Terminology after the `f2e4bc5` cutover (read this first)
+
+AZOA renamed its domain nouns — **avatar → user**, **quest → action** — across
+routes, wire fields and SDK exports. ArdaNova cut over in `f2e4bc5`. The rename
+was applied to the **contract surface only**; ArdaNova's internal identifiers
+were deliberately left alone to keep the change off the in-flight security work.
+
+| Layer | Term today | Evidence |
+|---|---|---|
+| AZOA route | `/api/user/register`, `/api/action*`, `POST /api/allocation/{userId}` | `ArdaNova.Infrastructure/Azoa/AzoaPublicNodeClient.cs`, `AzoaQuestNodeAdapter.cs`, `AzoaCustodialNodeClient.cs` (`QuestPrefix = "/api/action"`) |
+| AZOA wire field | `userId` | `AzoaCustodialAccountGateway.StatusWire` — `[JsonPropertyName("userId")] public string? AvatarId` |
+| npm SDK | `azoa-sdk` ^0.3.0 | `ardanova-client/package.json` |
+| ArdaNova C# types | **still** `IAzoaAvatarService`, `AzoaQuestNodeAdapter`, `AzoaQuestNodeClient` | unchanged by design |
+| ArdaNova DB column | **still** `User.azoaAvatarId` | unchanged by design |
+| ArdaNova config keys | **still** `Azoa:QuestApiKey` | unchanged by design |
+| Track slugs | `azoa-user-onboarding`, `azoa-action-authoring` | contract §10 |
+
+Treat every *route, wire field or SDK symbol* named below in old terms as a doc
+bug. Treat every *C# type, column or config key* named in old terms as correct.
+
+## As-built divergence (verify before implementing)
+
+This spec is partly **superseded** by what shipped:
+
+- `POST /api/azoa/avatar/ensure|wallet` and `GET /api/azoa/avatar/status` are
+  **retired — they return 410 Gone**
+  (`ArdaNova.API/Controllers/AzoaAvatarController.cs`). The live surface is
+  `api/azoa/custodial-account` (`AzoaCustodialAccountController.cs`).
+- Readiness is no longer "avatar linked". It is
+  `IAzoaValueEligibilityService.RequireReadyAsync(userId, action, ct)`, which
+  fails closed unless identity, approved verification, AZOA account and
+  managed-account evidence are all present. That service is **uncommitted** at
+  the time of writing (see `conductor/RUNBOOK.md`).
+- `IAzoaAvatarService` / `AzoaAvatarService` still exist and still persist
+  `user.azoaAvatarId`; they are now an internal linkage step behind the
+  custodial-account flow, not a public route.
+
 ## Overview
 
-Link every ArdaNova user to a **self-sovereign AZOA avatar** on the shared/managed
+Link every ArdaNova user to a **self-sovereign AZOA user** on the shared/managed
 AZOA node, and provide the wallet-bound readiness check that every value-bearing
 (Tier-2) operation depends on. This is the dependency root for the other three
-AZOA tracks — adapter, quest-authoring, and allocation all assume an avatar
+AZOA tracks — adapter, action-authoring, and allocation all assume an AZOA user
 exists and (for value moves) has a wallet bound.
 
 Per the locked contract decisions (§11), ArdaNova:
 
 - integrates a **shared/managed AZOA node** — the node operator custodies keys;
   ArdaNova owns **no** KMS/B3 or fee-funding/P3 concern;
-- uses **self-register + self-run** avatars — **no fleet map, no `tenant:provision`,
+- uses **self-register + self-run** users — **no fleet map, no `tenant:provision`,
   no acting-as/consent-delegation path**. §4.1 of the contract does NOT apply.
 
 > Source contract: [`conductor/ARDANOVA-AZOA-INTEGRATION-CONTRACT.md`](../../ARDANOVA-AZOA-INTEGRATION-CONTRACT.md) §2, §3, §4, §5.1.
@@ -37,13 +74,13 @@ Per the locked contract decisions (§11), ArdaNova:
 
 ### Where the link lives (consumer side)
 
-ArdaNova stores a **thin reference** from its `User` to the AZOA avatar — it does
+ArdaNova stores a **thin reference** from its `User` to the AZOA user — it does
 NOT store keys, balances, or wallet secrets (those live on the node). The
-reference is the minimum needed to address the avatar on subsequent API calls.
+reference is the minimum needed to address that identity on subsequent API calls.
 
 | Field                                | Owner                           | Purpose                                                          |
 | ------------------------------------ | ------------------------------- | ---------------------------------------------------------------- |
-| `azoaAvatarId`                       | ArdaNova `User` (new)           | The avatar's id on the AZOA node. Null until linked.             |
+| `azoaAvatarId`                       | ArdaNova `User` (new)           | The AZOA-side user id. Null until linked. Column name predates the rename.             |
 | `azoaWalletId` / `azoaWalletAddress` | ArdaNova `User` (new, nullable) | Cached wallet reference once bound. Chain stays source of truth. |
 | keys / mnemonic                      | **AZOA node only**              | Never stored or seen by ArdaNova.                                |
 
@@ -54,16 +91,16 @@ reference is the minimum needed to address the avatar on subsequent API calls.
 
 ### Onboarding flow (self-sovereign)
 
-1. **Avatar create** — on first need (sign-up completion or first blockchain
+1. **User create** — on first need (sign-up completion or first blockchain
    touchpoint), ArdaNova calls the AZOA node as a self-registering consumer to
-   create/resolve an avatar **for the calling user as itself**. No
-   `tenant:provision`; the user is its own avatar.
+   create/resolve an identity **for the calling user as itself** via `POST /api/user/register`. No
+   `tenant:provision`; the user is its own AZOA identity.
 2. **Persist reference** — store `azoaAvatarId` on the `User`. Idempotent: a
-   second call returns the existing avatar, never a duplicate.
+   second call returns the existing identity, never a duplicate.
 3. **Wallet generate (pre-KYC OK)** — `POST /api/wallet/generate` may be called
    without KYC (contract §11.4). Cache `azoaWalletId` / `azoaWalletAddress`.
 4. **Wallet-bound check before Tier-2** — before any value-bearing call, assert
-   the avatar has a wallet bound. This is the consumer-side mirror of AZOA's
+   the AZOA user has a wallet bound. This is the consumer-side mirror of AZOA's
    `ChainCapabilityGate` (fail-closed): no wallet → block the action with a
    clear "wallet not ready" error, never a silent no-op.
 
@@ -83,7 +120,8 @@ actionable client message. Wallet creation stays ungated.
   - `IsTier2ReadyAsync(userId)` → wallet-bound check (does NOT check KYC; that's
     the node's gate, surfaced via 403 at call time).
 - AZOA node clients: credential-free public registration plus separate custody,
-  value, and quest transports in `ArdaNova.Infrastructure/Azoa/`.
+  value, and action transports in `ArdaNova.Infrastructure/Azoa/` (the C# type is still
+  `AzoaQuestNodeClient` — see “Terminology after the cutover”).
 - Config: `Azoa:BaseUrl`, `Azoa:CustodyApiKey`, `Azoa:ValueApiKey`,
   `Azoa:QuestApiKey`, trusted `Azoa:TenantId`, and `Azoa:Mode`
   (Live | Simulated) — Simulated still available for dev even though the node
@@ -93,7 +131,7 @@ actionable client message. Wallet creation stays ungated.
 
 - tRPC router `azoaAvatar` is a **thin proxy** → `apiClient` → .NET (no Prisma,
   no business logic), per the architecture rule.
-- Surface avatar/wallet status + KYC status on the profile/settings page so a
+- Surface AZOA identity + wallet status + KYC status on the profile/settings page so a
   user can see "wallet ready / KYC required to transact."
 
 ## Out of scope (explicitly)
@@ -102,12 +140,12 @@ actionable client message. Wallet creation stays ungated.
   by §11.2).
 - Key custody, KMS, fee-funding (node operator's concern, §2).
 - The provider-adapter swap (`azoa-provider-adapter` track).
-- Quest definitions (`azoa-quest-authoring` track).
+- Action definitions (`azoa-action-authoring` track).
 
 ## Acceptance criteria
 
-- A new user can be linked to exactly one AZOA avatar; re-running the link is a
-  no-op (idempotent), no duplicate avatar.
+- A new user can be linked to exactly one AZOA user; re-running the link is a
+  no-op (idempotent), no duplicate identity.
 - A wallet can be generated for a user pre-KYC and its reference cached.
 - `IsTier2ReadyAsync` returns false with a clear reason when no wallet is bound,
   true once bound.

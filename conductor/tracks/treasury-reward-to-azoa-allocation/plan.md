@@ -4,8 +4,8 @@ type: plan
 # Track — Treasury / Reward → AZOA Allocation
 
 > Contract: [`ARDANOVA-AZOA-INTEGRATION-CONTRACT.md`](../../ARDANOVA-AZOA-INTEGRATION-CONTRACT.md) §6, §7.
-> Depends on `azoa-avatar-onboarding` + `azoa-provider-adapter`.
-> P7 (`quest-reconcile-retry-wiring`) is shipped in the reference implementation.
+> Depends on `azoa-user-onboarding` + `azoa-provider-adapter`.
+> P7 (`action-reconcile-retry-wiring`) is shipped in the reference implementation.
 > Gate real value on deployment verification; keep local/CI on `Blockchain:Mode=Simulated`.
 
 ## 1. Allocation client (Infrastructure/Application)
@@ -14,7 +14,8 @@ type: plan
     - `ArdaNova.Application/Services/Interfaces/IAzoaAllocationService.cs`
     - `ArdaNova.Application/Services/Implementations/AzoaAllocationService.cs`
     - `AllocateAsync(avatarId, kind, amount, idempotencyKey, ...)` via `AzoaNodeClient`
-    - `POST /api/allocation/{avatarId}` — avatarId from route value only (IDOR-safe)
+      (parameter name still `avatarId`; the AZOA route segment is now `{userId}`)
+    - `POST /api/allocation/{userId}` — the id is a route value only (IDOR-safe)
     - `amount` passed as opaque string; map `200`→result (incl. `replayed`),
       `403 KYC_FORBIDDEN`→fail-closed error, `429`→rate-limit error
     - Register in `ArdaNova.Application/DependencyInjection.cs`
@@ -57,10 +58,10 @@ type: plan
 
 ## 6. Tests (.NET)
 
-- [ ] **[P0] `AzoaAllocationServiceTests`**
+- [x] **[P0] `AzoaAllocationServiceTests`**
     - `tests/ArdaNova.Application.Tests/Services/AzoaAllocationServiceTests.cs`
     - Stable key built per event; redelivery reuses key → `replayed:true`, no second move (mock node)
-    - avatarId from route, never body; cross-owner → 404
+    - the AZOA user id comes from the route, never the body; cross-owner → 404
     - amount opaque string; no economic computation on AZOA side
     - `403 KYC_FORBIDDEN` → fail-closed
     - local `AWAITING_RECONCILIATION` never triggers re-POST

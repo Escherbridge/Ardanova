@@ -6,7 +6,7 @@ type: spec
 ## Outcome
 
 ArdaNova is the commercial system of record for project equity, ARDA exchange,
-task bids, funding, and payout decisions. AZOA provides the shared-node avatar,
+task bids, funding, and payout decisions. AZOA provides the shared-node user,
 wallet, custody, and idempotent settlement boundary. A user-interface action
 never moves value by itself: it creates a durable ArdaNova economic intent,
 which is authorized, audited, and dispatched exactly once.
@@ -15,14 +15,14 @@ which is authorized, audited, and dispatched exactly once.
 
 ### Contributor: bid to project-token award
 
-`bid submitted -> bid accepted -> task assigned -> escrow funded -> quest run
+`bid submitted -> bid accepted -> task assigned -> escrow funded -> action run
 created -> work/review -> release approved -> settlement pending -> settled`
 
 - Accepting a bid creates or links a project task, reserves its agreed project
   token award, and provides a `/tasks/{taskId}/commerce` redirect. It does not
   award, unlock, or mint tokens.
-- The commerce view shows the agreement, project gate, escrow state, avatar and
-  wallet readiness, KYC requirement, quest state, and settlement receipt.
+- The commerce view shows the agreement, project gate, escrow state, AZOA account and
+  wallet readiness, KYC requirement, action-run state, and settlement receipt.
 - Release creates one `EconomicSettlement` intent keyed by the escrow release.
   Its outbox calls AZOA with the stable allocation key; timeouts become
   local `AWAITING_RECONCILIATION`, never a new allocation request.
@@ -40,7 +40,7 @@ uses a payment-provider event id as its local inbox key and AZOA allocation key.
 
 ### Member: wallet and portfolio
 
-The settings/portfolio experience shows separate facts: avatar linked, wallet
+The settings/portfolio experience shows separate facts: AZOA account linked, wallet
 bound, KYC/eligibility, project-gate liquidity, and settlement state. Users can
 add and verify an external payout wallet/address only through a caller-scoped,
 verified flow. Shared-node custody means **no private-key or mnemonic export**;
@@ -71,7 +71,7 @@ chain balances.
 | `EconomicOutbox` | Transactional dispatch claim for a settlement; unique settlement id, attempt/lease/reconciliation metadata. |
 | `FundingIntent` / payment inbox | Disclosure version, eligibility snapshot, payment-provider id, verified webhook state, and link to the settlement. |
 | `SwapQuote` / `SwapOrder` | Fixed-scale quote snapshot, expiry, liquidity/gate result, and link to the settlement. |
-| `TaskCommerceAgreement` | Bid, task, award, escrow, quest-run, and settlement references; immutable accepted terms. |
+| `TaskCommerceAgreement` | Bid, task, award, escrow, action-run, and settlement references; immutable accepted terms. |
 
 Amounts are decimal fixed-scale or integer minor/asset units plus explicit
 currency/scale. Floating-point values are forbidden on a money or asset
@@ -82,7 +82,7 @@ the database.
 eligibility evidence, immutable terms hash/snapshot, provider payment/event
 references, and at most one local settlement. `TaskCommerceAgreement` persists
 one accepted award per task and bid, immutable accepted terms, a fixed-scale
-award, and optional escrow/quest/settlement references. The settlement owns the
+award, and optional escrow/action-run/settlement references. The settlement owns the
 single outbox relationship in both cases. Funding's signed-success handler now
 writes its immutable local decision and inert outbox row in one transaction,
 but it does not dispatch or confirm value. The remaining decision writers and
