@@ -41,14 +41,15 @@ type: index
 > Locked decisions: shared/managed node (operator custodies), self-register +
 > self-run users (no fleet map, no `tenant:provision`, no acting-as).
 > Dependency order: user-onboarding → provider-adapter → action-authoring →
-> treasury-allocation. Real-value allocation gated on AZOA-side P7.
+> treasury-allocation. Real-value allocation gated on ArdaNova's own production
+> trigger — NOT on AZOA-side P7, which is done (see the row below).
 
 - [ ] [Gated Commerce and AZOA Settlement](tracks/gated-commerce-and-azoa-settlement/spec.md) - Durable bid, funding, task-award, project-token/ARDA exchange, wallet, and settlement flows. **P0 launch prerequisite.**
 - [ ] [Financial Engine Domain Hardening](tracks/financial-engine-domain-hardening/spec.md) - Immutable asset definitions, utility-token versus equity/redemption-right policies, eligibility decisions, and fixed-scale migration. **P0 prerequisite; does not activate value movement.**
 - [~] [AZOA User Onboarding](tracks/azoa-user-onboarding/spec.md) - Link each ArdaNova user to a self-sovereign AZOA user; readiness check before Tier-2. **Dependency root. Largely shipped — the legacy `/api/azoa/avatar/*` routes are retired (410 Gone); the live surface is `api/azoa/custodial-account` + the uncommitted `IAzoaValueEligibilityService`.**
 - [~] [AZOA Provider Adapter](tracks/azoa-provider-adapter/spec.md) - `AzoaBackedAlgorandService` behind `IAlgorandService`, feature-flagged (`Algorand:Provider` = Legacy | Azoa | Simulated), platform mnemonic removal still owed. **Backend-only.**
 - [~] [AZOA Action Authoring](tracks/azoa-action-authoring/spec.md) - Publish scrum-lifecycle action definitions/templates; users self-run; board events → gate signals. **Authoring + signal services and their tests shipped; no controller or frontend surface yet.**
-- [~] [Treasury / Reward → AZOA Allocation](tracks/treasury-reward-to-azoa-allocation/spec.md) - Funding + task reward → `POST /api/allocation/{userId}` with stable idempotency keys. **Allocation client + tests shipped; no production trigger dispatches it yet. Real-value flip gated on AZOA-side `action-reconcile-retry-wiring` (P7).**
+- [~] [Treasury / Reward → AZOA Allocation](tracks/treasury-reward-to-azoa-allocation/spec.md) - Funding + task reward → `POST /api/allocation/{userId}` with stable idempotency keys. **Allocation client + tests shipped; no production trigger dispatches it yet.** ~~Real-value flip gated on AZOA-side `action-reconcile-retry-wiring` (P7).~~ ⚠ **Corrected 2026-09-07: P7 is NOT a blocker and that track never existed.** AZOA's `conductor/retros/DEPLOY-STEPS-TODO.md:32` records P7 (reconcile-before-retry) as done, and the code agrees — a run parked in `AwaitingReconciliation` is never auto-re-broadcast, with operator re-probe and sweep routes on `ActionController` and coverage in `DurableWorkflowEngineTests`. The slug cited here came from §12 of the shared integration contract, which was a Phase-2 *proposal list*, not a status board; five of its AZOA slugs were never created. The real-value flip is gated on ArdaNova's own production trigger, not on AZOA.
 
 ---
 
