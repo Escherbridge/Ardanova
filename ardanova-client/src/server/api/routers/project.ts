@@ -263,6 +263,40 @@ const createProposalCommentSchema = z.object({
 const votingEndFromDays = (days: number): string =>
   new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString();
 
+type ProjectProposal = NonNullable<
+  Awaited<ReturnType<typeof apiClient.projects.getProposalById>>["data"]
+>;
+
+/** Mirrors GovernanceService.VotesNeededForQuorum so the progress a member reads matches the rule the API applies. */
+function votesNeededForQuorum(
+  eligibleMembers: number,
+  quorumPercent: number,
+): number {
+  if (eligibleMembers <= 0) return 1;
+  const clamped = Math.min(Math.max(quorumPercent, 0), 100);
+  const needed = Math.ceil((eligibleMembers * clamped) / 100);
+  return Math.min(Math.max(needed, 1), eligibleMembers);
+}
+
+/** How many people may vote on this project's decisions: the members whose standing is confirmed. */
+async function countEligibleVoters(projectId: string): Promise<number> {
+  const response =
+    await apiClient.membershipCredentials.getActiveByProjectId(projectId);
+  return response.data?.length ?? 0;
+}
+
+/** A proposal carries the size of its electorate, so quorum reads as members rather than as a bare number. */
+function withElectorate(proposal: ProjectProposal, eligibleMembers: number) {
+  return {
+    ...proposal,
+    eligibleMembers,
+    votesNeededForQuorum: votesNeededForQuorum(
+      eligibleMembers,
+      proposal.quorum,
+    ),
+  };
+}
+
 // Update schemas
 const createUpdateSchema = z.object({
   projectId: z.string(),
@@ -1061,13 +1095,43 @@ export const projectRouter = createTRPCRouter({
   getProposals: publicProcedure
     .input(z.object({ projectId: z.string() }))
     .query(async ({ input }) => {
-      const response = await apiClient.projects.getProposals(input.projectId);
+      const [response, eligibleMembers] = await Promise.all([
+        apiClient.projects.getProposals(input.projectId),
+        countEligibleVoters(input.projectId),
+      ]);
 
       if (response.error) {
         throw new Error(response.error);
       }
 
-      return response.data?.items ?? [];
+      return (response.data?.items ?? []).map((proposal) =>
+        withElectorate(proposal, eligibleMembers),
+      );
+    }),
+
+  /**
+   * How many members may vote here, and whether the signed-in member is one of them.
+   * Read-only: this shapes the vote form, it never decides whether a ballot is accepted.
+   * The refusal that counts is GovernanceService.CastVoteAsync, which both API routes funnel through.
+   */
+  getVotingEligibility: protectedProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(async ({ input, ctx }) => {
+      const [eligibleMembers, credential] = await Promise.all([
+        countEligibleVoters(input.projectId),
+        apiClient.membershipCredentials.getByProjectAndUser(
+          input.projectId,
+          ctx.session.user.id,
+        ),
+      ]);
+
+      return {
+        eligibleMembers,
+        // Mirrors the API's own bypass, so an administrator is not shown a form the API would in fact accept.
+        mayVote:
+          ctx.session.user.role === "ADMIN" ||
+          credential.data?.status === "ACTIVE",
+      };
     }),
 
   // Get proposal by ID
@@ -1121,7 +1185,10 @@ export const projectRouter = createTRPCRouter({
       const isFounder = project.data.createdById === userId;
       const isMember = members.data.some((member) => member.userId === userId);
       if (!isFounder && !isMember) {
-        throw new Error("Only project members can vote");
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Only members of this project can vote on it.",
+        });
       }
 
       // Verify user has an active MembershipCredential (governance right)
@@ -1136,11 +1203,14 @@ export const projectRouter = createTRPCRouter({
         credential.data.status === "ACTIVE";
 
       if (!hasActiveCredential) {
-        throw new Error(
-          "CREDENTIAL_REQUIRED: You need an active membership credential to vote. Credential issuance is a separate authorized workflow.",
-        );
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message:
+            "You can vote here once a project organiser confirms your membership.",
+        });
       }
 
+      // `voterId` satisfies the request contract; the API replaces it with the authenticated actor and sets the weight itself.
       const response = await apiClient.projects.castVote(
         input.projectId,
         input.proposalId,
@@ -1152,13 +1222,16 @@ export const projectRouter = createTRPCRouter({
       );
 
       if (response.error || !response.data) {
-        throw new Error(response.error ?? "Failed to cast vote");
+        throw new TRPCError({
+          code: response.status === 403 ? "FORBIDDEN" : "BAD_REQUEST",
+          message: response.error ?? "Failed to record your vote",
+        });
       }
 
       return response.data;
     }),
 
-  // Close proposal
+  /** Ends voting now and records the outcome the ballots produced. Withdrawing a proposal is a different act - see withdrawProposal. */
   closeProposal: protectedProcedure
     .input(z.object({ projectId: z.string(), proposalId: z.string() }))
     .mutation(async ({ input, ctx }) => {
@@ -1182,13 +1255,89 @@ export const projectRouter = createTRPCRouter({
         isAdmin: ctx.session.user.role === "ADMIN",
       });
 
-      const response = await apiClient.projects.closeProposal(
-        input.projectId,
-        input.proposalId,
+      const response = await apiClient.post<ProjectProposal>(
+        `/api/projects/${input.projectId}/proposals/${input.proposalId}/close`,
       );
 
       if (response.error || !response.data) {
-        throw new Error(response.error ?? "Failed to close proposal");
+        throw new TRPCError({
+          code: response.status === 403 ? "FORBIDDEN" : "BAD_REQUEST",
+          message: response.error ?? "Failed to close the vote",
+        });
+      }
+
+      return response.data;
+    }),
+
+  /** Withdraws a proposal outright. The API refuses once a ballot exists, so a vote of record can only be closed. */
+  withdrawProposal: protectedProcedure
+    .input(z.object({ projectId: z.string(), proposalId: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.session.user.id;
+
+      const proposal = await apiClient.projects.getProposalById(
+        input.projectId,
+        input.proposalId,
+      );
+      if (proposal.error || !proposal.data) {
+        throw new Error("Proposal not found");
+      }
+      if (proposal.data.projectId !== input.projectId) {
+        throw new Error("Proposal does not belong to this project");
+      }
+      if (proposal.data.creatorId !== userId) {
+        await hierarchyAuthorization.requireProjectManager({
+          userId,
+          projectId: proposal.data.projectId,
+          isAdmin: ctx.session.user.role === "ADMIN",
+        });
+      }
+
+      const response = await apiClient.post<ProjectProposal>(
+        `/api/projects/${input.projectId}/proposals/${input.proposalId}/cancel`,
+      );
+
+      if (response.error || !response.data) {
+        throw new TRPCError({
+          code: response.status === 403 ? "FORBIDDEN" : "BAD_REQUEST",
+          message: response.error ?? "Failed to withdraw this proposal",
+        });
+      }
+
+      return response.data;
+    }),
+
+  /** Carries out a decision the members passed. */
+  executeProposal: protectedProcedure
+    .input(z.object({ projectId: z.string(), proposalId: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.session.user.id;
+
+      const proposal = await apiClient.projects.getProposalById(
+        input.projectId,
+        input.proposalId,
+      );
+      if (proposal.error || !proposal.data) {
+        throw new Error("Proposal not found");
+      }
+      if (proposal.data.projectId !== input.projectId) {
+        throw new Error("Proposal does not belong to this project");
+      }
+      await hierarchyAuthorization.requireProjectManager({
+        userId,
+        projectId: proposal.data.projectId,
+        isAdmin: ctx.session.user.role === "ADMIN",
+      });
+
+      const response = await apiClient.post<ProjectProposal>(
+        `/api/projects/${input.projectId}/proposals/${input.proposalId}/execute`,
+      );
+
+      if (response.error || !response.data) {
+        throw new TRPCError({
+          code: response.status === 403 ? "FORBIDDEN" : "BAD_REQUEST",
+          message: response.error ?? "Failed to carry out this decision",
+        });
       }
 
       return response.data;
@@ -1208,12 +1357,13 @@ export const projectRouter = createTRPCRouter({
       }
 
       // Try to get vote summary from governance endpoint
-      const voteSummary = await apiClient.governance.getVoteSummary(
-        input.proposalId,
-      );
+      const [voteSummary, eligibleMembers] = await Promise.all([
+        apiClient.governance.getVoteSummary(input.proposalId),
+        countEligibleVoters(proposalResponse.data.projectId),
+      ]);
 
       return {
-        ...proposalResponse.data,
+        ...withElectorate(proposalResponse.data, eligibleMembers),
         voteSummary: voteSummary.data ?? null,
       };
     }),

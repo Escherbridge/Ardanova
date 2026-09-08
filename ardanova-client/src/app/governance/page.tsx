@@ -176,6 +176,19 @@ const statusVariants: Record<
   Draft: "secondary",
 };
 
+/**
+ * What a sponsor reads for each proposal type. The ids are wire values the router maps to the
+ * API enum ("Token" -> SHARES), so they must not change; only the words on screen do. A sponsor
+ * funds project units, and is never asked to know what a token is.
+ */
+const proposalTypeLabels: Record<string, string> = {
+  Token: "Project units",
+};
+
+function proposalTypeLabel(type: string): string {
+  return proposalTypeLabels[type] ?? type;
+}
+
 // Filter options
 const proposalTypeFilters = [
   { id: "all", label: "All Types" },
@@ -185,7 +198,7 @@ const proposalTypeFilters = [
   { id: "Operational", label: "Operational" },
   { id: "Emergency", label: "Emergency" },
   { id: "Constitutional", label: "Constitutional" },
-  { id: "Token", label: "Token" },
+  { id: "Token", label: proposalTypeLabel("Token") },
 ];
 
 const proposalStatusFilters = [
@@ -437,7 +450,7 @@ export default function GovernancePage() {
                       variant={typeVariants[proposal.type] ?? "secondary"}
                       size="sm"
                     >
-                      {proposal.type}
+                      {proposalTypeLabel(proposal.type)}
                     </Badge>
                     <span className="text-warning">
                       {formatTimeRemaining(proposal.votingEnds)}
@@ -472,7 +485,7 @@ export default function GovernancePage() {
                     size="sm"
                     className="cursor-pointer hover:opacity-80"
                   >
-                    {type}
+                    {proposalTypeLabel(type)}
                   </Badge>
                 </button>
               ))}
@@ -868,7 +881,7 @@ export default function GovernancePage() {
                       variant={typeVariants[proposal.type] ?? "secondary"}
                       size="sm"
                     >
-                      {proposal.type}
+                      {proposalTypeLabel(proposal.type)}
                     </Badge>
                     <Badge
                       variant={statusVariants[proposal.status] ?? "secondary"}

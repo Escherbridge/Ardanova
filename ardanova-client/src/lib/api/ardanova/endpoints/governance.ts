@@ -32,6 +32,8 @@ export interface Vote {
 export interface ProposalVoteSummary {
   proposalId: string;
   totalVotes: number;
+  /** Whether enough of the project's confirmed members have voted; the API owns this rule. */
+  quorumReached: boolean;
   options?: unknown[];
   [key: string]: unknown;
 }

@@ -1,5 +1,6 @@
 namespace ArdaNova.Application.Services.Implementations;
 
+using System.Text.Json;
 using ArdaNova.Application.Common.Interfaces;
 using ArdaNova.Application.Common.Results;
 using ArdaNova.Application.DTOs;
@@ -8,14 +9,31 @@ using ArdaNova.Domain.Models.Entities;
 using ArdaNova.Domain.Models.Enums;
 using AutoMapper;
 
+/// <summary>Project decisions as a vote of record: one member one vote, quorum in members, outcomes resolved from the tally.</summary>
+/// <remarks>
+/// <para>Rationale and the close-vs-cancel rule: see <c>ArdaNova.Application/Services/AGENTS.md</c> §Governance.</para>
+/// <para><b>Who may vote is asked here, not at the edge.</b> Both routes into a ballot —
+/// <c>GovernanceController</c> and <c>ProjectsController</c> — funnel through
+/// <see cref="CastVoteAsync"/>, so the membership test cannot be reached around. The controllers
+/// supply the voter id from the authenticated actor; nothing a caller writes in the body selects a
+/// voter or a weight.</para>
+/// <para><b>Fail closed by construction.</b> The member register is an optional constructor
+/// collaborator, mirroring <c>MembershipCredentialsController</c>. Without it this service cannot
+/// answer "who may vote here", so it refuses every ballot and reports an empty electorate — which
+/// can only ever resolve to EXPIRED, never to PASSED.</para>
+/// </remarks>
 public class GovernanceService : IGovernanceService
 {
+    /// <summary>Every eligible member carries exactly one vote; a ballot never carries a caller-supplied weight.</summary>
+    private const decimal OneMemberOneVote = 1m;
+
     private readonly IRepository<Proposal> _proposalRepository;
     private readonly IRepository<Vote> _voteRepository;
     private readonly IRepository<ProposalExecution> _executionRepository;
     private readonly IRepository<User> _userRepository;
     private readonly IRepository<Project> _projectRepository;
     private readonly IRepository<ProposalComment> _proposalCommentRepository;
+    private readonly IRepository<MembershipCredential>? _membershipCredentialRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IMapper _mapper;
 
@@ -27,7 +45,8 @@ public class GovernanceService : IGovernanceService
         IRepository<Project> projectRepository,
         IRepository<ProposalComment> proposalCommentRepository,
         IUnitOfWork unitOfWork,
-        IMapper mapper)
+        IMapper mapper,
+        IRepository<MembershipCredential>? membershipCredentialRepository = null)
     {
         _proposalRepository = proposalRepository;
         _voteRepository = voteRepository;
@@ -35,6 +54,7 @@ public class GovernanceService : IGovernanceService
         _userRepository = userRepository;
         _projectRepository = projectRepository;
         _proposalCommentRepository = proposalCommentRepository;
+        _membershipCredentialRepository = membershipCredentialRepository;
         _unitOfWork = unitOfWork;
         _mapper = mapper;
     }
@@ -45,6 +65,8 @@ public class GovernanceService : IGovernanceService
         if (proposal is null)
             return Result<ProposalDto>.NotFound($"Proposal with id {id} not found");
 
+        await ResolveDueProposalsAsync(new[] { proposal }, ct);
+
         var dto = await EnrichProposalDtoAsync(proposal, ct);
         return Result<ProposalDto>.Success(dto);
     }
@@ -52,6 +74,7 @@ public class GovernanceService : IGovernanceService
     public async Task<Result<IReadOnlyList<ProposalDto>>> GetAllProposalsAsync(CancellationToken ct = default)
     {
         var proposals = await _proposalRepository.GetAllAsync(ct);
+        await ResolveDueProposalsAsync(proposals, ct);
         var dtos = await EnrichProposalDtosAsync(proposals, ct);
         return Result<IReadOnlyList<ProposalDto>>.Success(dtos);
     }
@@ -59,6 +82,7 @@ public class GovernanceService : IGovernanceService
     public async Task<Result<PagedResult<ProposalDto>>> GetProposalsPagedAsync(int page, int pageSize, CancellationToken ct = default)
     {
         var result = await _proposalRepository.GetPagedAsync(page, pageSize, null, ct);
+        await ResolveDueProposalsAsync(result.Items, ct);
         var dtos = await EnrichProposalDtosAsync(result.Items, ct);
         return Result<PagedResult<ProposalDto>>.Success(new PagedResult<ProposalDto>(dtos.ToList(), result.TotalCount, result.Page, result.PageSize));
     }
@@ -94,6 +118,12 @@ public class GovernanceService : IGovernanceService
 
         var totalCount = query.Count();
         var items = query.Skip((page - 1) * pageSize).Take(pageSize).ToList();
+        await ResolveDueProposalsAsync(items, ct);
+
+        // A proposal that resolved while this page was being read no longer belongs under a status filter it has left.
+        if (status.HasValue)
+            items = items.Where(p => p.status == status.Value).ToList();
+
         var dtos = await EnrichProposalDtosAsync(items, ct);
 
         return Result<PagedResult<ProposalDto>>.Success(new PagedResult<ProposalDto>(dtos.ToList(), totalCount, page, pageSize));
@@ -102,13 +132,16 @@ public class GovernanceService : IGovernanceService
     public async Task<Result<IReadOnlyList<ProposalDto>>> GetActiveProposalsAsync(CancellationToken ct = default)
     {
         var proposals = await _proposalRepository.FindAsync(p => p.status == ProposalStatus.ACTIVE, ct);
-        var dtos = await EnrichProposalDtosAsync(proposals, ct);
+        await ResolveDueProposalsAsync(proposals, ct);
+        var stillActive = proposals.Where(p => p.status == ProposalStatus.ACTIVE).ToList();
+        var dtos = await EnrichProposalDtosAsync(stillActive, ct);
         return Result<IReadOnlyList<ProposalDto>>.Success(dtos);
     }
 
     public async Task<Result<IReadOnlyList<ProposalDto>>> GetByProposerIdAsync(string proposerId, CancellationToken ct = default)
     {
         var proposals = await _proposalRepository.FindAsync(p => p.creatorId == proposerId, ct);
+        await ResolveDueProposalsAsync(proposals, ct);
         var dtos = await EnrichProposalDtosAsync(proposals, ct);
         return Result<IReadOnlyList<ProposalDto>>.Success(dtos);
     }
@@ -118,6 +151,16 @@ public class GovernanceService : IGovernanceService
         var project = await _projectRepository.GetByIdAsync(dto.ProjectId, ct);
         if (project is null)
             return Result<ProposalDto>.NotFound($"Project with id {dto.ProjectId} not found");
+
+        if (string.IsNullOrWhiteSpace(dto.CreatorId))
+            return Result<ProposalDto>.ValidationError("A proposal must name the member who raised it");
+
+        var shapeError = ValidateProposalShape(dto.Options, dto.Quorum, dto.Threshold);
+        if (shapeError is not null)
+            return Result<ProposalDto>.ValidationError(shapeError);
+
+        if (dto.VotingEnd.HasValue && dto.VotingEnd.Value <= DateTime.UtcNow)
+            return Result<ProposalDto>.ValidationError("The voting window must end in the future");
 
         var proposal = new Proposal
         {
@@ -145,20 +188,31 @@ public class GovernanceService : IGovernanceService
         return Result<ProposalDto>.Success(resultDto);
     }
 
+    /// <summary>A draft is fully editable; once voting is open only the closing time may move, and only earlier.</summary>
     public async Task<Result<ProposalDto>> UpdateProposalAsync(string id, UpdateProposalDto dto, CancellationToken ct = default)
     {
         var proposal = await _proposalRepository.GetByIdAsync(id, ct);
         if (proposal is null)
             return Result<ProposalDto>.NotFound($"Proposal with id {id} not found");
 
+        if (proposal.status == ProposalStatus.ACTIVE)
+            return await CloseActiveProposalAsync(proposal, dto, ct);
+
         if (proposal.status != ProposalStatus.DRAFT)
-            return Result<ProposalDto>.ValidationError("Only draft proposals can be updated");
+            return Result<ProposalDto>.ValidationError("Only draft proposals can be edited");
+
+        var quorum = dto.Quorum ?? proposal.quorum;
+        var threshold = dto.Threshold ?? proposal.threshold;
+        var options = dto.Options ?? proposal.options;
+        var shapeError = ValidateProposalShape(options, quorum, threshold);
+        if (shapeError is not null)
+            return Result<ProposalDto>.ValidationError(shapeError);
 
         if (dto.Title is not null) proposal.title = dto.Title;
         if (dto.Description is not null) proposal.description = dto.Description;
-        if (dto.Options is not null) proposal.options = dto.Options;
-        if (dto.Quorum.HasValue) proposal.quorum = dto.Quorum.Value;
-        if (dto.Threshold.HasValue) proposal.threshold = dto.Threshold.Value;
+        proposal.options = options;
+        proposal.quorum = quorum;
+        proposal.threshold = threshold;
         if (dto.VotingStart.HasValue) proposal.votingStart = dto.VotingStart;
         if (dto.VotingEnd.HasValue) proposal.votingEnd = dto.VotingEnd;
         if (dto.ExecutionDelay.HasValue) proposal.executionDelay = dto.ExecutionDelay;
@@ -185,30 +239,57 @@ public class GovernanceService : IGovernanceService
         return Result<bool>.Success(true);
     }
 
+    /// <summary>The ballot is the caller's own: the voter is the id the controller resolved from the authenticated actor, and the weight is always one.</summary>
     public async Task<Result<VoteDto>> CastVoteAsync(string proposalId, CastVoteDto dto, CancellationToken ct = default)
     {
         var proposal = await _proposalRepository.GetByIdAsync(proposalId, ct);
         if (proposal is null)
             return Result<VoteDto>.NotFound($"Proposal with id {proposalId} not found");
 
+        await ResolveDueProposalsAsync(new[] { proposal }, ct);
+
         if (proposal.status != ProposalStatus.ACTIVE)
-            return Result<VoteDto>.ValidationError("Voting is not active for this proposal");
+            return Result<VoteDto>.ValidationError("Voting is not open for this proposal");
 
         if (proposal.votingEnd.HasValue && DateTime.UtcNow > proposal.votingEnd.Value)
-            return Result<VoteDto>.ValidationError("Voting period has ended");
+            return Result<VoteDto>.ValidationError("Voting has closed for this proposal");
+
+        if (string.IsNullOrWhiteSpace(dto.VoterId))
+            return Result<VoteDto>.Unauthorized("A vote must be cast by a signed-in member");
+
+        if (!TryReadChoices(proposal.options, out var declaredChoices))
+            return Result<VoteDto>.ValidationError("This proposal's options cannot be read, so no vote can be recorded against it");
+
+        if (!declaredChoices.Contains(dto.Choice))
+            return Result<VoteDto>.ValidationError("That option is not on this proposal");
+
+        // The membership gate lives here, not only in the controllers, so both routes into a ballot enforce it.
+        if (_membershipCredentialRepository is null)
+            return Result<VoteDto>.Forbidden(
+                "Voting is unavailable here until this project's member register is connected");
+
+        var voterId = dto.VoterId;
+        var projectId = proposal.projectId;
+        var isEligible = await _membershipCredentialRepository.ExistsAsync(
+            credential => credential.projectId == projectId &&
+                          credential.userId == voterId &&
+                          credential.status == MembershipCredentialStatus.ACTIVE,
+            ct);
+        if (!isEligible)
+            return Result<VoteDto>.Forbidden("Only confirmed members of this project can vote on it");
 
         var existingVote = await _voteRepository.FindOneAsync(
-            v => v.proposalId == proposalId && v.voterId == dto.VoterId, ct);
+            v => v.proposalId == proposalId && v.voterId == voterId, ct);
         if (existingVote is not null)
-            return Result<VoteDto>.ValidationError("User has already voted on this proposal");
+            return Result<VoteDto>.ValidationError("You have already voted on this proposal");
 
         var vote = new Vote
         {
             id = Guid.NewGuid().ToString(),
             proposalId = proposalId,
-            voterId = dto.VoterId,
+            voterId = voterId,
             choice = dto.Choice,
-            weight = dto.Weight ?? 1,
+            weight = OneMemberOneVote,
             reason = dto.Reason,
             createdAt = DateTime.UtcNow
         };
@@ -217,7 +298,7 @@ public class GovernanceService : IGovernanceService
         await _unitOfWork.SaveChangesAsync(ct);
 
         var voteDto = _mapper.Map<VoteDto>(vote);
-        var voter = await _userRepository.GetByIdAsync(dto.VoterId, ct);
+        var voter = await _userRepository.GetByIdAsync(voterId, ct);
         if (voter is not null)
             voteDto = voteDto with { Voter = _mapper.Map<VoteUserDto>(voter) };
 
@@ -266,56 +347,57 @@ public class GovernanceService : IGovernanceService
         if (proposal is null)
             return Result<ProposalVoteSummaryDto>.NotFound($"Proposal with id {proposalId} not found");
 
-        var votes = await _voteRepository.FindAsync(v => v.proposalId == proposalId, ct);
-        var votesList = votes.ToList();
+        await ResolveDueProposalsAsync(new[] { proposal }, ct);
 
-        var totalVotes = votesList.Count;
-        var totalVotingPower = votesList.Sum(v => v.weight);
+        var tally = await TallyAsync(proposal, ct);
 
-        var optionSummaries = votesList
-            .GroupBy(v => v.choice)
-            .ToDictionary(
-                g => g.Key,
-                g => new VoteOptionSummary
-                {
-                    Choice = g.Key,
-                    VoteCount = g.Count(),
-                    VotingPower = g.Sum(v => v.weight),
-                    Percentage = totalVotingPower > 0 ? (g.Sum(v => v.weight) / totalVotingPower) * 100 : 0
-                });
-
-        var quorumReached = totalVotingPower >= proposal.quorum;
-        int? winningOption = null;
-
-        if (optionSummaries.Any())
-        {
-            var maxVotingPower = optionSummaries.Values.Max(s => s.VotingPower);
-            var winner = optionSummaries.Values.FirstOrDefault(s => s.VotingPower == maxVotingPower);
-            if (winner is not null && (winner.Percentage >= proposal.threshold))
-                winningOption = winner.Choice;
-        }
+        var optionSummaries = tally.VotesByChoice.ToDictionary(
+            entry => entry.Key,
+            entry => new VoteOptionSummary
+            {
+                Choice = entry.Key,
+                VoteCount = entry.Value,
+                VotingPower = entry.Value,
+                Percentage = tally.VotesCast > 0
+                    ? Math.Round(entry.Value * 100m / tally.VotesCast, 2)
+                    : 0m
+            });
 
         var summary = new ProposalVoteSummaryDto
         {
             ProposalId = proposalId,
-            TotalVotes = totalVotes,
-            TotalVotingPower = totalVotingPower,
+            TotalVotes = tally.VotesCast,
+            TotalVotingPower = tally.VotesCast,
             OptionSummaries = optionSummaries,
-            QuorumReached = quorumReached,
-            WinningOption = winningOption
+            QuorumReached = tally.QuorumReached,
+            WinningOption = tally.PassingChoice
         };
 
         return Result<ProposalVoteSummaryDto>.Success(summary);
     }
 
+    /// <summary>Carrying out a decision the members already made; the tally that produced it is written onto the execution row.</summary>
     public async Task<Result<ProposalDto>> ExecuteProposalAsync(string id, CancellationToken ct = default)
     {
         var proposal = await _proposalRepository.GetByIdAsync(id, ct);
         if (proposal is null)
             return Result<ProposalDto>.NotFound($"Proposal with id {id} not found");
 
+        await ResolveDueProposalsAsync(new[] { proposal }, ct);
+
+        if (proposal.status == ProposalStatus.EXECUTED)
+            return Result<ProposalDto>.Success(await EnrichProposalDtoAsync(proposal, ct));
+
         if (proposal.status != ProposalStatus.PASSED)
-            return Result<ProposalDto>.ValidationError("Only passed proposals can be executed");
+            return Result<ProposalDto>.ValidationError(
+                "Only a decision the members have passed can be carried out");
+
+        var readyAt = EarliestExecutionTime(proposal);
+        if (readyAt > DateTime.UtcNow)
+            return Result<ProposalDto>.ValidationError(
+                $"This decision can be carried out from {readyAt:yyyy-MM-dd HH:mm} UTC");
+
+        var tally = await TallyAsync(proposal, ct);
 
         proposal.status = ProposalStatus.EXECUTED;
         proposal.updatedAt = DateTime.UtcNow;
@@ -324,7 +406,18 @@ public class GovernanceService : IGovernanceService
         {
             id = Guid.NewGuid().ToString(),
             proposalId = id,
-            executedAt = DateTime.UtcNow
+            executedAt = DateTime.UtcNow,
+            result = JsonSerializer.Serialize(new
+            {
+                outcome = nameof(ProposalStatus.PASSED),
+                winningOption = tally.PassingChoice,
+                votesCast = tally.VotesCast,
+                eligibleMembers = tally.EligibleMembers,
+                votesNeededForQuorum = tally.VotesNeededForQuorum,
+                quorumPercent = proposal.quorum,
+                thresholdPercent = proposal.threshold,
+                votesByOption = tally.VotesByChoice
+            })
         };
 
         await _proposalRepository.UpdateAsync(proposal, ct);
@@ -335,14 +428,20 @@ public class GovernanceService : IGovernanceService
         return Result<ProposalDto>.Success(resultDto);
     }
 
+    /// <summary>Withdrawing a proposal, which is not the same act as closing a vote: once a ballot exists the vote must be closed and resolved instead.</summary>
     public async Task<Result<ProposalDto>> CancelProposalAsync(string id, CancellationToken ct = default)
     {
         var proposal = await _proposalRepository.GetByIdAsync(id, ct);
         if (proposal is null)
             return Result<ProposalDto>.NotFound($"Proposal with id {id} not found");
 
-        if (proposal.status == ProposalStatus.EXECUTED)
-            return Result<ProposalDto>.ValidationError("Executed proposals cannot be cancelled");
+        if (proposal.status is not (ProposalStatus.DRAFT or ProposalStatus.ACTIVE))
+            return Result<ProposalDto>.ValidationError("Only a draft or an open proposal can be withdrawn");
+
+        var votesCast = await _voteRepository.CountAsync(v => v.proposalId == id, ct);
+        if (votesCast > 0)
+            return Result<ProposalDto>.ValidationError(
+                "Members have already voted, so this proposal cannot be withdrawn — close the vote to record its outcome");
 
         proposal.status = ProposalStatus.CANCELLED;
         proposal.updatedAt = DateTime.UtcNow;
@@ -354,6 +453,243 @@ public class GovernanceService : IGovernanceService
         return Result<ProposalDto>.Success(resultDto);
     }
 
+    public async Task<Result<ProposalDto>> PublishProposalAsync(string id, CancellationToken ct = default)
+    {
+        var proposal = await _proposalRepository.GetByIdAsync(id, ct);
+        if (proposal is null)
+            return Result<ProposalDto>.NotFound($"Proposal with id {id} not found");
+
+        if (proposal.status != ProposalStatus.DRAFT)
+            return Result<ProposalDto>.Failure("Only DRAFT proposals can be published");
+
+        var shapeError = ValidateProposalShape(proposal.options, proposal.quorum, proposal.threshold);
+        if (shapeError is not null)
+            return Result<ProposalDto>.ValidationError(shapeError);
+
+        proposal.status = ProposalStatus.ACTIVE;
+        proposal.votingStart = DateTime.UtcNow;
+        // A window that already lies in the past would open and resolve in the same breath.
+        if (proposal.votingEnd is null || proposal.votingEnd <= DateTime.UtcNow)
+            proposal.votingEnd = DateTime.UtcNow.AddDays(7);
+        proposal.updatedAt = DateTime.UtcNow;
+
+        await _proposalRepository.UpdateAsync(proposal, ct);
+        await _unitOfWork.SaveChangesAsync(ct);
+
+        var resultDto = await EnrichProposalDtoAsync(proposal, ct);
+        return Result<ProposalDto>.Success(resultDto);
+    }
+
+    // ===== VOTE OF RECORD =====
+
+    /// <summary>What the members decided, computed from the ballots on file.</summary>
+    private sealed record ProposalTally(
+        int VotesCast,
+        int EligibleMembers,
+        int VotesNeededForQuorum,
+        bool QuorumReached,
+        int? PassingChoice,
+        IReadOnlyDictionary<int, int> VotesByChoice);
+
+    private async Task<ProposalTally> TallyAsync(Proposal proposal, CancellationToken ct)
+    {
+        var votes = await _voteRepository.FindAsync(v => v.proposalId == proposal.id, ct);
+        var votesByChoice = votes
+            .GroupBy(v => v.choice)
+            .ToDictionary(g => g.Key, g => g.Count());
+        var votesCast = votes.Count;
+
+        var projectId = proposal.projectId;
+        var eligibleMembers = _membershipCredentialRepository is null
+            ? 0
+            : await _membershipCredentialRepository.CountAsync(
+                credential => credential.projectId == projectId &&
+                              credential.status == MembershipCredentialStatus.ACTIVE,
+                ct);
+
+        var votesNeededForQuorum = VotesNeededForQuorum(eligibleMembers, proposal.quorum);
+        var quorumReached = eligibleMembers > 0 && votesCast >= votesNeededForQuorum;
+
+        int? passingChoice = null;
+        if (votesCast > 0)
+        {
+            var leader = votesByChoice.OrderByDescending(entry => entry.Value).ThenBy(entry => entry.Key).First();
+
+            // The threshold is a share of the votes actually cast, so it is checked in whole votes, never in percentages of a percentage.
+            var isTied = votesByChoice.Count(entry => entry.Value == leader.Value) > 1;
+            if (!isTied && leader.Value * 100 >= proposal.threshold * votesCast)
+                passingChoice = leader.Key;
+        }
+
+        return new ProposalTally(
+            votesCast,
+            eligibleMembers,
+            votesNeededForQuorum,
+            quorumReached,
+            quorumReached ? passingChoice : null,
+            votesByChoice);
+    }
+
+    /// <summary>Quorum is a share of the members who may vote, rounded up, and never zero.</summary>
+    private static int VotesNeededForQuorum(int eligibleMembers, int quorumPercent)
+    {
+        if (eligibleMembers <= 0)
+            return 1;
+
+        var clamped = Math.Clamp(quorumPercent, 0, 100);
+        var needed = (int)Math.Ceiling(eligibleMembers * clamped / 100.0);
+        return Math.Clamp(needed, 1, eligibleMembers);
+    }
+
+    private static DateTime EarliestExecutionTime(Proposal proposal)
+    {
+        var closedAt = proposal.votingEnd ?? proposal.updatedAt;
+        // `executionDelay` is expressed in hours, matching the governance overview surface that displays it.
+        return proposal.executionDelay.HasValue
+            ? closedAt.AddHours(proposal.executionDelay.Value)
+            : closedAt;
+    }
+
+    /// <summary>Moves every open proposal whose window has run out to PASSED, REJECTED or EXPIRED, and saves once.</summary>
+    private async Task ResolveDueProposalsAsync(IEnumerable<Proposal> proposals, CancellationToken ct)
+    {
+        var due = proposals
+            .Where(p => p.status == ProposalStatus.ACTIVE &&
+                        p.votingEnd.HasValue &&
+                        p.votingEnd.Value <= DateTime.UtcNow)
+            .ToList();
+
+        if (due.Count == 0)
+            return;
+
+        foreach (var proposal in due)
+        {
+            var tally = await TallyAsync(proposal, ct);
+            proposal.status = ResolvedStatus(tally);
+            proposal.updatedAt = DateTime.UtcNow;
+            await _proposalRepository.UpdateAsync(proposal, ct);
+        }
+
+        await _unitOfWork.SaveChangesAsync(ct);
+    }
+
+    /// <summary>Too few members took part: EXPIRED. Enough took part but no option cleared the bar: REJECTED. Otherwise PASSED.</summary>
+    private static ProposalStatus ResolvedStatus(ProposalTally tally)
+    {
+        if (!tally.QuorumReached)
+            return ProposalStatus.EXPIRED;
+
+        return tally.PassingChoice.HasValue
+            ? ProposalStatus.PASSED
+            : ProposalStatus.REJECTED;
+    }
+
+    /// <summary>Closing an open vote early: the window is pulled in to now and the outcome is resolved from the ballots on file. Nothing else about the proposal may move.</summary>
+    private async Task<Result<ProposalDto>> CloseActiveProposalAsync(
+        Proposal proposal,
+        UpdateProposalDto dto,
+        CancellationToken ct)
+    {
+        var rewritesRecord =
+            dto.Title is not null ||
+            dto.Description is not null ||
+            dto.Options is not null ||
+            dto.Quorum.HasValue ||
+            dto.Threshold.HasValue ||
+            dto.VotingStart.HasValue ||
+            dto.ExecutionDelay.HasValue;
+        if (rewritesRecord)
+            return Result<ProposalDto>.ValidationError(
+                "Voting is open, so this proposal can no longer be edited — only its closing time can be brought forward");
+
+        if (!dto.VotingEnd.HasValue)
+            return Result<ProposalDto>.ValidationError(
+                "Voting is open, so this proposal can no longer be edited");
+
+        var currentEnd = proposal.votingEnd ?? DateTime.MaxValue;
+
+        // The window has already run out: closing it is simply recording the outcome that is already due.
+        if (currentEnd <= DateTime.UtcNow)
+        {
+            await ResolveDueProposalsAsync(new[] { proposal }, ct);
+            return Result<ProposalDto>.Success(await EnrichProposalDtoAsync(proposal, ct));
+        }
+
+        if (dto.VotingEnd.Value > currentEnd)
+            return Result<ProposalDto>.ValidationError("A voting window can be shortened but never extended");
+
+        proposal.votingEnd = dto.VotingEnd.Value;
+        proposal.updatedAt = DateTime.UtcNow;
+        await _proposalRepository.UpdateAsync(proposal, ct);
+        await _unitOfWork.SaveChangesAsync(ct);
+
+        await ResolveDueProposalsAsync(new[] { proposal }, ct);
+
+        var resultDto = await EnrichProposalDtoAsync(proposal, ct);
+        return Result<ProposalDto>.Success(resultDto);
+    }
+
+    /// <summary>A proposal must offer at least two real options and state quorum and threshold as percentages.</summary>
+    private static string? ValidateProposalShape(string options, int quorumPercent, int thresholdPercent)
+    {
+        if (!TryReadChoices(options, out var choices) || choices.Count < 2)
+            return "A proposal must offer at least two options";
+
+        if (quorumPercent is < 1 or > 100)
+            return "Quorum is the share of members who must vote, between 1 and 100 percent";
+
+        if (thresholdPercent is < 1 or > 100)
+            return "The threshold is the share of votes needed to pass, between 1 and 100 percent";
+
+        return null;
+    }
+
+    /// <summary>Reads the choice numbers a proposal actually offers, so a ballot cannot name an option that does not exist.</summary>
+    private static bool TryReadChoices(string options, out HashSet<int> choices)
+    {
+        choices = new HashSet<int>();
+        if (string.IsNullOrWhiteSpace(options))
+            return false;
+
+        try
+        {
+            using var document = JsonDocument.Parse(options);
+            if (document.RootElement.ValueKind != JsonValueKind.Array)
+                return false;
+
+            var index = 0;
+            foreach (var element in document.RootElement.EnumerateArray())
+            {
+                switch (element.ValueKind)
+                {
+                    case JsonValueKind.String:
+                        if (string.IsNullOrWhiteSpace(element.GetString()))
+                            return false;
+                        choices.Add(index);
+                        break;
+                    case JsonValueKind.Object:
+                        if (element.TryGetProperty("choice", out var choice) &&
+                            choice.ValueKind == JsonValueKind.Number &&
+                            choice.TryGetInt32(out var choiceValue))
+                            choices.Add(choiceValue);
+                        else
+                            choices.Add(index);
+                        break;
+                    default:
+                        return false;
+                }
+
+                index++;
+            }
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
+
+        return choices.Count > 0;
+    }
+
     private async Task<ProposalDto> EnrichProposalDtoAsync(Proposal proposal, CancellationToken ct)
     {
         var votes = await _voteRepository.FindAsync(v => v.proposalId == proposal.id, ct);
@@ -362,7 +698,7 @@ public class GovernanceService : IGovernanceService
         var dto = _mapper.Map<ProposalDto>(proposal) with
         {
             VotesCount = votesList.Count,
-            TotalVotingPower = votesList.Sum(v => v.weight)
+            TotalVotingPower = votesList.Count
         };
 
         var creator = await _userRepository.GetByIdAsync(proposal.creatorId, ct);
@@ -384,29 +720,6 @@ public class GovernanceService : IGovernanceService
             dtos.Add(await EnrichProposalDtoAsync(proposal, ct));
         }
         return dtos;
-    }
-
-    public async Task<Result<ProposalDto>> PublishProposalAsync(string id, CancellationToken ct = default)
-    {
-        var proposal = await _proposalRepository.GetByIdAsync(id, ct);
-        if (proposal is null)
-            return Result<ProposalDto>.NotFound($"Proposal with id {id} not found");
-
-        if (proposal.status != ProposalStatus.DRAFT)
-            return Result<ProposalDto>.Failure("Only DRAFT proposals can be published");
-
-        proposal.status = ProposalStatus.ACTIVE;
-        proposal.votingStart = DateTime.UtcNow;
-        // Use votingEnd if already set, otherwise default to 7 days from now
-        if (proposal.votingEnd is null)
-            proposal.votingEnd = DateTime.UtcNow.AddDays(7);
-        proposal.updatedAt = DateTime.UtcNow;
-
-        await _proposalRepository.UpdateAsync(proposal, ct);
-        await _unitOfWork.SaveChangesAsync(ct);
-
-        var resultDto = await EnrichProposalDtoAsync(proposal, ct);
-        return Result<ProposalDto>.Success(resultDto);
     }
 
     public async Task<Result<IReadOnlyList<ProposalCommentDto>>> GetProposalCommentsAsync(string proposalId, CancellationToken ct = default)
@@ -442,6 +755,9 @@ public class GovernanceService : IGovernanceService
         var proposal = await _proposalRepository.GetByIdAsync(dto.ProposalId, ct);
         if (proposal is null)
             return Result<ProposalCommentDto>.NotFound($"Proposal with id {dto.ProposalId} not found");
+
+        if (string.IsNullOrWhiteSpace(dto.UserId))
+            return Result<ProposalCommentDto>.Unauthorized("A comment must be written by a signed-in member");
 
         var comment = new ProposalComment
         {

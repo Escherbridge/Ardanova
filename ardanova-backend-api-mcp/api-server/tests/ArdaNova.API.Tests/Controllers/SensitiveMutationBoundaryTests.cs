@@ -1,11 +1,15 @@
-namespace ArdaNova.API.Tests.Controllers;
+﻿namespace ArdaNova.API.Tests.Controllers;
 
+using System.Security.Claims;
 using ArdaNova.API.Controllers;
+using ArdaNova.API.Middleware;
+using ArdaNova.Application.Common.Results;
 using ArdaNova.Application.DTOs;
 using ArdaNova.Application.Services.Implementations;
 using ArdaNova.Application.Services.Interfaces;
 using ArdaNova.Application.Common.Interfaces;
 using ArdaNova.Domain.Models.Entities;
+using ArdaNova.Domain.Models.Enums;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
@@ -118,27 +122,118 @@ public sealed class SensitiveMutationBoundaryTests
         credentials.VerifyNoOtherCalls();
     }
 
+    /// <summary>The ballot names the signed-in member: a voter id or weight supplied by the caller is discarded before the service ever sees it.</summary>
     [Fact]
-    public void GovernanceMutations_FailClosedBeforeServiceInvocation()
+    public async Task GovernanceVote_BindsTheBallotToTheActorAndDiscardsCallerSuppliedWeight()
     {
         var governance = new Mock<IGovernanceService>(MockBehavior.Strict);
-        var controller = new GovernanceController(governance.Object);
+        governance
+            .Setup(service => service.CastVoteAsync(
+                "proposal-1",
+                It.Is<CastVoteDto>(dto => dto.VoterId == "actor-1" && dto.Weight == null),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<VoteDto>.Success(new VoteDto { Id = "vote-1", ProposalId = "proposal-1", VoterId = "actor-1" }));
+        var controller = WithActor(
+            new GovernanceController(governance.Object, new Mock<IHierarchyAuthorizationService>(MockBehavior.Strict).Object),
+            "actor-1");
+
+        var result = await controller.CastVote(
+            "proposal-1",
+            new CastVoteDto { VoterId = "someone-else", Choice = 0, Weight = 999m },
+            CancellationToken.None);
+
+        result.Should().BeOfType<OkObjectResult>();
+        governance.VerifyAll();
+        governance.VerifyNoOtherCalls();
+    }
+
+    /// <summary>A comment is authored by the signed-in member; the body user id is overwritten, not trusted.</summary>
+    [Fact]
+    public async Task GovernanceComment_BindsAuthorshipToTheActor()
+    {
+        var governance = new Mock<IGovernanceService>(MockBehavior.Strict);
+        governance
+            .Setup(service => service.CreateProposalCommentAsync(
+                It.Is<CreateProposalCommentDto>(dto => dto.UserId == "actor-1" && dto.ProposalId == "proposal-1"),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<ProposalCommentDto>.Success(new ProposalCommentDto { Id = "comment-1", ProposalId = "proposal-1", UserId = "actor-1", Content = "hi" }));
+        var controller = WithActor(
+            new GovernanceController(governance.Object, new Mock<IHierarchyAuthorizationService>(MockBehavior.Strict).Object),
+            "actor-1");
+
+        var result = await controller.CreateProposalComment(
+            "proposal-1",
+            new CreateProposalCommentDto { ProposalId = "someone-elses-proposal", UserId = "someone-else", Content = "hi" },
+            CancellationToken.None);
+
+        result.Should().BeOfType<OkObjectResult>();
+        governance.VerifyAll();
+        governance.VerifyNoOtherCalls();
+    }
+
+    /// <summary>Raising a proposal on a project you are not in is refused before the service is reached.</summary>
+    [Fact]
+    public async Task GovernanceProposalCreation_RefusesANonMemberBeforeServiceInvocation()
+    {
+        var governance = new Mock<IGovernanceService>(MockBehavior.Strict);
+        var hierarchy = new Mock<IHierarchyAuthorizationService>(MockBehavior.Strict);
+        hierarchy
+            .Setup(service => service.IsProjectMemberAsync("actor-1", "project-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(false);
+        var controller = WithActor(new GovernanceController(governance.Object, hierarchy.Object), "actor-1");
+
+        var result = await controller.CreateProposal(
+            new CreateProposalDto
+            {
+                ProjectId = "project-1",
+                CreatorId = "someone-else",
+                Type = ProposalType.OPERATIONAL,
+                Title = "t",
+                Description = "d",
+                Options = OptionsJson,
+            },
+            CancellationToken.None);
+
+        result.Should().BeOfType<ObjectResult>()
+            .Which.StatusCode.Should().Be(StatusCodes.Status403Forbidden);
+        governance.VerifyNoOtherCalls();
+    }
+
+    /// <summary>Lifecycle actions belong to the people who run the project (or, where allowed, the member who raised it) - a bystander is refused before anything mutates.</summary>
+    [Fact]
+    public async Task GovernanceLifecycleActions_RefuseABystanderBeforeMutating()
+    {
+        var governance = new Mock<IGovernanceService>(MockBehavior.Strict);
+        governance
+            .Setup(service => service.GetProposalByIdAsync("proposal-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<ProposalDto>.Success(new ProposalDto
+            {
+                Id = "proposal-1",
+                ProjectId = "project-1",
+                CreatorId = "creator-1",
+            }));
+        var hierarchy = new Mock<IHierarchyAuthorizationService>(MockBehavior.Strict);
+        hierarchy
+            .Setup(service => service.CanManageProjectAsync("bystander-1", "project-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(false);
+        var controller = WithActor(new GovernanceController(governance.Object, hierarchy.Object), "bystander-1");
 
         var results = new IActionResult[]
         {
-            controller.CreateProposal(null!, CancellationToken.None),
-            controller.UpdateProposal("proposal-1", null!, CancellationToken.None),
-            controller.DeleteProposal("proposal-1", CancellationToken.None),
-            controller.CastVote("proposal-1", null!, CancellationToken.None),
-            controller.ExecuteProposal("proposal-1", CancellationToken.None),
-            controller.CancelProposal("proposal-1", CancellationToken.None),
-            controller.PublishProposal("proposal-1", CancellationToken.None),
-            controller.CreateProposalComment("proposal-1", null!, CancellationToken.None),
-            controller.UpdateProposalComment("proposal-1", "comment-1", "caller-selected-user", null!, CancellationToken.None),
-            controller.DeleteProposalComment("proposal-1", "comment-1", "caller-selected-user", CancellationToken.None),
+            await controller.UpdateProposal("proposal-1", new UpdateProposalDto(), CancellationToken.None),
+            await controller.DeleteProposal("proposal-1", CancellationToken.None),
+            await controller.ExecuteProposal("proposal-1", CancellationToken.None),
+            await controller.CloseProposal("proposal-1", CancellationToken.None),
+            await controller.CancelProposal("proposal-1", CancellationToken.None),
+            await controller.PublishProposal("proposal-1", CancellationToken.None),
         };
 
-        results.Should().AllSatisfy(result => AssertPaused(result, "Actor-bound proposal"));
+        results.Should().AllSatisfy(result =>
+            result.Should().BeOfType<ObjectResult>()
+                .Which.StatusCode.Should().Be(StatusCodes.Status403Forbidden));
+        governance.Verify(
+            service => service.GetProposalByIdAsync("proposal-1", It.IsAny<CancellationToken>()),
+            Times.Exactly(6));
         governance.VerifyNoOtherCalls();
     }
 
@@ -169,6 +264,21 @@ public sealed class SensitiveMutationBoundaryTests
 
         AssertPaused(result, "server-derived");
         referrals.VerifyNoOtherCalls();
+    }
+
+    private const string OptionsJson = "[\"Yes\",\"No\"]";
+
+    private static T WithActor<T>(T controller, string actorId)
+        where T : ControllerBase
+    {
+        var context = new DefaultHttpContext
+        {
+            User = new ClaimsPrincipal(new ClaimsIdentity(
+                [new Claim(ClaimTypes.NameIdentifier, actorId)],
+                ActorAssertionMiddleware.AuthenticationType))
+        };
+        controller.ControllerContext = new ControllerContext { HttpContext = context };
+        return controller;
     }
 
     private static void AssertPaused(IActionResult result, string expectedDetail)

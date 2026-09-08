@@ -8,6 +8,7 @@ using ArdaNova.Application.Services.Implementations;
 using ArdaNova.Application.Services.Interfaces;
 using ArdaNova.Domain.Models.Enums;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
 [ApiController]
@@ -387,12 +388,16 @@ public class ProjectsController : ControllerBase
     [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
     public async Task<IActionResult> UpdateMember(string projectId, string memberId, [FromBody] UpdateProjectMemberDto dto, CancellationToken ct)
     {
-        if (dto.ShareBalance.HasValue || dto.VotingPower.HasValue)
+        // Votes are one per confirmed member; there is no per-member voting power to set. See GovernanceService.OneMemberOneVote.
+        if (dto.VotingPower.HasValue)
+            return BadRequest(new { error = "Every confirmed member of a project gets one vote, so there is nothing to set here." });
+
+        if (dto.ShareBalance.HasValue)
         {
             return Problem(
                 statusCode: 501,
-                title: "Project-unit and voting allocation is unavailable",
-                detail: "Provider-verified account eligibility, durable settlement, and auditable governance allocation are required before project-unit or voting-power changes can be enabled.");
+                title: "Project-unit allocation is unavailable",
+                detail: "Provider-verified account eligibility, durable settlement, and auditable allocation are required before project-unit changes can be enabled.");
         }
 
         var member = await _memberService.GetByIdAsync(memberId, ct);
@@ -828,6 +833,7 @@ public class ProjectsController : ControllerBase
             : ToActionResult(result);
     }
 
+    /// <summary>Carries out a decision the members passed; the service resolves an over-due vote first, so PASSED is reachable without a scheduler.</summary>
     [HttpPost("{projectId}/proposals/{proposalId}/execute")]
     [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
     public async Task<IActionResult> ExecuteProposal(string projectId, string proposalId, CancellationToken ct)
@@ -844,6 +850,29 @@ public class ProjectsController : ControllerBase
         return ToActionResult(result);
     }
 
+    /// <summary>Ends the voting window now and records PASSED, REJECTED or EXPIRED from the ballots on file. This is not a withdrawal - see CancelProposal.</summary>
+    [HttpPost("{projectId}/proposals/{proposalId}/close")]
+    [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
+    public async Task<IActionResult> CloseProposal(string projectId, string proposalId, CancellationToken ct)
+    {
+        var proposal = await _governanceService.GetProposalByIdAsync(proposalId, ct);
+        if (!proposal.IsSuccess)
+            return ToActionResult(proposal);
+        if (!string.Equals(proposal.Value!.ProjectId, projectId, StringComparison.Ordinal))
+            return NotFound(new { error = "Proposal not found in the routed project" });
+        if (!IsAdmin &&
+            !string.Equals(proposal.Value.CreatorId, ActorId, StringComparison.Ordinal) &&
+            !await CanManageProjectAsync(projectId, ct))
+            return NotAuthorized("Only the people who run this project can close a vote");
+
+        var result = await _governanceService.UpdateProposalAsync(
+            proposalId,
+            new UpdateProposalDto { VotingEnd = DateTime.UtcNow },
+            ct);
+        return ToActionResult(result);
+    }
+
+    /// <summary>Withdraws a proposal entirely. The service refuses once a ballot exists, so a vote of record can only be closed, never discarded.</summary>
     [HttpPost("{projectId}/proposals/{proposalId}/cancel")]
     [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
     public async Task<IActionResult> CancelProposal(string projectId, string proposalId, CancellationToken ct)
@@ -948,7 +977,7 @@ public class ProjectsController : ControllerBase
             return NotFound(new { error = "Proposal not found in the routed project" });
         if (!IsAdmin &&
             !await _hierarchyAuthorization.IsProjectMemberAsync(ActorId, projectId, ct))
-            return Forbid();
+            return NotAuthorized("Only members of this project can vote on it");
 
         var credential = await _membershipCredentialService.GetByProjectAndUserAsync(
             projectId,
@@ -957,8 +986,9 @@ public class ProjectsController : ControllerBase
         if (!IsAdmin &&
             (!credential.IsSuccess ||
              !string.Equals(credential.Value!.Status, "ACTIVE", StringComparison.OrdinalIgnoreCase)))
-            return Forbid();
+            return NotAuthorized("You can vote once a project organiser confirms your membership");
 
+        // The voter is the authenticated actor and the weight is the service's, never the body's.
         var result = await _governanceService.CastVoteAsync(
             proposalId,
             dto with { VoterId = ActorId, Weight = null },
@@ -1076,6 +1106,10 @@ public class ProjectsController : ControllerBase
         return ToActionResult(result);
     }
 
+    /// <summary>A refusal the reader can act on: 403 with the reason in the body, rather than an empty Forbid.</summary>
+    private IActionResult NotAuthorized(string reason)
+        => StatusCode(StatusCodes.Status403Forbidden, new { error = reason });
+
     private IActionResult ToActionResult<T>(Result<T> result)
     {
         if (result.IsSuccess)
@@ -1086,7 +1120,7 @@ public class ProjectsController : ControllerBase
             ResultType.NotFound => NotFound(new { error = result.Error }),
             ResultType.ValidationError => BadRequest(new { error = result.Error }),
             ResultType.Unauthorized => Unauthorized(new { error = result.Error }),
-            ResultType.Forbidden => Forbid(),
+            ResultType.Forbidden => NotAuthorized(result.Error ?? "Not permitted"),
             _ => BadRequest(new { error = result.Error })
         };
     }

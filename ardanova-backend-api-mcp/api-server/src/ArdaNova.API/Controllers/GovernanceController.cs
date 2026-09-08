@@ -1,21 +1,29 @@
 namespace ArdaNova.API.Controllers;
 
+using System.Security.Claims;
+using ArdaNova.API.Middleware;
 using ArdaNova.Application.Common.Results;
 using ArdaNova.Application.DTOs;
 using ArdaNova.Application.Services.Interfaces;
 using ArdaNova.Domain.Models.Enums;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
+/// <summary>Cross-project governance surface; every mutation is bound to the authenticated actor and authorised against the proposal's project.</summary>
 [ApiController]
 [Route("api/[controller]")]
 public class GovernanceController : ControllerBase
 {
     private readonly IGovernanceService _governanceService;
+    private readonly IHierarchyAuthorizationService _hierarchyAuthorization;
 
-    public GovernanceController(IGovernanceService governanceService)
+    public GovernanceController(
+        IGovernanceService governanceService,
+        IHierarchyAuthorizationService hierarchyAuthorization)
     {
         _governanceService = governanceService;
+        _hierarchyAuthorization = hierarchyAuthorization;
     }
 
     // Proposal endpoints
@@ -70,39 +78,54 @@ public class GovernanceController : ControllerBase
     }
 
     [HttpPost("proposals")]
-    public IActionResult CreateProposal([FromBody] CreateProposalDto dto, CancellationToken ct)
+    [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
+    public async Task<IActionResult> CreateProposal([FromBody] CreateProposalDto dto, CancellationToken ct)
     {
-        _ = dto;
-        _ = ct;
-        return MutationUnavailable();
+        if (!IsAdmin && !await _hierarchyAuthorization.IsProjectMemberAsync(ActorId, dto.ProjectId, ct))
+            return NotAuthorized("Only members of this project can raise a proposal on it");
+
+        var result = await _governanceService.CreateProposalAsync(dto with { CreatorId = ActorId }, ct);
+        return result.IsSuccess
+            ? CreatedAtAction(nameof(GetProposalById), new { id = result.Value!.Id }, result.Value)
+            : ToActionResult(result);
     }
 
     [HttpPut("proposals/{id}")]
-    public IActionResult UpdateProposal(string id, [FromBody] UpdateProposalDto dto, CancellationToken ct)
+    [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
+    public async Task<IActionResult> UpdateProposal(string id, [FromBody] UpdateProposalDto dto, CancellationToken ct)
     {
-        _ = id;
-        _ = dto;
-        _ = ct;
-        return MutationUnavailable();
+        var denied = await DenyUnlessMayActOnProposalAsync(id, ct);
+        if (denied is not null)
+            return denied;
+
+        var result = await _governanceService.UpdateProposalAsync(id, dto, ct);
+        return ToActionResult(result);
     }
 
     [HttpDelete("proposals/{id}")]
-    public IActionResult DeleteProposal(string id, CancellationToken ct)
+    [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
+    public async Task<IActionResult> DeleteProposal(string id, CancellationToken ct)
     {
-        _ = id;
-        _ = ct;
-        return MutationUnavailable();
+        var denied = await DenyUnlessMayActOnProposalAsync(id, ct);
+        if (denied is not null)
+            return denied;
+
+        var result = await _governanceService.DeleteProposalAsync(id, ct);
+        return result.IsSuccess ? NoContent() : ToActionResult(result);
     }
 
     // Voting endpoints
 
+    /// <summary>The ballot names the signed-in member; a voter id or weight in the body is discarded.</summary>
     [HttpPost("proposals/{id}/vote")]
-    public IActionResult CastVote(string id, [FromBody] CastVoteDto dto, CancellationToken ct)
+    [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
+    public async Task<IActionResult> CastVote(string id, [FromBody] CastVoteDto dto, CancellationToken ct)
     {
-        _ = id;
-        _ = dto;
-        _ = ct;
-        return MutationUnavailable();
+        var result = await _governanceService.CastVoteAsync(
+            id,
+            dto with { VoterId = ActorId, Weight = null },
+            ct);
+        return ToActionResult(result);
     }
 
     [HttpGet("proposals/{id}/votes")]
@@ -113,8 +136,12 @@ public class GovernanceController : ControllerBase
     }
 
     [HttpGet("proposals/{id}/my-vote")]
+    [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
     public async Task<IActionResult> GetMyVote(string id, [FromQuery] string userId, CancellationToken ct)
     {
+        if (!IsAdmin && !string.Equals(userId, ActorId, StringComparison.Ordinal))
+            return NotAuthorized("You can only read your own vote");
+
         var result = await _governanceService.GetUserVoteAsync(id, userId, ct);
         return ToActionResult(result);
     }
@@ -129,27 +156,55 @@ public class GovernanceController : ControllerBase
     // Proposal lifecycle endpoints
 
     [HttpPatch("proposals/{id}/execute")]
-    public IActionResult ExecuteProposal(string id, CancellationToken ct)
+    [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
+    public async Task<IActionResult> ExecuteProposal(string id, CancellationToken ct)
     {
-        _ = id;
-        _ = ct;
-        return MutationUnavailable();
+        var denied = await DenyUnlessMayActOnProposalAsync(id, ct, creatorMayAct: false);
+        if (denied is not null)
+            return denied;
+
+        var result = await _governanceService.ExecuteProposalAsync(id, ct);
+        return ToActionResult(result);
+    }
+
+    /// <summary>Closing ends the voting window now and records the outcome; withdrawing (cancel) throws the proposal away and is refused once anyone has voted.</summary>
+    [HttpPatch("proposals/{id}/close")]
+    [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
+    public async Task<IActionResult> CloseProposal(string id, CancellationToken ct)
+    {
+        var denied = await DenyUnlessMayActOnProposalAsync(id, ct);
+        if (denied is not null)
+            return denied;
+
+        var result = await _governanceService.UpdateProposalAsync(
+            id,
+            new UpdateProposalDto { VotingEnd = DateTime.UtcNow },
+            ct);
+        return ToActionResult(result);
     }
 
     [HttpPatch("proposals/{id}/cancel")]
-    public IActionResult CancelProposal(string id, CancellationToken ct)
+    [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
+    public async Task<IActionResult> CancelProposal(string id, CancellationToken ct)
     {
-        _ = id;
-        _ = ct;
-        return MutationUnavailable();
+        var denied = await DenyUnlessMayActOnProposalAsync(id, ct);
+        if (denied is not null)
+            return denied;
+
+        var result = await _governanceService.CancelProposalAsync(id, ct);
+        return ToActionResult(result);
     }
 
     [HttpPatch("proposals/{id}/publish")]
-    public IActionResult PublishProposal(string id, CancellationToken ct)
+    [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
+    public async Task<IActionResult> PublishProposal(string id, CancellationToken ct)
     {
-        _ = id;
-        _ = ct;
-        return MutationUnavailable();
+        var denied = await DenyUnlessMayActOnProposalAsync(id, ct);
+        if (denied is not null)
+            return denied;
+
+        var result = await _governanceService.PublishProposalAsync(id, ct);
+        return ToActionResult(result);
     }
 
     // Proposal comment endpoints
@@ -162,45 +217,64 @@ public class GovernanceController : ControllerBase
     }
 
     [HttpPost("proposals/{id}/comments")]
-    public IActionResult CreateProposalComment(string id, [FromBody] CreateProposalCommentDto dto, CancellationToken ct)
+    [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
+    public async Task<IActionResult> CreateProposalComment(string id, [FromBody] CreateProposalCommentDto dto, CancellationToken ct)
     {
-        _ = id;
-        _ = dto;
-        _ = ct;
-        return MutationUnavailable();
+        var result = await _governanceService.CreateProposalCommentAsync(
+            dto with { ProposalId = id, UserId = ActorId },
+            ct);
+        return ToActionResult(result);
     }
 
     [HttpPut("proposals/{id}/comments/{commentId}")]
-    public IActionResult UpdateProposalComment(
+    [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
+    public async Task<IActionResult> UpdateProposalComment(
         string id,
         string commentId,
-        [FromQuery] string userId,
         [FromBody] UpdateProposalCommentDto dto,
         CancellationToken ct)
     {
-        _ = id;
-        _ = commentId;
-        _ = userId;
-        _ = dto;
-        _ = ct;
-        return MutationUnavailable();
+        var result = await _governanceService.UpdateProposalCommentAsync(id, commentId, ActorId, dto, ct);
+        return ToActionResult(result);
     }
 
     [HttpDelete("proposals/{id}/comments/{commentId}")]
-    public IActionResult DeleteProposalComment(string id, string commentId, [FromQuery] string userId, CancellationToken ct)
+    [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
+    public async Task<IActionResult> DeleteProposalComment(string id, string commentId, CancellationToken ct)
     {
-        _ = id;
-        _ = commentId;
-        _ = userId;
-        _ = ct;
-        return MutationUnavailable();
+        var result = await _governanceService.DeleteProposalCommentAsync(id, commentId, ActorId, ct);
+        return result.IsSuccess ? NoContent() : ToActionResult(result);
     }
 
-    private IActionResult MutationUnavailable()
-        => Problem(
-            statusCode: StatusCodes.Status501NotImplemented,
-            title: "Governance mutations are unavailable",
-            detail: "Actor-bound proposal, vote, and comment authority plus auditable atomic lifecycle transitions are required before this mutation surface can be enabled.");
+    private string ActorId => User.FindFirstValue(ClaimTypes.NameIdentifier)!;
+
+    private bool IsAdmin => User.IsInRole(UserRole.ADMIN.ToString());
+
+    /// <summary>A proposal's lifecycle belongs to the people who run its project, plus — where it is their own — the member who raised it. Returns the refusal to send, or null when the actor may act.</summary>
+    private async Task<IActionResult?> DenyUnlessMayActOnProposalAsync(
+        string proposalId,
+        CancellationToken ct,
+        bool creatorMayAct = true)
+    {
+        var proposal = await _governanceService.GetProposalByIdAsync(proposalId, ct);
+        if (!proposal.IsSuccess)
+            return ToActionResult(proposal);
+
+        if (IsAdmin)
+            return null;
+
+        if (creatorMayAct && string.Equals(proposal.Value!.CreatorId, ActorId, StringComparison.Ordinal))
+            return null;
+
+        if (await _hierarchyAuthorization.CanManageProjectAsync(ActorId, proposal.Value!.ProjectId, ct))
+            return null;
+
+        return NotAuthorized("Only the people who run this project can take that action");
+    }
+
+    /// <summary>A refusal the reader can act on: 403 with the reason in the body, rather than an empty Forbid.</summary>
+    private IActionResult NotAuthorized(string reason)
+        => StatusCode(StatusCodes.Status403Forbidden, new { error = reason });
 
     private IActionResult ToActionResult<T>(Result<T> result)
     {
@@ -212,7 +286,7 @@ public class GovernanceController : ControllerBase
             ResultType.NotFound => NotFound(new { error = result.Error }),
             ResultType.ValidationError => BadRequest(new { error = result.Error }),
             ResultType.Unauthorized => Unauthorized(new { error = result.Error }),
-            ResultType.Forbidden => Forbid(),
+            ResultType.Forbidden => NotAuthorized(result.Error ?? "Not permitted"),
             _ => BadRequest(new { error = result.Error })
         };
     }

@@ -98,14 +98,23 @@ export default function OverviewTab({
     },
   });
 
+  // The API serialises enums by name (JsonStringEnumConverter), so the wire value is "ACTIVE".
   const votingOptions = parseVotingOptions(proposal.options);
-  const isActive = proposal.status === "Active";
+  const isActive = proposal.status.toUpperCase() === "ACTIVE";
 
-  // Calculate quorum progress
-  const currentQuorum =
-    proposal.totalVotingPower > 0
-      ? (proposal.votesCount / proposal.totalVotingPower) * 100
+  // Quorum is turnout among the project's confirmed members, not a share of any voting power:
+  // the summary endpoint owns that arithmetic so the page and the tally can never disagree.
+  const { data: voteSummary } = api.governance.getVoteSummary.useQuery({
+    proposalId: proposal.id,
+  });
+  const eligibleMembers = voteSummary?.eligibleMembers ?? 0;
+  const votesCast = voteSummary?.totalVotes ?? 0;
+  const votesNeededForQuorum = voteSummary?.votesNeededForQuorum ?? 0;
+  const quorumProgress =
+    votesNeededForQuorum > 0
+      ? Math.min((votesCast / votesNeededForQuorum) * 100, 100)
       : 0;
+  const quorumReached = voteSummary?.quorumReached ?? false;
 
   const handleVote = (e: React.FormEvent) => {
     e.preventDefault();
@@ -153,13 +162,15 @@ export default function OverviewTab({
             <div className="mb-2 flex justify-between text-sm">
               <span className="text-muted-foreground">Quorum Progress</span>
               <span className="text-foreground font-medium">
-                {currentQuorum.toFixed(1)}% of {proposal.quorum}% required
+                {eligibleMembers > 0
+                  ? `${votesCast} of ${votesNeededForQuorum} members needed`
+                  : "No confirmed members yet"}
               </span>
             </div>
             <Progress
               aria-label="Quorum progress"
-              value={Math.min(currentQuorum, 100)}
-              variant={currentQuorum >= proposal.quorum ? "success" : "neon"}
+              value={quorumProgress}
+              variant={quorumReached ? "success" : "neon"}
             />
           </div>
 

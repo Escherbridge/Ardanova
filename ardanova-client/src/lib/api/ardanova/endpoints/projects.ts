@@ -692,7 +692,18 @@ export class ProjectsEndpoint {
     );
   }
 
+  /// Ends the voting window now and records the outcome; the proposal survives with its result.
   closeProposal(
+    projectId: string,
+    proposalId: string,
+  ): Promise<ApiResponse<Proposal>> {
+    return this.client.post<Proposal>(
+      `/api/projects/${projectId}/proposals/${proposalId}/close`,
+    );
+  }
+
+  /// Withdraws the proposal entirely; the server refuses this once anyone has voted.
+  cancelProposal(
     projectId: string,
     proposalId: string,
   ): Promise<ApiResponse<Proposal>> {

@@ -1,4 +1,4 @@
-namespace ArdaNova.Application.Tests.Services;
+﻿namespace ArdaNova.Application.Tests.Services;
 
 using ArdaNova.Application.Common.Interfaces;
 using ArdaNova.Application.Common.Results;
@@ -18,6 +18,7 @@ public class GovernanceServiceTests
     private readonly Mock<IRepository<User>> _userRepositoryMock;
     private readonly Mock<IRepository<Project>> _projectRepositoryMock;
     private readonly Mock<IRepository<ProposalComment>> _proposalCommentRepositoryMock;
+    private readonly Mock<IRepository<MembershipCredential>> _membershipCredentialRepositoryMock;
     private readonly Mock<IUnitOfWork> _unitOfWorkMock;
     private readonly Mock<IMapper> _mapperMock;
     private readonly GovernanceService _sut;
@@ -30,8 +31,17 @@ public class GovernanceServiceTests
         _userRepositoryMock = new Mock<IRepository<User>>();
         _projectRepositoryMock = new Mock<IRepository<Project>>();
         _proposalCommentRepositoryMock = new Mock<IRepository<ProposalComment>>();
+        _membershipCredentialRepositoryMock = new Mock<IRepository<MembershipCredential>>();
         _unitOfWorkMock = new Mock<IUnitOfWork>();
         _mapperMock = new Mock<IMapper>();
+
+        // Plumbing, not policy: every read path tallies the ballots on file, so an unstubbed
+        // ballot query must read as "no votes yet" rather than null. Eligibility and electorate
+        // size are deliberately NOT defaulted here - each test states the membership it assumes.
+        _voteRepositoryMock
+            .Setup(r => r.FindAsync(It.IsAny<System.Linq.Expressions.Expression<Func<Vote, bool>>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<Vote>());
+
         _sut = new GovernanceService(
             _proposalRepositoryMock.Object,
             _voteRepositoryMock.Object,
@@ -40,8 +50,21 @@ public class GovernanceServiceTests
             _projectRepositoryMock.Object,
             _proposalCommentRepositoryMock.Object,
             _unitOfWorkMock.Object,
-            _mapperMock.Object);
+            _mapperMock.Object,
+            _membershipCredentialRepositoryMock.Object);
     }
+
+    /// <summary>The member register says who may vote here; a ballot is refused unless it does.</summary>
+    private void GivenVoterIsAConfirmedMember(bool isMember = true) =>
+        _membershipCredentialRepositoryMock
+            .Setup(r => r.ExistsAsync(It.IsAny<System.Linq.Expressions.Expression<Func<MembershipCredential, bool>>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(isMember);
+
+    /// <summary>Quorum is a share of the confirmed members, so a tally needs an electorate to divide by.</summary>
+    private void GivenElectorateOf(int confirmedMembers) =>
+        _membershipCredentialRepositoryMock
+            .Setup(r => r.CountAsync(It.IsAny<System.Linq.Expressions.Expression<Func<MembershipCredential, bool>>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(confirmedMembers);
 
     [Fact]
     public async Task GetProposalByIdAsync_WhenProposalExists_ReturnsSuccessResult()
@@ -297,6 +320,7 @@ public class GovernanceServiceTests
         var voteDto = new VoteDto { ProposalId = proposalId, VoterId = voterId, Choice = 0 };
         var voterDto = new VoteUserDto { Id = voterId, Name = "Test Voter" };
 
+        GivenVoterIsAConfirmedMember();
         _proposalRepositoryMock.Setup(r => r.GetByIdAsync(proposalId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(proposal);
         _voteRepositoryMock.Setup(r => r.FindOneAsync(It.IsAny<System.Linq.Expressions.Expression<Func<Vote, bool>>>(), It.IsAny<CancellationToken>()))
@@ -421,6 +445,7 @@ public class GovernanceServiceTests
             Choice = 0
         };
 
+        GivenVoterIsAConfirmedMember();
         _proposalRepositoryMock.Setup(r => r.GetByIdAsync(proposalId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(proposal);
         _voteRepositoryMock.Setup(r => r.FindOneAsync(It.IsAny<System.Linq.Expressions.Expression<Func<Vote, bool>>>(), It.IsAny<CancellationToken>()))
@@ -651,6 +676,7 @@ public class GovernanceServiceTests
             new Vote { id = Guid.NewGuid().ToString(), proposalId = proposalId, voterId = Guid.NewGuid().ToString(), choice = 1, weight = 20, createdAt = DateTime.UtcNow }
         };
 
+        GivenElectorateOf(4);
         _proposalRepositoryMock.Setup(r => r.GetByIdAsync(proposalId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(proposal);
         _voteRepositoryMock.Setup(r => r.FindAsync(It.IsAny<System.Linq.Expressions.Expression<Func<Vote, bool>>>(), It.IsAny<CancellationToken>()))
@@ -663,11 +689,91 @@ public class GovernanceServiceTests
         result.IsSuccess.Should().BeTrue();
         result.Value.Should().NotBeNull();
         result.Value!.TotalVotes.Should().Be(3);
-        result.Value.TotalVotingPower.Should().Be(75);
+        // One confirmed member is one vote: the weights carried on these rows are history, not arithmetic.
+        result.Value.TotalVotingPower.Should().Be(3);
+        // Quorum is 50% of the 4 confirmed members, so 2 votes are needed and 3 were cast.
         result.Value.QuorumReached.Should().BeTrue();
         result.Value.OptionSummaries.Should().ContainKey(0);
         result.Value.OptionSummaries.Should().ContainKey(1);
         result.Value.OptionSummaries[0].VoteCount.Should().Be(2);
-        result.Value.OptionSummaries[0].VotingPower.Should().Be(55);
+        result.Value.OptionSummaries[0].VotingPower.Should().Be(2);
+    }
+
+    /// <summary>Quorum divides by the confirmed electorate, so with no members on the register nothing can reach it.</summary>
+    [Fact]
+    public async Task GetVoteSummaryAsync_WithNoConfirmedMembers_CannotReachQuorum()
+    {
+        // Arrange
+        var proposalId = Guid.NewGuid().ToString();
+        var proposal = new Proposal
+        {
+            id = proposalId,
+            projectId = Guid.NewGuid().ToString(),
+            creatorId = Guid.NewGuid().ToString(),
+            type = ProposalType.GOVERNANCE,
+            title = "Test Proposal",
+            description = "Desc",
+            options = "[\"Yes\",\"No\"]",
+            quorum = 50,
+            threshold = 51,
+            status = ProposalStatus.ACTIVE,
+            createdAt = DateTime.UtcNow,
+            updatedAt = DateTime.UtcNow
+        };
+        var votes = new List<Vote>
+        {
+            new Vote { id = Guid.NewGuid().ToString(), proposalId = proposalId, voterId = Guid.NewGuid().ToString(), choice = 0, weight = 1, createdAt = DateTime.UtcNow }
+        };
+
+        GivenElectorateOf(0);
+        _proposalRepositoryMock.Setup(r => r.GetByIdAsync(proposalId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(proposal);
+        _voteRepositoryMock.Setup(r => r.FindAsync(It.IsAny<System.Linq.Expressions.Expression<Func<Vote, bool>>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(votes);
+
+        // Act
+        var result = await _sut.GetVoteSummaryAsync(proposalId);
+
+        // Assert
+        result.IsSuccess.Should().BeTrue();
+        result.Value!.QuorumReached.Should().BeFalse();
+    }
+
+    /// <summary>The membership gate lives in the service, so a ballot from a non-member is refused even when every other precondition is met.</summary>
+    [Fact]
+    public async Task CastVoteAsync_WhenVoterIsNotAConfirmedMember_IsRefused()
+    {
+        // Arrange
+        var proposalId = Guid.NewGuid().ToString();
+        var proposal = new Proposal
+        {
+            id = proposalId,
+            projectId = Guid.NewGuid().ToString(),
+            creatorId = Guid.NewGuid().ToString(),
+            type = ProposalType.GOVERNANCE,
+            title = "Test Proposal",
+            description = "Desc",
+            options = "[\"Yes\",\"No\"]",
+            quorum = 50,
+            threshold = 51,
+            status = ProposalStatus.ACTIVE,
+            votingEnd = DateTime.UtcNow.AddDays(7),
+            createdAt = DateTime.UtcNow,
+            updatedAt = DateTime.UtcNow
+        };
+
+        GivenVoterIsAConfirmedMember(false);
+        _proposalRepositoryMock.Setup(r => r.GetByIdAsync(proposalId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(proposal);
+
+        // Act
+        var result = await _sut.CastVoteAsync(
+            proposalId,
+            new CastVoteDto { VoterId = Guid.NewGuid().ToString(), Choice = 0 });
+
+        // Assert
+        result.IsSuccess.Should().BeFalse();
+        result.Type.Should().Be(ResultType.Forbidden);
+        _voteRepositoryMock.Verify(r => r.AddAsync(It.IsAny<Vote>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 }

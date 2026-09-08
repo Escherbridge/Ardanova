@@ -34,6 +34,25 @@ public sealed class ProjectMemberValueBoundaryTests
         members.VerifyNoOtherCalls();
     }
 
+    /// <summary>Voting power is not a settable allocation any more: one confirmed member is one vote, so the request is simply wrong rather than deferred.</summary>
+    [Fact]
+    public async Task UpdateMember_VotingPowerIsRefusedAsMeaninglessBeforeLookup()
+    {
+        var members = new Mock<IProjectMemberService>(MockBehavior.Strict);
+        var controller = WithActor(CreateController(members.Object), "manager-1");
+
+        var result = await controller.UpdateMember(
+            "project-1",
+            "member-1",
+            new UpdateProjectMemberDto { VotingPower = 1m },
+            CancellationToken.None);
+
+        result.Should().BeOfType<BadRequestObjectResult>()
+            .Which.Value.Should().BeEquivalentTo(
+                new { error = "Every confirmed member of a project gets one vote, so there is nothing to set here." });
+        members.VerifyNoOtherCalls();
+    }
+
     [Fact]
     public async Task UpdateMember_RoleOnlyUpdateRemainsAvailable()
     {
@@ -79,7 +98,6 @@ public sealed class ProjectMemberValueBoundaryTests
     public static TheoryData<UpdateProjectMemberDto> DirectAllocationChanges =>
     [
         new UpdateProjectMemberDto { ShareBalance = 1m },
-        new UpdateProjectMemberDto { VotingPower = 1m },
     ];
 
     private static ProjectsController CreateController(

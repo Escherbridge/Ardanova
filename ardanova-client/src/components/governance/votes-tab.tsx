@@ -129,8 +129,6 @@ export default function VotesTab({ proposalId }: VotesTabProps) {
                       </Badge>
                     </div>
                     <div className="text-muted-foreground flex items-center gap-3 text-sm">
-                      <span>Weight: {vote.weight}</span>
-                      <span>•</span>
                       <span>
                         {new Date(vote.createdAt).toLocaleDateString()}
                       </span>
@@ -146,13 +144,6 @@ export default function VotesTab({ proposalId }: VotesTabProps) {
                           {vote.reason}
                         </p>
                       </div>
-                    </div>
-                  )}
-
-                  {/* Transaction Hash */}
-                  {vote.txHash && (
-                    <div className="text-muted-foreground font-mono text-xs">
-                      TX: {vote.txHash.slice(0, 10)}...{vote.txHash.slice(-8)}
                     </div>
                   )}
                 </div>

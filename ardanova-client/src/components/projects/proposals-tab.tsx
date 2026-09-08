@@ -64,14 +64,13 @@ interface ProposalOption {
 
 interface VoteOptionStats {
   voteCount: number;
-  votingPower: number;
+  /** Share of the votes cast on this proposal, as a whole number. */
   percentage: number;
 }
 
 interface ProposalVoteSnapshot {
   byChoice: ReadonlyMap<number, VoteOptionStats>;
   totalVotes: number;
-  totalVotingPower: number;
   currentUserVote: ProjectProposalVote | undefined;
   hasData: boolean;
   isLoading: boolean;
@@ -109,35 +108,24 @@ function ProposalVoteData({
 }) {
   const votesQuery = api.project.getProposalVotes.useQuery({ proposalId });
   const votes = votesQuery.data ?? [];
-  const totalVotingPower = votes.reduce((sum, vote) => sum + vote.weight, 0);
-  const rawByChoice = new Map<number, Omit<VoteOptionStats, "percentage">>();
+  const rawByChoice = new Map<number, number>();
 
   for (const vote of votes) {
-    const current = rawByChoice.get(vote.choice) ?? {
-      voteCount: 0,
-      votingPower: 0,
-    };
-    rawByChoice.set(vote.choice, {
-      voteCount: current.voteCount + 1,
-      votingPower: current.votingPower + vote.weight,
-    });
+    rawByChoice.set(vote.choice, (rawByChoice.get(vote.choice) ?? 0) + 1);
   }
 
   const byChoice = new Map<number, VoteOptionStats>();
-  for (const [choice, stats] of rawByChoice) {
+  for (const [choice, voteCount] of rawByChoice) {
     byChoice.set(choice, {
-      ...stats,
+      voteCount,
       percentage:
-        totalVotingPower > 0
-          ? Math.round((stats.votingPower / totalVotingPower) * 100)
-          : 0,
+        votes.length > 0 ? Math.round((voteCount / votes.length) * 100) : 0,
     });
   }
 
   return children({
     byChoice,
     totalVotes: votes.length,
-    totalVotingPower,
     currentUserVote: userId
       ? votes.find((vote) => vote.voterId === userId)
       : undefined,
@@ -147,18 +135,37 @@ function ProposalVoteData({
   });
 }
 
-function calculateQuorumProgress(
-  proposal: ProjectProposal,
-  totalVotingPower: number,
-) {
-  const quorumTarget = Math.max(proposal.quorum, 0);
+/**
+ * What a settled proposal means, in the words a member uses.
+ * The one-word badge is a label; this is the sentence that tells them what happened and why.
+ */
+function describeOutcome(proposal: ProjectProposal): string | null {
+  switch (proposal.status) {
+    case "PASSED":
+      return `Members passed this: enough of them took part, and one option won at least the ${proposal.threshold}% of votes needed.`;
+    case "REJECTED":
+      return "Members did not pass this. Enough of them voted, but no option won the share needed to pass.";
+    case "EXPIRED":
+      return "Voting closed without a decision, because too few members took part.";
+    case "EXECUTED":
+      return "Members passed this and it has been carried out.";
+    case "CANCELLED":
+      return "This proposal was withdrawn before anyone voted on it.";
+    default:
+      return null;
+  }
+}
+
+/** Turnout against the bar the API applies: a share of the members whose standing is confirmed. */
+function calculateTurnout(proposal: ProjectProposal, votesCast: number) {
+  const eligibleMembers = proposal.eligibleMembers;
+  const votesNeeded = proposal.votesNeededForQuorum;
   return {
+    eligibleMembers,
+    votesNeeded,
     progress:
-      quorumTarget === 0
-        ? 100
-        : Math.min((totalVotingPower / quorumTarget) * 100, 100),
-    votingPowerNeeded: Math.max(quorumTarget - totalVotingPower, 0),
-    quorumTarget,
+      votesNeeded <= 0 ? 100 : Math.min((votesCast / votesNeeded) * 100, 100),
+    membersStillNeeded: Math.max(votesNeeded - votesCast, 0),
   };
 }
 
@@ -349,6 +356,12 @@ export default function ProposalsTab({
     { enabled: !!projectId },
   );
 
+  const eligibilityQuery = api.project.getVotingEligibility.useQuery(
+    { projectId },
+    { enabled: !!projectId && !!currentUserId },
+  );
+  const mayVote = eligibilityQuery.data?.mayVote ?? false;
+
   const createMutation = api.project.createProposal.useMutation({
     onSuccess: () => {
       void utils.project.getProposals.invalidate({ projectId });
@@ -384,6 +397,18 @@ export default function ProposalsTab({
   });
 
   const closeMutation = api.project.closeProposal.useMutation({
+    onSuccess: () => {
+      void utils.project.getProposals.invalidate({ projectId });
+    },
+  });
+
+  const withdrawMutation = api.project.withdrawProposal.useMutation({
+    onSuccess: () => {
+      void utils.project.getProposals.invalidate({ projectId });
+    },
+  });
+
+  const executeMutation = api.project.executeProposal.useMutation({
     onSuccess: () => {
       void utils.project.getProposals.invalidate({ projectId });
     },
@@ -444,6 +469,43 @@ export default function ProposalsTab({
 
   const handleCloseProposal = (proposalId: string) => {
     closeMutation.mutate({ projectId, proposalId });
+  };
+
+  const handleWithdrawProposal = (proposalId: string) => {
+    withdrawMutation.mutate({ projectId, proposalId });
+  };
+
+  const handleExecuteProposal = (proposalId: string) => {
+    executeMutation.mutate({ projectId, proposalId });
+  };
+
+  /** The reason the last lifecycle action on this proposal was refused, so a silent no-op is impossible. */
+  const proposalActionError = (proposalId: string): string | null => {
+    const attempts = [
+      { error: closeMutation.error, target: closeMutation.variables?.proposalId },
+      {
+        error: withdrawMutation.error,
+        target: withdrawMutation.variables?.proposalId,
+      },
+      {
+        error: executeMutation.error,
+        target: executeMutation.variables?.proposalId,
+      },
+      {
+        error: publishMutation.error,
+        target: publishMutation.variables?.proposalId,
+      },
+      {
+        error: updateMutation.error,
+        target: updateMutation.variables?.proposalId,
+      },
+    ];
+
+    return (
+      attempts.find(
+        (attempt) => attempt.error !== null && attempt.target === proposalId,
+      )?.error?.message ?? null
+    );
   };
 
   const handlePublishProposal = (proposalId: string) => {
@@ -708,7 +770,7 @@ export default function ProposalsTab({
                       htmlFor={`create-proposal-quorum-${projectId}`}
                       className="text-foreground mb-1 block text-sm font-medium"
                     >
-                      Quorum target
+                      Members who must vote (%)
                     </label>
                     <input
                       id={`create-proposal-quorum-${projectId}`}
@@ -730,7 +792,7 @@ export default function ProposalsTab({
                       id={`create-proposal-quorum-help-${projectId}`}
                       className="text-muted-foreground mt-1 text-xs"
                     >
-                      Voting power required
+                      Share of confirmed members who must take part
                     </p>
                   </div>
                   <div>
@@ -738,7 +800,7 @@ export default function ProposalsTab({
                       htmlFor={`create-proposal-threshold-${projectId}`}
                       className="text-foreground mb-1 block text-sm font-medium"
                     >
-                      Threshold (%)
+                      Votes needed to pass (%)
                     </label>
                     <input
                       id={`create-proposal-threshold-${projectId}`}
@@ -760,7 +822,7 @@ export default function ProposalsTab({
                       id={`create-proposal-threshold-help-${projectId}`}
                       className="text-muted-foreground mt-1 text-xs"
                     >
-                      Votes needed to pass
+                      Share of the votes cast that one option must win
                     </p>
                   </div>
                   <div>
@@ -817,8 +879,8 @@ export default function ProposalsTab({
                       </p>
                       <p>
                         <span className="font-medium">Settings:</span>{" "}
-                        {formData.quorum} voting-power quorum,{" "}
-                        {formData.threshold}% threshold,{" "}
+                        {formData.quorum}% of members must vote,{" "}
+                        {formData.threshold}% of votes needed to pass,{" "}
                         {formData.votingDurationDays} day voting window
                       </p>
                     </div>
@@ -891,16 +953,15 @@ export default function ProposalsTab({
                 userId={currentUserId}
               >
                 {(voteSnapshot) => {
-                  const displayedVotingPower = voteSnapshot.hasData
-                    ? voteSnapshot.totalVotingPower
-                    : proposal.totalVotingPower;
-                  const quorumInfo = calculateQuorumProgress(
-                    proposal,
-                    displayedVotingPower,
-                  );
                   const displayedTotalVotes = voteSnapshot.hasData
                     ? voteSnapshot.totalVotes
                     : proposal.votesCount;
+                  const turnout = calculateTurnout(
+                    proposal,
+                    displayedTotalVotes,
+                  );
+                  const outcome = describeOutcome(proposal);
+                  const actionError = proposalActionError(proposal.id);
 
                   return (
                     <Card
@@ -976,6 +1037,20 @@ export default function ProposalsTab({
                                   ) : null}
                                   Publish
                                 </Button>
+                                <Button
+                                  onClick={() =>
+                                    handleWithdrawProposal(proposal.id)
+                                  }
+                                  disabled={withdrawMutation.isPending}
+                                  variant="outline"
+                                  size="sm"
+                                  aria-label="Withdraw proposal"
+                                >
+                                  {withdrawMutation.isPending ? (
+                                    <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                                  ) : null}
+                                  Withdraw
+                                </Button>
                               </div>
                             )}
                           {isOwner && proposal.status === "ACTIVE" && (
@@ -985,12 +1060,27 @@ export default function ProposalsTab({
                               variant="outline"
                               size="sm"
                               className="ml-2"
-                              aria-label="Close proposal"
+                              aria-label="Close voting and record the result"
                             >
                               {closeMutation.isPending ? (
                                 <Loader2 className="h-4 w-4 animate-spin" />
                               ) : (
-                                "Close"
+                                "Close voting"
+                              )}
+                            </Button>
+                          )}
+                          {isOwner && proposal.status === "PASSED" && (
+                            <Button
+                              onClick={() => handleExecuteProposal(proposal.id)}
+                              disabled={executeMutation.isPending}
+                              size="sm"
+                              className="ml-2"
+                              aria-label="Carry out this decision"
+                            >
+                              {executeMutation.isPending ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                "Carry out"
                               )}
                             </Button>
                           )}
@@ -1000,6 +1090,21 @@ export default function ProposalsTab({
                         id={`proposal-details-${proposal.id}`}
                         className="space-y-4"
                       >
+                        {outcome && (
+                          <p className="rounded-md border border-gray-200 bg-gray-50 p-3 text-sm text-gray-700">
+                            {outcome}
+                          </p>
+                        )}
+
+                        {actionError && (
+                          <p
+                            role="alert"
+                            className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800"
+                          >
+                            {actionError}
+                          </p>
+                        )}
+
                         {editingProposalId === proposal.id && editFormData ? (
                           <div className="space-y-4">
                             <div>
@@ -1128,7 +1233,7 @@ export default function ProposalsTab({
                                   htmlFor={`edit-proposal-quorum-${proposal.id}`}
                                   className="text-foreground mb-1 block text-sm font-medium"
                                 >
-                                  Quorum target
+                                  Members who must vote (%)
                                 </label>
                                 <input
                                   id={`edit-proposal-quorum-${proposal.id}`}
@@ -1150,7 +1255,7 @@ export default function ProposalsTab({
                                   htmlFor={`edit-proposal-threshold-${proposal.id}`}
                                   className="text-foreground mb-1 block text-sm font-medium"
                                 >
-                                  Threshold (%)
+                                  Votes needed to pass (%)
                                 </label>
                                 <input
                                   id={`edit-proposal-threshold-${proposal.id}`}
@@ -1305,7 +1410,7 @@ export default function ProposalsTab({
                                                   ? ""
                                                   : "s"}
                                                 {stats
-                                                  ? ` · ${stats.percentage}% power`
+                                                  ? ` · ${stats.percentage}%`
                                                   : ""}
                                               </span>
                                             </div>
@@ -1321,41 +1426,39 @@ export default function ProposalsTab({
 
                                   <div className="space-y-2">
                                     <div className="flex items-center justify-between">
-                                      <h4 className="font-semibold">
-                                        Quorum Progress
-                                      </h4>
+                                      <h4 className="font-semibold">Turnout</h4>
                                       <span className="text-sm text-gray-600">
-                                        {quorumInfo.votingPowerNeeded > 0
-                                          ? `${quorumInfo.votingPowerNeeded.toLocaleString()} more voting power needed`
-                                          : "Quorum reached"}
+                                        {turnout.membersStillNeeded > 0
+                                          ? `${turnout.membersStillNeeded} more ${turnout.membersStillNeeded === 1 ? "member" : "members"} needed`
+                                          : "Enough members have voted"}
                                       </span>
                                     </div>
                                     <Progress
-                                      value={quorumInfo.progress}
+                                      value={turnout.progress}
                                       className="h-2"
                                     >
                                       <div
-                                        className={`h-full rounded-full ${quorumInfo.progress >= 100 ? "bg-green-600" : "bg-blue-600"}`}
+                                        className={`h-full rounded-full ${turnout.progress >= 100 ? "bg-green-600" : "bg-blue-600"}`}
                                         style={{
-                                          width: `${quorumInfo.progress}%`,
+                                          width: `${turnout.progress}%`,
                                         }}
                                       />
                                     </Progress>
                                     <p className="text-xs text-gray-500">
-                                      {displayedVotingPower.toLocaleString()} /{" "}
-                                      {quorumInfo.quorumTarget.toLocaleString()}{" "}
-                                      voting power / {displayedTotalVotes} vote
-                                      {displayedTotalVotes === 1 ? "" : "s"}
+                                      {displayedTotalVotes} of{" "}
+                                      {turnout.eligibleMembers} member
+                                      {turnout.eligibleMembers === 1 ? "" : "s"}{" "}
+                                      voted · {turnout.votesNeeded} needed
                                     </p>
                                   </div>
 
                                   <div className="space-y-1 rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm">
-                                    <div className="flex justify-between">
+                                    <div className="flex justify-between gap-4">
                                       <span className="text-gray-600">
-                                        Threshold:
+                                        To pass:
                                       </span>
-                                      <span className="font-medium">
-                                        {proposal.threshold}%
+                                      <span className="text-right font-medium">
+                                        {proposal.threshold}% of the votes cast
                                       </span>
                                     </div>
                                     {proposal.votingStart && (
@@ -1414,6 +1517,12 @@ export default function ProposalsTab({
                                         <h4 className="font-semibold">
                                           Cast Your Vote
                                         </h4>
+                                        {!mayVote && (
+                                          <p className="rounded-md border border-gray-200 bg-gray-50 p-3 text-sm text-gray-700">
+                                            You can vote here once a project
+                                            organiser confirms your membership.
+                                          </p>
+                                        )}
                                         <label
                                           htmlFor={`proposal-vote-reason-${proposal.id}`}
                                           className="sr-only"
@@ -1424,6 +1533,7 @@ export default function ProposalsTab({
                                           id={`proposal-vote-reason-${proposal.id}`}
                                           placeholder="Optional: Explain your vote (visible to other members)"
                                           value={voteReasons[proposal.id] || ""}
+                                          disabled={!mayVote}
                                           onChange={(e) =>
                                             setVoteReasons({
                                               ...voteReasons,
@@ -1444,7 +1554,8 @@ export default function ProposalsTab({
                                                   )
                                                 }
                                                 disabled={
-                                                  voteMutation.isPending
+                                                  voteMutation.isPending ||
+                                                  !mayVote
                                                 }
                                                 variant="outline"
                                                 className="min-w-[120px] flex-1"
