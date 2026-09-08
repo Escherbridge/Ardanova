@@ -1,5 +1,6 @@
 namespace ArdaNova.Infrastructure;
 
+using System.Globalization;
 using ArdaNova.Application.Common.Interfaces;
 using ArdaNova.Application.Common.Security;
 using ArdaNova.Application.Services.Implementations;
@@ -10,7 +11,6 @@ using ArdaNova.Infrastructure.Algorand;
 using ArdaNova.Infrastructure.Azoa;
 using ArdaNova.Infrastructure.Data;
 using ArdaNova.Infrastructure.Outbox;
-using ArdaNova.Infrastructure.Payments;
 using ArdaNova.Infrastructure.Repositories;
 using ArdaNova.Infrastructure.Security;
 using ArdaNova.Infrastructure.UnitOfWork;
@@ -68,7 +68,8 @@ public static class DependencyInjection
 
         // Generic Repository
         services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
-        services.AddScoped<IStripeWebhookInbox, StripeWebhookInbox>();
+        // No payment-provider webhook inbox: AZOA terminates the fiat rail and ArdaNova reads the
+        // on-ramp operation, so nothing here consumes a provider callback.
         services.AddScoped<IActorAssertionReplayLedger, ActorAssertionReplayLedger>();
         services.AddScoped<IActorAssertionReplayCleanupStore, ActorAssertionReplayCleanupStore>();
         services.AddScoped<ActorAssertionReplayCleanupCycle>();
@@ -127,12 +128,31 @@ public static class DependencyInjection
             services.AddScoped<IAzoaCustodialAccountGateway, DisabledAzoaCustodialAccountGateway>();
         services.AddScoped<IAzoaQuestNode, AzoaQuestNodeAdapter>();
         services.AddScoped<IAzoaAllocationNode, AzoaAllocationNodeAdapter>();
-        services.AddScoped<IAzoaSettlementGateway, DisabledAzoaSettlementGateway>();
+        // The settlement gateway an operator actually selected. The capability is computed from the
+        // settings validated above plus an EXPIRING attestation, so the funding-readiness gate reads
+        // configuration facts rather than a constant: an unset or lapsed
+        // Azoa:SettlementAttestationExpiresAt closes checkout on its own.
+        var settlementCapability = new AzoaSettlementGatewayCapability(
+            SelectedNodeId: azoaSettings.SelectedSettlementNodeId?.Trim() ?? string.Empty,
+            TransportConfigured: IsValidAzoaBaseUrl(azoaSettings.BaseUrl, isProduction)
+                && IsValidAzoaCredential(valueApiKey, isProduction),
+            OperatorAttestationExpiresAt: ReadSettlementAttestationExpiry(configuration));
+        services.AddSingleton(settlementCapability);
+        if (string.IsNullOrWhiteSpace(settlementCapability.SelectedNodeId))
+            services.AddScoped<IAzoaSettlementGateway, DisabledAzoaSettlementGateway>();
+        else
+            services.AddScoped<IAzoaSettlementGateway, AzoaSettlementGateway>();
         services.AddScoped<IFundingSettlementReadiness, AzoaFundingSettlementReadiness>();
         // The exchange ports (node exchange, project-treasury and holdings read models). These
         // never fall back to the database, so without this registration TreasuryService.ReconcileAsync
         // and TokenBalanceService.GetArdaBalanceAsync refuse every call.
         services.AddAzoaExchangeClient(configuration, environmentName);
+
+        // The add-funds (on-ramp) adapter. Application binds IFiatRailGateway to the fail-closed
+        // DisabledFiatRailGateway; this call replaces it with the node-backed rail and registers
+        // the price schedule ONLY when Azoa:OnRamp:Enabled is set and the transport resolves.
+        // Without this line the refusal is permanent and no price is ever registered.
+        services.AddAzoaFiatRail(configuration, environmentName);
 
         var outboxOptions = CreateOutboxOptions(azoaSettings);
         services.AddSingleton(outboxOptions);
@@ -206,6 +226,31 @@ public static class DependencyInjection
             BatchSize = settings.SettlementOutboxBatchSize,
             Interval = TimeSpan.FromSeconds(settings.SettlementOutboxIntervalSeconds),
         };
+    }
+
+    /// <summary>
+    /// Reads the operator's settlement attestation expiry. Absent means "never attested", which
+    /// keeps funding checkout closed; a malformed value is a startup failure rather than a silent
+    /// downgrade, because a typo that quietly disables live settlement is indistinguishable from a
+    /// node outage until someone reads the logs.
+    /// </summary>
+    private static DateTimeOffset? ReadSettlementAttestationExpiry(IConfiguration configuration)
+    {
+        var configured = configuration[$"{AzoaSettings.SectionName}:SettlementAttestationExpiresAt"];
+        if (string.IsNullOrWhiteSpace(configured))
+            return null;
+
+        if (!DateTimeOffset.TryParse(
+                configured,
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.RoundtripKind,
+                out var expiresAt))
+        {
+            throw new InvalidOperationException(
+                "Azoa:SettlementAttestationExpiresAt must be an ISO-8601 instant (for example 2026-12-31T00:00:00Z).");
+        }
+
+        return expiresAt;
     }
 
     private static void ValidateAzoaMode(string? configuredMode)

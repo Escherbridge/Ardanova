@@ -7,10 +7,8 @@ import { AlertCircle, ArrowRight, Info, Loader2, Lock } from "lucide-react";
 import { api } from "~/trpc/react";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
-import {
-  fundingProjectTokenConfigSchema,
-  parseFundingAmount,
-} from "~/lib/commerce/investment-preview-contract";
+import { ConversionChain } from "~/components/equity/conversion-chain";
+import { parseFundingAmount } from "~/lib/commerce/investment-preview-contract";
 import { cn } from "~/lib/utils";
 
 type GateStatus = "FUNDING" | "ACTIVE" | "SUCCEEDED" | "FAILED";
@@ -24,7 +22,7 @@ interface ProjectTokenPreviewProps {
 
 const QUICK_AMOUNTS = [100, 500, 1000, 5000];
 
-function formatUSD(value: number) {
+function formatUsd(value: number): string {
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD",
@@ -32,14 +30,16 @@ function formatUSD(value: number) {
   }).format(value);
 }
 
-function formatToken(value: number, unit: string) {
-  return `${new Intl.NumberFormat("en-US").format(value)} ${unit}`;
-}
-
 function formatPct(value: number) {
   return `${value.toFixed(4)}%`;
 }
 
+/**
+ * The funding preview embedded on a project page. Ownership of this widget is split from the
+ * full invest flow at `/invest`: this quotes ARDA -> project units one hop, the full flow adds
+ * the ARDA-balance check, acknowledgements, and checkout (W6.4). Prop contract is unchanged so
+ * `funding-tab.tsx` (owned elsewhere) keeps working without edits.
+ */
 export default function ProjectTokenPreview({
   configId,
   projectSlug,
@@ -47,15 +47,15 @@ export default function ProjectTokenPreview({
   unitName,
 }: ProjectTokenPreviewProps) {
   const router = useRouter();
-  const [usdInput, setUsdInput] = useState("100");
+  const [ardaInput, setArdaInput] = useState("100");
   const [debouncedInput, setDebouncedInput] = useState("100");
 
   useEffect(() => {
-    const timer = window.setTimeout(() => setDebouncedInput(usdInput), 400);
+    const timer = window.setTimeout(() => setDebouncedInput(ardaInput), 400);
     return () => window.clearTimeout(timer);
-  }, [usdInput]);
+  }, [ardaInput]);
 
-  const currentAmount = parseFundingAmount(usdInput);
+  const currentAmount = parseFundingAmount(ardaInput);
   const previewAmount = parseFundingAmount(debouncedInput);
   const previewMatchesInput =
     currentAmount !== null &&
@@ -67,37 +67,51 @@ export default function ProjectTokenPreview({
     { configId },
     { enabled: !isDisabled },
   );
-  const tokenAmount =
-    previewAmount && tokenValueQuery.data && tokenValueQuery.data > 0
-      ? Math.max(1, Math.round(previewAmount.value / tokenValueQuery.data))
-      : null;
-  const previewQuery = api.exchange.getConversionPreview.useQuery(
-    { projectTokenConfigId: configId, tokenAmount: tokenAmount ?? 1 },
-    { enabled: !isDisabled && Boolean(tokenAmount && tokenAmount > 0) },
-  );
+  const ardaValueQuery = api.exchange.getArdaValue.useQuery(undefined, {
+    enabled: !isDisabled,
+  });
   const supplyQuery = api.projectTokens.getSupply.useQuery(
     { id: configId },
     { enabled: !isDisabled },
   );
-  const supplyResult = fundingProjectTokenConfigSchema.safeParse(
-    supplyQuery.data,
-  );
-  const estimateError = tokenValueQuery.error ?? previewQuery.error;
-  const preview =
-    previewMatchesInput && !estimateError ? previewQuery.data : undefined;
+  const estimateError =
+    tokenValueQuery.error ?? ardaValueQuery.error ?? supplyQuery.error;
+  const estimateLoading =
+    tokenValueQuery.isLoading || ardaValueQuery.isLoading;
+
+  // One hop: ARDA per whole project unit, mirroring ExchangeService.GetDeclaredRateAsync
+  // (unitValue / ardaValue). A non-positive rate means the project has no price yet, so no
+  // quantity can be quoted — the server refuses the same way at checkout.
+  const usdPerUnit = tokenValueQuery.data;
+  const usdPerArda = ardaValueQuery.data;
+  const ardaPerUnit =
+    usdPerUnit !== undefined && usdPerArda !== undefined && usdPerArda > 0
+      ? usdPerUnit / usdPerArda
+      : null;
+  const priceUnavailable = ardaPerUnit !== null && ardaPerUnit <= 0;
+
+  const quantity =
+    previewMatchesInput && previewAmount && ardaPerUnit && ardaPerUnit > 0
+      ? Math.floor(previewAmount.value / ardaPerUnit)
+      : null;
+  const chargedArda =
+    quantity && quantity > 0 && ardaPerUnit
+      ? Math.ceil(quantity * ardaPerUnit * 100) / 100
+      : null;
   const supplyShare =
-    preview && supplyResult.success && supplyResult.data.totalSupply > 0
-      ? (preview.sourceTokenAmount / supplyResult.data.totalSupply) * 100
+    quantity && quantity > 0 && supplyQuery.data && supplyQuery.data.totalSupply > 0
+      ? (quantity / supplyQuery.data.totalSupply) * 100
       : null;
 
   const handleQuickAmount = useCallback((amount: number) => {
     const next = String(amount);
-    setUsdInput(next);
+    setArdaInput(next);
     setDebouncedInput(next);
   }, []);
 
   const handleFund = () => {
-    if (!currentAmount || !preview || !previewMatchesInput) return;
+    if (!currentAmount || !previewMatchesInput || !quantity || quantity <= 0)
+      return;
     router.push(
       `/projects/${projectSlug}/invest?amount=${encodeURIComponent(currentAmount.apiAmount)}`,
     );
@@ -110,11 +124,11 @@ export default function ProjectTokenPreview({
     >
       <div className="border-border flex items-start justify-between gap-4 border-b pb-4">
         <div>
-          <p className="text-primary font-mono text-xs font-bold tracking-widest uppercase">
+          <p className="text-primary font-mono text-xs tracking-widest uppercase">
             Funding preview
           </p>
           <h3 id="funding-preview-heading" className="mt-2 text-xl font-bold">
-            Estimate a project-token position
+            Estimate a project-unit position
           </h3>
         </div>
         {isDisabled ? (
@@ -127,23 +141,23 @@ export default function ProjectTokenPreview({
         )}
       </div>
 
-      <div className="flex flex-wrap gap-2" aria-label="Quick funding amounts">
+      <div className="flex flex-wrap gap-2" aria-label="Quick ARDA amounts">
         {QUICK_AMOUNTS.map((amount) => (
           <button
             key={amount}
             type="button"
             onClick={() => handleQuickAmount(amount)}
             disabled={isDisabled}
-            aria-pressed={usdInput === String(amount)}
+            aria-pressed={ardaInput === String(amount)}
             className={cn(
               "min-h-11 border px-3 font-mono text-xs font-bold transition-colors",
-              usdInput === String(amount)
+              ardaInput === String(amount)
                 ? "border-primary bg-primary text-primary-foreground"
                 : "border-border bg-background text-foreground hover:border-foreground",
               isDisabled && "cursor-not-allowed opacity-45",
             )}
           >
-            ${amount.toLocaleString()}
+            {amount.toLocaleString()} ARDA
           </button>
         ))}
       </div>
@@ -153,32 +167,32 @@ export default function ProjectTokenPreview({
           htmlFor={`funding-preview-${configId}`}
           className="mb-2 block text-sm font-semibold"
         >
-          Amount in USD
+          Amount in ARDA
         </label>
         <div className="relative">
-          <span
-            className="text-muted-foreground absolute top-1/2 left-3 -translate-y-1/2 font-mono text-sm"
-            aria-hidden="true"
-          >
-            $
-          </span>
           <Input
             id={`funding-preview-${configId}`}
             type="number"
             inputMode="decimal"
-            value={usdInput}
-            onChange={(event) => setUsdInput(event.target.value)}
+            value={ardaInput}
+            onChange={(event) => setArdaInput(event.target.value)}
             disabled={isDisabled}
-            className="border-foreground h-11 pl-7 font-mono"
+            className="border-foreground h-11 font-mono"
             placeholder="0.00"
             min="0.01"
             step="0.01"
             aria-invalid={!isDisabled && currentAmount === null}
           />
+          <span
+            className="text-muted-foreground absolute top-1/2 right-3 -translate-y-1/2 font-mono text-xs"
+            aria-hidden="true"
+          >
+            ARDA
+          </span>
         </div>
       </div>
 
-      <div className="border-border min-h-24 border-y py-2" aria-live="polite">
+      <div className="min-h-24" aria-live="polite">
         {isDisabled ? (
           <p className="text-muted-foreground py-3 text-sm">
             New funding intents are unavailable in the current gate state.
@@ -187,9 +201,7 @@ export default function ProjectTokenPreview({
           <p className="text-destructive py-3 text-sm">
             Enter a positive amount with no more than two decimal places.
           </p>
-        ) : !previewMatchesInput ||
-          tokenValueQuery.isLoading ||
-          previewQuery.isLoading ? (
+        ) : !previewMatchesInput || estimateLoading ? (
           <div
             className="text-muted-foreground flex items-center gap-2 py-3 text-sm"
             role="status"
@@ -206,80 +218,70 @@ export default function ProjectTokenPreview({
               className="mt-0.5 size-4 shrink-0"
               aria-hidden="true"
             />
-            The conversion service did not return a valid preview.
+            The pricing service did not return a valid preview.
           </div>
-        ) : preview ? (
-          <dl className="divide-border divide-y">
-            <PreviewRow
-              label="Estimated project-token units"
-              value={formatToken(preview.sourceTokenAmount, unitName)}
-              emphasis
+        ) : priceUnavailable ? (
+          <p className="text-muted-foreground py-3 text-sm">
+            This project has no price yet, so nothing can be quoted.
+          </p>
+        ) : quantity && quantity > 0 && chargedArda !== null ? (
+          <div className="space-y-3">
+            <ConversionChain
+              ardaAmount={chargedArda}
+              projectUnits={quantity}
+              unitName={unitName}
+              usdPerArda={usdPerArda ?? 0}
             />
-            <PreviewRow
-              label="Configured supply share"
-              value={
-                supplyShare === null ? "Not available" : formatPct(supplyShare)
-              }
-            />
-            <PreviewRow
-              label="Reference value"
-              value={formatUSD(preview.usdValue)}
-            />
-            <PreviewRow
-              label="Informational ARDA equivalent"
-              value={`${new Intl.NumberFormat("en-US").format(preview.ardaAmount)} ARDA`}
-            />
-          </dl>
+            <p className="text-sm">
+              You&apos;ll hold <strong>{quantity.toLocaleString()} {unitName}</strong>
+            </p>
+            <details className="text-muted-foreground text-xs">
+              <summary className="text-foreground cursor-pointer font-semibold">
+                Show my share of the project
+              </summary>
+              <p className="mt-1 leading-relaxed">
+                {supplyShare === null
+                  ? "Share percentage is not available."
+                  : `${formatPct(supplyShare)} of this project's configured supply.`}{" "}
+                This is not equity, governance power, or a redemption right.
+              </p>
+            </details>
+            {usdPerUnit !== undefined && (
+              <p className="text-muted-foreground text-xs">
+                Reference value: {formatUsd(quantity * usdPerUnit)}
+              </p>
+            )}
+          </div>
         ) : (
           <p className="text-muted-foreground py-3 text-sm">
-            No estimate is available for this amount.
+            That amount does not buy a whole unit of this project yet.
           </p>
         )}
       </div>
 
       <div className="border-primary text-muted-foreground border-l-4 pl-3 text-xs leading-relaxed">
         <p>
-          This preview does not execute a conversion or guarantee token
-          allocation, liquidity, redemption, or future value.
-        </p>
-        <p className="text-foreground mt-2 font-semibold">
-          Supply share is not an equity or governance percentage.
+          This preview does not spend ARDA or guarantee unit allocation,
+          liquidity, redemption, or future value. Rates can change before
+          settlement.
         </p>
       </div>
 
       <Button
         type="button"
         className="w-full font-mono font-bold tracking-wide uppercase"
-        disabled={isDisabled || !preview || !previewMatchesInput}
+        disabled={
+          isDisabled ||
+          !previewMatchesInput ||
+          !quantity ||
+          quantity <= 0 ||
+          priceUnavailable
+        }
         onClick={handleFund}
       >
         Review funding terms
         <ArrowRight className="size-4" />
       </Button>
     </section>
-  );
-}
-
-function PreviewRow({
-  label,
-  value,
-  emphasis = false,
-}: {
-  label: string;
-  value: string;
-  emphasis?: boolean;
-}) {
-  return (
-    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-3 py-2">
-      <dt className="text-muted-foreground text-xs">{label}</dt>
-      <dd
-        className={cn(
-          "text-right font-mono text-xs font-bold",
-          emphasis && "text-primary",
-        )}
-      >
-        {value}
-      </dd>
-    </div>
   );
 }

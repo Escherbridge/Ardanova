@@ -59,6 +59,15 @@ public class EconomicSettlement
 
     public bool? azoaReplayed { get; set; }
 
+    /// <summary>Base units the payer side gave up, as the node's receipt reported them.</summary>
+    public string? azoaGrossBaseUnits { get; set; }
+
+    /// <summary>Base units the node kept between gross and net; a silently shaved fee is a defect, not a detail.</summary>
+    public string? azoaFeeBaseUnits { get; set; }
+
+    /// <summary>Base units the beneficiary side actually received.</summary>
+    public string? azoaNetBaseUnits { get; set; }
+
     public string? failureCode { get; set; }
 
     public string? failureDetail { get; set; }

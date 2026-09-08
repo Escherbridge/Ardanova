@@ -8,9 +8,9 @@ import {
   ArrowLeft,
   ArrowRight,
   Check,
-  Info,
   Loader2,
   Lock,
+  Plus,
   ShieldCheck,
 } from "lucide-react";
 
@@ -19,6 +19,8 @@ import { Button } from "~/components/ui/button";
 import { Card, CardContent } from "~/components/ui/card";
 import { Checkbox } from "~/components/ui/checkbox";
 import { Input } from "~/components/ui/input";
+import { ConversionChain } from "~/components/equity/conversion-chain";
+import { describeFundingError } from "~/lib/commerce/funding-intent-status";
 import {
   fundingProjectTokenConfigSchema,
   parseFundingAmount,
@@ -27,22 +29,48 @@ import { isValueActionAccountReady } from "~/lib/contracts/project-create-contra
 import { cn } from "~/lib/utils";
 
 const QUICK_AMOUNTS = [100, 500, 1000, 5000];
-const STEP_LABELS = ["Amount", "Review", "Checkout"];
+const STEP_LABELS = ["Amount", "Review", "Support"];
 
-function formatUSD(value: number) {
+/** sessionStorage key both this page and /invest/success read the quoted intent under. */
+function intentStorageKey(slug: string) {
+  return `ardanova:funding-intent:${slug}`;
+}
+
+/** What this page persists for the success page to show as "as quoted", never as confirmed. */
+interface QuotedIntent {
+  intentId: string;
+  ardaAmount: number;
+  quantity: number;
+  unitName: string;
+  supplySharePercent: number | null;
+}
+
+function formatUsd(value: number) {
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD",
     minimumFractionDigits: 2,
+    maximumFractionDigits: 4,
   }).format(value);
 }
 
-function formatToken(value: number, unit: string) {
+function formatArda(value: number) {
+  return `${new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(value)} ARDA`;
+}
+
+function formatUnits(value: number, unit: string) {
   return `${new Intl.NumberFormat("en-US").format(value)} ${unit}`;
 }
 
 function formatPct(value: number) {
   return `${value.toFixed(4)}%`;
+}
+
+/** Only ever navigates within this app. A same-origin path is required, never trusted as-is. */
+function internalPath(candidate: string, fallback: string): string {
+  return candidate.startsWith("/") && !candidate.startsWith("//")
+    ? candidate
+    : fallback;
 }
 
 function StepIndicator({ current }: { current: number }) {
@@ -96,38 +124,45 @@ export default function InvestPage() {
   )}`;
 
   const [step, setStep] = useState(1);
-  const [usdInput, setUsdInput] = useState(initialAmount);
+  const [ardaInput, setArdaInput] = useState(initialAmount);
   const [debouncedInput, setDebouncedInput] = useState(initialAmount);
   const [checkLocked, setCheckLocked] = useState(false);
   const [checkTrust, setCheckTrust] = useState(false);
-  const [handoffError, setHandoffError] = useState<string | null>(null);
+  const [showName, setShowName] = useState(false);
   const checkoutIdempotencyKey = useRef<string | undefined>(undefined);
 
   const checkout = api.fundingIntent.createCheckout.useMutation({
-    onSuccess: ({ intentId, checkoutUrl }) => {
+    onSuccess: ({ intentId, checkoutUrl }, variables) => {
+      // amount was sent in ARDA; recompute the display quote from the same review-step numbers
+      // so the success page can show "as quoted" without a new field on the status DTO.
       try {
-        const destination = new URL(checkoutUrl);
-        if (destination.protocol !== "https:") {
-          throw new Error("Checkout destination must use HTTPS");
-        }
-
         window.sessionStorage.setItem(
-          `ardanova:funding-intent:${slug}`,
-          intentId,
+          intentStorageKey(slug),
+          JSON.stringify({
+            intentId,
+            ardaAmount: Number(variables.amount),
+            quantity: lastQuoteRef.current?.quantity ?? 0,
+            unitName: lastQuoteRef.current?.unitName ?? "",
+            supplySharePercent: lastQuoteRef.current?.supplySharePercent ?? null,
+          } satisfies QuotedIntent),
         );
-        window.location.assign(destination.href);
       } catch {
-        setHandoffError(
-          "The server returned an invalid checkout destination. No payment or settlement is confirmed.",
-        );
+        // Best-effort convenience only; the success page still works from the intent id alone.
       }
+
+      router.push(
+        internalPath(
+          checkoutUrl,
+          `/projects/${slug}/invest/success?intent=${encodeURIComponent(intentId)}`,
+        ),
+      );
     },
   });
 
   useEffect(() => {
-    const timer = window.setTimeout(() => setDebouncedInput(usdInput), 400);
+    const timer = window.setTimeout(() => setDebouncedInput(ardaInput), 400);
     return () => window.clearTimeout(timer);
-  }, [usdInput]);
+  }, [ardaInput]);
 
   const projectQuery = api.project.getById.useQuery({ id: slug });
   const accountStatus = api.azoaCustodialAccount.getStatus.useQuery(undefined, {
@@ -145,49 +180,95 @@ export default function InvestPage() {
   const configContractInvalid =
     configQuery.data !== undefined && !configResult.success;
 
-  const currentAmount = parseFundingAmount(usdInput);
+  const currentAmount = parseFundingAmount(ardaInput);
   const previewAmount = parseFundingAmount(debouncedInput);
   const previewMatchesInput =
     currentAmount !== null &&
     previewAmount !== null &&
     currentAmount.apiAmount === previewAmount.apiAmount;
 
+  const ardaBalanceQuery = api.tokenBalances.getArdaBalance.useQuery(
+    undefined,
+    { enabled: valueAccountReady, retry: false },
+  );
+  const availableArda = ardaBalanceQuery.data?.availableBalance ?? null;
+  const insufficientArda =
+    availableArda !== null &&
+    currentAmount !== null &&
+    currentAmount.value > availableArda;
+
+  // One hop: ARDA -> project units. ardaPerUnit mirrors ExchangeService.GetDeclaredRateAsync
+  // (unitValue / ardaValue); quantity floors and chargedArda ceils, mirroring
+  // FundingIntentService.TryQuote so the preview reads the same way the server will price it.
   const tokenValueQuery = api.exchange.getProjectTokenValue.useQuery(
     { configId: config?.id ?? "" },
     { enabled: Boolean(config?.id) },
   );
-  const tokenAmount =
-    previewAmount && tokenValueQuery.data && tokenValueQuery.data > 0
-      ? Math.max(1, Math.round(previewAmount.value / tokenValueQuery.data))
+  const ardaValueQuery = api.exchange.getArdaValue.useQuery(undefined, {
+    enabled: Boolean(config?.id),
+  });
+  const estimateError = tokenValueQuery.error ?? ardaValueQuery.error;
+  const estimateLoading = tokenValueQuery.isLoading || ardaValueQuery.isLoading;
+
+  const usdPerUnit = tokenValueQuery.data;
+  const usdPerArda = ardaValueQuery.data;
+  const ardaPerUnit =
+    usdPerUnit !== undefined && usdPerArda !== undefined && usdPerArda > 0
+      ? usdPerUnit / usdPerArda
       : null;
-  const previewQuery = api.exchange.getConversionPreview.useQuery(
-    {
-      projectTokenConfigId: config?.id ?? "",
-      tokenAmount: tokenAmount ?? 1,
-    },
-    {
-      enabled: Boolean(config?.id && tokenAmount && tokenAmount > 0),
-    },
-  );
-  const estimateError = tokenValueQuery.error ?? previewQuery.error;
-  const preview =
-    previewMatchesInput && !estimateError ? previewQuery.data : undefined;
+  const priceUnavailable = ardaPerUnit !== null && ardaPerUnit <= 0;
+
+  const quantity =
+    previewMatchesInput && previewAmount && ardaPerUnit && ardaPerUnit > 0
+      ? Math.floor(previewAmount.value / ardaPerUnit)
+      : null;
+  const chargedArda =
+    quantity && quantity > 0 && ardaPerUnit
+      ? Math.ceil(quantity * ardaPerUnit * 100) / 100
+      : null;
+  const remainderArda =
+    previewAmount && chargedArda !== null
+      ? Math.max(0, Math.round((previewAmount.value - chargedArda) * 100) / 100)
+      : 0;
   const supplyShare =
-    preview && config && config.totalSupply > 0
-      ? (preview.sourceTokenAmount / config.totalSupply) * 100
+    quantity && quantity > 0 && config && config.totalSupply > 0
+      ? (quantity / config.totalSupply) * 100
       : null;
+  const hasQuote =
+    !estimateLoading &&
+    !estimateError &&
+    !priceUnavailable &&
+    quantity !== null &&
+    quantity > 0 &&
+    chargedArda !== null;
+
+  // The review step re-reads these at submit time, so the intent stored for the success page
+  // reflects what the person actually saw on the review screen.
+  const lastQuoteRef = useRef<{
+    quantity: number;
+    unitName: string;
+    supplySharePercent: number | null;
+  } | null>(null);
+  useEffect(() => {
+    if (hasQuote && quantity && config) {
+      lastQuoteRef.current = {
+        quantity,
+        unitName: config.unitName,
+        supplySharePercent: supplyShare,
+      };
+    }
+  }, [hasQuote, quantity, config, supplyShare]);
 
   const handleQuickAmount = useCallback((amount: number) => {
     const next = String(amount);
-    setUsdInput(next);
+    setArdaInput(next);
     setDebouncedInput(next);
   }, []);
 
   const beginCheckout = () => {
-    if (!config || !currentAmount || !preview || !previewMatchesInput) return;
+    if (!config || !currentAmount || !hasQuote || !previewMatchesInput) return;
 
     checkoutIdempotencyKey.current ??= window.crypto.randomUUID();
-    setHandoffError(null);
     setStep(3);
     checkout.mutate({
       projectTokenConfigId: config.id,
@@ -198,7 +279,8 @@ export default function InvestPage() {
   };
 
   const handleNext = () => {
-    if (step === 1 && preview && previewMatchesInput) setStep(2);
+    if (step === 1 && hasQuote && previewMatchesInput && !insufficientArda)
+      setStep(2);
     if (step === 2 && checkLocked && checkTrust) beginCheckout();
   };
 
@@ -237,7 +319,7 @@ export default function InvestPage() {
           </h1>
           <p className="text-muted-foreground mt-2 text-sm">
             We could not verify this project&apos;s funding configuration against
-            the funding contract. Checkout is disabled until the data is
+            the funding contract. Support is disabled until the data is
             available and valid.
           </p>
         </div>
@@ -263,7 +345,7 @@ export default function InvestPage() {
             Funding is not open
           </h1>
           <p className="text-muted-foreground mt-2 text-sm">
-            This project is not accepting new funding intents in its current
+            This project is not accepting new sponsorships in its current
             gate state.
           </p>
         </div>
@@ -279,9 +361,9 @@ export default function InvestPage() {
 
   if (!valueAccountReady) {
     const accountSetupMessage = accountStatus.isPending
-      ? "We are checking the account setup required for funding. Checkout remains unavailable until that check is complete."
+      ? "We are checking the account setup required for funding. Support remains unavailable until that check is complete."
       : accountStatus.error
-        ? "We could not confirm account setup. To protect payments, checkout remains unavailable until the status can be confirmed."
+        ? "We could not confirm account setup. To protect your ARDA, support remains unavailable until the status can be confirmed."
         : (accountStatus.data?.unavailableReason ??
           "Complete account setup before funding a project. You can still review project details and estimates while setup is pending.");
 
@@ -337,9 +419,10 @@ export default function InvestPage() {
           Fund {projectTitle}
         </h1>
         <p className="text-muted-foreground mt-3 max-w-2xl text-sm sm:text-base">
-          Review an estimate, acknowledge the current terms, then create a
-          durable funding intent. Provider checkout is a handoff—not proof of
-          payment, project-unit allocation, or reconciled settlement.
+          Review an estimate, acknowledge the current terms, then support
+          this project with ARDA from your balance. This is a durable
+          sponsorship, not a hosted checkout — a browser redirect is never
+          proof of a settled stake.
         </p>
       </header>
 
@@ -356,7 +439,7 @@ export default function InvestPage() {
                   01 · Define an amount
                 </p>
                 <h2 id="amount-heading" className="mt-2 text-2xl font-bold">
-                  Funding amount
+                  Amount to spend, in ARDA
                 </h2>
               </div>
 
@@ -366,15 +449,15 @@ export default function InvestPage() {
                     key={amount}
                     type="button"
                     onClick={() => handleQuickAmount(amount)}
-                    aria-pressed={usdInput === String(amount)}
+                    aria-pressed={ardaInput === String(amount)}
                     className={cn(
                       "min-h-11 border px-4 font-mono text-sm font-bold transition-colors",
-                      usdInput === String(amount)
+                      ardaInput === String(amount)
                         ? "border-primary bg-primary text-primary-foreground"
                         : "border-border bg-background text-foreground hover:border-foreground",
                     )}
                   >
-                    ${amount.toLocaleString()}
+                    {amount.toLocaleString()} ARDA
                   </button>
                 ))}
               </div>
@@ -384,28 +467,28 @@ export default function InvestPage() {
                   htmlFor="funding-amount"
                   className="mb-2 block text-sm font-semibold"
                 >
-                  Custom amount in USD
+                  Custom amount in ARDA
                 </label>
                 <div className="relative">
-                  <span
-                    className="text-muted-foreground absolute top-1/2 left-3 -translate-y-1/2 font-mono"
-                    aria-hidden="true"
-                  >
-                    $
-                  </span>
                   <Input
                     id="funding-amount"
                     type="number"
                     inputMode="decimal"
-                    value={usdInput}
-                    onChange={(event) => setUsdInput(event.target.value)}
-                    className="border-foreground h-12 pl-8 font-mono text-lg"
+                    value={ardaInput}
+                    onChange={(event) => setArdaInput(event.target.value)}
+                    className="border-foreground h-12 pr-16 font-mono text-lg"
                     placeholder="0.00"
                     min="0.01"
                     step="0.01"
                     aria-invalid={currentAmount === null}
                     aria-describedby="funding-amount-help"
                   />
+                  <span
+                    className="text-muted-foreground absolute top-1/2 right-4 -translate-y-1/2 font-mono text-sm"
+                    aria-hidden="true"
+                  >
+                    ARDA
+                  </span>
                 </div>
                 <p
                   id="funding-amount-help"
@@ -418,36 +501,52 @@ export default function InvestPage() {
                 >
                   {currentAmount
                     ? "Use a positive amount with no more than two decimal places."
-                    : "Enter a positive USD amount with no more than two decimal places."}
+                    : "Enter a positive ARDA amount with no more than two decimal places."}
                 </p>
               </div>
+
+              {availableArda !== null && (
+                <p className="text-muted-foreground text-xs">
+                  You have {formatArda(availableArda)} available.
+                </p>
+              )}
+
+              {insufficientArda && currentAmount && availableArda !== null && (
+                <div
+                  className="border-destructive bg-destructive/5 flex items-start justify-between gap-4 border p-3"
+                  role="alert"
+                >
+                  <p className="text-destructive text-sm">
+                    You have {formatArda(availableArda)} available, but this
+                    needs {formatArda(currentAmount.value)}.
+                  </p>
+                  <Button asChild size="sm" variant="outline" className="shrink-0">
+                    <Link href="/portfolio/add-funds">
+                      <Plus className="size-4" />
+                      Add funds
+                    </Link>
+                  </Button>
+                </div>
+              )}
             </CardContent>
           </Card>
 
           <Card className="border-primary bg-primary/5">
             <CardContent className="space-y-4 p-5 sm:p-6">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-primary font-mono text-xs font-bold tracking-widest uppercase">
-                    Project-unit estimate
-                  </p>
-                  <h2 className="mt-2 text-xl font-bold">
-                    What the API can preview
-                  </h2>
-                </div>
-                <Info
-                  className="text-primary size-5 shrink-0"
-                  aria-hidden="true"
-                />
+              <div>
+                <p className="text-primary font-mono text-xs font-bold tracking-widest uppercase">
+                  Your share of this project
+                </p>
+                <h2 className="mt-2 text-xl font-bold">
+                  What the API can preview
+                </h2>
               </div>
 
               {!currentAmount ? (
                 <p className="text-muted-foreground text-sm">
                   Enter a valid amount to request an estimate.
                 </p>
-              ) : !previewMatchesInput ||
-                tokenValueQuery.isLoading ||
-                previewQuery.isLoading ? (
+              ) : !previewMatchesInput || estimateLoading ? (
                 <div
                   className="text-muted-foreground flex items-center gap-2 text-sm"
                   role="status"
@@ -461,64 +560,65 @@ export default function InvestPage() {
                     Estimate unavailable
                   </p>
                   <p className="text-muted-foreground mt-1 text-xs">
-                    The conversion service did not return a valid preview.
-                    Checkout remains disabled.
+                    The pricing service did not return a valid preview.
+                    Support remains disabled.
                   </p>
                 </div>
-              ) : preview ? (
-                <dl className="divide-border border-border divide-y border-y">
-                  <DataRow
-                    label="Funding amount"
-                    value={formatUSD(currentAmount.value)}
+              ) : priceUnavailable ? (
+                <p className="text-muted-foreground text-sm">
+                  This project has no price yet, so nothing was taken.
+                </p>
+              ) : hasQuote && quantity && chargedArda !== null ? (
+                <div className="space-y-4">
+                  <ConversionChain
+                    ardaAmount={chargedArda}
+                    projectUnits={quantity}
+                    unitName={config.unitName}
+                    usdPerArda={usdPerArda ?? 0}
                   />
-                  <DataRow
-                    label="Estimated project units"
-                    value={formatToken(
-                      preview.sourceTokenAmount,
-                      config.unitName,
-                    )}
-                    emphasis
-                  />
-                  <DataRow
-                    label="Share of configured project units"
-                    value={
-                      supplyShare === null
-                        ? "Not available"
-                        : formatPct(supplyShare)
-                    }
-                  />
-                  <DataRow
-                    label="Reference value per project unit"
-                    value={formatUSD(preview.projectTokenValueUsd)}
-                  />
-                  <DataRow
-                    label="Reference value of estimated units"
-                    value={formatUSD(preview.usdValue)}
-                  />
-                  <DataRow
-                    label="Informational ARDA equivalent"
-                    value={`${new Intl.NumberFormat("en-US").format(preview.ardaAmount)} ARDA`}
-                  />
-                  <DataRow
-                    label="Reference value per ARDA"
-                    value={formatUSD(preview.ardaValueUsd)}
-                  />
-                </dl>
+
+                  <p className="text-sm">
+                    You&apos;ll hold{" "}
+                    <strong>{formatUnits(quantity, config.unitName)}</strong>
+                  </p>
+
+                  <details className="border-border border p-3 text-sm">
+                    <summary className="cursor-pointer font-semibold">
+                      Show my share of the project
+                    </summary>
+                    <p className="text-muted-foreground mt-2 text-xs leading-relaxed">
+                      {supplyShare === null
+                        ? "Share percentage is not available."
+                        : `${formatPct(supplyShare)} of this project's configured supply.`}{" "}
+                      This is not equity, governance power, a redemption
+                      right, or a guaranteed USD value.
+                    </p>
+                  </details>
+
+                  {remainderArda > 0 && (
+                    <p className="text-muted-foreground text-xs">
+                      Whole units only — {formatArda(remainderArda)} above the
+                      cost of {formatUnits(quantity, config.unitName)} stays
+                      in your balance.
+                    </p>
+                  )}
+                  {usdPerUnit !== undefined && (
+                    <p className="text-muted-foreground text-xs">
+                      Reference value: {formatUsd(quantity * usdPerUnit)}
+                    </p>
+                  )}
+                </div>
               ) : (
                 <p className="text-muted-foreground text-sm">
-                  No preview is available for this amount. Checkout remains
-                  disabled.
+                  That amount does not buy a whole unit of this project yet.
+                  Support remains disabled.
                 </p>
               )}
 
               <div className="border-primary text-muted-foreground border-l-4 pl-4 text-xs leading-relaxed">
                 <p>
-                  This estimate does not create or exchange project units. Rates
-                  can change before settlement.
-                </p>
-                <p className="text-foreground mt-2 font-semibold">
-                  A project-unit supply percentage is not equity, governance
-                  power, a redemption right, or a guaranteed USD value.
+                  This estimate does not spend ARDA or create project units.
+                  Rates can change before settlement.
                 </p>
               </div>
             </CardContent>
@@ -527,7 +627,7 @@ export default function InvestPage() {
           <Button
             type="button"
             className="h-12 w-full font-mono font-bold tracking-wide uppercase"
-            disabled={!preview || !previewMatchesInput}
+            disabled={!hasQuote || !previewMatchesInput || insufficientArda}
             onClick={handleNext}
           >
             Review the funding intent
@@ -536,7 +636,7 @@ export default function InvestPage() {
         </section>
       )}
 
-      {step === 2 && preview && currentAmount && (
+      {step === 2 && hasQuote && currentAmount && quantity && chargedArda !== null && (
         <section className="space-y-5" aria-labelledby="review-heading">
           <Card className="border-foreground">
             <CardContent className="space-y-4 p-5 sm:p-6">
@@ -548,34 +648,32 @@ export default function InvestPage() {
                   Funding intent summary
                 </h2>
               </div>
-              <dl className="divide-border border-border divide-y border-y">
-                <DataRow label="Project" value={projectTitle} />
-                <DataRow
-                  label="Funding amount"
-                  value={formatUSD(currentAmount.value)}
-                  emphasis
-                />
-                <DataRow
-                  label="Estimated project units"
-                  value={formatToken(
-                    preview.sourceTokenAmount,
-                    config.unitName,
-                  )}
-                />
-                <DataRow
-                  label="Configured supply share"
-                  value={
-                    supplyShare === null
-                      ? "Not available"
-                      : formatPct(supplyShare)
-                  }
-                />
-              </dl>
+
+              <ConversionChain
+                ardaAmount={chargedArda}
+                projectUnits={quantity}
+                unitName={config.unitName}
+                usdPerArda={usdPerArda ?? 0}
+              />
+
+              <details className="border-border border p-3 text-sm">
+                <summary className="cursor-pointer font-semibold">
+                  Show my share of the project
+                </summary>
+                <p className="text-muted-foreground mt-2 text-xs leading-relaxed">
+                  {supplyShare === null
+                    ? "Share percentage is not available."
+                    : `${formatPct(supplyShare)} of this project's configured supply.`}{" "}
+                  This is not equity, governance power, or a redemption
+                  right.
+                </p>
+              </details>
+
               <p className="text-muted-foreground text-xs leading-relaxed">
-                The server will create an actor-owned, idempotent funding intent
-                before opening Stripe. A provider return does not confirm
-                payment, allocate project units, or prove reconciled
-                settlement.
+                Pressing Support creates an actor-owned, idempotent
+                sponsorship and asks the node to move exactly the amounts
+                above. Nothing here confirms settlement — the next screen
+                reads your actual sponsorship record.
               </p>
             </CardContent>
           </Card>
@@ -598,8 +696,9 @@ export default function InvestPage() {
                   </span>
                   <span className="text-muted-foreground mt-1 block text-xs leading-relaxed">
                     I understand any resulting project-unit position follows
-                    the recorded gate and settlement state. This preview does
-                    not make the position liquid or transferable.
+                    the recorded gate and settlement state, and sits in a
+                    hold before it&apos;s mine to move. This preview does not
+                    make the position liquid or transferable.
                   </span>
                 </span>
               </label>
@@ -622,6 +721,25 @@ export default function InvestPage() {
                   </span>
                 </span>
               </label>
+
+              <label className="border-border flex cursor-pointer items-start gap-3 border p-4">
+                <Checkbox
+                  checked={showName}
+                  onCheckedChange={(value) => setShowName(Boolean(value))}
+                  className="mt-0.5"
+                />
+                <span>
+                  <span className="block text-sm font-semibold">
+                    Show my name to other backers
+                  </span>
+                  <span className="text-muted-foreground mt-1 block text-xs leading-relaxed">
+                    Optional, and off by default — your support is counted
+                    either way. This preference isn&apos;t sent to the
+                    project yet; every pledge currently appears in aggregate
+                    only.
+                  </span>
+                </span>
+              </label>
             </CardContent>
           </Card>
 
@@ -631,7 +749,7 @@ export default function InvestPage() {
             disabled={!checkLocked || !checkTrust || checkout.isPending}
             onClick={handleNext}
           >
-            Create secure checkout
+            Support this project
             <ArrowRight className="size-4" />
           </Button>
         </section>
@@ -642,7 +760,7 @@ export default function InvestPage() {
           <Card
             className={cn(
               "border-foreground",
-              (checkout.error || handoffError) && "border-destructive",
+              checkout.error && "border-destructive",
             )}
           >
             <CardContent className="flex flex-col items-start gap-5 p-6 sm:p-8">
@@ -651,7 +769,7 @@ export default function InvestPage() {
                   className="text-primary size-10 animate-spin"
                   aria-hidden="true"
                 />
-              ) : checkout.error || handoffError ? (
+              ) : checkout.error ? (
                 <AlertCircle
                   className="text-destructive size-10"
                   aria-hidden="true"
@@ -665,47 +783,50 @@ export default function InvestPage() {
 
               <div>
                 <p className="text-muted-foreground font-mono text-xs font-bold tracking-widest uppercase">
-                  03 · Checkout handoff
+                  03 · Confirming your sponsorship
                 </p>
                 <h2 id="checkout-heading" className="mt-2 text-2xl font-bold">
                   {checkout.isPending
-                    ? "Creating a durable funding intent"
-                    : checkout.error || handoffError
-                      ? "Checkout handoff unavailable"
-                      : "Opening secure checkout"}
+                    ? "Asking the node to move your ARDA"
+                    : checkout.error
+                      ? "Sponsorship unavailable"
+                      : "Redirecting…"}
                 </h2>
                 <p className="text-muted-foreground mt-2 text-sm leading-relaxed">
                   {checkout.isPending
-                    ? "The server is recording your intent before requesting a provider checkout. No payment is confirmed yet."
-                    : (handoffError ??
-                      checkout.error?.message ??
-                      "Your provider checkout is opening. Funding remains unconfirmed until server verification and settlement processing complete.")}
+                    ? "The server locked your terms and is asking the node to complete the exchange. No stake is confirmed yet."
+                    : checkout.error
+                      ? describeFundingError(checkout.error)
+                      : "Your sponsorship was accepted. Taking you to its status now."}
                 </p>
               </div>
 
               <div className="border-border w-full border-y py-3 text-sm">
                 <div className="flex justify-between gap-4">
-                  <span className="text-muted-foreground">Funding amount</span>
+                  <span className="text-muted-foreground">
+                    Amount spent
+                  </span>
                   <span className="font-mono font-bold">
                     {currentAmount
-                      ? formatUSD(currentAmount.value)
+                      ? formatArda(currentAmount.value)
                       : "Unavailable"}
                   </span>
                 </div>
               </div>
 
-              {(checkout.error || handoffError) && (
+              {checkout.error && (
                 <div className="w-full space-y-3">
                   <p className="text-muted-foreground text-xs leading-relaxed">
-                    No payment or settlement is confirmed. Retry uses the same
-                    idempotency key so the server can safely replay the intent.
+                    Retry uses the same idempotency key, so the server can
+                    safely replay this sponsorship rather than create a
+                    second one.
                   </p>
                   <Button
                     type="button"
                     onClick={beginCheckout}
                     className="w-full"
                   >
-                    Retry checkout handoff
+                    Retry sponsorship
                   </Button>
                 </div>
               )}
@@ -715,38 +836,13 @@ export default function InvestPage() {
                   className="text-primary mt-0.5 size-4 shrink-0"
                   aria-hidden="true"
                 />
-                Checkout destinations must use HTTPS. Final status comes from
-                the actor-scoped funding record, not browser redirect
-                parameters.
+                Final status comes from your actor-scoped sponsorship
+                record, never from this page&apos;s redirect.
               </div>
             </CardContent>
           </Card>
         </section>
       )}
-    </div>
-  );
-}
-
-function DataRow({
-  label,
-  value,
-  emphasis = false,
-}: {
-  label: string;
-  value: string;
-  emphasis?: boolean;
-}) {
-  return (
-    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-4 py-3">
-      <dt className="text-muted-foreground text-xs">{label}</dt>
-      <dd
-        className={cn(
-          "text-right font-mono text-xs font-bold",
-          emphasis && "text-primary",
-        )}
-      >
-        {value}
-      </dd>
     </div>
   );
 }

@@ -59,17 +59,20 @@ public class EconomicSettlementPersistenceContractTests
             .Should().ContainSingle();
     }
 
+    /// <summary>
+    /// The sponsorship's two legs and its currency reference are EXACT INTEGER base units, so no
+    /// float or decimal-scale drift can change what was agreed after the fact; the declared rate
+    /// that related the legs is persisted beside them; and the row can be settled under exactly
+    /// one key, one settlement and one semantic identity.
+    /// </summary>
     [Fact]
-    public void FundingIntent_PersistsImmutableTermsAndOneProviderOrSettlementLink()
+    public void FundingIntent_PersistsBothExchangeLegsAsBaseUnitsUnderOneSettlementLink()
     {
         var type = typeof(FundingIntent);
 
-        type.GetProperty(nameof(FundingIntent.amount))!.PropertyType.Should().Be(typeof(decimal));
-        type.GetProperty(nameof(FundingIntent.amount))!
-            .GetCustomAttributes(typeof(PrecisionAttribute), inherit: false)
-            .Cast<PrecisionAttribute>()
-            .Single()
-            .Precision.Should().Be(38);
+        type.GetProperty(nameof(FundingIntent.platformAmountBaseUnits))!.PropertyType.Should().Be(typeof(long));
+        type.GetProperty(nameof(FundingIntent.projectUnitQuantity))!.PropertyType.Should().Be(typeof(long));
+        type.GetProperty(nameof(FundingIntent.usdReferenceMinorUnits))!.PropertyType.Should().Be(typeof(long));
 
         type.GetCustomAttributes(typeof(IndexAttribute), inherit: false)
             .Cast<IndexAttribute>()
@@ -78,8 +81,7 @@ public class EconomicSettlementPersistenceContractTests
             .Should().Contain(new[]
             {
                 nameof(FundingIntent.semanticKey),
-                nameof(FundingIntent.providerPaymentIntentId),
-                nameof(FundingIntent.verifiedProviderEventId),
+                nameof(FundingIntent.exchangeIdempotencyKey),
                 nameof(FundingIntent.settlementId),
             });
 
@@ -88,6 +90,9 @@ public class EconomicSettlementPersistenceContractTests
             nameof(FundingIntent.eligibilitySnapshot),
             nameof(FundingIntent.termsSnapshot),
             nameof(FundingIntent.termsHash),
+            nameof(FundingIntent.declaredRateArdaPerUnit),
+            nameof(FundingIntent.declaredRateSource),
+            nameof(FundingIntent.projectAssetId),
         });
     }
 

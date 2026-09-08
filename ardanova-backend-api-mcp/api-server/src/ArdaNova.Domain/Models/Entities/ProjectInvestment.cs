@@ -43,6 +43,12 @@ public class ProjectInvestment
 
     public DateTime? protectionPaidAt { get; set; }
 
+    /// <summary>True only when the backer opted in ("show my name to other backers") to let
+    /// project members see their display name against this pledge. Defaults to false, so a
+    /// pledge stays anonymous unless the backer said otherwise.</summary>
+    [Required]
+    public bool showBackerName { get; set; }
+
     [ForeignKey("projectTokenConfigId")]
     public virtual ProjectTokenConfig? ProjectTokenConfig { get; set; }
 

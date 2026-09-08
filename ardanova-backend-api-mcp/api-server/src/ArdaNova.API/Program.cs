@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using ArdaNova.API.HealthChecks;
 using ArdaNova.API.Middleware;
 using ArdaNova.API.Readiness;
 using ArdaNova.API.EventBus.Extensions;
@@ -27,6 +28,13 @@ if (builder.Environment.IsProduction())
 
     if (ActorAssertionMiddleware.GetSigningKey(builder.Configuration) is null)
         throw new InvalidOperationException("ACTOR_ASSERTION_HMAC_KEY must be a generated 32+ byte secret in production.");
+
+    // Simulated defaults are refused in Production: Azoa:Mode=Simulated or Algorand:Provider=Simulated
+    // would boot a stack whose sponsorship, stake and payout paths return placeholders while every
+    // screen reports success. Resolved again after Build() against the container's own capabilities.
+    EconomyModeResolution.ThrowIfNotLiveInProduction(
+        EconomyModeResolution.ResolveFromConfiguration(builder.Configuration),
+        isProduction: true);
 }
 
 var kycProvider = builder.Configuration["KYC_PROVIDER"] ?? Environment.GetEnvironmentVariable("KYC_PROVIDER");
@@ -106,6 +114,15 @@ builder.Services.AddSwaggerGen(c =>
 
 var app = builder.Build();
 
+// The container's own AlgorandProviderCapabilities is the authoritative provider fact, so this
+// re-resolution is what /health and /ready report -- and re-running the Production refusal here
+// means a drift between the pre-build mapping and the registered capabilities fails closed.
+var economyMode = EconomyModeHealthCheck.Resolve(
+    app.Configuration,
+    app.Services.GetRequiredService<AlgorandProviderCapabilities>());
+EconomyModeResolution.ThrowIfNotLiveInProduction(economyMode, app.Environment.IsProduction());
+EconomyModeHealthCheck.LogStartupBanner(app.Logger, economyMode, app.Environment.IsProduction());
+
 // Configure the HTTP request pipeline
 app.UseExceptionHandling();
 
@@ -136,7 +153,9 @@ app.MapGet("/health", () => Results.Ok(new
 {
     status = "healthy",
     timestamp = DateTime.UtcNow,
-    service = "ardanova-api"
+    service = "ardanova-api",
+    // "live" | "simulated" | "disabled" -- a healthy API is not evidence of a working economy.
+    economy = economyMode.Economy
 })).AllowAnonymous();
 
 app.MapGet("/ready", async (
@@ -239,6 +258,7 @@ app.MapGet("/ready", async (
         }
     }
     var azoaReady = azoaTransportReady && fundingSettlementReady && custodialAccountsReady;
+    var economy = EconomyModeHealthCheck.Resolve(configuration, algorandCapabilities);
 
     var configurationReady = ApiKeyMiddleware.IsStrongApiKey(apiKey)
         && ApiKeyMiddleware.IsStrongSecret(actorAssertionKey)
@@ -268,8 +288,10 @@ app.MapGet("/ready", async (
         status = ready ? "ready" : "not_ready",
         timestamp = DateTime.UtcNow,
         service = "ardanova-api",
+        economy = economy.Economy,
         checks = new
         {
+            economy = EconomyModeHealthCheck.Describe(economy),
             configuration = new { ready = configurationReady },
             database = new { ready = databaseReady },
             releaseSchema = new { ready = releaseSchemaReady },

@@ -219,7 +219,8 @@ describe("commerce migration preflight", () => {
           ),
       )
       .map((column) =>
-        column.tableName === "FundingIntent" && column.columnName === "amount"
+        column.tableName === "FundingIntent" &&
+        column.columnName === "platformAmountBaseUnits"
           ? { ...column, dataType: "double precision" }
           : column,
       );

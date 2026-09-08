@@ -4,6 +4,7 @@ using ArdaNova.Application.Common.Results;
 using ArdaNova.Application.DTOs;
 using ArdaNova.Application.Services.Implementations;
 using ArdaNova.Application.Services.Interfaces;
+using System.Reflection;
 using ArdaNova.Domain.Models.Enums;
 using FluentAssertions;
 using Moq;
@@ -17,38 +18,6 @@ public sealed class AzoaAllocationServiceTests
     public AzoaAllocationServiceTests()
     {
         _sut = new AzoaAllocationService(_eligibility.Object, _node.Object);
-    }
-
-    [Fact]
-    public async Task AllocateRewardAsync_UsesCompletedAccountAvatarAndStableRecipientBoundKey()
-    {
-        var avatarId = Guid.NewGuid();
-        SetupReady("recipient-1", avatarId);
-        SetupNodeSuccess();
-
-        var result = await _sut.AllocateRewardAsync("recipient-1", "task-123", "100", "Reward");
-
-        result.IsSuccess.Should().BeTrue();
-        result.Value!.IdempotencyKey.Should().Be($"{avatarId}:reward:task-123");
-        _node.Verify(node => node.AllocateAsync(
-            avatarId,
-            It.IsAny<AzoaAllocationCommand>(),
-            $"{avatarId}:reward:task-123",
-            It.IsAny<CancellationToken>()), Times.Once);
-    }
-
-    [Fact]
-    public async Task AllocateFundingSettlementAsync_UsesPaymentIntentAsTheStableEventKey()
-    {
-        var avatarId = Guid.NewGuid();
-        SetupReady("recipient-1", avatarId);
-        SetupNodeSuccess();
-
-        var result = await _sut.AllocateFundingSettlementAsync(
-            "recipient-1", "pi_3Stripe123", "250", "Settlement");
-
-        result.IsSuccess.Should().BeTrue();
-        result.Value!.IdempotencyKey.Should().Be($"{avatarId}:pi_3Stripe123");
     }
 
     [Fact]
@@ -76,8 +45,31 @@ public sealed class AzoaAllocationServiceTests
         captured.AssetRecordId.Should().Be(assetRecordId);
     }
 
+    /// <summary>
+    /// The retirement of the two mint paths is a CONTRACT fact, not a comment: the service
+    /// cannot mint because no method that mints exists to call. Asserted by reflection so a
+    /// future re-add has to delete this test rather than quietly slip past a doc block.
+    /// </summary>
     [Fact]
-    public async Task AllocateRewardAsync_WhenAccountIsIncomplete_FailsClosedBeforeNodeCall()
+    public void TheMintingAllocationPathsAreGoneFromTheContract()
+    {
+        var declared = typeof(IAzoaAllocationService)
+            .GetMethods()
+            .Select(method => method.Name)
+            .ToArray();
+
+        declared.Should().NotContain("AllocateRewardAsync");
+        declared.Should().NotContain("AllocateFundingSettlementAsync");
+        declared.Should().BeEquivalentTo(new[] { nameof(IAzoaAllocationService.RefundAsync) });
+
+        typeof(AzoaAllocationService)
+            .GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.DeclaredOnly)
+            .Select(method => method.Name)
+            .Should().NotContain(new[] { "AllocateRewardAsync", "AllocateFundingSettlementAsync" });
+    }
+
+    [Fact]
+    public async Task RefundAsync_WhenAccountIsIncomplete_FailsClosedBeforeNodeCall()
     {
         _eligibility.Setup(service => service.RequireReadyAsync(
                 "recipient-1",
@@ -86,7 +78,7 @@ public sealed class AzoaAllocationServiceTests
             .ReturnsAsync(Result<AzoaCustodialAccountStatusDto>.Forbidden(
                 "Complete your ArdaNova account setup before receiving a value allocation."));
 
-        var result = await _sut.AllocateRewardAsync("recipient-1", "task-123", "100", "Reward");
+        var result = await _sut.RefundAsync("recipient-1", "escrow-77", "50", "Refund", Guid.NewGuid());
 
         result.Type.Should().Be(ResultType.Forbidden);
         _node.Verify(node => node.AllocateAsync(
@@ -97,7 +89,7 @@ public sealed class AzoaAllocationServiceTests
     }
 
     [Fact]
-    public async Task AllocateRewardAsync_DefendsAgainstAnInvalidAvatarReference()
+    public async Task RefundAsync_DefendsAgainstAnInvalidAvatarReference()
     {
         _eligibility.Setup(service => service.RequireReadyAsync(
                 "recipient-1",
@@ -105,14 +97,14 @@ public sealed class AzoaAllocationServiceTests
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(Result<AzoaCustodialAccountStatusDto>.Success(ReadyStatus("not-a-guid")));
 
-        var result = await _sut.AllocateRewardAsync("recipient-1", "task-123", "100", "Reward");
+        var result = await _sut.RefundAsync("recipient-1", "escrow-77", "50", "Refund", Guid.NewGuid());
 
         result.IsFailure.Should().BeTrue();
         _node.VerifyNoOtherCalls();
     }
 
     [Fact]
-    public async Task AllocateRewardAsync_PropagatesProviderForbiddenResult()
+    public async Task RefundAsync_PropagatesProviderForbiddenResult()
     {
         SetupReady("recipient-1", Guid.NewGuid());
         _node.Setup(node => node.AllocateAsync(
@@ -122,16 +114,16 @@ public sealed class AzoaAllocationServiceTests
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(Result<AzoaAllocationOutcome>.Forbidden("KYC_FORBIDDEN: approval required"));
 
-        var result = await _sut.AllocateRewardAsync("recipient-1", "task-123", "100", "Reward");
+        var result = await _sut.RefundAsync("recipient-1", "escrow-77", "50", "Refund", Guid.NewGuid());
 
         result.Type.Should().Be(ResultType.Forbidden);
         result.Error.Should().Contain("KYC_FORBIDDEN");
     }
 
     [Fact]
-    public async Task AllocateRewardAsync_WhenTaskIdIsBlank_DoesNotCheckAccountOrCallNode()
+    public async Task RefundAsync_WhenEscrowIdIsBlank_DoesNotCheckAccountOrCallNode()
     {
-        var result = await _sut.AllocateRewardAsync("recipient-1", "  ", "100", "Reward");
+        var result = await _sut.RefundAsync("recipient-1", "  ", "50", "Refund", Guid.NewGuid());
 
         result.Type.Should().Be(ResultType.ValidationError);
         _eligibility.Verify(service => service.RequireReadyAsync(

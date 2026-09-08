@@ -11,6 +11,7 @@ import {
   Loader2,
   Lock,
   PauseCircle,
+  Plus,
   Wallet,
 } from "lucide-react";
 import type { PayoutStatus } from "~/lib/api/ardanova/endpoints/payouts";
@@ -20,7 +21,7 @@ import {
   summarizePayoutRecords,
 } from "~/lib/commerce/portfolio-contract";
 import { api } from "~/trpc/react";
-import { PortfolioHoldingCard } from "~/components/equity/portfolio-holding-card";
+import { Holdings } from "~/components/portfolio/holdings";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent } from "~/components/ui/card";
@@ -136,13 +137,21 @@ export default function PortfolioPage() {
               or governance rights.
             </p>
           </div>
-          <Button asChild variant="outline" className="min-h-11 rounded-none">
-            <Link href="/portfolio/withdraw">
-              <PauseCircle className="mr-2 h-4 w-4" />
-              Payout status
-              <ArrowUpRight className="ml-2 h-4 w-4" />
-            </Link>
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button asChild className="min-h-11 rounded-none">
+              <Link href="/portfolio/add-funds">
+                <Plus className="mr-2 h-4 w-4" />
+                Add funds
+              </Link>
+            </Button>
+            <Button asChild variant="outline" className="min-h-11 rounded-none">
+              <Link href="/portfolio/withdraw">
+                <PauseCircle className="mr-2 h-4 w-4" />
+                Payout status
+                <ArrowUpRight className="ml-2 h-4 w-4" />
+              </Link>
+            </Button>
+          </div>
         </header>
 
         <section
@@ -216,34 +225,54 @@ export default function PortfolioPage() {
           )}
 
           <div
-            className={`border p-3 text-xs ${
+            className={`border-2 p-5 ${
               ardaError
-                ? "border-destructive bg-destructive/10 text-destructive"
-                : "border-border bg-muted/20 text-muted-foreground"
+                ? "border-destructive bg-destructive/10"
+                : "border-border bg-muted/20"
             }`}
             role={ardaError ? "alert" : undefined}
           >
-            <span className="text-foreground font-mono font-bold uppercase">
-              ARDA utility balance:
-            </span>{" "}
-            {ardaLoading
-              ? "Loading…"
-              : ardaError
-                ? "The ARDA balance request failed. This is not a zero balance, and no amount is shown."
-                : ardaBalance
-                  ? `${formatInteger(ardaBalance.balance)} total · ${formatInteger(ardaBalance.availableBalance)} available`
-                  : "No separate ARDA balance record was returned."}
-            {ardaError && (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="mt-3 flex"
-                onClick={() => void refetchArdaBalance()}
-              >
-                Retry ARDA balance
-              </Button>
-            )}
+            <div className="flex flex-wrap items-end justify-between gap-4">
+              <div>
+                <p className="text-muted-foreground font-mono text-[10px] tracking-[0.2em] uppercase">
+                  Your ARDA balance
+                </p>
+                <p className="text-foreground mt-2 font-mono text-2xl font-bold">
+                  {ardaLoading
+                    ? "—"
+                    : ardaError
+                      ? "Not available"
+                      : ardaBalance
+                        ? `${formatInteger(ardaBalance.availableBalance)} ready to use`
+                        : "Not available"}
+                </p>
+                <p className="text-muted-foreground mt-1 text-xs">
+                  {ardaError
+                    ? "We couldn’t read your balance just now. This is not a zero balance — nothing has changed."
+                    : ardaBalance
+                      ? `${formatInteger(ardaBalance.balance)} in total, including anything still held after a recent backing.`
+                      : "Nothing to show yet. Add funds to start backing projects."}
+                </p>
+              </div>
+              <div className="flex gap-2">
+                {ardaError && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => void refetchArdaBalance()}
+                  >
+                    Try again
+                  </Button>
+                )}
+                <Button asChild size="sm" className="rounded-none">
+                  <Link href="/portfolio/add-funds">
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add funds
+                  </Link>
+                </Button>
+              </div>
+            </div>
           </div>
         </section>
 
@@ -273,23 +302,14 @@ export default function PortfolioPage() {
               </p>
             </div>
           ) : (
-            <div className="grid gap-4 md:grid-cols-2">
-              {holdings.map((holding) => {
-                const projectTokenConfigId = holding.projectTokenConfigId;
-
-                return (
-                  <PortfolioHoldingCard
-                    key={holding.id}
-                    holding={holding}
-                    onViewPayoutStatus={
-                      projectTokenConfigId
-                        ? () => viewPayoutStatus(projectTokenConfigId)
-                        : undefined
-                    }
-                  />
-                );
-              })}
-            </div>
+            // Holdings renders a resolvable project label and never a truncated identifier. The
+            // card it replaced abbreviated a database id as "abcd1234…ef5678", which reads to a
+            // non-crypto sponsor exactly like a wallet address they are supposed to understand.
+            // The platform balance is not repeated here; it has its own section above.
+            <Holdings
+              holdings={holdings}
+              onViewPayoutStatus={viewPayoutStatus}
+            />
           )}
         </section>
 

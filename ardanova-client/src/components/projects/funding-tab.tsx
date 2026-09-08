@@ -15,7 +15,7 @@ import { Label } from "~/components/ui/label";
 import { Textarea } from "~/components/ui/textarea";
 import {
   projectGateStatusDtoSchema,
-  projectInvestmentDtoSchema,
+  projectInvestorsResponseSchema,
   type ProjectTokenConfigDto,
 } from "~/lib/contracts/tokenomics-contract";
 import { api, type RouterOutputs } from "~/trpc/react";
@@ -425,9 +425,11 @@ function FundingTabContent({
     configId: config.id,
   });
   const gateResult = projectGateStatusDtoSchema.safeParse(gateQuery.data);
-  const investmentsResult = projectInvestmentDtoSchema
-    .array()
-    .safeParse(investorsQuery.data);
+  // Members get itemised pledges; everyone else gets an aggregate summary. Parse the union so a
+  // summary reaches InvestorTable as a summary rather than failing and reading "unavailable".
+  const investmentsResult = projectInvestorsResponseSchema.safeParse(
+    investorsQuery.data,
+  );
   const gate = gateResult.success ? gateResult.data : undefined;
 
   return (

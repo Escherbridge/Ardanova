@@ -1,5 +1,6 @@
 namespace ArdaNova.Infrastructure.Outbox;
 
+using ArdaNova.Application.Services.Implementations;
 using ArdaNova.Application.Services.Interfaces;
 using ArdaNova.Domain.Models.Enums;
 using ArdaNova.Domain.ValueObjects;
@@ -78,7 +79,9 @@ public sealed class EconomicOutboxLeaseStore : IEconomicOutboxLeaseStore
                 amount,
                 settlement.termsSnapshot),
             settlement.kind,
-            settlement.kind == EconomicSettlementKind.FUNDING_ALLOCATION
+            // One rule, read here and again in the dispatch service: a kind that credits a project
+            // needs its owner resolved, or the owner-readiness gate has nothing to check.
+            EconomicSettlementKindRules.RequiresProjectOwnerReadiness(settlement.kind)
                 ? settlement.Project?.createdById
                 : null);
     }
@@ -119,10 +122,25 @@ public sealed class EconomicOutboxLeaseStore : IEconomicOutboxLeaseStore
         CancellationToken ct = default)
     {
         await using var transaction = await _context.Database.BeginTransactionAsync(ct);
+
+        // Two failure codes are decisions, not descriptions. The dispatch ceiling is only ever
+        // reached after refusals the gateway called safely retryable, which is its word that no
+        // value moved - so it is the one refusal this seam may make terminal. A receipt the node
+        // cannot find means the exchange never landed, so the settlement goes back to the dispatch
+        // queue rather than looping on a reconciliation that has nothing to read.
+        var isDispatchCeiling = finalization.Outcome == EconomicOutboxRecordedOutcome.Retry
+            && lease.ClaimKind == EconomicOutboxClaimKind.Dispatch
+            && finalization.FailureCode == EconomicSettlementFailureCodes.DispatchAttemptCeiling;
+        var isRedispatchable = finalization.Outcome == EconomicOutboxRecordedOutcome.Retry
+            && lease.ClaimKind == EconomicOutboxClaimKind.Reconciliation
+            && finalization.FailureCode == EconomicSettlementFailureCodes.ExchangeNeverLanded;
+
         var outboxStatus = finalization.Outcome switch
         {
             EconomicOutboxRecordedOutcome.Accepted => EconomicOutboxStatus.SUBMITTED,
             EconomicOutboxRecordedOutcome.Unknown => EconomicOutboxStatus.AWAITING_RECONCILIATION,
+            EconomicOutboxRecordedOutcome.Retry when isDispatchCeiling => EconomicOutboxStatus.FAILED,
+            EconomicOutboxRecordedOutcome.Retry when isRedispatchable => EconomicOutboxStatus.PENDING,
             EconomicOutboxRecordedOutcome.Retry when lease.ClaimKind == EconomicOutboxClaimKind.Reconciliation
                 => EconomicOutboxStatus.AWAITING_RECONCILIATION,
             EconomicOutboxRecordedOutcome.Retry => EconomicOutboxStatus.PENDING,
@@ -132,6 +150,7 @@ public sealed class EconomicOutboxLeaseStore : IEconomicOutboxLeaseStore
         {
             EconomicOutboxRecordedOutcome.Accepted => null,
             EconomicOutboxRecordedOutcome.Unknown => now,
+            _ when isDispatchCeiling || isRedispatchable => null,
             _ => lease.ClaimKind == EconomicOutboxClaimKind.Reconciliation ? now : null,
         };
         var outboxUpdated = await _context.EconomicOutboxes
@@ -163,11 +182,24 @@ public sealed class EconomicOutboxLeaseStore : IEconomicOutboxLeaseStore
         {
             EconomicOutboxRecordedOutcome.Accepted => EconomicSettlementStatus.SUBMITTED,
             EconomicOutboxRecordedOutcome.Unknown => EconomicSettlementStatus.AWAITING_RECONCILIATION,
+            EconomicOutboxRecordedOutcome.Retry when isDispatchCeiling => EconomicSettlementStatus.FAILED,
+            EconomicOutboxRecordedOutcome.Retry when isRedispatchable => EconomicSettlementStatus.PENDING_DISPATCH,
             EconomicOutboxRecordedOutcome.Retry when lease.ClaimKind == EconomicOutboxClaimKind.Reconciliation
                 => EconomicSettlementStatus.AWAITING_RECONCILIATION,
             EconomicOutboxRecordedOutcome.Retry => EconomicSettlementStatus.PENDING_DISPATCH,
             _ => throw new InvalidOperationException("Only gateway outcomes may finalize an economic settlement lease."),
         };
+
+        // Gross, fee and net are only knowable from an accepted receipt, and they are written in
+        // the same conditional update as the operation id so a settlement can never carry an op
+        // whose fee nobody recorded (gotcha 11: a silently shaved node fee).
+        var receipt = finalization.Outcome == EconomicOutboxRecordedOutcome.Accepted
+            ? EconomicSettlementReceipt.FromJson(finalization.Receipt)
+            : null;
+        var grossBaseUnits = receipt?.GrossBaseUnits;
+        var feeBaseUnits = receipt?.FeeBaseUnits;
+        var netBaseUnits = receipt?.NetBaseUnits;
+
         var settlementUpdated = await _context.EconomicSettlements
             .Where(item => item.id == lease.SettlementId
                 && item.status == lease.SettlementStatus
@@ -177,6 +209,9 @@ public sealed class EconomicOutboxLeaseStore : IEconomicOutboxLeaseStore
                 .SetProperty(item => item.azoaOperationId, finalization.OperationId)
                 .SetProperty(item => item.azoaReceipt, finalization.Receipt)
                 .SetProperty(item => item.azoaReplayed, finalization.Replayed)
+                .SetProperty(item => item.azoaGrossBaseUnits, grossBaseUnits)
+                .SetProperty(item => item.azoaFeeBaseUnits, feeBaseUnits)
+                .SetProperty(item => item.azoaNetBaseUnits, netBaseUnits)
                 .SetProperty(item => item.failureCode, finalization.FailureCode)
                 .SetProperty(item => item.failureDetail, finalization.FailureDetail)
                 .SetProperty(item => item.submittedAt, item => finalization.Outcome == EconomicOutboxRecordedOutcome.Accepted ? now : item.submittedAt)

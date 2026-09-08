@@ -1,4 +1,4 @@
-﻿
+
 // =================================================================================================
 // 1. Authentication & User Core Module
 // =================================================================================================
@@ -2321,6 +2321,7 @@ Table ProjectInvestment {
   tokenAmount int [not null, note: 'Project tokens received']
   stripePaymentIntentId varchar [unique, note: 'Stripe payment-intent id; database idempotency key for a completed funding allocation']
   investedAt datetime [not null, default: `now()`]
+  showBackerName boolean [not null, default: false, note: 'Backer consent to show their display name to other backers; anonymous unless they opted in']
 
   // Trust protection
   protectionEligible boolean [not null, default: true]
@@ -2375,10 +2376,9 @@ Enum EconomicOutboxStatus {
 // confirm an investment by themselves.
 Enum FundingIntentStatus {
   DRAFT
-  AWAITING_PAYMENT
-  PAYMENT_VERIFIED
   SETTLEMENT_PENDING
   SETTLED
+  HOLDING
   REJECTED
   CANCELLED
   FAILED
@@ -2499,20 +2499,34 @@ Table FundingIntent {
   funderUserId varchar [not null]
   projectId varchar [not null]
   projectTokenConfigId varchar [not null]
-  currencyCode varchar [not null, note: 'ISO currency code for the payment amount']
-  amount decimal(38,18) [not null, note: 'Fixed-scale amount; floating point is forbidden']
-  scale int [not null, default: 2]
   disclosureVersion varchar [not null]
+  platformAssetCode varchar [not null, note: 'Platform unit the sponsor spends; ARDA on this node']
+  platformAmountBaseUnits bigint [not null, note: 'Exact platform base units given up; an integer, never a float or a currency']
+  platformScale int [not null, note: 'Decimal places of the platform unit, so a person always thinks in whole currency']
+  requestedPlatformBaseUnits bigint [not null, note: 'What the sponsor offered before whole units were fitted; the remainder is theirs']
+  projectUnitAssetCode varchar [not null, note: 'Symbol of the project unit received']
+  projectUnitQuantity bigint [not null, note: 'Whole project units bought; the authoritative agreed quantity']
+  projectUnitScale int [not null, note: 'Decimal places of the project asset as the node minted it']
+  projectAssetId varchar [not null, note: 'Chain asset the units are issued from; funding is impossible without it']
+  usdReferenceMinorUnits bigint [not null, note: 'Exact currency reference the disclosure showed; never an input to the exchange']
+  declaredRateArdaPerUnit varchar [not null, note: 'Platform units one whole project unit cost, as an exact decimal string']
+  declaredRateUsdPerUnit varchar [not null, note: 'Currency reference for one whole project unit, as an exact decimal string']
+  declaredRateSource varchar [not null, note: 'Where the rate came from; stamped on the node operation']
+  declaredRateDeclaredAt datetime [not null, note: 'When ArdaNova declared the rate this sponsorship was priced at']
+  declaredRateVersion varchar [note: 'Optional rate-policy version, when the source publishes one']
   eligibilitySnapshot json [not null, note: 'Immutable eligibility and gate evidence at intent creation']
   termsSnapshot json [not null, note: 'Immutable funding terms, pricing, and allocation snapshot']
   termsHash varchar [not null, note: 'Canonical hash of the immutable terms snapshot']
-  paymentProvider varchar
-  providerCheckoutSessionId varchar [unique, note: 'Stripe Checkout session id; never returned by intent status']
-  providerPaymentIntentId varchar [unique, note: 'Provider payment intent id once checkout is created']
-  verifiedProviderEventId varchar [unique, note: 'Verified provider event id that authorizes local funding']
+  exchangeIdempotencyKey varchar [unique, note: 'The one key this sponsorship is ever settled under, shared with its settlement row']
+  azoaOperationId varchar [note: 'Durable node operation that moved the value']
+  holdReference varchar [note: 'Node-side hold the freshly issued units sit in until the window elapses']
+  releaseNotBefore datetime [note: 'When the held units become the sponsor to move; surfaced as "yours after N days"']
   settlementId varchar [unique, note: 'At most one local funding settlement; its outbox is reached through this settlement']
+  settlementAttemptCount int [not null, default: 0, note: 'Bounded node attempts; a lapse must never retry forever']
+  holdingReasonCode varchar [note: 'Machine code an operator triages a held or failed sponsorship on']
+  holdingReasonDetail varchar [note: 'Consumer-safe explanation shown to the sponsor']
+  heldAt datetime [note: 'When the sponsorship was parked with the sponsor platform units untouched']
   expiresAt datetime
-  paymentVerifiedAt datetime
   settledAt datetime
   cancelledAt datetime
   createdAt datetime [not null, default: `now()`]

@@ -4,6 +4,8 @@ using ArdaNova.API.Controllers;
 using ArdaNova.Application.DTOs;
 using ArdaNova.Application.Services.Implementations;
 using ArdaNova.Application.Services.Interfaces;
+using ArdaNova.Application.Common.Interfaces;
+using ArdaNova.Domain.Models.Entities;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
@@ -16,7 +18,11 @@ public sealed class SensitiveMutationBoundaryTests
         var controller = new ProjectTokensController(
             tokens.Object,
             new Mock<IProjectGateService>(MockBehavior.Strict).Object,
-            new Mock<IProjectTokenProvisioning>(MockBehavior.Strict).Object);
+            new Mock<IProjectTokenProvisioning>(MockBehavior.Strict).Object,
+            new Mock<IRepository<ProjectTokenConfig>>(MockBehavior.Strict).Object,
+            new Mock<IRepository<ProjectInvestment>>(MockBehavior.Strict).Object,
+            new Mock<IRepository<User>>(MockBehavior.Strict).Object,
+            new Mock<IHierarchyAuthorizationService>(MockBehavior.Strict).Object);
 
         var result = controller.Distribute("allocation-1", "recipient-1", CancellationToken.None);
 
@@ -31,7 +37,11 @@ public sealed class SensitiveMutationBoundaryTests
         var controller = new ProjectTokensController(
             tokens.Object,
             new Mock<IProjectGateService>(MockBehavior.Strict).Object,
-            new Mock<IProjectTokenProvisioning>(MockBehavior.Strict).Object);
+            new Mock<IProjectTokenProvisioning>(MockBehavior.Strict).Object,
+            new Mock<IRepository<ProjectTokenConfig>>(MockBehavior.Strict).Object,
+            new Mock<IRepository<ProjectInvestment>>(MockBehavior.Strict).Object,
+            new Mock<IRepository<User>>(MockBehavior.Strict).Object,
+            new Mock<IHierarchyAuthorizationService>(MockBehavior.Strict).Object);
 
         var results = new IActionResult[]
         {

@@ -34,44 +34,6 @@ using ArdaNova.Application.DTOs;
 public interface IAzoaAllocationService
 {
     /// <summary>
-    /// Push a task/bounty reward to the recipient's avatar. Idempotency key is
-    /// <c>reward:{taskId}</c> (or <c>reward:{taskId}:{escrowReleaseId}</c> when the
-    /// task pays out in multiple tranches). The reward MINTS new value to the
-    /// recipient.
-    /// </summary>
-    /// <param name="recipientUserId">ArdaNova user receiving the reward.</param>
-    /// <param name="taskId">The economic-event id (task/bounty) — drives the key.</param>
-    /// <param name="amount">Already-decided opaque amount string. Passed through verbatim.</param>
-    /// <param name="assetName">Display name for the allocated asset.</param>
-    /// <param name="escrowReleaseId">Optional tranche id for multi-pay tasks; appended to the key.</param>
-    Task<Result<AzoaAllocationDto>> AllocateRewardAsync(
-        string recipientUserId,
-        string taskId,
-        string amount,
-        string assetName,
-        string? escrowReleaseId = null,
-        CancellationToken ct = default);
-
-    /// <summary>
-    /// Settle a completed off-chain payment (e.g. Stripe) onto the recipient's
-    /// avatar. The idempotency key is the payment-provider id (e.g. the Stripe
-    /// <c>PaymentIntent</c> id) supplied by the caller — used VERBATIM so the
-    /// provider's own at-least-once webhook delivery can never double-allocate.
-    /// </summary>
-    /// <param name="recipientUserId">ArdaNova user receiving the settlement.</param>
-    /// <param name="paymentIntentId">Payment-provider id — used verbatim as the idempotency key.</param>
-    /// <param name="amount">Already-decided opaque amount string. Passed through verbatim.</param>
-    /// <param name="assetName">Display name for the allocated asset.</param>
-    /// <param name="assetId">Optional existing asset id to settle against.</param>
-    Task<Result<AzoaAllocationDto>> AllocateFundingSettlementAsync(
-        string recipientUserId,
-        string paymentIntentId,
-        string amount,
-        string assetName,
-        string? assetId = null,
-        CancellationToken ct = default);
-
-    /// <summary>
     /// Refund a held escrow back to the recipient's avatar. The idempotency key is
     /// <c>refund:{escrowId}</c>. A refund TRANSFERS an existing asset record
     /// (<paramref name="assetRecordId"/>) rather than minting.

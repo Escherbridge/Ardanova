@@ -25,6 +25,18 @@ using ArdaNova.Application.Services.Interfaces;
 ///   <c>KYC_FORBIDDEN</c>) VERBATIM — never swallow it (§6).</item>
 /// </list>
 ///
+/// <b>Only the refund path remains.</b> A refund TRANSFERS an asset record that
+/// already exists. The two allocation paths that MINTED new value — the task reward
+/// and the fiat funding settlement — are GONE from this type and from
+/// <see cref="IAzoaAllocationService"/>: ArdaNova no longer creates units out of
+/// nothing on a per-allocation basis. Sponsorship value now moves as an AZOA exchange
+/// operation through <c>IAzoaSettlementGateway</c>, drawn from the platform reserve,
+/// and rewards move out of a project's own reserve partition. The
+/// <see cref="AzoaAllocationType.Mint"/> kind is kept ONLY so the guard in
+/// <c>AllocateAsync</c> stays a real refusal rather than a vacuous one: a future
+/// caller that reaches the shared push with a mint command is turned away there, not
+/// merely at an entry point that no longer exists.
+///
 /// Layering: lives in the Application layer (registered in
 /// <c>ArdaNova.Application.DependencyInjection</c>) and talks to the node only
 /// through the Application-owned <see cref="IAzoaAllocationNode"/> port — the same
@@ -32,6 +44,12 @@ using ArdaNova.Application.Services.Interfaces;
 /// </summary>
 public class AzoaAllocationService : IAzoaAllocationService
 {
+    /// <summary>Refusal text for the retired mint kind, naming what replaced it.</summary>
+    private const string RetiredMintPathMessage =
+        "This allocation path is retired: ArdaNova no longer mints value per allocation. Settle the "
+        + "economic decision through the AZOA settlement gateway, which draws the units from a reserve "
+        + "partition as one exchange operation.";
+
     private readonly IAzoaValueEligibilityService _valueEligibility;
     private readonly IAzoaAllocationNode _node;
 
@@ -41,62 +59,6 @@ public class AzoaAllocationService : IAzoaAllocationService
     {
         _valueEligibility = valueEligibility;
         _node = node;
-    }
-
-    /// <inheritdoc/>
-    public Task<Result<AzoaAllocationDto>> AllocateRewardAsync(
-        string recipientUserId,
-        string taskId,
-        string amount,
-        string assetName,
-        string? escrowReleaseId = null,
-        CancellationToken ct = default)
-    {
-        if (string.IsNullOrWhiteSpace(taskId))
-            return Task.FromResult(
-                Result<AzoaAllocationDto>.ValidationError("A taskId is required to build a stable reward idempotency key."));
-
-        var idempotencyKey = AllocationKeys.Reward(taskId, escrowReleaseId);
-
-        // Rewards MINT new value to the recipient.
-        var command = new AzoaAllocationCommand(
-            Kind: AzoaAllocationType.Mint,
-            Amount: amount,
-            Name: assetName,
-            Description: $"ArdaNova task reward for {taskId}",
-            Memo: idempotencyKey);
-
-        return AllocateAsync(recipientUserId, command, idempotencyKey, ct);
-    }
-
-    /// <inheritdoc/>
-    public Task<Result<AzoaAllocationDto>> AllocateFundingSettlementAsync(
-        string recipientUserId,
-        string paymentIntentId,
-        string amount,
-        string assetName,
-        string? assetId = null,
-        CancellationToken ct = default)
-    {
-        if (string.IsNullOrWhiteSpace(paymentIntentId))
-            return Task.FromResult(
-                Result<AzoaAllocationDto>.ValidationError(
-                    "A payment-provider id (e.g. Stripe PaymentIntent id) is required as the funding-settlement idempotency key."));
-
-        // The provider's own id IS the stable key — used verbatim so at-least-once
-        // webhook delivery can never double-allocate (§6, §7).
-        var idempotencyKey = AllocationKeys.FundingSettlement(paymentIntentId);
-
-        // A funding settlement mints the settled value to the recipient.
-        var command = new AzoaAllocationCommand(
-            Kind: AzoaAllocationType.Mint,
-            Amount: amount,
-            Name: assetName,
-            Description: $"ArdaNova funding settlement for {paymentIntentId}",
-            AssetId: assetId,
-            Memo: idempotencyKey);
-
-        return AllocateAsync(recipientUserId, command, idempotencyKey, ct);
     }
 
     /// <inheritdoc/>
@@ -140,6 +102,11 @@ public class AzoaAllocationService : IAzoaAllocationService
     {
         if (string.IsNullOrWhiteSpace(idempotencyKey))
             return Result<AzoaAllocationDto>.ValidationError("A non-empty idempotency key is required for an allocation.");
+
+        // Defence in depth for the retirement above: even a future caller that reaches this
+        // method cannot mint, because minting is refused here rather than only at the entry points.
+        if (command.Kind != AzoaAllocationType.Transfer)
+            return Result<AzoaAllocationDto>.Failure(RetiredMintPathMessage);
 
         var readiness = await _valueEligibility.RequireReadyAsync(
             recipientUserId,
@@ -195,21 +162,12 @@ public class AzoaAllocationService : IAzoaAllocationService
     /// Keys are derived purely from the economic event — never random, never
     /// timestamped — so a redelivered call replays the same node op instead of
     /// moving value twice (§6, §7). The caller supplies the stable event id; this
-    /// builder owns the prefix convention.
+    /// builder owns the prefix convention. The reward and funding-settlement key
+    /// builders were removed with the mint paths that used them.
     /// </summary>
     internal static class AllocationKeys
     {
-        public const string RewardPrefix = "reward";
         public const string RefundPrefix = "refund";
-
-        /// <summary><c>reward:{taskId}</c>, or <c>reward:{taskId}:{escrowReleaseId}</c> for multi-pay tasks.</summary>
-        public static string Reward(string taskId, string? escrowReleaseId = null) =>
-            string.IsNullOrWhiteSpace(escrowReleaseId)
-                ? $"{RewardPrefix}:{taskId}"
-                : $"{RewardPrefix}:{taskId}:{escrowReleaseId}";
-
-        /// <summary>The payment-provider id IS the key (e.g. Stripe PaymentIntent id), used verbatim.</summary>
-        public static string FundingSettlement(string paymentIntentId) => paymentIntentId;
 
         /// <summary><c>refund:{escrowId}</c>.</summary>
         public static string Refund(string escrowId) => $"{RefundPrefix}:{escrowId}";

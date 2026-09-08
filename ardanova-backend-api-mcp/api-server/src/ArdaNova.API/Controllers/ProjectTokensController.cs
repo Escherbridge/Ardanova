@@ -1,11 +1,14 @@
 namespace ArdaNova.API.Controllers;
 
+using System.Linq;
 using System.Security.Claims;
+using ArdaNova.Application.Common.Interfaces;
 using ArdaNova.Application.Common.Results;
 using ArdaNova.Application.DTOs;
 using ArdaNova.Application.Services.Implementations;
 using ArdaNova.Application.Services.Interfaces;
 using ArdaNova.API.Middleware;
+using ArdaNova.Domain.Models.Entities;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -17,21 +20,45 @@ public class ProjectTokensController : ControllerBase
     private readonly IProjectTokenService _projectTokenService;
     private readonly IProjectGateService _projectGateService;
     private readonly IProjectTokenProvisioning _projectTokenProvisioning;
+    private readonly IRepository<ProjectTokenConfig> _projectTokenConfigRepository;
+    private readonly IRepository<ProjectInvestment> _investmentRepository;
+    private readonly IRepository<User> _userRepository;
+    private readonly IHierarchyAuthorizationService _hierarchyAuthorization;
 
     /// <param name="projectTokenProvisioning">
     /// Funding setup. Registered in Application/DependencyInjection.cs as the same scoped
     /// instance under its own interface — the IProjectVisibility pattern — so this route
     /// depends on it explicitly instead of casting the service it was handed.
     /// </param>
+    /// <param name="projectTokenConfigRepository">
+    /// Read-only lookup for GetInvestors: it needs the config's owning project id to decide
+    /// membership, a decision <see cref="IProjectTokenService"/> does not expose today.
+    /// </param>
+    /// <param name="investmentRepository">
+    /// Read-only lookup for GetInvestors: it reads the per-pledge consent flag directly off
+    /// the entity, since <c>ProjectInvestmentDto</c> does not carry it.
+    /// </param>
+    /// <param name="userRepository">
+    /// Read-only lookup for GetInvestors: resolves a backer's display name for members, so the
+    /// route never has to return their internal user id.
+    /// </param>
     public ProjectTokensController(
         IProjectTokenService projectTokenService,
         IProjectGateService projectGateService,
-        IProjectTokenProvisioning projectTokenProvisioning)
+        IProjectTokenProvisioning projectTokenProvisioning,
+        IRepository<ProjectTokenConfig> projectTokenConfigRepository,
+        IRepository<ProjectInvestment> investmentRepository,
+        IRepository<User> userRepository,
+        IHierarchyAuthorizationService hierarchyAuthorization)
     {
         _projectTokenService = projectTokenService;
         _projectGateService = projectGateService;
         _projectTokenProvisioning = projectTokenProvisioning
             ?? throw new ArgumentNullException(nameof(projectTokenProvisioning));
+        _projectTokenConfigRepository = projectTokenConfigRepository;
+        _investmentRepository = investmentRepository;
+        _userRepository = userRepository;
+        _hierarchyAuthorization = hierarchyAuthorization;
     }
 
     // === Config CRUD ===
@@ -194,11 +221,60 @@ public class ProjectTokensController : ControllerBase
         return ToActionResult(result);
     }
 
+    /// <summary>
+    /// A project's backers, as a person is allowed to see them. Anyone signed in sees proof the
+    /// project has support — a headcount and a total — with no per-pledge amount and no name.
+    /// Project members (the creator or anyone on the roster, per
+    /// <see cref="IHierarchyAuthorizationService.IsProjectMemberAsync"/>) see the itemised
+    /// pledges instead, each carrying a display name — never the backer's internal user id —
+    /// and that name appears only when the backer opted in via their per-pledge consent; every
+    /// other row reads "Anonymous backer".
+    /// </summary>
     [HttpGet("{configId}/investors")]
+    [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
     public async Task<IActionResult> GetInvestors(string configId, CancellationToken ct)
     {
-        var result = await _projectTokenService.GetInvestorsByProjectAsync(configId, ct);
-        return ToActionResult(result);
+        var config = await _projectTokenConfigRepository.GetByIdAsync(configId, ct);
+        if (config is null)
+            return NotFound(new { error = $"Project token config {configId} not found" });
+
+        var investments = await _investmentRepository.FindAsync(
+            investment => investment.projectTokenConfigId == configId, ct);
+
+        var isMember = await _hierarchyAuthorization.IsProjectMemberAsync(ActorId, config.projectId, ct);
+        if (!isMember)
+        {
+            return Ok(new ProjectInvestorSummaryDto
+            {
+                BackerCount = investments.Count,
+                TotalAmount = investments.Sum(investment => investment.usdAmount),
+            });
+        }
+
+        var backerIds = investments.Select(investment => investment.userId).Distinct().ToList();
+        var backers = await _userRepository.FindAsync(user => backerIds.Contains(user.id), ct);
+        var displayNameByUserId = backers.ToDictionary(user => user.id, user => user.name);
+
+        var lines = investments
+            .OrderByDescending(investment => investment.usdAmount)
+            .Select(investment => new ProjectInvestorLineDto
+            {
+                Id = investment.id,
+                DisplayName = investment.showBackerName
+                    && displayNameByUserId.TryGetValue(investment.userId, out var name)
+                    && !string.IsNullOrWhiteSpace(name)
+                        ? name!
+                        : "Anonymous backer",
+                Amount = investment.usdAmount,
+                UnitsPledged = investment.tokenAmount,
+                InvestedAt = investment.investedAt,
+                ProtectionEligible = investment.protectionEligible,
+                ProtectionPaidOut = investment.protectionPaidOut,
+                ProtectionAmount = investment.protectionPaidOut ? investment.protectionAmount : null,
+            })
+            .ToList();
+
+        return Ok(lines);
     }
 
     // === Gate Management ===
@@ -299,4 +375,27 @@ public record ProvisionProjectFundingRequest
 public record FailProjectRequest
 {
     public required string Reason { get; init; }
+}
+
+/// <summary>What a non-member sees from GetInvestors: proof the project has backers, with no
+/// per-pledge amount and no name a stranger could match to a real person.</summary>
+public record ProjectInvestorSummaryDto
+{
+    public required int BackerCount { get; init; }
+    public required double TotalAmount { get; init; }
+}
+
+/// <summary>One pledge, as a project member reads it from GetInvestors. Carries a display
+/// name — never the backer's internal user id — that reads "Anonymous backer" unless the
+/// backer's own per-pledge consent (<see cref="ProjectInvestment.showBackerName"/>) opted in.</summary>
+public record ProjectInvestorLineDto
+{
+    public required string Id { get; init; }
+    public required string DisplayName { get; init; }
+    public required double Amount { get; init; }
+    public required int UnitsPledged { get; init; }
+    public required DateTime InvestedAt { get; init; }
+    public required bool ProtectionEligible { get; init; }
+    public required bool ProtectionPaidOut { get; init; }
+    public double? ProtectionAmount { get; init; }
 }

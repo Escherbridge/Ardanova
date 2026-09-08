@@ -16,6 +16,7 @@ export const ProjectInvestmentSchema = z.object({
   protectionPaidOut: z.boolean(),
   protectionAmount: z.number().nullable(),
   protectionPaidAt: z.coerce.date().nullable(),
+  showBackerName: z.boolean(),
 })
 
 export type ProjectInvestment = z.infer<typeof ProjectInvestmentSchema>

@@ -3,33 +3,130 @@ namespace ArdaNova.Application.Services.Implementations;
 using ArdaNova.Application.Common.Results;
 using ArdaNova.Application.Services.Interfaces;
 using ArdaNova.Domain.Models.Enums;
+using Microsoft.Extensions.Logging;
 using System.IO;
 using System.Net.Http;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+
+/// <summary>Stable codes the dispatch pipeline emits and the persistence seam branches on.</summary>
+/// <remarks>
+/// These are not log strings: <c>EconomicOutboxLeaseStore</c> reads them back out of
+/// <see cref="EconomicOutboxFinalization.FailureCode"/> and they decide the row's next state. The
+/// finalization record carries no other channel for that decision, so the code IS the control.
+/// </remarks>
+public static class EconomicSettlementFailureCodes
+{
+    /// <summary>Dispatch exhausted its attempt ceiling on definite refusals, so no value ever moved.</summary>
+    public const string DispatchAttemptCeiling = "AZOA_SETTLEMENT_DISPATCH_CEILING";
+
+    /// <summary>Reconciliation exhausted its ceiling while the economic effect is still unknown.</summary>
+    public const string ReconciliationAttentionRequired = "AZOA_SETTLEMENT_RECONCILIATION_ATTENTION";
+
+    /// <summary>The node holds no operation under this key, so the settlement may be dispatched again.</summary>
+    public const string ExchangeNeverLanded = "AZOA_EXCHANGE_NEVER_LANDED";
+}
+
+/// <summary>Which settlement kinds credit a project and therefore need its owner ready as well.</summary>
+/// <remarks>
+/// One definition, read at BOTH seams: the lease store decides whether to resolve a project owner
+/// at all, and the dispatch service decides whether to gate on that owner's readiness. A kind added
+/// to one list and not the other is how a settlement reaches the node with half a gate.
+/// </remarks>
+public static class EconomicSettlementKindRules
+{
+    /// <summary>True when settling this kind credits a project, not only its beneficiary.</summary>
+    public static bool RequiresProjectOwnerReadiness(EconomicSettlementKind kind)
+        => kind is EconomicSettlementKind.FUNDING_ALLOCATION or EconomicSettlementKind.EXCHANGE;
+}
+
+/// <summary>What an accepted settlement recorded at the node boundary, including the fee it revealed.</summary>
+/// <remarks>
+/// The gateway serialises this into <see cref="EconomicOutboxFinalization.Receipt"/> and the lease
+/// store parses it back out to fill the settlement's typed gross/fee/net columns. It exists because
+/// the finalization record has exactly one free-form field, and a fee that only lives in a log is a
+/// fee nobody can reconcile.
+/// </remarks>
+public sealed record EconomicSettlementReceipt(
+    string? OperationId,
+    string? ReceiptReference,
+    string? State,
+    bool Replayed,
+    string? GrossBaseUnits,
+    string? FeeBaseUnits,
+    string? NetBaseUnits,
+    int? Scale,
+    string? SettlementReference,
+    string? HoldReference,
+    DateTimeOffset? HoldReleasesAt)
+{
+    private static readonly JsonSerializerOptions SerializerOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+    };
+
+    /// <summary>Serialises the receipt for the settlement's jsonb column.</summary>
+    public string ToJson() => JsonSerializer.Serialize(this, SerializerOptions);
+
+    /// <summary>Reads a persisted receipt back, returning null rather than throwing on anything unreadable.</summary>
+    public static EconomicSettlementReceipt? FromJson(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+            return null;
+
+        try
+        {
+            return JsonSerializer.Deserialize<EconomicSettlementReceipt>(json, SerializerOptions);
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+}
 
 /// <inheritdoc/>
 public sealed class EconomicOutboxDispatchService : IEconomicOutboxDispatchService
 {
+    /// <summary>Attempts a settlement gets before a human is told instead of a machine retried.</summary>
+    public const int DefaultMaximumAttempts = 10;
+
     private static readonly TimeSpan LeaseDuration = TimeSpan.FromMinutes(5);
     private static readonly TimeSpan DefaultGatewayOperationDeadline = TimeSpan.FromMinutes(4.5);
+
+    /// <summary>Backoff applied once reconciliation has passed its ceiling; slow, but never terminal.</summary>
+    private static readonly TimeSpan CeilingBackoff = TimeSpan.FromHours(1);
+
     private readonly IEconomicOutboxLeaseStore _store;
     private readonly IAzoaSettlementGateway _gateway;
     private readonly IAzoaValueEligibilityService _valueEligibility;
     private readonly TimeSpan _gatewayOperationDeadline;
+    private readonly int _maximumAttempts;
+    private readonly ILogger<EconomicOutboxDispatchService>? _logger;
 
     public EconomicOutboxDispatchService(
         IEconomicOutboxLeaseStore store,
         IAzoaSettlementGateway gateway,
         IAzoaValueEligibilityService valueEligibility,
-        TimeSpan? gatewayOperationDeadline = null)
+        TimeSpan? gatewayOperationDeadline = null,
+        int? maximumAttempts = null,
+        ILogger<EconomicOutboxDispatchService>? logger = null)
     {
         var deadline = gatewayOperationDeadline ?? DefaultGatewayOperationDeadline;
         if (deadline <= TimeSpan.Zero || deadline >= LeaseDuration)
             throw new ArgumentOutOfRangeException(nameof(gatewayOperationDeadline));
 
+        var attempts = maximumAttempts ?? DefaultMaximumAttempts;
+        if (attempts < 1)
+            throw new ArgumentOutOfRangeException(nameof(maximumAttempts));
+
         _store = store;
         _gateway = gateway;
         _valueEligibility = valueEligibility;
         _gatewayOperationDeadline = deadline;
+        _maximumAttempts = attempts;
+        _logger = logger;
     }
 
     /// <inheritdoc/>
@@ -143,7 +240,7 @@ public sealed class EconomicOutboxDispatchService : IEconomicOutboxDispatchServi
                 readiness.Error ?? "The recipient must complete account setup before settlement can be dispatched.");
         }
 
-        if (renewedLease.SettlementKind == EconomicSettlementKind.FUNDING_ALLOCATION)
+        if (EconomicSettlementKindRules.RequiresProjectOwnerReadiness(renewedLease.SettlementKind))
         {
             var projectOwnerUserId = renewedLease.ProjectOwnerUserId;
             if (string.IsNullOrWhiteSpace(projectOwnerUserId))
@@ -190,7 +287,7 @@ public sealed class EconomicOutboxDispatchService : IEconomicOutboxDispatchServi
             _ => false,
         };
 
-    private static EconomicOutboxFinalization ToFinalization(
+    private EconomicOutboxFinalization ToFinalization(
         EconomicOutboxLease lease,
         AzoaSettlementGatewayResult result,
         DateTime now)
@@ -212,6 +309,11 @@ public sealed class EconomicOutboxDispatchService : IEconomicOutboxDispatchServi
             || (result.Outcome == AzoaSettlementGatewayOutcome.Accepted
                 && string.IsNullOrWhiteSpace(result.OperationId)))
         {
+            // An ambiguous result past the ceiling is the one case a machine must stop owning:
+            // value may have moved, so nothing here may mark it failed. Alert and back off.
+            if (lease.AttemptCount >= _maximumAttempts)
+                return ReconciliationCeiling(lease, now, result);
+
             return new EconomicOutboxFinalization(
                 EconomicOutboxRecordedOutcome.Unknown,
                 now,
@@ -222,6 +324,16 @@ public sealed class EconomicOutboxDispatchService : IEconomicOutboxDispatchServi
                 result.Detail ?? "AZOA accepted neither a durable operation id nor a safely retryable result.");
         }
 
+        if (lease.AttemptCount >= _maximumAttempts)
+        {
+            // A Retry is the gateway's word that nothing moved. On the dispatch path that makes
+            // the ceiling safely terminal; on the reconciliation path it does not, because the
+            // row only reached reconciliation after an outcome nobody could read.
+            return lease.ClaimKind == EconomicOutboxClaimKind.Dispatch
+                ? DispatchCeiling(lease, now, result)
+                : ReconciliationCeiling(lease, now, result);
+        }
+
         return new EconomicOutboxFinalization(
             EconomicOutboxRecordedOutcome.Retry,
             now.Add(RetryDelay(lease.AttemptCount)),
@@ -230,6 +342,60 @@ public sealed class EconomicOutboxDispatchService : IEconomicOutboxDispatchServi
             null,
             result.Code ?? "AZOA_RETRY",
             result.Detail);
+    }
+
+    /// <summary>Parks a never-dispatched settlement and tells an operator; the lease store makes it terminal.</summary>
+    private EconomicOutboxFinalization DispatchCeiling(
+        EconomicOutboxLease lease,
+        DateTime now,
+        AzoaSettlementGatewayResult result)
+    {
+        _logger?.LogCritical(
+            "Economic settlement {SettlementId} (outbox {OutboxId}) reached the dispatch attempt ceiling of "
+            + "{MaximumAttempts} after {AttemptCount} attempts and was parked as failed. Nothing was settled. "
+            + "Last gateway code: {GatewayCode}.",
+            lease.SettlementId,
+            lease.OutboxId,
+            _maximumAttempts,
+            lease.AttemptCount,
+            result.Code ?? "AZOA_RETRY");
+
+        return new EconomicOutboxFinalization(
+            EconomicOutboxRecordedOutcome.Retry,
+            now,
+            null,
+            null,
+            null,
+            EconomicSettlementFailureCodes.DispatchAttemptCeiling,
+            "Dispatch was refused on every attempt up to the ceiling. No value was settled; an operator must "
+            + "resolve the refusal before this settlement can be reopened.");
+    }
+
+    /// <summary>Keeps an ambiguous settlement claimable but slow, and tells an operator every cycle.</summary>
+    private EconomicOutboxFinalization ReconciliationCeiling(
+        EconomicOutboxLease lease,
+        DateTime now,
+        AzoaSettlementGatewayResult result)
+    {
+        _logger?.LogCritical(
+            "Economic settlement {SettlementId} (outbox {OutboxId}) passed the reconciliation attempt ceiling of "
+            + "{MaximumAttempts} after {AttemptCount} attempts and its economic effect is still unknown. It was "
+            + "NOT failed. An operator must reconcile it against the node. Last gateway code: {GatewayCode}.",
+            lease.SettlementId,
+            lease.OutboxId,
+            _maximumAttempts,
+            lease.AttemptCount,
+            result.Code ?? "AZOA_AMBIGUOUS_RESULT");
+
+        return new EconomicOutboxFinalization(
+            EconomicOutboxRecordedOutcome.Unknown,
+            now.Add(CeilingBackoff),
+            null,
+            null,
+            null,
+            EconomicSettlementFailureCodes.ReconciliationAttentionRequired,
+            "Reconciliation passed its attempt ceiling without a readable node outcome. This settlement stays "
+            + "open on purpose - value may have moved - and needs an operator.");
     }
 
     private static TimeSpan RetryDelay(int attemptCount)

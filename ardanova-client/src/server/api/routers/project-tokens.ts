@@ -15,7 +15,7 @@ import {
   failProjectDtoSchema,
   gateTransitionResultDtoSchema,
   projectGateStatusDtoSchema,
-  projectInvestmentDtoSchema,
+  projectInvestorsResponseSchema,
   projectTokenConfigDtoSchema,
   projectTokenMetadataBatchDtoSchema,
   tokenAllocationDtoSchema,
@@ -26,7 +26,6 @@ import {
 // ---------------------------------------------------------------------------
 
 const tokenAllocationListSchema = z.array(tokenAllocationDtoSchema);
-const projectInvestmentListSchema = z.array(projectInvestmentDtoSchema);
 
 // ---------------------------------------------------------------------------
 // Funding setup (self-serve project stake, W5.2)
@@ -496,10 +495,12 @@ export const projectTokensRouter = createTRPCRouter({
         });
       }
 
+      // Members get itemised pledges, everyone else an aggregate summary. Validating the UNION
+      // is what stops a summary being silently read as "no backers yet".
       return parseBackendContract(
-        projectInvestmentListSchema,
+        projectInvestorsResponseSchema,
         response.data,
-        "project investment list",
+        "project investors response",
       );
     }),
 

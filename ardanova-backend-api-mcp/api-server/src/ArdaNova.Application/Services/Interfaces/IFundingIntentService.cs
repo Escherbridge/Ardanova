@@ -2,12 +2,18 @@ namespace ArdaNova.Application.Services.Interfaces;
 
 using ArdaNova.Application.Common.Results;
 using ArdaNova.Application.DTOs;
-using Stripe;
 
-/// <summary>Owns durable funding intent creation, status reads, and payment-verification recording.</summary>
+/// <summary>
+/// Owns durable sponsorship authorization and status reads.
+/// </summary>
+/// <remarks>
+/// There is no payment-provider surface here any more. The node terminates the fiat rail, so
+/// ArdaNova never records a card event against a sponsorship and no provider type crosses this
+/// seam — the absence of a <c>RecordPayment*</c> method is the control, not a comment about one.
+/// </remarks>
 public interface IFundingIntentService
 {
-    /// <summary>Commits an actor-owned intent before creating or replaying its provider checkout session.</summary>
+    /// <summary>Commits an actor-owned sponsorship, locking both exchange legs and the rate before value moves.</summary>
     Task<Result<FundingCheckoutDto>> CreateCheckoutAsync(
         CreateFundingIntentDto request,
         string actorId,
@@ -18,16 +24,5 @@ public interface IFundingIntentService
     Task<Result<FundingIntentStatusDto>> GetStatusAsync(
         string intentId,
         string actorId,
-        CancellationToken ct = default);
-
-    /// <summary>Records a signed provider success with one pending local settlement and no value dispatch.</summary>
-    Task<Result<bool>> RecordPaymentSucceededAsync(
-        string providerEventId,
-        PaymentIntent paymentIntent,
-        CancellationToken ct = default);
-
-    /// <summary>Records a signed provider payment failure without releasing any economic effect.</summary>
-    Task<Result<bool>> RecordPaymentFailedAsync(
-        PaymentIntent paymentIntent,
         CancellationToken ct = default);
 }

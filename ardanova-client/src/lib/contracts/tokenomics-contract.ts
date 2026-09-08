@@ -171,6 +171,47 @@ export const projectInvestmentDtoSchema = z
   })
   .strict();
 
+/**
+ * One pledge as a project MEMBER is allowed to read it. The backer's internal user id is not in
+ * this shape at all, and `displayName` reads "Anonymous backer" unless that backer's own
+ * per-pledge consent opted in - so a name can only appear because someone chose to show it.
+ * Mirrors `ProjectInvestorLineDto`.
+ */
+export const projectInvestorLineDtoSchema = z
+  .object({
+    id: z.string().min(1),
+    displayName: z.string().min(1),
+    amount: nonnegativeNumberSchema,
+    unitsPledged: nonnegativeIntegerSchema,
+    investedAt: dateTimeSchema,
+    protectionEligible: z.boolean(),
+    protectionPaidOut: z.boolean(),
+    protectionAmount: nonnegativeNumberSchema.nullable(),
+  })
+  .strict();
+
+/**
+ * What a NON-member sees: proof the project has backers, with no per-pledge amount and no name a
+ * stranger could match to a real person. Mirrors `ProjectInvestorSummaryDto`.
+ */
+export const projectInvestorSummaryDtoSchema = z
+  .object({
+    backerCount: nonnegativeIntegerSchema,
+    totalAmount: nonnegativeNumberSchema,
+  })
+  .strict();
+
+/**
+ * The GetInvestors response: itemised for members, aggregate-only for everyone else. Validated as
+ * a union at the boundary so a summary can never be read as an empty list of pledges (which would
+ * silently render "no backers yet" for a project that has them), and so an itemised list served to
+ * a non-member would fail parsing here rather than leaking per-pledge rows into the UI.
+ */
+export const projectInvestorsResponseSchema = z.union([
+  z.array(projectInvestorLineDtoSchema),
+  projectInvestorSummaryDtoSchema,
+]);
+
 export const failProjectDtoSchema = z
   .object({ reason: z.string().trim().min(1) })
   .strict();
@@ -205,3 +246,10 @@ export type GateTransitionResultDto = z.infer<
 >;
 export type ProjectInvestmentDto = z.infer<typeof projectInvestmentDtoSchema>;
 export type FailProjectDto = z.infer<typeof failProjectDtoSchema>;
+export type ProjectInvestorLineDto = z.infer<typeof projectInvestorLineDtoSchema>;
+export type ProjectInvestorSummaryDto = z.infer<
+  typeof projectInvestorSummaryDtoSchema
+>;
+export type ProjectInvestorsResponseDto = z.infer<
+  typeof projectInvestorsResponseSchema
+>;

@@ -1,12 +1,12 @@
 namespace ArdaNova.Application.Services.Interfaces;
 
-/// <summary>Gates payment collection on an enabled, selected-node settlement and reconciliation capability.</summary>
+/// <summary>Gates sponsorship on a selected node that can actually settle and reconcile an exchange.</summary>
 public interface IFundingSettlementReadiness
 {
-    /// <summary>True only when collecting payment can lead to an operable settlement path.</summary>
+    /// <summary>True only when authorising a sponsorship can lead to an operable settlement path.</summary>
     bool IsReady { get; }
 
-    /// <summary>Safe operator-facing reason when payment collection is unavailable.</summary>
+    /// <summary>Safe reason when sponsorship is unavailable; it names the leg that failed.</summary>
     string UnavailableReason { get; }
 }
 
@@ -25,7 +25,11 @@ public interface ISelectedNodeSettlementCapability
     /// <summary>Whether operator-reviewed capability attestation remains valid for this node.</summary>
     bool HasCurrentOperatorAttestation { get; }
 
-    /// <summary>Whether the gateway accepts the complete immutable funding asset contract.</summary>
+    /// <summary>
+    /// Whether the gateway accepts the complete exchange settlement contract: a durable idempotency
+    /// key, canonical token base units at a fixed scale, and the immutable terms the sponsor agreed
+    /// to. A gateway that settles a currency amount does not satisfy it.
+    /// </summary>
     bool SupportsCanonicalFundingSettlement { get; }
 }
 

@@ -3,38 +3,50 @@
 import { ArrowRight } from "lucide-react";
 import { cn } from "~/lib/utils";
 
+/**
+ * One hop: ARDA in, project units out. Replaces the old three-node
+ * project-token -> ARDA -> USD chain (W6.4) — a sponsor spends ARDA and holds units, nothing
+ * else appears in between. The USD figure is a reference on the arrow, never a second leg.
+ */
 interface ConversionChainProps {
-  projectTokens: number;
-  tokenTicker: string;
+  /** Whole ARDA the sponsor is spending (the charged amount, not the raw input). */
   ardaAmount: number;
-  usdAmount: number;
-  tokenRate: number;
-  ardaRate: number;
+  /** Whole project units that ARDA buys. */
+  projectUnits: number;
+  /** The project's unit label, e.g. "PLOT". */
+  unitName: string;
+  /** Reference value of one ARDA, e.g. 0.0134 for "1 ARDA = $0.0134". Informational only. */
+  usdPerArda: number;
   className?: string;
 }
 
-function formatUsd(value: number): string {
+function formatUsdRate(value: number): string {
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD",
     minimumFractionDigits: 2,
+    maximumFractionDigits: 4,
+  }).format(value);
+}
+
+function formatArda(value: number): string {
+  return new Intl.NumberFormat("en-US", {
+    minimumFractionDigits: 0,
     maximumFractionDigits: 2,
   }).format(value);
 }
 
-function formatInteger(value: number): string {
-  return new Intl.NumberFormat("en-US", {
-    maximumFractionDigits: 0,
-  }).format(Math.round(value));
+function formatUnits(value: number): string {
+  return new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(
+    value,
+  );
 }
 
 export function ConversionChain({
-  projectTokens,
-  tokenTicker,
   ardaAmount,
-  usdAmount,
-  tokenRate,
-  ardaRate,
+  projectUnits,
+  unitName,
+  usdPerArda,
   className,
 }: ConversionChainProps) {
   return (
@@ -45,61 +57,41 @@ export function ConversionChain({
       )}
     >
       <p className="text-muted-foreground font-mono text-xs tracking-widest uppercase">
-        Conversion Preview
+        One-hop preview
       </p>
 
-      {/* Chain row */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-1">
-        {/* Project tokens */}
-        <div className="flex min-w-0 flex-col items-center gap-1">
-          <span className="text-success font-mono text-lg font-bold">
-            {formatInteger(projectTokens)}
+      <div className="flex items-center gap-3">
+        <div className="flex min-w-0 flex-1 flex-col items-center gap-1 text-center">
+          <span className="text-system font-mono text-2xl font-bold">
+            {formatArda(ardaAmount)}
           </span>
-          <span className="text-muted-foreground font-mono text-xs">
-            {tokenTicker}
+          <span className="text-muted-foreground font-mono text-xs tracking-wide uppercase">
+            ARDA
           </span>
         </div>
 
-        {/* Arrow 1 */}
         <div className="flex shrink-0 flex-col items-center gap-1">
-          <ArrowRight className="text-system h-5 w-5" />
+          <ArrowRight className="text-primary h-5 w-5" aria-hidden="true" />
           <span className="text-muted-foreground font-mono text-[10px] whitespace-nowrap">
-            1 {tokenTicker} = {formatInteger(tokenRate)} ARDA
+            1 ARDA = {formatUsdRate(usdPerArda)}
           </span>
         </div>
 
-        {/* ARDA */}
-        <div className="flex min-w-0 flex-col items-center gap-1">
-          <span className="text-system font-mono text-lg font-bold">
-            {formatInteger(ardaAmount)}
+        <div className="flex min-w-0 flex-1 flex-col items-center gap-1 text-center">
+          <span className="text-foreground font-mono text-2xl font-bold">
+            {formatUnits(projectUnits)}
           </span>
-          <span className="text-muted-foreground font-mono text-xs">ARDA</span>
-        </div>
-
-        {/* Arrow 2 */}
-        <div className="flex shrink-0 flex-col items-center gap-1">
-          <ArrowRight className="text-system h-5 w-5" />
-          <span className="text-muted-foreground font-mono text-[10px] whitespace-nowrap">
-            1 ARDA = {formatUsd(ardaRate)}
+          <span className="text-muted-foreground font-mono text-xs tracking-wide uppercase">
+            {unitName}
           </span>
-        </div>
-
-        {/* USD */}
-        <div className="flex min-w-0 flex-col items-center gap-1">
-          <span className="text-foreground font-mono text-lg font-bold">
-            {formatUsd(usdAmount)}
-          </span>
-          <span className="text-muted-foreground font-mono text-xs">USD</span>
         </div>
       </div>
 
-      {/* Summary line */}
       <div className="border-border border-t pt-2">
         <p className="text-muted-foreground font-mono text-xs">
-          {formatInteger(projectTokens)} {tokenTicker} &rarr;{" "}
-          {formatInteger(ardaAmount)} ARDA &rarr;{" "}
+          {formatArda(ardaAmount)} ARDA &rarr;{" "}
           <span className="text-foreground font-semibold">
-            {formatUsd(usdAmount)}
+            {formatUnits(projectUnits)} {unitName}
           </span>
         </p>
       </div>

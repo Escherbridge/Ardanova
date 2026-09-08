@@ -3,10 +3,41 @@
 import { Users } from "lucide-react";
 
 import { Badge } from "~/components/ui/badge";
-import type { ProjectInvestmentDto } from "~/lib/contracts/tokenomics-contract";
+
+/**
+ * One pledge, as a project member is allowed to see it. Mirrors
+ * `ProjectInvestorLineDto` (ArdaNova.API.Controllers.ProjectTokensController) — the backer's
+ * internal user id never reaches this component; `displayName` reads "Anonymous backer" unless
+ * the backer opted in via their per-pledge "show my name" consent.
+ */
+export interface ProjectInvestorLine {
+  id: string;
+  displayName: string;
+  amount: number;
+  unitsPledged: number;
+  investedAt: string;
+  protectionEligible: boolean;
+  protectionPaidOut: boolean;
+  protectionAmount: number | null;
+}
+
+/**
+ * What a non-member sees: proof the project has backers, with no per-pledge amount and no name
+ * a stranger could match to a real person. Mirrors `ProjectInvestorSummaryDto`.
+ */
+export interface ProjectInvestorSummary {
+  backerCount: number;
+  totalAmount: number;
+}
+
+/**
+ * The GetInvestors response shape: an itemised list for project members, or an aggregate-only
+ * summary for everyone else. Distinguish with `Array.isArray`.
+ */
+export type ProjectInvestorsResponse = ProjectInvestorLine[] | ProjectInvestorSummary;
 
 interface InvestorTableProps {
-  investments: ProjectInvestmentDto[];
+  investments: ProjectInvestorsResponse;
 }
 
 function formatUsd(value: number) {
@@ -17,33 +48,53 @@ function formatUsd(value: number) {
   }).format(value);
 }
 
-function shortReference(value: string) {
-  return value.length > 16 ? `${value.slice(0, 12)}…` : value;
+function EmptyState() {
+  return (
+    <div className="border-border flex flex-col items-center justify-center gap-3 border p-8 text-center">
+      <div className="border-border flex size-12 items-center justify-center border">
+        <Users className="text-muted-foreground size-5" />
+      </div>
+      <div>
+        <p className="text-muted-foreground font-mono text-sm font-bold uppercase">
+          No funding records yet
+        </p>
+        <p className="text-muted-foreground mt-1 text-xs">
+          Reconciled funding records will appear here when the backend reports
+          them.
+        </p>
+      </div>
+    </div>
+  );
 }
 
 export default function InvestorTable({ investments }: InvestorTableProps) {
-  if (investments.length === 0) {
+  if (!Array.isArray(investments)) {
+    // Non-member view: a project's backers are visible to anyone signed in, but only as a
+    // headcount and a total — no name, no per-pledge amount a stranger could match to someone.
+    if (investments.backerCount === 0) return <EmptyState />;
+
     return (
       <div className="border-border flex flex-col items-center justify-center gap-3 border p-8 text-center">
         <div className="border-border flex size-12 items-center justify-center border">
           <Users className="text-muted-foreground size-5" />
         </div>
         <div>
-          <p className="text-muted-foreground font-mono text-sm font-bold uppercase">
-            No funding records yet
+          <p className="font-mono text-2xl font-bold">
+            {new Intl.NumberFormat("en-US").format(investments.backerCount)}{" "}
+            {investments.backerCount === 1 ? "backer" : "backers"}
           </p>
           <p className="text-muted-foreground mt-1 text-xs">
-            Reconciled funding records will appear here when the backend reports
-            them.
+            {formatUsd(investments.totalAmount)} raised so far. Join this
+            project to see individual pledges.
           </p>
         </div>
       </div>
     );
   }
 
-  const sorted = [...investments].sort(
-    (left, right) => right.usdAmount - left.usdAmount,
-  );
+  if (investments.length === 0) return <EmptyState />;
+
+  const sorted = [...investments].sort((left, right) => right.amount - left.amount);
 
   return (
     <div className="border-border border">
@@ -60,11 +111,8 @@ export default function InvestorTable({ investments }: InvestorTableProps) {
             className="grid grid-cols-2 gap-3 px-4 py-4 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-center"
           >
             <div className="col-span-2 min-w-0 sm:col-span-1">
-              <p
-                className="truncate font-mono text-sm font-semibold"
-                title={investment.userId}
-              >
-                User {shortReference(investment.userId)}
+              <p className="truncate font-mono text-sm font-semibold">
+                {investment.displayName}
               </p>
               <p className="text-muted-foreground mt-1 text-xs">
                 Recorded {new Date(investment.investedAt).toLocaleDateString()}
@@ -73,11 +121,13 @@ export default function InvestorTable({ investments }: InvestorTableProps) {
 
             <div>
               <p className="text-primary font-mono text-sm font-bold">
-                {formatUsd(investment.usdAmount)}
+                {formatUsd(investment.amount)}
               </p>
               <p className="text-muted-foreground font-mono text-xs">
-                {new Intl.NumberFormat("en-US").format(investment.tokenAmount)}{" "}
-                token units
+                {new Intl.NumberFormat("en-US").format(
+                  investment.unitsPledged,
+                )}{" "}
+                units
               </p>
             </div>
 

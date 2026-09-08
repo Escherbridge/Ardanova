@@ -1,31 +1,93 @@
 import { describe, expect, it } from "vitest";
 
-import { getFundingIntentPresentation } from "./funding-intent-status";
+import {
+  describeFundingError,
+  getFundingIntentPresentation,
+} from "./funding-intent-status";
 
 describe("funding intent return presentation", () => {
   it.each([
-    ["DRAFT", true],
-    ["AWAITING_PAYMENT", true],
-    ["PAYMENT_VERIFIED", true],
-    ["SETTLEMENT_PENDING", true],
-    ["SETTLED", false],
-    ["REJECTED", false],
-    ["CANCELLED", false],
-    ["FAILED", false],
-  ])("uses server state %s and polling=%s", (status, poll) => {
-    expect(getFundingIntentPresentation(status).poll).toBe(poll);
-  });
+    ["DRAFT", true, "waiting"],
+    ["SETTLEMENT_PENDING", true, "waiting"],
+    ["SETTLED", false, "confirmed"],
+    ["HOLDING", false, "went-wrong"],
+    ["REJECTED", false, "went-wrong"],
+    ["CANCELLED", false, "went-wrong"],
+    ["FAILED", false, "went-wrong"],
+  ] as const)(
+    "uses server state %s with polling=%s and outcome %s",
+    (status, poll, outcome) => {
+      const presentation = getFundingIntentPresentation({ status });
+      expect(presentation.poll).toBe(poll);
+      expect(presentation.outcome).toBe(outcome);
+    },
+  );
 
-  it("does not infer payment success from a missing or unknown state", () => {
+  it("does not infer settlement from a missing or unknown state", () => {
     expect(getFundingIntentPresentation()).toMatchObject({
-      heading: "FUNDING STATUS UNAVAILABLE",
+      outcome: "went-wrong",
       poll: false,
     });
-    expect(getFundingIntentPresentation("provider_says_success")).toMatchObject(
-      {
-        heading: "FUNDING STATUS UNAVAILABLE",
-        poll: false,
-      },
+    expect(
+      getFundingIntentPresentation({ status: "provider_says_success" }),
+    ).toMatchObject({
+      outcome: "went-wrong",
+      poll: false,
+    });
+  });
+
+  it("surfaces the server's own reason detail on a stopped sponsorship", () => {
+    const presentation = getFundingIntentPresentation({
+      status: "HOLDING",
+      reasonDetail: "Your account setup lapsed. Nothing was taken.",
+    });
+    expect(presentation.detail).toBe(
+      "Your account setup lapsed. Nothing was taken.",
+    );
+  });
+
+  it("falls back to a safe detail when the server gives no reason", () => {
+    const presentation = getFundingIntentPresentation({ status: "FAILED" });
+    expect(presentation.detail).toContain("Nothing was taken");
+  });
+
+  it("counts down to a supplied release date instead of the fallback window", () => {
+    const soon = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString();
+    const presentation = getFundingIntentPresentation({
+      status: "SETTLED",
+      releaseNotBefore: soon,
+    });
+    expect(presentation.heading).toMatch(/yours in 2 days?/);
+  });
+
+  it("uses the documented fallback hold window when no release date is supplied", () => {
+    const presentation = getFundingIntentPresentation({ status: "SETTLED" });
+    expect(presentation.heading).toBe("Confirmed — yours in 30 days");
+  });
+});
+
+describe("server error codes mapped to human copy", () => {
+  it("prefers the server's own message when one is present", () => {
+    expect(
+      describeFundingError({
+        message: "This project has no price yet, so nothing was taken.",
+        data: { code: "BAD_REQUEST" },
+      }),
+    ).toBe("This project has no price yet, so nothing was taken.");
+  });
+
+  it("falls back to a code-keyed message when the server sent none", () => {
+    expect(
+      describeFundingError({ message: "", data: { code: "UNAUTHORIZED" } }),
+    ).toBe("Please sign in again, then try supporting this project.");
+  });
+
+  it("never blames the sponsor for an unrecognised or missing error", () => {
+    expect(describeFundingError(null)).toBe(
+      "Something went wrong, and nothing was taken. Try again in a moment.",
+    );
+    expect(describeFundingError({ data: { code: "IM_A_TEAPOT" } })).toBe(
+      "Something went wrong, and nothing was taken. Try again in a moment.",
     );
   });
 });

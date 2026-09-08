@@ -10,6 +10,7 @@ import {
   Loader2,
   RefreshCw,
   ShieldCheck,
+  ShieldOff,
   TriangleAlert,
 } from "lucide-react";
 
@@ -469,6 +470,76 @@ export default function VerificationPage() {
           </div>
         )}
       </section>
+
+      <PermissionPanel
+        accountExists={Boolean(custodyStatus.data?.identityReady)}
+      />
     </div>
+  );
+}
+
+/**
+ * What ArdaNova is allowed to do for this person, and their standing right to take it back
+ * (W3.6). It only appears once an account actually exists, so it never advertises a permission
+ * nobody has granted.
+ */
+function PermissionPanel({ accountExists }: { accountExists: boolean }) {
+  if (!accountExists) return null;
+
+  return (
+    <section
+      className="border-foreground bg-card border-2 p-5 sm:p-6"
+      aria-labelledby="permission-panel-title"
+    >
+      <div className="flex items-start gap-3">
+        <ShieldOff
+          className="text-primary mt-0.5 size-5 shrink-0"
+          aria-hidden="true"
+        />
+        <div className="space-y-3">
+          <div>
+            <p className="text-primary font-mono text-[10px] tracking-[0.2em] uppercase">
+              Your permission
+            </p>
+            <h2
+              id="permission-panel-title"
+              className="font-mono text-xl font-black uppercase"
+            >
+              ArdaNova acts on your behalf
+            </h2>
+          </div>
+          <p className="text-muted-foreground text-sm leading-relaxed">
+            Setting up your account gave ArdaNova permission to act for you when
+            you ask it to — to set your account up, to pass your identity check
+            to the operator who runs it, and to move your funds when you back a
+            project. It is your permission, and it is yours to take back.
+          </p>
+          <p className="text-muted-foreground text-sm leading-relaxed">
+            If you take it back, ArdaNova can no longer act for you: adding
+            funds and backing projects stop working, and anything you already
+            own stays yours. Nothing you have already done is undone.
+          </p>
+          <div className="border-border flex flex-col gap-3 border-t pt-3 sm:flex-row sm:items-center sm:justify-between">
+            <Button
+              type="button"
+              variant="outline"
+              className="min-h-11 w-full sm:w-auto"
+              disabled
+              aria-describedby="permission-panel-note"
+            >
+              Take back my permission
+            </Button>
+            <p
+              id="permission-panel-note"
+              className="text-muted-foreground max-w-md text-xs leading-relaxed"
+            >
+              Doing this from here isn&apos;t switched on yet. Ask us and
+              we&apos;ll hand your permission back — you do not need our
+              agreement to withdraw it.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
   );
 }

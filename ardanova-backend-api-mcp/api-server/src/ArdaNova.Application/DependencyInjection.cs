@@ -133,7 +133,11 @@ public static class DependencyInjection
         services.AddScoped<IPayoutService, PayoutService>();
         services.AddScoped<ITreasuryService, TreasuryService>();
         services.AddScoped<IProjectGateService, ProjectGateService>();
-        services.AddScoped<IStripeCheckoutGateway, StripeCheckoutGateway>();
+        // The add-funds seam is ALWAYS bound, and its default refuses. Infrastructure's
+        // AddAzoaFiatRail replaces this with the node-backed gateway when the operator has
+        // opted in and the transport is configured, so an unconfigured deployment cannot
+        // send anybody to a payment page.
+        services.AddScoped<IFiatRailGateway, DisabledFiatRailGateway>();
         services.AddScoped<IFundingIntentService, FundingIntentService>();
         services.AddScoped<IStripePaymentIntentGateway, StripePaymentIntentGateway>();
         services.AddScoped<IStripeService, StripeService>();

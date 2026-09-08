@@ -7,6 +7,7 @@ import type {
   GateTransitionResultDto,
   ProjectGateStatusDto,
   ProjectInvestmentDto,
+  ProjectInvestorsResponseDto,
   ProjectTokenMetadataBatchDto,
   ProjectTokenConfigDto,
   TokenAllocationDto,
@@ -24,6 +25,9 @@ export type {
   ProjectGateStatus,
   ProjectGateStatusDto,
   ProjectInvestmentDto,
+  ProjectInvestorLineDto,
+  ProjectInvestorSummaryDto,
+  ProjectInvestorsResponseDto,
   ProjectTokenMetadataBatchDto,
   ProjectTokenConfigDto,
   ProjectTokenStatus,
@@ -133,8 +137,15 @@ export class ProjectTokensEndpoint {
     );
   }
 
-  getInvestors(configId: string): Promise<ApiResponse<ProjectInvestmentDto[]>> {
-    return this.client.get<ProjectInvestmentDto[]>(
+  /**
+   * Itemised pledges for a project member, or an aggregate-only summary for everyone else. The
+   * route decides which by membership, so the caller MUST discriminate (`Array.isArray`) rather
+   * than assume a list.
+   */
+  getInvestors(
+    configId: string,
+  ): Promise<ApiResponse<ProjectInvestorsResponseDto>> {
+    return this.client.get<ProjectInvestorsResponseDto>(
       `/api/ProjectTokens/${encodeURIComponent(configId)}/investors`,
     );
   }

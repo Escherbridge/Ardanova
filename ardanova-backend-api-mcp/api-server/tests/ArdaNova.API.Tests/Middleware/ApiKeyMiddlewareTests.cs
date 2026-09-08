@@ -220,10 +220,13 @@ public class ApiKeyMiddlewareTests
     [Fact]
     public void CustomAuthenticatedIngresses_AreExplicitFallbackExceptions()
     {
-        typeof(StripeWebhookController)
-            .GetMethod(nameof(StripeWebhookController.Webhook), BindingFlags.Instance | BindingFlags.Public)!
-            .GetCustomAttribute<AllowAnonymousAttribute>()
-            .Should().NotBeNull();
+        // The payment-provider webhook was the only OTHER anonymous ingress. It is gone: AZOA
+        // terminates the fiat rail, so no third party posts to ArdaNova unauthenticated any more.
+        // Asserted as an absence so re-adding one has to come back through this test.
+        typeof(ApiKeyMiddleware).Assembly
+            .GetTypes()
+            .Where(type => type.Name.EndsWith("WebhookController", StringComparison.Ordinal))
+            .Should().BeEmpty("no unauthenticated provider callback may re-enter the API surface");
         typeof(ArdaNovaHub)
             .GetCustomAttribute<AllowAnonymousAttribute>()
             .Should().NotBeNull();
