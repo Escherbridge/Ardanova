@@ -16,11 +16,15 @@ public record ProjectDto
     public string Title { get; init; } = null!;
     public string Slug { get; init; } = null!;
     public string Description { get; init; } = null!;
+    /// <summary>The one-line public ask; null on projects created before the field existed.</summary>
+    public string? Summary { get; init; }
     public string ProblemStatement { get; init; } = null!;
     public string Solution { get; init; } = null!;
     public List<string> Categories { get; init; } = new();
     public ProjectStatus Status { get; init; }
     public decimal? FundingGoal { get; init; }
+    /// <summary>Unit <see cref="FundingGoal"/> is denominated in; "ARDA" for every project on this node.</summary>
+    public string FundingGoalUnit { get; init; } = "ARDA";
     public decimal CurrentFunding { get; init; }
     public int SupportersCount { get; init; }
     public int VotesCount { get; init; }
@@ -30,6 +34,8 @@ public record ProjectDto
     public string? Images { get; init; }
     public string? Videos { get; init; }
     public string? Documents { get; init; }
+    /// <summary>Uploaded media as a JSON array of bucket paths with display metadata; "[]" when empty.</summary>
+    public string MediaPaths { get; init; } = "[]";
     public string? TargetAudience { get; init; }
     public string? ExpectedImpact { get; init; }
     public string? Timeline { get; init; }
@@ -53,14 +59,20 @@ public record CreateProjectDto
     public string CreatedById { get; init; } = string.Empty;
     public required string Title { get; init; }
     public required string Description { get; init; }
+    /// <summary>The one-line public ask.</summary>
+    public string? Summary { get; init; }
     public required string ProblemStatement { get; init; }
     public required string Solution { get; init; }
     public required List<string> Categories { get; init; }
     public decimal? FundingGoal { get; init; }
+    /// <summary>Unit the goal is denominated in; omitted means the platform unit.</summary>
+    public string? FundingGoalUnit { get; init; }
     public string? Tags { get; init; }
     public string? Images { get; init; }
     public string? Videos { get; init; }
     public string? Documents { get; init; }
+    /// <summary>Uploaded media as a JSON array of bucket paths with display metadata.</summary>
+    public string? MediaPaths { get; init; }
     public string? TargetAudience { get; init; }
     public string? ExpectedImpact { get; init; }
     public string? Timeline { get; init; }
@@ -74,15 +86,21 @@ public record UpdateProjectDto
 {
     public string? Title { get; init; }
     public string? Description { get; init; }
+    /// <summary>The one-line public ask.</summary>
+    public string? Summary { get; init; }
     public string? ProblemStatement { get; init; }
     public string? Solution { get; init; }
     public List<string>? Categories { get; init; }
     public ProjectStatus? Status { get; init; }
     public decimal? FundingGoal { get; init; }
+    /// <summary>Unit the goal is denominated in; omitted leaves the stored unit unchanged.</summary>
+    public string? FundingGoalUnit { get; init; }
     public string? Tags { get; init; }
     public string? Images { get; init; }
     public string? Videos { get; init; }
     public string? Documents { get; init; }
+    /// <summary>Uploaded media as a JSON array of bucket paths with display metadata.</summary>
+    public string? MediaPaths { get; init; }
     public string? TargetAudience { get; init; }
     public string? ExpectedImpact { get; init; }
     public string? Timeline { get; init; }

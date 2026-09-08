@@ -1,10 +1,11 @@
-namespace ArdaNova.API.Tests.Controllers;
+﻿namespace ArdaNova.API.Tests.Controllers;
 
 using System.Security.Claims;
 using ArdaNova.API.Controllers;
 using ArdaNova.API.Middleware;
 using ArdaNova.Application.Common.Results;
 using ArdaNova.Application.DTOs;
+using ArdaNova.Application.Services.Implementations;
 using ArdaNova.Application.Services.Interfaces;
 using ArdaNova.Domain.Models.Enums;
 using Microsoft.AspNetCore.Http;
@@ -86,6 +87,7 @@ public sealed class ProjectMemberValueBoundaryTests
         IHierarchyAuthorizationService? hierarchy = null)
         => new(
             new Mock<IProjectService>(MockBehavior.Strict).Object,
+            new Mock<IProjectVisibility>(MockBehavior.Strict).Object,
             new Mock<IProjectResourceService>(MockBehavior.Strict).Object,
             new Mock<IProjectMilestoneService>(MockBehavior.Strict).Object,
             members,

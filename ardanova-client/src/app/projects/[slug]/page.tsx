@@ -4,6 +4,7 @@ import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
+import { toast } from "sonner";
 import {
   ArrowLeft,
   Bell,
@@ -15,6 +16,8 @@ import {
   Loader2,
   Map,
   MessageCircle,
+  Pencil,
+  Rocket,
   ShieldCheck,
   Target,
   Users,
@@ -40,6 +43,7 @@ import {
   TeamTab,
   UpdatesTab,
 } from "~/components/projects";
+import { ProjectFieldNotes } from "~/components/feed";
 import type {
   ProjectDuration,
   ProjectStatus,
@@ -126,9 +130,19 @@ export default function ProjectDetailPage() {
     proposalId ? "proposals" : "overview",
   );
   const { data: session } = useSession();
+  const utils = api.useUtils();
 
   const projectQuery = api.project.getById.useQuery({ id: routeId });
   const project = projectQuery.data;
+  const publishMutation = api.project.publish.useMutation({
+    onSuccess: () => {
+      toast.success("Project published — it's now visible to the community");
+      void utils.project.getById.invalidate({ id: routeId });
+    },
+    onError: (error) => {
+      toast.error(error.message || "Failed to publish project");
+    },
+  });
   const membersQuery = api.project.getMembers.useQuery(
     { projectId: project?.id ?? "" },
     { enabled: Boolean(project?.id) },
@@ -234,27 +248,52 @@ export default function ProjectDetailPage() {
               <h1 className="mt-5 max-w-4xl text-4xl font-black tracking-tight sm:text-6xl">
                 {project.title}
               </h1>
-              <p className="text-muted-foreground mt-4 max-w-3xl text-base leading-relaxed sm:text-lg">
-                {project.description}
-              </p>
 
-              <Link
-                href={`/dashboard/profile/${project.createdById}`}
-                className="border-border hover:border-foreground mt-6 inline-flex min-h-11 items-center gap-3 border px-3 py-2"
-              >
-                <Avatar className="border-border size-8 border">
-                  <AvatarImage src={project.createdBy?.image ?? undefined} />
-                  <AvatarFallback>{creatorInitial}</AvatarFallback>
-                </Avatar>
-                <span>
-                  <span className="block text-sm font-semibold">
-                    {creatorName}
+              <div className="mt-6 flex flex-wrap items-center gap-3">
+                <Link
+                  href={`/dashboard/profile/${project.createdById}`}
+                  className="border-border hover:border-foreground inline-flex min-h-11 items-center gap-3 border px-3 py-2"
+                >
+                  <Avatar className="border-border size-8 border">
+                    <AvatarImage src={project.createdBy?.image ?? undefined} />
+                    <AvatarFallback>{creatorInitial}</AvatarFallback>
+                  </Avatar>
+                  <span>
+                    <span className="block text-sm font-semibold">
+                      {creatorName}
+                    </span>
+                    <span className="text-muted-foreground block text-xs">
+                      Project creator
+                    </span>
                   </span>
-                  <span className="text-muted-foreground block text-xs">
-                    Project creator
-                  </span>
-                </span>
-              </Link>
+                </Link>
+
+                {canManageProject && (
+                  <div className="flex items-center gap-2">
+                    <Button asChild variant="outline" size="sm">
+                      <Link href={`/projects/${canonicalRouteId}/edit`}>
+                        <Pencil className="size-4" />
+                        Edit
+                      </Link>
+                    </Button>
+                    {project.status === "DRAFT" && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={() => publishMutation.mutate({ id: project.id })}
+                        disabled={publishMutation.isPending}
+                      >
+                        {publishMutation.isPending ? (
+                          <Loader2 className="size-4 animate-spin" />
+                        ) : (
+                          <Rocket className="size-4" />
+                        )}
+                        Publish
+                      </Button>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
 
             <dl className="border-border grid grid-cols-2 border lg:grid-cols-1">
@@ -364,7 +403,19 @@ export default function ProjectDetailPage() {
         id={`project-workspace-panel-${activeTab}`}
         aria-labelledby={`project-workspace-tab-${activeTab}`}
       >
-        {activeTab === "overview" && <OverviewTab project={project} />}
+        {activeTab === "overview" && (
+          <div className="space-y-8">
+            <OverviewTab project={project} />
+            {/* Notes from the people doing the work. The server decides what this
+                reader may see; canPost only decides whether the composer is offered,
+                and the API still refuses a write from a non-member. */}
+            <ProjectFieldNotes
+              projectId={project.id}
+              canPost={isMember}
+              viewerId={currentUserId}
+            />
+          </div>
+        )}
         {activeTab === "updates" && (
           <UpdatesTab projectId={project.id} isOwner={isOwner} />
         )}

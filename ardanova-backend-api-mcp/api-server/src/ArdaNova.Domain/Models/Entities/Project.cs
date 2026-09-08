@@ -7,6 +7,20 @@ using ArdaNova.Domain.Models.Enums;
 
 namespace ArdaNova.Domain.Models.Entities;
 
+/// <summary>Units a <see cref="Project.fundingGoal"/> may be denominated in.</summary>
+public static class ProjectFundingUnits
+{
+    /// <summary>The platform unit every funding goal is expressed in; a sponsor sees currency, never a unit code.</summary>
+    public const string Arda = "ARDA";
+}
+
+/// <summary>Canonical values for <see cref="Project.mediaPaths"/>.</summary>
+public static class ProjectMediaPaths
+{
+    /// <summary>A project with no uploaded media; the column is never null so readers never branch on it.</summary>
+    public const string Empty = "[]";
+}
+
 [Index(nameof(slug), IsUnique = true)]
 [Table("Project")]
 public class Project
@@ -25,6 +39,10 @@ public class Project
     [Required]
     [Column(TypeName = "text")]
     public string description { get; set; } = string.Empty;
+
+    /// <summary>The one-line public ask, shown on cards and searched alongside the problem statement.</summary>
+    [Column(TypeName = "text")]
+    public string? summary { get; set; }
 
     [Required]
     [Column(TypeName = "text")]
@@ -48,6 +66,11 @@ public class Project
 
     [Precision(18, 8)]
     public decimal? fundingGoal { get; set; }
+
+    /// <summary>Unit <see cref="fundingGoal"/> is denominated in; every goal raised on this node is in ARDA.</summary>
+    [Required]
+    [MaxLength(16)]
+    public string fundingGoalUnit { get; set; } = ProjectFundingUnits.Arda;
 
     [Required]
     [Precision(18, 8)]
@@ -87,6 +110,11 @@ public class Project
 
     [Column(TypeName = "text")]
     public string? documents { get; set; }
+
+    /// <summary>Uploaded media as a JSON array of storage bucket paths with display metadata; never null, "[]" when empty.</summary>
+    [Required]
+    [Column(TypeName = "text")]
+    public string mediaPaths { get; set; } = ProjectMediaPaths.Empty;
 
     [Column(TypeName = "text")]
     public string? targetAudience { get; set; }

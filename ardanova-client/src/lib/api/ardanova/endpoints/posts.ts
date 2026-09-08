@@ -5,13 +5,20 @@ import {
 } from "../../base-client";
 
 /** Mirrors `ArdaNova.Domain.Models.Enums.PostType` JSON values. */
-export type PostType = "POST" | "ANNOUNCEMENT" | "MILESTONE" | "UPDATE";
+export type PostType =
+  | "POST"
+  | "PROJECT_UPDATE"
+  | "GUILD_ACTIVITY"
+  | "TASK_COMPLETED"
+  | "MILESTONE"
+  | "PROPOSAL"
+  | "SHOP_ITEM";
 
 /** Mirrors `ArdaNova.Domain.Models.Enums.PostVisibility` JSON values. */
 export type PostVisibility =
   | "PUBLIC"
-  | "FOLLOWERS"
   | "PROJECT_MEMBERS"
+  | "GUILD_MEMBERS"
   | "PRIVATE";
 
 export interface Post {
@@ -34,8 +41,11 @@ export interface Post {
   [key: string]: unknown;
 }
 
+/**
+ * Create payload. There is no `authorId`: the API takes the author from the
+ * signed actor assertion the BFF attaches, so a caller cannot post as anyone else.
+ */
 export interface CreatePostDto {
-  authorId: string;
   projectId?: string;
   guildId?: string;
   type?: PostType;
@@ -67,8 +77,8 @@ export interface PostComment {
   [key: string]: unknown;
 }
 
+/** Reply payload; the author is the signed actor, never a request value. */
 export interface CreatePostCommentDto {
-  authorId: string;
   parentId?: string;
   content: string;
   [key: string]: unknown;
@@ -81,15 +91,26 @@ export interface CreatePostShareDto {
   [key: string]: unknown;
 }
 
+/**
+ * Posts are project-scoped field notes. There is no global feed endpoint: every read
+ * is filtered server-side to what the signed actor may see, and every write is bound
+ * to that same actor.
+ */
 export class PostsEndpoint {
   constructor(private client: BaseApiClient) {}
 
-  getFeed(page = 1, pageSize = 20): Promise<ApiResponse<PagedResult<Post>>> {
+  getProjectFieldNotes(
+    projectId: string,
+    page = 1,
+    pageSize = 20,
+  ): Promise<ApiResponse<PagedResult<Post>>> {
     const q = new URLSearchParams({
       page: String(page),
       pageSize: String(pageSize),
     });
-    return this.client.get<PagedResult<Post>>(`/api/posts?${q.toString()}`);
+    return this.client.get<PagedResult<Post>>(
+      `/api/projects/${encodeURIComponent(projectId)}/field-notes?${q.toString()}`,
+    );
   }
 
   getById(id: string): Promise<ApiResponse<Post>> {
@@ -106,65 +127,41 @@ export class PostsEndpoint {
     return this.client.post<Post>("/api/posts", data);
   }
 
-  update(
-    id: string,
-    authorId: string,
-    data: UpdatePostDto,
-  ): Promise<ApiResponse<Post>> {
-    const q = new URLSearchParams({ authorId });
-    return this.client.put<Post>(
-      `/api/posts/${encodeURIComponent(id)}?${q.toString()}`,
-      data,
-    );
+  update(id: string, data: UpdatePostDto): Promise<ApiResponse<Post>> {
+    return this.client.put<Post>(`/api/posts/${encodeURIComponent(id)}`, data);
   }
 
-  delete(id: string, authorId: string): Promise<ApiResponse<void>> {
-    const q = new URLSearchParams({ authorId });
-    return this.client.delete(
-      `/api/posts/${encodeURIComponent(id)}?${q.toString()}`,
-    );
+  delete(id: string): Promise<ApiResponse<void>> {
+    return this.client.delete(`/api/posts/${encodeURIComponent(id)}`);
   }
 
-  like(id: string, userId: string): Promise<ApiResponse<Post>> {
-    const q = new URLSearchParams({ userId });
+  like(id: string): Promise<ApiResponse<Post>> {
     return this.client.post<Post>(
-      `/api/posts/${encodeURIComponent(id)}/like?${q.toString()}`,
+      `/api/posts/${encodeURIComponent(id)}/like`,
       {},
     );
   }
 
-  unlike(id: string, userId: string): Promise<ApiResponse<Post>> {
-    const q = new URLSearchParams({ userId });
-    return this.client.delete(
-      `/api/posts/${encodeURIComponent(id)}/like?${q.toString()}`,
-    );
+  unlike(id: string): Promise<ApiResponse<Post>> {
+    return this.client.delete(`/api/posts/${encodeURIComponent(id)}/like`);
   }
 
-  share(
-    id: string,
-    userId: string,
-    data?: CreatePostShareDto,
-  ): Promise<ApiResponse<Post>> {
-    const q = new URLSearchParams({ userId });
+  share(id: string, data?: CreatePostShareDto): Promise<ApiResponse<Post>> {
     return this.client.post<Post>(
-      `/api/posts/${encodeURIComponent(id)}/share?${q.toString()}`,
+      `/api/posts/${encodeURIComponent(id)}/share`,
       data ?? {},
     );
   }
 
-  bookmark(id: string, userId: string): Promise<ApiResponse<boolean>> {
-    const q = new URLSearchParams({ userId });
+  bookmark(id: string): Promise<ApiResponse<boolean>> {
     return this.client.post<boolean>(
-      `/api/posts/${encodeURIComponent(id)}/bookmark?${q.toString()}`,
+      `/api/posts/${encodeURIComponent(id)}/bookmark`,
       {},
     );
   }
 
-  unbookmark(id: string, userId: string): Promise<ApiResponse<boolean>> {
-    const q = new URLSearchParams({ userId });
-    return this.client.delete(
-      `/api/posts/${encodeURIComponent(id)}/bookmark?${q.toString()}`,
-    );
+  unbookmark(id: string): Promise<ApiResponse<boolean>> {
+    return this.client.delete(`/api/posts/${encodeURIComponent(id)}/bookmark`);
   }
 
   getComments(id: string): Promise<ApiResponse<PostComment[]>> {
@@ -186,11 +183,9 @@ export class PostsEndpoint {
   deleteComment(
     id: string,
     commentId: string,
-    authorId: string,
   ): Promise<ApiResponse<void>> {
-    const q = new URLSearchParams({ authorId });
     return this.client.delete(
-      `/api/posts/${encodeURIComponent(id)}/comments/${encodeURIComponent(commentId)}?${q.toString()}`,
+      `/api/posts/${encodeURIComponent(id)}/comments/${encodeURIComponent(commentId)}`,
     );
   }
 }

@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
 import { Loader2, Bell, Plus, Trash2, Send } from "lucide-react";
+import { UpdateMediaStrip } from "~/components/media/update-media-strip";
 
 interface UpdatesTabProps {
   projectId: string;
@@ -330,13 +331,7 @@ export default function UpdatesTab({ projectId, isOwner }: UpdatesTabProps) {
                     <p className="text-foreground text-sm whitespace-pre-wrap">
                       {update.content}
                     </p>
-                    {update.images && (
-                      <div className="pt-2">
-                        <p className="text-muted-foreground text-xs">
-                          Images: {update.images}
-                        </p>
-                      </div>
-                    )}
+                    <UpdateMediaStrip stored={update.images} />
                   </div>
                 </div>
               </CardContent>

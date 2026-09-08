@@ -1,9 +1,11 @@
 "use client";
 
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import {
   ArrowRight,
+  ChevronLeft,
+  ChevronRight,
   Clock,
   FolderKanban,
   Plus,
@@ -97,70 +99,39 @@ function formatRelativeTime(value: string) {
   return date.toLocaleDateString();
 }
 
-function filterAndSortProjects(
-  projects: Project[],
-  options: {
-    tab: ProjectTab;
-    search: string;
-    category: string;
-    projectType: ProjectType | "all";
-    status: ProjectStatus | "all";
-  },
-) {
-  const query = options.search.trim().toLowerCase();
-  const filtered = projects.filter((project) => {
-    if (
-      options.tab === "funded" &&
-      project.status !== "FUNDED" &&
-      project.status !== "COMPLETED"
-    ) {
-      return false;
-    }
-    if (
-      query &&
-      !project.title.toLowerCase().includes(query) &&
-      !project.description.toLowerCase().includes(query) &&
-      !project.problemStatement.toLowerCase().includes(query) &&
-      !project.tags?.toLowerCase().includes(query)
-    ) {
-      return false;
-    }
-    if (
-      options.category !== "all" &&
-      !project.categories.includes(options.category)
-    ) {
-      return false;
-    }
-    if (
-      options.projectType !== "all" &&
-      project.projectType !== options.projectType
-    ) {
-      return false;
-    }
-    if (options.status !== "all" && project.status !== options.status) {
-      return false;
-    }
-    return true;
-  });
+const PROJECTS_PAGE_SIZE = 20;
 
-  if (options.tab === "active") {
-    return filtered.sort(
+/**
+ * search/category/type/status/page are now sent straight to the API (see
+ * projectRouter.getAll), so this only adjusts the ordering/visibility of the
+ * page that already came back — it never hides a match the server reported.
+ */
+function applyTabView(projects: Project[], tab: ProjectTab) {
+  if (tab === "funded") {
+    return projects.filter(
+      (project) =>
+        project.status === "FUNDED" || project.status === "COMPLETED",
+    );
+  }
+  if (tab === "active") {
+    return [...projects].sort(
       (a, b) =>
         new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
     );
   }
-  if (options.tab === "newest") {
-    return filtered.sort(
+  if (tab === "newest") {
+    return [...projects].sort(
       (a, b) =>
         new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
     );
   }
-  return filtered;
+  return projects;
 }
 
 export default function ProjectsPage() {
   const [activeTab, setActiveTab] = useState<ProjectTab>("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [selectedProjectType, setSelectedProjectType] = useState<
     ProjectType | "all"
@@ -168,13 +139,43 @@ export default function ProjectsPage() {
   const [selectedStatus, setSelectedStatus] = useState<ProjectStatus | "all">(
     "all",
   );
+  const [page, setPage] = useState(1);
+
+  // Debounce free-text search so every keystroke doesn't fire a request.
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(searchQuery), 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // A filter change invalidates whatever page we were on.
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch, selectedCategory, selectedProjectType, selectedStatus]);
 
   const categoryQuery = useEnumOptions("ProjectCategory");
-  const projectsQuery = api.project.getAll.useQuery({ limit: 50, page: 1 });
+  const projectsQuery = api.project.getAll.useQuery({
+    limit: PROJECTS_PAGE_SIZE,
+    page,
+    search: debouncedSearch.trim() || undefined,
+    category: selectedCategory !== "all" ? selectedCategory : undefined,
+    projectType:
+      selectedProjectType !== "all" ? selectedProjectType : undefined,
+    status: selectedStatus !== "all" ? selectedStatus : undefined,
+  });
   const projects = useMemo(
     () => projectsQuery.data?.items ?? [],
     [projectsQuery.data?.items],
   );
+  const totalCount = projectsQuery.data?.totalCount ?? 0;
+  const totalPages = projectsQuery.data?.totalPages ?? 0;
+
+  // If a filter change (or a project disappearing) leaves `page` past the
+  // end, clamp it back rather than stranding the view on an empty page.
+  useEffect(() => {
+    if (totalPages > 0 && page > totalPages) {
+      setPage(totalPages);
+    }
+  }, [totalPages, page]);
 
   const categories = useMemo(
     () =>
@@ -187,13 +188,10 @@ export default function ProjectsPage() {
     [categoryQuery.options, projects],
   );
 
-  const filteredProjects = filterAndSortProjects(projects, {
-    tab: activeTab,
-    search: searchQuery,
-    category: selectedCategory,
-    projectType: selectedProjectType,
-    status: selectedStatus,
-  });
+  const viewProjects = useMemo(
+    () => applyTabView(projects, activeTab),
+    [projects, activeTab],
+  );
   const hasFilters =
     searchQuery.trim().length > 0 ||
     selectedCategory !== "all" ||
@@ -205,6 +203,8 @@ export default function ProjectsPage() {
     setSelectedProjectType("all");
     setSelectedStatus("all");
   };
+  const canGoPrevious = page > 1;
+  const canGoNext = totalPages > 0 && page < totalPages;
 
   const currentViewStats = {
     loaded: projects.length,
@@ -233,11 +233,11 @@ export default function ProjectsPage() {
         <div className="space-y-4">
           <Card className="border-foreground">
             <CardHeader className="border-border border-b pb-4">
-              <CardTitle className="text-base">Current API page</CardTitle>
+              <CardTitle className="text-base">Current page</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3 p-4">
               <Stat
-                label="Projects loaded"
+                label="Projects on this page"
                 value={String(currentViewStats.loaded)}
               />
               <Stat
@@ -253,8 +253,9 @@ export default function ProjectsPage() {
                 value={String(currentViewStats.supporters)}
               />
               <p className="border-border text-muted-foreground border-t pt-3 text-xs">
-                These totals summarize the loaded first page, not the entire
-                platform.
+                {totalCount > 0
+                  ? `These totals summarize page ${page} of ${totalPages} — ${totalCount} projects match the current filters.`
+                  : "These totals summarize this page only."}
               </p>
             </CardContent>
           </Card>
@@ -316,7 +317,7 @@ export default function ProjectsPage() {
 
         <div className="mt-6 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto_auto_auto]">
           <label className="relative block">
-            <span className="sr-only">Search loaded projects</span>
+            <span className="sr-only">Search all projects</span>
             <Search
               className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2"
               aria-hidden="true"
@@ -380,7 +381,7 @@ export default function ProjectsPage() {
         {hasFilters && (
           <div className="border-border mt-3 flex items-center justify-between border-t pt-3">
             <p className="text-muted-foreground text-xs">
-              Filters apply to the currently loaded API page.
+              Filters run against the full project catalog, not just this page.
             </p>
             <Button
               type="button"
@@ -466,7 +467,7 @@ export default function ProjectsPage() {
               Try again
             </Button>
           </div>
-        ) : filteredProjects.length === 0 ? (
+        ) : projects.length === 0 ? (
           <div className="flex min-h-64 flex-col items-start justify-center gap-4 p-6">
             <FolderKanban
               className="text-muted-foreground size-10"
@@ -474,37 +475,73 @@ export default function ProjectsPage() {
             />
             <div>
               <h2 className="text-2xl font-bold">
-                {projects.length === 0
-                  ? "No projects returned"
-                  : "No current-view matches"}
+                {hasFilters ? "No matches for these filters" : "No projects returned"}
               </h2>
               <p className="text-muted-foreground mt-2 text-sm">
-                {projects.length === 0
-                  ? "The first API page is empty. Define a project to start a problem-solving loop."
-                  : "Change or clear the local filters to inspect the loaded records."}
+                {hasFilters
+                  ? "Change or clear the filters to search a wider set of projects."
+                  : "The platform has no projects yet. Define one to start a problem-solving loop."}
               </p>
             </div>
-            {projects.length === 0 ? (
-              <Button asChild>
-                <Link href="/projects/create">Define a project</Link>
-              </Button>
-            ) : (
+            {hasFilters ? (
               <Button type="button" variant="outline" onClick={clearFilters}>
                 Clear filters
+              </Button>
+            ) : (
+              <Button asChild>
+                <Link href="/projects/create">Define a project</Link>
               </Button>
             )}
           </div>
         ) : (
-          <div className="divide-border divide-y">
-            {filteredProjects.map((project) => (
-              <ProjectRecord key={project.id} project={project} />
-            ))}
-            <div className="text-muted-foreground p-5 text-center text-xs">
-              End of current results: showing {filteredProjects.length} from the
-              loaded first page
-              {projectsQuery.data?.totalCount !== undefined
-                ? ` (${projectsQuery.data.totalCount} total reported by the API).`
-                : "."}
+          <div>
+            {viewProjects.length === 0 ? (
+              <div className="text-muted-foreground p-6 text-sm">
+                None of the {projects.length} project
+                {projects.length === 1 ? "" : "s"} on this page are{" "}
+                {activeTab === "funded" ? "funded or complete" : "in this view"}
+                . Try another tab or page.
+              </div>
+            ) : (
+              <div className="divide-border divide-y">
+                {viewProjects.map((project) => (
+                  <ProjectRecord key={project.id} project={project} />
+                ))}
+              </div>
+            )}
+            <div className="border-border flex flex-wrap items-center justify-between gap-3 border-t p-4 text-xs">
+              <span className="text-muted-foreground">
+                {viewProjects.length === projects.length
+                  ? `Showing ${projects.length} on this page`
+                  : `Showing ${viewProjects.length} of ${projects.length} on this page`}
+                {totalCount > 0 ? ` · ${totalCount} total match these filters` : ""}
+              </span>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage((current) => Math.max(1, current - 1))}
+                  disabled={!canGoPrevious}
+                >
+                  <ChevronLeft className="size-4" />
+                  Prev
+                </Button>
+                <span className="font-mono">
+                  Page {page}
+                  {totalPages > 0 ? ` of ${totalPages}` : ""}
+                </span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage((current) => current + 1)}
+                  disabled={!canGoNext}
+                >
+                  Next
+                  <ChevronRight className="size-4" />
+                </Button>
+              </div>
             </div>
           </div>
         )}

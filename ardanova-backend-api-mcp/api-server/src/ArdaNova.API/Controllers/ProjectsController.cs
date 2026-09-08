@@ -1,9 +1,10 @@
-namespace ArdaNova.API.Controllers;
+﻿namespace ArdaNova.API.Controllers;
 
 using System.Security.Claims;
 using ArdaNova.API.Middleware;
 using ArdaNova.Application.Common.Results;
 using ArdaNova.Application.DTOs;
+using ArdaNova.Application.Services.Implementations;
 using ArdaNova.Application.Services.Interfaces;
 using ArdaNova.Domain.Models.Enums;
 using Microsoft.AspNetCore.Authorization;
@@ -13,7 +14,11 @@ using Microsoft.AspNetCore.Mvc;
 [Route("api/[controller]")]
 public class ProjectsController : ControllerBase
 {
+    private const int DefaultPageSize = 10;
+    private const int MaximumPageSize = 100;
+
     private readonly IProjectService _projectService;
+    private readonly IProjectVisibility _projectVisibility;
     private readonly IProjectResourceService _resourceService;
     private readonly IProjectMilestoneService _milestoneService;
     private readonly IProjectMemberService _memberService;
@@ -28,6 +33,7 @@ public class ProjectsController : ControllerBase
 
     public ProjectsController(
         IProjectService projectService,
+        IProjectVisibility projectVisibility,
         IProjectResourceService resourceService,
         IProjectMilestoneService milestoneService,
         IProjectMemberService memberService,
@@ -41,6 +47,7 @@ public class ProjectsController : ControllerBase
         IMembershipCredentialService membershipCredentialService)
     {
         _projectService = projectService;
+        _projectVisibility = projectVisibility;
         _resourceService = resourceService;
         _milestoneService = milestoneService;
         _memberService = memberService;
@@ -57,14 +64,18 @@ public class ProjectsController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> GetAll(CancellationToken ct)
     {
-        var result = await _projectService.GetAllAsync(ct);
+        var result = await _projectVisibility.GetAllVisibleAsync(Viewer, ct);
         return ToActionResult(result);
     }
 
     [HttpGet("paged")]
     public async Task<IActionResult> GetPaged([FromQuery] int page = 1, [FromQuery] int pageSize = 10, CancellationToken ct = default)
     {
-        var result = await _projectService.GetPagedAsync(page, pageSize, ct);
+        var result = await _projectVisibility.GetPagedVisibleAsync(
+            Viewer,
+            NormalizePage(page),
+            NormalizePageSize(pageSize),
+            ct);
         return ToActionResult(result);
     }
 
@@ -78,56 +89,64 @@ public class ProjectsController : ControllerBase
         [FromQuery] int pageSize = 10,
         CancellationToken ct = default)
     {
-        var result = await _projectService.SearchAsync(searchTerm, status, category, projectType, page, pageSize, ct);
+        var result = await _projectVisibility.SearchVisibleAsync(
+            Viewer,
+            searchTerm,
+            status,
+            category,
+            projectType,
+            NormalizePage(page),
+            NormalizePageSize(pageSize),
+            ct);
         return ToActionResult(result);
     }
 
     [HttpGet("{id}")]
     public async Task<IActionResult> GetById(string id, CancellationToken ct)
     {
-        var result = await _projectService.GetByIdAsync(id, ct);
+        var result = await _projectVisibility.GetVisibleByIdAsync(Viewer, id, ct);
         return ToActionResult(result);
     }
 
     [HttpGet("slug/{slug}")]
     public async Task<IActionResult> GetBySlug(string slug, CancellationToken ct)
     {
-        var result = await _projectService.GetBySlugAsync(slug, ct);
+        var result = await _projectVisibility.GetVisibleBySlugAsync(Viewer, slug, ct);
         return ToActionResult(result);
     }
 
     [HttpGet("user/{userId}")]
     public async Task<IActionResult> GetByUserId(string userId, CancellationToken ct)
     {
-        var result = await _projectService.GetByUserIdAsync(userId, ct);
+        var result = await _projectVisibility.GetVisibleByUserIdAsync(Viewer, userId, ct);
         return ToActionResult(result);
     }
 
     [HttpGet("status/{status}")]
     public async Task<IActionResult> GetByStatus(ProjectStatus status, CancellationToken ct)
     {
-        var result = await _projectService.GetByStatusAsync(status, ct);
+        var result = await _projectVisibility.GetVisibleByStatusAsync(Viewer, status, ct);
         return ToActionResult(result);
     }
 
     [HttpGet("category/{category}")]
     public async Task<IActionResult> GetByCategory(string category, CancellationToken ct)
     {
-        var result = await _projectService.GetByCategory(category, ct);
+        var result = await _projectVisibility.GetVisibleByCategoryAsync(Viewer, category, ct);
         return ToActionResult(result);
     }
 
     [HttpGet("type/{projectType}")]
     public async Task<IActionResult> GetByProjectType(ProjectType projectType, CancellationToken ct)
     {
-        var result = await _projectService.GetByProjectTypeAsync(projectType, ct);
+        var result = await _projectVisibility.GetVisibleByProjectTypeAsync(Viewer, projectType, ct);
         return ToActionResult(result);
     }
 
     [HttpGet("featured")]
     public async Task<IActionResult> GetFeatured(CancellationToken ct)
     {
-        var result = await _projectService.GetFeaturedAsync(ct);
+        var result = await _projectVisibility.GetFeaturedVisibleAsync(Viewer, ct);
         return ToActionResult(result);
     }
 
@@ -169,10 +188,12 @@ public class ProjectsController : ControllerBase
         return result.IsSuccess ? NoContent() : ToActionResult(result);
     }
 
+    /// <summary>Publishing is idempotent: a second call returns the project without moving its publish date.</summary>
     [HttpPost("{id}/publish")]
     [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
     public async Task<IActionResult> Publish(string id, CancellationToken ct)
     {
+        // Deliberately the unscoped lookup: a manager must be able to reach their own unpublished draft.
         var project = await _projectService.GetByIdAsync(id, ct);
         if (!project.IsSuccess)
             return ToActionResult(project);
@@ -612,6 +633,20 @@ public class ProjectsController : ControllerBase
     private string ActorId => User.FindFirstValue(ClaimTypes.NameIdentifier)!;
 
     private bool IsAdmin => User.IsInRole(UserRole.ADMIN.ToString());
+
+    /// <summary>Only a verified single-use actor assertion names a viewer; every other request reads as the public.</summary>
+    private ProjectViewer Viewer => ActorAssertionMiddleware.TryGetActorId(User, out var actorId)
+        ? new ProjectViewer(actorId, IsAdmin)
+        : ProjectViewer.Anonymous;
+
+    private static int NormalizePage(int page) => page < 1 ? 1 : page;
+
+    private static int NormalizePageSize(int pageSize) => pageSize switch
+    {
+        < 1 => DefaultPageSize,
+        > MaximumPageSize => MaximumPageSize,
+        _ => pageSize
+    };
 
     private Task<bool> CanManageProjectAsync(string projectId, CancellationToken ct)
         => IsAdmin

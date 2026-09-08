@@ -1011,6 +1011,7 @@ model Project {
   title                     String
   slug                      String                     @unique
   description               String                     @db.Text
+  summary                   String?                    @db.Text
   problemStatement          String                     @db.Text
   solution                  String                     @db.Text
   categories                String                     @default("OTHER") @db.Text
@@ -1018,6 +1019,7 @@ model Project {
   duration                  ProjectDuration?
   status                    ProjectStatus              @default(DRAFT)
   fundingGoal               Decimal?                   @db.Decimal(18, 8)
+  fundingGoalUnit           String                     @default("ARDA") @db.VarChar(16)
   currentFunding            Decimal                    @default(0) @db.Decimal(18, 8)
   supportersCount           Int                        @default(0)
   votesCount                Int                        @default(0)
@@ -1031,6 +1033,7 @@ model Project {
   images                    String?                    @db.Text
   videos                    String?                    @db.Text
   documents                 String?                    @db.Text
+  mediaPaths                String                     @default("[]") @db.Text
   targetAudience            String?                    @db.Text
   expectedImpact            String?                    @db.Text
   timeline                  String?                    @db.Text

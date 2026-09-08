@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
@@ -21,6 +21,9 @@ import {
   RefreshCw,
   ShieldCheck,
   TriangleAlert,
+  ImagePlus,
+  Paperclip,
+  Wallet,
 } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
@@ -46,20 +49,33 @@ import {
 } from "~/lib/contracts/project-contract";
 import {
   PROJECT_CREATE_DRAFT_KEY,
+  PROJECT_FUNDING_UNIT,
+  PROJECT_MEDIA_ACCEPT_ATTRIBUTE,
+  PROJECT_MEDIA_MAX_FILES,
+  PROJECT_MEDIA_MAX_FILE_BYTES,
+  PROJECT_SUMMARY_MAX_LENGTH,
+  classifyProjectMediaKind,
   createEmptyProjectFormData,
+  describeFundingGoalInUsd,
+  formatFundingAmount,
   isProjectCreateCompensationModel,
   isProjectRoleValueBearing,
   isValueActionAccountReady,
+  parseFundingGoalUnits,
   parseProjectCreateDraft,
+  readArdaUsdRate,
   serializeProjectCreateDraft,
+  serializeProjectMediaItems,
   toProjectRoleOpportunityInput,
   toOptionalIsoDate,
+  validateProjectSummary,
   type ProjectCreateCompensationModel,
   type ProjectCreateFormData as WizardFormData,
   type ProjectCreateMilestone as Milestone,
   type ProjectCreateRecovery,
   type ProjectCreateResource as Resource,
   type ProjectCreateRole as Role,
+  type ProjectMediaItem,
 } from "~/lib/contracts/project-create-contract";
 
 const OTHER_CATEGORY_MAX_LENGTH = 50;
@@ -270,6 +286,143 @@ export default function CreateProjectPage() {
     targetDate: "",
   });
 
+  // Media state
+  const mediaInputRef = useRef<HTMLInputElement | null>(null);
+  const [isUploadingMedia, setIsUploadingMedia] = useState(false);
+  const getUploadUrlsMutation = api.attachment.getUploadUrls.useMutation();
+
+  // The live ARDA rate behind the goal's dollar reference. A failure is not an error the
+  // creator has to act on - the reference falls back to the launch rate and says so.
+  const treasuryStatus = api.treasury.getStatus.useQuery(undefined, {
+    enabled: Boolean(session?.user?.id),
+    retry: false,
+    staleTime: 5 * 60_000,
+  });
+  const ardaUsdRate = readArdaUsdRate(treasuryStatus.data);
+
+  const setMediaError = (message: string | null) =>
+    setErrors((previous) => {
+      const next = { ...previous };
+      if (message) next.media = message;
+      else delete next.media;
+      return next;
+    });
+
+  const handleMediaSelected = async (
+    event: ChangeEvent<HTMLInputElement>,
+  ) => {
+    const chosen = Array.from(event.target.files ?? []);
+    // Reset immediately so re-picking the same file still fires a change event.
+    event.target.value = "";
+    if (chosen.length === 0) return;
+
+    const remainingSlots = PROJECT_MEDIA_MAX_FILES - formData.media.length;
+    if (remainingSlots <= 0) {
+      setMediaError(`You can attach up to ${PROJECT_MEDIA_MAX_FILES} files.`);
+      return;
+    }
+
+    const problems: string[] = [];
+    if (chosen.length > remainingSlots) {
+      problems.push(`Only ${remainingSlots} more file(s) fit on this project.`);
+    }
+
+    const maxMegabytes = Math.floor(PROJECT_MEDIA_MAX_FILE_BYTES / 1_000_000);
+    const accepted = chosen.slice(0, remainingSlots).filter((file) => {
+      if (!classifyProjectMediaKind(file.type)) {
+        problems.push(`${file.name}: that file type is not supported.`);
+        return false;
+      }
+      if (file.size > PROJECT_MEDIA_MAX_FILE_BYTES) {
+        problems.push(`${file.name}: larger than ${maxMegabytes}MB.`);
+        return false;
+      }
+      return true;
+    });
+
+    if (accepted.length === 0) {
+      setMediaError(problems.join(" "));
+      return;
+    }
+
+    setIsUploadingMedia(true);
+    const stored: ProjectMediaItem[] = [];
+    try {
+      const issued = await getUploadUrlsMutation.mutateAsync({
+        files: accepted.map((file) => ({
+          fileName: file.name,
+          contentType: file.type,
+          fileSize: file.size,
+          folder: "projects",
+        })),
+      });
+
+      const uploads = issued.uploads ?? [];
+      if (uploads.length !== accepted.length) {
+        throw new Error(
+          "Storage issued a different number of upload links than files selected.",
+        );
+      }
+
+      for (let index = 0; index < accepted.length; index += 1) {
+        const file = accepted[index]!;
+        const target = uploads[index]!;
+        const response = await fetch(target.uploadUrl, {
+          method: "PUT",
+          headers: { "Content-Type": file.type, ...(target.headers ?? {}) },
+          body: file,
+        });
+
+        if (!response.ok) {
+          problems.push(
+            `${file.name}: upload failed (${response.status}). If this environment stores files locally, presigned uploads are not available.`,
+          );
+          continue;
+        }
+
+        stored.push({
+          bucketPath: target.bucketPath,
+          url: target.publicUrl ?? "",
+          fileName: file.name,
+          contentType: file.type,
+          kind: classifyProjectMediaKind(file.type) ?? "document",
+        });
+      }
+    } catch (error) {
+      problems.push(
+        error instanceof Error
+          ? error.message
+          : "The files could not be uploaded.",
+      );
+    } finally {
+      setIsUploadingMedia(false);
+    }
+
+    if (stored.length > 0) {
+      setFormData((previous) => ({
+        ...previous,
+        media: [...previous.media, ...stored],
+      }));
+    }
+    setMediaError(problems.length > 0 ? problems.join(" ") : null);
+  };
+
+  const removeMedia = (bucketPath: string) => {
+    setFormData((previous) => ({
+      ...previous,
+      media: previous.media.filter((item) => item.bucketPath !== bucketPath),
+    }));
+    setMediaError(null);
+  };
+
+  const fundingGoalUnits = (() => {
+    try {
+      return parseFundingGoalUnits(formData.fundingGoal);
+    } catch {
+      return undefined;
+    }
+  })();
+
   const createMutation = api.project.create.useMutation();
   const addResourceMutation = api.project.addResource.useMutation();
   const addMilestoneMutation = api.project.addMilestone.useMutation();
@@ -335,6 +488,16 @@ export default function CreateProjectPage() {
       }
       if (formData.otherCategory.length > OTHER_CATEGORY_MAX_LENGTH) {
         newErrors.otherCategory = `Max ${OTHER_CATEGORY_MAX_LENGTH} characters`;
+      }
+
+      const summaryProblem = validateProjectSummary(formData.summary);
+      if (summaryProblem) newErrors.summary = summaryProblem;
+
+      try {
+        parseFundingGoalUnits(formData.fundingGoal);
+      } catch (error) {
+        newErrors.fundingGoal =
+          error instanceof Error ? error.message : "Enter a valid amount";
       }
     }
 
@@ -609,14 +772,34 @@ export default function CreateProjectPage() {
         const resolvedCategories = formData.categories.map((category) =>
           category === "OTHER" ? formData.otherCategory.trim() : category,
         );
+        const summary = formData.summary.trim();
+        // Media is written twice on purpose. `mediaPaths` is the typed manifest every
+        // new reader uses; the three comma-separated columns stay populated so readers
+        // written before the manifest existed keep rendering the same files.
+        const mediaLocations = (kind: ProjectMediaItem["kind"]) =>
+          formData.media
+            .filter((item) => item.kind === kind && item.url)
+            .map((item) => item.url)
+            .join(",") || undefined;
         const projectResult: unknown = await createMutation.mutateAsync({
           title: formData.title,
-          description: formData.solution,
+          // The public one-liner. It carries the summary rather than a second copy of
+          // the solution, which is what a card, a search result and a share preview
+          // actually need.
+          description: summary || formData.solution,
+          summary: summary || undefined,
           problemStatement: formData.problemStatement,
           solution: formData.solution,
           categories: resolvedCategories,
           projectType: formData.projectType || undefined,
           duration: formData.duration || undefined,
+          fundingGoal: parseFundingGoalUnits(formData.fundingGoal),
+          images: mediaLocations("image"),
+          videos: mediaLocations("video"),
+          documents: mediaLocations("document"),
+          mediaPaths: formData.media.length
+            ? serializeProjectMediaItems(formData.media)
+            : undefined,
           targetAudience: formData.targetAudience || undefined,
           expectedImpact: formData.expectedImpact || undefined,
           timeline: formData.duration
@@ -906,112 +1089,6 @@ export default function CreateProjectPage() {
           </section>
         )}
 
-        <section
-          className="border-foreground bg-card mb-8 border-2"
-          aria-labelledby="project-readiness-title"
-          aria-live="polite"
-        >
-          <div className="flex flex-col gap-4 p-4 sm:flex-row sm:items-start sm:justify-between sm:p-5">
-            <div className="flex items-start gap-3">
-              <span className="border-foreground bg-system/10 text-system flex size-10 shrink-0 items-center justify-center border-2">
-                {valueAccountCheckPending ? (
-                  <Loader2 className="size-5 animate-spin" aria-hidden="true" />
-                ) : valueAccountReady ? (
-                  <ShieldCheck className="size-5" aria-hidden="true" />
-                ) : (
-                  <TriangleAlert className="size-5" aria-hidden="true" />
-                )}
-              </span>
-              <div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <h2
-                    id="project-readiness-title"
-                    className="font-mono text-base font-black uppercase"
-                  >
-                    Account setup status
-                  </h2>
-                  <Badge variant={valueAccountReady ? "success" : "outline"}>
-                    {valueAccountCheckPending
-                      ? "Checking"
-                      : valueAccountReady
-                        ? "Complete"
-                        : "Setup needed"}
-                  </Badge>
-                </div>
-                <p
-                  id="create-project-readiness"
-                  className="text-muted-foreground mt-2 max-w-2xl text-sm leading-relaxed"
-                >
-                  {valueAccountCheckPending
-                    ? "Checking the account setup needed for funding and paid work."
-                    : custodyStatus.error
-                      ? "We could not confirm account setup. You can still create a project draft; funding and paid role listings remain unavailable until status is confirmed."
-                      : valueAccountReady
-                        ? "Account setup is complete. You can publish paid role listings when the project is ready; the server checks every value-bearing action again."
-                        : (custodyStatus.data?.unavailableReason ??
-                          "You can create a project draft and collaborate now. Complete account setup before funding a project, publishing paid roles, or receiving money or rewards.")}
-                </p>
-              </div>
-            </div>
-
-            {!valueAccountCheckPending && !valueAccountReady && (
-              <div className="flex w-full flex-col gap-2 sm:w-auto">
-                <Button className="min-h-11 w-full sm:w-auto" asChild>
-                  <Link href="/settings/verification?returnTo=%2Fprojects%2Fcreate">
-                    <ShieldCheck className="size-4" aria-hidden="true" />
-                    Review account setup
-                  </Link>
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="min-h-11 w-full sm:w-auto"
-                  disabled={custodyStatus.isFetching}
-                  onClick={() => void custodyStatus.refetch()}
-                >
-                  <RefreshCw
-                    className={cn(
-                      "size-4",
-                      custodyStatus.isFetching && "animate-spin",
-                    )}
-                    aria-hidden="true"
-                  />
-                  Check again
-                </Button>
-              </div>
-            )}
-          </div>
-
-          <div className="border-foreground grid border-t-2 sm:grid-cols-3">
-            <div className="border-foreground flex items-center justify-between gap-3 border-b-2 px-4 py-3 sm:border-r-2 sm:border-b-0">
-              <span className="text-sm font-medium">Account setup</span>
-              <span className="font-mono text-xs uppercase">
-                {custodyStatus.data?.identityReady ? "Ready" : "Not confirmed"}
-              </span>
-            </div>
-            <div className="border-foreground flex items-center justify-between gap-3 border-b-2 px-4 py-3 sm:border-r-2 sm:border-b-0">
-              <span className="text-sm font-medium">Identity check</span>
-              <span className="font-mono text-xs uppercase">
-                {custodyStatus.data?.kycStatus ?? "Unknown"}
-              </span>
-            </div>
-            <div className="flex items-center justify-between gap-3 px-4 py-3">
-              <span className="text-sm font-medium">Managed payment account</span>
-              <span className="font-mono text-xs uppercase">
-                {custodyStatus.data?.walletReady ? "Ready" : "Not confirmed"}
-              </span>
-            </div>
-          </div>
-
-          {!valueAccountReady && (
-            <p className="border-foreground text-muted-foreground border-t-2 px-4 py-3 text-xs leading-relaxed sm:px-5">
-              Keep shaping and saving this project draft. Visiting account setup
-              will not erase it in this tab; only funding and paid role listings
-              wait for completion.
-            </p>
-          )}
-        </section>
-
         {/* Progress Stepper */}
         <nav
           className="mb-8 overflow-x-auto pb-2"
@@ -1103,6 +1180,55 @@ export default function CreateProjectPage() {
                         {errors.title}
                       </p>
                     )}
+                  </div>
+
+                  <div>
+                    <label
+                      htmlFor="project-summary"
+                      className="mb-2 block text-sm font-medium"
+                    >
+                      One-line summary
+                    </label>
+                    <input
+                      type="text"
+                      id="project-summary"
+                      maxLength={PROJECT_SUMMARY_MAX_LENGTH}
+                      aria-invalid={Boolean(errors.summary)}
+                      aria-describedby={
+                        errors.summary
+                          ? "project-summary-error"
+                          : "project-summary-help"
+                      }
+                      value={formData.summary}
+                      onChange={(e) => handleChange("summary", e.target.value)}
+                      placeholder="The one sentence someone reads before deciding to care"
+                      className={cn(
+                        "bg-muted/50 focus-visible:ring-ring/50 w-full rounded-lg border-2 px-4 py-3 focus:ring-2 focus:outline-none",
+                        errors.summary ? "border-destructive" : "border-border",
+                      )}
+                    />
+                    <div className="mt-1 flex items-start justify-between gap-3">
+                      {errors.summary ? (
+                        <p
+                          id="project-summary-error"
+                          role="alert"
+                          className="text-destructive text-sm"
+                        >
+                          {errors.summary}
+                        </p>
+                      ) : (
+                        <p
+                          id="project-summary-help"
+                          className="text-muted-foreground text-sm"
+                        >
+                          Shown on cards and in search results. Optional, but it
+                          is the first thing anyone reads.
+                        </p>
+                      )}
+                      <span className="text-muted-foreground shrink-0 text-xs">
+                        {formData.summary.length}/{PROJECT_SUMMARY_MAX_LENGTH}
+                      </span>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -1509,6 +1635,177 @@ export default function CreateProjectPage() {
                         </Badge>
                       ))}
                     </div>
+                  )}
+                </CardContent>
+              </Card>
+              <Card className="bg-card border-border">
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <ImagePlus className="text-system size-5" />
+                    Photos, video and documents
+                  </CardTitle>
+                  <p className="text-muted-foreground mt-1 text-sm">
+                    Show the problem. Up to {PROJECT_MEDIA_MAX_FILES} files,{" "}
+                    {Math.floor(PROJECT_MEDIA_MAX_FILE_BYTES / 1_000_000)}MB
+                    each.
+                  </p>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <input
+                    ref={mediaInputRef}
+                    id="project-media-input"
+                    type="file"
+                    multiple
+                    accept={PROJECT_MEDIA_ACCEPT_ATTRIBUTE}
+                    className="sr-only"
+                    onChange={(event) => void handleMediaSelected(event)}
+                  />
+                  <div className="flex flex-wrap items-center gap-3">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="min-h-11"
+                      disabled={
+                        isUploadingMedia ||
+                        formData.media.length >= PROJECT_MEDIA_MAX_FILES
+                      }
+                      onClick={() => mediaInputRef.current?.click()}
+                    >
+                      {isUploadingMedia ? (
+                        <Loader2
+                          className="mr-2 size-4 animate-spin"
+                          aria-hidden="true"
+                        />
+                      ) : (
+                        <Plus className="mr-2 size-4" aria-hidden="true" />
+                      )}
+                      {isUploadingMedia ? "Uploading..." : "Add files"}
+                    </Button>
+                    <span
+                      className="text-muted-foreground text-xs"
+                      aria-live="polite"
+                    >
+                      {formData.media.length} of {PROJECT_MEDIA_MAX_FILES}{" "}
+                      attached
+                    </span>
+                  </div>
+
+                  {errors.media && (
+                    <p role="alert" className="text-destructive text-sm">
+                      {errors.media}
+                    </p>
+                  )}
+
+                  {formData.media.length > 0 && (
+                    <ul className="grid list-none grid-cols-2 gap-3 sm:grid-cols-4">
+                      {formData.media.map((item) => (
+                        <li
+                          key={item.bucketPath}
+                          className="border-border relative rounded-lg border-2 p-2"
+                        >
+                          {item.kind === "image" && item.url ? (
+                            // next/image is skipped: bucket hosts are deployment-specific
+                            // and are not in an images.remotePatterns allow-list.
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={item.url}
+                              alt={item.fileName}
+                              className="h-24 w-full rounded object-cover"
+                            />
+                          ) : (
+                            <div className="bg-muted/40 flex h-24 w-full flex-col items-center justify-center gap-1 rounded p-2 text-center">
+                              <Paperclip
+                                className="text-muted-foreground size-4"
+                                aria-hidden="true"
+                              />
+                              <span className="text-xs break-all">
+                                {item.kind}
+                              </span>
+                            </div>
+                          )}
+                          <p className="text-muted-foreground mt-1 truncate text-xs">
+                            {item.fileName}
+                          </p>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="mt-1 min-h-11 w-full"
+                            onClick={() => removeMedia(item.bucketPath)}
+                          >
+                            <Trash2 className="mr-2 size-4" aria-hidden="true" />
+                            Remove
+                          </Button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card className="bg-card border-border">
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <Wallet className="text-system size-5" />
+                    The ask
+                  </CardTitle>
+                  <p className="text-muted-foreground mt-1 text-sm">
+                    How much do you need to do this? Optional - you can set it
+                    later.
+                  </p>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  <label
+                    htmlFor="project-funding-goal"
+                    className="mb-2 block text-sm font-medium"
+                  >
+                    Funding goal
+                  </label>
+                  <div className="flex items-stretch gap-2">
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      id="project-funding-goal"
+                      aria-invalid={Boolean(errors.fundingGoal)}
+                      aria-describedby={
+                        errors.fundingGoal
+                          ? "project-funding-goal-error"
+                          : "project-funding-goal-help"
+                      }
+                      value={formData.fundingGoal}
+                      onChange={(e) =>
+                        handleChange("fundingGoal", e.target.value)
+                      }
+                      placeholder="0.00"
+                      className={cn(
+                        "bg-muted/50 focus-visible:ring-ring/50 flex-1 rounded-lg border-2 px-4 py-3 focus:ring-2 focus:outline-none",
+                        errors.fundingGoal
+                          ? "border-destructive"
+                          : "border-border",
+                      )}
+                    />
+                    <span className="border-border bg-muted/30 text-muted-foreground flex items-center rounded-lg border-2 px-4 font-mono text-sm">
+                      {PROJECT_FUNDING_UNIT}
+                    </span>
+                  </div>
+                  {errors.fundingGoal ? (
+                    <p
+                      id="project-funding-goal-error"
+                      role="alert"
+                      className="text-destructive text-sm"
+                    >
+                      {errors.fundingGoal}
+                    </p>
+                  ) : (
+                    <p
+                      id="project-funding-goal-help"
+                      className="text-muted-foreground text-sm"
+                      aria-live="polite"
+                    >
+                      {fundingGoalUnits === undefined
+                        ? "Sponsors see this as a dollar amount."
+                        : `Sponsors see ${describeFundingGoalInUsd(fundingGoalUnits, ardaUsdRate)}.`}
+                    </p>
                   )}
                 </CardContent>
               </Card>
@@ -1951,6 +2248,115 @@ export default function CreateProjectPage() {
 
           {/* Step 3: Team Roles */}
           {currentStep === 2 && (
+            <div className="space-y-6">
+              {/* Account setup is asked for here, at the step where a role first carries
+                  money - not before the creator has written anything. */}
+            <section
+              className="border-foreground bg-card border-2"
+              aria-labelledby="project-readiness-title"
+              aria-live="polite"
+            >
+              <div className="flex flex-col gap-4 p-4 sm:flex-row sm:items-start sm:justify-between sm:p-5">
+                <div className="flex items-start gap-3">
+                  <span className="border-foreground bg-system/10 text-system flex size-10 shrink-0 items-center justify-center border-2">
+                    {valueAccountCheckPending ? (
+                      <Loader2 className="size-5 animate-spin" aria-hidden="true" />
+                    ) : valueAccountReady ? (
+                      <ShieldCheck className="size-5" aria-hidden="true" />
+                    ) : (
+                      <TriangleAlert className="size-5" aria-hidden="true" />
+                    )}
+                  </span>
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h2
+                        id="project-readiness-title"
+                        className="font-mono text-base font-black uppercase"
+                      >
+                        Account setup status
+                      </h2>
+                      <Badge variant={valueAccountReady ? "success" : "outline"}>
+                        {valueAccountCheckPending
+                          ? "Checking"
+                          : valueAccountReady
+                            ? "Complete"
+                            : "Setup needed"}
+                      </Badge>
+                    </div>
+                    <p
+                      id="team-roles-readiness"
+                      className="text-muted-foreground mt-2 max-w-2xl text-sm leading-relaxed"
+                    >
+                      {valueAccountCheckPending
+                        ? "Checking the account setup needed for funding and paid work."
+                        : custodyStatus.error
+                          ? "We could not confirm account setup. You can still create a project draft; funding and paid role listings remain unavailable until status is confirmed."
+                          : valueAccountReady
+                            ? "Account setup is complete. You can publish paid role listings when the project is ready; the server checks every value-bearing action again."
+                            : (custodyStatus.data?.unavailableReason ??
+                              "You can create a project draft and collaborate now. Complete account setup before funding a project, publishing paid roles, or receiving money or rewards.")}
+                    </p>
+                  </div>
+                </div>
+
+                {!valueAccountCheckPending && !valueAccountReady && (
+                  <div className="flex w-full flex-col gap-2 sm:w-auto">
+                    <Button className="min-h-11 w-full sm:w-auto" asChild>
+                      <Link href="/settings/verification?returnTo=%2Fprojects%2Fcreate">
+                        <ShieldCheck className="size-4" aria-hidden="true" />
+                        Review account setup
+                      </Link>
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="min-h-11 w-full sm:w-auto"
+                      disabled={custodyStatus.isFetching}
+                      onClick={() => void custodyStatus.refetch()}
+                    >
+                      <RefreshCw
+                        className={cn(
+                          "size-4",
+                          custodyStatus.isFetching && "animate-spin",
+                        )}
+                        aria-hidden="true"
+                      />
+                      Check again
+                    </Button>
+                  </div>
+                )}
+              </div>
+
+              <div className="border-foreground grid border-t-2 sm:grid-cols-3">
+                <div className="border-foreground flex items-center justify-between gap-3 border-b-2 px-4 py-3 sm:border-r-2 sm:border-b-0">
+                  <span className="text-sm font-medium">Account setup</span>
+                  <span className="font-mono text-xs uppercase">
+                    {custodyStatus.data?.identityReady ? "Ready" : "Not confirmed"}
+                  </span>
+                </div>
+                <div className="border-foreground flex items-center justify-between gap-3 border-b-2 px-4 py-3 sm:border-r-2 sm:border-b-0">
+                  <span className="text-sm font-medium">Identity check</span>
+                  <span className="font-mono text-xs uppercase">
+                    {custodyStatus.data?.kycStatus ?? "Unknown"}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between gap-3 px-4 py-3">
+                  <span className="text-sm font-medium">Managed payment account</span>
+                  <span className="font-mono text-xs uppercase">
+                    {custodyStatus.data?.walletReady ? "Ready" : "Not confirmed"}
+                  </span>
+                </div>
+              </div>
+
+              {!valueAccountReady && (
+                <p className="border-foreground text-muted-foreground border-t-2 px-4 py-3 text-xs leading-relaxed sm:px-5">
+                  Keep shaping and saving this project draft. Visiting account setup
+                  will not erase it in this tab; only funding and paid role listings
+                  wait for completion.
+                </p>
+              )}
+            </section>
+
             <Card className="bg-card border-border">
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
@@ -2267,6 +2673,7 @@ export default function CreateProjectPage() {
                 ))}
               </CardContent>
             </Card>
+            </div>
           )}
 
           {/* Step 4: Milestones */}
@@ -2495,6 +2902,11 @@ export default function CreateProjectPage() {
                 <CardContent className="space-y-3">
                   <div>
                     <h3 className="text-xl font-semibold">{formData.title}</h3>
+                    {formData.summary.trim() && (
+                      <p className="text-muted-foreground mt-1 text-sm">
+                        {formData.summary.trim()}
+                      </p>
+                    )}
                   </div>
                   <div>
                     <p className="text-muted-foreground text-sm font-medium">
@@ -2508,6 +2920,34 @@ export default function CreateProjectPage() {
                     </p>
                     <p className="mt-1 text-sm">{formData.solution}</p>
                   </div>
+                  {fundingGoalUnits !== undefined && (
+                    <div>
+                      <p className="text-muted-foreground text-sm font-medium">
+                        Funding goal
+                      </p>
+                      <p className="mt-1 text-sm">
+                        {formatFundingAmount(fundingGoalUnits)}{" "}
+                        {PROJECT_FUNDING_UNIT} -{" "}
+                        {describeFundingGoalInUsd(fundingGoalUnits, ardaUsdRate)}
+                      </p>
+                    </div>
+                  )}
+                  {formData.media.length > 0 && (
+                    <div>
+                      <p className="text-muted-foreground mb-2 text-sm font-medium">
+                        Media ({formData.media.length})
+                      </p>
+                      <ul className="flex list-none flex-wrap gap-2">
+                        {formData.media.map((item) => (
+                          <li key={item.bucketPath}>
+                            <Badge variant="secondary" className="text-xs">
+                              {item.fileName}
+                            </Badge>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                   <div className="grid grid-cols-1 gap-4 pt-2 sm:grid-cols-2">
                     {formData.projectType && (
                       <div>
@@ -2885,6 +3325,18 @@ export default function CreateProjectPage() {
             </Button>
           ) : (
             <div className="flex w-full flex-col-reverse gap-2 sm:w-auto sm:flex-row">
+              {/* The submit button points here, so the readiness sentence travels with
+                  the action even though the full panel lives on the Team Roles step. */}
+              <p
+                id="create-project-readiness"
+                className="text-muted-foreground max-w-md text-xs leading-relaxed sm:self-center"
+              >
+                {valueAccountCheckPending
+                  ? "Checking the account setup needed for funding and paid work."
+                  : valueAccountReady
+                    ? "Account setup is complete; every value-bearing action is checked again on the server."
+                    : "You can save this project as a draft now. Funding and paid role listings wait for account setup."}
+              </p>
               {!valueAccountCheckPending && !valueAccountReady && (
                 <Button
                   variant="outline"

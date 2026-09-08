@@ -1,4 +1,4 @@
-namespace ArdaNova.Application;
+﻿namespace ArdaNova.Application;
 
 using ArdaNova.Application.Mappings;
 using ArdaNova.Application.Services.Implementations;
@@ -23,6 +23,9 @@ public static class DependencyInjection
 
         // Project services
         services.AddScoped<IProjectService, ProjectService>();
+        // The viewer-scoped read surface is the same scoped instance, exposed under its
+        // own interface so callers depend on it explicitly rather than casting.
+        services.AddScoped<IProjectVisibility>(sp => (IProjectVisibility)sp.GetRequiredService<IProjectService>());
         services.AddScoped<IProjectTaskService, ProjectTaskService>();
         services.AddScoped<IProjectTaskDependencyService, ProjectTaskDependencyService>();
         services.AddScoped<IProjectResourceService, ProjectResourceService>();
@@ -81,6 +84,8 @@ public static class DependencyInjection
 
         // Posts / feed
         services.AddScoped<IPostService, PostService>();
+        // Viewer-aware post reads: the same scoped instance under its own interface.
+        services.AddScoped<IPostFieldNotesService>(sp => (IPostFieldNotesService)sp.GetRequiredService<IPostService>());
 
         // Task services
         services.AddScoped<ITaskService, TaskService>();

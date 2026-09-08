@@ -75,9 +75,166 @@ const projectCreateRecoverySchema = z
   })
   .strict();
 
+/** The one-line ask: long enough to say something, short enough to read on a card. */
+export const PROJECT_SUMMARY_MIN_LENGTH = 20;
+export const PROJECT_SUMMARY_MAX_LENGTH = 200;
+
+/** Upload limits mirrored by `attachment.getUploadUrls`, which is the enforcing side. */
+export const PROJECT_MEDIA_MAX_FILES = 12;
+export const PROJECT_MEDIA_MAX_FILE_BYTES = 25_000_000;
+
+export const PROJECT_MEDIA_IMAGE_TYPES = [
+  "image/png",
+  "image/jpeg",
+  "image/webp",
+  "image/gif",
+  "image/avif",
+] as const;
+
+export const PROJECT_MEDIA_VIDEO_TYPES = [
+  "video/mp4",
+  "video/webm",
+  "video/quicktime",
+] as const;
+
+export const PROJECT_MEDIA_DOCUMENT_TYPES = [
+  "application/pdf",
+  "text/plain",
+  "text/markdown",
+] as const;
+
+export const PROJECT_MEDIA_CONTENT_TYPES = [
+  ...PROJECT_MEDIA_IMAGE_TYPES,
+  ...PROJECT_MEDIA_VIDEO_TYPES,
+  ...PROJECT_MEDIA_DOCUMENT_TYPES,
+] as const;
+
+export const PROJECT_MEDIA_ACCEPT_ATTRIBUTE =
+  PROJECT_MEDIA_CONTENT_TYPES.join(",");
+
+export type ProjectMediaKind = "image" | "video" | "document";
+
+/**
+ * One uploaded file as the project record stores it. `bucketPath` is the record of
+ * truth - it is what the storage service issued and what a re-signed URL is derived
+ * from; `url` is the public URL captured at upload time so a reader can render the
+ * file without a second round trip.
+ */
+export const projectMediaItemSchema = z
+  .object({
+    bucketPath: z.string().min(1).max(1_024),
+    url: z.string().max(2_048),
+    fileName: z.string().max(256),
+    contentType: z.string().max(128),
+    kind: z.enum(["image", "video", "document"]),
+  })
+  .strict();
+
+export type ProjectMediaItem = z.infer<typeof projectMediaItemSchema>;
+
+const IMAGE_EXTENSIONS = ["png", "jpg", "jpeg", "webp", "gif", "avif", "svg"];
+const VIDEO_EXTENSIONS = ["mp4", "webm", "mov", "m4v"];
+
+/** Which strip a file belongs in, or null when the platform does not accept the type. */
+export function classifyProjectMediaKind(
+  contentType: string,
+): ProjectMediaKind | null {
+  const normalized = contentType.trim().toLowerCase();
+  if ((PROJECT_MEDIA_IMAGE_TYPES as readonly string[]).includes(normalized))
+    return "image";
+  if ((PROJECT_MEDIA_VIDEO_TYPES as readonly string[]).includes(normalized))
+    return "video";
+  if ((PROJECT_MEDIA_DOCUMENT_TYPES as readonly string[]).includes(normalized))
+    return "document";
+  return null;
+}
+
+export function isSupportedProjectMediaType(contentType: string): boolean {
+  return classifyProjectMediaKind(contentType) !== null;
+}
+
+function fileNameFromPath(path: string): string {
+  const withoutQuery = path.split("?")[0] ?? path;
+  const segments = withoutQuery.split("/");
+  return segments[segments.length - 1] ?? withoutQuery;
+}
+
+function kindFromPath(path: string): ProjectMediaKind {
+  const extension = fileNameFromPath(path).split(".").pop()?.toLowerCase() ?? "";
+  if (IMAGE_EXTENSIONS.includes(extension)) return "image";
+  if (VIDEO_EXTENSIONS.includes(extension)) return "video";
+  return "document";
+}
+
+function isRenderableLocation(value: string): boolean {
+  return (
+    value.startsWith("https://") ||
+    value.startsWith("http://") ||
+    value.startsWith("/")
+  );
+}
+
+/** A bare path or URL from a legacy comma-separated media column. */
+function mediaItemFromLocation(location: string): ProjectMediaItem | null {
+  const trimmed = location.trim();
+  if (!trimmed) return null;
+
+  return {
+    bucketPath: trimmed,
+    url: isRenderableLocation(trimmed) ? trimmed : "",
+    fileName: fileNameFromPath(trimmed),
+    contentType: "",
+    kind: kindFromPath(trimmed),
+  };
+}
+
+/** The stored form of a project's media: a JSON array, so readers never split strings. */
+export function serializeProjectMediaItems(
+  items: readonly ProjectMediaItem[],
+): string {
+  return JSON.stringify(z.array(projectMediaItemSchema).parse(items));
+}
+
+/**
+ * Reads a stored media column. Accepts the JSON array this contract writes, a JSON
+ * array of bare bucket paths, and the legacy comma-separated string the older `images`
+ * column holds - so a project written before this field existed still renders instead
+ * of printing its raw column value at a reader.
+ */
+export function parseProjectMediaItems(
+  stored: string | null | undefined,
+): ProjectMediaItem[] {
+  const raw = stored?.trim();
+  if (!raw) return [];
+
+  let decoded: unknown;
+  try {
+    decoded = JSON.parse(raw);
+  } catch {
+    return raw
+      .split(",")
+      .map(mediaItemFromLocation)
+      .filter((item): item is ProjectMediaItem => item !== null);
+  }
+
+  if (!Array.isArray(decoded)) return [];
+
+  return decoded
+    .map((entry): ProjectMediaItem | null => {
+      if (typeof entry === "string") return mediaItemFromLocation(entry);
+      const parsed = projectMediaItemSchema.safeParse(entry);
+      return parsed.success ? parsed.data : null;
+    })
+    .filter((item): item is ProjectMediaItem => item !== null);
+}
+
 export const projectCreateFormDataSchema = z
   .object({
     title: draftTextSchema,
+    // Additive with a default so a draft saved before these fields existed still parses.
+    summary: draftTextSchema.default(""),
+    fundingGoal: z.string().max(64).default(""),
+    media: z.array(projectMediaItemSchema).max(PROJECT_MEDIA_MAX_FILES).default([]),
     problemStatement: draftTextSchema,
     solution: draftTextSchema,
     categories: z.array(z.string().max(256)).max(50),
@@ -144,6 +301,9 @@ const opportunityCompensationByProjectModel: Record<
 export function createEmptyProjectFormData(): ProjectCreateFormData {
   return {
     title: "",
+    summary: "",
+    fundingGoal: "",
+    media: [],
     problemStatement: "",
     solution: "",
     categories: [],
@@ -356,6 +516,105 @@ export function toProjectRoleOpportunityInput(input: {
     isRemote: true,
     projectRole: input.role.projectRole || undefined,
   };
+}
+
+/**
+ * The unit a funding goal is denominated in. Mirrors `ProjectFundingUnits.Arda` on the
+ * server; the wizard shows a sponsor the dollar figure, not this code.
+ */
+export const PROJECT_FUNDING_UNIT = "ARDA";
+
+/** ARDA carries two decimal places, so a goal cannot be finer than a hundredth of a unit. */
+export const PROJECT_FUNDING_DECIMALS = 2;
+
+/**
+ * The genesis seed: 1 ARDA = $0.01 at launch. The live rate is backing-derived and floats
+ * from there (server-side, `SwapService`), which is why this is only the fallback used
+ * when the treasury has not been read yet - never a stored or quoted price.
+ */
+export const ARDA_GENESIS_USD_RATE = 0.01;
+
+/**
+ * The live ARDA/USD rate from a treasury status payload, or null when the node has no
+ * usable rate yet (no genesis, no treasury row, or a shape this client does not know).
+ * The caller decides what to say about a missing rate - this never invents one.
+ */
+export function readArdaUsdRate(treasuryStatus: unknown): number | null {
+  if (typeof treasuryStatus !== "object" || treasuryStatus === null) return null;
+  const rate = (treasuryStatus as Record<string, unknown>).ardaValueUsd;
+  if (typeof rate !== "number" || !Number.isFinite(rate) || rate <= 0) {
+    return null;
+  }
+  return rate;
+}
+
+export function formatUsdAmount(amount: number): string {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: amount >= 100 ? 0 : 2,
+  }).format(amount);
+}
+
+export function formatFundingAmount(amount: number): string {
+  return new Intl.NumberFormat("en-US", {
+    maximumFractionDigits: PROJECT_FUNDING_DECIMALS,
+  }).format(amount);
+}
+
+/**
+ * The sponsor-facing sentence for a goal: a dollar figure first, and an honest note when
+ * the figure rests on the launch reference rate rather than a live one.
+ */
+export function describeFundingGoalInUsd(
+  fundingGoalUnits: number,
+  liveRate: number | null,
+): string {
+  const rate = liveRate ?? ARDA_GENESIS_USD_RATE;
+  const dollars = formatUsdAmount(fundingGoalUnits * rate);
+  return liveRate === null
+    ? `about ${dollars} at the launch reference rate`
+    : `about ${dollars} at today's rate`;
+}
+
+/**
+ * Validates the typed funding goal. Returns undefined for an empty field - the goal is
+ * optional - and throws with sponsor-readable text for anything that is not a usable
+ * amount, so a bad value never reaches the create call as NaN.
+ */
+export function parseFundingGoalUnits(value: string): number | undefined {
+  const normalized = value.trim().replace(/,/g, "");
+  if (!normalized) return undefined;
+
+  const parsed = Number(normalized);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    throw new Error("Funding goal must be a positive amount");
+  }
+  if (parsed > 1_000_000_000) {
+    throw new Error("Funding goal is larger than this platform supports");
+  }
+
+  const decimals = normalized.split(".")[1]?.length ?? 0;
+  if (decimals > PROJECT_FUNDING_DECIMALS) {
+    throw new Error(
+      `Funding goal cannot be finer than ${PROJECT_FUNDING_DECIMALS} decimal places`,
+    );
+  }
+
+  return parsed;
+}
+
+/** The one-line ask, or a message naming what is wrong with it. Empty is allowed. */
+export function validateProjectSummary(value: string): string | null {
+  const normalized = value.trim();
+  if (!normalized) return null;
+  if (normalized.length < PROJECT_SUMMARY_MIN_LENGTH) {
+    return `Say a little more - at least ${PROJECT_SUMMARY_MIN_LENGTH} characters`;
+  }
+  if (normalized.length > PROJECT_SUMMARY_MAX_LENGTH) {
+    return `Keep it to ${PROJECT_SUMMARY_MAX_LENGTH} characters`;
+  }
+  return null;
 }
 
 export function parseProjectCreateDraft(

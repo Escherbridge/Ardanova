@@ -1,6 +1,7 @@
-namespace ArdaNova.Infrastructure.Storage;
+﻿namespace ArdaNova.Infrastructure.Storage;
 
 using ArdaNova.Application.Services.Interfaces;
+using System.Linq;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -9,6 +10,21 @@ using Microsoft.Extensions.DependencyInjection;
 /// </summary>
 public static class StorageServiceExtensions
 {
+    /// <summary>
+    /// Extensions matching the media types the project media contract accepts
+    /// (PROJECT_MEDIA_CONTENT_TYPES in ardanova-client). Dotted and lowercase, because
+    /// that is what Path.GetExtension produces at the comparison site.
+    /// </summary>
+    private static readonly string[] DefaultAllowedExtensions =
+    {
+        ".png", ".jpg", ".jpeg", ".webp", ".gif", ".avif",
+        ".mp4", ".webm", ".mov",
+        ".pdf", ".txt", ".md"
+    };
+
+    /// <summary>Matches PROJECT_MEDIA_MAX_FILE_BYTES on the client (25 MB).</summary>
+    private const long DefaultMaxFileSizeBytes = 25_000_000;
+
     /// <summary>
     /// Adds storage services to the service collection
     /// </summary>
@@ -37,6 +53,27 @@ public static class StorageServiceExtensions
             {
                 options.S3.ForcePathStyle = pathStyle;
             }
+
+            // Upload limits. These are the SECOND seam: the client's tRPC upload route
+            // carries the same allow-list, but a caller hitting POST /api/attachments/
+            // upload-url directly only meets this one. An empty AllowedExtensions list
+            // means "allow everything" in S3StorageService, so leaving it unset fails
+            // OPEN - the default below is the gate, not a suggestion.
+            var configuredExtensions = configuration
+                .GetSection("Storage:AllowedExtensions")
+                .Get<string[]>();
+            options.AllowedExtensions = configuredExtensions is { Length: > 0 }
+                ? configuredExtensions
+                    .Select(extension => extension.Trim().ToLowerInvariant())
+                    .Where(extension => extension.Length > 0)
+                    .Select(extension => extension.StartsWith('.') ? extension : "." + extension)
+                    .ToList()
+                : DefaultAllowedExtensions.ToList();
+
+            var maxFileSize = GetConfigValue(configuration, "STORAGE_MAX_FILE_BYTES", "Storage:MaxFileSizeBytes");
+            options.MaxFileSizeBytes = long.TryParse(maxFileSize, out var parsedMax) && parsedMax > 0
+                ? parsedMax
+                : DefaultMaxFileSizeBytes;
 
             // Local Configuration
             options.Local = new LocalStorageConfiguration

@@ -588,6 +588,7 @@ Table Project {
   title varchar [not null]
   slug varchar [not null, unique]
   description text [not null]
+  summary text [note: 'One-line public ask shown on cards and searched with the problem statement']
   problemStatement text [not null]
   solution text [not null]
   categories text [not null, default: 'OTHER', note: 'Comma-separated ProjectCategory values']
@@ -595,6 +596,7 @@ Table Project {
   duration ProjectDuration
   status ProjectStatus [not null, default: 'DRAFT']
   fundingGoal decimal(18,8)
+  fundingGoalUnit varchar(16) [not null, default: 'ARDA', note: 'Unit the goal is denominated in']
   currentFunding decimal(18,8) [not null, default: 0.00]
   supportersCount int [not null, default: 0]
   votesCount int [not null, default: 0]
@@ -608,6 +610,7 @@ Table Project {
   images text
   videos text
   documents text
+  mediaPaths text [not null, default: '[]', note: 'JSON array of storage bucket paths with display metadata']
   targetAudience text
   expectedImpact text
   timeline text

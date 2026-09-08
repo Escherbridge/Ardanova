@@ -1,4 +1,4 @@
-namespace ArdaNova.Application.Tests.Services;
+﻿namespace ArdaNova.Application.Tests.Services;
 
 using ArdaNova.Application.Common.Interfaces;
 using ArdaNova.Application.Common.Results;
@@ -100,7 +100,9 @@ public class ProjectServiceTests
             new ProjectDto { Id = projectId2, Title = "Project 2" }
         };
 
-        _repositoryMock.Setup(r => r.GetAllAsync(It.IsAny<CancellationToken>()))
+        // GetAllAsync now answers through the viewer-scoped predicate overload, so the
+        // legacy unfiltered GetAllAsync stub would never be reached.
+        _repositoryMock.Setup(r => r.FindAsync(It.IsAny<System.Linq.Expressions.Expression<Func<Project, bool>>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(projects);
         _mapperMock.Setup(m => m.Map<List<ProjectDto>>(It.IsAny<IEnumerable<Project>>())).Returns(projectDtos);
         _userRepositoryMock.Setup(r => r.GetByIdAsync(userId, It.IsAny<CancellationToken>()))

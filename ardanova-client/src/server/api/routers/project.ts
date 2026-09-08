@@ -7,6 +7,7 @@ import {
   publicProcedure,
 } from "~/server/api/trpc";
 import { apiClient } from "~/lib/api";
+import { runWithActorAssertion } from "~/server/actor-assertion";
 import {
   createProjectMilestoneDtoSchema,
   pagedProjectsDtoSchema,
@@ -28,6 +29,8 @@ const ProjectStatus = projectStatusSchema;
 const createProjectSchema = z.object({
   title: z.string().min(1, "Project title is required"),
   description: z.string().min(10, "Description must be at least 10 characters"),
+  // The one-line public ask, capped to the length the wizard enforces client-side.
+  summary: z.string().max(200).nullable().optional(),
   problemStatement: z
     .string()
     .min(10, "Problem statement must be at least 10 characters"),
@@ -43,6 +46,8 @@ const createProjectSchema = z.object({
   images: z.string().nullable().optional(),
   videos: z.string().nullable().optional(),
   documents: z.string().nullable().optional(),
+  // Typed media manifest (JSON array of bucket paths); supersedes images/videos/documents.
+  mediaPaths: z.string().max(20000).nullable().optional(),
   commerceEnabled: z.boolean().optional(),
   storefrontDescription: z.string().nullable().optional(),
 });
@@ -52,6 +57,7 @@ const updateProjectSchema = z.object({
   id: z.string(),
   title: z.string().min(1).optional(),
   description: z.string().min(10).optional(),
+  summary: z.string().max(200).nullable().optional(),
   problemStatement: z.string().min(10).optional(),
   solution: z.string().min(10).optional(),
   categories: z.array(z.string()).min(1).optional(),
@@ -66,11 +72,30 @@ const updateProjectSchema = z.object({
   videos: z.string().nullable().optional(),
   documents: z.string().nullable().optional(),
   fundingGoal: z.number().nonnegative().nullable().optional(),
+  mediaPaths: z.string().max(20000).nullable().optional(),
   commerceEnabled: z.boolean().optional(),
   storefrontDescription: z.string().nullable().optional(),
 });
 
 const projectArraySchema = z.array(projectDtoSchema);
+
+/**
+ * A DRAFT project is private to its creator, its members and admins - the API decides
+ * that from the signed actor assertion. The shared `apiClient` is keyed, not actored,
+ * so a public read reaches the API as the anonymous public unless the reader is
+ * attached here. Without this a signed-in creator cannot see their own draft on the
+ * projects list or its detail page. Mirrors `readAsViewer` in the post router.
+ */
+type ProjectReader = { id?: string | null; role?: string } | null | undefined;
+
+/** Runs a read with the reader attached as the actor, or anonymously when signed out. */
+async function readAsViewer<T>(
+  reader: ProjectReader,
+  call: () => Promise<T>,
+): Promise<T> {
+  if (!reader?.id) return call();
+  return runWithActorAssertion({ subject: reader.id, role: reader.role }, call);
+}
 
 function invalidProjectContract(context: string): TRPCError {
   return new TRPCError({
@@ -287,18 +312,20 @@ export const projectRouter = createTRPCRouter({
         search: z.string().optional(),
       }),
     )
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
       const { limit, page, category, projectType, status, search } = input;
 
       // Use search endpoint for all queries (handles filters and pagination)
-      const response = await apiClient.projects.search({
-        searchTerm: search,
-        status: status,
-        category: category,
-        projectType,
-        page: page,
-        pageSize: limit,
-      });
+      const response = await readAsViewer(ctx.session?.user, () =>
+        apiClient.projects.search({
+          searchTerm: search,
+          status: status,
+          category: category,
+          projectType,
+          page: page,
+          pageSize: limit,
+        }),
+      );
 
       if (response.error) {
         throw new Error(response.error);
@@ -315,7 +342,10 @@ export const projectRouter = createTRPCRouter({
 
       return {
         items: result.data.items,
+        page: result.data.page,
         nextCursor: result.data.hasNextPage ? String(page + 1) : undefined,
+        hasNextPage: result.data.hasNextPage,
+        hasPreviousPage: result.data.hasPreviousPage,
         totalCount: result.data.totalCount,
         totalPages: result.data.totalPages,
       };
@@ -324,13 +354,19 @@ export const projectRouter = createTRPCRouter({
   // Get project by ID or slug
   getById: publicProcedure
     .input(z.object({ id: z.string() }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
+      const reader = ctx.session?.user;
+
       // Try by ID first
-      let response = await apiClient.projects.getById(input.id);
+      let response = await readAsViewer(reader, () =>
+        apiClient.projects.getById(input.id),
+      );
 
       // If not found, try by slug
       if (response.status === 404) {
-        response = await apiClient.projects.getBySlug(input.id);
+        response = await readAsViewer(reader, () =>
+          apiClient.projects.getBySlug(input.id),
+        );
       }
 
       if (response.error || !response.data) {
@@ -380,8 +416,10 @@ export const projectRouter = createTRPCRouter({
         limit: z.number().min(1).max(100).default(20),
       }),
     )
-    .query(async ({ input }) => {
-      const response = await apiClient.projects.getByUserId(input.userId);
+    .query(async ({ input, ctx }) => {
+      const response = await readAsViewer(ctx.session?.user, () =>
+        apiClient.projects.getByUserId(input.userId),
+      );
       if (response.error) {
         throw new Error(response.error);
       }

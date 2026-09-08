@@ -14,6 +14,7 @@ import {
   CheckCircle,
   XCircle,
 } from "lucide-react";
+import { UpdateMediaStrip } from "~/components/media/update-media-strip";
 
 interface UpdatesTabProps {
   opportunityId: string;
@@ -377,13 +378,7 @@ export default function UpdatesTab({
                     <p className="text-foreground text-sm whitespace-pre-wrap">
                       {update.content}
                     </p>
-                    {update.images && (
-                      <div className="pt-2">
-                        <p className="text-muted-foreground text-xs">
-                          Images: {update.images}
-                        </p>
-                      </div>
-                    )}
+                    <UpdateMediaStrip stored={update.images} />
                   </div>
                 </div>
               </CardContent>

@@ -73,11 +73,15 @@ export const projectDtoSchema = z.object({
   title: z.string(),
   slug: z.string(),
   description: z.string(),
+  // The one-line public ask. Nullable and optional: a project created before the
+  // presentation fields landed carries neither, and a card falls back to description.
+  summary: z.string().nullable().optional(),
   problemStatement: z.string(),
   solution: z.string(),
   categories: z.array(z.string()),
   status: projectStatusSchema,
   fundingGoal: z.number().nullable(),
+  fundingGoalUnit: z.string().optional(),
   currentFunding: z.number(),
   supportersCount: z.number().int(),
   votesCount: z.number().int(),
@@ -87,6 +91,8 @@ export const projectDtoSchema = z.object({
   images: z.string().nullable(),
   videos: z.string().nullable(),
   documents: z.string().nullable(),
+  /// Typed media manifest that supersedes the three comma-separated columns above.
+  mediaPaths: z.string().optional(),
   targetAudience: z.string().nullable(),
   expectedImpact: z.string().nullable(),
   timeline: z.string().nullable(),
@@ -107,10 +113,12 @@ export const projectDtoSchema = z.object({
 export const createProjectDtoSchema = z.object({
   title: z.string().min(1),
   description: z.string().min(1),
+  summary: z.string().nullable().optional(),
   problemStatement: z.string().min(1),
   solution: z.string().min(1),
   categories: z.array(z.string()).min(1),
   fundingGoal: z.number().nullable().optional(),
+  mediaPaths: z.string().nullable().optional(),
   tags: z.string().nullable().optional(),
   images: z.string().nullable().optional(),
   videos: z.string().nullable().optional(),

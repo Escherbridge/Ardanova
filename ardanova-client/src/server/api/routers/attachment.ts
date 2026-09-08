@@ -2,17 +2,50 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
 import { apiClient } from "~/lib/api";
+import {
+  PROJECT_MEDIA_MAX_FILES,
+  PROJECT_MEDIA_MAX_FILE_BYTES,
+  isSupportedProjectMediaType,
+} from "~/lib/contracts/project-create-contract";
+
+/**
+ * Folders are part of the storage key the backend builds, so they are restricted to a
+ * plain slug here: no separators, no traversal, no absolute paths.
+ */
+const uploadFolderSchema = z
+  .string()
+  .min(1)
+  .max(64)
+  .regex(/^[a-z0-9][a-z0-9-]*$/, "Folder must be a lowercase slug");
+
+/**
+ * Every presigned upload passes this shape. The type allow-list and the size cap are
+ * enforced here, on the server, for both the single and bulk entry points - a client
+ * that skips the wizard gets the same answer as one that does not.
+ */
+const uploadFileSchema = z
+  .object({
+    fileName: z.string().min(1).max(256),
+    contentType: z
+      .string()
+      .min(1)
+      .max(128)
+      .refine(isSupportedProjectMediaType, "Unsupported file type"),
+    fileSize: z
+      .number()
+      .int()
+      .positive()
+      .max(
+        PROJECT_MEDIA_MAX_FILE_BYTES,
+        `Files must be ${Math.floor(PROJECT_MEDIA_MAX_FILE_BYTES / 1_000_000)}MB or smaller`,
+      ),
+    folder: uploadFolderSchema.optional(),
+  })
+  .strict();
 
 export const attachmentRouter = createTRPCRouter({
   getUploadUrl: protectedProcedure
-    .input(
-      z.object({
-        fileName: z.string().min(1),
-        contentType: z.string().min(1),
-        fileSize: z.number().optional(),
-        folder: z.string().optional(),
-      })
-    )
+    .input(uploadFileSchema)
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user.id;
       const response = await apiClient.attachments.getUploadUrl(userId, {
@@ -29,24 +62,19 @@ export const attachmentRouter = createTRPCRouter({
 
   getUploadUrls: protectedProcedure
     .input(
-      z.object({
-        files: z.array(
-          z.object({
-            fileName: z.string().min(1),
-            contentType: z.string().min(1),
-            fileSize: z.number().optional(),
-            folder: z.string().optional(),
-          })
-        ),
-      })
+      z
+        .object({
+          files: z.array(uploadFileSchema).min(1).max(PROJECT_MEDIA_MAX_FILES),
+        })
+        .strict()
     )
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user.id;
-      const files = input.files.map((f) => ({
-        fileName: f.fileName,
-        contentType: f.contentType,
-        fileSize: f.fileSize,
-        folder: f.folder,
+      const files = input.files.map((file) => ({
+        fileName: file.fileName,
+        contentType: file.contentType,
+        fileSize: file.fileSize,
+        folder: file.folder,
       }));
       const response = await apiClient.attachments.getUploadUrls(userId, { files });
       if (response.error || !response.data) {
@@ -80,20 +108,23 @@ export const attachmentRouter = createTRPCRouter({
       return response.data;
     }),
 
+  // The uploader is the authenticated caller. A caller-supplied owner is not accepted,
+  // so an attachment can never be attributed to someone else's account.
   create: protectedProcedure
     .input(
-      z.object({
-        uploadedById: z.string().optional(),
-        bucketPath: z.string().min(1),
-        type: z.string().min(1),
-        fileName: z.string().optional(),
-        fileSize: z.number().optional(),
-      })
+      z
+        .object({
+          bucketPath: z.string().min(1).max(1_024),
+          type: z.string().min(1).max(128),
+          fileName: z.string().max(256).optional(),
+          fileSize: z.number().int().positive().optional(),
+        })
+        .strict()
     )
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user.id;
       const response = await apiClient.attachments.create({
-        uploadedById: input.uploadedById ?? userId,
+        uploadedById: userId,
         bucketPath: input.bucketPath,
         type: input.type,
         fileName: input.fileName,

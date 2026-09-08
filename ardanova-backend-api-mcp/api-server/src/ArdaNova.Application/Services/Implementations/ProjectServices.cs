@@ -1,5 +1,6 @@
-namespace ArdaNova.Application.Services.Implementations;
+﻿namespace ArdaNova.Application.Services.Implementations;
 
+using System.Linq.Expressions;
 using ArdaNova.Application.Common.Interfaces;
 using ArdaNova.Application.Common.Results;
 using ArdaNova.Application.DTOs;
@@ -9,7 +10,178 @@ using ArdaNova.Domain.Models.Enums;
 using AutoMapper;
 using TaskStatus = ArdaNova.Domain.Models.Enums.TaskStatus;
 
-public class ProjectService : IProjectService
+/// <summary>Who a project read is answered for. Drafts are private to their creator, project members and admins.</summary>
+public sealed record ProjectViewer(string? UserId, bool IsAdmin)
+{
+    /// <summary>No verified actor accompanied the request, so only work its owner chose to present is visible.</summary>
+    public static readonly ProjectViewer Anonymous = new(null, false);
+}
+
+/// <summary>Viewer-scoped project reads; every list, search and detail route answers through this surface.</summary>
+public interface IProjectVisibility
+{
+    Task<Result<IReadOnlyList<ProjectDto>>> GetAllVisibleAsync(
+        ProjectViewer viewer,
+        CancellationToken ct = default);
+
+    Task<Result<PagedResult<ProjectDto>>> GetPagedVisibleAsync(
+        ProjectViewer viewer,
+        int page,
+        int pageSize,
+        CancellationToken ct = default);
+
+    Task<Result<PagedResult<ProjectDto>>> SearchVisibleAsync(
+        ProjectViewer viewer,
+        string? searchTerm,
+        ProjectStatus? status,
+        string? category,
+        ProjectType? projectType,
+        int page,
+        int pageSize,
+        CancellationToken ct = default);
+
+    Task<Result<ProjectDto>> GetVisibleByIdAsync(
+        ProjectViewer viewer,
+        string id,
+        CancellationToken ct = default);
+
+    Task<Result<ProjectDto>> GetVisibleBySlugAsync(
+        ProjectViewer viewer,
+        string slug,
+        CancellationToken ct = default);
+
+    Task<Result<IReadOnlyList<ProjectDto>>> GetVisibleByUserIdAsync(
+        ProjectViewer viewer,
+        string userId,
+        CancellationToken ct = default);
+
+    Task<Result<IReadOnlyList<ProjectDto>>> GetVisibleByStatusAsync(
+        ProjectViewer viewer,
+        ProjectStatus status,
+        CancellationToken ct = default);
+
+    Task<Result<IReadOnlyList<ProjectDto>>> GetVisibleByCategoryAsync(
+        ProjectViewer viewer,
+        string category,
+        CancellationToken ct = default);
+
+    Task<Result<IReadOnlyList<ProjectDto>>> GetVisibleByProjectTypeAsync(
+        ProjectViewer viewer,
+        ProjectType projectType,
+        CancellationToken ct = default);
+
+    Task<Result<IReadOnlyList<ProjectDto>>> GetFeaturedVisibleAsync(
+        ProjectViewer viewer,
+        CancellationToken ct = default);
+}
+
+/// <summary>
+/// The one definition of what a project search term matches and of what a viewer may see. The service
+/// and the repository both compose these, so a public listing and a search can never disagree.
+/// </summary>
+public static class ProjectQueryFilters
+{
+    /// <summary>A DRAFT — including the half-finished recovery draft the create wizard leaves behind — is private.</summary>
+    public static Expression<Func<Project, bool>> VisibleTo(ProjectViewer viewer)
+    {
+        if (viewer.IsAdmin)
+            return project => true;
+
+        var viewerId = viewer.UserId;
+        if (string.IsNullOrEmpty(viewerId))
+            return project => project.status != ProjectStatus.DRAFT;
+
+        return project => project.status != ProjectStatus.DRAFT
+            || project.createdById == viewerId
+            || project.ProjectMembers.Any(member => member.userId == viewerId);
+    }
+
+    /// <summary>The searchable surface of a project: the problem and the solution, not just the title.</summary>
+    public static Expression<Func<Project, bool>> MatchesSearchTerm(string searchTerm)
+    {
+        var term = searchTerm.Trim().ToLowerInvariant();
+
+        return project => project.title.ToLower().Contains(term)
+            || project.description.ToLower().Contains(term)
+            || project.problemStatement.ToLower().Contains(term)
+            || project.solution.ToLower().Contains(term)
+            // summary is the one-line ask that lands on Project beside the media paths and funding goal.
+            || (project.summary != null && project.summary.ToLower().Contains(term))
+            || (project.targetAudience != null && project.targetAudience.ToLower().Contains(term))
+            || (project.expectedImpact != null && project.expectedImpact.ToLower().Contains(term))
+            || (project.tags != null && project.tags.ToLower().Contains(term));
+    }
+
+    /// <summary>Visibility first, then the caller filters — so no filter can widen what a viewer may see.</summary>
+    public static Expression<Func<Project, bool>> Build(
+        ProjectViewer viewer,
+        string? searchTerm,
+        ProjectStatus? status,
+        string? category,
+        ProjectType? projectType)
+    {
+        var predicate = VisibleTo(viewer);
+
+        if (!string.IsNullOrWhiteSpace(searchTerm))
+            predicate = predicate.And(MatchesSearchTerm(searchTerm));
+
+        if (status.HasValue)
+        {
+            var requestedStatus = status.Value;
+            predicate = predicate.And(project => project.status == requestedStatus);
+        }
+
+        if (!string.IsNullOrWhiteSpace(category))
+        {
+            var requestedCategory = category;
+            predicate = predicate.And(project => project.categories.Contains(requestedCategory));
+        }
+
+        if (projectType.HasValue)
+        {
+            var requestedType = projectType.Value;
+            predicate = predicate.And(project => project.projectType == requestedType);
+        }
+
+        return predicate;
+    }
+
+    /// <summary>Joins two predicates into one lambda so EF Core still translates the whole filter to SQL.</summary>
+    public static Expression<Func<T, bool>> And<T>(
+        this Expression<Func<T, bool>> left,
+        Expression<Func<T, bool>> right)
+    {
+        var parameter = Expression.Parameter(typeof(T), "entity");
+        var body = Expression.AndAlso(
+            ParameterRebinder.Rebind(left.Body, left.Parameters[0], parameter),
+            ParameterRebinder.Rebind(right.Body, right.Parameters[0], parameter));
+
+        return Expression.Lambda<Func<T, bool>>(body, parameter);
+    }
+
+    private sealed class ParameterRebinder : ExpressionVisitor
+    {
+        private readonly ParameterExpression _replaced;
+        private readonly ParameterExpression _replacement;
+
+        private ParameterRebinder(ParameterExpression replaced, ParameterExpression replacement)
+        {
+            _replaced = replaced;
+            _replacement = replacement;
+        }
+
+        public static Expression Rebind(
+            Expression body,
+            ParameterExpression replaced,
+            ParameterExpression replacement)
+            => new ParameterRebinder(replaced, replacement).Visit(body);
+
+        protected override Expression VisitParameter(ParameterExpression node)
+            => ReferenceEquals(node, _replaced) ? _replacement : base.VisitParameter(node);
+    }
+}
+
+public class ProjectService : IProjectService, IProjectVisibility
 {
     private readonly IProjectRepository _repository;
     private readonly IRepository<User> _userRepository;
@@ -28,76 +200,77 @@ public class ProjectService : IProjectService
         _mapper = mapper;
     }
 
+    /// <summary>Unscoped lookup by id. Authorization reads through this, so it must not hide drafts.</summary>
     public async Task<Result<ProjectDto>> GetByIdAsync(string id, CancellationToken ct = default)
     {
         var project = await _repository.GetByIdAsync(id, ct);
         if (project is null)
             return Result<ProjectDto>.NotFound($"Project with id {id} not found");
 
-        var dto = _mapper.Map<ProjectDto>(project);
-        var user = await _userRepository.GetByIdAsync(project.createdById, ct);
-        if (user is not null)
-            dto = dto with { CreatedBy = _mapper.Map<ProjectCreatorDto>(user) };
-
-        return Result<ProjectDto>.Success(dto);
+        return Result<ProjectDto>.Success(await WithCreatorAsync(project, ct));
     }
 
+    /// <summary>Unscoped lookup by slug. Public reads go through <see cref="GetVisibleBySlugAsync"/>.</summary>
     public async Task<Result<ProjectDto>> GetBySlugAsync(string slug, CancellationToken ct = default)
     {
         var project = await _repository.FindOneAsync(p => p.slug == slug, ct);
         if (project is null)
             return Result<ProjectDto>.NotFound($"Project with slug {slug} not found");
 
-        var dto = _mapper.Map<ProjectDto>(project);
-        var user = await _userRepository.GetByIdAsync(project.createdById, ct);
-        if (user is not null)
-            dto = dto with { CreatedBy = _mapper.Map<ProjectCreatorDto>(user) };
-
-        return Result<ProjectDto>.Success(dto);
+        return Result<ProjectDto>.Success(await WithCreatorAsync(project, ct));
     }
 
-    // Helper method to enrich project DTOs with user data
-    private async Task<IReadOnlyList<ProjectDto>> EnrichWithUserDataAsync(IEnumerable<Project> projects, CancellationToken ct)
+    public Task<Result<ProjectDto>> GetVisibleByIdAsync(
+        ProjectViewer viewer,
+        string id,
+        CancellationToken ct = default)
+        => FindVisibleAsync(
+            ProjectQueryFilters.VisibleTo(viewer).And(project => project.id == id),
+            $"Project with id {id} not found",
+            ct);
+
+    public Task<Result<ProjectDto>> GetVisibleBySlugAsync(
+        ProjectViewer viewer,
+        string slug,
+        CancellationToken ct = default)
+        => FindVisibleAsync(
+            ProjectQueryFilters.VisibleTo(viewer).And(project => project.slug == slug),
+            $"Project with slug {slug} not found",
+            ct);
+
+    /// <summary>Legacy unscoped listing; answered as the anonymous public would see it.</summary>
+    public Task<Result<IReadOnlyList<ProjectDto>>> GetAllAsync(CancellationToken ct = default)
+        => GetAllVisibleAsync(ProjectViewer.Anonymous, ct);
+
+    public async Task<Result<IReadOnlyList<ProjectDto>>> GetAllVisibleAsync(
+        ProjectViewer viewer,
+        CancellationToken ct = default)
+        => Result<IReadOnlyList<ProjectDto>>.Success(
+            await ListVisibleAsync(ProjectQueryFilters.VisibleTo(viewer), ct));
+
+    /// <summary>Legacy unscoped paging; answered as the anonymous public would see it.</summary>
+    public Task<Result<PagedResult<ProjectDto>>> GetPagedAsync(
+        int page,
+        int pageSize,
+        CancellationToken ct = default)
+        => GetPagedVisibleAsync(ProjectViewer.Anonymous, page, pageSize, ct);
+
+    public async Task<Result<PagedResult<ProjectDto>>> GetPagedVisibleAsync(
+        ProjectViewer viewer,
+        int page,
+        int pageSize,
+        CancellationToken ct = default)
     {
-        var dtos = _mapper.Map<List<ProjectDto>>(projects);
-        var userIds = projects.Select(p => p.createdById).Distinct().ToList();
-        var users = new Dictionary<string, User>();
+        var result = await _repository.GetPagedAsync(
+            page,
+            pageSize,
+            ProjectQueryFilters.VisibleTo(viewer),
+            ct);
 
-        foreach (var userId in userIds)
-        {
-            var user = await _userRepository.GetByIdAsync(userId, ct);
-            if (user is not null)
-                users[userId] = user;
-        }
-
-        return dtos.Select(dto =>
-        {
-            var project = projects.First(p => p.id == dto.Id);
-            if (users.TryGetValue(project.createdById, out var user))
-                return dto with { CreatedBy = _mapper.Map<ProjectCreatorDto>(user) };
-            return dto;
-        }).ToList();
+        return Result<PagedResult<ProjectDto>>.Success(await EnrichPageAsync(result, ct));
     }
 
-    public async Task<Result<IReadOnlyList<ProjectDto>>> GetAllAsync(CancellationToken ct = default)
-    {
-        var projects = await _repository.GetAllAsync(ct);
-        var enrichedDtos = await EnrichWithUserDataAsync(projects, ct);
-        return Result<IReadOnlyList<ProjectDto>>.Success(enrichedDtos);
-    }
-
-    public async Task<Result<PagedResult<ProjectDto>>> GetPagedAsync(int page, int pageSize, CancellationToken ct = default)
-    {
-        var result = await _repository.GetPagedAsync(page, pageSize, null, ct);
-        var enrichedItems = await EnrichWithUserDataAsync(result.Items, ct);
-        return Result<PagedResult<ProjectDto>>.Success(new PagedResult<ProjectDto>(
-            enrichedItems.ToList(),
-            result.TotalCount,
-            result.Page,
-            result.PageSize
-        ));
-    }
-
+    /// <summary>Legacy unscoped search; the repository overload it calls excludes drafts by construction.</summary>
     public async Task<Result<PagedResult<ProjectDto>>> SearchAsync(
         string? searchTerm,
         ProjectStatus? status,
@@ -108,49 +281,86 @@ public class ProjectService : IProjectService
         CancellationToken ct = default)
     {
         var result = await _repository.SearchAsync(searchTerm, status, category, projectType, page, pageSize, ct);
-        var enrichedItems = await EnrichWithUserDataAsync(result.Items, ct);
-        return Result<PagedResult<ProjectDto>>.Success(new PagedResult<ProjectDto>(
-            enrichedItems.ToList(),
-            result.TotalCount,
-            result.Page,
-            result.PageSize
-        ));
+        return Result<PagedResult<ProjectDto>>.Success(await EnrichPageAsync(result, ct));
     }
 
-    public async Task<Result<IReadOnlyList<ProjectDto>>> GetByUserIdAsync(string userId, CancellationToken ct = default)
+    public async Task<Result<PagedResult<ProjectDto>>> SearchVisibleAsync(
+        ProjectViewer viewer,
+        string? searchTerm,
+        ProjectStatus? status,
+        string? category,
+        ProjectType? projectType,
+        int page,
+        int pageSize,
+        CancellationToken ct = default)
     {
-        var projects = await _repository.FindAsync(p => p.createdById == userId, ct);
-        var enrichedDtos = await EnrichWithUserDataAsync(projects, ct);
-        return Result<IReadOnlyList<ProjectDto>>.Success(enrichedDtos);
+        var result = await _repository.GetPagedAsync(
+            page,
+            pageSize,
+            ProjectQueryFilters.Build(viewer, searchTerm, status, category, projectType),
+            ct);
+
+        return Result<PagedResult<ProjectDto>>.Success(await EnrichPageAsync(result, ct));
     }
 
-    public async Task<Result<IReadOnlyList<ProjectDto>>> GetByStatusAsync(ProjectStatus status, CancellationToken ct = default)
-    {
-        var projects = await _repository.FindAsync(p => p.status == status, ct);
-        var enrichedDtos = await EnrichWithUserDataAsync(projects, ct);
-        return Result<IReadOnlyList<ProjectDto>>.Success(enrichedDtos);
-    }
+    public Task<Result<IReadOnlyList<ProjectDto>>> GetByUserIdAsync(string userId, CancellationToken ct = default)
+        => GetVisibleByUserIdAsync(ProjectViewer.Anonymous, userId, ct);
 
-    public async Task<Result<IReadOnlyList<ProjectDto>>> GetByCategory(string category, CancellationToken ct = default)
-    {
-        var projects = await _repository.FindAsync(p => p.categories.Contains(category), ct);
-        var enrichedDtos = await EnrichWithUserDataAsync(projects, ct);
-        return Result<IReadOnlyList<ProjectDto>>.Success(enrichedDtos);
-    }
+    public async Task<Result<IReadOnlyList<ProjectDto>>> GetVisibleByUserIdAsync(
+        ProjectViewer viewer,
+        string userId,
+        CancellationToken ct = default)
+        => Result<IReadOnlyList<ProjectDto>>.Success(
+            await ListVisibleAsync(
+                ProjectQueryFilters.VisibleTo(viewer).And(project => project.createdById == userId),
+                ct));
 
-    public async Task<Result<IReadOnlyList<ProjectDto>>> GetByProjectTypeAsync(ProjectType projectType, CancellationToken ct = default)
-    {
-        var projects = await _repository.FindAsync(p => p.projectType == projectType, ct);
-        var enrichedDtos = await EnrichWithUserDataAsync(projects, ct);
-        return Result<IReadOnlyList<ProjectDto>>.Success(enrichedDtos);
-    }
+    public Task<Result<IReadOnlyList<ProjectDto>>> GetByStatusAsync(ProjectStatus status, CancellationToken ct = default)
+        => GetVisibleByStatusAsync(ProjectViewer.Anonymous, status, ct);
 
-    public async Task<Result<IReadOnlyList<ProjectDto>>> GetFeaturedAsync(CancellationToken ct = default)
-    {
-        var projects = await _repository.FindAsync(p => p.featured, ct);
-        var enrichedDtos = await EnrichWithUserDataAsync(projects, ct);
-        return Result<IReadOnlyList<ProjectDto>>.Success(enrichedDtos);
-    }
+    public async Task<Result<IReadOnlyList<ProjectDto>>> GetVisibleByStatusAsync(
+        ProjectViewer viewer,
+        ProjectStatus status,
+        CancellationToken ct = default)
+        => Result<IReadOnlyList<ProjectDto>>.Success(
+            await ListVisibleAsync(
+                ProjectQueryFilters.VisibleTo(viewer).And(project => project.status == status),
+                ct));
+
+    public Task<Result<IReadOnlyList<ProjectDto>>> GetByCategory(string category, CancellationToken ct = default)
+        => GetVisibleByCategoryAsync(ProjectViewer.Anonymous, category, ct);
+
+    public async Task<Result<IReadOnlyList<ProjectDto>>> GetVisibleByCategoryAsync(
+        ProjectViewer viewer,
+        string category,
+        CancellationToken ct = default)
+        => Result<IReadOnlyList<ProjectDto>>.Success(
+            await ListVisibleAsync(
+                ProjectQueryFilters.VisibleTo(viewer).And(project => project.categories.Contains(category)),
+                ct));
+
+    public Task<Result<IReadOnlyList<ProjectDto>>> GetByProjectTypeAsync(ProjectType projectType, CancellationToken ct = default)
+        => GetVisibleByProjectTypeAsync(ProjectViewer.Anonymous, projectType, ct);
+
+    public async Task<Result<IReadOnlyList<ProjectDto>>> GetVisibleByProjectTypeAsync(
+        ProjectViewer viewer,
+        ProjectType projectType,
+        CancellationToken ct = default)
+        => Result<IReadOnlyList<ProjectDto>>.Success(
+            await ListVisibleAsync(
+                ProjectQueryFilters.VisibleTo(viewer).And(project => project.projectType == projectType),
+                ct));
+
+    public Task<Result<IReadOnlyList<ProjectDto>>> GetFeaturedAsync(CancellationToken ct = default)
+        => GetFeaturedVisibleAsync(ProjectViewer.Anonymous, ct);
+
+    public async Task<Result<IReadOnlyList<ProjectDto>>> GetFeaturedVisibleAsync(
+        ProjectViewer viewer,
+        CancellationToken ct = default)
+        => Result<IReadOnlyList<ProjectDto>>.Success(
+            await ListVisibleAsync(
+                ProjectQueryFilters.VisibleTo(viewer).And(project => project.featured),
+                ct));
 
     private static readonly HashSet<string> ValidCategories = Enum.GetNames<ProjectCategory>()
         .ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -179,11 +389,13 @@ public class ProjectService : IProjectService
             title = dto.Title,
             slug = GenerateSlug(dto.Title),
             description = dto.Description,
+            summary = dto.Summary,
             problemStatement = dto.ProblemStatement,
             solution = dto.Solution,
             categories = string.Join(",", dto.Categories),
             status = ProjectStatus.DRAFT,
             fundingGoal = dto.FundingGoal,
+            fundingGoalUnit = dto.FundingGoalUnit ?? ProjectFundingUnits.Arda,
             currentFunding = 0,
             supportersCount = 0,
             votesCount = 0,
@@ -198,6 +410,7 @@ public class ProjectService : IProjectService
             images = dto.Images,
             videos = dto.Videos,
             documents = dto.Documents,
+            mediaPaths = dto.MediaPaths ?? ProjectMediaPaths.Empty,
             createdAt = DateTime.UtcNow,
             updatedAt = DateTime.UtcNow
         };
@@ -220,6 +433,7 @@ public class ProjectService : IProjectService
 
         if (dto.Title is not null) project.title = dto.Title;
         if (dto.Description is not null) project.description = dto.Description;
+        if (dto.Summary is not null) project.summary = dto.Summary;
         if (dto.ProblemStatement is not null) project.problemStatement = dto.ProblemStatement;
         if (dto.Solution is not null) project.solution = dto.Solution;
         if (dto.Categories is not null) project.categories = string.Join(",", dto.Categories);
@@ -233,6 +447,12 @@ public class ProjectService : IProjectService
         if (dto.Images is not null) project.images = dto.Images;
         if (dto.Videos is not null) project.videos = dto.Videos;
         if (dto.Documents is not null) project.documents = dto.Documents;
+        if (dto.MediaPaths is not null) project.mediaPaths = dto.MediaPaths;
+        if (dto.FundingGoalUnit is not null) project.fundingGoalUnit = dto.FundingGoalUnit;
+
+        // A project that reaches a public status through an edit is published from that moment on.
+        if (project.status != ProjectStatus.DRAFT && project.publishedAt is null)
+            project.publishedAt = DateTime.UtcNow;
 
         project.updatedAt = DateTime.UtcNow;
 
@@ -252,19 +472,29 @@ public class ProjectService : IProjectService
         return Result<bool>.Success(true);
     }
 
+    /// <summary>Idempotent: a project that is already public comes back untouched and keeps its first publish date.</summary>
     public async Task<Result<ProjectDto>> PublishAsync(string id, CancellationToken ct = default)
     {
         var project = await _repository.GetByIdAsync(id, ct);
         if (project is null)
             return Result<ProjectDto>.NotFound($"Project with id {id} not found");
 
-        project.status = ProjectStatus.PUBLISHED;
-        project.publishedAt = DateTime.UtcNow;
+        if (project.status == ProjectStatus.CANCELLED)
+            return Result<ProjectDto>.ValidationError("A cancelled project cannot be published; reopen it first.");
+
+        var alreadyPublic = project.status != ProjectStatus.DRAFT;
+        if (alreadyPublic && project.publishedAt.HasValue)
+            return Result<ProjectDto>.Success(await WithCreatorAsync(project, ct));
+
+        if (!alreadyPublic)
+            project.status = ProjectStatus.PUBLISHED;
+
+        project.publishedAt ??= DateTime.UtcNow;
         project.updatedAt = DateTime.UtcNow;
 
         await _repository.UpdateAsync(project, ct);
         await _unitOfWork.SaveChangesAsync(ct);
-        return Result<ProjectDto>.Success(_mapper.Map<ProjectDto>(project));
+        return Result<ProjectDto>.Success(await WithCreatorAsync(project, ct));
     }
 
     public async Task<Result<ProjectDto>> SetFeaturedAsync(string id, bool featured, CancellationToken ct = default)
@@ -279,6 +509,66 @@ public class ProjectService : IProjectService
         await _repository.UpdateAsync(project, ct);
         await _unitOfWork.SaveChangesAsync(ct);
         return Result<ProjectDto>.Success(_mapper.Map<ProjectDto>(project));
+    }
+
+    private async Task<Result<ProjectDto>> FindVisibleAsync(
+        Expression<Func<Project, bool>> predicate,
+        string notFoundMessage,
+        CancellationToken ct)
+    {
+        var project = await _repository.FindOneAsync(predicate, ct);
+
+        // A draft the viewer may not see is reported absent, never forbidden: its existence is private too.
+        if (project is null)
+            return Result<ProjectDto>.NotFound(notFoundMessage);
+
+        return Result<ProjectDto>.Success(await WithCreatorAsync(project, ct));
+    }
+
+    private async Task<IReadOnlyList<ProjectDto>> ListVisibleAsync(
+        Expression<Func<Project, bool>> predicate,
+        CancellationToken ct)
+        => await EnrichWithUserDataAsync(await _repository.FindAsync(predicate, ct), ct);
+
+    private async Task<PagedResult<ProjectDto>> EnrichPageAsync(PagedResult<Project> page, CancellationToken ct)
+        => new PagedResult<ProjectDto>(
+            (await EnrichWithUserDataAsync(page.Items, ct)).ToList(),
+            page.TotalCount,
+            page.Page,
+            page.PageSize);
+
+    private async Task<ProjectDto> WithCreatorAsync(Project project, CancellationToken ct)
+    {
+        var dto = _mapper.Map<ProjectDto>(project);
+        var creator = await _userRepository.GetByIdAsync(project.createdById, ct);
+        return creator is null ? dto : dto with { CreatedBy = _mapper.Map<ProjectCreatorDto>(creator) };
+    }
+
+    /// <summary>Attaches each creator once, however many of their projects are in the list.</summary>
+    private async Task<IReadOnlyList<ProjectDto>> EnrichWithUserDataAsync(
+        IEnumerable<Project> projects,
+        CancellationToken ct)
+    {
+        var materialized = projects as IReadOnlyList<Project> ?? projects.ToList();
+        var dtos = _mapper.Map<List<ProjectDto>>(materialized);
+        if (dtos.Count != materialized.Count)
+            return dtos;
+
+        var creators = new Dictionary<string, User>(StringComparer.Ordinal);
+        foreach (var creatorId in materialized.Select(project => project.createdById).Distinct(StringComparer.Ordinal))
+        {
+            var creator = await _userRepository.GetByIdAsync(creatorId, ct);
+            if (creator is not null)
+                creators[creatorId] = creator;
+        }
+
+        for (var index = 0; index < dtos.Count; index++)
+        {
+            if (creators.TryGetValue(materialized[index].createdById, out var creator))
+                dtos[index] = dtos[index] with { CreatedBy = _mapper.Map<ProjectCreatorDto>(creator) };
+        }
+
+        return dtos;
     }
 
     private static string GenerateSlug(string title)

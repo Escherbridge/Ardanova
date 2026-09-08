@@ -5,28 +5,65 @@ import {
   protectedProcedure,
   publicProcedure,
 } from "~/server/api/trpc";
+import { runWithActorAssertion } from "~/server/actor-assertion";
 import { apiClient } from "~/lib/api";
 
-const PostTypeSchema = z.enum(["POST", "ANNOUNCEMENT", "MILESTONE", "UPDATE"]);
+/**
+ * Field notes are project-scoped; there is no global feed.
+ *
+ * Writes are `protectedProcedure`, so the API takes the author from the signed actor
+ * assertion and a caller can never post as someone else. Reads stay public, but attach
+ * the reader as an actor when a session exists: signed out, the API returns only notes
+ * shared with everyone; signed in, it adds the ones that reader is entitled to see.
+ */
+
+type FieldNoteReader =
+  | { id?: string | null; role?: string }
+  | null
+  | undefined;
+
+/** Runs a read with the reader attached as the actor, or anonymously when signed out. */
+async function readAsViewer<T>(
+  reader: FieldNoteReader,
+  call: () => Promise<T>,
+): Promise<T> {
+  if (!reader?.id) return call();
+  return runWithActorAssertion({ subject: reader.id, role: reader.role }, call);
+}
+
+const PostTypeSchema = z.enum([
+  "POST",
+  "PROJECT_UPDATE",
+  "GUILD_ACTIVITY",
+  "TASK_COMPLETED",
+  "MILESTONE",
+  "PROPOSAL",
+  "SHOP_ITEM",
+]);
+
 const PostVisibilitySchema = z.enum([
   "PUBLIC",
-  "FOLLOWERS",
   "PROJECT_MEMBERS",
+  "GUILD_MEMBERS",
   "PRIVATE",
 ]);
 
 export const postRouter = createTRPCRouter({
-  getFeed: publicProcedure
+  getProjectFieldNotes: publicProcedure
     .input(
       z.object({
+        projectId: z.string().min(1),
         page: z.number().min(1).default(1),
         pageSize: z.number().min(1).max(100).default(20),
       }),
     )
-    .query(async ({ input }) => {
-      const response = await apiClient.posts.getFeed(
-        input.page,
-        input.pageSize,
+    .query(async ({ input, ctx }) => {
+      const response = await readAsViewer(ctx.session?.user, () =>
+        apiClient.posts.getProjectFieldNotes(
+          input.projectId,
+          input.page,
+          input.pageSize,
+        ),
       );
       if (response.error) {
         throw new TRPCError({
@@ -39,12 +76,14 @@ export const postRouter = createTRPCRouter({
 
   getById: publicProcedure
     .input(z.object({ id: z.string() }))
-    .query(async ({ input }) => {
-      const response = await apiClient.posts.getById(input.id);
+    .query(async ({ input, ctx }) => {
+      const response = await readAsViewer(ctx.session?.user, () =>
+        apiClient.posts.getById(input.id),
+      );
       if (response.error || !response.data) {
         throw new TRPCError({
           code: "NOT_FOUND",
-          message: response.error ?? "Post not found",
+          message: response.error ?? "Field note not found",
         });
       }
       return response.data;
@@ -52,8 +91,10 @@ export const postRouter = createTRPCRouter({
 
   getByUserId: publicProcedure
     .input(z.object({ userId: z.string() }))
-    .query(async ({ input }) => {
-      const response = await apiClient.posts.getByUserId(input.userId);
+    .query(async ({ input, ctx }) => {
+      const response = await readAsViewer(ctx.session?.user, () =>
+        apiClient.posts.getByUserId(input.userId),
+      );
       if (response.error) {
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
@@ -75,10 +116,8 @@ export const postRouter = createTRPCRouter({
         metadata: z.string().optional(),
       }),
     )
-    .mutation(async ({ input, ctx }) => {
-      const authorId = ctx.session.user.id;
+    .mutation(async ({ input }) => {
       const response = await apiClient.posts.create({
-        authorId,
         content: input.content,
         projectId: input.projectId,
         guildId: input.guildId,
@@ -90,7 +129,7 @@ export const postRouter = createTRPCRouter({
       if (response.error || !response.data) {
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
-          message: response.error ?? "Failed to create post",
+          message: response.error ?? "Failed to post this field note",
         });
       }
       return response.data;
@@ -107,14 +146,13 @@ export const postRouter = createTRPCRouter({
         isPinned: z.boolean().optional(),
       }),
     )
-    .mutation(async ({ input, ctx }) => {
-      const authorId = ctx.session.user.id;
+    .mutation(async ({ input }) => {
       const { id, ...data } = input;
-      const response = await apiClient.posts.update(id, authorId, data);
+      const response = await apiClient.posts.update(id, data);
       if (response.error || !response.data) {
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
-          message: response.error ?? "Failed to update post",
+          message: response.error ?? "Failed to update this field note",
         });
       }
       return response.data;
@@ -122,9 +160,8 @@ export const postRouter = createTRPCRouter({
 
   delete: protectedProcedure
     .input(z.object({ id: z.string() }))
-    .mutation(async ({ input, ctx }) => {
-      const authorId = ctx.session.user.id;
-      const response = await apiClient.posts.delete(input.id, authorId);
+    .mutation(async ({ input }) => {
+      const response = await apiClient.posts.delete(input.id);
       if (response.error) {
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
@@ -136,9 +173,8 @@ export const postRouter = createTRPCRouter({
 
   like: protectedProcedure
     .input(z.object({ id: z.string() }))
-    .mutation(async ({ input, ctx }) => {
-      const userId = ctx.session.user.id;
-      const response = await apiClient.posts.like(input.id, userId);
+    .mutation(async ({ input }) => {
+      const response = await apiClient.posts.like(input.id);
       if (response.error || !response.data) {
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
@@ -150,9 +186,8 @@ export const postRouter = createTRPCRouter({
 
   unlike: protectedProcedure
     .input(z.object({ id: z.string() }))
-    .mutation(async ({ input, ctx }) => {
-      const userId = ctx.session.user.id;
-      const response = await apiClient.posts.unlike(input.id, userId);
+    .mutation(async ({ input }) => {
+      const response = await apiClient.posts.unlike(input.id);
       if (response.error || !response.data) {
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
@@ -171,14 +206,12 @@ export const postRouter = createTRPCRouter({
         comment: z.string().optional(),
       }),
     )
-    .mutation(async ({ input, ctx }) => {
-      const userId = ctx.session.user.id;
+    .mutation(async ({ input }) => {
       const { id, ...rest } = input;
       const hasPayload =
         rest.sharedToProjectId ?? rest.sharedToGuildId ?? rest.comment;
       const response = await apiClient.posts.share(
         id,
-        userId,
         hasPayload ? rest : undefined,
       );
       if (response.error || !response.data) {
@@ -192,9 +225,8 @@ export const postRouter = createTRPCRouter({
 
   bookmark: protectedProcedure
     .input(z.object({ id: z.string() }))
-    .mutation(async ({ input, ctx }) => {
-      const userId = ctx.session.user.id;
-      const response = await apiClient.posts.bookmark(input.id, userId);
+    .mutation(async ({ input }) => {
+      const response = await apiClient.posts.bookmark(input.id);
       if (response.error) {
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
@@ -206,9 +238,8 @@ export const postRouter = createTRPCRouter({
 
   unbookmark: protectedProcedure
     .input(z.object({ id: z.string() }))
-    .mutation(async ({ input, ctx }) => {
-      const userId = ctx.session.user.id;
-      const response = await apiClient.posts.unbookmark(input.id, userId);
+    .mutation(async ({ input }) => {
+      const response = await apiClient.posts.unbookmark(input.id);
       if (response.error) {
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
@@ -220,8 +251,10 @@ export const postRouter = createTRPCRouter({
 
   getComments: publicProcedure
     .input(z.object({ id: z.string() }))
-    .query(async ({ input }) => {
-      const response = await apiClient.posts.getComments(input.id);
+    .query(async ({ input, ctx }) => {
+      const response = await readAsViewer(ctx.session?.user, () =>
+        apiClient.posts.getComments(input.id),
+      );
       if (response.error) {
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
@@ -239,17 +272,15 @@ export const postRouter = createTRPCRouter({
         content: z.string().min(1),
       }),
     )
-    .mutation(async ({ input, ctx }) => {
-      const authorId = ctx.session.user.id;
+    .mutation(async ({ input }) => {
       const response = await apiClient.posts.addComment(input.postId, {
-        authorId,
         parentId: input.parentId,
         content: input.content,
       });
       if (response.error || !response.data) {
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
-          message: response.error ?? "Failed to add comment",
+          message: response.error ?? "Failed to add reply",
         });
       }
       return response.data;
@@ -262,12 +293,10 @@ export const postRouter = createTRPCRouter({
         commentId: z.string(),
       }),
     )
-    .mutation(async ({ input, ctx }) => {
-      const authorId = ctx.session.user.id;
+    .mutation(async ({ input }) => {
       const response = await apiClient.posts.deleteComment(
         input.postId,
         input.commentId,
-        authorId,
       );
       if (response.error) {
         throw new TRPCError({
