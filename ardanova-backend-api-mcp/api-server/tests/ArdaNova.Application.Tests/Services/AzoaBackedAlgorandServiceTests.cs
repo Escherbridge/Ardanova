@@ -69,8 +69,6 @@ public class AzoaBackedAlgorandServiceTests
             .ReturnsAsync(Result<AzoaFungibleMintResult>.Success(new AzoaFungibleMintResult
             {
                 AssetId = "67890",
-                TxHash = "FUNGIBLE_TX",
-                OperationId = "op-1",
             }));
 
         // Act
@@ -82,24 +80,32 @@ public class AzoaBackedAlgorandServiceTests
             It.IsAny<object>(),
             It.IsAny<CancellationToken>()), Times.Once);
 
-        // Request shape: name/unit pass through; supply is an opaque string (§1, §3).
+        // Request shape: name/unit pass through; supply is a real ulong plus the asset
+        // scale, NOT an opaque string -- a JSON string deserializes to 0 on AZOA's side
+        // and fails the mint with "zero total".
         captured.Should().NotBeNull();
         captured!.Name.Should().Be("ARDA Token");
         captured.UnitName.Should().Be("ARDA");
-        captured.TotalSupply.Should().Be("1000000000");
+        captured.Total.Should().Be(1_000_000_000UL);
+        captured.Decimals.Should().Be(6);
         captured.ChainType.Should().Be("Algorand");
 
         // Result projected onto the legacy FungibleAsaCreateResult shape.
         result.IsSuccess.Should().BeTrue();
         result.Value.Should().NotBeNull();
         result.Value!.AssetId.Should().Be("67890");
-        result.Value!.TxHash.Should().Be("FUNGIBLE_TX");
+        // AZOA's fungible-mint response carries NO transaction hash: the platform reserve
+        // signs the ASA-create, so the node hands back no chain reference and the adapter
+        // must not fabricate one.
+        result.Value!.TxHash.Should().BeEmpty();
     }
 
     [Fact]
-    public async Task CreateFungibleASAAsync_WhenTxHashMissing_FallsBackToOperationId()
+    public async Task CreateFungibleASAAsync_NeverFabricatesATransactionHash()
     {
-        // Arrange — Simulated mode: no chain tx hash, only a deterministic op id.
+        // Arrange — the node's fungible-mint response has neither a tx hash nor an
+        // operation id (the reserve signs the ASA-create), so there is nothing to fall
+        // back to. The old fallback-to-operation-id behaviour is gone with the fields.
         _nodeMock
             .Setup(n => n.PostAsync<AzoaFungibleMintResult>(
                 FungibleMintPath,
@@ -108,17 +114,18 @@ public class AzoaBackedAlgorandServiceTests
             .ReturnsAsync(Result<AzoaFungibleMintResult>.Success(new AzoaFungibleMintResult
             {
                 AssetId = "sim:42",
-                TxHash = null,
-                OperationId = "sim-op-99",
+                WalletAddress = "RESERVEADDRESS",
+                WalletProvisioned = true,
             }));
 
         // Act
         var result = await _sut.CreateFungibleASAAsync("Proj Token", "PROJ", 1000);
 
-        // Assert
+        // Assert — the asset id maps; the tx hash stays empty rather than being derived
+        // from the asset id or the wallet address.
         result.IsSuccess.Should().BeTrue();
         result.Value!.AssetId.Should().Be("sim:42");
-        result.Value!.TxHash.Should().Be("sim-op-99");
+        result.Value!.TxHash.Should().BeEmpty();
     }
 
     [Fact]
@@ -153,7 +160,6 @@ public class AzoaBackedAlgorandServiceTests
             .ReturnsAsync(Result<AzoaFungibleMintResult>.Success(new AzoaFungibleMintResult
             {
                 AssetId = "",
-                OperationId = "op-1",
             }));
 
         // Act

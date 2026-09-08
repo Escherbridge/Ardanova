@@ -37,8 +37,10 @@ using Microsoft.Extensions.Options;
 ///   3. DEFERRED    — BurnASAAsync / ClawbackASAAsync (soulbound revoke) are an
 ///                    AZOA H2 follow-up and return a clear deferred failure.
 ///
-/// Amounts pass through to the node as opaque strings; this adapter computes no
-/// economics (contract §1, §3).
+/// Allocation-door amounts pass through to the node as opaque strings (this
+/// adapter computes no economics, contract §1, §3); the fungible-mint door is
+/// the one exception — its Total/Decimals are real typed numbers, because
+/// minting has no prior balance for the node to preserve opaquely.
 /// </summary>
 public sealed class AzoaBackedAlgorandService : IAlgorandService
 {
@@ -48,6 +50,16 @@ public sealed class AzoaBackedAlgorandService : IAlgorandService
     /// which maps cleanly onto the legacy <c>CreateFungibleASAAsync</c> surface.
     /// </summary>
     private const string FungibleMintPath = "/api/nft/fungible-mint";
+
+    /// <summary>
+    /// Asset scale (decimal places) for AZOA-backed fungible mints. The shared
+    /// <see cref="IAlgorandService.CreateFungibleASAAsync"/> surface carries no
+    /// decimals parameter of its own, so this mirrors the legacy
+    /// <c>AlgorandService.CreateFungibleASAAsync</c> hardcoded convention
+    /// ("standard 6 decimals for fungible tokens") to keep the two providers'
+    /// asset scale in agreement.
+    /// </summary>
+    private const int FungibleMintAssetScale = 6;
 
     private const string AvatarGapMessage =
         "AZOA-backed path is avatar-centric and cannot resolve an Algorand address to an avatar. " +
@@ -135,9 +147,10 @@ public sealed class AzoaBackedAlgorandService : IAlgorandService
     // CreateFungibleASAAsync — CLEAN MAP (POST /api/nft/fungible-mint)
     //
     // This is the one value-move that maps cleanly without an avatar: the tenant
-    // mints a new fungible asset. We post the already-decided supply as an opaque
-    // string (the node derives no economics) and surface the node's asset id +
-    // operation id back through the legacy FungibleAsaCreateResult shape.
+    // mints a new fungible asset. We post the already-decided supply as a real
+    // Total/Decimals pair (the node derives no economics from it, but it IS a
+    // typed number, not an opaque string) and surface the node's asset id back
+    // through the legacy FungibleAsaCreateResult shape.
     // ========================================================================
 
     /// <inheritdoc/>
@@ -156,8 +169,13 @@ public sealed class AzoaBackedAlgorandService : IAlgorandService
             ChainType = string.IsNullOrWhiteSpace(_settings.ChainType) ? "Algorand" : _settings.ChainType,
             Name = name,
             UnitName = unitName,
-            // Opaque string — AZOA does not recompute supply (§1, §3).
-            TotalSupply = totalSupply.ToString(),
+            // A real ulong, NOT an opaque string: AZOA's FungibleMintRequest.Total is
+            // the tenant-decided supply itself (no economics for the node to derive),
+            // unlike the allocation door's opaque-string amount. Sending it as a JSON
+            // string here previously deserialized to 0 on AZOA's side and failed every
+            // mint with "zero total" (see AZOA repo Models/Requests/FungibleMintRequest.cs).
+            Total = totalSupply,
+            Decimals = FungibleMintAssetScale,
         };
 
         var result = await _node.PostAsync<AzoaFungibleMintResult>(FungibleMintPath, request, ct);
@@ -175,12 +193,12 @@ public sealed class AzoaBackedAlgorandService : IAlgorandService
         return Result<FungibleAsaCreateResult>.Success(new FungibleAsaCreateResult
         {
             AssetId = payload.AssetId,
-            // The node reports the chain transaction hash when live; in Simulated
-            // mode it returns a deterministic operation id. Either is a valid
-            // opaque reference for the legacy TxHash field.
-            TxHash = !string.IsNullOrWhiteSpace(payload.TxHash)
-                ? payload.TxHash
-                : payload.OperationId,
+            // AZOA's fungible-mint response (FungibleTokenResult) carries no
+            // transaction hash: the platform reserve signs the ASA-create per node
+            // policy (Reserve:FungibleMintTarget), so the caller is never handed a
+            // chain reference for it. We do NOT fabricate one from AssetId/WalletId —
+            // same "no faking" rule as the DOCUMENTED GAP methods below.
+            TxHash = string.Empty,
         });
     }
 
@@ -338,10 +356,13 @@ public sealed class AzoaBackedAlgorandService : IAlgorandService
 }
 
 // ── Fungible-mint wire models (local to the adapter) ──────────────────────────
-// The contract names POST /api/nft/fungible-mint as the direct fungible-mint
-// endpoint but pins no DTO for it; these mirror the conventions of the existing
-// AZOA wire models (camelCase JSON, opaque string amounts). Kept internal to the
-// adapter to avoid widening the shared Azoa wire surface for a single call.
+// Mirror AZOA's actual DTOs byte-for-byte (Models/Requests/FungibleMintRequest.cs
+// and Models/Responses/FungibleTokenResult.cs in the AZOA repo) — this endpoint,
+// unlike the allocation door, carries a REAL typed Total/Decimals pair, not an
+// opaque string amount, because minting a brand-new asset has no prior economics
+// for the node to preserve; the tenant-decided supply IS the number. Kept internal
+// to the adapter to avoid widening the shared Azoa wire surface for a single call.
+// See tests/Azoa/FungibleMintContractTests.cs for the pinned wire-shape assertions.
 
 /// <summary>Request body for <c>POST /api/nft/fungible-mint</c>.</summary>
 public sealed class AzoaFungibleMintRequest
@@ -350,18 +371,31 @@ public sealed class AzoaFungibleMintRequest
     [JsonPropertyName("name")] public string Name { get; set; } = string.Empty;
     [JsonPropertyName("unitName")] public string UnitName { get; set; } = string.Empty;
 
-    /// <summary>Already-decided total supply as an opaque string (§1, §3).</summary>
-    [JsonPropertyName("totalSupply")] public string TotalSupply { get; set; } = string.Empty;
+    /// <summary>
+    /// Total supply in base units. A real number — AZOA's <c>FungibleMintRequest.Total</c>
+    /// is <c>ulong</c>, not an opaque string; serializing it as a string here
+    /// deserializes to 0 on AZOA's side and the mint fails with "zero total".
+    /// </summary>
+    [JsonPropertyName("total")] public ulong Total { get; set; }
+
+    /// <summary>Decimal places (asset scale). Mirrors AZOA's <c>FungibleMintRequest.Decimals</c>.</summary>
+    [JsonPropertyName("decimals")] public int Decimals { get; set; }
 }
 
-/// <summary>Result payload from <c>POST /api/nft/fungible-mint</c>.</summary>
+/// <summary>
+/// Result payload from <c>POST /api/nft/fungible-mint</c>, mirroring AZOA's
+/// <c>FungibleTokenResult</c> exactly. Note there is no transaction hash or
+/// operation id field: the platform reserve signs the ASA-create, so the node
+/// never hands the caller a chain reference for this call.
+/// </summary>
 public sealed class AzoaFungibleMintResult
 {
+    [JsonPropertyName("userId")] public Guid UserId { get; set; }
+    [JsonPropertyName("walletId")] public Guid WalletId { get; set; }
+    [JsonPropertyName("walletAddress")] public string WalletAddress { get; set; } = string.Empty;
+    [JsonPropertyName("walletProvisioned")] public bool WalletProvisioned { get; set; }
     [JsonPropertyName("assetId")] public string AssetId { get; set; } = string.Empty;
 
-    /// <summary>Chain transaction hash when live; empty in Simulated mode.</summary>
-    [JsonPropertyName("txHash")] public string? TxHash { get; set; }
-
-    /// <summary>Deterministic operation id; used as the TxHash fallback in Simulated mode.</summary>
-    [JsonPropertyName("operationId")] public string OperationId { get; set; } = string.Empty;
+    /// <summary>True when the idempotency key replayed an existing mint — no second asset was created.</summary>
+    [JsonPropertyName("replayed")] public bool Replayed { get; set; }
 }
