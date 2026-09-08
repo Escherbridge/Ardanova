@@ -267,4 +267,123 @@ public class ExchangeServiceTests
         result.IsSuccess.Should().BeFalse();
         result.Error.Should().Contain("must be positive");
     }
+
+    [Fact]
+    public async Task CalculateConversionAsync_PricesInArdaInOneHop()
+    {
+        // Arrange: one unit is worth $10, one ARDA is worth $2, so a unit costs 5 ARDA.
+        ArrangeRate(fundingRaised: 10_000, totalSupply: 1_000, backing: 10_000, circulating: 5_000);
+
+        // Act
+        var result = await _sut.CalculateConversionAsync("ptc1", 100, CancellationToken.None);
+
+        // Assert: the exact fields are the contract; the doubles are only their projection.
+        result.IsSuccess.Should().BeTrue();
+        result.Value!.ArdaPerProjectUnit.Should().Be(5m);
+        result.Value.ArdaAmountExact.Should().Be(500m);
+        result.Value.ArdaMinorUnits.Should().Be(500_00);
+        result.Value.RateSource.Should().Be(ExchangeService.DeclaredRateSource);
+    }
+
+    [Fact]
+    public async Task GetDeclaredRateAsync_DeclaresArdaPerUnitAndTheUsdReference()
+    {
+        // Arrange
+        ArrangeRate(fundingRaised: 10_000, totalSupply: 1_000, backing: 10_000, circulating: 5_000);
+
+        // Act
+        var result = await _sut.GetDeclaredRateAsync("ptc1", CancellationToken.None);
+
+        // Assert
+        result.IsSuccess.Should().BeTrue();
+        result.Value!.ArdaPerWholeProjectUnit.Should().Be("5");
+        result.Value.UsdMajorUnitsPerWholeProjectUnit.Should().Be("10");
+        result.Value.Source.Should().Be(ExchangeService.DeclaredRateSource);
+    }
+
+    private void ArrangeRate(double fundingRaised, int totalSupply, double backing, long circulating)
+    {
+        _projectTokenConfigRepo
+            .Setup(r => r.GetByIdAsync("ptc1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ProjectTokenConfig
+            {
+                id = "ptc1",
+                assetScale = 2,
+                totalSupply = totalSupply,
+                fundingRaised = fundingRaised,
+            });
+
+        _treasuryRepo
+            .Setup(r => r.GetAllAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<PlatformTreasury>
+            {
+                new()
+                {
+                    id = "treasury1",
+                    indexFundBalance = backing,
+                    liquidReserveBalance = 0,
+                    operationsBalance = 0,
+                    ardaCirculatingSupply = circulating,
+                }
+            });
+    }
+}
+
+/// <summary>
+/// The money primitive every value path goes through: exact minor units, refusals instead of
+/// silent rounding, and no binary floating point anywhere in the arithmetic.
+/// </summary>
+public class MoneyTests
+{
+    [Theory]
+    [InlineData("0.01", 1L)]
+    [InlineData("1", 100L)]
+    [InlineData("1234.56", 123456L)]
+    public void TryToMinorUnits_ConvertsExactAmounts(string amount, long expected)
+    {
+        Money.TryToMinorUnits(decimal.Parse(amount, System.Globalization.CultureInfo.InvariantCulture), out var minorUnits)
+            .Should().BeTrue();
+        minorUnits.Should().Be(expected);
+    }
+
+    [Fact]
+    public void TryToMinorUnits_RefusesSubCentPrecisionRatherThanRoundingItAway()
+    {
+        // A third of a cent is not money this platform can hold, and quietly dropping it is
+        // exactly the defect the fixed-scale model exists to remove.
+        Money.TryToMinorUnits(0.005m, out var minorUnits).Should().BeFalse();
+        minorUnits.Should().Be(0);
+    }
+
+    [Fact]
+    public void TryToMinorUnits_RefusesAmountsThatCannotBeRepresented()
+    {
+        Money.TryToMinorUnits(decimal.MaxValue, out _).Should().BeFalse();
+    }
+
+    [Fact]
+    public void TryToMinorUnitsFloor_DropsTheSurplusInsteadOfRoundingUp()
+    {
+        Money.TryToMinorUnitsFloor(1.999m, out var minorUnits).Should().BeTrue();
+        minorUnits.Should().Be(199);
+    }
+
+    [Fact]
+    public void TryToWholeUnitsFloor_NeverInventsAPartialUnit()
+    {
+        Money.TryToWholeUnitsFloor(9.99m, out var wholeUnits).Should().BeTrue();
+        wholeUnits.Should().Be(9);
+    }
+
+    [Fact]
+    public void FromMinorUnits_RoundTripsExactly()
+    {
+        Money.FromMinorUnits(123456).Should().Be(1234.56m);
+    }
+
+    [Fact]
+    public void ToExactString_IsInvariantAndUnrounded()
+    {
+        Money.ToExactString(0.1m + 0.2m).Should().Be("0.3");
+    }
 }

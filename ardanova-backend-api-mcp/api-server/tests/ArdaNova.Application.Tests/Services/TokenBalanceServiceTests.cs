@@ -14,10 +14,17 @@ using Moq;
 
 public class TokenBalanceServiceTests
 {
+    private const string ArdaAssetId = "arda-asset";
+
     private readonly Mock<IRepository<TokenBalance>> _tokenBalanceRepo;
     private readonly Mock<IRepository<ProjectTokenConfig>> _projectTokenConfigRepo;
     private readonly Mock<IUnitOfWork> _unitOfWork;
     private readonly Mock<IMapper> _mapper;
+    private readonly Mock<IAzoaHoldingsReadModel> _holdings;
+    private readonly Mock<IRepository<User>> _userRepo;
+    private readonly Mock<IRepository<PlatformTreasury>> _treasuryRepo;
+
+    /// <summary>The service with NO node holdings read wired.</summary>
     private readonly TokenBalanceService _sut;
 
     public TokenBalanceServiceTests()
@@ -26,12 +33,37 @@ public class TokenBalanceServiceTests
         _projectTokenConfigRepo = new Mock<IRepository<ProjectTokenConfig>>();
         _unitOfWork = new Mock<IUnitOfWork>();
         _mapper = new Mock<IMapper>();
+        _holdings = new Mock<IAzoaHoldingsReadModel>();
+        _userRepo = new Mock<IRepository<User>>();
+        _treasuryRepo = new Mock<IRepository<PlatformTreasury>>();
         _sut = new TokenBalanceService(
             _tokenBalanceRepo.Object,
             _projectTokenConfigRepo.Object,
             _unitOfWork.Object,
             _mapper.Object
         );
+    }
+
+    /// <summary>The service with the node holdings read-model wired.</summary>
+    private TokenBalanceService ChainBackedSut() => new(
+        _tokenBalanceRepo.Object,
+        _projectTokenConfigRepo.Object,
+        _unitOfWork.Object,
+        _mapper.Object,
+        _holdings.Object,
+        _userRepo.Object,
+        _treasuryRepo.Object);
+
+    /// <summary>A user with a custodial avatar, and a platform unit that exists on the node.</summary>
+    private void ArrangeCustodialUser(string userId, Guid avatarId)
+    {
+        _userRepo.Setup(r => r.GetByIdAsync(userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new User { id = userId, azoaAvatarId = avatarId.ToString("D") });
+        _treasuryRepo.Setup(r => r.GetAllAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<PlatformTreasury>
+            {
+                new() { id = "treasury1", ardaAssetId = ArdaAssetId }
+            });
     }
 
     [Fact]
@@ -100,63 +132,71 @@ public class TokenBalanceServiceTests
     }
 
     [Fact]
-    public async Task GetArdaBalanceAsync_Found_ReturnsSuccess()
+    public async Task GetArdaBalanceAsync_ReadsTheCustodialWallet_NotAPlatformTokenRow()
     {
         // Arrange
         var userId = "user1";
-        var balance = new TokenBalance
-        {
-            id = "bal1",
-            userId = userId,
-            projectTokenConfigId = null,
-            isPlatformToken = true,
-            holderClass = null,
-            isLiquid = true,
-            balance = 500,
-            lockedBalance = 50,
-            updatedAt = DateTime.UtcNow
-        };
-        var balanceDto = new TokenBalanceDto
-        {
-            Id = balance.id,
-            UserId = balance.userId,
-            Balance = balance.balance,
-            LockedBalance = balance.lockedBalance
-        };
+        var avatarId = Guid.NewGuid();
+        var observedAt = DateTimeOffset.UtcNow;
+        ArrangeCustodialUser(userId, avatarId);
 
+        // A stale isPlatformToken row exists and must NOT be what the answer comes from.
         _tokenBalanceRepo.Setup(r => r.FindOneAsync(
             It.IsAny<Expression<Func<TokenBalance, bool>>>(),
             It.IsAny<CancellationToken>()))
-            .ReturnsAsync(balance);
+            .ReturnsAsync(new TokenBalance { id = "stale", userId = userId, isPlatformToken = true, balance = 7 });
 
-        _mapper.Setup(m => m.Map<TokenBalanceDto>(balance))
-            .Returns(balanceDto);
+        _holdings.Setup(m => m.GetHoldingAsync(avatarId, ArdaAssetId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<AvatarHolding>.Success(
+                new AvatarHolding(ArdaAssetId, "ADDR", 500_00, observedAt)));
 
         // Act
-        var result = await _sut.GetArdaBalanceAsync(userId, CancellationToken.None);
+        var result = await ChainBackedSut().GetArdaBalanceAsync(userId, CancellationToken.None);
 
         // Assert
         result.IsSuccess.Should().BeTrue();
-        result.Value.Should().BeEquivalentTo(balanceDto);
+        result.Value!.Balance.Should().Be(500_00);
+        result.Value.AssetId.Should().Be(ArdaAssetId);
+        result.Value.WalletAddress.Should().Be("ADDR");
+        result.Value.IsChainObserved.Should().BeTrue();
     }
 
     [Fact]
-    public async Task GetArdaBalanceAsync_NotFound_ReturnsFailure()
+    public async Task GetArdaBalanceAsync_WithoutANodeRead_RefusesInsteadOfReportingZero()
     {
-        // Arrange
+        // Arrange - the shape a deployment has when nothing is wired to read the chain.
         var userId = "user1";
-
-        _tokenBalanceRepo.Setup(r => r.FindOneAsync(
-            It.IsAny<Expression<Func<TokenBalance, bool>>>(),
-            It.IsAny<CancellationToken>()))
-            .ReturnsAsync((TokenBalance?)null);
 
         // Act
         var result = await _sut.GetArdaBalanceAsync(userId, CancellationToken.None);
 
         // Assert
         result.IsSuccess.Should().BeFalse();
-        result.Error.Should().Contain("not found");
+        result.Error.Should().Contain("holdings read");
+        _tokenBalanceRepo.Verify(
+            r => r.FindOneAsync(
+                It.IsAny<Expression<Func<TokenBalance, bool>>>(),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task GetArdaBalanceAsync_WithoutACustodialAvatar_Refuses()
+    {
+        // Arrange
+        var userId = "user1";
+        _userRepo.Setup(r => r.GetByIdAsync(userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new User { id = userId, azoaAvatarId = null });
+
+        // Act
+        var result = await ChainBackedSut().GetArdaBalanceAsync(userId, CancellationToken.None);
+
+        // Assert
+        result.IsSuccess.Should().BeFalse();
+        result.Error.Should().Contain("custodial avatar");
+        _holdings.Verify(
+            m => m.GetHoldingAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 
     [Fact]
@@ -213,7 +253,16 @@ public class TokenBalanceServiceTests
         result.Value.Should().NotBeNull();
         result.Value!.UserId.Should().Be(userId);
         result.Value.Holdings.Should().NotBeNull();
-        result.Value.Holdings.Should().HaveCount(2);
+
+        // The isPlatformToken row never reaches the holdings list: a person's ARDA is the
+        // custodial wallet balance, which this deployment cannot read - and says so.
+        _mapper.Verify(
+            m => m.Map<List<TokenBalanceDto>>(
+                It.Is<IEnumerable<TokenBalance>>(rows => rows.All(row => !row.isPlatformToken))),
+            Times.Once);
+        result.Value.ArdaBalance.Should().BeNull();
+        result.Value.ArdaBalanceUnavailableReason.Should().NotBeNullOrWhiteSpace();
+        result.Value.TotalPortfolioValueUsd.Should().BeNull();
     }
 
     [Fact]

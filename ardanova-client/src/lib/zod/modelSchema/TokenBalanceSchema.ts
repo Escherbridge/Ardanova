@@ -12,8 +12,11 @@ export const TokenBalanceSchema = z.object({
   projectTokenConfigId: z.string().nullable(),
   isPlatformToken: z.boolean(),
   isLiquid: z.boolean(),
-  balance: z.number().int(),
-  lockedBalance: z.number().int(),
+  balance: z.bigint(),
+  lockedBalance: z.bigint(),
+  assetId: z.string().nullable(),
+  walletAddress: z.string().nullable(),
+  observedAt: z.coerce.date().nullable(),
   updatedAt: z.coerce.date(),
 })
 

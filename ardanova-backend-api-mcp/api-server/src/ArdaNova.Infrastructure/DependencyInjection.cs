@@ -129,6 +129,10 @@ public static class DependencyInjection
         services.AddScoped<IAzoaAllocationNode, AzoaAllocationNodeAdapter>();
         services.AddScoped<IAzoaSettlementGateway, DisabledAzoaSettlementGateway>();
         services.AddScoped<IFundingSettlementReadiness, AzoaFundingSettlementReadiness>();
+        // The exchange ports (node exchange, project-treasury and holdings read models). These
+        // never fall back to the database, so without this registration TreasuryService.ReconcileAsync
+        // and TokenBalanceService.GetArdaBalanceAsync refuse every call.
+        services.AddAzoaExchangeClient(configuration, environmentName);
 
         var outboxOptions = CreateOutboxOptions(azoaSettings);
         services.AddSingleton(outboxOptions);

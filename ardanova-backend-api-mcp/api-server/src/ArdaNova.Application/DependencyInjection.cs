@@ -121,8 +121,14 @@ public static class DependencyInjection
 
         // Tokenomics services
         services.AddScoped<IProjectTokenService, ProjectTokenService>();
+        // Funding setup is the same scoped instance under its own interface, so the funding
+        // routes depend on it explicitly rather than casting - the IProjectVisibility pattern.
+        services.AddScoped<IProjectTokenProvisioning>(sp => (IProjectTokenProvisioning)sp.GetRequiredService<IProjectTokenService>());
         services.AddScoped<ITokenBalanceService, TokenBalanceService>();
         services.AddScoped<IExchangeService, ExchangeService>();
+        // The declared-rate source is the same scoped instance under its own interface, so a
+        // caller that only needs the rate does not take a dependency on the whole exchange.
+        services.AddScoped<IProjectUnitRateSource>(sp => (IProjectUnitRateSource)sp.GetRequiredService<IExchangeService>());
         services.AddScoped<ISwapService, SwapService>();
         services.AddScoped<IPayoutService, PayoutService>();
         services.AddScoped<ITreasuryService, TreasuryService>();

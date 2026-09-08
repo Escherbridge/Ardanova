@@ -28,6 +28,96 @@ import {
 const tokenAllocationListSchema = z.array(tokenAllocationDtoSchema);
 const projectInvestmentListSchema = z.array(projectInvestmentDtoSchema);
 
+// ---------------------------------------------------------------------------
+// Funding setup (self-serve project stake, W5.2)
+//
+// These two calls go through the base client rather than
+// `apiClient.projectTokens`, whose endpoint module belongs to another item this
+// wave. The paths are the same ones the .NET ProjectTokensController exposes.
+// ---------------------------------------------------------------------------
+
+const FUNDING_PROVISION_PATH = "/api/ProjectTokens/funding/provision";
+
+/** Funding setup states, in the order a project reaches them. */
+export const PROJECT_FUNDING_STATES = [
+  "NotDeclared",
+  "AwaitingUnits",
+  "AwaitingTreasury",
+  "AwaitingAllowances",
+  "Ready",
+  "Suspended",
+] as const;
+
+/**
+ * A project's funding setup as a person reads it. Mirrors ProjectTokenFundingDto,
+ * which deliberately carries no address, asset id or chain name.
+ */
+const projectTokenFundingSchema = z.object({
+  projectId: z.string(),
+  configId: z.string().nullish(),
+  state: z.enum(PROJECT_FUNDING_STATES),
+  isFundable: z.boolean(),
+  ownerCanCompleteSetup: z.boolean(),
+  setupMessage: z.string().nullish(),
+  assetName: z.string().nullish(),
+  unitName: z.string().nullish(),
+  totalSupply: z.number().int(),
+  contributorPartitionSupply: z.number().int(),
+  investorPartitionSupply: z.number().int(),
+  contributorUnitsRemaining: z.number().int(),
+  investorUnitsRemaining: z.number().int(),
+  fundingGoal: z.number(),
+  fundingRaised: z.number(),
+  disclosure: z.string().nullish(),
+});
+
+export type ProjectTokenFunding = z.infer<typeof projectTokenFundingSchema>;
+
+/**
+ * What an owner declares at publish. The bounds match
+ * ProjectTokenService.ValidateDeclaration; the server checks them again, this copy
+ * only spares the owner a round trip.
+ */
+export const provisionProjectFundingSchema = z.object({
+  projectId: z.string().min(1),
+  assetName: z.string().trim().min(3).max(32),
+  unitName: z
+    .string()
+    .trim()
+    .min(2)
+    .max(8)
+    .regex(/^[A-Za-z0-9]+$/u, "Use letters and digits only"),
+  totalSupply: z.number().int().positive(),
+  contributorSupply: z.number().int().nonnegative(),
+  investorSupply: z.number().int().nonnegative(),
+  fundingGoal: z.number().positive(),
+  disclosure: z.string().trim().min(20).max(2000),
+  reservedPercentage: z.number().min(0).max(100).default(0),
+  successCriteria: z.string().trim().max(2000).optional(),
+});
+
+/** Keeps the backend's own refusal ("finish verifying your identity") in front of the owner. */
+function toFundingError(status: number | undefined, message: string) {
+  const code =
+    status === 403
+      ? "FORBIDDEN"
+      : status === 404
+        ? "NOT_FOUND"
+        : status === 409
+          ? "CONFLICT"
+          : status === 400
+            ? "BAD_REQUEST"
+            : "INTERNAL_SERVER_ERROR";
+  return new TRPCError({ code, message });
+}
+
+function readableFundingError(
+  error: string | undefined,
+  fallback: string,
+): string {
+  return !error || /^HTTP \d{3}$/u.test(error.trim()) ? fallback : error;
+}
+
 function parseBackendContract<T>(
   schema: z.ZodType<T>,
   data: unknown,
@@ -160,6 +250,65 @@ export const projectTokensRouter = createTRPCRouter({
         projectTokenConfigDtoSchema,
         response.data,
         "project-token supply",
+      );
+    }),
+
+  // ---- Funding setup ----
+
+  /**
+   * A project's funding setup. Owner-only actions come back decided by the server
+   * from the caller's verified identity, never from anything this client sends.
+   */
+  getFunding: protectedProcedure
+    .input(z.object({ projectId: z.string().min(1) }))
+    .query(async ({ input }) => {
+      const response = await apiClient.get<unknown>(
+        `/api/ProjectTokens/funding/by-project/${encodeURIComponent(input.projectId)}`,
+      );
+
+      if (response.error || !response.data) {
+        throw toFundingError(
+          response.status,
+          readableFundingError(
+            response.error,
+            "This project's funding setup could not be read right now.",
+          ),
+        );
+      }
+
+      return parseBackendContract(
+        projectTokenFundingSchema,
+        response.data,
+        "project funding setup",
+      );
+    }),
+
+  /**
+   * Runs the publish-time funding job. Safe to call again: the server resumes a
+   * half-finished setup and never creates a project's stake twice.
+   */
+  provisionFunding: protectedProcedure
+    .input(provisionProjectFundingSchema)
+    .mutation(async ({ input }) => {
+      const response = await apiClient.post<unknown>(
+        FUNDING_PROVISION_PATH,
+        input,
+      );
+
+      if (response.error || !response.data) {
+        throw toFundingError(
+          response.status,
+          readableFundingError(
+            response.error,
+            "Funding setup could not be completed for this project.",
+          ),
+        );
+      }
+
+      return parseBackendContract(
+        projectTokenFundingSchema,
+        response.data,
+        "project funding setup",
       );
     }),
 

@@ -10,23 +10,56 @@ using AutoMapper;
 
 namespace ArdaNova.Application.Services.Implementations;
 
+/// <summary>
+/// Holdings, as a read-model of what the chain says a person has.
+/// </summary>
+/// <remarks>
+/// A person's ARDA is the balance of their custodial wallet on the node, NOT an
+/// <c>isPlatformToken</c> row: that row was never credited by anything, which is why an ARDA
+/// balance read zero forever. <see cref="GetArdaBalanceAsync"/> now reads the chain and refuses
+/// when it cannot, rather than returning a database row that looks like an answer.
+/// <para>
+/// Project-unit rows are still ArdaNova's own bookkeeping until the node holds them (W7.2).
+/// They carry their provenance - <c>assetId</c>, <c>walletAddress</c>, <c>observedAt</c> - so a
+/// caller can always tell a chain-observed holding from an internal one.
+/// </para>
+/// </remarks>
 public class TokenBalanceService : ITokenBalanceService
 {
+    /// <summary>Why an ARDA balance is unavailable when nothing is wired to read the chain.</summary>
+    public const string NoHoldingsReadConfigured =
+        "No custodial holdings read is wired to the node, so this balance cannot be reported. "
+        + "Unblocked by an API-key-reachable holdings read on AZOA (today only the wallet owner's "
+        + "own principal can call GET /api/wallet/{id}/portfolio).";
+
     private readonly IRepository<TokenBalance> _tokenBalanceRepository;
     private readonly IRepository<ProjectTokenConfig> _projectTokenConfigRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IMapper _mapper;
+    private readonly IAzoaHoldingsReadModel? _holdingsReadModel;
+    private readonly IRepository<User>? _userRepository;
+    private readonly IRepository<PlatformTreasury>? _treasuryRepository;
 
+    /// <param name="holdingsReadModel">
+    /// The node read-model. Optional in the constructor only so the type still constructs without
+    /// a container; when it is absent an ARDA read REFUSES instead of falling back to a row.
+    /// </param>
     public TokenBalanceService(
         IRepository<TokenBalance> tokenBalanceRepository,
         IRepository<ProjectTokenConfig> projectTokenConfigRepository,
         IUnitOfWork unitOfWork,
-        IMapper mapper)
+        IMapper mapper,
+        IAzoaHoldingsReadModel? holdingsReadModel = null,
+        IRepository<User>? userRepository = null,
+        IRepository<PlatformTreasury>? treasuryRepository = null)
     {
         _tokenBalanceRepository = tokenBalanceRepository;
         _projectTokenConfigRepository = projectTokenConfigRepository;
         _unitOfWork = unitOfWork;
         _mapper = mapper;
+        _holdingsReadModel = holdingsReadModel;
+        _userRepository = userRepository;
+        _treasuryRepository = treasuryRepository;
     }
 
     public async Task<Result<TokenBalanceDto>> GetBalanceAsync(
@@ -51,21 +84,22 @@ public class TokenBalanceService : ITokenBalanceService
         return Result<TokenBalanceDto>.Success(dto);
     }
 
+    /// <summary>
+    /// The person's ARDA, read from their custodial wallet on the node.
+    /// </summary>
+    /// <remarks>
+    /// Fails closed at every step that cannot be answered truthfully: no custodial avatar, no
+    /// ARDA asset registered yet, or no holdings read wired. None of those is "zero".
+    /// </remarks>
     public async Task<Result<TokenBalanceDto>> GetArdaBalanceAsync(string userId, CancellationToken ct = default)
     {
-        Expression<Func<TokenBalance, bool>> balancePredicate = tb =>
-            tb.userId == userId &&
-            tb.isPlatformToken == true;
-
-        var balance = await _tokenBalanceRepository.FindOneAsync(balancePredicate, ct);
-
-        if (balance == null)
+        var holding = await ReadArdaHoldingAsync(userId, ct);
+        if (!holding.IsSuccess || holding.Value is null)
         {
-            return Result<TokenBalanceDto>.Failure($"ARDA balance not found for user {userId}");
+            return Result<TokenBalanceDto>.Failure(holding.Error ?? NoHoldingsReadConfigured);
         }
 
-        var dto = _mapper.Map<TokenBalanceDto>(balance);
-        return Result<TokenBalanceDto>.Success(dto);
+        return Result<TokenBalanceDto>.Success(ToArdaDto(userId, holding.Value));
     }
 
     public async Task<Result<UserPortfolioDto>> GetPortfolioAsync(string userId, CancellationToken ct = default)
@@ -73,14 +107,24 @@ public class TokenBalanceService : ITokenBalanceService
         Expression<Func<TokenBalance, bool>> predicate = tb => tb.userId == userId;
         var balances = await _tokenBalanceRepository.FindAsync(predicate, ct);
 
+        var holding = await ReadArdaHoldingAsync(userId, ct);
+
         var dto = new UserPortfolioDto
         {
             UserId = userId,
-            Holdings = _mapper.Map<List<TokenBalanceDto>>(balances),
-            ArdaBalance = null,
-            TotalLiquidValueUsd = 0,
-            TotalLockedValueUsd = 0,
-            TotalPortfolioValueUsd = 0
+            // isPlatformToken rows are ArdaNova bookkeeping, never a person's ARDA; the ARDA
+            // leg below is the only place a platform balance comes from.
+            Holdings = _mapper.Map<List<TokenBalanceDto>>(
+                balances.Where(row => !row.isPlatformToken).ToList()),
+            ArdaBalance = holding.IsSuccess && holding.Value is not null
+                ? ToArdaDto(userId, holding.Value)
+                : null,
+            ArdaBalanceUnavailableReason = holding.IsSuccess ? null : holding.Error,
+            TotalLiquidValueUsd = null,
+            TotalLockedValueUsd = null,
+            TotalPortfolioValueUsd = null,
+            ValuationUnavailableReason =
+                "Portfolio valuation needs a chain-backed treasury read; see TreasuryService.",
         };
         return Result<UserPortfolioDto>.Success(dto);
     }
@@ -97,7 +141,6 @@ public class TokenBalanceService : ITokenBalanceService
             return Result<TokenBalanceDto>.Failure("Credit amount must be positive");
         }
 
-        // Find or create balance
         Expression<Func<TokenBalance, bool>> predicate = tb =>
             tb.userId == userId &&
             tb.projectTokenConfigId == projectTokenConfigId &&
@@ -122,11 +165,19 @@ public class TokenBalanceService : ITokenBalanceService
             await _tokenBalanceRepository.AddAsync(balance, ct);
         }
 
-        // Increment balance
-        balance.balance += amount;
+        // checked: base units are exact, so an overflow must throw rather than wrap a holding
+        // around into a negative number.
+        try
+        {
+            balance.balance = checked(balance.balance + amount);
+        }
+        catch (OverflowException)
+        {
+            return Result<TokenBalanceDto>.Failure("Credit would exceed the range this platform can hold.");
+        }
+
         balance.updatedAt = DateTime.UtcNow;
 
-        // Determine liquidity
         var liquidResult = await IsBalanceLiquidAsync(userId, projectTokenConfigId, holderClass, ct);
         if (liquidResult.IsSuccess)
         {
@@ -264,7 +315,6 @@ public class TokenBalanceService : ITokenBalanceService
         TokenHolderClass holderClass,
         CancellationToken ct = default)
     {
-        // Check if this is a platform token balance
         Expression<Func<TokenBalance, bool>> balancePredicate = tb =>
             tb.userId == userId &&
             tb.projectTokenConfigId == projectTokenConfigId &&
@@ -276,7 +326,6 @@ public class TokenBalanceService : ITokenBalanceService
             return Result<bool>.Success(true);
         }
 
-        // Get the project token config to check gate status
         var config = await _projectTokenConfigRepository.GetByIdAsync(projectTokenConfigId, ct);
         if (config == null)
         {
@@ -285,4 +334,53 @@ public class TokenBalanceService : ITokenBalanceService
 
         return Result<bool>.Success(TokenLiquidityPolicy.IsLiquid(holderClass, config.gateStatus));
     }
+
+    /// <summary>Reads the person's ARDA holding from the node, or says exactly why it cannot.</summary>
+    private async Task<Result<AvatarHolding>> ReadArdaHoldingAsync(string userId, CancellationToken ct)
+    {
+        if (_holdingsReadModel is null || _userRepository is null || _treasuryRepository is null)
+        {
+            return Result<AvatarHolding>.Failure(NoHoldingsReadConfigured);
+        }
+
+        var user = await _userRepository.GetByIdAsync(userId, ct);
+        if (user is null)
+        {
+            return Result<AvatarHolding>.NotFound($"User not found: {userId}");
+        }
+
+        if (!Guid.TryParse(user.azoaAvatarId, out var avatarId) || avatarId == Guid.Empty)
+        {
+            return Result<AvatarHolding>.Failure(
+                "This account has no custodial avatar on the node yet, so it holds nothing to report.");
+        }
+
+        var treasuries = await _treasuryRepository.GetAllAsync(ct);
+        var ardaAssetId = treasuries.FirstOrDefault()?.ardaAssetId;
+        if (string.IsNullOrWhiteSpace(ardaAssetId))
+        {
+            return Result<AvatarHolding>.Failure(
+                "The platform unit has not been created on the node yet, so no balance exists to read.");
+        }
+
+        return await _holdingsReadModel.GetHoldingAsync(avatarId, ardaAssetId, ct);
+    }
+
+    /// <summary>Projects a chain holding onto the balance DTO, stamped with its provenance.</summary>
+    private static TokenBalanceDto ToArdaDto(string userId, AvatarHolding holding) =>
+        new()
+        {
+            Id = $"arda:{userId}",
+            UserId = userId,
+            ProjectTokenConfigId = null,
+            IsPlatformToken = true,
+            HolderClass = null,
+            IsLiquid = true,
+            Balance = holding.BalanceBaseUnits,
+            LockedBalance = 0,
+            AssetId = holding.AssetId,
+            WalletAddress = holding.WalletAddress,
+            ObservedAt = holding.ObservedAt.UtcDateTime,
+            UpdatedAt = holding.ObservedAt.UtcDateTime,
+        };
 }

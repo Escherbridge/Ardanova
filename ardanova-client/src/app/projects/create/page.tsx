@@ -159,8 +159,52 @@ const steps: { id: number; name: string }[] = [
   { id: 1, name: "Resources" },
   { id: 2, name: "Team Roles" },
   { id: 3, name: "Milestones" },
-  { id: 4, name: "Review" },
+  { id: 4, name: "Funding" },
+  { id: 5, name: "Review" },
 ];
+
+const FUNDING_STEP = 4;
+
+/** What the owner declares on the funding step; whole units, no fractions to reason about. */
+interface FundingDeclarationDraft {
+  enabled: boolean;
+  stakeName: string;
+  unitLabel: string;
+  totalUnits: string;
+  sponsorUnits: string;
+  workerUnits: string;
+  disclosure: string;
+}
+
+const emptyFundingDeclaration: FundingDeclarationDraft = {
+  enabled: true,
+  stakeName: "",
+  unitLabel: "",
+  totalUnits: "1000",
+  sponsorUnits: "600",
+  workerUnits: "300",
+  disclosure: "",
+};
+
+/** A short label derived from the project's own name, so nobody is asked to invent a ticker. */
+function suggestUnitLabel(title: string): string {
+  const initials = title
+    .split(/\s+/u)
+    .map((word) => word.replace(/[^A-Za-z0-9]/gu, "").charAt(0))
+    .join("")
+    .toUpperCase();
+  const letters = title.replace(/[^A-Za-z0-9]/gu, "").toUpperCase();
+  const candidate = initials.length >= 2 ? initials : letters;
+  return candidate.length >= 2 ? candidate.slice(0, 8) : "UNIT";
+}
+
+/** Whole non-negative counts only; anything else is a declaration error, not a rounded number. */
+function parseWholeUnits(value: string): number | undefined {
+  const trimmed = value.trim();
+  if (!/^\d+$/u.test(trimmed)) return undefined;
+  const parsed = Number(trimmed);
+  return Number.isSafeInteger(parsed) ? parsed : undefined;
+}
 
 export default function CreateProjectPage() {
   const router = useRouter();
@@ -194,6 +238,12 @@ export default function CreateProjectPage() {
   );
 
   const [currentStep, setCurrentStep] = useState(0);
+  // The declaration is deliberately NOT part of the saved draft: its shape belongs to the
+  // project-create contract, which this step does not own. A reload sends the owner to the
+  // project's Funding tab, which offers the same declaration and the same server job.
+  const [funding, setFunding] = useState<FundingDeclarationDraft>(
+    emptyFundingDeclaration,
+  );
   const [formData, setFormData] = useState<WizardFormData>(
     createEmptyProjectFormData,
   );
@@ -423,12 +473,23 @@ export default function CreateProjectPage() {
     }
   })();
 
+  const resolvedStakeName = (
+    funding.stakeName.trim() || `${formData.title.trim()} Stake`
+  ).slice(0, 32);
+  const resolvedUnitLabel = (
+    funding.unitLabel.trim() || suggestUnitLabel(formData.title)
+  )
+    .toUpperCase()
+    .slice(0, 8);
+
   const createMutation = api.project.create.useMutation();
   const addResourceMutation = api.project.addResource.useMutation();
   const addMilestoneMutation = api.project.addMilestone.useMutation();
   const addMemberMutation = api.project.addMember.useMutation();
   const createOpportunityMutation = api.opportunity.create.useMutation();
   const deleteProjectMutation = api.project.delete.useMutation();
+  const provisionFundingMutation =
+    api.projectTokens.provisionFunding.useMutation();
   const valueAccountReady = isValueActionAccountReady(custodyStatus.data);
   const valueAccountCheckPending =
     Boolean(session?.user?.id) &&
@@ -522,6 +583,57 @@ export default function CreateProjectPage() {
             newErrors.milestones = "Invalid date format";
           }
         }
+      }
+    }
+
+    // Step 4: Funding - the declaration the server re-checks before it creates anything
+    if (step === FUNDING_STEP && funding.enabled) {
+      const stakeName = resolvedStakeName;
+      if (stakeName.length < 3 || stakeName.length > 32) {
+        newErrors.fundingStakeName =
+          "Give the stake a name between 3 and 32 characters";
+      }
+
+      const unitLabel = resolvedUnitLabel;
+      if (!/^[A-Za-z0-9]{2,8}$/u.test(unitLabel)) {
+        newErrors.fundingUnitLabel = "Use 2 to 8 letters or digits";
+      }
+
+      const total = parseWholeUnits(funding.totalUnits);
+      const forSponsors = parseWholeUnits(funding.sponsorUnits);
+      const forWorkers = parseWholeUnits(funding.workerUnits);
+
+      if (total === undefined || total < 1) {
+        newErrors.fundingTotalUnits = "Enter a whole number of units, at least 1";
+      }
+      if (forSponsors === undefined) {
+        newErrors.fundingSponsorUnits = "Enter a whole number of units";
+      }
+      if (forWorkers === undefined) {
+        newErrors.fundingWorkerUnits = "Enter a whole number of units";
+      }
+      if (
+        total !== undefined &&
+        forSponsors !== undefined &&
+        forWorkers !== undefined
+      ) {
+        if (forSponsors + forWorkers < 1) {
+          newErrors.fundingSponsorUnits =
+            "Set aside at least one unit for sponsors or workers";
+        } else if (forSponsors + forWorkers > total) {
+          newErrors.fundingSponsorUnits = `Sponsor and worker shares add up to ${forSponsors + forWorkers} units, more than the ${total} that exist`;
+        }
+      }
+
+      const disclosure = funding.disclosure.trim();
+      if (disclosure.length < 20 || disclosure.length > 2000) {
+        newErrors.fundingDisclosure =
+          "Write 20 to 2000 characters on what a stake means and when it becomes theirs";
+      }
+
+      if (fundingGoalUnits === undefined || fundingGoalUnits <= 0) {
+        newErrors.fundingGoal =
+          "Set a funding goal above zero on the Basic Info step";
       }
     }
 
@@ -928,6 +1040,55 @@ export default function CreateProjectPage() {
             `Role "${role.title}": ${e instanceof Error ? e.message : "opportunity could not be created"}`,
           );
         }
+      }
+
+      // 6. Funding setup. Runs on the server: it creates the project's stake, resolves the
+      // account funds land in, and registers the sponsor and worker allowances. Idempotent,
+      // so a retry resumes rather than repeating. A failure here never rolls the project
+      // back — the project is real either way, and the Funding tab offers the same job.
+      if (funding.enabled && valueAccountReady) {
+        const totalUnits = parseWholeUnits(funding.totalUnits);
+        const sponsorUnits = parseWholeUnits(funding.sponsorUnits);
+        const workerUnits = parseWholeUnits(funding.workerUnits);
+
+        if (
+          totalUnits === undefined ||
+          sponsorUnits === undefined ||
+          workerUnits === undefined ||
+          fundingGoalUnits === undefined
+        ) {
+          partialWarnings.push(
+            "Funding setup was skipped: the declaration was incomplete. Finish it on the project's Funding tab.",
+          );
+        } else {
+          try {
+            const provisioned = await provisionFundingMutation.mutateAsync({
+              projectId: project.id,
+              assetName: resolvedStakeName,
+              unitName: resolvedUnitLabel,
+              totalSupply: totalUnits,
+              investorSupply: sponsorUnits,
+              contributorSupply: workerUnits,
+              fundingGoal: fundingGoalUnits,
+              disclosure: funding.disclosure.trim(),
+              reservedPercentage: 0,
+            });
+
+            if (!provisioned.isFundable) {
+              partialWarnings.push(
+                `Funding setup: ${provisioned.setupMessage ?? "did not finish"}. Retry it on the project's Funding tab.`,
+              );
+            }
+          } catch (e) {
+            partialWarnings.push(
+              `Funding setup: ${e instanceof Error ? e.message : "could not be completed"}. Retry it on the project's Funding tab.`,
+            );
+          }
+        }
+      } else if (funding.enabled && !valueAccountReady) {
+        partialWarnings.push(
+          "Funding setup waits for your account setup to finish. The project is saved.",
+        );
       }
 
       if (partialWarnings.length > 0) {
@@ -2883,8 +3044,299 @@ export default function CreateProjectPage() {
             </Card>
           )}
 
-          {/* Step 5: Review */}
-          {currentStep === 4 && (
+          {/* Step 5: Funding */}
+          {currentStep === FUNDING_STEP && (
+            <div className="space-y-6">
+              <Card className="bg-card border-border">
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <Wallet className="text-system size-5" />
+                    Stake in this project
+                  </CardTitle>
+                  <p className="text-muted-foreground mt-1 text-sm">
+                    A stake is a share of this project. Sponsors receive stake
+                    when they put funds in; workers receive stake for the work
+                    they do. You decide how much exists and how it is divided.
+                  </p>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <label className="flex items-start gap-3 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={funding.enabled}
+                      onChange={(e) =>
+                        setFunding((prev) => ({
+                          ...prev,
+                          enabled: e.target.checked,
+                        }))
+                      }
+                      className="mt-1 size-4"
+                    />
+                    <span>
+                      Let people sponsor this project and earn stake for working
+                      on it.
+                      <span className="text-muted-foreground block text-xs">
+                        Leave this off to publish without funding. You can set it
+                        up later from the project&rsquo;s Funding tab.
+                      </span>
+                    </span>
+                  </label>
+
+                  {funding.enabled && (
+                    <>
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <div>
+                          <label
+                            htmlFor="funding-stake-name"
+                            className="mb-2 block text-sm font-medium"
+                          >
+                            Name of the stake
+                          </label>
+                          <input
+                            type="text"
+                            id="funding-stake-name"
+                            maxLength={32}
+                            aria-invalid={Boolean(errors.fundingStakeName)}
+                            value={funding.stakeName}
+                            onChange={(e) =>
+                              setFunding((prev) => ({
+                                ...prev,
+                                stakeName: e.target.value,
+                              }))
+                            }
+                            placeholder={resolvedStakeName}
+                            className={cn(
+                              "bg-muted/50 focus-visible:ring-ring/50 w-full rounded-lg border-2 px-4 py-3 focus:ring-2 focus:outline-none",
+                              errors.fundingStakeName
+                                ? "border-destructive"
+                                : "border-border",
+                            )}
+                          />
+                          {errors.fundingStakeName ? (
+                            <p role="alert" className="text-destructive mt-1 text-sm">
+                              {errors.fundingStakeName}
+                            </p>
+                          ) : (
+                            <p className="text-muted-foreground mt-1 text-sm">
+                              Leave blank to use &ldquo;{resolvedStakeName}
+                              &rdquo;.
+                            </p>
+                          )}
+                        </div>
+
+                        <div>
+                          <label
+                            htmlFor="funding-unit-label"
+                            className="mb-2 block text-sm font-medium"
+                          >
+                            Short label
+                          </label>
+                          <input
+                            type="text"
+                            id="funding-unit-label"
+                            maxLength={8}
+                            aria-invalid={Boolean(errors.fundingUnitLabel)}
+                            value={funding.unitLabel}
+                            onChange={(e) =>
+                              setFunding((prev) => ({
+                                ...prev,
+                                unitLabel: e.target.value,
+                              }))
+                            }
+                            placeholder={resolvedUnitLabel}
+                            className={cn(
+                              "bg-muted/50 focus-visible:ring-ring/50 w-full rounded-lg border-2 px-4 py-3 font-mono uppercase focus:ring-2 focus:outline-none",
+                              errors.fundingUnitLabel
+                                ? "border-destructive"
+                                : "border-border",
+                            )}
+                          />
+                          {errors.fundingUnitLabel ? (
+                            <p role="alert" className="text-destructive mt-1 text-sm">
+                              {errors.fundingUnitLabel}
+                            </p>
+                          ) : (
+                            <p className="text-muted-foreground mt-1 text-sm">
+                              Shown next to a quantity, e.g. &ldquo;12{" "}
+                              {resolvedUnitLabel}&rdquo;.
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="grid gap-4 sm:grid-cols-3">
+                        <div>
+                          <label
+                            htmlFor="funding-total-units"
+                            className="mb-2 block text-sm font-medium"
+                          >
+                            Units in total
+                          </label>
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            id="funding-total-units"
+                            aria-invalid={Boolean(errors.fundingTotalUnits)}
+                            value={funding.totalUnits}
+                            onChange={(e) =>
+                              setFunding((prev) => ({
+                                ...prev,
+                                totalUnits: e.target.value,
+                              }))
+                            }
+                            className={cn(
+                              "bg-muted/50 focus-visible:ring-ring/50 w-full rounded-lg border-2 px-4 py-3 focus:ring-2 focus:outline-none",
+                              errors.fundingTotalUnits
+                                ? "border-destructive"
+                                : "border-border",
+                            )}
+                          />
+                          {errors.fundingTotalUnits && (
+                            <p role="alert" className="text-destructive mt-1 text-sm">
+                              {errors.fundingTotalUnits}
+                            </p>
+                          )}
+                        </div>
+
+                        <div>
+                          <label
+                            htmlFor="funding-sponsor-units"
+                            className="mb-2 block text-sm font-medium"
+                          >
+                            For sponsors
+                          </label>
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            id="funding-sponsor-units"
+                            aria-invalid={Boolean(errors.fundingSponsorUnits)}
+                            value={funding.sponsorUnits}
+                            onChange={(e) =>
+                              setFunding((prev) => ({
+                                ...prev,
+                                sponsorUnits: e.target.value,
+                              }))
+                            }
+                            className={cn(
+                              "bg-muted/50 focus-visible:ring-ring/50 w-full rounded-lg border-2 px-4 py-3 focus:ring-2 focus:outline-none",
+                              errors.fundingSponsorUnits
+                                ? "border-destructive"
+                                : "border-border",
+                            )}
+                          />
+                          {errors.fundingSponsorUnits && (
+                            <p role="alert" className="text-destructive mt-1 text-sm">
+                              {errors.fundingSponsorUnits}
+                            </p>
+                          )}
+                        </div>
+
+                        <div>
+                          <label
+                            htmlFor="funding-worker-units"
+                            className="mb-2 block text-sm font-medium"
+                          >
+                            For workers
+                          </label>
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            id="funding-worker-units"
+                            aria-invalid={Boolean(errors.fundingWorkerUnits)}
+                            value={funding.workerUnits}
+                            onChange={(e) =>
+                              setFunding((prev) => ({
+                                ...prev,
+                                workerUnits: e.target.value,
+                              }))
+                            }
+                            className={cn(
+                              "bg-muted/50 focus-visible:ring-ring/50 w-full rounded-lg border-2 px-4 py-3 focus:ring-2 focus:outline-none",
+                              errors.fundingWorkerUnits
+                                ? "border-destructive"
+                                : "border-border",
+                            )}
+                          />
+                          {errors.fundingWorkerUnits && (
+                            <p role="alert" className="text-destructive mt-1 text-sm">
+                              {errors.fundingWorkerUnits}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      <div>
+                        <label
+                          htmlFor="funding-disclosure"
+                          className="mb-2 block text-sm font-medium"
+                        >
+                          What a stake in this project means
+                        </label>
+                        <textarea
+                          id="funding-disclosure"
+                          rows={4}
+                          maxLength={2000}
+                          aria-invalid={Boolean(errors.fundingDisclosure)}
+                          value={funding.disclosure}
+                          onChange={(e) =>
+                            setFunding((prev) => ({
+                              ...prev,
+                              disclosure: e.target.value,
+                            }))
+                          }
+                          placeholder="Say what a supporter is getting, when their stake becomes fully theirs, and what happens if the project does not finish."
+                          className={cn(
+                            "bg-muted/50 focus-visible:ring-ring/50 w-full rounded-lg border-2 px-4 py-3 focus:ring-2 focus:outline-none",
+                            errors.fundingDisclosure
+                              ? "border-destructive"
+                              : "border-border",
+                          )}
+                        />
+                        {errors.fundingDisclosure ? (
+                          <p role="alert" className="text-destructive mt-1 text-sm">
+                            {errors.fundingDisclosure}
+                          </p>
+                        ) : (
+                          <p className="text-muted-foreground mt-1 text-sm">
+                            Everyone sees this before they commit funds.
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="bg-muted/30 border-border flex items-start gap-3 rounded-lg border p-4">
+                        <ShieldCheck
+                          className="text-system mt-0.5 size-5 flex-shrink-0"
+                          aria-hidden="true"
+                        />
+                        <div className="text-muted-foreground text-sm">
+                          <p>
+                            Asking for{" "}
+                            <span className="text-foreground font-medium">
+                              {fundingGoalUnits === undefined
+                                ? "no amount yet"
+                                : formatFundingAmount(fundingGoalUnits)}
+                            </span>
+                            {fundingGoalUnits === undefined
+                              ? " — set the goal on the Basic Info step."
+                              : ` (${describeFundingGoalInUsd(fundingGoalUnits, ardaUsdRate)}).`}
+                          </p>
+                          {!valueAccountReady && (
+                            <p className="mt-2">
+                              Funding setup runs once your account setup is
+                              complete. The project itself still saves.
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {/* Step 6: Review */}
+          {currentStep === 5 && (
             <div className="space-y-6">
               <Card className="bg-card border-border">
                 <CardHeader className="pb-3">

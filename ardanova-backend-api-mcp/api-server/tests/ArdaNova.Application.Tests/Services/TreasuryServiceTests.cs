@@ -18,6 +18,10 @@ public class TreasuryServiceTests
     private readonly Mock<IRepository<PlatformTreasuryTransaction>> _transactionRepo;
     private readonly Mock<IUnitOfWork> _unitOfWork;
     private readonly Mock<IMapper> _mapper;
+    private readonly Mock<IAzoaProjectTreasuryReadModel> _projectTreasuryReadModel;
+    private readonly Mock<IRepository<ProjectTokenConfig>> _projectTokenConfigRepo;
+
+    /// <summary>The service with NO node read wired - the shape a misconfigured deployment has.</summary>
     private readonly TreasuryService _sut;
 
     public TreasuryServiceTests()
@@ -26,6 +30,8 @@ public class TreasuryServiceTests
         _transactionRepo = new Mock<IRepository<PlatformTreasuryTransaction>>();
         _unitOfWork = new Mock<IUnitOfWork>();
         _mapper = new Mock<IMapper>();
+        _projectTreasuryReadModel = new Mock<IAzoaProjectTreasuryReadModel>();
+        _projectTokenConfigRepo = new Mock<IRepository<ProjectTokenConfig>>();
         _sut = new TreasuryService(
             _treasuryRepo.Object,
             _transactionRepo.Object,
@@ -33,6 +39,15 @@ public class TreasuryServiceTests
             _mapper.Object
         );
     }
+
+    /// <summary>The service with the node read-model wired.</summary>
+    private TreasuryService ChainBackedSut() => new(
+        _treasuryRepo.Object,
+        _transactionRepo.Object,
+        _unitOfWork.Object,
+        _mapper.Object,
+        _projectTreasuryReadModel.Object,
+        _projectTokenConfigRepo.Object);
 
     [Fact]
     public async Task ProcessFundingInflowAsync_ValidAmount_SplitsAndRecords()
@@ -362,6 +377,135 @@ public class TreasuryServiceTests
     }
 
     [Fact]
+    public async Task ReconcileAsync_WithoutNodeReadModel_Refuses()
+    {
+        // A reconciliation whose only source is the database it is checking proves nothing.
+        var result = await _sut.ReconcileAsync(CancellationToken.None);
+
+        result.IsSuccess.Should().BeFalse();
+        result.Error.Should().Contain("no node treasury read is wired");
+        _treasuryRepo.Verify(
+            r => r.UpdateAsync(It.IsAny<PlatformTreasury>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task ReconcileAsync_WhenNodeTreasuryUnreadable_RecordsNothing()
+    {
+        ArrangeTreasuryForReconcile();
+        ArrangeProjectWithTreasury();
+
+        _projectTreasuryReadModel
+            .Setup(m => m.GetBalanceAsync("Algorand", "project-1", "asset-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<ProjectTreasuryBalance>.Failure("node unreachable"));
+
+        var result = await ChainBackedSut().ReconcileAsync(CancellationToken.None);
+
+        result.IsSuccess.Should().BeFalse();
+        result.Error.Should().Contain("could not read");
+        _treasuryRepo.Verify(
+            r => r.UpdateAsync(It.IsAny<PlatformTreasury>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task ReconcileAsync_WhenReceiptsDisagreeWithNode_ReportsConflict()
+    {
+        ArrangeTreasuryForReconcile();
+        ArrangeProjectWithTreasury();
+        ArrangeFundingReceipt(50_00);
+
+        _projectTreasuryReadModel
+            .Setup(m => m.GetBalanceAsync("Algorand", "project-1", "asset-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<ProjectTreasuryBalance>.Success(new ProjectTreasuryBalance(
+                "project-1", "Algorand", "ADDR", "asset-1", 100_00, DateTimeOffset.UtcNow)));
+
+        var result = await ChainBackedSut().ReconcileAsync(CancellationToken.None);
+
+        result.IsSuccess.Should().BeFalse();
+        result.Type.Should().Be(ResultType.Conflict);
+    }
+
+    [Fact]
+    public async Task ReconcileAsync_WhenReceiptsMatchNode_Succeeds()
+    {
+        var treasury = ArrangeTreasuryForReconcile();
+        ArrangeProjectWithTreasury();
+        ArrangeFundingReceipt(100_00);
+
+        _projectTreasuryReadModel
+            .Setup(m => m.GetBalanceAsync("Algorand", "project-1", "asset-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<ProjectTreasuryBalance>.Success(new ProjectTreasuryBalance(
+                "project-1", "Algorand", "ADDR", "asset-1", 100_00, DateTimeOffset.UtcNow)));
+
+        var result = await ChainBackedSut().ReconcileAsync(CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        treasury.lastReconciliationAt.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromSeconds(5));
+    }
+
+    private PlatformTreasury ArrangeTreasuryForReconcile()
+    {
+        var treasury = new PlatformTreasury
+        {
+            id = "treasury1",
+            indexFundBalance = 6000.0,
+            liquidReserveBalance = 3000.0,
+            operationsBalance = 1000.0,
+            ardaTotalSupply = 10000,
+            ardaCirculatingSupply = 5000,
+            updatedAt = DateTime.UtcNow
+        };
+
+        _treasuryRepo.Setup(r => r.GetAllAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<PlatformTreasury> { treasury });
+        _treasuryRepo.Setup(r => r.UpdateAsync(It.IsAny<PlatformTreasury>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        _unitOfWork.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(1);
+
+        return treasury;
+    }
+
+    private void ArrangeProjectWithTreasury()
+    {
+        _projectTokenConfigRepo
+            .Setup(r => r.FindAsync(
+                It.IsAny<Expression<Func<ProjectTokenConfig, bool>>>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<ProjectTokenConfig>
+            {
+                new()
+                {
+                    id = "config-1",
+                    projectId = "project-1",
+                    assetId = "asset-1",
+                    treasuryChain = "Algorand",
+                    treasuryReference = "project-1",
+                }
+            });
+    }
+
+    private void ArrangeFundingReceipt(long amountMinorUnits)
+    {
+        _transactionRepo
+            .Setup(r => r.FindAsync(
+                It.IsAny<Expression<Func<PlatformTreasuryTransaction, bool>>>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<PlatformTreasuryTransaction>
+            {
+                new()
+                {
+                    id = "receipt-1",
+                    type = PlatformTreasuryTransactionType.FUNDING_INFLOW,
+                    amountMinorUnits = amountMinorUnits,
+                    relatedProjectId = "project-1",
+                    createdAt = DateTime.UtcNow,
+                }
+            });
+    }
+
+    [Fact(Skip = "Superseded by the node-backed reconciliation tests above (W5.3).")]
     public async Task ReconcileAsync_PositiveBalance_ReturnsTrue()
     {
         // Arrange
@@ -408,7 +552,7 @@ public class TreasuryServiceTests
     }
 
     [Fact]
-    public async Task ReconcileAsync_ZeroBalance_ReturnsFailure()
+    public async Task ReconcileAsync_ZeroBalance_StillRefusesWithoutANodeRead()
     {
         // Arrange
         var treasury = new PlatformTreasury
@@ -438,9 +582,9 @@ public class TreasuryServiceTests
         // Act
         var result = await _sut.ReconcileAsync(CancellationToken.None);
 
-        // Assert
+        // Assert - an empty database is not evidence of an empty treasury.
         result.IsSuccess.Should().BeFalse();
-        result.Error.Should().Contain("zero");
+        result.Error.Should().Contain("no node treasury read is wired");
     }
 
     [Fact]
@@ -468,12 +612,13 @@ public class TreasuryServiceTests
             updatedAt = DateTime.UtcNow
         };
 
+        // What AutoMapper would produce from the row - including the database's own numbers.
         var treasuryDto = new TreasuryStatusDto
         {
             Id = treasury.id,
-            IndexFundBalance = treasury.indexFundBalance,
-            LiquidReserveBalance = treasury.liquidReserveBalance,
-            OperationsBalance = treasury.operationsBalance
+            IndexFundBalance = (decimal)treasury.indexFundBalance,
+            LiquidReserveBalance = (decimal)treasury.liquidReserveBalance,
+            OperationsBalance = (decimal)treasury.operationsBalance
         };
 
         _treasuryRepo.Setup(r => r.GetAllAsync(It.IsAny<CancellationToken>()))
@@ -485,9 +630,15 @@ public class TreasuryServiceTests
         // Act
         var result = await _sut.GetStatusAsync(CancellationToken.None);
 
-        // Assert
+        // Assert - the mapped database numbers are STRIPPED, because no chain read backed them.
         result.IsSuccess.Should().BeTrue();
-        result.Value.Should().BeEquivalentTo(treasuryDto);
+        result.Value!.Id.Should().Be(treasury.id);
+        result.Value.IsChainBacked.Should().BeFalse();
+        result.Value.IndexFundBalance.Should().BeNull();
+        result.Value.LiquidReserveBalance.Should().BeNull();
+        result.Value.OperationsBalance.Should().BeNull();
+        result.Value.TotalTreasury.Should().BeNull();
+        result.Value.BalanceUnavailableReason.Should().NotBeNullOrWhiteSpace();
     }
 
     [Fact]
@@ -530,6 +681,7 @@ public class TreasuryServiceTests
             Id = t.id,
             Type = t.type,
             Amount = t.amount,
+            AmountMinorUnits = t.amountMinorUnits,
             Description = t.description
         }).ToList();
 

@@ -2338,39 +2338,51 @@ model KycDocument {
 }
 
 model ProjectTokenConfig {
-  id                     String                  @id @default(cuid())
-  projectId              String                  @unique
-  assetId                String?
-  assetName              String
-  unitName               String
-  assetScale             Int?
-  totalSupply            Int
-  allocatedSupply        Int                     @default(0)
-  distributedSupply      Int                     @default(0)
-  reservedSupply         Int                     @default(0)
-  mintTxHash             String?
-  status                 ProjectTokenStatus      @default(PENDING)
-  createdAt              DateTime                @default(now())
-  updatedAt              DateTime                @updatedAt
-  fundingGoal            Float
-  fundingRaised          Float                   @default(0)
-  gateStatus             ProjectGateStatus       @default(FUNDING)
-  gate1ClearedAt         DateTime?
-  gate2ClearedAt         DateTime?
-  failedAt               DateTime?
-  contributorSupply      Int                     @default(0)
-  investorSupply         Int                     @default(0)
-  founderSupply          Int                     @default(0)
-  burnedSupply           Int                     @default(0)
-  successCriteria        String?                 @db.Text
-  successVerifiedBy      String?
-  project                Project                 @relation("ProjectTokenConfig_projectId", fields: [projectId], references: [id])
-  tokenAllocations       TokenAllocation[]       @relation("TokenAllocation_projectTokenConfigId")
-  tokenBalances          TokenBalance[]          @relation("TokenBalance_projectTokenConfigId")
-  payoutRequests         PayoutRequest[]         @relation("PayoutRequest_sourceProjectTokenConfigId")
-  projectInvestments     ProjectInvestment[]     @relation("ProjectInvestment_projectTokenConfigId")
-  fundingIntents         FundingIntent[]         @relation("FundingIntent_projectTokenConfigId")
-  taskCommerceAgreements TaskCommerceAgreement[] @relation("TaskCommerceAgreement_projectTokenConfigId")
+  id                         String                  @id @default(cuid())
+  projectId                  String                  @unique
+  assetId                    String?
+  assetName                  String
+  unitName                   String
+  assetScale                 Int?
+  totalSupply                Int
+  allocatedSupply            Int                     @default(0)
+  distributedSupply          Int                     @default(0)
+  reservedSupply             Int                     @default(0)
+  mintTxHash                 String?
+  status                     ProjectTokenStatus      @default(PENDING)
+  createdAt                  DateTime                @default(now())
+  updatedAt                  DateTime                @updatedAt
+  fundingGoal                Float
+  fundingRaised              Float                   @default(0)
+  gateStatus                 ProjectGateStatus       @default(FUNDING)
+  gate1ClearedAt             DateTime?
+  gate2ClearedAt             DateTime?
+  failedAt                   DateTime?
+  contributorSupply          Int                     @default(0)
+  investorSupply             Int                     @default(0)
+  founderSupply              Int                     @default(0)
+  burnedSupply               Int                     @default(0)
+  successCriteria            String?                 @db.Text
+  successVerifiedBy          String?
+  assetChain                 String?
+  treasuryChain              String?
+  treasuryReference          String?
+  treasuryAddress            String?
+  treasuryResolvedAt         DateTime?
+  contributorPartitionSupply Int                     @default(0)
+  investorPartitionSupply    Int                     @default(0)
+  partitionsDeclaredAt       DateTime?
+  unitsDisclosure            String?                 @db.Text
+  provisionedAt              DateTime?
+  provisionedByUserId        String?
+  provisioningFailureReason  String?                 @db.Text
+  project                    Project                 @relation("ProjectTokenConfig_projectId", fields: [projectId], references: [id])
+  tokenAllocations           TokenAllocation[]       @relation("TokenAllocation_projectTokenConfigId")
+  tokenBalances              TokenBalance[]          @relation("TokenBalance_projectTokenConfigId")
+  payoutRequests             PayoutRequest[]         @relation("PayoutRequest_sourceProjectTokenConfigId")
+  projectInvestments         ProjectInvestment[]     @relation("ProjectInvestment_projectTokenConfigId")
+  fundingIntents             FundingIntent[]         @relation("FundingIntent_projectTokenConfigId")
+  taskCommerceAgreements     TaskCommerceAgreement[] @relation("TaskCommerceAgreement_projectTokenConfigId")
 }
 
 model TokenAllocation {
@@ -2400,8 +2412,11 @@ model TokenBalance {
   isPlatformToken      Boolean             @default(false)
   holderClass          TokenHolderClass?
   isLiquid             Boolean             @default(false)
-  balance              Int                 @default(0)
-  lockedBalance        Int                 @default(0)
+  balance              BigInt              @default(0)
+  lockedBalance        BigInt              @default(0)
+  assetId              String?
+  walletAddress        String?
+  observedAt           DateTime?
   updatedAt            DateTime            @updatedAt
   user                 User                @relation("TokenBalance_userId", fields: [userId], references: [id])
   projectTokenConfig   ProjectTokenConfig? @relation("TokenBalance_projectTokenConfigId", fields: [projectTokenConfigId], references: [id])
@@ -2464,6 +2479,13 @@ model PlatformTreasuryTransaction {
   relatedPayoutRequestId String?
   description            String?
   balanceAfter           Float
+  amountMinorUnits       BigInt                          @default(0)
+  balanceAfterMinorUnits BigInt?
+  azoaOperationId        String?
+  azoaIdempotencyKey     String?
+  azoaReceiptReference   String?
+  chainAssetId           String?
+  projectTreasuryAddress String?
   createdAt              DateTime                        @default(now())
 }
 

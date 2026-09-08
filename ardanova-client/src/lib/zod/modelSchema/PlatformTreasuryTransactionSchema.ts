@@ -15,6 +15,13 @@ export const PlatformTreasuryTransactionSchema = z.object({
   relatedPayoutRequestId: z.string().nullable(),
   description: z.string().nullable(),
   balanceAfter: z.number(),
+  amountMinorUnits: z.bigint(),
+  balanceAfterMinorUnits: z.bigint().nullable(),
+  azoaOperationId: z.string().nullable(),
+  azoaIdempotencyKey: z.string().nullable(),
+  azoaReceiptReference: z.string().nullable(),
+  chainAssetId: z.string().nullable(),
+  projectTreasuryAddress: z.string().nullable(),
   createdAt: z.coerce.date(),
 })
 

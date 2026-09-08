@@ -84,6 +84,67 @@ public class ProjectTokenConfig
 
     public string? successVerifiedBy { get; set; }
 
+    // ── Node-side provisioning (self-serve project token, W5.2) ─────────────
+    // Three facts, each written only once its node call actually succeeded. The
+    // fundability predicates below READ these facts; nothing stores a separate
+    // "provisioned" flag that could disagree with them.
+    // Rationale: src/ArdaNova.Domain/Models/Entities/AGENTS.md § project token.
+
+    /// <summary>Chain the project asset was minted on; null until the mint succeeds.</summary>
+    public string? assetChain { get; set; }
+
+    /// <summary>Chain the project's node-side treasury account lives on.</summary>
+    public string? treasuryChain { get; set; }
+
+    /// <summary>Opaque project reference this tenant addresses the treasury by on the node.</summary>
+    public string? treasuryReference { get; set; }
+
+    /// <summary>Address of the project's node-side custodial treasury — where funding ARDA lands.</summary>
+    public string? treasuryAddress { get; set; }
+
+    /// <summary>When the node resolved (or created) the treasury account.</summary>
+    public DateTime? treasuryResolvedAt { get; set; }
+
+    /// <summary>Declared cap of the node reserve ledger's <c>contributor</c> partition, in whole units.</summary>
+    [Required]
+    public int contributorPartitionSupply { get; set; }
+
+    /// <summary>Declared cap of the node reserve ledger's <c>investor</c> partition, in whole units.</summary>
+    [Required]
+    public int investorPartitionSupply { get; set; }
+
+    /// <summary>When the node accepted the partition declaration; null means the node polices nothing yet.</summary>
+    public DateTime? partitionsDeclaredAt { get; set; }
+
+    /// <summary>Owner-authored disclosure shown before anyone commits funds (Q5 / Q-X3).</summary>
+    [Column(TypeName = "text")]
+    public string? unitsDisclosure { get; set; }
+
+    /// <summary>When every provisioning leg completed.</summary>
+    public DateTime? provisionedAt { get; set; }
+
+    /// <summary>The project owner who ran provisioning; never a caller-supplied id.</summary>
+    public string? provisionedByUserId { get; set; }
+
+    /// <summary>Last provisioning failure, kept so the owner is told what to retry rather than "not configured".</summary>
+    [Column(TypeName = "text")]
+    public string? provisioningFailureReason { get; set; }
+
+    /// <summary>
+    /// True only when all three node legs are persisted: the minted asset, the treasury
+    /// the project's funds land in, and the reserve partitions the node draws against.
+    /// </summary>
+    [NotMapped]
+    public bool IsNodeProvisioned =>
+        !string.IsNullOrWhiteSpace(assetId)
+        && !string.IsNullOrWhiteSpace(treasuryAddress)
+        && partitionsDeclaredAt.HasValue;
+
+    /// <summary>The one fundability predicate every value path reads. A frozen or dissolved token is never fundable.</summary>
+    [NotMapped]
+    public bool IsFundable =>
+        IsNodeProvisioned && status == ProjectTokenStatus.ACTIVE;
+
     [ForeignKey("projectId")]
     public virtual Project? Project { get; set; }
 

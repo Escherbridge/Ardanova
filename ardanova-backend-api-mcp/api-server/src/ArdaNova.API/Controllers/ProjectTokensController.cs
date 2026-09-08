@@ -1,7 +1,9 @@
 namespace ArdaNova.API.Controllers;
 
+using System.Security.Claims;
 using ArdaNova.Application.Common.Results;
 using ArdaNova.Application.DTOs;
+using ArdaNova.Application.Services.Implementations;
 using ArdaNova.Application.Services.Interfaces;
 using ArdaNova.API.Middleware;
 using Microsoft.AspNetCore.Authorization;
@@ -14,13 +16,22 @@ public class ProjectTokensController : ControllerBase
 {
     private readonly IProjectTokenService _projectTokenService;
     private readonly IProjectGateService _projectGateService;
+    private readonly IProjectTokenProvisioning _projectTokenProvisioning;
 
+    /// <param name="projectTokenProvisioning">
+    /// Funding setup. Registered in Application/DependencyInjection.cs as the same scoped
+    /// instance under its own interface — the IProjectVisibility pattern — so this route
+    /// depends on it explicitly instead of casting the service it was handed.
+    /// </param>
     public ProjectTokensController(
         IProjectTokenService projectTokenService,
-        IProjectGateService projectGateService)
+        IProjectGateService projectGateService,
+        IProjectTokenProvisioning projectTokenProvisioning)
     {
         _projectTokenService = projectTokenService;
         _projectGateService = projectGateService;
+        _projectTokenProvisioning = projectTokenProvisioning
+            ?? throw new ArgumentNullException(nameof(projectTokenProvisioning));
     }
 
     // === Config CRUD ===
@@ -64,6 +75,51 @@ public class ProjectTokensController : ControllerBase
         var result = await _projectTokenService.GetSupplyBreakdownAsync(id, ct);
         return ToActionResult(result);
     }
+
+    // === Funding setup (self-serve project stake) ===
+
+    /// <summary>
+    /// Runs the publish-time funding job for a project the caller owns. Ownership and
+    /// identity readiness are decided in the service against the caller's verified id; the
+    /// body carries the declaration only, never an owner.
+    /// </summary>
+    [HttpPost("funding/provision")]
+    [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
+    public async Task<IActionResult> ProvisionFunding(
+        [FromBody] ProvisionProjectFundingRequest request,
+        CancellationToken ct)
+    {
+        var result = await _projectTokenProvisioning.ProvisionAsync(
+            request.ProjectId,
+            new ProjectTokenDeclaration
+            {
+                AssetName = request.AssetName,
+                UnitName = request.UnitName,
+                TotalSupply = request.TotalSupply,
+                ContributorSupply = request.ContributorSupply,
+                InvestorSupply = request.InvestorSupply,
+                FundingGoal = request.FundingGoal,
+                Disclosure = request.Disclosure,
+                ReservedPercentage = request.ReservedPercentage,
+                SuccessCriteria = request.SuccessCriteria,
+            },
+            ActorId,
+            ct);
+
+        return ToActionResult(result);
+    }
+
+    /// <summary>A project's funding setup as a person reads it; owner-only actions are decided
+    /// from the caller's verified id, never from a query parameter.</summary>
+    [HttpGet("funding/by-project/{projectId}")]
+    [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
+    public async Task<IActionResult> GetFunding(string projectId, CancellationToken ct)
+    {
+        var result = await _projectTokenProvisioning.GetFundingAsync(projectId, ActorId, ct);
+        return ToActionResult(result);
+    }
+
+    private string ActorId => User.FindFirstValue(ClaimTypes.NameIdentifier)!;
 
     // === Allocations ===
 
@@ -206,10 +262,38 @@ public class ProjectTokensController : ControllerBase
             ResultType.NotFound => NotFound(new { error = result.Error }),
             ResultType.ValidationError => BadRequest(new { error = result.Error }),
             ResultType.Unauthorized => Unauthorized(new { error = result.Error }),
-            ResultType.Forbidden => Forbid(),
+            // Funding setup refuses with a reason a person can act on ("finish verifying your
+            // identity"), so the refusal has to reach them. Forbid() would discard it.
+            ResultType.Forbidden => StatusCode(StatusCodes.Status403Forbidden, new { error = result.Error }),
+            ResultType.Conflict => Conflict(new { error = result.Error }),
             _ => BadRequest(new { error = result.Error })
         };
     }
+}
+
+/// <summary>What a project owner declares at publish. Carries no owner id: the owner is the
+/// caller, resolved from the verified actor claim.</summary>
+public record ProvisionProjectFundingRequest
+{
+    public required string ProjectId { get; init; }
+
+    public required string AssetName { get; init; }
+
+    public required string UnitName { get; init; }
+
+    public required int TotalSupply { get; init; }
+
+    public required int ContributorSupply { get; init; }
+
+    public required int InvestorSupply { get; init; }
+
+    public required double FundingGoal { get; init; }
+
+    public required string Disclosure { get; init; }
+
+    public double ReservedPercentage { get; init; }
+
+    public string? SuccessCriteria { get; init; }
 }
 
 public record FailProjectRequest

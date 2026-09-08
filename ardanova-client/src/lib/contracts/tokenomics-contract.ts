@@ -163,7 +163,6 @@ export const projectInvestmentDtoSchema = z
     userId: z.string().min(1),
     usdAmount: nonnegativeNumberSchema,
     tokenAmount: nonnegativeIntegerSchema,
-    stripePaymentIntentId: z.string().nullable(),
     investedAt: dateTimeSchema,
     protectionEligible: z.boolean(),
     protectionPaidOut: z.boolean(),

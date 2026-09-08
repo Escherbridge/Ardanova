@@ -56,6 +56,24 @@ public class ProjectTokenServiceTests
             _loggerMock.Object);
     }
 
+    /// <summary>
+    /// Stamps the three node legs a project must have before any stake may be allocated:
+    /// the minted asset, the treasury its funds land in, and the declared reserve partitions.
+    /// Allocation is fail-closed until all three exist, so a fixture that omits them is
+    /// refused before it ever reaches the rule under test. Partitions are declared at full
+    /// supply so they are never the binding constraint in a test that is about something else.
+    /// </summary>
+    private static ProjectTokenConfig Provisioned(ProjectTokenConfig config)
+    {
+        config.status = ProjectTokenStatus.ACTIVE;
+        config.assetId = "asset-1";
+        config.treasuryAddress = "TREASURY-ADDRESS";
+        config.partitionsDeclaredAt = DateTime.UtcNow;
+        config.contributorPartitionSupply = config.totalSupply;
+        config.investorPartitionSupply = config.totalSupply;
+        return config;
+    }
+
     [Fact]
     public async Task GetMetadataByIdsAsync_ProjectsOneQueryPreservesOrderAndReportsMissingIds()
     {
@@ -376,7 +394,7 @@ public class ProjectTokenServiceTests
     public async Task AllocateToPbiAsync_ActiveGate_CreatesContributorAllocation()
     {
         // Arrange
-        var config = new ProjectTokenConfig
+        var config = Provisioned(new ProjectTokenConfig
         {
             id = "config-1",
             projectId = "project-1",
@@ -387,7 +405,7 @@ public class ProjectTokenServiceTests
             burnedSupply = 0,
             allocatedSupply = 500000,
             gateStatus = ProjectGateStatus.ACTIVE
-        };
+        });
 
         _configRepoMock
             .Setup(r => r.GetByIdAsync("config-1", It.IsAny<CancellationToken>()))
@@ -454,12 +472,12 @@ public class ProjectTokenServiceTests
     public async Task AllocateToPbiAsync_GateNotActive_ReturnsValidationError()
     {
         // Arrange
-        var config = new ProjectTokenConfig
+        var config = Provisioned(new ProjectTokenConfig
         {
             id = "config-1",
             totalSupply = 1000000,
             gateStatus = ProjectGateStatus.FUNDING
-        };
+        });
 
         _configRepoMock
             .Setup(r => r.GetByIdAsync("config-1", It.IsAny<CancellationToken>()))
@@ -491,7 +509,7 @@ public class ProjectTokenServiceTests
     public async Task AllocateToPbiAsync_InsufficientSupply_ReturnsValidationError()
     {
         // Arrange
-        var config = new ProjectTokenConfig
+        var config = Provisioned(new ProjectTokenConfig
         {
             id = "config-1",
             totalSupply = 1000000,
@@ -500,7 +518,7 @@ public class ProjectTokenServiceTests
             founderSupply = 200000,
             burnedSupply = 50000,
             gateStatus = ProjectGateStatus.ACTIVE
-        };
+        });
 
         _configRepoMock
             .Setup(r => r.GetByIdAsync("config-1", It.IsAny<CancellationToken>()))
@@ -533,7 +551,7 @@ public class ProjectTokenServiceTests
     public async Task AllocateToInvestorAsync_HappyPath_CreatesInvestorAllocationAndInvestment()
     {
         // Arrange
-        var config = new ProjectTokenConfig
+        var config = Provisioned(new ProjectTokenConfig
         {
             id = "config-1",
             projectId = "project-1",
@@ -544,7 +562,7 @@ public class ProjectTokenServiceTests
             burnedSupply = 0,
             allocatedSupply = 500000,
             fundingRaised = 10000
-        };
+        });
 
         _configRepoMock
             .Setup(r => r.GetByIdAsync("config-1", It.IsAny<CancellationToken>()))
@@ -624,7 +642,7 @@ public class ProjectTokenServiceTests
     public async Task AllocateToFounderAsync_HappyPath_CreatesFounderAllocation()
     {
         // Arrange
-        var config = new ProjectTokenConfig
+        var config = Provisioned(new ProjectTokenConfig
         {
             id = "config-1",
             totalSupply = 1000000,
@@ -632,7 +650,7 @@ public class ProjectTokenServiceTests
             investorSupply = 200000,
             founderSupply = 200000,
             allocatedSupply = 500000
-        };
+        });
 
         _configRepoMock
             .Setup(r => r.GetByIdAsync("config-1", It.IsAny<CancellationToken>()))
@@ -696,12 +714,12 @@ public class ProjectTokenServiceTests
     public async Task AllocateToFounderAsync_ExceedsFounderSupply_ReturnsValidationError()
     {
         // Arrange
-        var config = new ProjectTokenConfig
+        var config = Provisioned(new ProjectTokenConfig
         {
             id = "config-1",
             totalSupply = 1000000,
             founderSupply = 100000
-        };
+        });
 
         _configRepoMock
             .Setup(r => r.GetByIdAsync("config-1", It.IsAny<CancellationToken>()))
