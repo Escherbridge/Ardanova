@@ -18,6 +18,7 @@ const releaseCheckEnv = {
   NODE_TLS_REJECT_UNAUTHORIZED: "1",
 };
 const steps = [
+  "verify:sdk-pin",
   "diff:check",
   "format:changed",
   "audit:prod",

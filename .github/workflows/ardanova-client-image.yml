@@ -79,6 +79,11 @@ jobs:
           cache: npm
           cache-dependency-path: ardanova-client/package-lock.json
 
+      # Runs BEFORE npm ci: `npm ci` aborts with an opaque EUSAGE when
+      # package.json and package-lock.json disagree. This names the cause.
+      - name: Verify the azoa-sdk pin matches the lockfile
+        run: node scripts/verify-azoa-sdk-pin.mjs
+
       - name: Install dependencies and generate Prisma artifacts
         run: npm ci
 
