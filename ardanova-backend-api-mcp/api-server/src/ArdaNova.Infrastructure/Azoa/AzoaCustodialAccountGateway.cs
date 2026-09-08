@@ -112,7 +112,8 @@ public sealed class AzoaCustodialAccountGateway : IAzoaCustodialAccountGateway
             value.KycReady,
             value.WalletReady,
             value.Ready,
-            value.UnavailableReason));
+            value.UnavailableReason,
+            value.ReviewDueAt));
     }
 
     private static bool TryParseKycStatus(string? value, out AzoaKycStatus status)
@@ -176,6 +177,9 @@ public sealed class AzoaCustodialAccountGateway : IAzoaCustodialAccountGateway
         public bool WalletReady { get; init; }
         public bool Ready { get; init; }
         public string? UnavailableReason { get; init; }
+
+        /// <summary>Null unless KycStatus is UnderReview; when the operator's decision is due.</summary>
+        public DateTimeOffset? ReviewDueAt { get; init; }
     }
 
     private sealed record KycSessionWire

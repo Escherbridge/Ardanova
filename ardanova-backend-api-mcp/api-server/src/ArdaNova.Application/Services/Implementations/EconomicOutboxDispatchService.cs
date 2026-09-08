@@ -1,5 +1,6 @@
 namespace ArdaNova.Application.Services.Implementations;
 
+using ArdaNova.Application.Common.Results;
 using ArdaNova.Application.Services.Interfaces;
 using ArdaNova.Domain.Models.Enums;
 using System.IO;
@@ -133,8 +134,12 @@ public sealed class EconomicOutboxDispatchService : IEconomicOutboxDispatchServi
             ct);
         if (readiness.IsFailure)
         {
+            // Retrying is right either way, but the reason code is what an operator triages
+            // on: "not ready" points at the recipient, "unconfirmed" points at the platform.
             return AzoaSettlementGatewayResult.Retry(
-                "AZOA_ACCOUNT_NOT_READY",
+                readiness.Type == ResultType.Conflict
+                    ? "AZOA_ELIGIBILITY_UNCONFIRMED"
+                    : "AZOA_ACCOUNT_NOT_READY",
                 readiness.Error ?? "The recipient must complete account setup before settlement can be dispatched.");
         }
 

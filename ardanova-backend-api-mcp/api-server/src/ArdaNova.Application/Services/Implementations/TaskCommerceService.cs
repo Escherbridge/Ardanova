@@ -94,14 +94,16 @@ public class TaskCommerceService : ITaskCommerceService
             "accept paid project work",
             ct);
         if (!ownerReadiness.IsSuccess)
-            return Result<TaskCommerceAcceptanceDto>.Forbidden(ownerReadiness.Error!);
+            return ValueEligibilityFailure.Propagate<AzoaCustodialAccountStatusDto, TaskCommerceAcceptanceDto>(
+                ownerReadiness);
 
         var contributorReadiness = await _valueEligibility.RequireReadyAsync(
             bid.bidderId,
             "receive a paid project assignment",
             ct);
         if (!contributorReadiness.IsSuccess)
-            return Result<TaskCommerceAcceptanceDto>.Forbidden(
+            return ValueEligibilityFailure.Propagate<AzoaCustodialAccountStatusDto, TaskCommerceAcceptanceDto>(
+                contributorReadiness,
                 "The selected contributor must complete account setup before this paid assignment can be accepted.");
 
         var tokenConfig = await _tokenConfigRepository.FindOneAsync(

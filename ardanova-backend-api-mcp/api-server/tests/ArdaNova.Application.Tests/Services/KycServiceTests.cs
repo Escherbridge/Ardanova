@@ -20,7 +20,6 @@ public class KycServiceTests
     private readonly Mock<IUnitOfWork> _unitOfWorkMock;
     private readonly Mock<IMapper> _mapperMock;
     private readonly Mock<IKycProviderService> _providerMock;
-    private readonly Mock<IUserService> _userServiceMock;
     private readonly KycService _sut;
 
     public KycServiceTests()
@@ -31,7 +30,6 @@ public class KycServiceTests
         _unitOfWorkMock = new Mock<IUnitOfWork>();
         _mapperMock = new Mock<IMapper>();
         _providerMock = new Mock<IKycProviderService>();
-        _userServiceMock = new Mock<IUserService>();
 
         // Default mapper setup for KycDocumentDto
         _mapperMock
@@ -70,8 +68,7 @@ public class KycServiceTests
             _userRepoMock.Object,
             _unitOfWorkMock.Object,
             _mapperMock.Object,
-            _providerMock.Object,
-            _userServiceMock.Object
+            _providerMock.Object
         );
     }
 
@@ -418,8 +415,13 @@ public class KycServiceTests
 
     #region ApproveAsync
 
+    /// <summary>
+    /// AZOA is the sole writer of <c>User.verificationLevel</c>: AzoaCustodialAccountService
+    /// projects it from the AZOA-hosted decision. Approving a LOCAL submission must therefore
+    /// leave the user record alone, or two writers disagree about who is verified.
+    /// </summary>
     [Fact]
-    public async Task ApproveAsync_WithPendingSubmission_ApprovesAndUpgradesUserToPro()
+    public async Task ApproveAsync_WithPendingSubmission_ApprovesWithoutWritingVerificationLevel()
     {
         // Arrange
         var submissionId = "sub-123";
@@ -450,9 +452,6 @@ public class KycServiceTests
                 ReviewerId = s.reviewerId, ReviewNotes = s.reviewNotes
             });
 
-        _userServiceMock
-            .Setup(x => x.UpdateVerificationLevelAsync("user-123", It.IsAny<AdminUpdateVerificationLevelDto>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Result<UserDto>.Success(new UserDto { Id = "user-123" }));
 
         // Act
         var result = await _sut.ApproveAsync(submissionId, reviewerId, "Looks good");
@@ -468,10 +467,10 @@ public class KycServiceTests
                 s.reviewedAt != null),
             It.IsAny<CancellationToken>()), Times.Once);
 
-        _userServiceMock.Verify(x => x.UpdateVerificationLevelAsync(
-            "user-123",
-            It.Is<AdminUpdateVerificationLevelDto>(dto => dto.VerificationLevel == VerificationLevel.PRO),
-            It.IsAny<CancellationToken>()), Times.Once);
+        _userRepoMock.Verify(
+            x => x.UpdateAsync(It.IsAny<User>(), It.IsAny<CancellationToken>()),
+            Times.Never,
+            "AZOA owns verificationLevel; a local approval that also wrote it would let two writers disagree");
     }
 
     [Fact]
@@ -487,8 +486,8 @@ public class KycServiceTests
         // Assert
         result.IsFailure.Should().BeTrue();
         result.Type.Should().Be(ResultType.NotFound);
-        _userServiceMock.Verify(x => x.UpdateVerificationLevelAsync(
-            It.IsAny<string>(), It.IsAny<AdminUpdateVerificationLevelDto>(), It.IsAny<CancellationToken>()), Times.Never);
+        _userRepoMock.Verify(
+            x => x.UpdateAsync(It.IsAny<User>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -536,9 +535,6 @@ public class KycServiceTests
             .Setup(x => x.Map<KycSubmissionDto>(It.IsAny<KycSubmission>()))
             .Returns(new KycSubmissionDto { Id = "sub-1", Status = KycStatus.APPROVED });
 
-        _userServiceMock
-            .Setup(x => x.UpdateVerificationLevelAsync(It.IsAny<string>(), It.IsAny<AdminUpdateVerificationLevelDto>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Result<UserDto>.Success(new UserDto { Id = "u1" }));
 
         // Act
         var result = await _sut.ApproveAsync("sub-1", "admin-1", null);
@@ -599,9 +595,9 @@ public class KycServiceTests
                 s.reviewedAt != null),
             It.IsAny<CancellationToken>()), Times.Once);
 
-        // Should NOT upgrade user on rejection
-        _userServiceMock.Verify(x => x.UpdateVerificationLevelAsync(
-            It.IsAny<string>(), It.IsAny<AdminUpdateVerificationLevelDto>(), It.IsAny<CancellationToken>()), Times.Never);
+        // Should NOT touch the user record on rejection either
+        _userRepoMock.Verify(
+            x => x.UpdateAsync(It.IsAny<User>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]

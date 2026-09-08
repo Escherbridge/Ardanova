@@ -73,7 +73,11 @@ public class AzoaSettings
     /// <summary>Explicitly enables tenant-bound per-user custody and KYC orchestration.</summary>
     public bool EnableCustodialAccounts { get; set; }
 
-    /// <summary>Stable tenant binding used for per-user custodial AZOA accounts.</summary>
+    /// <summary>
+    /// GUID minted by AZOA when the ArdaNova tenant is provisioned (see the AZOA repo's
+    /// docs/NODE-HOST.md, section 8.6). Required, and validated as a GUID, whenever
+    /// <see cref="EnableCustodialAccounts"/> is true.
+    /// </summary>
     public string TenantId { get; set; } = string.Empty;
 
     public bool IsSimulated =>

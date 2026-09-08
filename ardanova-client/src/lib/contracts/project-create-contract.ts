@@ -166,32 +166,101 @@ export function isProjectCreateCompensationModel(
   return projectCreateCompensationModelSchema.safeParse(value).success;
 }
 
-/** Full account readiness is required for value-bearing actions, not drafts. */
-export function isValueActionAccountReady(
-  status:
-    | {
-        avatarId?: string | null;
-        walletId?: string | null;
-        walletAddress?: string | null;
-        kycStatus: string;
-        identityReady: boolean;
-        kycReady: boolean;
-        walletReady: boolean;
-        ready: boolean;
-      }
-    | null
-    | undefined,
+/**
+ * How a value-action account check resolved. Mirrors the three outcomes of the
+ * server gate (`AzoaValueEligibilityService`) so an outage is never presented as
+ * unfinished setup.
+ *
+ * Per-person limits are expressed as AZOA uniqueness requirements - one verified
+ * person resolves to exactly one avatar - never as a count of ArdaNova rows.
+ */
+export type ValueActionAccountState =
+  | "ready"
+  | "setup-incomplete"
+  | "service-unavailable";
+
+/** The readiness projection the gate reads; further fields on the API DTO are ignored. */
+export interface ValueActionAccountStatus {
+  avatarId?: string | null;
+  walletId?: string | null;
+  walletAddress?: string | null;
+  kycStatus: string;
+  identityReady: boolean;
+  kycReady: boolean;
+  walletReady: boolean;
+  ready: boolean;
+  unavailableReason?: string | null;
+}
+
+export interface ValueActionAccountEvaluation {
+  state: ValueActionAccountState;
+  ready: boolean;
+  message: string | null;
+}
+
+/** Only an approved identity check clears a value-bearing action; every other status is incomplete. */
+export const VALUE_ACTION_APPROVED_KYC_STATUS = "Approved";
+
+export const VALUE_ACTION_SETUP_INCOMPLETE_MESSAGE =
+  "Finish your account setup before you can fund work or be paid. You can keep creating projects and collaborating while setup is pending.";
+
+export const VALUE_ACTION_SERVICE_UNAVAILABLE_MESSAGE =
+  "We could not confirm your account setup just now, so nothing was moved. This is not a problem with your account, so please try again shortly.";
+
+/**
+ * Classifies a value-action account. An unread, failed, or node-disabled account
+ * is "service-unavailable" and must never be shown as unfinished setup; pass
+ * `loadFailed` when the status request itself errored. A request still in flight
+ * is neither outcome - render a loading state instead of calling this.
+ */
+export function evaluateValueActionAccount(
+  status: ValueActionAccountStatus | null | undefined,
+  options: { loadFailed?: boolean } = {},
+): ValueActionAccountEvaluation {
+  if (
+    options.loadFailed === true ||
+    !status ||
+    status.unavailableReason?.trim()
+  ) {
+    return {
+      state: "service-unavailable",
+      ready: false,
+      message: VALUE_ACTION_SERVICE_UNAVAILABLE_MESSAGE,
+    };
+  }
+
+  if (hasEveryValueActionReadinessSignal(status)) {
+    return { state: "ready", ready: true, message: null };
+  }
+
+  return {
+    state: "setup-incomplete",
+    ready: false,
+    message: VALUE_ACTION_SETUP_INCOMPLETE_MESSAGE,
+  };
+}
+
+/** One readiness rule for every participant: funder, owner, assignee and beneficiary alike. */
+function hasEveryValueActionReadinessSignal(
+  status: ValueActionAccountStatus,
 ): boolean {
   return Boolean(
-    status?.ready &&
+    status.ready &&
       status.identityReady &&
       status.avatarId?.trim() &&
       status.kycReady &&
-      status.kycStatus === "Approved" &&
+      status.kycStatus === VALUE_ACTION_APPROVED_KYC_STATUS &&
       status.walletReady &&
       status.walletId?.trim() &&
       status.walletAddress?.trim(),
   );
+}
+
+/** Full account readiness is required for value-bearing actions, not drafts. */
+export function isValueActionAccountReady(
+  status: ValueActionAccountStatus | null | undefined,
+): boolean {
+  return evaluateValueActionAccount(status).state === "ready";
 }
 
 /** A role with compensation terms cannot be published before account setup. */

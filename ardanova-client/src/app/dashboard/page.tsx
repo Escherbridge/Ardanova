@@ -14,6 +14,7 @@ import {
   Sparkles,
 } from "lucide-react";
 
+import { SetupPrompt } from "~/components/onboarding/setup-prompt";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import { api } from "~/trpc/react";
@@ -305,6 +306,8 @@ export default function DashboardPage() {
           </div>
         </div>
       </section>
+
+      <SetupPrompt />
 
       <section aria-labelledby="core-loop-title">
         <div className="border-foreground mb-5 flex flex-col justify-between gap-3 border-b pb-5 sm:flex-row sm:items-end">

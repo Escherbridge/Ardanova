@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   createEmptyProjectFormData,
+  evaluateValueActionAccount,
   isProjectRoleValueBearing,
   isValueActionAccountReady,
   parseProjectCreateDraft,
@@ -9,6 +10,8 @@ import {
   toProjectRoleOpportunityInput,
   toOpportunityCompensation,
   toOptionalIsoDate,
+  VALUE_ACTION_SERVICE_UNAVAILABLE_MESSAGE,
+  VALUE_ACTION_SETUP_INCOMPLETE_MESSAGE,
 } from "./project-create-contract";
 
 describe("project creation contract", () => {
@@ -20,16 +23,7 @@ describe("project creation contract", () => {
   });
 
   it("requires concrete wallet evidence before a value-bearing action", () => {
-    const ready = {
-      avatarId: "avatar-1",
-      walletId: "wallet-1",
-      walletAddress: "address-1",
-      kycStatus: "Approved",
-      identityReady: true,
-      kycReady: true,
-      walletReady: true,
-      ready: true,
-    };
+    const ready = readyAccountStatus();
 
     expect(isValueActionAccountReady(ready)).toBe(true);
     expect(
@@ -43,12 +37,69 @@ describe("project creation contract", () => {
       isValueActionAccountReady({ ...ready, kycStatus: "Pending" }),
     ).toBe(false);
     expect(
+      isValueActionAccountReady({ ...ready, kycStatus: "Rejected" }),
+    ).toBe(false);
+    expect(
       isValueActionAccountReady({ ...ready, avatarId: null }),
     ).toBe(false);
     expect(
       isValueActionAccountReady({ ...ready, walletAddress: null }),
     ).toBe(false);
     expect(isValueActionAccountReady({ ...ready, ready: false })).toBe(false);
+    expect(
+      isValueActionAccountReady({ ...ready, identityReady: false }),
+    ).toBe(false);
+    expect(isValueActionAccountReady({ ...ready, kycReady: false })).toBe(false);
+  });
+
+  it("reads an unfinished account as setup rather than an outage", () => {
+    const evaluation = evaluateValueActionAccount({
+      ...readyAccountStatus(),
+      kycStatus: "Pending",
+      kycReady: false,
+      ready: false,
+    });
+
+    expect(evaluation.state).toBe("setup-incomplete");
+    expect(evaluation.ready).toBe(false);
+    expect(evaluation.message).toBe(VALUE_ACTION_SETUP_INCOMPLETE_MESSAGE);
+  });
+
+  it("never blames a person's setup when the account could not be read", () => {
+    const unreadable = [
+      evaluateValueActionAccount(undefined),
+      evaluateValueActionAccount(null),
+      evaluateValueActionAccount(readyAccountStatus(), { loadFailed: true }),
+      evaluateValueActionAccount({
+        ...readyAccountStatus(),
+        identityReady: false,
+        kycReady: false,
+        walletReady: false,
+        ready: false,
+        unavailableReason: "Custody is disabled on this node.",
+      }),
+    ];
+
+    for (const evaluation of unreadable) {
+      expect(evaluation.state).toBe("service-unavailable");
+      expect(evaluation.ready).toBe(false);
+      expect(evaluation.message).toBe(VALUE_ACTION_SERVICE_UNAVAILABLE_MESSAGE);
+    }
+  });
+
+  it("fails closed when a node outage arrives beside a ready-looking account", () => {
+    const evaluation = evaluateValueActionAccount({
+      ...readyAccountStatus(),
+      unavailableReason: "Custody is disabled on this node.",
+    });
+
+    expect(evaluation.state).toBe("service-unavailable");
+    expect(
+      isValueActionAccountReady({
+        ...readyAccountStatus(),
+        unavailableReason: "Custody is disabled on this node.",
+      }),
+    ).toBe(false);
   });
 
   it("keeps explicitly compensated roles out of pre-setup project drafts", () => {
@@ -228,3 +279,16 @@ describe("project creation contract", () => {
     ).toBeNull();
   });
 });
+
+function readyAccountStatus() {
+  return {
+    avatarId: "avatar-1",
+    walletId: "wallet-1",
+    walletAddress: "address-1",
+    kycStatus: "Approved",
+    identityReady: true,
+    kycReady: true,
+    walletReady: true,
+    ready: true,
+  };
+}

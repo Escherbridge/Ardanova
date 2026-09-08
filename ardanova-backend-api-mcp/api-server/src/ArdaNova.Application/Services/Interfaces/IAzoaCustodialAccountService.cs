@@ -47,7 +47,8 @@ public sealed record AzoaCustodialAccountStatus(
     bool KycReady,
     bool WalletReady,
     bool Ready,
-    string? UnavailableReason = null);
+    string? UnavailableReason = null,
+    DateTimeOffset? ReviewDueAt = null);
 
 public sealed record AzoaCustodialAccountCapabilities(
     bool Enabled,

@@ -15,7 +15,6 @@ import {
   Sparkles,
   UsersRound,
   Vote,
-  WalletCards,
 } from "lucide-react";
 import Link from "next/link";
 import { signOut } from "next-auth/react";
@@ -53,7 +52,6 @@ type NavigationIconName =
   | "events"
   | "portfolio"
   | "chats"
-  | "wallets"
   | "settings"
   | "kyc";
 
@@ -85,8 +83,6 @@ function NavigationIcon({
       return <Landmark className={className} aria-hidden="true" />;
     case "chats":
       return <MessageCircle className={className} aria-hidden="true" />;
-    case "wallets":
-      return <WalletCards className={className} aria-hidden="true" />;
     case "settings":
       return <Settings className={className} aria-hidden="true" />;
     case "kyc":
@@ -137,18 +133,13 @@ const navigationGroups: NavigationGroup[] = [
 ];
 
 const utilityItems: NavigationItem[] = [
-  { href: "/settings/wallets", label: "Wallets", icon: "wallets" },
   { href: "/settings", label: "Settings", icon: "settings" },
 ];
 
 function isCurrentPath(pathname: string, href: string) {
   if (href === "/dashboard") return pathname === href;
   if (href === "/settings") {
-    return (
-      pathname === href ||
-      (pathname.startsWith("/settings/") &&
-        !pathname.startsWith("/settings/wallets"))
-    );
+    return pathname === href || pathname.startsWith("/settings/");
   }
   return pathname === href || pathname.startsWith(`${href}/`);
 }

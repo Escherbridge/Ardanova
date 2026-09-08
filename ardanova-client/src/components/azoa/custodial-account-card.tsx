@@ -37,11 +37,6 @@ interface CustodialAccountCardProps {
   onEnsure: () => void;
 }
 
-function compactReference(value: string | null | undefined): string {
-  if (!value) return "Not created";
-  return value.length > 22 ? `${value.slice(0, 10)}...${value.slice(-8)}` : value;
-}
-
 export function CustodialAccountCard({
   status,
   isLoading = false,
@@ -72,7 +67,7 @@ export function CustodialAccountCard({
   const steps: AccountStep[] = [
     {
       label: "Account setup",
-      detail: compactReference(status?.avatarId),
+      detail: status?.identityReady === true ? "Ready" : "Not created",
       complete: status?.identityReady === true,
       icon: "account",
     },
@@ -86,7 +81,7 @@ export function CustodialAccountCard({
     },
     {
       label: "Managed payment account",
-      detail: compactReference(status?.walletAddress),
+      detail: status?.walletReady === true ? "Ready" : "Not created",
       complete: status?.walletReady === true,
       icon: "wallet",
     },
@@ -115,9 +110,10 @@ export function CustodialAccountCard({
             Complete your account setup
           </h2>
           <p className="text-muted-foreground mt-3 max-w-2xl text-sm leading-relaxed">
-            ArdaNova coordinates the setup. Azoa verifies identity and manages
-            the protected account used for funding and rewards. ArdaNova keeps
-            only account references and readiness status.
+            ArdaNova coordinates the setup. A trusted verification partner
+            checks identity and manages the protected account used for
+            funding and rewards. ArdaNova keeps only account references and
+            readiness status.
           </p>
         </div>
         <Badge

@@ -76,7 +76,8 @@ public sealed class FundingIntentService : IFundingIntentService
 
         var funderReadiness = await _valueEligibility.RequireReadyAsync(actorId, "fund a project", ct);
         if (!funderReadiness.IsSuccess)
-            return Result<FundingCheckoutDto>.Forbidden(funderReadiness.Error!);
+            return ValueEligibilityFailure.Propagate<AzoaCustodialAccountStatusDto, FundingCheckoutDto>(
+                funderReadiness);
 
         var config = await _tokenConfigRepository.GetByIdAsync(request.ProjectTokenConfigId, ct);
         if (config is null)
@@ -103,7 +104,8 @@ public sealed class FundingIntentService : IFundingIntentService
                 "receive project funding",
                 ct);
             if (!recipientReadiness.IsSuccess)
-                return Result<FundingCheckoutDto>.Forbidden(
+                return ValueEligibilityFailure.Propagate<AzoaCustodialAccountStatusDto, FundingCheckoutDto>(
+                    recipientReadiness,
                     "This project cannot receive funding until its owner completes account setup.");
         }
 
@@ -219,8 +221,16 @@ public sealed class FundingIntentService : IFundingIntentService
                 ct);
             if (ownerReadiness.IsFailure)
             {
-                ownerReadinessFailureCode = "AZOA_PROJECT_OWNER_NOT_READY";
-                ownerReadinessFailureDetail = "Funding settlement remains pending until the project owner completes account setup.";
+                // A Conflict means the platform could not answer, not that the owner has
+                // unfinished setup. The reason code is read by operators; a code that names
+                // the wrong cause sends them to the wrong person.
+                var ownerUnconfirmed = ownerReadiness.Type == ResultType.Conflict;
+                ownerReadinessFailureCode = ownerUnconfirmed
+                    ? "AZOA_ELIGIBILITY_UNCONFIRMED"
+                    : "AZOA_PROJECT_OWNER_NOT_READY";
+                ownerReadinessFailureDetail = ownerUnconfirmed
+                    ? "Funding settlement remains pending because account readiness could not be confirmed."
+                    : "Funding settlement remains pending until the project owner completes account setup.";
             }
         }
 

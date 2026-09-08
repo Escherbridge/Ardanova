@@ -241,6 +241,7 @@ public sealed class AzoaCustodialAccountService : IAzoaCustodialAccountService
             WalletReady = status.WalletReady,
             Ready = status.Ready,
             UnavailableReason = status.UnavailableReason,
+            ReviewDueAt = status.ReviewDueAt,
         });
     }
 
@@ -250,10 +251,22 @@ public sealed class AzoaCustodialAccountService : IAzoaCustodialAccountService
         return $"{operation}:{Convert.ToHexString(digest).ToLowerInvariant()}";
     }
 
+    // The sole writer of User.verificationLevel: KycService no longer mutates it (see
+    // KycService.ApproveAsync), so this AZOA-sourced projection is authoritative end to end.
+    //
+    // UnderReview is NEUTRAL: it neither promotes nor demotes. A person already at PRO who is
+    // pulled into a compliance review keeps their level while the review is open, because a
+    // demotion here is a visible, unexplained punishment for a question no one has answered
+    // yet - most often a name collision. The value gates stay closed regardless: readiness is
+    // decided by status.Ready / KycReady, never by verificationLevel, so keeping the level does
+    // NOT open a value action. Only a rejection demotes.
     private static VerificationLevel ProjectVerificationLevel(User user, AzoaKycStatus status)
     {
         if (status == AzoaKycStatus.Approved && user.verificationLevel < VerificationLevel.PRO)
             return VerificationLevel.PRO;
+
+        if (status == AzoaKycStatus.UnderReview)
+            return user.verificationLevel;
 
         if (status != AzoaKycStatus.Approved && user.verificationLevel == VerificationLevel.PRO)
             return user.emailVerified.HasValue ? VerificationLevel.VERIFIED : VerificationLevel.ANONYMOUS;

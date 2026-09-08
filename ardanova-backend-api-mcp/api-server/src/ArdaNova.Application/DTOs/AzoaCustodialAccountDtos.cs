@@ -6,6 +6,15 @@ public enum AzoaKycStatus
     Pending,
     Approved,
     Rejected,
+
+    /// <summary>
+    /// Identity verified, but an additional compliance check still owes a human
+    /// decision. Neither approved nor rejected, and closed to value until it
+    /// resolves. Names must match AZOA's TenantKycStatus member for member: the
+    /// gateway parses the wire value by name, and an unknown member turns a real
+    /// state into "AZOA returned an invalid KYC state".
+    /// </summary>
+    UnderReview,
 }
 
 /// <summary>Authoritative AZOA account, wallet, and KYC readiness without custody material.</summary>
@@ -20,6 +29,9 @@ public sealed record AzoaCustodialAccountStatusDto
     public bool WalletReady { get; init; }
     public bool Ready { get; init; }
     public string? UnavailableReason { get; init; }
+
+    /// <summary>When the open compliance review is due a decision; null unless <see cref="AzoaKycStatus.UnderReview"/>.</summary>
+    public DateTimeOffset? ReviewDueAt { get; init; }
 }
 
 /// <summary>Runtime custody and KYC capabilities reported by the selected AZOA node.</summary>

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Banknote, LockKeyhole, WalletCards } from "lucide-react";
+import { Banknote, LockKeyhole } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent } from "~/components/ui/card";
 
@@ -39,12 +39,6 @@ export default function PayoutsSettingsPage() {
       </Card>
 
       <div className="flex flex-col gap-3 sm:flex-row">
-        <Button asChild variant="outline" className="font-mono">
-          <Link href="/settings/wallets">
-            <WalletCards className="mr-2 size-4" />
-            MANAGE EXTERNAL WALLETS
-          </Link>
-        </Button>
         <Button asChild variant="outline" className="font-mono">
           <Link href="/portfolio">VIEW PORTFOLIO STATUS</Link>
         </Button>

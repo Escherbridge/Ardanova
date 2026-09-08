@@ -373,14 +373,23 @@ public class OpportunitiesController : ControllerBase
             return null;
 
         var readiness = await _valueEligibility.RequireReadyAsync(ActorId, action, ct);
-        return readiness.IsSuccess ? null : ValueActionForbidden(readiness.Error);
+        return readiness.IsSuccess
+            ? null
+            : ValueActionRefused(
+                readiness,
+                "Complete account setup before publishing or updating paid or project-unit opportunities.");
     }
 
-    private IActionResult ValueActionForbidden(string? error)
-        => StatusCode(403, new
-        {
-            error = error ?? "Complete account setup before publishing or updating paid or project-unit opportunities."
-        });
+    /// <summary>
+    /// Refusal for a value-action readiness failure, at the status code the gate actually
+    /// returned. A Conflict means the platform could not confirm readiness; answering that
+    /// with 403 tells a person who HAS finished setup that they are not allowed, and points
+    /// them back at a flow they already completed.
+    /// </summary>
+    private IActionResult ValueActionRefused<T>(Result<T> readiness, string? fallback = null)
+        => StatusCode(
+            ValueEligibilityFailure.StatusCode(readiness),
+            new { error = readiness.Error ?? fallback });
 
     private IActionResult ToActionResult<T>(Result<T> result)
     {

@@ -77,6 +77,17 @@ export default function VerificationPage() {
     return () => window.clearTimeout(timeout);
   }, [providerSessionExpiry]);
 
+  // Re-check status when the user returns from the hosted provider's tab
+  // instead of requiring a manual "Check status" click.
+  useEffect(() => {
+    if (!providerSession?.hostedVerification) return;
+    function handleWindowFocus() {
+      void custodyStatus.refetch();
+    }
+    window.addEventListener("focus", handleWindowFocus);
+    return () => window.removeEventListener("focus", handleWindowFocus);
+  }, [providerSession?.hostedVerification, custodyStatus.refetch]);
+
   const status = custodyStatus.data?.kycStatus ?? "Unknown";
   const accountSetupComplete = isValueActionAccountReady(custodyStatus.data);
   const returnTo = normalizeInternalReturnTo(
@@ -250,7 +261,7 @@ export default function VerificationPage() {
                 <p className="text-sm leading-relaxed">
                   {beginKyc.error?.message ??
                     capabilities.error?.message ??
-                    "Identity verification is not configured on this Azoa node yet. Wallet custody may be configured independently."}
+                    "Identity verification is not configured on this Azoa node yet."}
                 </p>
               </div>
             )}

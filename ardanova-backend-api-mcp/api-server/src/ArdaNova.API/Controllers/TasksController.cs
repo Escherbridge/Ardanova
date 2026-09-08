@@ -226,7 +226,9 @@ public class TasksController : ControllerBase
     {
         var actorReadiness = await _valueEligibility.RequireReadyAsync(ActorId, action, ct);
         if (!actorReadiness.IsSuccess)
-            return ValueActionForbidden(actorReadiness.Error);
+            return ValueActionRefused(
+                actorReadiness,
+                "Complete account setup before continuing with this paid task.");
 
         if (!string.IsNullOrWhiteSpace(assigneeId) &&
             !string.Equals(assigneeId, ActorId, StringComparison.Ordinal))
@@ -237,7 +239,8 @@ public class TasksController : ControllerBase
                 ct);
             if (!assigneeReadiness.IsSuccess)
             {
-                return ValueActionForbidden(
+                return ValueActionRefused(
+                    assigneeReadiness,
                     "Every participant must complete account setup before a paid task can be created or updated.");
             }
         }
@@ -245,11 +248,16 @@ public class TasksController : ControllerBase
         return null;
     }
 
-    private IActionResult ValueActionForbidden(string? error)
-        => StatusCode(403, new
-        {
-            error = error ?? "Complete account setup before continuing with this paid task."
-        });
+    /// <summary>
+    /// Refusal for a value-action readiness failure, at the status code the gate actually
+    /// returned. A Conflict means the platform could not confirm readiness; answering that
+    /// with 403 tells a person who HAS finished setup that they are not allowed, and points
+    /// them back at a flow they already completed.
+    /// </summary>
+    private IActionResult ValueActionRefused<T>(Result<T> readiness, string? fallback = null)
+        => StatusCode(
+            ValueEligibilityFailure.StatusCode(readiness),
+            new { error = readiness.Error ?? fallback });
 
     private async Task<bool> IsAssignedGuildAsync(
         string projectId,

@@ -16,7 +16,6 @@ public class KycService : IKycService
     private readonly IUnitOfWork _unitOfWork;
     private readonly IMapper _mapper;
     private readonly IKycProviderService _providerService;
-    private readonly IUserService _userService;
 
     public KycService(
         IRepository<KycSubmission> submissionRepository,
@@ -24,8 +23,7 @@ public class KycService : IKycService
         IRepository<User> userRepository,
         IUnitOfWork unitOfWork,
         IMapper mapper,
-        IKycProviderService providerService,
-        IUserService userService)
+        IKycProviderService providerService)
     {
         _submissionRepository = submissionRepository;
         _documentRepository = documentRepository;
@@ -33,7 +31,6 @@ public class KycService : IKycService
         _unitOfWork = unitOfWork;
         _mapper = mapper;
         _providerService = providerService;
-        _userService = userService;
     }
 
     public async Task<Result<KycSubmissionDto>> SubmitAsync(SubmitKycDto dto, CancellationToken ct = default)
@@ -181,9 +178,9 @@ public class KycService : IKycService
         await _submissionRepository.UpdateAsync(submission, ct);
         await _unitOfWork.SaveChangesAsync(ct);
 
-        // Auto-upgrade user to PRO
-        await _userService.UpdateVerificationLevelAsync(submission.userId,
-            new AdminUpdateVerificationLevelDto { VerificationLevel = VerificationLevel.PRO }, ct);
+        // AZOA is the sole writer of User.verificationLevel (AzoaCustodialAccountService
+        // projects it from the AZOA-hosted KYC decision); approving a local submission here
+        // no longer mutates it, so two writers can no longer disagree.
 
         var documents = await _documentRepository.FindAsync(d => d.submissionId == id, ct);
         var submissionDto = _mapper.Map<KycSubmissionDto>(submission);
