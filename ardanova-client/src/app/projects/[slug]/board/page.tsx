@@ -276,7 +276,7 @@ function TaskCard({
         </div>
         <div className="text-muted-foreground flex items-center gap-2 text-xs">
           {equity > 0 && (
-            <span className="text-neon-green font-medium">{equity} tokens</span>
+            <span className="text-neon-green font-medium">{equity} units</span>
           )}
           {hours !== null && (
             <Badge variant="secondary" size="sm" className="px-1 text-[10px]">
@@ -712,7 +712,7 @@ export default function ProjectBoardPage() {
                 Assignee
               </span>
               <span className="text-muted-foreground text-right font-mono text-xs tracking-widest uppercase">
-                Token units
+                Units
               </span>
             </div>
             {filteredTasks.length === 0 ? (

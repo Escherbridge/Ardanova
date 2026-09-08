@@ -5,6 +5,10 @@ import { Badge } from "~/components/ui/badge";
 import { CredentialBadge } from "./credential-badge";
 import { BadgeCheck, Clock, PauseCircle, XCircle } from "lucide-react";
 import { cn } from "~/lib/utils";
+import {
+  getCredentialProofPresentation,
+  getCredentialProofReference,
+} from "~/lib/credentials/credential-proof";
 import type { MembershipCredential } from "~/lib/api/ardanova/endpoints/membership-credentials";
 
 interface CredentialCardProps {
@@ -33,54 +37,37 @@ type VerificationState = {
   tone: string;
 };
 
+/** How each proof reading is drawn. The words themselves come from the shared translator. */
+const proofStyles = {
+  withdrawn: { icon: XCircle, tone: "text-destructive" },
+  paused: { icon: PauseCircle, tone: "text-muted-foreground" },
+  verified: { icon: BadgeCheck, tone: "text-neon-green" },
+  recorded: { icon: BadgeCheck, tone: "text-neon-cyan" },
+  preparing: { icon: Clock, tone: "text-neon-yellow" },
+} as const;
+
 /**
  * One reading of a credential, in plain words.
  *
- * "Verified" means a proof reference was recorded against this credential.
- * "Verification pending" means the credential is real and in effect but its
- * independent proof has not been recorded yet - which is a waiting state, not a
- * failure, and the copy says so rather than leaving the member to guess.
+ * The words come from ~/lib/credentials/credential-proof.ts, which is the single place the
+ * node's chain vocabulary is translated - the card and the credential detail page must not
+ * drift into saying different things about the same credential.
  */
 function readVerification(credential: MembershipCredential): VerificationState {
-  if (credential.status === "REVOKED") {
-    return {
-      label: "Withdrawn",
-      detail: "This credential was withdrawn and is no longer in effect.",
-      icon: XCircle,
-      tone: "text-destructive",
-    };
-  }
-
-  if (credential.status === "SUSPENDED") {
-    return {
-      label: "Paused",
-      detail: "This credential is paused. It stays on record and can be restored.",
-      icon: PauseCircle,
-      tone: "text-muted-foreground",
-    };
-  }
-
-  if (proofReference(credential)) {
-    return {
-      label: "Verified",
-      detail: "Independently verifiable outside ArdaNova.",
-      icon: BadgeCheck,
-      tone: "text-neon-cyan",
-    };
-  }
-
-  return {
-    label: "Verification pending",
-    detail:
-      "This credential is in effect. Its independent proof is still being prepared.",
-    icon: Clock,
-    tone: "text-neon-yellow",
-  };
+  const { state, label, detail } = getCredentialProofPresentation({
+    status: credential.status,
+    assetId: credential.assetId,
+    mintTxHash: credential.mintTxHash,
+  });
+  return { label, detail, ...proofStyles[state] };
 }
 
 /** The single reference a member can quote to prove this credential. */
 function proofReference(credential: MembershipCredential): string | null {
-  return credential.assetId ?? credential.mintTxHash ?? null;
+  return getCredentialProofReference({
+    assetId: credential.assetId,
+    mintTxHash: credential.mintTxHash,
+  });
 }
 
 function formatDate(value?: string | null): string | null {

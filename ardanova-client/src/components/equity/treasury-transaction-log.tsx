@@ -46,7 +46,7 @@ const TYPE_LABELS: Record<string, string> = {
   PROFIT_SHARE: "Profit Share",
   REBALANCE: "Rebalance",
   TRUST_PROTECTION: "Trust Protection",
-  FOUNDER_BURN: "Founder Burn",
+  FOUNDER_BURN: "Founder Write-off",
 };
 
 const TYPE_COLORS: Record<string, string> = {

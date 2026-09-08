@@ -872,7 +872,7 @@ export default function DashboardTasksPage() {
                         <th className="text-muted-foreground p-3 text-left font-mono text-xs tracking-widest uppercase">
                           <div className="flex items-center gap-1">
                             <Coins className="size-3" />
-                            Project-token allocation
+                            Project stake
                           </div>
                         </th>
                       </tr>

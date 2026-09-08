@@ -34,7 +34,7 @@ export default function EquityTab({ projectId }: TokenPositionTabProps) {
     return (
       <div className="flex items-center justify-center py-20" role="status">
         <Loader2 className="text-primary size-6 animate-spin" />
-        <span className="sr-only">Loading project-token position</span>
+        <span className="sr-only">Loading project stake</span>
       </div>
     );
   }
@@ -48,10 +48,10 @@ export default function EquityTab({ projectId }: TokenPositionTabProps) {
         <AlertCircle className="text-destructive mt-0.5 size-5 shrink-0" />
         <div>
           <p className="text-destructive font-mono text-sm font-bold uppercase">
-            Project-token configuration unavailable
+            Project stake configuration unavailable
           </p>
           <p className="text-muted-foreground mt-1 text-xs">
-            No validated token configuration is available for this project.
+            No validated stake configuration is available for this project.
           </p>
         </div>
       </div>
@@ -81,7 +81,7 @@ function TokenPositionContent({ config }: { config: ProjectTokenConfigDto }) {
       <Card className="border-foreground">
         <CardHeader className="pb-2">
           <CardTitle className="font-mono text-base tracking-wide uppercase">
-            Project-token supply
+            Project unit supply
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -149,7 +149,7 @@ function TokenPositionContent({ config }: { config: ProjectTokenConfigDto }) {
               </div>
               <p className="text-muted-foreground text-xs leading-relaxed">
                 This is a read-only projection of the backend gate record. Gate
-                transitions, token burns, and protection processing are
+                transitions, unit write-offs, and protection processing are
                 privileged administrative workflows and are not available from
                 this project view.
               </p>

@@ -80,7 +80,7 @@ export default function SupplyBreakdownBar({
   return (
     <div className="space-y-3">
       <span className="text-muted-foreground font-mono text-xs font-bold tracking-widest">
-        TOKEN SUPPLY BREAKDOWN
+        UNIT SUPPLY BREAKDOWN
       </span>
 
       {/* Stacked bar */}

@@ -52,7 +52,7 @@ function formatDate(value: string): string {
 }
 
 function shortenReference(value: string | null): string {
-  if (!value) return "Platform token";
+  if (!value) return "Platform balance";
   return value.length > 18 ? `${value.slice(0, 8)}…${value.slice(-6)}` : value;
 }
 
@@ -134,9 +134,8 @@ export default function PortfolioPage() {
               Portfolio
             </h1>
             <p className="text-muted-foreground mt-3 max-w-2xl text-sm">
-              Inspect balances and payout records returned by ArdaNova’s
-              tokenomics API. A token balance is not proof of equity, ownership,
-              or governance rights.
+              Inspect the balances and payout records ArdaNova holds for you. A
+              balance is not proof of equity, ownership, or governance rights.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -198,7 +197,7 @@ export default function PortfolioPage() {
                 label="Balance records"
                 value={portfolioLoading ? "—" : formatInteger(holdings.length)}
                 icon={<Layers3 className="h-4 w-4" />}
-                detail="Project and platform token records returned by the API."
+                detail="Project and platform balance records held for you."
               />
               <SummaryCard
                 label="Recorded total USD"
@@ -291,7 +290,7 @@ export default function PortfolioPage() {
               id="holdings-heading"
               className="font-mono text-sm tracking-widest uppercase"
             >
-              Token balance records
+              Your balances
             </h2>
             {!portfolioLoading && !portfolioError && (
               <Badge variant="outline" size="sm">
@@ -307,7 +306,7 @@ export default function PortfolioPage() {
           ) : portfolioError ? null : holdings.length === 0 ? (
             <div className="border-border border-2 border-dashed p-8 text-center">
               <p className="text-muted-foreground font-mono text-sm">
-                No token balance records were returned.
+                No balance records were returned.
               </p>
             </div>
           ) : (

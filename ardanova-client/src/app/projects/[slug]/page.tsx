@@ -57,7 +57,7 @@ const tabs = [
   { id: "updates", label: "Updates", icon: <Bell /> },
   { id: "team", label: "Team", icon: <Users /> },
   { id: "funding", label: "Funding", icon: <DollarSign /> },
-  { id: "equity", label: "Token position", icon: <Coins /> },
+  { id: "equity", label: "Your stake", icon: <Coins /> },
   { id: "proposals", label: "Proposals", icon: <Vote /> },
   { id: "opportunities", label: "Work", icon: <Target /> },
   { id: "tasks", label: "Tasks", icon: <CheckSquare /> },
@@ -353,7 +353,7 @@ export default function ProjectDetailPage() {
               <p className="text-muted-foreground mt-2 text-sm">
                 {project.storefrontDescription ??
                   "This project can expose commerce workflows."}{" "}
-                Project tokens, membership credentials, and separately approved
+                Project units, membership credentials, and separately approved
                 ownership shares remain distinct records with distinct rights.
               </p>
             </div>

@@ -113,7 +113,7 @@ export default function AllocationTable({ allocations }: AllocationTableProps) {
           onSort={handleSort}
         />
         <SortButton
-          label="Token units"
+          label="Units"
           sortKey="tokenAmount"
           current={sortKey}
           direction={sortDirection}
@@ -176,7 +176,7 @@ export default function AllocationTable({ allocations }: AllocationTableProps) {
                 </div>
                 <div>
                   <span className="text-muted-foreground block text-[10px] md:hidden">
-                    Token units
+                    Units
                   </span>
                   <span className="font-mono text-xs">
                     {formatTokens(allocation.tokenAmount)}

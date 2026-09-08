@@ -343,7 +343,7 @@ function TaskCard({
         </div>
         <div className="text-muted-foreground flex items-center gap-2 text-xs">
           <span className="text-neon-green font-medium">
-            {task.reward} tokens
+            {task.reward} units
           </span>
           <TaskEconomicState
             allocationUnits={task.reward}
@@ -897,7 +897,7 @@ export default function TasksPage() {
                           <td className="p-3">
                             <div className="flex items-center gap-2">
                               <span className="text-neon-green text-sm font-medium">
-                                {task.reward} tokens
+                                {task.reward} units
                               </span>
                               <TaskEconomicState
                                 allocationUnits={task.reward}

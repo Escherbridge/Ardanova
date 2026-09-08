@@ -87,6 +87,12 @@ jobs:
       - name: Install dependencies and generate Prisma artifacts
         run: npm ci
 
+      # Fails the build when blockchain machinery reaches a member-facing screen.
+      # Named as its own step so a violation reads as a product defect rather than
+      # a lint failure buried in the release gate, which also runs it.
+      - name: Verify no blockchain vocabulary reaches a member screen
+        run: npm run verify:vocabulary
+
       - name: Regenerate the DBML, Prisma, Zod, and C# contract
         run: |
           npm run generate:dbml

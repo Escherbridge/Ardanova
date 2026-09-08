@@ -234,7 +234,7 @@ export default function CreateEventPage() {
                   }
                   value={formData.title}
                   onChange={(e) => handleChange("title", e.target.value)}
-                  placeholder="e.g., Web3 Developer Workshop"
+                  placeholder="e.g., Community Developer Workshop"
                   className={`bg-muted/50 focus-visible:ring-ring/50 w-full rounded-none border-2 px-4 py-3 focus:ring-2 focus:outline-none ${
                     errors.title ? "border-destructive" : "border-border"
                   }`}

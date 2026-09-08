@@ -51,7 +51,7 @@ const trustCues = [
   {
     title: "Rights stay explicit",
     description:
-      "Ownership and decision authority come from documented terms, never from activity, membership, or a token alone.",
+      "Ownership and decision authority come from documented terms, never from activity, membership, or a balance alone.",
   },
   {
     title: "Progress over engagement",

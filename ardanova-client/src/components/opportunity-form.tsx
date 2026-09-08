@@ -37,7 +37,7 @@ const jobTypeLabels: Record<string, string> = {
 // Label overrides for compensation types
 const compensationLabels: Record<string, string> = {
   FIXED_SHARES: "Fixed Shares",
-  EQUITY_PERCENT: "Project-token allocation percentage",
+  EQUITY_PERCENT: "Project stake percentage",
 };
 
 // Label overrides for experience levels

@@ -38,6 +38,61 @@ owed to earlier commit messages. Read this before believing any checkbox in
 > the release gate (`ardanova-client/scripts/frontend-release-check.mjs:21`).
 > Regression tests: `ardanova-client/src/lib/dependencies/azoa-sdk-pin.test.ts`.
 
+> ### Correction to the Wave 0 remediation's own thesis refutation (recorded 2026-09-08)
+>
+> That remediation refuted a thesis finding by writing: *"The only surface in the
+> client that renders a raw wallet address or GUID is `admin/kyc/page.tsx` ... so a
+> non-crypto sponsor cannot reach it."* The admin gate half is true and still holds
+> (`ardanova-client/src/app/admin/kyc/page.tsx:96` redirects a non-`ADMIN` session
+> server-side, and the unbind action re-checks at `:53`). **The refutation was
+> scoped narrower than the test it answered, and read as complete.**
+>
+> The product test names six things, not one: *a wallet address, a mnemonic, a gas
+> fee, **a chain name**, a signed challenge, or the word "token" where
+> "funds"/"stake"/"units" would do.* Only the address clause was checked. The
+> chain-name clause was violated on an **ungated** page —
+> `src/app/credentials/[id]/page.tsx`, a `"use client"` component with no role
+> check, and the page on which a worker reads the tier they earned. It rendered
+> "Blockchain Status", "Minted on Algorand", "This credential is verified on the
+> Algorand blockchain", "On-chain data matches platform records", "Algorand
+> Standard Asset", "ASA #", raw mint/revoke transaction hashes and a raw creator
+> address. The defect predates the wave (`17ec01d` / `37ea5a7` / `f01d71c`); what
+> the wave added was the impression it had been swept away.
+>
+> **The prose is no longer what carries this either.**
+> `ardanova-client/scripts/verify-product-vocabulary.mjs` parses every member-facing
+> `.ts`/`.tsx` under `src/app` and `src/components` and fails the build when a chain
+> name, a wallet, a mint, a hash, a mnemonic, a gas fee or the word "token" appears
+> in a span a person can read. Enforced at **both** seams: its own CI step, which
+> runs after `npm ci` so TypeScript's parser is available
+> (`.github/workflows/ardanova-client-image.yml:94`), and the release gate
+> (`ardanova-client/scripts/frontend-release-check.mjs:22`, exposed as
+> `npm run verify:vocabulary`). Regression tests:
+> `ardanova-client/src/lib/product-vocabulary.test.ts` — including a fixture holding
+> the exact copy that shipped, which the guard must reject, and a real-tree case
+> asserting it walked >100 files so it cannot pass by scanning nothing.
+>
+> Fixing it turned up 42 violations across 17 files, not one page: "Token units",
+> "TOKEN SUPPLY BREAKDOWN", "Project-token allocation", "Token burns", "Founder
+> Burn", "Platform token", "e.g., Web3 Developer Workshop". All are now the
+> member's words — units, stake, balance, write-off. The screens read those words
+> through `src/lib/credentials/credential-proof.ts`, next to the same-shaped
+> `src/lib/commerce/on-ramp-status.ts`.
+>
+> **What this guard does not cover, stated so it is not read as complete a second
+> time:** it scans rendered surfaces only. `src/lib` is excluded, because it mixes
+> member copy with operator tooling that must say what it means
+> (`lib/commerce/migration-preflight.ts` is a database preflight run from a
+> terminal, and legitimately says "on-chain assetId"). The copy modules under
+> `src/lib` are covered instead by their own vocabulary tests —
+> `lib/commerce/on-ramp-status.test.ts` and
+> `lib/credentials/credential-proof.test.ts`. `src/app/admin/**` is excluded because
+> `ardanova-client/src/app/admin/layout.tsx:26` is a server component that redirects
+> any non-`ADMIN` session, gating the whole segment before a page renders — the
+> exclusion is worth exactly as much as that line, and no more. Nothing outside
+> `ardanova-client` was scanned: the .NET API, the game SDK and the AI client have
+> not been swept for this vocabulary.
+
 ---
 
 ## 1. Open item — `azoa-sdk@0.4.0` is unpublished, so `npm ci` cannot work

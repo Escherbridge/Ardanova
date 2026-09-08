@@ -552,7 +552,7 @@ export default function WorkItemDetailModal({
           {equityBudget !== null && equityBudget > 0 && (
             <div>
               <span className="text-muted-foreground text-[10px] tracking-wider uppercase">
-                Project-token allocation
+                Project stake
               </span>
               <div className="mt-0.5 flex items-center gap-1">
                 <Coins className="text-neon-green h-3.5 w-3.5" />

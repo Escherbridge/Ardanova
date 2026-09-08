@@ -1221,10 +1221,10 @@ export default function TeamTab({
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <PieChart className="size-5" />
-              Token Pool Allocation
+              Unit Pool Allocation
             </CardTitle>
             <CardDescription>
-              How project tokens are distributed across holder classes
+              How project units are distributed across holder classes
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -1258,7 +1258,7 @@ export default function TeamTab({
                         <span className="font-medium">Contributor Pool</span>
                         <span className="text-muted-foreground">
                           {contributorPct}% (
-                          {contributorSupply.toLocaleString()} tokens)
+                          {contributorSupply.toLocaleString()} units)
                         </span>
                       </div>
                       <div className="bg-muted h-2 overflow-hidden rounded-none">
@@ -1273,7 +1273,7 @@ export default function TeamTab({
                         <span className="font-medium">Investor Pool</span>
                         <span className="text-muted-foreground">
                           {investorPct}% ({investorSupply.toLocaleString()}{" "}
-                          tokens)
+                          units)
                         </span>
                       </div>
                       <div className="bg-muted h-2 overflow-hidden rounded-none">
@@ -1290,7 +1290,7 @@ export default function TeamTab({
                         </span>
                         <span className="text-muted-foreground">
                           {founderPct}% ({founderSupply.toLocaleString()}{" "}
-                          tokens)
+                          units)
                         </span>
                       </div>
                       <div className="bg-muted h-2 overflow-hidden rounded-none">
@@ -1304,11 +1304,11 @@ export default function TeamTab({
                       <div>
                         <div className="mb-1 flex justify-between text-sm">
                           <span className="text-muted-foreground font-medium">
-                            Burned
+                            Written off
                           </span>
                           <span className="text-muted-foreground">
                             {burnedPct}% ({burnedSupply.toLocaleString()}{" "}
-                            tokens)
+                            units)
                           </span>
                         </div>
                         <div className="bg-muted h-2 overflow-hidden rounded-none">
@@ -1328,7 +1328,7 @@ export default function TeamTab({
                       <span className="text-foreground font-medium">
                         {total.toLocaleString()}
                       </span>{" "}
-                      tokens
+                      units
                     </span>
                     <span className="text-muted-foreground">
                       Unallocated:{" "}

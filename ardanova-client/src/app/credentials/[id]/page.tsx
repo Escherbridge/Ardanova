@@ -18,14 +18,32 @@ import {
 } from "~/components/credentials/credential-badge";
 import { TierProgress } from "~/components/credentials/tier-progress";
 import {
+  getCredentialProofPresentation,
+  getCredentialProofReference,
+  getTransferabilityLabel,
+} from "~/lib/credentials/credential-proof";
+import {
   ArrowLeft,
-  ExternalLink,
-  Loader2,
-  Shield,
-  Link2,
-  CheckCircle2,
+  BadgeCheck,
   Clock,
+  Loader2,
+  PauseCircle,
+  Shield,
+  XCircle,
 } from "lucide-react";
+
+// This page is how a worker's earned tier is shown to them, so it is a member surface and not an
+// operator one. Everything the node reports about the credential's proof is read through
+// ~/lib/credentials/credential-proof.ts; the node's own words never reach this file. See
+// src/lib/AGENTS.md and scripts/verify-product-vocabulary.mjs, which fails the build if they do.
+
+const proofPresentation = {
+  withdrawn: { icon: XCircle, tone: "text-destructive" },
+  paused: { icon: PauseCircle, tone: "text-muted-foreground" },
+  verified: { icon: BadgeCheck, tone: "text-neon-green" },
+  recorded: { icon: BadgeCheck, tone: "text-neon-cyan" },
+  preparing: { icon: Clock, tone: "text-neon-yellow" },
+} as const;
 
 export default function CredentialDetailPage() {
   const params = useParams();
@@ -50,7 +68,7 @@ export default function CredentialDetailPage() {
           Credential not found
         </h1>
         <p className="text-muted-foreground mt-2">
-          This credential may have been revoked or doesn&apos;t exist.
+          This credential may have been withdrawn or doesn&apos;t exist.
         </p>
         <Link href="/dashboard/profile">
           <Button variant="outline" className="mt-4">
@@ -65,6 +83,18 @@ export default function CredentialDetailPage() {
   const { credential, asaInfo, isOnChain, chainVerified } = chainData;
   const scope = credential.projectId ? "PROJECT" : "GUILD";
   const statusCfg = statusConfig[credential.status];
+
+  const report = {
+    status: credential.status,
+    assetId: asaInfo?.assetId ?? credential.assetId,
+    mintTxHash: credential.mintTxHash,
+    isOnChain,
+    chainVerified,
+  };
+  const proof = getCredentialProofPresentation(report);
+  const reference = getCredentialProofReference(report);
+  const ProofIcon = proofPresentation[proof.state].icon;
+  const proofTone = proofPresentation[proof.state].tone;
 
   return (
     <div className="bg-background min-h-screen">
@@ -98,7 +128,7 @@ export default function CredentialDetailPage() {
             </div>
             <CardDescription>
               {scope} credential{" "}
-              {credential.status === "ACTIVE" ? "granted" : "revoked"} via{" "}
+              {credential.status === "ACTIVE" ? "granted" : "withdrawn"} via{" "}
               {credential.grantedVia.replace(/_/g, " ").toLowerCase()}
             </CardDescription>
           </CardHeader>
@@ -128,122 +158,57 @@ export default function CredentialDetailPage() {
               />
               {credential.revokedAt && (
                 <DetailItem
-                  label="Revoked"
+                  label="Withdrawn"
                   value={new Date(credential.revokedAt).toLocaleDateString()}
                 />
               )}
               <DetailItem
                 label="Transferable"
-                value={credential.isTransferable ? "Yes" : "No (Soulbound)"}
+                value={getTransferabilityLabel(credential.isTransferable)}
               />
             </div>
           </CardContent>
         </Card>
 
-        {/* On-Chain Status */}
-        <Card className="mb-6">
+        {/* Verification — one reading, in the member's own words */}
+        <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Link2 className="size-5" />
-              Blockchain Status
+              <ProofIcon className={`size-5 ${proofTone}`} />
+              Verification
             </CardTitle>
+            <CardDescription>
+              Whether this credential can be checked by someone outside
+              ArdaNova.
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="border-border flex items-center gap-3 rounded border p-3">
-              {isOnChain ? (
-                <CheckCircle2 className="text-neon-green size-5" />
-              ) : (
-                <Clock className="text-neon-yellow size-5" />
-              )}
+            <div className="border-border flex items-start gap-3 rounded border p-3">
+              <ProofIcon className={`mt-0.5 size-5 shrink-0 ${proofTone}`} />
               <div>
-                <div className="font-medium">
-                  {isOnChain ? "Minted on Algorand" : "Pending mint"}
-                </div>
+                <div className={`font-medium ${proofTone}`}>{proof.label}</div>
                 <div className="text-muted-foreground text-xs">
-                  {isOnChain
-                    ? "This credential is verified on the Algorand blockchain"
-                    : "This credential has not yet been minted on-chain"}
+                  {proof.detail}
                 </div>
               </div>
             </div>
 
-            {chainVerified && (
-              <div className="border-neon-green/30 bg-neon-green/5 flex items-center gap-3 rounded border p-3">
-                <CheckCircle2 className="text-neon-green size-5" />
-                <div>
-                  <div className="text-neon-green font-medium">
-                    Chain Verified
-                  </div>
-                  <div className="text-muted-foreground text-xs">
-                    On-chain data matches platform records
-                  </div>
-                </div>
-              </div>
+            {reference ? (
+              <DetailItem label="Reference">
+                <span className="inline-block max-w-full truncate font-mono text-xs">
+                  {reference}
+                </span>
+                <p className="text-muted-foreground mt-1 text-[10px]">
+                  Quote this if someone asks you to prove this credential.
+                </p>
+              </DetailItem>
+            ) : (
+              <p className="text-muted-foreground text-xs">
+                A reference appears here once verification finishes.
+              </p>
             )}
-
-            {/* Mint/Revoke transaction hashes */}
-            <div className="grid grid-cols-2 gap-4">
-              {credential.mintTxHash && (
-                <DetailItem label="Mint Transaction">
-                  <span className="inline-block max-w-[200px] truncate font-mono text-xs">
-                    {credential.mintTxHash}
-                  </span>
-                </DetailItem>
-              )}
-              {credential.revokeTxHash && (
-                <DetailItem label="Revoke Transaction">
-                  <span className="inline-block max-w-[200px] truncate font-mono text-xs">
-                    {credential.revokeTxHash}
-                  </span>
-                </DetailItem>
-              )}
-            </div>
           </CardContent>
         </Card>
-
-        {/* ASA Details (if minted) */}
-        {asaInfo && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <ExternalLink className="size-5" />
-                Algorand Standard Asset
-              </CardTitle>
-              <CardDescription>ASA #{asaInfo.assetId}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 gap-4">
-                <DetailItem label="Asset ID" value={asaInfo.assetId} />
-                {asaInfo.assetName && (
-                  <DetailItem label="Asset Name" value={asaInfo.assetName} />
-                )}
-                {asaInfo.unitName && (
-                  <DetailItem label="Unit Name" value={asaInfo.unitName} />
-                )}
-                <DetailItem
-                  label="Total Supply"
-                  value={String(asaInfo.total)}
-                />
-                <DetailItem label="Decimals" value={String(asaInfo.decimals)} />
-                <DetailItem
-                  label="Default Frozen"
-                  value={asaInfo.defaultFrozen ? "Yes (Soulbound)" : "No"}
-                />
-                <DetailItem
-                  label="Deleted"
-                  value={asaInfo.isDeleted ? "Yes" : "No"}
-                />
-                {asaInfo.creatorAddress && (
-                  <DetailItem label="Creator">
-                    <span className="inline-block max-w-[200px] truncate font-mono text-xs">
-                      {asaInfo.creatorAddress}
-                    </span>
-                  </DetailItem>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        )}
       </div>
     </div>
   );

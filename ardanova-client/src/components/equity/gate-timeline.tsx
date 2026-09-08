@@ -153,7 +153,7 @@ export default function GateTimeline({ gateStatus }: GateTimelineProps) {
             </span>
           </div>
           <p className="text-muted-foreground mt-1 text-xs">
-            Failure is recorded. Token burns, protection processing, and any
+            Failure is recorded. Unit write-offs, protection processing, and any
             payout remain separate backend records; this status does not prove
             that any funds were returned.
           </p>

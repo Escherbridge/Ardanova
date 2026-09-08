@@ -19,6 +19,7 @@ const releaseCheckEnv = {
 };
 const steps = [
   "verify:sdk-pin",
+  "verify:vocabulary",
   "diff:check",
   "format:changed",
   "audit:prod",

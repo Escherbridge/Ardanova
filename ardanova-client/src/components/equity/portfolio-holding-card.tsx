@@ -50,8 +50,8 @@ export function PortfolioHoldingCard({
           <div className="min-w-0">
             <p className="text-muted-foreground font-mono text-[10px] tracking-widest uppercase">
               {holding.isPlatformToken
-                ? "ARDA utility token record"
-                : "Project token configuration"}
+                ? "ARDA balance record"
+                : "Project unit configuration"}
             </p>
             <p
               className="text-foreground mt-1 truncate font-mono text-sm font-bold"
@@ -106,7 +106,7 @@ export function PortfolioHoldingCard({
           <div className="border-border bg-muted/20 flex items-start gap-2 border p-3">
             <Lock className="text-muted-foreground mt-0.5 h-4 w-4 shrink-0" />
             <p className="text-muted-foreground text-xs">
-              The API records {formatInteger(holding.lockedBalance)} tokens as
+              The API records {formatInteger(holding.lockedBalance)} units as
               locked. This screen does not infer an unlock date.
             </p>
           </div>
@@ -114,7 +114,7 @@ export function PortfolioHoldingCard({
 
         <div className="text-muted-foreground space-y-2 text-xs">
           <p>
-            A token balance is not proof of equity, ownership, or governance
+            A unit balance is not proof of equity, ownership, or governance
             rights. Those rights require a separate approved agreement.
           </p>
           <p className="font-mono text-[10px] tracking-wide uppercase">
