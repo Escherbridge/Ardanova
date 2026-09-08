@@ -1,4 +1,4 @@
-﻿namespace ArdaNova.Infrastructure;
+namespace ArdaNova.Infrastructure;
 
 using System.Globalization;
 using ArdaNova.Application.Common.Interfaces;
@@ -157,6 +157,12 @@ public static class DependencyInjection
         // the price schedule ONLY when Azoa:OnRamp:Enabled is set and the transport resolves.
         // Without this line the refusal is permanent and no price is ever registered.
         services.AddAzoaFiatRail(configuration, environmentName);
+
+        // The cash-out (off-ramp) adapter — the withdraw half. Registers the IAzoaCashOutNode
+        // binding ONLY when the node transport resolves; without it PayoutService's own
+        // fail-closed path reports that cashing out is not available rather than throwing at
+        // the first withdrawal. Without this line the withdraw leg is unbound and inert.
+        services.AddAzoaCashOut(configuration, environmentName);
 
         var outboxOptions = CreateOutboxOptions(azoaSettings);
         services.AddSingleton(outboxOptions);

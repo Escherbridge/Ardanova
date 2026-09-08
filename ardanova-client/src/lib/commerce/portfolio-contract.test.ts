@@ -31,8 +31,8 @@ function payout(overrides: Partial<PayoutRequestDto> = {}): PayoutRequestDto {
 }
 
 describe("portfolio payout contract", () => {
-  it("keeps creation disabled while settlement processing is unavailable", () => {
-    expect(PAYOUT_PROCESSING_PAUSED).toBe(true);
+  it("no longer claims selling is paused, because the sell path is live", () => {
+    expect(PAYOUT_PROCESSING_PAUSED).toBe(false);
   });
 
   it("keeps submitted and completed-record totals separate", () => {
@@ -65,7 +65,7 @@ describe("portfolio payout contract", () => {
   });
 
   it("does not label an API completion state as reconciled", () => {
-    expect(payoutStageLabel.COMPLETED).toContain("verify settlement evidence");
+    expect(payoutStageLabel.COMPLETED).toContain("in your balance");
     expect(payoutStageLabel.COMPLETED.toLowerCase()).not.toContain(
       "reconciled",
     );

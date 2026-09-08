@@ -1,4 +1,4 @@
-namespace ArdaNova.Application.Tests.Services;
+﻿namespace ArdaNova.Application.Tests.Services;
 
 using System.Linq.Expressions;
 using ArdaNova.Application.Common.Interfaces;
@@ -21,7 +21,13 @@ public class PayoutServiceTests
     private readonly Mock<ITokenBalanceService> _tokenBalanceService;
     private readonly Mock<IExchangeService> _exchangeService;
     private readonly Mock<ITreasuryService> _treasuryService;
+    private readonly Mock<IAzoaExchangeNode> _exchangeNode;
+    private readonly Mock<IProjectUnitRateSource> _rateSource;
+    private readonly Mock<IAzoaValueEligibilityService> _valueEligibility;
     private readonly PayoutService _sut;
+
+    /// <summary>The avatar the node moves value for. Read off the readiness gate, never the body.</summary>
+    private static readonly Guid AvatarId = Guid.Parse("11111111-2222-3333-4444-555555555555");
 
     public PayoutServiceTests()
     {
@@ -39,357 +45,471 @@ public class PayoutServiceTests
         _unitOfWork.Setup(u => u.RollbackTransactionAsync(It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
+        // Selling runs through the NODE now, and each of these three is a gate the sale must
+        // pass. A fixture that omitted them would not exercise the sale path at all - it would
+        // only exercise the fail-closed refusal a deployment with no exchange wired gives.
+        _exchangeNode = new Mock<IAzoaExchangeNode>();
+        _rateSource = new Mock<IProjectUnitRateSource>();
+        _valueEligibility = new Mock<IAzoaValueEligibilityService>();
+
+        _valueEligibility
+            .Setup(gate => gate.RequireReadyAsync(
+                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<AzoaCustodialAccountStatusDto>.Success(
+                new AzoaCustodialAccountStatusDto { AvatarId = AvatarId.ToString(), Ready = true }));
+
+        _rateSource
+            .Setup(source => source.GetDeclaredRateAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<DeclaredProjectUnitRate>.Success(DeclaredRate));
+
         _sut = new PayoutService(
             _payoutRepo.Object,
             _projectTokenConfigRepo.Object,
             _unitOfWork.Object,
             _mapper.Object,
             _tokenBalanceService.Object,
-            _exchangeService.Object
+            _exchangeService.Object,
+            _exchangeNode.Object,
+            _rateSource.Object,
+            _valueEligibility.Object
         );
     }
 
-    [Fact]
-    public async Task RequestPayoutAsync_HappyPath_CreatesPayoutRequest()
+    /// <summary>One whole project unit is priced at one platform unit, and at one dollar.</summary>
+    private static DeclaredProjectUnitRate DeclaredRate => new(
+        ProjectTokenConfigId: "config-1",
+        ArdaPerWholeProjectUnit: "1",
+        UsdMajorUnitsPerWholeProjectUnit: "1",
+        ProjectUnitDecimals: 0,
+        Source: "test",
+        DeclaredAt: DateTimeOffset.UtcNow);
+
+    /// <summary>
+    /// A project whose units the node can actually move: minted, with a treasury and declared
+    /// partitions. Anything less is refused by sellability before a price is ever read.
+    /// </summary>
+    private static ProjectTokenConfig SellableConfig(
+        string configId = "config-1",
+        ProjectGateStatus gateStatus = ProjectGateStatus.ACTIVE) => new()
     {
-        // Arrange
-        var userId = "user-1";
-        var configId = "config-1";
-        var sourceAmount = 1000;
-        var holderClass = TokenHolderClass.CONTRIBUTOR;
+        id = configId,
+        projectId = "proj-1",
+        unitName = "Units",
+        gateStatus = gateStatus,
+        status = ProjectTokenStatus.ACTIVE,
+        totalSupply = 10000,
+        fundingGoal = 50000,
+        fundingRaised = 60000,
+        assetId = "asset-1",
+        assetChain = "Algorand",
+        assetScale = 0,
+        treasuryAddress = "TREASURY-ADDRESS",
+        treasuryReference = "treasury-1",
+        partitionsDeclaredAt = DateTime.UtcNow,
+    };
 
-        var config = new ProjectTokenConfig
-        {
-            id = configId,
-            projectId = "proj-1",
-            gateStatus = ProjectGateStatus.ACTIVE,
-            totalSupply = 10000,
-            fundingGoal = 50000,
-            fundingRaised = 60000
-        };
+    /// <summary>What this person holds, as the balance service reports it.</summary>
+    private void GivenBalance(
+        string userId, string configId, TokenHolderClass holderClass, long balance, long locked = 0)
+        => _tokenBalanceService
+            .Setup(service => service.GetBalanceAsync(
+                userId, configId, holderClass, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<TokenBalanceDto>.Success(new TokenBalanceDto
+            {
+                UserId = userId,
+                ProjectTokenConfigId = configId,
+                HolderClass = holderClass,
+                Balance = balance,
+                LockedBalance = locked,
+            }));
 
-        var balanceDto = new TokenBalanceDto
-        {
-            Id = "bal-1",
-            UserId = userId,
-            ProjectTokenConfigId = configId,
-            HolderClass = holderClass,
-            IsLiquid = true,
-            Balance = 1000,
-            LockedBalance = 1000
-        };
+    /// <summary>A receipt the node says is finished, with nothing left to reconcile.</summary>
+    private static ArdaNovaExchangeReceipt TerminalReceipt(long platformMinorUnits) => new(
+        ReceiptReference: "receipt-1",
+        OperationId: Guid.NewGuid(),
+        State: "Settled",
+        IsTerminal: true,
+        RequiresReconciliation: false,
+        Replayed: false,
+        AmountSpentBaseUnits: null,
+        AmountReceivedBaseUnits: platformMinorUnits.ToString(),
+        ProjectCreditBaseUnits: null,
+        SettlementReference: null,
+        HoldReference: null,
+        HoldReleasesAt: null,
+        FailureCode: null);
 
-        var conversionPreview = new ConversionPreviewDto
-        {
-            ProjectTokenValueUsd = 0.1,
-            ArdaValueUsd = 0.2,
-            SourceTokenAmount = sourceAmount,
-            ArdaAmount = 500,
-            UsdValue = 100.0
-        };
-
-        var createdPayout = new PayoutRequest
-        {
-            id = "payout-1",
-            userId = userId,
-            sourceProjectTokenConfigId = configId,
-            sourceTokenAmount = sourceAmount,
-            ardaTokenAmount = 500,
-            usdAmount = 100.0,
-            status = PayoutStatus.PENDING,
-            holderClass = holderClass,
-            gateStatusAtRequest = ProjectGateStatus.ACTIVE,
-            requestedAt = DateTime.UtcNow
-        };
-
-        var payoutDto = new PayoutRequestDto
-        {
-            Id = "payout-1",
-            UserId = userId,
-            SourceProjectTokenConfigId = configId,
-            SourceTokenAmount = sourceAmount,
-            Status = PayoutStatus.PENDING
-        };
+    [Fact]
+    public async Task RequestPayoutAsync_HappyPath_RecordsWhatTheNodeSettled()
+    {
+        const string userId = "user-1";
+        const string configId = "config-1";
+        const int sourceAmount = 1000;
+        const TokenHolderClass holderClass = TokenHolderClass.CONTRIBUTOR;
+        // One platform unit per project unit, at two decimals: 1000 units is 100,000 minor units.
+        const long platformMinorUnits = 100_000;
 
         _projectTokenConfigRepo.Setup(r => r.GetByIdAsync(configId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(config);
-
+            .ReturnsAsync(SellableConfig(configId));
         _tokenBalanceService.Setup(s => s.IsBalanceLiquidAsync(userId, configId, holderClass, It.IsAny<CancellationToken>()))
             .ReturnsAsync(Result<bool>.Success(true));
-
+        GivenBalance(userId, configId, holderClass, balance: sourceAmount);
         _tokenBalanceService.Setup(s => s.LockAsync(userId, configId, sourceAmount, holderClass, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Result<TokenBalanceDto>.Success(balanceDto));
-
-        _exchangeService.Setup(s => s.CalculateConversionAsync(configId, sourceAmount, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Result<ConversionPreviewDto>.Success(conversionPreview));
-
+            .ReturnsAsync(Result<TokenBalanceDto>.Success(new TokenBalanceDto
+            {
+                UserId = userId, ProjectTokenConfigId = configId, HolderClass = holderClass,
+                Balance = sourceAmount, LockedBalance = sourceAmount,
+            }));
+        _tokenBalanceService.Setup(s => s.UnlockAsync(userId, configId, sourceAmount, holderClass, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<TokenBalanceDto>.Success(new TokenBalanceDto()));
+        _tokenBalanceService.Setup(s => s.DebitAsync(userId, configId, sourceAmount, holderClass, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<TokenBalanceDto>.Success(new TokenBalanceDto()));
+        // Snapshotted at write time. Moq re-evaluates It.Is against the CURRENT object, and the
+        // settled sale mutates this very row afterwards - so asserting on it later would test
+        // the end state, not the invariant that the row is PENDING before the node is called.
+        PayoutStatus? statusWhenWritten = null;
+        long? platformMinorUnitsWhenWritten = null;
         _payoutRepo.Setup(r => r.AddAsync(It.IsAny<PayoutRequest>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(createdPayout);
-
-        _unitOfWork.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(1);
-
+            .Callback((PayoutRequest row, CancellationToken _) =>
+            {
+                statusWhenWritten = row.status;
+                platformMinorUnitsWhenWritten = row.ardaMinorUnits;
+            })
+            .ReturnsAsync((PayoutRequest row, CancellationToken _) => row);
+        _payoutRepo.Setup(r => r.UpdateAsync(It.IsAny<PayoutRequest>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        _unitOfWork.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>())).ReturnsAsync(1);
+        _exchangeNode.Setup(node => node.ExchangeAsync(
+                AvatarId,
+                It.Is<ArdaNovaExchangeCommand>(command =>
+                    !command.IsBuy && command.PlatformAmountBaseUnits == platformMinorUnits),
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<ArdaNovaExchangeReceipt>.Success(TerminalReceipt(platformMinorUnits)));
         _mapper.Setup(m => m.Map<PayoutRequestDto>(It.IsAny<PayoutRequest>()))
-            .Returns(payoutDto);
+            .Returns((PayoutRequest row) => new PayoutRequestDto
+            {
+                Id = row.id, UserId = row.userId, Status = row.status,
+                SourceTokenAmount = row.sourceTokenAmount,
+            });
 
-        // Act
-        var dto = new CreatePayoutRequestDto
+        var result = await _sut.RequestPayoutAsync(userId, new CreatePayoutRequestDto
         {
             SourceProjectTokenConfigId = configId,
             SourceTokenAmount = sourceAmount,
             HolderClass = holderClass
-        };
-        var result = await _sut.RequestPayoutAsync(userId, dto, CancellationToken.None);
+        }, CancellationToken.None);
 
-        // Assert
         result.IsSuccess.Should().BeTrue();
-        result.Value.Should().NotBeNull();
-        result.Value!.Status.Should().Be(PayoutStatus.PENDING);
+        result.Value!.Status.Should().Be(PayoutStatus.COMPLETED);
         result.Value.SourceTokenAmount.Should().Be(sourceAmount);
 
-        _payoutRepo.Verify(r => r.AddAsync(It.Is<PayoutRequest>(p =>
-            p.userId == userId &&
-            p.sourceProjectTokenConfigId == configId &&
-            p.sourceTokenAmount == sourceAmount &&
-            p.ardaTokenAmount == 500 &&
-            p.usdAmount == 100.0 &&
-            p.status == PayoutStatus.PENDING &&
-            p.holderClass == holderClass &&
-            p.gateStatusAtRequest == ProjectGateStatus.ACTIVE
+        // The row is written BEFORE the node call - the exchange key is derived from its id -
+        // and carries the EXACT figures, not only the rounded display ones.
+        statusWhenWritten.Should().Be(PayoutStatus.PENDING);
+        platformMinorUnitsWhenWritten.Should().Be(platformMinorUnits);
+        _payoutRepo.Verify(r => r.AddAsync(It.Is<PayoutRequest>(row =>
+            row.userId == userId
+            && row.sourceProjectTokenConfigId == configId
+            && row.sourceTokenAmount == sourceAmount
+            && row.usdReferenceMinorUnits == platformMinorUnits
+            && row.holderClass == holderClass
+            && row.gateStatusAtRequest == ProjectGateStatus.ACTIVE
         ), It.IsAny<CancellationToken>()), Times.Once);
 
-        _unitOfWork.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+        // Units leave exactly once, and only against a TERMINAL receipt.
+        _tokenBalanceService.Verify(s => s.DebitAsync(
+            userId, configId, sourceAmount, holderClass, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task RequestPayoutAsync_ReconciliationReceipt_LeavesUnitsLocked()
+    {
+        const string userId = "user-1";
+        const string configId = "config-1";
+        const int sourceAmount = 10;
+        const TokenHolderClass holderClass = TokenHolderClass.CONTRIBUTOR;
+
+        _projectTokenConfigRepo.Setup(r => r.GetByIdAsync(configId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(SellableConfig(configId));
+        _tokenBalanceService.Setup(s => s.IsBalanceLiquidAsync(userId, configId, holderClass, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<bool>.Success(true));
+        GivenBalance(userId, configId, holderClass, balance: sourceAmount);
+        _tokenBalanceService.Setup(s => s.LockAsync(userId, configId, sourceAmount, holderClass, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<TokenBalanceDto>.Success(new TokenBalanceDto
+            {
+                Balance = sourceAmount, LockedBalance = sourceAmount,
+            }));
+        _payoutRepo.Setup(r => r.AddAsync(It.IsAny<PayoutRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((PayoutRequest row, CancellationToken _) => row);
+        _payoutRepo.Setup(r => r.UpdateAsync(It.IsAny<PayoutRequest>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        _unitOfWork.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>())).ReturnsAsync(1);
+        _mapper.Setup(m => m.Map<PayoutRequestDto>(It.IsAny<PayoutRequest>()))
+            .Returns((PayoutRequest row) => new PayoutRequestDto { Id = row.id, Status = row.status });
+
+        var ambiguous = TerminalReceipt(1_000) with { RequiresReconciliation = true };
+        _exchangeNode.Setup(node => node.ExchangeAsync(
+                It.IsAny<Guid>(), It.IsAny<ArdaNovaExchangeCommand>(),
+                It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<ArdaNovaExchangeReceipt>.Success(ambiguous));
+
+        var result = await _sut.RequestPayoutAsync(userId, new CreatePayoutRequestDto
+        {
+            SourceProjectTokenConfigId = configId,
+            SourceTokenAmount = sourceAmount,
+            HolderClass = holderClass
+        }, CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value!.Status.Should().Be(PayoutStatus.PROCESSING);
+
+        // Ambiguous is NOT declined: returning the units on a maybe is how one holding gets
+        // sold twice, so they stay locked and nothing is debited.
+        _tokenBalanceService.Verify(s => s.UnlockAsync(
+            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(),
+            It.IsAny<TokenHolderClass>(), It.IsAny<CancellationToken>()), Times.Never);
+        _tokenBalanceService.Verify(s => s.DebitAsync(
+            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(),
+            It.IsAny<TokenHolderClass>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
     public async Task RequestPayoutAsync_ConfigNotFound_ReturnsFailure()
     {
-        // Arrange
-        var userId = "user-1";
-        var configId = "nonexistent";
-        var sourceAmount = 1000;
-        var holderClass = TokenHolderClass.CONTRIBUTOR;
+        const string userId = "user-1";
+        const string configId = "nonexistent";
 
         _projectTokenConfigRepo.Setup(r => r.GetByIdAsync(configId, It.IsAny<CancellationToken>()))
             .ReturnsAsync((ProjectTokenConfig?)null);
 
-        // Act
-        var dto = new CreatePayoutRequestDto
+        var result = await _sut.RequestPayoutAsync(userId, new CreatePayoutRequestDto
         {
             SourceProjectTokenConfigId = configId,
-            SourceTokenAmount = sourceAmount,
-            HolderClass = holderClass
-        };
-        var result = await _sut.RequestPayoutAsync(userId, dto, CancellationToken.None);
+            SourceTokenAmount = 1000,
+            HolderClass = TokenHolderClass.CONTRIBUTOR
+        }, CancellationToken.None);
 
-        // Assert
         result.IsSuccess.Should().BeFalse();
-        result.Error.Should().Contain("not found");
+        result.Type.Should().Be(ResultType.NotFound);
+        result.Error.Should().Contain("could not be found");
 
-        _tokenBalanceService.Verify(s => s.LockAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<TokenHolderClass>(), It.IsAny<CancellationToken>()), Times.Never);
+        _tokenBalanceService.Verify(s => s.LockAsync(
+            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(),
+            It.IsAny<TokenHolderClass>(), It.IsAny<CancellationToken>()), Times.Never);
+        _exchangeNode.Verify(node => node.ExchangeAsync(
+            It.IsAny<Guid>(), It.IsAny<ArdaNovaExchangeCommand>(),
+            It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
     public async Task RequestPayoutAsync_TokensNotLiquid_ContributorFunding_ReturnsGateMessage()
     {
-        // Arrange
-        var userId = "user-1";
-        var configId = "config-1";
-        var sourceAmount = 1000;
-        var holderClass = TokenHolderClass.CONTRIBUTOR;
-
-        var config = new ProjectTokenConfig
-        {
-            id = configId,
-            projectId = "proj-1",
-            gateStatus = ProjectGateStatus.FUNDING,
-            totalSupply = 10000,
-            fundingGoal = 50000,
-            fundingRaised = 30000
-        };
+        const string userId = "user-1";
+        const string configId = "config-1";
+        const TokenHolderClass holderClass = TokenHolderClass.CONTRIBUTOR;
 
         _projectTokenConfigRepo.Setup(r => r.GetByIdAsync(configId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(config);
-
+            .ReturnsAsync(SellableConfig(configId, ProjectGateStatus.FUNDING));
         _tokenBalanceService.Setup(s => s.IsBalanceLiquidAsync(userId, configId, holderClass, It.IsAny<CancellationToken>()))
             .ReturnsAsync(Result<bool>.Success(false));
 
-        // Act
-        var dto = new CreatePayoutRequestDto
+        var result = await _sut.RequestPayoutAsync(userId, new CreatePayoutRequestDto
         {
             SourceProjectTokenConfigId = configId,
-            SourceTokenAmount = sourceAmount,
+            SourceTokenAmount = 1000,
             HolderClass = holderClass
-        };
-        var result = await _sut.RequestPayoutAsync(userId, dto, CancellationToken.None);
+        }, CancellationToken.None);
 
-        // Assert
         result.IsSuccess.Should().BeFalse();
-        result.Error.Should().Contain("hasn't reached funding goal");
+        // Plain words a person can act on - no chain terms, no provider names.
+        result.Error.Should().Contain("not reached its funding goal");
 
-        _tokenBalanceService.Verify(s => s.LockAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<TokenHolderClass>(), It.IsAny<CancellationToken>()), Times.Never);
+        _tokenBalanceService.Verify(s => s.LockAsync(
+            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(),
+            It.IsAny<TokenHolderClass>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
     public async Task RequestPayoutAsync_TokensNotLiquid_InvestorActive_ReturnsGateMessage()
     {
-        // Arrange
-        var userId = "user-1";
-        var configId = "config-1";
-        var sourceAmount = 1000;
-        var holderClass = TokenHolderClass.INVESTOR;
-
-        var config = new ProjectTokenConfig
-        {
-            id = configId,
-            projectId = "proj-1",
-            gateStatus = ProjectGateStatus.ACTIVE,
-            totalSupply = 10000,
-            fundingGoal = 50000,
-            fundingRaised = 60000
-        };
+        const string userId = "user-1";
+        const string configId = "config-1";
+        const TokenHolderClass holderClass = TokenHolderClass.INVESTOR;
 
         _projectTokenConfigRepo.Setup(r => r.GetByIdAsync(configId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(config);
-
+            .ReturnsAsync(SellableConfig(configId));
         _tokenBalanceService.Setup(s => s.IsBalanceLiquidAsync(userId, configId, holderClass, It.IsAny<CancellationToken>()))
             .ReturnsAsync(Result<bool>.Success(false));
 
-        // Act
-        var dto = new CreatePayoutRequestDto
+        var result = await _sut.RequestPayoutAsync(userId, new CreatePayoutRequestDto
         {
             SourceProjectTokenConfigId = configId,
-            SourceTokenAmount = sourceAmount,
+            SourceTokenAmount = 1000,
             HolderClass = holderClass
-        };
-        var result = await _sut.RequestPayoutAsync(userId, dto, CancellationToken.None);
+        }, CancellationToken.None);
 
-        // Assert
         result.IsSuccess.Should().BeFalse();
-        result.Error.Should().Contain("hasn't reached success milestone");
+        result.Error.Should().Contain("has not delivered yet");
 
-        _tokenBalanceService.Verify(s => s.LockAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<TokenHolderClass>(), It.IsAny<CancellationToken>()), Times.Never);
+        _tokenBalanceService.Verify(s => s.LockAsync(
+            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(),
+            It.IsAny<TokenHolderClass>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
-    public async Task RequestPayoutAsync_LockFails_ReturnsFailure()
+    public async Task RequestPayoutAsync_LockFails_RefusesWithoutReachingTheNode()
     {
-        // Arrange
-        var userId = "user-1";
-        var configId = "config-1";
-        var sourceAmount = 1000;
-        var holderClass = TokenHolderClass.CONTRIBUTOR;
-
-        var config = new ProjectTokenConfig
-        {
-            id = configId,
-            projectId = "proj-1",
-            gateStatus = ProjectGateStatus.ACTIVE,
-            totalSupply = 10000,
-            fundingGoal = 50000,
-            fundingRaised = 60000
-        };
+        const string userId = "user-1";
+        const string configId = "config-1";
+        const int sourceAmount = 1000;
+        const TokenHolderClass holderClass = TokenHolderClass.CONTRIBUTOR;
 
         _projectTokenConfigRepo.Setup(r => r.GetByIdAsync(configId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(config);
-
+            .ReturnsAsync(SellableConfig(configId));
         _tokenBalanceService.Setup(s => s.IsBalanceLiquidAsync(userId, configId, holderClass, It.IsAny<CancellationToken>()))
             .ReturnsAsync(Result<bool>.Success(true));
-
+        GivenBalance(userId, configId, holderClass, balance: sourceAmount);
         _tokenBalanceService.Setup(s => s.LockAsync(userId, configId, sourceAmount, holderClass, It.IsAny<CancellationToken>()))
             .ReturnsAsync(Result<TokenBalanceDto>.Failure("Insufficient balance"));
 
-        // Act
-        var dto = new CreatePayoutRequestDto
+        var result = await _sut.RequestPayoutAsync(userId, new CreatePayoutRequestDto
         {
             SourceProjectTokenConfigId = configId,
             SourceTokenAmount = sourceAmount,
             HolderClass = holderClass
-        };
-        var result = await _sut.RequestPayoutAsync(userId, dto, CancellationToken.None);
+        }, CancellationToken.None);
 
-        // Assert
         result.IsSuccess.Should().BeFalse();
-        result.Error.Should().Contain("Insufficient balance");
+        result.Error.Should().Contain("nothing was moved");
 
-        _exchangeService.Verify(s => s.CalculateConversionAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Never);
+        // Nothing reached the node and no row was written: units that could not be set aside
+        // must not leave behind a sale to reconcile.
+        _exchangeNode.Verify(node => node.ExchangeAsync(
+            It.IsAny<Guid>(), It.IsAny<ArdaNovaExchangeCommand>(),
+            It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        _payoutRepo.Verify(r => r.AddAsync(
+            It.IsAny<PayoutRequest>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
-    public async Task RequestPayoutAsync_ConversionFails_UnlocksTokens()
+    public async Task RequestPayoutAsync_NodeDeclines_UnlocksTokens()
     {
-        // Arrange
-        var userId = "user-1";
-        var configId = "config-1";
-        var sourceAmount = 1000;
-        var holderClass = TokenHolderClass.CONTRIBUTOR;
-
-        var config = new ProjectTokenConfig
-        {
-            id = configId,
-            projectId = "proj-1",
-            gateStatus = ProjectGateStatus.ACTIVE,
-            totalSupply = 10000,
-            fundingGoal = 50000,
-            fundingRaised = 60000
-        };
-
-        var balanceDto = new TokenBalanceDto
-        {
-            Id = "bal-1",
-            UserId = userId,
-            ProjectTokenConfigId = configId,
-            HolderClass = holderClass,
-            IsLiquid = true,
-            Balance = 1000,
-            LockedBalance = 1000
-        };
+        const string userId = "user-1";
+        const string configId = "config-1";
+        const int sourceAmount = 1000;
+        const TokenHolderClass holderClass = TokenHolderClass.CONTRIBUTOR;
 
         _projectTokenConfigRepo.Setup(r => r.GetByIdAsync(configId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(config);
-
+            .ReturnsAsync(SellableConfig(configId));
         _tokenBalanceService.Setup(s => s.IsBalanceLiquidAsync(userId, configId, holderClass, It.IsAny<CancellationToken>()))
             .ReturnsAsync(Result<bool>.Success(true));
-
+        GivenBalance(userId, configId, holderClass, balance: sourceAmount);
         _tokenBalanceService.Setup(s => s.LockAsync(userId, configId, sourceAmount, holderClass, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Result<TokenBalanceDto>.Success(balanceDto));
-
-        _exchangeService.Setup(s => s.CalculateConversionAsync(configId, sourceAmount, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Result<ConversionPreviewDto>.Failure("Conversion service unavailable"));
-
+            .ReturnsAsync(Result<TokenBalanceDto>.Success(new TokenBalanceDto
+            {
+                Balance = sourceAmount, LockedBalance = sourceAmount,
+            }));
         _tokenBalanceService.Setup(s => s.UnlockAsync(userId, configId, sourceAmount, holderClass, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Result<TokenBalanceDto>.Success(balanceDto));
+            .ReturnsAsync(Result<TokenBalanceDto>.Success(new TokenBalanceDto()));
+        _payoutRepo.Setup(r => r.AddAsync(It.IsAny<PayoutRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((PayoutRequest row, CancellationToken _) => row);
+        _payoutRepo.Setup(r => r.UpdateAsync(It.IsAny<PayoutRequest>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        _unitOfWork.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>())).ReturnsAsync(1);
 
-        // Act
-        var dto = new CreatePayoutRequestDto
+        // A REFUSAL, not a timeout: the node read the request, said no, and created nothing.
+        _exchangeNode.Setup(node => node.ExchangeAsync(
+                It.IsAny<Guid>(), It.IsAny<ArdaNovaExchangeCommand>(),
+                It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<ArdaNovaExchangeReceipt>.BadRequest("refused"));
+
+        var result = await _sut.RequestPayoutAsync(userId, new CreatePayoutRequestDto
         {
             SourceProjectTokenConfigId = configId,
             SourceTokenAmount = sourceAmount,
             HolderClass = holderClass
-        };
-        var result = await _sut.RequestPayoutAsync(userId, dto, CancellationToken.None);
+        }, CancellationToken.None);
 
-        // Assert
         result.IsSuccess.Should().BeFalse();
-        result.Error.Should().Contain("Conversion service unavailable");
+        // ArdaNova's own words, chosen by refusal KIND. The node's text never reaches a person.
+        result.Error.Should().Contain("units are back where they were");
 
-        _tokenBalanceService.Verify(s => s.UnlockAsync(userId, configId, sourceAmount, holderClass, It.IsAny<CancellationToken>()), Times.Once);
-        _payoutRepo.Verify(r => r.AddAsync(It.IsAny<PayoutRequest>(), It.IsAny<CancellationToken>()), Times.Never);
+        _tokenBalanceService.Verify(s => s.UnlockAsync(
+            userId, configId, sourceAmount, holderClass, It.IsAny<CancellationToken>()), Times.Once);
+        _tokenBalanceService.Verify(s => s.DebitAsync(
+            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(),
+            It.IsAny<TokenHolderClass>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    /// <summary>
+    /// Reconciling is live now, so the behaviour this test guards moved: it READS the node under
+    /// the key the sale was submitted with, and a terminal receipt debits the units exactly once.
+    /// </summary>
+    [Fact]
+    public async Task ProcessPayoutAsync_TerminalReceipt_DebitsExactlyOnce()
+    {
+        const string userId = "user-1";
+        const string configId = "config-1";
+        const int sourceAmount = 1000;
+        const TokenHolderClass holderClass = TokenHolderClass.CONTRIBUTOR;
+
+        var parked = new PayoutRequest
+        {
+            id = "payout-1",
+            userId = userId,
+            sourceProjectTokenConfigId = configId,
+            sourceTokenAmount = sourceAmount,
+            status = PayoutStatus.PROCESSING,
+            holderClass = holderClass,
+            gateStatusAtRequest = ProjectGateStatus.ACTIVE,
+            requestedAt = DateTime.UtcNow,
+        };
+
+        _payoutRepo.Setup(r => r.GetByIdAsync(parked.id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(parked);
+        _payoutRepo.Setup(r => r.UpdateAsync(It.IsAny<PayoutRequest>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        _unitOfWork.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>())).ReturnsAsync(1);
+        _tokenBalanceService.Setup(s => s.UnlockAsync(userId, configId, sourceAmount, holderClass, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<TokenBalanceDto>.Success(new TokenBalanceDto()));
+        _tokenBalanceService.Setup(s => s.DebitAsync(userId, configId, sourceAmount, holderClass, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<TokenBalanceDto>.Success(new TokenBalanceDto()));
+        _exchangeNode.Setup(node => node.GetReceiptAsync(
+                parked.ExchangeIdempotencyKey, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<ArdaNovaExchangeReceipt>.Success(TerminalReceipt(100_000)));
+        _mapper.Setup(m => m.Map<PayoutRequestDto>(It.IsAny<PayoutRequest>()))
+            .Returns((PayoutRequest row) => new PayoutRequestDto { Id = row.id, Status = row.status });
+
+        var result = await _sut.ProcessPayoutAsync(parked.id, CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        parked.status.Should().Be(PayoutStatus.COMPLETED);
+        _tokenBalanceService.Verify(s => s.DebitAsync(
+            userId, configId, sourceAmount, holderClass, It.IsAny<CancellationToken>()), Times.Once);
+        // A read, never a second submission.
+        _exchangeNode.Verify(node => node.ExchangeAsync(
+            It.IsAny<Guid>(), It.IsAny<ArdaNovaExchangeCommand>(),
+            It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
-    public async Task ProcessPayoutAsync_FailsClosedWithoutMovingValue()
+    public async Task ProcessPayoutAsync_MissingRow_ReturnsNotFoundWithoutMovingValue()
     {
+        _payoutRepo.Setup(r => r.GetByIdAsync("payout-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync((PayoutRequest?)null);
+
         var result = await _sut.ProcessPayoutAsync("payout-1", CancellationToken.None);
 
         result.IsSuccess.Should().BeFalse();
-        result.Error.Should().Contain("disabled");
-        _payoutRepo.Verify(repository => repository.GetByIdAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
-        _payoutRepo.Verify(repository => repository.UpdateAsync(It.IsAny<PayoutRequest>(), It.IsAny<CancellationToken>()), Times.Never);
-        _unitOfWork.Verify(unitOfWork => unitOfWork.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
-        _treasuryService.Verify(service => service.RebalanceIfNeededAsync(It.IsAny<double>(), It.IsAny<CancellationToken>()), Times.Never);
+        result.Type.Should().Be(ResultType.NotFound);
+        _payoutRepo.Verify(r => r.UpdateAsync(It.IsAny<PayoutRequest>(), It.IsAny<CancellationToken>()), Times.Never);
+        _unitOfWork.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+        _treasuryService.Verify(service => service.RebalanceIfNeededAsync(
+            It.IsAny<double>(), It.IsAny<CancellationToken>()), Times.Never);
         _tokenBalanceService.Verify(service => service.DebitAsync(
-            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<TokenHolderClass>(), It.IsAny<CancellationToken>()), Times.Never);
+            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(),
+            It.IsAny<TokenHolderClass>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -482,7 +602,7 @@ public class PayoutServiceTests
         var result = await _sut.CancelPayoutAsync(payout.id, CancellationToken.None);
 
         result.IsSuccess.Should().BeFalse();
-        result.Error.Should().Contain("Failed to unlock tokens");
+        result.Error.Should().Contain("units could not be released");
         payout.status.Should().Be(PayoutStatus.PENDING);
         _unitOfWork.Verify(u => u.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
         _unitOfWork.Verify(u => u.RollbackTransactionAsync(CancellationToken.None), Times.Once);
@@ -518,7 +638,7 @@ public class PayoutServiceTests
 
         // Assert
         result.IsSuccess.Should().BeFalse();
-        result.Error.Should().Contain("Only PENDING payouts can be cancelled");
+        result.Error.Should().Contain("no longer waiting");
 
         _tokenBalanceService.Verify(s => s.UnlockAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<TokenHolderClass>(), It.IsAny<CancellationToken>()), Times.Never);
     }

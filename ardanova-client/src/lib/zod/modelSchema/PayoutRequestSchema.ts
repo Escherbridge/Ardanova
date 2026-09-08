@@ -17,6 +17,8 @@ export const PayoutRequestSchema = z.object({
   sourceTokenAmount: z.number().int(),
   ardaTokenAmount: z.number().int().nullable(),
   usdAmount: z.number().nullable(),
+  ardaMinorUnits: z.bigint().nullable(),
+  usdReferenceMinorUnits: z.bigint().nullable(),
   conversionTxHash: z.string().nullable(),
   payoutTxHash: z.string().nullable(),
   stripePayoutId: z.string().nullable(),

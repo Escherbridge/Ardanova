@@ -1,3 +1,4 @@
+using System.Globalization;
 using ArdaNova.Application.Common.Interfaces;
 using ArdaNova.Application.Common.Results;
 using ArdaNova.Application.DTOs;
@@ -43,11 +44,103 @@ public static class TreasuryPolicyView
             BalanceUnavailableReason = reason,
         };
 
-    // There is deliberately no "WithChainBalance" projection yet. The split can only be a view
-    // of a balance once something can actually read one, and no route on this service names a
-    // project to read. Writing the projection now would leave a helper nothing calls - a
-    // control that exists in prose and not in the code path. It lands with the project-scoped
-    // treasury route (W8.2 / W10.1), which owns this file next.
+    /// <summary>
+    /// Presents the three buckets as what they now are: a POLICY VIEW of the one balance the
+    /// node reported for this project's treasury account.
+    /// </summary>
+    /// <remarks>
+    /// Cents are assigned exactly and the rounding remainder goes to operations, so the three
+    /// views always sum back to the observed balance. A negative balance is impossible on a
+    /// chain read, so it is reported as unavailable rather than split into negative buckets.
+    /// </remarks>
+    public static TreasuryStatusDto WithChainBalance(
+        TreasuryStatusDto dto,
+        long chainBalanceMinorUnits,
+        string? treasuryAddress,
+        DateTimeOffset observedAt)
+    {
+        if (chainBalanceMinorUnits < 0)
+            return WithoutChainBalance(dto, NoChainReadConfigured);
+
+        var balance = Money.FromMinorUnits(chainBalanceMinorUnits);
+        Money.TryToMinorUnitsFloor(balance * (decimal)dto.IndexFundAllocationPct, out var indexMinorUnits);
+        Money.TryToMinorUnitsFloor(balance * (decimal)dto.LiquidReserveAllocationPct, out var liquidMinorUnits);
+        var operationsMinorUnits = chainBalanceMinorUnits - indexMinorUnits - liquidMinorUnits;
+
+        return dto with
+        {
+            IndexFundBalance = Money.FromMinorUnits(indexMinorUnits),
+            LiquidReserveBalance = Money.FromMinorUnits(liquidMinorUnits),
+            OperationsBalance = Money.FromMinorUnits(operationsMinorUnits),
+            IsChainBacked = true,
+            ChainBalanceMinorUnits = chainBalanceMinorUnits,
+            TreasuryAddress = treasuryAddress,
+            BalanceObservedAt = observedAt,
+            BalanceUnavailableReason = null,
+        };
+    }
+}
+
+/// <summary>What a project can pay for its own units right now, and on what terms.</summary>
+/// <remarks>
+/// Every figure here is a READ of the project's treasury account on the node plus the rate
+/// ArdaNova declares. Nothing is a stored balance, and a figure that could not be read is null
+/// with <see cref="UnavailableReason"/> set - never a zero that reads as "no funds".
+/// </remarks>
+/// <param name="TreasuryFundsMinorUnits">
+/// What the project's treasury holds of the platform unit, in minor units. ARDA carries two
+/// decimals, so its base units and its minor units are the same number.
+/// </param>
+/// <param name="MaxWholeUnitsFillableNow">Whole project units those funds could buy back at the declared rate.</param>
+/// <param name="Disclosure">The sentence a seller is shown before they commit. Plain words, no market terms.</param>
+public sealed record ProjectBuyBackFigures(
+    string ProjectId,
+    string? TreasuryAddress,
+    bool IsChainBacked,
+    long? TreasuryFundsMinorUnits,
+    DateTimeOffset? ObservedAt,
+    string? ArdaPerWholeProjectUnit,
+    string? UsdMajorUnitsPerWholeProjectUnit,
+    int ProjectUnitDecimals,
+    long? MaxWholeUnitsFillableNow,
+    string? RateSource,
+    DateTimeOffset? RateDeclaredAt,
+    string Disclosure,
+    string? UnavailableReason);
+
+/// <summary>The sentences a seller is shown. Constants so the wording cannot drift per caller.</summary>
+public static class BuyBackDisclosures
+{
+    /// <summary>The whole promise, in one sentence a non-financial person can hold.</summary>
+    public const string FilledFromProjectFunds =
+        "Sell requests are filled from this project's own funds. When those funds are short, "
+        + "your request is recorded and filled in turn.";
+
+    /// <summary>Stamped when the project has no treasury account on the node yet.</summary>
+    public const string NoTreasuryYet =
+        "This project cannot buy units back yet: it has no funds account of its own.";
+
+    /// <summary>Stamped when the platform unit has not been configured.</summary>
+    public const string NoPlatformUnit =
+        "This platform has no funds unit configured, so no buy-back figure can be quoted.";
+}
+
+/// <summary>
+/// The project-scoped treasury reads: the balance of record, and what a buy-back would pay.
+/// </summary>
+/// <remarks>
+/// A separate port rather than more members on <c>ITreasuryService</c>, whose interface file
+/// belongs to another wave item. <c>TreasuryService</c> implements both, so the existing
+/// <c>AddScoped&lt;ITreasuryService, TreasuryService&gt;</c> registration already produces an
+/// instance that satisfies this port too.
+/// </remarks>
+public interface IProjectBuyBackReadModel
+{
+    /// <summary>The platform's policy split, applied to the balance the node reports for one project.</summary>
+    Task<Result<TreasuryStatusDto>> GetProjectStatusAsync(string projectId, CancellationToken ct = default);
+
+    /// <summary>The declared figures the node's buy-back policy is asked to honour for one project.</summary>
+    Task<Result<ProjectBuyBackFigures>> GetBuyBackFiguresAsync(string projectId, CancellationToken ct = default);
 }
 
 /// <summary>
@@ -65,7 +158,7 @@ public static class TreasuryPolicyView
 /// that reconciled nothing must never report success.
 /// </para>
 /// </remarks>
-public class TreasuryService : ITreasuryService
+public class TreasuryService : ITreasuryService, IProjectBuyBackReadModel
 {
     private readonly IRepository<PlatformTreasury> _treasuryRepository;
     private readonly IRepository<PlatformTreasuryTransaction> _transactionRepository;
@@ -73,6 +166,7 @@ public class TreasuryService : ITreasuryService
     private readonly IMapper _mapper;
     private readonly IAzoaProjectTreasuryReadModel? _projectTreasuryReadModel;
     private readonly IRepository<ProjectTokenConfig>? _projectTokenConfigRepository;
+    private readonly IProjectUnitRateSource? _projectUnitRateSource;
 
     /// <param name="projectTreasuryReadModel">
     /// The node read-model. Optional in the constructor only so the type still constructs
@@ -85,7 +179,8 @@ public class TreasuryService : ITreasuryService
         IUnitOfWork unitOfWork,
         IMapper mapper,
         IAzoaProjectTreasuryReadModel? projectTreasuryReadModel = null,
-        IRepository<ProjectTokenConfig>? projectTokenConfigRepository = null)
+        IRepository<ProjectTokenConfig>? projectTokenConfigRepository = null,
+        IProjectUnitRateSource? projectUnitRateSource = null)
     {
         _treasuryRepository = treasuryRepository;
         _transactionRepository = transactionRepository;
@@ -93,6 +188,7 @@ public class TreasuryService : ITreasuryService
         _mapper = mapper;
         _projectTreasuryReadModel = projectTreasuryReadModel;
         _projectTokenConfigRepository = projectTokenConfigRepository;
+        _projectUnitRateSource = projectUnitRateSource;
     }
 
     public async Task<Result<bool>> ProcessFundingInflowAsync(
@@ -470,4 +566,171 @@ public class TreasuryService : ITreasuryService
 
         return treasury;
     }
+
+    /// <inheritdoc />
+    public async Task<Result<TreasuryStatusDto>> GetProjectStatusAsync(
+        string projectId, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(projectId))
+            return Result<TreasuryStatusDto>.ValidationError("A project id is required.");
+
+        var treasury = await GetOrCreateTreasuryAsync(ct);
+        var dto = _mapper.Map<TreasuryStatusDto>(treasury);
+
+        var read = await ReadProjectTreasuryAsync(projectId, treasury.ardaAssetId, ct);
+        var projectRead = read.Value;
+        if (!read.IsSuccess || projectRead is null)
+        {
+            // The reason travels with the status. A project whose treasury could not be read is
+            // reported as unreadable, never as a treasury holding nothing.
+            return Result<TreasuryStatusDto>.Success(
+                TreasuryPolicyView.WithoutChainBalance(
+                    dto, read.Error ?? TreasuryPolicyView.NoChainReadConfigured));
+        }
+
+        return Result<TreasuryStatusDto>.Success(
+            TreasuryPolicyView.WithChainBalance(
+                dto,
+                projectRead.Balance.BalanceBaseUnits,
+                projectRead.Balance.Address ?? projectRead.Config.treasuryAddress,
+                projectRead.Balance.ObservedAt));
+    }
+
+    /// <inheritdoc />
+    public async Task<Result<ProjectBuyBackFigures>> GetBuyBackFiguresAsync(
+        string projectId, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(projectId))
+            return Result<ProjectBuyBackFigures>.ValidationError("A project id is required.");
+
+        var treasury = await GetOrCreateTreasuryAsync(ct);
+
+        var read = await ReadProjectTreasuryAsync(projectId, treasury.ardaAssetId, ct);
+        var projectRead = read.Value;
+        if (!read.IsSuccess || projectRead is null)
+            return Result<ProjectBuyBackFigures>.Success(Unavailable(projectId, read.Error));
+
+        var config = projectRead.Config;
+        var balance = projectRead.Balance;
+
+        if (_projectUnitRateSource is null)
+        {
+            return Result<ProjectBuyBackFigures>.Success(
+                Unavailable(projectId, "No rate source is wired, so no buy-back price can be quoted.")
+                with
+                {
+                    TreasuryAddress = balance.Address ?? config.treasuryAddress,
+                    IsChainBacked = true,
+                    TreasuryFundsMinorUnits = balance.BalanceBaseUnits,
+                    ObservedAt = balance.ObservedAt,
+                });
+        }
+
+        var rate = await _projectUnitRateSource.GetDeclaredRateAsync(config.id, ct);
+        if (!rate.IsSuccess || rate.Value is null)
+        {
+            return Result<ProjectBuyBackFigures>.Success(
+                Unavailable(projectId, rate.Error ?? "This project has no declared price yet.")
+                with
+                {
+                    TreasuryAddress = balance.Address ?? config.treasuryAddress,
+                    IsChainBacked = true,
+                    TreasuryFundsMinorUnits = balance.BalanceBaseUnits,
+                    ObservedAt = balance.ObservedAt,
+                });
+        }
+
+        var declared = rate.Value;
+        var fillable = MaxWholeUnitsFillable(balance.BalanceBaseUnits, declared.ArdaPerWholeProjectUnit);
+
+        return Result<ProjectBuyBackFigures>.Success(new ProjectBuyBackFigures(
+            ProjectId: projectId,
+            TreasuryAddress: balance.Address ?? config.treasuryAddress,
+            IsChainBacked: true,
+            TreasuryFundsMinorUnits: balance.BalanceBaseUnits,
+            ObservedAt: balance.ObservedAt,
+            ArdaPerWholeProjectUnit: declared.ArdaPerWholeProjectUnit,
+            UsdMajorUnitsPerWholeProjectUnit: declared.UsdMajorUnitsPerWholeProjectUnit,
+            ProjectUnitDecimals: declared.ProjectUnitDecimals,
+            MaxWholeUnitsFillableNow: fillable,
+            RateSource: declared.Source,
+            RateDeclaredAt: declared.DeclaredAt,
+            Disclosure: BuyBackDisclosures.FilledFromProjectFunds,
+            UnavailableReason: null));
+    }
+
+    /// <summary>Figures with nothing read, and the reason in the open. Never zeroes standing in for a read.</summary>
+    private static ProjectBuyBackFigures Unavailable(string projectId, string? reason) =>
+        new(
+            ProjectId: projectId,
+            TreasuryAddress: null,
+            IsChainBacked: false,
+            TreasuryFundsMinorUnits: null,
+            ObservedAt: null,
+            ArdaPerWholeProjectUnit: null,
+            UsdMajorUnitsPerWholeProjectUnit: null,
+            ProjectUnitDecimals: 0,
+            MaxWholeUnitsFillableNow: null,
+            RateSource: null,
+            RateDeclaredAt: null,
+            Disclosure: BuyBackDisclosures.FilledFromProjectFunds,
+            UnavailableReason: reason ?? TreasuryPolicyView.NoChainReadConfigured);
+
+    /// <summary>
+    /// Whole project units the observed funds could buy back at the declared price, rounded
+    /// DOWN. An unreadable or non-positive price quotes nothing rather than dividing by it.
+    /// </summary>
+    private static long? MaxWholeUnitsFillable(long treasuryFundsMinorUnits, string? ardaPerWholeUnitText)
+    {
+        if (treasuryFundsMinorUnits <= 0
+            || !decimal.TryParse(
+                ardaPerWholeUnitText,
+                NumberStyles.AllowDecimalPoint | NumberStyles.AllowLeadingSign,
+                CultureInfo.InvariantCulture,
+                out var ardaPerWholeUnit)
+            || ardaPerWholeUnit <= 0m)
+        {
+            return null;
+        }
+
+        var funds = Money.FromMinorUnits(treasuryFundsMinorUnits);
+        return Money.TryToWholeUnitsFloor(funds / ardaPerWholeUnit, out var wholeUnits) ? wholeUnits : null;
+    }
+
+    /// <summary>
+    /// One project's node-side treasury and what it holds of the platform unit, or the reason
+    /// no such read is possible. Never falls back to a stored number.
+    /// </summary>
+    private async Task<Result<ProjectTreasuryRead>> ReadProjectTreasuryAsync(
+        string projectId, string? platformAssetId, CancellationToken ct)
+    {
+        if (_projectTreasuryReadModel is null || _projectTokenConfigRepository is null)
+            return Result<ProjectTreasuryRead>.Failure(TreasuryPolicyView.NoChainReadConfigured);
+
+        var config = await _projectTokenConfigRepository.FindOneAsync(row => row.projectId == projectId, ct);
+        if (config is null)
+        {
+            return Result<ProjectTreasuryRead>.NotFound(
+                $"No project token configuration exists for project {projectId}.");
+        }
+
+        if (string.IsNullOrWhiteSpace(config.treasuryChain) || string.IsNullOrWhiteSpace(config.treasuryReference))
+            return Result<ProjectTreasuryRead>.Failure(BuyBackDisclosures.NoTreasuryYet);
+
+        if (string.IsNullOrWhiteSpace(platformAssetId))
+            return Result<ProjectTreasuryRead>.Failure(BuyBackDisclosures.NoPlatformUnit);
+
+        // The project's FUNDS, not its own units: a buy-back is paid in the platform unit.
+        var balance = await _projectTreasuryReadModel.GetBalanceAsync(
+            config.treasuryChain!, config.treasuryReference!, platformAssetId, ct);
+
+        return balance.IsSuccess && balance.Value is not null
+            ? Result<ProjectTreasuryRead>.Success(new ProjectTreasuryRead(config, balance.Value))
+            : Result<ProjectTreasuryRead>.Failure(
+                balance.Error ?? "This project's funds could not be read right now.");
+    }
+
+    /// <summary>One project's configuration paired with what the node says its treasury holds.</summary>
+    private sealed record ProjectTreasuryRead(ProjectTokenConfig Config, ProjectTreasuryBalance Balance);
+
 }

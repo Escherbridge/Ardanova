@@ -33,10 +33,24 @@ public class CommerceActorBoundaryTests
         wallets.VerifyAll();
     }
 
+    /// <summary>
+    /// Selling is live now, so the boundary this test guards moved: the seller is the VERIFIED
+    /// actor claim, never a body field, and the sale reaches the service instead of a 503.
+    /// </summary>
     [Fact]
-    public async Task PayoutRequest_FailsClosedBeforeInvokingTheService()
+    public async Task PayoutRequest_SellsForTheActorNotACallerSuppliedIdentity()
     {
         var payouts = new Mock<IPayoutService>(MockBehavior.Strict);
+        payouts.Setup(service => service.RequestPayoutAsync(
+                "actor-1",
+                It.Is<CreatePayoutRequestDto>(dto =>
+                    dto.SourceProjectTokenConfigId == "config-1" && dto.SourceTokenAmount == 10),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<PayoutRequestDto>.Success(new PayoutRequestDto
+            {
+                Id = "payout-1",
+                UserId = "actor-1",
+            }));
         var controller = WithActor(new PayoutsController(payouts.Object), "actor-1");
 
         var result = await controller.RequestPayout(new CreatePayoutRequestDto
@@ -46,43 +60,53 @@ public class CommerceActorBoundaryTests
             HolderClass = TokenHolderClass.CONTRIBUTOR
         }, CancellationToken.None);
 
-        var response = result.Should().BeOfType<ObjectResult>().Subject;
-        response.StatusCode.Should().Be(StatusCodes.Status503ServiceUnavailable);
-        payouts.Verify(service => service.RequestPayoutAsync(
-            It.IsAny<string>(),
-            It.IsAny<CreatePayoutRequestDto>(),
-            It.IsAny<CancellationToken>()), Times.Never);
+        result.Should().BeOfType<OkObjectResult>();
+        payouts.VerifyAll();
     }
 
+    /// <summary>
+    /// Reconciling a parked sale is live now: an operator's call reaches the service, which
+    /// re-reads the node under the key the sale was submitted with and moves nothing new.
+    /// </summary>
     [Fact]
-    public async Task PayoutProcessing_FailsClosedBeforeInvokingTheService()
+    public async Task PayoutProcessing_ReconcilesThroughTheService()
     {
         var payouts = new Mock<IPayoutService>(MockBehavior.Strict);
+        payouts.Setup(service => service.ProcessPayoutAsync("payout-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<PayoutRequestDto>.Success(new PayoutRequestDto { Id = "payout-1" }));
         var controller = new PayoutsController(payouts.Object);
 
         var result = await controller.ProcessPayout("payout-1", CancellationToken.None);
 
-        var response = result.Should().BeOfType<ObjectResult>().Subject;
-        response.StatusCode.Should().Be(StatusCodes.Status503ServiceUnavailable);
-        payouts.Verify(service => service.ProcessPayoutAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        result.Should().BeOfType<OkObjectResult>();
+        payouts.VerifyAll();
     }
 
+    /// <summary>
+    /// Swapping is live now, so the boundary this test guards moved: the swapper is the VERIFIED
+    /// actor claim, never a body field, and the swap reaches the service instead of a 503.
+    /// </summary>
     [Fact]
-    public void SwapExecution_FailsClosedBeforeInvokingTheService()
+    public async Task SwapExecution_SwapsForTheActorNotACallerSuppliedIdentity()
     {
         var swaps = new Mock<ISwapService>(MockBehavior.Strict);
+        swaps.Setup(service => service.ExecuteSwapAsync(
+                "actor-1",
+                It.Is<SwapRequestDto>(dto =>
+                    dto.SourceConfigId == "source-config" && dto.TargetConfigId == "target-config"),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<SwapResultDto>.Success(new SwapResultDto { Id = "swap-1" }));
         var controller = WithActor(new SwapsController(swaps.Object), "actor-1");
 
-        var result = controller.ExecuteSwap(new SwapRequestDto
+        var result = await controller.ExecuteSwap(new SwapRequestDto
         {
             SourceConfigId = "source-config",
             TargetConfigId = "target-config",
             SourceTokenAmount = 1,
         }, CancellationToken.None);
 
-        var response = result.Should().BeOfType<ObjectResult>().Subject;
-        response.StatusCode.Should().Be(StatusCodes.Status503ServiceUnavailable);
-        swaps.VerifyNoOtherCalls();
+        result.Should().BeOfType<OkObjectResult>();
+        swaps.VerifyAll();
     }
 
     [Fact]

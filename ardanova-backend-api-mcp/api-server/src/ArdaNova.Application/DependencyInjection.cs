@@ -1,4 +1,4 @@
-﻿namespace ArdaNova.Application;
+namespace ArdaNova.Application;
 
 using ArdaNova.Application.Mappings;
 using ArdaNova.Application.Services.Implementations;
@@ -131,7 +131,14 @@ public static class DependencyInjection
         services.AddScoped<IProjectUnitRateSource>(sp => (IProjectUnitRateSource)sp.GetRequiredService<IExchangeService>());
         services.AddScoped<ISwapService, SwapService>();
         services.AddScoped<IPayoutService, PayoutService>();
+        // Cashing out is the same scoped instance under its own interface, so the payouts route
+        // injects the cash-out surface directly rather than probing the payout service with `as`.
+        services.AddScoped<ICashOutService>(sp => (ICashOutService)sp.GetRequiredService<IPayoutService>());
         services.AddScoped<ITreasuryService, TreasuryService>();
+        // The buy-back read model is the same scoped instance under its own interface, so the
+        // treasury route can constructor-inject what it needs instead of casting - the
+        // IProjectUnitRateSource pattern above.
+        services.AddScoped<IProjectBuyBackReadModel>(sp => (IProjectBuyBackReadModel)sp.GetRequiredService<ITreasuryService>());
         services.AddScoped<IProjectGateService, ProjectGateService>();
         // The add-funds seam is ALWAYS bound, and its default refuses. Infrastructure's
         // AddAzoaFiatRail replaces this with the node-backed gateway when the operator has
@@ -140,7 +147,6 @@ public static class DependencyInjection
         services.AddScoped<IFiatRailGateway, DisabledFiatRailGateway>();
         services.AddScoped<IFundingIntentService, FundingIntentService>();
         services.AddScoped<IStripePaymentIntentGateway, StripePaymentIntentGateway>();
-        services.AddScoped<IStripeService, StripeService>();
         // The operator channel the dispatcher wakes a person through. The dispatcher already
         // defaults to a live logging channel, so this line does not switch anything on - it
         // makes the channel REPLACEABLE per deployment without editing the dispatcher.

@@ -6,7 +6,9 @@ import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import {
   ArrowUpRight,
+  Banknote,
   CircleDollarSign,
+  Coins,
   Layers3,
   Loader2,
   Lock,
@@ -145,9 +147,16 @@ export default function PortfolioPage() {
               </Link>
             </Button>
             <Button asChild variant="outline" className="min-h-11 rounded-none">
+              <Link href="/swap">
+                <Coins className="mr-2 h-4 w-4" />
+                Sell units
+                <ArrowUpRight className="ml-2 h-4 w-4" />
+              </Link>
+            </Button>
+            <Button asChild variant="outline" className="min-h-11 rounded-none">
               <Link href="/portfolio/withdraw">
-                <PauseCircle className="mr-2 h-4 w-4" />
-                Payout status
+                <Banknote className="mr-2 h-4 w-4" />
+                Withdraw money
                 <ArrowUpRight className="ml-2 h-4 w-4" />
               </Link>
             </Button>

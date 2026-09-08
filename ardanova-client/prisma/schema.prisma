@@ -2448,6 +2448,8 @@ model PayoutRequest {
   sourceTokenAmount          Int
   ardaTokenAmount            Int?
   usdAmount                  Float?
+  ardaMinorUnits             BigInt?
+  usdReferenceMinorUnits     BigInt?
   status                     PayoutStatus        @default(PENDING)
   holderClass                TokenHolderClass
   gateStatusAtRequest        ProjectGateStatus

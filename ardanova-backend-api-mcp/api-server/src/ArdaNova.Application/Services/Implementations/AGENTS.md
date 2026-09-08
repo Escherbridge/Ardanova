@@ -79,3 +79,32 @@ are the platform's HOLDING marker and `FundingIntentService` reads the same four
 the settlement row. `EconomicOperatorAlertCodes` are the alerting counterpart of
 `EconomicSettlementFailureCodes`: the failure code decides the row's next state, the
 alert code decides who gets woken.
+
+# Cash out
+
+Cashing out is TWO steps, and the split is deliberate. A sale is a node exchange run
+under a key derived from the `PayoutRequest` row id - which is why the row is written
+*before* the node is called, so a request that dies mid-flight still leaves something
+reconciliation can name. A withdrawal is a node-owned cash-out that ArdaNova READS BACK
+rather than mirrors: duplicating it would make two records of one movement of real money,
+the ledger-of-record shape D47 rejected for stake.
+
+Units move only against a TERMINAL receipt. A timeout or a 409 is AMBIGUOUS - the
+exchange may already have run - so the row parks with the units still LOCKED. Returning
+them on a maybe is how one holding gets sold twice. Only an outright refusal (NotFound,
+ValidationError, BadRequest, Forbidden, Unauthorized) unlocks, because those mean the node
+read the request, said no, and created nothing.
+
+A parked row is chased by an operator through `GET /api/Payouts/pending` (widened to
+include PROCESSING) and `POST /api/Payouts/{id}/process`, which is a READ of the receipt
+under the original key and can only ever observe the first submission. The person-facing
+copy says exactly that: nothing on a timer finishes a parked sale.
+
+The node's own refusal text NEVER reaches a person. `AzoaNodeClient` flattens a refusal to
+sentences that name the node, so both `PayoutService.DescribeRefusal` and
+`AzoaCashOutClient.Refused` re-word it from the refusal KIND. The node's text stays where
+operators read it - the transport log.
+
+A holding with no recorded `holderClass` is LISTED but never sellable. Every sellability
+rule is keyed on the class, and defaulting one would decide a sale on an invented fact;
+hiding the holding entirely would be worse than saying why it cannot be sold.
