@@ -67,6 +67,24 @@ public class CommerceActorBoundaryTests
     }
 
     [Fact]
+    public void SwapExecution_FailsClosedBeforeInvokingTheService()
+    {
+        var swaps = new Mock<ISwapService>(MockBehavior.Strict);
+        var controller = WithActor(new SwapsController(swaps.Object), "actor-1");
+
+        var result = controller.ExecuteSwap(new SwapRequestDto
+        {
+            SourceConfigId = "source-config",
+            TargetConfigId = "target-config",
+            SourceTokenAmount = 1,
+        }, CancellationToken.None);
+
+        var response = result.Should().BeOfType<ObjectResult>().Subject;
+        response.StatusCode.Should().Be(StatusCodes.Status503ServiceUnavailable);
+        swaps.VerifyNoOtherCalls();
+    }
+
+    [Fact]
     public async Task TokenBalanceReads_UseActorIdentityInsteadOfRouteIdentity()
     {
         var balances = new Mock<ITokenBalanceService>();
@@ -117,17 +135,30 @@ public class CommerceActorBoundaryTests
     }
 
     [Fact]
-    public async Task TaskEscrowRelease_ForeignEscrowIsForbiddenBeforeMutation()
+    public void TaskEscrowRelease_FailsClosedBeforeReadingOrMutatingEscrow()
     {
-        var escrows = new Mock<ITaskEscrowService>();
-        escrows.Setup(service => service.GetByIdAsync("escrow-1", It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Result<TaskEscrowDto>.Success(new TaskEscrowDto { Id = "escrow-1", FunderId = "other-user" }));
+        var escrows = new Mock<ITaskEscrowService>(MockBehavior.Strict);
         var controller = WithActor(new TaskEscrowsController(escrows.Object), "actor-1");
 
-        var result = await controller.Release("escrow-1", new ReleaseEscrowDto(), CancellationToken.None);
+        var result = controller.Release("escrow-1", new ReleaseEscrowDto(), CancellationToken.None);
 
-        result.Should().BeOfType<ForbidResult>();
-        escrows.Verify(service => service.ReleaseAsync(It.IsAny<string>(), It.IsAny<ReleaseEscrowDto>(), It.IsAny<CancellationToken>()), Times.Never);
+        var response = result.Should().BeOfType<ObjectResult>().Subject;
+        response.StatusCode.Should().Be(StatusCodes.Status503ServiceUnavailable);
+        escrows.VerifyNoOtherCalls();
+    }
+
+    [Fact]
+    public void TaskEscrowRefund_FailsClosedBeforeReadingOrMutatingEscrow()
+    {
+        var escrows = new Mock<ITaskEscrowService>(MockBehavior.Strict);
+        var controller = WithActor(new TaskEscrowsController(escrows.Object), "actor-1");
+
+        var result = controller.Refund("escrow-1", new RefundEscrowDto(), CancellationToken.None);
+
+        var response = result.Should().BeOfType<ObjectResult>().Subject;
+        response.StatusCode.Should().Be(StatusCodes.Status503ServiceUnavailable);
+        escrows.Verify(service => service.RefundAsync(It.IsAny<string>(), It.IsAny<RefundEscrowDto>(), It.IsAny<CancellationToken>()), Times.Never);
+        escrows.VerifyNoOtherCalls();
     }
 
     [Fact]
@@ -248,6 +279,29 @@ public class CommerceActorBoundaryTests
         var result = await controller.Accept("bid-1", CancellationToken.None);
 
         result.Should().BeOfType<ConflictObjectResult>();
+        commerce.VerifyAll();
+    }
+
+    [Fact]
+    public async Task BidAccept_ReturnsAccountSetupGuidanceWhenPaidAssignmentIsBlocked()
+    {
+        const string message = "Complete your account setup before you can accept paid project work.";
+        var commerce = new Mock<ITaskCommerceService>();
+        commerce.Setup(service => service.AcceptBidAsync("bid-1", "owner-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<TaskCommerceAcceptanceDto>.Forbidden(message));
+        var controller = WithActor(
+            new OpportunityBidsController(
+                new Mock<IOpportunityBidService>(MockBehavior.Strict).Object,
+                new Mock<IOpportunityService>(MockBehavior.Strict).Object,
+                new Mock<IProjectService>(MockBehavior.Strict).Object,
+                commerce.Object),
+            "owner-1");
+
+        var result = await controller.Accept("bid-1", CancellationToken.None);
+
+        var response = result.Should().BeOfType<ObjectResult>().Subject;
+        response.StatusCode.Should().Be(StatusCodes.Status403Forbidden);
+        response.Value.Should().BeEquivalentTo(new { error = message });
         commerce.VerifyAll();
     }
 

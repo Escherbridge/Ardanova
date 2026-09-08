@@ -267,7 +267,6 @@ export type {
 } from "./endpoints/posts";
 export type {
   Notification,
-  CreateNotificationDto,
   NotificationSummary,
 } from "./endpoints/notifications";
 export type { Activity, CreateActivityDto } from "./endpoints/activities";

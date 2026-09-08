@@ -69,26 +69,32 @@ public class ProjectTokensController : ControllerBase
 
     [HttpPost("{configId}/allocate/pbi")]
     [Authorize(Policy = AuthorizationPolicies.AdminApiKey)]
-    public async Task<IActionResult> AllocateToPbi(string configId, [FromBody] CreateTokenAllocationDto dto, CancellationToken ct)
+    public IActionResult AllocateToPbi(string configId, [FromBody] CreateTokenAllocationDto dto, CancellationToken ct)
     {
-        var result = await _projectTokenService.AllocateToPbiAsync(configId, dto, ct);
-        return ToActionResult(result);
+        _ = configId;
+        _ = dto;
+        _ = ct;
+        return AllocationUnavailable();
     }
 
     [HttpPost("{configId}/allocate/investor")]
     [Authorize(Policy = AuthorizationPolicies.AdminApiKey)]
-    public async Task<IActionResult> AllocateToInvestor(string configId, [FromBody] CreateInvestorAllocationDto dto, CancellationToken ct)
+    public IActionResult AllocateToInvestor(string configId, [FromBody] CreateInvestorAllocationDto dto, CancellationToken ct)
     {
-        var result = await _projectTokenService.AllocateToInvestorAsync(configId, dto, ct);
-        return ToActionResult(result);
+        _ = configId;
+        _ = dto;
+        _ = ct;
+        return AllocationUnavailable();
     }
 
     [HttpPost("{configId}/allocate/founder")]
     [Authorize(Policy = AuthorizationPolicies.AdminApiKey)]
-    public async Task<IActionResult> AllocateToFounder(string configId, [FromBody] CreateFounderAllocationDto dto, CancellationToken ct)
+    public IActionResult AllocateToFounder(string configId, [FromBody] CreateFounderAllocationDto dto, CancellationToken ct)
     {
-        var result = await _projectTokenService.AllocateToFounderAsync(configId, dto, ct);
-        return ToActionResult(result);
+        _ = configId;
+        _ = dto;
+        _ = ct;
+        return AllocationUnavailable();
     }
 
     [HttpPost("allocations/{allocationId}/distribute")]
@@ -103,6 +109,12 @@ public class ProjectTokensController : ControllerBase
             title: "Token distribution is unavailable",
             detail: "Atomic RESERVED-to-DISTRIBUTED allocation transition and durable idempotency are required before token distribution can be enabled.");
     }
+
+    private IActionResult AllocationUnavailable()
+        => Problem(
+            statusCode: StatusCodes.Status501NotImplemented,
+            title: "Project-unit allocation is unavailable",
+            detail: "Provider-verified account eligibility, durable settlement, and idempotent allocation transitions are required before project-unit allocation can be enabled.");
 
     [HttpPost("allocations/{allocationId}/revoke")]
     [Authorize(Policy = AuthorizationPolicies.AdminApiKey)]

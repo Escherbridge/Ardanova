@@ -97,7 +97,6 @@ export const opportunityRouter = createTRPCRouter({
       }
 
       const response = await apiClient.opportunities.create({
-        posterId: userId,
         title: input.title,
         description: input.description,
         type: input.type,
@@ -239,13 +238,10 @@ export const opportunityRouter = createTRPCRouter({
         additionalInfo: z.string().optional(),
       }),
     )
-    .mutation(async ({ input, ctx }) => {
-      const userId = ctx.session.user.id;
-
+    .mutation(async ({ input }) => {
       const response = await apiClient.opportunities.apply(
         input.opportunityId,
         {
-          applicantId: userId,
           coverLetter: input.coverLetter,
           portfolio: input.portfolio,
           additionalInfo: input.additionalInfo,
@@ -464,8 +460,6 @@ export const opportunityRouter = createTRPCRouter({
       const response = await apiClient.opportunities.createUpdate(
         input.opportunityId,
         {
-          opportunityId: input.opportunityId,
-          userId,
           title: input.title,
           content: input.content,
           images: input.images,
@@ -534,14 +528,10 @@ export const opportunityRouter = createTRPCRouter({
         parentId: z.string().optional(),
       }),
     )
-    .mutation(async ({ input, ctx }) => {
-      const userId = ctx.session.user.id;
-
+    .mutation(async ({ input }) => {
       const response = await apiClient.opportunities.addComment(
         input.opportunityId,
         {
-          opportunityId: input.opportunityId,
-          userId,
           content: input.content,
           parentId: input.parentId,
         },

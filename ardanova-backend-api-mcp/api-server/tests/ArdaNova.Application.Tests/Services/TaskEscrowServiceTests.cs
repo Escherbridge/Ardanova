@@ -173,49 +173,14 @@ public class TaskEscrowServiceTests
     }
 
     [Fact]
-    public async Task ReleaseAsync_WhenEscrowExists_ReleasesEscrow()
+    public async Task ReleaseAsync_FailsClosedWithoutReadingOrMutatingEscrow()
     {
-        // Arrange
-        var escrowId = Guid.NewGuid().ToString();
-        var taskId = Guid.NewGuid().ToString();
-        var funderId = Guid.NewGuid().ToString();
-        var tokenId = Guid.NewGuid().ToString();
-        var escrow = new TaskEscrow
-        {
-            id = escrowId,
-            taskId = taskId,
-            funderId = funderId,
-            shareId = tokenId,
-            amount = 100m,
-            status = EscrowStatus.FUNDED,
-            createdAt = DateTime.UtcNow
-        };
-        var escrowDto = new TaskEscrowDto { Id = escrowId, Status = EscrowStatus.RELEASED };
+        var result = await _sut.ReleaseAsync("escrow-1", new ReleaseEscrowDto { TxHash = "unverified" });
 
-        _repositoryMock.Setup(r => r.GetByIdAsync(escrowId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(escrow);
-
-        _repositoryMock.Setup(r => r.UpdateAsync(It.IsAny<TaskEscrow>(), It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
-        var task = new ProjectTask { id = taskId, escrowStatus = EscrowStatus.FUNDED };
-        _taskRepositoryMock.Setup(r => r.GetByIdAsync(taskId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(task);
-        _taskRepositoryMock.Setup(r => r.UpdateAsync(task, It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
-
-        _unitOfWorkMock.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(1);
-
-        _mapperMock.Setup(m => m.Map<TaskEscrowDto>(It.IsAny<TaskEscrow>())).Returns(escrowDto);
-
-        // Act
-        var result = await _sut.ReleaseAsync(escrowId, new ReleaseEscrowDto { TxHash = "TX123" });
-
-        // Assert
-        result.IsSuccess.Should().BeTrue();
-        result.Value!.Status.Should().Be(EscrowStatus.RELEASED);
-        task.escrowStatus.Should().Be(EscrowStatus.RELEASED);
-        _taskRepositoryMock.Verify(r => r.UpdateAsync(task, It.IsAny<CancellationToken>()), Times.Once);
+        result.IsFailure.Should().BeTrue();
+        _repositoryMock.VerifyNoOtherCalls();
+        _taskRepositoryMock.VerifyNoOtherCalls();
+        _unitOfWorkMock.VerifyNoOtherCalls();
     }
 
     [Fact]
@@ -292,47 +257,13 @@ public class TaskEscrowServiceTests
     }
 
     [Fact]
-    public async Task RefundAsync_WhenEscrowExists_RefundsEscrow()
+    public async Task RefundAsync_FailsClosedWithoutReadingOrMutatingEscrow()
     {
-        // Arrange
-        var escrowId = Guid.NewGuid().ToString();
-        var taskId = Guid.NewGuid().ToString();
-        var funderId = Guid.NewGuid().ToString();
-        var tokenId = Guid.NewGuid().ToString();
-        var escrow = new TaskEscrow
-        {
-            id = escrowId,
-            taskId = taskId,
-            funderId = funderId,
-            shareId = tokenId,
-            amount = 100m,
-            status = EscrowStatus.FUNDED,
-            createdAt = DateTime.UtcNow
-        };
-        var escrowDto = new TaskEscrowDto { Id = escrowId, Status = EscrowStatus.REFUNDED };
+        var result = await _sut.RefundAsync("escrow-1", new RefundEscrowDto { TxHash = "unverified" });
 
-        _repositoryMock.Setup(r => r.GetByIdAsync(escrowId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(escrow);
-
-        _repositoryMock.Setup(r => r.UpdateAsync(It.IsAny<TaskEscrow>(), It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
-        var task = new ProjectTask { id = taskId, escrowStatus = EscrowStatus.FUNDED };
-        _taskRepositoryMock.Setup(r => r.GetByIdAsync(taskId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(task);
-        _taskRepositoryMock.Setup(r => r.UpdateAsync(task, It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
-
-        _unitOfWorkMock.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(1);
-
-        _mapperMock.Setup(m => m.Map<TaskEscrowDto>(It.IsAny<TaskEscrow>())).Returns(escrowDto);
-
-        // Act
-        var result = await _sut.RefundAsync(escrowId, new RefundEscrowDto { TxHash = "TX456" });
-
-        // Assert
-        result.IsSuccess.Should().BeTrue();
-        result.Value!.Status.Should().Be(EscrowStatus.REFUNDED);
-        task.escrowStatus.Should().Be(EscrowStatus.REFUNDED);
+        result.IsFailure.Should().BeTrue();
+        _repositoryMock.VerifyNoOtherCalls();
+        _taskRepositoryMock.VerifyNoOtherCalls();
+        _unitOfWorkMock.VerifyNoOtherCalls();
     }
 }

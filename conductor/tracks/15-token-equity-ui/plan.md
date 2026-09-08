@@ -1,4 +1,21 @@
+---
+type: plan
+---
+
 # Track 15 — Token & Equity Frontend UI
+
+> **Build status — verified against disk 2026-09-07: the UI exists.** Every P0 surface below has
+> a file on disk in `ardanova-client/src/`: `app/portfolio/page.tsx` +
+> `app/portfolio/withdraw/`, `app/projects/[slug]/invest/`, `app/admin/treasury/page.tsx`,
+> `app/settings/payouts/page.tsx`, and `components/equity/` holds all eleven components named
+> in §1-§9 below (plus `swap-history.tsx`/`swap-preview.tsx`, not originally scoped here) —
+> `components/projects/funding-tab.tsx` and `equity-tab.tsx` both exist too. **The `[ ]`
+> checkboxes below were never reconciled against that build and should not be read as "not
+> started."** Per the RUNBOOK.md documentation-debt convention, a full per-item behavioral
+> reconciliation is not done here — file presence is not a completion claim, and this plan's
+> content (Stripe-checkout-funds-a-project, direct ARDA/USD conversion chains) predates D44-D51,
+> so treat the checkboxes as a rough map of the built surface, not a to-build list, and verify
+> before assuming any single item's *behavior* matches its description.
 
 ## Prerequisites (all complete from Track 09)
 - Backend services: ProjectTokenService, TokenBalanceService, ExchangeService, PayoutService, TreasuryService, ProjectGateService, StripeService

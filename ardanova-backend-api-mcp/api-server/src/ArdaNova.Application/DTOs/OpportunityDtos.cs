@@ -67,7 +67,7 @@ public record OpportunitySourceDto
 
 public record CreateOpportunityDto
 {
-    public required string PosterId { get; init; }
+    public string PosterId { get; init; } = string.Empty;
     public required string Title { get; init; }
     public required string Description { get; init; }
     public required OpportunityType Type { get; init; }
@@ -136,7 +136,7 @@ public record OpportunityApplicationApplicantDto
 
 public record ApplyToOpportunityDto
 {
-    public required string ApplicantId { get; init; }
+    public string ApplicantId { get; init; } = string.Empty;
     public required string CoverLetter { get; init; }
     public string? Portfolio { get; init; }
     public string? AdditionalInfo { get; init; }
@@ -171,8 +171,8 @@ public record OpportunityUpdateAuthorDto
 
 public record CreateOpportunityUpdateDto
 {
-    public required string OpportunityId { get; init; }
-    public required string UserId { get; init; }
+    public string OpportunityId { get; init; } = string.Empty;
+    public string UserId { get; init; } = string.Empty;
     public required string Title { get; init; }
     public required string Content { get; init; }
     public string? Images { get; init; }
@@ -202,8 +202,8 @@ public record OpportunityCommentAuthorDto
 
 public record CreateOpportunityCommentDto
 {
-    public required string OpportunityId { get; init; }
-    public required string UserId { get; init; }
+    public string OpportunityId { get; init; } = string.Empty;
+    public string UserId { get; init; } = string.Empty;
     public required string Content { get; init; }
     public string? ParentId { get; init; }
 }

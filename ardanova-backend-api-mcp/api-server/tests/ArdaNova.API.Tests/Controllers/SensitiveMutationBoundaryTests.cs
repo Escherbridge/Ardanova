@@ -1,6 +1,7 @@
 namespace ArdaNova.API.Tests.Controllers;
 
 using ArdaNova.API.Controllers;
+using ArdaNova.Application.DTOs;
 using ArdaNova.Application.Services.Interfaces;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -18,6 +19,25 @@ public sealed class SensitiveMutationBoundaryTests
         var result = controller.Distribute("allocation-1", "recipient-1", CancellationToken.None);
 
         AssertPaused(result, "Atomic RESERVED-to-DISTRIBUTED");
+        tokens.VerifyNoOtherCalls();
+    }
+
+    [Fact]
+    public void ProjectTokenAllocation_FailsClosedBeforeServiceInvocation()
+    {
+        var tokens = new Mock<IProjectTokenService>(MockBehavior.Strict);
+        var controller = new ProjectTokensController(
+            tokens.Object,
+            new Mock<IProjectGateService>(MockBehavior.Strict).Object);
+
+        var results = new IActionResult[]
+        {
+            controller.AllocateToPbi("config-1", new CreateTokenAllocationDto { PbiId = "task-1", EquityPercentage = 1 }, CancellationToken.None),
+            controller.AllocateToInvestor("config-1", new CreateInvestorAllocationDto { UserId = "user-1", UsdAmount = 10, TokenAmount = 1 }, CancellationToken.None),
+            controller.AllocateToFounder("config-1", new CreateFounderAllocationDto { UserId = "user-1", EquityPercentage = 1 }, CancellationToken.None),
+        };
+
+        results.Should().AllSatisfy(result => AssertPaused(result, "Provider-verified account eligibility"));
         tokens.VerifyNoOtherCalls();
     }
 
@@ -111,28 +131,6 @@ public sealed class SensitiveMutationBoundaryTests
 
         AssertPaused(result, "server-derived");
         referrals.VerifyNoOtherCalls();
-    }
-
-    [Fact]
-    public void LegacyAzoaCustodyMutations_ReturnGoneBeforeServiceInvocation()
-    {
-        var avatars = new Mock<IAzoaAvatarService>(MockBehavior.Strict);
-        var controller = new AzoaAvatarController(avatars.Object);
-
-        var results = new IActionResult[]
-        {
-            controller.EnsureAvatar(CancellationToken.None),
-            controller.EnsureWallet(CancellationToken.None),
-        };
-
-        results.Should().AllSatisfy(result =>
-        {
-            var response = result.Should().BeOfType<ObjectResult>().Subject;
-            response.StatusCode.Should().Be(StatusCodes.Status410Gone);
-            response.Value.Should().BeOfType<ProblemDetails>()
-                .Which.Detail.Should().Contain("/api/azoa/custodial-account");
-        });
-        avatars.VerifyNoOtherCalls();
     }
 
     private static void AssertPaused(IActionResult result, string expectedDetail)

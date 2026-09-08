@@ -114,123 +114,17 @@ public class SwapService : ISwapService
         return Result<SwapPreviewDto>.Success(preview);
     }
 
-    public async Task<Result<SwapResultDto>> ExecuteSwapAsync(
+    public Task<Result<SwapResultDto>> ExecuteSwapAsync(
         string userId,
         SwapRequestDto request,
         CancellationToken ct = default)
     {
-        // Re-run preview validation to get computed values
-        var previewResult = await GetSwapPreviewAsync(
-            userId,
-            request.SourceConfigId,
-            request.TargetConfigId,
-            request.SourceTokenAmount,
-            ct);
+        _ = userId;
+        _ = request;
+        _ = ct;
 
-        if (!previewResult.IsSuccess)
-            return Result<SwapResultDto>.Failure(previewResult.Error ?? "Swap preview failed");
-
-        var preview = previewResult.Value!;
-
-        // Load source balance (validated in preview, but re-fetch for mutation)
-        var sourceBalance = await _tokenBalanceRepo.FindOneAsync(
-            b => b.userId == userId
-              && b.projectTokenConfigId == request.SourceConfigId
-              && b.isLiquid
-              && b.holderClass == TokenHolderClass.CONTRIBUTOR,
-            ct);
-
-        if (sourceBalance == null)
-            return Result<SwapResultDto>.Failure("Source balance not found");
-
-        // Re-validate balance sufficiency to prevent race-condition double-spend
-        if (sourceBalance.balance - sourceBalance.lockedBalance < request.SourceTokenAmount)
-            return Result<SwapResultDto>.Failure("Insufficient liquid balance for swap");
-
-        // Find or create target balance
-        var targetBalance = await _tokenBalanceRepo.FindOneAsync(
-            b => b.userId == userId
-              && b.projectTokenConfigId == request.TargetConfigId
-              && b.isLiquid
-              && b.holderClass == TokenHolderClass.CONTRIBUTOR,
-            ct);
-
-        await _unitOfWork.BeginTransactionAsync(ct);
-        try
-        {
-            // Debit source
-            sourceBalance.balance -= request.SourceTokenAmount;
-            sourceBalance.updatedAt = DateTime.UtcNow;
-            await _tokenBalanceRepo.UpdateAsync(sourceBalance, ct);
-
-            // Credit target (create if not exists)
-            if (targetBalance == null)
-            {
-                targetBalance = new TokenBalance
-                {
-                    id = Guid.NewGuid().ToString(),
-                    userId = userId,
-                    projectTokenConfigId = request.TargetConfigId,
-                    isPlatformToken = false,
-                    holderClass = TokenHolderClass.CONTRIBUTOR,
-                    isLiquid = true,
-                    balance = preview.TargetTokenAmount,
-                    lockedBalance = 0,
-                    updatedAt = DateTime.UtcNow,
-                };
-                await _tokenBalanceRepo.AddAsync(targetBalance, ct);
-            }
-            else
-            {
-                targetBalance.balance += preview.TargetTokenAmount;
-                targetBalance.updatedAt = DateTime.UtcNow;
-                await _tokenBalanceRepo.UpdateAsync(targetBalance, ct);
-            }
-
-            // Persist swap record using ShareSwap entity
-            var swapRecord = new ShareSwap
-            {
-                id = Guid.NewGuid().ToString(),
-                userId = userId,
-                fromShareId = request.SourceConfigId,
-                toShareId = request.TargetConfigId,
-                fromAmount = (decimal)request.SourceTokenAmount,
-                toAmount = (decimal)preview.TargetTokenAmount,
-                exchangeRate = (decimal)preview.ArdaRate,
-                fee = 0m,
-                status = SwapStatus.COMPLETED,
-                createdAt = DateTime.UtcNow,
-                completedAt = DateTime.UtcNow,
-            };
-            await _swapRepo.AddAsync(swapRecord, ct);
-
-            await _unitOfWork.SaveChangesAsync(ct);
-            await _unitOfWork.CommitTransactionAsync(ct);
-
-            var result = new SwapResultDto
-            {
-                Id = swapRecord.id,
-                UserId = userId,
-                SourceConfigId = request.SourceConfigId,
-                TargetConfigId = request.TargetConfigId,
-                SourceTokenAmount = request.SourceTokenAmount,
-                SourceUnitName = preview.SourceUnitName,
-                SourceUsdValue = preview.SourceUsdValue,
-                ArdaAmount = preview.ArdaAmount,
-                TargetTokenAmount = preview.TargetTokenAmount,
-                TargetUnitName = preview.TargetUnitName,
-                TargetUsdValue = preview.TargetUsdValue,
-                Status = SwapStatus.COMPLETED,
-                CreatedAt = swapRecord.createdAt,
-            };
-
-            return Result<SwapResultDto>.Success(result);
-        }
-        catch (Exception ex)
-        {
-            await _unitOfWork.RollbackTransactionAsync(ct);
-            return Result<SwapResultDto>.Failure($"Swap execution failed: {ex.Message}");
-        }
+        return Task.FromResult(Result<SwapResultDto>.Failure(
+            "Project share exchange is unavailable until secure provider settlement, reconciliation, and account eligibility checks are available."));
     }
 
     public async Task<Result<IReadOnlyList<SwapHistoryDto>>> GetSwapHistoryAsync(

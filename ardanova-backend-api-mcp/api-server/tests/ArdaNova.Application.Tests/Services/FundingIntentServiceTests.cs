@@ -21,12 +21,19 @@ public class FundingIntentServiceTests
     private readonly Mock<IRepository<EconomicOutbox>> _outboxes = new();
     private readonly Mock<IStripeCheckoutGateway> _checkout = new();
     private readonly Mock<IFundingSettlementReadiness> _settlementReadiness = new();
+    private readonly Mock<IAzoaValueEligibilityService> _valueEligibility = new();
     private readonly Mock<IUnitOfWork> _unitOfWork = new();
     private readonly FundingIntentService _sut;
 
     public FundingIntentServiceTests()
     {
         _settlementReadiness.SetupGet(readiness => readiness.IsReady).Returns(true);
+        _valueEligibility
+            .Setup(service => service.RequireReadyAsync(
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<AzoaCustodialAccountStatusDto>.Success(ReadyAccountStatus()));
         _sut = new FundingIntentService(
             _users.Object,
             _projects.Object,
@@ -36,6 +43,7 @@ public class FundingIntentServiceTests
             _outboxes.Object,
             _checkout.Object,
             _settlementReadiness.Object,
+            _valueEligibility.Object,
             _unitOfWork.Object);
     }
 
@@ -59,6 +67,59 @@ public class FundingIntentServiceTests
         result.Type.Should().Be(ResultType.Conflict);
         result.Error.Should().Be("Settlement readiness is disabled for this test.");
         _users.Verify(repository => repository.GetByIdAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        _intents.Verify(repository => repository.AddAsync(It.IsAny<FundingIntent>(), It.IsAny<CancellationToken>()), Times.Never);
+        _checkout.Verify(gateway => gateway.CreateAsync(It.IsAny<StripeCheckoutRequest>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task CreateCheckoutAsync_IncompleteFunderFailsBeforeProjectOrProviderWork()
+    {
+        var fixture = ArrangeEligibleFunding();
+        _valueEligibility
+            .Setup(service => service.RequireReadyAsync(
+                fixture.Actor.id,
+                "fund a project",
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<AzoaCustodialAccountStatusDto>.Forbidden("Complete your account setup before funding."));
+
+        var result = await _sut.CreateCheckoutAsync(
+            new CreateFundingIntentDto
+            {
+                ProjectTokenConfigId = fixture.Config.id,
+                Amount = "12.34",
+                DisclosureVersion = "funding-disclosure-v1",
+            },
+            fixture.Actor.id,
+            "9e68f25a-589c-472a-ab2d-0b4161c5ab89");
+
+        result.Type.Should().Be(ResultType.Forbidden);
+        _configs.Verify(repository => repository.GetByIdAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        _intents.Verify(repository => repository.AddAsync(It.IsAny<FundingIntent>(), It.IsAny<CancellationToken>()), Times.Never);
+        _checkout.Verify(gateway => gateway.CreateAsync(It.IsAny<StripeCheckoutRequest>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task CreateCheckoutAsync_IncompleteProjectOwnerFailsBeforePersistenceOrProviderWork()
+    {
+        var fixture = ArrangeEligibleFunding();
+        _valueEligibility
+            .Setup(service => service.RequireReadyAsync(
+                fixture.Project.createdById,
+                "receive project funding",
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<AzoaCustodialAccountStatusDto>.Forbidden("Recipient account setup is incomplete."));
+
+        var result = await _sut.CreateCheckoutAsync(
+            new CreateFundingIntentDto
+            {
+                ProjectTokenConfigId = fixture.Config.id,
+                Amount = "12.34",
+                DisclosureVersion = "funding-disclosure-v1",
+            },
+            fixture.Actor.id,
+            "9e68f25a-589c-472a-ab2d-0b4161c5ab89");
+
+        result.Type.Should().Be(ResultType.Forbidden);
         _intents.Verify(repository => repository.AddAsync(It.IsAny<FundingIntent>(), It.IsAny<CancellationToken>()), Times.Never);
         _checkout.Verify(gateway => gateway.CreateAsync(It.IsAny<StripeCheckoutRequest>(), It.IsAny<CancellationToken>()), Times.Never);
     }
@@ -208,15 +269,19 @@ public class FundingIntentServiceTests
     [Fact]
     public async Task RecordPaymentSucceededAsync_AtomicallyCreatesPendingSettlementAndOutbox()
     {
+        var project = new Project { id = "project-1", createdById = "project-owner" };
         var intent = new FundingIntent
         {
             id = "funding-1",
+            funderUserId = "user-1",
+            projectId = project.id,
             currencyCode = "usd",
             amount = 12.34m,
             scale = 2,
             status = FundingIntentStatus.AWAITING_PAYMENT,
         };
         _intents.Setup(repository => repository.GetByIdAsync(intent.id, It.IsAny<CancellationToken>())).ReturnsAsync(intent);
+        _projects.Setup(repository => repository.GetByIdAsync(project.id, It.IsAny<CancellationToken>())).ReturnsAsync(project);
         _intents.Setup(repository => repository.UpdateAsync(intent, It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
         EconomicSettlement? savedSettlement = null;
         EconomicOutbox? savedOutbox = null;
@@ -257,6 +322,94 @@ public class FundingIntentServiceTests
         _unitOfWork.Verify(work => work.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
         _unitOfWork.Verify(work => work.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
         _unitOfWork.Verify(work => work.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task RecordPaymentSucceededAsync_IncompleteProjectOwnerCreatesPendingSettlementAndOutboxForInternalRetry()
+    {
+        var project = new Project { id = "project-1", createdById = "project-owner" };
+        var intent = new FundingIntent
+        {
+            id = "funding-1",
+            funderUserId = "user-1",
+            projectId = project.id,
+            currencyCode = "usd",
+            amount = 12.34m,
+            scale = 2,
+            status = FundingIntentStatus.AWAITING_PAYMENT,
+        };
+        _intents.Setup(repository => repository.GetByIdAsync(intent.id, It.IsAny<CancellationToken>())).ReturnsAsync(intent);
+        _projects.Setup(repository => repository.GetByIdAsync(project.id, It.IsAny<CancellationToken>())).ReturnsAsync(project);
+        _intents.Setup(repository => repository.UpdateAsync(intent, It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        EconomicSettlement? savedSettlement = null;
+        EconomicOutbox? savedOutbox = null;
+        _settlements.Setup(repository => repository.AddAsync(It.IsAny<EconomicSettlement>(), It.IsAny<CancellationToken>()))
+            .Callback<EconomicSettlement, CancellationToken>((settlement, _) => savedSettlement = settlement)
+            .ReturnsAsync((EconomicSettlement settlement, CancellationToken _) => settlement);
+        _outboxes.Setup(repository => repository.AddAsync(It.IsAny<EconomicOutbox>(), It.IsAny<CancellationToken>()))
+            .Callback<EconomicOutbox, CancellationToken>((outbox, _) => savedOutbox = outbox)
+            .ReturnsAsync((EconomicOutbox outbox, CancellationToken _) => outbox);
+        _unitOfWork.Setup(work => work.SaveChangesAsync(It.IsAny<CancellationToken>())).ReturnsAsync(1);
+        _valueEligibility.Setup(service => service.RequireReadyAsync(
+                project.createdById,
+                "receive project funding",
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<AzoaCustodialAccountStatusDto>.Forbidden("Account setup is incomplete."));
+
+        var result = await _sut.RecordPaymentSucceededAsync("evt_123", PaymentIntentFor(intent));
+
+        result.IsSuccess.Should().BeTrue();
+        intent.status.Should().Be(FundingIntentStatus.SETTLEMENT_PENDING);
+        intent.providerPaymentIntentId.Should().Be("pi_123");
+        intent.verifiedProviderEventId.Should().Be("evt_123");
+        intent.settlementId.Should().Be(savedSettlement!.id);
+        savedSettlement.status.Should().Be(EconomicSettlementStatus.PENDING_DISPATCH);
+        savedSettlement.failureCode.Should().Be("AZOA_PROJECT_OWNER_NOT_READY");
+        savedSettlement.failureDetail.Should().Contain("remains pending");
+        savedOutbox!.settlementId.Should().Be(savedSettlement.id);
+        savedOutbox.status.Should().Be(EconomicOutboxStatus.PENDING);
+        _unitOfWork.Verify(work => work.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
+        _unitOfWork.Verify(work => work.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+        _unitOfWork.Verify(work => work.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task RecordPaymentSucceededAsync_MissingProjectOwnerCreatesPendingSettlementAndOutboxForInternalRetry()
+    {
+        var project = new Project { id = "project-1", createdById = string.Empty };
+        var intent = new FundingIntent
+        {
+            id = "funding-1",
+            funderUserId = "user-1",
+            projectId = project.id,
+            currencyCode = "usd",
+            amount = 12.34m,
+            scale = 2,
+            status = FundingIntentStatus.AWAITING_PAYMENT,
+        };
+        _intents.Setup(repository => repository.GetByIdAsync(intent.id, It.IsAny<CancellationToken>())).ReturnsAsync(intent);
+        _projects.Setup(repository => repository.GetByIdAsync(project.id, It.IsAny<CancellationToken>())).ReturnsAsync(project);
+        _intents.Setup(repository => repository.UpdateAsync(intent, It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        EconomicSettlement? savedSettlement = null;
+        EconomicOutbox? savedOutbox = null;
+        _settlements.Setup(repository => repository.AddAsync(It.IsAny<EconomicSettlement>(), It.IsAny<CancellationToken>()))
+            .Callback<EconomicSettlement, CancellationToken>((settlement, _) => savedSettlement = settlement)
+            .ReturnsAsync((EconomicSettlement settlement, CancellationToken _) => settlement);
+        _outboxes.Setup(repository => repository.AddAsync(It.IsAny<EconomicOutbox>(), It.IsAny<CancellationToken>()))
+            .Callback<EconomicOutbox, CancellationToken>((outbox, _) => savedOutbox = outbox)
+            .ReturnsAsync((EconomicOutbox outbox, CancellationToken _) => outbox);
+        _unitOfWork.Setup(work => work.SaveChangesAsync(It.IsAny<CancellationToken>())).ReturnsAsync(1);
+
+        var result = await _sut.RecordPaymentSucceededAsync("evt_123", PaymentIntentFor(intent));
+
+        result.IsSuccess.Should().BeTrue();
+        intent.status.Should().Be(FundingIntentStatus.SETTLEMENT_PENDING);
+        savedSettlement!.failureCode.Should().Be("AZOA_PROJECT_OWNER_UNAVAILABLE");
+        savedOutbox!.status.Should().Be(EconomicOutboxStatus.PENDING);
+        _valueEligibility.Verify(service => service.RequireReadyAsync(
+            It.IsAny<string>(),
+            It.IsAny<string>(),
+            It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -379,11 +532,12 @@ public class FundingIntentServiceTests
     [Fact]
     public async Task RecordPaymentSucceededAsync_ConcurrentExactCreateRecoversWithoutASecondDecision()
     {
+        var project = new Project { id = "project-1", createdById = "project-owner" };
         var initial = new FundingIntent
         {
             id = "funding-1",
             funderUserId = "user-1",
-            projectId = "project-1",
+            projectId = project.id,
             currencyCode = "usd",
             amount = 12.34m,
             scale = 2,
@@ -421,6 +575,7 @@ public class FundingIntentServiceTests
         _intents.SetupSequence(repository => repository.GetByIdAsync(initial.id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(initial)
             .ReturnsAsync(persisted);
+        _projects.Setup(repository => repository.GetByIdAsync(project.id, It.IsAny<CancellationToken>())).ReturnsAsync(project);
         _unitOfWork.Setup(work => work.SaveChangesAsync(It.IsAny<CancellationToken>()))
             .ThrowsAsync(new Microsoft.EntityFrameworkCore.DbUpdateException("unique conflict"));
         _settlements.Setup(repository => repository.FindOneAsync(
@@ -455,7 +610,13 @@ public class FundingIntentServiceTests
     private (User Actor, Project Project, ProjectTokenConfig Config) ArrangeEligibleFunding()
     {
         var actor = new User { id = "user-1" };
-        var project = new Project { id = "project-1", commerceEnabled = true, status = ProjectStatus.PUBLISHED };
+        var project = new Project
+        {
+            id = "project-1",
+            createdById = "project-owner",
+            commerceEnabled = true,
+            status = ProjectStatus.PUBLISHED,
+        };
         var config = new ProjectTokenConfig
         {
             id = "config-1",
@@ -475,6 +636,18 @@ public class FundingIntentServiceTests
             .ReturnsAsync((FundingIntent?)null);
         return (actor, project, config);
     }
+
+    private static AzoaCustodialAccountStatusDto ReadyAccountStatus() => new()
+    {
+        AvatarId = "avatar-1",
+        WalletId = "wallet-1",
+        WalletAddress = "wallet-address-1",
+        KycStatus = AzoaKycStatus.Approved,
+        IdentityReady = true,
+        KycReady = true,
+        WalletReady = true,
+        Ready = true,
+    };
 
     private static PaymentIntent PaymentIntentFor(FundingIntent intent)
         => new()

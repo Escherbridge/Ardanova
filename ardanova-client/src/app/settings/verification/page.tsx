@@ -18,6 +18,7 @@ import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import type { AzoaKycSessionDto } from "~/lib/api/ardanova";
 import { normalizeInternalReturnTo } from "~/lib/auth-navigation";
+import { isValueActionAccountReady } from "~/lib/contracts/project-create-contract";
 import { api } from "~/trpc/react";
 
 function formatSessionExpiry(value: string | null | undefined): string {
@@ -77,6 +78,7 @@ export default function VerificationPage() {
   }, [providerSessionExpiry]);
 
   const status = custodyStatus.data?.kycStatus ?? "Unknown";
+  const accountSetupComplete = isValueActionAccountReady(custodyStatus.data);
   const returnTo = normalizeInternalReturnTo(
     searchParams.get("returnTo") ?? undefined,
   );
@@ -97,15 +99,15 @@ export default function VerificationPage() {
       <header className="border-foreground grid gap-5 border-b-2 pb-6 md:grid-cols-[1fr_auto] md:items-end">
         <div>
           <p className="text-primary font-mono text-xs font-black tracking-[0.16em] uppercase">
-            Profile / Trust boundary
+            Profile / Account setup
           </p>
           <h1 className="mt-2 font-mono text-4xl font-black tracking-[-0.055em] uppercase sm:text-5xl">
-            Verify once. Act with clarity.
+            Set up once. Work with clarity.
           </h1>
           <p className="text-muted-foreground mt-3 max-w-2xl text-sm leading-relaxed sm:text-base">
-            Azoa owns verification and key custody. ArdaNova starts the flow and
-            reads the outcome, but never stores identity documents or private
-            keys.
+            Azoa manages identity checks and protected account setup. ArdaNova
+            starts the flow and reads the outcome, but never stores identity
+            documents or account secrets.
           </p>
         </div>
         <Button
@@ -139,7 +141,7 @@ export default function VerificationPage() {
         onEnsure={() => ensureCustody.mutate()}
       />
 
-      {returnTo && custodyStatus.data?.ready && (
+      {returnTo && accountSetupComplete && (
         <section
           className="border-foreground bg-primary text-primary-foreground flex flex-col gap-4 border-2 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6"
           aria-labelledby="verification-resume-title"
@@ -156,8 +158,8 @@ export default function VerificationPage() {
             </h2>
             <p className="mt-1 max-w-2xl text-sm leading-relaxed opacity-90">
               {developmentSimulation
-                ? "Your development-only Azoa simulation and managed wallet are ready for local testing. This is not production identity proof."
-                : "Your Azoa action account, identity check, and managed wallet are ready. Return to the work that asked for verification."}
+                ? "Your development-only Azoa simulation and managed payment account are ready for local testing. This is not production identity proof."
+                : "Your account setup, identity check, and managed payment account are ready. Return to the work that asked for verification."}
             </p>
           </div>
           <Button
@@ -283,7 +285,7 @@ export default function VerificationPage() {
                     [
                       "01",
                       "Create account",
-                      "An explicit action creates your tenant-bound Azoa avatar.",
+                      "An explicit action creates your secure account setup record.",
                     ],
                     [
                       "02",

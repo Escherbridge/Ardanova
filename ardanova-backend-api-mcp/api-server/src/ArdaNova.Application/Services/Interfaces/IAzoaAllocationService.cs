@@ -26,7 +26,7 @@ using ArdaNova.Application.DTOs;
 /// Layering: lives in the Application layer and talks to the node ONLY through
 /// the Application-owned <see cref="IAzoaAllocationNode"/> port — never the
 /// Infrastructure transport directly (the same dependency-inversion seam used by
-/// <c>IAzoaAvatarNode</c> / <c>IAlgorandService</c>).
+/// <c>IAlgorandService</c>).
 ///
 /// KYC is fail-closed and node-side: a node <see cref="ResultType.Forbidden"/>
 /// (<c>KYC_FORBIDDEN</c>) is propagated verbatim, never swallowed (§6).
@@ -97,7 +97,7 @@ public interface IAzoaAllocationService
 /// Why this exists: the typed-HttpClient transport (<c>IAzoaNodeClient</c>) lives
 /// in <c>ArdaNova.Infrastructure.Azoa</c>, and the Application layer must not (and
 /// at compile time cannot) reference Infrastructure. This port is the seam — the
-/// same dependency-inversion pattern as <c>IAzoaAvatarNode</c>. An Infrastructure
+/// same dependency-inversion pattern as <c>IAlgorandService</c>. An Infrastructure
 /// adapter wraps <c>IAzoaNodeClient.AllocateAsync</c> and registers itself against
 /// this port. Wire models stay in Infrastructure — this port speaks only in
 /// Application-owned records so no Infrastructure type leaks into the service.

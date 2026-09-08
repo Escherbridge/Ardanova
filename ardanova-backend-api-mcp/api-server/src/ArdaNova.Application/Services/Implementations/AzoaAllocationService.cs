@@ -1,10 +1,8 @@
 namespace ArdaNova.Application.Services.Implementations;
 
-using ArdaNova.Application.Common.Interfaces;
 using ArdaNova.Application.Common.Results;
 using ArdaNova.Application.DTOs;
 using ArdaNova.Application.Services.Interfaces;
-using ArdaNova.Domain.Models.Entities;
 
 /// <summary>
 /// The exactly-once MONEY PATH onto AZOA (track
@@ -30,18 +28,18 @@ using ArdaNova.Domain.Models.Entities;
 /// Layering: lives in the Application layer (registered in
 /// <c>ArdaNova.Application.DependencyInjection</c>) and talks to the node only
 /// through the Application-owned <see cref="IAzoaAllocationNode"/> port — the same
-/// dependency-inversion seam as <c>AzoaAvatarService</c>.
+/// dependency-inversion seam as <c>IAlgorandService</c>.
 /// </summary>
 public class AzoaAllocationService : IAzoaAllocationService
 {
-    private readonly IRepository<User> _userRepository;
+    private readonly IAzoaValueEligibilityService _valueEligibility;
     private readonly IAzoaAllocationNode _node;
 
     public AzoaAllocationService(
-        IRepository<User> userRepository,
+        IAzoaValueEligibilityService valueEligibility,
         IAzoaAllocationNode node)
     {
-        _userRepository = userRepository;
+        _valueEligibility = valueEligibility;
         _node = node;
     }
 
@@ -131,9 +129,8 @@ public class AzoaAllocationService : IAzoaAllocationService
     // ── Core push ───────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Shared push: resolve the recipient's avatar, then hand the already-decided
-    /// allocation + stable key to the node port. Defensive on a blank key so we
-    /// never depend on the node's blank-key validation as a backstop.
+    /// Shared push: confirm recipient value readiness, then pass the decided
+    /// allocation and stable key to the node port.
     /// </summary>
     private async Task<Result<AzoaAllocationDto>> AllocateAsync(
         string recipientUserId,
@@ -144,19 +141,23 @@ public class AzoaAllocationService : IAzoaAllocationService
         if (string.IsNullOrWhiteSpace(idempotencyKey))
             return Result<AzoaAllocationDto>.ValidationError("A non-empty idempotency key is required for an allocation.");
 
-        var user = await _userRepository.GetByIdAsync(recipientUserId, ct);
-        if (user is null)
-            return Result<AzoaAllocationDto>.NotFound($"Recipient user with id {recipientUserId} not found.");
+        var readiness = await _valueEligibility.RequireReadyAsync(
+            recipientUserId,
+            "receive a value allocation",
+            ct);
+        if (readiness.IsFailure)
+            return MapFailure<AzoaCustodialAccountStatusDto, AzoaAllocationDto>(readiness);
 
         // avatarId is the ROUTE value (IDOR-safe), resolved from the recipient's
         // thin avatar reference — never a redirectable body field (§3).
-        if (string.IsNullOrWhiteSpace(user.azoaAvatarId))
+        var avatarReference = readiness.Value!.AvatarId;
+        if (string.IsNullOrWhiteSpace(avatarReference))
             return Result<AzoaAllocationDto>.Failure(
-                "Recipient has no linked AZOA avatar. They must complete avatar onboarding before any value can be allocated to them.");
+                "Recipient account setup did not return an avatar reference for this allocation.");
 
-        if (!Guid.TryParse(user.azoaAvatarId, out var avatarId))
+        if (!Guid.TryParse(avatarReference, out var avatarId))
             return Result<AzoaAllocationDto>.Failure(
-                $"Recipient's AZOA avatar id '{user.azoaAvatarId}' is not a valid avatar identifier.");
+                "Recipient account setup returned an invalid avatar reference for this allocation.");
 
         // Recipient-bind the key so a cross-user collision is STRUCTURALLY
         // impossible, not merely unlikely (security review M1). ArdaNova uses a

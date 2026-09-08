@@ -2,6 +2,8 @@ namespace ArdaNova.Application.Tests.E2E;
 
 using System.Net.Http;
 using System.Net.Http.Headers;
+using System.Net.Http.Json;
+using System.Text.Json;
 using ArdaNova.Infrastructure.Azoa;
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -34,8 +36,11 @@ using Xunit.Abstractions;
 /// to exclude them).
 ///
 /// WHAT IT PROVES (contract §4/§6/§7, §11.2):
-///   • Avatar self-register     — an anonymous end user becomes a self-sovereign
-///                                AZOA avatar via <c>POST /api/user/register</c>.
+///   • Fixture avatar        — test scaffolding creates a throwaway avatar on
+///                                the node via <c>POST /api/user/register</c>. ArdaNova
+///                                itself no longer registers avatars — the
+///                                self-sovereign path was removed; tenant-custodial
+///                                accounts are the only product path.
 ///   • Exactly-once allocation  — a redelivered economic trigger (same avatar,
 ///                                same Idempotency-Key) REPLAYS the first op
 ///                                (replayed==true, SAME operationId) and moves the
@@ -68,28 +73,16 @@ public sealed class AzoaGoldenPathE2ETests
             return; // skipped-and-logged; passes trivially so the baseline is unaffected.
 
         using var client = BuildRealNodeClient(apiKey, out var azoaClient);
-        using var publicHttp = BuildPublicNodeClient(out var publicClient);
+        using var fixtureHttp = BuildAnonymousHttpClient();
 
-        // ── (a) Avatar self-register (anonymous; §4/§11.2) ─────────────────────
+        // ── (a) Fixture avatar (test scaffolding, not a product path) ───────
+        // ArdaNova no longer self-registers avatars; the node still needs one to
+        // allocate to, so the test creates a throwaway avatar over raw HTTP.
         var unique = Guid.NewGuid().ToString("N")[..12];
-        var registerRequest = new AzoaAvatarRegisterRequest
-        {
-            Username = $"e2e_{unique}",
-            Email = $"e2e_{unique}@ardanova-e2e.test",
-            // Meets the node's dev password policy; kept simple + deterministic-per-run.
-            Password = $"E2e!{unique}Pw9",
-            FirstName = "Ardanova",
-            LastName = "E2E",
-        };
-
-        var registerResult = await publicClient.RegisterAvatarAsync(registerRequest);
-
-        registerResult.IsSuccess.Should().BeTrue(
-            $"self-register must succeed against the live node, got: {registerResult.Error}");
-        registerResult.Value.Should().NotBeNull();
-        var avatarId = registerResult.Value!.Id;
+        var username = $"e2e_{unique}";
+        var avatarId = await RegisterFixtureAvatarAsync(fixtureHttp, username, unique);
         avatarId.Should().NotBe(Guid.Empty, "the node must return a concrete avatar id");
-        _output.WriteLine($"[E2E] Registered avatar {avatarId} (username={registerRequest.Username}).");
+        _output.WriteLine($"[E2E] Registered fixture avatar {avatarId} (username={username}).");
 
         // ── (b) First allocation — the real value move (§6) ────────────────────
         // Stable per-economic-event key: the same reward event redelivered MUST
@@ -227,7 +220,8 @@ public sealed class AzoaGoldenPathE2ETests
         return http;
     }
 
-    private static HttpClient BuildPublicNodeClient(out AzoaPublicNodeClient publicClient)
+    /// <summary>Anonymous, credential-free client used only by the fixture helper below.</summary>
+    private static HttpClient BuildAnonymousHttpClient()
     {
         var http = new HttpClient
         {
@@ -236,10 +230,36 @@ public sealed class AzoaGoldenPathE2ETests
         };
         http.DefaultRequestHeaders.Accept.Add(
             new MediaTypeWithQualityHeaderValue("application/json"));
-        publicClient = new AzoaPublicNodeClient(
-            http,
-            NullLogger<AzoaPublicNodeClient>.Instance);
         return http;
+    }
+
+    /// <summary>Creates a throwaway avatar on the live node so the allocation half has a target.</summary>
+    private static async Task<Guid> RegisterFixtureAvatarAsync(
+        HttpClient http, string username, string unique)
+    {
+        using var response = await http.PostAsJsonAsync("/api/user/register", new
+        {
+            username,
+            email = $"{username}@ardanova-e2e.test",
+            // Meets the node's dev password policy; kept simple + deterministic-per-run.
+            password = $"E2e!{unique}Pw9",
+            firstName = "Ardanova",
+            lastName = "E2E",
+        });
+
+        var payload = await response.Content.ReadAsStringAsync();
+        response.IsSuccessStatusCode.Should().BeTrue(
+            "fixture self-register must succeed against the live node, got HTTP "
+            + $"{(int)response.StatusCode}: {payload}");
+
+        using var document = JsonDocument.Parse(payload);
+        var root = document.RootElement;
+        root.TryGetProperty("isError", out var isError).Should().BeTrue(
+            "the node wraps every response in its AZOAResult envelope");
+        isError.GetBoolean().Should().BeFalse(
+            $"fixture self-register must not return an error envelope: {payload}");
+
+        return root.GetProperty("result").GetProperty("id").GetGuid();
     }
 
     /// <summary>Logs a clear, greppable skip line. Does NOT fail the test.</summary>

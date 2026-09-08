@@ -26,3 +26,9 @@ separate non-custodial references and need their own signed ownership proof.
 Errors should explain which service or prerequisite is unavailable without
 exposing tenant keys, internal URLs, provider payloads, or sensitive identity
 data.
+
+User-facing copy calls this **account setup** and explains the practical
+boundary: drafts and collaboration can continue while setup is pending, but
+funding, paid work, rewards, and payouts wait for server-confirmed readiness.
+Completed setup is never presented as authorization for a particular payment
+or project action.

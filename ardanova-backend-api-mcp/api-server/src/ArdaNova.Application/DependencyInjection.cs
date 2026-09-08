@@ -130,8 +130,8 @@ public static class DependencyInjection
 
         // AZOA shared-node integration services (contract sections 4, 5, 6, and 9).
         // Each AZOA track registers its own service on its own line below.
-        services.AddScoped<IAzoaAvatarService, AzoaAvatarService>();           // azoa-avatar-onboarding
         services.AddScoped<IAzoaCustodialAccountService, AzoaCustodialAccountService>();
+        services.AddScoped<IAzoaValueEligibilityService, AzoaValueEligibilityService>();
         services.AddScoped<IAzoaQuestAuthoringService, AzoaQuestAuthoringService>(); // azoa-quest-authoring
         services.AddScoped<IAzoaQuestSignalService, AzoaQuestSignalService>(); // azoa-quest-authoring
         services.AddScoped<IAzoaAllocationService, AzoaAllocationService>();   // treasury-reward-to-azoa-allocation

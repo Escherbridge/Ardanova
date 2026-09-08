@@ -40,7 +40,7 @@ const statusVariant: Record<
 const statusLabel: Record<SwapStatus, string> = {
   PENDING: "Request received",
   PROCESSING: "Processing",
-  COMPLETED: "Reconciled",
+  COMPLETED: "Recorded",
   FAILED: "Failed",
   CANCELLED: "Cancelled",
 };
@@ -67,10 +67,11 @@ export function SwapHistory({ swaps }: SwapHistoryProps) {
     return (
       <div className="border-border rounded-none border-2 border-dashed p-8 text-center">
         <ArrowRight className="text-muted-foreground/30 mx-auto mb-3 h-8 w-8" />
-        <p className="text-muted-foreground font-mono text-sm">No swaps yet</p>
+        <p className="text-muted-foreground font-mono text-sm">
+          No exchange records yet
+        </p>
         <p className="text-muted-foreground/60 mt-1 font-mono text-xs">
-          Submit a request above; processing and reconciliation will appear
-          here.
+          New exchange requests are paused while secure settlement is completed.
         </p>
       </div>
     );
@@ -80,7 +81,7 @@ export function SwapHistory({ swaps }: SwapHistoryProps) {
     <div className="border-border overflow-x-auto rounded-none border-2">
       <table className="w-full min-w-[42rem] border-collapse">
         <caption className="sr-only">
-          Submitted swap requests and their reconciliation status
+          Recorded exchange requests and their current status
         </caption>
         <thead className="border-border bg-muted/30 border-b">
           <tr>

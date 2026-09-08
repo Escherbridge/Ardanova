@@ -10,7 +10,7 @@ using ArdaNova.Application.Services.Interfaces;
 /// <see cref="IAzoaQuestNode"/> by delegating to the typed-HttpClient transport
 /// <see cref="IAzoaQuestNodeClient"/> (its generic
 /// <see cref="IAzoaQuestNodeClient.PostAsync{T}"/> / <see cref="IAzoaQuestNodeClient.GetAsync{T}"/>
-/// helpers). Mirrors <see cref="AzoaAvatarNodeAdapter"/>: the interface lives in
+/// helpers). Mirrors <see cref="AzoaAllocationNodeAdapter"/>: the interface lives in
 /// Application, the implementation here in Infrastructure, so the Application layer
 /// never references Infrastructure wire models.
 ///

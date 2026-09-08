@@ -44,7 +44,9 @@ public sealed record EconomicOutboxLease(
     EconomicSettlementStatus SettlementStatus,
     int SettlementVersion,
     EconomicOutboxClaimKind ClaimKind,
-    AzoaSettlementRequest Request);
+    AzoaSettlementRequest Request,
+    EconomicSettlementKind SettlementKind = EconomicSettlementKind.TASK_REWARD,
+    string? ProjectOwnerUserId = null);
 
 /// <summary>Typed response that distinguishes accepted, ambiguous, and safely retryable gateway outcomes.</summary>
 public sealed record AzoaSettlementGatewayResult(

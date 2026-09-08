@@ -7,6 +7,14 @@ type: plan
 > Depends on `azoa-user-onboarding` + `azoa-provider-adapter`.
 > P7 (`action-reconcile-retry-wiring`) is shipped in the reference implementation.
 > Gate real value on deployment verification; keep local/CI on `Blockchain:Mode=Simulated`.
+> **D47 (2026-09-07): funding and rewards are `IssueUnits` from the platform reserve, never a
+> per-reward `Mint`.** A stake is one real per-project ASA minted once into the reserve at
+> project creation (`azoa-provider-adapter`'s `CreateFungibleASAAsync`); every allocation this
+> track dispatches after that moves already-issued units out of the reserve. Section 3's
+> `AllocateAsync (Mint/Transfer)` reference below describes the AS-BUILT client surface —
+> `AllocationKind.Mint`-per-reward is the pattern D47 rejects on both callers (funding and task
+> reward); the corrected call is `AllocateAsync(..., kind: Transfer, ...)` moving units out of
+> the platform reserve, never `kind: Mint` increasing supply per event.
 
 ## 1. Allocation client (Infrastructure/Application)
 
@@ -36,10 +44,13 @@ type: plan
 > `gated-commerce-and-azoa-settlement`; this track remains in progress.
 
 - [ ] **[P0] Funding settlement → allocation**
-    - Hook tokenomics/Stripe settlement (consumer verifies webhook signature)
-    - Decide asset + amount in ArdaNova, then call `AllocateAsync` (Mint/Transfer)
+    - Hook the ARDA on-ramp settlement (AZOA `Fiat.USD` rail, D45), not a project-scoped Stripe
+      webhook — funding a project is spend-ARDA-for-project-token, never fiat-for-project-token
+    - Decide asset + amount in ArdaNova, then call `AllocateAsync` kind=Transfer — `IssueUnits`
+      from the platform reserve (D47); `kind=Mint` per funding event is rejected
 - [ ] **[P0] Task/bounty reward → allocation**
-    - On escrow RELEASED: `AllocateAsync` kind=Transfer, key=`reward:{taskId}`
+    - On escrow RELEASED: `AllocateAsync` kind=Transfer, key=`reward:{taskId}` — `IssueUnits`
+      from the reserve's contributor partition, never a per-reward `Mint` (D47)
 - [ ] **[P0] Refund branch → allocation**
     - On escrow REFUNDED: refund path, key=`refund:{escrowId}`
 

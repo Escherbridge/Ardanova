@@ -53,7 +53,12 @@ export function OpportunityBidsPanel({
               </div>
               {actionableStatuses.has(bid.status) ? (
                 <div className="mt-3">
-                  <BidAcceptButton bidId={bid.id} />
+                  <BidAcceptButton
+                    bidId={bid.id}
+                    requiresAccountSetup={Boolean(
+                      bid.proposedAmount && bid.proposedAmount > 0,
+                    )}
+                  />
                 </div>
               ) : null}
             </div>

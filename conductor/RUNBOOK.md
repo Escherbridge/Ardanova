@@ -100,7 +100,7 @@ Left exactly as found. What they are:
 
 | Renamed | Deliberately unchanged |
 |---|---|
-| `/api/user/register` (`AzoaPublicNodeClient.cs:10`) | `IAzoaAvatarService`, `AzoaAvatarService`, `AzoaQuestNodeAdapter`, `AzoaQuestNodeClient`, `IAzoaQuestAuthoringService` |
+| `/api/user/register` — **no longer called from ArdaNova production code.** The `AzoaPublicNodeClient` transport and the whole self-sovereign path were deleted in Wave 0; the route survives only in the E2E fixture (`AzoaGoldenPathE2ETests.cs:240`). | `AzoaQuestNodeAdapter`, `AzoaQuestNodeClient`, `IAzoaQuestAuthoringService`. `IAzoaAvatarService`/`AzoaAvatarService` were **deleted**, not merely left unrenamed. |
 | `/api/action*` (`AzoaCustodialNodeClient.cs:78` — `QuestPrefix = "/api/action"`) | `User.azoaAvatarId` (`database-architecture.dbml:84`) |
 | `POST /api/allocation/{userId}` | `Azoa:QuestApiKey`, `ArdaNova.Application/Azoa/Quests/` |
 | Wire field `userId` — `[JsonPropertyName("userId")] public string? AvatarId` in `AzoaCustodialAccountGateway.StatusWire` | |
@@ -144,6 +144,14 @@ Neither is usable from ArdaNova. Nothing in this tree should describe them as
 available. (ArdaNova's own credential `REVOKED` status in tracks 01/07 is a
 separate, ArdaNova-side concept — don't conflate them.)
 
+**Governance is off-chain by decision, not just by readiness (Q6, 2026-09-07).** Even once
+AZOA's on-chain governance primitive is hardened (`W9.2` in
+`ardanova-production-readiness-waves_20260907`), ArdaNova does not plan to move its vote of
+record onto it: ArdaNova **is** its own vote of record, one member one vote, computed
+server-side from the authenticated actor and a held membership credential (`W9.1`). AZOA
+governance therefore stays gated from ArdaNova's path permanently, not provisionally — see
+`conductor/product.md` "Governance."
+
 ---
 
 ## 7. Known documentation debt
@@ -156,12 +164,16 @@ separate, ArdaNova-side concept — don't conflate them.)
   against disk on 2026-09-07, tracks `01`–`23` were **not**.
 - `conductor/.conductor_session_log` stops at 2026-06-28 and no longer reflects
   edits to this tree.
-- **Owned by the source lane, not this one:** ten C# files cite the old track
+- **Owned by the source lane, not this one:** seven C# files cite the old track
   slugs in doc-comments and now point at directories that no longer exist —
-  `DependencyInjection.cs:133,136,137`, `AzoaAvatarDtos.cs:5`,
-  `AzoaQuestDtos.cs:7`, `AzoaAvatarService.cs:12`,
-  `AzoaQuestAuthoringService.cs:12`, `AzoaQuestSignalService.cs:11`,
-  `IAzoaAvatarService.cs:10`, `IAzoaQuestAuthoringService.cs:9`. Update
+  `DependencyInjection.cs:135,136`, `AzoaQuestDtos.cs:7`,
+  `AzoaQuestNodeAdapter.cs:17`, `AzoaQuestAuthoringService.cs:12`,
+  `AzoaQuestSignalService.cs:11`, `IAzoaQuestAuthoringService.cs:9`,
+  `IAzoaQuestSignalService.cs:8` — the exact set returned by
+  `grep -rl "azoa-avatar-onboarding\|azoa-quest-authoring" --include=*.cs`.
+  (`AzoaAvatarDtos.cs`, `AzoaAvatarService.cs`
+  and `IAzoaAvatarService.cs` were on this list until Wave 0 deleted the files
+  outright, so their citations are gone rather than fixed.) Update
   `azoa-avatar-onboarding` → `azoa-user-onboarding` and `azoa-quest-authoring` →
   `azoa-action-authoring` in those comments when the source tree is next touched.
   Left untouched here deliberately: several of those files are mid-edit in the

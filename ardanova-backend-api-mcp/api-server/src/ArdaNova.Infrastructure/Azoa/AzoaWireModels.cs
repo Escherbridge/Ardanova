@@ -19,25 +19,6 @@ internal sealed class AzoaResultEnvelope<T>
     public T? Result { get; set; }
 }
 
-// ── Avatar onboarding (self-register; §4, §11.2) ──────────────────────────────
-
-public sealed class AzoaAvatarRegisterRequest
-{
-    [JsonPropertyName("username")] public string Username { get; set; } = string.Empty;
-    [JsonPropertyName("email")] public string Email { get; set; } = string.Empty;
-    [JsonPropertyName("password")] public string Password { get; set; } = string.Empty;
-    [JsonPropertyName("title")] public string? Title { get; set; }
-    [JsonPropertyName("firstName")] public string? FirstName { get; set; }
-    [JsonPropertyName("lastName")] public string? LastName { get; set; }
-}
-
-public sealed class AzoaAvatar
-{
-    [JsonPropertyName("id")] public Guid Id { get; set; }
-    [JsonPropertyName("username")] public string? Username { get; set; }
-    [JsonPropertyName("email")] public string? Email { get; set; }
-}
-
 // ── Allocation door (§6) ──────────────────────────────────────────────────────
 
 public enum AzoaAllocationKind

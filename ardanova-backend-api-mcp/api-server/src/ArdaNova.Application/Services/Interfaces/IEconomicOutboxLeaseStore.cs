@@ -10,6 +10,13 @@ public interface IEconomicOutboxLeaseStore
         TimeSpan leaseDuration,
         CancellationToken ct = default);
 
+    /// <summary>Extends a current lease or returns null when its compare-and-set conditions no longer hold.</summary>
+    Task<EconomicOutboxLease?> TryRenewAsync(
+        EconomicOutboxLease lease,
+        DateTime now,
+        TimeSpan leaseDuration,
+        CancellationToken ct = default);
+
     /// <summary>Atomically records an outcome only while the supplied lease remains current.</summary>
     Task<bool> FinalizeAsync(
         EconomicOutboxLease lease,

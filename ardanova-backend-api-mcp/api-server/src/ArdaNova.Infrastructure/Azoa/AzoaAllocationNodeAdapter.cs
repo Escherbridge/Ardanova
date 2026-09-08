@@ -7,7 +7,7 @@ using Microsoft.Extensions.Options;
 /// <summary>
 /// Infrastructure adapter that satisfies the Application-layer port
 /// <see cref="IAzoaAllocationNode"/> by delegating to the typed-HttpClient
-/// transport <see cref="IAzoaNodeClient"/>. Mirrors <see cref="AzoaAvatarNodeAdapter"/>:
+/// transport <see cref="IAzoaNodeClient"/>. Mirrors <see cref="AzoaQuestNodeAdapter"/>:
 /// the interface lives in Application, the implementation here in Infrastructure,
 /// so the Application layer never references Infrastructure wire models.
 ///

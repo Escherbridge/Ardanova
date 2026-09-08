@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   createEmptyProjectFormData,
-  isProjectCreationCustodyReady,
+  isProjectRoleValueBearing,
+  isValueActionAccountReady,
   parseProjectCreateDraft,
   serializeProjectCreateDraft,
   toProjectRoleOpportunityInput,
@@ -18,7 +19,7 @@ describe("project creation contract", () => {
     expect(toOpportunityCompensation("BOUNTY")).toBe("fixed");
   });
 
-  it("requires concrete wallet evidence in the full Azoa readiness contract", () => {
+  it("requires concrete wallet evidence before a value-bearing action", () => {
     const ready = {
       avatarId: "avatar-1",
       walletId: "wallet-1",
@@ -30,17 +31,73 @@ describe("project creation contract", () => {
       ready: true,
     };
 
-    expect(isProjectCreationCustodyReady(ready)).toBe(true);
+    expect(isValueActionAccountReady(ready)).toBe(true);
     expect(
-      isProjectCreationCustodyReady({
+      isValueActionAccountReady({
         ...ready,
         walletId: null,
         walletReady: false,
       }),
     ).toBe(false);
     expect(
-      isProjectCreationCustodyReady({ ...ready, kycStatus: "Pending" }),
+      isValueActionAccountReady({ ...ready, kycStatus: "Pending" }),
     ).toBe(false);
+    expect(
+      isValueActionAccountReady({ ...ready, avatarId: null }),
+    ).toBe(false);
+    expect(
+      isValueActionAccountReady({ ...ready, walletAddress: null }),
+    ).toBe(false);
+    expect(isValueActionAccountReady({ ...ready, ready: false })).toBe(false);
+  });
+
+  it("keeps explicitly compensated roles out of pre-setup project drafts", () => {
+    const baseRole = {
+      id: "role-1",
+      title: "Contributor",
+      description: "A valid contributor role description",
+      compensationModel: "" as const,
+      shareAmount: "",
+      equityPercent: "",
+      isOpenForApplications: true,
+      projectRole: "CONTRIBUTOR" as const,
+    };
+
+    expect(isProjectRoleValueBearing(baseRole)).toBe(false);
+    expect(
+      isProjectRoleValueBearing({
+        ...baseRole,
+        compensationModel: "FIXED_SHARES",
+      }),
+    ).toBe(true);
+    expect(
+      isProjectRoleValueBearing({ ...baseRole, shareAmount: "120" }),
+    ).toBe(true);
+    expect(
+      isProjectRoleValueBearing({ ...baseRole, equityPercent: "2.5" }),
+    ).toBe(true);
+  });
+
+  it("does not label an unpaid role as negotiable compensation", () => {
+    const opportunity = toProjectRoleOpportunityInput({
+      projectId: "project-1",
+      projectTitle: "Neighborhood heat commons",
+      tags: ["mapping"],
+      role: {
+        id: "role-1",
+        title: "Volunteer mapper",
+        description: "Help coordinate field mapping and document observations.",
+        compensationModel: "",
+        shareAmount: "",
+        equityPercent: "",
+        isOpenForApplications: true,
+        projectRole: "CONTRIBUTOR",
+      },
+    });
+
+    expect(opportunity.compensationModel).toBeUndefined();
+    expect(opportunity.compensationAmount).toBeUndefined();
+    expect(opportunity.equityPercent).toBeUndefined();
   });
 
   it("omits undated milestones without constructing an invalid date", () => {

@@ -19,8 +19,7 @@ using ArdaNova.Application.DTOs;
 ///
 /// Layering: this service talks to the node through the Application-owned
 /// <see cref="IAzoaQuestNode"/> port, never the Infrastructure transport directly
-/// — the same dependency-inversion seam used by <c>IAzoaAvatarNode</c> /
-/// <c>IAlgorandService</c>.
+/// — the same dependency-inversion seam used by <c>IAlgorandService</c>.
 /// </summary>
 public interface IAzoaQuestAuthoringService
 {
@@ -54,8 +53,7 @@ public interface IAzoaQuestAuthoringService
 /// Why this exists: the typed-HttpClient transport (<c>IAzoaQuestNodeClient</c>) lives
 /// in <c>ArdaNova.Infrastructure.Azoa</c>, and the Application layer must not (and
 /// at compile time cannot) reference Infrastructure. This port is the seam — the
-/// same dependency-inversion pattern used by <c>IAzoaAvatarNode</c> and
-/// <c>IAlgorandService</c>. An Infrastructure adapter
+/// same dependency-inversion pattern used by <c>IAlgorandService</c>. An Infrastructure adapter
 /// (<c>AzoaQuestNodeAdapter</c>) maps these calls onto
 /// <c>IAzoaQuestNodeClient.PostAsync&lt;T&gt;</c>/<c>GetAsync&lt;T&gt;</c> and the real
 /// quest endpoints, and registers itself against this port.

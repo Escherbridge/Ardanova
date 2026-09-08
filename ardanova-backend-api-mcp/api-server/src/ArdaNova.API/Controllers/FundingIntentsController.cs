@@ -31,7 +31,7 @@ public sealed class FundingIntentsController : ControllerBase
 
         var actorId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
         var result = await _fundingIntentService.CreateCheckoutAsync(request, actorId, key[0]!, ct);
-        return ToActionResult(result);
+        return ToCheckoutActionResult(result);
     }
 
     /// <summary>Reads only the durable funding state owned by the authenticated actor.</summary>
@@ -54,4 +54,9 @@ public sealed class FundingIntentsController : ControllerBase
                 ResultType.Conflict => Conflict(new { error = result.Error }),
                 _ => BadRequest(new { error = result.Error }),
             };
+
+    private IActionResult ToCheckoutActionResult(Result<FundingCheckoutDto> result)
+        => result.Type == ResultType.Forbidden
+            ? StatusCode(403, new { error = result.Error })
+            : ToActionResult(result);
 }

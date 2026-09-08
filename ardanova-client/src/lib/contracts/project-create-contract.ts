@@ -121,7 +121,7 @@ export interface ProjectRoleOpportunityInput {
   description: string;
   type: "PROJECT_ROLE";
   skills: string[];
-  compensationModel: "fixed" | "hourly" | "negotiable";
+  compensationModel?: "fixed" | "hourly" | "negotiable";
   compensationAmount?: number;
   equityPercent?: number;
   isOpenForApplications: boolean;
@@ -166,7 +166,8 @@ export function isProjectCreateCompensationModel(
   return projectCreateCompensationModelSchema.safeParse(value).success;
 }
 
-export function isProjectCreationCustodyReady(
+/** Full account readiness is required for value-bearing actions, not drafts. */
+export function isValueActionAccountReady(
   status:
     | {
         avatarId?: string | null;
@@ -190,6 +191,15 @@ export function isProjectCreationCustodyReady(
       status.walletReady &&
       status.walletId?.trim() &&
       status.walletAddress?.trim(),
+  );
+}
+
+/** A role with compensation terms cannot be published before account setup. */
+export function isProjectRoleValueBearing(role: ProjectCreateRole): boolean {
+  return Boolean(
+    role.compensationModel ||
+      role.shareAmount.trim() ||
+      role.equityPercent.trim(),
   );
 }
 
@@ -265,7 +275,9 @@ export function toProjectRoleOpportunityInput(input: {
     description,
     type: "PROJECT_ROLE",
     skills: input.tags.length > 0 ? input.tags : ["General"],
-    compensationModel: toOpportunityCompensation(input.role.compensationModel),
+    compensationModel: input.role.compensationModel
+      ? toOpportunityCompensation(input.role.compensationModel)
+      : undefined,
     compensationAmount: optionalPositiveNumber(
       input.role.shareAmount,
       "Share amount",

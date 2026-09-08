@@ -8,16 +8,27 @@ using System.Net.Http;
 /// <inheritdoc/>
 public sealed class EconomicOutboxDispatchService : IEconomicOutboxDispatchService
 {
-    private static readonly TimeSpan LeaseDuration = TimeSpan.FromMinutes(2);
+    private static readonly TimeSpan LeaseDuration = TimeSpan.FromMinutes(5);
+    private static readonly TimeSpan DefaultGatewayOperationDeadline = TimeSpan.FromMinutes(4.5);
     private readonly IEconomicOutboxLeaseStore _store;
     private readonly IAzoaSettlementGateway _gateway;
+    private readonly IAzoaValueEligibilityService _valueEligibility;
+    private readonly TimeSpan _gatewayOperationDeadline;
 
     public EconomicOutboxDispatchService(
         IEconomicOutboxLeaseStore store,
-        IAzoaSettlementGateway gateway)
+        IAzoaSettlementGateway gateway,
+        IAzoaValueEligibilityService valueEligibility,
+        TimeSpan? gatewayOperationDeadline = null)
     {
+        var deadline = gatewayOperationDeadline ?? DefaultGatewayOperationDeadline;
+        if (deadline <= TimeSpan.Zero || deadline >= LeaseDuration)
+            throw new ArgumentOutOfRangeException(nameof(gatewayOperationDeadline));
+
         _store = store;
         _gateway = gateway;
+        _valueEligibility = valueEligibility;
+        _gatewayOperationDeadline = deadline;
     }
 
     /// <inheritdoc/>
@@ -46,7 +57,16 @@ public sealed class EconomicOutboxDispatchService : IEconomicOutboxDispatchServi
                 lease.SettlementId);
         }
 
-        var gatewayResult = await ExecuteGatewayAsync(lease, ct);
+        var gatewayResult = lease.ClaimKind == EconomicOutboxClaimKind.Dispatch
+            ? await DispatchIfEligibleAsync(lease, ct)
+            : await ExecuteGatewayWithRenewalAsync(lease, ct);
+        if (gatewayResult is null)
+        {
+            return new EconomicOutboxDispatchRun(
+                EconomicOutboxRecordedOutcome.StaleLease,
+                lease.OutboxId,
+                lease.SettlementId);
+        }
         var finalizedAt = DateTime.UtcNow;
         var finalization = ToFinalization(lease, gatewayResult, finalizedAt);
         var finalized = await _store.FinalizeAsync(lease, finalization, finalizedAt, ct);
@@ -56,15 +76,26 @@ public sealed class EconomicOutboxDispatchService : IEconomicOutboxDispatchServi
             lease.SettlementId);
     }
 
+    private async Task<AzoaSettlementGatewayResult?> ExecuteGatewayWithRenewalAsync(
+        EconomicOutboxLease lease,
+        CancellationToken ct)
+    {
+        var renewedLease = await RenewLeaseAsync(lease, ct);
+        return renewedLease is null ? null : await ExecuteGatewayAsync(renewedLease, ct);
+    }
+
     private async Task<AzoaSettlementGatewayResult> ExecuteGatewayAsync(
         EconomicOutboxLease lease,
         CancellationToken ct)
     {
+        using var gatewayDeadline = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        gatewayDeadline.CancelAfter(_gatewayOperationDeadline);
         try
         {
-            return lease.ClaimKind == EconomicOutboxClaimKind.Dispatch
-                ? await _gateway.DispatchAsync(lease.Request, ct)
-                : await _gateway.ReconcileAsync(lease.Request, ct);
+            var gatewayCall = lease.ClaimKind == EconomicOutboxClaimKind.Dispatch
+                ? _gateway.DispatchAsync(lease.Request, gatewayDeadline.Token)
+                : _gateway.ReconcileAsync(lease.Request, gatewayDeadline.Token);
+            return await gatewayCall.WaitAsync(gatewayDeadline.Token);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
@@ -87,6 +118,59 @@ public sealed class EconomicOutboxDispatchService : IEconomicOutboxDispatchServi
             return AmbiguousTransportResult();
         }
     }
+
+    private async Task<AzoaSettlementGatewayResult?> DispatchIfEligibleAsync(
+        EconomicOutboxLease lease,
+        CancellationToken ct)
+    {
+        var renewedLease = await RenewLeaseAsync(lease, ct);
+        if (renewedLease is null)
+            return null;
+
+        var readiness = await _valueEligibility.RequireReadyAsync(
+            renewedLease.Request.BeneficiaryUserId,
+            "receive settled project value",
+            ct);
+        if (readiness.IsFailure)
+        {
+            return AzoaSettlementGatewayResult.Retry(
+                "AZOA_ACCOUNT_NOT_READY",
+                readiness.Error ?? "The recipient must complete account setup before settlement can be dispatched.");
+        }
+
+        if (renewedLease.SettlementKind == EconomicSettlementKind.FUNDING_ALLOCATION)
+        {
+            var projectOwnerUserId = renewedLease.ProjectOwnerUserId;
+            if (string.IsNullOrWhiteSpace(projectOwnerUserId))
+            {
+                return AzoaSettlementGatewayResult.Retry(
+                    "AZOA_PROJECT_OWNER_UNAVAILABLE",
+                    "Funding settlement remains pending until the project owner can be verified.");
+            }
+
+            renewedLease = await RenewLeaseAsync(renewedLease, ct);
+            if (renewedLease is null)
+                return null;
+
+            var ownerReadiness = await _valueEligibility.RequireReadyAsync(
+                projectOwnerUserId,
+                "receive project funding",
+                ct);
+            if (ownerReadiness.IsFailure)
+            {
+                return AzoaSettlementGatewayResult.Retry(
+                    "AZOA_PROJECT_OWNER_NOT_READY",
+                    "Funding settlement remains pending until the project owner completes account setup.");
+            }
+        }
+
+        return await ExecuteGatewayWithRenewalAsync(renewedLease, ct);
+    }
+
+    private Task<EconomicOutboxLease?> RenewLeaseAsync(
+        EconomicOutboxLease lease,
+        CancellationToken ct)
+        => _store.TryRenewAsync(lease, DateTime.UtcNow, LeaseDuration, ct);
 
     private static AzoaSettlementGatewayResult AmbiguousTransportResult()
         => AzoaSettlementGatewayResult.Unknown(

@@ -23,6 +23,7 @@ import {
   fundingProjectTokenConfigSchema,
   parseFundingAmount,
 } from "~/lib/commerce/investment-preview-contract";
+import { isValueActionAccountReady } from "~/lib/contracts/project-create-contract";
 import { cn } from "~/lib/utils";
 
 const QUICK_AMOUNTS = [100, 500, 1000, 5000];
@@ -90,6 +91,9 @@ export default function InvestPage() {
   const router = useRouter();
   const slug = params.slug as string;
   const initialAmount = searchParams.get("amount") ?? "100";
+  const accountSetupHref = `/settings/verification?returnTo=${encodeURIComponent(
+    `/projects/${slug}/invest`,
+  )}`;
 
   const [step, setStep] = useState(1);
   const [usdInput, setUsdInput] = useState(initialAmount);
@@ -126,6 +130,10 @@ export default function InvestPage() {
   }, [usdInput]);
 
   const projectQuery = api.project.getById.useQuery({ id: slug });
+  const accountStatus = api.azoaCustodialAccount.getStatus.useQuery(undefined, {
+    retry: false,
+  });
+  const valueAccountReady = isValueActionAccountReady(accountStatus.data);
   const configQuery = api.projectTokens.getConfigByProject.useQuery(
     { projectId: projectQuery.data?.id ?? "" },
     { enabled: Boolean(projectQuery.data?.id) },
@@ -228,7 +236,7 @@ export default function InvestPage() {
             Funding terms unavailable
           </h1>
           <p className="text-muted-foreground mt-2 text-sm">
-            We could not verify this project&apos;s token configuration against
+            We could not verify this project&apos;s funding configuration against
             the funding contract. Checkout is disabled until the data is
             available and valid.
           </p>
@@ -269,6 +277,43 @@ export default function InvestPage() {
     );
   }
 
+  if (!valueAccountReady) {
+    const accountSetupMessage = accountStatus.isPending
+      ? "We are checking the account setup required for funding. Checkout remains unavailable until that check is complete."
+      : accountStatus.error
+        ? "We could not confirm account setup. To protect payments, checkout remains unavailable until the status can be confirmed."
+        : (accountStatus.data?.unavailableReason ??
+          "Complete account setup before funding a project. You can still review project details and estimates while setup is pending.");
+
+    return (
+      <div className="mx-auto flex min-h-[60vh] max-w-xl flex-col items-start justify-center gap-5 p-6">
+        <ShieldCheck className="text-primary size-10" aria-hidden="true" />
+        <div>
+          <p className="text-primary font-mono text-xs font-bold tracking-widest uppercase">
+            Account setup
+          </p>
+          <h1 className="mt-2 font-mono text-2xl font-bold">
+            Complete account setup before funding
+          </h1>
+          <p className="text-muted-foreground mt-2 text-sm leading-relaxed">
+            {accountSetupMessage}
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-3">
+          <Button asChild>
+            <Link href={accountSetupHref}>Review account setup</Link>
+          </Button>
+          <Button asChild variant="outline">
+            <Link href={`/projects/${slug}`}>
+              <ArrowLeft className="size-4" />
+              Back to project
+            </Link>
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   const projectTitle = projectQuery.data.title ?? "this project";
 
   return (
@@ -294,7 +339,7 @@ export default function InvestPage() {
         <p className="text-muted-foreground mt-3 max-w-2xl text-sm sm:text-base">
           Review an estimate, acknowledge the current terms, then create a
           durable funding intent. Provider checkout is a handoff—not proof of
-          payment, token allocation, or reconciled settlement.
+          payment, project-unit allocation, or reconciled settlement.
         </p>
       </header>
 
@@ -384,7 +429,7 @@ export default function InvestPage() {
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <p className="text-primary font-mono text-xs font-bold tracking-widest uppercase">
-                    Project-token position estimate
+                    Project-unit estimate
                   </p>
                   <h2 className="mt-2 text-xl font-bold">
                     What the API can preview
@@ -427,7 +472,7 @@ export default function InvestPage() {
                     value={formatUSD(currentAmount.value)}
                   />
                   <DataRow
-                    label="Estimated project-token units"
+                    label="Estimated project units"
                     value={formatToken(
                       preview.sourceTokenAmount,
                       config.unitName,
@@ -435,7 +480,7 @@ export default function InvestPage() {
                     emphasis
                   />
                   <DataRow
-                    label="Share of configured token supply"
+                    label="Share of configured project units"
                     value={
                       supplyShare === null
                         ? "Not available"
@@ -443,7 +488,7 @@ export default function InvestPage() {
                     }
                   />
                   <DataRow
-                    label="Reference value per project token"
+                    label="Reference value per project unit"
                     value={formatUSD(preview.projectTokenValueUsd)}
                   />
                   <DataRow
@@ -468,11 +513,11 @@ export default function InvestPage() {
 
               <div className="border-primary text-muted-foreground border-l-4 pl-4 text-xs leading-relaxed">
                 <p>
-                  This estimate does not execute a project-token-to-ARDA
-                  conversion. Rates can change before settlement.
+                  This estimate does not create or exchange project units. Rates
+                  can change before settlement.
                 </p>
                 <p className="text-foreground mt-2 font-semibold">
-                  A project-token supply percentage is not equity, governance
+                  A project-unit supply percentage is not equity, governance
                   power, a redemption right, or a guaranteed USD value.
                 </p>
               </div>
@@ -511,7 +556,7 @@ export default function InvestPage() {
                   emphasis
                 />
                 <DataRow
-                  label="Estimated project-token units"
+                  label="Estimated project units"
                   value={formatToken(
                     preview.sourceTokenAmount,
                     config.unitName,
@@ -529,7 +574,7 @@ export default function InvestPage() {
               <p className="text-muted-foreground text-xs leading-relaxed">
                 The server will create an actor-owned, idempotent funding intent
                 before opening Stripe. A provider return does not confirm
-                payment, allocate project tokens, or prove reconciled
+                payment, allocate project units, or prove reconciled
                 settlement.
               </p>
             </CardContent>
@@ -549,10 +594,10 @@ export default function InvestPage() {
                 />
                 <span>
                   <span className="block text-sm font-semibold">
-                    Project-token availability
+                    Project-unit availability
                   </span>
                   <span className="text-muted-foreground mt-1 block text-xs leading-relaxed">
-                    I understand any resulting project-token position follows
+                    I understand any resulting project-unit position follows
                     the recorded gate and settlement state. This preview does
                     not make the position liquid or transferable.
                   </span>

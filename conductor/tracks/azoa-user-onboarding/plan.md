@@ -12,6 +12,14 @@ type: plan
 > cutover). Boxes below now reflect what is on disk, not what was planned.
 > Terminology rule and as-built divergences: see [`spec.md`](spec.md).
 >
+> **SUPERSEDED by the tenant-custodial path (Wave 0, 2026-09-07).** The
+> `[x]` boxes naming `IAzoaAvatarService`/`AzoaAvatarService`,
+> `AzoaPublicNodeClient`, the `AzoaAvatarController` 410 stub and
+> `AzoaAvatarServiceTests` describe files that have since been **deleted**;
+> those routes now 404. They record what was built and then removed, not a
+> live surface. The live surface is `api/azoa/custodial-account` +
+> `IAzoaValueEligibilityService`. See [`spec.md`](spec.md) for the full list.
+>
 > Historical plan: current transport authority is split across credential-free
 > public registration and explicit custody, value, and action keys. The canonical
 > integration contract supersedes the single-key tasks below.

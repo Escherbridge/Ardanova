@@ -20,6 +20,7 @@ public class TaskCommerceService : ITaskCommerceService
     private readonly IRepository<ProjectTokenConfig> _tokenConfigRepository;
     private readonly IRepository<ProjectTask> _taskRepository;
     private readonly IRepository<TaskCommerceAgreement> _agreementRepository;
+    private readonly IAzoaValueEligibilityService _valueEligibility;
     private readonly IUnitOfWork _unitOfWork;
 
     public TaskCommerceService(
@@ -29,6 +30,7 @@ public class TaskCommerceService : ITaskCommerceService
         IRepository<ProjectTokenConfig> tokenConfigRepository,
         IRepository<ProjectTask> taskRepository,
         IRepository<TaskCommerceAgreement> agreementRepository,
+        IAzoaValueEligibilityService valueEligibility,
         IUnitOfWork unitOfWork)
     {
         _bidRepository = bidRepository;
@@ -37,6 +39,7 @@ public class TaskCommerceService : ITaskCommerceService
         _tokenConfigRepository = tokenConfigRepository;
         _taskRepository = taskRepository;
         _agreementRepository = agreementRepository;
+        _valueEligibility = valueEligibility;
         _unitOfWork = unitOfWork;
     }
 
@@ -85,6 +88,21 @@ public class TaskCommerceService : ITaskCommerceService
         if (bid.proposedAmount is not > 0m)
             return Result<TaskCommerceAcceptanceDto>.ValidationError(
                 "An accepted commerce bid requires a positive project-token award");
+
+        var ownerReadiness = await _valueEligibility.RequireReadyAsync(
+            project.createdById,
+            "accept paid project work",
+            ct);
+        if (!ownerReadiness.IsSuccess)
+            return Result<TaskCommerceAcceptanceDto>.Forbidden(ownerReadiness.Error!);
+
+        var contributorReadiness = await _valueEligibility.RequireReadyAsync(
+            bid.bidderId,
+            "receive a paid project assignment",
+            ct);
+        if (!contributorReadiness.IsSuccess)
+            return Result<TaskCommerceAcceptanceDto>.Forbidden(
+                "The selected contributor must complete account setup before this paid assignment can be accepted.");
 
         var tokenConfig = await _tokenConfigRepository.FindOneAsync(
             config => config.projectId == project.id,

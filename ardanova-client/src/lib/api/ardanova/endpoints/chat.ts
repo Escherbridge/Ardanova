@@ -97,8 +97,6 @@ export interface MarkAsReadDto {
 
 export interface TypingIndicatorDto {
   conversationId: string;
-  userId?: string;
-  userName?: string;
   isTyping: boolean;
 }
 
@@ -110,11 +108,9 @@ export class ChatEndpoint {
   // Conversations
 
   getConversations(
-    userId: string,
     params: GetConversationsParams,
   ): Promise<ApiResponse<CursorPaginatedResult<ChatConversation>>> {
     const searchParams = new URLSearchParams();
-    searchParams.set("userId", userId);
     if (params.type) searchParams.set("type", params.type);
     if (params.page) searchParams.set("page", String(params.page));
     if (params.pageSize) searchParams.set("pageSize", String(params.pageSize));
@@ -124,68 +120,40 @@ export class ChatEndpoint {
     );
   }
 
-  getConversation(
-    conversationId: string,
-    userId: string,
-  ): Promise<ApiResponse<ChatConversation>> {
-    const searchParams = new URLSearchParams();
-    searchParams.set("userId", userId);
-
-    return this.client.get<ChatConversation>(
-      `/api/chat/conversations/${conversationId}?${searchParams.toString()}`,
-    );
+  getConversation(conversationId: string): Promise<ApiResponse<ChatConversation>> {
+    return this.client.get<ChatConversation>(`/api/chat/conversations/${conversationId}`);
   }
 
-  getOrCreateDirect(
-    userId: string,
-    dto: GetOrCreateDirectDto,
-  ): Promise<ApiResponse<ChatConversation>> {
-    const searchParams = new URLSearchParams();
-    searchParams.set("userId", userId);
-
+  getOrCreateDirect(dto: GetOrCreateDirectDto): Promise<ApiResponse<ChatConversation>> {
     return this.client.post<ChatConversation>(
-      `/api/chat/conversations/direct?${searchParams.toString()}`,
+      "/api/chat/conversations/direct",
       dto,
     );
   }
 
-  createGroup(
-    userId: string,
-    dto: CreateGroupDto,
-  ): Promise<ApiResponse<ChatConversation>> {
-    const searchParams = new URLSearchParams();
-    searchParams.set("userId", userId);
-
+  createGroup(dto: CreateGroupDto): Promise<ApiResponse<ChatConversation>> {
     return this.client.post<ChatConversation>(
-      `/api/chat/conversations/group?${searchParams.toString()}`,
+      "/api/chat/conversations/group",
       dto,
     );
   }
 
   updateGroup(
     conversationId: string,
-    userId: string,
     dto: UpdateGroupDto,
   ): Promise<ApiResponse<ChatConversation>> {
-    const searchParams = new URLSearchParams();
-    searchParams.set("userId", userId);
-
     return this.client.put<ChatConversation>(
-      `/api/chat/conversations/${conversationId}?${searchParams.toString()}`,
+      `/api/chat/conversations/${conversationId}`,
       dto,
     );
   }
 
   addMember(
     conversationId: string,
-    userId: string,
     dto: AddMemberDto,
   ): Promise<ApiResponse<ChatConversation>> {
-    const searchParams = new URLSearchParams();
-    searchParams.set("userId", userId);
-
     return this.client.post<ChatConversation>(
-      `/api/chat/conversations/${conversationId}/members?${searchParams.toString()}`,
+      `/api/chat/conversations/${conversationId}/members`,
       dto,
     );
   }
@@ -193,25 +161,15 @@ export class ChatEndpoint {
   removeMember(
     conversationId: string,
     memberUserId: string,
-    userId: string,
   ): Promise<ApiResponse<void>> {
-    const searchParams = new URLSearchParams();
-    searchParams.set("userId", userId);
-
     return this.client.delete(
-      `/api/chat/conversations/${conversationId}/members/${memberUserId}?${searchParams.toString()}`,
+      `/api/chat/conversations/${conversationId}/members/${memberUserId}`,
     );
   }
 
-  leaveConversation(
-    conversationId: string,
-    userId: string,
-  ): Promise<ApiResponse<{ success: boolean }>> {
-    const searchParams = new URLSearchParams();
-    searchParams.set("userId", userId);
-
+  leaveConversation(conversationId: string): Promise<ApiResponse<{ success: boolean }>> {
     return this.client.post<{ success: boolean }>(
-      `/api/chat/conversations/${conversationId}/leave?${searchParams.toString()}`,
+      `/api/chat/conversations/${conversationId}/leave`,
       {},
     );
   }
@@ -220,12 +178,10 @@ export class ChatEndpoint {
 
   getMessages(
     conversationId: string,
-    userId: string,
     limit: number,
     cursor?: string,
   ): Promise<ApiResponse<CursorPaginatedResult<ChatMessage>>> {
     const searchParams = new URLSearchParams();
-    searchParams.set("userId", userId);
     searchParams.set("limit", String(limit));
     if (cursor) searchParams.set("cursor", cursor);
 
@@ -234,69 +190,38 @@ export class ChatEndpoint {
     );
   }
 
-  sendMessage(
-    userId: string,
-    dto: SendMessageDto,
-  ): Promise<ApiResponse<ChatMessage>> {
-    const searchParams = new URLSearchParams();
-    searchParams.set("userId", userId);
-
+  sendMessage(dto: SendMessageDto): Promise<ApiResponse<ChatMessage>> {
     return this.client.post<ChatMessage>(
-      `/api/chat/messages?${searchParams.toString()}`,
+      "/api/chat/messages",
       dto,
     );
   }
 
   updateMessage(
     messageId: string,
-    userId: string,
     dto: UpdateMessageDto,
   ): Promise<ApiResponse<ChatMessage>> {
-    const searchParams = new URLSearchParams();
-    searchParams.set("userId", userId);
-
     return this.client.put<ChatMessage>(
-      `/api/chat/messages/${messageId}?${searchParams.toString()}`,
+      `/api/chat/messages/${messageId}`,
       dto,
     );
   }
 
-  deleteMessage(
-    messageId: string,
-    userId: string,
-  ): Promise<ApiResponse<void>> {
-    const searchParams = new URLSearchParams();
-    searchParams.set("userId", userId);
-
-    return this.client.delete(
-      `/api/chat/messages/${messageId}?${searchParams.toString()}`,
-    );
+  deleteMessage(messageId: string): Promise<ApiResponse<void>> {
+    return this.client.delete(`/api/chat/messages/${messageId}`);
   }
 
-  markAsRead(
-    userId: string,
-    dto: MarkAsReadDto,
-  ): Promise<ApiResponse<{ success: boolean }>> {
-    const searchParams = new URLSearchParams();
-    searchParams.set("userId", userId);
-
+  markAsRead(dto: MarkAsReadDto): Promise<ApiResponse<{ success: boolean }>> {
     return this.client.post<{ success: boolean }>(
-      `/api/chat/messages/read?${searchParams.toString()}`,
+      "/api/chat/messages/read",
       dto,
     );
   }
 
-  sendTypingIndicator(
-    userId: string,
-    dto: TypingIndicatorDto,
-  ): Promise<ApiResponse<{ success: boolean }>> {
-    const searchParams = new URLSearchParams();
-    searchParams.set("userId", userId);
-
+  sendTypingIndicator(dto: TypingIndicatorDto): Promise<ApiResponse<{ success: boolean }>> {
     return this.client.post<{ success: boolean }>(
-      `/api/chat/typing?${searchParams.toString()}`,
+      "/api/chat/typing",
       dto,
     );
   }
 }
-

@@ -21,6 +21,7 @@ public class TasksController : ControllerBase
     private readonly IFeatureService _featureService;
     private readonly IProductBacklogItemService _pbiService;
     private readonly IHierarchyAuthorizationService _authorization;
+    private readonly IAzoaValueEligibilityService _valueEligibility;
 
     public TasksController(
         ITaskService taskService,
@@ -30,7 +31,8 @@ public class TasksController : ControllerBase
         ISprintService sprintService,
         IFeatureService featureService,
         IProductBacklogItemService pbiService,
-        IHierarchyAuthorizationService authorization)
+        IHierarchyAuthorizationService authorization,
+        IAzoaValueEligibilityService valueEligibility)
     {
         _taskService = taskService;
         _projectService = projectService;
@@ -40,6 +42,7 @@ public class TasksController : ControllerBase
         _featureService = featureService;
         _pbiService = pbiService;
         _authorization = authorization;
+        _valueEligibility = valueEligibility;
     }
 
     [HttpGet]
@@ -130,6 +133,16 @@ public class TasksController : ControllerBase
         if (dto.GuildId is not null && !await IsAssignedGuildAsync(dto.ProjectId, dto.GuildId, ct))
             return BadRequest(new { error = "Guild is not assigned to the project" });
 
+        if (dto.EquityReward is > 0m)
+        {
+            var readinessFailure = await RequirePaidTaskAccountSetupAsync(
+                dto.AssignedToId,
+                "create a paid task",
+                ct);
+            if (readinessFailure is not null)
+                return readinessFailure;
+        }
+
         var result = await _taskService.CreateAsync(dto, ct);
         return result.IsSuccess
             ? CreatedAtAction(nameof(GetById), new { id = result.Value!.Id }, result.Value)
@@ -149,6 +162,17 @@ public class TasksController : ControllerBase
             : await CanWorkOnTaskAsync(task, ct);
         if (!mayMutate)
             return Forbid();
+
+        if (dto.EquityReward is > 0m)
+        {
+            var readinessFailure = await RequirePaidTaskAccountSetupAsync(
+                task.AssignedToId,
+                "update a paid task",
+                ct);
+            if (readinessFailure is not null)
+                return readinessFailure;
+        }
+
         var result = await _taskService.UpdateAsync(id, dto, ct);
         return ToActionResult(result);
     }
@@ -194,6 +218,38 @@ public class TasksController : ControllerBase
                 task.ProjectId,
                 task.AssignedToId,
                 ct);
+
+    private async Task<IActionResult?> RequirePaidTaskAccountSetupAsync(
+        string? assigneeId,
+        string action,
+        CancellationToken ct)
+    {
+        var actorReadiness = await _valueEligibility.RequireReadyAsync(ActorId, action, ct);
+        if (!actorReadiness.IsSuccess)
+            return ValueActionForbidden(actorReadiness.Error);
+
+        if (!string.IsNullOrWhiteSpace(assigneeId) &&
+            !string.Equals(assigneeId, ActorId, StringComparison.Ordinal))
+        {
+            var assigneeReadiness = await _valueEligibility.RequireReadyAsync(
+                assigneeId,
+                "receive a paid task assignment",
+                ct);
+            if (!assigneeReadiness.IsSuccess)
+            {
+                return ValueActionForbidden(
+                    "Every participant must complete account setup before a paid task can be created or updated.");
+            }
+        }
+
+        return null;
+    }
+
+    private IActionResult ValueActionForbidden(string? error)
+        => StatusCode(403, new
+        {
+            error = error ?? "Complete account setup before continuing with this paid task."
+        });
 
     private async Task<bool> IsAssignedGuildAsync(
         string projectId,

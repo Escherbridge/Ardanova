@@ -67,12 +67,16 @@
 - **Tier System**: Reuses `UserTier` enum (BRONZE → SILVER → GOLD → PLATINUM → DIAMOND)
 
 ### Tokenomics Architecture
-- **ARDA Token**: Platform-wide fungible ASA serving as universal exchange medium
-- **Project Tokens**: Per-project fungible ASAs representing equity shares (fixed supply = 100%)
+> **D44-D51 correction:** the three lines below (Fiat Integration, Conversion Path) describe
+> Track 09 as it shipped, not the target model. There is no USDCa leg; fiat is only the ARDA
+> on/off-ramp, terminated inside AZOA's `Fiat.USD` rail (D45), and ARDA is user-facing, not
+> abstracted away (D44). See `conductor/tracks/09-tokenomics/spec.md`'s header.
+- **ARDA Token**: Platform-wide fungible ASA and ArdaNova's user-facing currency (D44)
+- **Project Tokens**: Per-project fungible ASAs representing equity shares (fixed supply = 100%), one real ASA minted into a platform reserve per project (D47)
 - **Exchange Model**: Deterministic treasury-backed rates (not market/AMM-based)
-- **Fiat Integration**: Stripe for USD crowdfunding (in) and Stripe Connect for payouts (out)
+- **Fiat Integration**: AZOA `Fiat.USD` rail (Stripe-backed) for the ARDA on-ramp (in) and off-ramp (out) — never a per-project checkout (D45)
 - **Equity Model**: Tasks assigned equity percentages; contributors earn project tokens on task completion
-- **Conversion Path**: Project Tokens → ARDA → USDCa → USD (all abstracted from users)
+- **Conversion Path**: USD → ARDA → Project Tokens → ARDA → USD (custodial wallet abstracted from users; the ARDA balance and project-token holding are not)
 
 ### Key Blockchain Services
 | Service | Location | Purpose |

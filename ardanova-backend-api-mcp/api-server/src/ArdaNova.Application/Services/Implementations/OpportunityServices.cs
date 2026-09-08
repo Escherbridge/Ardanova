@@ -315,6 +315,22 @@ public class OpportunityService : IOpportunityService
         return Result<OpportunityApplicationDto>.Success(applicationDto);
     }
 
+    public async Task<Result<OpportunityApplicationDto>> GetApplicationByIdAsync(
+        string applicationId,
+        CancellationToken ct = default)
+    {
+        var application = await _applicationRepository.GetByIdAsync(applicationId, ct);
+        if (application is null)
+            return Result<OpportunityApplicationDto>.NotFound($"Application with id {applicationId} not found");
+
+        var dto = _mapper.Map<OpportunityApplicationDto>(application);
+        var applicant = await _userRepository.GetByIdAsync(application.applicantId, ct);
+        if (applicant is not null)
+            dto = dto with { Applicant = _mapper.Map<OpportunityApplicationApplicantDto>(applicant) };
+
+        return Result<OpportunityApplicationDto>.Success(dto);
+    }
+
     public async Task<Result<IReadOnlyList<OpportunityApplicationDto>>> GetApplicationsAsync(string opportunityId, CancellationToken ct = default)
     {
         var opportunity = await _repository.GetByIdAsync(opportunityId, ct);
@@ -358,6 +374,22 @@ public class OpportunityService : IOpportunityService
     }
 
     // ===== Updates =====
+
+    public async Task<Result<OpportunityUpdateDto>> GetUpdateByIdAsync(
+        string updateId,
+        CancellationToken ct = default)
+    {
+        var update = await _updateRepository.GetByIdAsync(updateId, ct);
+        if (update is null)
+            return Result<OpportunityUpdateDto>.NotFound($"Opportunity update with id {updateId} not found");
+
+        var dto = _mapper.Map<OpportunityUpdateDto>(update);
+        var user = await _userRepository.GetByIdAsync(update.userId, ct);
+        if (user is not null)
+            dto = dto with { User = _mapper.Map<OpportunityUpdateAuthorDto>(user) };
+
+        return Result<OpportunityUpdateDto>.Success(dto);
+    }
 
     public async Task<Result<IReadOnlyList<OpportunityUpdateDto>>> GetUpdatesAsync(string opportunityId, CancellationToken ct = default)
     {
@@ -420,6 +452,22 @@ public class OpportunityService : IOpportunityService
     }
 
     // ===== Comments =====
+
+    public async Task<Result<OpportunityCommentDto>> GetCommentByIdAsync(
+        string commentId,
+        CancellationToken ct = default)
+    {
+        var comment = await _commentRepository.GetByIdAsync(commentId, ct);
+        if (comment is null)
+            return Result<OpportunityCommentDto>.NotFound($"Opportunity comment with id {commentId} not found");
+
+        var dto = _mapper.Map<OpportunityCommentDto>(comment);
+        var user = await _userRepository.GetByIdAsync(comment.userId, ct);
+        if (user is not null)
+            dto = dto with { Author = _mapper.Map<OpportunityCommentAuthorDto>(user) };
+
+        return Result<OpportunityCommentDto>.Success(dto);
+    }
 
     public async Task<Result<IReadOnlyList<OpportunityCommentDto>>> GetCommentsAsync(string opportunityId, CancellationToken ct = default)
     {

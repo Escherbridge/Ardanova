@@ -54,6 +54,7 @@ public sealed class EconomicOutboxLeaseStore : IEconomicOutboxLeaseStore
         var outbox = await _context.EconomicOutboxes
             .AsNoTracking()
             .Include(item => item.Settlement)
+            .ThenInclude(settlement => settlement!.Project)
             .SingleAsync(item => item.id == candidate.id, ct);
         var settlement = outbox.Settlement
             ?? throw new InvalidOperationException("A claimed economic outbox is missing its settlement.");
@@ -75,7 +76,39 @@ public sealed class EconomicOutboxLeaseStore : IEconomicOutboxLeaseStore
                 settlement.beneficiaryUserId,
                 settlement.assetCode,
                 amount,
-                settlement.termsSnapshot));
+                settlement.termsSnapshot),
+            settlement.kind,
+            settlement.kind == EconomicSettlementKind.FUNDING_ALLOCATION
+                ? settlement.Project?.createdById
+                : null);
+    }
+
+    /// <inheritdoc/>
+    public async Task<EconomicOutboxLease?> TryRenewAsync(
+        EconomicOutboxLease lease,
+        DateTime now,
+        TimeSpan leaseDuration,
+        CancellationToken ct = default)
+    {
+        if (lease.LeaseExpiresAt <= now)
+            return null;
+
+        var expiresAt = now.Add(leaseDuration);
+        var renewed = await _context.EconomicOutboxes
+            .Where(item => item.id == lease.OutboxId
+                && item.status == EconomicOutboxStatus.LEASED
+                && item.leaseToken == lease.LeaseToken
+                && item.leaseExpiresAt > now
+                && item.Settlement != null
+                && item.Settlement.id == lease.SettlementId
+                && item.Settlement.status == lease.SettlementStatus
+                && item.Settlement.version == lease.SettlementVersion)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(item => item.leaseExpiresAt, expiresAt)
+                .SetProperty(item => item.updatedAt, now), ct);
+        return renewed == 1
+            ? lease with { LeaseExpiresAt = expiresAt }
+            : null;
     }
 
     /// <inheritdoc/>

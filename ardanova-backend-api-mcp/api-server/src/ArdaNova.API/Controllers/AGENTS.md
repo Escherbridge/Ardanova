@@ -35,20 +35,46 @@ Manual authority in Development and must be passed through unchanged. It is a
 workflow simulation, not identity evidence, and never creates a Production
 manual-review path.
 
-The legacy `/api/azoa/avatar/ensure` and `/wallet` mutations return 410. They
-used anonymous avatar registration and could not prove a tenant-bound custodial
-account. New onboarding uses `/api/azoa/custodial-account`; the legacy status
-read remains only for migration visibility.
+The self-sovereign avatar path is gone: `AzoaAvatarController` and its
+`/api/azoa/avatar/ensure`, `/wallet`, and `/status` routes were deleted outright,
+so those paths now 404 rather than 410. Avatar linkage was never a complete
+account-readiness or value-eligibility signal, and registering a user against the
+shared node posted their real email to a node ArdaNova does not own. Onboarding
+and readiness reads use `/api/azoa/custodial-account`; value eligibility is
+`IAzoaValueEligibilityService`.
 
-The legacy status read is still an object-authorization boundary. It resolves
-the user only from the single verified `ActorAssertion` identity and does not
-accept a route, query, or body user ID. Missing or ambiguous actor identities
-fail before `IAzoaAvatarService` is called, which keeps direct controller use
-and future filter changes from reintroducing an IDOR path.
+## Collaboration identity
+
+Chat and notification controllers require `ActorAssertion` at the controller
+boundary. Conversation and message service calls always receive the signed
+actor; a route, query, or body user ID is data, never the acting identity.
+Notification records additionally require an ownership check after lookup and
+before any content read, read-mark, or delete mutation. Public HTTP requests
+cannot create arbitrary notifications; trusted application workflows call
+`INotificationService` directly.
+
+## Opportunity identity
+
+Opportunity browsing, public updates, and public comments remain readable.
+Every opportunity mutation is actor-bound. The controller replaces a supplied
+poster, applicant, update author, or comment author with the signed actor and
+checks project-manager or guild-manager authority before a person can post an
+opportunity. A source-backed opportunity is managed only by a current manager
+of that project or guild (or an administrator), so a former manager cannot
+retain authority through a historical poster ID. A source-less legacy
+opportunity remains poster-managed. A comment can additionally be deleted by
+its signed author. Application, update, and comment lookup must occur before
+mutation so an opaque child-record ID cannot bypass those parent ownership
+rules. A comment reply may point only to a parent in the same opportunity.
+
+Unpaid listings remain ordinary collaboration. Publishing or updating a
+listing whose final terms include positive compensation or project units first
+requires the signed manager to pass `IAzoaValueEligibilityService`; the API
+returns safe account-setup guidance rather than making value promises.
 
 ## Sensitive mutation checkpoints
 
-Token distribution, credential utility and membership lifecycle changes,
+Project-unit allocation and distribution, credential utility and membership lifecycle changes,
 governance and vote-delegation changes, and referral reward claims are
 intentionally fail-closed.
 They must not invoke application services from public routes until authority is
@@ -58,9 +84,19 @@ rewards must be server-derived, beneficiary-bound, atomic, and idempotent.
 Client-supplied grant reasons, actor IDs, reward amounts, or ownership checks in
 the BFF are never sufficient authorization.
 
+Direct project-member share-balance and voting-power changes are also paused at
+both the route and service layers. Role changes remain ordinary collaboration,
+but project-unit and governance allocation require provider-backed settlement
+and auditable controls before they may be enabled.
+
 # Project creation authority
 
-Project creation is gated inside `ProjectService`, not only in the browser or
-controller. The service re-reads the tenant-bound Azoa account and requires the
-full ready contract: stable avatar evidence, approved KYC, and a managed wallet
-id and address. The aggregate `Ready` flag never substitutes for those fields.
+Project creation remains actor-bound in `ProjectsController`, but creating a
+draft project is collaboration work rather than a value-bearing transition. Do
+not require account setup for draft creation, project discussion, or ordinary
+unpaid task planning. Funding, paid work, rewards, and every other action that
+can create, move, receive, or promise value must use the server-derived
+`IAzoaValueEligibilityService` after actor authorization. Its full readiness
+contract requires stable avatar evidence, approved identity verification, and
+a managed-account id and address; the aggregate `Ready` flag never substitutes
+for those fields.

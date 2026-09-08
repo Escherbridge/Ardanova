@@ -1,9 +1,11 @@
 # Azoa transport boundaries
 
-ArdaNova uses four typed HTTP clients so credentials cannot drift across trust
-boundaries:
+ArdaNova uses three typed HTTP clients so credentials cannot drift across trust
+boundaries. There is deliberately no credential-free client: the anonymous
+`AzoaPublicNodeClient` was deleted with the self-sovereign avatar path, because
+its only caller registered the user's real email on a shared node ArdaNova does
+not own.
 
-- `AzoaPublicNodeClient` sends no API key and exposes only anonymous avatar registration.
 - `AzoaCustodialNodeClient` sends `Azoa:CustodyApiKey` and accepts only
   `/api/tenant/custodial-accounts` routes. Its key is limited to
   `tenant:provision`, `wallet:manage`, `kyc:read`, and `kyc:submit`.

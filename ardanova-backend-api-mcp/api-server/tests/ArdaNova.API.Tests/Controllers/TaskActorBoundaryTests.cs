@@ -160,6 +160,70 @@ public class TaskActorBoundaryTests
     }
 
     [Fact]
+    public async Task Create_CompensatedTaskRequiresAccountSetupBeforeMutation()
+    {
+        var tasks = new Mock<ITaskService>();
+        var authorization = new Mock<IHierarchyAuthorizationService>();
+        authorization
+            .Setup(service => service.CanManageProjectAsync("actor-1", "project-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+        var eligibility = new Mock<IAzoaValueEligibilityService>();
+        eligibility
+            .Setup(service => service.RequireReadyAsync(
+                "actor-1",
+                "create a paid task",
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<AzoaCustodialAccountStatusDto>.Forbidden("Complete your account setup before creating paid work."));
+        var controller = WithActor(
+            CreateController(tasks.Object, authorization: authorization.Object, valueEligibility: eligibility.Object),
+            "actor-1");
+
+        var result = await controller.Create(
+            new CreateTaskDto { ProjectId = "project-1", Title = "Paid task", EquityReward = 10m },
+            CancellationToken.None);
+
+        var response = result.Should().BeOfType<ObjectResult>().Subject;
+        response.StatusCode.Should().Be(403);
+        tasks.Verify(service => service.CreateAsync(It.IsAny<CreateTaskDto>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Update_CompensatedTaskRequiresAccountSetupBeforeMutation()
+    {
+        var tasks = new Mock<ITaskService>();
+        tasks.Setup(service => service.GetByIdAsync("task-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<TaskDto>.Success(new TaskDto
+            {
+                Id = "task-1",
+                ProjectId = "project-1",
+                AssignedToId = "contributor-1",
+            }));
+        var authorization = new Mock<IHierarchyAuthorizationService>();
+        authorization
+            .Setup(service => service.CanManageProjectAsync("actor-1", "project-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+        var eligibility = new Mock<IAzoaValueEligibilityService>();
+        eligibility
+            .Setup(service => service.RequireReadyAsync(
+                "actor-1",
+                "update a paid task",
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<AzoaCustodialAccountStatusDto>.Forbidden("Complete your account setup before updating paid work."));
+        var controller = WithActor(
+            CreateController(tasks.Object, authorization: authorization.Object, valueEligibility: eligibility.Object),
+            "actor-1");
+
+        var result = await controller.Update(
+            "task-1",
+            new UpdateTaskDto { EquityReward = 10m },
+            CancellationToken.None);
+
+        var response = result.Should().BeOfType<ObjectResult>().Subject;
+        response.StatusCode.Should().Be(403);
+        tasks.Verify(service => service.UpdateAsync(It.IsAny<string>(), It.IsAny<UpdateTaskDto>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
     public void CallerControlledTaskUserRoute_IsNotExposed()
     {
         typeof(TasksController).GetMethod("GetByUserId", BindingFlags.Instance | BindingFlags.Public).Should().BeNull();
@@ -180,7 +244,9 @@ public class TaskActorBoundaryTests
 
     private static TasksController CreateController(
         ITaskService tasks,
-        IProjectService? projects = null)
+        IProjectService? projects = null,
+        IHierarchyAuthorizationService? authorization = null,
+        IAzoaValueEligibilityService? valueEligibility = null)
     {
         if (projects is null)
         {
@@ -201,15 +267,19 @@ public class TaskActorBoundaryTests
             projects = projectService.Object;
         }
 
-        var authorization = new Mock<IHierarchyAuthorizationService>();
-        authorization
-            .Setup(service => service.CanWorkOnItemAsync(
-                It.IsAny<string>(),
-                It.IsAny<string>(),
-                It.IsAny<string?>(),
-                It.IsAny<CancellationToken>()))
-            .Returns((string actorId, string projectId, string? assigneeId, CancellationToken ct) =>
-                Task.FromResult(string.Equals(actorId, assigneeId, StringComparison.Ordinal)));
+        if (authorization is null)
+        {
+            var authorizationMock = new Mock<IHierarchyAuthorizationService>();
+            authorizationMock
+                .Setup(service => service.CanWorkOnItemAsync(
+                    It.IsAny<string>(),
+                    It.IsAny<string>(),
+                    It.IsAny<string?>(),
+                    It.IsAny<CancellationToken>()))
+                .Returns((string actorId, string projectId, string? assigneeId, CancellationToken ct) =>
+                    Task.FromResult(string.Equals(actorId, assigneeId, StringComparison.Ordinal)));
+            authorization = authorizationMock.Object;
+        }
 
         return new TasksController(
             tasks,
@@ -219,7 +289,8 @@ public class TaskActorBoundaryTests
             new Mock<ISprintService>(MockBehavior.Strict).Object,
             new Mock<IFeatureService>(MockBehavior.Strict).Object,
             new Mock<IProductBacklogItemService>(MockBehavior.Strict).Object,
-            authorization.Object);
+            authorization,
+            valueEligibility ?? new Mock<IAzoaValueEligibilityService>().Object);
     }
 
     private static T WithActor<T>(T controller, string actorId, UserRole? role = null)

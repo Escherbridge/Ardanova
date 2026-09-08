@@ -62,6 +62,10 @@ export const env = createEnv({
         : z.string().url().optional(),
     GOOGLE_CLIENT_ID: z.string(),
     GOOGLE_CLIENT_SECRET: z.string(),
+    AUTH_GOOGLE_LEGACY_LINK_USER_IDS: z
+      .string()
+      .regex(/^[A-Za-z0-9_-]+(?:,[A-Za-z0-9_-]+)*$/)
+      .optional(),
     DATABASE_URL: z
       .string()
       .url()
@@ -116,6 +120,8 @@ export const env = createEnv({
     AUTH_URL: process.env.AUTH_URL,
     GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID,
     GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET,
+    AUTH_GOOGLE_LEGACY_LINK_USER_IDS:
+      process.env.AUTH_GOOGLE_LEGACY_LINK_USER_IDS,
     DATABASE_URL: process.env.DATABASE_URL,
     NODE_ENV: process.env.NODE_ENV,
     DEV_AUTH_BYPASS: process.env.DEV_AUTH_BYPASS,

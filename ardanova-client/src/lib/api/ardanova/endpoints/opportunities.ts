@@ -71,7 +71,6 @@ export interface OpportunityApplication {
 }
 
 export interface CreateOpportunityDto {
-  posterId: string;
   title: string;
   description: string;
   type?: string;
@@ -92,7 +91,6 @@ export interface CreateOpportunityDto {
   origin?: string;
   status?: string;
   projectRole?: string;
-  [key: string]: unknown;
 }
 
 export interface UpdateOpportunityDto {
@@ -113,11 +111,9 @@ export interface UpdateOpportunityDto {
 }
 
 export interface ApplyToOpportunityDto {
-  applicantId: string;
   coverLetter: string;
   portfolio?: string;
   additionalInfo?: string;
-  [key: string]: unknown;
 }
 
 export interface UpdateApplicationStatusDto {
@@ -126,8 +122,6 @@ export interface UpdateApplicationStatusDto {
 }
 
 export interface CreateOpportunityUpdateDto {
-  opportunityId: string;
-  userId: string;
   title: string;
   content: string;
   images?: string;
@@ -150,8 +144,6 @@ export interface OpportunityCommentDto {
 }
 
 export interface CreateOpportunityCommentDto {
-  opportunityId: string;
-  userId: string;
   content: string;
   parentId?: string;
 }

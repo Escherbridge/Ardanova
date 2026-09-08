@@ -6,11 +6,17 @@ import {
 import type { JWT } from "next-auth/jwt";
 import GoogleProvider from "next-auth/providers/google";
 
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { db } from "~/server/db";
 import { env } from "~/env";
 
 const isDevelopment = process.env.NODE_ENV === "development";
+const legacyGoogleLinkUserIds = new Set(
+  (env.AUTH_GOOGLE_LEGACY_LINK_USER_IDS ?? "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean),
+);
 
 function clearAuthorizationClaims(token: JWT) {
   delete token.id;
@@ -130,6 +136,58 @@ async function findGoogleAccount(providerAccountId: string) {
   });
 }
 
+async function linkAllowlistedLegacyGoogleAccount(
+  userId: string,
+  identity: GoogleIdentity,
+): Promise<boolean> {
+  if (!legacyGoogleLinkUserIds.has(userId)) return false;
+
+  return db.$transaction(
+    async (transaction) => {
+      const candidate = await transaction.user.findUnique({
+        where: { id: userId },
+        select: {
+          id: true,
+          email: true,
+          emailVerified: true,
+          accounts: { select: { id: true }, take: 1 },
+        },
+      });
+      if (
+        !candidate ||
+        candidate.email.trim().toLowerCase() !== identity.email ||
+        !candidate.emailVerified ||
+        candidate.accounts.length !== 0 ||
+        !legacyGoogleLinkUserIds.has(candidate.id)
+      ) {
+        return false;
+      }
+
+      const subjectOwner = await transaction.account.findUnique({
+        where: {
+          provider_providerAccountId: {
+            provider: "google",
+            providerAccountId: identity.providerAccountId,
+          },
+        },
+        select: { userId: true },
+      });
+      if (subjectOwner) return subjectOwner.userId === candidate.id;
+
+      await transaction.account.create({
+        data: {
+          userId: candidate.id,
+          type: identity.accountType,
+          provider: "google",
+          providerAccountId: identity.providerAccountId,
+        },
+      });
+      return true;
+    },
+    { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+  );
+}
+
 function applyAuthorizationClaims(token: JWT, user: AuthUser) {
   token.id = user.id;
   token.email = user.email;
@@ -162,6 +220,13 @@ async function handleSignIn({
       select: { id: true },
     });
     if (emailOwner) {
+      if (
+        await linkAllowlistedLegacyGoogleAccount(emailOwner.id, identity)
+      ) {
+        console.info("[NextAuth] Linked an approved legacy Google identity.");
+        return true;
+      }
+
       console.error(
         "[NextAuth] Google identity requires explicit account linking; sign-in denied.",
       );

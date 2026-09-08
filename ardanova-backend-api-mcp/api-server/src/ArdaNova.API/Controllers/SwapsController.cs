@@ -5,6 +5,7 @@ using ArdaNova.Application.DTOs;
 using ArdaNova.Application.Services.Interfaces;
 using ArdaNova.API.Middleware;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
 [ApiController]
@@ -36,15 +37,19 @@ public class SwapsController : ControllerBase
     }
 
     /// <summary>
-    /// Execute a token swap.
+    /// Exchange execution is paused until provider settlement and reconciliation are available.
     /// </summary>
     [HttpPost]
-    public async Task<IActionResult> ExecuteSwap(
+    public IActionResult ExecuteSwap(
         [FromBody] SwapRequestDto dto,
         CancellationToken ct)
     {
-        var result = await _swapService.ExecuteSwapAsync(ActorId, dto, ct);
-        return ToActionResult(result);
+        _ = dto;
+        _ = ct;
+        return StatusCode(StatusCodes.Status503ServiceUnavailable, new
+        {
+            error = "Project share exchange is temporarily unavailable while secure settlement is being completed."
+        });
     }
 
     /// <summary>

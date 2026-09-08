@@ -1,12 +1,16 @@
 namespace ArdaNova.API.Controllers;
 
+using System.Security.Claims;
+using ArdaNova.API.Middleware;
 using ArdaNova.Application.Common.Results;
 using ArdaNova.Application.DTOs;
 using ArdaNova.Application.Services.Interfaces;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 [ApiController]
 [Route("api/[controller]")]
+[Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
 public class ChatController : ControllerBase
 {
     private readonly IChatService _chatService;
@@ -20,65 +24,60 @@ public class ChatController : ControllerBase
 
     [HttpGet("conversations")]
     public async Task<IActionResult> GetConversations(
-        [FromQuery] string userId,
         [FromQuery] string? type = null,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
         CancellationToken ct = default)
     {
-        var result = await _chatService.GetUserConversationsAsync(userId, page, pageSize, ct);
+        _ = type;
+        var result = await _chatService.GetUserConversationsAsync(ActorId, page, pageSize, ct);
         return ToActionResult(result);
     }
 
     [HttpGet("conversations/{conversationId}")]
     public async Task<IActionResult> GetConversation(
         string conversationId,
-        [FromQuery] string userId,
         CancellationToken ct = default)
     {
-        var result = await _chatService.GetConversationByIdAsync(conversationId, userId, ct);
+        var result = await _chatService.GetConversationByIdAsync(conversationId, ActorId, ct);
         return ToActionResult(result);
     }
 
     [HttpPost("conversations/direct")]
     public async Task<IActionResult> GetOrCreateDirect(
-        [FromQuery] string userId,
         [FromBody] CreateDirectConversationDto dto,
         CancellationToken ct = default)
     {
-        var result = await _chatService.GetOrCreateDirectConversationAsync(userId, dto, ct);
+        var result = await _chatService.GetOrCreateDirectConversationAsync(ActorId, dto, ct);
         return ToActionResult(result);
     }
 
     [HttpPost("conversations/group")]
     public async Task<IActionResult> CreateGroup(
-        [FromQuery] string userId,
         [FromBody] CreateGroupConversationDto dto,
         CancellationToken ct = default)
     {
-        var result = await _chatService.CreateGroupConversationAsync(userId, dto, ct);
+        var result = await _chatService.CreateGroupConversationAsync(ActorId, dto, ct);
         return ToActionResult(result);
     }
 
     [HttpPut("conversations/{conversationId}")]
     public async Task<IActionResult> UpdateGroup(
         string conversationId,
-        [FromQuery] string userId,
         [FromBody] UpdateGroupConversationDto dto,
         CancellationToken ct = default)
     {
-        var result = await _chatService.UpdateGroupConversationAsync(conversationId, userId, dto, ct);
+        var result = await _chatService.UpdateGroupConversationAsync(conversationId, ActorId, dto, ct);
         return ToActionResult(result);
     }
 
     [HttpPost("conversations/{conversationId}/members")]
     public async Task<IActionResult> AddMember(
         string conversationId,
-        [FromQuery] string userId,
         [FromBody] AddConversationMemberDto dto,
         CancellationToken ct = default)
     {
-        var result = await _chatService.AddMemberAsync(conversationId, userId, dto, ct);
+        var result = await _chatService.AddMemberAsync(conversationId, ActorId, dto, ct);
         return ToActionResult(result);
     }
 
@@ -86,20 +85,18 @@ public class ChatController : ControllerBase
     public async Task<IActionResult> RemoveMember(
         string conversationId,
         string memberUserId,
-        [FromQuery] string userId,
         CancellationToken ct = default)
     {
-        var result = await _chatService.RemoveMemberAsync(conversationId, memberUserId, userId, ct);
+        var result = await _chatService.RemoveMemberAsync(conversationId, memberUserId, ActorId, ct);
         return result.IsSuccess ? NoContent() : ToActionResult(result);
     }
 
     [HttpPost("conversations/{conversationId}/leave")]
     public async Task<IActionResult> Leave(
         string conversationId,
-        [FromQuery] string userId,
         CancellationToken ct = default)
     {
-        var result = await _chatService.LeaveConversationAsync(conversationId, userId, ct);
+        var result = await _chatService.LeaveConversationAsync(conversationId, ActorId, ct);
         return result.IsSuccess ? Ok(new { success = true }) : ToActionResult(result);
     }
 
@@ -108,65 +105,62 @@ public class ChatController : ControllerBase
     [HttpGet("conversations/{conversationId}/messages")]
     public async Task<IActionResult> GetMessages(
         string conversationId,
-        [FromQuery] string userId,
         [FromQuery] int limit = 50,
         [FromQuery] string? cursor = null,
         CancellationToken ct = default)
     {
-        var result = await _chatService.GetMessagesAsync(conversationId, userId, limit, cursor, ct);
+        var result = await _chatService.GetMessagesAsync(conversationId, ActorId, limit, cursor, ct);
         return ToActionResult(result);
     }
 
     [HttpPost("messages")]
     public async Task<IActionResult> SendMessage(
-        [FromQuery] string userId,
         [FromBody] SendMessageDto dto,
         CancellationToken ct = default)
     {
-        var result = await _chatService.SendMessageAsync(userId, dto, ct);
+        var result = await _chatService.SendMessageAsync(ActorId, dto, ct);
         return ToActionResult(result);
     }
 
     [HttpPut("messages/{messageId}")]
     public async Task<IActionResult> UpdateMessage(
         string messageId,
-        [FromQuery] string userId,
         [FromBody] UpdateMessageDto dto,
         CancellationToken ct = default)
     {
-        var result = await _chatService.UpdateMessageAsync(messageId, userId, dto, ct);
+        var result = await _chatService.UpdateMessageAsync(messageId, ActorId, dto, ct);
         return ToActionResult(result);
     }
 
     [HttpDelete("messages/{messageId}")]
     public async Task<IActionResult> DeleteMessage(
         string messageId,
-        [FromQuery] string userId,
         CancellationToken ct = default)
     {
-        var result = await _chatService.DeleteMessageAsync(messageId, userId, ct);
+        var result = await _chatService.DeleteMessageAsync(messageId, ActorId, ct);
         return result.IsSuccess ? NoContent() : ToActionResult(result);
     }
 
     [HttpPost("messages/read")]
     public async Task<IActionResult> MarkAsRead(
-        [FromQuery] string userId,
         [FromBody] MarkMessagesReadDto dto,
         CancellationToken ct = default)
     {
-        var result = await _chatService.MarkMessagesReadAsync(userId, dto, ct);
+        var result = await _chatService.MarkMessagesReadAsync(ActorId, dto, ct);
         return result.IsSuccess ? Ok(new { success = true }) : ToActionResult(result);
     }
 
     [HttpPost("typing")]
     public async Task<IActionResult> SendTypingIndicator(
-        [FromQuery] string userId,
         [FromBody] TypingIndicatorDto dto,
         CancellationToken ct = default)
     {
-        var result = await _chatService.SendTypingIndicatorAsync(userId, dto, ct);
+        var actorDto = dto with { UserId = ActorId, UserName = null };
+        var result = await _chatService.SendTypingIndicatorAsync(ActorId, actorDto, ct);
         return result.IsSuccess ? Ok(new { success = true }) : ToActionResult(result);
     }
+
+    private string ActorId => User.FindFirstValue(ClaimTypes.NameIdentifier)!;
 
     private IActionResult ToActionResult<T>(Result<T> result)
     {

@@ -27,22 +27,6 @@ export interface SwapPreviewDto {
   ardaRate: number;
 }
 
-export interface SwapResultDto {
-  id: string;
-  userId: string;
-  sourceConfigId: string;
-  targetConfigId: string;
-  sourceTokenAmount: number;
-  sourceUnitName: string;
-  sourceUsdValue: number;
-  ardaAmount: number;
-  targetTokenAmount: number;
-  targetUnitName: string;
-  targetUsdValue: number;
-  status: SwapStatus;
-  createdAt: string;
-}
-
 export interface SwapHistoryDto {
   id: string;
   sourceUnitName: string;
@@ -97,24 +81,6 @@ const swapPreviewSchema = z
     ardaRate: z.number().finite().nonnegative(),
   })
   .strict() satisfies z.ZodType<SwapPreviewDto>;
-
-const swapResultSchema = z
-  .object({
-    id: z.string().min(1),
-    userId: z.string().min(1),
-    sourceConfigId: z.string().min(1),
-    targetConfigId: z.string().min(1),
-    sourceTokenAmount: z.number().int().positive(),
-    sourceUnitName: z.string().min(1),
-    sourceUsdValue: z.number().finite().nonnegative(),
-    ardaAmount: z.number().finite().nonnegative(),
-    targetTokenAmount: z.number().int().nonnegative(),
-    targetUnitName: z.string().min(1),
-    targetUsdValue: z.number().finite().nonnegative(),
-    status: swapStatusSchema,
-    createdAt: z.string().min(1),
-  })
-  .strict() satisfies z.ZodType<SwapResultDto>;
 
 const swapHistoryItemSchema = z
   .object({
@@ -179,20 +145,12 @@ export const swapRouter = createTRPCRouter({
 
   executeSwap: protectedProcedure
     .input(executeSwapInputSchema)
-    .mutation(async ({ input }) => {
-      const response = await apiClient.post<unknown>("/api/Swaps", {
-        sourceConfigId: input.sourceConfigId,
-        targetConfigId: input.targetConfigId,
-        sourceTokenAmount: input.sourceTokenAmount,
+    .mutation(() => {
+      throw new TRPCError({
+        code: "SERVICE_UNAVAILABLE",
+        message:
+          "Project share exchange is temporarily unavailable while secure settlement is being completed.",
       });
-
-      if (response.error || response.data === undefined) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: response.error ?? "Failed to execute swap",
-        });
-      }
-      return parseSwapResponse(swapResultSchema, response.data, "swap result");
     }),
 
   getHistory: protectedProcedure.query(async () => {

@@ -28,15 +28,18 @@ public interface IOpportunityService
     Task<Result<OpportunityDto>> CloseAsync(string id, CancellationToken ct = default);
     Task<Result<bool>> DeleteAsync(string id, CancellationToken ct = default);
     Task<Result<OpportunityApplicationDto>> ApplyAsync(string opportunityId, ApplyToOpportunityDto dto, CancellationToken ct = default);
+    Task<Result<OpportunityApplicationDto>> GetApplicationByIdAsync(string applicationId, CancellationToken ct = default);
     Task<Result<IReadOnlyList<OpportunityApplicationDto>>> GetApplicationsAsync(string opportunityId, CancellationToken ct = default);
     Task<Result<OpportunityApplicationDto>> UpdateApplicationStatusAsync(string applicationId, UpdateApplicationStatusDto dto, CancellationToken ct = default);
 
     // Updates
+    Task<Result<OpportunityUpdateDto>> GetUpdateByIdAsync(string updateId, CancellationToken ct = default);
     Task<Result<IReadOnlyList<OpportunityUpdateDto>>> GetUpdatesAsync(string opportunityId, CancellationToken ct = default);
     Task<Result<OpportunityUpdateDto>> CreateUpdateAsync(CreateOpportunityUpdateDto dto, CancellationToken ct = default);
     Task<Result<bool>> DeleteUpdateAsync(string updateId, CancellationToken ct = default);
 
     // Comments
+    Task<Result<OpportunityCommentDto>> GetCommentByIdAsync(string commentId, CancellationToken ct = default);
     Task<Result<IReadOnlyList<OpportunityCommentDto>>> GetCommentsAsync(string opportunityId, CancellationToken ct = default);
     Task<Result<OpportunityCommentDto>> AddCommentAsync(CreateOpportunityCommentDto dto, CancellationToken ct = default);
     Task<Result<bool>> DeleteCommentAsync(string commentId, CancellationToken ct = default);

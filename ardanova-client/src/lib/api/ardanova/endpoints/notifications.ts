@@ -14,16 +14,6 @@ export interface Notification {
   [key: string]: unknown;
 }
 
-export interface CreateNotificationDto {
-  userId: string;
-  type: string;
-  title: string;
-  message: string;
-  data?: string;
-  actionUrl?: string;
-  [key: string]: unknown;
-}
-
 export interface NotificationSummary {
   totalCount: number;
   unreadCount: number;
@@ -37,36 +27,32 @@ export class NotificationsEndpoint {
     return this.client.get<Notification>(`/api/notifications/${encodeURIComponent(id)}`);
   }
 
-  getByUserId(userId: string): Promise<ApiResponse<Notification[]>> {
-    return this.client.get<Notification[]>(`/api/notifications/user/${encodeURIComponent(userId)}`);
+  getMine(): Promise<ApiResponse<Notification[]>> {
+    return this.client.get<Notification[]>("/api/notifications/me");
   }
 
-  getPaged(userId: string, page = 1, pageSize = 10): Promise<ApiResponse<PagedResult<Notification>>> {
+  getPaged(page = 1, pageSize = 10): Promise<ApiResponse<PagedResult<Notification>>> {
     const q = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
     return this.client.get<PagedResult<Notification>>(
-      `/api/notifications/user/${encodeURIComponent(userId)}/paged?${q.toString()}`
+      `/api/notifications/me/paged?${q.toString()}`
     );
   }
 
-  getUnread(userId: string): Promise<ApiResponse<Notification[]>> {
-    return this.client.get<Notification[]>(`/api/notifications/user/${encodeURIComponent(userId)}/unread`);
+  getUnread(): Promise<ApiResponse<Notification[]>> {
+    return this.client.get<Notification[]>("/api/notifications/me/unread");
   }
 
-  getSummary(userId: string): Promise<ApiResponse<NotificationSummary>> {
-    return this.client.get<NotificationSummary>(`/api/notifications/user/${encodeURIComponent(userId)}/summary`);
-  }
-
-  create(data: CreateNotificationDto): Promise<ApiResponse<Notification>> {
-    return this.client.post<Notification>("/api/notifications", data);
+  getSummary(): Promise<ApiResponse<NotificationSummary>> {
+    return this.client.get<NotificationSummary>("/api/notifications/me/summary");
   }
 
   markAsRead(id: string): Promise<ApiResponse<Notification>> {
     return this.client.post<Notification>(`/api/notifications/${encodeURIComponent(id)}/read`, {});
   }
 
-  markAllAsRead(userId: string): Promise<ApiResponse<{ success: boolean }>> {
+  markAllAsRead(): Promise<ApiResponse<{ success: boolean }>> {
     return this.client.post<{ success: boolean }>(
-      `/api/notifications/user/${encodeURIComponent(userId)}/read-all`,
+      "/api/notifications/me/read-all",
       {}
     );
   }
@@ -75,7 +61,7 @@ export class NotificationsEndpoint {
     return this.client.delete(`/api/notifications/${encodeURIComponent(id)}`);
   }
 
-  deleteAll(userId: string): Promise<ApiResponse<void>> {
-    return this.client.delete(`/api/notifications/user/${encodeURIComponent(userId)}`);
+  deleteAll(): Promise<ApiResponse<void>> {
+    return this.client.delete("/api/notifications/me");
   }
 }

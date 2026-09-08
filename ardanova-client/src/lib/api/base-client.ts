@@ -83,7 +83,7 @@ export class BaseApiClient {
       if (!response.ok) {
         const errorText = await response.text();
         return {
-          error: errorText || `HTTP ${response.status}`,
+          error: readApiError(errorText, response.status),
           status: response.status,
         };
       }
@@ -149,7 +149,7 @@ export class BaseApiClient {
       if (!response.ok) {
         const errorText = await response.text();
         return {
-          error: errorText || `HTTP ${response.status}`,
+          error: readApiError(errorText, response.status),
           status: response.status,
         };
       }
@@ -200,6 +200,27 @@ function materializeActorRequestBody(body: BodyInit | null | undefined): string 
     throw new Error("Actor-signed requests require a materialized JSON string body.");
   }
   return body;
+}
+
+/** Extracts safe server action messages from JSON error envelopes and problem details. */
+function readApiError(errorText: string, status: number): string {
+  if (!errorText) return `HTTP ${status}`;
+
+  try {
+    const parsed: unknown = JSON.parse(errorText);
+    if (typeof parsed === "string" && parsed.trim()) return parsed;
+    if (parsed && typeof parsed === "object") {
+      const payload = parsed as Record<string, unknown>;
+      for (const key of ["error", "detail", "title"]) {
+        const value = payload[key];
+        if (typeof value === "string" && value.trim()) return value;
+      }
+    }
+  } catch {
+    // Plain-text API responses remain useful as-is.
+  }
+
+  return errorText;
 }
 
 /**

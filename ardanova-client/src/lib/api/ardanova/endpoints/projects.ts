@@ -103,8 +103,6 @@ export interface AddMemberDto {
 
 export interface UpdateMemberDto {
   role?: ProjectRole;
-  shareBalance?: number | null;
-  votingPower?: number | null;
 }
 
 export interface ProjectApplication {

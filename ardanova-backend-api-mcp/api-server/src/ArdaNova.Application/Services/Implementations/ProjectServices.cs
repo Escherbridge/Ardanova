@@ -15,23 +15,17 @@ public class ProjectService : IProjectService
     private readonly IRepository<User> _userRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IMapper _mapper;
-    private readonly IKycGateService _kycGateService;
-    private readonly IAzoaCustodialAccountService _custodialAccountService;
 
     public ProjectService(
         IProjectRepository repository,
         IRepository<User> userRepository,
         IUnitOfWork unitOfWork,
-        IMapper mapper,
-        IKycGateService kycGateService,
-        IAzoaCustodialAccountService custodialAccountService)
+        IMapper mapper)
     {
         _repository = repository;
         _userRepository = userRepository;
         _unitOfWork = unitOfWork;
         _mapper = mapper;
-        _kycGateService = kycGateService;
-        _custodialAccountService = custodialAccountService;
     }
 
     public async Task<Result<ProjectDto>> GetByIdAsync(string id, CancellationToken ct = default)
@@ -175,32 +169,6 @@ public class ProjectService : IProjectService
 
     public async Task<Result<ProjectDto>> CreateAsync(CreateProjectDto dto, CancellationToken ct = default)
     {
-        var custodyResult = await _custodialAccountService.GetStatusAsync(dto.CreatedById, ct);
-        if (!custodyResult.IsSuccess)
-        {
-            return Result<ProjectDto>.Forbidden(
-                custodyResult.Error ?? "Azoa account readiness could not be confirmed.");
-        }
-
-        var custody = custodyResult.Value!;
-        if (!custody.Ready
-            || !custody.IdentityReady
-            || string.IsNullOrWhiteSpace(custody.AvatarId)
-            || !custody.KycReady
-            || custody.KycStatus != AzoaKycStatus.Approved
-            || !custody.WalletReady
-            || string.IsNullOrWhiteSpace(custody.WalletId)
-            || string.IsNullOrWhiteSpace(custody.WalletAddress))
-        {
-            return Result<ProjectDto>.Forbidden(
-                custody.UnavailableReason
-                ?? "Azoa must confirm the action account, identity verification, and managed wallet before project creation.");
-        }
-
-        var gateResult = await _kycGateService.RequireProAsync(dto.CreatedById, ct);
-        if (!gateResult.IsSuccess)
-            return Result<ProjectDto>.Forbidden(gateResult.Error!);
-
         var categoryError = ValidateCategories(dto.Categories);
         if (categoryError is not null) return categoryError;
 
@@ -1215,6 +1183,12 @@ public class ProjectMemberService : IProjectMemberService
 
     public async Task<Result<ProjectMemberDto>> UpdateAsync(string id, UpdateProjectMemberDto dto, CancellationToken ct = default)
     {
+        if (dto.ShareBalance.HasValue || dto.VotingPower.HasValue)
+        {
+            return Result<ProjectMemberDto>.ValidationError(
+                "Project-unit and voting-power allocation is unavailable until provider-backed settlement and governance controls are enabled.");
+        }
+
         var member = await _repository.GetByIdAsync(id, ct);
         if (member is null)
             return Result<ProjectMemberDto>.NotFound($"Member with id {id} not found");

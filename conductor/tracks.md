@@ -11,7 +11,7 @@ type: index
 - [x] [Social & Real-time](tracks/05-social/spec.md) - Chat complete, posts scaffolded, notifications backend complete. *(Retroactive documentation)*
 - [x] [Events Module](tracks/06-events/spec.md) - Event lifecycle, RSVP, co-hosts, reminders. *(Retroactive documentation)*
 - [x] [Credential Utility & Blockchain](tracks/07-credential-utility/spec.md) - Soulbound credentials, Algorand ASA minting, tier system.
-- [x] [KYC & Identity Verification](tracks/08-kyc/spec.md) - KYC submission, provider abstraction, verification gating.
+- [x] [KYC & Identity Verification](tracks/08-kyc/spec.md) - Legacy ArdaNova-side KYC gate (manual review / Veriff path). **Superseded by D46/D48**: KYC is uniform and gates *value*, not project creation, and the provider is AZOA-hosted Identomat under node-level policy — see the spec's header and `azoa-user-onboarding`.
 - [ ] [Tokenomics & Project Equity](tracks/09-tokenomics/spec.md) - Project tokens, ARDA platform token, equity distribution, payouts, and Stripe integration. **Core implementation exists; gated-commerce correctness, authorization, settlement durability, and live evidence remain P0.**
 - [x] [Credential Frontend UI & Game SDK](tracks/10-credential-ui-gamesdk/spec.md) - Credential badges, tier UI, profile/project/guild integration, Unity/Godot SDK setup. **P0-P1 complete. P2 items remaining (grant modals, admin dashboard, component tests).**
 - [ ] [Position Management, Equity & Treasury Pool](tracks/11-position-equity-treasury/spec.md) - Position detail/edit pages, equity cap enforcement, treasury pool allocation UI. **P0 complete. P1 in progress (editable pool targets, per-member equity view).**
@@ -38,16 +38,24 @@ type: index
 
 ## AZOA Blockchain-Node Integration — Phase E
 > Authored against [`ARDANOVA-AZOA-INTEGRATION-CONTRACT.md`](ARDANOVA-AZOA-INTEGRATION-CONTRACT.md) §10/§11.
-> Locked decisions: shared/managed node (operator custodies), self-register +
-> self-run users (no fleet map, no `tenant:provision`, no acting-as).
-> Dependency order: user-onboarding → provider-adapter → action-authoring →
-> treasury-allocation. Real-value allocation gated on ArdaNova's own production
+> **Superseded in part by D44-D51** (`ardanova-production-readiness-waves_20260907`, settled
+> 2026-09-07). ArdaNova is a **tenant** on an operator-run AZOA node (D48), provisioning its
+> users as **tenant-custodial** child users via a `tenant:provision` key its code already holds
+> — not the "self-register, self-run, no fleet map, no `tenant:provision`" shape this header used
+> to claim, which described the self-sovereign path W0.5 is deleting. KYC is uniform and gates
+> value, not creation (D46); a stake is a real per-project ASA (D47); sponsorship is
+> fiat→ARDA→project-token on chain, never a Stripe checkout for a project (D44/D45).
+> Dependency order for the *tracks listed below* is still user-onboarding → provider-adapter →
+> action-authoring → treasury-allocation. For the overall value-movement critical path, that
+> linear order is superseded by the chain-first re-sequencing: reserve + genesis + per-project
+> treasury (Wave 3) → the ARDA↔project-token exchange (Wave 5) → the first sponsorship (Wave 6) —
+> see the plan's dependency graph. Real-value allocation gates on ArdaNova's own production
 > trigger — NOT on AZOA-side P7, which is done (see the row below).
 
 - [ ] [Gated Commerce and AZOA Settlement](tracks/gated-commerce-and-azoa-settlement/spec.md) - Durable bid, funding, task-award, project-token/ARDA exchange, wallet, and settlement flows. **P0 launch prerequisite.**
 - [ ] [Financial Engine Domain Hardening](tracks/financial-engine-domain-hardening/spec.md) - Immutable asset definitions, utility-token versus equity/redemption-right policies, eligibility decisions, and fixed-scale migration. **P0 prerequisite; does not activate value movement.**
-- [~] [AZOA User Onboarding](tracks/azoa-user-onboarding/spec.md) - Link each ArdaNova user to a self-sovereign AZOA user; readiness check before Tier-2. **Dependency root. Largely shipped — the legacy `/api/azoa/avatar/*` routes are retired (410 Gone); the live surface is `api/azoa/custodial-account` + the uncommitted `IAzoaValueEligibilityService`.**
-- [~] [AZOA Provider Adapter](tracks/azoa-provider-adapter/spec.md) - `AzoaBackedAlgorandService` behind `IAlgorandService`, feature-flagged (`Algorand:Provider` = Legacy | Azoa | Simulated), platform mnemonic removal still owed. **Backend-only.**
+- [~] [AZOA User Onboarding](tracks/azoa-user-onboarding/spec.md) - Link each ArdaNova user to a **tenant-custodial** AZOA user (D48 — not the self-sovereign shape this row used to name); readiness check before **any value action**, uniformly (D46 — not a "Tier-2" tier). **Dependency root. Largely shipped — the legacy `/api/azoa/avatar/*` routes are **gone, not 410**: Wave 0 deleted `AzoaAvatarController` and the whole self-sovereign path, so those paths now 404. The live surface is `api/azoa/custodial-account` + `IAzoaValueEligibilityService`, both committed.**
+- [~] [AZOA Provider Adapter](tracks/azoa-provider-adapter/spec.md) - `AzoaBackedAlgorandService` behind `IAlgorandService`, feature-flagged (`Algorand:Provider` = Legacy | Azoa | Simulated), platform mnemonic removal still owed. **Backend-only.** Its `MintSoulboundASAAsync`/`CreateFungibleASAAsync` calls are one-off ASA creation (credential mint, per-project genesis) — unaffected by D47. Reward/funding **distribution** after that first mint belongs to `treasury-reward-to-azoa-allocation`, and D47 requires that path to be `IssueUnits` from the reserve, never a per-reward `Mint`.
 - [~] [AZOA Action Authoring](tracks/azoa-action-authoring/spec.md) - Publish scrum-lifecycle action definitions/templates; users self-run; board events → gate signals. **Authoring + signal services and their tests shipped; no controller or frontend surface yet.**
 - [~] [Treasury / Reward → AZOA Allocation](tracks/treasury-reward-to-azoa-allocation/spec.md) - Funding + task reward → `POST /api/allocation/{userId}` with stable idempotency keys. **Allocation client + tests shipped; no production trigger dispatches it yet.** ~~Real-value flip gated on AZOA-side `action-reconcile-retry-wiring` (P7).~~ ⚠ **Corrected 2026-09-07: P7 is NOT a blocker and that track never existed.** AZOA's `conductor/retros/DEPLOY-STEPS-TODO.md:32` records P7 (reconcile-before-retry) as done, and the code agrees — a run parked in `AwaitingReconciliation` is never auto-re-broadcast, with operator re-probe and sweep routes on `ActionController` and coverage in `DurableWorkflowEngineTests`. The slug cited here came from §12 of the shared integration contract, which was a Phase-2 *proposal list*, not a status board; five of its AZOA slugs were never created. The real-value flip is gated on ArdaNova's own production trigger, not on AZOA.
 
@@ -70,7 +78,7 @@ tree with that split in mind:
 
 | Renamed (use new names) | Deliberately unchanged (old names are correct) |
 |---|---|
-| `/api/user/register`, `/api/action*`, `POST /api/allocation/{userId}` | C# types: `IAzoaAvatarService`, `AzoaQuestNodeAdapter`, `AzoaQuestNodeClient`, `IAzoaQuestAuthoringService` |
+| `/api/user/register` (ArdaNova no longer calls it), `/api/action*`, `POST /api/allocation/{userId}` | C# types: `AzoaQuestNodeAdapter`, `AzoaQuestNodeClient`, `IAzoaQuestAuthoringService` — `IAzoaAvatarService` was **deleted** in Wave 0, not left unrenamed |
 | Wire field `userId` (`[JsonPropertyName("userId")]`) | DB column `User.azoaAvatarId`, config key `Azoa:QuestApiKey` |
 | npm `azoa-sdk` exports | Directory `ArdaNova.Application/Azoa/Quests/` |
 | Track slugs `azoa-user-onboarding`, `azoa-action-authoring` (contract §10) | |

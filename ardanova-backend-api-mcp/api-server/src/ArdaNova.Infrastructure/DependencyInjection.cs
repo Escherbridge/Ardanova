@@ -120,15 +120,7 @@ public static class DependencyInjection
         {
             AllowAutoRedirect = false,
         });
-        services.AddHttpClient<IAzoaPublicNodeClient, AzoaPublicNodeClient>(client =>
-        {
-            ConfigureAzoaHttpClient(client, azoaSettings, apiKey: string.Empty);
-        }).ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
-        {
-            AllowAutoRedirect = false,
-        });
         // Application-layer ports onto the node (dependency-inversion seam, like IAlgorandService).
-        services.AddScoped<IAzoaAvatarNode, AzoaAvatarNodeAdapter>();
         if (azoaSettings.EnableCustodialAccounts)
             services.AddScoped<IAzoaCustodialAccountGateway, AzoaCustodialAccountGateway>();
         else

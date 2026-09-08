@@ -1,5 +1,7 @@
 namespace ArdaNova.Application.Tests.Services;
 
+using ArdaNova.Application.Common.Results;
+using ArdaNova.Application.DTOs;
 using ArdaNova.Application.Services.Implementations;
 using ArdaNova.Application.Services.Interfaces;
 using ArdaNova.Domain.Models.Enums;
@@ -13,11 +15,24 @@ public class EconomicOutboxDispatchServiceTests
 {
     private readonly Mock<IEconomicOutboxLeaseStore> _store = new();
     private readonly Mock<IAzoaSettlementGateway> _gateway = new();
+    private readonly Mock<IAzoaValueEligibilityService> _valueEligibility = new();
     private readonly EconomicOutboxDispatchService _sut;
 
     public EconomicOutboxDispatchServiceTests()
     {
-        _sut = new EconomicOutboxDispatchService(_store.Object, _gateway.Object);
+        _store.Setup(store => store.TryRenewAsync(
+                It.IsAny<EconomicOutboxLease>(),
+                It.IsAny<DateTime>(),
+                It.IsAny<TimeSpan>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync((EconomicOutboxLease lease, DateTime renewalTime, TimeSpan renewalDuration, CancellationToken _) =>
+                lease with { LeaseExpiresAt = renewalTime.Add(renewalDuration) });
+        _valueEligibility.Setup(service => service.RequireReadyAsync(
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<AzoaCustodialAccountStatusDto>.Success(ReadyAccount()));
+        _sut = new EconomicOutboxDispatchService(_store.Object, _gateway.Object, _valueEligibility.Object);
     }
 
     [Fact]
@@ -45,7 +60,214 @@ public class EconomicOutboxDispatchServiceTests
 
         winner.Outcome.Should().Be(EconomicOutboxRecordedOutcome.Accepted);
         loser.Outcome.Should().Be(EconomicOutboxRecordedOutcome.NoWork);
+        _store.Verify(store => store.TryClaimAsync(
+            EconomicOutboxClaimKind.Dispatch,
+            It.IsAny<DateTime>(),
+            It.Is<TimeSpan>(duration => duration == TimeSpan.FromMinutes(5)),
+            It.IsAny<CancellationToken>()), Times.Exactly(2));
+        _store.Verify(store => store.TryRenewAsync(
+            It.IsAny<EconomicOutboxLease>(),
+            It.IsAny<DateTime>(),
+            It.IsAny<TimeSpan>(),
+            It.IsAny<CancellationToken>()), Times.Exactly(2));
         _gateway.Verify(gateway => gateway.DispatchAsync(claim.Request, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task DispatchOneAsync_WhenBeneficiaryAccountIsIncomplete_RetriesWithoutCallingSettlementGateway()
+    {
+        var claim = Claim();
+        _store.Setup(store => store.TryClaimAsync(
+                EconomicOutboxClaimKind.Dispatch,
+                It.IsAny<DateTime>(),
+                It.IsAny<TimeSpan>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(claim);
+        _store.Setup(store => store.FinalizeAsync(
+                claim,
+                It.IsAny<EconomicOutboxFinalization>(),
+                It.IsAny<DateTime>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+        _valueEligibility.Setup(service => service.RequireReadyAsync(
+                "user-1",
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<AzoaCustodialAccountStatusDto>.Forbidden("Account setup is incomplete."));
+
+        var result = await _sut.DispatchOneAsync();
+
+        result.Outcome.Should().Be(EconomicOutboxRecordedOutcome.Retry);
+        _store.Verify(store => store.FinalizeAsync(
+            claim,
+            It.Is<EconomicOutboxFinalization>(item =>
+                item.Outcome == EconomicOutboxRecordedOutcome.Retry
+                && item.FailureCode == "AZOA_ACCOUNT_NOT_READY"),
+            It.IsAny<DateTime>(),
+            It.IsAny<CancellationToken>()), Times.Once);
+        _gateway.Verify(gateway => gateway.DispatchAsync(
+            It.IsAny<AzoaSettlementRequest>(),
+            It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task DispatchOneAsync_FundingAllocationRenewsBeforeBothReadinessChecksAndGateway()
+    {
+        var claim = Claim(
+            settlementKind: EconomicSettlementKind.FUNDING_ALLOCATION,
+            projectOwnerUserId: "project-owner");
+        _store.Setup(store => store.TryClaimAsync(
+                EconomicOutboxClaimKind.Dispatch,
+                It.IsAny<DateTime>(),
+                It.IsAny<TimeSpan>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(claim);
+        _store.Setup(store => store.FinalizeAsync(
+                claim,
+                It.IsAny<EconomicOutboxFinalization>(),
+                It.IsAny<DateTime>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+        _gateway.Setup(gateway => gateway.DispatchAsync(claim.Request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(AzoaSettlementGatewayResult.Accepted("op-1"));
+
+        var result = await _sut.DispatchOneAsync();
+
+        result.Outcome.Should().Be(EconomicOutboxRecordedOutcome.Accepted);
+        _store.Verify(store => store.TryRenewAsync(
+            It.IsAny<EconomicOutboxLease>(),
+            It.IsAny<DateTime>(),
+            It.IsAny<TimeSpan>(),
+            It.IsAny<CancellationToken>()), Times.Exactly(3));
+        _gateway.Verify(gateway => gateway.DispatchAsync(claim.Request, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task DispatchOneAsync_WhenRenewalFailsBeforeGateway_DoesNotCallGatewayOrFinalize()
+    {
+        var claim = Claim();
+        _store.Setup(store => store.TryClaimAsync(
+                EconomicOutboxClaimKind.Dispatch,
+                It.IsAny<DateTime>(),
+                It.IsAny<TimeSpan>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(claim);
+        _store.SetupSequence(store => store.TryRenewAsync(
+                It.IsAny<EconomicOutboxLease>(),
+                It.IsAny<DateTime>(),
+                It.IsAny<TimeSpan>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(claim)
+            .ReturnsAsync((EconomicOutboxLease?)null);
+
+        var result = await _sut.DispatchOneAsync();
+
+        result.Outcome.Should().Be(EconomicOutboxRecordedOutcome.StaleLease);
+        _valueEligibility.Verify(service => service.RequireReadyAsync(
+            "user-1",
+            "receive settled project value",
+            It.IsAny<CancellationToken>()), Times.Once);
+        _store.Verify(store => store.TryRenewAsync(
+            It.IsAny<EconomicOutboxLease>(),
+            It.IsAny<DateTime>(),
+            It.IsAny<TimeSpan>(),
+            It.IsAny<CancellationToken>()), Times.Exactly(2));
+        _gateway.Verify(gateway => gateway.DispatchAsync(
+            It.IsAny<AzoaSettlementRequest>(),
+            It.IsAny<CancellationToken>()), Times.Never);
+        _store.Verify(store => store.FinalizeAsync(
+            It.IsAny<EconomicOutboxLease>(),
+            It.IsAny<EconomicOutboxFinalization>(),
+            It.IsAny<DateTime>(),
+            It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task DispatchOneAsync_FundingAllocationWithIncompleteProjectOwner_RetriesWithoutCallingSettlementGateway()
+    {
+        var claim = Claim(
+            settlementKind: EconomicSettlementKind.FUNDING_ALLOCATION,
+            projectOwnerUserId: "project-owner");
+        _store.Setup(store => store.TryClaimAsync(
+                EconomicOutboxClaimKind.Dispatch,
+                It.IsAny<DateTime>(),
+                It.IsAny<TimeSpan>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(claim);
+        _store.Setup(store => store.FinalizeAsync(
+                claim,
+                It.IsAny<EconomicOutboxFinalization>(),
+                It.IsAny<DateTime>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+        _valueEligibility.Setup(service => service.RequireReadyAsync(
+                "project-owner",
+                "receive project funding",
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<AzoaCustodialAccountStatusDto>.Forbidden("Account setup is incomplete."));
+
+        var result = await _sut.DispatchOneAsync();
+
+        result.Outcome.Should().Be(EconomicOutboxRecordedOutcome.Retry);
+        _valueEligibility.Verify(service => service.RequireReadyAsync(
+            "user-1",
+            "receive settled project value",
+            It.IsAny<CancellationToken>()), Times.Once);
+        _valueEligibility.Verify(service => service.RequireReadyAsync(
+            "project-owner",
+            "receive project funding",
+            It.IsAny<CancellationToken>()), Times.Once);
+        _store.Verify(store => store.TryRenewAsync(
+            It.IsAny<EconomicOutboxLease>(),
+            It.IsAny<DateTime>(),
+            It.IsAny<TimeSpan>(),
+            It.IsAny<CancellationToken>()), Times.Exactly(2));
+        _store.Verify(store => store.FinalizeAsync(
+            claim,
+            It.Is<EconomicOutboxFinalization>(item =>
+                item.Outcome == EconomicOutboxRecordedOutcome.Retry
+                && item.FailureCode == "AZOA_PROJECT_OWNER_NOT_READY"),
+            It.IsAny<DateTime>(),
+            It.IsAny<CancellationToken>()), Times.Once);
+        _gateway.Verify(gateway => gateway.DispatchAsync(
+            It.IsAny<AzoaSettlementRequest>(),
+            It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task DispatchOneAsync_FundingAllocationWithoutProjectOwner_RetriesWithoutCallingSettlementGateway()
+    {
+        var claim = Claim(settlementKind: EconomicSettlementKind.FUNDING_ALLOCATION);
+        _store.Setup(store => store.TryClaimAsync(
+                EconomicOutboxClaimKind.Dispatch,
+                It.IsAny<DateTime>(),
+                It.IsAny<TimeSpan>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(claim);
+        _store.Setup(store => store.FinalizeAsync(
+                claim,
+                It.IsAny<EconomicOutboxFinalization>(),
+                It.IsAny<DateTime>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+
+        var result = await _sut.DispatchOneAsync();
+
+        result.Outcome.Should().Be(EconomicOutboxRecordedOutcome.Retry);
+        _store.Verify(store => store.FinalizeAsync(
+            claim,
+            It.Is<EconomicOutboxFinalization>(item =>
+                item.Outcome == EconomicOutboxRecordedOutcome.Retry
+                && item.FailureCode == "AZOA_PROJECT_OWNER_UNAVAILABLE"),
+            It.IsAny<DateTime>(),
+            It.IsAny<CancellationToken>()), Times.Once);
+        _valueEligibility.Verify(service => service.RequireReadyAsync(
+            "user-1",
+            "receive settled project value",
+            It.IsAny<CancellationToken>()), Times.Once);
+        _gateway.Verify(gateway => gateway.DispatchAsync(
+            It.IsAny<AzoaSettlementRequest>(),
+            It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -169,6 +391,49 @@ public class EconomicOutboxDispatchServiceTests
     }
 
     [Fact]
+    public async Task DispatchOneAsync_LocallyCanceledGatewayTokenRecordsUnknownAndFinalizes()
+    {
+        var claim = Claim();
+        CancellationToken observedGatewayToken = default;
+        _store.Setup(store => store.TryClaimAsync(
+                EconomicOutboxClaimKind.Dispatch,
+                It.IsAny<DateTime>(),
+                It.IsAny<TimeSpan>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(claim);
+        _store.Setup(store => store.FinalizeAsync(
+                claim,
+                It.IsAny<EconomicOutboxFinalization>(),
+                It.IsAny<DateTime>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+        _gateway.Setup(gateway => gateway.DispatchAsync(claim.Request, It.IsAny<CancellationToken>()))
+            .Returns((AzoaSettlementRequest _, CancellationToken gatewayToken) =>
+            {
+                observedGatewayToken = gatewayToken;
+                return WaitForCancellationAsync(gatewayToken);
+            });
+        var sut = new EconomicOutboxDispatchService(
+            _store.Object,
+            _gateway.Object,
+            _valueEligibility.Object,
+            TimeSpan.FromMilliseconds(10));
+
+        var result = await sut.DispatchOneAsync();
+
+        result.Outcome.Should().Be(EconomicOutboxRecordedOutcome.Unknown);
+        observedGatewayToken.IsCancellationRequested.Should().BeTrue();
+        _gateway.Verify(gateway => gateway.DispatchAsync(claim.Request, It.IsAny<CancellationToken>()), Times.Once);
+        _store.Verify(store => store.FinalizeAsync(
+            claim,
+            It.Is<EconomicOutboxFinalization>(item =>
+                item.Outcome == EconomicOutboxRecordedOutcome.Unknown
+                && item.FailureCode == "AZOA_TRANSPORT_UNCERTAIN"),
+            It.IsAny<DateTime>(),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
     public async Task DispatchOneAsync_CallerCancellationBubblesAndDoesNotFinalize()
     {
         var claim = Claim();
@@ -180,12 +445,46 @@ public class EconomicOutboxDispatchServiceTests
                 It.IsAny<TimeSpan>(),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(claim);
-        _gateway.Setup(gateway => gateway.DispatchAsync(claim.Request, cancellation.Token))
+        _gateway.Setup(gateway => gateway.DispatchAsync(claim.Request, It.IsAny<CancellationToken>()))
             .ThrowsAsync(new OperationCanceledException(cancellation.Token));
 
         var action = () => _sut.DispatchOneAsync(cancellation.Token);
 
         await action.Should().ThrowAsync<OperationCanceledException>();
+        _store.Verify(store => store.FinalizeAsync(
+            It.IsAny<EconomicOutboxLease>(),
+            It.IsAny<EconomicOutboxFinalization>(),
+            It.IsAny<DateTime>(),
+            It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task DispatchOneAsync_CallerCancellationDuringGatewayWaitPropagatesAndDoesNotFinalize()
+    {
+        var claim = Claim();
+        var gatewayStarted = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var neverCompletes = new TaskCompletionSource<AzoaSettlementGatewayResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _store.Setup(store => store.TryClaimAsync(
+                EconomicOutboxClaimKind.Dispatch,
+                It.IsAny<DateTime>(),
+                It.IsAny<TimeSpan>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(claim);
+        _gateway.Setup(gateway => gateway.DispatchAsync(claim.Request, It.IsAny<CancellationToken>()))
+            .Returns((AzoaSettlementRequest request, CancellationToken gatewayToken) =>
+            {
+                gatewayStarted.TrySetResult(true);
+                return neverCompletes.Task;
+            });
+        using var cancellation = new CancellationTokenSource();
+
+        var dispatch = _sut.DispatchOneAsync(cancellation.Token);
+        await gatewayStarted.Task.WaitAsync(TimeSpan.FromSeconds(1));
+        cancellation.Cancel();
+        Func<Task> action = async () => await dispatch;
+
+        await action.Should().ThrowAsync<OperationCanceledException>();
+        _gateway.Verify(gateway => gateway.DispatchAsync(claim.Request, It.IsAny<CancellationToken>()), Times.Once);
         _store.Verify(store => store.FinalizeAsync(
             It.IsAny<EconomicOutboxLease>(),
             It.IsAny<EconomicOutboxFinalization>(),
@@ -262,7 +561,9 @@ public class EconomicOutboxDispatchServiceTests
 
     private static EconomicOutboxLease Claim(
         EconomicOutboxClaimKind kind = EconomicOutboxClaimKind.Dispatch,
-        EconomicSettlementStatus status = EconomicSettlementStatus.PENDING_DISPATCH)
+        EconomicSettlementStatus status = EconomicSettlementStatus.PENDING_DISPATCH,
+        EconomicSettlementKind settlementKind = EconomicSettlementKind.TASK_REWARD,
+        string? projectOwnerUserId = null)
         => new(
             "outbox-1",
             "settlement-1",
@@ -278,7 +579,9 @@ public class EconomicOutboxDispatchServiceTests
                 "user-1",
                 "USD",
                 Amount("1234", 2),
-                "{\"amount\":\"12.34\"}"));
+                "{\"amount\":\"12.34\"}"),
+            settlementKind,
+            projectOwnerUserId);
 
     private static FixedScaleAmount Amount(string expectedBaseUnits, int scale)
     {
@@ -286,6 +589,25 @@ public class EconomicOutboxDispatchServiceTests
         amount.BaseUnits.Should().Be(expectedBaseUnits);
         return amount;
     }
+
+    private static async Task<AzoaSettlementGatewayResult> WaitForCancellationAsync(CancellationToken ct)
+    {
+        await Task.Delay(Timeout.InfiniteTimeSpan, ct);
+        return AzoaSettlementGatewayResult.Accepted("unreachable");
+    }
+
+    private static AzoaCustodialAccountStatusDto ReadyAccount()
+        => new()
+        {
+            AvatarId = Guid.NewGuid().ToString(),
+            WalletId = "wallet-1",
+            WalletAddress = "managed-account-address",
+            IdentityReady = true,
+            KycReady = true,
+            KycStatus = AzoaKycStatus.Approved,
+            WalletReady = true,
+            Ready = true,
+        };
 }
 
 public class EconomicOutboxDispatchWorkerTests

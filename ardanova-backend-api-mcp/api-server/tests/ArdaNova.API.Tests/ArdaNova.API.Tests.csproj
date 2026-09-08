@@ -26,8 +26,10 @@
     <Compile Include="..\..\src\ArdaNova.API\Controllers\FundingIntentsController.cs" Link="Controllers\FundingIntentsController.cs" />
     <Compile Include="..\..\src\ArdaNova.API\Controllers\WalletsController.cs" Link="Controllers\WalletsController.cs" />
     <Compile Include="..\..\src\ArdaNova.API\Controllers\PayoutsController.cs" Link="Controllers\PayoutsController.cs" />
+    <Compile Include="..\..\src\ArdaNova.API\Controllers\SwapsController.cs" Link="Controllers\SwapsController.cs" />
     <Compile Include="..\..\src\ArdaNova.API\Controllers\TokenBalanceController.cs" Link="Controllers\TokenBalanceController.cs" />
     <Compile Include="..\..\src\ArdaNova.API\Controllers\TaskEscrowsController.cs" Link="Controllers\TaskEscrowsController.cs" />
+    <Compile Include="..\..\src\ArdaNova.API\Controllers\OpportunitiesController.cs" Link="Controllers\OpportunitiesController.cs" />
     <Compile Include="..\..\src\ArdaNova.API\Controllers\OpportunityBidsController.cs" Link="Controllers\OpportunityBidsController.cs" />
     <Compile Include="..\..\src\ArdaNova.API\Controllers\TasksController.cs" Link="Controllers\TasksController.cs" />
     <Compile Include="..\..\src\ArdaNova.API\Controllers\EpicsController.cs" Link="Controllers\EpicsController.cs" />
@@ -40,7 +42,8 @@
     <Compile Include="..\..\src\ArdaNova.API\Controllers\MembershipCredentialsController.cs" Link="Controllers\MembershipCredentialsController.cs" />
     <Compile Include="..\..\src\ArdaNova.API\Controllers\GovernanceController.cs" Link="Controllers\GovernanceController.cs" />
     <Compile Include="..\..\src\ArdaNova.API\Controllers\ReferralsController.cs" Link="Controllers\ReferralsController.cs" />
-    <Compile Include="..\..\src\ArdaNova.API\Controllers\AzoaAvatarController.cs" Link="Controllers\AzoaAvatarController.cs" />
+    <Compile Include="..\..\src\ArdaNova.API\Controllers\ChatController.cs" Link="Controllers\ChatController.cs" />
+    <Compile Include="..\..\src\ArdaNova.API\Controllers\NotificationsController.cs" Link="Controllers\NotificationsController.cs" />
     <Compile Include="..\..\src\ArdaNova.API\Controllers\DelegatedVotesController.cs" Link="Controllers\DelegatedVotesController.cs" />
     <Compile Include="..\..\src\ArdaNova.API\Middleware\ApiKeyMiddleware.cs" Link="Middleware\ApiKeyMiddleware.cs" />
     <Compile Include="..\..\src\ArdaNova.API\Middleware\ActorAssertionMiddleware.cs" Link="Middleware\ActorAssertionMiddleware.cs" />

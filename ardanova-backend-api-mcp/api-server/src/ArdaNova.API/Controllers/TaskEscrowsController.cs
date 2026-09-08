@@ -52,12 +52,12 @@ public class TaskEscrowsController : ControllerBase
     }
 
     [HttpPost("{id}/release")]
-    public async Task<IActionResult> Release(string id, [FromBody] ReleaseEscrowDto dto, CancellationToken ct)
+    public IActionResult Release(string id, [FromBody] ReleaseEscrowDto dto, CancellationToken ct)
     {
-        if (!await ActorFundsEscrowAsync(id, ct))
-            return Forbid();
-
-        return ToActionResult(await _taskEscrowService.ReleaseAsync(id, dto, ct));
+        _ = id;
+        _ = dto;
+        _ = ct;
+        return SettlementUnavailable();
     }
 
     [HttpPost("{id}/dispute")]
@@ -75,13 +75,19 @@ public class TaskEscrowsController : ControllerBase
     }
 
     [HttpPost("{id}/refund")]
-    public async Task<IActionResult> Refund(string id, [FromBody] RefundEscrowDto dto, CancellationToken ct)
+    public IActionResult Refund(string id, [FromBody] RefundEscrowDto dto, CancellationToken ct)
     {
-        if (!await ActorFundsEscrowAsync(id, ct))
-            return Forbid();
-
-        return ToActionResult(await _taskEscrowService.RefundAsync(id, dto, ct));
+        _ = id;
+        _ = dto;
+        _ = ct;
+        return SettlementUnavailable();
     }
+
+    private IActionResult SettlementUnavailable()
+        => StatusCode(StatusCodes.Status503ServiceUnavailable, new
+        {
+            error = "Escrow release and refund are unavailable until provider-verified settlement and reconciliation are available."
+        });
 
     private string ActorId => User.FindFirstValue(ClaimTypes.NameIdentifier)!;
 

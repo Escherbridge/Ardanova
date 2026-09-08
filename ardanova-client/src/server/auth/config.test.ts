@@ -12,32 +12,53 @@ import type { Prisma } from "@prisma/client";
 // Mocks -- vi.hoisted ensures these are available when vi.mock factories run
 // ---------------------------------------------------------------------------
 
-const { mockFindUnique, mockCreate, mockAccountFindUnique } = vi.hoisted(
+const {
+  mockFindUnique,
+  mockCreate,
+  mockAccountFindUnique,
+  mockAccountCreate,
+  mockTransaction,
+} = vi.hoisted(
   () => ({
     mockFindUnique:
       vi.fn<(args: Prisma.UserFindUniqueArgs) => Promise<unknown>>(),
     mockCreate: vi.fn<(args: Prisma.UserCreateArgs) => Promise<unknown>>(),
     mockAccountFindUnique:
       vi.fn<(args: Prisma.AccountFindUniqueArgs) => Promise<unknown>>(),
+    mockAccountCreate:
+      vi.fn<(args: Prisma.AccountCreateArgs) => Promise<unknown>>(),
+    mockTransaction: vi.fn(),
   }),
 );
 
 vi.mock("~/server/db", () => ({
-  db: {
-    user: {
-      findUnique: mockFindUnique,
-      create: mockCreate,
-    },
-    account: {
-      findUnique: mockAccountFindUnique,
-    },
-  },
+  db: (() => {
+    const transaction = {
+      user: {
+        findUnique: mockFindUnique,
+        create: mockCreate,
+      },
+      account: {
+        findUnique: mockAccountFindUnique,
+        create: mockAccountCreate,
+      },
+    };
+    mockTransaction.mockImplementation(
+      (callback: (client: typeof transaction) => Promise<unknown>) =>
+        callback(transaction),
+    );
+    return {
+      ...transaction,
+      $transaction: mockTransaction,
+    };
+  })(),
 }));
 
 vi.mock("~/env", () => ({
   env: {
     GOOGLE_CLIENT_ID: "test-google-client-id",
     GOOGLE_CLIENT_SECRET: "test-google-client-secret",
+    AUTH_GOOGLE_LEGACY_LINK_USER_IDS: "legacy-user",
   },
 }));
 
@@ -438,7 +459,7 @@ describe("authConfig", () => {
 
     it("should deny implicit linking when a local email is already owned", async () => {
       mockAccountFindUnique.mockResolvedValue(null);
-      mockFindUnique.mockResolvedValue({ id: "legacy-user" });
+      mockFindUnique.mockResolvedValue({ id: "unlisted-user" });
       const error = vi
         .spyOn(console, "error")
         .mockImplementation(() => undefined);
@@ -451,6 +472,61 @@ describe("authConfig", () => {
 
       expect(result).toBe(false);
       expect(mockCreate).not.toHaveBeenCalled();
+      error.mockRestore();
+    });
+
+    it("should link an explicitly allowlisted legacy Google-only user", async () => {
+      mockAccountFindUnique.mockResolvedValueOnce(null).mockResolvedValueOnce(null);
+      mockFindUnique
+        .mockResolvedValueOnce({ id: "legacy-user" })
+        .mockResolvedValueOnce({
+          id: "legacy-user",
+          email: "test@example.com",
+          emailVerified: new Date("2026-03-20T20:23:17.854Z"),
+          accounts: [],
+        });
+      mockAccountCreate.mockResolvedValue({ id: "account-123" });
+      const info = vi.spyOn(console, "info").mockImplementation(() => undefined);
+
+      const result = await signInCallback({
+        user: { email: "test@example.com" },
+        account: googleAccount,
+        profile: googleProfile("test@example.com"),
+      });
+
+      expect(result).toBe(true);
+      expect(mockTransaction).toHaveBeenCalledOnce();
+      expect(mockAccountCreate).toHaveBeenCalledWith({
+        data: {
+          userId: "legacy-user",
+          type: "oidc",
+          provider: "google",
+          providerAccountId: "google-user-123",
+        },
+      });
+      info.mockRestore();
+    });
+
+    it("should deny an allowlisted user that already has a provider account", async () => {
+      mockAccountFindUnique.mockResolvedValue(null);
+      mockFindUnique
+        .mockResolvedValueOnce({ id: "legacy-user" })
+        .mockResolvedValueOnce({
+          id: "legacy-user",
+          email: "test@example.com",
+          emailVerified: new Date("2026-03-20T20:23:17.854Z"),
+          accounts: [{ id: "existing-account" }],
+        });
+      const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+      const result = await signInCallback({
+        user: { email: "test@example.com" },
+        account: googleAccount,
+        profile: googleProfile("test@example.com"),
+      });
+
+      expect(result).toBe(false);
+      expect(mockAccountCreate).not.toHaveBeenCalled();
       error.mockRestore();
     });
 

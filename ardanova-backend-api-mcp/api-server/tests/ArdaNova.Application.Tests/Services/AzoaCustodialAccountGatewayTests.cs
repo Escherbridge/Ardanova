@@ -278,39 +278,6 @@ public sealed class AzoaCustodialAccountGatewayTests
         result.Type.Should().Be(ResultType.Forbidden);
     }
 
-    [Fact]
-    public async Task PublicRegistrationClient_SendsNoApiKey()
-    {
-        HttpRequestMessage? captured = null;
-        var handler = new StubHandler(request =>
-        {
-            captured = request;
-            return Json(HttpStatusCode.OK, """
-                {
-                  "isError": false,
-                  "result": {
-                    "id": "11111111-1111-1111-1111-111111111111",
-                    "username": "user-1",
-                    "email": "user-1@example.test"
-                  }
-                }
-                """);
-        });
-        var client = new AzoaPublicNodeClient(
-            new HttpClient(handler) { BaseAddress = new Uri("https://azoa.example") },
-            NullLogger<AzoaPublicNodeClient>.Instance);
-
-        var result = await client.RegisterAvatarAsync(new AzoaAvatarRegisterRequest
-        {
-            Username = "user-1",
-            Email = "user-1@example.test",
-            Password = "development-test-password",
-        });
-
-        result.IsSuccess.Should().BeTrue();
-        captured!.Headers.Contains("X-Api-Key").Should().BeFalse();
-    }
-
     private static AzoaCustodialAccountGateway CreateGateway(HttpMessageHandler handler)
     {
         var http = new HttpClient(handler) { BaseAddress = new Uri("https://azoa.example") };

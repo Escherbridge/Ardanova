@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { Button } from "~/components/ui/button";
 import {
   Card,
@@ -30,9 +29,6 @@ import {
   Image as ImageIcon,
   Presentation,
   Loader2,
-  RefreshCw,
-  Shield,
-  TriangleAlert,
 } from "lucide-react";
 import { cn } from "~/lib/utils";
 import { api } from "~/trpc/react";
@@ -75,11 +71,6 @@ interface ProjectFormData {
 }
 
 export function ProjectForm({ mode = "create", project }: ProjectFormProps) {
-  const azoaStatus = api.azoaCustodialAccount.getStatus.useQuery(undefined, {
-    enabled: mode === "create",
-    retry: false,
-  });
-
   const [formData, setFormData] = useState<ProjectFormData>({
     title: "",
     problem: {
@@ -354,101 +345,6 @@ export function ProjectForm({ mode = "create", project }: ProjectFormProps) {
     }
   };
 
-  if (mode === "create" && azoaStatus.isLoading) {
-    return (
-      <div className="flex min-h-72 items-center justify-center" role="status">
-        <Loader2
-          className="text-primary size-7 animate-spin"
-          aria-label="Checking identity status"
-        />
-      </div>
-    );
-  }
-
-  if (mode === "create" && azoaStatus.isError) {
-    return (
-      <div className="container mx-auto max-w-2xl px-4 py-16">
-        <Card className="border-destructive border-2">
-          <CardContent className="pt-6">
-            <div className="flex flex-col items-center space-y-4 text-center">
-              <div className="border-destructive bg-destructive/10 flex size-16 items-center justify-center border-2">
-                <TriangleAlert
-                  className="text-destructive size-8"
-                  aria-hidden="true"
-                />
-              </div>
-              <h2 className="text-foreground text-2xl font-black">
-                Identity service unavailable
-              </h2>
-              <p className="text-muted-foreground max-w-md">
-                ArdaNova could not confirm your current Azoa status, so project
-                creation is paused rather than guessing. Your form has not been
-                submitted.
-              </p>
-              <div className="flex flex-wrap justify-center gap-3 pt-2">
-                <Button
-                  type="button"
-                  onClick={() => void azoaStatus.refetch()}
-                  disabled={azoaStatus.isFetching}
-                >
-                  <RefreshCw
-                    className={cn(
-                      "mr-2 size-4",
-                      azoaStatus.isFetching && "animate-spin",
-                    )}
-                    aria-hidden="true"
-                  />
-                  Retry status check
-                </Button>
-                <Button variant="outline" asChild>
-                  <Link href="/settings/verification">
-                    Open identity settings
-                  </Link>
-                </Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  // The API rechecks AZOA live; this client gate is guidance, not authority.
-  if (mode === "create" && azoaStatus.data?.kycStatus !== "Approved") {
-    return (
-      <div className="container mx-auto max-w-2xl px-4 py-16">
-        <Card className="border-system/30 border-2">
-          <CardContent className="pt-6">
-            <div className="flex flex-col items-center space-y-4 text-center">
-              <div className="border-system/40 bg-system/10 flex h-16 w-16 items-center justify-center border-2">
-                <Shield className="text-system h-8 w-8" />
-              </div>
-              <h2 className="text-foreground text-2xl font-black">
-                Verification Required
-              </h2>
-              <p className="text-muted-foreground max-w-md">
-                A current Azoa identity approval is required to create a
-                project. ArdaNova checks the source directly instead of trusting
-                a cached badge.
-              </p>
-              <div className="flex gap-3 pt-2">
-                <Button asChild>
-                  <Link href="/settings/verification">
-                    <Shield className="mr-2 h-4 w-4" />
-                    Verify Identity
-                  </Link>
-                </Button>
-                <Button variant="outline" asChild>
-                  <Link href="/dashboard">Back to Dashboard</Link>
-                </Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
   return (
     <div className="mx-auto max-w-4xl space-y-6 p-4 sm:space-y-8 sm:p-6">
       <div className="text-center">
@@ -461,6 +357,16 @@ export function ProjectForm({ mode = "create", project }: ProjectFormProps) {
             : "Define your problem and solution to get started on your ArdaNova project"}
         </p>
       </div>
+
+      {mode === "create" && (
+        <Card className="border-system/40 bg-system/5 border">
+          <CardContent className="p-4 text-sm leading-relaxed">
+            You can create a project draft and collaborate before account setup
+            is complete. Funding, paid work, and rewards remain unavailable
+            until the server confirms the required account checks.
+          </CardContent>
+        </Card>
+      )}
 
       {/* Success/Error Messages */}
       {successMessage && (

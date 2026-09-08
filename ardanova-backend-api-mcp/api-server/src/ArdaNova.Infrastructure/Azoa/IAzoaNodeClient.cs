@@ -29,14 +29,6 @@ public interface IAzoaNodeClient
         string path, object? body, CancellationToken ct = default);
 }
 
-/// <summary>Credential-free transport for AZOA's anonymous avatar registration route.</summary>
-public interface IAzoaPublicNodeClient
-{
-    Task<Result<AzoaAvatar>> RegisterAvatarAsync(
-        AzoaAvatarRegisterRequest request,
-        CancellationToken ct = default);
-}
-
 /// <summary>Transport restricted to tenant custodial-account endpoints.</summary>
 public interface IAzoaCustodialNodeClient
 {

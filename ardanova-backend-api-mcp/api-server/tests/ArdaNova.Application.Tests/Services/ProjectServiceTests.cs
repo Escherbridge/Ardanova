@@ -17,8 +17,6 @@ public class ProjectServiceTests
     private readonly Mock<IRepository<User>> _userRepositoryMock;
     private readonly Mock<IUnitOfWork> _unitOfWorkMock;
     private readonly Mock<IMapper> _mapperMock;
-    private readonly Mock<IKycGateService> _kycGateServiceMock;
-    private readonly Mock<IAzoaCustodialAccountService> _custodialAccountServiceMock;
     private readonly ProjectService _sut;
 
     public ProjectServiceTests()
@@ -27,20 +25,11 @@ public class ProjectServiceTests
         _userRepositoryMock = new Mock<IRepository<User>>();
         _unitOfWorkMock = new Mock<IUnitOfWork>();
         _mapperMock = new Mock<IMapper>();
-        _kycGateServiceMock = new Mock<IKycGateService>();
-        _custodialAccountServiceMock = new Mock<IAzoaCustodialAccountService>();
-        _kycGateServiceMock.Setup(x => x.RequireProAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Result<bool>.Success(true));
-        _custodialAccountServiceMock
-            .Setup(x => x.GetStatusAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Result<AzoaCustodialAccountStatusDto>.Success(ReadyCustodyStatus()));
         _sut = new ProjectService(
             _repositoryMock.Object,
             _userRepositoryMock.Object,
             _unitOfWorkMock.Object,
-            _mapperMock.Object,
-            _kycGateServiceMock.Object,
-            _custodialAccountServiceMock.Object);
+            _mapperMock.Object);
     }
 
     [Fact]
@@ -126,7 +115,7 @@ public class ProjectServiceTests
     }
 
     [Fact]
-    public async Task CreateAsync_WithValidDto_ReturnsCreatedProject()
+    public async Task CreateAsync_WithValidDto_CreatesDraftWithoutAccountSetup()
     {
         // Arrange
         var userId = Guid.NewGuid().ToString();
@@ -142,7 +131,9 @@ public class ProjectServiceTests
         };
         var projectDto = new ProjectDto { Title = "New Project" };
 
+        Project? createdProject = null;
         _repositoryMock.Setup(r => r.AddAsync(It.IsAny<Project>(), It.IsAny<CancellationToken>()))
+            .Callback<Project, CancellationToken>((project, _) => createdProject = project)
             .ReturnsAsync((Project p, CancellationToken _) => p);
 
         _unitOfWorkMock.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()))
@@ -157,6 +148,7 @@ public class ProjectServiceTests
         result.IsSuccess.Should().BeTrue();
         result.Value.Should().NotBeNull();
         result.Value!.Title.Should().Be("New Project");
+        createdProject!.status.Should().Be(ProjectStatus.DRAFT);
     }
 
     [Fact]
@@ -560,81 +552,6 @@ public class ProjectServiceTests
     }
 
     [Fact]
-    public async Task CreateAsync_WhenKycGateBlocksNonPro_ReturnsForbidden()
-    {
-        // Arrange
-        var dto = new CreateProjectDto
-        {
-            CreatedById = Guid.NewGuid().ToString(),
-            Title = "Test",
-            Description = "Desc",
-            ProblemStatement = "Problem",
-            Solution = "Solution",
-            Categories = new List<string> { "TECHNOLOGY" }
-        };
-        _kycGateServiceMock.Setup(x => x.RequireProAsync(dto.CreatedById, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Result<bool>.Forbidden("KYC verification required"));
-
-        // Act
-        var result = await _sut.CreateAsync(dto);
-
-        // Assert
-        result.IsFailure.Should().BeTrue();
-        result.Type.Should().Be(ResultType.Forbidden);
-        result.Error.Should().Contain("KYC verification required");
-        _repositoryMock.Verify(r => r.AddAsync(It.IsAny<Project>(), It.IsAny<CancellationToken>()), Times.Never);
-    }
-
-    [Fact]
-    public async Task CreateAsync_WhenAzoaWalletIsNotReady_ReturnsForbiddenBeforePersistence()
-    {
-        var dto = ValidCreateDto();
-        _custodialAccountServiceMock
-            .Setup(x => x.GetStatusAsync(dto.CreatedById, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Result<AzoaCustodialAccountStatusDto>.Success(
-                ReadyCustodyStatus() with
-                {
-                    WalletId = null,
-                    WalletAddress = null,
-                    WalletReady = false,
-                    Ready = false,
-                }));
-
-        var result = await _sut.CreateAsync(dto);
-
-        result.Type.Should().Be(ResultType.Forbidden);
-        result.Error.Should().Contain("managed wallet");
-        _repositoryMock.Verify(
-            repository => repository.AddAsync(It.IsAny<Project>(), It.IsAny<CancellationToken>()),
-            Times.Never);
-        _kycGateServiceMock.Verify(
-            gate => gate.RequireProAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()),
-            Times.Never);
-    }
-
-    [Fact]
-    public async Task CreateAsync_WhenAzoaAggregateReadyOmitsWalletEvidence_ReturnsForbidden()
-    {
-        var dto = ValidCreateDto();
-        _custodialAccountServiceMock
-            .Setup(x => x.GetStatusAsync(dto.CreatedById, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Result<AzoaCustodialAccountStatusDto>.Success(
-                ReadyCustodyStatus() with
-                {
-                    WalletId = null,
-                    WalletAddress = null,
-                    WalletReady = false,
-                }));
-
-        var result = await _sut.CreateAsync(dto);
-
-        result.Type.Should().Be(ResultType.Forbidden);
-        _repositoryMock.Verify(
-            repository => repository.AddAsync(It.IsAny<Project>(), It.IsAny<CancellationToken>()),
-            Times.Never);
-    }
-
-    [Fact]
     public async Task SearchAsync_WithCategoryFilter_ReturnsFilteredResults()
     {
         // Arrange
@@ -662,25 +579,4 @@ public class ProjectServiceTests
         result.Value!.Items.Should().NotBeEmpty();
     }
 
-    private static CreateProjectDto ValidCreateDto() => new()
-    {
-        CreatedById = Guid.NewGuid().ToString(),
-        Title = "A ready project",
-        Description = "A sufficiently detailed project description",
-        ProblemStatement = "A sufficiently detailed problem statement",
-        Solution = "A sufficiently detailed proposed solution",
-        Categories = new List<string> { "TECHNOLOGY" },
-    };
-
-    private static AzoaCustodialAccountStatusDto ReadyCustodyStatus() => new()
-    {
-        AvatarId = "avatar-ready",
-        WalletId = "wallet-ready",
-        WalletAddress = "wallet-address-ready",
-        KycStatus = AzoaKycStatus.Approved,
-        IdentityReady = true,
-        KycReady = true,
-        WalletReady = true,
-        Ready = true,
-    };
 }

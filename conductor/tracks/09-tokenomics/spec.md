@@ -1,22 +1,58 @@
+---
+type: spec
+---
+
 # Tokenomics & Project Equity — Technical Specification
+
+> **Superseded in part by D44-D51** (`ardanova-production-readiness-waves_20260907`). This spec
+> documents Track 09 as it shipped. Three pieces of the model below are corrected by the
+> production-readiness decisions and must not be re-implemented as written:
+> 1. **Drop USDCa.** There is no separate on-platform stablecoin leg. Fiat is only the ARDA
+>    on-ramp/off-ramp, terminated inside AZOA's `Fiat.USD` rail (D45) — never an Algorand-native
+>    stablecoin ArdaNova mints or holds.
+> 2. **ARDA is user-facing, not "internal."** Under D44 it is the currency a sponsor buys, holds
+>    and spends. "Blockchain operations are abstracted from users" below describes the
+>    *custodial wallet*, not the *currency* — the wallet stays invisible, the ARDA balance and
+>    project-token holding do not.
+> 3. **Rewards and funding are `IssueUnits` from the platform reserve, never a per-reward
+>    `Mint`** (D47). A stake is one real per-project ASA minted once into a platform reserve at
+>    project creation; every sponsor contribution or task reward after that moves already-issued
+>    units out of that reserve. The treasury-backed exchange-rate formula below is correct and
+>    unaffected — see the `RATE BASE` note in `conductor/RUNBOOK.md`.
+>
+> See `conductor/tracks/ardanova-production-readiness-waves_20260907/plan.md` Waves 3/5/6 for the
+> corrected build order. This file is retroactive documentation of what Track 09 built, not a
+> spec to implement the correction from.
 
 ## Overview
 
-ArdaNova's tokenomics system enables worker-owned project equity through a three-tier token architecture with **gated liquidity** — a mechanism that controls when different classes of token holders can convert their equity to cash, based on project lifecycle milestones.
+ArdaNova's tokenomics system enables worker-owned project equity through a token architecture
+with **gated liquidity** — a mechanism that controls when different classes of token holders can
+convert their equity to cash, based on project lifecycle milestones.
 
-1. **Project Tokens** — Per-project fungible ASAs representing equity shares
-2. **ARDA Token** — Platform-wide fungible ASA serving as the universal exchange medium
-3. **USDCa** — Algorand-native stablecoin for fiat-convertible payouts
+1. **Project Tokens** — Per-project fungible ASAs representing equity shares. One real ASA is
+   minted into a platform reserve per project (D47) — never a ledger row promising a future mint.
+2. **ARDA Token** — Platform-wide fungible ASA and ArdaNova's user-facing currency (D44): the
+   fiat on/off-ramp, the medium every project token exchanges through, and the only "chain word"
+   a sponsor should ever need to know.
 
-Users fund projects with USD (via Stripe). Contributors earn equity (project tokens) for completed tasks. Investors acquire equity by funding projects. Founders receive reserved allocations. Each holder class has different liquidity rights governed by two project gates. All blockchain operations are abstracted from users — they interact only with USD values and equity percentages.
+Users buy ARDA with USD through the AZOA `Fiat.USD` rail (D45). Contributors earn equity (project
+tokens) for completed tasks; investors acquire equity by spending ARDA to fund a project; founders
+receive reserved allocations. Each holder class has different liquidity rights governed by two
+project gates. Custody is abstracted from users — wallets are invisible and tenant-provisioned —
+but the ARDA balance and the project-token holding are not: they are what the sponsor is shown.
 
 ## Design Principles
 
-- **USD is source of truth** — all values denominated in USD; blockchain is the accountability layer
+- **ARDA is the user-facing unit; USD is only the ramp** — a sponsor thinks in and is shown ARDA
+  balances and project-token holdings; USD appears only at the on-ramp and off-ramp edges (D44)
 - **Custodial model** — platform manages all Algorand wallets and transactions on behalf of users
-- **Deterministic exchange rates** — treasury-backed, not market-based; no AMM complexity
-- **Off-chain first** — balances tracked in PostgreSQL for fast queries; Algorand provides audit trail
-- **Graceful degradation** — if Algorand is unavailable, token operations continue off-chain
+- **Deterministic exchange rates** — treasury-backed, not market-based; composed from AZOA value
+  primitives under ArdaNova's own rate, not an AMM (D50)
+- **Chain is the ledger of record** — `TokenBalance` is a read-model of chain holdings, not the
+  source of truth; the platform reserve wallet and the per-project ASA are what actually move (D47)
+- **Graceful degradation** — if Algorand is unavailable, reads fall back to the last-reconciled
+  read-model; no value-moving write proceeds off-chain
 - **Equity cap enforcement** — total equity allocations can never exceed 100% per project
 - **Gated liquidity** — token liquidity is unlocked progressively through project lifecycle gates
 - **Holder class fairness** — contributors keep earned equity on failure; founders bear the loss; investors receive partial protection
@@ -29,7 +65,7 @@ Users fund projects with USD (via Stripe). Contributors earn equity (project tok
 ### Three-Tier Token Flow (with Gated Liquidity)
 
 ```
-USD (Stripe)                                                    USD (Stripe Connect)
+USD (AZOA Fiat.USD on-ramp)                                     USD (AZOA Fiat.USD off-ramp)
     │                                                                ▲
     ▼                                                                │
 ┌──────────────────┐                                    ┌──────────────────┐
@@ -58,8 +94,8 @@ USD (Stripe)                                                    USD (Stripe Conn
 │  All tokens liquid│                      │   ARDA TOKEN      │    │
 └──────────────────┘                      │  (Platform ASA)   │────┘
                                           │                    │  Convert to USD
-         ┌──────────┐                     │  Treasury-backed   │  via USDCa
-         │  FAILED   │                    │  exchange rate     │
+         ┌──────────┐                     │  Treasury-backed   │  via the AZOA
+         │  FAILED   │                    │  exchange rate     │  Fiat.USD rail
          │  Founder  │                    └──────────────────┘
          │  tokens   │
          │  BURN     │                    ┌──────────────────┐
@@ -127,7 +163,9 @@ ASA Parameters:
 
 ### ARDA Token (Platform ASA)
 
-Single platform-wide fungible ASA that bridges all project tokens to stablecoins.
+Single platform-wide fungible ASA — ArdaNova's user-facing currency, not an internal-only unit
+(D44) — that every project token exchanges through on its way to and from fiat. There is no
+separate stablecoin leg; the fiat rail lives in AZOA (D45).
 
 ```
 ASA Parameters:

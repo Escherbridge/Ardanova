@@ -80,29 +80,13 @@ public class TaskEscrowService : ITaskEscrowService
         return Result<TaskEscrowDto>.Success(_mapper.Map<TaskEscrowDto>(escrow));
     }
 
-    public async Task<Result<TaskEscrowDto>> ReleaseAsync(string id, ReleaseEscrowDto dto, CancellationToken ct = default)
+    public Task<Result<TaskEscrowDto>> ReleaseAsync(string id, ReleaseEscrowDto dto, CancellationToken ct = default)
     {
-        var escrow = await _repository.GetByIdAsync(id, ct);
-        if (escrow is null)
-            return Result<TaskEscrowDto>.NotFound($"TaskEscrow with id {id} not found");
-
-        if (escrow.status != EscrowStatus.FUNDED)
-            return Result<TaskEscrowDto>.ValidationError($"Cannot release escrow in status {escrow.status}");
-
-        var task = await GetTaskAsync(escrow, ct);
-        if (task is null)
-            return Result<TaskEscrowDto>.NotFound($"Task with id {escrow.taskId} not found for escrow {escrow.id}");
-
-        escrow.status = EscrowStatus.RELEASED;
-        escrow.txHashRelease = dto.TxHash;
-        escrow.releasedAt = DateTime.UtcNow;
-        task.escrowStatus = EscrowStatus.RELEASED;
-        task.updatedAt = DateTime.UtcNow;
-
-        await _repository.UpdateAsync(escrow, ct);
-        await _taskRepository.UpdateAsync(task, ct);
-        await _unitOfWork.SaveChangesAsync(ct);
-        return Result<TaskEscrowDto>.Success(_mapper.Map<TaskEscrowDto>(escrow));
+        _ = id;
+        _ = dto;
+        _ = ct;
+        return Task.FromResult(Result<TaskEscrowDto>.Failure(
+            "Escrow release is unavailable until provider-verified settlement and reconciliation are available."));
     }
 
     public async Task<Result<TaskEscrowDto>> DisputeAsync(string id, DisputeEscrowDto dto, CancellationToken ct = default)
@@ -141,29 +125,13 @@ public class TaskEscrowService : ITaskEscrowService
         return Result<TaskEscrowDto>.Success(_mapper.Map<TaskEscrowDto>(escrow));
     }
 
-    public async Task<Result<TaskEscrowDto>> RefundAsync(string id, RefundEscrowDto dto, CancellationToken ct = default)
+    public Task<Result<TaskEscrowDto>> RefundAsync(string id, RefundEscrowDto dto, CancellationToken ct = default)
     {
-        var escrow = await _repository.GetByIdAsync(id, ct);
-        if (escrow is null)
-            return Result<TaskEscrowDto>.NotFound($"TaskEscrow with id {id} not found");
-
-        if (escrow.status != EscrowStatus.FUNDED && escrow.status != EscrowStatus.DISPUTED)
-            return Result<TaskEscrowDto>.ValidationError($"Cannot refund escrow in status {escrow.status}");
-
-        var task = await GetTaskAsync(escrow, ct);
-        if (task is null)
-            return Result<TaskEscrowDto>.NotFound($"Task with id {escrow.taskId} not found for escrow {escrow.id}");
-
-        escrow.status = EscrowStatus.REFUNDED;
-        escrow.txHashRefund = dto.TxHash;
-        escrow.refundedAt = DateTime.UtcNow;
-        task.escrowStatus = EscrowStatus.REFUNDED;
-        task.updatedAt = DateTime.UtcNow;
-
-        await _repository.UpdateAsync(escrow, ct);
-        await _taskRepository.UpdateAsync(task, ct);
-        await _unitOfWork.SaveChangesAsync(ct);
-        return Result<TaskEscrowDto>.Success(_mapper.Map<TaskEscrowDto>(escrow));
+        _ = id;
+        _ = dto;
+        _ = ct;
+        return Task.FromResult(Result<TaskEscrowDto>.Failure(
+            "Escrow refunds are unavailable until provider-verified settlement and reconciliation are available."));
     }
 
     private Task<ProjectTask?> GetTaskAsync(TaskEscrow escrow, CancellationToken ct)

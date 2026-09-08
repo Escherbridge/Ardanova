@@ -86,10 +86,12 @@ Status describes implementation presence in this repository, not automatic avail
 | **Project Management**     | Full CRUD with rich metadata, categories, and status tracking                              | Complete          |
 | **Google OAuth**           | NextAuth authentication; provider configuration required per environment                   | Available         |
 | **User Profiles**          | Roles, types, skills, and verification levels                                              | Complete          |
-| **Community Support**      | Voting, subscriptions, volunteering, applications                                          | Complete          |
+| **Community Support**      | Subscriptions, volunteering, applications                                                  | Complete          |
+| **Governance Voting**      | Proposal creation, comments, and vote casting are live; execution and other project-scoped governance actions return `501` pending ArdaNova's own vote of record | Fail-closed seam  |
 | **Guild System**           | Professional guilds, membership, bidding, and reviews                                      | Complete          |
 | **Shop System**            | Shop management, products, inventory, analytics                                            | Complete          |
 | **Value Tracking**         | Project-token, credential, and ownership data kept distinct; reconciliation work continues | In Progress       |
+| **Task Escrow**            | Status reads and dispute filing are live; funding, release, and refund return `501`/`503` pending a HOLD-backed settlement path on the AZOA node | Fail-closed seam  |
 | **Nova Studio**            | Human-controlled drafting, review, presentation, and rehearsal interaction model           | Interface Preview |
 | **.NET Backend API**       | Clean Architecture API with 6 projects, 40+ MCP tools                                      | Complete          |
 | **Membership Credentials** | Read-only checkpoint while issuance and lifecycle authorization are hardened               | In Progress       |

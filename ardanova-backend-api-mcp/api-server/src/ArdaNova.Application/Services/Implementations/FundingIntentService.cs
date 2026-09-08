@@ -25,6 +25,7 @@ public sealed class FundingIntentService : IFundingIntentService
     private readonly IRepository<EconomicOutbox> _outboxRepository;
     private readonly IStripeCheckoutGateway _checkoutGateway;
     private readonly IFundingSettlementReadiness _settlementReadiness;
+    private readonly IAzoaValueEligibilityService _valueEligibility;
     private readonly IUnitOfWork _unitOfWork;
 
     public FundingIntentService(
@@ -36,6 +37,7 @@ public sealed class FundingIntentService : IFundingIntentService
         IRepository<EconomicOutbox> outboxRepository,
         IStripeCheckoutGateway checkoutGateway,
         IFundingSettlementReadiness settlementReadiness,
+        IAzoaValueEligibilityService valueEligibility,
         IUnitOfWork unitOfWork)
     {
         _userRepository = userRepository;
@@ -46,6 +48,7 @@ public sealed class FundingIntentService : IFundingIntentService
         _outboxRepository = outboxRepository;
         _checkoutGateway = checkoutGateway;
         _settlementReadiness = settlementReadiness;
+        _valueEligibility = valueEligibility;
         _unitOfWork = unitOfWork;
     }
 
@@ -71,6 +74,10 @@ public sealed class FundingIntentService : IFundingIntentService
         if (actor is null)
             return Result<FundingCheckoutDto>.NotFound("Funding actor not found");
 
+        var funderReadiness = await _valueEligibility.RequireReadyAsync(actorId, "fund a project", ct);
+        if (!funderReadiness.IsSuccess)
+            return Result<FundingCheckoutDto>.Forbidden(funderReadiness.Error!);
+
         var config = await _tokenConfigRepository.GetByIdAsync(request.ProjectTokenConfigId, ct);
         if (config is null)
             return Result<FundingCheckoutDto>.NotFound("Project token configuration not found");
@@ -88,6 +95,17 @@ public sealed class FundingIntentService : IFundingIntentService
             return Result<FundingCheckoutDto>.ValidationError("Commerce is not enabled for this project");
         if (project.status is ProjectStatus.DRAFT or ProjectStatus.CANCELLED)
             return Result<FundingCheckoutDto>.ValidationError("This project is not eligible for funding");
+
+        if (!string.Equals(project.createdById, actorId, StringComparison.Ordinal))
+        {
+            var recipientReadiness = await _valueEligibility.RequireReadyAsync(
+                project.createdById,
+                "receive project funding",
+                ct);
+            if (!recipientReadiness.IsSuccess)
+                return Result<FundingCheckoutDto>.Forbidden(
+                    "This project cannot receive funding until its owner completes account setup.");
+        }
 
         var existing = await _intentRepository.FindOneAsync(
             intent => intent.funderUserId == actorId && intent.idempotencyKey == idempotencyKey,
@@ -174,14 +192,42 @@ public sealed class FundingIntentService : IFundingIntentService
             return Result<bool>.Success(false);
         if (!PaymentMatchesIntent(paymentIntent, intent))
             return Result<bool>.ValidationError("Provider payment does not match the immutable funding intent");
-        if (intent.verifiedProviderEventId is not null)
-            return string.Equals(intent.verifiedProviderEventId, providerEventId, StringComparison.Ordinal)
-                && string.Equals(intent.providerPaymentIntentId, paymentIntent.Id, StringComparison.Ordinal)
-                ? await ValidateExistingSettlementAsync(intent, providerEventId, ct)
-                : Result<bool>.Conflict("Funding intent is already verified by different provider data");
+
+        var hasVerifiedPayment = intent.verifiedProviderEventId is not null;
+        if (hasVerifiedPayment
+            && (!string.Equals(intent.verifiedProviderEventId, providerEventId, StringComparison.Ordinal)
+                || !string.Equals(intent.providerPaymentIntentId, paymentIntent.Id, StringComparison.Ordinal)))
+        {
+            return Result<bool>.Conflict("Funding intent is already verified by different provider data");
+        }
+        if (hasVerifiedPayment && !string.IsNullOrWhiteSpace(intent.settlementId))
+            return await ValidateExistingSettlementAsync(intent, providerEventId, ct);
+
+        var project = await _projectRepository.GetByIdAsync(intent.projectId, ct);
+        string? ownerReadinessFailureCode = null;
+        string? ownerReadinessFailureDetail = null;
+        if (project is null || string.IsNullOrWhiteSpace(project.createdById))
+        {
+            ownerReadinessFailureCode = "AZOA_PROJECT_OWNER_UNAVAILABLE";
+            ownerReadinessFailureDetail = "Funding settlement remains pending until the project owner can be verified.";
+        }
+        else
+        {
+            var ownerReadiness = await _valueEligibility.RequireReadyAsync(
+                project.createdById,
+                "receive project funding",
+                ct);
+            if (ownerReadiness.IsFailure)
+            {
+                ownerReadinessFailureCode = "AZOA_PROJECT_OWNER_NOT_READY";
+                ownerReadinessFailureDetail = "Funding settlement remains pending until the project owner completes account setup.";
+            }
+        }
 
         var now = DateTime.UtcNow;
         var settlement = CreateFundingSettlement(intent, providerEventId, now);
+        settlement.failureCode = ownerReadinessFailureCode;
+        settlement.failureDetail = ownerReadinessFailureDetail;
         var outbox = CreateFundingOutbox(settlement.id, now);
 
         try

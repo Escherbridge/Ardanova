@@ -1,4 +1,21 @@
+---
+type: spec
+---
+
 # KYC & Identity Verification — Technical Specification
+
+> **Superseded by D46/D48** (`ardanova-production-readiness-waves_20260907`). This spec
+> documents ArdaNova's legacy, self-hosted KYC gate (manual review, with a Veriff path) as it
+> shipped. Two things below no longer hold:
+> 1. **KYC gates value, not creation.** D46 requires full document KYC before any *value*
+>    action — sponsoring, working for stake, being paid, receiving a project token — never
+>    before drafting or browsing a project. `PRO gates project creation` (below) is the
+>    rejected shape.
+> 2. **The provider is AZOA-hosted Identomat, under node-level operator policy** (D48) — not a
+>    per-tenant `MANUAL`/`VERIFF` choice. See `azoa-user-onboarding/spec.md` and
+>    `conductor/product.md` "KYC and business verification" for the corrected model; the
+>    `IAzoaValueEligibilityService` gate (currently uncommitted — see `conductor/RUNBOOK.md`) is
+>    where the uniform, value-gating check actually lives today.
 
 ## Overview
 

@@ -6,6 +6,7 @@ using ArdaNova.Application.Common.Results;
 using ArdaNova.Application.DTOs;
 using ArdaNova.Application.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
 [ApiController]
@@ -167,7 +168,7 @@ public class OpportunityBidsController : ControllerBase
             ResultType.NotFound => NotFound(new { error = result.Error }),
             ResultType.ValidationError => BadRequest(new { error = result.Error }),
             ResultType.Unauthorized => Unauthorized(new { error = result.Error }),
-            ResultType.Forbidden => Forbid(),
+            ResultType.Forbidden => StatusCode(StatusCodes.Status403Forbidden, new { error = result.Error }),
             ResultType.Conflict => Conflict(new { error = result.Error }),
             _ => BadRequest(new { error = result.Error })
         };

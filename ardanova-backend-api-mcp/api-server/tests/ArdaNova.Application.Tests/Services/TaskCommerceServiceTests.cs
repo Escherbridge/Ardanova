@@ -2,7 +2,9 @@ namespace ArdaNova.Application.Tests.Services;
 
 using ArdaNova.Application.Common.Interfaces;
 using ArdaNova.Application.Common.Results;
+using ArdaNova.Application.DTOs;
 using ArdaNova.Application.Services.Implementations;
+using ArdaNova.Application.Services.Interfaces;
 using ArdaNova.Domain.Models.Entities;
 using ArdaNova.Domain.Models.Enums;
 using FluentAssertions;
@@ -17,11 +19,18 @@ public class TaskCommerceServiceTests
     private readonly Mock<IRepository<ProjectTokenConfig>> _tokenConfigs = new();
     private readonly Mock<IRepository<ProjectTask>> _tasks = new();
     private readonly Mock<IRepository<TaskCommerceAgreement>> _agreements = new();
+    private readonly Mock<IAzoaValueEligibilityService> _valueEligibility = new();
     private readonly Mock<IUnitOfWork> _unitOfWork = new();
     private readonly TaskCommerceService _sut;
 
     public TaskCommerceServiceTests()
     {
+        _valueEligibility
+            .Setup(service => service.RequireReadyAsync(
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<AzoaCustodialAccountStatusDto>.Success(ReadyAccountStatus()));
         _sut = new TaskCommerceService(
             _bids.Object,
             _opportunities.Object,
@@ -29,6 +38,7 @@ public class TaskCommerceServiceTests
             _tokenConfigs.Object,
             _tasks.Object,
             _agreements.Object,
+            _valueEligibility.Object,
             _unitOfWork.Object);
     }
 
@@ -75,6 +85,46 @@ public class TaskCommerceServiceTests
 
         result.IsSuccess.Should().BeFalse();
         result.Type.Should().Be(ResultType.Forbidden);
+        VerifyNoMutation();
+    }
+
+    [Fact]
+    public async Task AcceptBidAsync_IncompleteProjectOwnerFailsClosedBeforeTokenOrTaskWrites()
+    {
+        var fixture = ArrangeEligibleBid();
+        _valueEligibility
+            .Setup(service => service.RequireReadyAsync(
+                fixture.Project.createdById,
+                "accept paid project work",
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<AzoaCustodialAccountStatusDto>.Forbidden("Complete your account setup before accepting paid work."));
+
+        var result = await _sut.AcceptBidAsync(fixture.Bid.id, fixture.Project.createdById);
+
+        result.Type.Should().Be(ResultType.Forbidden);
+        _tokenConfigs.Verify(repository => repository.FindOneAsync(
+            It.IsAny<System.Linq.Expressions.Expression<Func<ProjectTokenConfig, bool>>>(),
+            It.IsAny<CancellationToken>()), Times.Never);
+        VerifyNoMutation();
+    }
+
+    [Fact]
+    public async Task AcceptBidAsync_IncompleteContributorFailsClosedBeforeTokenOrTaskWrites()
+    {
+        var fixture = ArrangeEligibleBid();
+        _valueEligibility
+            .Setup(service => service.RequireReadyAsync(
+                fixture.Bid.bidderId,
+                "receive a paid project assignment",
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<AzoaCustodialAccountStatusDto>.Forbidden("Complete your account setup before receiving paid work."));
+
+        var result = await _sut.AcceptBidAsync(fixture.Bid.id, fixture.Project.createdById);
+
+        result.Type.Should().Be(ResultType.Forbidden);
+        _tokenConfigs.Verify(repository => repository.FindOneAsync(
+            It.IsAny<System.Linq.Expressions.Expression<Func<ProjectTokenConfig, bool>>>(),
+            It.IsAny<CancellationToken>()), Times.Never);
         VerifyNoMutation();
     }
 
@@ -300,4 +350,16 @@ public class TaskCommerceServiceTests
         _unitOfWork.Verify(work => work.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
         _unitOfWork.Verify(work => work.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
+
+    private static AzoaCustodialAccountStatusDto ReadyAccountStatus() => new()
+    {
+        AvatarId = "avatar-1",
+        WalletId = "wallet-1",
+        WalletAddress = "wallet-address-1",
+        KycStatus = AzoaKycStatus.Approved,
+        IdentityReady = true,
+        KycReady = true,
+        WalletReady = true,
+        Ready = true,
+    };
 }

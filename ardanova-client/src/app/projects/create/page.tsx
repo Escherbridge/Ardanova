@@ -48,7 +48,8 @@ import {
   PROJECT_CREATE_DRAFT_KEY,
   createEmptyProjectFormData,
   isProjectCreateCompensationModel,
-  isProjectCreationCustodyReady,
+  isProjectRoleValueBearing,
+  isValueActionAccountReady,
   parseProjectCreateDraft,
   serializeProjectCreateDraft,
   toProjectRoleOpportunityInput,
@@ -84,9 +85,9 @@ const durationLabels: Record<ProjectDuration, string> = {
 };
 
 const compensationLabels: Record<ProjectCreateCompensationModel, string> = {
-  FIXED_SHARES: "Fixed Token",
-  HOURLY_SHARES: "Hourly Token",
-  EQUITY_PERCENT: "Project-token allocation percentage",
+  FIXED_SHARES: "Fixed project units",
+  HOURLY_SHARES: "Hourly project units",
+  EQUITY_PERCENT: "Project-unit allocation percentage",
   HYBRID: "Hybrid",
   BOUNTY: "Bounty",
   MILESTONE: "Milestone",
@@ -275,9 +276,11 @@ export default function CreateProjectPage() {
   const addMemberMutation = api.project.addMember.useMutation();
   const createOpportunityMutation = api.opportunity.create.useMutation();
   const deleteProjectMutation = api.project.delete.useMutation();
-  const custodyReady = isProjectCreationCustodyReady(custodyStatus.data);
-  const custodyCheckPending =
-    !session?.user?.id || (!custodyStatus.data && custodyStatus.isPending);
+  const valueAccountReady = isValueActionAccountReady(custodyStatus.data);
+  const valueAccountCheckPending =
+    Boolean(session?.user?.id) &&
+    !custodyStatus.data &&
+    custodyStatus.isPending;
 
   const handleChange = <Key extends keyof WizardFormData>(
     field: Key,
@@ -590,15 +593,6 @@ export default function CreateProjectPage() {
   };
 
   const handleSubmit = async () => {
-    if (!custodyReady) {
-      setErrors((previous) => ({
-        ...previous,
-        submit:
-          "Azoa must confirm your action account, identity verification, and managed wallet before this project can be created.",
-      }));
-      return;
-    }
-
     const partialWarnings: string[] = [];
     const failedResourceIds: string[] = [];
     const failedMilestoneIds: string[] = [];
@@ -655,6 +649,21 @@ export default function CreateProjectPage() {
       const rolesToSave = recovery
         ? formData.roles.filter((role) => recovery.roleIds.includes(role.id))
         : formData.roles;
+      const paidRolesAwaitingSetup = valueAccountReady
+        ? []
+        : rolesToSave.filter(isProjectRoleValueBearing);
+      const rolesEligibleToSave = valueAccountReady
+        ? rolesToSave
+        : rolesToSave.filter((role) => !isProjectRoleValueBearing(role));
+
+      if (paidRolesAwaitingSetup.length > 0) {
+        failedRoleIds.push(
+          ...paidRolesAwaitingSetup.map((role) => role.id),
+        );
+        partialWarnings.push(
+          "Paid role listings remain saved in this recovery draft until account setup is complete.",
+        );
+      }
 
       // 2. Save resources
       for (const resource of resourcesToSave) {
@@ -719,8 +728,8 @@ export default function CreateProjectPage() {
         }
       }
 
-      // 5. Save team roles as project opportunities
-      for (const role of rolesToSave) {
+      // 5. Save only non-paid roles until account setup can authorize paid work.
+      for (const role of rolesEligibleToSave) {
         try {
           await createOpportunityMutation.mutateAsync(
             toProjectRoleOpportunityInput({
@@ -769,10 +778,19 @@ export default function CreateProjectPage() {
           return;
         }
 
-        toast.warning("Project created, but with some issues.", {
-          description: `${partialWarnings.slice(0, 5).join(". ")}${partialWarnings.length > 5 ? `. ${partialWarnings.length - 5} more items remain.` : ""}`,
-          duration: 8000,
-        });
+        toast.warning(
+          paidRolesAwaitingSetup.length > 0
+            ? "Project draft created; paid roles are waiting for account setup."
+            : "Project created, but with some issues.",
+          {
+            description: `${partialWarnings.slice(0, 5).join(". ")}${partialWarnings.length > 5 ? `. ${partialWarnings.length - 5} more items remain.` : ""}`,
+            duration: 8000,
+          },
+        );
+
+        if (paidRolesAwaitingSetup.length > 0) {
+          return;
+        }
       } else {
         draftCompletedRef.current = true;
         setRecovery(null);
@@ -861,7 +879,8 @@ export default function CreateProjectPage() {
                 <p className="text-muted-foreground mt-1 max-w-2xl text-sm leading-relaxed">
                   This validated recovery draft will retry only the resources,
                   milestones, membership, and roles that did not save. It will
-                  not create a duplicate project.
+                  not create a duplicate project. Paid role listings stay on
+                  hold until account setup is complete.
                 </p>
               </div>
               <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
@@ -874,9 +893,13 @@ export default function CreateProjectPage() {
                   type="button"
                   className="min-h-11"
                   onClick={handleSubmit}
-                  disabled={isSubmitting || !custodyReady}
+                  disabled={isSubmitting}
                 >
-                  {isSubmitting ? "Retrying..." : "Retry remaining setup"}
+                  {isSubmitting
+                    ? "Saving..."
+                    : valueAccountReady
+                      ? "Retry remaining setup"
+                      : "Save remaining non-paid setup"}
                 </Button>
               </div>
             </div>
@@ -891,9 +914,9 @@ export default function CreateProjectPage() {
           <div className="flex flex-col gap-4 p-4 sm:flex-row sm:items-start sm:justify-between sm:p-5">
             <div className="flex items-start gap-3">
               <span className="border-foreground bg-system/10 text-system flex size-10 shrink-0 items-center justify-center border-2">
-                {custodyCheckPending ? (
+                {valueAccountCheckPending ? (
                   <Loader2 className="size-5 animate-spin" aria-hidden="true" />
-                ) : custodyReady ? (
+                ) : valueAccountReady ? (
                   <ShieldCheck className="size-5" aria-hidden="true" />
                 ) : (
                   <TriangleAlert className="size-5" aria-hidden="true" />
@@ -905,13 +928,13 @@ export default function CreateProjectPage() {
                     id="project-readiness-title"
                     className="font-mono text-base font-black uppercase"
                   >
-                    Azoa action readiness
+                    Account setup status
                   </h2>
-                  <Badge variant={custodyReady ? "success" : "outline"}>
-                    {custodyCheckPending
+                  <Badge variant={valueAccountReady ? "success" : "outline"}>
+                    {valueAccountCheckPending
                       ? "Checking"
-                      : custodyReady
-                        ? "Confirmed"
+                      : valueAccountReady
+                        ? "Complete"
                         : "Setup needed"}
                   </Badge>
                 </div>
@@ -919,24 +942,24 @@ export default function CreateProjectPage() {
                   id="create-project-readiness"
                   className="text-muted-foreground mt-2 max-w-2xl text-sm leading-relaxed"
                 >
-                  {custodyCheckPending
-                    ? "Checking the tenant-bound account used for project actions."
+                  {valueAccountCheckPending
+                    ? "Checking the account setup needed for funding and paid work."
                     : custodyStatus.error
-                      ? custodyStatus.error.message
-                      : custodyReady
-                        ? "Azoa confirms your action account, identity check, and managed wallet are ready. The project service verifies them again when you create."
+                      ? "We could not confirm account setup. You can still create a project draft; funding and paid role listings remain unavailable until status is confirmed."
+                      : valueAccountReady
+                        ? "Account setup is complete. You can publish paid role listings when the project is ready; the server checks every value-bearing action again."
                         : (custodyStatus.data?.unavailableReason ??
-                          "Complete your Azoa action account and identity verification before creating the project record.")}
+                          "You can create a project draft and collaborate now. Complete account setup before funding a project, publishing paid roles, or receiving money or rewards.")}
                 </p>
               </div>
             </div>
 
-            {!custodyCheckPending && !custodyReady && (
+            {!valueAccountCheckPending && !valueAccountReady && (
               <div className="flex w-full flex-col gap-2 sm:w-auto">
                 <Button className="min-h-11 w-full sm:w-auto" asChild>
                   <Link href="/settings/verification?returnTo=%2Fprojects%2Fcreate">
                     <ShieldCheck className="size-4" aria-hidden="true" />
-                    Review secure setup
+                    Review account setup
                   </Link>
                 </Button>
                 <Button
@@ -961,7 +984,7 @@ export default function CreateProjectPage() {
 
           <div className="border-foreground grid border-t-2 sm:grid-cols-3">
             <div className="border-foreground flex items-center justify-between gap-3 border-b-2 px-4 py-3 sm:border-r-2 sm:border-b-0">
-              <span className="text-sm font-medium">Action account</span>
+              <span className="text-sm font-medium">Account setup</span>
               <span className="font-mono text-xs uppercase">
                 {custodyStatus.data?.identityReady ? "Ready" : "Not confirmed"}
               </span>
@@ -973,18 +996,18 @@ export default function CreateProjectPage() {
               </span>
             </div>
             <div className="flex items-center justify-between gap-3 px-4 py-3">
-              <span className="text-sm font-medium">Managed wallet</span>
+              <span className="text-sm font-medium">Managed payment account</span>
               <span className="font-mono text-xs uppercase">
                 {custodyStatus.data?.walletReady ? "Ready" : "Not confirmed"}
               </span>
             </div>
           </div>
 
-          {!custodyReady && (
+          {!valueAccountReady && (
             <p className="border-foreground text-muted-foreground border-t-2 px-4 py-3 text-xs leading-relaxed sm:px-5">
-              Keep shaping the draft here if you like. Moving to verification
-              will not erase it in this tab; only the final create action stays
-              locked.
+              Keep shaping and saving this project draft. Visiting account setup
+              will not erase it in this tab; only funding and paid role listings
+              wait for completion.
             </p>
           )}
         </section>
@@ -2761,7 +2784,7 @@ export default function CreateProjectPage() {
                               {role.shareAmount &&
                                 ` • ${role.shareAmount} shares`}
                               {role.equityPercent &&
-                                ` • ${role.equityPercent}% project-token allocation`}
+                                ` - ${role.equityPercent}% project-unit allocation`}
                             </p>
                           </div>
                           {role.isOpenForApplications && (
@@ -2862,7 +2885,7 @@ export default function CreateProjectPage() {
             </Button>
           ) : (
             <div className="flex w-full flex-col-reverse gap-2 sm:w-auto sm:flex-row">
-              {!custodyCheckPending && !custodyReady && (
+              {!valueAccountCheckPending && !valueAccountReady && (
                 <Button
                   variant="outline"
                   className="min-h-11 w-full sm:w-auto"
@@ -2877,7 +2900,7 @@ export default function CreateProjectPage() {
                 variant="default"
                 className="bg-system text-system-foreground hover:bg-system/90 min-h-11 w-full font-semibold sm:w-auto"
                 onClick={handleSubmit}
-                disabled={isSubmitting || custodyCheckPending || !custodyReady}
+                disabled={isSubmitting}
                 aria-describedby="create-project-readiness"
               >
                 {isSubmitting ? (
@@ -2885,14 +2908,14 @@ export default function CreateProjectPage() {
                     <Loader2 className="mr-2 size-4 animate-spin" />
                     {recovery ? "Retrying..." : "Creating..."}
                   </>
-                ) : custodyReady ? (
+                ) : valueAccountReady ? (
                   recovery ? (
                     "Retry remaining setup"
                   ) : (
                     "Create Project"
                   )
                 ) : (
-                  "Secure setup required"
+                  recovery ? "Save remaining non-paid setup" : "Create project draft"
                 )}
               </Button>
             </div>

@@ -62,13 +62,12 @@ export const chatRouter = createTRPCRouter({
         cursor: z.string().optional(),
       }),
     )
-    .query(async ({ input, ctx }) => {
-      const userId = ctx.session.user.id;
+    .query(async ({ input }) => {
       const { limit, cursor } = input;
 
       const page = cursor ? parseInt(cursor, 10) : 1;
 
-      const response = await apiClient.chat.getConversations(userId, {
+      const response = await apiClient.chat.getConversations({
         page,
         pageSize: limit,
       });
@@ -89,13 +88,8 @@ export const chatRouter = createTRPCRouter({
   // Get a single conversation by ID
   getConversation: protectedProcedure
     .input(z.object({ conversationId: z.string() }))
-    .query(async ({ input, ctx }) => {
-      const userId = ctx.session.user.id;
-
-      const response = await apiClient.chat.getConversation(
-        input.conversationId,
-        userId,
-      );
+    .query(async ({ input }) => {
+      const response = await apiClient.chat.getConversation(input.conversationId);
 
       if (response.error || !response.data) {
         throw new Error(response.error ?? "Conversation not found");
@@ -107,10 +101,8 @@ export const chatRouter = createTRPCRouter({
   // Get or create a direct conversation with another user
   getOrCreateDirect: protectedProcedure
     .input(z.object({ otherUserId: z.string() }))
-    .mutation(async ({ input, ctx }) => {
-      const userId = ctx.session.user.id;
-
-      const response = await apiClient.chat.getOrCreateDirect(userId, {
+    .mutation(async ({ input }) => {
+      const response = await apiClient.chat.getOrCreateDirect({
         participantUserId: input.otherUserId,
       });
 
@@ -126,16 +118,11 @@ export const chatRouter = createTRPCRouter({
   // Create a group conversation
   createGroup: protectedProcedure
     .input(createGroupSchema)
-    .mutation(async ({ input, ctx }) => {
-      const userId = ctx.session.user.id;
-
-      // Ensure creator is included in participants
-      const allParticipantIds = [...new Set([userId, ...input.participantIds])];
-
-      const response = await apiClient.chat.createGroup(userId, {
+    .mutation(async ({ input }) => {
+      const response = await apiClient.chat.createGroup({
         name: input.name,
         avatarUrl: input.avatarUrl,
-        memberUserIds: allParticipantIds,
+        memberUserIds: [...new Set(input.participantIds)],
       });
 
       if (response.error || !response.data) {
@@ -156,13 +143,11 @@ export const chatRouter = createTRPCRouter({
         cursor: z.string().optional(),
       }),
     )
-    .query(async ({ input, ctx }) => {
-      const userId = ctx.session.user.id;
+    .query(async ({ input }) => {
       const { conversationId, limit, cursor } = input;
 
       const response = await apiClient.chat.getMessages(
         conversationId,
-        userId,
         limit,
         cursor,
       );
@@ -181,10 +166,8 @@ export const chatRouter = createTRPCRouter({
   // Send a message to a conversation
   sendMessage: protectedProcedure
     .input(sendMessageSchema)
-    .mutation(async ({ input, ctx }) => {
-      const userId = ctx.session.user.id;
-
-      const response = await apiClient.chat.sendMessage(userId, {
+    .mutation(async ({ input }) => {
+      const response = await apiClient.chat.sendMessage({
         conversationId: input.conversationId,
         message: input.content,
         replyToId: input.replyToId,
@@ -205,10 +188,8 @@ export const chatRouter = createTRPCRouter({
         readUpTo: z.string().datetime({ offset: true }),
       }),
     )
-    .mutation(async ({ input, ctx }) => {
-      const userId = ctx.session.user.id;
-
-      const response = await apiClient.chat.markAsRead(userId, {
+    .mutation(async ({ input }) => {
+      const response = await apiClient.chat.markAsRead({
         conversationId: input.conversationId,
         readUpTo: input.readUpTo,
       });
@@ -228,10 +209,8 @@ export const chatRouter = createTRPCRouter({
         isTyping: z.boolean().default(true),
       }),
     )
-    .mutation(async ({ input, ctx }) => {
-      const userId = ctx.session.user.id;
-
-      const response = await apiClient.chat.sendTypingIndicator(userId, {
+    .mutation(async ({ input }) => {
+      const response = await apiClient.chat.sendTypingIndicator({
         conversationId: input.conversationId,
         isTyping: input.isTyping,
       });
@@ -250,11 +229,9 @@ export const chatRouter = createTRPCRouter({
         message: z.string().min(1).max(10000),
       }),
     )
-    .mutation(async ({ input, ctx }) => {
-      const userId = ctx.session.user.id;
+    .mutation(async ({ input }) => {
       const response = await apiClient.chat.updateMessage(
         input.messageId,
-        userId,
         {
           message: input.message,
         },
@@ -267,12 +244,8 @@ export const chatRouter = createTRPCRouter({
 
   deleteMessage: protectedProcedure
     .input(z.object({ messageId: z.string() }))
-    .mutation(async ({ input, ctx }) => {
-      const userId = ctx.session.user.id;
-      const response = await apiClient.chat.deleteMessage(
-        input.messageId,
-        userId,
-      );
+    .mutation(async ({ input }) => {
+      const response = await apiClient.chat.deleteMessage(input.messageId);
       if (response.error) {
         throw new Error(response.error ?? "Failed to delete message");
       }
@@ -287,12 +260,10 @@ export const chatRouter = createTRPCRouter({
         avatarUrl: z.string().url().optional(),
       }),
     )
-    .mutation(async ({ input, ctx }) => {
-      const userId = ctx.session.user.id;
+    .mutation(async ({ input }) => {
       const { conversationId, ...dto } = input;
       const response = await apiClient.chat.updateGroup(
         conversationId,
-        userId,
         dto,
       );
       if (response.error || !response.data) {
@@ -309,11 +280,9 @@ export const chatRouter = createTRPCRouter({
         role: z.enum(["OWNER", "ADMIN", "MEMBER"]).optional(),
       }),
     )
-    .mutation(async ({ input, ctx }) => {
-      const userId = ctx.session.user.id;
+    .mutation(async ({ input }) => {
       const response = await apiClient.chat.addMember(
         input.conversationId,
-        userId,
         {
           userId: input.memberUserId,
           role: input.role,
@@ -332,12 +301,10 @@ export const chatRouter = createTRPCRouter({
         memberUserId: z.string(),
       }),
     )
-    .mutation(async ({ input, ctx }) => {
-      const userId = ctx.session.user.id;
+    .mutation(async ({ input }) => {
       const response = await apiClient.chat.removeMember(
         input.conversationId,
         input.memberUserId,
-        userId,
       );
       if (response.error) {
         throw new Error(response.error ?? "Failed to remove member");
@@ -347,12 +314,8 @@ export const chatRouter = createTRPCRouter({
 
   leaveConversation: protectedProcedure
     .input(z.object({ conversationId: z.string() }))
-    .mutation(async ({ input, ctx }) => {
-      const userId = ctx.session.user.id;
-      const response = await apiClient.chat.leaveConversation(
-        input.conversationId,
-        userId,
-      );
+    .mutation(async ({ input }) => {
+      const response = await apiClient.chat.leaveConversation(input.conversationId);
       if (response.error) {
         throw new Error(response.error ?? "Failed to leave conversation");
       }

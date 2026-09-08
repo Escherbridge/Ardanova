@@ -15,6 +15,7 @@ import {
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import type { AzoaCustodialAccountStatusDto } from "~/lib/api/ardanova";
+import { isValueActionAccountReady } from "~/lib/contracts/project-create-contract";
 import { cn } from "~/lib/utils";
 
 type AccountStepIcon = "account" | "identity" | "wallet";
@@ -38,7 +39,7 @@ interface CustodialAccountCardProps {
 
 function compactReference(value: string | null | undefined): string {
   if (!value) return "Not created";
-  return value.length > 22 ? `${value.slice(0, 10)}…${value.slice(-8)}` : value;
+  return value.length > 22 ? `${value.slice(0, 10)}...${value.slice(-8)}` : value;
 }
 
 export function CustodialAccountCard({
@@ -51,20 +52,26 @@ export function CustodialAccountCard({
   onEnsure,
 }: CustodialAccountCardProps) {
   const kycApproved = status?.kycStatus === "Approved";
+  const accountSetupComplete = isValueActionAccountReady(status);
   const needsProvisioning =
-    status?.identityReady !== true || status.walletReady !== true;
+    status?.identityReady !== true ||
+    status.walletReady !== true ||
+    (!accountSetupComplete &&
+      (!status?.avatarId?.trim() ||
+        !status?.walletId?.trim() ||
+        !status?.walletAddress?.trim()));
   const stateLabel = isLoading
     ? "Checking"
-    : status?.ready
-      ? "Action ready"
+    : accountSetupComplete
+      ? "Account setup complete"
       : status?.identityReady && status.walletReady
-        ? "Verification needed"
+        ? "Identity check needed"
         : status?.identityReady
-          ? "Wallet pending"
+          ? "Account completion pending"
           : "Setup required";
   const steps: AccountStep[] = [
     {
-      label: "Action account",
+      label: "Account setup",
       detail: compactReference(status?.avatarId),
       complete: status?.identityReady === true,
       icon: "account",
@@ -72,13 +79,13 @@ export function CustodialAccountCard({
     {
       label: "Identity check",
       detail: status
-        ? `Azoa KYC · ${status.kycStatus}`
-        : "Azoa KYC · Not checked",
+        ? `Identity status: ${status.kycStatus}`
+        : "Identity status: Not checked",
       complete: kycApproved,
       icon: "identity",
     },
     {
-      label: "Managed wallet",
+      label: "Managed payment account",
       detail: compactReference(status?.walletAddress),
       complete: status?.walletReady === true,
       icon: "wallet",
@@ -95,27 +102,26 @@ export function CustodialAccountCard({
         <div>
           <div className="mb-3 flex flex-wrap items-center gap-2">
             <Badge variant="outline" className="font-mono uppercase">
-              Identity + custody
+              Account setup
             </Badge>
             <span className="text-muted-foreground font-mono text-[0.65rem] tracking-[0.14em] uppercase">
-              Azoa-managed · tenant isolated
+              Managed securely
             </span>
           </div>
           <h2
             id="azoa-account-title"
             className="font-mono text-2xl font-black tracking-[-0.045em] uppercase sm:text-3xl"
           >
-            Your secure action account
+            Complete your account setup
           </h2>
           <p className="text-muted-foreground mt-3 max-w-2xl text-sm leading-relaxed">
-            ArdaNova coordinates the setup. Azoa creates one account for you,
-            verifies identity, and keeps chain keys inside its configured
-            custody boundary. ArdaNova keeps only account references and
-            readiness status.
+            ArdaNova coordinates the setup. Azoa verifies identity and manages
+            the protected account used for funding and rewards. ArdaNova keeps
+            only account references and readiness status.
           </p>
         </div>
         <Badge
-          variant={status?.ready ? "success" : "secondary"}
+          variant={accountSetupComplete ? "success" : "secondary"}
           className="min-h-8 w-fit rounded-none px-3 font-mono uppercase"
         >
           {stateLabel}
@@ -185,9 +191,9 @@ export function CustodialAccountCard({
           >
             {unavailable
               ? unavailable
-              : status?.ready
-                ? "Identity and wallet custody are ready. Every value-moving action still requires its own review and project authorization."
-                : "Creating the account does not move funds or approve a transaction. KYC and every consequential action remain separate review steps."}
+              : accountSetupComplete
+                ? "Account setup is complete. Funding, paid work, and payouts still require their own server-side project checks."
+                : "Creating this account does not move money or approve a payment. You can create projects and collaborate while setup is pending; funding, paid work, and rewards stay unavailable."}
           </p>
         </div>
         <div className="flex flex-col gap-2 sm:min-w-52">
@@ -203,8 +209,8 @@ export function CustodialAccountCard({
                 <Cpu className="size-4" aria-hidden="true" />
               )}
               {status?.identityReady
-                ? "Retry wallet setup"
-                : "Create secure account"}
+                ? "Continue account setup"
+                : "Start account setup"}
             </Button>
           )}
           {!kycApproved && verificationHref && (

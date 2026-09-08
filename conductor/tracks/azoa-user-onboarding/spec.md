@@ -9,6 +9,18 @@ type: spec
 > self-registration is credential-free; managed onboarding uses a dedicated
 > custody key and a trusted deploy-time tenant binding.
 
+> **SUPERSEDED — do not read the self-sovereign sections as pending work.**
+> Wave 0 (2026-09-07) **deleted** the self-sovereign path from the tree:
+> `IAzoaAvatarService`, `AzoaAvatarService`, `IAzoaAvatarNode`,
+> `AzoaAvatarNodeAdapter`, `AzoaPublicNodeClient`, `AzoaAvatarController` and
+> `AzoaAvatarDtos` are gone, with their DI registrations and tests. The
+> `/api/azoa/avatar/*` routes therefore **404** — they are no longer a 410 stub.
+> ArdaNova no longer calls `POST /api/user/register` from production code.
+> The live path is the tenant custodial-account flow
+> (`api/azoa/custodial-account`) plus `IAzoaValueEligibilityService`. Sections
+> below that describe `IAzoaAvatarService` as existing, or the legacy routes as
+> retired-but-present, are kept only as a record of what was removed.
+
 ## Terminology after the `f2e4bc5` cutover (read this first)
 
 AZOA renamed its domain nouns — **avatar → user**, **quest → action** — across

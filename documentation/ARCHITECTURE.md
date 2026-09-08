@@ -30,7 +30,9 @@ This document provides a detailed technical architecture for the ArdaNova platfo
 
 **Key Changes:**
 
-- DAO, Studio, Exchange, Explorer, and Agent UI consolidated into main platform
+- DAO, Studio, Exchange, and Agent UI consolidated into main platform. **Explorer is retired,
+  not planned** — chain state is inspected through AZOA operator tooling, never an
+  ArdaNova-hosted view (see `conductor/product.md` "Blockchain operations").
 - Event Bus implemented for domain event publishing
 - SignalR WebSocket hub for real-time client updates
 - S3-compatible file storage service with presigned URLs
@@ -158,7 +160,7 @@ ardanova/
 │   │   │   ├── dao/                    # Governance UI (TODO)
 │   │   │   ├── studio/                 # Pitch builder (TODO)
 │   │   │   ├── exchange/               # Token exchange (TODO)
-│   │   │   ├── explorer/               # Blockchain explorer (TODO)
+│   │   │   ├── explorer/               # RETIRED — not planned; AZOA is the chain boundary
 │   │   │   ├── agent/                  # AI agent chat (TODO)
 │   │   │   └── api/                    # Next.js API routes
 │   │   │
@@ -631,7 +633,7 @@ The main platform is a Next.js 15 application using the App Router pattern.
 │  ┌─────────────────────────────────────────────────────────┐    │
 │  │                     APP ROUTES                           │    │
 │  │  /auth, /dashboard, /projects, /dao, /studio,           │    │
-│  │  /exchange, /explorer, /agent, /marketplace             │    │
+│  │  /exchange, /agent, /marketplace (explorer retired)      │    │
 │  └────────────────────────┬────────────────────────────────┘    │
 │                           │                                      │
 │          ┌────────────────┼────────────────┐                    │
@@ -1740,7 +1742,7 @@ lib/blockchain/
 | DAO UI                          | 🔄 TODO        | Governance proposals, voting                                       |
 | Studio UI                       | 🔄 TODO        | Gamma API integration                                              |
 | Exchange UI                     | 🔄 TODO        | Token swap, liquidity                                              |
-| Explorer UI                     | 🔄 TODO        | Blockchain/token explorer                                          |
+| Explorer UI                     | ⛔ Retired     | Not planned — AZOA is the custody/chain boundary, not an ArdaNova-hosted surface   |
 | Agent UI                        | 🔄 TODO        | AI agent chat interface                                            |
 | Game SDK                        | 🔄 TODO        | Unity & Godot SDKs                                                 |
 
@@ -1764,7 +1766,7 @@ lib/blockchain/
 9. ✅ **Phase 5.4**: Social Following System - **COMPLETE**
 10. ✅ **Phase 5.5**: Trending System - **COMPLETE**
 11. 🔄 **Phase 6**: Backend Services for new entities (invitations, events, follows)
-12. 🔄 **Phase 7**: Consolidate DAO, Studio, Exchange, Explorer into client
+12. 🔄 **Phase 7**: Consolidate DAO, Studio, Exchange into client (Explorer retired, not planned)
 13. 🔄 **Phase 8**: Blockchain integration (Algorand) — **IN PROGRESS** (Credential Utility Service with `dotnet-algorand-sdk`)
 14. **Phase 9**: Smart contract development (AVM/TEAL for governance automation)
 15. **Phase 10**: Game SDK (Unity, Godot)

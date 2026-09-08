@@ -51,6 +51,31 @@ public class FundingIntentsControllerTests
         result.Should().BeOfType<ForbidResult>();
     }
 
+    [Fact]
+    public async Task CreateCheckout_MapsAccountSetupFailureToReadableForbiddenResponse()
+    {
+        var service = new Mock<IFundingIntentService>();
+        service.Setup(item => item.CreateCheckoutAsync(
+                It.IsAny<CreateFundingIntentDto>(),
+                "user-1",
+                "9e68f25a-589c-472a-ab2d-0b4161c5ab89",
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<FundingCheckoutDto>.Forbidden(
+                "Complete your account setup before you can fund a project."));
+        var controller = CreateController(service.Object, "user-1");
+        controller.Request.Headers["X-Idempotency-Key"] = "9e68f25a-589c-472a-ab2d-0b4161c5ab89";
+
+        var result = await controller.CreateCheckout(new CreateFundingIntentDto
+        {
+            ProjectTokenConfigId = "config-1",
+            Amount = "12.34",
+            DisclosureVersion = "funding-disclosure-v1",
+        }, CancellationToken.None);
+
+        var response = result.Should().BeOfType<ObjectResult>().Subject;
+        response.StatusCode.Should().Be(403);
+    }
+
     private static FundingIntentsController CreateController(IFundingIntentService service, string userId)
     {
         var httpContext = new DefaultHttpContext

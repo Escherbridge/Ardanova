@@ -366,6 +366,14 @@ public class ProjectsController : ControllerBase
     [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
     public async Task<IActionResult> UpdateMember(string projectId, string memberId, [FromBody] UpdateProjectMemberDto dto, CancellationToken ct)
     {
+        if (dto.ShareBalance.HasValue || dto.VotingPower.HasValue)
+        {
+            return Problem(
+                statusCode: 501,
+                title: "Project-unit and voting allocation is unavailable",
+                detail: "Provider-verified account eligibility, durable settlement, and auditable governance allocation are required before project-unit or voting-power changes can be enabled.");
+        }
+
         var member = await _memberService.GetByIdAsync(memberId, ct);
         if (!member.IsSuccess)
             return ToActionResult(member);

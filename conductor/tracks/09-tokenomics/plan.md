@@ -1,4 +1,17 @@
+---
+type: plan
+---
+
 # Track 09 — Tokenomics & Project Equity
+
+> **Superseded in part by D44-D51.** This plan records what Track 09 built and shipped; it is
+> not the build order for the corrected model. See `09-tokenomics/spec.md`'s header for the three
+> corrections (drop USDCa, ARDA is user-facing, `IssueUnits` from reserve not per-reward `Mint`)
+> and `ardanova-production-readiness-waves_20260907/plan.md` Waves 3/5/6 for how they land in
+> code. **Section 9 below (Stripe checkout funds a project directly) is the shape D44/D45
+> reject** — sponsorship becomes fiat→ARDA (AZOA rail) then spend-ARDA→project-token on chain,
+> not a per-project Stripe Checkout session; `StripeCheckoutGateway`/`StripeWebhookController`
+> migrate to call AZOA's `Fiat.USD` rail rather than settling a project investment directly.
 
 ## 1. Schema — Token & Equity Models ✅ COMPLETE
 - [x] **[P0] DBML: ProjectTokenConfig table**

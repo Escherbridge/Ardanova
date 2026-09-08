@@ -22,6 +22,8 @@ Google sign-in fails closed unless the provider reports `email_verified: true`, 
 
 The immutable identity anchor is the existing `Account(provider, providerAccountId)` unique key. New users and their Google account link are created atomically. A verified email collision with an unlinked local user is not enough to establish identity and therefore fails closed pending an explicit account-linking flow. Existing linked identities resolve through the provider account; subsequent JWT refreshes resolve by the already-authorized user ID, never by mutable email.
 
+Production users created by the legacy Google-only callback may be migrated through `AUTH_GOOGLE_LEGACY_LINK_USER_IDS`. The operator must list exact persisted user IDs after reviewing the affected rows. The callback still requires Google's verified email and matching subject, rechecks the same normalized email and absence of all provider accounts in a serializable transaction, and stores only the immutable Google account link. Remove each allowlist entry after that user signs in; never use email addresses or broad flags in this setting.
+
 Auth.js omits `user` when refreshing an existing JWT despite declaring it as required in the callback type. The local callback contract models that field as optional. Missing users and database failures clear authorization claims rather than preserving stale privileges.
 ## Google OAuth deployment contract
 
