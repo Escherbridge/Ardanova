@@ -49,7 +49,6 @@ import {
   Check,
   X,
   Shield,
-  ChevronUp,
   UserPlus,
   Search,
   PieChart,
@@ -98,7 +97,6 @@ export const formatRoleName = (role: string) => {
     .join(" ");
 };
 
-const TIERS = ["BRONZE", "SILVER", "GOLD", "PLATINUM", "DIAMOND"] as const;
 
 const DEFAULT_ROLES = [
   {
@@ -575,16 +573,6 @@ export default function TeamTab({
     },
   });
 
-  const updateTierMutation = api.membershipCredential.updateTier.useMutation({
-    onSuccess: () => {
-      toast.success("Credential tier updated");
-      void utils.membershipCredential.getByProjectId.invalidate({ projectId });
-    },
-    onError: (error) => {
-      toast.error(error.message || "Failed to update tier");
-    },
-  });
-
   const handleApply = (e: React.FormEvent) => {
     e.preventDefault();
     applyMutation.mutate({
@@ -817,59 +805,6 @@ export default function TeamTab({
                                         tier={credential?.tier}
                                         size="sm"
                                       />
-                                      {/* Tier upgrade dropdown (owner only) */}
-                                      {isOwner && (
-                                        <DropdownMenu>
-                                          <DropdownMenuTrigger asChild>
-                                            <Button
-                                              variant="ghost"
-                                              size="sm"
-                                              className="size-11 p-0"
-                                              aria-label={`Upgrade credential tier for ${member.user?.name ?? member.user?.email ?? "member"}`}
-                                              title="Upgrade credential tier"
-                                            >
-                                              <ChevronUp
-                                                className="size-3.5"
-                                                aria-hidden="true"
-                                              />
-                                            </Button>
-                                          </DropdownMenuTrigger>
-                                          <DropdownMenuContent align="end">
-                                            {TIERS.map((tier) => (
-                                              <DropdownMenuItem
-                                                key={tier}
-                                                disabled={
-                                                  credential?.tier === tier ||
-                                                  updateTierMutation.isPending
-                                                }
-                                                onClick={() =>
-                                                  updateTierMutation.mutate({
-                                                    credentialId: credential.id,
-                                                    tier,
-                                                  })
-                                                }
-                                              >
-                                                <span
-                                                  className={
-                                                    credential?.tier === tier
-                                                      ? "font-bold"
-                                                      : ""
-                                                  }
-                                                >
-                                                  {tier.charAt(0) +
-                                                    tier.slice(1).toLowerCase()}
-                                                </span>
-                                                {credential?.tier === tier && (
-                                                  <Check
-                                                    className="ml-auto size-3.5"
-                                                    aria-hidden="true"
-                                                  />
-                                                )}
-                                              </DropdownMenuItem>
-                                            ))}
-                                          </DropdownMenuContent>
-                                        </DropdownMenu>
-                                      )}
                                     </>
                                   )}
                                   {isOwner && !hasCredential && (

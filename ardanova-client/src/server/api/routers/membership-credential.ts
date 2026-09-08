@@ -6,36 +6,66 @@ import {
   protectedProcedure,
 } from "~/server/api/trpc";
 import { apiClient } from "~/lib/api";
+import type { ApiResponse } from "~/lib/api";
+import type { MembershipCredential } from "~/lib/api/ardanova/endpoints/membership-credentials";
 
 // ---------------------------------------------------------------------------
-// Zod schemas
+// Scope-scoped credential routes.
+//
+// The scope and the recipient travel in the PATH and these calls carry no body
+// at all. That is deliberate: the previous body-scoped grant let the caller name
+// the project, the recipient, the grant reason and a proposal id, which is four
+// separate ways to nominate an authority you do not hold. The API derives the
+// grant reason from its own records and refuses anything else, so there is
+// nothing left for this router to send.
 // ---------------------------------------------------------------------------
 
-const MembershipGrantTypeSchema = z.enum([
-  "FOUNDER",
-  "DAO_VOTE",
-  "CONTRIBUTION_THRESHOLD",
-  "APPLICATION_APPROVED",
-  "GAME_SDK_THRESHOLD",
-]);
+const CREDENTIALS_BASE = "/api/membershipcredentials";
+const UTILITY_BASE = "/api/CredentialUtility";
 
-const grantMembershipCredentialSchema = z.object({
+const projectScope = z.object({
   projectId: z.string().min(1),
   userId: z.string().min(1),
-  grantedVia: MembershipGrantTypeSchema,
-  grantedByProposalId: z.string().min(1).optional(),
 });
 
-function membershipMutationsUnavailable(): never {
-  throw new TRPCError({
-    code: "NOT_IMPLEMENTED",
-    message:
-      "Membership credential changes are paused until scope and grant authority are enforced by the backend. A client-supplied grant reason is never authorization.",
-  });
+const guildScope = z.object({
+  guildId: z.string().min(1),
+  userId: z.string().min(1),
+});
+
+function scopePath(base: string, scope: { projectId: string } | { guildId: string }, userId: string) {
+  const segment =
+    "projectId" in scope
+      ? `project/${encodeURIComponent(scope.projectId)}`
+      : `guild/${encodeURIComponent(scope.guildId)}`;
+  return `${base}/${segment}/user/${encodeURIComponent(userId)}`;
+}
+
+/** Turns an API refusal into the tRPC code that matches it, so the UI can tell them apart. */
+function unwrap<T>(response: ApiResponse<T>, fallbackMessage: string): T {
+  if (!response.error && response.status >= 200 && response.status < 300) {
+    return response.data as T;
+  }
+
+  const message = response.error ?? fallbackMessage;
+  const code =
+    response.status === 403
+      ? "FORBIDDEN"
+      : response.status === 404
+        ? "NOT_FOUND"
+        : response.status === 409
+          ? "CONFLICT"
+          : response.status === 400
+            ? "BAD_REQUEST"
+            : response.status === 501
+              ? "NOT_IMPLEMENTED"
+              : "INTERNAL_SERVER_ERROR";
+
+  throw new TRPCError({ code, message });
 }
 
 // ---------------------------------------------------------------------------
-// Router - thin proxy to .NET API via apiClient
+// Router - thin proxy to the .NET API via apiClient
 // ---------------------------------------------------------------------------
 
 export const membershipCredentialRouter = createTRPCRouter({
@@ -166,24 +196,88 @@ export const membershipCredentialRouter = createTRPCRouter({
 
   // ---- Mutations ----
 
+  /**
+   * Issues a credential to a member of a project.
+   *
+   * `grantedVia` is accepted only so existing callers keep type-checking; it is
+   * NOT sent. The API decides the grant reason from the recipient's standing in
+   * the project, which is the whole point: a manager cannot label a grant.
+   */
   grant: protectedProcedure
-    .input(grantMembershipCredentialSchema)
-    .mutation(membershipMutationsUnavailable),
-
-  revoke: protectedProcedure
     .input(
-      z.object({ id: z.string().min(1), revokeTxHash: z.string().optional() }),
+      projectScope.extend({
+        grantedVia: z.string().optional(),
+      }),
     )
-    .mutation(membershipMutationsUnavailable),
+    .mutation(async ({ input }) => {
+      const response = await apiClient.post<MembershipCredential>(
+        scopePath(CREDENTIALS_BASE, { projectId: input.projectId }, input.userId),
+        {},
+      );
+      return unwrap(response, "The credential could not be issued.");
+    }),
 
-  suspend: protectedProcedure
-    .input(z.object({ id: z.string().min(1) }))
-    .mutation(membershipMutationsUnavailable),
+  /** Issues a credential to a member of a guild. */
+  grantForGuild: protectedProcedure
+    .input(guildScope)
+    .mutation(async ({ input }) => {
+      const response = await apiClient.post<MembershipCredential>(
+        scopePath(CREDENTIALS_BASE, { guildId: input.guildId }, input.userId),
+        {},
+      );
+      return unwrap(response, "The credential could not be issued.");
+    }),
 
-  reactivate: protectedProcedure
-    .input(z.object({ id: z.string().min(1) }))
-    .mutation(membershipMutationsUnavailable),
+  /** Withdraws a member's project credential and returns the issued proof. */
+  withdraw: protectedProcedure
+    .input(projectScope)
+    .mutation(async ({ input }) => {
+      const response = await apiClient.delete<MembershipCredential>(
+        scopePath(CREDENTIALS_BASE, { projectId: input.projectId }, input.userId),
+      );
+      return unwrap(response, "The credential could not be withdrawn.");
+    }),
 
+  /** Pauses a member's project credential without withdrawing it. */
+  pause: protectedProcedure
+    .input(projectScope)
+    .mutation(async ({ input }) => {
+      const response = await apiClient.post<MembershipCredential>(
+        `${scopePath(CREDENTIALS_BASE, { projectId: input.projectId }, input.userId)}/pause`,
+        {},
+      );
+      return unwrap(response, "The credential could not be paused.");
+    }),
+
+  /** Restores a paused project credential. */
+  resume: protectedProcedure
+    .input(projectScope)
+    .mutation(async ({ input }) => {
+      const response = await apiClient.post<MembershipCredential>(
+        `${scopePath(CREDENTIALS_BASE, { projectId: input.projectId }, input.userId)}/resume`,
+        {},
+      );
+      return unwrap(response, "The credential could not be restored.");
+    }),
+
+  /** Re-submits a verification-pending credential for issuance. */
+  reissue: protectedProcedure
+    .input(projectScope)
+    .mutation(async ({ input }) => {
+      const response = await apiClient.post<MembershipCredential>(
+        `${scopePath(UTILITY_BASE, { projectId: input.projectId }, input.userId)}/reissue`,
+        {},
+      );
+      return unwrap(response, "Verification could not be completed. Try again shortly.");
+    }),
+
+  /**
+   * Retained so existing callers keep type-checking, and refused on purpose.
+   *
+   * A member's tier is earned from what they have contributed; a credential
+   * carries a copy of it and cannot hold a different value. There is no longer
+   * anything for a project to set here.
+   */
   updateTier: protectedProcedure
     .input(
       z.object({
@@ -191,5 +285,12 @@ export const membershipCredentialRouter = createTRPCRouter({
         tier: z.enum(["BRONZE", "SILVER", "GOLD", "PLATINUM", "DIAMOND"]),
       }),
     )
-    .mutation(membershipMutationsUnavailable),
+    .mutation((): never => {
+      throw new TRPCError({
+        code: "CONFLICT",
+        message:
+          "A member's level is earned from their contributions, so it cannot be set here. " +
+          "It updates on its own as they contribute.",
+      });
+    }),
 });

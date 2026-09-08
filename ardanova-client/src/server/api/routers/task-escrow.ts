@@ -1,7 +1,12 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
+import {
+  createTRPCRouter,
+  protectedProcedure,
+  adminProcedure,
+} from "~/server/api/trpc";
 import { apiClient } from "~/lib/api";
+import { getAdminApiClient } from "~/server/admin-api-client";
 import { taskEscrowDtoSchema } from "~/lib/contracts/task-escrow-contract";
 
 const taskEscrowListSchema = z.array(taskEscrowDtoSchema);
@@ -50,16 +55,9 @@ export const taskEscrowRouter = createTRPCRouter({
   }),
 
   release: protectedProcedure
-    .input(
-      z.object({
-        id: z.string(),
-        txHash: z.string().optional(),
-      }),
-    )
+    .input(z.object({ id: z.string() }))
     .mutation(async ({ input }) => {
-      const response = await apiClient.taskEscrows.release(input.id, {
-        txHash: input.txHash,
-      });
+      const response = await apiClient.taskEscrows.release(input.id);
       if (response.error || !response.data) {
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
@@ -100,12 +98,12 @@ export const taskEscrowRouter = createTRPCRouter({
     .input(
       z.object({
         id: z.string(),
-        txHash: z.string().optional(),
+        reason: z.string().trim().min(1).max(2000).optional(),
       }),
     )
     .mutation(async ({ input }) => {
       const response = await apiClient.taskEscrows.refund(input.id, {
-        txHash: input.txHash,
+        reason: input.reason,
       });
       if (response.error || !response.data) {
         throw new TRPCError({
@@ -115,4 +113,48 @@ export const taskEscrowRouter = createTRPCRouter({
       }
       return parseEscrow(response.data);
     }),
+
+  /** Administrator adjudication of a disputed escrow. See TaskEscrowsController.Resolve. */
+  resolve: adminProcedure
+    .input(
+      z.object({
+        id: z.string().min(1),
+        outcome: z.enum(["REFUND", "REJECT"]),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const response = await getAdminApiClient().taskEscrows.resolve(
+        input.id,
+        {
+          outcome: input.outcome,
+          resolvedByUserId: ctx.session.user.id,
+        },
+      );
+      if (response.error || !response.data) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: response.error ?? "Failed to resolve dispute",
+        });
+      }
+      return parseEscrow(response.data);
+    }),
+
+  /** All disputed escrows, for the admin adjudication queue. Admin-credentialed, not funder-scoped. */
+  listDisputed: adminProcedure.query(async () => {
+    const response = await getAdminApiClient().taskEscrows.getAllDisputed();
+    if (response.error) {
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: response.error,
+      });
+    }
+    const parsed = taskEscrowListSchema.safeParse(response.data ?? []);
+    if (!parsed.success) {
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "Backend returned an invalid task-escrow list contract",
+      });
+    }
+    return parsed.data;
+  }),
 });

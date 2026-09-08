@@ -10,22 +10,40 @@ using AutoMapper;
 
 public class TaskService : ITaskService
 {
+    /// <summary>
+    /// Why a task's own award figure stops being editable once a bid has been accepted on it.
+    /// The accepted agreement is the award of record and the units behind it are already set
+    /// aside on the shared node; the task's figure is written from the agreement and nowhere
+    /// else, so a board and an agreement can never quote different numbers.
+    /// </summary>
+    public const string AwardBelongsToTheAgreement =
+        "This task's award was agreed when the bid was accepted and the units are already set "
+        + "aside for the worker, so it can no longer be changed here.";
+
     private readonly IRepository<ProjectTask> _repository;
     private readonly IRepository<User> _userRepository;
     private readonly IRepository<Project> _projectRepository;
+    private readonly IRepository<TaskCommerceAgreement> _agreementRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IMapper _mapper;
 
+    /// <param name="agreementRepository">
+    /// Read-only lookup that decides whether this task's award is already an agreed one.
+    /// Required rather than optional: a missing repository would silently skip the guard below,
+    /// and a skipped guard lets a task's figure drift away from the award actually held.
+    /// </param>
     public TaskService(
         IRepository<ProjectTask> repository,
         IRepository<User> userRepository,
         IRepository<Project> projectRepository,
+        IRepository<TaskCommerceAgreement> agreementRepository,
         IUnitOfWork unitOfWork,
         IMapper mapper)
     {
         _repository = repository;
         _userRepository = userRepository;
         _projectRepository = projectRepository;
+        _agreementRepository = agreementRepository;
         _unitOfWork = unitOfWork;
         _mapper = mapper;
     }
@@ -158,6 +176,18 @@ public class TaskService : ITaskService
         if (task is null)
             return Result<TaskDto>.NotFound($"Task with id {id} not found");
 
+        // The award collapse: one award figure of record per task. Once a bid has been
+        // accepted the agreement owns it and the units behind it are already set aside on the
+        // shared node, so this route may no longer write a second, different number.
+        if (dto.EquityReward.HasValue)
+        {
+            var agreement = await _agreementRepository.FindOneAsync(item => item.taskId == id, ct);
+            if (agreement is not null && dto.EquityReward.Value != agreement.awardAmount)
+                return Result<TaskDto>.Conflict(AwardBelongsToTheAgreement);
+
+            task.equityReward = dto.EquityReward;
+        }
+
         if (dto.Title is not null) task.title = dto.Title;
         if (dto.Description is not null) task.description = dto.Description;
         if (dto.Status.HasValue) task.status = dto.Status.Value;
@@ -165,7 +195,6 @@ public class TaskService : ITaskService
         if (dto.TaskType.HasValue) task.taskType = dto.TaskType.Value;
         if (dto.EstimatedHours.HasValue) task.estimatedHours = dto.EstimatedHours;
         if (dto.ActualHours.HasValue) task.actualHours = dto.ActualHours;
-        if (dto.EquityReward.HasValue) task.equityReward = dto.EquityReward;
         if (dto.DueDate.HasValue) task.dueDate = dto.DueDate;
         task.updatedAt = DateTime.UtcNow;
 

@@ -141,6 +141,10 @@ public static class DependencyInjection
         services.AddScoped<IFundingIntentService, FundingIntentService>();
         services.AddScoped<IStripePaymentIntentGateway, StripePaymentIntentGateway>();
         services.AddScoped<IStripeService, StripeService>();
+        // The operator channel the dispatcher wakes a person through. The dispatcher already
+        // defaults to a live logging channel, so this line does not switch anything on - it
+        // makes the channel REPLACEABLE per deployment without editing the dispatcher.
+        services.AddScoped<IOperatorAlertService, LoggingOperatorAlertService>();
         services.AddScoped<IEconomicOutboxDispatchService, EconomicOutboxDispatchService>();
 
         // AZOA shared-node integration services (contract sections 4, 5, 6, and 9).

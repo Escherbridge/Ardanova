@@ -313,14 +313,19 @@ export const projectTokensRouter = createTRPCRouter({
 
   // ---- Allocations ----
 
-  allocateToPbi: adminProcedure
+  // Setting a project's own stake aside against a backlog item is the project owner's
+  // decision, so the backend decides ownership from the caller's verified identity
+  // (ActorAssertion) rather than from the service key. An admin-key call now 403s, which is
+  // why this goes through `apiClient` — it carries the signed actor header — and not
+  // `getAdminApiClient()`.
+  allocateToPbi: protectedProcedure
     .input(
       z
         .object({ configId: z.string().min(1) })
         .merge(createTokenAllocationDtoSchema),
     )
     .mutation(async ({ input }) => {
-      const response = await getAdminApiClient().projectTokens.allocateToPbi(
+      const response = await apiClient.projectTokens.allocateToPbi(
         input.configId,
         {
           pbiId: input.pbiId,
@@ -403,19 +408,30 @@ export const projectTokensRouter = createTRPCRouter({
       );
     }),
 
-  distribute: adminProcedure
-    .input(
-      z.object({
-        allocationId: z.string().min(1),
-        recipientUserId: z.string().min(1),
-      }),
-    )
-    .mutation(() => {
-      throw new TRPCError({
-        code: "NOT_IMPLEMENTED",
-        message:
-          "Token distribution is paused until the backend provides an atomic allocation transition with durable idempotency.",
-      });
+  // The owner-facing action is "approve completed work", not "distribute tokens": approving
+  // moves the units already set aside for the worker into the worker's own window. The person
+  // paid is the one the accepted agreement names, so no recipient is sent — a caller-supplied
+  // recipient on an owned resource is the IDOR shape this codebase refuses everywhere else,
+  // and the backend refuses a mismatch outright.
+  approveWorkCompletion: protectedProcedure
+    .input(z.object({ allocationId: z.string().min(1) }))
+    .mutation(async ({ input }) => {
+      const response = await apiClient.projectTokens.approveWorkCompletion(
+        input.allocationId,
+      );
+
+      if (response.error || !response.data) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: response.error ?? "Failed to approve the completed work",
+        });
+      }
+
+      return parseBackendContract(
+        tokenAllocationDtoSchema,
+        response.data,
+        "work-completion approval",
+      );
     }),
 
   revoke: adminProcedure

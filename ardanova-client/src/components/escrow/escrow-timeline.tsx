@@ -4,18 +4,22 @@ import {
   Circle,
   Coins,
   ArrowDownCircle,
+  RotateCcw,
   AlertTriangle,
-  CheckCircle2,
   Clock,
 } from "lucide-react";
 import { cn } from "~/lib/utils";
+
+import type { TaskEscrowStatus } from "~/lib/contracts/task-escrow-contract";
 
 interface EscrowTimelineData {
   createdAt: Date | string;
   fundedAt?: Date | string | null;
   releasedAt?: Date | string | null;
+  refundedAt?: Date | string | null;
   disputedAt?: Date | string | null;
-  resolvedAt?: Date | string | null;
+  /** The escrow's current status. Used only to phrase "what's next" — every dated row above stays grounded in a real timestamp. */
+  status?: TaskEscrowStatus;
 }
 
 interface TimelineEvent {
@@ -68,30 +72,29 @@ export function EscrowTimeline({ escrow, className }: EscrowTimelineProps) {
     {
       key: "disputed",
       label: "Dispute Raised",
-      description: "Funds frozen pending admin resolution.",
+      description: "Units held while the dispute is reviewed.",
       date: escrow.disputedAt,
       color: "text-neon-pink",
       dotColor: "bg-neon-pink",
       lineColor: "bg-neon-pink/30",
     },
     {
-      key: "resolved",
-      label: "Resolution recorded",
-      description: "A dispute resolution decision was recorded.",
-      date: escrow.resolvedAt,
+      key: "released",
+      label: "Released",
+      description: "The held units were released to the contributor.",
+      date: escrow.releasedAt,
       color: "text-neon-green",
       dotColor: "bg-neon-green",
       lineColor: "bg-neon-green/30",
     },
     {
-      key: "released",
-      label: "Release authorization recorded",
-      description:
-        "Release was authorized; this event alone does not confirm contributor settlement.",
-      date: escrow.releasedAt,
-      color: "text-neon-green",
-      dotColor: "bg-neon-green",
-      lineColor: "bg-neon-green/30",
+      key: "refunded",
+      label: escrow.disputedAt ? "Dispute resolved — refunded" : "Refunded",
+      description: "The held units were returned to the reserve they were drawn from.",
+      date: escrow.refundedAt,
+      color: "text-neon-yellow",
+      dotColor: "bg-neon-yellow",
+      lineColor: "bg-neon-yellow/30",
     },
   ];
 
@@ -108,35 +111,7 @@ export function EscrowTimeline({ escrow, className }: EscrowTimelineProps) {
   });
 
   const displayEvents = [...sortedEvents];
-  const nextPending =
-    escrow.disputedAt && !escrow.resolvedAt
-      ? {
-          label: "Resolution pending",
-          description: "Funds remain held while the dispute is reviewed.",
-        }
-      : escrow.releasedAt
-        ? {
-            label: "Settlement reconciliation",
-            description:
-              "Confirm the contributor payout independently before treating the obligation as settled.",
-          }
-        : escrow.resolvedAt
-          ? {
-              label: "Settlement action pending",
-              description:
-                "Follow the recorded resolution, then reconcile the resulting payout or refund.",
-            }
-          : escrow.fundedAt
-            ? {
-                label: "Release decision pending",
-                description:
-                  "Funds remain in escrow until an authorized release, dispute, or refund action is recorded.",
-              }
-            : {
-                label: "Funding confirmation pending",
-                description:
-                  "Record and verify the funding event before work is treated as funded.",
-              };
+  const nextPending = describeNextStep(escrow);
 
   return (
     <div className={cn("space-y-0", className)}>
@@ -183,26 +158,84 @@ export function EscrowTimeline({ escrow, className }: EscrowTimelineProps) {
           );
         })}
 
-        {/* Pending next step */}
-        <div className="flex gap-3">
-          <div className="flex flex-col items-center">
-            <div className="border-border flex h-7 w-7 shrink-0 items-center justify-center rounded-none border-2 border-dashed bg-transparent">
-              <Clock className="text-muted-foreground h-3.5 w-3.5" />
+        {/* Pending next step — omitted once the escrow reaches a terminal state */}
+        {nextPending && (
+          <div className="flex gap-3">
+            <div className="flex flex-col items-center">
+              <div className="border-border flex h-7 w-7 shrink-0 items-center justify-center rounded-none border-2 border-dashed bg-transparent">
+                <Clock className="text-muted-foreground h-3.5 w-3.5" />
+              </div>
+            </div>
+            <div>
+              <p className="text-muted-foreground text-sm font-medium">
+                {nextPending.label}
+              </p>
+              <p className="text-muted-foreground text-xs">
+                {nextPending.description}
+              </p>
+              <p className="text-muted-foreground mt-0.5 text-xs">Pending</p>
             </div>
           </div>
-          <div>
-            <p className="text-muted-foreground text-sm font-medium">
-              {nextPending.label}
-            </p>
-            <p className="text-muted-foreground text-xs">
-              {nextPending.description}
-            </p>
-            <p className="text-muted-foreground mt-0.5 text-xs">Pending</p>
-          </div>
-        </div>
+        )}
       </div>
     </div>
   );
+}
+
+/**
+ * What's left, phrased from the escrow's current status — never from a fabricated timestamp.
+ * Null once the escrow has reached a terminal state (RELEASED or REFUNDED): nothing further is
+ * pending, so no dashed row is drawn.
+ */
+function describeNextStep(
+  escrow: EscrowTimelineData,
+): { label: string; description: string } | null {
+  switch (escrow.status) {
+    case "RELEASED":
+    case "REFUNDED":
+      return null;
+    case "DISPUTED":
+      return {
+        label: "Resolution pending",
+        description: "Units remain held while the dispute is reviewed.",
+      };
+    case "FUNDED":
+      return escrow.disputedAt
+        ? {
+            label: "Dispute rejected — release decision pending",
+            description:
+              "The dispute was dismissed. Units remain reserved until an authorized release or a new dispute.",
+          }
+        : {
+            label: "Release decision pending",
+            description:
+              "Units remain reserved until an authorized release, dispute, or refund.",
+          };
+    case "NONE":
+      return {
+        label: "Funding confirmation pending",
+        description:
+          "Record and verify the funding event before work is treated as funded.",
+      };
+    default:
+      // Status not supplied by the caller: fall back to what the dates alone can tell us.
+      return escrow.disputedAt
+        ? {
+            label: "Resolution pending",
+            description: "Units remain held while the dispute is reviewed.",
+          }
+        : escrow.fundedAt
+          ? {
+              label: "Release decision pending",
+              description:
+                "Units remain reserved until an authorized release, dispute, or refund.",
+            }
+          : {
+              label: "Funding confirmation pending",
+              description:
+                "Record and verify the funding event before work is treated as funded.",
+            };
+  }
 }
 
 function TimelineIcon({ eventKey }: { eventKey: string }) {
@@ -212,8 +245,8 @@ function TimelineIcon({ eventKey }: { eventKey: string }) {
       return <Coins className={className} aria-hidden="true" />;
     case "disputed":
       return <AlertTriangle className={className} aria-hidden="true" />;
-    case "resolved":
-      return <CheckCircle2 className={className} aria-hidden="true" />;
+    case "refunded":
+      return <RotateCcw className={className} aria-hidden="true" />;
     case "released":
       return <ArrowDownCircle className={className} aria-hidden="true" />;
     case "created":

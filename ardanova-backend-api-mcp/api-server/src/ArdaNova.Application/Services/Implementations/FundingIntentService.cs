@@ -1,4 +1,4 @@
-namespace ArdaNova.Application.Services.Implementations;
+﻿namespace ArdaNova.Application.Services.Implementations;
 
 using System.Globalization;
 using System.Linq;
@@ -59,19 +59,6 @@ public sealed class FundingIntentService : IFundingIntentService
     private const int TermsSchemaVersion = 2;
     private const string ProjectUnitLeg = "projectUnit";
     private const string ExchangePurpose = "sponsorship";
-
-    /// <summary>
-    /// Codes that mean a person's account readiness lapsed between the click and the confirmation.
-    /// They are the ONLY refusals that park a sponsorship instead of failing it, because nothing was
-    /// taken and the sponsor's balance is untouched - the money is already back where it started.
-    /// </summary>
-    private static readonly HashSet<string> ReadinessLapseCodes = new(StringComparer.Ordinal)
-    {
-        "AZOA_ACCOUNT_NOT_READY",
-        "AZOA_ELIGIBILITY_UNCONFIRMED",
-        "AZOA_PROJECT_OWNER_NOT_READY",
-        "AZOA_PROJECT_OWNER_UNAVAILABLE",
-    };
 
     /// <summary>
     /// Currency codes a project unit may never be symbolised by. It mirrors the gateway's own
@@ -1038,8 +1025,19 @@ public sealed class FundingIntentService : IFundingIntentService
         => !string.IsNullOrWhiteSpace(settlement.azoaOperationId)
             && settlement.status is EconomicSettlementStatus.SUBMITTED or EconomicSettlementStatus.CONFIRMED;
 
+    /// <summary>
+    /// Whether a refusal means a person's account readiness lapsed between the click and the
+    /// confirmation. Those are the ONLY refusals that park a sponsorship instead of failing it,
+    /// because nothing was taken and the sponsor's balance is untouched.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately delegated to <see cref="EconomicSettlementReadinessCodes"/> rather than kept
+    /// as a second copy of the same four strings: the dispatcher WRITES these codes onto the
+    /// settlement row and this reads them back off it, so a rename in one place and not the other
+    /// silently drops sponsorships out of HOLDING and fails them instead.
+    /// </remarks>
     private static bool IsReadinessLapse(string? code)
-        => !string.IsNullOrWhiteSpace(code) && ReadinessLapseCodes.Contains(code);
+        => EconomicSettlementReadinessCodes.IsReadinessLapse(code);
 
     private static string HoldingMessage(string? detail)
         => string.IsNullOrWhiteSpace(detail)

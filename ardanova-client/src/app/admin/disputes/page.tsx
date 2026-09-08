@@ -8,7 +8,6 @@ import {
   ChevronDown,
   ChevronUp,
   Loader2,
-  Info,
 } from "lucide-react";
 import { api } from "~/trpc/react";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
@@ -24,10 +23,12 @@ function DisputeCard({
   escrow,
   expanded,
   onToggle,
+  onResolved,
 }: {
   escrow: TaskEscrowDto;
   expanded: boolean;
   onToggle: () => void;
+  onResolved: () => void;
 }) {
   return (
     <Card
@@ -100,12 +101,14 @@ function DisputeCard({
       {expanded && (
         <CardContent className="space-y-6 border-t border-white/10 pt-6">
           <div className="grid gap-6 lg:grid-cols-2">
-            <DisputeDetail escrow={escrow} />
+            <DisputeDetail escrow={escrow} onResolved={onResolved} />
             <EscrowTimeline
               escrow={{
                 createdAt: escrow.createdAt,
-                fundedAt: escrow.txHashFund ? escrow.createdAt : undefined,
                 releasedAt: escrow.releasedAt,
+                refundedAt: escrow.refundedAt,
+                disputedAt: escrow.disputedAt,
+                status: escrow.status,
               }}
             />
           </div>
@@ -119,17 +122,19 @@ export default function AdminDisputesPage() {
   const { data: session } = useSession();
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
+  const isAdmin = session?.user?.role === "ADMIN";
+  const utils = api.useUtils();
   const {
-    data: escrows,
+    data: disputedEscrows,
     isLoading,
     error,
-  } = api.taskEscrow.getByFunderId.useQuery(undefined, {
-    enabled: !!session?.user?.id,
+  } = api.taskEscrow.listDisputed.useQuery(undefined, {
+    enabled: isAdmin,
   });
 
-  const disputedEscrows = (escrows ?? []).filter(
-    (escrow) => escrow.status === "DISPUTED",
-  );
+  const handleResolved = () => {
+    void utils.taskEscrow.listDisputed.invalidate();
+  };
 
   const toggleExpand = (id: string) => {
     setExpandedId((prev) => (prev === id ? null : id));
@@ -164,28 +169,16 @@ export default function AdminDisputesPage() {
               Dispute Review
             </h1>
             <p className="text-muted-foreground text-sm">
-              Review active escrow disputes without moving funds.
+              Review disputed escrows across every funder and resolve each by
+              refunding the funder or rejecting the dispute.
             </p>
           </div>
           {!isLoading && (
             <Badge variant="neon-pink" size="lg" className="ml-auto shrink-0">
-              {disputedEscrows.length} open
+              {(disputedEscrows ?? []).length} open
             </Badge>
           )}
         </div>
-      </div>
-
-      {/* Production note */}
-      <div className="border-neon-cyan/20 bg-neon-cyan/5 flex items-start gap-3 rounded-md border p-4 text-sm">
-        <Info className="text-neon-cyan mt-0.5 h-4 w-4 shrink-0" />
-        <p className="text-neon-cyan/80">
-          <span className="font-semibold">Read-only contract:</span> This page
-          currently queries escrows by the signed-in administrator&apos;s funder
-          ID. The .NET API needs authenticated{" "}
-          <code className="font-mono text-xs">getAllDisputed</code> and
-          auditable administrator-resolution endpoints before this can become a
-          platform-wide adjudication workspace.
-        </p>
       </div>
 
       {/* Loading */}
@@ -211,7 +204,7 @@ export default function AdminDisputesPage() {
       )}
 
       {/* Empty state */}
-      {!isLoading && !error && disputedEscrows.length === 0 && (
+      {!isLoading && !error && (disputedEscrows ?? []).length === 0 && (
         <Card className="border-2 border-white/10">
           <CardContent className="flex flex-col items-center justify-center py-20">
             <Gavel className="text-muted-foreground/30 mb-4 h-16 w-16" />
@@ -226,14 +219,15 @@ export default function AdminDisputesPage() {
       )}
 
       {/* Dispute list */}
-      {!isLoading && !error && disputedEscrows.length > 0 && (
+      {!isLoading && !error && (disputedEscrows ?? []).length > 0 && (
         <div className="space-y-4">
-          {disputedEscrows.map((escrow) => (
+          {(disputedEscrows ?? []).map((escrow) => (
             <DisputeCard
               key={escrow.id}
               escrow={escrow}
               expanded={expandedId === escrow.id}
               onToggle={() => toggleExpand(escrow.id)}
+              onResolved={handleResolved}
             />
           ))}
         </div>

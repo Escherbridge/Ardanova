@@ -12,40 +12,50 @@ using Microsoft.AspNetCore.Mvc;
 public sealed class SensitiveMutationBoundaryTests
 {
     [Fact]
-    public void ProjectTokenDistribution_FailsClosedBeforeServiceInvocation()
+    public async Task ProjectTokenAwardApproval_RefusesARedirectedRecipientBeforeServiceInvocation()
     {
         var tokens = new Mock<IProjectTokenService>(MockBehavior.Strict);
-        var controller = new ProjectTokensController(
-            tokens.Object,
-            new Mock<IProjectGateService>(MockBehavior.Strict).Object,
-            new Mock<IProjectTokenProvisioning>(MockBehavior.Strict).Object,
-            new Mock<IRepository<ProjectTokenConfig>>(MockBehavior.Strict).Object,
-            new Mock<IRepository<ProjectInvestment>>(MockBehavior.Strict).Object,
-            new Mock<IRepository<User>>(MockBehavior.Strict).Object,
-            new Mock<IHierarchyAuthorizationService>(MockBehavior.Strict).Object);
+        var provisioning = new Mock<IProjectTokenProvisioning>(MockBehavior.Strict);
+        var allocations = new Mock<IRepository<TokenAllocation>>();
+        allocations
+            .Setup(repository => repository.GetByIdAsync("allocation-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new TokenAllocation { id = "allocation-1", recipientUserId = "worker-1" });
+        var controller = CreateController(tokens, provisioning, allocations: allocations);
 
-        var result = controller.Distribute("allocation-1", "recipient-1", CancellationToken.None);
+        var result = await controller.ApproveWorkCompletion("allocation-1", "recipient-1", CancellationToken.None);
 
-        AssertPaused(result, "Atomic RESERVED-to-DISTRIBUTED");
+        result.Should().BeOfType<BadRequestObjectResult>();
+        provisioning.VerifyNoOtherCalls();
         tokens.VerifyNoOtherCalls();
     }
 
     [Fact]
-    public void ProjectTokenAllocation_FailsClosedBeforeServiceInvocation()
+    public async Task ProjectTokenBacklogAllocation_ResolvesTheProjectBeforeTouchingTheService()
     {
         var tokens = new Mock<IProjectTokenService>(MockBehavior.Strict);
-        var controller = new ProjectTokensController(
-            tokens.Object,
-            new Mock<IProjectGateService>(MockBehavior.Strict).Object,
-            new Mock<IProjectTokenProvisioning>(MockBehavior.Strict).Object,
-            new Mock<IRepository<ProjectTokenConfig>>(MockBehavior.Strict).Object,
-            new Mock<IRepository<ProjectInvestment>>(MockBehavior.Strict).Object,
-            new Mock<IRepository<User>>(MockBehavior.Strict).Object,
-            new Mock<IHierarchyAuthorizationService>(MockBehavior.Strict).Object);
+        var configs = new Mock<IRepository<ProjectTokenConfig>>();
+        configs
+            .Setup(repository => repository.GetByIdAsync("config-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync((ProjectTokenConfig?)null);
+        var controller = CreateController(tokens, configs: configs);
+
+        var result = await controller.AllocateToPbi(
+            "config-1",
+            new CreateTokenAllocationDto { PbiId = "task-1", EquityPercentage = 1 },
+            CancellationToken.None);
+
+        result.Should().BeOfType<NotFoundObjectResult>();
+        tokens.VerifyNoOtherCalls();
+    }
+
+    [Fact]
+    public void ProjectTokenSponsorAndFounderAllocation_FailsClosedBeforeServiceInvocation()
+    {
+        var tokens = new Mock<IProjectTokenService>(MockBehavior.Strict);
+        var controller = CreateController(tokens);
 
         var results = new IActionResult[]
         {
-            controller.AllocateToPbi("config-1", new CreateTokenAllocationDto { PbiId = "task-1", EquityPercentage = 1 }, CancellationToken.None),
             controller.AllocateToInvestor("config-1", new CreateInvestorAllocationDto { UserId = "user-1", UsdAmount = 10, TokenAmount = 1 }, CancellationToken.None),
             controller.AllocateToFounder("config-1", new CreateFounderAllocationDto { UserId = "user-1", EquityPercentage = 1 }, CancellationToken.None),
         };
@@ -53,6 +63,21 @@ public sealed class SensitiveMutationBoundaryTests
         results.Should().AllSatisfy(result => AssertPaused(result, "Provider-verified account eligibility"));
         tokens.VerifyNoOtherCalls();
     }
+
+    private static ProjectTokensController CreateController(
+        Mock<IProjectTokenService> tokens,
+        Mock<IProjectTokenProvisioning>? provisioning = null,
+        Mock<IRepository<ProjectTokenConfig>>? configs = null,
+        Mock<IRepository<TokenAllocation>>? allocations = null)
+        => new(
+            tokens.Object,
+            new Mock<IProjectGateService>(MockBehavior.Strict).Object,
+            (provisioning ?? new Mock<IProjectTokenProvisioning>(MockBehavior.Strict)).Object,
+            (configs ?? new Mock<IRepository<ProjectTokenConfig>>(MockBehavior.Strict)).Object,
+            (allocations ?? new Mock<IRepository<TokenAllocation>>(MockBehavior.Strict)).Object,
+            new Mock<IRepository<ProjectInvestment>>(MockBehavior.Strict).Object,
+            new Mock<IRepository<User>>(MockBehavior.Strict).Object,
+            new Mock<IHierarchyAuthorizationService>(MockBehavior.Strict).Object);
 
     [Fact]
     public void CredentialUtilityMutations_FailClosedBeforeServiceInvocation()

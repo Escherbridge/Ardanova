@@ -1,7 +1,8 @@
-namespace ArdaNova.API.Tests.Controllers;
+﻿namespace ArdaNova.API.Tests.Controllers;
 
 using System.Security.Claims;
 using System.Reflection;
+using System.Linq;
 using ArdaNova.API.Controllers;
 using ArdaNova.API.Middleware;
 using ArdaNova.Application.Common.Results;
@@ -134,31 +135,73 @@ public class CommerceActorBoundaryTests
         action.GetCustomAttribute<AuthorizeAttribute>()?.Policy.Should().Be(AuthorizationPolicies.ActorAssertion);
     }
 
+    /// <summary>
+    /// Release is live now, so the boundary this test guards moved: the funder never supplies
+    /// release evidence, and the acting identity comes off the verified claim, never the body.
+    /// </summary>
     [Fact]
-    public void TaskEscrowRelease_FailsClosedBeforeReadingOrMutatingEscrow()
+    public async Task TaskEscrowRelease_UsesActorAndSuppliesNoCallerEvidence()
     {
-        var escrows = new Mock<ITaskEscrowService>(MockBehavior.Strict);
+        var escrows = new Mock<ITaskEscrowService>();
+        escrows.Setup(service => service.GetByIdAsync("escrow-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<TaskEscrowDto>.Success(new TaskEscrowDto { Id = "escrow-1", FunderId = "actor-1" }));
+        escrows.Setup(service => service.ReleaseAsync(
+                "escrow-1",
+                It.Is<ReleaseEscrowDto>(dto => dto.ReleasedByUserId == "actor-1"),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<TaskEscrowDto>.Success(new TaskEscrowDto
+            {
+                Id = "escrow-1",
+                FunderId = "actor-1",
+                Status = EscrowStatus.RELEASED
+            }));
         var controller = WithActor(new TaskEscrowsController(escrows.Object), "actor-1");
 
-        var result = controller.Release("escrow-1", new ReleaseEscrowDto(), CancellationToken.None);
+        var result = await controller.Release(
+            "escrow-1",
+            new TaskEscrowsController.ReleaseEscrowRequest(),
+            CancellationToken.None);
 
-        var response = result.Should().BeOfType<ObjectResult>().Subject;
-        response.StatusCode.Should().Be(StatusCodes.Status503ServiceUnavailable);
-        escrows.VerifyNoOtherCalls();
+        result.Should().BeOfType<OkObjectResult>();
+        escrows.VerifyAll();
+        typeof(TaskEscrowsController.ReleaseEscrowRequest).GetProperties().Should().BeEmpty(
+            "release evidence is the hold's own confirmed state on the node, never a form field");
     }
 
+    /// <summary>
+    /// Refund keeps the funder's free-text audit note but derives the actor from the claim, and
+    /// the request shape carries no settlement reference for a caller to forge.
+    /// </summary>
     [Fact]
-    public void TaskEscrowRefund_FailsClosedBeforeReadingOrMutatingEscrow()
+    public async Task TaskEscrowRefund_UsesActorAndPreservesOnlyTheAuditNote()
     {
-        var escrows = new Mock<ITaskEscrowService>(MockBehavior.Strict);
+        var escrows = new Mock<ITaskEscrowService>();
+        escrows.Setup(service => service.GetByIdAsync("escrow-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<TaskEscrowDto>.Success(new TaskEscrowDto { Id = "escrow-1", FunderId = "actor-1" }));
+        escrows.Setup(service => service.RefundAsync(
+                "escrow-1",
+                It.Is<RefundEscrowDto>(dto =>
+                    dto.RefundedByUserId == "actor-1" &&
+                    dto.Reason == "The contributor withdrew before starting."),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<TaskEscrowDto>.Success(new TaskEscrowDto
+            {
+                Id = "escrow-1",
+                FunderId = "actor-1",
+                Status = EscrowStatus.REFUNDED
+            }));
         var controller = WithActor(new TaskEscrowsController(escrows.Object), "actor-1");
 
-        var result = controller.Refund("escrow-1", new RefundEscrowDto(), CancellationToken.None);
+        var result = await controller.Refund(
+            "escrow-1",
+            new TaskEscrowsController.RefundEscrowRequest("The contributor withdrew before starting."),
+            CancellationToken.None);
 
-        var response = result.Should().BeOfType<ObjectResult>().Subject;
-        response.StatusCode.Should().Be(StatusCodes.Status503ServiceUnavailable);
-        escrows.Verify(service => service.RefundAsync(It.IsAny<string>(), It.IsAny<RefundEscrowDto>(), It.IsAny<CancellationToken>()), Times.Never);
-        escrows.VerifyNoOtherCalls();
+        result.Should().BeOfType<OkObjectResult>();
+        escrows.VerifyAll();
+        typeof(TaskEscrowsController.RefundEscrowRequest).GetProperties()
+            .Select(property => property.Name)
+            .Should().BeEquivalentTo(["Reason"]);
     }
 
     [Fact]
@@ -170,8 +213,7 @@ public class CommerceActorBoundaryTests
         var result = controller.Create(new TaskEscrowsController.CreateTaskEscrowRequest(
             "task-1",
             "share-1",
-            100,
-            "unverified-transaction"));
+            100));
 
         var response = result.Should().BeOfType<ObjectResult>().Subject;
         response.StatusCode.Should().Be(StatusCodes.Status501NotImplemented);

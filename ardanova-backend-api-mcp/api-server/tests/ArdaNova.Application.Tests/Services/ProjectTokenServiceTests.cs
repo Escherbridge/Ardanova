@@ -1591,4 +1591,509 @@ public class ProjectTokenServiceTests
             c.allocatedSupply == 400000
         ), It.IsAny<CancellationToken>()), Times.Once);
     }
+
+    // ========================================================================
+    // Worker awards (W7.2) — the two holds behind "you will be paid for this"
+    // ========================================================================
+
+    private static readonly Guid WorkerAvatarId = Guid.Parse("22222222-2222-2222-2222-222222222222");
+
+    private const string EscrowHoldId = "award-bid-1";
+
+    private Mock<IRepository<Project>> _awardProjectRepoMock = null!;
+    private Mock<IRepository<TaskCommerceAgreement>> _awardAgreementRepoMock = null!;
+    private Mock<IRepository<ProjectTask>> _awardTaskRepoMock = null!;
+    private Mock<IAzoaCustodialAccountService> _awardAccountsMock = null!;
+    private Mock<IAzoaHoldGateway> _awardHoldsMock = null!;
+
+    /// <summary>
+    /// A service wired for the award paths: the project, agreement and task it spans, the
+    /// account read that names the worker on the node, and the node's own hold surface.
+    /// </summary>
+    private ProjectTokenService CreateAwardService()
+    {
+        _awardProjectRepoMock = new Mock<IRepository<Project>>();
+        _awardAgreementRepoMock = new Mock<IRepository<TaskCommerceAgreement>>();
+        _awardTaskRepoMock = new Mock<IRepository<ProjectTask>>();
+        _awardAccountsMock = new Mock<IAzoaCustodialAccountService>();
+        _awardHoldsMock = new Mock<IAzoaHoldGateway>();
+
+        _awardAccountsMock
+            .Setup(accounts => accounts.GetStatusAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<AzoaCustodialAccountStatusDto>.Success(new AzoaCustodialAccountStatusDto
+            {
+                AvatarId = WorkerAvatarId.ToString(),
+                KycStatus = AzoaKycStatus.Approved,
+                IdentityReady = true,
+                KycReady = true,
+                WalletReady = true,
+                Ready = true,
+            }));
+
+        _unitOfWorkMock.Setup(work => work.SaveChangesAsync(It.IsAny<CancellationToken>())).ReturnsAsync(1);
+        _allocationRepoMock
+            .Setup(repository => repository.UpdateAsync(It.IsAny<TokenAllocation>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        _allocationRepoMock
+            .Setup(repository => repository.AddAsync(It.IsAny<TokenAllocation>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((TokenAllocation allocation, CancellationToken _) => allocation);
+        _configRepoMock
+            .Setup(repository => repository.UpdateAsync(It.IsAny<ProjectTokenConfig>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        _mapperMock
+            .Setup(mapper => mapper.Map<TokenAllocationDto>(It.IsAny<TokenAllocation>()))
+            .Returns(new TokenAllocationDto { Id = "alloc-1" });
+
+        return new ProjectTokenService(
+            _configRepoMock.Object,
+            _allocationRepoMock.Object,
+            _balanceRepoMock.Object,
+            _payoutRepoMock.Object,
+            _investmentRepoMock.Object,
+            _treasuryRepoMock.Object,
+            _unitOfWorkMock.Object,
+            _mapperMock.Object,
+            _tokenBalanceServiceMock.Object,
+            _treasuryServiceMock.Object,
+            _loggerMock.Object,
+            _awardProjectRepoMock.Object,
+            assets: null,
+            ownerAccounts: _awardAccountsMock.Object,
+            nodeGateways: null,
+            configuration: null,
+            holdGateways: new[] { _awardHoldsMock.Object },
+            agreementRepo: _awardAgreementRepoMock.Object,
+            taskRepo: _awardTaskRepoMock.Object);
+    }
+
+    private static AzoaHold Hold(
+        string holdId,
+        string state,
+        string? parentHoldId = null,
+        string? childHoldId = null)
+        => new(
+            holdId,
+            "Algorand",
+            "asset-1",
+            "25000000",
+            ProjectTokenService.ContributorPartitionName,
+            WorkerAvatarId.ToString("N"),
+            state,
+            ReleaseNotBefore: null,
+            AutoRelease: false,
+            ParentHoldId: parentHoldId,
+            ChildHoldId: childHoldId);
+
+    private static ProjectTokenConfig AwardConfig(int contributorSupply = 0) => new()
+    {
+        id = "config-1",
+        projectId = "project-1",
+        assetId = "asset-1",
+        assetChain = "Algorand",
+        assetScale = 6,
+        treasuryAddress = "TREASURY-ADDRESS",
+        partitionsDeclaredAt = DateTime.UtcNow,
+        status = ProjectTokenStatus.ACTIVE,
+        gateStatus = ProjectGateStatus.ACTIVE,
+        totalSupply = 1000,
+        contributorPartitionSupply = 100,
+        investorPartitionSupply = 100,
+        contributorSupply = contributorSupply,
+    };
+
+    private static ProjectAwardReservationRequest AwardRequest(decimal amount = 25m, string holdId = EscrowHoldId)
+        => new("config-1", "agreement-1", holdId, amount, "worker-1", WorkerAvatarId);
+
+    [Fact]
+    public async Task ReserveWorkAwardAsync_CommitsTheAwardOnTheNodeAndDrawsTheAllowance()
+    {
+        var service = CreateAwardService();
+        var config = AwardConfig();
+        _configRepoMock.Setup(repository => repository.GetByIdAsync("config-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(config);
+        _allocationRepoMock.Setup(repository => repository.FindOneAsync(
+                It.IsAny<Expression<Func<TokenAllocation, bool>>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((TokenAllocation?)null);
+        _awardHoldsMock.Setup(holds => holds.OpenAsync(It.IsAny<AzoaHoldOpenRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<AzoaHold>.Success(Hold(EscrowHoldId, AzoaHoldStates.Held)));
+        TokenAllocation? created = null;
+        _allocationRepoMock.Setup(repository => repository.AddAsync(It.IsAny<TokenAllocation>(), It.IsAny<CancellationToken>()))
+            .Callback<TokenAllocation, CancellationToken>((allocation, _) => created = allocation)
+            .ReturnsAsync((TokenAllocation allocation, CancellationToken _) => allocation);
+
+        var result = await service.ReserveWorkAwardAsync(AwardRequest());
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value!.HoldId.Should().Be(EscrowHoldId);
+        result.Value.WholeUnits.Should().Be(25);
+
+        // The escrow hold must never auto-release: a hold with no window that asked to be swept
+        // would pay the worker before the owner ever approved the work.
+        _awardHoldsMock.Verify(holds => holds.OpenAsync(
+            It.Is<AzoaHoldOpenRequest>(request =>
+                request.Reference.HoldId == EscrowHoldId
+                && request.AssetId == "asset-1"
+                && request.AmountBaseUnits == "25000000"
+                && request.ReservePartition == ProjectTokenService.ContributorPartitionName
+                && request.BeneficiaryAvatarId == WorkerAvatarId
+                && request.ReleaseNotBefore == null
+                && request.AutoRelease == false),
+            It.IsAny<CancellationToken>()), Times.Once);
+
+        created.Should().NotBeNull();
+        created!.holdId.Should().Be(EscrowHoldId);
+        created.holdState.Should().Be(AzoaHoldStates.Held);
+        created.IsNodeHeld.Should().BeTrue();
+        created.recipientUserId.Should().Be("worker-1");
+        created.taskCommerceAgreementId.Should().Be("agreement-1");
+        created.tokenAmount.Should().Be(25);
+        config.contributorSupply.Should().Be(25);
+        config.allocatedSupply.Should().Be(25);
+    }
+
+    [Fact]
+    public async Task ReserveWorkAwardAsync_NodeRefusalLeavesNoAllocationAndNoSupplyChange()
+    {
+        var service = CreateAwardService();
+        var config = AwardConfig();
+        _configRepoMock.Setup(repository => repository.GetByIdAsync("config-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(config);
+        _allocationRepoMock.Setup(repository => repository.FindOneAsync(
+                It.IsAny<Expression<Func<TokenAllocation, bool>>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((TokenAllocation?)null);
+        _awardHoldsMock.Setup(holds => holds.OpenAsync(It.IsAny<AzoaHoldOpenRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<AzoaHold>.ValidationError(
+                "Partition 'contributor' would be oversubscribed: 25000000 base units requested, 0 available."));
+
+        var result = await service.ReserveWorkAwardAsync(AwardRequest());
+
+        result.IsSuccess.Should().BeFalse();
+        result.Type.Should().Be(ResultType.ValidationError);
+        result.Error.Should().Contain("oversubscribed");
+        config.contributorSupply.Should().Be(0);
+        _allocationRepoMock.Verify(
+            repository => repository.AddAsync(It.IsAny<TokenAllocation>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task ReserveWorkAwardAsync_HoldThatIsNotHeldIsNeverRecordedAsFunded()
+    {
+        var service = CreateAwardService();
+        _configRepoMock.Setup(repository => repository.GetByIdAsync("config-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(AwardConfig());
+        _allocationRepoMock.Setup(repository => repository.FindOneAsync(
+                It.IsAny<Expression<Func<TokenAllocation, bool>>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((TokenAllocation?)null);
+        _awardHoldsMock.Setup(holds => holds.OpenAsync(It.IsAny<AzoaHoldOpenRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<AzoaHold>.Success(Hold(EscrowHoldId, AzoaHoldStates.Refunded)));
+
+        var result = await service.ReserveWorkAwardAsync(AwardRequest());
+
+        result.IsSuccess.Should().BeFalse();
+        _allocationRepoMock.Verify(
+            repository => repository.AddAsync(It.IsAny<TokenAllocation>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task ReserveWorkAwardAsync_UnfundableProjectIsRefusedBeforeTheNodeIsCalled()
+    {
+        var service = CreateAwardService();
+        _configRepoMock.Setup(repository => repository.GetByIdAsync("config-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ProjectTokenConfig { id = "config-1", projectId = "project-1", assetScale = 6 });
+
+        var result = await service.ReserveWorkAwardAsync(AwardRequest());
+
+        result.IsSuccess.Should().BeFalse();
+        _awardHoldsMock.Verify(
+            holds => holds.OpenAsync(It.IsAny<AzoaHoldOpenRequest>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task ReserveWorkAwardAsync_PartUnitAwardIsRefusedBeforeTheNodeIsCalled()
+    {
+        var service = CreateAwardService();
+        _configRepoMock.Setup(repository => repository.GetByIdAsync("config-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(AwardConfig());
+        _allocationRepoMock.Setup(repository => repository.FindOneAsync(
+                It.IsAny<Expression<Func<TokenAllocation, bool>>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((TokenAllocation?)null);
+
+        var result = await service.ReserveWorkAwardAsync(AwardRequest(amount: 25.5m));
+
+        result.Type.Should().Be(ResultType.ValidationError);
+        result.Error.Should().Contain("whole number of units");
+        _awardHoldsMock.Verify(
+            holds => holds.OpenAsync(It.IsAny<AzoaHoldOpenRequest>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task ReserveWorkAwardAsync_LocallyOverdrawnAllowanceIsRefusedBeforeTheNodeIsCalled()
+    {
+        var service = CreateAwardService();
+        _configRepoMock.Setup(repository => repository.GetByIdAsync("config-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(AwardConfig(contributorSupply: 90));
+        _allocationRepoMock.Setup(repository => repository.FindOneAsync(
+                It.IsAny<Expression<Func<TokenAllocation, bool>>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((TokenAllocation?)null);
+
+        var result = await service.ReserveWorkAwardAsync(AwardRequest());
+
+        result.Type.Should().Be(ResultType.ValidationError);
+        result.Error.Should().Contain("oversubscribed");
+        _awardHoldsMock.Verify(
+            holds => holds.OpenAsync(It.IsAny<AzoaHoldOpenRequest>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task ReserveWorkAwardAsync_ReplaysAnExistingHoldWithoutDrawingTheAllowanceTwice()
+    {
+        var service = CreateAwardService();
+        var config = AwardConfig(contributorSupply: 25);
+        _configRepoMock.Setup(repository => repository.GetByIdAsync("config-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(config);
+        _allocationRepoMock.Setup(repository => repository.FindOneAsync(
+                It.IsAny<Expression<Func<TokenAllocation, bool>>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new TokenAllocation
+            {
+                id = "alloc-1",
+                projectTokenConfigId = "config-1",
+                holdId = EscrowHoldId,
+                holdState = AzoaHoldStates.Held,
+                tokenAmount = 25,
+            });
+
+        var result = await service.ReserveWorkAwardAsync(AwardRequest());
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value!.AllocationId.Should().Be("alloc-1");
+        config.contributorSupply.Should().Be(25);
+        _awardHoldsMock.Verify(
+            holds => holds.OpenAsync(It.IsAny<AzoaHoldOpenRequest>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+        _allocationRepoMock.Verify(
+            repository => repository.AddAsync(It.IsAny<TokenAllocation>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task ApproveWorkCompletionAsync_ContinuesTheEscrowHoldIntoTheWorkersWindow()
+    {
+        var service = CreateAwardService();
+        var allocation = HeldAllocation();
+        var agreement = AwardAgreement();
+        var task = new ProjectTask { id = "task-1", projectId = "project-1", escrowStatus = EscrowStatus.FUNDED };
+        ArrangeAwardLookups(allocation, agreement, task);
+        _awardHoldsMock.Setup(holds => holds.ReleaseIntoHoldAsync(
+                It.IsAny<AzoaHoldChainRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<AzoaHold>.Success(
+                Hold(EscrowHoldId, AzoaHoldStates.ReleasedIntoHold, childHoldId: EscrowHoldId + "-window")));
+        _awardHoldsMock.Setup(holds => holds.GetAsync(It.IsAny<AzoaHoldReference>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<AzoaHold>.Success(
+                Hold(EscrowHoldId + "-window", AzoaHoldStates.Held, parentHoldId: EscrowHoldId)));
+        _tokenBalanceServiceMock
+            .Setup(balances => balances.CreditAsync(
+                "worker-1", "config-1", 25, TokenHolderClass.CONTRIBUTOR, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<TokenBalanceDto>.Success(new TokenBalanceDto()));
+
+        var result = await service.ApproveWorkCompletionAsync("alloc-1", "owner-1");
+
+        result.IsSuccess.Should().BeTrue();
+        _awardHoldsMock.Verify(holds => holds.ReleaseIntoHoldAsync(
+            It.Is<AzoaHoldChainRequest>(request =>
+                request.Reference.HoldId == EscrowHoldId
+                && request.NextHoldId == EscrowHoldId + "-window"
+                && request.NextBeneficiaryAvatarId == WorkerAvatarId
+                && request.ReleaseNotBefore != null
+                && request.AutoRelease),
+            It.IsAny<CancellationToken>()), Times.Once);
+
+        allocation.status.Should().Be(AllocationStatus.DISTRIBUTED);
+        allocation.workerHoldId.Should().Be(EscrowHoldId + "-window");
+        allocation.workerHoldState.Should().Be(AzoaHoldStates.Held);
+        allocation.workerHoldReleasesAt.Should().NotBeNull();
+        allocation.workerHoldReleasesAt!.Value.Should().BeAfter(DateTime.UtcNow.AddDays(89));
+        // Restricted until the window elapses: the award is theirs and not yet liquid.
+        allocation.isLiquid.Should().BeFalse();
+        agreement.status.Should().Be(TaskCommerceAgreementStatus.SETTLED);
+        task.escrowStatus.Should().Be(EscrowStatus.RELEASED);
+    }
+
+    [Fact]
+    public async Task ApproveWorkCompletionAsync_SomeoneOtherThanTheProjectOwnerIsRefused()
+    {
+        var service = CreateAwardService();
+        ArrangeAwardLookups(HeldAllocation(), AwardAgreement(), new ProjectTask { id = "task-1", projectId = "project-1" });
+
+        var result = await service.ApproveWorkCompletionAsync("alloc-1", "someone-else");
+
+        result.Type.Should().Be(ResultType.Forbidden);
+        _awardHoldsMock.Verify(
+            holds => holds.ReleaseIntoHoldAsync(It.IsAny<AzoaHoldChainRequest>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task ApproveWorkCompletionAsync_AnAwardTheNodeNeverHeldCannotBePaidOut()
+    {
+        var service = CreateAwardService();
+        var reservation = HeldAllocation();
+        reservation.holdId = null;
+        _allocationRepoMock.Setup(repository => repository.GetByIdAsync("alloc-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(reservation);
+
+        var result = await service.ApproveWorkCompletionAsync("alloc-1", "owner-1");
+
+        result.Type.Should().Be(ResultType.ValidationError);
+        result.Error.Should().Contain("never set aside on the shared node");
+        _awardHoldsMock.Verify(
+            holds => holds.ReleaseIntoHoldAsync(It.IsAny<AzoaHoldChainRequest>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task ApproveWorkCompletionAsync_IsIdempotentOnceTheWindowExists()
+    {
+        var service = CreateAwardService();
+        var allocation = HeldAllocation();
+        allocation.status = AllocationStatus.DISTRIBUTED;
+        allocation.workerHoldId = EscrowHoldId + "-window";
+        ArrangeAwardLookups(allocation, AwardAgreement(), new ProjectTask { id = "task-1", projectId = "project-1" });
+
+        var result = await service.ApproveWorkCompletionAsync("alloc-1", "owner-1");
+
+        result.IsSuccess.Should().BeTrue();
+        _awardHoldsMock.Verify(
+            holds => holds.ReleaseIntoHoldAsync(It.IsAny<AzoaHoldChainRequest>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task DistributeAsync_AnAwardTheNodeIsHoldingCannotBeHandedOverDirectly()
+    {
+        var service = CreateAwardService();
+        _allocationRepoMock.Setup(repository => repository.GetByIdAsync("alloc-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(HeldAllocation());
+
+        var result = await service.DistributeAsync("alloc-1", "worker-1");
+
+        result.Type.Should().Be(ResultType.Conflict);
+        _tokenBalanceServiceMock.Verify(balances => balances.CreditAsync(
+            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(),
+            It.IsAny<TokenHolderClass>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task DistributeAsync_CannotRedirectAnAllocationBoundToSomeoneElse()
+    {
+        var service = CreateAwardService();
+        var bound = HeldAllocation();
+        bound.holdId = null;
+        _allocationRepoMock.Setup(repository => repository.GetByIdAsync("alloc-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(bound);
+
+        var result = await service.DistributeAsync("alloc-1", "someone-else");
+
+        result.Type.Should().Be(ResultType.Forbidden);
+        _tokenBalanceServiceMock.Verify(balances => balances.CreditAsync(
+            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(),
+            It.IsAny<TokenHolderClass>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task RevokeAllocationAsync_GivesTheNodeCommitmentBackBeforeFreeingTheLocalCount()
+    {
+        var service = CreateAwardService();
+        var allocation = HeldAllocation();
+        var config = AwardConfig(contributorSupply: 25);
+        config.allocatedSupply = 25;
+        _allocationRepoMock.Setup(repository => repository.GetByIdAsync("alloc-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(allocation);
+        _configRepoMock.Setup(repository => repository.GetByIdAsync("config-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(config);
+        _awardHoldsMock.Setup(holds => holds.RefundAsync(
+                It.IsAny<AzoaHoldReference>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<AzoaHold>.Success(Hold(EscrowHoldId, AzoaHoldStates.Refunded)));
+
+        var result = await service.RevokeAllocationAsync("alloc-1");
+
+        result.IsSuccess.Should().BeTrue();
+        _awardHoldsMock.Verify(holds => holds.RefundAsync(
+            It.Is<AzoaHoldReference>(reference => reference.HoldId == EscrowHoldId),
+            It.IsAny<string>(),
+            It.IsAny<CancellationToken>()), Times.Once);
+        allocation.status.Should().Be(AllocationStatus.REVOKED);
+        allocation.holdState.Should().Be(AzoaHoldStates.Refunded);
+        config.contributorSupply.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task RevokeAllocationAsync_RefusesOnceTheWorkersWindowExists()
+    {
+        var service = CreateAwardService();
+        var allocation = HeldAllocation();
+        allocation.workerHoldId = EscrowHoldId + "-window";
+        _allocationRepoMock.Setup(repository => repository.GetByIdAsync("alloc-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(allocation);
+
+        var result = await service.RevokeAllocationAsync("alloc-1");
+
+        result.Type.Should().Be(ResultType.Conflict);
+        _awardHoldsMock.Verify(holds => holds.RefundAsync(
+            It.IsAny<AzoaHoldReference>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    private static TokenAllocation HeldAllocation() => new()
+    {
+        id = "alloc-1",
+        projectTokenConfigId = "config-1",
+        recipientUserId = "worker-1",
+        taskCommerceAgreementId = "agreement-1",
+        tokenAmount = 25,
+        status = AllocationStatus.RESERVED,
+        holderClass = TokenHolderClass.CONTRIBUTOR,
+        isLiquid = false,
+        holdChain = "Algorand",
+        reservePartition = ProjectTokenService.ContributorPartitionName,
+        holdId = EscrowHoldId,
+        holdState = AzoaHoldStates.Held,
+    };
+
+    private static TaskCommerceAgreement AwardAgreement() => new()
+    {
+        id = "agreement-1",
+        projectId = "project-1",
+        taskId = "task-1",
+        bidId = "bid-1",
+        contributorUserId = "worker-1",
+        projectTokenConfigId = "config-1",
+        awardAmount = 25m,
+        status = TaskCommerceAgreementStatus.ESCROW_FUNDED,
+    };
+
+    private void ArrangeAwardLookups(
+        TokenAllocation allocation,
+        TaskCommerceAgreement agreement,
+        ProjectTask task)
+    {
+        _allocationRepoMock.Setup(repository => repository.GetByIdAsync("alloc-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(allocation);
+        _configRepoMock.Setup(repository => repository.GetByIdAsync("config-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(AwardConfig(contributorSupply: 25));
+        _awardProjectRepoMock.Setup(repository => repository.GetByIdAsync("project-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Project { id = "project-1", createdById = "owner-1" });
+        _awardAgreementRepoMock.Setup(repository => repository.GetByIdAsync("agreement-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(agreement);
+        _awardTaskRepoMock.Setup(repository => repository.GetByIdAsync("task-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(task);
+        _awardTaskRepoMock.Setup(repository => repository.UpdateAsync(It.IsAny<ProjectTask>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        _awardAgreementRepoMock.Setup(repository => repository.UpdateAsync(
+                It.IsAny<TaskCommerceAgreement>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+    }
 }

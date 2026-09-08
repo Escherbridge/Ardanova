@@ -14,29 +14,28 @@ const stateByEscrowStatus: Record<
   }
 > = {
   NONE: {
-    label: "ALLOCATION UNFUNDED",
-    detail: "This project-token allocation has not been escrowed yet.",
+    label: "NOT RESERVED",
+    detail: "No units have been set aside for this award yet.",
     variant: "secondary",
   },
   FUNDED: {
-    label: "ALLOCATION ESCROWED",
-    detail: "The allocation is funded and waits for an approved release.",
+    label: "RESERVED",
+    detail: "The award's units are set aside and wait for an approved release.",
     variant: "warning",
   },
   RELEASED: {
-    label: "SETTLEMENT PENDING",
-    detail:
-      "Release is recorded. Do not treat this as an on-node settlement until the allocation receipt is recorded.",
+    label: "PAID",
+    detail: "The award was released to the contributor.",
     variant: "neon",
   },
   DISPUTED: {
-    label: "ALLOCATION DISPUTED",
-    detail: "The escrow is disputed; no settlement should be assumed.",
+    label: "DISPUTED",
+    detail: "This award is disputed; no payout should be assumed until it is resolved.",
     variant: "destructive",
   },
   REFUNDED: {
-    label: "ALLOCATION RETURNED",
-    detail: "The escrow records a return and no task allocation is settled.",
+    label: "REFUNDED",
+    detail: "The reserved units were returned; no payout was made on this award.",
     variant: "secondary",
   },
 };

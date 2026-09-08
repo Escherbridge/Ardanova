@@ -290,8 +290,11 @@ export type {
 export type {
   TaskEscrow,
   CreateTaskEscrowDto,
-  ReleaseEscrowDto,
+  // No ReleaseEscrowDto: release takes no body at all. The funder supplies no settlement
+  // evidence, and the acting identity is read off the verified actor claim server-side.
   RefundEscrowDto,
+  DisputeEscrowDto,
+  ResolveDisputeDto,
 } from "./endpoints/task-escrows";
 export type {
   DelegatedVote,

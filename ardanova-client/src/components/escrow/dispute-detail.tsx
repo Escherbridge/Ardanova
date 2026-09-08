@@ -1,14 +1,22 @@
-import { AlertTriangle, LockKeyhole, Scale } from "lucide-react";
+"use client";
+
+import { useState } from "react";
+import { AlertTriangle, Loader2, RotateCcw, Undo2 } from "lucide-react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
+import { Button } from "~/components/ui/button";
 import { EscrowStatusBadge } from "./escrow-status-badge";
 import type { EscrowData } from "./escrow-detail-card";
+import { api } from "~/trpc/react";
 
 interface DisputeDetailProps {
   escrow: EscrowData;
+  /** Called after the administrator's decision is recorded, so a parent list can refresh. */
+  onResolved?: () => void;
 }
 
-export function DisputeDetail({ escrow }: DisputeDetailProps) {
+export function DisputeDetail({ escrow, onResolved }: DisputeDetailProps) {
+  const [error, setError] = useState<string | null>(null);
   const disputedDate = escrow.disputedAt
     ? new Date(escrow.disputedAt).toLocaleDateString("en-US", {
         year: "numeric",
@@ -18,6 +26,25 @@ export function DisputeDetail({ escrow }: DisputeDetailProps) {
         minute: "2-digit",
       })
     : "Not exposed by the current API";
+
+  const utils = api.useUtils();
+  const resolveMutation = api.taskEscrow.resolve.useMutation({
+    onSuccess: () => {
+      setError(null);
+      void utils.taskEscrow.listDisputed.invalidate();
+      onResolved?.();
+    },
+    onError: (err) => {
+      setError(err.message ?? "Failed to resolve dispute. Please try again.");
+    },
+  });
+
+  const resolve = (outcome: "REFUND" | "REJECT") => {
+    setError(null);
+    resolveMutation.mutate({ id: escrow.id, outcome });
+  };
+
+  const canResolve = escrow.status === "DISPUTED";
 
   return (
     <Card className="border-neon-pink/20 border-2">
@@ -60,31 +87,59 @@ export function DisputeDetail({ escrow }: DisputeDetailProps) {
           </div>
         </div>
 
-        <div
-          className="border-neon-yellow/30 bg-neon-yellow/5 space-y-3 rounded-md border-2 p-4"
-          role="status"
-        >
-          <div className="flex items-start gap-3">
-            <LockKeyhole className="text-neon-yellow mt-0.5 h-5 w-5 shrink-0" />
-            <div className="space-y-1">
-              <p className="font-medium">Resolution controls unavailable</p>
-              <p className="text-muted-foreground text-sm">
-                The backend does not yet expose an administrator adjudication
-                contract. Its existing release and refund operations are
-                funder-only actions, so this review remains read-only and no
-                funds can move from this screen.
-              </p>
-            </div>
-          </div>
-          <div className="border-neon-yellow/20 text-muted-foreground flex items-start gap-3 border-t pt-3 text-sm">
-            <Scale className="mt-0.5 h-4 w-4 shrink-0" />
-            <p>
-              A future resolution flow must record administrator authority, the
-              decision, supporting evidence, and the resulting escrow transition
-              as one auditable backend operation.
+        {canResolve ? (
+          <div className="space-y-3 rounded-md border-2 border-white/10 bg-white/5 p-4">
+            <p className="font-medium">Resolve this dispute</p>
+            <p className="text-muted-foreground text-sm">
+              Refund returns the held units to the pool they were reserved
+              from. Reject dismisses the dispute and restores the escrow to
+              funded, so the funder&apos;s own release action pays the
+              contributor next.
             </p>
+            <div className="flex flex-wrap gap-2 pt-1">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => resolve("REFUND")}
+                disabled={resolveMutation.isPending}
+                className="flex min-h-11 items-center gap-2"
+              >
+                {resolveMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <RotateCcw className="h-4 w-4" />
+                )}
+                Refund funder
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => resolve("REJECT")}
+                disabled={resolveMutation.isPending}
+                className="flex min-h-11 items-center gap-2"
+              >
+                {resolveMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Undo2 className="h-4 w-4" />
+                )}
+                Reject dispute
+              </Button>
+            </div>
+            {error && (
+              <p className="text-destructive text-sm" role="alert">
+                {error}
+              </p>
+            )}
           </div>
-        </div>
+        ) : (
+          <p className="text-muted-foreground text-sm">
+            This dispute has already been resolved; the escrow is now{" "}
+            {escrow.status}.
+          </p>
+        )}
       </CardContent>
     </Card>
   );

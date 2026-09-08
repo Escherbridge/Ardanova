@@ -2397,11 +2397,29 @@ model TokenAllocation {
   distributedAt        DateTime?
   distributionTxHash   String?
   burnedAt             DateTime?
+
+  // Worker award holds. A TokenAllocation is the READ-MODEL of a hold the shared node keeps;
+  // the node's reserve ledger, not these columns, decides whether an allowance can afford an
+  // award. `workerHoldReleasesAt` ends the worker's restricted window (a tax-deferral window,
+  // never a chargeback window). No relation is declared on taskCommerceAgreementId yet: the
+  // migration deliberately ships the index without a foreign key.
+  taskCommerceAgreementId String?
+  holdChain               String?
+  reservePartition        String?
+  holdId                  String?          @unique
+  holdState               String?
+  workerHoldId            String?          @unique
+  workerHoldState         String?
+  workerHoldReleasesAt    DateTime?
+  holdSyncedAt            DateTime?
+
   createdAt            DateTime            @default(now())
   updatedAt            DateTime            @updatedAt
   projectTokenConfig   ProjectTokenConfig  @relation("TokenAllocation_projectTokenConfigId", fields: [projectTokenConfigId], references: [id])
   pbi                  ProductBacklogItem? @relation("TokenAllocation_pbiId", fields: [pbiId], references: [id])
   recipientUser        User?               @relation("TokenAllocation_recipientUserId", fields: [recipientUserId], references: [id])
+
+  @@index([taskCommerceAgreementId])
 }
 
 model TokenBalance {

@@ -1,4 +1,4 @@
-namespace ArdaNova.Application.Tests.Services;
+﻿namespace ArdaNova.Application.Tests.Services;
 
 using ArdaNova.Application.Common.Results;
 using ArdaNova.Application.DTOs;
@@ -558,6 +558,133 @@ public class EconomicOutboxDispatchServiceTests
         finalization!.Outcome.Should().Be(EconomicOutboxRecordedOutcome.Retry);
         finalization.AvailableAt.Should().BeAfter(DateTime.UtcNow.AddSeconds(-1));
     }
+
+    // --- Readiness holding (gotcha 29) ------------------------------------------------------
+    //
+    // A readiness refusal is NOT a failing dispatch: nothing was submitted and the reservation
+    // still stands at the node. The four tests below pin the three properties that keep those
+    // two things apart - its own slow cadence, its exemption from the transport ceiling, and a
+    // definite end that hands a person a refund instead of retrying forever.
+
+    [Fact]
+    public async Task DispatchOneAsync_HeldOnReadiness_UsesTheHoldingCadenceNotTheTransientLadder()
+    {
+        var claim = HeldOnReadiness(attemptCount: 5);
+        var before = DateTime.UtcNow;
+
+        var result = await _sut.DispatchOneAsync();
+
+        result.Outcome.Should().Be(EconomicOutboxRecordedOutcome.Retry);
+        _store.Verify(store => store.FinalizeAsync(
+            claim,
+            It.Is<EconomicOutboxFinalization>(item =>
+                item.Outcome == EconomicOutboxRecordedOutcome.Retry
+                && item.FailureCode == EconomicSettlementReadinessCodes.BeneficiaryNotReady
+                && item.AvailableAt >= before.AddHours(11)),
+            It.IsAny<DateTime>(),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    /// <summary>
+    /// The regression that keeps gotcha 29 shut. Attempt 12 is past the ordinary dispatch ceiling
+    /// of <see cref="EconomicOutboxDispatchService.DefaultMaximumAttempts"/>, and spending a
+    /// readiness refusal against that ceiling is exactly how a reward gets marked FAILED while its
+    /// hold stays live and unrefunded.
+    /// </summary>
+    [Fact]
+    public async Task DispatchOneAsync_HeldOnReadinessPastTheTransportCeiling_StaysHeldAndIsNeverFailed()
+    {
+        var claim = HeldOnReadiness(attemptCount: 12);
+
+        var result = await _sut.DispatchOneAsync();
+
+        result.Outcome.Should().Be(EconomicOutboxRecordedOutcome.Retry);
+        _store.Verify(store => store.FinalizeAsync(
+            claim,
+            It.Is<EconomicOutboxFinalization>(item =>
+                item.FailureCode == EconomicSettlementReadinessCodes.BeneficiaryNotReady
+                && item.FailureCode != EconomicSettlementFailureCodes.DispatchAttemptCeiling),
+            It.IsAny<DateTime>(),
+            It.IsAny<CancellationToken>()), Times.Once);
+        _gateway.Verify(gateway => gateway.DispatchAsync(
+            It.IsAny<AzoaSettlementRequest>(),
+            It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task DispatchOneAsync_HeldOnReadinessPastTheHoldingWindow_EndsTheHoldAndOwesTheAmountBack()
+    {
+        var alerts = new Mock<IOperatorAlertService>();
+        var sut = NewServiceWithAlerts(alerts);
+        var claim = HeldOnReadiness(attemptCount: 41);
+
+        var result = await sut.DispatchOneAsync();
+
+        result.Outcome.Should().Be(EconomicOutboxRecordedOutcome.Retry);
+        _store.Verify(store => store.FinalizeAsync(
+            claim,
+            It.Is<EconomicOutboxFinalization>(item =>
+                item.FailureCode == EconomicSettlementFailureCodes.DispatchAttemptCeiling),
+            It.IsAny<DateTime>(),
+            It.IsAny<CancellationToken>()), Times.Once);
+        alerts.Verify(service => service.RaiseAsync(
+            It.Is<EconomicOperatorAlert>(alert =>
+                alert.AlertCode == EconomicOperatorAlertCodes.ReadinessHoldingRefundDue
+                && alert.Severity == OperatorAlertSeverity.Critical),
+            It.IsAny<CancellationToken>()), Times.Once);
+        alerts.VerifyNoOtherCalls();
+    }
+
+    [Theory]
+    [InlineData(EconomicOutboxDispatchService.ReadinessHoldingEntryAttempts, 1)]
+    [InlineData(EconomicOutboxDispatchService.ReadinessHoldingEntryAttempts + 1, 0)]
+    public async Task DispatchOneAsync_HeldOnReadiness_AlertsOnlyOnTheHoldingInterval(
+        int attemptCount,
+        int expectedAlerts)
+    {
+        var alerts = new Mock<IOperatorAlertService>();
+        var sut = NewServiceWithAlerts(alerts);
+        HeldOnReadiness(attemptCount);
+
+        await sut.DispatchOneAsync();
+
+        alerts.Verify(service => service.RaiseAsync(
+            It.Is<EconomicOperatorAlert>(alert =>
+                alert.AlertCode == EconomicOperatorAlertCodes.ReadinessHoldingStalled
+                && alert.Severity == OperatorAlertSeverity.Warning),
+            It.IsAny<CancellationToken>()), Times.Exactly(expectedAlerts));
+    }
+
+    /// <summary>Claims one settlement whose beneficiary is genuinely not set up yet.</summary>
+    private EconomicOutboxLease HeldOnReadiness(int attemptCount)
+    {
+        var claim = Claim() with { AttemptCount = attemptCount };
+        _store.Setup(store => store.TryClaimAsync(
+                EconomicOutboxClaimKind.Dispatch,
+                It.IsAny<DateTime>(),
+                It.IsAny<TimeSpan>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(claim);
+        _store.Setup(store => store.FinalizeAsync(
+                claim,
+                It.IsAny<EconomicOutboxFinalization>(),
+                It.IsAny<DateTime>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+        _valueEligibility.Setup(service => service.RequireReadyAsync(
+                "user-1",
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<AzoaCustodialAccountStatusDto>.Forbidden("Account setup is incomplete."));
+        return claim;
+    }
+
+    private EconomicOutboxDispatchService NewServiceWithAlerts(Mock<IOperatorAlertService> alerts)
+        => new(
+            _store.Object,
+            _gateway.Object,
+            _valueEligibility.Object,
+            operatorAlerts: alerts.Object);
 
     private static EconomicOutboxLease Claim(
         EconomicOutboxClaimKind kind = EconomicOutboxClaimKind.Dispatch,

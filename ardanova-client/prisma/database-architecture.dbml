@@ -2222,6 +2222,15 @@ Table TokenAllocation {
   distributedAt datetime
   distributionTxHash varchar
   burnedAt datetime [note: 'Set when founder tokens are burned on project failure']
+  taskCommerceAgreementId varchar [note: 'The accepted assignment this award belongs to; indexed, no FK yet']
+  holdChain varchar [note: 'Which node ledger keeps the hold']
+  reservePartition varchar [note: 'The allowance partition the units were drawn from']
+  holdId varchar [unique, note: 'Node hold reference; NULL means nothing is committed and no payout path may run']
+  holdState varchar [note: 'Last hold state the node reported']
+  workerHoldId varchar [unique, note: 'The continuation hold that makes the award the workers own']
+  workerHoldState varchar [note: 'Last worker-hold state the node reported']
+  workerHoldReleasesAt datetime [note: 'End of the restricted window; a tax-deferral window, never a chargeback window']
+  holdSyncedAt datetime [note: 'When these mirror columns were last refreshed from the node']
   createdAt datetime [not null, default: `now()`]
   updatedAt datetime [not null, note: 'Updated at']
 }

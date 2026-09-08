@@ -9,6 +9,7 @@ using ArdaNova.Application.Services.Implementations;
 using ArdaNova.Application.Services.Interfaces;
 using ArdaNova.API.Middleware;
 using ArdaNova.Domain.Models.Entities;
+using ArdaNova.Domain.Models.Enums;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -21,6 +22,7 @@ public class ProjectTokensController : ControllerBase
     private readonly IProjectGateService _projectGateService;
     private readonly IProjectTokenProvisioning _projectTokenProvisioning;
     private readonly IRepository<ProjectTokenConfig> _projectTokenConfigRepository;
+    private readonly IRepository<TokenAllocation> _allocationRepository;
     private readonly IRepository<ProjectInvestment> _investmentRepository;
     private readonly IRepository<User> _userRepository;
     private readonly IHierarchyAuthorizationService _hierarchyAuthorization;
@@ -33,6 +35,10 @@ public class ProjectTokensController : ControllerBase
     /// <param name="projectTokenConfigRepository">
     /// Read-only lookup for GetInvestors: it needs the config's owning project id to decide
     /// membership, a decision <see cref="IProjectTokenService"/> does not expose today.
+    /// </param>
+    /// <param name="allocationRepository">
+    /// Read-only lookup for the allocation routes: they need the allocation's owning project
+    /// to decide whether the caller may manage it, and the recipient it is already bound to.
     /// </param>
     /// <param name="investmentRepository">
     /// Read-only lookup for GetInvestors: it reads the per-pledge consent flag directly off
@@ -47,6 +53,7 @@ public class ProjectTokensController : ControllerBase
         IProjectGateService projectGateService,
         IProjectTokenProvisioning projectTokenProvisioning,
         IRepository<ProjectTokenConfig> projectTokenConfigRepository,
+        IRepository<TokenAllocation> allocationRepository,
         IRepository<ProjectInvestment> investmentRepository,
         IRepository<User> userRepository,
         IHierarchyAuthorizationService hierarchyAuthorization)
@@ -56,6 +63,7 @@ public class ProjectTokensController : ControllerBase
         _projectTokenProvisioning = projectTokenProvisioning
             ?? throw new ArgumentNullException(nameof(projectTokenProvisioning));
         _projectTokenConfigRepository = projectTokenConfigRepository;
+        _allocationRepository = allocationRepository;
         _investmentRepository = investmentRepository;
         _userRepository = userRepository;
         _hierarchyAuthorization = hierarchyAuthorization;
@@ -150,14 +158,36 @@ public class ProjectTokensController : ControllerBase
 
     // === Allocations ===
 
+    /// <summary>
+    /// Sets units of a project's stake aside against a backlog item. Ownership is decided from
+    /// the caller's verified identity, not from an admin key: earmarking a project's own stake
+    /// is the project owner's decision.
+    /// </summary>
+    /// <remarks>
+    /// A backlog reservation commits nothing on the shared node — there is no person to hold
+    /// units for yet — so it can never be paid out. Only an award accepted from a bid carries
+    /// a hold, and only that can be approved (<see cref="ApproveWorkCompletion"/>).
+    /// </remarks>
     [HttpPost("{configId}/allocate/pbi")]
-    [Authorize(Policy = AuthorizationPolicies.AdminApiKey)]
-    public IActionResult AllocateToPbi(string configId, [FromBody] CreateTokenAllocationDto dto, CancellationToken ct)
+    [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
+    public async Task<IActionResult> AllocateToPbi(
+        string configId,
+        [FromBody] CreateTokenAllocationDto dto,
+        CancellationToken ct)
     {
-        _ = configId;
-        _ = dto;
-        _ = ct;
-        return AllocationUnavailable();
+        var config = await _projectTokenConfigRepository.GetByIdAsync(configId, ct);
+        if (config is null)
+            return NotFound(new { error = $"Project token config {configId} not found" });
+
+        if (!await CanManageProjectAsync(config.projectId, ct))
+        {
+            return StatusCode(
+                StatusCodes.Status403Forbidden,
+                new { error = "Only someone who manages this project can set its stake aside." });
+        }
+
+        var result = await _projectTokenService.AllocateToPbiAsync(configId, dto, ct);
+        return ToActionResult(result);
     }
 
     [HttpPost("{configId}/allocate/investor")]
@@ -180,17 +210,40 @@ public class ProjectTokensController : ControllerBase
         return AllocationUnavailable();
     }
 
+    /// <summary>
+    /// The project owner approves completed work: the units set aside for the worker move into
+    /// the worker's own window and the assignment settles.
+    /// </summary>
+    /// <remarks>
+    /// <paramref name="recipientUserId"/> survives only so an existing caller is TOLD its value
+    /// is not used rather than silently overruled. The person paid is the one the accepted
+    /// agreement names; a caller-supplied recipient on an owned resource is the IDOR shape this
+    /// codebase refuses everywhere else.
+    /// </remarks>
     [HttpPost("allocations/{allocationId}/distribute")]
-    [Authorize(Policy = AuthorizationPolicies.AdminApiKey)]
-    public IActionResult Distribute(string allocationId, [FromQuery] string recipientUserId, CancellationToken ct)
+    [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
+    public async Task<IActionResult> ApproveWorkCompletion(
+        string allocationId,
+        [FromQuery] string? recipientUserId,
+        CancellationToken ct)
     {
-        _ = allocationId;
-        _ = recipientUserId;
-        _ = ct;
-        return Problem(
-            statusCode: StatusCodes.Status501NotImplemented,
-            title: "Token distribution is unavailable",
-            detail: "Atomic RESERVED-to-DISTRIBUTED allocation transition and durable idempotency are required before token distribution can be enabled.");
+        if (!string.IsNullOrWhiteSpace(recipientUserId))
+        {
+            var allocation = await _allocationRepository.GetByIdAsync(allocationId, ct);
+            if (allocation is null)
+                return NotFound(new { error = $"Allocation {allocationId} not found" });
+
+            if (!string.Equals(allocation.recipientUserId, recipientUserId, StringComparison.Ordinal))
+            {
+                return BadRequest(new
+                {
+                    error = "This award is already set aside for a particular person and cannot be redirected.",
+                });
+            }
+        }
+
+        var result = await _projectTokenProvisioning.ApproveWorkCompletionAsync(allocationId, ActorId, ct);
+        return ToActionResult(result);
     }
 
     private IActionResult AllocationUnavailable()
@@ -198,6 +251,13 @@ public class ProjectTokensController : ControllerBase
             statusCode: StatusCodes.Status501NotImplemented,
             title: "Project-unit allocation is unavailable",
             detail: "Provider-verified account eligibility, durable settlement, and idempotent allocation transitions are required before project-unit allocation can be enabled.");
+
+    private bool IsAdmin => User.IsInRole(UserRole.ADMIN.ToString());
+
+    private Task<bool> CanManageProjectAsync(string projectId, CancellationToken ct)
+        => IsAdmin
+            ? Task.FromResult(true)
+            : _hierarchyAuthorization.CanManageProjectAsync(ActorId, projectId, ct);
 
     [HttpPost("allocations/{allocationId}/revoke")]
     [Authorize(Policy = AuthorizationPolicies.AdminApiKey)]

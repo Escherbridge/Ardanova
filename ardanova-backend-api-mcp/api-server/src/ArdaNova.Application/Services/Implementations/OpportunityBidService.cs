@@ -10,6 +10,28 @@ using AutoMapper;
 
 public class OpportunityBidService : IOpportunityBidService
 {
+    /// <summary>
+    /// Why a guild may not bid for a share of a project's stake yet. An accepted award is set
+    /// aside for exactly one person on the shared node, and a bid records no split between a
+    /// guild's members, so the refusal happens here — at bid time — rather than leaving a
+    /// guild to find out at acceptance that its bid could never be taken.
+    /// </summary>
+    /// <remarks>
+    /// STUB, fail-closed, and the same refusal
+    /// <see cref="TaskCommerceService.GuildSplitUnsupported"/> makes at acceptance. Unblocked
+    /// by a declared split at bid time: a <c>guildAwardSplit</c> column on
+    /// <c>OpportunityBid</c> plus the matching field on this service's DTOs, both outside this
+    /// change's file boundary. An unpaid guild bid is unaffected.
+    /// </remarks>
+    public const string GuildStakeBidUnsupported =
+        "A guild cannot yet bid for a share of a project's stake, because a bid does not say "
+        + "how that share is split between its members. Bid as the member who will do the work.";
+
+    /// <summary>Why a part-unit bid is refused before anyone can accept it.</summary>
+    public const string PartUnitBidUnsupported =
+        "Bid in whole units of the project's stake: a project sets its worker and sponsor "
+        + "allowances aside in whole units, so a part unit cannot be committed.";
+
     private readonly IRepository<OpportunityBid> _repository;
     private readonly IRepository<Opportunity> _opportunityRepository;
     private readonly IRepository<User> _userRepository;
@@ -79,6 +101,9 @@ public class OpportunityBidService : IOpportunityBidService
         if (existingBid is not null)
             return Result<OpportunityBidDto>.ValidationError("User has already submitted a bid for this opportunity");
 
+        if (DescribeUnacceptableStakeBid(opportunity, dto.ProposedAmount, dto.GuildId) is { } refusal)
+            return Result<OpportunityBidDto>.ValidationError(refusal);
+
         var bid = new OpportunityBid
         {
             id = Guid.NewGuid().ToString(),
@@ -109,6 +134,17 @@ public class OpportunityBidService : IOpportunityBidService
 
         if (bid.status != BidStatus.SUBMITTED)
             return Result<OpportunityBidDto>.ValidationError("Only bids with SUBMITTED status can be updated");
+
+        if (dto.ProposedAmount.HasValue)
+        {
+            var opportunity = await _opportunityRepository.GetByIdAsync(bid.opportunityId, ct);
+            if (opportunity is null)
+                return Result<OpportunityBidDto>.NotFound($"Opportunity with id {bid.opportunityId} not found");
+
+            // The same rule the bid was created under. Without it an edit is the way around it.
+            if (DescribeUnacceptableStakeBid(opportunity, dto.ProposedAmount, bid.guildId) is { } refusal)
+                return Result<OpportunityBidDto>.ValidationError(refusal);
+        }
 
         if (dto.ProposedAmount.HasValue) bid.proposedAmount = dto.ProposedAmount;
         if (dto.Proposal is not null) bid.proposal = dto.Proposal;
@@ -206,6 +242,27 @@ public class OpportunityBidService : IOpportunityBidService
         await _repository.DeleteAsync(bid, ct);
         await _unitOfWork.SaveChangesAsync(ct);
         return Result<bool>.Success(true);
+    }
+
+    /// <summary>
+    /// Null when this bid could actually be accepted; the person-facing refusal otherwise.
+    /// Only a paid bid on a project-backed opportunity is constrained — an unpaid bid, or a bid
+    /// on an opportunity with no project behind it, commits no stake and is left alone.
+    /// </summary>
+    private static string? DescribeUnacceptableStakeBid(
+        Opportunity opportunity,
+        decimal? proposedAmount,
+        string? guildId)
+    {
+        if (string.IsNullOrWhiteSpace(opportunity.projectId) || proposedAmount is not > 0m)
+            return null;
+
+        if (!string.IsNullOrWhiteSpace(guildId))
+            return GuildStakeBidUnsupported;
+
+        return decimal.Truncate(proposedAmount.Value) != proposedAmount.Value
+            ? PartUnitBidUnsupported
+            : null;
     }
 
     private async Task<OpportunityBidDto> EnrichBidDtoAsync(OpportunityBid bid, CancellationToken ct)

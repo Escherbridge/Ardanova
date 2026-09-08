@@ -28,9 +28,6 @@ export interface EscrowData {
   shareId?: string | null;
   amount: number;
   status: EscrowStatus;
-  txHashFund?: string | null;
-  txHashRelease?: string | null;
-  txHashRefund?: string | null;
   createdAt: Date | string;
   fundedAt?: Date | string | null;
   releasedAt?: Date | string | null;
@@ -101,18 +98,6 @@ function formatDate(date: Date | string | null | undefined): string {
   });
 }
 
-function TransactionReference({ hash }: { hash: string | null | undefined }) {
-  if (!hash) return <span className="text-muted-foreground">Not recorded</span>;
-  return (
-    <code
-      className="text-foreground block font-mono text-xs break-all"
-      aria-label={`Transaction reference ${hash}`}
-    >
-      {hash}
-    </code>
-  );
-}
-
 export function EscrowDetailCard({
   escrow,
   onRelease,
@@ -168,8 +153,15 @@ export function EscrowDetailCard({
         {escrow.releasedAt && (
           <InfoRow
             icon="calendar"
-            label="Release authorization recorded"
+            label="Released"
             value={formatDate(escrow.releasedAt)}
+          />
+        )}
+        {escrow.refundedAt && (
+          <InfoRow
+            icon="calendar"
+            label="Refunded"
+            value={formatDate(escrow.refundedAt)}
           />
         )}
         {escrow.disputedAt && (
@@ -183,28 +175,14 @@ export function EscrowDetailCard({
             }
           />
         )}
-        <div className="pt-2">
-          <p className="text-muted-foreground mb-1 text-xs">
-            Funding transaction reference
-          </p>
-          <TransactionReference hash={escrow.txHashFund} />
-        </div>
-        {escrow.txHashRelease && (
-          <div className="pt-2">
-            <p className="text-muted-foreground mb-1 text-xs">
-              Release authorization transaction reference
-            </p>
-            <TransactionReference hash={escrow.txHashRelease} />
-          </div>
-        )}
       </CardContent>
 
       {(canRelease || canDispute || canRefund) && (
         <CardFooter className="flex flex-wrap gap-2 border-t border-white/10 pt-4">
           {canRelease && (
             <p className="text-muted-foreground w-full text-xs">
-              Authorizing release records approval to move funds. Confirm the
-              resulting transaction and contributor settlement separately.
+              Authorizing release moves the held units to the contributor on
+              the shared node. This action cannot be undone.
             </p>
           )}
           {canRelease && onRelease && (

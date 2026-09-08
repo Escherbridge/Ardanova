@@ -27,6 +27,36 @@ public static class EconomicSettlementFailureCodes
     public const string ExchangeNeverLanded = "AZOA_EXCHANGE_NEVER_LANDED";
 }
 
+/// <summary>The refusals that mean a person's account readiness lapsed, so nothing was ever dispatched.</summary>
+/// <remarks>
+/// These four codes are the platform's HOLDING marker and they are a wire contract, not log text:
+/// <c>FundingIntentService</c> reads the same four off a settlement row to decide that a sponsorship
+/// is held rather than failed. Nothing here may rename one, and a settlement carrying one of them
+/// must never be given the transport dispatch ceiling - value is waiting on a person, not on a
+/// retry. See <c>Services/Implementations/AGENTS.md</c>, "Reward dispatch hygiene".
+/// </remarks>
+public static class EconomicSettlementReadinessCodes
+{
+    /// <summary>The recipient's account was read and setup is genuinely unfinished.</summary>
+    public const string BeneficiaryNotReady = "AZOA_ACCOUNT_NOT_READY";
+
+    /// <summary>Readiness could not be confirmed at all; this points at the platform, not the person.</summary>
+    public const string BeneficiaryUnconfirmed = "AZOA_ELIGIBILITY_UNCONFIRMED";
+
+    /// <summary>A project-crediting settlement has no resolvable project owner to check.</summary>
+    public const string ProjectOwnerUnavailable = "AZOA_PROJECT_OWNER_UNAVAILABLE";
+
+    /// <summary>The project owner's account was read and setup is genuinely unfinished.</summary>
+    public const string ProjectOwnerNotReady = "AZOA_PROJECT_OWNER_NOT_READY";
+
+    /// <summary>True when a refusal means an account is not ready, so nothing left ArdaNova.</summary>
+    public static bool IsReadinessLapse(string? code)
+        => code is BeneficiaryNotReady
+            or BeneficiaryUnconfirmed
+            or ProjectOwnerUnavailable
+            or ProjectOwnerNotReady;
+}
+
 /// <summary>Which settlement kinds credit a project and therefore need its owner ready as well.</summary>
 /// <remarks>
 /// One definition, read at BOTH seams: the lease store decides whether to resolve a project owner
@@ -92,6 +122,19 @@ public sealed class EconomicOutboxDispatchService : IEconomicOutboxDispatchServi
     /// <summary>Attempts a settlement gets before a human is told instead of a machine retried.</summary>
     public const int DefaultMaximumAttempts = 10;
 
+    /// <summary>Readiness attempt at which a refusal stops being transient and the row is HOLDING.</summary>
+    public const int ReadinessHoldingEntryAttempts = 3;
+
+    /// <summary>Holding attempts between operator alerts; loud enough to be seen, quiet enough not to page nightly.</summary>
+    public const int ReadinessHoldingAlertInterval = 14;
+
+    /// <summary>Flat cadence a held settlement is re-checked on; long, because only a person can clear it.</summary>
+    public static readonly TimeSpan ReadinessHoldingBackoff = TimeSpan.FromHours(12);
+
+    /// <summary>How long captured value may wait on unfinished setup before it is owed back to its source.</summary>
+    public static readonly TimeSpan DefaultReadinessHoldingWindow = TimeSpan.FromDays(14);
+
+    private static readonly TimeSpan MaximumReadinessHoldingWindow = TimeSpan.FromDays(365);
     private static readonly TimeSpan LeaseDuration = TimeSpan.FromMinutes(5);
     private static readonly TimeSpan DefaultGatewayOperationDeadline = TimeSpan.FromMinutes(4.5);
 
@@ -101,7 +144,9 @@ public sealed class EconomicOutboxDispatchService : IEconomicOutboxDispatchServi
     private readonly IEconomicOutboxLeaseStore _store;
     private readonly IAzoaSettlementGateway _gateway;
     private readonly IAzoaValueEligibilityService _valueEligibility;
+    private readonly IOperatorAlertService _operatorAlerts;
     private readonly TimeSpan _gatewayOperationDeadline;
+    private readonly TimeSpan _readinessHoldingWindow;
     private readonly int _maximumAttempts;
     private readonly ILogger<EconomicOutboxDispatchService>? _logger;
 
@@ -111,7 +156,9 @@ public sealed class EconomicOutboxDispatchService : IEconomicOutboxDispatchServi
         IAzoaValueEligibilityService valueEligibility,
         TimeSpan? gatewayOperationDeadline = null,
         int? maximumAttempts = null,
-        ILogger<EconomicOutboxDispatchService>? logger = null)
+        ILogger<EconomicOutboxDispatchService>? logger = null,
+        IOperatorAlertService? operatorAlerts = null,
+        TimeSpan? readinessHoldingWindow = null)
     {
         var deadline = gatewayOperationDeadline ?? DefaultGatewayOperationDeadline;
         if (deadline <= TimeSpan.Zero || deadline >= LeaseDuration)
@@ -121,13 +168,37 @@ public sealed class EconomicOutboxDispatchService : IEconomicOutboxDispatchServi
         if (attempts < 1)
             throw new ArgumentOutOfRangeException(nameof(maximumAttempts));
 
+        var holdingWindow = readinessHoldingWindow ?? DefaultReadinessHoldingWindow;
+        if (holdingWindow < ReadinessHoldingBackoff || holdingWindow > MaximumReadinessHoldingWindow)
+            throw new ArgumentOutOfRangeException(nameof(readinessHoldingWindow));
+
         _store = store;
         _gateway = gateway;
         _valueEligibility = valueEligibility;
+        // Never a silent default: an unregistered alert channel falls back to critical log lines,
+        // which every deployment already ships, rather than to a no-op that swallows parked value.
+        _operatorAlerts = operatorAlerts ?? LoggingOperatorAlertService.For(logger);
         _gatewayOperationDeadline = deadline;
+        _readinessHoldingWindow = holdingWindow;
         _maximumAttempts = attempts;
         _logger = logger;
     }
+
+    /// <summary>Attempt at which a held settlement stops waiting and the reserved amount is owed back.</summary>
+    /// <remarks>
+    /// Expressed in attempts because the lease record carries no first-held timestamp, and safe to
+    /// express that way only because the holding cadence is flat. The ordinary dispatch ceiling is
+    /// added as an allowance for attempts a row may already have spent before it could be holding,
+    /// which makes <see cref="DefaultReadinessHoldingWindow"/> a floor on the real wait, never a cap.
+    /// </remarks>
+    private int ReadinessRefundAttempts
+        => ReadinessHoldingEntryAttempts
+            + _maximumAttempts
+            + (int)Math.Ceiling(_readinessHoldingWindow / ReadinessHoldingBackoff);
+
+    /// <summary>The holding window in whole days, for copy a person reads.</summary>
+    private int ReadinessHoldingWindowDays
+        => (int)Math.Round(_readinessHoldingWindow.TotalDays, MidpointRounding.AwayFromZero);
 
     /// <inheritdoc/>
     public Task<EconomicOutboxDispatchRun> DispatchOneAsync(CancellationToken ct = default)
@@ -166,12 +237,41 @@ public sealed class EconomicOutboxDispatchService : IEconomicOutboxDispatchServi
                 lease.SettlementId);
         }
         var finalizedAt = DateTime.UtcNow;
-        var finalization = ToFinalization(lease, gatewayResult, finalizedAt);
-        var finalized = await _store.FinalizeAsync(lease, finalization, finalizedAt, ct);
+        var decision = ToDecision(lease, gatewayResult, finalizedAt);
+        // Deliberately before the write: a duplicate alert costs an operator one glance, while an
+        // alert lost because the row was finalized terminally costs somebody their money.
+        await RaiseAsync(decision.Alert, ct);
+        var finalized = await _store.FinalizeAsync(lease, decision.Finalization, finalizedAt, ct);
         return new EconomicOutboxDispatchRun(
-            finalized ? finalization.Outcome : EconomicOutboxRecordedOutcome.StaleLease,
+            finalized ? decision.Finalization.Outcome : EconomicOutboxRecordedOutcome.StaleLease,
             lease.OutboxId,
             lease.SettlementId);
+    }
+
+    /// <summary>Delivers an operator alert without ever letting the alert channel cost a finalization.</summary>
+    private async Task RaiseAsync(EconomicOperatorAlert? alert, CancellationToken ct)
+    {
+        if (alert is null)
+            return;
+
+        try
+        {
+            await _operatorAlerts.RaiseAsync(alert, ct);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            _logger?.LogError(
+                exception,
+                "Operator alert {AlertCode} for economic settlement {SettlementId} (outbox {OutboxId}) "
+                + "could not be delivered. The settlement outcome is still recorded.",
+                alert.AlertCode,
+                alert.SettlementId,
+                alert.OutboxId);
+        }
     }
 
     private async Task<AzoaSettlementGatewayResult?> ExecuteGatewayWithRenewalAsync(
@@ -235,8 +335,8 @@ public sealed class EconomicOutboxDispatchService : IEconomicOutboxDispatchServi
             // on: "not ready" points at the recipient, "unconfirmed" points at the platform.
             return AzoaSettlementGatewayResult.Retry(
                 readiness.Type == ResultType.Conflict
-                    ? "AZOA_ELIGIBILITY_UNCONFIRMED"
-                    : "AZOA_ACCOUNT_NOT_READY",
+                    ? EconomicSettlementReadinessCodes.BeneficiaryUnconfirmed
+                    : EconomicSettlementReadinessCodes.BeneficiaryNotReady,
                 readiness.Error ?? "The recipient must complete account setup before settlement can be dispatched.");
         }
 
@@ -246,7 +346,7 @@ public sealed class EconomicOutboxDispatchService : IEconomicOutboxDispatchServi
             if (string.IsNullOrWhiteSpace(projectOwnerUserId))
             {
                 return AzoaSettlementGatewayResult.Retry(
-                    "AZOA_PROJECT_OWNER_UNAVAILABLE",
+                    EconomicSettlementReadinessCodes.ProjectOwnerUnavailable,
                     "Funding settlement remains pending until the project owner can be verified.");
             }
 
@@ -261,7 +361,7 @@ public sealed class EconomicOutboxDispatchService : IEconomicOutboxDispatchServi
             if (ownerReadiness.IsFailure)
             {
                 return AzoaSettlementGatewayResult.Retry(
-                    "AZOA_PROJECT_OWNER_NOT_READY",
+                    EconomicSettlementReadinessCodes.ProjectOwnerNotReady,
                     "Funding settlement remains pending until the project owner completes account setup.");
             }
         }
@@ -287,7 +387,17 @@ public sealed class EconomicOutboxDispatchService : IEconomicOutboxDispatchServi
             _ => false,
         };
 
-    private EconomicOutboxFinalization ToFinalization(
+    /// <summary>What one gateway outcome should write, plus the person it should wake, if any.</summary>
+    /// <remarks>
+    /// The alert travels with the finalization so exactly one place decides "this needs a person"
+    /// and exactly one place raises it. A decision that returned only a finalization is how an alert
+    /// ends up asserted in prose and absent from the path that actually runs.
+    /// </remarks>
+    private sealed record EconomicOutboxDecision(
+        EconomicOutboxFinalization Finalization,
+        EconomicOperatorAlert? Alert);
+
+    private EconomicOutboxDecision ToDecision(
         EconomicOutboxLease lease,
         AzoaSettlementGatewayResult result,
         DateTime now)
@@ -295,13 +405,15 @@ public sealed class EconomicOutboxDispatchService : IEconomicOutboxDispatchServi
         if (result.Outcome == AzoaSettlementGatewayOutcome.Accepted
             && !string.IsNullOrWhiteSpace(result.OperationId))
         {
-            return new EconomicOutboxFinalization(
-                EconomicOutboxRecordedOutcome.Accepted,
-                now,
-                result.OperationId,
-                result.Receipt,
-                result.Replayed,
-                null,
+            return new EconomicOutboxDecision(
+                new EconomicOutboxFinalization(
+                    EconomicOutboxRecordedOutcome.Accepted,
+                    now,
+                    result.OperationId,
+                    result.Receipt,
+                    result.Replayed,
+                    null,
+                    null),
                 null);
         }
 
@@ -314,14 +426,26 @@ public sealed class EconomicOutboxDispatchService : IEconomicOutboxDispatchServi
             if (lease.AttemptCount >= _maximumAttempts)
                 return ReconciliationCeiling(lease, now, result);
 
-            return new EconomicOutboxFinalization(
-                EconomicOutboxRecordedOutcome.Unknown,
-                now,
-                null,
-                null,
-                null,
-                result.Code ?? "AZOA_AMBIGUOUS_RESULT",
-                result.Detail ?? "AZOA accepted neither a durable operation id nor a safely retryable result.");
+            return new EconomicOutboxDecision(
+                new EconomicOutboxFinalization(
+                    EconomicOutboxRecordedOutcome.Unknown,
+                    now,
+                    null,
+                    null,
+                    null,
+                    result.Code ?? "AZOA_AMBIGUOUS_RESULT",
+                    result.Detail ?? "AZOA accepted neither a durable operation id nor a safely retryable result."),
+                null);
+        }
+
+        // A readiness lapse is not a failing dispatch. Nothing was submitted, the reservation is
+        // still standing at the node, and only a person can clear it - so it must not be spent
+        // against the transport ceiling, which would mark a reward FAILED minutes after accept
+        // while its reservation stayed live and unrefunded (runbook gotcha 29).
+        if (lease.ClaimKind == EconomicOutboxClaimKind.Dispatch
+            && EconomicSettlementReadinessCodes.IsReadinessLapse(result.Code))
+        {
+            return ReadinessHolding(lease, now, result);
         }
 
         if (lease.AttemptCount >= _maximumAttempts)
@@ -334,18 +458,137 @@ public sealed class EconomicOutboxDispatchService : IEconomicOutboxDispatchServi
                 : ReconciliationCeiling(lease, now, result);
         }
 
-        return new EconomicOutboxFinalization(
-            EconomicOutboxRecordedOutcome.Retry,
-            now.Add(RetryDelay(lease.AttemptCount)),
-            null,
-            null,
-            null,
-            result.Code ?? "AZOA_RETRY",
-            result.Detail);
+        return new EconomicOutboxDecision(
+            new EconomicOutboxFinalization(
+                EconomicOutboxRecordedOutcome.Retry,
+                now.Add(RetryDelay(lease.AttemptCount)),
+                null,
+                null,
+                null,
+                result.Code ?? "AZOA_RETRY",
+                result.Detail),
+            null);
+    }
+
+    /// <summary>Parks a settlement on somebody's unfinished setup: slow cadence, alerts, definite end.</summary>
+    /// <remarks>
+    /// The failure code stays the readiness code the gate produced. It is the platform's HOLDING
+    /// marker and <c>FundingIntentService</c> reads exactly these four off the settlement row to
+    /// keep a sponsorship held rather than failed; a second, prettier code here would fork that.
+    /// What makes this state HOLDING rather than a retry loop is the cadence, the exemption from
+    /// the transport ceiling, and the refund that ends it.
+    /// </remarks>
+    private EconomicOutboxDecision ReadinessHolding(
+        EconomicOutboxLease lease,
+        DateTime now,
+        AzoaSettlementGatewayResult result)
+    {
+        var reasonCode = result.Code ?? EconomicSettlementReadinessCodes.BeneficiaryNotReady;
+        if (lease.AttemptCount >= ReadinessRefundAttempts)
+            return ReadinessRefundDue(lease, now, reasonCode);
+
+        if (lease.AttemptCount < ReadinessHoldingEntryAttempts)
+        {
+            // Still inside the transient window. A readiness service that blinked deserves a fast
+            // retry, and nothing is gained by waiting half a day to find out it has recovered.
+            return new EconomicOutboxDecision(
+                new EconomicOutboxFinalization(
+                    EconomicOutboxRecordedOutcome.Retry,
+                    now.Add(RetryDelay(lease.AttemptCount)),
+                    null,
+                    null,
+                    null,
+                    reasonCode,
+                    result.Detail),
+                null);
+        }
+
+        var holdingAttempt = lease.AttemptCount - ReadinessHoldingEntryAttempts;
+        var alert = holdingAttempt % ReadinessHoldingAlertInterval == 0
+            ? Alert(
+                lease,
+                EconomicOperatorAlertCodes.ReadinessHoldingStalled,
+                OperatorAlertSeverity.Warning,
+                reasonCode,
+                $"Held because {ReadinessSubject(reasonCode)} has not finished account setup. Nothing was "
+                + "paid out and the amount is still reserved.",
+                $"Help {ReadinessSubject(reasonCode)} finish setup within {ReadinessHoldingWindowDays} days of "
+                + "the first hold, or the reserved amount is returned to its source automatically.")
+            : null;
+
+        _logger?.LogWarning(
+            "Economic settlement {SettlementId} (outbox {OutboxId}) is HOLDING on readiness after "
+            + "{AttemptCount} attempts; readiness reason {ReasonCode}. Nothing was dispatched and the "
+            + "reservation stands. It will be re-checked every {HoldingBackoffHours} hours and the "
+            + "amount is owed back after attempt {RefundAttempt}.",
+            lease.SettlementId,
+            lease.OutboxId,
+            lease.AttemptCount,
+            reasonCode,
+            ReadinessHoldingBackoff.TotalHours,
+            ReadinessRefundAttempts);
+
+        return new EconomicOutboxDecision(
+            new EconomicOutboxFinalization(
+                EconomicOutboxRecordedOutcome.Retry,
+                now.Add(ReadinessHoldingBackoff),
+                null,
+                null,
+                null,
+                reasonCode,
+                HoldingDetail(reasonCode)),
+            alert);
+    }
+
+    /// <summary>Ends the hold: no further attempt, and the reserved amount is owed back to its source.</summary>
+    /// <remarks>
+    /// The finalization carries <see cref="EconomicSettlementFailureCodes.DispatchAttemptCeiling"/>
+    /// because that is the only code <c>EconomicOutboxLeaseStore</c> makes terminal on the dispatch
+    /// path, and a refund-due row must stop being retried. The refund itself is a node operation
+    /// this seam cannot perform, so it is handed over as a critical alert naming the destination -
+    /// never as a silent FAILED row that looks settled.
+    /// </remarks>
+    private EconomicOutboxDecision ReadinessRefundDue(
+        EconomicOutboxLease lease,
+        DateTime now,
+        string reasonCode)
+    {
+        _logger?.LogCritical(
+            "Economic settlement {SettlementId} (outbox {OutboxId}, kind {SettlementKind}) was held on "
+            + "readiness for {AttemptCount} attempts, past its {HoldingWindowDays}-day window, and will "
+            + "not be dispatched. Nothing was paid out. The reserved amount MUST be returned: {RefundAction} "
+            + "Readiness reason: {ReasonCode}.",
+            lease.SettlementId,
+            lease.OutboxId,
+            lease.SettlementKind,
+            lease.AttemptCount,
+            ReadinessHoldingWindowDays,
+            RefundAction(lease.SettlementKind),
+            reasonCode);
+
+        return new EconomicOutboxDecision(
+            new EconomicOutboxFinalization(
+                EconomicOutboxRecordedOutcome.Retry,
+                now,
+                null,
+                null,
+                null,
+                EconomicSettlementFailureCodes.DispatchAttemptCeiling,
+                $"{ReadinessSubject(reasonCode)} did not finish account setup within "
+                + $"{ReadinessHoldingWindowDays} days, so this payment was closed without being made. "
+                + "Nothing was paid out and the reserved amount goes back to where it was reserved from."),
+            Alert(
+                lease,
+                EconomicOperatorAlertCodes.ReadinessHoldingRefundDue,
+                OperatorAlertSeverity.Critical,
+                reasonCode,
+                $"The {ReadinessHoldingWindowDays}-day holding window elapsed with {ReadinessSubject(reasonCode)} "
+                + "still not set up. Nothing was paid out and the amount is still reserved.",
+                RefundAction(lease.SettlementKind)));
     }
 
     /// <summary>Parks a never-dispatched settlement and tells an operator; the lease store makes it terminal.</summary>
-    private EconomicOutboxFinalization DispatchCeiling(
+    private EconomicOutboxDecision DispatchCeiling(
         EconomicOutboxLease lease,
         DateTime now,
         AzoaSettlementGatewayResult result)
@@ -360,19 +603,28 @@ public sealed class EconomicOutboxDispatchService : IEconomicOutboxDispatchServi
             lease.AttemptCount,
             result.Code ?? "AZOA_RETRY");
 
-        return new EconomicOutboxFinalization(
-            EconomicOutboxRecordedOutcome.Retry,
-            now,
-            null,
-            null,
-            null,
-            EconomicSettlementFailureCodes.DispatchAttemptCeiling,
-            "Dispatch was refused on every attempt up to the ceiling. No value was settled; an operator must "
-            + "resolve the refusal before this settlement can be reopened.");
+        return new EconomicOutboxDecision(
+            new EconomicOutboxFinalization(
+                EconomicOutboxRecordedOutcome.Retry,
+                now,
+                null,
+                null,
+                null,
+                EconomicSettlementFailureCodes.DispatchAttemptCeiling,
+                "Dispatch was refused on every attempt up to the ceiling. No value was settled; an operator must "
+                + "resolve the refusal before this settlement can be reopened."),
+            Alert(
+                lease,
+                EconomicOperatorAlertCodes.DispatchAttemptCeiling,
+                OperatorAlertSeverity.Critical,
+                result.Code ?? "AZOA_RETRY",
+                "Dispatch was refused on every attempt up to the ceiling. Nothing was settled.",
+                "Resolve the refusal and reopen the settlement, or return the reserved amount to its source. "
+                + RefundAction(lease.SettlementKind)));
     }
 
     /// <summary>Keeps an ambiguous settlement claimable but slow, and tells an operator every cycle.</summary>
-    private EconomicOutboxFinalization ReconciliationCeiling(
+    private EconomicOutboxDecision ReconciliationCeiling(
         EconomicOutboxLease lease,
         DateTime now,
         AzoaSettlementGatewayResult result)
@@ -387,17 +639,78 @@ public sealed class EconomicOutboxDispatchService : IEconomicOutboxDispatchServi
             lease.AttemptCount,
             result.Code ?? "AZOA_AMBIGUOUS_RESULT");
 
-        return new EconomicOutboxFinalization(
-            EconomicOutboxRecordedOutcome.Unknown,
-            now.Add(CeilingBackoff),
-            null,
-            null,
-            null,
-            EconomicSettlementFailureCodes.ReconciliationAttentionRequired,
-            "Reconciliation passed its attempt ceiling without a readable node outcome. This settlement stays "
-            + "open on purpose - value may have moved - and needs an operator.");
+        return new EconomicOutboxDecision(
+            new EconomicOutboxFinalization(
+                EconomicOutboxRecordedOutcome.Unknown,
+                now.Add(CeilingBackoff),
+                null,
+                null,
+                null,
+                EconomicSettlementFailureCodes.ReconciliationAttentionRequired,
+                "Reconciliation passed its attempt ceiling without a readable node outcome. This settlement stays "
+                + "open on purpose - value may have moved - and needs an operator."),
+            Alert(
+                lease,
+                EconomicOperatorAlertCodes.ReconciliationAttentionRequired,
+                OperatorAlertSeverity.Critical,
+                result.Code ?? "AZOA_AMBIGUOUS_RESULT",
+                "Reconciliation ran out of attempts and the economic effect is still unknown. This was NOT failed.",
+                "Reconcile this settlement against the node by hand before anybody is told it succeeded or failed; "
+                + "value may already have moved."));
     }
 
     private static TimeSpan RetryDelay(int attemptCount)
         => TimeSpan.FromSeconds(Math.Min(300, 5 * Math.Pow(2, Math.Min(6, Math.Max(0, attemptCount - 1)))));
+
+    /// <summary>Builds an alert from the lease, so an operator never joins back to the row to act.</summary>
+    private static EconomicOperatorAlert Alert(
+        EconomicOutboxLease lease,
+        string alertCode,
+        OperatorAlertSeverity severity,
+        string? failureCode,
+        string summary,
+        string requiredAction)
+        => new(
+            alertCode,
+            severity,
+            lease.OutboxId,
+            lease.SettlementId,
+            lease.SettlementKind,
+            lease.Request.BeneficiaryUserId,
+            lease.Request.AssetCode,
+            lease.Request.Amount.BaseUnits,
+            lease.Request.Amount.Scale,
+            lease.AttemptCount,
+            failureCode,
+            summary,
+            requiredAction);
+
+    /// <summary>Names which side of the settlement is not ready, in words a person can act on.</summary>
+    private static string ReadinessSubject(string reasonCode)
+        => reasonCode is EconomicSettlementReadinessCodes.ProjectOwnerNotReady
+            or EconomicSettlementReadinessCodes.ProjectOwnerUnavailable
+            ? "the project owner"
+            : "the recipient";
+
+    /// <summary>Where a reservation goes back to when nobody was ever paid, per settlement kind.</summary>
+    private static string RefundAction(EconomicSettlementKind kind)
+        => kind switch
+        {
+            EconomicSettlementKind.TASK_REWARD or EconomicSettlementKind.HOLD_RELEASE
+                => "Return the reserved amount to the project's contributor pool and tell both sides why; "
+                    + "the work reward was never paid out.",
+            EconomicSettlementKind.EXCHANGE or EconomicSettlementKind.FUNDING_ALLOCATION
+                => "Return the sponsor's funds and tell them why; the project was never credited.",
+            EconomicSettlementKind.ESCROW_REFUND
+                => "Return the reserved amount to whoever funded it; the refund was never delivered.",
+            _ => "Return the reserved amount to where it was reserved from and tell the people involved why; "
+                + "nothing was paid out.",
+        };
+
+    /// <summary>Consumer-safe copy for a held settlement: no jargon, no blame, no missing money.</summary>
+    private string HoldingDetail(string reasonCode)
+        => $"This is on hold because {ReadinessSubject(reasonCode)} has not finished account setup. "
+            + "Nothing was paid out and nothing was lost - the amount stays reserved while setup is completed. "
+            + $"If setup is still unfinished after {ReadinessHoldingWindowDays} days, the reserved amount goes "
+            + "back to where it came from.";
 }

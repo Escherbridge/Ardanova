@@ -156,6 +156,8 @@ public class TasksController : ControllerBase
         var task = await GetVerifiedTaskAsync(id, ct);
         if (task is null)
             return Forbid();
+        // Changing what a task pays is a project-management decision, and once a bid has been
+        // accepted the service refuses it outright: the agreement owns the award from then on.
         var structuralChange = dto.EquityReward.HasValue;
         var mayMutate = structuralChange
             ? await CanManageProjectAsync(task.ProjectId, ct)
@@ -402,6 +404,9 @@ public class TasksController : ControllerBase
             ResultType.ValidationError => BadRequest(new { error = result.Error }),
             ResultType.Unauthorized => Unauthorized(new { error = result.Error }),
             ResultType.Forbidden => Forbid(),
+            // A refused award edit says WHY it was refused ("the units are already set aside
+            // for the worker"), and a person can only act on that if the reason reaches them.
+            ResultType.Conflict => Conflict(new { error = result.Error }),
             _ => BadRequest(new { error = result.Error })
         };
     }

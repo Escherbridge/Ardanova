@@ -79,6 +79,15 @@ export interface TaskCommerceView {
   scale: number;
   agreementStatus: string;
   escrowStatus: string;
+  /**
+   * When the worker's own window ends and the award can be moved. Null until the owner has
+   * approved the completed work. This is a tax-deferral window - the award is theirs, and it
+   * is restricted until this date so they are not taxed before they can realise it. It is
+   * never a refund window: reward units come from the platform reserve, not from a card.
+   */
+  workerHoldReleasesAt?: string | null;
+  /** True while the award is held and cannot yet be moved. */
+  isRestricted?: boolean;
 }
 
 export interface CreateTaskDto {

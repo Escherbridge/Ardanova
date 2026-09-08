@@ -1,5 +1,6 @@
 namespace ArdaNova.Application.Tests.Services;
 
+using System.Linq.Expressions;
 using ArdaNova.Application.Common.Interfaces;
 using ArdaNova.Application.Common.Results;
 using ArdaNova.Application.DTOs;
@@ -16,6 +17,7 @@ public class TaskServiceTests
     private readonly Mock<IRepository<ProjectTask>> _repositoryMock;
     private readonly Mock<IRepository<User>> _userRepositoryMock;
     private readonly Mock<IRepository<Project>> _projectRepositoryMock;
+    private readonly Mock<IRepository<TaskCommerceAgreement>> _agreementRepositoryMock;
     private readonly Mock<IUnitOfWork> _unitOfWorkMock;
     private readonly Mock<IMapper> _mapperMock;
     private readonly TaskService _sut;
@@ -25,12 +27,14 @@ public class TaskServiceTests
         _repositoryMock = new Mock<IRepository<ProjectTask>>();
         _userRepositoryMock = new Mock<IRepository<User>>();
         _projectRepositoryMock = new Mock<IRepository<Project>>();
+        _agreementRepositoryMock = new Mock<IRepository<TaskCommerceAgreement>>();
         _unitOfWorkMock = new Mock<IUnitOfWork>();
         _mapperMock = new Mock<IMapper>();
         _sut = new TaskService(
             _repositoryMock.Object,
             _userRepositoryMock.Object,
             _projectRepositoryMock.Object,
+            _agreementRepositoryMock.Object,
             _unitOfWorkMock.Object,
             _mapperMock.Object);
     }
@@ -393,5 +397,63 @@ public class TaskServiceTests
         // Assert
         result.IsSuccess.Should().BeTrue();
         task.completedAt.Should().NotBeNull();
+    }
+
+    // ========================================================================
+    // UpdateAsync — the award collapse (W7.2)
+    // ========================================================================
+
+    [Fact]
+    public async Task UpdateAsync_AwardChangeOnAnAcceptedTaskIsRefusedAndNothingIsWritten()
+    {
+        var taskId = Guid.NewGuid().ToString();
+        var task = new ProjectTask
+        {
+            id = taskId,
+            projectId = Guid.NewGuid().ToString(),
+            title = "Paid task",
+            equityReward = 40m,
+        };
+        _repositoryMock.Setup(repository => repository.GetByIdAsync(taskId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(task);
+        _agreementRepositoryMock.Setup(repository => repository.FindOneAsync(
+                It.IsAny<Expression<Func<TaskCommerceAgreement, bool>>>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new TaskCommerceAgreement { id = "agreement-1", taskId = taskId, awardAmount = 40m });
+
+        var result = await _sut.UpdateAsync(taskId, new UpdateTaskDto { EquityReward = 999m });
+
+        result.IsSuccess.Should().BeFalse();
+        result.Type.Should().Be(ResultType.Conflict);
+        result.Error.Should().Be(TaskService.AwardBelongsToTheAgreement);
+        task.equityReward.Should().Be(40m);
+        _repositoryMock.Verify(
+            repository => repository.UpdateAsync(It.IsAny<ProjectTask>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+        _unitOfWorkMock.Verify(work => work.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_AwardChangeIsAllowedWhileNoBidHasBeenAccepted()
+    {
+        var taskId = Guid.NewGuid().ToString();
+        var projectId = Guid.NewGuid().ToString();
+        var task = new ProjectTask { id = taskId, projectId = projectId, title = "Unassigned task" };
+        _repositoryMock.Setup(repository => repository.GetByIdAsync(taskId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(task);
+        _agreementRepositoryMock.Setup(repository => repository.FindOneAsync(
+                It.IsAny<Expression<Func<TaskCommerceAgreement, bool>>>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync((TaskCommerceAgreement?)null);
+        _repositoryMock.Setup(repository => repository.UpdateAsync(It.IsAny<ProjectTask>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        _unitOfWorkMock.Setup(work => work.SaveChangesAsync(It.IsAny<CancellationToken>())).ReturnsAsync(1);
+        _mapperMock.Setup(mapper => mapper.Map<TaskDto>(It.IsAny<ProjectTask>()))
+            .Returns(new TaskDto { Id = taskId, Title = "Unassigned task" });
+
+        var result = await _sut.UpdateAsync(taskId, new UpdateTaskDto { EquityReward = 12m });
+
+        result.IsSuccess.Should().BeTrue();
+        task.equityReward.Should().Be(12m);
     }
 }

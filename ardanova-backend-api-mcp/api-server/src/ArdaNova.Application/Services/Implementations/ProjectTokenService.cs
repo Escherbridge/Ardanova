@@ -53,6 +53,24 @@ public class ProjectTokenService : IProjectTokenService, IProjectTokenProvisioni
         "Project funding setup is unavailable: this deployment has no shared-node gateway for project treasuries "
         + "and reserve limits, so a project cannot be given somewhere for funds to land.";
 
+    private const string HoldGatewayUnwiredError =
+        "Approving completed work is unavailable in this deployment: there is no shared-node hold gateway, "
+        + "so the units reserved for this worker cannot be moved into their own window.";
+
+    private const string AwardUnwiredError =
+        "Approving completed work is unavailable in this deployment: the ports that link an award to its "
+        + "project, its task and its agreement are not wired.";
+
+    /// <summary>
+    /// Default length of the worker's window when the operator has declared none
+    /// (<c>Azoa:AwardWindowDays</c>). The window exists so an award is restricted until it is
+    /// liquid, which defers the taxable event to the moment the worker can actually realise it
+    /// (gotcha 38). It is NOT a chargeback window: reward units come out of the platform
+    /// reserve and were never bought with a card, so there is nothing to reverse. Counsel
+    /// confirms the length before the first payout.
+    /// </summary>
+    private const int DefaultAwardWindowDays = 90;
+
     private readonly IRepository<ProjectTokenConfig> _configRepo;
     private readonly IRepository<TokenAllocation> _allocationRepo;
     private readonly IRepository<TokenBalance> _balanceRepo;
@@ -68,7 +86,11 @@ public class ProjectTokenService : IProjectTokenService, IProjectTokenProvisioni
     private readonly IAlgorandService? _assets;
     private readonly IAzoaCustodialAccountService? _ownerAccounts;
     private readonly IAzoaProjectTokenNodeGateway? _nodeGateway;
+    private readonly IAzoaHoldGateway? _holds;
+    private readonly IRepository<TaskCommerceAgreement>? _agreementRepo;
+    private readonly IRepository<ProjectTask>? _taskRepo;
     private readonly string _chainType;
+    private readonly int _awardWindowDays;
 
     /// <summary>
     /// The provisioning dependencies carry defaults so this constructor stays callable from
@@ -94,7 +116,10 @@ public class ProjectTokenService : IProjectTokenService, IProjectTokenProvisioni
         IAlgorandService? assets = null,
         IAzoaCustodialAccountService? ownerAccounts = null,
         IEnumerable<IAzoaProjectTokenNodeGateway>? nodeGateways = null,
-        IConfiguration? configuration = null)
+        IConfiguration? configuration = null,
+        IEnumerable<IAzoaHoldGateway>? holdGateways = null,
+        IRepository<TaskCommerceAgreement>? agreementRepo = null,
+        IRepository<ProjectTask>? taskRepo = null)
     {
         _configRepo = configRepo;
         _allocationRepo = allocationRepo;
@@ -111,9 +136,16 @@ public class ProjectTokenService : IProjectTokenService, IProjectTokenProvisioni
         _assets = assets;
         _ownerAccounts = ownerAccounts;
         _nodeGateway = nodeGateways?.FirstOrDefault();
+        _holds = holdGateways?.FirstOrDefault();
+        _agreementRepo = agreementRepo;
+        _taskRepo = taskRepo;
         _chainType = configuration?["Azoa:ChainType"] is { Length: > 0 } chainType
             ? chainType
             : DefaultChainType;
+        _awardWindowDays =
+            int.TryParse(configuration?["Azoa:AwardWindowDays"], out var declaredWindow) && declaredWindow > 0
+                ? declaredWindow
+                : DefaultAwardWindowDays;
     }
 
     public async Task<Result<ProjectTokenConfigDto>> CreateConfigAsync(
@@ -440,12 +472,19 @@ public class ProjectTokenService : IProjectTokenService, IProjectTokenProvisioni
         }
 
         var account = status.Value;
-        if (account.Ready && account.KycReady && account.WalletReady && account.IdentityReady)
+        if (IsValueReady(account))
             return null;
 
         return account.UnavailableReason
             ?? "Finish verifying your identity before setting up funding for a project.";
     }
+
+    /// <summary>
+    /// The one readiness predicate every value path in this service reads (D46). Four flags
+    /// checked in one place, so a path can never be gated on three of them by accident.
+    /// </summary>
+    private static bool IsValueReady(AzoaCustodialAccountStatusDto account)
+        => account.Ready && account.KycReady && account.WalletReady && account.IdentityReady;
 
     /// <summary>Writes a declaration onto a config whose stake does not exist yet.</summary>
     private static void ApplyDeclaration(ProjectTokenConfig config, ProjectTokenDeclaration declaration)
@@ -718,6 +757,11 @@ public class ProjectTokenService : IProjectTokenService, IProjectTokenProvisioni
             status = AllocationStatus.RESERVED,
             holderClass = TokenHolderClass.CONTRIBUTOR,
             isLiquid = false,
+            // A backlog reservation names the allowance it is set aside from, but it commits
+            // NOTHING on the node: there is no person to hold the units for yet. It therefore
+            // carries no hold id, and every payout path refuses on exactly that (see
+            // ApproveWorkCompletionAsync and DistributeAsync).
+            reservePartition = ContributorPartitionName,
             createdAt = DateTime.UtcNow,
             updatedAt = DateTime.UtcNow
         };
@@ -862,6 +906,13 @@ public class ProjectTokenService : IProjectTokenService, IProjectTokenProvisioni
         return Result<TokenAllocationDto>.Success(_mapper.Map<TokenAllocationDto>(allocation));
     }
 
+    /// <summary>
+    /// Hands an UNHELD reservation to a named recipient. This is the pre-hold path and it is
+    /// deliberately narrow: an allocation the node is actually holding units for may only leave
+    /// RESERVED through <see cref="ApproveWorkCompletionAsync"/>, because those units are
+    /// committed on the node's reserve ledger and crediting a balance here would show a person
+    /// a holding the node has not released to them.
+    /// </summary>
     public async Task<Result<TokenAllocationDto>> DistributeAsync(
         string allocationId,
         string recipientUserId,
@@ -870,6 +921,23 @@ public class ProjectTokenService : IProjectTokenService, IProjectTokenProvisioni
         var allocation = await _allocationRepo.GetByIdAsync(allocationId, ct);
         if (allocation == null)
             return Result<TokenAllocationDto>.NotFound($"Allocation {allocationId} not found");
+
+        if (allocation.IsNodeHeld)
+        {
+            return Result<TokenAllocationDto>.Conflict(
+                "These units are held for this worker on the shared node. The project owner approves the "
+                + "completed work to release them; they cannot be handed over directly.");
+        }
+
+        // The recipient of an allocation that already names one is that person, never whoever
+        // the caller nominates. A caller-supplied recipient on an owned resource is the IDOR
+        // shape this codebase refuses everywhere else.
+        if (!string.IsNullOrWhiteSpace(allocation.recipientUserId)
+            && !string.Equals(allocation.recipientUserId, recipientUserId, StringComparison.Ordinal))
+        {
+            return Result<TokenAllocationDto>.Forbidden(
+                "This allocation is already set aside for someone else and cannot be redirected.");
+        }
 
         if (allocation.status != AllocationStatus.RESERVED)
             return Result<TokenAllocationDto>.ValidationError(
@@ -917,6 +985,425 @@ public class ProjectTokenService : IProjectTokenService, IProjectTokenProvisioni
         return Result<TokenAllocationDto>.Success(_mapper.Map<TokenAllocationDto>(allocation));
     }
 
+
+    // =====================================================================
+    // Worker awards (W7.2): the two holds behind "you will be paid for this"
+    //
+    // Accepting a bid RESERVES the award as a hold on the node's reserve ledger, drawn from
+    // the project's declared contributor allowance. Approving the completed work CONTINUES
+    // that hold into a second one — the worker's own window — rather than releasing it, so
+    // the units are theirs and restricted at the same time.
+    //
+    // The oversubscription decision belongs to the node, not to this database: sponsor
+    // exchanges and worker holds draw the same partitions, so an allowance policed only here
+    // can be overdrawn by the other caller. The local check below is a courtesy that keeps
+    // ArdaNova from promising units the node would refuse; it is never the control.
+    // =====================================================================
+
+    /// <inheritdoc/>
+    public async Task<Result<ProjectAwardReservation>> ReserveWorkAwardAsync(
+        ProjectAwardReservationRequest request,
+        CancellationToken ct = default)
+    {
+        if (request is null)
+            return Result<ProjectAwardReservation>.ValidationError("An award reservation needs a request.");
+
+        if (_holds is null)
+            return Result<ProjectAwardReservation>.Failure(HoldGatewayUnwiredError);
+
+        var config = await _configRepo.GetByIdAsync(request.ProjectTokenConfigId, ct);
+        if (config is null)
+        {
+            return Result<ProjectAwardReservation>.NotFound(
+                $"Project token config {request.ProjectTokenConfigId} not found");
+        }
+
+        if (DescribeUnfundable(config) is { } unfundable)
+            return Result<ProjectAwardReservation>.ValidationError(unfundable);
+
+        if (request.RecipientAvatarId == Guid.Empty)
+        {
+            return Result<ProjectAwardReservation>.Conflict(
+                "This worker's account could not be identified on the shared node, so nothing was reserved.");
+        }
+
+        if (!TryDescribeWholeUnits(request.AwardAmount, config, out var wholeUnits, out var amountRefusal))
+            return Result<ProjectAwardReservation>.ValidationError(amountRefusal);
+
+        // Idempotent on the hold id: a redelivered acceptance resumes the same reservation
+        // instead of drawing the allowance twice.
+        var existing = await _allocationRepo.FindOneAsync(
+            allocation => allocation.holdId == request.HoldId, ct);
+        if (existing is not null)
+        {
+            return string.Equals(existing.projectTokenConfigId, config.id, StringComparison.Ordinal)
+                ? Result<ProjectAwardReservation>.Success(DescribeReservation(existing))
+                : Result<ProjectAwardReservation>.Conflict(
+                    "This award reference already belongs to a different project's stake.");
+        }
+
+        if (DescribePartitionOversubscription(
+                "worker stake",
+                config.contributorPartitionSupply,
+                config.contributorSupply,
+                wholeUnits) is { } contributorRefusal)
+        {
+            return Result<ProjectAwardReservation>.ValidationError(contributorRefusal);
+        }
+
+        var availableSupply = config.totalSupply - config.contributorSupply - config.investorSupply
+            - config.founderSupply - config.burnedSupply;
+        if (wholeUnits > availableSupply)
+        {
+            return Result<ProjectAwardReservation>.ValidationError(
+                $"There are only {Math.Max(availableSupply, 0)} units of this project's stake left to commit, "
+                + $"and this award needs {wholeUnits}.");
+        }
+
+        var baseUnits = BaseUnitsOf(wholeUnits);
+        var chain = string.IsNullOrWhiteSpace(config.assetChain) ? _chainType : config.assetChain!;
+
+        // AutoRelease is FALSE on purpose. The node's hosted sweep releases any hold that is
+        // auto-releasing and has no window, so an escrow hold that asked to be swept would pay
+        // the worker before the owner ever approved the work.
+        var opened = await _holds.OpenAsync(
+            new AzoaHoldOpenRequest(
+                new AzoaHoldReference(chain, request.HoldId),
+                config.assetId!,
+                baseUnits.ToString(),
+                ContributorPartitionName,
+                request.RecipientAvatarId,
+                ReleaseNotBefore: null,
+                AutoRelease: false,
+                Purpose: ProjectAwardHold.EscrowPurpose),
+            ct);
+
+        if (opened.IsFailure || opened.Value is null)
+        {
+            _logger.LogWarning(
+                "Award reservation refused for config {ConfigId} hold {HoldId}: {Reason}",
+                config.id, request.HoldId, opened.Error);
+            return PropagateHoldFailure<ProjectAwardReservation>(
+                opened,
+                "The units for this award could not be set aside on the shared node.");
+        }
+
+        var hold = opened.Value;
+        if (!IsCommitted(hold.State))
+        {
+            return Result<ProjectAwardReservation>.Failure(
+                "The units for this award were not committed on the shared node, so the assignment was not funded.");
+        }
+
+        var now = DateTime.UtcNow;
+        var reservation = new TokenAllocation
+        {
+            id = Guid.NewGuid().ToString(),
+            projectTokenConfigId = config.id,
+            pbiId = null,
+            // Set at acceptance, not at payout: the person the units are held for is decided
+            // by the agreement and is never a caller-supplied field on a later call.
+            recipientUserId = request.RecipientUserId,
+            equityPercentage = config.totalSupply > 0
+                ? (double)wholeUnits / config.totalSupply * 100
+                : 0,
+            tokenAmount = wholeUnits,
+            status = AllocationStatus.RESERVED,
+            holderClass = TokenHolderClass.CONTRIBUTOR,
+            isLiquid = false,
+            taskCommerceAgreementId = request.AgreementId,
+            holdChain = hold.ChainType,
+            reservePartition = ContributorPartitionName,
+            holdId = hold.HoldId,
+            holdState = hold.State,
+            holdSyncedAt = now,
+            createdAt = now,
+            updatedAt = now,
+        };
+
+        await _allocationRepo.AddAsync(reservation, ct);
+
+        config.contributorSupply += wholeUnits;
+        config.allocatedSupply += wholeUnits;
+        config.updatedAt = now;
+        await _configRepo.UpdateAsync(config, ct);
+        await _unitOfWork.SaveChangesAsync(ct);
+
+        _logger.LogInformation(
+            "Reserved {Units} units of config {ConfigId} for agreement {AgreementId} under hold {HoldId}",
+            wholeUnits, config.id, request.AgreementId, hold.HoldId);
+
+        return Result<ProjectAwardReservation>.Success(DescribeReservation(reservation));
+    }
+
+    /// <inheritdoc/>
+    public async Task<Result<TokenAllocationDto>> ApproveWorkCompletionAsync(
+        string allocationId,
+        string actorUserId,
+        CancellationToken ct = default)
+    {
+        if (_projectRepo is null || _agreementRepo is null || _taskRepo is null || _ownerAccounts is null)
+            return Result<TokenAllocationDto>.Failure(AwardUnwiredError);
+
+        if (_holds is null)
+            return Result<TokenAllocationDto>.Failure(HoldGatewayUnwiredError);
+
+        var allocation = await _allocationRepo.GetByIdAsync(allocationId, ct);
+        if (allocation is null)
+            return Result<TokenAllocationDto>.NotFound($"Allocation {allocationId} not found");
+
+        // A reservation the node never committed backs nothing. Paying one out would credit a
+        // balance against units no partition was ever drawn for.
+        if (!allocation.IsNodeHeld)
+        {
+            return Result<TokenAllocationDto>.ValidationError(
+                "These units were never set aside on the shared node, so there is nothing to hand over.");
+        }
+
+        var config = await _configRepo.GetByIdAsync(allocation.projectTokenConfigId, ct);
+        if (config is null)
+        {
+            return Result<TokenAllocationDto>.NotFound(
+                $"Project token config {allocation.projectTokenConfigId} not found");
+        }
+
+        var project = await _projectRepo.GetByIdAsync(config.projectId, ct);
+        if (project is null)
+            return Result<TokenAllocationDto>.NotFound($"Project {config.projectId} not found");
+
+        // Approving completed work spends the project's stake, so it is the project owner's
+        // decision alone. The owner comes from the caller's verified identity.
+        if (!string.Equals(project.createdById, actorUserId, StringComparison.Ordinal))
+        {
+            return Result<TokenAllocationDto>.Forbidden(
+                "Only the person who created this project can approve completed work on it.");
+        }
+
+        var agreement = string.IsNullOrWhiteSpace(allocation.taskCommerceAgreementId)
+            ? null
+            : await _agreementRepo.GetByIdAsync(allocation.taskCommerceAgreementId!, ct);
+        if (agreement is null)
+        {
+            return Result<TokenAllocationDto>.Conflict(
+                "This award is not linked to an accepted assignment, so there is no completed work to approve.");
+        }
+
+        if (!string.Equals(agreement.projectId, project.id, StringComparison.Ordinal)
+            || !string.Equals(agreement.contributorUserId, allocation.recipientUserId, StringComparison.Ordinal))
+        {
+            return Result<TokenAllocationDto>.Conflict(
+                "This award and the assignment it belongs to disagree about the project or the worker.");
+        }
+
+        // Idempotent: the window already exists, so a redelivered approval reports it rather
+        // than opening a second one.
+        if (allocation.IsAwaitingWorkerWindow)
+            return Result<TokenAllocationDto>.Success(_mapper.Map<TokenAllocationDto>(allocation));
+
+        if (allocation.status != AllocationStatus.RESERVED)
+        {
+            return Result<TokenAllocationDto>.ValidationError(
+                $"Only a reserved award can be approved. This one is {allocation.status}.");
+        }
+
+        var recipientAvatar = await ResolveReadyAvatarAsync(agreement.contributorUserId, ct);
+        if (recipientAvatar.IsFailure)
+            return ValueEligibilityFailure.Propagate<Guid, TokenAllocationDto>(recipientAvatar);
+
+        var chain = string.IsNullOrWhiteSpace(allocation.holdChain) ? _chainType : allocation.holdChain!;
+        var reference = new AzoaHoldReference(chain, allocation.holdId!);
+        var workerHoldId = ProjectAwardHold.WorkerWindowIdFor(allocation.holdId!);
+        var releasesAt = DateTimeOffset.UtcNow.AddDays(_awardWindowDays);
+
+        // A plain release cannot express "yours, and restricted until the window elapses", so
+        // the escrow hold is CONTINUED into the worker's own hold. Nothing leaves the node's
+        // holding account here; only who it is held for and until when change.
+        var continued = await _holds.ReleaseIntoHoldAsync(
+            new AzoaHoldChainRequest(
+                reference,
+                workerHoldId,
+                recipientAvatar.Value,
+                ReleaseNotBefore: releasesAt,
+                AutoRelease: true,
+                Purpose: ProjectAwardHold.WorkerWindowPurpose),
+            ct);
+
+        if (continued.IsFailure || continued.Value is null)
+        {
+            _logger.LogWarning(
+                "Award approval refused for allocation {AllocationId} hold {HoldId}: {Reason}",
+                allocation.id, allocation.holdId, continued.Error);
+            return PropagateHoldFailure<TokenAllocationDto>(
+                continued,
+                "The approved award could not be moved into this worker's window on the shared node.");
+        }
+
+        var parent = continued.Value;
+        var childHoldId = string.IsNullOrWhiteSpace(parent.ChildHoldId) ? workerHoldId : parent.ChildHoldId!;
+        var childState = await ReadHoldStateAsync(chain, childHoldId, ct);
+
+        var now = DateTime.UtcNow;
+        allocation.status = AllocationStatus.DISTRIBUTED;
+        // Restricted until the window elapses, whatever the gate says. The gate decides whether
+        // this holder class may ever be liquid; the window decides whether it is liquid YET,
+        // and the award is only liquid when both agree.
+        allocation.isLiquid = releasesAt <= DateTimeOffset.UtcNow
+            && TokenLiquidityPolicy.IsLiquid(allocation.holderClass, config.gateStatus);
+        allocation.holdState = parent.State;
+        allocation.workerHoldId = childHoldId;
+        allocation.workerHoldState = childState;
+        allocation.workerHoldReleasesAt = releasesAt.UtcDateTime;
+        allocation.holdSyncedAt = now;
+        allocation.distributedAt = now;
+        allocation.updatedAt = now;
+        await _allocationRepo.UpdateAsync(allocation, ct);
+
+        config.distributedSupply += allocation.tokenAmount;
+        config.updatedAt = now;
+        await _configRepo.UpdateAsync(config, ct);
+
+        agreement.status = TaskCommerceAgreementStatus.SETTLED;
+        agreement.releaseAuthorizedAt ??= now;
+        agreement.settledAt = now;
+        agreement.updatedAt = now;
+        await _agreementRepo.UpdateAsync(agreement, ct);
+
+        var task = await _taskRepo.GetByIdAsync(agreement.taskId, ct);
+        if (task is not null)
+        {
+            task.escrowStatus = EscrowStatus.RELEASED;
+            task.updatedAt = now;
+            await _taskRepo.UpdateAsync(task, ct);
+        }
+
+        var credited = await _tokenBalanceService.CreditAsync(
+            agreement.contributorUserId,
+            allocation.projectTokenConfigId,
+            allocation.tokenAmount,
+            allocation.holderClass,
+            ct);
+
+        if (credited.IsFailure)
+        {
+            _logger.LogError(
+                "Award {AllocationId} moved into hold {WorkerHoldId} but the balance read-model was not credited: {Error}",
+                allocation.id, childHoldId, credited.Error);
+            return Result<TokenAllocationDto>.Failure(
+                "The award is now held for this worker, but their holdings could not be refreshed. "
+                + "Nothing is lost; retry to bring the figures up to date.");
+        }
+
+        await _unitOfWork.SaveChangesAsync(ct);
+
+        _logger.LogInformation(
+            "Award {AllocationId} approved by {ActorId}; held for {RecipientId} until {ReleasesAt:u}",
+            allocation.id, actorUserId, agreement.contributorUserId, releasesAt);
+
+        return Result<TokenAllocationDto>.Success(_mapper.Map<TokenAllocationDto>(allocation));
+    }
+
+    /// <summary>The node's live state for one hold, or null when it could not be read.</summary>
+    private async Task<string?> ReadHoldStateAsync(string chain, string holdId, CancellationToken ct)
+    {
+        var read = await _holds!.GetAsync(new AzoaHoldReference(chain, holdId), ct);
+        if (read.IsSuccess && read.Value is not null)
+            return read.Value.State;
+
+        // A mirror that could not be read stays empty rather than guessing: a state written
+        // from nothing would look exactly like a state the node confirmed.
+        _logger.LogWarning("Hold {HoldId} state could not be read back: {Reason}", holdId, read.Error);
+        return null;
+    }
+
+    /// <summary>The worker's avatar on the node, refused unless their account is value-ready (D46).</summary>
+    private async Task<Result<Guid>> ResolveReadyAvatarAsync(string userId, CancellationToken ct)
+    {
+        var status = await _ownerAccounts!.GetStatusAsync(userId, ct);
+        if (status.IsFailure || status.Value is null)
+            return Result<Guid>.Conflict(status.Error ?? ValueEligibilityMessages.ServiceUnavailable);
+
+        var account = status.Value;
+        if (!IsValueReady(account))
+        {
+            return Result<Guid>.Forbidden(
+                account.UnavailableReason
+                ?? "This worker has not finished account setup, so their award cannot be handed over yet.");
+        }
+
+        return Guid.TryParse(account.AvatarId, out var avatarId) && avatarId != Guid.Empty
+            ? Result<Guid>.Success(avatarId)
+            : Result<Guid>.Conflict(ValueEligibilityMessages.SubjectUnknown);
+    }
+
+    /// <summary>Whole units of stake this award is worth, exact at the stake's own scale.</summary>
+    private static bool TryDescribeWholeUnits(
+        decimal awardAmount,
+        ProjectTokenConfig config,
+        out int wholeUnits,
+        out string refusal)
+    {
+        wholeUnits = 0;
+        refusal = string.Empty;
+
+        if (awardAmount <= 0)
+        {
+            refusal = "An award must be worth at least one unit of this project's stake.";
+            return false;
+        }
+
+        if (decimal.Truncate(awardAmount) != awardAmount)
+        {
+            // The declared allowances are counted in whole units, so a part-unit award would
+            // be committed at one size on the node and counted at another here.
+            refusal = "An award must be a whole number of units of this project's stake.";
+            return false;
+        }
+
+        if (awardAmount > int.MaxValue)
+        {
+            refusal = "This award is larger than this platform can issue.";
+            return false;
+        }
+
+        var scale = config.assetScale ?? PlatformAssetScale;
+        if (!FixedScaleAmount.TryFromPositiveDecimal(awardAmount, scale, out _))
+        {
+            refusal = "This award cannot be expressed exactly in this project's units.";
+            return false;
+        }
+
+        wholeUnits = (int)awardAmount;
+        return true;
+    }
+
+    /// <summary>True only for a state in which the node is actually holding the units.</summary>
+    private static bool IsCommitted(string? state)
+        => string.Equals(state, AzoaHoldStates.Held, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>The reservation as its caller reads it back: id, hold, state, units.</summary>
+    private static ProjectAwardReservation DescribeReservation(TokenAllocation allocation)
+        => new(
+            allocation.id,
+            allocation.holdId ?? string.Empty,
+            allocation.holdState ?? AzoaHoldStates.Unknown,
+            allocation.tokenAmount);
+
+    /// <summary>Carries a node refusal to the caller's own Result without flattening its type.</summary>
+    private static Result<TOut> PropagateHoldFailure<TOut>(Result<AzoaHold> source, string fallback)
+    {
+        var error = source.Error ?? fallback;
+        return source.Type switch
+        {
+            ResultType.NotFound => Result<TOut>.NotFound(error),
+            ResultType.Forbidden => Result<TOut>.Forbidden(error),
+            ResultType.Unauthorized => Result<TOut>.Unauthorized(error),
+            ResultType.Conflict => Result<TOut>.Conflict(error),
+            ResultType.ValidationError => Result<TOut>.ValidationError(error),
+            ResultType.BadRequest => Result<TOut>.BadRequest(error),
+            _ => Result<TOut>.Failure(error),
+        };
+    }
+
     public async Task<Result<TokenAllocationDto>> RevokeAllocationAsync(
         string allocationId,
         CancellationToken ct = default)
@@ -931,10 +1418,47 @@ public class ProjectTokenService : IProjectTokenService, IProjectTokenProvisioni
         if (allocation.status == AllocationStatus.BURNED)
             return Result<TokenAllocationDto>.ValidationError("Cannot revoke burned allocation");
 
+        // Once the escrow hold has been continued into the worker's own window the units are
+        // theirs, restricted rather than reversible. Revoking here would free the allowance in
+        // this database while the node still holds the commitment for that person.
+        if (allocation.IsAwaitingWorkerWindow)
+        {
+            return Result<TokenAllocationDto>.Conflict(
+                "This award is already being held for the worker and cannot be taken back.");
+        }
+
         var config = await _configRepo.GetByIdAsync(allocation.projectTokenConfigId, ct);
         if (config == null)
             return Result<TokenAllocationDto>.NotFound(
                 $"Project token config {allocation.projectTokenConfigId} not found");
+
+        // The node drew this commitment out of a named allowance, so the node has to give it
+        // back. Freeing only the local counter would leave the allowance permanently short by
+        // the amount of every revoked award.
+        if (allocation.IsNodeHeld)
+        {
+            if (_holds is null)
+                return Result<TokenAllocationDto>.Failure(HoldGatewayUnwiredError);
+
+            var chain = string.IsNullOrWhiteSpace(allocation.holdChain) ? _chainType : allocation.holdChain!;
+            var refunded = await _holds.RefundAsync(
+                new AzoaHoldReference(chain, allocation.holdId!),
+                "the project owner withdrew this award",
+                ct);
+
+            if (refunded.IsFailure || refunded.Value is null)
+            {
+                _logger.LogWarning(
+                    "Award {AllocationId} could not be given back on hold {HoldId}: {Reason}",
+                    allocation.id, allocation.holdId, refunded.Error);
+                return PropagateHoldFailure<TokenAllocationDto>(
+                    refunded,
+                    "The units set aside for this award could not be released back to the project.");
+            }
+
+            allocation.holdState = refunded.Value.State;
+            allocation.holdSyncedAt = DateTime.UtcNow;
+        }
 
         // Set status to REVOKED
         allocation.status = AllocationStatus.REVOKED;
@@ -1159,6 +1683,11 @@ public class ProjectTokenService : IProjectTokenService, IProjectTokenProvisioni
 /// explicitly (the <c>IProjectVisibility</c> precedent in <c>Application/DependencyInjection.cs</c>).
 /// <see cref="ProjectTokenService"/> implements both this and <c>IProjectTokenService</c> on
 /// one scoped instance.
+/// <para>
+/// It carries the node-side half of a project's stake end to end: the funding setup that
+/// creates it, and the award holds that pay a worker out of it. Both halves mutate the same
+/// supply counters, so keeping them on one service keeps a single writer for each number.
+/// </para>
 /// </summary>
 public interface IProjectTokenProvisioning
 {
@@ -1180,6 +1709,196 @@ public interface IProjectTokenProvisioning
         string projectId,
         string? viewerUserId = null,
         CancellationToken ct = default);
+
+    /// <summary>
+    /// Sets a worker's award aside as a HOLD on the node, drawn from this project's declared
+    /// contributor allowance. Idempotent on <see cref="ProjectAwardReservationRequest.HoldId"/>:
+    /// a redelivered acceptance resumes the same reservation and never draws the allowance
+    /// twice. The node is the authority on whether the allowance can still afford it; this
+    /// method never invents supply it could not commit.
+    /// </summary>
+    Task<Result<ProjectAwardReservation>> ReserveWorkAwardAsync(
+        ProjectAwardReservationRequest request,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// The project owner approves completed work: the escrow hold is CONTINUED into the
+    /// worker's own window (release-into-hold), the agreement settles, and the award becomes
+    /// the worker's — restricted until the window elapses. <paramref name="actorUserId"/> is
+    /// the caller's verified identity and must be the project's creator; the person paid comes
+    /// from the agreement, never from the request.
+    /// </summary>
+    Task<Result<TokenAllocationDto>> ApproveWorkCompletionAsync(
+        string allocationId,
+        string actorUserId,
+        CancellationToken ct = default);
+}
+
+/// <summary>What one accepted assignment needs in order to reserve its award on the node.</summary>
+/// <param name="ProjectTokenConfigId">The project's stake.</param>
+/// <param name="AgreementId">The commerce agreement this award was accepted under.</param>
+/// <param name="HoldId">The caller's own hold id — the idempotency anchor for the whole award.</param>
+/// <param name="AwardAmount">Whole units of stake, as the accepted bid expressed them.</param>
+/// <param name="RecipientUserId">The ArdaNova person the units are held for.</param>
+/// <param name="RecipientAvatarId">That person's account on the node.</param>
+public sealed record ProjectAwardReservationRequest(
+    string ProjectTokenConfigId,
+    string AgreementId,
+    string HoldId,
+    decimal AwardAmount,
+    string RecipientUserId,
+    Guid RecipientAvatarId);
+
+/// <summary>What the node committed, echoed back for the caller's own records.</summary>
+public sealed record ProjectAwardReservation(
+    string AllocationId,
+    string HoldId,
+    string HoldState,
+    int WholeUnits);
+
+/// <summary>
+/// How the two holds behind one worker award are named, and why each of them exists.
+/// </summary>
+/// <remarks>
+/// Both ids are derived from the acceptance, so a redelivered acceptance or approval addresses
+/// the hold it already opened rather than opening a second one, and neither is ever a value a
+/// caller supplies.
+/// </remarks>
+public static class ProjectAwardHold
+{
+    /// <summary>Longest id this transport will put in a URL segment unescaped.</summary>
+    private const int MaximumTransportIdLength = 128;
+
+    /// <summary>Longest id the escrow half may take, so its continuation still fits.</summary>
+    private const int MaximumEscrowIdLength = 100;
+
+    /// <summary>Why the first hold exists: the units are committed but not yet anyone's.</summary>
+    public const string EscrowPurpose = "Stake set aside for accepted project work";
+
+    /// <summary>
+    /// Why the second hold exists: the award IS the worker's, and restricted until it becomes
+    /// liquid, so the taxable event falls when they can realise it rather than when it was
+    /// granted. It is not a chargeback window — these units came out of the platform reserve
+    /// and were never bought with a card, so there is nothing to reverse.
+    /// </summary>
+    public const string WorkerWindowPurpose = "Awarded stake, restricted until it becomes liquid";
+
+    /// <summary>The escrow hold's id. The accepted bid is the idempotency anchor.</summary>
+    public static string EscrowIdFor(string bidId) => "award-" + Sanitise(bidId);
+
+    /// <summary>The worker's window, continued out of the escrow hold it names.</summary>
+    public static string WorkerWindowIdFor(string escrowHoldId) => escrowHoldId + "-window";
+
+    /// <summary>True when an id survives the transport's own path-segment alphabet unchanged.</summary>
+    public static bool IsAddressable(string? holdId)
+        => !string.IsNullOrWhiteSpace(holdId)
+            && holdId.Length <= MaximumTransportIdLength
+            && holdId.All(character =>
+                char.IsAsciiLetterOrDigit(character) || character is '-' or '_' or '.');
+
+    private static string Sanitise(string value)
+    {
+        var trimmed = (value ?? string.Empty).Trim();
+        var cleaned = new string(trimmed
+            .Select(character =>
+                char.IsAsciiLetterOrDigit(character) || character is '-' or '_' or '.'
+                    ? character
+                    : '-')
+            .ToArray());
+        return cleaned.Length > MaximumEscrowIdLength ? cleaned[..MaximumEscrowIdLength] : cleaned;
+    }
+}
+
+/// <summary>
+/// The node's HOLD surface (D14 / W3.4) as ArdaNova's value paths need it: commit units out of
+/// a declared allowance, continue a commitment into a second window, or give it back.
+/// </summary>
+/// <remarks>
+/// Zero implementations is a supported state: a deployment that has not wired the adapter still
+/// boots, and every caller refuses by name rather than treating an unheld award as funded.
+/// </remarks>
+public interface IAzoaHoldGateway
+{
+    /// <summary>Opens a hold, or returns the one this hold id already opened. Idempotent.</summary>
+    Task<Result<AzoaHold>> OpenAsync(AzoaHoldOpenRequest request, CancellationToken ct = default);
+
+    /// <summary>Continues a hold as a second hold over the same units. Idempotent on the next id.</summary>
+    Task<Result<AzoaHold>> ReleaseIntoHoldAsync(AzoaHoldChainRequest request, CancellationToken ct = default);
+
+    /// <summary>Gives a hold back: the commitment returns to the allowance it was drawn from.</summary>
+    Task<Result<AzoaHold>> RefundAsync(
+        AzoaHoldReference reference,
+        string? reason,
+        CancellationToken ct = default);
+
+    /// <summary>Reads one hold as the node currently records it.</summary>
+    Task<Result<AzoaHold>> GetAsync(AzoaHoldReference reference, CancellationToken ct = default);
+}
+
+/// <summary>Chain plus the caller's own hold id — together they address exactly one hold.</summary>
+public sealed record AzoaHoldReference(string ChainType, string HoldId);
+
+/// <summary>What the node needs in order to commit units out of a declared allowance.</summary>
+public sealed record AzoaHoldOpenRequest(
+    AzoaHoldReference Reference,
+    string AssetId,
+    string AmountBaseUnits,
+    string ReservePartition,
+    Guid BeneficiaryAvatarId,
+    DateTimeOffset? ReleaseNotBefore,
+    bool AutoRelease,
+    string? Purpose);
+
+/// <summary>What the node needs in order to continue one hold as another.</summary>
+public sealed record AzoaHoldChainRequest(
+    AzoaHoldReference Reference,
+    string NextHoldId,
+    Guid NextBeneficiaryAvatarId,
+    DateTimeOffset? ReleaseNotBefore,
+    bool AutoRelease,
+    string? Purpose);
+
+/// <summary>
+/// One hold as the node reports it. It deliberately carries no address and no rail reference:
+/// the person a hold is for needs to know how much is theirs and when, not which account it
+/// is parked in.
+/// </summary>
+public sealed record AzoaHold(
+    string HoldId,
+    string ChainType,
+    string AssetId,
+    string AmountBaseUnits,
+    string ReservePartition,
+    string? BeneficiaryReference,
+    string State,
+    DateTimeOffset? ReleaseNotBefore,
+    bool AutoRelease,
+    string? ParentHoldId,
+    string? ChildHoldId);
+
+/// <summary>The node's hold lifecycle, mirrored as text because it crosses a wire.</summary>
+public static class AzoaHoldStates
+{
+    /// <summary>The row is claimed but the commitment has not been drawn yet.</summary>
+    public const string Pending = "Pending";
+
+    /// <summary>Units are committed and sitting in the node's holding account.</summary>
+    public const string Held = "Held";
+
+    /// <summary>The commitment is drawn and the outbound move is in flight.</summary>
+    public const string Releasing = "Releasing";
+
+    /// <summary>The beneficiary has the units. Terminal.</summary>
+    public const string Released = "Released";
+
+    /// <summary>The commitment went back to its allowance; nothing moved. Terminal.</summary>
+    public const string Refunded = "Refunded";
+
+    /// <summary>The hold was continued as a second hold over the same units. Terminal.</summary>
+    public const string ReleasedIntoHold = "ReleasedIntoHold";
+
+    /// <summary>The node reported no state this deployment recognises.</summary>
+    public const string Unknown = "Unknown";
 }
 
 /// <summary>

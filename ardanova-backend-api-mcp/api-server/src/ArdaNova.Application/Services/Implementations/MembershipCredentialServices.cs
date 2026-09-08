@@ -8,19 +8,64 @@ using ArdaNova.Domain.Models.Entities;
 using ArdaNova.Domain.Models.Enums;
 using AutoMapper;
 
+/// <summary>
+/// Membership credentials, and the single place a credential's tier is written.
+/// </summary>
+/// <remarks>
+/// <para><b>One tier, not two columns.</b> <c>User.tier</c> and
+/// <c>MembershipCredential.tier</c> used to be independently writable, so a project could
+/// assert GOLD on a credential held by a BRONZE member and nothing anywhere would notice.
+/// There is now ONE derivation — <see cref="IXPEventService.CalculateTier"/> over the
+/// holder's earned XP — and the credential carries a mirror of it, never a value of its own.
+/// The mirror is enforced at every seam that can move either number:</para>
+/// <list type="bullet">
+/// <item><see cref="GrantAsync"/> stamps the derived tier onto a new (or re-issued) credential.</item>
+/// <item><see cref="UpdateTierAsync"/> REFUSES a tier that is not the holder's derived tier.</item>
+/// <item><c>XPEventService.AwardXPAsync</c> re-stamps every live credential when XP moves the tier.</item>
+/// </list>
+/// <para>The two derivation collaborators are optional ONLY so the pre-existing unit-test
+/// constructor keeps compiling; production DI always supplies them. When they are absent the
+/// tier is left unknown rather than guessed — an unknown tier is honest, an invented one is
+/// the defect this class exists to close.</para>
+/// </remarks>
 public class MembershipCredentialService : IMembershipCredentialService
 {
     private readonly IRepository<MembershipCredential> _repository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IMapper _mapper;
     private readonly IKycGateService _kycGateService;
+    private readonly IRepository<User>? _userRepository;
+    private readonly IXPEventService? _xpEvents;
 
-    public MembershipCredentialService(IRepository<MembershipCredential> repository, IUnitOfWork unitOfWork, IMapper mapper, IKycGateService kycGateService)
+    public MembershipCredentialService(
+        IRepository<MembershipCredential> repository,
+        IUnitOfWork unitOfWork,
+        IMapper mapper,
+        IKycGateService kycGateService,
+        IRepository<User>? userRepository = null,
+        IXPEventService? xpEvents = null)
     {
         _repository = repository;
         _unitOfWork = unitOfWork;
         _mapper = mapper;
         _kycGateService = kycGateService;
+        _userRepository = userRepository;
+        _xpEvents = xpEvents;
+    }
+
+    /// <summary>The one tier a member holds: earned from XP, never asserted by a caller.</summary>
+    private async Task<UserTier?> ResolveHolderTierAsync(string userId, CancellationToken ct)
+    {
+        if (_userRepository is null || _xpEvents is null)
+            return null;
+
+        var user = await _userRepository.GetByIdAsync(userId, ct);
+        if (user is null)
+            return null;
+
+        // Recomputed from totalXP rather than read off User.tier: the stored column is a
+        // projection and a stale one must not be copied onto a credential.
+        return _xpEvents.CalculateTier(user.totalXP);
     }
 
     public async Task<Result<MembershipCredentialDto>> GetByIdAsync(string id, CancellationToken ct = default)
@@ -99,7 +144,16 @@ public class MembershipCredentialService : IMembershipCredentialService
         if (!Enum.TryParse<UserTier>(dto.Tier, true, out var tier))
             return Result<MembershipCredentialDto>.ValidationError($"Invalid tier: {dto.Tier}");
 
-        credential.tier = tier;
+        // The credential mirrors the holder's earned standing; it does not get to disagree with
+        // it. A request naming a different tier is refused rather than silently corrected, so the
+        // caller learns that tier is earned and not granted.
+        var holderTier = await ResolveHolderTierAsync(credential.userId, ct);
+        if (holderTier is not null && holderTier.Value != tier)
+            return Result<MembershipCredentialDto>.Conflict(
+                $"This member's standing is {holderTier.Value}, not {tier}. A membership credential " +
+                "mirrors the tier the member has earned; it cannot be set independently.");
+
+        credential.tier = holderTier ?? tier;
         credential.updatedAt = DateTime.UtcNow;
 
         await _repository.UpdateAsync(credential, ct);
@@ -188,6 +242,10 @@ public class MembershipCredentialService : IMembershipCredentialService
                 c.userId == dto.UserId, ct)).FirstOrDefault();
         }
 
+        // Stamped from the holder's earned standing, never from the request: the credential is a
+        // mirror of User.tier, so the two can never be written to different values.
+        var holderTier = await ResolveHolderTierAsync(dto.UserId, ct);
+
         if (existing is not null)
         {
             // Allow re-minting if the existing credential was REVOKED
@@ -197,6 +255,7 @@ public class MembershipCredentialService : IMembershipCredentialService
                 existing.isTransferable = false;
                 existing.grantedVia = grantType;
                 existing.grantedByProposalId = dto.GrantedByProposalId;
+                existing.tier = holderTier;
                 existing.mintedAt = DateTime.UtcNow;
                 existing.revokedAt = null;
                 existing.revokeTxHash = null;
@@ -222,6 +281,7 @@ public class MembershipCredentialService : IMembershipCredentialService
             userId = dto.UserId,
             status = MembershipCredentialStatus.ACTIVE,
             isTransferable = false,
+            tier = holderTier,
             grantedVia = grantType,
             grantedByProposalId = dto.GrantedByProposalId,
             mintedAt = DateTime.UtcNow,

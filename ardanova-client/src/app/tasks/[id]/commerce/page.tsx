@@ -69,16 +69,16 @@ export default function TaskCommercePage() {
           <div className="border-border bg-muted/30 rounded-lg border p-4">
             <p className="text-sm font-medium">Accepted agreement</p>
             <p className="text-muted-foreground mt-1 text-sm">
-              The local task agreement is accepted. It is not an escrow, token
-              allocation, payment, or settlement receipt.
+              The agreement is accepted. Viewing this page moves nothing —
+              the status below is the only record of whether units have
+              actually been reserved, paid, or disputed.
             </p>
           </div>
           <div className="border-border flex items-center justify-between gap-3 rounded-lg border p-4">
             <div>
-              <p className="text-sm font-medium">Project-token award</p>
+              <p className="text-sm font-medium">Award</p>
               <p className="text-muted-foreground text-sm">
-                {award} {commerce.assetCode} units are reserved in the
-                agreement.
+                {award} {commerce.assetCode} units for this task.
               </p>
             </div>
             <TaskEconomicState
@@ -86,14 +86,66 @@ export default function TaskCommercePage() {
               escrowStatus={commerce.escrowStatus}
             />
           </div>
-          <div className="border-warning/40 bg-warning/10 text-muted-foreground rounded-lg border p-4 text-sm">
-            Funding, escrow, quest linking, release approval, and AZOA
-            settlement are separate gated steps. No value has moved from viewing
-            this page.
-          </div>
+          <AwardWindowNotice
+            releasesAt={commerce.workerHoldReleasesAt}
+            isRestricted={commerce.isRestricted ?? true}
+          />
         </CardContent>
       </Card>
     </CommerceShell>
+  );
+}
+
+/**
+ * The worker's own window, said in the worker's terms. The award is already theirs; the only
+ * question the notice answers is when they can move it, and why it is held until then.
+ *
+ * Never phrase this as a refund or chargeback window: these units come from the platform
+ * reserve and were never bought with a card, so there is nothing to reverse.
+ */
+function AwardWindowNotice({
+  releasesAt,
+  isRestricted,
+}: {
+  releasesAt?: string | null;
+  isRestricted: boolean;
+}) {
+  if (!isRestricted && !releasesAt) return null;
+
+  const releaseDate = releasesAt ? new Date(releasesAt) : null;
+  const readableDate =
+    releaseDate && !Number.isNaN(releaseDate.getTime())
+      ? releaseDate.toLocaleDateString(undefined, {
+          year: "numeric",
+          month: "long",
+          day: "numeric",
+        })
+      : null;
+
+  if (!isRestricted) {
+    return (
+      <div className="border-border bg-muted/30 rounded-lg border p-4">
+        <p className="text-sm font-medium">This award is yours to move</p>
+        <p className="text-muted-foreground mt-1 text-sm">
+          The holding period has ended. You can move these units whenever you like.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="border-border bg-muted/30 rounded-lg border p-4">
+      <p className="text-sm font-medium">
+        {readableDate
+          ? `Yours, and you can move it from ${readableDate}`
+          : "Yours once the work is approved"}
+      </p>
+      <p className="text-muted-foreground mt-1 text-sm">
+        {readableDate
+          ? "It is held until then so you are not taxed on it before you can actually realise it. Nobody can take it back in the meantime."
+          : "The award is set aside for you now. Once the project owner approves your completed work, you will see the date from which you can move it."}
+      </p>
+    </div>
   );
 }
 

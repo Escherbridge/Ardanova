@@ -1,4 +1,4 @@
-namespace ArdaNova.Application.Tests.Services;
+﻿namespace ArdaNova.Application.Tests.Services;
 
 using ArdaNova.Application.Common.Interfaces;
 using ArdaNova.Application.Common.Results;
@@ -175,7 +175,7 @@ public class TaskEscrowServiceTests
     [Fact]
     public async Task ReleaseAsync_FailsClosedWithoutReadingOrMutatingEscrow()
     {
-        var result = await _sut.ReleaseAsync("escrow-1", new ReleaseEscrowDto { TxHash = "unverified" });
+        var result = await _sut.ReleaseAsync("escrow-1", new ReleaseEscrowDto { ReleasedByUserId = "actor-1" });
 
         result.IsFailure.Should().BeTrue();
         _repositoryMock.VerifyNoOtherCalls();
@@ -259,7 +259,7 @@ public class TaskEscrowServiceTests
     [Fact]
     public async Task RefundAsync_FailsClosedWithoutReadingOrMutatingEscrow()
     {
-        var result = await _sut.RefundAsync("escrow-1", new RefundEscrowDto { TxHash = "unverified" });
+        var result = await _sut.RefundAsync("escrow-1", new RefundEscrowDto { RefundedByUserId = "actor-1" });
 
         result.IsFailure.Should().BeTrue();
         _repositoryMock.VerifyNoOtherCalls();

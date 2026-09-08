@@ -1,4 +1,4 @@
-namespace ArdaNova.Infrastructure;
+﻿namespace ArdaNova.Infrastructure;
 
 using System.Globalization;
 using ArdaNova.Application.Common.Interfaces;
@@ -147,6 +147,10 @@ public static class DependencyInjection
         // never fall back to the database, so without this registration TreasuryService.ReconcileAsync
         // and TokenBalanceService.GetArdaBalanceAsync refuse every call.
         services.AddAzoaExchangeClient(configuration, environmentName);
+
+        // The worker-award hold port. TaskCommerceService reserves and releases worker awards
+        // through this client; without the registration the award hold path never resolves.
+        services.AddAzoaHoldClient(configuration, environmentName);
 
         // The add-funds (on-ramp) adapter. Application binds IFiatRailGateway to the fail-closed
         // DisabledFiatRailGateway; this call replaces it with the node-backed rail and registers

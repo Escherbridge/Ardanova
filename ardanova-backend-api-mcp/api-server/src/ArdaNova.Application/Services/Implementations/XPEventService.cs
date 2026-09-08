@@ -8,12 +8,27 @@ using ArdaNova.Domain.Models.Entities;
 using ArdaNova.Domain.Models.Enums;
 using AutoMapper;
 
+/// <summary>
+/// XP, levels and the tier they earn. This service owns the tier derivation the rest of the
+/// platform mirrors.
+/// </summary>
+/// <remarks>
+/// <para><b>Tier is earned here and copied everywhere else.</b> <see cref="CalculateTier"/> is
+/// the single derivation; <c>User.tier</c> is its stored projection and
+/// <c>MembershipCredential.tier</c> is a per-scope mirror of the same value. When an award moves
+/// the tier, <see cref="SyncCredentialTiersAsync"/> re-stamps every live credential the member
+/// holds INSIDE the same unit of work, so the two columns commit together or not at all — the
+/// point of the exercise being that they can never be read back disagreeing.</para>
+/// <para>The credential repository is optional ONLY so the pre-existing unit-test constructor
+/// keeps compiling; production DI always supplies it.</para>
+/// </remarks>
 public class XPEventService : IXPEventService
 {
     private readonly IRepository<XPEvent> _xpEventRepository;
     private readonly IRepository<User> _userRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IMapper _mapper;
+    private readonly IRepository<MembershipCredential>? _credentialRepository;
 
     private static readonly Dictionary<string, int> DefaultRewards = new()
     {
@@ -34,12 +49,14 @@ public class XPEventService : IXPEventService
         IRepository<XPEvent> xpEventRepository,
         IRepository<User> userRepository,
         IUnitOfWork unitOfWork,
-        IMapper mapper)
+        IMapper mapper,
+        IRepository<MembershipCredential>? credentialRepository = null)
     {
         _xpEventRepository = xpEventRepository;
         _userRepository = userRepository;
         _unitOfWork = unitOfWork;
         _mapper = mapper;
+        _credentialRepository = credentialRepository;
     }
 
     public async Task<Result<XPEventDto>> AwardXPAsync(AwardXPDto dto, CancellationToken ct = default)
@@ -73,6 +90,11 @@ public class XPEventService : IXPEventService
         user.updatedAt = DateTime.UtcNow;
 
         await _userRepository.UpdateAsync(user, ct);
+
+        // Same unit of work as the User write: a credential that outlived the tier that minted it
+        // is exactly the "two columns that disagree" defect, so the mirror commits with the truth.
+        await SyncCredentialTiersAsync(dto.UserId, user.tier, ct);
+
         await _unitOfWork.SaveChangesAsync(ct);
 
         return Result<XPEventDto>.Success(_mapper.Map<XPEventDto>(xpEvent));
@@ -177,6 +199,27 @@ public class XPEventService : IXPEventService
             Level = level,
             XPRequired = GetXPRequiredForLevel(level)
         };
+    }
+
+    /// <summary>Re-stamps the member's live credentials with the tier their XP now earns.</summary>
+    private async Task SyncCredentialTiersAsync(string userId, UserTier tier, CancellationToken ct)
+    {
+        if (_credentialRepository is null)
+            return;
+
+        // REVOKED credentials are historical records and are deliberately left as they were.
+        var credentials = await _credentialRepository.FindAsync(
+            c => c.userId == userId && c.status != MembershipCredentialStatus.REVOKED, ct);
+
+        foreach (var credential in credentials)
+        {
+            if (credential.tier == tier)
+                continue;
+
+            credential.tier = tier;
+            credential.updatedAt = DateTime.UtcNow;
+            await _credentialRepository.UpdateAsync(credential, ct);
+        }
     }
 
     /// <summary>

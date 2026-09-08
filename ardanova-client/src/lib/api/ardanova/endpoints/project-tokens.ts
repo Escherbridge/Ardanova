@@ -106,13 +106,16 @@ export class ProjectTokensEndpoint {
     );
   }
 
-  distribute(
+  /**
+   * The project owner approves completed work; the award moves into the worker's own window.
+   * No recipient is sent: the person paid is the one the accepted agreement names, and the
+   * server refuses a caller-supplied recipient that disagrees with it.
+   */
+  approveWorkCompletion(
     allocationId: string,
-    recipientUserId: string,
   ): Promise<ApiResponse<TokenAllocationDto>> {
-    const query = `?recipientUserId=${encodeURIComponent(recipientUserId)}`;
     return this.client.post<TokenAllocationDto>(
-      `/api/ProjectTokens/allocations/${encodeURIComponent(allocationId)}/distribute${query}`,
+      `/api/ProjectTokens/allocations/${encodeURIComponent(allocationId)}/distribute`,
     );
   }
 

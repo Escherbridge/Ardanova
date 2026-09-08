@@ -14,23 +14,38 @@ using Microsoft.Extensions.Logging;
 /// </summary>
 public class CredentialUtilityService : ICredentialUtilityService
 {
+    /// <summary>Idempotency-key prefix for issuance; one credential is issued at most once.</summary>
+    private const string IssuanceKeyPrefix = "membership-credential-issue";
+
+    /// <summary>Recorded on a credential whose issuance transport is not wired at all.</summary>
+    internal const string IssuanceTransportUnavailable =
+        "The credential issuance transport is not configured, so this credential is recorded but " +
+        "not yet independently verifiable. Register an IAzoaCredentialIssuanceNode adapter for " +
+        "POST /api/credential/issue/{recipientUserId}.";
+
     private readonly IMembershipCredentialService _credentialService;
     private readonly IAlgorandService _algorandService;
     private readonly ILogger<CredentialUtilityService> _logger;
     private readonly string _platformAddress;
     private readonly AlgorandProviderCapabilities _capabilities;
+    private readonly IAzoaCredentialIssuanceNode? _issuanceNode;
+    private readonly IAzoaCustodialAccountService? _custodialAccounts;
 
     public CredentialUtilityService(
         IMembershipCredentialService credentialService,
         IAlgorandService algorandService,
         IConfiguration configuration,
         ILogger<CredentialUtilityService> logger,
-        AlgorandProviderCapabilities capabilities)
+        AlgorandProviderCapabilities capabilities,
+        IAzoaCredentialIssuanceNode? issuanceNode = null,
+        IAzoaCustodialAccountService? custodialAccounts = null)
     {
         _credentialService = credentialService;
         _algorandService = algorandService;
         _logger = logger;
         _capabilities = capabilities;
+        _issuanceNode = issuanceNode;
+        _custodialAccounts = custodialAccounts;
         _platformAddress = configuration["Algorand:PlatformAddress"] ?? string.Empty;
     }
 
@@ -58,6 +73,20 @@ public class CredentialUtilityService : ICredentialUtilityService
             return grantResult;
 
         var credential = grantResult.Value!;
+
+        // The real issuance rail. AZOA's issuer-facing door is recipient-keyed, so it is the only
+        // path that can put a credential in the MEMBER's hands; the address-based branch below
+        // mints to the platform's own address and cannot resolve a member at all.
+        if (_issuanceNode is not null)
+            return await IssueThroughNodeAsync(credential, ct);
+
+        // Naming the ACTUAL reason. Falling through to the address-based branch and reporting
+        // "this provider does not support minting" would blame the provider for a transport that
+        // was never registered, and an operator reading that log would go looking in the wrong place.
+        _logger.LogError(
+            "No credential issuance transport is registered for credential {CredentialId}. {Reason}",
+            credential.Id,
+            IssuanceTransportUnavailable);
 
         if (!_capabilities.SupportsAddressBasedCredentialLifecycle)
         {
@@ -231,6 +260,24 @@ public class CredentialUtilityService : ICredentialUtilityService
         string id,
         CancellationToken ct = default)
     {
+        if (_issuanceNode is not null)
+        {
+            var pending = await _credentialService.GetByIdAsync(id, ct);
+            if (pending.IsFailure)
+                return pending;
+
+            if (!string.IsNullOrEmpty(pending.Value!.AssetId))
+                return Result<MembershipCredentialDto>.ValidationError("This credential is already verified.");
+
+            if (pending.Value!.Status != "ACTIVE")
+                return Result<MembershipCredentialDto>.ValidationError(
+                    "Only an active credential can be re-submitted for verification.");
+
+            // Unlike the grant path a retry must surface its failure: the caller asked for exactly
+            // this one thing, so a silent "still pending" would be indistinguishable from success.
+            return await IssueThroughNodeAsync(pending.Value!, ct, surfaceFailure: true);
+        }
+
         if (!_capabilities.SupportsAddressBasedCredentialLifecycle)
         {
             return Result<MembershipCredentialDto>.Conflict(
@@ -341,4 +388,145 @@ public class CredentialUtilityService : ICredentialUtilityService
 
         return Result<CredentialWithChainDataDto>.Success(result);
     }
+
+    /// <summary>Issues the credential to its holder through AZOA's issuer-facing credential door.</summary>
+    /// <remarks>
+    /// <para>Route: <c>POST /api/credential/issue/{recipientUserId}</c>, called with ArdaNova's
+    /// tenant <c>dapp:manager</c> credential. ArdaNova is the ISSUER of record, and that is what
+    /// makes the credential withdrawable later: the node refuses an issuance whose issuer equals
+    /// its holder, because "only the issuer may revoke" would otherwise let the holder revoke
+    /// their own credential.</para>
+    /// <para>Failure is <b>pending, never verified</b>. The off-chain grant already succeeded, so
+    /// the member keeps their membership; what they do not get is a proof they do not have. Every
+    /// exit below either records a real issuance reference or leaves <c>AssetId</c> null, which is
+    /// the single fact the UI reads to say "Verification pending".</para>
+    /// </remarks>
+    private async Task<Result<MembershipCredentialDto>> IssueThroughNodeAsync(
+        MembershipCredentialDto credential,
+        CancellationToken ct,
+        bool surfaceFailure = false)
+    {
+        Result<MembershipCredentialDto> Pending(string reason)
+        {
+            _logger.LogWarning(
+                "Membership credential {CredentialId} is recorded but not verified: {Reason}",
+                credential.Id,
+                reason);
+
+            // A retry asked for exactly this one thing, so silence would read as success.
+            return surfaceFailure
+                ? Result<MembershipCredentialDto>.Failure(reason)
+                : Result<MembershipCredentialDto>.Success(credential);
+        }
+
+        if (_custodialAccounts is null)
+            return Pending(IssuanceTransportUnavailable);
+
+        var account = await _custodialAccounts.GetStatusAsync(credential.UserId, ct);
+        if (account.IsFailure)
+            return Pending($"The member's account could not be read: {account.Error}");
+
+        // No provisioned account means the node has no holder to issue to. Refusing here is the
+        // same rule the node enforces itself; anticipating it keeps the reason readable.
+        if (!Guid.TryParse(account.Value!.AvatarId, out var recipientAvatarId) || recipientAvatarId == Guid.Empty)
+            return Pending("The member does not have a provisioned account yet, so there is nothing to issue to.");
+
+        var scope = !string.IsNullOrEmpty(credential.ProjectId) ? "PROJECT" : "GUILD";
+        var scopeId = !string.IsNullOrEmpty(credential.ProjectId) ? credential.ProjectId! : credential.GuildId!;
+
+        var metadataInput = new CredentialMetadataInput
+        {
+            CredentialId = credential.Id,
+            Scope = scope,
+            ScopeId = scopeId,
+            ScopeName = scopeId,
+            UserId = credential.UserId,
+            Tier = credential.Tier,
+            GrantedVia = credential.GrantedVia,
+            GrantedAt = credential.CreatedAt
+        };
+
+        var metadataResult = await _algorandService.BuildARC19MetadataAsync(metadataInput, ct);
+        if (metadataResult.IsFailure)
+            return Pending($"The credential description could not be prepared: {metadataResult.Error}");
+
+        var issueRequest = new MembershipCredentialIssueRequest(
+            CredentialId: credential.Id,
+            Scope: scope,
+            ScopeId: scopeId,
+            RecipientUserId: credential.UserId,
+            Tier: credential.Tier,
+            GrantedVia: credential.GrantedVia,
+            MetadataUri: metadataResult.Value!);
+
+        // Stable per-credential key: a redelivered grant issues once, not twice.
+        var issued = await _issuanceNode!.IssueAsync(
+            recipientAvatarId,
+            issueRequest,
+            $"{IssuanceKeyPrefix}:{credential.Id}",
+            ct);
+
+        if (issued.IsFailure)
+            return Pending($"Verification could not be completed: {issued.Error}");
+
+        var update = await _credentialService.UpdateMintInfoAsync(
+            credential.Id,
+            new UpdateMembershipCredentialMintDto
+            {
+                // Legacy column names. MintTxHash carries the node's issuance reference and
+                // AssetId the proof reference the member can show; neither is rendered as chain
+                // vocabulary anywhere a member can see. Renaming the columns is tracked separately.
+                MintTxHash = issued.Value!.IssuanceReference,
+                AssetId = issued.Value!.ProofReference,
+                MetadataUri = issued.Value!.MetadataUri ?? metadataResult.Value
+            },
+            ct);
+
+        return update.IsFailure
+            ? Pending($"The credential was issued but the proof could not be recorded: {update.Error}")
+            : update;
+    }
+}
+
+/// <summary>What ArdaNova asks the node to issue, in the node's own recipient-keyed shape.</summary>
+public sealed record MembershipCredentialIssueRequest(
+    string CredentialId,
+    string Scope,
+    string ScopeId,
+    string RecipientUserId,
+    string? Tier,
+    string GrantedVia,
+    string MetadataUri);
+
+/// <summary>What the node reports back after issuing one credential.</summary>
+/// <param name="IssuanceReference">The node's handle on the issuance itself.</param>
+/// <param name="ProofReference">The holder-visible proof reference; null when none was assigned.</param>
+/// <param name="MetadataUri">Where the credential's description was published, when the node moved it.</param>
+/// <param name="IssuedAt">When the node recorded the issuance.</param>
+public sealed record MembershipCredentialIssuance(
+    string IssuanceReference,
+    string? ProofReference,
+    string? MetadataUri,
+    DateTimeOffset IssuedAt);
+
+/// <summary>
+/// Application-layer PORT onto AZOA's issuer-facing credential door
+/// (<c>POST /api/credential/issue/{recipientUserId}</c>), called with ArdaNova's tenant
+/// <c>dapp:manager</c> credential.
+/// </summary>
+/// <remarks>
+/// Declared here, next to its only consumer, for the same reason as <c>IAzoaExchangeNode</c> and
+/// <c>IAzoaProjectTokenNodeGateway</c>: the Application layer names the door it needs and
+/// Infrastructure supplies the transport, so no caller assembles its own node request. Until an
+/// adapter is registered, <see cref="CredentialUtilityService"/> issues nothing and every
+/// credential it grants stays "Verification pending" - it never claims a proof it does not hold.
+/// </remarks>
+public interface IAzoaCredentialIssuanceNode
+{
+    /// <summary>Issues one credential to <paramref name="recipientAvatarId"/>. Idempotent on the key.</summary>
+    Task<Result<MembershipCredentialIssuance>> IssueAsync(
+        Guid recipientAvatarId,
+        MembershipCredentialIssueRequest request,
+        string idempotencyKey,
+        CancellationToken ct = default);
 }

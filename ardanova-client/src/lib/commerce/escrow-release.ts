@@ -1,24 +1,29 @@
-export type TransactionReferenceValidation =
-  | { isValid: true; value: string | undefined; error: null }
-  | { isValid: false; value: undefined; error: string };
+/**
+ * Release evidence is the shared node's own confirmed hold state, read back after the call —
+ * never a transaction hash a person has to find and type into a form. This file has no
+ * "validate the hash the user pasted in" helper for exactly that reason.
+ */
 
-const opaqueTransactionReferencePattern = /^[A-Za-z0-9:_-]{12,200}$/;
+const ACCOUNT_SETUP_INCOMPLETE_PREFIX = "Complete your account setup";
 
-/** Validates the backend's optional opaque transaction-reference field. */
-export function validateTransactionReference(
-  input: string,
-): TransactionReferenceValidation {
-  const value = input.trim();
-  if (!value) return { isValid: true, value: undefined, error: null };
+export interface EscrowActionErrorPresentation {
+  message: string;
+  /** True when the backend refused because an account's setup is incomplete, not the action itself. */
+  requiresAccountSetup: boolean;
+}
 
-  if (!opaqueTransactionReferencePattern.test(value)) {
-    return {
-      isValid: false,
-      value: undefined,
-      error:
-        "Use 12-200 letters, numbers, colons, hyphens, or underscores with no spaces, or leave this optional field blank.",
-    };
-  }
-
-  return { isValid: true, value, error: null };
+/**
+ * Recognizes the backend's account-readiness refusal (see
+ * `ValueEligibilityMessages.SetupIncomplete` in the .NET API) so the UI can offer a "Complete
+ * setup" link instead of leaving the funder at a dead-end error string.
+ */
+export function describeEscrowActionError(
+  message: string,
+): EscrowActionErrorPresentation {
+  return {
+    message,
+    requiresAccountSetup: message
+      .trim()
+      .startsWith(ACCOUNT_SETUP_INCOMPLETE_PREFIX),
+  };
 }

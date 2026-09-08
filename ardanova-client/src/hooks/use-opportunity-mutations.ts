@@ -96,17 +96,53 @@ export function useOpportunityMutations() {
     },
   });
 
+  // Create opportunity bid mutation (worker "Propose terms" flow — the paid
+  // counterpart to submitApplication, feeding the owner's OpportunityBidsPanel)
+  const createBid = api.opportunityBid.create.useMutation({
+    onSuccess: (_data, variables) => {
+      if (!variables) return;
+      toast.success("Your proposal was submitted!");
+      void utils.opportunityBid.getByOpportunityId.invalidate({
+        opportunityId: variables.opportunityId,
+      });
+      void utils.opportunityBid.getByBidderId.invalidate();
+    },
+    onError: (error) => {
+      const message =
+        error.data?.code === "FORBIDDEN"
+          ? "You don't have permission to propose terms on this opportunity"
+          : error.message || "Failed to submit your proposal";
+      toast.error(message);
+    },
+  });
+
+  // Withdraw opportunity bid mutation
+  const withdrawBid = api.opportunityBid.withdraw.useMutation({
+    onSuccess: () => {
+      toast.success("Proposal withdrawn.");
+      void utils.opportunityBid.getByOpportunityId.invalidate();
+      void utils.opportunityBid.getByBidderId.invalidate();
+    },
+    onError: (error) => {
+      toast.error(error.message || "Failed to withdraw your proposal");
+    },
+  });
+
   return {
     createOpportunity,
     updateOpportunity,
     deleteOpportunity,
     closeOpportunity,
     submitApplication,
+    createBid,
+    withdrawBid,
     isCreating: createOpportunity.isPending,
     isUpdating: updateOpportunity.isPending,
     isDeleting: deleteOpportunity.isPending,
     isClosing: closeOpportunity.isPending,
     isSubmitting: submitApplication.isPending,
+    isCreatingBid: createBid.isPending,
+    isWithdrawingBid: withdrawBid.isPending,
   };
 }
 

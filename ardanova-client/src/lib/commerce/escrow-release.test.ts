@@ -1,33 +1,29 @@
 import { describe, expect, it } from "vitest";
 
-import { validateTransactionReference } from "./escrow-release";
+import { describeEscrowActionError } from "./escrow-release";
 
-describe("validateTransactionReference", () => {
-  it("accepts an omitted optional reference", () => {
-    expect(validateTransactionReference("   ")).toEqual({
-      isValid: true,
-      value: undefined,
-      error: null,
-    });
+describe("describeEscrowActionError", () => {
+  it("flags the backend's account-readiness refusal", () => {
+    const result = describeEscrowActionError(
+      "Complete your account setup before you can accept paid project work. " +
+        "You can still create projects and collaborate while setup is pending.",
+    );
+    expect(result.requiresAccountSetup).toBe(true);
+    expect(result.message).toContain("Complete your account setup");
   });
 
-  it.each([
-    "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-    "A234567890BCDEFGHIJKLMNOPQRSTUVWXYZ234567890BCDEFGHIJ",
-    "d9428888-122b-11e1-b85c-61cd3cbb3210",
-  ])("accepts a bounded opaque reference: %s", (reference) => {
-    expect(validateTransactionReference(reference)).toMatchObject({
-      isValid: true,
-      value: reference,
-    });
+  it("leaves an unrelated failure alone", () => {
+    const result = describeEscrowActionError(
+      "Cannot release escrow in status DISPUTED",
+    );
+    expect(result.requiresAccountSetup).toBe(false);
+    expect(result.message).toBe("Cannot release escrow in status DISPUTED");
   });
 
-  it.each(["short", "reference with spaces", "<script>alert(1)</script>"])(
-    "rejects a malformed reference: %s",
-    (reference) => {
-      expect(validateTransactionReference(reference)).toMatchObject({
-        isValid: false,
-      });
-    },
-  );
+  it("is not confused by the phrase appearing mid-message", () => {
+    const result = describeEscrowActionError(
+      "The worker was told to complete your account setup manually.",
+    );
+    expect(result.requiresAccountSetup).toBe(false);
+  });
 });
