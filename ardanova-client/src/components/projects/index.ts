@@ -5,6 +5,7 @@ export { default as ProposalsTab } from "./proposals-tab";
 export { default as CommentsTab } from "./comments-tab";
 export { default as OpportunitiesTab } from "./opportunities-tab";
 export { default as FundingTab } from "./funding-tab";
+export { default as MoneyTab } from "./money-tab";
 export { default as EquityTab } from "./equity-tab";
 export { default as TasksTab } from "./tasks-tab";
 export { default as RoadmapTab } from "./roadmap-tab";

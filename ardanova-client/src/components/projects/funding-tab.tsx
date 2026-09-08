@@ -8,6 +8,7 @@ import EquityPreview from "~/components/equity/equity-preview";
 import GateStatusBanner from "~/components/equity/gate-status-banner";
 import GateTimeline from "~/components/equity/gate-timeline";
 import InvestorTable from "~/components/equity/investor-table";
+import MoneyTab from "~/components/projects/money-tab";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Input } from "~/components/ui/input";
@@ -488,6 +489,20 @@ function FundingTabContent({
             gateStatus={gate?.gateStatus ?? config.gateStatus}
             unitName={config.unitName}
           />
+        </CardContent>
+      </Card>
+
+      {/* Where the money actually is, and every movement that explains it. Mounted here so a
+          sponsor meets it on the tab they are already on; it is a self-contained component and
+          can also be given a tab of its own. */}
+      <Card className="border-foreground">
+        <CardHeader className="pb-2">
+          <CardTitle className="font-mono text-base tracking-wide uppercase">
+            Money
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <MoneyTab projectId={funding.projectId} />
         </CardContent>
       </Card>
 

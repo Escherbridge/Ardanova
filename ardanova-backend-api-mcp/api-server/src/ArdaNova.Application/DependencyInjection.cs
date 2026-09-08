@@ -139,6 +139,10 @@ public static class DependencyInjection
         // treasury route can constructor-inject what it needs instead of casting - the
         // IProjectUnitRateSource pattern above.
         services.AddScoped<IProjectBuyBackReadModel>(sp => (IProjectBuyBackReadModel)sp.GetRequiredService<ITreasuryService>());
+        // One project's money, derived rather than accumulated. Its treasury-balance source is
+        // the read model registered directly above, so this line must follow it. With this
+        // registration the container is the SINGLE construction path for the service.
+        services.AddScoped<IProjectLedgerService, ProjectLedgerService>();
         services.AddScoped<IProjectGateService, ProjectGateService>();
         // The add-funds seam is ALWAYS bound, and its default refuses. Infrastructure's
         // AddAzoaFiatRail replaces this with the node-backed gateway when the operator has

@@ -108,3 +108,23 @@ operators read it - the transport log.
 A holding with no recorded `holderClass` is LISTED but never sellable. Every sellability
 rule is keyed on the class, and defaulting one would decide a sale on an invented fact;
 hiding the holding entirely would be worse than saying why it cannot be sold.
+
+# Project money
+
+The balance is the node's; the rows only explain it. `ProjectLedgerService` reports what the
+project's custodial treasury account holds as the node reports it, and every entry beneath it is
+DERIVED from the row that already recorded the event - the sponsorship (`FundingIntent`), the
+award (`TokenAllocation`), the buy-back (`PayoutRequest`) and the treasury receipt
+(`PlatformTreasuryTransaction`). Nothing accumulates a running total into a column. A stored
+per-project balance is the database-number-as-money this platform rejected: it can drift from the
+account it claims to describe, and the account is the one that pays.
+
+Each event has exactly one source of record on the page. The four row sources above are disjoint
+by construction, so a single movement of money is never told twice under two names. This is why
+`TreasuryTransaction` stays retired rather than being revived as a convenience ledger - see
+`Domain/Models/Entities/AGENTS.md`, "Treasury". When a new kind of event needs to appear here,
+it gets its existing row as its source, not a new table that re-states one.
+
+Names come from the caller's verified identity, never from anything the client sends. The route
+passes the actor id off the verified claim, and the service resolves people from it; a project id
+in the path decides only WHICH project, never WHO is asking.

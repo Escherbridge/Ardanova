@@ -71,3 +71,19 @@ carries a hold, and only that can be approved.
 theirs, held until that date so they are not taxed before they can realise it - and never a
 chargeback window, because reserve-sourced reward units were never bought with a card. See
 `Services/Implementations/AGENTS.md`, "Worker awards", for the two-hold lifecycle.
+
+# Treasury
+
+`TreasuryTransaction` is RETIRED. A project's money view is derived - see
+`Services/Implementations/AGENTS.md`, "Project money" - from the rows that already record each
+event, so this per-project ledger was never written and is never read. Reviving it would create a
+second record of the same movements that can disagree with all four sources, and the balance it
+accumulated into would be a database number standing in for money the node actually custodies.
+
+The retirement is a control, not a comment: the constructor is not public, so application code
+cannot create a row and a future writer gets a compile error instead of quietly starting a second
+ledger. EF still materialises rows through it, which is why it is `protected` rather than removed.
+
+The columns are unchanged on purpose - the stored schema does not move. Dropping the table and
+its `DbSet` (`Infrastructure/Data/ArdaNovaDbContext.cs:95`) is a MIGRATION, not an entity edit,
+and belongs to whichever item next opens that file.

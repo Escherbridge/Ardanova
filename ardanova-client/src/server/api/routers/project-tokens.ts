@@ -72,6 +72,74 @@ const projectTokenFundingSchema = z.object({
 
 export type ProjectTokenFunding = z.infer<typeof projectTokenFundingSchema>;
 
+// ---------------------------------------------------------------------------
+// Project money (per-project "Money" view, W10.1)
+//
+// Mirrors ProjectMoneyView from the .NET ProjectLedgerController. The balance and
+// the entries are two different kinds of fact and are kept apart deliberately: the
+// balance is the project's own funds account as the node reported it, and the
+// entries only EXPLAIN it. Nothing in this file adds entries up.
+// ---------------------------------------------------------------------------
+
+const PROJECT_MONEY_PATH_PREFIX = "/api/ProjectLedger";
+
+/** Which way value moved, from the project's side. */
+export const PROJECT_MONEY_DIRECTIONS = ["In", "Out"] as const;
+
+/** What an entry is counted in: spendable funds, or a share of the project. */
+export const PROJECT_MONEY_DENOMINATIONS = ["Funds", "Stake"] as const;
+
+const projectMoneyEntrySchema = z.object({
+  id: z.string(),
+  occurredAt: z.string(),
+  direction: z.enum(PROJECT_MONEY_DIRECTIONS),
+  denomination: z.enum(PROJECT_MONEY_DENOMINATIONS),
+  headline: z.string(),
+  description: z.string(),
+  /** The exact figure as text. Always display this, never `amountBaseUnits`. */
+  amountText: z.string(),
+  amountBaseUnits: z.number(),
+  amountScale: z.number().int(),
+  unitLabel: z.string(),
+  exchangedForText: z.string().nullish(),
+  /** The D16 currency reference AT THE TIME, in exact cents. */
+  usdReferenceMinorUnits: z.number().nullish(),
+  usdReferenceText: z.string().nullish(),
+  isSettled: z.boolean(),
+  pendingReason: z.string().nullish(),
+  counterpartyName: z.string().nullish(),
+  /** The node operation this entry attests to; shown only behind "verify". */
+  verifyReference: z.string().nullish(),
+});
+
+/**
+ * The project's balance of record. `fundsText` is null when the funds account could
+ * not be read — a null is NOT a zero, and `unavailableReason` says why.
+ */
+const projectMoneyBalanceSchema = z.object({
+  isAvailable: z.boolean(),
+  fundsBaseUnits: z.number().nullish(),
+  fundsText: z.string().nullish(),
+  fundsScale: z.number().int(),
+  fundsUnitLabel: z.string(),
+  observedAt: z.string().nullish(),
+  unavailableReason: z.string().nullish(),
+});
+
+const projectMoneyViewSchema = z.object({
+  projectId: z.string(),
+  projectUnitLabel: z.string().nullish(),
+  balance: projectMoneyBalanceSchema,
+  balanceProvenance: z.string(),
+  entries: z.array(projectMoneyEntrySchema),
+  counterpartyNamesVisible: z.boolean(),
+  /** Why names are missing, when they are. The server owns this wording, not the UI. */
+  counterpartyNamesNote: z.string().nullish(),
+});
+
+export type ProjectMoneyEntry = z.infer<typeof projectMoneyEntrySchema>;
+export type ProjectMoneyView = z.infer<typeof projectMoneyViewSchema>;
+
 /**
  * What an owner declares at publish. The bounds match
  * ProjectTokenService.ValidateDeclaration; the server checks them again, this copy
@@ -308,6 +376,37 @@ export const projectTokensRouter = createTRPCRouter({
         projectTokenFundingSchema,
         response.data,
         "project funding setup",
+      );
+    }),
+
+  // ---- Money ----
+
+  /**
+   * One project's money: what it holds, and what happened to it. The server decides
+   * from the caller's verified identity whether any counterparty may be named, so
+   * nothing this client sends can widen what comes back.
+   */
+  getMoney: protectedProcedure
+    .input(z.object({ projectId: z.string().min(1) }))
+    .query(async ({ input }) => {
+      const response = await apiClient.get<unknown>(
+        `${PROJECT_MONEY_PATH_PREFIX}/${encodeURIComponent(input.projectId)}/money`,
+      );
+
+      if (response.error || !response.data) {
+        throw toFundingError(
+          response.status,
+          readableFundingError(
+            response.error,
+            "This project's money could not be read right now.",
+          ),
+        );
+      }
+
+      return parseBackendContract(
+        projectMoneyViewSchema,
+        response.data,
+        "project money view",
       );
     }),
 
