@@ -66,8 +66,10 @@ export const postRouter = createTRPCRouter({
         ),
       );
       if (response.error) {
+        // A project this reader may not see 404s at the API. Reporting that as a 500
+        // would tell the browser the node broke when in fact it answered correctly.
         throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
+          code: response.status === 404 ? "NOT_FOUND" : "INTERNAL_SERVER_ERROR",
           message: response.error,
         });
       }

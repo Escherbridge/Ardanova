@@ -17,8 +17,8 @@ public class CredentialUtilityService : ICredentialUtilityService
     /// <summary>Idempotency-key prefix for issuance; one credential is issued at most once.</summary>
     private const string IssuanceKeyPrefix = "membership-credential-issue";
 
-    /// <summary>Recorded on a credential whose issuance transport is not wired at all.</summary>
-    internal const string IssuanceTransportUnavailable =
+    /// <summary>The stated refusal when no issuance transport is wired; also the retry conflict.</summary>
+    public const string IssuanceTransportUnavailable =
         "The credential issuance transport is not configured, so this credential is recorded but " +
         "not yet independently verifiable. Register an IAzoaCredentialIssuanceNode adapter for " +
         "POST /api/credential/issue/{recipientUserId}.";
@@ -74,81 +74,23 @@ public class CredentialUtilityService : ICredentialUtilityService
 
         var credential = grantResult.Value!;
 
-        // The real issuance rail. AZOA's issuer-facing door is recipient-keyed, so it is the only
-        // path that can put a credential in the MEMBER's hands; the address-based branch below
-        // mints to the platform's own address and cannot resolve a member at all.
+        // The real issuance rail, and the ONLY one. AZOA's issuer-facing door is recipient-keyed,
+        // so it is the only path that can put a credential in the MEMBER's hands.
         if (_issuanceNode is not null)
             return await IssueThroughNodeAsync(credential, ct);
 
-        // Naming the ACTUAL reason. Falling through to the address-based branch and reporting
-        // "this provider does not support minting" would blame the provider for a transport that
-        // was never registered, and an operator reading that log would go looking in the wrong place.
+        // No transport, no proof, and no mint. The address-based fallback that used to run here
+        // minted to the PLATFORM's own address: under the Legacy provider that is a real asset
+        // proving nothing about the member, and under the shipped Simulated provider the asset id
+        // and transaction hash were fabricated outright - while the member's card reads any
+        // recorded reference as "Verified - independently verifiable outside ArdaNova".
+        // Recording nothing leaves the card reading "Verification pending", which is the truth.
         _logger.LogError(
             "No credential issuance transport is registered for credential {CredentialId}. {Reason}",
             credential.Id,
             IssuanceTransportUnavailable);
 
-        if (!_capabilities.SupportsAddressBasedCredentialLifecycle)
-        {
-            _logger.LogWarning(
-                "Provider {Provider} does not support address-based credential minting; credential {CredentialId} remains off-chain.",
-                _capabilities.Provider,
-                credential.Id);
-            return Result<MembershipCredentialDto>.Success(credential);
-        }
-
-        // 2. Determine scope
-        var scope = !string.IsNullOrEmpty(dto.ProjectId) ? "PROJECT" : "GUILD";
-        var scopeId = !string.IsNullOrEmpty(dto.ProjectId) ? dto.ProjectId! : dto.GuildId!;
-
-        // 3. Build ARC-19 metadata
-        var metadataInput = new CredentialMetadataInput
-        {
-            CredentialId = credential.Id,
-            Scope = scope,
-            ScopeId = scopeId,
-            ScopeName = scopeId, // Use ID as name fallback
-            UserId = credential.UserId,
-            Tier = credential.Tier,
-            GrantedVia = credential.GrantedVia,
-            GrantedAt = credential.CreatedAt
-        };
-
-        var metadataResult = await _algorandService.BuildARC19MetadataAsync(metadataInput, ct);
-        if (metadataResult.IsFailure)
-        {
-            _logger.LogWarning("Failed to build ARC-19 metadata for credential {CredentialId}: {Error}",
-                credential.Id, metadataResult.Error);
-            return Result<MembershipCredentialDto>.Success(credential);
-        }
-
-        // 4. Mint soulbound ASA
-        var mintResult = await _algorandService.MintSoulboundASAAsync(_platformAddress, metadataInput, ct);
-        if (mintResult.IsFailure)
-        {
-            _logger.LogWarning("Failed to mint soulbound ASA for credential {CredentialId}: {Error}. Credential is valid off-chain.",
-                credential.Id, mintResult.Error);
-            return Result<MembershipCredentialDto>.Success(credential);
-        }
-
-        // 5. Update credential with mint info
-        var mintInfo = mintResult.Value!;
-        var updateMintDto = new UpdateMembershipCredentialMintDto
-        {
-            MintTxHash = mintInfo.TxHash,
-            AssetId = mintInfo.AssetId,
-            MetadataUri = metadataResult.Value
-        };
-
-        var updateResult = await _credentialService.UpdateMintInfoAsync(credential.Id, updateMintDto, ct);
-        if (updateResult.IsFailure)
-        {
-            _logger.LogWarning("Failed to update mint info for credential {CredentialId}: {Error}",
-                credential.Id, updateResult.Error);
-            return Result<MembershipCredentialDto>.Success(credential);
-        }
-
-        return updateResult;
+        return Result<MembershipCredentialDto>.Success(credential);
     }
 
     public async Task<Result<MembershipCredentialDto>> RevokeAndBurnAsync(
@@ -260,80 +202,32 @@ public class CredentialUtilityService : ICredentialUtilityService
         string id,
         CancellationToken ct = default)
     {
-        if (_issuanceNode is not null)
+        // Verification comes from the issuance node or from nowhere. With no transport there is
+        // nothing to retry: the address-based mint that used to run here recorded a reference the
+        // member could not verify, so re-running it would only manufacture the false claim again.
+        if (_issuanceNode is null)
         {
-            var pending = await _credentialService.GetByIdAsync(id, ct);
-            if (pending.IsFailure)
-                return pending;
-
-            if (!string.IsNullOrEmpty(pending.Value!.AssetId))
-                return Result<MembershipCredentialDto>.ValidationError("This credential is already verified.");
-
-            if (pending.Value!.Status != "ACTIVE")
-                return Result<MembershipCredentialDto>.ValidationError(
-                    "Only an active credential can be re-submitted for verification.");
-
-            // Unlike the grant path a retry must surface its failure: the caller asked for exactly
-            // this one thing, so a silent "still pending" would be indistinguishable from success.
-            return await IssueThroughNodeAsync(pending.Value!, ct, surfaceFailure: true);
+            _logger.LogError(
+                "Verification was re-requested for credential {CredentialId} with no issuance transport. {Reason}",
+                id,
+                IssuanceTransportUnavailable);
+            return Result<MembershipCredentialDto>.Conflict(IssuanceTransportUnavailable);
         }
 
-        if (!_capabilities.SupportsAddressBasedCredentialLifecycle)
-        {
-            return Result<MembershipCredentialDto>.Conflict(
-                $"Provider {_capabilities.Provider} does not support address-based credential minting.");
-        }
+        var pending = await _credentialService.GetByIdAsync(id, ct);
+        if (pending.IsFailure)
+            return pending;
 
-        // 1. Get credential
-        var getResult = await _credentialService.GetByIdAsync(id, ct);
-        if (getResult.IsFailure)
-            return getResult;
+        if (!string.IsNullOrEmpty(pending.Value!.AssetId))
+            return Result<MembershipCredentialDto>.ValidationError("This credential is already verified.");
 
-        var credential = getResult.Value!;
+        if (pending.Value!.Status != "ACTIVE")
+            return Result<MembershipCredentialDto>.ValidationError(
+                "Only an active credential can be re-submitted for verification.");
 
-        // 2. Validate: must not already be minted
-        if (!string.IsNullOrEmpty(credential.AssetId))
-            return Result<MembershipCredentialDto>.ValidationError("Credential is already minted on-chain");
-
-        // 3. Validate: must be ACTIVE
-        if (credential.Status != "ACTIVE")
-            return Result<MembershipCredentialDto>.ValidationError("Only ACTIVE credentials can be retried for minting");
-
-        // 4. Determine scope
-        var scope = !string.IsNullOrEmpty(credential.ProjectId) ? "PROJECT" : "GUILD";
-        var scopeId = !string.IsNullOrEmpty(credential.ProjectId) ? credential.ProjectId! : credential.GuildId!;
-
-        // 5. Build metadata and mint
-        var metadataInput = new CredentialMetadataInput
-        {
-            CredentialId = credential.Id,
-            Scope = scope,
-            ScopeId = scopeId,
-            ScopeName = scopeId,
-            UserId = credential.UserId,
-            Tier = credential.Tier,
-            GrantedVia = credential.GrantedVia,
-            GrantedAt = credential.CreatedAt
-        };
-
-        var metadataResult = await _algorandService.BuildARC19MetadataAsync(metadataInput, ct);
-        if (metadataResult.IsFailure)
-            return Result<MembershipCredentialDto>.Failure($"Failed to build metadata: {metadataResult.Error}");
-
-        var mintResult = await _algorandService.MintSoulboundASAAsync(_platformAddress, metadataInput, ct);
-        if (mintResult.IsFailure)
-            return Result<MembershipCredentialDto>.Failure($"Mint retry failed: {mintResult.Error}");
-
-        // 6. Update credential with mint info
-        var mintInfo = mintResult.Value!;
-        var updateMintDto = new UpdateMembershipCredentialMintDto
-        {
-            MintTxHash = mintInfo.TxHash,
-            AssetId = mintInfo.AssetId,
-            MetadataUri = metadataResult.Value
-        };
-
-        return await _credentialService.UpdateMintInfoAsync(id, updateMintDto, ct);
+        // Unlike the grant path a retry must surface its failure: the caller asked for exactly
+        // this one thing, so a silent "still pending" would be indistinguishable from success.
+        return await IssueThroughNodeAsync(pending.Value!, ct, surfaceFailure: true);
     }
 
     public async Task<Result<CredentialWithChainDataDto>> GetCredentialWithChainDataAsync(
@@ -398,8 +292,9 @@ public class CredentialUtilityService : ICredentialUtilityService
     /// their own credential.</para>
     /// <para>Failure is <b>pending, never verified</b>. The off-chain grant already succeeded, so
     /// the member keeps their membership; what they do not get is a proof they do not have. Every
-    /// exit below either records a real issuance reference or leaves <c>AssetId</c> null, which is
-    /// the single fact the UI reads to say "Verification pending".</para>
+    /// exit below either records a real issuance reference or leaves <c>AssetId</c> null, and this
+    /// method is the ONLY writer of that field - which is what lets a screen treat a recorded
+    /// reference as evidence of issuance rather than of a provider having invented one.</para>
     /// </remarks>
     private async Task<Result<MembershipCredentialDto>> IssueThroughNodeAsync(
         MembershipCredentialDto credential,

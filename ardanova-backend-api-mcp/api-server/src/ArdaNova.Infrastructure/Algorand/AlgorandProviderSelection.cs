@@ -10,9 +10,16 @@ public enum AlgorandProvider
 
 public static class AlgorandProviderSelection
 {
+    /// <summary>What an unset <c>Algorand:Provider</c> resolves to. Rejected in Production by
+    /// <c>DependencyInjection.ValidateAlgorandProvider</c>, because it fabricates proofs.</summary>
+    public const string UnsetProviderDefault = "Simulated";
+
+    /// <summary>Parses the allow-listed <c>Algorand:Provider</c> value; an unknown value throws.</summary>
     public static AlgorandProvider Parse(string? configuredValue)
     {
-        var value = string.IsNullOrWhiteSpace(configuredValue) ? "Simulated" : configuredValue.Trim();
+        var value = string.IsNullOrWhiteSpace(configuredValue)
+            ? UnsetProviderDefault
+            : configuredValue.Trim();
         return value.ToUpperInvariant() switch
         {
             "LEGACY" => AlgorandProvider.Legacy,

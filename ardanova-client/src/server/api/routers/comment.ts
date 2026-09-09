@@ -6,6 +6,7 @@ import {
   protectedProcedure,
 } from "~/server/api/trpc";
 import { apiClient } from "~/lib/api";
+import { runWithActorAssertion } from "~/server/actor-assertion";
 import {
   canManageProject,
   hierarchyAuthorization,
@@ -74,11 +75,22 @@ export const commentRouter = createTRPCRouter({
         targetId: z.string(),
       }),
     )
-    .query(async ({ input }) => {
-      const response = await apiClient.projects.getCommentsByTarget(
-        input.targetType,
-        input.targetId,
-      );
+    .query(async ({ input, ctx }) => {
+      // PROJECT-target comments are visibility-guarded at the API, which reads the
+      // signed actor assertion. Without the reader attached, a member opening their
+      // own draft project's discussion is answered as the anonymous public.
+      const reader = ctx.session?.user;
+      const read = () =>
+        apiClient.projects.getCommentsByTarget(
+          input.targetType,
+          input.targetId,
+        );
+      const response = reader?.id
+        ? await runWithActorAssertion(
+            { subject: reader.id, role: reader.role },
+            read,
+          )
+        : await read();
 
       if (response.error) {
         throw new Error(response.error);

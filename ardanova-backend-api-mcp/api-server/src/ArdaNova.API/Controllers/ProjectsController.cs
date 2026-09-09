@@ -220,6 +220,9 @@ public class ProjectsController : ControllerBase
     [HttpGet("{projectId}/resources")]
     public async Task<IActionResult> GetResources(string projectId, CancellationToken ct)
     {
+        if (await ProjectNotVisibleAsync(projectId, ct) is { } hidden)
+            return hidden;
+
         var result = await _resourceService.GetByProjectIdAsync(projectId, ct);
         return ToActionResult(result);
     }
@@ -227,6 +230,9 @@ public class ProjectsController : ControllerBase
     [HttpGet("{projectId}/resources/{resourceId}")]
     public async Task<IActionResult> GetResourceById(string projectId, string resourceId, CancellationToken ct)
     {
+        if (await ProjectNotVisibleAsync(projectId, ct) is { } hidden)
+            return hidden;
+
         var result = await _resourceService.GetByIdAsync(resourceId, ct);
         return ToActionResult(result);
     }
@@ -297,6 +303,9 @@ public class ProjectsController : ControllerBase
     [HttpGet("{projectId}/milestones")]
     public async Task<IActionResult> GetMilestones(string projectId, CancellationToken ct)
     {
+        if (await ProjectNotVisibleAsync(projectId, ct) is { } hidden)
+            return hidden;
+
         var result = await _milestoneService.GetByProjectIdAsync(projectId, ct);
         return ToActionResult(result);
     }
@@ -304,6 +313,9 @@ public class ProjectsController : ControllerBase
     [HttpGet("{projectId}/milestones/{milestoneId}")]
     public async Task<IActionResult> GetMilestoneById(string projectId, string milestoneId, CancellationToken ct)
     {
+        if (await ProjectNotVisibleAsync(projectId, ct) is { } hidden)
+            return hidden;
+
         var result = await _milestoneService.GetByIdAsync(milestoneId, ct);
         if (result.IsSuccess &&
             !string.Equals(result.Value!.ProjectId, projectId, StringComparison.Ordinal))
@@ -359,6 +371,9 @@ public class ProjectsController : ControllerBase
     [HttpGet("{projectId}/members")]
     public async Task<IActionResult> GetMembers(string projectId, CancellationToken ct)
     {
+        if (await ProjectNotVisibleAsync(projectId, ct) is { } hidden)
+            return hidden;
+
         var result = await _memberService.GetByProjectIdAsync(projectId, ct);
         return ToActionResult(result);
     }
@@ -366,6 +381,9 @@ public class ProjectsController : ControllerBase
     [HttpGet("{projectId}/members/{memberId}")]
     public async Task<IActionResult> GetMemberById(string projectId, string memberId, CancellationToken ct)
     {
+        if (await ProjectNotVisibleAsync(projectId, ct) is { } hidden)
+            return hidden;
+
         var result = await _memberService.GetByIdAsync(memberId, ct);
         return ToActionResult(result);
     }
@@ -549,6 +567,9 @@ public class ProjectsController : ControllerBase
     [HttpGet("{projectId}/comments")]
     public async Task<IActionResult> GetComments(string projectId, CancellationToken ct)
     {
+        if (await ProjectNotVisibleAsync(projectId, ct) is { } hidden)
+            return hidden;
+
         var result = await _commentService.GetByProjectIdAsync(projectId, ct);
         return ToActionResult(result);
     }
@@ -556,6 +577,9 @@ public class ProjectsController : ControllerBase
     [HttpGet("{projectId}/comments/{commentId}")]
     public async Task<IActionResult> GetCommentById(string projectId, string commentId, CancellationToken ct)
     {
+        if (await ProjectNotVisibleAsync(projectId, ct) is { } hidden)
+            return hidden;
+
         var result = await _commentService.GetByIdAsync(commentId, ct);
         if (result.IsSuccess &&
             !string.Equals(result.Value!.ProjectId, projectId, StringComparison.Ordinal))
@@ -631,6 +655,11 @@ public class ProjectsController : ControllerBase
         if (!Enum.TryParse<CommentTargetType>(targetType, true, out var parsedType))
             return BadRequest(new { error = $"Invalid target type: {targetType}" });
 
+        // A PROJECT target is the same door as {projectId}/comments, reached without the route parameter.
+        if (parsedType == CommentTargetType.PROJECT
+            && await ProjectNotVisibleAsync(targetId, ct) is { } hidden)
+            return hidden;
+
         var result = await _commentService.GetByTargetAsync(parsedType, targetId, ct);
         return ToActionResult(result);
     }
@@ -643,6 +672,20 @@ public class ProjectsController : ControllerBase
     private ProjectViewer Viewer => ActorAssertionMiddleware.TryGetActorId(User, out var actorId)
         ? new ProjectViewer(actorId, IsAdmin)
         : ProjectViewer.Anonymous;
+
+    /// <summary>NotFound when this viewer may not see the project, because its existence is private too.</summary>
+    /// <remarks>
+    /// Every anonymous-readable sub-resource under <c>{projectId}/</c> opens with this, so a DRAFT's
+    /// resources, milestones, members, updates, comments, support and proposals are as private as the
+    /// draft itself. Forbidden would confirm the project exists, which is the leak.
+    /// </remarks>
+    private async Task<IActionResult?> ProjectNotVisibleAsync(string projectId, CancellationToken ct)
+    {
+        var project = await _projectVisibility.GetVisibleByIdAsync(Viewer, projectId, ct);
+        return project.IsSuccess
+            ? null
+            : NotFound(new { error = $"Project with id {projectId} not found" });
+    }
 
     private static int NormalizePage(int page) => page < 1 ? 1 : page;
 
@@ -688,6 +731,9 @@ public class ProjectsController : ControllerBase
     [HttpGet("{projectId}/updates")]
     public async Task<IActionResult> GetUpdates(string projectId, CancellationToken ct)
     {
+        if (await ProjectNotVisibleAsync(projectId, ct) is { } hidden)
+            return hidden;
+
         var result = await _updateService.GetByProjectIdAsync(projectId, ct);
         return ToActionResult(result);
     }
@@ -695,6 +741,9 @@ public class ProjectsController : ControllerBase
     [HttpGet("{projectId}/updates/{updateId}")]
     public async Task<IActionResult> GetUpdateById(string projectId, string updateId, CancellationToken ct)
     {
+        if (await ProjectNotVisibleAsync(projectId, ct) is { } hidden)
+            return hidden;
+
         var result = await _updateService.GetByIdAsync(updateId, ct);
         return ToActionResult(result);
     }
@@ -736,6 +785,9 @@ public class ProjectsController : ControllerBase
     [HttpGet("{projectId}/support")]
     public async Task<IActionResult> GetSupport(string projectId, CancellationToken ct)
     {
+        if (await ProjectNotVisibleAsync(projectId, ct) is { } hidden)
+            return hidden;
+
         var result = await _supportService.GetByProjectIdAsync(projectId, ct);
         return ToActionResult(result);
     }
@@ -743,6 +795,9 @@ public class ProjectsController : ControllerBase
     [HttpGet("{projectId}/support/{supportId}")]
     public async Task<IActionResult> GetSupportById(string projectId, string supportId, CancellationToken ct)
     {
+        if (await ProjectNotVisibleAsync(projectId, ct) is { } hidden)
+            return hidden;
+
         var result = await _supportService.GetByIdAsync(supportId, ct);
         return ToActionResult(result);
     }
@@ -807,6 +862,9 @@ public class ProjectsController : ControllerBase
     [HttpGet("{projectId}/proposals")]
     public async Task<IActionResult> GetProposals(string projectId, [FromQuery] int page = 1, [FromQuery] int pageSize = 20, CancellationToken ct = default)
     {
+        if (await ProjectNotVisibleAsync(projectId, ct) is { } hidden)
+            return hidden;
+
         var result = await _governanceService.SearchProposalsAsync(null, null, null, projectId, page, pageSize, ct);
         return ToActionResult(result);
     }
@@ -814,6 +872,9 @@ public class ProjectsController : ControllerBase
     [HttpGet("{projectId}/proposals/{proposalId}")]
     public async Task<IActionResult> GetProposalById(string projectId, string proposalId, CancellationToken ct)
     {
+        if (await ProjectNotVisibleAsync(projectId, ct) is { } hidden)
+            return hidden;
+
         var result = await _governanceService.GetProposalByIdAsync(proposalId, ct);
         return ToActionResult(result);
     }
@@ -930,6 +991,9 @@ public class ProjectsController : ControllerBase
     [HttpGet("{projectId}/proposals/{proposalId}/comments")]
     public async Task<IActionResult> GetProposalComments(string projectId, string proposalId, CancellationToken ct)
     {
+        if (await ProjectNotVisibleAsync(projectId, ct) is { } hidden)
+            return hidden;
+
         var result = await _governanceService.GetProposalCommentsAsync(proposalId, ct);
         return ToActionResult(result);
     }
@@ -954,6 +1018,9 @@ public class ProjectsController : ControllerBase
     [HttpGet("{projectId}/proposals/{proposalId}/summary")]
     public async Task<IActionResult> GetProposalVoteSummary(string projectId, string proposalId, CancellationToken ct)
     {
+        if (await ProjectNotVisibleAsync(projectId, ct) is { } hidden)
+            return hidden;
+
         var result = await _governanceService.GetVoteSummaryAsync(proposalId, ct);
         return ToActionResult(result);
     }
@@ -962,6 +1029,9 @@ public class ProjectsController : ControllerBase
     [HttpGet("{projectId}/proposals/{proposalId}/votes")]
     public async Task<IActionResult> GetVotes(string projectId, string proposalId, CancellationToken ct)
     {
+        if (await ProjectNotVisibleAsync(projectId, ct) is { } hidden)
+            return hidden;
+
         var result = await _governanceService.GetVotesAsync(proposalId, ct);
         return ToActionResult(result);
     }

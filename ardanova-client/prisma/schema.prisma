@@ -668,6 +668,10 @@ enum EconomicSettlementKind {
   FUNDING_ALLOCATION
   ESCROW_REFUND
   SWAP_SETTLEMENT
+  // A sponsor's funds exchanged for project units in one node operation.
+  EXCHANGE
+  // Units already held on the node released to their beneficiary when the window elapses.
+  HOLD_RELEASE
 }
 
 enum EconomicSettlementStatus {
@@ -2558,6 +2562,11 @@ model EconomicSettlement {
   azoaOperationId        String?
   azoaReceipt            Json?
   azoaReplayed           Boolean?
+  // The node's own receipt figures, kept as the base-unit strings it reported. Empty means the
+  // receipt carried no figure; a zero would claim the node charged nothing.
+  azoaGrossBaseUnits     String?
+  azoaFeeBaseUnits       String?
+  azoaNetBaseUnits       String?
   failureCode            String?
   failureDetail          String?
   version                Int                      @default(0)

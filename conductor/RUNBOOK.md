@@ -99,6 +99,20 @@ owed to earlier commit messages. Read this before believing any checkbox in
 
 This is the single blocker that makes local success misleading.
 
+> ### Correction to this section's own evidence (recorded 2026-09-08, L0.7)
+>
+> An earlier revision of this row read *"Publishing is blocked on a credential,
+> not on work — `npm whoami` → `E401 Unauthorized`."* **Re-checked and no longer
+> true:** `npm whoami` now resolves to `jadeoni-az` — a valid `_authToken` for
+> `registry.npmjs.org` is present locally. The remaining blocker is narrower and
+> unchanged in substance: `npm view azoa-sdk@0.4.0 version` still 404s, because
+> nobody has run `npm publish` from `oasis-sleek/sdk/azoa-wallet` yet. That publish
+> is AZOA's lane, not ArdaNova's, and this session's own operating rules forbid
+> running `npm publish` or any other command that writes to a remote regardless of
+> whether the credential works — so a working `npm whoami` does not shorten the
+> path here. **OI-01 stays recorded as blocked-on-operator**, on the publish
+> itself rather than on obtaining a token.
+
 **Evidence (re-verified 2026-09-08):**
 
 | Fact | Where |
@@ -106,7 +120,7 @@ This is the single blocker that makes local success misleading.
 | The client pins `"azoa-sdk": "^0.4.0"` | `ardanova-client/package.json:62` |
 | The registry has only `0.1.0, 0.2.0, 0.2.1, 0.2.2` | `npm view azoa-sdk versions --json` |
 | The publishable source is **0.4.0**, and exists only locally | `oasis-sleek/sdk/azoa-wallet/package.json` → `"version": "0.4.0"` |
-| Publishing is blocked on a credential, not on work | `npm whoami` → `E401 Unauthorized` (`OI-01`) |
+| Publishing is blocked on the package not existing yet, not (any longer) on a credential | `npm view azoa-sdk@0.4.0 version` → `404 Not Found`; `npm whoami` → `jadeoni-az` (`OI-01`) |
 | **Fixed 2026-09-08:** the pin used to read `^0.3.0`. npm's caret is minor-locked below 1.0, so `^0.3.0` means `>=0.3.0 <0.4.0` and could **never** have accepted the 0.4.0 that is the thing being published — publishing would have left CI red with an error blaming the registry | `scripts/verify-azoa-sdk-pin.mjs` `satisfies()`; regression test `azoa-sdk-pin.test.ts` "rejects a caret pin that the version being published cannot satisfy" |
 | The lockfile still declares and resolves `0.1.0` | `ardanova-client/package-lock.json:33` (`"azoa-sdk": "^0.1.0"`) and `:4942-4944` (`resolved: .../azoa-sdk-0.1.0.tgz`) |
 | Local installs only work through a machine-local symlink | `ardanova-client/node_modules/azoa-sdk -> /c/Users/atooz/Programming/Projects/oasis-sleek/sdk/azoa-wallet/` |
@@ -136,7 +150,10 @@ while the pin, the lockfile and the install disagree.
 Ordered, and only in this order:
 
 1. Publish `azoa-sdk@0.4.0` from `oasis-sleek/sdk/azoa-wallet` (AZOA's lane).
-   Blocked on `OI-01`: `npm whoami` 401s and `npm login` needs a TTY.
+   Blocked on `OI-01`: the version has never been published (`npm view
+   azoa-sdk@0.4.0 version` → 404). Not blocked on the credential any more — see
+   the correction above — but still an operator step no agent session may take
+   on this branch (network-write commands are disallowed here).
 2. In `ardanova-client`: `npm install azoa-sdk@^0.4.0` to rewrite
    `package-lock.json` (it must resolve `.../azoa-sdk-0.4.0.tgz`).
 3. Commit the lockfile.
@@ -154,6 +171,21 @@ correct halfway state; publish is the fix. **Do not "fix" this by hand-editing
 the lockfile:** there is no integrity hash for a version that was never
 published, and a fabricated one fails at install with a checksum error instead
 of the honest `EUSAGE` it fails with today.
+
+**OI-04 — recorded here, in the other repo (2026-09-08).** AZOA's
+`oasis-sleek/frontend/src/app/(dashboard)/admin/fiat-reversals/page.tsx:27` hand-rolls a
+`FiatReversalView` interface that duplicates a type the SDK already exports —
+`sdk/azoa-wallet/src/api/client.ts:1807`, re-exported at `sdk/azoa-wallet/src/index.ts:180`,
+already present in the built `dist/index.d.ts` that ships today. A `TODO(OI-04)` at that
+line names the SDK type to swap in. **This is not the same blocker as OI-01**: that
+frontend consumes the SDK via `"azoa-sdk": "file:../sdk/azoa-wallet"` (a sibling directory
+in the same repo), not the published npm package, so nothing there waits on the 0.4.0
+publish above. What the swap actually needs — and why this pass left a `TODO` instead of
+doing it — is a `tsc --noEmit` to confirm several fields that differ optional-vs-nullable
+between the two shapes (e.g. `statusReason?: string | null` locally vs. the SDK's
+`statusReason: string | null`) don't break callers, and this item's rules forbid running
+`tsc`. Track it alongside OI-01 because both are "finish the SDK v0.4.0 story," not because
+one is gating the other.
 
 ---
 

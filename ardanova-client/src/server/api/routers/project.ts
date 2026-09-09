@@ -675,8 +675,10 @@ export const projectRouter = createTRPCRouter({
   // Get resources for project
   getResources: publicProcedure
     .input(z.object({ projectId: z.string() }))
-    .query(async ({ input }) => {
-      const response = await apiClient.projects.getResources(input.projectId);
+    .query(async ({ input, ctx }) => {
+      const response = await readAsViewer(ctx.session?.user, () =>
+        apiClient.projects.getResources(input.projectId),
+      );
 
       if (response.error) {
         throw new Error(response.error);
@@ -775,8 +777,10 @@ export const projectRouter = createTRPCRouter({
   // Get milestones for project
   getMilestones: publicProcedure
     .input(z.object({ projectId: z.string() }))
-    .query(async ({ input }) => {
-      const response = await apiClient.projects.getMilestones(input.projectId);
+    .query(async ({ input, ctx }) => {
+      const response = await readAsViewer(ctx.session?.user, () =>
+        apiClient.projects.getMilestones(input.projectId),
+      );
 
       if (response.error) {
         throw new Error(response.error);
@@ -938,8 +942,10 @@ export const projectRouter = createTRPCRouter({
   // Get members of project
   getMembers: publicProcedure
     .input(z.object({ projectId: z.string() }))
-    .query(async ({ input }) => {
-      const response = await apiClient.projects.getMembers(input.projectId);
+    .query(async ({ input, ctx }) => {
+      const response = await readAsViewer(ctx.session?.user, () =>
+        apiClient.projects.getMembers(input.projectId),
+      );
 
       if (response.error) {
         throw new Error(response.error);
@@ -1094,9 +1100,11 @@ export const projectRouter = createTRPCRouter({
   // Get proposals for project
   getProposals: publicProcedure
     .input(z.object({ projectId: z.string() }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
       const [response, eligibleMembers] = await Promise.all([
-        apiClient.projects.getProposals(input.projectId),
+        readAsViewer(ctx.session?.user, () =>
+          apiClient.projects.getProposals(input.projectId),
+        ),
         countEligibleVoters(input.projectId),
       ]);
 
@@ -1137,10 +1145,9 @@ export const projectRouter = createTRPCRouter({
   // Get proposal by ID
   getProposalById: publicProcedure
     .input(z.object({ projectId: z.string(), proposalId: z.string() }))
-    .query(async ({ input }) => {
-      const response = await apiClient.projects.getProposalById(
-        input.projectId,
-        input.proposalId,
+    .query(async ({ input, ctx }) => {
+      const response = await readAsViewer(ctx.session?.user, () =>
+        apiClient.projects.getProposalById(input.projectId, input.proposalId),
       );
 
       if (response.error || !response.data) {
@@ -1346,10 +1353,9 @@ export const projectRouter = createTRPCRouter({
   // Get proposal with vote summary
   getProposalWithVotes: publicProcedure
     .input(z.object({ projectId: z.string(), proposalId: z.string() }))
-    .query(async ({ input }) => {
-      const proposalResponse = await apiClient.projects.getProposalById(
-        input.projectId,
-        input.proposalId,
+    .query(async ({ input, ctx }) => {
+      const proposalResponse = await readAsViewer(ctx.session?.user, () =>
+        apiClient.projects.getProposalById(input.projectId, input.proposalId),
       );
 
       if (proposalResponse.error || !proposalResponse.data) {
@@ -1371,8 +1377,10 @@ export const projectRouter = createTRPCRouter({
   // Get all votes for a proposal
   getProposalVotes: publicProcedure
     .input(z.object({ proposalId: z.string() }))
-    .query(async ({ input }) => {
-      const response = await apiClient.governance.getVotes(input.proposalId);
+    .query(async ({ input, ctx }) => {
+      const response = await readAsViewer(ctx.session?.user, () =>
+        apiClient.governance.getVotes(input.proposalId),
+      );
 
       if (response.error) {
         throw new Error(response.error);
@@ -1455,10 +1463,12 @@ export const projectRouter = createTRPCRouter({
   // Get proposal comments
   getProposalComments: publicProcedure
     .input(z.object({ projectId: z.string(), proposalId: z.string() }))
-    .query(async ({ input }) => {
-      const response = await apiClient.projects.getProposalComments(
-        input.projectId,
-        input.proposalId,
+    .query(async ({ input, ctx }) => {
+      const response = await readAsViewer(ctx.session?.user, () =>
+        apiClient.projects.getProposalComments(
+          input.projectId,
+          input.proposalId,
+        ),
       );
 
       if (response.error) {
@@ -1540,8 +1550,10 @@ export const projectRouter = createTRPCRouter({
   // Get updates for project
   getUpdates: publicProcedure
     .input(z.object({ projectId: z.string() }))
-    .query(async ({ input }) => {
-      const response = await apiClient.projects.getUpdates(input.projectId);
+    .query(async ({ input, ctx }) => {
+      const response = await readAsViewer(ctx.session?.user, () =>
+        apiClient.projects.getUpdates(input.projectId),
+      );
 
       if (response.error) {
         throw new Error(response.error);
@@ -1610,8 +1622,10 @@ export const projectRouter = createTRPCRouter({
   // Get comments for project
   getComments: publicProcedure
     .input(z.object({ projectId: z.string() }))
-    .query(async ({ input }) => {
-      const response = await apiClient.projects.getComments(input.projectId);
+    .query(async ({ input, ctx }) => {
+      const response = await readAsViewer(ctx.session?.user, () =>
+        apiClient.projects.getComments(input.projectId),
+      );
 
       if (response.error) {
         throw new Error(response.error);
@@ -1736,8 +1750,10 @@ export const projectRouter = createTRPCRouter({
   // Get supporters of a project
   getSupporters: publicProcedure
     .input(z.object({ projectId: z.string() }))
-    .query(async ({ input }) => {
-      const response = await apiClient.projects.getSupporters(input.projectId);
+    .query(async ({ input, ctx }) => {
+      const response = await readAsViewer(ctx.session?.user, () =>
+        apiClient.projects.getSupporters(input.projectId),
+      );
 
       if (response.error) {
         throw new Error(response.error);

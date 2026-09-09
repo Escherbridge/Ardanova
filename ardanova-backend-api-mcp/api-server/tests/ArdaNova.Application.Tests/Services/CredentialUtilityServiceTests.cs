@@ -14,6 +14,10 @@ public class CredentialUtilityServiceTests
     private readonly Mock<IMembershipCredentialService> _credentialServiceMock;
     private readonly Mock<IAlgorandService> _algorandServiceMock;
     private readonly Mock<ILogger<CredentialUtilityService>> _loggerMock;
+    private readonly Mock<IAzoaCredentialIssuanceNode> _issuanceNodeMock;
+    private readonly Mock<IAzoaCustodialAccountService> _custodialAccountsMock;
+
+    /// <summary>The shipped default: no issuance transport is registered, so nothing may be issued.</summary>
     private readonly CredentialUtilityService _sut;
 
     private const string TestPlatformAddress = "ALGO_TEST_PLATFORM_ADDRESS";
@@ -23,25 +27,86 @@ public class CredentialUtilityServiceTests
         _credentialServiceMock = new Mock<IMembershipCredentialService>();
         _algorandServiceMock = new Mock<IAlgorandService>();
         _loggerMock = new Mock<ILogger<CredentialUtilityService>>();
-
-        var configMock = new Mock<IConfiguration>();
-        configMock.Setup(c => c["Algorand:PlatformAddress"]).Returns(TestPlatformAddress);
+        _issuanceNodeMock = new Mock<IAzoaCredentialIssuanceNode>();
+        _custodialAccountsMock = new Mock<IAzoaCustodialAccountService>();
 
         _sut = new CredentialUtilityService(
             _credentialServiceMock.Object,
             _algorandServiceMock.Object,
-            configMock.Object,
+            CreateConfiguration(),
             _loggerMock.Object);
     }
 
+    private static IConfiguration CreateConfiguration()
+    {
+        var configMock = new Mock<IConfiguration>();
+        configMock.Setup(c => c["Algorand:PlatformAddress"]).Returns(TestPlatformAddress);
+        return configMock.Object;
+    }
+
+    /// <summary>A service wired to a live issuance transport - the only shape allowed to record a proof.</summary>
+    private CredentialUtilityService CreateServiceWithIssuanceNode()
+        => new(
+            _credentialServiceMock.Object,
+            _algorandServiceMock.Object,
+            CreateConfiguration(),
+            _loggerMock.Object,
+            new AlgorandProviderCapabilities("Azoa", false, false),
+            _issuanceNodeMock.Object,
+            _custodialAccountsMock.Object);
+
+    /// <summary>
+    /// The exact shipped default this suite exists to pin: provider <c>Simulated</c> (which reports
+    /// <c>SupportsAddressBasedCredentialLifecycle == true</c>) with the issuance port null.
+    /// </summary>
+    private CredentialUtilityService CreateSimulatedServiceWithoutIssuanceNode()
+        => new(
+            _credentialServiceMock.Object,
+            _algorandServiceMock.Object,
+            CreateConfiguration(),
+            _loggerMock.Object,
+            new AlgorandProviderCapabilities("Simulated", true, true),
+            issuanceNode: null,
+            custodialAccounts: null);
+
+    private void GivenProvisionedAccount(string userId, Guid avatarId)
+        => _custodialAccountsMock
+            .Setup(s => s.GetStatusAsync(userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<AzoaCustodialAccountStatusDto>.Success(
+                new AzoaCustodialAccountStatusDto { AvatarId = avatarId.ToString(), Ready = true }));
+
+    private void ThenNothingWasMinted()
+    {
+        _algorandServiceMock.Verify(
+            s => s.MintSoulboundASAAsync(
+                It.IsAny<string>(),
+                It.IsAny<CredentialMetadataInput>(),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
+        _credentialServiceMock.Verify(
+            s => s.UpdateMintInfoAsync(
+                It.IsAny<string>(),
+                It.IsAny<UpdateMembershipCredentialMintDto>(),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
     // ========================================================================
-    // GrantAndMintAsync — Happy Path
+    // GrantAndMintAsync — The shipped default fabricates nothing (OI-40)
     // ========================================================================
 
+    /// <summary>
+    /// The regression this file exists for. Provider <c>Simulated</c> reports
+    /// <c>SupportsAddressBasedCredentialLifecycle == true</c>, which used to be the whole gate on
+    /// the mint fallback: <c>SimulatedAlgorandService</c> invented an asset id and a transaction
+    /// hash, <c>UpdateMintInfoAsync</c> persisted them, and the member's card rendered them as
+    /// "Verified — independently verifiable outside ArdaNova".
+    /// </summary>
     [Fact]
-    public async Task GrantAndMintAsync_HappyPath_GrantsCredentialAndMintsASA()
+    public async Task GrantAndMintAsync_SimulatedProviderWithNoIssuanceTransport_RecordsNoProof()
     {
         // Arrange
+        var sut = CreateSimulatedServiceWithoutIssuanceNode();
         var dto = new GrantMembershipCredentialDto
         {
             ProjectId = "project-1",
@@ -54,47 +119,136 @@ public class CredentialUtilityServiceTests
             .Setup(s => s.GrantAsync(dto, It.IsAny<CancellationToken>()))
             .ReturnsAsync(Result<MembershipCredentialDto>.Success(grantedCredential));
 
+        // Deliberately still armed: if the fallback ever comes back, this is what it would return.
+        _algorandServiceMock
+            .Setup(s => s.MintSoulboundASAAsync(It.IsAny<string>(), It.IsAny<CredentialMetadataInput>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<SoulboundAsaMintResult>.Success(new SoulboundAsaMintResult { AssetId = "asa-fabricated", TxHash = "tx-fabricated" }));
+
+        // Act
+        var result = await sut.GrantAndMintAsync(dto);
+
+        // Assert — the membership is real, the proof is absent, and nothing was fabricated.
+        result.IsSuccess.Should().BeTrue();
+        result.Value!.Id.Should().Be("cred-1");
+        result.Value!.AssetId.Should().BeNull();
+        result.Value!.MintTxHash.Should().BeNull();
+        ThenNothingWasMinted();
+    }
+
+    [Fact]
+    public async Task GrantAndMintAsync_LegacyProviderWithNoIssuanceTransport_RecordsNoProof()
+    {
+        // Arrange — Legacy mints a REAL asset, but to the platform's own address, so it proves
+        // nothing about the member either. Same capability flag, same refusal.
+        var sut = new CredentialUtilityService(
+            _credentialServiceMock.Object,
+            _algorandServiceMock.Object,
+            CreateConfiguration(),
+            _loggerMock.Object,
+            new AlgorandProviderCapabilities("Legacy", false, true),
+            issuanceNode: null,
+            custodialAccounts: null);
+
+        var dto = new GrantMembershipCredentialDto
+        {
+            GuildId = "guild-1",
+            UserId = "user-1",
+            GrantedVia = "CONTRIBUTION_THRESHOLD"
+        };
+
+        _credentialServiceMock
+            .Setup(s => s.GrantAsync(dto, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<MembershipCredentialDto>.Success(
+                CreateCredentialDto(id: "cred-legacy", guildId: "guild-1", userId: "user-1")));
+
+        // Act
+        var result = await sut.GrantAndMintAsync(dto);
+
+        // Assert
+        result.IsSuccess.Should().BeTrue();
+        result.Value!.AssetId.Should().BeNull();
+        ThenNothingWasMinted();
+    }
+
+    // ========================================================================
+    // GrantAndMintAsync — Through the issuance node (the only proof-bearing path)
+    // ========================================================================
+
+    [Fact]
+    public async Task GrantAndMintAsync_WithIssuanceNode_IssuesToTheMemberAndRecordsTheProof()
+    {
+        // Arrange
+        var sut = CreateServiceWithIssuanceNode();
+        var recipientAvatarId = Guid.NewGuid();
+        var dto = new GrantMembershipCredentialDto
+        {
+            ProjectId = "project-1",
+            UserId = "user-1",
+            GrantedVia = "FOUNDER"
+        };
+
+        var grantedCredential = CreateCredentialDto(id: "cred-1", projectId: "project-1", userId: "user-1");
+        _credentialServiceMock
+            .Setup(s => s.GrantAsync(dto, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<MembershipCredentialDto>.Success(grantedCredential));
+
+        GivenProvisionedAccount("user-1", recipientAvatarId);
+
         _algorandServiceMock
             .Setup(s => s.BuildARC19MetadataAsync(It.IsAny<CredentialMetadataInput>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(Result<string>.Success("{\"standard\":\"arc19\"}"));
 
-        _algorandServiceMock
-            .Setup(s => s.MintSoulboundASAAsync(It.IsAny<string>(), It.IsAny<CredentialMetadataInput>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Result<SoulboundAsaMintResult>.Success(new SoulboundAsaMintResult { AssetId = "asa-123", TxHash = "tx-mint-abc" }));
+        _issuanceNodeMock
+            .Setup(s => s.IssueAsync(
+                recipientAvatarId,
+                It.IsAny<MembershipCredentialIssueRequest>(),
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<MembershipCredentialIssuance>.Success(new MembershipCredentialIssuance(
+                IssuanceReference: "issuance-1",
+                ProofReference: "proof-1",
+                MetadataUri: "ipfs://metadata-1",
+                IssuedAt: DateTimeOffset.UtcNow)));
 
-        var updatedCredential = CreateCredentialDto(id: "cred-1", projectId: "project-1", userId: "user-1", assetId: "asa-123", mintTxHash: "tx-mint-abc");
+        var updatedCredential = CreateCredentialDto(
+            id: "cred-1", projectId: "project-1", userId: "user-1", assetId: "proof-1", mintTxHash: "issuance-1");
         _credentialServiceMock
             .Setup(s => s.UpdateMintInfoAsync("cred-1", It.IsAny<UpdateMembershipCredentialMintDto>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(Result<MembershipCredentialDto>.Success(updatedCredential));
 
         // Act
-        var result = await _sut.GrantAndMintAsync(dto);
+        var result = await sut.GrantAndMintAsync(dto);
 
         // Assert
         result.IsSuccess.Should().BeTrue();
-        result.Value!.Id.Should().Be("cred-1");
-        result.Value!.AssetId.Should().Be("asa-123");
-        result.Value!.MintTxHash.Should().Be("tx-mint-abc");
+        result.Value!.AssetId.Should().Be("proof-1");
+        result.Value!.MintTxHash.Should().Be("issuance-1");
 
-        _credentialServiceMock.Verify(s => s.GrantAsync(dto, It.IsAny<CancellationToken>()), Times.Once);
-        _algorandServiceMock.Verify(s => s.MintSoulboundASAAsync(
-            It.IsAny<string>(),
-            It.Is<CredentialMetadataInput>(m => m.Scope == "PROJECT" && m.ScopeId == "project-1"),
+        _issuanceNodeMock.Verify(s => s.IssueAsync(
+            recipientAvatarId,
+            It.Is<MembershipCredentialIssueRequest>(r =>
+                r.CredentialId == "cred-1" && r.Scope == "PROJECT" && r.ScopeId == "project-1"
+                && r.RecipientUserId == "user-1"),
+            "membership-credential-issue:cred-1",
             It.IsAny<CancellationToken>()), Times.Once);
         _credentialServiceMock.Verify(s => s.UpdateMintInfoAsync(
             "cred-1",
-            It.Is<UpdateMembershipCredentialMintDto>(d => d.AssetId == "asa-123" && d.MintTxHash == "tx-mint-abc"),
+            It.Is<UpdateMembershipCredentialMintDto>(d => d.AssetId == "proof-1" && d.MintTxHash == "issuance-1"),
             It.IsAny<CancellationToken>()), Times.Once);
+        _algorandServiceMock.Verify(s => s.MintSoulboundASAAsync(
+            It.IsAny<string>(), It.IsAny<CredentialMetadataInput>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     // ========================================================================
-    // GrantAndMintAsync — Chain Failure (Graceful Degradation)
+    // GrantAndMintAsync — Issuance refused (membership stands, proof does not)
     // ========================================================================
 
     [Fact]
-    public async Task GrantAndMintAsync_ChainFailure_ReturnsCredentialWithoutASA()
+    public async Task GrantAndMintAsync_IssuanceRefused_KeepsTheCredentialWithoutAProof()
     {
         // Arrange
+        var sut = CreateServiceWithIssuanceNode();
+        var recipientAvatarId = Guid.NewGuid();
         var dto = new GrantMembershipCredentialDto
         {
             GuildId = "guild-1",
@@ -107,24 +261,28 @@ public class CredentialUtilityServiceTests
             .Setup(s => s.GrantAsync(dto, It.IsAny<CancellationToken>()))
             .ReturnsAsync(Result<MembershipCredentialDto>.Success(grantedCredential));
 
+        GivenProvisionedAccount("user-1", recipientAvatarId);
+
         _algorandServiceMock
             .Setup(s => s.BuildARC19MetadataAsync(It.IsAny<CredentialMetadataInput>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(Result<string>.Success("{\"standard\":\"arc19\"}"));
 
-        _algorandServiceMock
-            .Setup(s => s.MintSoulboundASAAsync(It.IsAny<string>(), It.IsAny<CredentialMetadataInput>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Result<SoulboundAsaMintResult>.Failure("Algorand node unreachable"));
+        _issuanceNodeMock
+            .Setup(s => s.IssueAsync(
+                It.IsAny<Guid>(),
+                It.IsAny<MembershipCredentialIssueRequest>(),
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<MembershipCredentialIssuance>.Failure("The issuance node is unreachable"));
 
         // Act
-        var result = await _sut.GrantAndMintAsync(dto);
+        var result = await sut.GrantAndMintAsync(dto);
 
-        // Assert - credential is still returned (graceful degradation)
+        // Assert - the membership stands; what the member does not get is a proof they lack.
         result.IsSuccess.Should().BeTrue();
         result.Value!.Id.Should().Be("cred-2");
-        result.Value!.AssetId.Should().BeNull("chain was down so no ASA was minted");
-
-        _credentialServiceMock.Verify(s => s.UpdateMintInfoAsync(
-            It.IsAny<string>(), It.IsAny<UpdateMembershipCredentialMintDto>(), It.IsAny<CancellationToken>()), Times.Never);
+        result.Value!.AssetId.Should().BeNull("the issuance node refused, so there is no proof");
+        ThenNothingWasMinted();
     }
 
     // ========================================================================
@@ -403,11 +561,11 @@ public class CredentialUtilityServiceTests
     }
 
     // ========================================================================
-    // CheckAndAutoGrantAsync — Eligible, Grants And Mints
+    // CheckAndAutoGrantAsync — Eligible, grants without fabricating a proof
     // ========================================================================
 
     [Fact]
-    public async Task CheckAndAutoGrantAsync_Eligible_GrantsAndMintsCredential()
+    public async Task CheckAndAutoGrantAsync_Eligible_GrantsWithoutFabricatingAProof()
     {
         // Arrange
         _credentialServiceMock
@@ -422,87 +580,122 @@ public class CredentialUtilityServiceTests
             .Setup(s => s.GrantAsync(It.IsAny<GrantMembershipCredentialDto>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(Result<MembershipCredentialDto>.Success(grantedCredential));
 
-        _algorandServiceMock
-            .Setup(s => s.BuildARC19MetadataAsync(It.IsAny<CredentialMetadataInput>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Result<string>.Success("{\"standard\":\"arc19\"}"));
-
-        _algorandServiceMock
-            .Setup(s => s.MintSoulboundASAAsync(It.IsAny<string>(), It.IsAny<CredentialMetadataInput>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Result<SoulboundAsaMintResult>.Success(new SoulboundAsaMintResult { AssetId = "asa-auto", TxHash = "tx-auto" }));
-
-        var updatedCredential = CreateCredentialDto(id: "cred-auto", projectId: "project-1", userId: "user-1", assetId: "asa-auto");
-        _credentialServiceMock
-            .Setup(s => s.UpdateMintInfoAsync("cred-auto", It.IsAny<UpdateMembershipCredentialMintDto>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Result<MembershipCredentialDto>.Success(updatedCredential));
-
         // Act
         var result = await _sut.CheckAndAutoGrantAsync("user-1", "project-1", null);
 
-        // Assert
+        // Assert — auto-grant routes through GrantAndMintAsync, so it inherits the same refusal.
         result.IsSuccess.Should().BeTrue();
         result.Value.Should().NotBeNull();
         result.Value!.Id.Should().Be("cred-auto");
+        result.Value!.AssetId.Should().BeNull();
+        ThenNothingWasMinted();
     }
 
     // ========================================================================
-    // RetryMintAsync — Happy Path
+    // RetryMintAsync — No transport means nothing to retry (OI-40)
     // ========================================================================
 
     [Fact]
-    public async Task RetryMintAsync_CredentialWithoutASA_MintsSuccessfully()
+    public async Task RetryMintAsync_WithoutIssuanceTransport_RefusesInsteadOfMinting()
+    {
+        // Arrange — the shipped default. A "retry" here used to run the same fabricating mint.
+        var sut = CreateSimulatedServiceWithoutIssuanceNode();
+        const string credentialId = "cred-retry";
+
+        _credentialServiceMock
+            .Setup(s => s.GetByIdAsync(credentialId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<MembershipCredentialDto>.Success(
+                CreateCredentialDto(id: credentialId, projectId: "project-1", userId: "user-1", status: "ACTIVE")));
+
+        _algorandServiceMock
+            .Setup(s => s.MintSoulboundASAAsync(It.IsAny<string>(), It.IsAny<CredentialMetadataInput>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<SoulboundAsaMintResult>.Success(new SoulboundAsaMintResult { AssetId = "asa-fabricated", TxHash = "tx-fabricated" }));
+
+        // Act
+        var result = await sut.RetryMintAsync(credentialId);
+
+        // Assert — a stated refusal that names the missing transport, not a manufactured proof.
+        result.IsSuccess.Should().BeFalse();
+        result.Type.Should().Be(ResultType.Conflict);
+        result.Error.Should().Be(CredentialUtilityService.IssuanceTransportUnavailable);
+        ThenNothingWasMinted();
+    }
+
+    // ========================================================================
+    // RetryMintAsync — Happy Path (through the issuance node)
+    // ========================================================================
+
+    [Fact]
+    public async Task RetryMintAsync_WithIssuanceNode_IssuesAndRecordsTheProof()
     {
         // Arrange
-        var credentialId = "cred-retry";
+        var sut = CreateServiceWithIssuanceNode();
+        var recipientAvatarId = Guid.NewGuid();
+        const string credentialId = "cred-retry";
         var credential = CreateCredentialDto(id: credentialId, projectId: "project-1", userId: "user-1", assetId: null, status: "ACTIVE");
 
         _credentialServiceMock
             .Setup(s => s.GetByIdAsync(credentialId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(Result<MembershipCredentialDto>.Success(credential));
 
+        GivenProvisionedAccount("user-1", recipientAvatarId);
+
         _algorandServiceMock
             .Setup(s => s.BuildARC19MetadataAsync(It.IsAny<CredentialMetadataInput>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(Result<string>.Success("{\"standard\":\"arc19\"}"));
 
-        _algorandServiceMock
-            .Setup(s => s.MintSoulboundASAAsync(It.IsAny<string>(), It.IsAny<CredentialMetadataInput>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Result<SoulboundAsaMintResult>.Success(new SoulboundAsaMintResult { AssetId = "asa-retry", TxHash = "tx-retry" }));
+        _issuanceNodeMock
+            .Setup(s => s.IssueAsync(
+                recipientAvatarId,
+                It.IsAny<MembershipCredentialIssueRequest>(),
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<MembershipCredentialIssuance>.Success(new MembershipCredentialIssuance(
+                IssuanceReference: "issuance-retry",
+                ProofReference: "proof-retry",
+                MetadataUri: null,
+                IssuedAt: DateTimeOffset.UtcNow)));
 
-        var updatedCredential = CreateCredentialDto(id: credentialId, projectId: "project-1", assetId: "asa-retry", mintTxHash: "tx-retry");
+        var updatedCredential = CreateCredentialDto(
+            id: credentialId, projectId: "project-1", assetId: "proof-retry", mintTxHash: "issuance-retry");
         _credentialServiceMock
             .Setup(s => s.UpdateMintInfoAsync(credentialId, It.IsAny<UpdateMembershipCredentialMintDto>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(Result<MembershipCredentialDto>.Success(updatedCredential));
 
         // Act
-        var result = await _sut.RetryMintAsync(credentialId);
+        var result = await sut.RetryMintAsync(credentialId);
 
         // Assert
         result.IsSuccess.Should().BeTrue();
-        result.Value!.AssetId.Should().Be("asa-retry");
-        result.Value!.MintTxHash.Should().Be("tx-retry");
+        result.Value!.AssetId.Should().Be("proof-retry");
+        result.Value!.MintTxHash.Should().Be("issuance-retry");
+        _algorandServiceMock.Verify(s => s.MintSoulboundASAAsync(
+            It.IsAny<string>(), It.IsAny<CredentialMetadataInput>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     // ========================================================================
-    // RetryMintAsync — Already Minted
+    // RetryMintAsync — Already Verified
     // ========================================================================
 
     [Fact]
-    public async Task RetryMintAsync_AlreadyMinted_ReturnsValidationError()
+    public async Task RetryMintAsync_AlreadyVerified_ReturnsValidationError()
     {
         // Arrange
-        var credentialId = "cred-already";
-        var credential = CreateCredentialDto(id: credentialId, assetId: "asa-exists", status: "ACTIVE");
+        var sut = CreateServiceWithIssuanceNode();
+        const string credentialId = "cred-already";
+        var credential = CreateCredentialDto(id: credentialId, assetId: "proof-exists", status: "ACTIVE");
 
         _credentialServiceMock
             .Setup(s => s.GetByIdAsync(credentialId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(Result<MembershipCredentialDto>.Success(credential));
 
         // Act
-        var result = await _sut.RetryMintAsync(credentialId);
+        var result = await sut.RetryMintAsync(credentialId);
 
         // Assert
         result.IsSuccess.Should().BeFalse();
         result.Type.Should().Be(ResultType.ValidationError);
-        result.Error.Should().Contain("already minted");
+        result.Error.Should().Contain("already verified");
     }
 
     // ========================================================================
@@ -513,7 +706,8 @@ public class CredentialUtilityServiceTests
     public async Task RetryMintAsync_NotActive_ReturnsValidationError()
     {
         // Arrange
-        var credentialId = "cred-revoked";
+        var sut = CreateServiceWithIssuanceNode();
+        const string credentialId = "cred-revoked";
         var credential = CreateCredentialDto(id: credentialId, assetId: null, status: "REVOKED");
 
         _credentialServiceMock
@@ -521,12 +715,12 @@ public class CredentialUtilityServiceTests
             .ReturnsAsync(Result<MembershipCredentialDto>.Success(credential));
 
         // Act
-        var result = await _sut.RetryMintAsync(credentialId);
+        var result = await sut.RetryMintAsync(credentialId);
 
         // Assert
         result.IsSuccess.Should().BeFalse();
         result.Type.Should().Be(ResultType.ValidationError);
-        result.Error.Should().Contain("ACTIVE");
+        result.Error.Should().Contain("active");
     }
 
     // ========================================================================
@@ -679,9 +873,11 @@ public class CredentialUtilityServiceTests
     // ========================================================================
 
     [Fact]
-    public async Task GrantAndMintAsync_GuildScope_SetsCorrectScopeInMetadata()
+    public async Task GrantAndMintAsync_GuildScope_SetsCorrectScopeInTheIssueRequest()
     {
         // Arrange
+        var sut = CreateServiceWithIssuanceNode();
+        var recipientAvatarId = Guid.NewGuid();
         var dto = new GrantMembershipCredentialDto
         {
             GuildId = "guild-1",
@@ -694,28 +890,39 @@ public class CredentialUtilityServiceTests
             .Setup(s => s.GrantAsync(dto, It.IsAny<CancellationToken>()))
             .ReturnsAsync(Result<MembershipCredentialDto>.Success(grantedCredential));
 
+        GivenProvisionedAccount("user-1", recipientAvatarId);
+
         _algorandServiceMock
             .Setup(s => s.BuildARC19MetadataAsync(It.IsAny<CredentialMetadataInput>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(Result<string>.Success("{\"standard\":\"arc19\"}"));
 
-        _algorandServiceMock
-            .Setup(s => s.MintSoulboundASAAsync(It.IsAny<string>(), It.IsAny<CredentialMetadataInput>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Result<SoulboundAsaMintResult>.Success(new SoulboundAsaMintResult { AssetId = "asa-guild", TxHash = "tx-guild" }));
+        _issuanceNodeMock
+            .Setup(s => s.IssueAsync(
+                It.IsAny<Guid>(),
+                It.IsAny<MembershipCredentialIssueRequest>(),
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<MembershipCredentialIssuance>.Success(new MembershipCredentialIssuance(
+                IssuanceReference: "issuance-guild",
+                ProofReference: "proof-guild",
+                MetadataUri: null,
+                IssuedAt: DateTimeOffset.UtcNow)));
 
-        var updatedCredential = CreateCredentialDto(id: "cred-guild", guildId: "guild-1", assetId: "asa-guild");
+        var updatedCredential = CreateCredentialDto(id: "cred-guild", guildId: "guild-1", assetId: "proof-guild");
         _credentialServiceMock
             .Setup(s => s.UpdateMintInfoAsync("cred-guild", It.IsAny<UpdateMembershipCredentialMintDto>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(Result<MembershipCredentialDto>.Success(updatedCredential));
 
         // Act
-        var result = await _sut.GrantAndMintAsync(dto);
+        var result = await sut.GrantAndMintAsync(dto);
 
         // Assert
         result.IsSuccess.Should().BeTrue();
 
-        _algorandServiceMock.Verify(s => s.MintSoulboundASAAsync(
+        _issuanceNodeMock.Verify(s => s.IssueAsync(
+            recipientAvatarId,
+            It.Is<MembershipCredentialIssueRequest>(r => r.Scope == "GUILD" && r.ScopeId == "guild-1"),
             It.IsAny<string>(),
-            It.Is<CredentialMetadataInput>(m => m.Scope == "GUILD" && m.ScopeId == "guild-1"),
             It.IsAny<CancellationToken>()), Times.Once);
     }
 

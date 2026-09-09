@@ -3,6 +3,7 @@
 using ArdaNova.API.Middleware;
 using ArdaNova.Application.Common.Results;
 using ArdaNova.Application.DTOs;
+using ArdaNova.Application.Services.Implementations;
 using ArdaNova.Application.Services.Interfaces;
 using ArdaNova.Domain.Models.Enums;
 using Microsoft.AspNetCore.Authorization;
@@ -16,6 +17,7 @@ public class PostsController : ControllerBase
 {
     private readonly IPostService _postService;
     private readonly IPostFieldNotesService _fieldNotes;
+    private readonly IProjectVisibility _projectVisibility;
     private readonly IHierarchyAuthorizationService _hierarchyAuthorization;
     private readonly IGuildService _guildService;
     private readonly IGuildMemberService _guildMemberService;
@@ -23,6 +25,7 @@ public class PostsController : ControllerBase
     public PostsController(
         IPostService postService,
         IPostFieldNotesService fieldNotes,
+        IProjectVisibility projectVisibility,
         IHierarchyAuthorizationService hierarchyAuthorization,
         IGuildService guildService,
         IGuildMemberService guildMemberService)
@@ -31,13 +34,18 @@ public class PostsController : ControllerBase
         // The viewer-aware read surface lives on PostService until IPostService can declare
         // it; DI binds both interfaces to the same scoped instance.
         _fieldNotes = fieldNotes;
+        _projectVisibility = projectVisibility;
         _hierarchyAuthorization = hierarchyAuthorization;
         _guildService = guildService;
         _guildMemberService = guildMemberService;
     }
 
     /// <summary>A project field-notes stream. There is no global feed.</summary>
-    /// <remarks>Readable without an actor; the policy then admits only PUBLIC notes.</remarks>
+    /// <remarks>
+    /// Readable without an actor; the policy then admits only PUBLIC notes. Post visibility alone is not
+    /// enough: a note on a DRAFT project defaults to PUBLIC, so the project's own visibility is consulted
+    /// first and a viewer who may not see the draft is told it is absent, never that it is forbidden.
+    /// </remarks>
     [AllowAnonymous]
     [HttpGet("/api/projects/{projectId}/field-notes")]
     public async Task<IActionResult> GetProjectFieldNotes(
@@ -46,8 +54,20 @@ public class PostsController : ControllerBase
         [FromQuery] int pageSize = 20,
         CancellationToken ct = default)
     {
+        if (await ProjectNotVisibleAsync(projectId, ct) is { } hidden)
+            return hidden;
+
         return ToActionResult(
             await _fieldNotes.GetProjectFieldNotesAsync(projectId, ViewerId, page, pageSize, ct));
+    }
+
+    /// <summary>NotFound when this viewer may not see the project, because its existence is private too.</summary>
+    private async Task<IActionResult?> ProjectNotVisibleAsync(string projectId, CancellationToken ct)
+    {
+        var project = await _projectVisibility.GetVisibleByIdAsync(Viewer, projectId, ct);
+        return project.IsSuccess
+            ? null
+            : NotFound(new { error = $"Project with id {projectId} not found" });
     }
 
     [AllowAnonymous]
@@ -188,6 +208,11 @@ public class PostsController : ControllerBase
     /// <summary>The signed actor, or null when nobody is signed in. Reads degrade to PUBLIC.</summary>
     private string? ViewerId =>
         ActorAssertionMiddleware.TryGetActorId(User, out var actorId) ? actorId : null;
+
+    /// <summary>The same viewer the project routes read for, so both seams agree on what a draft is.</summary>
+    private ProjectViewer Viewer => ViewerId is { } actorId
+        ? new ProjectViewer(actorId, User.IsInRole(UserRole.ADMIN.ToString()))
+        : ProjectViewer.Anonymous;
 
     /// <summary>The signed actor on an actor-gated route; the policy guarantees one is present.</summary>
     private string ActorId => ViewerId!;

@@ -165,6 +165,12 @@ public sealed class AzoaNodeClient : IAzoaNodeClient
             HttpStatusCode.Forbidden => Result<T>.Forbidden("AZOA node denied the request."),
             HttpStatusCode.Unauthorized => Result<T>.Unauthorized("AZOA node authentication failed."),
             HttpStatusCode.Conflict => Result<T>.Conflict("AZOA request conflicted with existing state."),
+            // 422 is the node's DECLINE: it read the request, said no, and created nothing
+            // (AZOA REQUEST_DECLINED). It maps to a declined result type on purpose - a caller
+            // holding a seller's units may release them on this and only on this. 409 above
+            // stays AMBIGUOUS: the movement may already have run, so its units stay locked.
+            HttpStatusCode.UnprocessableEntity =>
+                Result<T>.BadRequest("AZOA node declined the request; nothing was moved."),
             (HttpStatusCode)429 => Result<T>.Failure("AZOA node rate limit exceeded."),
             HttpStatusCode.BadRequest => Result<T>.BadRequest("AZOA node rejected the request."),
             _ => Result<T>.Failure("AZOA node request failed."),

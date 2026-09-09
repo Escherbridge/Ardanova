@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using ArdaNova.Application.Common.Interfaces;
 using ArdaNova.Application.Common.Results;
 using ArdaNova.Application.DTOs;
@@ -77,6 +78,7 @@ namespace ArdaNova.Application.Services.Implementations
             var (safePage, safePageSize) = ClampPaging(page, pageSize);
             var query = _posts.Query()
                 .Where(PostVisibilityPolicy.VisibleTo(null))
+                .Where(OnAVisibleProject(null))
                 .OrderByDescending(p => p.createdAt);
             var total = await query.CountAsync(ct);
             var items = await query
@@ -102,6 +104,7 @@ namespace ArdaNova.Application.Services.Implementations
             var query = _posts.Query()
                 .Where(p => p.projectId == projectId)
                 .Where(PostVisibilityPolicy.VisibleTo(viewerId))
+                .Where(OnAVisibleProject(viewerId))
                 .OrderByDescending(p => p.isPinned)
                 .ThenByDescending(p => p.createdAt);
             var total = await query.CountAsync(ct);
@@ -113,11 +116,16 @@ namespace ArdaNova.Application.Services.Implementations
                 new PagedResult<PostDto>(MapPosts(items), total, safePage, safePageSize));
         }
 
-        /// <summary>Legacy viewer-less read: resolves only PUBLIC posts.</summary>
+        /// <summary>Legacy viewer-less read: PUBLIC posts that belong to no project.</summary>
+        /// <remarks>
+        /// This loads one row without its project, so it cannot apply <see cref="OnAVisibleProject"/> and
+        /// would serve a DRAFT project's notes if it were ever routed. It refuses project-scoped posts
+        /// instead; <see cref="GetForViewerAsync"/> is the seam that can answer them.
+        /// </remarks>
         public async Task<Result<PostDto>> GetByIdAsync(string id, CancellationToken ct = default)
         {
             var post = await _posts.GetByIdAsync(id, ct);
-            if (post is null || !PostVisibilityPolicy.IsPubliclyVisible(post))
+            if (post is null || !PostVisibilityPolicy.IsPubliclyVisible(post) || post.projectId is not null)
                 return Result<PostDto>.NotFound($"Post {id} not found");
 
             return Result<PostDto>.Success(await RecordViewAsync(post, ct));
@@ -135,9 +143,9 @@ namespace ArdaNova.Application.Services.Implementations
         /// <summary>Legacy viewer-less read: PUBLIC posts by one author only.</summary>
         public async Task<Result<IReadOnlyList<PostDto>>> GetByUserIdAsync(string userId, CancellationToken ct = default)
         {
-            var list = await _posts.FindAsync(
-                p => p.authorId == userId && p.visibility == PostVisibility.PUBLIC,
-                ct);
+            Expression<Func<Post, bool>> publicByAuthor =
+                p => p.authorId == userId && p.visibility == PostVisibility.PUBLIC;
+            var list = await _posts.FindAsync(publicByAuthor.And(OnAVisibleProject(null)), ct);
             var ordered = list.OrderByDescending(p => p.createdAt).ToList();
             return Result<IReadOnlyList<PostDto>>.Success(MapPosts(ordered));
         }
@@ -150,6 +158,7 @@ namespace ArdaNova.Application.Services.Implementations
             var items = await _posts.Query()
                 .Where(p => p.authorId == authorId)
                 .Where(PostVisibilityPolicy.VisibleTo(viewerId))
+                .Where(OnAVisibleProject(viewerId))
                 .OrderByDescending(p => p.createdAt)
                 .ToListAsync(ct);
             return Result<IReadOnlyList<PostDto>>.Success(MapPosts(items));
@@ -358,11 +367,12 @@ namespace ArdaNova.Application.Services.Implementations
             return Result<bool>.Success(true);
         }
 
-        /// <summary>Legacy viewer-less read: comments on PUBLIC posts only.</summary>
+        /// <summary>Legacy viewer-less read: comments on PUBLIC posts that belong to no project.</summary>
+        /// <remarks>Refuses project-scoped posts for the reason given on <see cref="GetByIdAsync"/>.</remarks>
         public async Task<Result<IReadOnlyList<PostCommentDto>>> GetCommentsAsync(string postId, CancellationToken ct = default)
         {
             var post = await _posts.GetByIdAsync(postId, ct);
-            if (post is null || !PostVisibilityPolicy.IsPubliclyVisible(post))
+            if (post is null || !PostVisibilityPolicy.IsPubliclyVisible(post) || post.projectId is not null)
                 return Result<IReadOnlyList<PostCommentDto>>.NotFound($"Post {postId} not found");
 
             return Result<IReadOnlyList<PostCommentDto>>.Success(await LoadCommentsAsync(postId, ct));
@@ -446,12 +456,54 @@ namespace ArdaNova.Application.Services.Implementations
             return Result<bool>.Success(true);
         }
 
-        /// <summary>The one read gate: a post resolves only when the policy admits this viewer.</summary>
+        /// <summary>The one read gate: a post resolves only when both the post and its project admit this viewer.</summary>
         private Task<Post?> LoadVisibleAsync(string postId, string? viewerId, CancellationToken ct)
             => _posts.Query()
                 .Where(p => p.id == postId)
                 .Where(PostVisibilityPolicy.VisibleTo(viewerId))
+                .Where(OnAVisibleProject(viewerId))
                 .FirstOrDefaultAsync(ct);
+
+        /// <summary>Lifts the project visibility rule onto a post: a draft's notes are as private as the draft.</summary>
+        /// <remarks>
+        /// Composed from <see cref="ProjectQueryFilters.VisibleTo"/> - the one definition of what a draft is -
+        /// rather than restated here, so the note stream and the project page cannot drift apart. A post with
+        /// no project passes; every other post inherits its project's answer. Admin reach is deliberately not
+        /// modelled: a note read resolves an admin as a plain viewer, which fails closed.
+        /// </remarks>
+        private static Expression<Func<Post, bool>> OnAVisibleProject(string? viewerId)
+        {
+            var post = Expression.Parameter(typeof(Post), "post");
+            var project = Expression.Property(post, nameof(Post.Project));
+            var rule = ProjectQueryFilters.VisibleTo(new ProjectViewer(viewerId, IsAdmin: false));
+            var body = Expression.OrElse(
+                Expression.Equal(project, Expression.Constant(null, typeof(Project))),
+                ProjectParameterRebinder.Rebind(rule.Body, rule.Parameters[0], project));
+
+            return Expression.Lambda<Func<Post, bool>>(body, post);
+        }
+
+        /// <summary>Rewrites a project-rooted predicate to read through a post's project navigation.</summary>
+        private sealed class ProjectParameterRebinder : ExpressionVisitor
+        {
+            private readonly ParameterExpression _replaced;
+            private readonly Expression _replacement;
+
+            private ProjectParameterRebinder(ParameterExpression replaced, Expression replacement)
+            {
+                _replaced = replaced;
+                _replacement = replacement;
+            }
+
+            public static Expression Rebind(
+                Expression body,
+                ParameterExpression replaced,
+                Expression replacement)
+                => new ProjectParameterRebinder(replaced, replacement).Visit(body)!;
+
+            protected override Expression VisitParameter(ParameterExpression node)
+                => ReferenceEquals(node, _replaced) ? _replacement : base.VisitParameter(node);
+        }
 
         private async Task<IReadOnlyList<PostCommentDto>> LoadCommentsAsync(string postId, CancellationToken ct)
         {

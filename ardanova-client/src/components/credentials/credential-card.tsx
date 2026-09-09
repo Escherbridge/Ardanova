@@ -11,8 +11,25 @@ import {
 } from "~/lib/credentials/credential-proof";
 import type { MembershipCredential } from "~/lib/api/ardanova/endpoints/membership-credentials";
 
+/**
+ * A credential plus the server's issuance-path flag.
+ *
+ * `isIndependentlyVerifiable` is true only when the credential was issued through the credential
+ * issuance node - the one path that puts a proof in the MEMBER's hands. It is read as `=== true`,
+ * so a credential from an API that does not publish the field yet reads as NOT verifiable.
+ *
+ * That fail-closed default is the point of this type. The presence of a stored identifier is not
+ * evidence of anything: the shipped simulated provider fabricated one outright, and the
+ * address-based mint it replaced put a real asset in the PLATFORM's own hands, which proves
+ * nothing about the member. `CredentialUtilityService.GrantAndMintAsync` now refuses to record any
+ * proof reference unless the issuance node produced it; this flag is how a screen asks.
+ */
+type CredentialWithIssuancePath = MembershipCredential & {
+  isIndependentlyVerifiable?: boolean | null;
+};
+
 interface CredentialCardProps {
-  credential: MembershipCredential;
+  credential: CredentialWithIssuancePath;
   scopeName?: string;
   onClick?: () => void;
   className?: string;
@@ -46,6 +63,11 @@ const proofStyles = {
   preparing: { icon: Clock, tone: "text-neon-yellow" },
 } as const;
 
+/** Whether the server says this credential went through the issuance path. Absent means no. */
+function wasIndependentlyIssued(credential: CredentialWithIssuancePath): boolean {
+  return credential.isIndependentlyVerifiable === true;
+}
+
 /**
  * One reading of a credential, in plain words.
  *
@@ -53,17 +75,27 @@ const proofStyles = {
  * node's chain vocabulary is translated - the card and the credential detail page must not
  * drift into saying different things about the same credential.
  */
-function readVerification(credential: MembershipCredential): VerificationState {
+function readVerification(
+  credential: CredentialWithIssuancePath,
+): VerificationState {
+  // The proof reading is gated on the issuance path, never on the presence of an identifier.
+  // Withdrawn and paused still outrank everything, which is why status is passed through.
+  const issued = wasIndependentlyIssued(credential);
   const { state, label, detail } = getCredentialProofPresentation({
     status: credential.status,
-    assetId: credential.assetId,
-    mintTxHash: credential.mintTxHash,
+    assetId: issued ? credential.assetId : null,
+    mintTxHash: issued ? credential.mintTxHash : null,
   });
   return { label, detail, ...proofStyles[state] };
 }
 
-/** The single reference a member can quote to prove this credential. */
-function proofReference(credential: MembershipCredential): string | null {
+/**
+ * The single reference a member can quote to prove this credential, and only when there is
+ * something to prove: an un-issued credential has no reference, however many identifiers the
+ * record happens to carry.
+ */
+function proofReference(credential: CredentialWithIssuancePath): string | null {
+  if (!wasIndependentlyIssued(credential)) return null;
   return getCredentialProofReference({
     assetId: credential.assetId,
     mintTxHash: credential.mintTxHash,
@@ -84,7 +116,7 @@ function ProofDisclosure({
   credential,
   scopeLabel,
 }: {
-  credential: MembershipCredential;
+  credential: CredentialWithIssuancePath;
   scopeLabel: string;
 }) {
   const reference = proofReference(credential);
@@ -221,4 +253,4 @@ export function CredentialCard({
   );
 }
 
-export type { CredentialCardProps };
+export type { CredentialCardProps, CredentialWithIssuancePath };

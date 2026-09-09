@@ -56,9 +56,16 @@ public class ProjectLedgerController : ControllerBase
     }
 
     /// <summary>
-    /// What this project holds and what happened to it. Names of the people involved are decided
-    /// in the service from the caller's verified identity, never from anything the client sends.
+    /// What this project holds and what happened to it, as this caller is allowed to read it.
     /// </summary>
+    /// <remarks>
+    /// What comes back is decided in <see cref="ProjectLedgerService.GetProjectMoneyAsync"/> from
+    /// the caller's verified identity, never from anything the client sends - and membership
+    /// branches the PAYLOAD, not a name field. A project member receives the itemised movements;
+    /// every other signed-in reader receives aggregate figures with an EMPTY entry list, so the
+    /// per-sponsor amounts, release dates, award sizes and node operation ids never leave the
+    /// server rather than being left for a page to not render.
+    /// </remarks>
     [HttpGet("{projectId}/money")]
     [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
     public async Task<IActionResult> GetProjectMoney(string projectId, CancellationToken ct)

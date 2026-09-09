@@ -718,6 +718,11 @@ namespace ArdaNova.Application.Services.Implementations
             // outcomes are safe to unlock on. A transport failure or a conflict is AMBIGUOUS: the
             // exchange may already have run, and returning the units on a maybe is how the same
             // holding gets sold twice.
+            //
+            // BadRequest is load-bearing here, not incidental: the node answers a refusal that
+            // provably moved nothing (REQUEST_DECLINED, e.g. a buy-back the operator has not
+            // opened) with HTTP 422, and the transport maps 422 to BadRequest. Dropping it from
+            // this set puts the seller's units back under an indefinite lock over a plain "no".
             var declined = receipt.Type
                 is ResultType.NotFound
                 or ResultType.ValidationError
@@ -756,8 +761,11 @@ namespace ArdaNova.Application.Services.Implementations
             ResultType.Forbidden or ResultType.Unauthorized =>
                 "Your account is not set up for this yet, so nothing was moved. "
                 + "Finish account setup and try again.",
+            // Covers both readings of a decline - wrong terms, and "not being bought back right
+            // now" - because the seller acts on the same fact either way: nothing is locked.
             ResultType.ValidationError or ResultType.BadRequest =>
-                "This sale could not be made on those terms, so your units are back where they were.",
+                "This sale was not accepted, so your units are back where they were. "
+                + "You can try again later.",
             // No promise that this finishes by itself: nothing on a timer chases a parked sale.
             // It lands on the operator's outstanding-sales list, and that is what the words say.
             ResultType.Conflict =>

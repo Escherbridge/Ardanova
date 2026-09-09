@@ -174,8 +174,8 @@ public static class DependencyInjection
 
         // Algorand blockchain service.
         // The IAlgorandService implementation is selected by the Algorand:Provider
-        // flag (Legacy | Azoa | Simulated). Default Legacy preserves current
-        // behavior; the Azoa-backed adapter is registered by the provider-adapter track.
+        // flag (Legacy | Azoa | Simulated). An unset flag resolves to Simulated, which is a
+        // DEVELOPER default only - ValidateAlgorandProvider rejects it in Production.
         // The interface is the seam — every consumer (CredentialUtilityService,
         // tokenomics, …) binds to IAlgorandService and is unaffected by the choice.
         services.Configure<AlgorandSettings>(
@@ -406,6 +406,18 @@ public static class DependencyInjection
         }
     }
 
+    /// <summary>Fail-fast boot guard on the Algorand boundary a host actually resolved.</summary>
+    /// <remarks>
+    /// <para>The Simulated rule is deliberately unconditional and has no acknowledgement flag,
+    /// unlike the Legacy break-glass below it. The Legacy signer moves real value with real keys,
+    /// so an operator can own that risk; <c>SimulatedAlgorandService</c> instead FABRICATES asset
+    /// identifiers and transaction hashes, and there is no operator choice that makes a fabricated
+    /// proof true. A flag here would only heal over a Production node telling members their
+    /// credentials are independently verifiable when nothing was ever issued.</para>
+    /// <para>An unset <c>Algorand:Provider</c> resolves to Simulated
+    /// (<see cref="AlgorandProviderSelection.UnsetProviderDefault"/>), so a Production host that
+    /// forgets the key fails here at boot rather than at the first credential.</para>
+    /// </remarks>
     private static void ValidateAlgorandProvider(
         AlgorandProvider provider,
         AlgorandSettings algorand,
@@ -413,6 +425,17 @@ public static class DependencyInjection
         string valueApiKey,
         bool isProduction)
     {
+        if (provider == AlgorandProvider.Simulated && isProduction)
+        {
+            throw new InvalidOperationException(
+                "Algorand:Provider resolves to \"Simulated\" in a Production environment (an unset "
+                + "value resolves there too). The simulated provider fabricates asset identifiers "
+                + "and transaction hashes, so a Production node running it would record and show "
+                + "members proofs that do not exist. Set Algorand:Provider to Azoa, or to Legacy "
+                + "with Algorand:AllowLegacyCustodialSignerInProduction=true and a real platform "
+                + "signer.");
+        }
+
         if (provider == AlgorandProvider.Legacy && isProduction)
         {
             if (!algorand.AllowLegacyCustodialSignerInProduction)

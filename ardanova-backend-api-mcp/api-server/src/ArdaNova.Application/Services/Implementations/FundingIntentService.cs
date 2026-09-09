@@ -1,5 +1,6 @@
 ﻿namespace ArdaNova.Application.Services.Implementations;
 
+using System.Data.Common;
 using System.Globalization;
 using System.Linq;
 using System.Security.Cryptography;
@@ -214,7 +215,7 @@ public sealed class FundingIntentService : IFundingIntentService
             await _unitOfWork.SaveChangesAsync(ct);
             await _unitOfWork.CommitTransactionAsync(ct);
         }
-        catch (DbUpdateException)
+        catch (DbUpdateException failure) when (IsUniquenessViolation(failure))
         {
             await _unitOfWork.RollbackTransactionAsync(CancellationToken.None);
             _unitOfWork.ClearTrackedChanges();
@@ -264,6 +265,21 @@ public sealed class FundingIntentService : IFundingIntentService
     private sealed record FundableProject(ProjectTokenConfig Config, Project Project, int AssetScale);
 
     /// <summary>Loads the project and its token configuration only when both can actually take a sponsorship.</summary>
+    /// <summary>SQLSTATE for a unique-constraint violation - the only replayable write failure.</summary>
+    private const string UniqueViolationSqlState = "23505";
+
+    /// <summary>
+    /// True only when the write failed on a uniqueness constraint, which is the one failure a
+    /// concurrent request with the same idempotency key can cause. Every other
+    /// <see cref="DbUpdateException"/> - an undefined column, a foreign-key or check violation, a
+    /// bad cast - means the write was WRONG, not raced, and must surface as itself. Reading them
+    /// all as a race is what let a malformed value present as "a sponsorship uniqueness conflict
+    /// did not expose a durable intent" (OI-36). <c>SqlState</c> is provider-agnostic
+    /// (<see cref="DbException"/>), so this needs no Npgsql reference in the Application layer.
+    /// </summary>
+    private static bool IsUniquenessViolation(DbUpdateException failure)
+        => failure.InnerException is DbException { SqlState: UniqueViolationSqlState };
+
     private async Task<Result<FundableProject>> LoadFundableAsync(
         string projectTokenConfigId,
         CancellationToken ct)

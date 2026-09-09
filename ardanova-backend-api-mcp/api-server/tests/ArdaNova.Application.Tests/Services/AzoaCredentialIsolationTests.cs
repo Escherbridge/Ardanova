@@ -1,4 +1,4 @@
-namespace ArdaNova.Application.Tests.Services;
+﻿namespace ArdaNova.Application.Tests.Services;
 
 using ArdaNova.Infrastructure;
 using ArdaNova.Infrastructure.Azoa;
@@ -175,11 +175,19 @@ public sealed class AzoaCredentialIsolationTests
         act.Should().NotThrow();
     }
 
+    /// <summary>Structurally a 25-word mnemonic; never a funded account. Only presence is
+    /// checked by the Legacy break-glass guard, which is what these tests exercise.</summary>
+    private const string PlaceholderPlatformMnemonic =
+        "abandon abandon abandon abandon abandon abandon abandon abandon abandon "
+        + "abandon abandon abandon abandon abandon abandon abandon abandon abandon "
+        + "abandon abandon abandon abandon abandon abandon invalid";
+
     private static Dictionary<string, string?> CreateProductionConfiguration()
         => new()
         {
             ["ConnectionStrings:DefaultConnection"] = "Host=localhost;Database=ardanova_test;Username=postgres;Password=test",
-            ["Algorand:Provider"] = "Simulated",
+            // Simulated is refused in Production by ValidateAlgorandProvider (it fabricates proofs).
+            ["Algorand:Provider"] = "Azoa",
             ["Azoa:Mode"] = "Simulated",
             ["Azoa:BaseUrl"] = "https://azoa.example",
             ["Azoa:TenantId"] = "34ce2522-400a-48f0-b4a4-9ff5b0730001",
@@ -193,7 +201,12 @@ public sealed class AzoaCredentialIsolationTests
         => new()
         {
             ["ConnectionStrings:DefaultConnection"] = "Host=localhost;Database=ardanova_test;Username=postgres;Password=test",
-            ["Algorand:Provider"] = "Simulated",
+            // With Azoa transport off and Simulated refused in Production, the only remaining
+            // Production-legal provider is the acknowledged Legacy break-glass.
+            ["Algorand:Provider"] = "Legacy",
+            ["Algorand:AllowLegacyCustodialSignerInProduction"] = "true",
+            ["Algorand:PlatformMnemonic"] = PlaceholderPlatformMnemonic,
+            ["Algorand:PlatformAddress"] = "PLATFORM",
             ["Azoa:Mode"] = "Simulated",
             ["Azoa:TimeoutSeconds"] = "30",
         };

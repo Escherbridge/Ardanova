@@ -66,14 +66,32 @@ public sealed record ProjectMoneyBalance(
     DateTimeOffset? ObservedAt,
     string? UnavailableReason);
 
+/// <summary>What a project raised and who stands behind it, with nobody's own figure in it.</summary>
+/// <remarks>
+/// This is the WHOLE payload a non-member receives, so every field on it must be safe to publish
+/// to any signed-in stranger. Headcounts and one project-level total; never a per-person amount.
+/// </remarks>
+/// <param name="SponsorshipTotalUsdMinorUnits">Exact cents. The currency reference is the one figure every sponsorship carries at the same scale.</param>
+public sealed record ProjectMoneySummary(
+    int SponsorCount,
+    int ContributorCount,
+    long SponsorshipTotalUsdMinorUnits,
+    string SponsorshipTotalUsdText);
+
 /// <summary>A project's money page: the balance of record, and the entries that explain it.</summary>
+/// <param name="Summary">Aggregate support. Always present - it is all a non-member is sent.</param>
+/// <param name="Entries">Itemised movements. EMPTY for a non-member, because none were built for them.</param>
+/// <param name="EntriesHiddenNote">Why there are no entries, when there are none. Null when the reader may see them.</param>
 /// <param name="CounterpartyNamesNote">Why names are missing, when they are. Null when the reader may see them.</param>
 public sealed record ProjectMoneyView(
     string ProjectId,
     string? ProjectUnitLabel,
     ProjectMoneyBalance Balance,
     string BalanceProvenance,
+    ProjectMoneySummary Summary,
     IReadOnlyList<ProjectMoneyEntry> Entries,
+    bool EntriesVisible,
+    string? EntriesHiddenNote,
     bool CounterpartyNamesVisible,
     string? CounterpartyNamesNote);
 
@@ -88,6 +106,11 @@ public static class ProjectMoneyDisclosures
     /// <summary>Stamped when the caller may not see who a counterparty was.</summary>
     public const string NamesHiddenFromNonMembers =
         "People's names are shown to project members only, and only when the person chose to be named.";
+
+    /// <summary>Stamped when the reader is not on the project, so no itemised movement is sent at all.</summary>
+    public const string EntriesHiddenFromNonMembers =
+        "Individual movements are shown to project members only. Everyone else sees how much "
+        + "support this project has, not who gave what.";
 
     /// <summary>Stamped when no project funding has been set up at all.</summary>
     public const string NoFundingSetUp =
@@ -104,7 +127,8 @@ public interface IProjectLedgerService
 {
     /// <summary>
     /// One project's money, as <paramref name="actorId"/> is allowed to read it. The caller
-    /// supplies only the verified actor; this service decides membership itself.
+    /// supplies only the verified actor; this service decides membership itself, and membership
+    /// decides the PAYLOAD: a non-member is answered with aggregate figures and no entries.
     /// </summary>
     Task<Result<ProjectMoneyView>> GetProjectMoneyAsync(
         string projectId,
@@ -124,6 +148,13 @@ public interface IProjectLedgerService
 /// sponsorship is its <see cref="FundingIntent"/>, a buy-back is its <see cref="PayoutRequest"/>,
 /// a worker's award is its <see cref="TokenAllocation"/>. The treasury receipt rows those paths
 /// also write are skipped by <see cref="IsCoveredByItsOwnSourceOfRecord"/> for exactly that reason.
+/// </para>
+/// <para>
+/// <b>Membership branches the payload.</b> A reader who is not on the project is answered with
+/// <see cref="ProjectMoneySummary"/> and an EMPTY entry list, and the itemised movements are
+/// never built for them: no per-sponsor amount, release date, award size or node operation id
+/// leaves this method for a renderer to withhold. Gating only the name field, as this service
+/// once did, published the whole cap table to any signed-in stranger.
 /// </para>
 /// </remarks>
 public class ProjectLedgerService : IProjectLedgerService
@@ -206,13 +237,38 @@ public class ProjectLedgerService : IProjectLedgerService
 
         // Membership is decided HERE, against the verified actor the controller passed. A caller
         // never tells this service what it may see.
-        var mayShowNames = await _hierarchyAuthorization.IsProjectMemberAsync(actorId, projectId, ct);
+        var isMember = await _hierarchyAuthorization.IsProjectMemberAsync(actorId, projectId, ct);
+
+        var sponsorships = await ReadSettledSponsorshipsAsync(projectId, ct);
+        var awards = await ReadDistributedAwardsAsync(config, ct);
+        var summary = BuildSummary(sponsorships, awards);
+
+        var projectUnitLabel = string.IsNullOrWhiteSpace(config.unitName) ? null : config.unitName;
+
+        // Membership branches the PAYLOAD, not a name field. A non-member is answered with the
+        // aggregate and no entry is built for them at all, so no per-sponsor amount, release date,
+        // award size or node operation id exists in the returned object for a renderer to hide.
+        // This is the branch the sibling backer list takes (ProjectTokensController.GetInvestors).
+        if (!isMember)
+        {
+            return Result<ProjectMoneyView>.Success(new ProjectMoneyView(
+                ProjectId: projectId,
+                ProjectUnitLabel: projectUnitLabel,
+                Balance: balance,
+                BalanceProvenance: ProjectMoneyDisclosures.RowsExplainTheBalance,
+                Summary: summary,
+                Entries: Array.Empty<ProjectMoneyEntry>(),
+                EntriesVisible: false,
+                EntriesHiddenNote: ProjectMoneyDisclosures.EntriesHiddenFromNonMembers,
+                CounterpartyNamesVisible: false,
+                CounterpartyNamesNote: ProjectMoneyDisclosures.NamesHiddenFromNonMembers));
+        }
 
         var entries = new List<ProjectMoneyEntry>();
-        var counterparties = new CounterpartyNames(mayShowNames);
+        var counterparties = new CounterpartyNames(mayShowNames: true);
 
-        await AddSponsorshipsAsync(entries, counterparties, projectId, ct);
-        await AddWorkerAwardsAsync(entries, counterparties, config, ct);
+        await AddSponsorshipsAsync(entries, counterparties, sponsorships, ct);
+        AddWorkerAwards(entries, counterparties, config, awards);
         await AddBuyBacksAsync(entries, counterparties, config, ct);
         await AddRemainingTreasuryReceiptsAsync(entries, projectId, ct);
 
@@ -226,14 +282,64 @@ public class ProjectLedgerService : IProjectLedgerService
 
         return Result<ProjectMoneyView>.Success(new ProjectMoneyView(
             ProjectId: projectId,
-            ProjectUnitLabel: string.IsNullOrWhiteSpace(config.unitName) ? null : config.unitName,
+            ProjectUnitLabel: projectUnitLabel,
             Balance: balance,
             BalanceProvenance: ProjectMoneyDisclosures.RowsExplainTheBalance,
+            Summary: summary,
             Entries: ordered,
-            CounterpartyNamesVisible: mayShowNames,
-            CounterpartyNamesNote: mayShowNames
-                ? null
-                : ProjectMoneyDisclosures.NamesHiddenFromNonMembers));
+            EntriesVisible: true,
+            EntriesHiddenNote: null,
+            CounterpartyNamesVisible: true,
+            CounterpartyNamesNote: null));
+    }
+
+    /// <summary>Settled sponsorships for this project. Only a SETTLED intent moved any money.</summary>
+    private Task<IReadOnlyList<FundingIntent>> ReadSettledSponsorshipsAsync(
+        string projectId,
+        CancellationToken ct) =>
+        _fundingIntentRepository.FindAsync(
+            intent => intent.projectId == projectId && intent.status == FundingIntentStatus.SETTLED,
+            ct);
+
+    /// <summary>Stake the project committed to a named person, still held or since returned.</summary>
+    private Task<IReadOnlyList<TokenAllocation>> ReadDistributedAwardsAsync(
+        ProjectTokenConfig config,
+        CancellationToken ct) =>
+        _allocationRepository.FindAsync(
+            allocation => allocation.projectTokenConfigId == config.id
+                && allocation.recipientUserId != null
+                && allocation.distributedAt != null,
+            ct);
+
+    /// <summary>Two headcounts and one total: proof of support that names nobody and prices nobody.</summary>
+    private static ProjectMoneySummary BuildSummary(
+        IReadOnlyList<FundingIntent> sponsorships,
+        IReadOnlyList<TokenAllocation> awards)
+    {
+        var sponsorCount = sponsorships
+            .Select(intent => intent.funderUserId)
+            .Where(userId => !string.IsNullOrWhiteSpace(userId))
+            .Distinct(StringComparer.Ordinal)
+            .Count();
+
+        // The currency reference is the one figure every sponsorship carries at the same scale, so
+        // a total of it is exact. Platform base units may differ in scale row to row and are NOT
+        // summed here: a total that blurred two scales would be a wrong number, not a coarse one.
+        var totalUsdMinorUnits = sponsorships.Sum(intent => intent.usdReferenceMinorUnits);
+
+        var contributorCount = awards
+            .Where(award => award.holderClass != TokenHolderClass.INVESTOR
+                && award.status is not (AllocationStatus.REVOKED or AllocationStatus.BURNED))
+            .Select(award => award.recipientUserId)
+            .Where(userId => !string.IsNullOrWhiteSpace(userId))
+            .Distinct(StringComparer.Ordinal)
+            .Count();
+
+        return new ProjectMoneySummary(
+            SponsorCount: sponsorCount,
+            ContributorCount: contributorCount,
+            SponsorshipTotalUsdMinorUnits: totalUsdMinorUnits,
+            SponsorshipTotalUsdText: FormatAmount(totalUsdMinorUnits, Money.MinorUnitDigits));
     }
 
     /// <summary>
@@ -285,12 +391,9 @@ public class ProjectLedgerService : IProjectLedgerService
     private async Task AddSponsorshipsAsync(
         List<ProjectMoneyEntry> entries,
         CounterpartyNames counterparties,
-        string projectId,
+        IReadOnlyList<FundingIntent> settled,
         CancellationToken ct)
     {
-        var settled = await _fundingIntentRepository.FindAsync(
-            intent => intent.projectId == projectId && intent.status == FundingIntentStatus.SETTLED,
-            ct);
         if (settled.Count == 0)
             return;
 
@@ -393,18 +496,12 @@ public class ProjectLedgerService : IProjectLedgerService
     }
 
     /// <summary>Stake committed to the people doing the work, and any of it that came back.</summary>
-    private async Task AddWorkerAwardsAsync(
+    private static void AddWorkerAwards(
         List<ProjectMoneyEntry> entries,
         CounterpartyNames counterparties,
         ProjectTokenConfig config,
-        CancellationToken ct)
+        IReadOnlyList<TokenAllocation> awards)
     {
-        var awards = await _allocationRepository.FindAsync(
-            allocation => allocation.projectTokenConfigId == config.id
-                && allocation.recipientUserId != null
-                && allocation.distributedAt != null,
-            ct);
-
         var unitLabel = StakeUnitLabel(config);
 
         foreach (var award in awards)

@@ -11,6 +11,7 @@ export const GATED_COMMERCE_TABLES = [
 ] as const;
 
 export const BASELINE_TABLES = [
+  "PayoutRequest",
   "ProjectInvestment",
   "ProjectTokenConfig",
   "Wallet",
@@ -207,6 +208,11 @@ export const REQUIRED_ADDITIVE_COLUMNS: readonly ColumnExpectation[] = [
   prismaString("Wallet", "verificationNetwork", ["YES"]),
   prismaString("Wallet", "verificationChallengeId", ["YES"]),
   integer("ProjectTokenConfig", "assetScale", ["YES", "NO"]),
+  // Cash-out settled in exact minor units. Nullable with no default: rows priced before
+  // 20260908060000_payout_exact_minor_units have no such figure, and a zero would read as a
+  // settled amount of nothing.
+  bigint("PayoutRequest", "ardaMinorUnits", ["YES"]),
+  bigint("PayoutRequest", "usdReferenceMinorUnits", ["YES"]),
 
   prismaString("WalletVerificationChallenge", "id", ["NO"]),
   prismaString("WalletVerificationChallenge", "userId", ["NO"]),
@@ -270,6 +276,12 @@ export const REQUIRED_ADDITIVE_COLUMNS: readonly ColumnExpectation[] = [
   prismaString("EconomicSettlement", "azoaOperationId", ["YES"]),
   json("EconomicSettlement", "azoaReceipt", ["YES"]),
   boolean("EconomicSettlement", "azoaReplayed", ["YES"]),
+  // The node's receipt figures, as TEXT base units. Absent from this list, the preflight passed
+  // on a database where completing a dispatched sponsorship raises 42703 and rolls the stake,
+  // the treasury receipt and the gate back after the funds have already moved.
+  prismaString("EconomicSettlement", "azoaGrossBaseUnits", ["YES"]),
+  prismaString("EconomicSettlement", "azoaFeeBaseUnits", ["YES"]),
+  prismaString("EconomicSettlement", "azoaNetBaseUnits", ["YES"]),
   prismaString("EconomicSettlement", "failureCode", ["YES"]),
   prismaString("EconomicSettlement", "failureDetail", ["YES"]),
   integer("EconomicSettlement", "version", ["NO"], numericDefault("0")),
