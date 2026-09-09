@@ -220,6 +220,48 @@ public class AzoaValueEligibilityServiceTests
     }
 
     [Fact]
+    public async Task RequireReadyAsync_KeepsTheHeldWordsWhenOtherSetupIsAlsoIncomplete()
+    {
+        // Pins the deliberate order: the review is checked BEFORE the readiness predicate, so a
+        // held account never falls through to "complete your account setup". Flipping the two
+        // checks would still refuse the action, so only this assertion catches the regression.
+        StubStatus(Result<AzoaCustodialAccountStatusDto>.Success(ReadyStatus() with
+        {
+            KycStatus = AzoaKycStatus.UnderReview,
+            KycReady = false,
+            WalletReady = false,
+            WalletAddress = null,
+            Ready = false,
+        }));
+
+        var result = await _sut.RequireReadyAsync("user-1", SetupAction);
+
+        result.Type.Should().Be(ResultType.Forbidden);
+        result.Error.Should().Be(ValueEligibilityMessages.UnderReview(null));
+        result.Error.Should().NotContain("Complete your account setup");
+    }
+
+    [Fact]
+    public void Propagate_CarriesAHeldReviewsOwnWordsWhenNoOverrideIsSupplied()
+    {
+        // The one refusal a caller most easily erases: Propagate's optional override REPLACES
+        // the gate's words, so a caller that passes one turns "a reviewer owes you a decision"
+        // back into "complete your account setup". Without an override the words must survive.
+        var reviewDueAt = new DateTimeOffset(2026, 11, 4, 9, 0, 0, TimeSpan.Zero);
+        var held = Result<AzoaCustodialAccountStatusDto>.Forbidden(
+            ValueEligibilityMessages.UnderReview(reviewDueAt));
+
+        var propagated = ValueEligibilityFailure.Propagate<AzoaCustodialAccountStatusDto, string>(held);
+
+        propagated.Type.Should().Be(ResultType.Forbidden);
+        propagated.Error.Should().Be(ValueEligibilityMessages.UnderReview(reviewDueAt));
+        propagated.Error.Should().Contain("4 November 2026");
+        propagated.Error.Should().NotContain("Complete your account setup");
+        propagated.Error.Should().NotContain("try again shortly");
+        ValueEligibilityFailure.StatusCode(held).Should().Be(403);
+    }
+
+    [Fact]
     public void UnderReview_ReadsAsAPendingDecisionRatherThanAnOutageOrUnfinishedSetup()
     {
         var withDate = ValueEligibilityMessages.UnderReview(

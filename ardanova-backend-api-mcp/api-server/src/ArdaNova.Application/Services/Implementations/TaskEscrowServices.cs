@@ -9,7 +9,7 @@ using ArdaNova.Domain.Models.Entities;
 using ArdaNova.Domain.Models.Enums;
 using AutoMapper;
 
-public class TaskEscrowService : ITaskEscrowService
+public class TaskEscrowService : ITaskEscrowService, ITaskEscrowFunding
 {
     private static readonly HashSet<string> AllowedDisputeReasons =
     [
@@ -33,6 +33,26 @@ public class TaskEscrowService : ITaskEscrowService
         "This escrow is not linked to a stake reservation on the shared node, so there is "
         + "nothing to move there yet.";
 
+    private const string CreateUnwiredError =
+        "Setting funds aside for a task is unavailable in this deployment: the joins that verify "
+        + "the assignment, its award and the project it belongs to are not wired. Nothing has "
+        + "been set aside.";
+
+    private const string FundGatewayUnwiredError =
+        "Confirming that funds are set aside is unavailable in this deployment: the shared-node "
+        + "hold gateway is not wired. Nothing has been set aside.";
+
+    /// <summary>
+    /// The one seam of this lifecycle that cannot be satisfied on a fresh deployment: the escrow
+    /// row carries a NOT NULL foreign key to <c>ProjectShare</c> and nothing in either repository
+    /// has ever written a <c>ProjectShare</c> row. It refuses by name rather than inventing a
+    /// share of record. Unblocks when <c>TaskEscrow.shareId</c> becomes nullable in
+    /// <c>ardanova-client/prisma/schema.prisma</c> and its migration.
+    /// </summary>
+    private const string NoShareOfRecordError =
+        "This project has no share of record yet, so funds cannot be set aside against it. "
+        + "Nothing has been set aside.";
+
     private readonly IRepository<TaskEscrow> _repository;
     private readonly IRepository<ProjectTask> _taskRepository;
     private readonly IUnitOfWork _unitOfWork;
@@ -41,6 +61,8 @@ public class TaskEscrowService : ITaskEscrowService
     private readonly IRepository<TokenAllocation>? _allocationRepository;
     private readonly IAzoaHoldGateway? _holds;
     private readonly IProjectTokenProvisioning? _awards;
+    private readonly IRepository<Project>? _projectRepository;
+    private readonly IRepository<ProjectShare>? _shareRepository;
 
     /// <param name="agreementRepository">
     /// Read-only join to the commerce agreement a fund escrow row belongs to (by
@@ -63,6 +85,16 @@ public class TaskEscrowService : ITaskEscrowService
     /// "Authorize Release" and a project owner's "approve completed work" are one operation
     /// with one authorization rule, never two paths that could disagree.
     /// </param>
+    /// <param name="projectRepository">
+    /// Read-only join to the project a task belongs to. <see cref="CreateAsync"/> takes the
+    /// funder of record from <c>Project.createdById</c> — the SAME identity
+    /// <c>ApproveWorkCompletionAsync</c> demands at release — so an escrow can never be opened
+    /// that nobody is permitted to release.
+    /// </param>
+    /// <param name="shareRepository">
+    /// Read-only join to the project's share of record, which the escrow row's NOT NULL
+    /// foreign key requires. See <see cref="NoShareOfRecordError"/>.
+    /// </param>
     public TaskEscrowService(
         IRepository<TaskEscrow> repository,
         IRepository<ProjectTask> taskRepository,
@@ -71,7 +103,9 @@ public class TaskEscrowService : ITaskEscrowService
         IRepository<TaskCommerceAgreement>? agreementRepository = null,
         IRepository<TokenAllocation>? allocationRepository = null,
         IEnumerable<IAzoaHoldGateway>? holds = null,
-        IProjectTokenProvisioning? awards = null)
+        IProjectTokenProvisioning? awards = null,
+        IRepository<Project>? projectRepository = null,
+        IRepository<ProjectShare>? shareRepository = null)
     {
         _repository = repository;
         _taskRepository = taskRepository;
@@ -81,6 +115,8 @@ public class TaskEscrowService : ITaskEscrowService
         _allocationRepository = allocationRepository;
         _holds = holds?.FirstOrDefault();
         _awards = awards;
+        _projectRepository = projectRepository;
+        _shareRepository = shareRepository;
     }
 
     public async Task<Result<TaskEscrowDto>> GetByIdAsync(string id, CancellationToken ct = default)
@@ -111,19 +147,81 @@ public class TaskEscrowService : ITaskEscrowService
         return Result<IReadOnlyList<TaskEscrowDto>>.Success(_mapper.Map<IReadOnlyList<TaskEscrowDto>>(escrows));
     }
 
+    /// <summary>
+    /// Opens the funder-facing record of the stake an accepted assignment already set aside on
+    /// the shared node. Verifies server-side every one of the four things the previous 501
+    /// refusal named: the task exists, the funding instrument is a real accepted agreement, the
+    /// amount is the agreement's own award figure, and the node is holding units against it.
+    /// </summary>
+    /// <remarks>
+    /// <paramref name="dto"/>'s <c>ShareId</c> and <c>Amount</c> are IGNORED. Both are derived
+    /// from the project and the agreement, because a caller-supplied amount on an owned resource
+    /// is the shape this codebase refuses everywhere else. The row opens at
+    /// <see cref="EscrowStatus.NONE"/>: it becomes <see cref="EscrowStatus.FUNDED"/> only through
+    /// <see cref="FundAsync"/>, which asks the node whether the units are actually held.
+    /// </remarks>
     public async Task<Result<TaskEscrowDto>> CreateAsync(CreateTaskEscrowDto dto, CancellationToken ct = default)
     {
+        if (dto is null || string.IsNullOrWhiteSpace(dto.TaskId) || string.IsNullOrWhiteSpace(dto.FunderId))
+            return Result<TaskEscrowDto>.ValidationError("A task and the funder's own identity are required.");
+
         var exists = await _repository.ExistsAsync(e => e.taskId == dto.TaskId, ct);
         if (exists)
             return Result<TaskEscrowDto>.ValidationError($"Escrow already exists for task {dto.TaskId}");
 
+        if (_projectRepository is null
+            || _agreementRepository is null
+            || _allocationRepository is null
+            || _shareRepository is null)
+        {
+            return Result<TaskEscrowDto>.Failure(CreateUnwiredError);
+        }
+
+        var task = await _taskRepository.GetByIdAsync(dto.TaskId, ct);
+        if (task is null)
+            return Result<TaskEscrowDto>.NotFound($"Task with id {dto.TaskId} not found");
+
+        var project = await _projectRepository.GetByIdAsync(task.projectId, ct);
+        if (project is null)
+            return Result<TaskEscrowDto>.NotFound($"Project with id {task.projectId} not found for task {task.id}");
+
+        // Setting a project's stake aside spends the project's own allowance, so it is the
+        // project owner's decision - and the owner is the identity release will later demand,
+        // so this check is what stops an escrow being opened that nobody may release.
+        if (!string.Equals(project.createdById, dto.FunderId, StringComparison.Ordinal))
+        {
+            return Result<TaskEscrowDto>.Forbidden(
+                "Only the person who created this project can set funds aside for its work.");
+        }
+
+        var agreement = await _agreementRepository.FindOneAsync(a => a.taskId == task.id, ct);
+        if (agreement is null)
+        {
+            return Result<TaskEscrowDto>.Conflict(
+                "This task has no accepted assignment, so there is no agreed figure to set aside.");
+        }
+
+        var allocation = await _allocationRepository.FindOneAsync(
+            a => a.taskCommerceAgreementId == agreement.id,
+            ct);
+        if (allocation is null || !allocation.IsNodeHeld)
+            return Result<TaskEscrowDto>.Conflict(NoLinkedHoldError);
+
+        var share = await _shareRepository.FindOneAsync(s => s.projectId == project.id, ct);
+        if (share is null)
+            return Result<TaskEscrowDto>.Conflict(NoShareOfRecordError);
+
         var escrow = new TaskEscrow
         {
             id = Guid.NewGuid().ToString(),
-            taskId = dto.TaskId,
-            funderId = dto.FunderId,
-            shareId = dto.ShareId,
-            amount = dto.Amount,
+            taskId = task.id,
+            // The owner of record, never the request field: they were proven equal above, and
+            // reading the project keeps the stored funder correct if that ever stops being true.
+            funderId = project.createdById,
+            shareId = share.id,
+            // The agreement is the award of record, so a board and an escrow can never quote
+            // different numbers.
+            amount = agreement.awardAmount,
             status = EscrowStatus.NONE,
             createdAt = DateTime.UtcNow
         };
@@ -132,6 +230,87 @@ public class TaskEscrowService : ITaskEscrowService
         await _unitOfWork.SaveChangesAsync(ct);
         return Result<TaskEscrowDto>.Success(_mapper.Map<TaskEscrowDto>(escrow));
     }
+
+    /// <summary>
+    /// The only entry to <see cref="EscrowStatus.FUNDED"/>: the funder confirms the stake is
+    /// actually set aside, and the escrow advances only because the shared node says the units
+    /// are held. It never opens a second hold - it addresses the SAME reservation the worker's
+    /// award was accepted under.
+    /// </summary>
+    public async Task<Result<TaskEscrowDto>> FundAsync(string id, string fundedByUserId, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(fundedByUserId))
+            return Result<TaskEscrowDto>.ValidationError("The funding actor is required.");
+
+        if (_holds is null)
+            return Result<TaskEscrowDto>.Failure(FundGatewayUnwiredError);
+
+        var escrow = await _repository.GetByIdAsync(id, ct);
+        if (escrow is null)
+            return Result<TaskEscrowDto>.NotFound($"TaskEscrow with id {id} not found");
+
+        // The funder of record is the only person who may confirm their own commitment.
+        if (!string.Equals(escrow.funderId, fundedByUserId, StringComparison.Ordinal))
+        {
+            return Result<TaskEscrowDto>.Forbidden(
+                "Only this escrow's funder can confirm that its funds are set aside.");
+        }
+
+        // Idempotent: a redelivered confirmation reports the escrow it already funded rather
+        // than refusing, so a retried request never looks like a second commitment.
+        if (escrow.status == EscrowStatus.FUNDED)
+            return Result<TaskEscrowDto>.Success(_mapper.Map<TaskEscrowDto>(escrow));
+
+        if (escrow.status != EscrowStatus.NONE)
+            return Result<TaskEscrowDto>.ValidationError($"Cannot fund escrow in status {escrow.status}");
+
+        var allocation = await ResolveAllocationAsync(escrow, ct);
+        if (allocation is null
+            || !allocation.IsNodeHeld
+            || string.IsNullOrWhiteSpace(allocation.holdChain))
+        {
+            return Result<TaskEscrowDto>.Conflict(NoLinkedHoldError);
+        }
+
+        var hold = await _holds.GetAsync(new AzoaHoldReference(allocation.holdChain!, allocation.holdId!), ct);
+        if (hold.IsFailure)
+            return PropagateFailure(hold);
+
+        // FUNDED is a statement about the node, not about this database. Only units the node
+        // reports as held back it; a claimed-but-undrawn row, or one already spent or given
+        // back, must not open a lifecycle whose every later step promises the money is there.
+        if (!string.Equals(hold.Value!.State, AzoaHoldStates.Held, StringComparison.OrdinalIgnoreCase))
+            return Result<TaskEscrowDto>.Conflict(DescribeUnfundableHold(hold.Value!.State));
+
+        var task = await GetTaskAsync(escrow, ct);
+        var now = DateTime.UtcNow;
+        escrow.status = EscrowStatus.FUNDED;
+        escrow.fundedAt = now;
+        await _repository.UpdateAsync(escrow, ct);
+
+        if (task is not null)
+        {
+            task.escrowStatus = EscrowStatus.FUNDED;
+            task.updatedAt = now;
+            await _taskRepository.UpdateAsync(task, ct);
+        }
+
+        await _unitOfWork.SaveChangesAsync(ct);
+        return Result<TaskEscrowDto>.Success(_mapper.Map<TaskEscrowDto>(escrow));
+    }
+
+    /// <summary>Says why a reservation the node is not holding cannot open the escrow lifecycle.</summary>
+    private static string DescribeUnfundableHold(string? state) => state switch
+    {
+        AzoaHoldStates.Pending =>
+            "The shared node has not committed these units yet, so there is nothing set aside to confirm.",
+        AzoaHoldStates.Released or AzoaHoldStates.ReleasedIntoHold =>
+            "These units have already been handed over, so they cannot be set aside again.",
+        AzoaHoldStates.Refunded =>
+            "These units were given back, so there is nothing set aside for this work.",
+        _ =>
+            "The shared node does not report these units as set aside, so this escrow cannot be funded.",
+    };
 
     /// <summary>
     /// The funder authorizes release: the SAME node hold their stake was reserved under is
@@ -351,4 +530,24 @@ public class TaskEscrowService : ITaskEscrowService
             _ => Result<TaskEscrowDto>.Failure(error),
         };
     }
+}
+
+/// <summary>
+/// The entry to the escrow lifecycle, exposed under its own interface so a caller depends on it
+/// explicitly - the <c>IProjectTokenProvisioning</c> precedent beside <c>ProjectTokenService</c>.
+/// <see cref="TaskEscrowService"/> implements both this and <c>ITaskEscrowService</c> on one
+/// scoped instance, so the container resolves a single object for both surfaces.
+/// </summary>
+public interface ITaskEscrowFunding
+{
+    /// <summary>
+    /// Confirms the stake behind one escrow is actually held on the shared node and moves the
+    /// escrow to <c>FUNDED</c>. <paramref name="fundedByUserId"/> is the caller's verified
+    /// identity and must be the escrow's own funder; nothing about the money comes from the
+    /// request.
+    /// </summary>
+    Task<Result<TaskEscrowDto>> FundAsync(
+        string id,
+        string fundedByUserId,
+        CancellationToken ct = default);
 }

@@ -18,16 +18,21 @@ import { describeEscrowActionError } from "~/lib/commerce/escrow-release";
 interface ReleaseDialogProps {
   escrowId: string;
   amount: number;
-  shareId: string;
+  /** Who is being paid, in the words the funder knows them by. Optional: an id is never shown. */
+  recipientName?: string;
   onConfirm: () => void;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
+/**
+ * The funder's last look before someone is paid. It states the amount, who it goes to and that
+ * it is final — never a record identifier, and never anything for the funder to transcribe.
+ */
 export function ReleaseDialog({
   escrowId,
   amount,
-  shareId,
+  recipientName,
   onConfirm,
   open,
   onOpenChange,
@@ -73,36 +78,37 @@ export function ReleaseDialog({
               className="text-neon-green h-5 w-5"
               aria-hidden="true"
             />
-            Authorize Escrow Release
+            Release this money
           </DialogTitle>
           <DialogDescription>
-            This authorizes release of the escrowed share units to the
-            contributor. Release evidence is the shared node&apos;s own
-            confirmed record, not anything you enter here. This action cannot
-            be undone.
+            {recipientName
+              ? `This hands the money set aside for this work to ${recipientName}.`
+              : "This hands the money set aside for this work to the person who did it."}{" "}
+            You are not asked to confirm anything about how it moves — the
+            platform records that itself. This cannot be undone.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-2">
           <div className="border-neon-green/20 bg-neon-green/5 border-2 p-4">
-            <p className="text-muted-foreground text-xs">
-              Amount to release (share units)
-            </p>
-            <p className="text-neon-green font-mono text-2xl font-bold">
+            <p className="text-muted-foreground text-xs">Amount to release</p>
+            <p className="text-neon-green text-2xl font-bold">
               {amountIsValid
-                ? `${amount.toLocaleString("en-US", {
+                ? amount.toLocaleString("en-US", {
                     minimumFractionDigits: 2,
                     maximumFractionDigits: 6,
-                  })} share units`
+                  })
                 : "Amount unavailable"}
-            </p>
-            <p className="text-muted-foreground mt-2 text-xs break-all">
-              Share reference: <span className="font-mono">{shareId}</span>
+              {amountIsValid && (
+                <span className="text-muted-foreground ml-2 text-xs font-normal">
+                  units of this project&apos;s stake
+                </span>
+              )}
             </p>
             {!amountIsValid && (
               <p className="text-destructive mt-2 text-xs" role="alert">
-                The escrow does not contain a valid positive amount. Release is
-                blocked.
+                This record does not hold a valid amount, so nothing can be
+                released.
               </p>
             )}
           </div>
@@ -149,7 +155,7 @@ export function ReleaseDialog({
             ) : (
               <ArrowDownCircle className="h-4 w-4" aria-hidden="true" />
             )}
-            Confirm Release
+            Confirm release
           </Button>
         </DialogFooter>
       </DialogContent>

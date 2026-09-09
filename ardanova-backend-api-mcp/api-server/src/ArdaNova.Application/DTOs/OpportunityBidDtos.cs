@@ -9,6 +9,13 @@ public record OpportunityBidDto
     public string BidderId { get; init; } = null!;
     public string? GuildId { get; init; }
     public decimal? ProposedAmount { get; init; }
+
+    /// <summary>
+    /// The guild's share of <see cref="ProposedAmount"/>, in whole units; the remainder is the
+    /// bidder's own. Null on every bid that is not a guild bid.
+    /// </summary>
+    public decimal? GuildAwardSplit { get; init; }
+
     public string Proposal { get; init; } = null!;
     public int? EstimatedHours { get; init; }
     public string? Timeline { get; init; }
@@ -42,6 +49,15 @@ public record CreateOpportunityBidDto
     public required string BidderId { get; init; }
     public string? GuildId { get; init; }
     public decimal? ProposedAmount { get; init; }
+
+    /// <summary>
+    /// How much of <see cref="ProposedAmount"/> the guild is owed, in whole units. Required on a
+    /// PAID guild bid: an award is set aside per beneficiary, so a bid that does not say how it
+    /// splits cannot be held for anyone. Refused unless it names a guild and leaves the bidder a
+    /// whole positive share of their own.
+    /// </summary>
+    public decimal? GuildAwardSplit { get; init; }
+
     public required string Proposal { get; init; }
     public int? EstimatedHours { get; init; }
     public string? Timeline { get; init; }
@@ -51,6 +67,13 @@ public record CreateOpportunityBidDto
 public record UpdateOpportunityBidDto
 {
     public decimal? ProposedAmount { get; init; }
+
+    /// <summary>
+    /// A revised guild share. Null leaves the bid's existing split alone; the revised bid is
+    /// re-checked against the same rule it was created under.
+    /// </summary>
+    public decimal? GuildAwardSplit { get; init; }
+
     public string? Proposal { get; init; }
     public int? EstimatedHours { get; init; }
     public string? Timeline { get; init; }

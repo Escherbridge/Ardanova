@@ -5,7 +5,6 @@ export const GATED_COMMERCE_TABLES = [
   "EconomicOutbox",
   "EconomicSettlement",
   "FundingIntent",
-  "StripeWebhookEvent",
   "TaskCommerceAgreement",
   "WalletVerificationChallenge",
 ] as const;
@@ -47,17 +46,11 @@ export type ProjectTokenConfigBackfillRow = {
   assetScale: number | null;
 };
 
-export type DuplicatePaymentIntent = {
-  paymentIntentId: string;
-  count: number;
-};
-
 export type PreflightObservation = {
   fingerprint: string;
   presentTables: readonly string[];
   columns: readonly CatalogColumn[];
   indexes: readonly CatalogIndex[];
-  duplicatePaymentIntents: readonly DuplicatePaymentIntent[];
   projectTokenConfigBackfills: readonly ProjectTokenConfigBackfillRow[] | null;
 };
 
@@ -194,9 +187,8 @@ const enumColumn = (
     defaultRequirement,
   );
 
-// These columns existed before gated commerce. A unique payment-intent index is additive.
+// These columns existed before gated commerce.
 export const REQUIRED_BASELINE_COLUMNS: readonly ColumnExpectation[] = [
-  prismaString("ProjectInvestment", "stripePaymentIntentId", ["YES"]),
   prismaString("ProjectTokenConfig", "assetId", ["YES"]),
 ];
 
@@ -234,20 +226,6 @@ export const REQUIRED_ADDITIVE_COLUMNS: readonly ColumnExpectation[] = [
   prismaString("ActorAssertionReplay", "subject", ["NO"]),
   prismaString("ActorAssertionReplay", "requestTarget", ["NO"]),
   prismaString("ActorAssertionReplay", "bodySha256", ["NO"]),
-
-  prismaString("StripeWebhookEvent", "id", ["NO"]),
-  prismaString("StripeWebhookEvent", "eventType", ["NO"]),
-  enumColumn(
-    "StripeWebhookEvent",
-    "status",
-    "StripeWebhookEventStatus",
-    enumDefault("PROCESSING"),
-  ),
-  integer("StripeWebhookEvent", "attemptCount", ["NO"], numericDefault("1")),
-  timestamp("StripeWebhookEvent", "receivedAt", ["NO"], nowDefault),
-  timestamp("StripeWebhookEvent", "processingLeaseExpiresAt", ["NO"]),
-  timestamp("StripeWebhookEvent", "completedAt", ["YES"]),
-  timestamp("StripeWebhookEvent", "lastFailedAt", ["YES"]),
 
   prismaString("EconomicSettlement", "id", ["NO"]),
   enumColumn(
@@ -390,11 +368,6 @@ export const REQUIRED_ADDITIVE_COLUMNS: readonly ColumnExpectation[] = [
 
 export const REQUIRED_ADDITIVE_INDEXES: readonly IndexExpectation[] = [
   {
-    tableName: "ProjectInvestment",
-    columns: ["stripePaymentIntentId"],
-    unique: true,
-  },
-  {
     tableName: "WalletVerificationChallenge",
     columns: ["walletId", "consumedAt"],
     unique: false,
@@ -407,11 +380,6 @@ export const REQUIRED_ADDITIVE_INDEXES: readonly IndexExpectation[] = [
   {
     tableName: "ActorAssertionReplay",
     columns: ["expiresAt", "jti"],
-    unique: false,
-  },
-  {
-    tableName: "StripeWebhookEvent",
-    columns: ["status", "processingLeaseExpiresAt"],
     unique: false,
   },
   {
@@ -571,11 +539,6 @@ export function evaluateCommerceMigrationPreflight(
         column.columnName === expected.columnName,
     ),
   );
-  const paymentIntentUnique = hasExactIndex(
-    observation.indexes,
-    REQUIRED_ADDITIVE_INDEXES[0],
-  );
-
   if (phase === "baseline") {
     if (targetTablesPresent.length > 0)
       blocked.push({
@@ -586,12 +549,6 @@ export function evaluateCommerceMigrationPreflight(
       blocked.push({
         code: "additive-columns-already-present",
         message: `Baseline phase requires gated-commerce columns to be absent; found ${additiveColumnsPresent.map((column) => `${column.tableName}.${column.columnName}`).join(", ")}.`,
-      });
-    if (paymentIntentUnique)
-      blocked.push({
-        code: "payment-intent-unique-index-already-present",
-        message:
-          "Baseline phase requires ProjectInvestment.stripePaymentIntentId to remain non-unique until the reviewed additive index migration.",
       });
   } else {
     const missingTables = GATED_COMMERCE_TABLES.filter(
@@ -610,22 +567,6 @@ export function evaluateCommerceMigrationPreflight(
           )
         : REQUIRED_ADDITIVE_INDEXES;
     validateIndexes(requiredIndexes, observation.indexes, blocked);
-  }
-
-  const paymentIntentColumnPresent = observation.columns.some(
-    (column) =>
-      column.tableName === "ProjectInvestment" &&
-      column.columnName === "stripePaymentIntentId",
-  );
-  if (
-    paymentIntentColumnPresent &&
-    observation.duplicatePaymentIntents.length > 0
-  ) {
-    blocked.push({
-      code: "duplicate-payment-intents",
-      message:
-        "Existing non-null Stripe payment-intent ids are duplicated; reconcile them before adding or relying on the unique constraint.",
-    });
   }
 
   const assetScale = observation.columns.find(
@@ -754,9 +695,4 @@ function matchesDefault(
   return requirement.tokens.some((token) =>
     normalized.includes(token.replace(/\s+/g, "").toLowerCase()),
   );
-}
-
-export function maskPaymentIntentId(value: string): string {
-  const suffix = value.slice(-6);
-  return `${value.slice(0, Math.min(3, value.length))}…${suffix}`;
 }

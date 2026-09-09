@@ -181,6 +181,83 @@ public static class ProjectQueryFilters
     }
 }
 
+/// <summary>
+/// The one definition of how a project may move through its lifecycle, and the one place that
+/// stamps its first publish date. Every entry point that carries a status — the edit route and the
+/// publish route alike — moves the project through <see cref="MoveTo"/>, so no route can reach a
+/// state the others refuse and no second publish can move the date the first one set.
+/// </summary>
+public static class ProjectLifecycle
+{
+    /// <summary>Statuses a sponsor sees as a live ask: DRAFT is still private and CANCELLED is withdrawn.</summary>
+    public static bool IsLive(ProjectStatus status)
+        => status is not ProjectStatus.DRAFT and not ProjectStatus.CANCELLED;
+
+    private static readonly IReadOnlyDictionary<ProjectStatus, ProjectStatus[]> AllowedDestinations =
+        new Dictionary<ProjectStatus, ProjectStatus[]>
+        {
+            // Leaving DRAFT is publishing, so a draft has exactly one live destination.
+            [ProjectStatus.DRAFT] = new[] { ProjectStatus.PUBLISHED, ProjectStatus.CANCELLED },
+            [ProjectStatus.PUBLISHED] = new[]
+            {
+                ProjectStatus.SEEKING_SUPPORT,
+                ProjectStatus.FUNDED,
+                ProjectStatus.IN_PROGRESS,
+                ProjectStatus.COMPLETED,
+                ProjectStatus.CANCELLED
+            },
+            [ProjectStatus.SEEKING_SUPPORT] = new[]
+            {
+                ProjectStatus.FUNDED,
+                ProjectStatus.IN_PROGRESS,
+                ProjectStatus.COMPLETED,
+                ProjectStatus.CANCELLED
+            },
+            [ProjectStatus.FUNDED] = new[]
+            {
+                ProjectStatus.IN_PROGRESS,
+                ProjectStatus.COMPLETED,
+                ProjectStatus.CANCELLED
+            },
+            [ProjectStatus.IN_PROGRESS] = new[] { ProjectStatus.COMPLETED, ProjectStatus.CANCELLED },
+            // Finished work stays finished, and a withdrawn ask comes back only as a private draft.
+            [ProjectStatus.COMPLETED] = Array.Empty<ProjectStatus>(),
+            [ProjectStatus.CANCELLED] = new[] { ProjectStatus.DRAFT }
+        };
+
+    /// <summary>Standing still is always legal, which is what makes a repeated publish idempotent.</summary>
+    public static bool CanMove(ProjectStatus from, ProjectStatus to)
+        => from == to
+            || (AllowedDestinations.TryGetValue(from, out var destinations) && destinations.Contains(to));
+
+    /// <summary>Names the refused move, so the caller learns which transition was rejected and not merely that one was.</summary>
+    public static string RefusalFor(ProjectStatus from, ProjectStatus to)
+    {
+        var refusal = $"A project cannot move from {from} to {to}.";
+        return from == ProjectStatus.CANCELLED
+            ? $"{refusal} Reopen it as a {ProjectStatus.DRAFT} first."
+            : refusal;
+    }
+
+    /// <summary>
+    /// Moves the project, or refuses by name and leaves it untouched. The publish date is stamped the
+    /// first time the project becomes live and is never re-stamped, so a second publish keeps the first date.
+    /// </summary>
+    /// <returns>The refusal reason, or <c>null</c> when the move was applied.</returns>
+    public static string? MoveTo(Project project, ProjectStatus requested)
+    {
+        if (!CanMove(project.status, requested))
+            return RefusalFor(project.status, requested);
+
+        project.status = requested;
+
+        if (IsLive(project.status))
+            project.publishedAt ??= DateTime.UtcNow;
+
+        return null;
+    }
+}
+
 public class ProjectService : IProjectService, IProjectVisibility
 {
     private readonly IProjectRepository _repository;
@@ -431,13 +508,18 @@ public class ProjectService : IProjectService, IProjectVisibility
         if (project is null)
             return Result<ProjectDto>.NotFound($"Project with id {id} not found");
 
+        // The lifecycle move — and the publish stamp it implies — is decided before any field is
+        // touched, so a refused transition leaves the tracked entity exactly as it was read.
+        var refusal = ProjectLifecycle.MoveTo(project, dto.Status ?? project.status);
+        if (refusal is not null)
+            return Result<ProjectDto>.ValidationError(refusal);
+
         if (dto.Title is not null) project.title = dto.Title;
         if (dto.Description is not null) project.description = dto.Description;
         if (dto.Summary is not null) project.summary = dto.Summary;
         if (dto.ProblemStatement is not null) project.problemStatement = dto.ProblemStatement;
         if (dto.Solution is not null) project.solution = dto.Solution;
         if (dto.Categories is not null) project.categories = string.Join(",", dto.Categories);
-        if (dto.Status.HasValue) project.status = dto.Status.Value;
         if (dto.Tags is not null) project.tags = dto.Tags;
         if (dto.TargetAudience is not null) project.targetAudience = dto.TargetAudience;
         if (dto.ExpectedImpact is not null) project.expectedImpact = dto.ExpectedImpact;
@@ -449,10 +531,6 @@ public class ProjectService : IProjectService, IProjectVisibility
         if (dto.Documents is not null) project.documents = dto.Documents;
         if (dto.MediaPaths is not null) project.mediaPaths = dto.MediaPaths;
         if (dto.FundingGoalUnit is not null) project.fundingGoalUnit = dto.FundingGoalUnit;
-
-        // A project that reaches a public status through an edit is published from that moment on.
-        if (project.status != ProjectStatus.DRAFT && project.publishedAt is null)
-            project.publishedAt = DateTime.UtcNow;
 
         project.updatedAt = DateTime.UtcNow;
 
@@ -479,17 +557,17 @@ public class ProjectService : IProjectService, IProjectVisibility
         if (project is null)
             return Result<ProjectDto>.NotFound($"Project with id {id} not found");
 
-        if (project.status == ProjectStatus.CANCELLED)
-            return Result<ProjectDto>.ValidationError("A cancelled project cannot be published; reopen it first.");
-
-        var alreadyPublic = project.status != ProjectStatus.DRAFT;
-        if (alreadyPublic && project.publishedAt.HasValue)
+        // Already live and dated: publishing again is a no-op that must not move the first date.
+        if (ProjectLifecycle.IsLive(project.status) && project.publishedAt.HasValue)
             return Result<ProjectDto>.Success(await WithCreatorAsync(project, ct));
 
-        if (!alreadyPublic)
-            project.status = ProjectStatus.PUBLISHED;
+        // A live but undated project is only missing its stamp; anything else is asked to become PUBLISHED,
+        // which is where a CANCELLED project is refused by the same predicate the edit route answers to.
+        var requested = ProjectLifecycle.IsLive(project.status) ? project.status : ProjectStatus.PUBLISHED;
+        var refusal = ProjectLifecycle.MoveTo(project, requested);
+        if (refusal is not null)
+            return Result<ProjectDto>.ValidationError(refusal);
 
-        project.publishedAt ??= DateTime.UtcNow;
         project.updatedAt = DateTime.UtcNow;
 
         await _repository.UpdateAsync(project, ct);

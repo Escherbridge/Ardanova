@@ -4,6 +4,7 @@ using System.Security.Claims;
 using ArdaNova.API.Middleware;
 using ArdaNova.Application.Common.Results;
 using ArdaNova.Application.DTOs;
+using ArdaNova.Application.Services.Implementations;
 using ArdaNova.Application.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -58,15 +59,48 @@ public class TaskEscrowsController : ControllerBase
         return ToActionResult(await _taskEscrowService.GetDisputedAsync(ct));
     }
 
+    /// <summary>
+    /// Opens the escrow record for one task. The request names the task and nothing else:
+    /// the funder is the caller's own verified identity, the amount is the accepted agreement's
+    /// award figure, and the share of record comes from the project. A caller-supplied funder or
+    /// amount is the shape this controller refuses everywhere else.
+    /// </summary>
     [HttpPost]
     [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
-    public IActionResult Create([FromBody] CreateTaskEscrowRequest dto)
+    public async Task<IActionResult> Create([FromBody] CreateTaskEscrowRequest dto, CancellationToken ct)
     {
-        _ = dto;
-        return StatusCode(StatusCodes.Status501NotImplemented, new
+        return ToActionResult(await _taskEscrowService.CreateAsync(new CreateTaskEscrowDto
         {
-            error = "Direct escrow creation is disabled until task, funding instrument, amount, and provider settlement are verified server-side."
-        });
+            TaskId = dto.TaskId,
+            FunderId = ActorId,
+            // Both are derived server-side by TaskEscrowService.CreateAsync and ignored here;
+            // the DTO requires them, so they travel as the empty values they mean.
+            ShareId = string.Empty,
+            Amount = 0m
+        }, ct));
+    }
+
+    /// <summary>
+    /// Confirms the funds behind this escrow are actually set aside, moving it to FUNDED. Takes
+    /// no body: the confirmation is the shared node's own record of the reservation, never a
+    /// figure or a reference a person types in.
+    /// </summary>
+    [HttpPost("{id}/fund")]
+    [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
+    public async Task<IActionResult> Fund(string id, CancellationToken ct)
+    {
+        if (!await ActorFundsEscrowAsync(id, ct))
+            return Forbid();
+
+        if (_taskEscrowService is not ITaskEscrowFunding funding)
+        {
+            return StatusCode(StatusCodes.Status501NotImplemented, new
+            {
+                error = "Confirming that funds are set aside is unavailable in this deployment."
+            });
+        }
+
+        return ToActionResult(await funding.FundAsync(id, ActorId, ct));
     }
 
     /// <summary>
@@ -160,14 +194,16 @@ public class TaskEscrowsController : ControllerBase
             ResultType.ValidationError => BadRequest(new { error = result.Error }),
             ResultType.Unauthorized => Unauthorized(new { error = result.Error }),
             ResultType.Forbidden => Forbid(),
+            ResultType.Conflict => Conflict(new { error = result.Error }),
             _ => BadRequest(new { error = result.Error })
         };
     }
 
-    public sealed record CreateTaskEscrowRequest(
-        string TaskId,
-        string ShareId,
-        decimal Amount);
+    /// <summary>
+    /// The task alone. Everything that decides value - the funder, the amount and the share of
+    /// record - is derived server-side, so there is no field here a caller could inflate.
+    /// </summary>
+    public sealed record CreateTaskEscrowRequest(string TaskId);
 
     /// <summary>Empty on purpose: release evidence is the hold's own confirmed state, not a form field.</summary>
     public sealed record ReleaseEscrowRequest;

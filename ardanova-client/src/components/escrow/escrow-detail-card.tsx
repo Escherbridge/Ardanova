@@ -2,13 +2,12 @@
 
 import {
   Calendar,
-  User,
-  Hash,
-  DollarSign,
+  CircleDollarSign,
   AlertTriangle,
   ArrowDownCircle,
   RotateCcw,
   Loader2,
+  ShieldCheck,
 } from "lucide-react";
 import {
   Card,
@@ -25,7 +24,6 @@ export interface EscrowData {
   id: string;
   taskId: string;
   funderId: string;
-  shareId?: string | null;
   amount: number;
   status: EscrowStatus;
   createdAt: Date | string;
@@ -37,6 +35,9 @@ export interface EscrowData {
 
 interface EscrowDetailCardProps {
   escrow: EscrowData;
+  /** The work this money is set aside for, in the words the person reading already knows it by. */
+  taskTitle?: string;
+  onFund?: () => void;
   onRelease?: () => void;
   onDispute?: () => void;
   onRefund?: () => void;
@@ -45,45 +46,50 @@ interface EscrowDetailCardProps {
   className?: string;
 }
 
-function InfoRow({
+/**
+ * What each state means to the person looking at it. Deliberately says what is true of the
+ * money, not what the row says: NONE is a record with nothing behind it yet, and saying so is
+ * the difference between an honest surface and a promise nobody kept.
+ */
+const STATUS_EXPLANATION: Record<EscrowStatus, string> = {
+  NONE: "Nothing is set aside yet. This record exists, but the money behind it has not been confirmed.",
+  FUNDED:
+    "This money is set aside for this work and cannot be spent on anything else until it is released or returned.",
+  RELEASED: "This money has been handed over to the person who did the work.",
+  DISPUTED:
+    "This money is frozen while the disagreement is reviewed. Nothing moves until it is resolved.",
+  REFUNDED: "This money went back to where it came from. Nothing is set aside now.",
+};
+
+function DetailRow({
   icon,
   label,
   value,
-  mono,
 }: {
-  icon: "amount" | "identifier" | "user" | "calendar";
+  icon: "amount" | "calendar" | "shield";
   label: string;
   value: React.ReactNode;
-  mono?: boolean;
 }) {
   return (
     <div className="flex items-start gap-3 py-2">
-      <InfoIcon name={icon} />
+      <DetailIcon name={icon} />
       <div className="min-w-0 flex-1">
         <p className="text-muted-foreground text-xs">{label}</p>
-        <p className={cn("truncate text-sm font-medium", mono && "font-mono")}>
-          {value}
-        </p>
+        <div className="text-sm font-medium">{value}</div>
       </div>
     </div>
   );
 }
 
-function InfoIcon({
-  name,
-}: {
-  name: "amount" | "identifier" | "user" | "calendar";
-}) {
+function DetailIcon({ name }: { name: "amount" | "calendar" | "shield" }) {
   const className = "text-muted-foreground mt-0.5 h-4 w-4 shrink-0";
   switch (name) {
     case "amount":
-      return <DollarSign className={className} aria-hidden="true" />;
-    case "identifier":
-      return <Hash className={className} aria-hidden="true" />;
-    case "user":
-      return <User className={className} aria-hidden="true" />;
+      return <CircleDollarSign className={className} aria-hidden="true" />;
     case "calendar":
       return <Calendar className={className} aria-hidden="true" />;
+    case "shield":
+      return <ShieldCheck className={className} aria-hidden="true" />;
   }
 }
 
@@ -98,8 +104,15 @@ function formatDate(date: Date | string | null | undefined): string {
   });
 }
 
+/**
+ * The funder's view of one task's escrow. It shows amounts, dates and what the state means —
+ * never the record identifiers behind them, which are addresses to a machine and noise to the
+ * person deciding whether to release someone's pay.
+ */
 export function EscrowDetailCard({
   escrow,
+  taskTitle,
+  onFund,
   onRelease,
   onDispute,
   onRefund,
@@ -107,6 +120,7 @@ export function EscrowDetailCard({
   isLoading = false,
   className,
 }: EscrowDetailCardProps) {
+  const canFund = isFunder && escrow.status === "NONE";
   const canRelease = isFunder && escrow.status === "FUNDED";
   const canDispute = isFunder && escrow.status === "FUNDED";
   const canRefund =
@@ -116,56 +130,74 @@ export function EscrowDetailCard({
     <Card className={cn("border-2 border-white/10", className)}>
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-base">Escrow Details</CardTitle>
-          <EscrowStatusBadge status={escrow.status} />
+          <CardTitle className="text-base">Money set aside</CardTitle>
+          {/*
+            The shared badge reads "NO ESCROW" for NONE, which is false once a record exists —
+            what is true is that the money behind it is not confirmed yet. Say that instead.
+          */}
+          {escrow.status === "NONE" ? (
+            <span className="text-muted-foreground border-border border px-2 py-0.5 text-xs font-medium tracking-wide uppercase">
+              Not confirmed yet
+            </span>
+          ) : (
+            <EscrowStatusBadge status={escrow.status} />
+          )}
         </div>
       </CardHeader>
 
       <CardContent className="space-y-1 divide-y divide-white/5">
-        <InfoRow
+        <DetailRow
           icon="amount"
-          label="Amount"
+          label={taskTitle ? `Set aside for “${taskTitle}”` : "Set aside"}
           value={
-            <span className="text-neon-green font-mono text-lg">
+            <span className="text-neon-green text-lg font-semibold">
               {escrow.amount.toLocaleString("en-US", {
                 minimumFractionDigits: 2,
                 maximumFractionDigits: 6,
-              })}
+              })}{" "}
+              <span className="text-muted-foreground text-xs font-normal">
+                units of this project&apos;s stake
+              </span>
             </span>
           }
         />
-        <InfoRow icon="identifier" label="Escrow ID" value={escrow.id} mono />
-        <InfoRow icon="identifier" label="Task ID" value={escrow.taskId} mono />
-        <InfoRow icon="user" label="Funder ID" value={escrow.funderId} mono />
-        {escrow.shareId && (
-          <InfoRow
-            icon="identifier"
-            label="Share ID"
-            value={escrow.shareId}
-            mono
-          />
-        )}
-        <InfoRow
+        <DetailRow
+          icon="shield"
+          label="What this means right now"
+          value={
+            <span className="text-muted-foreground font-normal">
+              {STATUS_EXPLANATION[escrow.status]}
+            </span>
+          }
+        />
+        <DetailRow
           icon="calendar"
-          label="Created"
+          label="Record opened"
           value={formatDate(escrow.createdAt)}
         />
-        {escrow.releasedAt && (
-          <InfoRow
+        {escrow.fundedAt && (
+          <DetailRow
             icon="calendar"
-            label="Released"
+            label="Money set aside"
+            value={formatDate(escrow.fundedAt)}
+          />
+        )}
+        {escrow.releasedAt && (
+          <DetailRow
+            icon="calendar"
+            label="Handed over"
             value={formatDate(escrow.releasedAt)}
           />
         )}
         {escrow.refundedAt && (
-          <InfoRow
+          <DetailRow
             icon="calendar"
-            label="Refunded"
+            label="Returned"
             value={formatDate(escrow.refundedAt)}
           />
         )}
         {escrow.disputedAt && (
-          <InfoRow
+          <DetailRow
             icon="calendar"
             label="Disputed"
             value={
@@ -177,13 +209,36 @@ export function EscrowDetailCard({
         )}
       </CardContent>
 
-      {(canRelease || canDispute || canRefund) && (
+      {(canFund || canRelease || canDispute || canRefund) && (
         <CardFooter className="flex flex-wrap gap-2 border-t border-white/10 pt-4">
+          {canFund && (
+            <p className="text-muted-foreground w-full text-xs">
+              Confirming checks that the money for this work really is set aside
+              before anyone is told it is.
+            </p>
+          )}
           {canRelease && (
             <p className="text-muted-foreground w-full text-xs">
-              Authorizing release moves the held units to the contributor on
-              the shared node. This action cannot be undone.
+              Releasing hands this money to the person who did the work. This
+              cannot be undone.
             </p>
+          )}
+          {canFund && onFund && (
+            <Button
+              type="button"
+              variant="neon"
+              size="sm"
+              onClick={onFund}
+              disabled={isLoading}
+              className="flex min-h-11 items-center gap-2"
+            >
+              {isLoading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <ShieldCheck className="h-4 w-4" />
+              )}
+              Confirm the money is set aside
+            </Button>
           )}
           {canRelease && onRelease && (
             <Button
@@ -199,7 +254,7 @@ export function EscrowDetailCard({
               ) : (
                 <ArrowDownCircle className="h-4 w-4" />
               )}
-              Authorize Release
+              Release to the worker
             </Button>
           )}
           {canDispute && onDispute && (
@@ -212,7 +267,7 @@ export function EscrowDetailCard({
               className="flex min-h-11 items-center gap-2"
             >
               <AlertTriangle className="h-4 w-4" />
-              Raise Dispute
+              Raise a dispute
             </Button>
           )}
           {canRefund && onRefund && (
@@ -225,7 +280,7 @@ export function EscrowDetailCard({
               className="flex min-h-11 items-center gap-2"
             >
               <RotateCcw className="h-4 w-4" />
-              Request Refund
+              Ask for it back
             </Button>
           )}
         </CardFooter>

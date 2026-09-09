@@ -11,6 +11,18 @@ import { taskEscrowDtoSchema } from "~/lib/contracts/task-escrow-contract";
 
 const taskEscrowListSchema = z.array(taskEscrowDtoSchema);
 
+/**
+ * The .NET API's refusals carry meaning the UI has to keep: 403 is "not your decision to make",
+ * 409 is "the money is not in a state that allows this". Flattening both to a generic failure is
+ * how a surface starts telling people something that is not true.
+ */
+function escrowErrorCode(status: number) {
+  if (status === 403) return "FORBIDDEN" as const;
+  if (status === 404) return "NOT_FOUND" as const;
+  if (status === 409) return "CONFLICT" as const;
+  return "BAD_REQUEST" as const;
+}
+
 function parseEscrow(data: unknown) {
   const parsed = taskEscrowDtoSchema.safeParse(data);
   if (!parsed.success) {
@@ -53,6 +65,42 @@ export const taskEscrowRouter = createTRPCRouter({
     }
     return parsed.data;
   }),
+
+  /**
+   * Opens the escrow record for one task. Only the task travels: the funder, the amount and the
+   * share of record are derived by the .NET API from the project and the accepted agreement.
+   */
+  create: protectedProcedure
+    .input(z.object({ taskId: z.string().min(1) }))
+    .mutation(async ({ input }) => {
+      const response = await apiClient.taskEscrows.create({
+        taskId: input.taskId,
+      });
+      if (response.error || !response.data) {
+        throw new TRPCError({
+          code: escrowErrorCode(response.status),
+          message: response.error ?? "Failed to open the escrow record",
+        });
+      }
+      return parseEscrow(response.data);
+    }),
+
+  /**
+   * The entry to FUNDED. The shared node decides: this only asks the API to confirm the
+   * reservation behind the escrow is actually held, and nothing about the money is sent.
+   */
+  fund: protectedProcedure
+    .input(z.object({ id: z.string().min(1) }))
+    .mutation(async ({ input }) => {
+      const response = await apiClient.taskEscrows.fund(input.id);
+      if (response.error || !response.data) {
+        throw new TRPCError({
+          code: escrowErrorCode(response.status),
+          message: response.error ?? "Failed to confirm the funds are set aside",
+        });
+      }
+      return parseEscrow(response.data);
+    }),
 
   release: protectedProcedure
     .input(z.object({ id: z.string() }))

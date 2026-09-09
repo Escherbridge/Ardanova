@@ -5,10 +5,8 @@ import {
   evaluateCommerceMigrationPreflight,
   fingerprintCatalog,
   GATED_COMMERCE_TABLES,
-  maskPaymentIntentId,
   type CatalogColumn,
   type CommerceMigrationPhase,
-  type DuplicatePaymentIntent,
   type ProjectTokenConfigBackfillRow,
 } from "../src/lib/commerce/migration-preflight";
 
@@ -29,7 +27,6 @@ type IndexRow = {
   is_ready: boolean;
   predicate: string | null;
 };
-type DuplicatePaymentIntentRow = { payment_intent_id: string; count: bigint };
 type TokenConfigRow = {
   id: string;
   project_id: string;
@@ -145,27 +142,11 @@ async function run(): Promise<void> {
       columnDefault: column.column_default,
     }));
     const presentTables = tables.map((table) => table.table_name);
-    const hasPaymentIntentColumn = normalizedColumns.some(
-      (column) =>
-        column.tableName === "ProjectInvestment" &&
-        column.columnName === "stripePaymentIntentId",
-    );
     const hasAssetScaleColumn = normalizedColumns.some(
       (column) =>
         column.tableName === "ProjectTokenConfig" &&
         column.columnName === "assetScale",
     );
-    const duplicatePaymentIntents = hasPaymentIntentColumn
-      ? await prisma.$queryRaw<DuplicatePaymentIntentRow[]>(Prisma.sql`
-          SELECT "stripePaymentIntentId" AS payment_intent_id, COUNT(*)::bigint AS count
-          FROM public."ProjectInvestment"
-          WHERE "stripePaymentIntentId" IS NOT NULL
-          GROUP BY "stripePaymentIntentId"
-          HAVING COUNT(*) > 1
-          ORDER BY "stripePaymentIntentId"
-          LIMIT 50
-        `)
-      : [];
     const tokenConfigBackfills = hasAssetScaleColumn
       ? await prisma.$queryRaw<TokenConfigRow[]>(Prisma.sql`
           SELECT id, "projectId" AS project_id, "assetId" AS asset_id, "assetScale" AS asset_scale
@@ -202,12 +183,6 @@ async function run(): Promise<void> {
         presentTables,
         columns: normalizedColumns,
         indexes: normalizedIndexes,
-        duplicatePaymentIntents: duplicatePaymentIntents.map(
-          (duplicate): DuplicatePaymentIntent => ({
-            paymentIntentId: duplicate.payment_intent_id,
-            count: Number(duplicate.count),
-          }),
-        ),
         projectTokenConfigBackfills: tokenConfigBackfills?.map(
           (config): ProjectTokenConfigBackfillRow => ({
             id: config.id,
@@ -222,11 +197,6 @@ async function run(): Promise<void> {
     console.log(`commerce migration preflight phase: ${phase}`);
     console.log(`inspected fingerprint: ${fingerprint}`);
     console.log(`expected fingerprint: ${expectedFingerprint}`);
-    for (const duplicate of duplicatePaymentIntents) {
-      console.log(
-        `duplicate Stripe payment-intent id ${maskPaymentIntentId(duplicate.payment_intent_id)}: ${duplicate.count.toString()} rows`,
-      );
-    }
     for (const config of tokenConfigBackfills ?? []) {
       console.log(
         `ProjectTokenConfig ${config.id} (project ${config.project_id}): assetScale=${config.asset_scale ?? "NULL"}, assetId=${config.asset_id ?? "NULL"}`,

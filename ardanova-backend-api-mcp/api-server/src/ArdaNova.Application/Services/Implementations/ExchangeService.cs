@@ -217,13 +217,27 @@ namespace ArdaNova.Application.Services.Implementations
     /// <para>
     /// The ARDA rate is BACKING-DERIVED, not pegged:
     /// <c>(indexFund + liquidReserve + operations) / ardaCirculatingSupply</c>. The only free
-    /// variable is the genesis seed.
+    /// variable is the genesis seed. It is refused unless it is POSITIVE, because every caller
+    /// divides by it and a genesis treasury divides out to zero.
+    /// </para>
+    /// <para>
+    /// A project unit has TWO prices, told apart by <see cref="DeclaredProjectUnitRate.Source"/>:
+    /// the price its own backers set, and - before anyone has backed it - the OPENING OFFER its
+    /// founder named. Without the second, the first sponsorship of any project is unpriceable.
     /// </para>
     /// </remarks>
     public class ExchangeService : IExchangeService, IProjectUnitRateSource
     {
-        /// <summary>What the node records as the origin of every rate ArdaNova declares.</summary>
+        /// <summary>What the node records for a price the project's own backers have set.</summary>
         public const string DeclaredRateSource = "ardanova:treasury-rate";
+
+        /// <summary>
+        /// What the node records when nobody has sponsored the project yet and it is priced at its
+        /// OPENING OFFER instead - the amount being raised over the whole supply. It rides the
+        /// funding intent's <c>declaredRateSource</c> and the hashed terms snapshot, so the receipt
+        /// says which of the two prices the sponsor was quoted rather than leaving it inferred.
+        /// </summary>
+        public const string OfferingRateSource = "ardanova:offering-price";
 
         private readonly IRepository<ProjectTokenConfig> _projectTokenConfigRepository;
         private readonly IRepository<PlatformTreasury> _treasuryRepository;
@@ -243,7 +257,7 @@ namespace ArdaNova.Application.Services.Implementations
         {
             var exact = await GetProjectUnitValueExactAsync(projectTokenConfigId, ct);
             return exact.IsSuccess
-                ? Result<double>.Success(Money.ToDisplayDouble(exact.Value))
+                ? Result<double>.Success(Money.ToDisplayDouble(exact.Value.UsdPerWholeUnit))
                 : Result<double>.Failure(exact.Error ?? "Project token valuation failed");
         }
 
@@ -274,14 +288,14 @@ namespace ArdaNova.Application.Services.Implementations
 
             // One hop: how much ARDA one whole project unit costs. The sponsor never sees a
             // token price in dollars; the dollar figure only rides along as the D16 reference.
-            var ardaPerUnit = unitValue.Value / ardaValue.Value;
+            var ardaPerUnit = unitValue.Value.UsdPerWholeUnit / ardaValue.Value;
 
             return Result<DeclaredProjectUnitRate>.Success(new DeclaredProjectUnitRate(
                 ProjectTokenConfigId: projectTokenConfigId,
                 ArdaPerWholeProjectUnit: Money.ToExactString(ardaPerUnit),
-                UsdMajorUnitsPerWholeProjectUnit: Money.ToExactString(unitValue.Value),
+                UsdMajorUnitsPerWholeProjectUnit: Money.ToExactString(unitValue.Value.UsdPerWholeUnit),
                 ProjectUnitDecimals: config.assetScale ?? 0,
-                Source: DeclaredRateSource,
+                Source: unitValue.Value.Source,
                 DeclaredAt: DateTimeOffset.UtcNow,
                 Version: null));
         }
@@ -312,7 +326,7 @@ namespace ArdaNova.Application.Services.Implementations
 
             // project units -> ARDA in ONE hop. The dollar figures below are derived from these
             // exact decimals for display; they are never an input.
-            var ardaPerUnit = unitValue.Value / ardaValue.Value;
+            var ardaPerUnit = unitValue.Value.UsdPerWholeUnit / ardaValue.Value;
             var ardaExact = tokenAmount * ardaPerUnit;
 
             if (!Money.TryToMinorUnitsFloor(ardaExact, out var ardaMinorUnits)
@@ -322,7 +336,7 @@ namespace ArdaNova.Application.Services.Implementations
                     "The converted amount is outside the range this platform can represent exactly.");
             }
 
-            var usdExact = tokenAmount * unitValue.Value;
+            var usdExact = tokenAmount * unitValue.Value.UsdPerWholeUnit;
 
             var preview = new ConversionPreviewDto
             {
@@ -330,13 +344,13 @@ namespace ArdaNova.Application.Services.Implementations
                 ArdaPerProjectUnit = ardaPerUnit,
                 ArdaAmountExact = ardaExact,
                 ArdaMinorUnits = ardaMinorUnits,
-                ProjectUnitValueUsdExact = unitValue.Value,
+                ProjectUnitValueUsdExact = unitValue.Value.UsdPerWholeUnit,
                 ArdaValueUsdExact = ardaValue.Value,
-                RateSource = DeclaredRateSource,
+                RateSource = unitValue.Value.Source,
                 RateDeclaredAt = DateTimeOffset.UtcNow,
 
                 // Pre-W5.3 display surface; Wave 8 removes these with PayoutService.
-                ProjectTokenValueUsd = Money.ToDisplayDouble(unitValue.Value),
+                ProjectTokenValueUsd = Money.ToDisplayDouble(unitValue.Value.UsdPerWholeUnit),
                 ArdaValueUsd = Money.ToDisplayDouble(ardaValue.Value),
                 UsdValue = Money.ToDisplayDouble(usdExact),
                 ArdaAmount = ardaWholeUnits,
@@ -363,24 +377,80 @@ namespace ArdaNova.Application.Services.Implementations
                 TreasuryPolicyView.WithoutChainBalance(dto, TreasuryPolicyView.NoChainReadOnThisRoute));
         }
 
-        /// <summary>Exact USD value of one whole project unit: funding raised over total supply.</summary>
-        private async Task<Result<decimal>> GetProjectUnitValueExactAsync(string projectTokenConfigId, CancellationToken ct)
+        /// <summary>One project-unit price and which of the two prices produced it.</summary>
+        /// <remarks>
+        /// The origin travels WITH the number instead of being re-derived downstream, because the
+        /// receipt has to be able to say which price the sponsor was quoted.
+        /// </remarks>
+        private readonly record struct ProjectUnitValuation(decimal UsdPerWholeUnit, string Source);
+
+        /// <summary>Exact USD value of one whole project unit, and which price produced it.</summary>
+        /// <remarks>
+        /// Two prices, one method. Once a project has taken sponsorship, its price is the one its
+        /// backers set: funding raised over total supply. BEFORE that, raised is 0, and a rate of
+        /// zero would make a sponsorship unbounded - so every downstream caller refuses it, which
+        /// is correct and which left the first sponsorship of any project unpriceable (OI-89b).
+        /// The OPENING OFFER the founder already named - the amount being raised over the whole
+        /// supply - prices that first one, on the same exact-decimal arithmetic, marked
+        /// <see cref="OfferingRateSource"/>. Both success paths are provably positive: total
+        /// supply is positive and the numerator is checked positive on the branch that uses it.
+        /// </remarks>
+        private async Task<Result<ProjectUnitValuation>> GetProjectUnitValueExactAsync(
+            string projectTokenConfigId,
+            CancellationToken ct)
         {
             var config = await _projectTokenConfigRepository.GetByIdAsync(projectTokenConfigId, ct);
             if (config == null)
             {
-                return Result<decimal>.Failure($"Project token configuration not found: {projectTokenConfigId}");
+                return Result<ProjectUnitValuation>.Failure(
+                    $"Project token configuration not found: {projectTokenConfigId}");
             }
 
-            if (config.totalSupply == 0)
+            if (config.totalSupply <= 0)
             {
-                return Result<decimal>.Failure("Cannot calculate token value: total supply is zero");
+                return Result<ProjectUnitValuation>.Failure(
+                    "Cannot calculate token value: total supply is zero or negative");
             }
 
-            return Result<decimal>.Success((decimal)config.fundingRaised / config.totalSupply);
+            if (!TryExactFromStoredAmount(config.fundingRaised, out var raised)
+                || !TryExactFromStoredAmount(config.fundingGoal, out var goal))
+            {
+                return Result<ProjectUnitValuation>.Failure(
+                    "This project's funding figures cannot be read as an exact amount, so no price can be quoted");
+            }
+
+            if (raised < 0)
+            {
+                // Not an unsponsored project - a broken figure. Falling through to the opening
+                // offer would price it anyway and hide that, so it is refused by name.
+                return Result<ProjectUnitValuation>.Failure(
+                    "This project's funding total is below zero, so no price can be quoted");
+            }
+
+            if (raised > 0)
+            {
+                return Result<ProjectUnitValuation>.Success(
+                    new ProjectUnitValuation(raised / config.totalSupply, DeclaredRateSource));
+            }
+
+            if (goal <= 0)
+            {
+                return Result<ProjectUnitValuation>.Failure(
+                    "This project has not set an amount to raise, so it has no opening price yet");
+            }
+
+            return Result<ProjectUnitValuation>.Success(
+                new ProjectUnitValuation(goal / config.totalSupply, OfferingRateSource));
         }
 
         /// <summary>Exact ARDA value: total backing over circulating supply. Backing-derived, never pegged.</summary>
+        /// <remarks>
+        /// The computed rate is refused unless it is POSITIVE. Every caller DIVIDES BY this number,
+        /// and a genesis treasury - three bucket balances still at 0 - divides out to zero, which
+        /// made an unhandled <c>DivideByZeroException</c> on a value path (OI-34). The guard lives
+        /// here, at the one place the rate is produced, rather than at each division site.
+        /// <c>SwapService</c> refuses the identical computation in the same words.
+        /// </remarks>
         private async Task<Result<decimal>> GetArdaValueExactAsync(CancellationToken ct)
         {
             var treasuries = await _treasuryRepository.GetAllAsync(ct);
@@ -396,11 +466,47 @@ namespace ArdaNova.Application.Services.Implementations
                 return Result<decimal>.Failure("Cannot calculate ARDA value: circulating supply is zero");
             }
 
-            var totalBacking = (decimal)treasury.indexFundBalance
-                + (decimal)treasury.liquidReserveBalance
-                + (decimal)treasury.operationsBalance;
+            if (!TryExactFromStoredAmount(treasury.indexFundBalance, out var indexFund)
+                || !TryExactFromStoredAmount(treasury.liquidReserveBalance, out var liquidReserve)
+                || !TryExactFromStoredAmount(treasury.operationsBalance, out var operations))
+            {
+                return Result<decimal>.Failure(
+                    "The treasury's backing figures cannot be read as an exact amount, so no rate can be quoted");
+            }
 
-            return Result<decimal>.Success(totalBacking / treasury.ardaCirculatingSupply);
+            var ardaValue = (indexFund + liquidReserve + operations) / treasury.ardaCirculatingSupply;
+
+            if (ardaValue <= 0)
+            {
+                return Result<decimal>.Failure("ARDA has no backing, so no rate can be quoted");
+            }
+
+            return Result<decimal>.Success(ardaValue);
+        }
+
+        /// <summary>Exact decimal from a stored double, refusing what the cast would throw on.</summary>
+        /// <remarks>
+        /// These are database doubles - the same figures Wave 5 nulls out of the treasury status as
+        /// too untrustworthy to SHOW, while they still price every rate declared here. A named
+        /// refusal is an honest answer; an <c>OverflowException</c> on a value path is a 500.
+        /// </remarks>
+        private static bool TryExactFromStoredAmount(double stored, out decimal exact)
+        {
+            exact = 0m;
+            if (!double.IsFinite(stored))
+            {
+                return false;
+            }
+
+            try
+            {
+                exact = (decimal)stored;
+                return true;
+            }
+            catch (OverflowException)
+            {
+                return false;
+            }
         }
     }
 }

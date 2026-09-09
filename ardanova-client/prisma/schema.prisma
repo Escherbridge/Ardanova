@@ -718,12 +718,6 @@ enum TaskCommerceAgreementStatus {
   FAILED
 }
 
-enum StripeWebhookEventStatus {
-  PROCESSING
-  COMPLETED
-  FAILED
-}
-
 model Account {
   id                String  @id @default(cuid())
   userId            String
@@ -2289,6 +2283,7 @@ model OpportunityBid {
   bidderId               String
   guildId                String?
   proposedAmount         Decimal?                @db.Decimal(18, 8)
+  guildAwardSplit        Decimal?                @db.Decimal(18, 8)
   proposal               String                  @db.Text
   estimatedHours         Int?
   timeline               String?                 @db.Text
@@ -2514,35 +2509,21 @@ model PlatformTreasuryTransaction {
 }
 
 model ProjectInvestment {
-  id                    String             @id @default(cuid())
-  projectTokenConfigId  String
-  userId                String
-  usdAmount             Float
-  tokenAmount           Int
-  stripePaymentIntentId String?            @unique
-  investedAt            DateTime           @default(now())
-  protectionEligible    Boolean            @default(true)
-  protectionPaidOut     Boolean            @default(false)
-  protectionAmount      Float?
-  protectionPaidAt      DateTime?
-  showBackerName        Boolean            @default(false)
-  projectTokenConfig    ProjectTokenConfig @relation("ProjectInvestment_projectTokenConfigId", fields: [projectTokenConfigId], references: [id])
-  user                  User               @relation("ProjectInvestment_userId", fields: [userId], references: [id])
+  id                   String             @id @default(cuid())
+  projectTokenConfigId String
+  userId               String
+  usdAmount            Float
+  tokenAmount          Int
+  investedAt           DateTime           @default(now())
+  protectionEligible   Boolean            @default(true)
+  protectionPaidOut    Boolean            @default(false)
+  protectionAmount     Float?
+  protectionPaidAt     DateTime?
+  showBackerName       Boolean            @default(false)
+  projectTokenConfig   ProjectTokenConfig @relation("ProjectInvestment_projectTokenConfigId", fields: [projectTokenConfigId], references: [id])
+  user                 User               @relation("ProjectInvestment_userId", fields: [userId], references: [id])
 
   @@index([projectTokenConfigId, userId])
-}
-
-model StripeWebhookEvent {
-  id                       String                   @id
-  eventType                String
-  status                   StripeWebhookEventStatus @default(PROCESSING)
-  attemptCount             Int                      @default(1)
-  receivedAt               DateTime                 @default(now())
-  processingLeaseExpiresAt DateTime
-  completedAt              DateTime?
-  lastFailedAt             DateTime?
-
-  @@index([status, processingLeaseExpiresAt])
 }
 
 model EconomicSettlement {

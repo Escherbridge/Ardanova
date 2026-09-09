@@ -36,7 +36,6 @@ public static class GeneratedModelConfigurations
         modelBuilder.Entity<KycDocument>().HasIndex(e => new { e.submissionId, e.type }).IsUnique();
         modelBuilder.Entity<TokenBalance>().HasIndex(e => new { e.userId, e.projectTokenConfigId, e.holderClass }).IsUnique();
         modelBuilder.Entity<ProjectInvestment>().HasIndex(e => new { e.projectTokenConfigId, e.userId });
-        modelBuilder.Entity<StripeWebhookEvent>().HasIndex(e => new { e.status, e.processingLeaseExpiresAt });
         modelBuilder.Entity<EconomicSettlement>().HasIndex(e => new { e.beneficiaryUserId, e.status });
         modelBuilder.Entity<EconomicSettlement>().HasIndex(e => new { e.projectId, e.status });
         modelBuilder.Entity<EconomicSettlement>().HasIndex(e => new { e.taskId, e.kind });

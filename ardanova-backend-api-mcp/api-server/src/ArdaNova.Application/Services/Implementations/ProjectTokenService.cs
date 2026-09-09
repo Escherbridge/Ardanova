@@ -773,8 +773,7 @@ public class ProjectTokenService : IProjectTokenService, IProjectTokenProvisioni
     public async Task<Result<TokenAllocationDto>> AllocateToInvestorAsync(
         string projectTokenConfigId,
         CreateInvestorAllocationDto dto,
-        CancellationToken ct = default,
-        string? stripePaymentIntentId = null)
+        CancellationToken ct = default)
     {
         var config = await _configRepo.GetByIdAsync(projectTokenConfigId, ct);
         if (config == null)
@@ -837,7 +836,6 @@ public class ProjectTokenService : IProjectTokenService, IProjectTokenProvisioni
             userId = dto.UserId,
             usdAmount = dto.UsdAmount,
             tokenAmount = dto.TokenAmount,
-            stripePaymentIntentId = stripePaymentIntentId,
             investedAt = DateTime.UtcNow,
             protectionEligible = true,
             protectionPaidOut = false
@@ -939,13 +937,14 @@ public class ProjectTokenService : IProjectTokenService, IProjectTokenProvisioni
             return Result<TokenAllocationDto>.NotFound(
                 $"Project token config {allocation.projectTokenConfigId} not found");
 
-        // Determine isLiquid based on holderClass + gateStatus
-        var isLiquid = TokenLiquidityPolicy.IsLiquid(allocation.holderClass, config.gateStatus);
-
-        // Update allocation
+        // The gate says whether this holder class may EVER move units and the worker's own window
+        // says whether they may move them YET. This path hands over a reservation the node holds
+        // nothing for, so it opens no window - but it asks the SAME rule every other seam asks,
+        // because three copies of one predicate is how they come to disagree.
         allocation.recipientUserId = recipientUserId;
         allocation.status = AllocationStatus.DISTRIBUTED;
-        allocation.isLiquid = isLiquid;
+        allocation.isLiquid = UnitWindow.IsAwardLiquid(
+            allocation, config.gateStatus, DateTimeOffset.UtcNow);
         allocation.distributedAt = DateTime.UtcNow;
         allocation.updatedAt = DateTime.UtcNow;
         await _allocationRepo.UpdateAsync(allocation, ct);
@@ -1235,15 +1234,16 @@ public class ProjectTokenService : IProjectTokenService, IProjectTokenProvisioni
 
         var now = DateTime.UtcNow;
         allocation.status = AllocationStatus.DISTRIBUTED;
-        // Restricted until the window elapses, whatever the gate says. The gate decides whether
-        // this holder class may ever be liquid; the window decides whether it is liquid YET,
-        // and the award is only liquid when both agree.
-        allocation.isLiquid = releasesAt <= DateTimeOffset.UtcNow
-            && TokenLiquidityPolicy.IsLiquid(allocation.holderClass, config.gateStatus);
         allocation.holdState = parent.State;
         allocation.workerHoldId = childHoldId;
         allocation.workerHoldState = childState;
         allocation.workerHoldReleasesAt = releasesAt.UtcDateTime;
+        // Restricted until the window elapses, whatever the gate says. Stamped AFTER the window
+        // columns above, because it is computed FROM them by the one rule every other seam reads;
+        // this column is a record of the answer at approval, never the authority - the window ends
+        // on a date nothing revisits, so the seams re-read the award rather than trusting it.
+        allocation.isLiquid = UnitWindow.IsAwardLiquid(
+            allocation, config.gateStatus, DateTimeOffset.UtcNow);
         allocation.holdSyncedAt = now;
         allocation.distributedAt = now;
         allocation.updatedAt = now;

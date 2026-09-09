@@ -11,6 +11,7 @@ using ArdaNova.Application.DTOs;
 using ArdaNova.Application.Services.Interfaces;
 using ArdaNova.Domain.Models.Entities;
 using ArdaNova.Domain.Models.Enums;
+using ArdaNova.Domain.Policies;
 using ArdaNova.Domain.ValueObjects;
 using AutoMapper;
 
@@ -519,6 +520,11 @@ namespace ArdaNova.Application.Services.Implementations
         }
 
         /// <summary>Every sale an operator still has to account for: waiting, or parked mid-flight.</summary>
+        /// <remarks>
+        /// Parked rows are included because they are the ones a person is waiting on. They are also
+        /// chased automatically - see <c>ParkedPayoutReconcilerService</c> - so this list is what an
+        /// operator looks at, not the only thing that ever settles a row.
+        /// </remarks>
         public async Task<Result<IReadOnlyList<PayoutRequestDto>>> GetPendingPayoutsAsync(
             CancellationToken ct = default)
         {
@@ -830,8 +836,10 @@ namespace ArdaNova.Application.Services.Implementations
             ResultType.ValidationError or ResultType.BadRequest =>
                 "This sale was not accepted, so your units are back where they were. "
                 + "You can try again later.",
-            // No promise that this finishes by itself: nothing on a timer chases a parked sale.
-            // It lands on the operator's outstanding-sales list, and that is what the words say.
+            // The words promise only what is true either way: the sale is visible and it will be
+            // finished. A parked row is chased on a timer by ParkedPayoutReconcilerService where
+            // that loop is registered, and settled by an operator's read of the same receipt where
+            // it is not - so the sentence does not have to know which.
             ResultType.Conflict =>
                 "We could not confirm this sale just now, so your units stay set aside for it. "
                 + "Support can see it and will finish it.",
@@ -936,7 +944,7 @@ namespace ArdaNova.Application.Services.Implementations
             DeclaredProjectUnitRate Rate,
             PricedSale Priced,
             long SellableUnitCount,
-            UnitRestriction Restriction,
+            UnitWindowRestriction Restriction,
             Guid AvatarId);
 
         /// <summary>
@@ -981,15 +989,21 @@ namespace ArdaNova.Application.Services.Implementations
             if (blocked is not null)
                 return Result<SaleAssessment>.Forbidden(blocked);
 
+            // Held units are the worker's own restricted window. They are part of the balance and
+            // must not be sellable, so the ceiling is what is free AFTER the hold, never the number
+            // the balance row happens to show. The window is read BEFORE the liquidity gate so that
+            // a holding the gate would allow but the window still holds is refused with its DATE
+            // rather than with a sentence about the project.
+            var restriction = await ReadRestrictionAsync(userId, projectTokenConfigId, ct);
+
             var liquidity = await _tokenBalanceService.IsBalanceLiquidAsync(
                 userId, projectTokenConfigId, holderClass, ct);
             if (!liquidity.IsSuccess || !liquidity.Value)
-                return Result<SaleAssessment>.Forbidden(DescribeIlliquidity(config.gateStatus, holderClass));
+            {
+                return Result<SaleAssessment>.Forbidden(
+                    DescribeIlliquidity(config.gateStatus, holderClass, restriction));
+            }
 
-            // Held units are the worker's own restricted window. They are part of the balance and
-            // must not be sellable, so the ceiling is what is free AFTER the hold, never the number
-            // the balance row happens to show.
-            var restriction = await ReadRestrictionAsync(userId, projectTokenConfigId, ct);
             var available = await ReadSellableUnitCountAsync(
                 userId, projectTokenConfigId, holderClass, restriction, ct);
             if (!available.IsSuccess)
@@ -1119,59 +1133,29 @@ namespace ArdaNova.Application.Services.Implementations
 
         // -- Sellability, in plain words -------------------------------------------
 
-        /// <summary>Units this person holds that the node still holds for them, and until when.</summary>
-        private sealed record UnitRestriction(long RestrictedUnits, DateTimeOffset? RestrictedUntil);
-
         /// <summary>Reads the worker's own restricted window off the awards behind a holding.</summary>
         /// <remarks>
-        /// Mirrors the single predicate every payout path reads: an award is restricted while it is
-        /// held and its window has not ended, and an award with NO window is restricted rather than
-        /// free - a promise nobody can date is one nobody may sell.
+        /// The rule itself lives in <see cref="UnitWindow"/> so the sale seam, the swap seam, the
+        /// gate transitions and the holdings read all decide a window the same way. Duplicating it
+        /// here is how one of them comes to disagree with the date a person was given.
         /// </remarks>
-        private async Task<UnitRestriction> ReadRestrictionAsync(
+        private async Task<UnitWindowRestriction> ReadRestrictionAsync(
             string userId, string projectTokenConfigId, CancellationToken ct)
-        {
-            if (_allocationRepository is null)
-                return new UnitRestriction(0, null);
-
-            var awards = await _allocationRepository.FindAsync(
-                award => award.recipientUserId == userId
-                    && award.projectTokenConfigId == projectTokenConfigId
-                    && award.workerHoldId != null,
-                ct);
-
-            var now = _timeProvider.GetUtcNow();
-            var restrictedUnits = 0L;
-            DateTimeOffset? until = null;
-
-            foreach (var award in awards)
-            {
-                var releasesAt = award.workerHoldReleasesAt;
-                if (releasesAt is not null && AsUtc(releasesAt.Value) <= now)
-                    continue;
-
-                restrictedUnits += award.tokenAmount;
-                if (releasesAt is null)
-                    continue;
-
-                var moment = AsUtc(releasesAt.Value);
-                if (until is null || moment > until)
-                    until = moment;
-            }
-
-            return new UnitRestriction(restrictedUnits, until);
-        }
-
-        /// <summary>Reads a stored timestamp as the UTC instant it always was.</summary>
-        private static DateTimeOffset AsUtc(DateTime value)
-            => new(DateTime.SpecifyKind(value, DateTimeKind.Utc));
+            => _allocationRepository is null
+                ? UnitWindowRestriction.Free
+                : await UnitWindow.ReadAsync(
+                    _allocationRepository,
+                    userId,
+                    projectTokenConfigId,
+                    _timeProvider.GetUtcNow(),
+                    ct);
 
         /// <summary>Units free to sell: held, minus what is committed, minus what is restricted.</summary>
         private async Task<Result<long>> ReadSellableUnitCountAsync(
             string userId,
             string projectTokenConfigId,
             TokenHolderClass holderClass,
-            UnitRestriction restriction,
+            UnitWindowRestriction restriction,
             CancellationToken ct)
         {
             var balance = await _tokenBalanceService.GetBalanceAsync(
@@ -1215,8 +1199,25 @@ namespace ArdaNova.Application.Services.Implementations
                 : ProjectTokenService.ContributorPartitionName;
 
         /// <summary>Why a holding is not liquid yet, in the holder's own terms.</summary>
-        private static string DescribeIlliquidity(ProjectGateStatus gateStatus, TokenHolderClass holderClass)
-            => (holderClass, gateStatus) switch
+        /// <remarks>
+        /// The worker's own window wins over the project's gate when it is the thing holding the
+        /// units, because it is the fact the person was already told: "yours, held until 14 March"
+        /// is an answer they can act on, and "these units cannot be sold at the moment" is not.
+        /// </remarks>
+        private static string DescribeIlliquidity(
+            ProjectGateStatus gateStatus,
+            TokenHolderClass holderClass,
+            UnitWindowRestriction restriction)
+        {
+            if (restriction.RestrictedUnits > 0
+                && TokenLiquidityPolicy.IsLiquid(holderClass, gateStatus))
+            {
+                return restriction.RestrictedUntil is { } until
+                    ? $"These units are yours, held until {until.UtcDateTime:d MMMM yyyy}."
+                    : "These units are yours, but they are still held.";
+            }
+
+            return (holderClass, gateStatus) switch
             {
                 (TokenHolderClass.CONTRIBUTOR, ProjectGateStatus.FUNDING) =>
                     "This project has not reached its funding goal yet, so its units cannot be sold.",
@@ -1228,9 +1229,10 @@ namespace ArdaNova.Application.Services.Implementations
                     "Founder units were written off when this project ended.",
                 _ => "These units cannot be sold at the moment.",
             };
+        }
 
         /// <summary>Why the requested amount is more than this person can sell.</summary>
-        private static string DescribeShortfall(long available, UnitRestriction restriction)
+        private static string DescribeShortfall(long available, UnitWindowRestriction restriction)
         {
             if (restriction.RestrictedUnits > 0 && restriction.RestrictedUntil is { } until)
             {
@@ -1254,13 +1256,13 @@ namespace ArdaNova.Application.Services.Implementations
             ProjectGateStatus gateStatus,
             TokenHolderClass holderClass,
             long free,
-            UnitRestriction restriction)
+            UnitWindowRestriction restriction)
         {
             if (blocked is not null)
                 return blocked;
 
             if (!liquid)
-                return DescribeIlliquidity(gateStatus, holderClass);
+                return DescribeIlliquidity(gateStatus, holderClass, restriction);
 
             if (free > 0 && restriction.RestrictedUnits > 0 && restriction.RestrictedUntil is { } until)
             {

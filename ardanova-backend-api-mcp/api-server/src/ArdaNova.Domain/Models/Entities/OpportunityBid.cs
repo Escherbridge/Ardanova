@@ -26,6 +26,10 @@ public class OpportunityBid
     [Precision(18, 8)]
     public decimal? proposedAmount { get; set; }
 
+    /// <summary>The part of <c>proposedAmount</c> owed to the guild; the rest is the bidder's.</summary>
+    [Precision(18, 8)]
+    public decimal? guildAwardSplit { get; set; }
+
     [Required]
     [Column(TypeName = "text")]
     public string proposal { get; set; } = string.Empty;

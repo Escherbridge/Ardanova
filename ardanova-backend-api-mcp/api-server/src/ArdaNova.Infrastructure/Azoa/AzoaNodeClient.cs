@@ -59,6 +59,15 @@ public sealed class AzoaNodeClient : IAzoaNodeClient
             ct);
     }
 
+    /// <summary>Posts to a value route; <see cref="AzoaNodeRoutePolicy.IsValueRoutePath"/> decides which.</summary>
+    /// <remarks>
+    /// The allowed set is the fungible-mint door and the reserve-partition declaration door.
+    /// Both stand on the same authority - the value key's <c>token:create:sign</c> creates a
+    /// project's stake and then carves the named budgets that stake is issued out of - so a
+    /// caller that can create a stake can declare its allowances and nothing else. The
+    /// interface's own summary still says "fungible-mint" alone; the predicate below is what
+    /// actually refuses, and it is the one to read.
+    /// </remarks>
     public Task<Result<T>> PostAsync<T>(string path, object? body, CancellationToken ct = default)
     {
         var msg = new HttpRequestMessage(HttpMethod.Post, path)
@@ -67,7 +76,7 @@ public sealed class AzoaNodeClient : IAzoaNodeClient
         };
         return SendValueAsync<T>(
             msg,
-            AzoaNodePathPolicy.IsFungibleMintPath(msg.RequestUri?.OriginalString),
+            AzoaNodeRoutePolicy.IsValueRoutePath(msg.RequestUri?.OriginalString),
             ct);
     }
 
@@ -80,7 +89,8 @@ public sealed class AzoaNodeClient : IAzoaNodeClient
         {
             msg.Dispose();
             return Task.FromResult(Result<T>.Forbidden(
-                "The AZOA value credential is restricted to allocation and fungible-mint endpoints."));
+                "The AZOA value credential is restricted to allocation, fungible-mint and "
+                + "reserve-partition endpoints."));
         }
 
         return SendAsync<T>(_http, _logger, msg, ct);
@@ -175,5 +185,106 @@ public sealed class AzoaNodeClient : IAzoaNodeClient
             HttpStatusCode.BadRequest => Result<T>.BadRequest("AZOA node rejected the request."),
             _ => Result<T>.Failure("AZOA node request failed."),
         };
+    }
+}
+
+/// <summary>
+/// The route families L2 opened on the AZOA node, and the shape each one accepts.
+/// </summary>
+/// <remarks>
+/// <para>This is the second half of <c>AzoaNodePathPolicy</c> (declared beside
+/// <see cref="AzoaCustodialNodeClient"/>, which owns the custody, allocation, fungible-mint and
+/// quest families). It is a separate type only because a static class cannot be reopened; the
+/// two are ONE policy, and every predicate here starts from
+/// <see cref="AzoaNodePathPolicy.IsSafeApiPath"/> - so absolute destinations, query and fragment
+/// suffixes, dot segments and encoded delimiters are refused before any shape rule below is
+/// asked.</para>
+/// <para><b>A predicate is not a gate.</b> Nothing here refuses anything by itself: each typed
+/// client passes the predicate for ITS OWN route family to its send method, and that is where a
+/// request is actually stopped. The client, the credential it carries, and the family it may
+/// reach: <see cref="AzoaNodeClient.PostAsync{T}"/> (value key) -> <see cref="IsValueRoutePath"/>;
+/// <see cref="AzoaProjectTokenNodeGateway"/> (custody key) -> <see cref="IsTreasuryResolvePath"/>;
+/// <see cref="AzoaCredentialIssuanceClient"/> (issuance key) -> <see cref="IsCredentialIssuePath"/>;
+/// the tenant-consent revoke gateway (custody key) -> <see cref="IsProvisionedConsentPath"/>.</para>
+/// </remarks>
+internal static class AzoaNodeRoutePolicy
+{
+    /// <summary>Tenant-scoped project treasury resolve; needs <c>tenant:provision</c>.</summary>
+    private const string TreasuryResolvePath = "/api/projects/treasury/resolve";
+
+    /// <summary>Implied-provisioning consent revoke; needs <c>tenant:provision</c>.</summary>
+    private const string ProvisionedConsentPath = "/api/tenant/consent/provisioned";
+
+    private const string ReservePrefix = "/api/reserve/";
+    private const string PartitionsSuffix = "/partitions";
+    private const string CredentialIssuePrefix = "/api/credential/issue/";
+
+    /// <summary>Longest addressable id this policy will carry in a path segment.</summary>
+    private const int MaximumSegmentLength = 128;
+
+    /// <summary>
+    /// Everything the VALUE credential may post: create a stake, then declare the named
+    /// budgets that stake is issued out of. Nothing else.
+    /// </summary>
+    public static bool IsValueRoutePath(string? path)
+        => AzoaNodePathPolicy.IsFungibleMintPath(path) || IsReservePartitionsPath(path);
+
+    /// <summary>Exactly <c>POST /api/projects/treasury/resolve</c>.</summary>
+    public static bool IsTreasuryResolvePath(string? path)
+        => AzoaNodePathPolicy.IsSafeApiPath(path)
+            && string.Equals(path, TreasuryResolvePath, StringComparison.Ordinal);
+
+    /// <summary>Exactly <c>POST /api/reserve/{assetId}/partitions</c>, for one addressable asset.</summary>
+    public static bool IsReservePartitionsPath(string? path)
+    {
+        // The length rule is not decoration: "/api/reserve/partitions" satisfies both the prefix
+        // and the suffix while leaving no asset id between them, and slicing it would throw
+        // rather than refuse.
+        if (!AzoaNodePathPolicy.IsSafeApiPath(path)
+            || path!.Length <= ReservePrefix.Length + PartitionsSuffix.Length
+            || !path.StartsWith(ReservePrefix, StringComparison.Ordinal)
+            || !path.EndsWith(PartitionsSuffix, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        var assetId = path[ReservePrefix.Length..^PartitionsSuffix.Length];
+        return IsAddressableSegment(assetId);
+    }
+
+    /// <summary>Exactly <c>POST /api/credential/issue/{recipientAvatarId}</c>, recipient-keyed.</summary>
+    public static bool IsCredentialIssuePath(string? path)
+        => AzoaNodePathPolicy.IsSafeApiPath(path)
+            && path!.StartsWith(CredentialIssuePrefix, StringComparison.Ordinal)
+            && Guid.TryParseExact(path[CredentialIssuePrefix.Length..], "D", out _);
+
+    /// <summary>
+    /// Exactly <c>DELETE /api/tenant/consent/provisioned</c>. The node addresses the grant by an
+    /// <c>externalUserId</c> QUERY parameter, and <see cref="AzoaNodePathPolicy.IsSafeApiPath"/>
+    /// refuses a '?' outright - so a caller asks this of the BARE path and appends its own
+    /// already-escaped query to the request afterwards, exactly as
+    /// <c>AzoaCashOutClient.ListAsync</c> does with its limit.
+    /// </summary>
+    public static bool IsProvisionedConsentPath(string? path)
+        => AzoaNodePathPolicy.IsSafeApiPath(path)
+            && string.Equals(path, ProvisionedConsentPath, StringComparison.Ordinal);
+
+    /// <summary>
+    /// One path segment that names a thing: letters, digits, '-' and '_' and nothing else. A dot
+    /// is excluded outright rather than left to the dot-segment rule, so no spelling of a
+    /// relative segment reaches the shape checks above.
+    /// </summary>
+    private static bool IsAddressableSegment(string? segment)
+    {
+        if (string.IsNullOrEmpty(segment) || segment.Length > MaximumSegmentLength)
+            return false;
+
+        foreach (var character in segment)
+        {
+            if (!char.IsAsciiLetterOrDigit(character) && character is not ('-' or '_'))
+                return false;
+        }
+
+        return true;
     }
 }

@@ -7,6 +7,7 @@ using ArdaNova.API.Controllers;
 using ArdaNova.API.Middleware;
 using ArdaNova.Application.Common.Results;
 using ArdaNova.Application.DTOs;
+using ArdaNova.Application.Services.Implementations;
 using ArdaNova.Application.Services.Interfaces;
 using ArdaNova.Domain.Models.Enums;
 using Microsoft.AspNetCore.Authorization;
@@ -228,22 +229,66 @@ public class CommerceActorBoundaryTests
             .Should().BeEquivalentTo(["Reason"]);
     }
 
+    /// <summary>
+    /// Escrow creation is live now, so the boundary this test guards moved: the request names the
+    /// TASK and nothing else, the funder is the verified actor claim, and the amount and share of
+    /// record are derived by the service - there is no body field a caller could inflate.
+    /// </summary>
     [Fact]
-    public void TaskEscrowCreate_FailsClosedBeforeInvokingTheService()
+    public async Task TaskEscrowCreate_UsesActorAndCarriesNoCallerSuppliedValue()
     {
-        var escrows = new Mock<ITaskEscrowService>(MockBehavior.Strict);
+        var escrows = new Mock<ITaskEscrowService>();
+        escrows.Setup(service => service.CreateAsync(
+                It.Is<CreateTaskEscrowDto>(dto =>
+                    dto.TaskId == "task-1" &&
+                    dto.FunderId == "actor-1" &&
+                    dto.ShareId == "" &&
+                    dto.Amount == 0m),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<TaskEscrowDto>.Success(new TaskEscrowDto
+            {
+                Id = "escrow-1",
+                TaskId = "task-1",
+                FunderId = "actor-1",
+                Status = EscrowStatus.NONE
+            }));
         var controller = WithActor(new TaskEscrowsController(escrows.Object), "actor-1");
 
-        var result = controller.Create(new TaskEscrowsController.CreateTaskEscrowRequest(
-            "task-1",
-            "share-1",
-            100));
+        var result = await controller.Create(
+            new TaskEscrowsController.CreateTaskEscrowRequest("task-1"),
+            CancellationToken.None);
 
-        var response = result.Should().BeOfType<ObjectResult>().Subject;
-        response.StatusCode.Should().Be(StatusCodes.Status501NotImplemented);
-        escrows.Verify(service => service.CreateAsync(
-            It.IsAny<CreateTaskEscrowDto>(),
-            It.IsAny<CancellationToken>()), Times.Never);
+        result.Should().BeOfType<OkObjectResult>();
+        escrows.VerifyAll();
+        typeof(TaskEscrowsController.CreateTaskEscrowRequest).GetProperties()
+            .Select(property => property.Name)
+            .Should().BeEquivalentTo(["TaskId"]);
+    }
+
+    /// <summary>
+    /// The entry to FUNDED. It takes no body at all: the confirmation is the shared node's own
+    /// record of the reservation, and the acting identity is the verified claim.
+    /// </summary>
+    [Fact]
+    public async Task TaskEscrowFund_UsesActorAndSuppliesNoCallerEvidence()
+    {
+        var escrows = new Mock<ITaskEscrowService>();
+        escrows.Setup(service => service.GetByIdAsync("escrow-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<TaskEscrowDto>.Success(new TaskEscrowDto { Id = "escrow-1", FunderId = "actor-1" }));
+        escrows.As<ITaskEscrowFunding>()
+            .Setup(funding => funding.FundAsync("escrow-1", "actor-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<TaskEscrowDto>.Success(new TaskEscrowDto
+            {
+                Id = "escrow-1",
+                FunderId = "actor-1",
+                Status = EscrowStatus.FUNDED
+            }));
+        var controller = WithActor(new TaskEscrowsController(escrows.Object), "actor-1");
+
+        var result = await controller.Fund("escrow-1", CancellationToken.None);
+
+        result.Should().BeOfType<OkObjectResult>();
+        escrows.VerifyAll();
     }
 
     [Fact]
@@ -295,7 +340,7 @@ public class CommerceActorBoundaryTests
             "actor-1");
 
         var result = await controller.Create(
-            new OpportunityBidsController.CreateOpportunityBidRequest("opportunity-1", null, null, "I can help", null, null, null),
+            new OpportunityBidsController.CreateOpportunityBidRequest("opportunity-1", null, null, null, "I can help", null, null, null),
             CancellationToken.None);
 
         result.Should().BeOfType<CreatedAtActionResult>();

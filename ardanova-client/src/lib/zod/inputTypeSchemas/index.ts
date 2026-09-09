@@ -93,7 +93,6 @@ export { PayoutRequestScalarFieldEnumSchema } from './PayoutRequestScalarFieldEn
 export { PlatformTreasuryScalarFieldEnumSchema } from './PlatformTreasuryScalarFieldEnumSchema';
 export { PlatformTreasuryTransactionScalarFieldEnumSchema } from './PlatformTreasuryTransactionScalarFieldEnumSchema';
 export { ProjectInvestmentScalarFieldEnumSchema } from './ProjectInvestmentScalarFieldEnumSchema';
-export { StripeWebhookEventScalarFieldEnumSchema } from './StripeWebhookEventScalarFieldEnumSchema';
 export { EconomicSettlementScalarFieldEnumSchema } from './EconomicSettlementScalarFieldEnumSchema';
 export { EconomicOutboxScalarFieldEnumSchema } from './EconomicOutboxScalarFieldEnumSchema';
 export { FundingIntentScalarFieldEnumSchema } from './FundingIntentScalarFieldEnumSchema';
@@ -182,7 +181,6 @@ export { EconomicSettlementStatusSchema } from './EconomicSettlementStatusSchema
 export { EconomicOutboxStatusSchema } from './EconomicOutboxStatusSchema';
 export { FundingIntentStatusSchema } from './FundingIntentStatusSchema';
 export { TaskCommerceAgreementStatusSchema } from './TaskCommerceAgreementStatusSchema';
-export { StripeWebhookEventStatusSchema } from './StripeWebhookEventStatusSchema';
 export { InputJsonValueSchema } from './InputJsonValueSchema';
 export { JsonValueSchema } from './JsonValueSchema';
 export { DecimalJsLikeSchema } from './DecimalJsLikeSchema';

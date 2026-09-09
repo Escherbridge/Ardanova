@@ -33,6 +33,7 @@ import { NotificationsEndpoint } from "./endpoints/notifications";
 import { ActivitiesEndpoint } from "./endpoints/activities";
 import { WalletsEndpoint } from "./endpoints/wallets";
 import { AttachmentsEndpoint } from "./endpoints/attachments";
+import { AddFundsEndpoint } from "./endpoints/add-funds";
 import { TaskEscrowsEndpoint } from "./endpoints/task-escrows";
 import { DelegatedVotesEndpoint } from "./endpoints/delegated-votes";
 import { AzoaCustodialAccountEndpoint } from "./endpoints/azoa-custodial-account";
@@ -368,6 +369,7 @@ export class ArdaNovaApiClient extends BaseApiClient {
   readonly delegatedVotes: DelegatedVotesEndpoint;
   readonly azoaCustodialAccount: AzoaCustodialAccountEndpoint;
   readonly fundingIntents: FundingIntentsEndpoint;
+  readonly addFunds: AddFundsEndpoint;
 
   constructor(config: BaseApiClientConfig) {
     super(config);
@@ -408,6 +410,7 @@ export class ArdaNovaApiClient extends BaseApiClient {
     this.delegatedVotes = new DelegatedVotesEndpoint(this);
     this.azoaCustodialAccount = new AzoaCustodialAccountEndpoint(this);
     this.fundingIntents = new FundingIntentsEndpoint(this);
+    this.addFunds = new AddFundsEndpoint(this);
   }
 
   health() {

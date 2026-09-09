@@ -409,6 +409,29 @@ public class TreasuryServiceTests
     }
 
     [Fact]
+    public async Task ReconcileAsync_WhenNoProjectTreasuriesAreWired_RecordsNothing()
+    {
+        // The only writer of treasuryReference/treasuryChain is unreachable today (OI-24), so
+        // this set is empty in production. An empty set must not read as "everything checked
+        // out" - the loop body never running is not the same thing as it running and agreeing.
+        var treasury = ArrangeTreasuryForReconcile();
+        _projectTokenConfigRepo
+            .Setup(r => r.FindAsync(
+                It.IsAny<Expression<Func<ProjectTokenConfig, bool>>>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<ProjectTokenConfig>());
+
+        var result = await ChainBackedSut().ReconcileAsync(CancellationToken.None);
+
+        result.IsSuccess.Should().BeFalse();
+        result.Error.Should().Contain("no project treasuries");
+        treasury.lastReconciliationAt.Should().BeNull();
+        _treasuryRepo.Verify(
+            r => r.UpdateAsync(It.IsAny<PlatformTreasury>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
     public async Task ReconcileAsync_WhenReceiptsDisagreeWithNode_ReportsConflict()
     {
         ArrangeTreasuryForReconcile();

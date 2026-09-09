@@ -11,26 +11,45 @@ using AutoMapper;
 public class OpportunityBidService : IOpportunityBidService
 {
     /// <summary>
-    /// Why a guild may not bid for a share of a project's stake yet. An accepted award is set
-    /// aside for exactly one person on the shared node, and a bid records no split between a
-    /// guild's members, so the refusal happens here — at bid time — rather than leaving a
-    /// guild to find out at acceptance that its bid could never be taken.
+    /// Why a PAID guild bid that does not say how the award splits is refused. A share is set
+    /// aside per beneficiary, so a bid naming a guild but not the guild's share could only be
+    /// held for whichever member happened to submit it. The same refusal
+    /// <see cref="TaskCommerceService.GuildSplitUnsupported"/> makes at acceptance.
     /// </summary>
-    /// <remarks>
-    /// STUB, fail-closed, and the same refusal
-    /// <see cref="TaskCommerceService.GuildSplitUnsupported"/> makes at acceptance. Unblocked
-    /// by a declared split at bid time: a <c>guildAwardSplit</c> column on
-    /// <c>OpportunityBid</c> plus the matching field on this service's DTOs, both outside this
-    /// change's file boundary. An unpaid guild bid is unaffected.
-    /// </remarks>
+    /// <remarks>An unpaid guild bid commits no stake and is unaffected.</remarks>
     public const string GuildStakeBidUnsupported =
-        "A guild cannot yet bid for a share of a project's stake, because a bid does not say "
-        + "how that share is split between its members. Bid as the member who will do the work.";
+        "A guild bidding for a share of a project's stake has to say how much of the bid is the "
+        + "guild's. The rest stays with the member who does the work.";
+
+    /// <summary>Why a declared guild share that names no guild is refused.</summary>
+    public const string GuildSplitNeedsGuild =
+        "This bid sets a share aside for a guild without naming one. Choose the guild you are "
+        + "bidding for, or remove the guild's share.";
+
+    /// <summary>
+    /// Why a guild share that leaves nothing for the worker — or nothing for the guild — is
+    /// refused.
+    /// </summary>
+    public const string GuildSplitOutOfRange =
+        "The guild's share has to be part of a paid bid, and it has to leave the member doing "
+        + "the work a share of their own.";
+
+    /// <summary>Why a part-unit guild share is refused.</summary>
+    public const string PartUnitSplitUnsupported =
+        "Split the bid in whole units of the project's stake: each share is set aside in whole "
+        + "units, so a part unit cannot be committed.";
 
     /// <summary>Why a part-unit bid is refused before anyone can accept it.</summary>
     public const string PartUnitBidUnsupported =
         "Bid in whole units of the project's stake: a project sets its worker and sponsor "
         + "allowances aside in whole units, so a part unit cannot be committed.";
+
+    /// <summary>
+    /// Why a proposal is refused once the opportunity has stopped taking them. The client hides
+    /// the form; this refusal is what a direct call meets, and it is the only one that counts.
+    /// </summary>
+    public const string OpportunityNotOpen =
+        "This opportunity is not taking proposals any more.";
 
     private readonly IRepository<OpportunityBid> _repository;
     private readonly IRepository<Opportunity> _opportunityRepository;
@@ -96,12 +115,17 @@ public class OpportunityBidService : IOpportunityBidService
         if (opportunity is null)
             return Result<OpportunityBidDto>.NotFound($"Opportunity with id {dto.OpportunityId} not found");
 
+        // The opportunity's own state decides whether a proposal may be posted. Hiding the form
+        // stops nobody who calls the route directly, so the gate lives where the bid is written.
+        if (opportunity.status != OpportunityStatus.OPEN)
+            return Result<OpportunityBidDto>.ValidationError(OpportunityNotOpen);
+
         var existingBid = await _repository.FindOneAsync(
             b => b.opportunityId == dto.OpportunityId && b.bidderId == dto.BidderId, ct);
         if (existingBid is not null)
             return Result<OpportunityBidDto>.ValidationError("User has already submitted a bid for this opportunity");
 
-        if (DescribeUnacceptableStakeBid(opportunity, dto.ProposedAmount, dto.GuildId) is { } refusal)
+        if (DescribeUnacceptableStakeBid(opportunity, dto.ProposedAmount, dto.GuildId, dto.GuildAwardSplit) is { } refusal)
             return Result<OpportunityBidDto>.ValidationError(refusal);
 
         var bid = new OpportunityBid
@@ -111,6 +135,7 @@ public class OpportunityBidService : IOpportunityBidService
             bidderId = dto.BidderId,
             guildId = dto.GuildId,
             proposedAmount = dto.ProposedAmount,
+            guildAwardSplit = dto.GuildAwardSplit,
             proposal = dto.Proposal,
             estimatedHours = dto.EstimatedHours,
             timeline = dto.Timeline,
@@ -135,18 +160,24 @@ public class OpportunityBidService : IOpportunityBidService
         if (bid.status != BidStatus.SUBMITTED)
             return Result<OpportunityBidDto>.ValidationError("Only bids with SUBMITTED status can be updated");
 
-        if (dto.ProposedAmount.HasValue)
-        {
-            var opportunity = await _opportunityRepository.GetByIdAsync(bid.opportunityId, ct);
-            if (opportunity is null)
-                return Result<OpportunityBidDto>.NotFound($"Opportunity with id {bid.opportunityId} not found");
+        var opportunity = await _opportunityRepository.GetByIdAsync(bid.opportunityId, ct);
+        if (opportunity is null)
+            return Result<OpportunityBidDto>.NotFound($"Opportunity with id {bid.opportunityId} not found");
 
-            // The same rule the bid was created under. Without it an edit is the way around it.
-            if (DescribeUnacceptableStakeBid(opportunity, dto.ProposedAmount, bid.guildId) is { } refusal)
-                return Result<OpportunityBidDto>.ValidationError(refusal);
-        }
+        // An edit is a fresh proposal in everything but name, so it meets the same gate: a
+        // closed opportunity cannot be re-bid by revising a proposal that is already in.
+        if (opportunity.status != OpportunityStatus.OPEN)
+            return Result<OpportunityBidDto>.ValidationError(OpportunityNotOpen);
+
+        // The same rule the bid was created under, checked against the values the edit would
+        // leave behind. Without it an edit is the way around it.
+        var revisedAmount = dto.ProposedAmount ?? bid.proposedAmount;
+        var revisedSplit = dto.GuildAwardSplit ?? bid.guildAwardSplit;
+        if (DescribeUnacceptableStakeBid(opportunity, revisedAmount, bid.guildId, revisedSplit) is { } refusal)
+            return Result<OpportunityBidDto>.ValidationError(refusal);
 
         if (dto.ProposedAmount.HasValue) bid.proposedAmount = dto.ProposedAmount;
+        if (dto.GuildAwardSplit.HasValue) bid.guildAwardSplit = dto.GuildAwardSplit;
         if (dto.Proposal is not null) bid.proposal = dto.Proposal;
         if (dto.EstimatedHours.HasValue) bid.estimatedHours = dto.EstimatedHours;
         if (dto.Timeline is not null) bid.timeline = dto.Timeline;
@@ -249,20 +280,39 @@ public class OpportunityBidService : IOpportunityBidService
     /// Only a paid bid on a project-backed opportunity is constrained — an unpaid bid, or a bid
     /// on an opportunity with no project behind it, commits no stake and is left alone.
     /// </summary>
+    /// <remarks>
+    /// A guild bid is acceptable only when it declares the guild's share, because acceptance
+    /// opens one hold per beneficiary and each of those has to be a positive whole number of
+    /// units. The same arithmetic is re-checked at acceptance, where the units actually move.
+    /// </remarks>
     private static string? DescribeUnacceptableStakeBid(
         Opportunity opportunity,
         decimal? proposedAmount,
-        string? guildId)
+        string? guildId,
+        decimal? guildAwardSplit)
     {
         if (string.IsNullOrWhiteSpace(opportunity.projectId) || proposedAmount is not > 0m)
-            return null;
+        {
+            // A share can only be honoured out of a paid, project-backed bid, so a declared
+            // split on anything else is named rather than quietly kept.
+            return guildAwardSplit is > 0m ? GuildSplitOutOfRange : null;
+        }
 
-        if (!string.IsNullOrWhiteSpace(guildId))
-            return GuildStakeBidUnsupported;
+        if (decimal.Truncate(proposedAmount.Value) != proposedAmount.Value)
+            return PartUnitBidUnsupported;
 
-        return decimal.Truncate(proposedAmount.Value) != proposedAmount.Value
-            ? PartUnitBidUnsupported
-            : null;
+        var namesGuild = !string.IsNullOrWhiteSpace(guildId);
+        if (guildAwardSplit is null or <= 0m)
+            return namesGuild ? GuildStakeBidUnsupported : null;
+
+        if (!namesGuild)
+            return GuildSplitNeedsGuild;
+
+        if (decimal.Truncate(guildAwardSplit.Value) != guildAwardSplit.Value)
+            return PartUnitSplitUnsupported;
+
+        // Both legs are held separately, so both have to be worth holding.
+        return guildAwardSplit.Value >= proposedAmount.Value ? GuildSplitOutOfRange : null;
     }
 
     private async Task<OpportunityBidDto> EnrichBidDtoAsync(OpportunityBid bid, CancellationToken ct)

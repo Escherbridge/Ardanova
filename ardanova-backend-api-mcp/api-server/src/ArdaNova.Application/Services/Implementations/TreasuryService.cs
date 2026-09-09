@@ -420,6 +420,15 @@ public class TreasuryService : ITreasuryService, IProjectBuyBackReadModel
         var configs = await _projectTokenConfigRepository.FindAsync(
             config => config.treasuryReference != null && config.treasuryChain != null, ct);
 
+        // An empty set is not evidence of an empty treasury - it is evidence that nothing was
+        // checked. Stamping success here is how "reconciled" came to mean "nothing was wired".
+        if (configs.Count == 0)
+        {
+            return Result<bool>.Failure(
+                "Treasury reconciliation found no project treasuries wired to the node to check; "
+                + "no reconciliation is recorded.");
+        }
+
         var drifted = new List<string>();
         var unreadable = new List<string>();
 

@@ -60,9 +60,12 @@ describe("funding intent return presentation", () => {
     expect(presentation.heading).toMatch(/yours in 2 days?/);
   });
 
-  it("uses the documented fallback hold window when no release date is supplied", () => {
+  it("names no day at all when the server supplied no release date", () => {
     const presentation = getFundingIntentPresentation({ status: "SETTLED" });
-    expect(presentation.heading).toBe("Confirmed — yours in 30 days");
+    // The old rule invented a 30-day window the system never committed to. A date is
+    // the server's to state, so with none the copy stays vague rather than promising one.
+    expect(presentation.heading).toBe("Confirmed — yours after a short hold");
+    expect(presentation.heading).not.toMatch(/\d+ days?/);
   });
 });
 

@@ -2036,6 +2036,7 @@ Table OpportunityBid {
   bidderId varchar [not null]
   guildId varchar
   proposedAmount decimal(18,8)
+  guildAwardSplit decimal(18,8) [note: 'Part of proposedAmount owed to the guild; the remainder is the bidder share']
   proposal text [not null]
   estimatedHours int
   timeline text
@@ -2328,7 +2329,6 @@ Table ProjectInvestment {
   userId varchar [not null]
   usdAmount float [not null, note: 'Amount invested in USD']
   tokenAmount int [not null, note: 'Project tokens received']
-  stripePaymentIntentId varchar [unique, note: 'Stripe payment-intent id; database idempotency key for a completed funding allocation']
   investedAt datetime [not null, default: `now()`]
   showBackerName boolean [not null, default: false, note: 'Backer consent to show their display name to other backers; anonymous unless they opted in']
 
@@ -2405,30 +2405,6 @@ Enum TaskCommerceAgreementStatus {
   SETTLED
   CANCELLED
   FAILED
-}
-
-// Stripe deliveries are acknowledged only after their signed event has a durable
-// receipt. A short processing lease prevents a crashed worker from suppressing
-// all later provider retries.
-Enum StripeWebhookEventStatus {
-  PROCESSING
-  COMPLETED
-  FAILED
-}
-
-Table StripeWebhookEvent {
-  id varchar [not null, pk, note: 'Stripe event id; provider-level idempotency key']
-  eventType varchar [not null]
-  status StripeWebhookEventStatus [not null, default: 'PROCESSING']
-  attemptCount int [not null, default: 1]
-  receivedAt datetime [not null, default: `now()`]
-  processingLeaseExpiresAt datetime [not null]
-  completedAt datetime
-  lastFailedAt datetime
-
-  indexes {
-    (status, processingLeaseExpiresAt)
-  }
 }
 
 Table EconomicSettlement {

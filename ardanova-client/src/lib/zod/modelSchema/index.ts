@@ -92,7 +92,6 @@ export * from './PayoutRequestSchema';
 export * from './PlatformTreasurySchema';
 export * from './PlatformTreasuryTransactionSchema';
 export * from './ProjectInvestmentSchema';
-export * from './StripeWebhookEventSchema';
 export * from './EconomicSettlementSchema';
 export * from './EconomicOutboxSchema';
 export * from './FundingIntentSchema';

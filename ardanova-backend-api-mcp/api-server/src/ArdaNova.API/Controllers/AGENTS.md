@@ -100,3 +100,23 @@ can create, move, receive, or promise value must use the server-derived
 contract requires stable avatar evidence, approved identity verification, and
 a managed-account id and address; the aggregate `Ready` flag never substitutes
 for those fields.
+
+# Adding funds
+
+The payer and the payment-reader are both derived from the signed actor assertion, never from a
+body or query value, so nobody can read or top up another person's account by editing a
+request.
+
+The return address is composed from CONFIGURATION ONLY (`ArdaNova:ClientBaseUrl`, else
+`NEXTJS_URL`); a blank setting refuses with 503 outside Development rather than accepting a
+caller-supplied destination. That is the one setting between a working front door and a
+refusing one, and blank resolves to the refusal explicitly in code.
+
+The status route re-reads the payment FROM THE NODE and never infers an outcome from the
+redirect the browser came back on: `funds_applied` is the only input that produces "Funds
+added", and everything unrecognised produces "we can't confirm it". The read path deliberately
+skips the readiness gate, so somebody held for review AFTER paying can still be told what
+happened to their money.
+
+Retries reuse ONE request key per attempt. The server resumes that person's open payment for a
+repeated key, so a fresh key per tap would open a second payment page for one intent.

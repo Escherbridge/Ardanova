@@ -7,7 +7,7 @@ import { toast } from "sonner";
 
 import { Button } from "~/components/ui/button";
 import { navigateToAcceptedBidCommerce } from "~/lib/commerce/bid-accept-navigation";
-import { isValueActionAccountReady } from "~/lib/contracts/project-create-contract";
+import { evaluateValueActionAccount } from "~/lib/contracts/project-create-contract";
 import { api } from "~/trpc/react";
 
 interface BidAcceptButtonProps {
@@ -28,8 +28,15 @@ export function BidAcceptButton({
       retry: false,
     },
   );
+  // Three-way, never a boolean: somebody held for review has finished every step, so telling
+  // them to "complete account setup" is an instruction they cannot act on (OI-10).
+  const accountEvaluation = evaluateValueActionAccount(accountStatus.data, {
+    loadFailed: Boolean(accountStatus.error),
+  });
   const accountSetupComplete =
-    !requiresAccountSetup || isValueActionAccountReady(accountStatus.data);
+    !requiresAccountSetup || accountEvaluation.state === "ready";
+  const accountUnderReview =
+    requiresAccountSetup && accountEvaluation.state === "under-review";
   const acceptBid = api.opportunityBid.accept.useMutation({
     onSuccess: ({ commerceUrl }) => {
       try {
@@ -52,15 +59,17 @@ export function BidAcceptButton({
         onClick={() => acceptBid.mutate({ id: bidId })}
         disabled={acceptBid.isPending || !accountSetupComplete}
         title={
-          !accountSetupComplete
-            ? "Complete account setup before accepting paid work."
-            : undefined
+          accountSetupComplete
+            ? undefined
+            : (accountEvaluation.message ??
+              "Complete account setup before accepting paid work.")
         }
       >
         {acceptBid.isPending ? <Loader2 className="animate-spin" /> : null}
         Accept bid
       </Button>
-      {requiresAccountSetup && !accountSetupComplete ? (
+      {/* Only somebody with setup genuinely left to do is offered the setup link. */}
+      {requiresAccountSetup && !accountSetupComplete && !accountUnderReview ? (
         <Button asChild size="sm" variant="outline">
           <Link href="/settings/verification">Complete setup</Link>
         </Button>

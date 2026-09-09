@@ -51,6 +51,16 @@ export interface AzoaKycSessionDto {
   instructions?: string | null;
 }
 
+/**
+ * The outcome of withdrawing the standing permission for ArdaNova to act for this person.
+ * The server half of this chain is L2.7's - an ArdaNova controller action over the node's
+ * `DELETE /api/tenant/consent/provisioned`; this is only the client's call into it.
+ */
+export interface AzoaConsentRevocationDto {
+  revoked: boolean;
+  revokedAt?: string | null;
+}
+
 export class AzoaCustodialAccountEndpoint {
   constructor(private client: BaseApiClient) {}
 
@@ -75,6 +85,13 @@ export class AzoaCustodialAccountEndpoint {
   beginKyc(): Promise<ApiResponse<AzoaKycSessionDto>> {
     return this.client.post<AzoaKycSessionDto>(
       "/api/azoa/custodial-account/kyc/session",
+    );
+  }
+
+  /** Withdraws ArdaNova's standing permission to act for this person; re-granting it restores the account. */
+  revokeConsent(): Promise<ApiResponse<AzoaConsentRevocationDto>> {
+    return this.client.delete<AzoaConsentRevocationDto>(
+      "/api/azoa/custodial-account/consent",
     );
   }
 }

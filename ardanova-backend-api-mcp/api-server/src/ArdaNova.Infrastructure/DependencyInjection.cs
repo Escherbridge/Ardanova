@@ -94,12 +94,20 @@ public static class DependencyInjection
         var custodyApiKey = AzoaCredentialSelection.ResolveCustodyKey(azoaSettings, isProduction);
         var valueApiKey = AzoaCredentialSelection.ResolveValueKey(azoaSettings, isProduction);
         var questApiKey = AzoaCredentialSelection.ResolveQuestKey(azoaSettings, isProduction);
+        // The issuance credential is read straight from configuration rather than bound onto
+        // AzoaSettings: it belongs to the credential-issue door alone and no other client may
+        // resolve it. A blank value means NOT CONFIGURED and there is no fallback to another
+        // key - see AzoaCredentialIssuanceRegistration.
+        var issuanceApiKey =
+            configuration[AzoaCredentialIssuanceRegistration.IssuanceApiKeyPath]?.Trim() ?? string.Empty;
         ValidateAzoaMode(azoaSettings.Mode);
         ValidateAzoaTransportSettings(azoaSettings, isProduction);
         ValidateCredentialSeparation(custodyApiKey, valueApiKey, questApiKey, isProduction);
         ValidateCustodialAccounts(azoaSettings, custodyApiKey, isProduction);
         ValidateValueFeatures(azoaSettings, valueApiKey, isProduction);
         ValidateQuestCredential(azoaSettings, questApiKey, isProduction);
+        ValidateIssuanceCredential(
+            azoaSettings, issuanceApiKey, custodyApiKey, valueApiKey, questApiKey, isProduction);
         services.AddHttpClient<IAzoaNodeClient, AzoaNodeClient>(client =>
         {
             ConfigureAzoaHttpClient(client, azoaSettings, valueApiKey);
@@ -163,6 +171,25 @@ public static class DependencyInjection
         // fail-closed path reports that cashing out is not available rather than throwing at
         // the first withdrawal. Without this line the withdraw leg is unbound and inert.
         services.AddAzoaCashOut(configuration, environmentName);
+
+        // The project funding gateway - where a project's money lands, and how much of its stake
+        // each side of the project may be issued. Registers IAzoaProjectTokenNodeGateway ONLY when
+        // both credentials it needs resolve; without this line ProjectTokenService.ProvisionAsync
+        // refuses every project by name and nothing on the platform can be funded at all.
+        services.AddAzoaProjectTokenGateway(configuration, environmentName);
+
+        // The credential issuance adapter. Registers IAzoaCredentialIssuanceNode ONLY when
+        // Azoa:IssuanceApiKey resolves; without it CredentialUtilityService records the grant and
+        // leaves the member's card reading "Verification pending" rather than claiming a proof it
+        // does not hold.
+        services.AddAzoaCredentialIssuance(configuration);
+
+        // Settlement rows that fell pending are promoted on a timer, and parked unit
+        // sales are chased on one, so an operator read is a fallback rather than the only
+        // path (OI-88b, OI-86b). Each registers its options always and the hosted service
+        // unless its own flag is explicitly "false".
+        services.AddSettlementPendingPromoter(configuration);
+        services.AddParkedPayoutReconciler(configuration);
 
         var outboxOptions = CreateOutboxOptions(azoaSettings);
         services.AddSingleton(outboxOptions);
@@ -403,6 +430,47 @@ public static class DependencyInjection
         {
             throw new InvalidOperationException(
                 "Azoa:QuestApiKey requires an absolute Azoa:BaseUrl (HTTPS in Production) and a generated, non-placeholder key of at least 32 bytes in Production.");
+        }
+    }
+
+    /// <summary>
+    /// Fail-fast boot guard on the credential-issue key. Blank is a supported state and means the
+    /// adapter is not registered, so nothing is issued and no card claims a proof. A key that IS
+    /// present must be usable and must be its OWN key: it carries the <c>dapp:manager</c> role and
+    /// the <c>nft:mint</c> scope, and reusing custody, value or quest here would widen one of them
+    /// to issuing credentials in ArdaNova's name.
+    /// </summary>
+    private static void ValidateIssuanceCredential(
+        AzoaSettings settings,
+        string issuanceApiKey,
+        string custodyApiKey,
+        string valueApiKey,
+        string questApiKey,
+        bool isProduction)
+    {
+        if (string.IsNullOrWhiteSpace(issuanceApiKey))
+            return;
+
+        if (!IsValidAzoaBaseUrl(settings.BaseUrl, isProduction)
+            || !IsValidAzoaCredential(issuanceApiKey, isProduction))
+        {
+            throw new InvalidOperationException(
+                "Azoa:IssuanceApiKey requires an absolute Azoa:BaseUrl (HTTPS in Production) and a "
+                + "generated, non-placeholder key of at least 32 bytes in Production.");
+        }
+
+        if (!isProduction)
+            return;
+
+        var shared = new[] { custodyApiKey, valueApiKey, questApiKey }
+            .Any(other => !string.IsNullOrWhiteSpace(other)
+                && string.Equals(other, issuanceApiKey, StringComparison.Ordinal));
+
+        if (shared)
+        {
+            throw new InvalidOperationException(
+                "Production AZOA custody, value, quest, and issuance credentials must be different "
+                + "scoped API keys.");
         }
     }
 

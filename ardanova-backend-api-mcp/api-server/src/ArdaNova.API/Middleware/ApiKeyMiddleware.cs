@@ -34,16 +34,11 @@ public class ApiKeyMiddleware
 
     public async Task InvokeAsync(HttpContext context)
     {
-        // Stripe authenticates this one ingress route with its signed raw payload.
         // SignalR hubs validate their dedicated service and actor headers during connection setup.
         if (context.Request.Path.StartsWithSegments("/health") ||
             context.Request.Path.StartsWithSegments("/ready") ||
             context.Request.Path.StartsWithSegments("/swagger") ||
-            context.Request.Path.StartsWithSegments("/hubs") ||
-            string.Equals(
-                context.Request.Path.Value,
-                "/api/StripeWebhook/webhook",
-                StringComparison.OrdinalIgnoreCase))
+            context.Request.Path.StartsWithSegments("/hubs"))
         {
             await _next(context);
             return;

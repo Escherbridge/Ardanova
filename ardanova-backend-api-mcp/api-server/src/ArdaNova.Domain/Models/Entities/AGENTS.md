@@ -87,3 +87,22 @@ ledger. EF still materialises rows through it, which is why it is `protected` ra
 The columns are unchanged on purpose - the stored schema does not move. Dropping the table and
 its `DbSet` (`Infrastructure/Data/ArdaNovaDbContext.cs:95`) is a MIGRATION, not an entity edit,
 and belongs to whichever item next opens that file.
+
+# Guild award splits
+
+`OpportunityBid.guildAwardSplit` is a `decimal?` with `[Precision(18, 8)]`. It is the PART OF
+`proposedAmount` owed to the guild, in the SAME UNITS — not a percentage and not basis points —
+so the bidder's own share is `proposedAmount - guildAwardSplit`. NULL means no split was
+declared, which is why an undeclared split is still refused rather than silently treated as
+zero. The validation rule (`0 < guildAwardSplit < proposedAmount`, whole units only) lives with
+the refusals it replaced in `Application/Services/Implementations/OpportunityBidService.cs`.
+
+The `why` for the column and its migration is in
+`ardanova-client/prisma/migrations/20260909100000_retire_card_rail_and_guild_split/migration.sql`.
+That same migration retires the card rail: `ProjectInvestment.stripePaymentIntentId` and the
+whole `StripeWebhookEvent` receipt table are gone, because the rail they served no longer
+exists. `PayoutRequest.stripePayoutId` is a DIFFERENT rail and is deliberately untouched.
+
+Note these C# entity files carry hand-added doc-comments the DBML generator does not emit
+(`ProjectInvestment.showBackerName`, for one), so a regeneration strips them. That is a known
+property of this directory, not something any single change introduced.

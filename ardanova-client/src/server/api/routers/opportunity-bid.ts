@@ -15,10 +15,19 @@ export const OpportunityBidStatus = z.enum([
   "COMPLETED",
 ]);
 
+/**
+ * A guild's share of its own bid, in whole units. The server decides whether a split is
+ * acceptable (OpportunityBidService.CreateAsync) and whether it can be held
+ * (TaskCommerceService.ResolveBeneficiariesAsync); this only keeps an obviously impossible
+ * value from making the round trip.
+ */
+const guildAwardSplitSchema = z.number().int().positive();
+
 const createOpportunityBidSchema = z.object({
   opportunityId: z.string().min(1),
   guildId: z.string().min(1).optional(),
   proposedAmount: z.number().positive().optional(),
+  guildAwardSplit: guildAwardSplitSchema.optional(),
   proposal: z.string().max(2000),
   estimatedHours: z.number().int().positive().optional(),
   timeline: z.string().optional(),
@@ -27,6 +36,7 @@ const createOpportunityBidSchema = z.object({
 
 const updateOpportunityBidSchema = z.object({
   proposedAmount: z.number().positive().optional(),
+  guildAwardSplit: guildAwardSplitSchema.optional(),
   proposal: z.string().max(2000).optional(),
   estimatedHours: z.number().int().positive().optional(),
   timeline: z.string().optional(),
@@ -112,10 +122,14 @@ export const opportunityBidRouter = createTRPCRouter({
         }
       }
 
+      // Nothing here decides whether the bid may be posted. Whether the opportunity is still
+      // taking proposals, and whether a guild split adds up, are settled by
+      // OpportunityBidService.CreateAsync, which is what a direct call to the API also meets.
       const response = await apiClient.opportunityBids.create({
         opportunityId: input.opportunityId,
         guildId: input.guildId,
         proposedAmount: input.proposedAmount,
+        guildAwardSplit: input.guildAwardSplit,
         proposal: input.proposal,
         estimatedHours: input.estimatedHours,
         timeline: input.timeline,

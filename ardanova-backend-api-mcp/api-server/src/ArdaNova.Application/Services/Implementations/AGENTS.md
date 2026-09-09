@@ -128,3 +128,12 @@ it gets its existing row as its source, not a new table that re-states one.
 Names come from the caller's verified identity, never from anything the client sends. The route
 passes the actor id off the verified claim, and the service resolves people from it; a project id
 in the path decides only WHICH project, never WHO is asking.
+
+# Operator alerts
+
+`WebhookOperatorAlertService` is an ADDITIVE channel: it posts to `OperatorAlerts:WebhookUrl`
+when one is configured and otherwise logs at Critical. A blank URL — from `appsettings.json`
+or from an env var, which REPLACES the C# default rather than leaving it — resolves to "no
+channel, log Critical" explicitly in code, which is the narrowest setting and the shape a
+deploy produces most easily. That resolution is the control; the empty key in
+`appsettings.json` is only discoverability and cannot widen anything.

@@ -9,10 +9,21 @@ using ArdaNova.Application.DTOs;
 using ArdaNova.Application.Services.Interfaces;
 using ArdaNova.Domain.Models.Entities;
 using ArdaNova.Domain.Models.Enums;
+using ArdaNova.Domain.Policies;
 using AutoMapper;
 
 namespace ArdaNova.Application.Services.Implementations
 {
+    /// <summary>
+    /// Moves a project through its funding gates and restates who may move units afterwards.
+    /// </summary>
+    /// <remarks>
+    /// A gate decides whether a holder class may EVER move units; it does not decide whether one
+    /// person's award may move YET. Clearing a gate therefore RE-EVALUATES each row through
+    /// <see cref="UnitWindow"/> rather than setting it liquid: a blanket unlock here used to
+    /// override the worker's own 90-day window written at approval, so the platform told a worker
+    /// their award was held until a date and then read it as liquid the same day.
+    /// </remarks>
     public class ProjectGateService : IProjectGateService
     {
         private readonly IRepository<ProjectTokenConfig> _projectTokenConfigRepository;
@@ -74,22 +85,23 @@ namespace ArdaNova.Application.Services.Implementations
             config.updatedAt = DateTime.UtcNow;
             await _projectTokenConfigRepository.UpdateAsync(config, ct);
 
-            // 4. Unlock TokenAllocations for CONTRIBUTOR holder class
+            // 4. Re-evaluate TokenAllocations for CONTRIBUTOR holder class
             Expression<Func<TokenAllocation, bool>> allocationPredicate = ta =>
                 ta.projectTokenConfigId == projectTokenConfigId &&
                 ta.holderClass == TokenHolderClass.CONTRIBUTOR;
 
             var allocations = await _tokenAllocationRepository.FindAsync(allocationPredicate, ct);
             var allocationsList = allocations.ToList();
+            var now = DateTimeOffset.UtcNow;
 
             foreach (var allocation in allocationsList)
             {
-                allocation.isLiquid = true;
+                allocation.isLiquid = UnitWindow.IsAwardLiquid(allocation, config.gateStatus, now);
                 allocation.updatedAt = DateTime.UtcNow;
                 await _tokenAllocationRepository.UpdateAsync(allocation, ct);
             }
 
-            // 5. Unlock TokenBalances for CONTRIBUTOR holder class
+            // 5. Re-evaluate TokenBalances for CONTRIBUTOR holder class
             Expression<Func<TokenBalance, bool>> balancePredicate = tb =>
                 tb.projectTokenConfigId == projectTokenConfigId &&
                 tb.holderClass == TokenHolderClass.CONTRIBUTOR;
@@ -99,14 +111,14 @@ namespace ArdaNova.Application.Services.Implementations
 
             foreach (var balance in balancesList)
             {
-                balance.isLiquid = true;
+                balance.isLiquid = IsHoldingLiquid(balance, allocationsList, config.gateStatus, now);
                 balance.updatedAt = DateTime.UtcNow;
                 await _tokenBalanceRepository.UpdateAsync(balance, ct);
             }
 
-            // 6. Count total tokens unlocked
-            var tokensUnlocked = allocationsList.Sum(a => a.tokenAmount) +
-                                balancesList.Sum(b => b.balance);
+            // 6. Count what actually became movable, not what was looked at
+            var tokensUnlocked = allocationsList.Where(a => a.isLiquid).Sum(a => a.tokenAmount) +
+                                balancesList.Where(b => b.isLiquid).Sum(b => b.balance);
 
             // 7. Save and return result
             await _unitOfWork.SaveChangesAsync(ct);
@@ -143,22 +155,23 @@ namespace ArdaNova.Application.Services.Implementations
             config.updatedAt = DateTime.UtcNow;
             await _projectTokenConfigRepository.UpdateAsync(config, ct);
 
-            // 3. Unlock TokenAllocations for INVESTOR and FOUNDER holder classes
+            // 3. Re-evaluate TokenAllocations for INVESTOR and FOUNDER holder classes
             Expression<Func<TokenAllocation, bool>> allocationPredicate = ta =>
                 ta.projectTokenConfigId == projectTokenConfigId &&
                 (ta.holderClass == TokenHolderClass.INVESTOR || ta.holderClass == TokenHolderClass.FOUNDER);
 
             var allocations = await _tokenAllocationRepository.FindAsync(allocationPredicate, ct);
             var allocationsList = allocations.ToList();
+            var now = DateTimeOffset.UtcNow;
 
             foreach (var allocation in allocationsList)
             {
-                allocation.isLiquid = true;
+                allocation.isLiquid = UnitWindow.IsAwardLiquid(allocation, config.gateStatus, now);
                 allocation.updatedAt = DateTime.UtcNow;
                 await _tokenAllocationRepository.UpdateAsync(allocation, ct);
             }
 
-            // 4. Unlock TokenBalances for INVESTOR and FOUNDER holder classes
+            // 4. Re-evaluate TokenBalances for INVESTOR and FOUNDER holder classes
             Expression<Func<TokenBalance, bool>> balancePredicate = tb =>
                 tb.projectTokenConfigId == projectTokenConfigId &&
                 (tb.holderClass == TokenHolderClass.INVESTOR || tb.holderClass == TokenHolderClass.FOUNDER);
@@ -168,14 +181,14 @@ namespace ArdaNova.Application.Services.Implementations
 
             foreach (var balance in balancesList)
             {
-                balance.isLiquid = true;
+                balance.isLiquid = IsHoldingLiquid(balance, allocationsList, config.gateStatus, now);
                 balance.updatedAt = DateTime.UtcNow;
                 await _tokenBalanceRepository.UpdateAsync(balance, ct);
             }
 
-            // 5. Count total tokens unlocked
-            var tokensUnlocked = allocationsList.Sum(a => a.tokenAmount) +
-                                balancesList.Sum(b => b.balance);
+            // 5. Count what actually became movable, not what was looked at
+            var tokensUnlocked = allocationsList.Where(a => a.isLiquid).Sum(a => a.tokenAmount) +
+                                balancesList.Where(b => b.isLiquid).Sum(b => b.balance);
 
             // 6. Save and return result
             await _unitOfWork.SaveChangesAsync(ct);
@@ -240,6 +253,34 @@ namespace ArdaNova.Application.Services.Implementations
             };
 
             return Result<GateTransitionResultDto>.Success(result);
+        }
+
+        /// <summary>
+        /// Whether a holding may move once a gate has cleared: the gate says ever, the holder's own
+        /// awards say yet.
+        /// </summary>
+        /// <remarks>
+        /// The window is read off the awards ALREADY LOADED for this transition rather than
+        /// re-queried per holder, so clearing a gate stays one pair of reads however many people
+        /// hold the project's units. A holding whose every unit is still inside the window is not
+        /// liquid, which is what a blanket unlock here used to overwrite.
+        /// </remarks>
+        private static bool IsHoldingLiquid(
+            TokenBalance holding,
+            IReadOnlyCollection<TokenAllocation> awards,
+            ProjectGateStatus gateStatus,
+            DateTimeOffset now)
+        {
+            if (holding.holderClass is not { } holderClass
+                || !TokenLiquidityPolicy.IsLiquid(holderClass, gateStatus))
+            {
+                return false;
+            }
+
+            var restriction = UnitWindow.Restrict(
+                awards.Where(award => award.recipientUserId == holding.userId), now);
+
+            return restriction.RestrictedUnits < holding.balance;
         }
 
         public async Task<Result<ProjectGateStatusDto>> GetGateStatusAsync(string projectTokenConfigId, CancellationToken ct = default)

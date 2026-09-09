@@ -8,7 +8,10 @@ using ArdaNova.Application.Services.Implementations;
 using ArdaNova.Application.Services.Interfaces;
 using ArdaNova.Domain.Models.Entities;
 using ArdaNova.Domain.Models.Enums;
+using ArdaNova.Infrastructure.Outbox;
 using FluentAssertions;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 
 /// <summary>
@@ -445,6 +448,114 @@ public class FundingIntentServiceTests
             Times.Never);
     }
 
+    [Fact]
+    public async Task CreateCheckoutAsync_ASponsorWhoSaidNothingIsNotNamed()
+    {
+        ArrangeEligibleFunding();
+        var captured = CaptureRows();
+        ArrangeAcceptedDispatch(captured);
+
+        await _sut.CreateCheckoutAsync(Request("9.00"), ActorId, IdempotencyKey);
+
+        captured.Investment!.showBackerName.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task CreateCheckoutAsync_ASponsorWhoAskedToBeNamedIsRecordedAsHavingAsked()
+    {
+        ArrangeEligibleFunding();
+        var captured = CaptureRows();
+        ArrangeAcceptedDispatch(captured);
+
+        await _sut.CreateCheckoutAsync(
+            Request("9.00", displayNameConsent: true), ActorId, IdempotencyKey);
+
+        // The one column the project's money page and the backer list read to decide whether a
+        // person is named. Before this it was written by nothing and was permanently false.
+        captured.Investment!.showBackerName.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task CreateCheckoutAsync_TheNamingChoiceIsNeverSentToTheNode()
+    {
+        ArrangeEligibleFunding();
+        var captured = CaptureRows();
+        ArrangeAcceptedDispatch(captured);
+
+        await _sut.CreateCheckoutAsync(
+            Request("9.00", displayNameConsent: true), ActorId, IdempotencyKey);
+
+        // A person's preference about their own name is ArdaNova's business. The node is asked to
+        // move units; it is never told who agreed to be seen.
+        captured.DispatchRequest!.TermsSnapshot.Should().NotContain("displayNameConsent");
+        captured.DispatchRequest.TermsSnapshot.Should().NotContain("sponsorChoices");
+    }
+
+    [Fact]
+    public async Task GetStatusAsync_ASponsorshipFinishedLaterStillCarriesTheChoiceItsSponsorMade()
+    {
+        ArrangeEligibleFunding();
+        var captured = CaptureRows();
+        ArrangeDispatch(captured, AzoaSettlementGatewayResult.Unknown(
+            "AZOA_TRANSPORT_UNCERTAIN",
+            "The node returned no durable outcome."));
+
+        await _sut.CreateCheckoutAsync(
+            Request("9.00", displayNameConsent: true), ActorId, IdempotencyKey);
+
+        var intent = captured.Intent!;
+        var settlement = captured.Settlement!;
+        intent.status.Should().Be(FundingIntentStatus.SETTLEMENT_PENDING);
+        captured.Investment.Should().BeNull();
+
+        // The request that carried the choice is long gone; the node confirmed afterwards. The
+        // choice has to have survived on the row, not in the call, or it is not a choice at all.
+        settlement.status = EconomicSettlementStatus.SUBMITTED;
+        settlement.azoaOperationId = "op-later";
+        ArrangeDurableLookups(intent, settlement, captured.Outbox!);
+
+        var result = await _sut.GetStatusAsync(intent.id, ActorId);
+
+        result.IsSuccess.Should().BeTrue();
+        captured.Investment!.showBackerName.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task GetStatusAsync_TellsTheSponsorTheServersOwnReleaseDate()
+    {
+        var fixture = ArrangeEligibleFunding();
+        var (intent, settlement, _) = PendingSponsorship(fixture);
+        settlement.status = EconomicSettlementStatus.SUBMITTED;
+        settlement.azoaOperationId = "op-9";
+
+        var declaredRelease = intent.releaseNotBefore;
+
+        var result = await _sut.GetStatusAsync(intent.id, ActorId);
+
+        result.Value!.Status.Should().Be(nameof(FundingIntentStatus.SETTLED));
+        // The date the success page turns into "yours from 14 March", instead of guessing 30 days.
+        result.Value.ReleaseNotBefore.Should().Be(declaredRelease);
+        result.Value.ReleaseNotBefore.Should().NotBeNull();
+        result.Value.HoldingReasonDetail.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task GetStatusAsync_RepeatsTheServersOwnSentenceForASponsorshipOnHold()
+    {
+        var fixture = ArrangeEligibleFunding();
+        var (intent, settlement, _) = PendingSponsorship(fixture);
+        settlement.status = EconomicSettlementStatus.PENDING_DISPATCH;
+        settlement.failureCode = "AZOA_PROJECT_OWNER_NOT_READY";
+        settlement.failureDetail = "Funding settlement remains pending until the project owner completes account setup.";
+
+        var result = await _sut.GetStatusAsync(intent.id, ActorId);
+
+        result.Value!.Status.Should().Be(nameof(FundingIntentStatus.HOLDING));
+        result.Value.HoldingReasonDetail.Should().Be(
+            "Funding settlement remains pending until the project owner completes account setup. "
+            + "Nothing was taken.");
+    }
+
     // -- Fixtures -----------------------------------------------------------
 
     private sealed record Fixture(User Actor, Project Project, ProjectTokenConfig Config);
@@ -575,6 +686,8 @@ public class FundingIntentServiceTests
         intent.status = FundingIntentStatus.SETTLEMENT_PENDING;
         intent.settledAt = null;
         intent.azoaOperationId = null;
+        // Every real intent is written with one: BuildIntent sets it before any value moves.
+        intent.releaseNotBefore = DateTime.UtcNow.Add(FundingIntentService.StakeHoldWindow);
         var settlement = new EconomicSettlement
         {
             id = "settlement-1",
@@ -597,6 +710,16 @@ public class FundingIntentServiceTests
         };
         intent.settlementId = settlement.id;
 
+        ArrangeDurableLookups(intent, settlement, outbox);
+        return (intent, settlement, outbox);
+    }
+
+    /// <summary>Points the by-id lookups at rows a previous request already committed.</summary>
+    private void ArrangeDurableLookups(
+        FundingIntent intent,
+        EconomicSettlement settlement,
+        EconomicOutbox outbox)
+    {
         _intents.Setup(repository => repository.GetByIdAsync(intent.id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(intent);
         _settlements.Setup(repository => repository.GetByIdAsync(settlement.id, It.IsAny<CancellationToken>()))
@@ -606,7 +729,6 @@ public class FundingIntentServiceTests
                 It.IsAny<Expression<Func<EconomicOutbox, bool>>>(),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(outbox);
-        return (intent, settlement, outbox);
     }
 
     private static FundingIntent SettledIntent(Fixture fixture, long requestedBaseUnits)
@@ -645,11 +767,12 @@ public class FundingIntentServiceTests
         };
     }
 
-    private static CreateFundingIntentDto Request(string amount) => new()
+    private static CreateFundingIntentDto Request(string amount, bool displayNameConsent = false) => new()
     {
         ProjectTokenConfigId = "config-1",
         Amount = amount,
         DisclosureVersion = Disclosure,
+        DisplayNameConsent = displayNameConsent,
     };
 
     private static AzoaCustodialAccountStatusDto ReadyAccountStatus() => new()
@@ -676,4 +799,178 @@ public class FundingIntentServiceTests
             repository => repository.AddAsync(It.IsAny<ProjectInvestment>(), It.IsAny<CancellationToken>()),
             Times.Never);
     }
+}
+
+/// <summary>
+/// The hosted promoter is the answer to "who finishes a sponsorship when the sponsor closed the
+/// tab". These tests are about that: what it touches, what it refuses to touch, and what an
+/// operator who configures nothing gets.
+/// </summary>
+public class SettlementPendingPromoterTests
+{
+    private const string FunderId = "user-7";
+
+    private readonly Mock<IRepository<FundingIntent>> _intents = new();
+    private readonly Mock<IFundingIntentService> _fundingIntents = new();
+
+    [Fact]
+    public async Task PromoteOnceAsync_FinishesAPendingSponsorshipAsItsOwnSponsor()
+    {
+        var intent = PendingIntent("funding-1", TimeSpan.FromMinutes(10));
+        ArrangeIntents(intent);
+        ArrangeStatus(intent.id, FundingIntentStatus.SETTLED);
+
+        var run = await Promoter().PromoteOnceAsync();
+
+        run.Examined.Should().Be(1);
+        run.Promoted.Should().Be(1);
+        run.Failed.Should().Be(0);
+        // The actor is the row's own funder, so the ownership check on GetStatusAsync still runs
+        // and this loop can never read one person's sponsorship on another person's behalf.
+        _fundingIntents.Verify(
+            service => service.GetStatusAsync(intent.id, FunderId, It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task PromoteOnceAsync_LeavesASponsorshipTheOriginalRequestMayStillBeFinishing()
+    {
+        // Inside the outbox's own handover delay the request that created this sponsorship may
+        // still be completing it. Two loops on one settlement is a race, not a safety net.
+        var intent = PendingIntent("funding-2", TimeSpan.FromSeconds(10));
+        ArrangeIntents(intent);
+
+        var run = await Promoter().PromoteOnceAsync();
+
+        run.Examined.Should().Be(0);
+        _fundingIntents.Verify(
+            service => service.GetStatusAsync(
+                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task PromoteOnceAsync_TouchesNothingWhileAnOperatorHasItSwitchedOff()
+    {
+        var intent = PendingIntent("funding-3", TimeSpan.FromMinutes(10));
+        ArrangeIntents(intent);
+
+        var run = await Promoter(new SettlementPendingPromoterOptions { Enabled = false })
+            .PromoteOnceAsync();
+
+        run.Enabled.Should().BeFalse();
+        _intents.Verify(
+            repository => repository.FindAsync(
+                It.IsAny<Expression<Func<FundingIntent, bool>>>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+        _fundingIntents.Verify(
+            service => service.GetStatusAsync(
+                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task PromoteOnceAsync_OneSponsorshipThatThrowsDoesNotStrandTheRest()
+    {
+        var broken = PendingIntent("funding-4", TimeSpan.FromMinutes(20));
+        var healthy = PendingIntent("funding-5", TimeSpan.FromMinutes(10));
+        ArrangeIntents(broken, healthy);
+        _fundingIntents
+            .Setup(service => service.GetStatusAsync(broken.id, FunderId, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("the node is unreachable"));
+        ArrangeStatus(healthy.id, FundingIntentStatus.SETTLED);
+
+        var run = await Promoter().PromoteOnceAsync();
+
+        run.Examined.Should().Be(2);
+        run.Promoted.Should().Be(1);
+        run.Failed.Should().Be(1);
+    }
+
+    /// <summary>
+    /// The instance-24 trap: an environment variable set to "" must not read as "off". An operator
+    /// who configures nothing gets the safety net, because the alternative is people's sponsorships
+    /// silently never finishing.
+    /// </summary>
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("true")]
+    public void FromConfiguration_ABlankSettingLeavesThePromoterRunning(string? configured)
+    {
+        var options = SettlementPendingPromoterOptions.FromConfiguration(Configuration(
+            ($"{SettlementPendingPromoterOptions.SectionName}:Enabled", configured),
+            ($"{SettlementPendingPromoterOptions.SectionName}:IntervalSeconds", string.Empty)));
+
+        options.Enabled.Should().BeTrue();
+        options.Interval.Should().Be(TimeSpan.FromSeconds(60));
+        options.BatchSize.Should().Be(25);
+    }
+
+    [Fact]
+    public void FromConfiguration_OnlyAnExplicitFalseSwitchesThePromoterOff()
+    {
+        var options = SettlementPendingPromoterOptions.FromConfiguration(Configuration(
+            ($"{SettlementPendingPromoterOptions.SectionName}:Enabled", "false")));
+
+        options.Enabled.Should().BeFalse();
+    }
+
+    [Theory]
+    [InlineData("BatchSize", "0")]
+    [InlineData("BatchSize", "not-a-number")]
+    [InlineData("IntervalSeconds", "0")]
+    [InlineData("StaleAfterHours", "100000")]
+    public void FromConfiguration_ANonsenseLimitIsAStartupFailureRatherThanASilentZero(
+        string key,
+        string value)
+    {
+        var act = () => SettlementPendingPromoterOptions.FromConfiguration(Configuration(
+            ($"{SettlementPendingPromoterOptions.SectionName}:{key}", value)));
+
+        act.Should().Throw<InvalidOperationException>();
+    }
+
+    private SettlementPendingPromoter Promoter(SettlementPendingPromoterOptions? options = null) =>
+        new(
+            _intents.Object,
+            _fundingIntents.Object,
+            options ?? new SettlementPendingPromoterOptions(),
+            NullLogger<SettlementPendingPromoter>.Instance);
+
+    /// <summary>A pending sponsorship last touched <paramref name="waitedFor"/> ago.</summary>
+    private static FundingIntent PendingIntent(string id, TimeSpan waitedFor) => new()
+    {
+        id = id,
+        status = FundingIntentStatus.SETTLEMENT_PENDING,
+        funderUserId = FunderId,
+        updatedAt = DateTime.UtcNow - waitedFor,
+    };
+
+    /// <summary>The repository applies the promoter's REAL predicate, so its filter is under test.</summary>
+    private void ArrangeIntents(params FundingIntent[] rows) =>
+        _intents
+            .Setup(repository => repository.FindAsync(
+                It.IsAny<Expression<Func<FundingIntent, bool>>>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync((Expression<Func<FundingIntent, bool>> predicate, CancellationToken token) =>
+                (IReadOnlyList<FundingIntent>)rows.Where(predicate.Compile()).ToList());
+
+    private void ArrangeStatus(string intentId, FundingIntentStatus status) =>
+        _fundingIntents
+            .Setup(service => service.GetStatusAsync(intentId, FunderId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<FundingIntentStatusDto>.Success(new FundingIntentStatusDto
+            {
+                IntentId = intentId,
+                ProjectTokenConfigId = "config-1",
+                CurrencyCode = "ARDA",
+                Amount = "9.00",
+                Status = status.ToString(),
+            }));
+
+    private static IConfiguration Configuration(params (string Key, string? Value)[] values) =>
+        new ConfigurationBuilder()
+            .AddInMemoryCollection(values.ToDictionary(entry => entry.Key, entry => entry.Value))
+            .Build();
 }

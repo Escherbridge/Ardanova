@@ -51,15 +51,32 @@ public sealed class FundingIntentService : IFundingIntentService
     /// <summary>
     /// How long the outbox waits before covering for the synchronous attempt. Without it the worker
     /// and the request race for the same settlement; with it the worker only ever picks up work the
-    /// request failed to finish.
+    /// request failed to finish. Public because the hosted promoter waits the SAME grace period
+    /// before touching a pending sponsorship - two numbers here would be two loops racing.
     /// </summary>
-    private static readonly TimeSpan OutboxHandoverDelay = TimeSpan.FromMinutes(2);
+    public static readonly TimeSpan OutboxHandoverDelay = TimeSpan.FromMinutes(2);
 
     private const string FundAction = "fund a project";
     private const string ReceiveAction = "receive project funding";
     private const int TermsSchemaVersion = 2;
     private const string ProjectUnitLeg = "projectUnit";
     private const string ExchangePurpose = "sponsorship";
+
+    /// <summary>
+    /// Where the sponsor's naming choice lives on the intent, as one name shared by the writer and
+    /// the reader below so the two cannot drift apart.
+    /// </summary>
+    /// <remarks>
+    /// It rides in <see cref="FundingIntent.eligibilitySnapshot"/> - ArdaNova's own jsonb column,
+    /// which is never part of an <see cref="AzoaSettlementRequest"/> - rather than in a column of
+    /// its own, because <c>FundingIntent</c> and the Prisma schema that shapes it belong to other
+    /// items in this wave. A person's naming preference is ArdaNova's business and must not travel
+    /// to the node with the terms, so the local snapshot is also the RIGHT home, not merely the
+    /// reachable one. Absent, malformed, or anything but a literal <c>true</c> reads as no consent.
+    /// </remarks>
+    private const string SponsorChoicesProperty = "sponsorChoices";
+
+    private const string DisplayNameConsentProperty = "displayNameConsent";
 
     /// <summary>
     /// Currency codes a project unit may never be symbolised by. It mirrors the gateway's own
@@ -436,7 +453,7 @@ public sealed class FundingIntentService : IFundingIntentService
             declaredRateSource = rate.Source,
             declaredRateDeclaredAt = rate.DeclaredAt.UtcDateTime,
             declaredRateVersion = rate.Version,
-            eligibilitySnapshot = CreateEligibilitySnapshot(project, config),
+            eligibilitySnapshot = CreateEligibilitySnapshot(project, config, request.DisplayNameConsent),
             exchangeIdempotencyKey = ExchangeIdempotencyKey(avatarId, intentId),
             releaseNotBefore = releaseNotBefore,
             settlementAttemptCount = 0,
@@ -897,6 +914,10 @@ public sealed class FundingIntentService : IFundingIntentService
             investedAt = now,
             protectionEligible = true,
             protectionPaidOut = false,
+            // The one writer of this column. ProjectLedgerService and ProjectTokensController read
+            // it to decide whether a sponsor is named; before this nothing set it, so every row was
+            // permanently false and the choice offered on the invest page was decorative.
+            showBackerName = ReadDisplayNameConsent(intent),
         };
 
     /// <summary>A receipt for the credit the exchange already made to the project's node-side treasury.</summary>
@@ -1003,18 +1024,51 @@ public sealed class FundingIntentService : IFundingIntentService
             },
         });
 
-    private static string CreateEligibilitySnapshot(Project project, ProjectTokenConfig config)
-        => JsonSerializer.Serialize(new
+    /// <summary>What made this sponsorship eligible, plus the one choice its sponsor made about it.</summary>
+    private static string CreateEligibilitySnapshot(
+        Project project,
+        ProjectTokenConfig config,
+        bool displayNameConsent)
+        => JsonSerializer.Serialize(new Dictionary<string, object?>(StringComparer.Ordinal)
         {
-            schemaVersion = TermsSchemaVersion,
-            projectId = project.id,
-            projectStatus = project.status.ToString(),
-            commerceEnabled = project.commerceEnabled,
-            projectTokenConfigId = config.id,
-            gateStatus = config.gateStatus.ToString(),
-            assetId = config.assetId,
-            treasuryAddress = config.treasuryAddress,
+            ["schemaVersion"] = TermsSchemaVersion,
+            ["projectId"] = project.id,
+            ["projectStatus"] = project.status.ToString(),
+            ["commerceEnabled"] = project.commerceEnabled,
+            ["projectTokenConfigId"] = config.id,
+            ["gateStatus"] = config.gateStatus.ToString(),
+            ["assetId"] = config.assetId,
+            ["treasuryAddress"] = config.treasuryAddress,
+            [SponsorChoicesProperty] = new Dictionary<string, object?>(StringComparer.Ordinal)
+            {
+                [DisplayNameConsentProperty] = displayNameConsent,
+            },
         });
+
+    /// <summary>
+    /// The sponsor's naming choice, read back off their own intent. Anything that is not a literal
+    /// <c>true</c> - an absent key, an intent written before the choice existed, an unparseable
+    /// snapshot - is no consent, so the direction of failure is always "stay unnamed".
+    /// </summary>
+    private static bool ReadDisplayNameConsent(FundingIntent intent)
+    {
+        if (string.IsNullOrWhiteSpace(intent.eligibilitySnapshot))
+            return false;
+
+        try
+        {
+            using var snapshot = JsonDocument.Parse(intent.eligibilitySnapshot);
+            return snapshot.RootElement.ValueKind == JsonValueKind.Object
+                && snapshot.RootElement.TryGetProperty(SponsorChoicesProperty, out var choices)
+                && choices.ValueKind == JsonValueKind.Object
+                && choices.TryGetProperty(DisplayNameConsentProperty, out var consent)
+                && consent.ValueKind == JsonValueKind.True;
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
+    }
 
     /// <summary>Where the sponsor watches their sponsorship finish. No provider redirect exists any more.</summary>
     private static FundingCheckoutDto BuildCheckout(FundingIntent intent, Project project)
@@ -1035,6 +1089,11 @@ public sealed class FundingIntentService : IFundingIntentService
             Amount = WholeUnits(intent.platformAmountBaseUnits, intent.platformScale),
             Status = intent.status.ToString(),
             PaymentVerifiedAt = intent.settledAt,
+            // The server's own promise, and the server's own reason. Without these the success page
+            // had to guess a hold window from a hard-coded 30 days, and could not repeat a refusal
+            // in the words this service had already written onto the row.
+            ReleaseNotBefore = intent.releaseNotBefore,
+            HoldingReasonDetail = intent.holdingReasonDetail,
         };
 
     private static bool IsNodeConfirmed(EconomicSettlement settlement)

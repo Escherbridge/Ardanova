@@ -38,6 +38,7 @@ import { commentRouter } from "~/server/api/routers/comment";
 import { swapRouter } from "~/server/api/routers/swap";
 import { azoaCustodialAccountRouter } from "~/server/api/routers/azoa-custodial-account";
 import { fundingIntentRouter } from "~/server/api/routers/funding-intent";
+import { addFundsRouter } from "~/server/api/routers/add-funds";
 import { createCallerFactory, createTRPCRouter } from "~/server/api/trpc";
 
 /**
@@ -86,6 +87,7 @@ export const appRouter = createTRPCRouter({
   swap: swapRouter,
   azoaCustodialAccount: azoaCustodialAccountRouter,
   fundingIntent: fundingIntentRouter,
+  addFunds: addFundsRouter,
 });
 
 // export type definition of API

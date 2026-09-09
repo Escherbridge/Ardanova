@@ -301,7 +301,131 @@ public class ExchangeServiceTests
         result.Value.Source.Should().Be(ExchangeService.DeclaredRateSource);
     }
 
-    private void ArrangeRate(double fundingRaised, int totalSupply, double backing, long circulating)
+    // -- The first sponsorship: a project nobody has backed yet still has a price (OI-89b) --
+
+    [Fact]
+    public async Task GetProjectTokenValueAsync_NobodyHasSponsoredYet_QuotesTheOpeningOffer()
+    {
+        // Nothing raised, so there is no backer-set price. The opening offer the founder already
+        // named - $50,000 across 10,000 units - is $5 a unit.
+        ArrangeProject(fundingRaised: 0, fundingGoal: 50_000, totalSupply: 10_000);
+
+        var result = await _sut.GetProjectTokenValueAsync("ptc1", CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value.Should().Be(5.0);
+    }
+
+    [Fact]
+    public async Task GetDeclaredRateAsync_NobodyHasSponsoredYet_PricesTheOfferAndMarksItAsSuch()
+    {
+        // $5 a unit at the opening offer and one ARDA worth $2, so a unit costs 2.5 ARDA. This
+        // rate was 0 before, which is why the first sponsorship of any project was unpriceable.
+        ArrangeRate(fundingRaised: 0, totalSupply: 10_000, backing: 10_000, circulating: 5_000, fundingGoal: 50_000);
+
+        var result = await _sut.GetDeclaredRateAsync("ptc1", CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value!.ArdaPerWholeProjectUnit.Should().Be("2.5");
+        result.Value.UsdMajorUnitsPerWholeProjectUnit.Should().Be("5");
+        // The marker the receipt carries, so a sponsor is told which of the two prices they got.
+        result.Value.Source.Should().Be(ExchangeService.OfferingRateSource);
+    }
+
+    [Fact]
+    public async Task GetDeclaredRateAsync_OnceSponsorshipArrives_TheBackerSetPriceReplacesTheOffer()
+    {
+        // The offer was $5 a unit; backers have since put in $100,000, which is $10 a unit. The
+        // opening offer is a starting price, not a floor the project keeps returning to.
+        ArrangeRate(fundingRaised: 100_000, totalSupply: 10_000, backing: 10_000, circulating: 5_000, fundingGoal: 50_000);
+
+        var result = await _sut.GetDeclaredRateAsync("ptc1", CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value!.UsdMajorUnitsPerWholeProjectUnit.Should().Be("10");
+        result.Value.Source.Should().Be(ExchangeService.DeclaredRateSource);
+    }
+
+    [Fact]
+    public async Task CalculateConversionAsync_NobodyHasSponsoredYet_PreviewsAtTheOpeningOffer()
+    {
+        ArrangeRate(fundingRaised: 0, totalSupply: 10_000, backing: 10_000, circulating: 5_000, fundingGoal: 50_000);
+
+        var result = await _sut.CalculateConversionAsync("ptc1", 100, CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value!.ArdaPerProjectUnit.Should().Be(2.5m);
+        result.Value.ArdaAmountExact.Should().Be(250m);
+        result.Value.RateSource.Should().Be(ExchangeService.OfferingRateSource);
+    }
+
+    [Fact]
+    public async Task GetProjectTokenValueAsync_NoSponsorshipAndNoAmountToRaise_RefusesByName()
+    {
+        // Nothing raised and nothing asked for is not a price of zero; it is no price at all.
+        ArrangeProject(fundingRaised: 0, fundingGoal: 0, totalSupply: 10_000);
+
+        var result = await _sut.GetProjectTokenValueAsync("ptc1", CancellationToken.None);
+
+        result.IsSuccess.Should().BeFalse();
+        result.Error.Should().Be("This project has not set an amount to raise, so it has no opening price yet");
+    }
+
+    [Fact]
+    public async Task GetProjectTokenValueAsync_FundingTotalBelowZero_RefusesRatherThanFallingBackToTheOffer()
+    {
+        // A below-zero total is a broken figure, not an unsponsored project. Quoting the opening
+        // offer here would price it anyway and hide the defect.
+        ArrangeProject(fundingRaised: -1, fundingGoal: 50_000, totalSupply: 10_000);
+
+        var result = await _sut.GetProjectTokenValueAsync("ptc1", CancellationToken.None);
+
+        result.IsSuccess.Should().BeFalse();
+        result.Error.Should().Be("This project's funding total is below zero, so no price can be quoted");
+    }
+
+    // -- The genesis treasury: a rate of zero is a refusal, not a division (OI-34) --
+
+    [Fact]
+    public async Task GetArdaValueAsync_GenesisTreasury_RefusesByNameInsteadOfReturningZero()
+    {
+        // Three bucket balances still at 0 with ARDA already issued. The rate divides out to 0,
+        // and 0 is precisely what every caller of this then divides by.
+        ArrangeTreasury(backing: 0, circulating: 10_000_000);
+
+        var result = await _sut.GetArdaValueAsync(CancellationToken.None);
+
+        result.IsSuccess.Should().BeFalse();
+        result.Error.Should().Be("ARDA has no backing, so no rate can be quoted");
+    }
+
+    [Fact]
+    public async Task GetDeclaredRateAsync_GenesisTreasury_RefusesInsteadOfThrowing()
+    {
+        // One of the two division sites. Without the guard this raised DivideByZeroException and
+        // the route answered 500, so the test would fail on the exception, not the assertion.
+        ArrangeRate(fundingRaised: 10_000, totalSupply: 1_000, backing: 0, circulating: 10_000_000);
+
+        var result = await _sut.GetDeclaredRateAsync("ptc1", CancellationToken.None);
+
+        result.IsSuccess.Should().BeFalse();
+        result.Error.Should().Be("ARDA has no backing, so no rate can be quoted");
+    }
+
+    [Fact]
+    public async Task CalculateConversionAsync_GenesisTreasury_RefusesInsteadOfThrowing()
+    {
+        // The other division site, reached by the preview a sponsor sees before committing.
+        ArrangeRate(fundingRaised: 10_000, totalSupply: 1_000, backing: 0, circulating: 10_000_000);
+
+        var result = await _sut.CalculateConversionAsync("ptc1", 100, CancellationToken.None);
+
+        result.IsSuccess.Should().BeFalse();
+        result.Error.Should().Be("ARDA has no backing, so no rate can be quoted");
+    }
+
+    /// <summary>A project whose price is whatever these three figures make it.</summary>
+    private void ArrangeProject(double fundingRaised, double fundingGoal, int totalSupply)
     {
         _projectTokenConfigRepo
             .Setup(r => r.GetByIdAsync("ptc1", It.IsAny<CancellationToken>()))
@@ -311,8 +435,13 @@ public class ExchangeServiceTests
                 assetScale = 2,
                 totalSupply = totalSupply,
                 fundingRaised = fundingRaised,
+                fundingGoal = fundingGoal,
             });
+    }
 
+    /// <summary>A treasury holding exactly this much backing against this much circulating ARDA.</summary>
+    private void ArrangeTreasury(double backing, long circulating)
+    {
         _treasuryRepo
             .Setup(r => r.GetAllAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<PlatformTreasury>
@@ -326,6 +455,17 @@ public class ExchangeServiceTests
                     ardaCirculatingSupply = circulating,
                 }
             });
+    }
+
+    private void ArrangeRate(
+        double fundingRaised,
+        int totalSupply,
+        double backing,
+        long circulating,
+        double fundingGoal = 0)
+    {
+        ArrangeProject(fundingRaised, fundingGoal, totalSupply);
+        ArrangeTreasury(backing, circulating);
     }
 }
 

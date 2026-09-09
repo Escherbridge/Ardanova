@@ -1,17 +1,41 @@
 namespace ArdaNova.API.Controllers;
 
+using System;
+using System.Linq;
+using ArdaNova.API.Middleware;
 using ArdaNova.Application.Common.Results;
 using ArdaNova.Application.DTOs;
 using ArdaNova.Application.Services.Interfaces;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
 /// <summary>
-/// Controller for file attachment and storage operations
+/// File attachment and storage routes. Every one is bound to the calling actor: the owner comes
+/// from the verified actor claim, never from a request header or a request body.
 /// </summary>
 [ApiController]
 [Route("api/[controller]")]
+[Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
 public class AttachmentsController : ControllerBase
 {
+    /// <summary>Why the multipart route cannot establish an uploader, and what to use instead.</summary>
+    public const string MultipartUploadRetiredMessage =
+        "Direct multipart upload is retired: a multipart body cannot carry an actor assertion, so "
+        + "the uploader could not be established. Request an upload URL from "
+        + "POST /api/attachments/upload-url instead.";
+
+    /// <summary>A size that is not declared cannot be checked, so it is refused rather than skipped.</summary>
+    public const string FileSizeRequiredMessage =
+        "fileSize is required and must be greater than zero; an upload whose size is not declared "
+        + "cannot be checked against the limit.";
+
+    private const string AttachmentNotFoundMessage = "Attachment not found";
+
+    private const string UserPathSegmentPrefix = "user_";
+
+    private const int UserPathSegmentIdLength = 8;
+
     private readonly IAttachmentService _attachmentService;
     private readonly IStorageService _storageService;
 
@@ -23,85 +47,100 @@ public class AttachmentsController : ControllerBase
         _storageService = storageService;
     }
 
-    /// <summary>
-    /// Get all attachments (paginated)
-    /// </summary>
+    /// <summary>The caller's own attachments, paginated. There is no parameter for anyone else's.</summary>
     [HttpGet]
     public async Task<IActionResult> GetAll(
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 10,
         CancellationToken ct = default)
     {
-        var result = await _attachmentService.GetPagedAsync(page, pageSize, ct);
-        return ToActionResult(result);
+        var owned = await _attachmentService.GetByUserIdAsync(ActorId, ct);
+        if (owned.IsFailure)
+        {
+            return ToActionResult(owned);
+        }
+
+        var requestedPage = page < 1 ? 1 : page;
+        var requestedPageSize = pageSize < 1 ? 10 : Math.Min(pageSize, 100);
+        var items = owned.Value!;
+        var pageItems = items
+            .Skip((requestedPage - 1) * requestedPageSize)
+            .Take(requestedPageSize)
+            .ToList();
+
+        return Ok(new PagedResult<AttachmentDto>(pageItems, items.Count, requestedPage, requestedPageSize));
     }
 
-    /// <summary>
-    /// Get attachment by ID
-    /// </summary>
+    /// <summary>An attachment the caller uploaded; anyone else's reads as missing, not as forbidden.</summary>
     [HttpGet("{id}")]
     public async Task<IActionResult> GetById(string id, CancellationToken ct)
     {
         var result = await _attachmentService.GetByIdAsync(id, ct);
-        return ToActionResult(result);
+        if (result.IsFailure)
+        {
+            return ToActionResult(result);
+        }
+
+        return UploadedByCaller(result.Value!) ? Ok(result.Value) : AttachmentNotFound();
     }
 
-    /// <summary>
-    /// Get attachments by user ID
-    /// </summary>
+    /// <summary>Kept for the existing client route; the id must be the caller's own.</summary>
     [HttpGet("user/{userId}")]
     public async Task<IActionResult> GetByUserId(string userId, CancellationToken ct)
     {
-        var result = await _attachmentService.GetByUserIdAsync(userId, ct);
-        return ToActionResult(result);
+        if (!string.Equals(userId, ActorId, StringComparison.Ordinal))
+        {
+            return CallerForbidden("Attachments can only be listed for the signed-in account.");
+        }
+
+        return ToActionResult(await _attachmentService.GetByUserIdAsync(ActorId, ct));
     }
 
     /// <summary>
-    /// Get a presigned URL for uploading a file
+    /// Mints an upload URL under the CALLING actor's prefix. OI-18: the owner is never taken from
+    /// a request header, so a shared API key cannot mint a URL under someone else's name.
     /// </summary>
     [HttpPost("upload-url")]
     public async Task<IActionResult> GetUploadUrl(
         [FromBody] UploadRequestDto request,
-        [FromHeader(Name = "X-User-Id")] string? userId,
         CancellationToken ct)
     {
-        if (string.IsNullOrEmpty(userId))
+        if (!HasDeclaredSize(request))
         {
-            return BadRequest(new { error = "X-User-Id header is required" });
+            return BadRequest(new { error = FileSizeRequiredMessage });
         }
 
-        var result = await _storageService.GetPresignedUploadUrlAsync(request, userId, ct);
+        var result = await _storageService.GetPresignedUploadUrlAsync(request, ActorId, ct);
         return ToActionResult(result);
     }
 
-    /// <summary>
-    /// Get presigned URLs for bulk file upload
-    /// </summary>
+    /// <summary>The bulk form of <see cref="GetUploadUrl"/>, under the same actor and the same cap.</summary>
     [HttpPost("upload-urls")]
     public async Task<IActionResult> GetUploadUrls(
         [FromBody] BulkUploadRequestDto request,
-        [FromHeader(Name = "X-User-Id")] string? userId,
         CancellationToken ct)
     {
-        if (string.IsNullOrEmpty(userId))
+        if (request.Files.Count == 0)
         {
-            return BadRequest(new { error = "X-User-Id header is required" });
+            return BadRequest(new { error = "At least one file is required" });
         }
 
-        var result = await _storageService.GetPresignedUploadUrlsAsync(request, userId, ct);
+        if (!request.Files.All(HasDeclaredSize))
+        {
+            return BadRequest(new { error = FileSizeRequiredMessage });
+        }
+
+        var result = await _storageService.GetPresignedUploadUrlsAsync(request, ActorId, ct);
         return ToActionResult(result);
     }
 
-    /// <summary>
-    /// Get a presigned URL for downloading a file
-    /// </summary>
+    /// <summary>A signed download link for the caller's own attachment.</summary>
     [HttpGet("{id}/download-url")]
     public async Task<IActionResult> GetDownloadUrl(
         string id,
         [FromQuery] int expirationMinutes = 60,
         CancellationToken ct = default)
     {
-        // First get the attachment to get the bucket path
         var attachmentResult = await _attachmentService.GetByIdAsync(id, ct);
         if (attachmentResult.IsFailure)
         {
@@ -109,6 +148,11 @@ public class AttachmentsController : ControllerBase
         }
 
         var attachment = attachmentResult.Value!;
+        if (!UploadedByCaller(attachment))
+        {
+            return AttachmentNotFound();
+        }
+
         if (string.IsNullOrEmpty(attachment.BucketPath))
         {
             return NotFound(new { error = "Attachment has no associated file" });
@@ -120,7 +164,6 @@ public class AttachmentsController : ControllerBase
             expirationMinutes,
             ct);
 
-        // Update last used timestamp
         if (result.IsSuccess)
         {
             await _attachmentService.UpdateLastUsedAsync(id, ct);
@@ -130,19 +173,24 @@ public class AttachmentsController : ControllerBase
     }
 
     /// <summary>
-    /// Register an uploaded file as an attachment
-    /// Called after successful upload to presigned URL
+    /// Registers an uploaded file. The uploader is the calling actor: a caller-supplied
+    /// <c>UploadedById</c> is ignored, and a storage path stamped for another account is refused.
     /// </summary>
     [HttpPost]
     public async Task<IActionResult> Create(
         [FromBody] CreateAttachmentDto dto,
         CancellationToken ct)
     {
-        // Verify the file exists in storage
+        var owner = ActorId;
+        if (!BucketPathBelongsToCaller(dto.BucketPath, owner))
+        {
+            return CallerForbidden("That storage path was minted for another account.");
+        }
+
         var existsResult = await _storageService.ExistsAsync(dto.BucketPath, ct);
         if (existsResult.IsFailure)
         {
-            return BadRequest(new { error = existsResult.Error });
+            return ToActionResult(existsResult);
         }
 
         if (!existsResult.Value)
@@ -150,19 +198,16 @@ public class AttachmentsController : ControllerBase
             return BadRequest(new { error = "File not found in storage. Upload may have failed." });
         }
 
-        var result = await _attachmentService.CreateAsync(dto, ct);
+        var result = await _attachmentService.CreateAsync(dto with { UploadedById = owner }, ct);
         return result.IsSuccess
             ? CreatedAtAction(nameof(GetById), new { id = result.Value!.Id }, result.Value)
             : ToActionResult(result);
     }
 
-    /// <summary>
-    /// Delete an attachment (removes both database record and file from storage)
-    /// </summary>
+    /// <summary>Deletes the caller's own attachment, record and stored file together.</summary>
     [HttpDelete("{id}")]
     public async Task<IActionResult> Delete(string id, CancellationToken ct)
     {
-        // Get the attachment first to get the bucket path
         var attachmentResult = await _attachmentService.GetByIdAsync(id, ct);
         if (attachmentResult.IsFailure)
         {
@@ -170,77 +215,32 @@ public class AttachmentsController : ControllerBase
         }
 
         var attachment = attachmentResult.Value!;
-
-        // Delete from storage if bucket path exists
-        if (!string.IsNullOrEmpty(attachment.BucketPath))
+        if (!UploadedByCaller(attachment))
         {
-            var storageDeleteResult = await _storageService.DeleteAsync(attachment.BucketPath, ct);
-            if (storageDeleteResult.IsFailure)
-            {
-                // Log but don't fail - orphaned files can be cleaned up later
-                // The database record should still be deleted
-            }
+            return AttachmentNotFound();
         }
 
-        // Delete the database record
+        if (!string.IsNullOrEmpty(attachment.BucketPath))
+        {
+            // An orphaned file is swept later; the record must still go.
+            await _storageService.DeleteAsync(attachment.BucketPath, ct);
+        }
+
         var result = await _attachmentService.DeleteAsync(id, ct);
         return result.IsSuccess ? NoContent() : ToActionResult(result);
     }
 
     /// <summary>
-    /// Direct file upload (server-side upload, returns attachment record)
-    /// For small files or when presigned URLs aren't suitable
+    /// Refuses rather than uploading. An actor assertion cannot be carried on a multipart body
+    /// (ActorAssertionMiddleware rejects multipart outright), so this route had no way to
+    /// establish an uploader other than the header OI-18 removed.
     /// </summary>
     [HttpPost("upload")]
-    [RequestSizeLimit(52_428_800)] // 50MB limit for direct uploads
-    public async Task<IActionResult> Upload(
-        IFormFile file,
-        [FromHeader(Name = "X-User-Id")] string? userId,
-        [FromQuery] string? folder,
-        CancellationToken ct)
-    {
-        if (string.IsNullOrEmpty(userId))
-        {
-            return BadRequest(new { error = "X-User-Id header is required" });
-        }
+    [RequestSizeLimit(52_428_800)]
+    public IActionResult Upload()
+        => StatusCode(StatusCodes.Status501NotImplemented, new { error = MultipartUploadRetiredMessage });
 
-        if (file == null || file.Length == 0)
-        {
-            return BadRequest(new { error = "No file provided" });
-        }
-
-        await using var stream = file.OpenReadStream();
-        var uploadResult = await _storageService.UploadAsync(
-            stream,
-            file.FileName,
-            file.ContentType,
-            folder,
-            ct);
-
-        if (uploadResult.IsFailure)
-        {
-            return ToActionResult(uploadResult);
-        }
-
-        // Create the attachment record
-        var attachmentDto = new CreateAttachmentDto
-        {
-            UploadedById = userId,
-            BucketPath = uploadResult.Value!,
-            Type = _storageService.GetMimeType(file.ContentType),
-            FileName = file.FileName,
-            FileSize = file.Length
-        };
-
-        var attachmentResult = await _attachmentService.CreateAsync(attachmentDto, ct);
-        return attachmentResult.IsSuccess
-            ? CreatedAtAction(nameof(GetById), new { id = attachmentResult.Value!.Id }, attachmentResult.Value)
-            : ToActionResult(attachmentResult);
-    }
-
-    /// <summary>
-    /// Get the public URL for an attachment
-    /// </summary>
+    /// <summary>The public URL of the caller's own attachment, when storage will serve one.</summary>
     [HttpGet("{id}/public-url")]
     public async Task<IActionResult> GetPublicUrl(string id, CancellationToken ct)
     {
@@ -251,14 +251,72 @@ public class AttachmentsController : ControllerBase
         }
 
         var attachment = attachmentResult.Value!;
+        if (!UploadedByCaller(attachment))
+        {
+            return AttachmentNotFound();
+        }
+
         if (string.IsNullOrEmpty(attachment.BucketPath))
         {
             return NotFound(new { error = "Attachment has no associated file" });
         }
 
+        // Storage returns an empty URL for a path it will not serve; that is a missing file, not a
+        // link to nowhere.
         var publicUrl = _storageService.GetPublicUrl(attachment.BucketPath);
-        return Ok(new { url = publicUrl });
+        return string.IsNullOrEmpty(publicUrl)
+            ? NotFound(new { error = "Attachment has no associated file" })
+            : Ok(new { url = publicUrl });
     }
+
+    /// <summary>The authenticated actor. The policy on this controller guarantees one exists.</summary>
+    private string ActorId =>
+        ActorAssertionMiddleware.TryGetActorId(User, out var actorId) ? actorId : string.Empty;
+
+    private bool UploadedByCaller(AttachmentDto attachment)
+        => string.Equals(attachment.UploadedById, ActorId, StringComparison.Ordinal);
+
+    /// <summary>
+    /// A storage key minted by <c>GetPresignedUploadUrlAsync</c> carries a <c>user_</c> segment.
+    /// A key stamped for a different account is refused so an attachment cannot be claimed from
+    /// under its uploader.
+    /// </summary>
+    private static bool BucketPathBelongsToCaller(string bucketPath, string actorId)
+    {
+        if (string.IsNullOrEmpty(bucketPath))
+        {
+            return false;
+        }
+
+        var expected = UserPathSegmentPrefix
+            + actorId[..Math.Min(UserPathSegmentIdLength, actorId.Length)];
+
+        foreach (var segment in bucketPath.Split(
+            new[] { '/', '\\' },
+            StringSplitOptions.RemoveEmptyEntries))
+        {
+            if (!segment.StartsWith(UserPathSegmentPrefix, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            if (!string.Equals(segment, expected, StringComparison.Ordinal))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool HasDeclaredSize(UploadRequestDto request)
+        => request.FileSize is > 0;
+
+    private IActionResult AttachmentNotFound()
+        => NotFound(new { error = AttachmentNotFoundMessage });
+
+    private IActionResult CallerForbidden(string error)
+        => StatusCode(StatusCodes.Status403Forbidden, new { error });
 
     private IActionResult ToActionResult<T>(Result<T> result)
     {
@@ -270,7 +328,8 @@ public class AttachmentsController : ControllerBase
             ResultType.NotFound => NotFound(new { error = result.Error }),
             ResultType.ValidationError => BadRequest(new { error = result.Error }),
             ResultType.Unauthorized => Unauthorized(new { error = result.Error }),
-            ResultType.Forbidden => Forbid(),
+            ResultType.Forbidden => StatusCode(StatusCodes.Status403Forbidden, new { error = result.Error }),
+            ResultType.Conflict => Conflict(new { error = result.Error }),
             _ => BadRequest(new { error = result.Error })
         };
     }

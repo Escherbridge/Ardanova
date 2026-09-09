@@ -8,6 +8,7 @@ import {
   ChevronDown,
   ChevronUp,
   Loader2,
+  Info,
 } from "lucide-react";
 import { api } from "~/trpc/react";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
@@ -169,8 +170,8 @@ export default function AdminDisputesPage() {
               Dispute Review
             </h1>
             <p className="text-muted-foreground text-sm">
-              Review disputed escrows across every funder and resolve each by
-              refunding the funder or rejecting the dispute.
+              Every dispute raised over money set aside for work, across every
+              funder.
             </p>
           </div>
           {!isLoading && (
@@ -178,6 +179,34 @@ export default function AdminDisputesPage() {
               {(disputedEscrows ?? []).length} open
             </Badge>
           )}
+        </div>
+      </div>
+
+      {/*
+        The honest scope of this workspace. It is restored, not decorative: the endpoints the
+        earlier banner asked for now exist (admin-credentialed listDisputed + resolve), but the
+        backend still adjudicates exactly two outcomes and records no reviewer against the
+        escrow. See TaskEscrowService.ResolveAsync: REFUND and REJECT are the whole vocabulary,
+        and TaskEscrow carries disputedByUserId with no matching resolvedBy column. Say so here
+        until it supports more.
+      */}
+      <div className="border-neon-cyan/20 bg-neon-cyan/5 flex items-start gap-3 rounded-md border p-4 text-sm">
+        <Info className="text-neon-cyan mt-0.5 h-4 w-4 shrink-0" />
+        <div className="text-neon-cyan/80 space-y-2">
+          <p>
+            <span className="font-semibold">What this page can decide:</span>{" "}
+            two outcomes, and only these two. You can return the money to the
+            person who set it aside, or dismiss the dispute — which puts the
+            money back to &ldquo;set aside&rdquo; and leaves releasing it with
+            them.
+          </p>
+          <p>
+            <span className="font-semibold">What it cannot do yet:</span> it
+            cannot split an amount between the two sides, and it cannot pay the
+            worker over the funder&apos;s objection. Your decision is recorded
+            as the money&apos;s next state only — no reviewer and no reasoning
+            is stored against this dispute, so keep your own record of why.
+          </p>
         </div>
       </div>
 

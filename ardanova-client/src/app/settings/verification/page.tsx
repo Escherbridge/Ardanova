@@ -14,12 +14,16 @@ import {
   TriangleAlert,
 } from "lucide-react";
 
-import { CustodialAccountCard } from "~/components/azoa/custodial-account-card";
+import {
+  CustodialAccountCard,
+  describeIdentityStep,
+  reviewContactHref,
+} from "~/components/azoa/custodial-account-card";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import type { AzoaKycSessionDto } from "~/lib/api/ardanova";
 import { normalizeInternalReturnTo } from "~/lib/auth-navigation";
-import { isValueActionAccountReady } from "~/lib/contracts/project-create-contract";
+import { evaluateValueActionAccount } from "~/lib/contracts/project-create-contract";
 import { api } from "~/trpc/react";
 
 function formatSessionExpiry(value: string | null | undefined): string {
@@ -56,6 +60,13 @@ export default function VerificationPage() {
       await utils.azoaCustodialAccount.getStatus.invalidate();
     },
   });
+  // Client half of the consent-revoke chain; L2.7 owns the gateway, controller and router.
+  const revokeConsent = api.azoaCustodialAccount.revokeConsent.useMutation({
+    onSuccess: async () => {
+      await utils.azoaCustodialAccount.getStatus.invalidate();
+      await utils.azoaCustodialAccount.getCapabilities.invalidate();
+    },
+  });
 
   const providerSessionExpiry = providerSession?.expiresAt
     ? Date.parse(providerSession.expiresAt)
@@ -90,7 +101,15 @@ export default function VerificationPage() {
   }, [providerSession?.hostedVerification, custodyStatus.refetch]);
 
   const status = custodyStatus.data?.kycStatus ?? "Unknown";
-  const accountSetupComplete = isValueActionAccountReady(custodyStatus.data);
+  // Three-way, never a boolean: a held account has finished setup and is waiting on a
+  // person, so this page must not offer it the identity check it already passed.
+  const accountEvaluation = evaluateValueActionAccount(custodyStatus.data, {
+    loadFailed: Boolean(custodyStatus.error),
+  });
+  const accountSetupComplete = accountEvaluation.state === "ready";
+  const accountUnderReview =
+    !custodyStatus.isLoading && accountEvaluation.state === "under-review";
+  const reviewContact = accountUnderReview ? reviewContactHref() : null;
   const returnTo = normalizeInternalReturnTo(
     searchParams.get("returnTo") ?? undefined,
   );
@@ -192,7 +211,7 @@ export default function VerificationPage() {
           <div>
             <div className="mb-2 flex flex-wrap items-center gap-2">
               <Badge variant={status === "Approved" ? "success" : "outline"}>
-                {status}
+                {describeIdentityStep(status)}
               </Badge>
               {developmentSimulation && (
                 <Badge variant="secondary">Development simulation</Badge>
@@ -210,7 +229,7 @@ export default function VerificationPage() {
               Identity verification
             </h2>
           </div>
-          {status !== "Approved" && !providerSession && (
+          {status !== "Approved" && !accountUnderReview && !providerSession && (
             <Button
               className="min-h-11 w-full sm:w-auto"
               disabled={!canStart || beginKyc.isPending}
@@ -228,7 +247,29 @@ export default function VerificationPage() {
           )}
         </div>
 
-        {status === "Approved" ? (
+        {accountUnderReview ? (
+          <div className="flex items-start gap-4 p-5 sm:p-6">
+            <span className="border-foreground bg-secondary inline-flex size-10 shrink-0 items-center justify-center border-2">
+              <ShieldCheck className="size-5" aria-hidden="true" />
+            </span>
+            <div>
+              <h3 className="font-mono text-lg font-black uppercase">
+                Your identity check is complete
+              </h3>
+              <p className="text-muted-foreground mt-1 text-sm leading-relaxed">
+                {accountEvaluation.message}
+              </p>
+              {reviewContact && (
+                <Button variant="outline" className="mt-4 min-h-11" asChild>
+                  <a href={reviewContact}>
+                    Contact the review team
+                    <ArrowUpRight className="size-4" aria-hidden="true" />
+                  </a>
+                </Button>
+              )}
+            </div>
+          </div>
+        ) : status === "Approved" ? (
           <div className="flex items-start gap-4 p-5 sm:p-6">
             <span className="border-foreground bg-primary text-primary-foreground inline-flex size-10 shrink-0 items-center justify-center border-2">
               <Check className="size-5" aria-hidden="true" />
@@ -473,6 +514,10 @@ export default function VerificationPage() {
 
       <PermissionPanel
         accountExists={Boolean(custodyStatus.data?.identityReady)}
+        isRevoking={revokeConsent.isPending}
+        revoked={revokeConsent.isSuccess}
+        revokeError={revokeConsent.error?.message ?? null}
+        onRevoke={() => revokeConsent.mutate()}
       />
     </div>
   );
@@ -481,9 +526,24 @@ export default function VerificationPage() {
 /**
  * What ArdaNova is allowed to do for this person, and their standing right to take it back
  * (W3.6). It only appears once an account actually exists, so it never advertises a permission
- * nobody has granted.
+ * nobody has granted. The consequences are stated before the action fires, and the withdrawal
+ * itself is a two-step confirm - never a single click on a standing permission.
  */
-function PermissionPanel({ accountExists }: { accountExists: boolean }) {
+function PermissionPanel({
+  accountExists,
+  isRevoking,
+  revoked,
+  revokeError,
+  onRevoke,
+}: {
+  accountExists: boolean;
+  isRevoking: boolean;
+  revoked: boolean;
+  revokeError: string | null;
+  onRevoke: () => void;
+}) {
+  const [confirming, setConfirming] = useState(false);
+
   if (!accountExists) return null;
 
   return (
@@ -517,27 +577,85 @@ function PermissionPanel({ accountExists }: { accountExists: boolean }) {
           <p className="text-muted-foreground text-sm leading-relaxed">
             If you take it back, ArdaNova can no longer act for you: adding
             funds and backing projects stop working, and anything you already
-            own stays yours. Nothing you have already done is undone.
+            own stays yours. Nothing you have already done is undone, and
+            granting the permission again turns those things back on.
           </p>
-          <div className="border-border flex flex-col gap-3 border-t pt-3 sm:flex-row sm:items-center sm:justify-between">
-            <Button
-              type="button"
-              variant="outline"
-              className="min-h-11 w-full sm:w-auto"
-              disabled
-              aria-describedby="permission-panel-note"
+          {revoked ? (
+            <div
+              className="border-foreground bg-secondary flex items-start gap-3 border-2 p-4"
+              role="status"
             >
-              Take back my permission
-            </Button>
-            <p
-              id="permission-panel-note"
-              className="text-muted-foreground max-w-md text-xs leading-relaxed"
-            >
-              Doing this from here isn&apos;t switched on yet. Ask us and
-              we&apos;ll hand your permission back — you do not need our
-              agreement to withdraw it.
-            </p>
-          </div>
+              <Check className="mt-0.5 size-5 shrink-0" aria-hidden="true" />
+              <p className="text-sm leading-relaxed">
+                Your permission is withdrawn. Adding funds and backing projects
+                are switched off until you grant it again; everything you
+                already own is untouched.
+              </p>
+            </div>
+          ) : (
+            <div className="border-border flex flex-col gap-3 border-t pt-3">
+              {revokeError && (
+                <div
+                  className="border-destructive flex items-start gap-3 border-2 p-4"
+                  role="status"
+                >
+                  <TriangleAlert
+                    className="text-destructive mt-0.5 size-5 shrink-0"
+                    aria-hidden="true"
+                  />
+                  <p className="text-sm leading-relaxed">{revokeError}</p>
+                </div>
+              )}
+              {confirming ? (
+                <div className="flex flex-col gap-3">
+                  <p
+                    id="permission-panel-note"
+                    className="text-sm leading-relaxed"
+                  >
+                    Withdraw your permission now? Adding funds and backing
+                    projects stop working straight away. You can grant it again
+                    whenever you like, and nothing you already own changes.
+                  </p>
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      className="min-h-11 w-full sm:w-auto"
+                      onClick={onRevoke}
+                      disabled={isRevoking}
+                      aria-describedby="permission-panel-note"
+                    >
+                      {isRevoking && (
+                        <Loader2
+                          className="size-4 animate-spin"
+                          aria-hidden="true"
+                        />
+                      )}
+                      Yes, withdraw it
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      className="min-h-11 w-full sm:w-auto"
+                      onClick={() => setConfirming(false)}
+                      disabled={isRevoking}
+                    >
+                      Keep my permission
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="min-h-11 w-full sm:w-auto"
+                  onClick={() => setConfirming(true)}
+                >
+                  Take back my permission
+                </Button>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </section>

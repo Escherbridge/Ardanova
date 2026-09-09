@@ -26,22 +26,12 @@ export type FundingIntentFacts = {
   /** Consumer-safe reason text the server already wrote (`FundingIntent.holdingReasonDetail`). */
   reasonDetail?: string | null;
   /**
-   * ISO timestamp the held stake becomes the sponsor's to move (`FundingIntent.releaseNotBefore`).
-   * `FundingIntentStatusDto` does not carry this field yet — see the module-level TODO below —
-   * so this is normally undefined and the fixed window is used instead.
+   * ISO timestamp the held stake becomes the sponsor's to move (`FundingIntent.releaseNotBefore`),
+   * carried by `FundingIntentStatusDto`. Absent means the server has not set a date, and the
+   * copy says so rather than naming one.
    */
   releaseNotBefore?: string | null;
 };
-
-/**
- * TODO(cross-boundary): `FundingIntentStatusDto` (ArdaNova.Application/DTOs/FundingIntentDtos.cs)
- * and `FundingIntentsController.GetStatus` only return IntentId/ProjectTokenConfigId/CurrencyCode/
- * Amount/Status/PaymentVerifiedAt today. Neither this wave nor W6.2 owns those files. Once they
- * grow `releaseNotBefore` and `holdingReasonDetail` (the fields `FundingIntentService.CompleteAsync`
- * and `HoldAsync` already write onto the entity), thread them through `funding-intent.ts`'s
- * `getStatus` procedure into `FundingIntentFacts` above and this fallback window can be deleted.
- */
-const FALLBACK_STAKE_HOLD_DAYS = 30;
 
 function daysFromNow(iso: string): number | null {
   const targetMs = new Date(iso).getTime();
@@ -51,9 +41,11 @@ function daysFromNow(iso: string): number | null {
 }
 
 function releaseLabel(facts: FundingIntentFacts): string {
+  // No invented window: when the server names no date, the copy stays vague rather than
+  // promising a day nothing in the system committed to.
   const days = facts.releaseNotBefore
     ? daysFromNow(facts.releaseNotBefore)
-    : FALLBACK_STAKE_HOLD_DAYS;
+    : null;
   if (days === null) return "after a short hold";
   if (days <= 0) return "today";
   return `in ${days} day${days === 1 ? "" : "s"}`;

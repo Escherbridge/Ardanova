@@ -267,8 +267,12 @@ public class ProjectLedgerService : IProjectLedgerService
         var entries = new List<ProjectMoneyEntry>();
         var counterparties = new CounterpartyNames(mayShowNames: true);
 
-        await AddSponsorshipsAsync(entries, counterparties, sponsorships, ct);
-        AddWorkerAwards(entries, counterparties, config, awards);
+        // Consent is read ONCE, for the whole page, from the only rows that record one. Every
+        // Claim below takes its answer from here rather than asserting a person agreed.
+        var naming = await ReadNamingConsentAsync(config, ct);
+
+        await AddSponsorshipsAsync(entries, counterparties, naming, sponsorships, ct);
+        AddWorkerAwards(entries, counterparties, naming, config, awards);
         await AddBuyBacksAsync(entries, counterparties, config, ct);
         await AddRemainingTreasuryReceiptsAsync(entries, projectId, ct);
 
@@ -291,6 +295,44 @@ public class ProjectLedgerService : IProjectLedgerService
             EntriesHiddenNote: null,
             CounterpartyNamesVisible: true,
             CounterpartyNamesNote: null));
+    }
+
+    /// <summary>
+    /// Who agreed to be named on this project, read off the pledges that record the agreement.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="ProjectInvestment.showBackerName"/> is the ONLY durable record of a person's
+    /// naming choice in this system, and it is per pledge. Both keys come out of the same single
+    /// query: the pledge's own id (which is the sponsorship's intent id) for a sponsorship entry,
+    /// and the person's user id for an award entry, which has no consent row of its own. Someone
+    /// with no pledge on this project has agreed to nothing, so they are not named - the page's own
+    /// sentence, "only when the person chose to be named", is enforced here rather than asserted.
+    /// </remarks>
+    private async Task<NamingConsent> ReadNamingConsentAsync(
+        ProjectTokenConfig config,
+        CancellationToken ct)
+    {
+        var pledges = await _investmentRepository.FindAsync(
+            pledge => pledge.projectTokenConfigId == config.id && pledge.showBackerName,
+            ct);
+
+        return new NamingConsent(
+            PledgeIds: pledges.Select(pledge => pledge.id).ToHashSet(StringComparer.Ordinal),
+            UserIds: pledges
+                .Select(pledge => pledge.userId)
+                .Where(userId => !string.IsNullOrWhiteSpace(userId))
+                .ToHashSet(StringComparer.Ordinal));
+    }
+
+    /// <summary>The people, and the pledges, that agreed to be named on this project.</summary>
+    /// <param name="PledgeIds">Pledge ids, which are also the ids of the sponsorships that made them.</param>
+    /// <param name="UserIds">People with at least one naming agreement on this project.</param>
+    private sealed record NamingConsent(HashSet<string> PledgeIds, HashSet<string> UserIds)
+    {
+        public bool CoversPledge(string pledgeId) => PledgeIds.Contains(pledgeId);
+
+        public bool CoversPerson(string? userId) =>
+            !string.IsNullOrWhiteSpace(userId) && UserIds.Contains(userId!);
     }
 
     /// <summary>Settled sponsorships for this project. Only a SETTLED intent moved any money.</summary>
@@ -391,21 +433,12 @@ public class ProjectLedgerService : IProjectLedgerService
     private async Task AddSponsorshipsAsync(
         List<ProjectMoneyEntry> entries,
         CounterpartyNames counterparties,
+        NamingConsent naming,
         IReadOnlyList<FundingIntent> settled,
         CancellationToken ct)
     {
         if (settled.Count == 0)
             return;
-
-        // A sponsor's name appears only when their own per-pledge consent opted in. The pledge
-        // carries the intent's id as its key, so the consent flag is a lookup rather than a guess.
-        var intentIds = settled.Select(intent => intent.id).ToList();
-        var pledges = await _investmentRepository.FindAsync(
-            pledge => intentIds.Contains(pledge.id), ct);
-        var consentedIntentIds = pledges
-            .Where(pledge => pledge.showBackerName)
-            .Select(pledge => pledge.id)
-            .ToHashSet(StringComparer.Ordinal);
 
         var settlementIds = settled
             .Where(intent => !string.IsNullOrWhiteSpace(intent.settlementId))
@@ -421,7 +454,9 @@ public class ProjectLedgerService : IProjectLedgerService
         {
             var occurredAt = AsUtc(intent.settledAt ?? intent.updatedAt);
             var unitsText = $"{intent.projectUnitQuantity} {intent.projectUnitAssetCode}";
-            var consented = consentedIntentIds.Contains(intent.id);
+            // The pledge carries the sponsorship's own id, so this is that person's answer for
+            // this sponsorship - not a guess, and not another sponsorship's answer.
+            var consented = naming.CoversPledge(intent.id);
 
             var fundsEntryId = $"sponsorship:{intent.id}";
             entries.Add(new ProjectMoneyEntry(
@@ -499,6 +534,7 @@ public class ProjectLedgerService : IProjectLedgerService
     private static void AddWorkerAwards(
         List<ProjectMoneyEntry> entries,
         CounterpartyNames counterparties,
+        NamingConsent naming,
         ProjectTokenConfig config,
         IReadOnlyList<TokenAllocation> awards)
     {
@@ -536,7 +572,14 @@ public class ProjectLedgerService : IProjectLedgerService
                 CounterpartyName: null,
                 VerifyReference: award.workerHoldId ?? award.holdId));
 
-            counterparties.Claim(entryId, award.recipientUserId, role, consented: true);
+            // TokenAllocation records no consent of its own, so the answer is the person's own
+            // agreement on this project. No agreement, no name: this line used to pass a literal
+            // true, which named every award recipient on a page that promises the opposite.
+            counterparties.Claim(
+                entryId,
+                award.recipientUserId,
+                role,
+                consented: naming.CoversPerson(award.recipientUserId));
         }
     }
 

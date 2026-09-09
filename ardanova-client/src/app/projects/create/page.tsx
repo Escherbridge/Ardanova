@@ -30,6 +30,10 @@ import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Badge } from "~/components/ui/badge";
 import {
+  describeIdentityStep,
+  reviewContactHref,
+} from "~/components/azoa/custodial-account-card";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -57,10 +61,10 @@ import {
   classifyProjectMediaKind,
   createEmptyProjectFormData,
   describeFundingGoalInUsd,
+  evaluateValueActionAccount,
   formatFundingAmount,
   isProjectCreateCompensationModel,
   isProjectRoleValueBearing,
-  isValueActionAccountReady,
   parseFundingGoalUnits,
   parseProjectCreateDraft,
   readArdaUsdRate,
@@ -490,11 +494,20 @@ export default function CreateProjectPage() {
   const deleteProjectMutation = api.project.delete.useMutation();
   const provisionFundingMutation =
     api.projectTokens.provisionFunding.useMutation();
-  const valueAccountReady = isValueActionAccountReady(custodyStatus.data);
   const valueAccountCheckPending =
     Boolean(session?.user?.id) &&
     !custodyStatus.data &&
     custodyStatus.isPending;
+  // Three-way, never a boolean: an account held for a human decision has no setup left to
+  // finish, so it must never read the "complete account setup" instruction. Only "ready"
+  // opens a value-bearing action; the other states decide only the words.
+  const accountEvaluation = evaluateValueActionAccount(custodyStatus.data, {
+    loadFailed: Boolean(custodyStatus.error),
+  });
+  const valueAccountReady = accountEvaluation.state === "ready";
+  const valueAccountUnderReview =
+    !valueAccountCheckPending && accountEvaluation.state === "under-review";
+  const reviewContact = valueAccountUnderReview ? reviewContactHref() : null;
 
   const handleChange = <Key extends keyof WizardFormData>(
     field: Key,
@@ -956,7 +969,9 @@ export default function CreateProjectPage() {
           ...paidRolesAwaitingSetup.map((role) => role.id),
         );
         partialWarnings.push(
-          "Paid role listings remain saved in this recovery draft until account setup is complete.",
+          valueAccountUnderReview
+            ? "Paid role listings remain saved in this recovery draft until the review of your account finishes."
+            : "Paid role listings remain saved in this recovery draft until account setup is complete.",
         );
       }
 
@@ -1087,7 +1102,9 @@ export default function CreateProjectPage() {
         }
       } else if (funding.enabled && !valueAccountReady) {
         partialWarnings.push(
-          "Funding setup waits for your account setup to finish. The project is saved.",
+          valueAccountUnderReview
+            ? "Funding setup waits for the review of your account to finish. The project is saved."
+            : "Funding setup waits for your account setup to finish. The project is saved.",
         );
       }
 
@@ -2434,14 +2451,18 @@ export default function CreateProjectPage() {
                         id="project-readiness-title"
                         className="font-mono text-base font-black uppercase"
                       >
-                        Account setup status
+                        {valueAccountUnderReview
+                          ? "Account review status"
+                          : "Account setup status"}
                       </h2>
                       <Badge variant={valueAccountReady ? "success" : "outline"}>
                         {valueAccountCheckPending
                           ? "Checking"
                           : valueAccountReady
                             ? "Complete"
-                            : "Setup needed"}
+                            : valueAccountUnderReview
+                              ? "In review"
+                              : "Setup needed"}
                       </Badge>
                     </div>
                     <p
@@ -2450,24 +2471,39 @@ export default function CreateProjectPage() {
                     >
                       {valueAccountCheckPending
                         ? "Checking the account setup needed for funding and paid work."
-                        : custodyStatus.error
-                          ? "We could not confirm account setup. You can still create a project draft; funding and paid role listings remain unavailable until status is confirmed."
-                          : valueAccountReady
-                            ? "Account setup is complete. You can publish paid role listings when the project is ready; the server checks every value-bearing action again."
-                            : (custodyStatus.data?.unavailableReason ??
-                              "You can create a project draft and collaborate now. Complete account setup before funding a project, publishing paid roles, or receiving money or rewards.")}
+                        : valueAccountReady
+                          ? "Account setup is complete. You can publish paid role listings when the project is ready; the server checks every value-bearing action again."
+                          : valueAccountUnderReview
+                            ? // The shared contract's own words, matching the server's refusal
+                              // text. The node's `unavailableReason` is a provider diagnostic
+                              // and is never printed at a creator.
+                              accountEvaluation.message
+                            : accountEvaluation.state === "service-unavailable"
+                              ? "We could not confirm account setup. You can still create a project draft; funding and paid role listings remain unavailable until status is confirmed."
+                              : "You can create a project draft and collaborate now. Complete account setup before funding a project, publishing paid roles, or receiving money or rewards."}
                     </p>
                   </div>
                 </div>
 
                 {!valueAccountCheckPending && !valueAccountReady && (
                   <div className="flex w-full flex-col gap-2 sm:w-auto">
-                    <Button className="min-h-11 w-full sm:w-auto" asChild>
-                      <Link href="/settings/verification?returnTo=%2Fprojects%2Fcreate">
-                        <ShieldCheck className="size-4" aria-hidden="true" />
-                        Review account setup
-                      </Link>
-                    </Button>
+                    {valueAccountUnderReview ? (
+                      reviewContact && (
+                        <Button className="min-h-11 w-full sm:w-auto" asChild>
+                          <a href={reviewContact}>
+                            <ShieldCheck className="size-4" aria-hidden="true" />
+                            Contact the review team
+                          </a>
+                        </Button>
+                      )
+                    ) : (
+                      <Button className="min-h-11 w-full sm:w-auto" asChild>
+                        <Link href="/settings/verification?returnTo=%2Fprojects%2Fcreate">
+                          <ShieldCheck className="size-4" aria-hidden="true" />
+                          Review account setup
+                        </Link>
+                      </Button>
+                    )}
                     <Button
                       type="button"
                       variant="outline"
@@ -2498,7 +2534,7 @@ export default function CreateProjectPage() {
                 <div className="border-foreground flex items-center justify-between gap-3 border-b-2 px-4 py-3 sm:border-r-2 sm:border-b-0">
                   <span className="text-sm font-medium">Identity check</span>
                   <span className="font-mono text-xs uppercase">
-                    {custodyStatus.data?.kycStatus ?? "Unknown"}
+                    {describeIdentityStep(custodyStatus.data?.kycStatus)}
                   </span>
                 </div>
                 <div className="flex items-center justify-between gap-3 px-4 py-3">
@@ -2511,9 +2547,9 @@ export default function CreateProjectPage() {
 
               {!valueAccountReady && (
                 <p className="border-foreground text-muted-foreground border-t-2 px-4 py-3 text-xs leading-relaxed sm:px-5">
-                  Keep shaping and saving this project draft. Visiting account setup
-                  will not erase it in this tab; only funding and paid role listings
-                  wait for completion.
+                  {valueAccountUnderReview
+                    ? "Keep shaping and saving this project draft. Only funding and paid role listings wait for the review decision."
+                    : "Keep shaping and saving this project draft. Visiting account setup will not erase it in this tab; only funding and paid role listings wait for completion."}
                 </p>
               )}
             </section>
@@ -3322,8 +3358,9 @@ export default function CreateProjectPage() {
                           </p>
                           {!valueAccountReady && (
                             <p className="mt-2">
-                              Funding setup runs once your account setup is
-                              complete. The project itself still saves.
+                              {valueAccountUnderReview
+                                ? "Funding setup runs once the review of your account finishes. The project itself still saves."
+                                : "Funding setup runs once your account setup is complete. The project itself still saves."}
                             </p>
                           )}
                         </div>
@@ -3787,19 +3824,33 @@ export default function CreateProjectPage() {
                   ? "Checking the account setup needed for funding and paid work."
                   : valueAccountReady
                     ? "Account setup is complete; every value-bearing action is checked again on the server."
-                    : "You can save this project as a draft now. Funding and paid role listings wait for account setup."}
+                    : valueAccountUnderReview
+                      ? "You can save this project as a draft now. Funding and paid role listings wait for the review decision - there is nothing for you to redo."
+                      : "You can save this project as a draft now. Funding and paid role listings wait for account setup."}
               </p>
-              {!valueAccountCheckPending && !valueAccountReady && (
-                <Button
-                  variant="outline"
-                  className="min-h-11 w-full sm:w-auto"
-                  asChild
-                >
-                  <Link href="/settings/verification?returnTo=%2Fprojects%2Fcreate">
-                    Review setup
-                  </Link>
-                </Button>
-              )}
+              {!valueAccountCheckPending &&
+                !valueAccountReady &&
+                (valueAccountUnderReview ? (
+                  reviewContact && (
+                    <Button
+                      variant="outline"
+                      className="min-h-11 w-full sm:w-auto"
+                      asChild
+                    >
+                      <a href={reviewContact}>Contact the review team</a>
+                    </Button>
+                  )
+                ) : (
+                  <Button
+                    variant="outline"
+                    className="min-h-11 w-full sm:w-auto"
+                    asChild
+                  >
+                    <Link href="/settings/verification?returnTo=%2Fprojects%2Fcreate">
+                      Review setup
+                    </Link>
+                  </Button>
+                ))}
               <Button
                 variant="default"
                 className="bg-system text-system-foreground hover:bg-system/90 min-h-11 w-full font-semibold sm:w-auto"

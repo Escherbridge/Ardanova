@@ -3,10 +3,12 @@ import type { TaskEscrowDto } from "~/lib/contracts/task-escrow-contract";
 
 export type TaskEscrow = TaskEscrowDto;
 
+/**
+ * The task alone. The funder, the amount and the share of record are all derived server-side
+ * by the .NET API, so there is no field here a caller could inflate.
+ */
 export interface CreateTaskEscrowDto {
   taskId: string;
-  shareId: string;
-  amount: number;
 }
 
 export interface RefundEscrowDto {
@@ -49,6 +51,17 @@ export class TaskEscrowsEndpoint {
 
   create(data: CreateTaskEscrowDto): Promise<ApiResponse<TaskEscrow>> {
     return this.client.post<TaskEscrow>("/api/taskescrows", data);
+  }
+
+  /**
+   * Confirms the funds behind this escrow are actually set aside, moving it to FUNDED. Takes no
+   * body: the confirmation is the shared node's own record of the reservation.
+   */
+  fund(id: string): Promise<ApiResponse<TaskEscrow>> {
+    return this.client.post<TaskEscrow>(
+      `/api/taskescrows/${encodeURIComponent(id)}/fund`,
+      {},
+    );
   }
 
   /**

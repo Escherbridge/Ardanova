@@ -134,8 +134,13 @@ function MoneyTabContent({ money }: { money: ProjectMoneyView }) {
 }
 
 /**
- * The balance of record. When it could not be read the reason is shown instead of a figure:
- * a zero standing in for an unavailable read is how a missing answer becomes a wrong one.
+ * The balance of record. When it could not be read, a plain "Not available yet" stands in for
+ * a figure: a zero here would be a missing answer disguised as a wrong one.
+ *
+ * `balance.unavailableReason` is a server-produced diagnostic — a node, a tenant credential, an
+ * operator policy — and is never rendered here. It is server-side for whoever debugs the read;
+ * a sponsor asking "where is my money" gets the plain sentence below, not the diagnosis. See
+ * the same rule already kept in ~/components/azoa/custodial-account-card.tsx.
  */
 function BalanceCard({ money }: { money: ProjectMoneyView }) {
   const { balance } = money;
@@ -167,10 +172,7 @@ function BalanceCard({ money }: { money: ProjectMoneyView }) {
         ) : (
           <div className="border-border flex items-start gap-3 border p-4">
             <AlertCircle className="text-muted-foreground mt-0.5 size-4 shrink-0" />
-            <p className="text-muted-foreground text-xs">
-              {balance.unavailableReason ??
-                "This project's funds account could not be read, so no balance is shown."}
-            </p>
+            <p className="text-muted-foreground text-xs">Not available yet.</p>
           </div>
         )}
 

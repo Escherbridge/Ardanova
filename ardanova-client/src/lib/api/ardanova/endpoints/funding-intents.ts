@@ -4,6 +4,8 @@ export interface CreateFundingIntentRequest {
   projectTokenConfigId: string;
   amount: string;
   disclosureVersion: string;
+  /** Whether the sponsor agreed to be named to the project. False means unnamed. */
+  displayNameConsent: boolean;
 }
 
 export interface FundingCheckout {
@@ -18,6 +20,10 @@ export interface FundingIntentStatus {
   amount: string;
   status: string;
   paymentVerifiedAt?: string | null;
+  /** ISO date the held stake becomes the sponsor's to move. Server-written; never guessed. */
+  releaseNotBefore?: string | null;
+  /** Consumer-safe reason text the server already wrote for a held sponsorship. */
+  holdingReasonDetail?: string | null;
 }
 
 /** Actor-signed funding intent routes; browser redirects never report payment success. */

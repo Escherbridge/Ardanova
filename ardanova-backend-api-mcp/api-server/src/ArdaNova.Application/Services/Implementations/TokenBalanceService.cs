@@ -10,6 +10,96 @@ using AutoMapper;
 
 namespace ArdaNova.Application.Services.Implementations;
 
+/// <summary>Units a holder's awards still hold back, and the date that ends the last of them.</summary>
+public sealed record UnitWindowRestriction(long RestrictedUnits, DateTimeOffset? RestrictedUntil)
+{
+    /// <summary>Nothing is held back.</summary>
+    public static UnitWindowRestriction Free { get; } = new(0, null);
+}
+
+/// <summary>
+/// The ONE rule for the worker's own restricted window: what it holds back, and until when.
+/// </summary>
+/// <remarks>
+/// The window is the second hold an approved award is continued into. It decides whether a
+/// person's units may move YET; <see cref="TokenLiquidityPolicy"/> decides whether that holder
+/// class may EVER move them at this gate. Units are free only when both agree.
+/// <para>
+/// Every seam that spends or displays units reads this rule rather than a stored flag, because a
+/// flag is stamped once and a window ends on a date: a column written at approval is false
+/// forever, and a column written at gate activation is true too early. Telling a worker "you can
+/// move this from 14 March" and then reading their units as liquid today is the platform not
+/// knowing its own rules.
+/// </para>
+/// </remarks>
+public static class UnitWindow
+{
+    /// <summary>True once an award's own window has ended - or never opened at all.</summary>
+    /// <remarks>
+    /// An award that is held with NO release date is restricted rather than free: a promise
+    /// nobody can date is one nobody may spend.
+    /// </remarks>
+    public static bool HasElapsed(TokenAllocation award, DateTimeOffset now)
+    {
+        if (!award.IsAwaitingWorkerWindow)
+            return true;
+
+        return award.workerHoldReleasesAt is { } releasesAt && AsUtc(releasesAt) <= now;
+    }
+
+    /// <summary>Whether ONE award may move: the gate says ever, the window says yet.</summary>
+    public static bool IsAwardLiquid(
+        TokenAllocation award, ProjectGateStatus gateStatus, DateTimeOffset now)
+        => TokenLiquidityPolicy.IsLiquid(award.holderClass, gateStatus) && HasElapsed(award, now);
+
+    /// <summary>What a holder's awards still hold back, summed over the awards themselves.</summary>
+    public static UnitWindowRestriction Restrict(IEnumerable<TokenAllocation> awards, DateTimeOffset now)
+    {
+        var restrictedUnits = 0L;
+        DateTimeOffset? until = null;
+
+        foreach (var award in awards)
+        {
+            if (!award.IsAwaitingWorkerWindow || HasElapsed(award, now))
+                continue;
+
+            restrictedUnits += award.tokenAmount;
+
+            if (award.workerHoldReleasesAt is not { } releasesAt)
+                continue;
+
+            var moment = AsUtc(releasesAt);
+            if (until is null || moment > until)
+                until = moment;
+        }
+
+        return restrictedUnits == 0 && until is null
+            ? UnitWindowRestriction.Free
+            : new UnitWindowRestriction(restrictedUnits, until);
+    }
+
+    /// <summary>Reads one holder's window for one project's units straight off their awards.</summary>
+    public static async Task<UnitWindowRestriction> ReadAsync(
+        IRepository<TokenAllocation> awards,
+        string userId,
+        string projectTokenConfigId,
+        DateTimeOffset now,
+        CancellationToken ct)
+    {
+        var held = await awards.FindAsync(
+            award => award.recipientUserId == userId
+                && award.projectTokenConfigId == projectTokenConfigId
+                && award.workerHoldId != null,
+            ct);
+
+        return Restrict(held, now);
+    }
+
+    /// <summary>Reads a stored timestamp as the UTC instant it always was.</summary>
+    internal static DateTimeOffset AsUtc(DateTime value)
+        => new(DateTime.SpecifyKind(value, DateTimeKind.Utc));
+}
+
 /// <summary>
 /// Holdings, as a read-model of what the chain says a person has.
 /// </summary>
@@ -39,10 +129,17 @@ public class TokenBalanceService : ITokenBalanceService
     private readonly IAzoaHoldingsReadModel? _holdingsReadModel;
     private readonly IRepository<User>? _userRepository;
     private readonly IRepository<PlatformTreasury>? _treasuryRepository;
+    private readonly IRepository<TokenAllocation>? _allocationRepository;
 
     /// <param name="holdingsReadModel">
     /// The node read-model. Optional in the constructor only so the type still constructs without
     /// a container; when it is absent an ARDA read REFUSES instead of falling back to a row.
+    /// </param>
+    /// <param name="allocationRepository">
+    /// The awards the worker's restricted window is read off. Optional in the constructor only so
+    /// the type still constructs without a container; the container always supplies it through the
+    /// open generic repository registration, so a deployment never takes the "no awards readable"
+    /// branch - a hand-built instance does.
     /// </param>
     public TokenBalanceService(
         IRepository<TokenBalance> tokenBalanceRepository,
@@ -51,7 +148,8 @@ public class TokenBalanceService : ITokenBalanceService
         IMapper mapper,
         IAzoaHoldingsReadModel? holdingsReadModel = null,
         IRepository<User>? userRepository = null,
-        IRepository<PlatformTreasury>? treasuryRepository = null)
+        IRepository<PlatformTreasury>? treasuryRepository = null,
+        IRepository<TokenAllocation>? allocationRepository = null)
     {
         _tokenBalanceRepository = tokenBalanceRepository;
         _projectTokenConfigRepository = projectTokenConfigRepository;
@@ -60,6 +158,7 @@ public class TokenBalanceService : ITokenBalanceService
         _holdingsReadModel = holdingsReadModel;
         _userRepository = userRepository;
         _treasuryRepository = treasuryRepository;
+        _allocationRepository = allocationRepository;
     }
 
     public async Task<Result<TokenBalanceDto>> GetBalanceAsync(
@@ -81,7 +180,7 @@ public class TokenBalanceService : ITokenBalanceService
         }
 
         var dto = _mapper.Map<TokenBalanceDto>(balance);
-        return Result<TokenBalanceDto>.Success(dto);
+        return Result<TokenBalanceDto>.Success(await WithLiveLiquidityAsync(dto, ct));
     }
 
     /// <summary>
@@ -109,13 +208,17 @@ public class TokenBalanceService : ITokenBalanceService
 
         var holding = await ReadArdaHoldingAsync(userId, ct);
 
+        // isPlatformToken rows are ArdaNova bookkeeping, never a person's ARDA; the ARDA leg
+        // below is the only place a platform balance comes from.
+        var holdings = _mapper.Map<List<TokenBalanceDto>>(
+            balances.Where(row => !row.isPlatformToken).ToList());
+        for (var index = 0; index < holdings.Count; index++)
+            holdings[index] = await WithLiveLiquidityAsync(holdings[index], ct);
+
         var dto = new UserPortfolioDto
         {
             UserId = userId,
-            // isPlatformToken rows are ArdaNova bookkeeping, never a person's ARDA; the ARDA
-            // leg below is the only place a platform balance comes from.
-            Holdings = _mapper.Map<List<TokenBalanceDto>>(
-                balances.Where(row => !row.isPlatformToken).ToList()),
+            Holdings = holdings,
             ArdaBalance = holding.IsSuccess && holding.Value is not null
                 ? ToArdaDto(userId, holding.Value)
                 : null,
@@ -178,6 +281,10 @@ public class TokenBalanceService : ITokenBalanceService
 
         balance.updatedAt = DateTime.UtcNow;
 
+        // A stamp of the answer as it stood when the units arrived, kept so a stored row is
+        // readable on its own. It is NOT the authority: the window it folds in ends on a date
+        // nothing revisits, so every read restates it through WithLiveLiquidityAsync and every
+        // spend seam subtracts the window itself.
         var liquidResult = await IsBalanceLiquidAsync(userId, projectTokenConfigId, holderClass, ct);
         if (liquidResult.IsSuccess)
         {
@@ -309,6 +416,19 @@ public class TokenBalanceService : ITokenBalanceService
         return Result<TokenBalanceDto>.Success(dto);
     }
 
+    /// <summary>Whether any of this holding may move right now: the gate AND the worker's window.</summary>
+    /// <remarks>
+    /// Two rules, both required. <see cref="TokenLiquidityPolicy"/> answers whether this holder
+    /// class may ever move units at this gate; <see cref="UnitWindow"/> answers whether the
+    /// person's own awards still hold them back. A holding whose EVERY unit is still inside the
+    /// window is not liquid however wide the gate is open - which is what stops a card reading
+    /// "liquid" beside a sentence promising the units from a future date.
+    /// <para>
+    /// This is a display and eligibility answer, not the spend ceiling. How MANY units may move is
+    /// a subtraction, not a boolean, and every spend seam does it against
+    /// <see cref="UnitWindowRestriction.RestrictedUnits"/> rather than against this flag.
+    /// </para>
+    /// </remarks>
     public async Task<Result<bool>> IsBalanceLiquidAsync(
         string userId,
         string projectTokenConfigId,
@@ -332,7 +452,50 @@ public class TokenBalanceService : ITokenBalanceService
             return Result<bool>.Failure("Project token configuration not found");
         }
 
-        return Result<bool>.Success(TokenLiquidityPolicy.IsLiquid(holderClass, config.gateStatus));
+        if (!TokenLiquidityPolicy.IsLiquid(holderClass, config.gateStatus))
+        {
+            return Result<bool>.Success(false);
+        }
+
+        var restriction = await ReadWindowAsync(userId, projectTokenConfigId, ct);
+        if (restriction.RestrictedUnits <= 0)
+        {
+            return Result<bool>.Success(true);
+        }
+
+        return Result<bool>.Success(restriction.RestrictedUnits < (balance?.balance ?? 0));
+    }
+
+    /// <summary>This holder's restricted window for one project's units.</summary>
+    private async Task<UnitWindowRestriction> ReadWindowAsync(
+        string userId, string projectTokenConfigId, CancellationToken ct)
+        => _allocationRepository is null
+            ? UnitWindowRestriction.Free
+            : await UnitWindow.ReadAsync(
+                _allocationRepository, userId, projectTokenConfigId, DateTimeOffset.UtcNow, ct);
+
+    /// <summary>
+    /// Restates a holding's liquidity from the live gate and window rather than the stored stamp.
+    /// </summary>
+    /// <remarks>
+    /// The column is written when units are credited and when a gate moves; the window ends on a
+    /// date nothing revisits, so the stamp goes stale in both directions. Where the gate cannot be
+    /// read the stamp STANDS - nothing here invents an answer it does not have.
+    /// </remarks>
+    private async Task<TokenBalanceDto> WithLiveLiquidityAsync(TokenBalanceDto dto, CancellationToken ct)
+    {
+        if (dto.IsPlatformToken
+            || string.IsNullOrWhiteSpace(dto.ProjectTokenConfigId)
+            || string.IsNullOrWhiteSpace(dto.UserId)
+            || dto.HolderClass is not { } holderClass)
+        {
+            return dto;
+        }
+
+        var liquidity = await IsBalanceLiquidAsync(
+            dto.UserId, dto.ProjectTokenConfigId!, holderClass, ct);
+
+        return liquidity.IsSuccess ? dto with { IsLiquid = liquidity.Value } : dto;
     }
 
     /// <summary>Reads the person's ARDA holding from the node, or says exactly why it cannot.</summary>

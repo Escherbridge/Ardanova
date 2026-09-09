@@ -61,7 +61,6 @@ function observation(
     presentTables,
     columns,
     indexes,
-    duplicatePaymentIntents: overrides.duplicatePaymentIntents ?? [],
     projectTokenConfigBackfills: overrides.projectTokenConfigBackfills ?? null,
   };
 }
@@ -84,7 +83,7 @@ function additiveObservation(
 }
 
 describe("commerce migration preflight", () => {
-  it("accepts the reviewed pre-additive baseline with the existing payment-intent column", () => {
+  it("accepts the reviewed pre-additive baseline", () => {
     const actual = observation();
     const report = evaluateCommerceMigrationPreflight(
       "baseline",
@@ -97,8 +96,8 @@ describe("commerce migration preflight", () => {
 
   it("matches Prisma PostgreSQL text columns and rejects varchar drift", () => {
     expect(REQUIRED_BASELINE_COLUMNS[0]).toMatchObject({
-      tableName: "ProjectInvestment",
-      columnName: "stripePaymentIntentId",
+      tableName: "ProjectTokenConfig",
+      columnName: "assetId",
       dataType: "text",
       udtName: "text",
     });
@@ -130,11 +129,12 @@ describe("commerce migration preflight", () => {
     );
   });
 
-  it("rejects a missing baseline payment-intent column and an early unique index", () => {
+  it("rejects a missing baseline column and a gated-commerce artifact arriving early", () => {
+    // The card rail this pair used to name is retired, so the subjects moved. The rules
+    // did not: a baseline surface must carry every baseline column, and must carry NO
+    // gated-commerce artifact before the reviewed additive migration.
     const missingColumn = observation({
-      columns: columnsFor([
-        REQUIRED_BASELINE_COLUMNS[1],
-      ] as typeof REQUIRED_ADDITIVE_COLUMNS),
+      columns: [],
     });
     const missingReport = evaluateCommerceMigrationPreflight(
       "baseline",
@@ -145,16 +145,20 @@ describe("commerce migration preflight", () => {
       "missing-required-column",
     );
 
-    const earlyUnique = observation({
+    const earlyAdditive = observation({
+      columns: columnsFor([
+        ...REQUIRED_BASELINE_COLUMNS,
+        REQUIRED_ADDITIVE_COLUMNS[0],
+      ] as typeof REQUIRED_ADDITIVE_COLUMNS),
       indexes: indexesFor([REQUIRED_ADDITIVE_INDEXES[0]]),
     });
-    const uniqueReport = evaluateCommerceMigrationPreflight(
+    const earlyReport = evaluateCommerceMigrationPreflight(
       "baseline",
-      earlyUnique.fingerprint,
-      earlyUnique,
+      earlyAdditive.fingerprint,
+      earlyAdditive,
     );
-    expect(uniqueReport.blocked.map((finding) => finding.code)).toContain(
-      "payment-intent-unique-index-already-present",
+    expect(earlyReport.blocked.map((finding) => finding.code)).toContain(
+      "additive-columns-already-present",
     );
   });
 
@@ -224,9 +228,10 @@ describe("commerce migration preflight", () => {
           ? { ...column, dataType: "double precision" }
           : column,
       );
-    const indexes = indexesFor().map((index) =>
-      index.tableName === "ProjectInvestment"
-        ? { ...index, predicate: '"stripePaymentIntentId" IS NOT NULL' }
+    // A partial index is not the index the expectation asks for, whichever table carries it.
+    const indexes = indexesFor().map((index, position) =>
+      position === 0
+        ? { ...index, predicate: '"consumedAt" IS NOT NULL' }
         : index,
     );
     const actual = additiveObservation({ columns, indexes });

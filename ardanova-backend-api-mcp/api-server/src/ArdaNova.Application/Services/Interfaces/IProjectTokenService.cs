@@ -12,11 +12,7 @@ public interface IProjectTokenService
 
     // Holder-class-aware allocation
     Task<Result<TokenAllocationDto>> AllocateToPbiAsync(string projectTokenConfigId, CreateTokenAllocationDto dto, CancellationToken ct = default);
-    Task<Result<TokenAllocationDto>> AllocateToInvestorAsync(
-        string projectTokenConfigId,
-        CreateInvestorAllocationDto dto,
-        CancellationToken ct = default,
-        string? stripePaymentIntentId = null);
+    Task<Result<TokenAllocationDto>> AllocateToInvestorAsync(string projectTokenConfigId, CreateInvestorAllocationDto dto, CancellationToken ct = default);
     Task<Result<TokenAllocationDto>> AllocateToFounderAsync(string projectTokenConfigId, CreateFounderAllocationDto dto, CancellationToken ct = default);
 
     Task<Result<TokenAllocationDto>> DistributeAsync(string allocationId, string recipientUserId, CancellationToken ct = default);

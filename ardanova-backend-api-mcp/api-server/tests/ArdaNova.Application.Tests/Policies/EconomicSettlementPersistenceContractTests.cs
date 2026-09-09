@@ -44,25 +44,6 @@ public class EconomicSettlementPersistenceContractTests
             .IsUnique.Should().BeTrue();
     }
 
-    [Fact]
-    public void ProjectInvestment_RequiresOneInvestmentPerStripePaymentIntent()
-    {
-        typeof(ProjectInvestment)
-            .GetCustomAttributes(typeof(IndexAttribute), inherit: false)
-            .Cast<IndexAttribute>()
-            .Single(index => index.PropertyNames.Contains(nameof(ProjectInvestment.stripePaymentIntentId)))
-            .IsUnique.Should().BeTrue();
-    }
-
-    [Fact]
-    public void StripeWebhookEvent_UsesTheProviderEventIdAsItsPrimaryKey()
-    {
-        typeof(StripeWebhookEvent)
-            .GetProperty(nameof(StripeWebhookEvent.id))!
-            .GetCustomAttributes(typeof(System.ComponentModel.DataAnnotations.KeyAttribute), inherit: false)
-            .Should().ContainSingle();
-    }
-
     /// <summary>
     /// The sponsorship's two legs and its currency reference are EXACT INTEGER base units, so no
     /// float or decimal-scale drift can change what was agreed after the fact; the declared rate

@@ -2,11 +2,9 @@ namespace ArdaNova.API.Controllers;
 
 using System.Security.Claims;
 using ArdaNova.API.Middleware;
-using ArdaNova.Application.Common.Interfaces;
 using ArdaNova.Application.Common.Results;
 using ArdaNova.Application.Services.Implementations;
 using ArdaNova.Application.Services.Interfaces;
-using ArdaNova.Domain.Models.Entities;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -22,37 +20,16 @@ public class ProjectLedgerController : ControllerBase
 {
     private readonly IProjectLedgerService _projectLedger;
 
-    /// <param name="registeredProjectLedger">
+    /// <param name="projectLedger">
     /// The container's implementation, registered in
-    /// <c>ArdaNova.Application/DependencyInjection.cs</c> next to the treasury services. That
-    /// registration now exists, so this is the path every request actually takes; the hand
-    /// composition below is only the fallback that keeps the route serving — rather than
-    /// 503-ing — if the registration is ever removed.
+    /// <c>ArdaNova.Application/DependencyInjection.cs</c> next to the treasury services. The
+    /// container is the SINGLE construction path: there is no hand-composed fallback, so a
+    /// removed registration fails at startup where an operator sees it, instead of quietly
+    /// serving money figures from a second instance assembled by different rules.
     /// </param>
-    public ProjectLedgerController(
-        IRepository<ProjectTokenConfig> projectTokenConfigRepository,
-        IRepository<FundingIntent> fundingIntentRepository,
-        IRepository<EconomicSettlement> settlementRepository,
-        IRepository<TokenAllocation> allocationRepository,
-        IRepository<PayoutRequest> payoutRepository,
-        IRepository<PlatformTreasuryTransaction> treasuryReceiptRepository,
-        IRepository<ProjectInvestment> investmentRepository,
-        IRepository<User> userRepository,
-        IHierarchyAuthorizationService hierarchyAuthorization,
-        IProjectBuyBackReadModel? projectTreasuryReadModel = null,
-        IProjectLedgerService? registeredProjectLedger = null)
+    public ProjectLedgerController(IProjectLedgerService projectLedger)
     {
-        _projectLedger = registeredProjectLedger ?? new ProjectLedgerService(
-            projectTokenConfigRepository,
-            fundingIntentRepository,
-            settlementRepository,
-            allocationRepository,
-            payoutRepository,
-            treasuryReceiptRepository,
-            investmentRepository,
-            userRepository,
-            hierarchyAuthorization,
-            projectTreasuryReadModel);
+        _projectLedger = projectLedger;
     }
 
     /// <summary>

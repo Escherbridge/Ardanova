@@ -150,11 +150,11 @@ public static class DependencyInjection
         // send anybody to a payment page.
         services.AddScoped<IFiatRailGateway, DisabledFiatRailGateway>();
         services.AddScoped<IFundingIntentService, FundingIntentService>();
-        services.AddScoped<IStripePaymentIntentGateway, StripePaymentIntentGateway>();
-        // The operator channel the dispatcher wakes a person through. The dispatcher already
-        // defaults to a live logging channel, so this line does not switch anything on - it
-        // makes the channel REPLACEABLE per deployment without editing the dispatcher.
-        services.AddScoped<IOperatorAlertService, LoggingOperatorAlertService>();
+        // The operator channel the dispatcher wakes a person through, and the only registration
+        // that can actually reach a phone. It posts to OperatorAlerts:WebhookUrl and ALWAYS writes
+        // the structured log line first, so an unconfigured or refusing endpoint downgrades to the
+        // old logging behaviour LOUDLY - a critical line naming the key - instead of silently.
+        services.AddScoped<IOperatorAlertService, WebhookOperatorAlertService>();
         services.AddScoped<IEconomicOutboxDispatchService, EconomicOutboxDispatchService>();
 
         // AZOA shared-node integration services (contract sections 4, 5, 6, and 9).

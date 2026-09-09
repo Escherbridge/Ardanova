@@ -13,6 +13,7 @@ export const OpportunityBidSchema = z.object({
   bidderId: z.string(),
   guildId: z.string().nullable(),
   proposedAmount: z.instanceof(Prisma.Decimal, { message: "Field 'proposedAmount' must be a Decimal. Location: ['Models', 'OpportunityBid']"}).nullable(),
+  guildAwardSplit: z.instanceof(Prisma.Decimal, { message: "Field 'guildAwardSplit' must be a Decimal. Location: ['Models', 'OpportunityBid']"}).nullable(),
   proposal: z.string(),
   estimatedHours: z.number().int().nullable(),
   timeline: z.string().nullable(),

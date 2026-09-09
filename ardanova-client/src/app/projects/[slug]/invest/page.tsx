@@ -25,7 +25,8 @@ import {
   fundingProjectTokenConfigSchema,
   parseFundingAmount,
 } from "~/lib/commerce/investment-preview-contract";
-import { isValueActionAccountReady } from "~/lib/contracts/project-create-contract";
+import { reviewContactHref } from "~/components/azoa/custodial-account-card";
+import { evaluateValueActionAccount } from "~/lib/contracts/project-create-contract";
 import { cn } from "~/lib/utils";
 
 const QUICK_AMOUNTS = [100, 500, 1000, 5000];
@@ -168,7 +169,13 @@ export default function InvestPage() {
   const accountStatus = api.azoaCustodialAccount.getStatus.useQuery(undefined, {
     retry: false,
   });
-  const valueAccountReady = isValueActionAccountReady(accountStatus.data);
+  // Three-way, never a boolean: an account held for a human decision is not an account with
+  // setup left to finish, and an unread account is neither. Which refusal it is decides the
+  // words; only "ready" decides the permission.
+  const accountEvaluation = evaluateValueActionAccount(accountStatus.data, {
+    loadFailed: Boolean(accountStatus.error),
+  });
+  const valueAccountReady = accountEvaluation.state === "ready";
   const configQuery = api.projectTokens.getConfigByProject.useQuery(
     { projectId: projectQuery.data?.id ?? "" },
     { enabled: Boolean(projectQuery.data?.id) },
@@ -274,6 +281,7 @@ export default function InvestPage() {
       projectTokenConfigId: config.id,
       amount: currentAmount.apiAmount,
       disclosureVersion: "funding-disclosure-v1",
+      displayNameConsent: showName,
       idempotencyKey: checkoutIdempotencyKey.current,
     });
   };
@@ -360,31 +368,57 @@ export default function InvestPage() {
   }
 
   if (!valueAccountReady) {
+    const accountUnderReview =
+      !accountStatus.isPending && accountEvaluation.state === "under-review";
+    const reviewContact = accountUnderReview ? reviewContactHref() : null;
+    const accountSetupEyebrow = accountUnderReview
+      ? "Account review"
+      : "Account setup";
+    const accountSetupHeading = accountStatus.isPending
+      ? "Checking your account setup"
+      : accountUnderReview
+        ? "Your account is being reviewed"
+        : accountEvaluation.state === "service-unavailable"
+          ? "We could not confirm your account setup"
+          : "Complete account setup before funding";
+    // The held-review sentence is the shared contract's, so it matches the server's refusal
+    // word for word; the other two keep this page's own funding wording. The node's
+    // `unavailableReason` is a provider diagnostic and is never printed at a sponsor.
     const accountSetupMessage = accountStatus.isPending
       ? "We are checking the account setup required for funding. Support remains unavailable until that check is complete."
-      : accountStatus.error
-        ? "We could not confirm account setup. To protect your ARDA, support remains unavailable until the status can be confirmed."
-        : (accountStatus.data?.unavailableReason ??
-          "Complete account setup before funding a project. You can still review project details and estimates while setup is pending.");
+      : accountUnderReview
+        ? // The shared contract's own words, matching the server's refusal text.
+          accountEvaluation.message
+        : accountEvaluation.state === "service-unavailable"
+          ? "We could not confirm account setup. To protect your ARDA, support remains unavailable until the status can be confirmed."
+          : "Complete account setup before funding a project. You can still review project details and estimates while setup is pending.";
 
     return (
       <div className="mx-auto flex min-h-[60vh] max-w-xl flex-col items-start justify-center gap-5 p-6">
         <ShieldCheck className="text-primary size-10" aria-hidden="true" />
         <div>
           <p className="text-primary font-mono text-xs font-bold tracking-widest uppercase">
-            Account setup
+            {accountSetupEyebrow}
           </p>
           <h1 className="mt-2 font-mono text-2xl font-bold">
-            Complete account setup before funding
+            {accountSetupHeading}
           </h1>
           <p className="text-muted-foreground mt-2 text-sm leading-relaxed">
             {accountSetupMessage}
           </p>
         </div>
         <div className="flex flex-wrap gap-3">
-          <Button asChild>
-            <Link href={accountSetupHref}>Review account setup</Link>
-          </Button>
+          {accountUnderReview ? (
+            reviewContact && (
+              <Button asChild>
+                <a href={reviewContact}>Contact the review team</a>
+              </Button>
+            )
+          ) : (
+            <Button asChild>
+              <Link href={accountSetupHref}>Review account setup</Link>
+            </Button>
+          )}
           <Button asChild variant="outline">
             <Link href={`/projects/${slug}`}>
               <ArrowLeft className="size-4" />
@@ -734,9 +768,8 @@ export default function InvestPage() {
                   </span>
                   <span className="text-muted-foreground mt-1 block text-xs leading-relaxed">
                     Optional, and off by default — your support is counted
-                    either way. This preference isn&apos;t sent to the
-                    project yet; every pledge currently appears in aggregate
-                    only.
+                    either way. Leave it off and your pledge is only ever
+                    counted in the total.
                   </span>
                 </span>
               </label>

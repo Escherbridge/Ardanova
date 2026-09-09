@@ -4,6 +4,7 @@ using ArdaNova.Application.DTOs;
 using ArdaNova.Application.Services.Interfaces;
 using ArdaNova.Domain.Models.Entities;
 using ArdaNova.Domain.Models.Enums;
+using ArdaNova.Domain.Policies;
 
 namespace ArdaNova.Application.Services.Implementations;
 
@@ -14,27 +15,57 @@ namespace ArdaNova.Application.Services.Implementations;
 /// Every figure is decimal. Where a unit count has to become a whole number it is FLOORED and
 /// then range-checked: a count that will not fit the wire type is refused, never silently
 /// narrowed. Executing a swap stays refused until a buy-back liquidity policy exists (W8.2).
+/// <para>
+/// A preview quotes only units the holder may actually move: the project's gate AND the worker's
+/// own restricted window, both read live through <see cref="UnitWindow"/>. It deliberately does
+/// NOT select on the stored <c>isLiquid</c> column - that column is stamped when units are
+/// credited and when a gate moves, while the window ends on a date nothing revisits, so quoting
+/// against it offers a person units they were told are held until a date still ahead.
+/// </para>
 /// </remarks>
 public class SwapService : ISwapService
 {
+    /// <summary>Why a preview is refused when the awards behind a holding cannot be read.</summary>
+    /// <remarks>
+    /// Fail CLOSED: without the awards there is no way to tell a free unit from one still inside
+    /// the worker's window, and quoting the difference away is how a held award gets spent.
+    /// </remarks>
+    public const string NoWindowReadable =
+        "Your units could not be checked against the date they are held until, so nothing can be "
+        + "quoted. Please try again shortly.";
+
+    /// <summary>Why moving units straight from one project into another is refused today.</summary>
+    public const string SwapNotAvailable =
+        "Moving units straight from one project into another is not available yet, so nothing was "
+        + "moved. You can sell units you are free to move and put the funds into another project.";
+
     private readonly IRepository<TokenBalance> _tokenBalanceRepo;
     private readonly IRepository<ProjectTokenConfig> _configRepo;
     private readonly IRepository<PlatformTreasury> _treasuryRepo;
     private readonly IRepository<ShareSwap> _swapRepo;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IRepository<TokenAllocation>? _allocationRepo;
 
+    /// <param name="allocationRepo">
+    /// The awards a holder's restricted window is read off. Optional in the constructor only so
+    /// the type still constructs without a container; the container always supplies it through the
+    /// open generic repository registration, and its absence REFUSES a preview rather than
+    /// quoting one that ignores the window.
+    /// </param>
     public SwapService(
         IRepository<TokenBalance> tokenBalanceRepo,
         IRepository<ProjectTokenConfig> configRepo,
         IRepository<PlatformTreasury> treasuryRepo,
         IRepository<ShareSwap> swapRepo,
-        IUnitOfWork unitOfWork)
+        IUnitOfWork unitOfWork,
+        IRepository<TokenAllocation>? allocationRepo = null)
     {
         _tokenBalanceRepo = tokenBalanceRepo;
         _configRepo = configRepo;
         _treasuryRepo = treasuryRepo;
         _swapRepo = swapRepo;
         _unitOfWork = unitOfWork;
+        _allocationRepo = allocationRepo;
     }
 
     public async Task<Result<SwapPreviewDto>> GetSwapPreviewAsync(
@@ -70,15 +101,32 @@ public class SwapService : ISwapService
         if (targetConfig.totalSupply == 0)
             return Result<SwapPreviewDto>.Failure("Target token has zero total supply");
 
+        // Found by IDENTITY, then judged live. Selecting on the stored isLiquid column would let a
+        // stamp decide a spend: it is written from the gate alone at credit time and at gate
+        // activation, and it is never rewritten when a worker's window ends.
         var sourceBalance = await _tokenBalanceRepo.FindOneAsync(
             b => b.userId == userId
               && b.projectTokenConfigId == sourceConfigId
-              && b.isLiquid
               && b.holderClass == TokenHolderClass.CONTRIBUTOR,
             ct);
 
-        if (sourceBalance == null || sourceBalance.balance - sourceBalance.lockedBalance < sourceTokenAmount)
-            return Result<SwapPreviewDto>.Failure("Insufficient liquid contributor balance for source tokens");
+        if (sourceBalance == null)
+            return Result<SwapPreviewDto>.Failure("You do not hold any units in this project.");
+
+        if (!TokenLiquidityPolicy.IsLiquid(TokenHolderClass.CONTRIBUTOR, sourceConfig.gateStatus))
+            return Result<SwapPreviewDto>.Failure(DescribeIlliquidity(sourceConfig.gateStatus));
+
+        if (_allocationRepo is null)
+            return Result<SwapPreviewDto>.Failure(NoWindowReadable);
+
+        // The worker's own window is part of the balance and must not be movable. The ceiling is
+        // what is free AFTER it, never the number the balance row happens to show.
+        var restriction = await UnitWindow.ReadAsync(
+            _allocationRepo, userId, sourceConfigId, DateTimeOffset.UtcNow, ct);
+
+        var movableUnits = sourceBalance.balance - sourceBalance.lockedBalance - restriction.RestrictedUnits;
+        if (movableUnits < sourceTokenAmount)
+            return Result<SwapPreviewDto>.Failure(DescribeShortfall(movableUnits, restriction));
 
         var treasuries = await _treasuryRepo.GetAllAsync(ct);
         var treasury = treasuries.FirstOrDefault();
@@ -142,8 +190,11 @@ public class SwapService : ISwapService
         _ = request;
         _ = ct;
 
-        return Task.FromResult(Result<SwapResultDto>.Failure(
-            "Project share exchange is unavailable until secure provider settlement, reconciliation, and account eligibility checks are available."));
+        // Settlement, reconciliation and the account eligibility gate all exist now - they are
+        // what a unit SALE runs through. What does not exist is a buy-back liquidity policy for
+        // trading one project's units for another's (W8.2), so the refusal names that and points
+        // at the route that does work, rather than at conditions that have since been met.
+        return Task.FromResult(Result<SwapResultDto>.Failure(SwapNotAvailable));
     }
 
     public async Task<Result<IReadOnlyList<SwapHistoryDto>>> GetSwapHistoryAsync(
@@ -190,6 +241,37 @@ public class SwapService : ISwapService
             .ToList();
 
         return Result<IReadOnlyList<SwapHistoryDto>>.Success(history);
+    }
+
+    /// <summary>Why this project's units cannot be moved at all yet, in the holder's own terms.</summary>
+    private static string DescribeIlliquidity(ProjectGateStatus gateStatus) => gateStatus switch
+    {
+        ProjectGateStatus.FUNDING =>
+            "This project has not reached its funding goal yet, so its units cannot be moved.",
+        ProjectGateStatus.FAILED =>
+            "This project ended, so its units cannot be moved.",
+        _ => "These units cannot be moved at the moment.",
+    };
+
+    /// <summary>Why the requested amount is more than this person can move.</summary>
+    /// <remarks>The same shape the sale seam refuses with, in the verb this one is about.</remarks>
+    private static string DescribeShortfall(long movableUnits, UnitWindowRestriction restriction)
+    {
+        var free = Math.Max(0L, movableUnits);
+
+        if (restriction.RestrictedUnits > 0 && restriction.RestrictedUntil is { } until)
+        {
+            return $"You can move {free:N0} units now. Another {restriction.RestrictedUnits:N0} "
+                + $"are yours but held until {until.UtcDateTime:d MMMM yyyy}.";
+        }
+
+        if (restriction.RestrictedUnits > 0)
+        {
+            return $"You can move {free:N0} units now. Another {restriction.RestrictedUnits:N0} "
+                + "are yours but still held.";
+        }
+
+        return $"You can move {free:N0} units now.";
     }
 
     /// <summary>

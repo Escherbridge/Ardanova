@@ -10,7 +10,6 @@ export const ProjectInvestmentSchema = z.object({
   userId: z.string(),
   usdAmount: z.number(),
   tokenAmount: z.number().int(),
-  stripePaymentIntentId: z.string().nullable(),
   investedAt: z.coerce.date(),
   protectionEligible: z.boolean(),
   protectionPaidOut: z.boolean(),

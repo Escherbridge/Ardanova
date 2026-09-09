@@ -161,6 +161,189 @@ function parseBackendContract<T>(
 }
 
 // ---------------------------------------------------------------------------
+// Approving completed work
+//
+// The owner-facing action needs an award id, and nothing a task carries names one: the
+// allocation read-model does not publish the agreement it belongs to. So the id is resolved
+// here, from facts the caller is already allowed to read, and only when the resolution is
+// UNAMBIGUOUS. A guess would approve the wrong award, so an ambiguous read refuses and says so.
+//
+// None of this decides who may approve. That control is
+// ProjectTokenService.ApproveWorkCompletionAsync, which reads the caller's verified identity,
+// refuses anyone but the project's creator, and pays the person the accepted agreement names.
+// ---------------------------------------------------------------------------
+
+/** What one task's award looks like to the person deciding whether to approve it. */
+export interface TaskWorkApproval {
+  taskId: string;
+  /** True only when the signed-in caller created the project this task belongs to. */
+  viewerIsProjectOwner: boolean;
+  /** The whole award the agreement records, in units. */
+  awardUnits: number | null;
+  /** The share held for the worker: less than the award when a guild takes part of it. */
+  workerShareUnits: number | null;
+  /** The share held for the worker's guild, when the accepted bid declared one. */
+  guildShareUnits: number | null;
+  /** The worker's own award row, resolved here and never sent by the browser. */
+  allocationId: string | null;
+  /** True once the award has been moved into the worker's own window. */
+  isApproved: boolean;
+  /** Why approval is not offered, said to the owner. Null when it is. */
+  blockedReason: string | null;
+}
+
+const APPROVAL_UNREADABLE =
+  "This task's award could not be read right now, so approving it is not offered.";
+const APPROVAL_NOT_ASSIGNED =
+  "This task has nobody assigned to it, so there is no completed work to approve.";
+const APPROVAL_NO_AGREEMENT =
+  "This task has no accepted assignment, so there is nothing to approve.";
+const APPROVAL_NOT_SET_ASIDE =
+  "No award of this size is set aside for this worker on this project, so there is nothing to hand over yet.";
+const APPROVAL_AMBIGUOUS =
+  "More than one award of this size is set aside for this worker on this project, so this screen cannot tell which one belongs to this task. Nothing was approved.";
+const APPROVAL_NOT_OWNER =
+  "Only the person who created this project can approve completed work on it.";
+
+/**
+ * The guild's declared share of the bid this task came from, in units; null when it cannot be
+ * read. Null blocks approval rather than standing in for zero: a wrong share mis-sizes the
+ * worker's own and could match somebody else's award.
+ */
+async function readGuildShareUnits(
+  opportunityId: string | null | undefined,
+): Promise<number | null> {
+  if (!opportunityId) return 0;
+
+  const response = await apiClient.opportunityBids.getByOpportunityId(opportunityId);
+  if (response.error || !response.data) return null;
+
+  const accepted = response.data.filter(
+    (bid) => bid.status === "ACCEPTED" || bid.status === "COMPLETED",
+  );
+  if (accepted.length !== 1) return null;
+
+  const declaredSplit = accepted[0]?.guildAwardSplit;
+  return typeof declaredSplit === "number" ? declaredSplit : 0;
+}
+
+/** One task's award as its project owner may act on it. Every hop carries the caller's identity. */
+async function resolveTaskWorkApproval(
+  taskId: string,
+  viewerUserId: string,
+): Promise<TaskWorkApproval> {
+  const blank: TaskWorkApproval = {
+    taskId,
+    viewerIsProjectOwner: false,
+    awardUnits: null,
+    workerShareUnits: null,
+    guildShareUnits: null,
+    allocationId: null,
+    isApproved: false,
+    blockedReason: null,
+  };
+
+  const taskResponse = await apiClient.tasks.getById(taskId);
+  const task = taskResponse.data;
+  if (taskResponse.error || !task) {
+    return { ...blank, blockedReason: APPROVAL_UNREADABLE };
+  }
+
+  const projectResponse = await apiClient.projects.getById(task.projectId);
+  const project = projectResponse.data;
+  if (projectResponse.error || !project) {
+    return { ...blank, blockedReason: APPROVAL_UNREADABLE };
+  }
+
+  // The two people this answers: the owner, who may approve, and the assigned worker, who is
+  // owed a truthful account of their own share. Anyone else is told nothing.
+  const viewerIsProjectOwner = project.createdById === viewerUserId;
+  const workerUserId = task.assignedToId;
+  const viewerIsAssignedWorker =
+    Boolean(workerUserId) && workerUserId === viewerUserId;
+  if (!viewerIsProjectOwner && !viewerIsAssignedWorker) return blank;
+
+  const viewer = { ...blank, viewerIsProjectOwner };
+
+  const commerceResponse = await apiClient.tasks.getCommerce(taskId);
+  const commerce = commerceResponse.data;
+  if (commerceResponse.error || !commerce) {
+    return { ...viewer, blockedReason: APPROVAL_NO_AGREEMENT };
+  }
+
+  if (!workerUserId) return { ...viewer, blockedReason: APPROVAL_NOT_ASSIGNED };
+
+  const guildShareUnits = await readGuildShareUnits(task.opportunityId);
+  if (guildShareUnits === null) {
+    return {
+      ...viewer,
+      awardUnits: commerce.awardAmount,
+      blockedReason: APPROVAL_UNREADABLE,
+    };
+  }
+
+  const workerShareUnits = commerce.awardAmount - guildShareUnits;
+  const shares = {
+    ...viewer,
+    awardUnits: commerce.awardAmount,
+    workerShareUnits,
+    guildShareUnits: guildShareUnits > 0 ? guildShareUnits : null,
+  };
+
+  // The worker is told their share and where it stands; the award id and the control are the
+  // owner's alone, and the window date the agreement already reports is the same fact.
+  if (!viewerIsProjectOwner) {
+    return { ...shares, isApproved: Boolean(commerce.workerHoldReleasesAt) };
+  }
+
+  const configResponse = await apiClient.projectTokens.getConfigByProject(task.projectId);
+  const config = configResponse.data;
+  if (configResponse.error || !config) {
+    return { ...shares, blockedReason: APPROVAL_UNREADABLE };
+  }
+
+  const allocationsResponse = await apiClient.projectTokens.getAllocations(config.id);
+  if (allocationsResponse.error || !allocationsResponse.data) {
+    return { ...shares, blockedReason: APPROVAL_UNREADABLE };
+  }
+
+  // The route answers a non-member with an aggregate, so the shape is discriminated rather
+  // than assumed: a summary carries no award to approve.
+  const allocations = parseBackendContract(
+    tokenAllocationListSchema,
+    allocationsResponse.data,
+    "token allocation list",
+  );
+  if (!Array.isArray(allocations)) {
+    return { ...shares, blockedReason: APPROVAL_UNREADABLE };
+  }
+
+  const candidates = allocations.filter(
+    (allocation) =>
+      allocation.holderClass === "CONTRIBUTOR" &&
+      allocation.recipientUserId === workerUserId &&
+      allocation.tokenAmount === workerShareUnits &&
+      (allocation.status === "RESERVED" || allocation.status === "DISTRIBUTED"),
+  );
+
+  if (candidates.length > 1) {
+    return { ...shares, blockedReason: APPROVAL_AMBIGUOUS };
+  }
+
+  const [allocation] = candidates;
+  if (!allocation) {
+    return { ...shares, blockedReason: APPROVAL_NOT_SET_ASIDE };
+  }
+
+  return {
+    ...shares,
+    allocationId: allocation.id,
+    isApproved: allocation.status === "DISTRIBUTED",
+    blockedReason: null,
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Router - read operations use the service client; privileged mutations use the admin client.
 // ---------------------------------------------------------------------------
 
@@ -490,6 +673,64 @@ export const projectTokensRouter = createTRPCRouter({
         response.data,
         "work-completion approval",
       );
+    }),
+
+  /**
+   * Where one task's award stands for the person who might approve it. A non-owner is answered
+   * with the same object carrying no award id, so the page can say what is happening without
+   * being handed anything to act on.
+   */
+  getTaskWorkApproval: protectedProcedure
+    .input(z.object({ taskId: z.string().min(1) }))
+    .query(async ({ input, ctx }) => {
+      return resolveTaskWorkApproval(input.taskId, ctx.session.user.id);
+    }),
+
+  /**
+   * The project owner approves one task's completed work. The award is resolved from the TASK
+   * on this side of the wire: an allocation id supplied by the browser is the IDOR shape this
+   * codebase refuses, and the backend refuses a caller who did not create the project anyway.
+   */
+  approveTaskWork: protectedProcedure
+    .input(z.object({ taskId: z.string().min(1) }))
+    .mutation(async ({ input, ctx }) => {
+      const approval = await resolveTaskWorkApproval(input.taskId, ctx.session.user.id);
+
+      if (!approval.viewerIsProjectOwner) {
+        throw new TRPCError({ code: "FORBIDDEN", message: APPROVAL_NOT_OWNER });
+      }
+
+      if (approval.isApproved) return approval;
+
+      if (!approval.allocationId) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: approval.blockedReason ?? APPROVAL_UNREADABLE,
+        });
+      }
+
+      const response = await apiClient.projectTokens.approveWorkCompletion(
+        approval.allocationId,
+      );
+
+      if (response.error || !response.data) {
+        throw toFundingError(
+          response.status,
+          readableFundingError(
+            response.error,
+            "This work could not be approved right now.",
+          ),
+        );
+      }
+
+      // Parsed so a backend that answered with something else is not read as an approval.
+      parseBackendContract(
+        tokenAllocationDtoSchema,
+        response.data,
+        "work-completion approval",
+      );
+
+      return { ...approval, isApproved: true, blockedReason: null };
     }),
 
   revoke: adminProcedure

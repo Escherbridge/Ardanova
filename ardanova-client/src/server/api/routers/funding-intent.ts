@@ -7,6 +7,8 @@ const createCheckoutInput = z.object({
   projectTokenConfigId: z.string().min(1),
   amount: z.string().regex(/^\d+(?:\.\d{1,2})?$/, "Amount must be USD with at most two decimal places"),
   disclosureVersion: z.string().min(1).max(100),
+  /** Default false, never bare `.optional()`: an omitted preference means "leave me unnamed". */
+  displayNameConsent: z.boolean().default(false),
   idempotencyKey: z.string().uuid().optional(),
 });
 
@@ -19,6 +21,7 @@ export const fundingIntentRouter = createTRPCRouter({
           projectTokenConfigId: input.projectTokenConfigId,
           amount: input.amount,
           disclosureVersion: input.disclosureVersion,
+          displayNameConsent: input.displayNameConsent,
         },
         input.idempotencyKey ?? randomUUID(),
       );

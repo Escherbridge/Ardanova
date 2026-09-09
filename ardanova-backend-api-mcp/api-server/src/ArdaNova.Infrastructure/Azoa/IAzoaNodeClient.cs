@@ -24,7 +24,10 @@ public interface IAzoaNodeClient
         string idempotencyKey,
         CancellationToken ct = default);
 
-    /// <summary>Post a fungible-mint request; all other paths are rejected.</summary>
+    /// <summary>
+    /// Post to an allocation, fungible-mint or reserve-partition route; all other paths are
+    /// rejected before network I/O. The implementation states the exact allowance.
+    /// </summary>
     Task<Result<T>> PostAsync<T>(
         string path, object? body, CancellationToken ct = default);
 }

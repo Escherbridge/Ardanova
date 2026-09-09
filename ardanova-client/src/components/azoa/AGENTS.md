@@ -21,8 +21,12 @@ audited reviewer access, and expiry.
 ## Status language
 
 The profile presents identity, avatar, and managed-wallet readiness as separate
-steps, each shown only as **Ready** / **Not created** — never a wallet
-address, an avatar GUID, or the literal word "Azoa" in copy the sponsor reads.
+steps — never a wallet address, an avatar GUID, or the literal word "Azoa" in copy
+the sponsor reads. The avatar and wallet steps read **Ready** / **Not created**. The
+IDENTITY step is finer, because "not created" is false for somebody awaiting a
+decision: `describeIdentityStep` returns the bare phrase (**Complete**, **In
+progress**, **Complete, final review open**, **Not approved**, **Not started**) so the
+card and the setup wizard render one derivation rather than two that can drift.
 Azoa KYC is authoritative and stays server-side; ArdaNova only reflects the
 readiness boolean it returns. Errors should explain which service or
 prerequisite is unavailable without exposing tenant keys, internal URLs,
@@ -44,3 +48,19 @@ toggle sitting one click away for an "advanced" user to find. A "claim to an
 external wallet" feature, if ever wanted, is a new, deliberately designed
 surface with its own signed-ownership-proof flow — not a dormant page or CTA
 to re-enable.
+
+## Readiness is three-way, never a boolean
+
+Every surface that gates a value action reads `evaluateValueActionAccount`, which returns
+`ready` / `under-review` / `setup-incomplete` / `service-unavailable` — never a boolean. The
+reason is a person who has finished every step and is awaiting a decision: telling them to
+"complete account setup" is an instruction they cannot act on, and offering them a setup link
+is worse. `under-review` therefore carries NO call to action on any surface.
+
+The add-funds page adds two honest non-answers on top of those verdicts —
+`getAddFundsReadiness` in `~/lib/commerce/on-ramp-status.ts` returns `checking` (the request is
+still in flight) and `unavailable` (the account could not be read) — kept separate on purpose so
+"we couldn't check" is never rendered as "finish your setup".
+
+Sponsor-facing copy passes `toSponsorSafeMessage`, which is a RUNTIME enforcement point for the
+operator-word allowlist (`OPERATOR_ONLY_WORDS`), not merely a lint target.

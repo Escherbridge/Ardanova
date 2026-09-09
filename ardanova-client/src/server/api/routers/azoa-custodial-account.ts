@@ -77,4 +77,24 @@ export const azoaCustodialAccountRouter = createTRPCRouter({
     }
     return response.data;
   }),
+
+  /**
+   * Takes back the standing permission for ArdaNova to act for this person. It carries no
+   * input: the subject is the signed-in session, so no caller can withdraw someone else's
+   * permission. `revoked` is the END STATE - true even when the permission was already
+   * withdrawn - and `revokedAt` is null in exactly that case.
+   */
+  revokeConsent: protectedProcedure.mutation(async () => {
+    const response = await apiClient.azoaCustodialAccount.revokeConsent();
+    if (!response.data) {
+      throw toAccountError(
+        response.status,
+        readableError(
+          response.error,
+          "We could not reach the operator to hand your permission back. Nothing was changed.",
+        ),
+      );
+    }
+    return response.data;
+  }),
 });

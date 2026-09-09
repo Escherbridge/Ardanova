@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
@@ -16,13 +16,13 @@ import {
 
 import { buildSignInHref } from "~/lib/auth-navigation";
 import {
-  ADD_FUNDS_SERVER_ROUTE_PENDING,
-  ADD_FUNDS_UNAVAILABLE_MESSAGE,
+  getAddFundsReadiness,
+  getOnRampConfirmingPresentation,
   getOnRampPresentation,
+  isOnRampSettled,
   type OnRampPresentation,
   type OnRampReport,
 } from "~/lib/commerce/on-ramp-status";
-import { isValueActionAccountReady } from "~/lib/contracts/project-create-contract";
 import { api } from "~/trpc/react";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
@@ -95,6 +95,28 @@ function AddFundsFlow() {
     enabled: queryEnabled,
     retry: false,
   });
+  // The server is the only thing allowed to say what happened to a payment, so a return polls the
+  // real record and stops the moment that record is settled.
+  const returningPayment = api.addFunds.getPayment.useQuery(
+    { paymentId: returningIntentId ?? "" },
+    {
+      enabled: queryEnabled && Boolean(returningIntentId),
+      retry: false,
+      refetchInterval: (query) =>
+        query.state.data && isOnRampSettled(query.state.data as OnRampReport)
+          ? false
+          : 5000,
+    },
+  );
+  const begin = api.addFunds.begin.useMutation({
+    onSuccess: (payment) => {
+      if (payment.paymentUrl) window.location.assign(payment.paymentUrl);
+    },
+    onError: (error) => setSubmitError(error.message),
+  });
+  // Load-bearing: the server resumes an open payment for a REPEATED key, so a fresh key per tap
+  // would open a second payment page for one intent.
+  const requestKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (sessionStatus === "unauthenticated") {
@@ -130,28 +152,31 @@ function AddFundsFlow() {
 
   if (!session) return null;
 
-  const accountReady = isValueActionAccountReady(accountStatus.data);
+  const readiness = getAddFundsReadiness(accountStatus.data, {
+    pending: accountStatus.isLoading,
+    loadFailed: Boolean(accountStatus.error),
+  });
 
-  // The server is the only thing allowed to say what happened to a payment. The client has no
-  // reachable route to ask yet, so a return is reported as unconfirmed rather than guessed at
-  // from the URL - see ADD_FUNDS_SERVER_ROUTE_PENDING.
-  const returnReport: OnRampReport | null = null;
-  const returnPresentation: OnRampPresentation | null = returningIntentId
-    ? getOnRampPresentation(returnReport)
-    : null;
+  // Never inferred from the redirect: until the record itself is read back, the return reads as
+  // "we're confirming this" rather than either outcome.
+  const returnPresentation: OnRampPresentation | null = !returningIntentId
+    ? null
+    : returningPayment.data
+      ? getOnRampPresentation(returningPayment.data as OnRampReport)
+      : getOnRampConfirmingPresentation();
 
   function startAddFunds() {
     if (amountProblem) {
       setSubmitError(amountProblem);
       return;
     }
-    // The single call site the server route plugs into. It refuses today; it never pretends.
-    setSubmitError(ADD_FUNDS_UNAVAILABLE_MESSAGE);
+    if (amountMinorUnits === null) return;
+    setSubmitError(null);
+    requestKeyRef.current ??= crypto.randomUUID();
+    begin.mutate({ amountMinorUnits, requestKey: requestKeyRef.current });
   }
 
-  const notice =
-    submitError ??
-    (ADD_FUNDS_SERVER_ROUTE_PENDING ? ADD_FUNDS_UNAVAILABLE_MESSAGE : null);
+  const notice = submitError;
 
   return (
     <div className="bg-background min-h-screen">
@@ -210,7 +235,7 @@ function AddFundsFlow() {
           )}
         </section>
 
-        {!accountReady && !accountStatus.isLoading && (
+        {readiness.heading !== null && (
           <section
             role="status"
             className="border-foreground bg-secondary flex flex-col gap-3 border-2 p-5 sm:flex-row sm:items-center sm:justify-between"
@@ -219,19 +244,22 @@ function AddFundsFlow() {
               <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0" />
               <div>
                 <h2 className="font-mono text-sm font-black uppercase">
-                  Finish setting up your account first
+                  {readiness.heading}
                 </h2>
-                <p className="text-muted-foreground mt-1 text-sm">
-                  Adding money needs your account set up and your identity
-                  confirmed. It takes a few minutes and you only do it once.
-                </p>
+                {readiness.detail && (
+                  <p className="text-muted-foreground mt-1 text-sm">
+                    {readiness.detail}
+                  </p>
+                )}
               </div>
             </div>
-            <Button asChild className="shrink-0">
-              <Link href="/settings/verification?returnTo=/portfolio/add-funds">
-                Set up my account
-              </Link>
-            </Button>
+            {/* Only offered when there is genuinely setup left to do. Somebody held for review
+                has nothing to finish, so no call to action is rendered for them at all. */}
+            {readiness.action && (
+              <Button asChild className="shrink-0">
+                <Link href={readiness.action.href}>{readiness.action.label}</Link>
+              </Button>
+            )}
           </section>
         )}
 
@@ -342,9 +370,9 @@ function AddFundsFlow() {
             size="lg"
             className="min-h-12 w-full rounded-none"
             disabled={
-              ADD_FUNDS_SERVER_ROUTE_PENDING ||
-              !accountReady ||
-              amountProblem !== null
+              !readiness.canContinue ||
+              amountProblem !== null ||
+              begin.isPending
             }
             onClick={startAddFunds}
           >
@@ -371,7 +399,8 @@ function ReturnState({ presentation }: { presentation: OnRampPresentation }) {
           badge: "Done",
         }
       : presentation.outcome === "on-its-way" ||
-          presentation.outcome === "unfinished"
+          presentation.outcome === "unfinished" ||
+          presentation.outcome === "confirming"
         ? {
             icon: <Clock className="h-5 w-5" />,
             className: "border-border bg-muted/30",

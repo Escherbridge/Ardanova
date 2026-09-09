@@ -5,6 +5,7 @@ import {
   ArrowRight,
   Check,
   Cpu,
+  LifeBuoy,
   Loader2,
   LockKeyhole,
   ShieldCheck,
@@ -21,21 +22,40 @@ import { cn } from "~/lib/utils";
 type AccountStepIcon = "account" | "identity" | "wallet";
 
 /**
- * Plain words for the identity step. The wire values are AZOA's TenantKycStatus members;
- * printing one puts "UnderReview" in front of a sponsor who never asked to read an enum.
+ * Where a person held for review reaches the reviewer who owes them a decision. The address
+ * belongs to whoever operates the review console, so it is configured per deployment rather
+ * than compiled in.
+ *
+ * Set `NEXT_PUBLIC_REVIEW_CONTACT_EMAIL` to switch the link on. A BLANK or unset value
+ * resolves to no link at all - never a `mailto:` that goes nowhere. An empty environment
+ * variable is the shape a deploy produces most easily, so the empty case is decided here in
+ * code and resolves to the narrowest outcome: no route is offered, and no copy claims one.
  */
-function describeIdentityStep(kycStatus: string | null | undefined): string {
+export function reviewContactHref(): string | null {
+  const configuredAddress = process.env.NEXT_PUBLIC_REVIEW_CONTACT_EMAIL?.trim();
+  if (!configuredAddress) return null;
+  const subject = encodeURIComponent("Account review - request for an update");
+  return `mailto:${configuredAddress}?subject=${subject}`;
+}
+
+/**
+ * Plain words for the identity step, in the same shape as the other steps' "Ready" /
+ * "Not created". The wire values are AZOA's TenantKycStatus members; printing one puts
+ * "UnderReview" in front of a sponsor who never asked to read an enum. Exported because
+ * the project wizard shows the same row and must not re-derive it.
+ */
+export function describeIdentityStep(kycStatus: string | null | undefined): string {
   switch (kycStatus) {
     case "Approved":
-      return "Identity check: complete";
+      return "Complete";
     case "Pending":
-      return "Identity check: in progress";
+      return "In progress";
     case "UnderReview":
-      return "Identity check: complete, final review open";
+      return "Complete, final review open";
     case "Rejected":
-      return "Identity check: not approved";
+      return "Not approved";
     default:
-      return "Identity check: not started";
+      return "Not started";
   }
 }
 
@@ -72,6 +92,7 @@ export function CustodialAccountCard({
     loadFailed: Boolean(statusError),
   });
   const underReview = evaluation.state === "under-review";
+  const reviewContact = underReview ? reviewContactHref() : null;
   const kycApproved = status?.kycStatus === "Approved";
   const accountSetupComplete = evaluation.ready;
   const needsProvisioning =
@@ -101,7 +122,7 @@ export function CustodialAccountCard({
     },
     {
       label: "Identity check",
-      detail: describeIdentityStep(status?.kycStatus),
+      detail: `Identity check: ${describeIdentityStep(status?.kycStatus).toLowerCase()}`,
       complete: kycApproved,
       icon: "identity",
     },
@@ -241,6 +262,14 @@ export function CustodialAccountCard({
               {status?.identityReady
                 ? "Continue account setup"
                 : "Start account setup"}
+            </Button>
+          )}
+          {underReview && reviewContact && (
+            <Button variant="outline" className="min-h-11 w-full" asChild>
+              <a href={reviewContact}>
+                <LifeBuoy className="size-4" aria-hidden="true" />
+                Contact the review team
+              </a>
             </Button>
           )}
           {!kycApproved && !underReview && verificationHref && (

@@ -44,6 +44,42 @@ function readQuotedIntent(slug: string): QuotedIntent | null {
   }
 }
 
+/**
+ * The server's own date and sentence, read off the status payload.
+ *
+ * `FundingIntentStatusDto` returns both (`ReleaseNotBefore`, `HoldingReasonDetail`, camel-cased
+ * by the API's serializer) and the `FundingIntentStatus` interface in
+ * `~/lib/api/ardanova/endpoints/funding-intents.ts` now declares them, so this helper is a
+ * narrowing step rather than a workaround: it turns an empty string into null so the copy
+ * below never renders a blank date or a blank reason as if the server had said something.
+ */
+function readServerFacts(intent: unknown): {
+  releaseNotBefore: string | null;
+  holdingReasonDetail: string | null;
+} {
+  if (!intent || typeof intent !== "object") {
+    return { releaseNotBefore: null, holdingReasonDetail: null };
+  }
+  const record = intent as Record<string, unknown>;
+  const release = record.releaseNotBefore;
+  const reason = record.holdingReasonDetail;
+  return {
+    releaseNotBefore: typeof release === "string" && release ? release : null,
+    holdingReasonDetail: typeof reason === "string" && reason ? reason : null,
+  };
+}
+
+/** The release date as a person reads it — "14 March 2026", never a timestamp. */
+function formatReleaseDate(iso: string): string | null {
+  const parsed = new Date(iso);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  }).format(parsed);
+}
+
 function formatPct(value: number) {
   return `${value.toFixed(4)}%`;
 }
@@ -104,15 +140,23 @@ function InvestSuccessFlow() {
     },
   );
 
+  const serverFacts = useMemo(() => readServerFacts(intent), [intent]);
+
   const presentation = useMemo(() => {
     if (error) return getFundingIntentPresentation();
+    // The server's own release time and its own refusal sentence. The fixed 30-day window in
+    // `funding-intent-status.ts` is now only reachable when the server sends no date at all.
     return getFundingIntentPresentation({
       status: intent?.status,
-      // FundingIntentStatusDto does not carry these yet; see the TODO in funding-intent-status.ts.
-      reasonDetail: undefined,
-      releaseNotBefore: undefined,
+      reasonDetail: serverFacts.holdingReasonDetail,
+      releaseNotBefore: serverFacts.releaseNotBefore,
     });
-  }, [error, intent?.status]);
+  }, [error, intent?.status, serverFacts]);
+
+  const releaseDate =
+    presentation.outcome === "confirmed" && serverFacts.releaseNotBefore
+      ? formatReleaseDate(serverFacts.releaseNotBefore)
+      : null;
 
   return (
     <div className="bg-background flex min-h-screen items-center justify-center p-4">
@@ -121,6 +165,14 @@ function InvestSuccessFlow() {
           presentation={presentation}
           errorMessage={error ? describeFundingError(error) : null}
         />
+
+        {releaseDate && (
+          <p className="text-muted-foreground text-center text-xs">
+            Your stake is yours to move from{" "}
+            <strong className="text-foreground">{releaseDate}</strong>. That is
+            the date recorded against this sponsorship, not an estimate.
+          </p>
+        )}
 
         {timedOut && presentation.outcome === "waiting" && (
           <p className="text-muted-foreground text-center text-xs">
@@ -180,9 +232,9 @@ function InvestSuccessFlow() {
                 <span className="text-system mt-0.5 font-mono text-xs font-bold">
                   02
                 </span>
-                A freshly issued stake sits in a short hold before it&apos;s
-                yours to move — never confirmed from this redirect or a URL
-                parameter.
+                {releaseDate
+                  ? `A freshly issued stake is held until ${releaseDate}, then it's yours to move — never confirmed from this redirect or a URL parameter.`
+                  : "A freshly issued stake sits in a short hold before it's yours to move — never confirmed from this redirect or a URL parameter."}
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-system mt-0.5 font-mono text-xs font-bold">
