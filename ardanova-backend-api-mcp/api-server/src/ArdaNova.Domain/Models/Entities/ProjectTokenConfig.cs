@@ -52,9 +52,11 @@ public class ProjectTokenConfig
     [Required]
     public DateTime updatedAt { get; set; }
 
+    /// <summary>What the project is asking for, in US dollars - <c>ProjectFundingUnits.Ledger</c>.</summary>
     [Required]
     public double fundingGoal { get; set; }
 
+    /// <summary>Dollars settled into the raise so far. Same unit as <see cref="fundingGoal"/>, by rule.</summary>
     [Required]
     public double fundingRaised { get; set; }
 

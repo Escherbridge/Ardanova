@@ -618,24 +618,16 @@ public class ProjectTokenService : IProjectTokenService, IProjectTokenProvisioni
             : "Funding setup for this project is not finished, so no stake can be allocated yet.";
     }
 
-    /// <summary>Mirrors the node's partition check so ArdaNova never promises units the node would refuse.</summary>
+    /// <summary>
+    /// Mirrors the node's partition check so ArdaNova never promises units the node would refuse.
+    /// One implementation, in the domain, because the sponsorship path draws the same allowances.
+    /// </summary>
     private static string? DescribePartitionOversubscription(
         string allowanceName,
         int declared,
         int committed,
-        int requested)
-    {
-        if (requested <= 0)
-            return $"A {allowanceName} allocation must be at least one unit.";
-
-        if (committed + (long)requested > declared)
-        {
-            return $"The {allowanceName} allowance is oversubscribed: {requested} units requested, "
-                + $"{Math.Max(declared - committed, 0)} of {declared} still available.";
-        }
-
-        return null;
-    }
+        int requested) =>
+        ProjectStakePartitions.DescribeOversubscription(allowanceName, declared, committed, requested);
 
     /// <summary>Declaration rules. Everything a person types is checked here, once.</summary>
     private static string? ValidateDeclaration(ProjectTokenDeclaration declaration)
@@ -675,6 +667,15 @@ public class ProjectTokenService : IProjectTokenService, IProjectTokenProvisioni
             || double.IsInfinity(declaration.FundingGoal))
         {
             return "Set a funding goal above zero.";
+        }
+
+        // The unit is a CONTROL, not a label: `fundingGoal` sits beside `fundingRaised`, which
+        // accumulates dollars, and the opening price divides one into the other.
+        if (!ProjectFundingUnits.IsLedgerUnit(declaration.FundingGoalUnit))
+        {
+            return $"A funding goal must be declared in {ProjectFundingUnits.Ledger}; "
+                + $"'{declaration.FundingGoalUnit}' was sent, and a goal in any other unit would be "
+                + "priced against a dollar total.";
         }
 
         var disclosure = declaration.Disclosure?.Trim() ?? string.Empty;
@@ -722,7 +723,7 @@ public class ProjectTokenService : IProjectTokenService, IProjectTokenProvisioni
         // reserve ledger. Checking it here keeps ArdaNova's own books from promising units
         // the node would refuse to draw.
         if (DescribePartitionOversubscription(
-                "worker stake",
+                ProjectStakePartitions.WorkerAllowance,
                 config.contributorPartitionSupply,
                 config.contributorSupply,
                 tokenAmount) is { } contributorRefusal)
@@ -786,7 +787,7 @@ public class ProjectTokenService : IProjectTokenService, IProjectTokenProvisioni
         // Same node-side allowance, sponsor side. A partition policed only in this database
         // can be overdrawn by the other caller, so both halves check the declared cap.
         if (DescribePartitionOversubscription(
-                "sponsor stake",
+                ProjectStakePartitions.SponsorAllowance,
                 config.investorPartitionSupply,
                 config.investorSupply,
                 dto.TokenAmount) is { } investorRefusal)
@@ -1033,7 +1034,7 @@ public class ProjectTokenService : IProjectTokenService, IProjectTokenProvisioni
         }
 
         if (DescribePartitionOversubscription(
-                "worker stake",
+                ProjectStakePartitions.WorkerAllowance,
                 config.contributorPartitionSupply,
                 config.contributorSupply,
                 wholeUnits) is { } contributorRefusal)
@@ -1127,6 +1128,16 @@ public class ProjectTokenService : IProjectTokenService, IProjectTokenProvisioni
     }
 
     /// <inheritdoc/>
+    /// <remarks>
+    /// Approval settles EVERY leg of the assignment, not just the one named. An accepted bid
+    /// that declared a guild share is held in two reservations against the same agreement, and
+    /// the rule that a leg's recipient must equal the agreement's contributor made the guild's
+    /// leg unsettleable - while this same call marked the agreement SETTLED and the task
+    /// RELEASED, so its units were drawn from the project and stranded on the node with no
+    /// settle and no refund that could reach them. The leg set IS the beneficiary set: every
+    /// row was written server-side at acceptance from the bid, never from a caller's field.
+    /// The worker's own leg must be among them, or the set is not this assignment's.
+    /// </remarks>
     public async Task<Result<TokenAllocationDto>> ApproveWorkCompletionAsync(
         string allocationId,
         string actorUserId,
@@ -1178,37 +1189,115 @@ public class ProjectTokenService : IProjectTokenService, IProjectTokenProvisioni
                 "This award is not linked to an accepted assignment, so there is no completed work to approve.");
         }
 
-        if (!string.Equals(agreement.projectId, project.id, StringComparison.Ordinal)
-            || !string.Equals(agreement.contributorUserId, allocation.recipientUserId, StringComparison.Ordinal))
+        if (!string.Equals(agreement.projectId, project.id, StringComparison.Ordinal))
         {
             return Result<TokenAllocationDto>.Conflict(
                 "This award and the assignment it belongs to disagree about the project or the worker.");
         }
 
-        // Idempotent: the window already exists, so a redelivered approval reports it rather
-        // than opening a second one.
-        if (allocation.IsAwaitingWorkerWindow)
-            return Result<TokenAllocationDto>.Success(_mapper.Map<TokenAllocationDto>(allocation));
+        var legs = (await _allocationRepo.FindAsync(
+                candidate => candidate.taskCommerceAgreementId == agreement.id, ct))
+            .Where(candidate => string.Equals(
+                candidate.projectTokenConfigId, config.id, StringComparison.Ordinal))
+            .OrderBy(candidate => candidate.id, StringComparer.Ordinal)
+            .ToList();
 
-        if (allocation.status != AllocationStatus.RESERVED)
+        // The worker's own share is what makes this set the assignment's. A set without it is
+        // either a different project's stake or a half-written acceptance; neither may settle.
+        if (!legs.Any(leg => string.Equals(
+                leg.recipientUserId, agreement.contributorUserId, StringComparison.Ordinal)))
         {
-            return Result<TokenAllocationDto>.ValidationError(
-                $"Only a reserved award can be approved. This one is {allocation.status}.");
+            return Result<TokenAllocationDto>.Conflict(
+                "This award and the assignment it belongs to disagree about the project or the worker.");
         }
 
-        var recipientAvatar = await ResolveReadyAvatarAsync(agreement.contributorUserId, ct);
+        foreach (var leg in legs)
+        {
+            var refusal = await SettleAwardLegAsync(leg, config, actorUserId, ct);
+            if (refusal is not null)
+                return refusal;
+        }
+
+        var now = DateTime.UtcNow;
+
+        // Only once EVERY leg is the recipient's. A partial settlement leaves the agreement and
+        // the task's escrow where they were, which is exactly what is true: the legs already
+        // continued are idempotent, so a retry finishes the rest.
+        if (agreement.status != TaskCommerceAgreementStatus.SETTLED)
+        {
+            agreement.status = TaskCommerceAgreementStatus.SETTLED;
+            agreement.releaseAuthorizedAt ??= now;
+            agreement.settledAt = now;
+            agreement.updatedAt = now;
+            await _agreementRepo.UpdateAsync(agreement, ct);
+
+            var task = await _taskRepo.GetByIdAsync(agreement.taskId, ct);
+            if (task is not null)
+            {
+                task.escrowStatus = EscrowStatus.RELEASED;
+                task.updatedAt = now;
+                await _taskRepo.UpdateAsync(task, ct);
+            }
+        }
+
+        await _unitOfWork.SaveChangesAsync(ct);
+
+        return Result<TokenAllocationDto>.Success(_mapper.Map<TokenAllocationDto>(allocation));
+    }
+
+    /// <summary>
+    /// Moves ONE beneficiary's share into their own window on the node. Returns null when the
+    /// leg is settled (or already was), and the refusal to carry out otherwise.
+    /// </summary>
+    /// <remarks>
+    /// Every field the recipient is decided by comes off the allocation row, which was written
+    /// at acceptance from the bid. Crediting the agreement's contributor here instead would pay
+    /// the worker for the guild's share as well as their own.
+    /// </remarks>
+    private async Task<Result<TokenAllocationDto>?> SettleAwardLegAsync(
+        TokenAllocation leg,
+        ProjectTokenConfig config,
+        string actorUserId,
+        CancellationToken ct)
+    {
+        // Idempotent: the window already exists, so a redelivered approval leaves it alone
+        // rather than opening a second one.
+        if (leg.IsAwaitingWorkerWindow)
+            return null;
+
+        if (!leg.IsNodeHeld)
+        {
+            return Result<TokenAllocationDto>.ValidationError(
+                "These units were never set aside on the shared node, so there is nothing to hand over.");
+        }
+
+        if (leg.status != AllocationStatus.RESERVED)
+        {
+            return Result<TokenAllocationDto>.ValidationError(
+                $"Only a reserved award can be approved. This one is {leg.status}.");
+        }
+
+        // A leg with no recipient names nobody to hand units to. Continuing would ask the node
+        // to hold them for an empty id.
+        if (string.IsNullOrWhiteSpace(leg.recipientUserId))
+        {
+            return Result<TokenAllocationDto>.Conflict(
+                "This award has no recipient recorded, so there is nobody to hand it to.");
+        }
+
+        var recipientAvatar = await ResolveReadyAvatarAsync(leg.recipientUserId!, ct);
         if (recipientAvatar.IsFailure)
             return ValueEligibilityFailure.Propagate<Guid, TokenAllocationDto>(recipientAvatar);
 
-        var chain = string.IsNullOrWhiteSpace(allocation.holdChain) ? _chainType : allocation.holdChain!;
-        var reference = new AzoaHoldReference(chain, allocation.holdId!);
-        var workerHoldId = ProjectAwardHold.WorkerWindowIdFor(allocation.holdId!);
+        var chain = string.IsNullOrWhiteSpace(leg.holdChain) ? _chainType : leg.holdChain!;
+        var reference = new AzoaHoldReference(chain, leg.holdId!);
+        var workerHoldId = ProjectAwardHold.WorkerWindowIdFor(leg.holdId!);
         var releasesAt = DateTimeOffset.UtcNow.AddDays(_awardWindowDays);
 
         // A plain release cannot express "yours, and restricted until the window elapses", so
-        // the escrow hold is CONTINUED into the worker's own hold. Nothing leaves the node's
+        // the escrow hold is CONTINUED into the recipient's own hold. Nothing leaves the node's
         // holding account here; only who it is held for and until when change.
-        var continued = await _holds.ReleaseIntoHoldAsync(
+        var continued = await _holds!.ReleaseIntoHoldAsync(
             new AzoaHoldChainRequest(
                 reference,
                 workerHoldId,
@@ -1222,7 +1311,7 @@ public class ProjectTokenService : IProjectTokenService, IProjectTokenProvisioni
         {
             _logger.LogWarning(
                 "Award approval refused for allocation {AllocationId} hold {HoldId}: {Reason}",
-                allocation.id, allocation.holdId, continued.Error);
+                leg.id, leg.holdId, continued.Error);
             return PropagateHoldFailure<TokenAllocationDto>(
                 continued,
                 "The approved award could not be moved into this worker's window on the shared node.");
@@ -1233,64 +1322,47 @@ public class ProjectTokenService : IProjectTokenService, IProjectTokenProvisioni
         var childState = await ReadHoldStateAsync(chain, childHoldId, ct);
 
         var now = DateTime.UtcNow;
-        allocation.status = AllocationStatus.DISTRIBUTED;
-        allocation.holdState = parent.State;
-        allocation.workerHoldId = childHoldId;
-        allocation.workerHoldState = childState;
-        allocation.workerHoldReleasesAt = releasesAt.UtcDateTime;
+        leg.status = AllocationStatus.DISTRIBUTED;
+        leg.holdState = parent.State;
+        leg.workerHoldId = childHoldId;
+        leg.workerHoldState = childState;
+        leg.workerHoldReleasesAt = releasesAt.UtcDateTime;
         // Restricted until the window elapses, whatever the gate says. Stamped AFTER the window
         // columns above, because it is computed FROM them by the one rule every other seam reads;
         // this column is a record of the answer at approval, never the authority - the window ends
         // on a date nothing revisits, so the seams re-read the award rather than trusting it.
-        allocation.isLiquid = UnitWindow.IsAwardLiquid(
-            allocation, config.gateStatus, DateTimeOffset.UtcNow);
-        allocation.holdSyncedAt = now;
-        allocation.distributedAt = now;
-        allocation.updatedAt = now;
-        await _allocationRepo.UpdateAsync(allocation, ct);
+        leg.isLiquid = UnitWindow.IsAwardLiquid(leg, config.gateStatus, DateTimeOffset.UtcNow);
+        leg.holdSyncedAt = now;
+        leg.distributedAt = now;
+        leg.updatedAt = now;
+        await _allocationRepo.UpdateAsync(leg, ct);
 
-        config.distributedSupply += allocation.tokenAmount;
+        config.distributedSupply += leg.tokenAmount;
         config.updatedAt = now;
         await _configRepo.UpdateAsync(config, ct);
 
-        agreement.status = TaskCommerceAgreementStatus.SETTLED;
-        agreement.releaseAuthorizedAt ??= now;
-        agreement.settledAt = now;
-        agreement.updatedAt = now;
-        await _agreementRepo.UpdateAsync(agreement, ct);
-
-        var task = await _taskRepo.GetByIdAsync(agreement.taskId, ct);
-        if (task is not null)
-        {
-            task.escrowStatus = EscrowStatus.RELEASED;
-            task.updatedAt = now;
-            await _taskRepo.UpdateAsync(task, ct);
-        }
-
         var credited = await _tokenBalanceService.CreditAsync(
-            agreement.contributorUserId,
-            allocation.projectTokenConfigId,
-            allocation.tokenAmount,
-            allocation.holderClass,
+            leg.recipientUserId!,
+            leg.projectTokenConfigId,
+            leg.tokenAmount,
+            leg.holderClass,
             ct);
 
         if (credited.IsFailure)
         {
             _logger.LogError(
                 "Award {AllocationId} moved into hold {WorkerHoldId} but the balance read-model was not credited: {Error}",
-                allocation.id, childHoldId, credited.Error);
+                leg.id, childHoldId, credited.Error);
             return Result<TokenAllocationDto>.Failure(
                 "The award is now held for this worker, but their holdings could not be refreshed. "
                 + "Nothing is lost; retry to bring the figures up to date.");
         }
 
-        await _unitOfWork.SaveChangesAsync(ct);
-
         _logger.LogInformation(
             "Award {AllocationId} approved by {ActorId}; held for {RecipientId} until {ReleasesAt:u}",
-            allocation.id, actorUserId, agreement.contributorUserId, releasesAt);
+            leg.id, actorUserId, leg.recipientUserId, releasesAt);
 
-        return Result<TokenAllocationDto>.Success(_mapper.Map<TokenAllocationDto>(allocation));
+        return null;
     }
 
     /// <summary>The node's live state for one hold, or null when it could not be read.</summary>
@@ -1956,8 +2028,18 @@ public sealed record ProjectTokenDeclaration
     /// <summary>Units set aside for the people who sponsor the work.</summary>
     public required int InvestorSupply { get; init; }
 
-    /// <summary>What the project is asking for, in platform units.</summary>
+    /// <summary>What the project is asking for, in <see cref="FundingGoalUnit"/>.</summary>
     public required double FundingGoal { get; init; }
+
+    /// <summary>
+    /// The unit <see cref="FundingGoal"/> is denominated in. Required, and refused unless it is
+    /// the unit the funding columns are actually kept in
+    /// (<c>ProjectFundingUnits.Ledger</c>, dollars). The ask used to arrive with no unit at all
+    /// while the client sent platform units, so it was stored beside a dollar-denominated raise
+    /// and divided into a dollar-denominated price. A caller that still sends the old unit now
+    /// fails at the door instead of mispricing every sponsorship of the project.
+    /// </summary>
+    public required string FundingGoalUnit { get; init; }
 
     /// <summary>
     /// What a stake means and when it becomes the holder's — shown before anyone commits

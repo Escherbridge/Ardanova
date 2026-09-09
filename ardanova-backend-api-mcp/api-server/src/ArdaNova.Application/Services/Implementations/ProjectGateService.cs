@@ -66,8 +66,10 @@ namespace ArdaNova.Application.Services.Implementations
                 return Result<GateTransitionResultDto>.Failure($"Invalid gate status. Expected FUNDING, got {config.gateStatus}.");
             }
 
-            // 2. Check if funding goal is reached
-            if (config.fundingRaised < config.fundingGoal)
+            // 2. Check if funding goal is reached. Both figures are dollars, and the ONE reader
+            // that says so is shared with the pricing path - a hand-rolled `raised < goal` here
+            // is how the two columns drifted into different units in the first place.
+            if (!ProjectFundingLedger.GoalIsMet(config))
             {
                 var noTransitionResult = new GateTransitionResultDto
                 {

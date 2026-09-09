@@ -60,12 +60,12 @@ import {
   PROJECT_SUMMARY_MAX_LENGTH,
   classifyProjectMediaKind,
   createEmptyProjectFormData,
-  describeFundingGoalInUsd,
+  describeFundingGoalInPlatformUnits,
   evaluateValueActionAccount,
-  formatFundingAmount,
+  formatUsdAmount,
   isProjectCreateCompensationModel,
   isProjectRoleValueBearing,
-  parseFundingGoalUnits,
+  parseFundingGoalDollars,
   parseProjectCreateDraft,
   readArdaUsdRate,
   serializeProjectCreateDraft,
@@ -345,8 +345,9 @@ export default function CreateProjectPage() {
   const [isUploadingMedia, setIsUploadingMedia] = useState(false);
   const getUploadUrlsMutation = api.attachment.getUploadUrls.useMutation();
 
-  // The live ARDA rate behind the goal's dollar reference. A failure is not an error the
-  // creator has to act on - the reference falls back to the launch rate and says so.
+  // The live platform-unit rate behind the goal's derived caption. The ask itself is in
+  // dollars and needs no rate; a failure here only softens the caption to the launch
+  // reference, which it says out loud.
   const treasuryStatus = api.treasury.getStatus.useQuery(undefined, {
     enabled: Boolean(session?.user?.id),
     retry: false,
@@ -469,9 +470,9 @@ export default function CreateProjectPage() {
     setMediaError(null);
   };
 
-  const fundingGoalUnits = (() => {
+  const fundingGoalDollars = (() => {
     try {
-      return parseFundingGoalUnits(formData.fundingGoal);
+      return parseFundingGoalDollars(formData.fundingGoal);
     } catch {
       return undefined;
     }
@@ -568,7 +569,7 @@ export default function CreateProjectPage() {
       if (summaryProblem) newErrors.summary = summaryProblem;
 
       try {
-        parseFundingGoalUnits(formData.fundingGoal);
+        parseFundingGoalDollars(formData.fundingGoal);
       } catch (error) {
         newErrors.fundingGoal =
           error instanceof Error ? error.message : "Enter a valid amount";
@@ -644,7 +645,7 @@ export default function CreateProjectPage() {
           "Write 20 to 2000 characters on what a stake means and when it becomes theirs";
       }
 
-      if (fundingGoalUnits === undefined || fundingGoalUnits <= 0) {
+      if (fundingGoalDollars === undefined || fundingGoalDollars <= 0) {
         newErrors.fundingGoal =
           "Set a funding goal above zero on the Basic Info step";
       }
@@ -918,7 +919,7 @@ export default function CreateProjectPage() {
           categories: resolvedCategories,
           projectType: formData.projectType || undefined,
           duration: formData.duration || undefined,
-          fundingGoal: parseFundingGoalUnits(formData.fundingGoal),
+          fundingGoal: parseFundingGoalDollars(formData.fundingGoal),
           images: mediaLocations("image"),
           videos: mediaLocations("video"),
           documents: mediaLocations("document"),
@@ -1070,7 +1071,7 @@ export default function CreateProjectPage() {
           totalUnits === undefined ||
           sponsorUnits === undefined ||
           workerUnits === undefined ||
-          fundingGoalUnits === undefined
+          fundingGoalDollars === undefined
         ) {
           partialWarnings.push(
             "Funding setup was skipped: the declaration was incomplete. Finish it on the project's Funding tab.",
@@ -1084,7 +1085,8 @@ export default function CreateProjectPage() {
               totalSupply: totalUnits,
               investorSupply: sponsorUnits,
               contributorSupply: workerUnits,
-              fundingGoal: fundingGoalUnits,
+              fundingGoal: fundingGoalDollars,
+              fundingGoalUnit: PROJECT_FUNDING_UNIT,
               disclosure: funding.disclosure.trim(),
               reservedPercentage: 0,
             });
@@ -1963,7 +1965,7 @@ export default function CreateProjectPage() {
                       )}
                     />
                     <span className="border-border bg-muted/30 text-muted-foreground flex items-center rounded-lg border-2 px-4 font-mono text-sm">
-                      {PROJECT_FUNDING_UNIT}
+                      USD
                     </span>
                   </div>
                   {errors.fundingGoal ? (
@@ -1980,9 +1982,9 @@ export default function CreateProjectPage() {
                       className="text-muted-foreground text-sm"
                       aria-live="polite"
                     >
-                      {fundingGoalUnits === undefined
-                        ? "Sponsors see this as a dollar amount."
-                        : `Sponsors see ${describeFundingGoalInUsd(fundingGoalUnits, ardaUsdRate)}.`}
+                      {fundingGoalDollars === undefined
+                        ? "Enter the amount you are asking for, in dollars."
+                        : `Sponsors see ${formatUsdAmount(fundingGoalDollars)} — ${describeFundingGoalInPlatformUnits(fundingGoalDollars, ardaUsdRate)}.`}
                     </p>
                   )}
                 </CardContent>
@@ -3348,13 +3350,13 @@ export default function CreateProjectPage() {
                           <p>
                             Asking for{" "}
                             <span className="text-foreground font-medium">
-                              {fundingGoalUnits === undefined
+                              {fundingGoalDollars === undefined
                                 ? "no amount yet"
-                                : formatFundingAmount(fundingGoalUnits)}
+                                : formatUsdAmount(fundingGoalDollars)}
                             </span>
-                            {fundingGoalUnits === undefined
+                            {fundingGoalDollars === undefined
                               ? " — set the goal on the Basic Info step."
-                              : ` (${describeFundingGoalInUsd(fundingGoalUnits, ardaUsdRate)}).`}
+                              : ` (${describeFundingGoalInPlatformUnits(fundingGoalDollars, ardaUsdRate)}).`}
                           </p>
                           {!valueAccountReady && (
                             <p className="mt-2">
@@ -3409,15 +3411,17 @@ export default function CreateProjectPage() {
                     </p>
                     <p className="mt-1 text-sm">{formData.solution}</p>
                   </div>
-                  {fundingGoalUnits !== undefined && (
+                  {fundingGoalDollars !== undefined && (
                     <div>
                       <p className="text-muted-foreground text-sm font-medium">
                         Funding goal
                       </p>
                       <p className="mt-1 text-sm">
-                        {formatFundingAmount(fundingGoalUnits)}{" "}
-                        {PROJECT_FUNDING_UNIT} -{" "}
-                        {describeFundingGoalInUsd(fundingGoalUnits, ardaUsdRate)}
+                        {formatUsdAmount(fundingGoalDollars)} -{" "}
+                        {describeFundingGoalInPlatformUnits(
+                          fundingGoalDollars,
+                          ardaUsdRate,
+                        )}
                       </p>
                     </div>
                   )}

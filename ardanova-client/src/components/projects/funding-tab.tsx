@@ -14,6 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { Textarea } from "~/components/ui/textarea";
+import { PROJECT_FUNDING_UNIT } from "~/lib/contracts/project-create-contract";
 import {
   projectGateStatusDtoSchema,
   projectInvestorsResponseSchema,
@@ -224,6 +225,7 @@ function FundingDeclarationForm({
       investorSupply: forSponsors,
       contributorSupply: forWorkers,
       fundingGoal: goal,
+      fundingGoalUnit: PROJECT_FUNDING_UNIT,
       disclosure: disclosure.trim(),
       reservedPercentage: 0,
     });
@@ -311,7 +313,7 @@ function FundingDeclarationForm({
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="funding-goal">Funding goal</Label>
+            <Label htmlFor="funding-goal">Funding goal (USD)</Label>
             <Input
               id="funding-goal"
               inputMode="decimal"

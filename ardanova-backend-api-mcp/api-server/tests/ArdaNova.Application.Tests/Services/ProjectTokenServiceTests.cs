@@ -1930,6 +1930,122 @@ public class ProjectTokenServiceTests
         task.escrowStatus.Should().Be(EscrowStatus.RELEASED);
     }
 
+    // -- A declared guild share is a beneficiary, not a stranded hold --
+
+    [Fact]
+    public async Task ApproveWorkCompletionAsync_SettlesEveryLegOfASplitAward_AndCreditsEachRecipient()
+    {
+        // An accepted bid with a guild share is held in TWO legs against one agreement.
+        // Approval used to refuse any leg whose recipient was not the agreement's contributor
+        // while marking the agreement SETTLED anyway, so the guild's units were drawn from the
+        // project and could never be handed over or returned.
+        var service = CreateAwardService();
+        var workerLeg = HeldAllocation();
+        var guildLeg = GuildAllocation();
+        var agreement = AwardAgreement();
+        var task = new ProjectTask { id = "task-1", projectId = "project-1", escrowStatus = EscrowStatus.FUNDED };
+        ArrangeAwardLookups(workerLeg, agreement, task);
+        _allocationRepoMock.Setup(repository => repository.FindAsync(
+                It.IsAny<Expression<Func<TokenAllocation, bool>>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<TokenAllocation> { workerLeg, guildLeg });
+        _awardHoldsMock.Setup(holds => holds.ReleaseIntoHoldAsync(
+                It.IsAny<AzoaHoldChainRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((AzoaHoldChainRequest request, CancellationToken _) =>
+                Result<AzoaHold>.Success(Hold(
+                    request.Reference.HoldId,
+                    AzoaHoldStates.ReleasedIntoHold,
+                    childHoldId: request.NextHoldId)));
+        _awardHoldsMock.Setup(holds => holds.GetAsync(It.IsAny<AzoaHoldReference>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<AzoaHold>.Success(Hold(EscrowHoldId, AzoaHoldStates.Held)));
+        var credited = new List<(string User, int Units)>();
+        _tokenBalanceServiceMock
+            .Setup(balances => balances.CreditAsync(
+                It.IsAny<string>(), "config-1", It.IsAny<int>(),
+                It.IsAny<TokenHolderClass>(), It.IsAny<CancellationToken>()))
+            .Callback<string, string, int, TokenHolderClass, CancellationToken>(
+                (user, _, units, _, _) => credited.Add((user, units)))
+            .ReturnsAsync(Result<TokenBalanceDto>.Success(new TokenBalanceDto()));
+
+        var result = await service.ApproveWorkCompletionAsync("alloc-1", "owner-1");
+
+        result.IsSuccess.Should().BeTrue();
+
+        // BOTH legs left RESERVED, and each recipient was credited their OWN share - crediting
+        // the agreement's contributor for the whole award is the other way to get this wrong.
+        workerLeg.status.Should().Be(AllocationStatus.DISTRIBUTED);
+        guildLeg.status.Should().Be(AllocationStatus.DISTRIBUTED);
+        credited.Should().BeEquivalentTo(new[] { ("worker-1", 25), ("guild-owner-1", 5) });
+
+        _awardHoldsMock.Verify(holds => holds.ReleaseIntoHoldAsync(
+            It.Is<AzoaHoldChainRequest>(request => request.Reference.HoldId == EscrowHoldId),
+            It.IsAny<CancellationToken>()), Times.Once);
+        _awardHoldsMock.Verify(holds => holds.ReleaseIntoHoldAsync(
+            It.Is<AzoaHoldChainRequest>(request => request.Reference.HoldId == GuildHoldId),
+            It.IsAny<CancellationToken>()), Times.Once);
+
+        agreement.status.Should().Be(TaskCommerceAgreementStatus.SETTLED);
+        task.escrowStatus.Should().Be(EscrowStatus.RELEASED);
+    }
+
+    [Fact]
+    public async Task ApproveWorkCompletionAsync_WhenOneLegCannotBeSettled_NothingIsMarkedSettled()
+    {
+        // A partial settlement must not report a finished assignment. The agreement and the
+        // task stay where they were, which is what is true: some of the award is still held.
+        var service = CreateAwardService();
+        var workerLeg = HeldAllocation();
+        var guildLeg = GuildAllocation();
+        guildLeg.holdId = null;
+        var agreement = AwardAgreement();
+        var task = new ProjectTask { id = "task-1", projectId = "project-1", escrowStatus = EscrowStatus.FUNDED };
+        ArrangeAwardLookups(workerLeg, agreement, task);
+        _allocationRepoMock.Setup(repository => repository.FindAsync(
+                It.IsAny<Expression<Func<TokenAllocation, bool>>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<TokenAllocation> { workerLeg, guildLeg });
+        _awardHoldsMock.Setup(holds => holds.ReleaseIntoHoldAsync(
+                It.IsAny<AzoaHoldChainRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((AzoaHoldChainRequest request, CancellationToken _) =>
+                Result<AzoaHold>.Success(Hold(
+                    request.Reference.HoldId,
+                    AzoaHoldStates.ReleasedIntoHold,
+                    childHoldId: request.NextHoldId)));
+        _awardHoldsMock.Setup(holds => holds.GetAsync(It.IsAny<AzoaHoldReference>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<AzoaHold>.Success(Hold(EscrowHoldId, AzoaHoldStates.Held)));
+        _tokenBalanceServiceMock
+            .Setup(balances => balances.CreditAsync(
+                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(),
+                It.IsAny<TokenHolderClass>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<TokenBalanceDto>.Success(new TokenBalanceDto()));
+
+        var result = await service.ApproveWorkCompletionAsync("alloc-1", "owner-1");
+
+        result.IsSuccess.Should().BeFalse();
+        result.Error.Should().Contain("never set aside on the shared node");
+        agreement.status.Should().Be(TaskCommerceAgreementStatus.ESCROW_FUNDED);
+        task.escrowStatus.Should().Be(EscrowStatus.FUNDED);
+    }
+
+    [Fact]
+    public async Task ApproveWorkCompletionAsync_ALegSetWithoutTheWorkersOwnShareIsRefused()
+    {
+        // The worker's leg is what makes the set this assignment's. Without it, nothing here
+        // is evidence that the units belong to this agreement at all.
+        var service = CreateAwardService();
+        var guildLeg = GuildAllocation();
+        var agreement = AwardAgreement();
+        ArrangeAwardLookups(HeldAllocation(), agreement, new ProjectTask { id = "task-1", projectId = "project-1" });
+        _allocationRepoMock.Setup(repository => repository.FindAsync(
+                It.IsAny<Expression<Func<TokenAllocation, bool>>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<TokenAllocation> { guildLeg });
+
+        var result = await service.ApproveWorkCompletionAsync("alloc-1", "owner-1");
+
+        result.Type.Should().Be(ResultType.Conflict);
+        _awardHoldsMock.Verify(
+            holds => holds.ReleaseIntoHoldAsync(It.IsAny<AzoaHoldChainRequest>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
     [Fact]
     public async Task ApproveWorkCompletionAsync_SomeoneOtherThanTheProjectOwnerIsRefused()
     {
@@ -2070,6 +2186,25 @@ public class ProjectTokenServiceTests
         holdState = AzoaHoldStates.Held,
     };
 
+    private const string GuildHoldId = EscrowHoldId + "-guild";
+
+    /// <summary>The guild's leg of a split award: same agreement, a different beneficiary.</summary>
+    private static TokenAllocation GuildAllocation() => new()
+    {
+        id = "alloc-2",
+        projectTokenConfigId = "config-1",
+        recipientUserId = "guild-owner-1",
+        taskCommerceAgreementId = "agreement-1",
+        tokenAmount = 5,
+        status = AllocationStatus.RESERVED,
+        holderClass = TokenHolderClass.CONTRIBUTOR,
+        isLiquid = false,
+        holdChain = "Algorand",
+        reservePartition = ProjectTokenService.ContributorPartitionName,
+        holdId = GuildHoldId,
+        holdState = AzoaHoldStates.Held,
+    };
+
     private static TaskCommerceAgreement AwardAgreement() => new()
     {
         id = "agreement-1",
@@ -2089,6 +2224,10 @@ public class ProjectTokenServiceTests
     {
         _allocationRepoMock.Setup(repository => repository.GetByIdAsync("alloc-1", It.IsAny<CancellationToken>()))
             .ReturnsAsync(allocation);
+        // Approval settles every leg of the agreement, so it reads the whole set, not one row.
+        _allocationRepoMock.Setup(repository => repository.FindAsync(
+                It.IsAny<Expression<Func<TokenAllocation, bool>>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<TokenAllocation> { allocation });
         _configRepoMock.Setup(repository => repository.GetByIdAsync("config-1", It.IsAny<CancellationToken>()))
             .ReturnsAsync(AwardConfig(contributorSupply: 25));
         _awardProjectRepoMock.Setup(repository => repository.GetByIdAsync("project-1", It.IsAny<CancellationToken>()))

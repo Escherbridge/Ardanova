@@ -380,6 +380,64 @@ public class ProjectServiceTests
         capturedProject!.categories.Should().Be("TECHNOLOGY,HEALTHCARE,EDUCATION");
     }
 
+    /// <summary>
+    /// The unit an ask is declared in is a CONTROL, not a label: the goal sits beside a raise
+    /// that counts dollars, and the opening offering price divides one into the other. A goal
+    /// arriving in the platform unit is refused by name rather than stored beside a dollar total.
+    /// </summary>
+    [Fact]
+    public async Task CreateAsync_WithAFundingGoalInThePlatformUnit_ReturnsValidationError()
+    {
+        var dto = new CreateProjectDto
+        {
+            Title = "Ask in the wrong unit",
+            Description = "The ask is 500,000 of something that is not a dollar",
+            ProblemStatement = "The problem",
+            Solution = "The solution",
+            Categories = new List<string> { "TECHNOLOGY" },
+            CreatedById = Guid.NewGuid().ToString(),
+            ProjectType = ProjectType.TEMPORARY,
+            FundingGoal = 500_000m,
+            FundingGoalUnit = "ARDA",
+        };
+
+        var result = await _sut.CreateAsync(dto);
+
+        result.IsSuccess.Should().BeFalse();
+        result.Type.Should().Be(ResultType.ValidationError);
+        result.Error.Should().Contain("USD");
+    }
+
+    [Fact]
+    public async Task CreateAsync_WithADollarFundingGoal_StoresTheLedgerUnit()
+    {
+        var dto = new CreateProjectDto
+        {
+            Title = "Ask in dollars",
+            Description = "A five thousand dollar ask",
+            ProblemStatement = "The problem",
+            Solution = "The solution",
+            Categories = new List<string> { "TECHNOLOGY" },
+            CreatedById = Guid.NewGuid().ToString(),
+            ProjectType = ProjectType.TEMPORARY,
+            FundingGoal = 5_000m,
+        };
+        Project? capturedProject = null;
+        _repositoryMock.Setup(r => r.AddAsync(It.IsAny<Project>(), It.IsAny<CancellationToken>()))
+            .Callback<Project, CancellationToken>((project, _) => capturedProject = project)
+            .ReturnsAsync((Project project, CancellationToken _) => project);
+        _unitOfWorkMock.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>())).ReturnsAsync(1);
+        _mapperMock.Setup(m => m.Map<ProjectDto>(It.IsAny<Project>()))
+            .Returns(new ProjectDto { Title = "Ask in dollars" });
+
+        var result = await _sut.CreateAsync(dto);
+
+        result.IsSuccess.Should().BeTrue();
+        capturedProject.Should().NotBeNull();
+        capturedProject!.fundingGoal.Should().Be(5_000m);
+        capturedProject.fundingGoalUnit.Should().Be(ProjectFundingUnits.Ledger);
+    }
+
     [Fact]
     public async Task CreateAsync_WithEmptyCategory_ReturnsValidationError()
     {

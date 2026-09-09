@@ -401,6 +401,89 @@ public class TaskEscrowServiceTests
         escrow.status.Should().Be(EscrowStatus.FUNDED);
     }
 
+    // -- Every leg of a split award, on every leg of the lifecycle --
+
+    [Fact]
+    public async Task RefundAsync_GivesBackEveryLegOfASplitAward_NotOneArbitraryOne()
+    {
+        // The escrow used to resolve ONE arbitrary allocation, refund that, and stamp the whole
+        // escrow REFUNDED - leaving the other beneficiary's units drawn from the project with
+        // nothing left that could return them.
+        var harness = new LifecycleHarness(withGuildLeg: true);
+        await harness.CreateAsOwnerAsync();
+        var escrow = harness.Stored!;
+        await harness.Service.FundAsync(escrow.id, LifecycleHarness.OwnerId);
+
+        harness.Holds
+            .Setup(holds => holds.RefundAsync(
+                It.IsAny<AzoaHoldReference>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<AzoaHold>.Success(HeldHold(LifecycleHarness.HoldId)));
+
+        var refunded = await harness.Service.RefundAsync(
+            escrow.id,
+            new RefundEscrowDto { RefundedByUserId = LifecycleHarness.OwnerId, Reason = "cancelled" });
+
+        refunded.IsSuccess.Should().BeTrue();
+        escrow.status.Should().Be(EscrowStatus.REFUNDED);
+        harness.Holds.Verify(
+            holds => holds.RefundAsync(
+                It.Is<AzoaHoldReference>(reference => reference.HoldId == LifecycleHarness.HoldId),
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+        harness.Holds.Verify(
+            holds => holds.RefundAsync(
+                It.Is<AzoaHoldReference>(reference => reference.HoldId == LifecycleHarness.GuildHoldId),
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task RefundAsync_WhenOneLegCannotBeReturned_TheEscrowIsNotStampedRefunded()
+    {
+        // A refund that reached only part of an award must not report the whole of it back.
+        var harness = new LifecycleHarness(withGuildLeg: true);
+        await harness.CreateAsOwnerAsync();
+        var escrow = harness.Stored!;
+        await harness.Service.FundAsync(escrow.id, LifecycleHarness.OwnerId);
+
+        harness.Holds
+            .Setup(holds => holds.RefundAsync(
+                It.Is<AzoaHoldReference>(reference => reference.HoldId == LifecycleHarness.HoldId),
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<AzoaHold>.Success(HeldHold(LifecycleHarness.HoldId)));
+        harness.Holds
+            .Setup(holds => holds.RefundAsync(
+                It.Is<AzoaHoldReference>(reference => reference.HoldId == LifecycleHarness.GuildHoldId),
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<AzoaHold>.Conflict("The shared node refused to return this hold."));
+
+        var refunded = await harness.Service.RefundAsync(
+            escrow.id,
+            new RefundEscrowDto { RefundedByUserId = LifecycleHarness.OwnerId, Reason = "cancelled" });
+
+        refunded.IsSuccess.Should().BeFalse();
+        escrow.status.Should().Be(EscrowStatus.FUNDED);
+        escrow.refundedAt.Should().BeNull();
+    }
+
+    /// <summary>A node hold in the HELD state, for the doubles above.</summary>
+    private static AzoaHold HeldHold(string holdId) => new(
+        holdId,
+        LifecycleHarness.HoldChain,
+        "asset-1",
+        "50000",
+        "contributor",
+        null,
+        AzoaHoldStates.Held,
+        null,
+        false,
+        null,
+        null);
+
     [Fact]
     public void TaskEscrowService_ExposesTheFundingSurfaceTheControllerResolves()
     {
@@ -439,9 +522,12 @@ public class TaskEscrowServiceTests
 
         internal TaskEscrowService Service { get; }
 
+        internal const string GuildHoldId = "award-bid-1-guild";
+
         internal LifecycleHarness(
             string holdState = AzoaHoldStates.Held,
-            bool projectHasShare = true)
+            bool projectHasShare = true,
+            bool withGuildLeg = false)
         {
             var escrows = new Mock<IRepository<TaskEscrow>>();
             escrows.Setup(repository => repository.ExistsAsync(
@@ -486,17 +572,35 @@ public class TaskEscrowServiceTests
                     awardAmount = AwardAmount
                 });
 
-            var allocations = new Mock<IRepository<TokenAllocation>>();
-            allocations.Setup(repository => repository.FindOneAsync(
-                    It.IsAny<System.Linq.Expressions.Expression<Func<TokenAllocation, bool>>>(),
-                    It.IsAny<CancellationToken>()))
-                .ReturnsAsync(new TokenAllocation
+            // The escrow resolves EVERY leg of the agreement, because a declared guild split is
+            // held in more than one. FindOneAsync answered an arbitrary row and is no longer used.
+            var legs = new List<TokenAllocation>
+            {
+                new()
                 {
                     id = AllocationId,
                     taskCommerceAgreementId = AgreementId,
                     holdChain = HoldChain,
                     holdId = HoldId
+                }
+            };
+
+            if (withGuildLeg)
+            {
+                legs.Add(new TokenAllocation
+                {
+                    id = "allocation-2",
+                    taskCommerceAgreementId = AgreementId,
+                    holdChain = HoldChain,
+                    holdId = GuildHoldId
                 });
+            }
+
+            var allocations = new Mock<IRepository<TokenAllocation>>();
+            allocations.Setup(repository => repository.FindAsync(
+                    It.IsAny<System.Linq.Expressions.Expression<Func<TokenAllocation, bool>>>(),
+                    It.IsAny<CancellationToken>()))
+                .ReturnsAsync(legs);
 
             var shares = new Mock<IRepository<ProjectShare>>();
             shares.Setup(repository => repository.FindOneAsync(

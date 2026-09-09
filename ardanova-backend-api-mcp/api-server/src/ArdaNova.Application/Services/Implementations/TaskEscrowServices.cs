@@ -201,11 +201,12 @@ public class TaskEscrowService : ITaskEscrowService, ITaskEscrowFunding
                 "This task has no accepted assignment, so there is no agreed figure to set aside.");
         }
 
-        var allocation = await _allocationRepository.FindOneAsync(
-            a => a.taskCommerceAgreementId == agreement.id,
-            ct);
-        if (allocation is null || !allocation.IsNodeHeld)
-            return Result<TaskEscrowDto>.Conflict(NoLinkedHoldError);
+        // Every leg, for the same reason funding and refunding read every leg: an accepted bid
+        // that declared a guild share is held in more than one, and an escrow opened over a
+        // single arbitrary leg would report the whole award while only one share was committed.
+        var openingLegs = await ResolveAgreementLegsAsync(agreement.id, ct);
+        if (DescribeUnusableLegs(openingLegs) is { } uncommitted)
+            return Result<TaskEscrowDto>.Conflict(uncommitted);
 
         var share = await _shareRepository.FindOneAsync(s => s.projectId == project.id, ct);
         if (share is null)
@@ -264,23 +265,23 @@ public class TaskEscrowService : ITaskEscrowService, ITaskEscrowFunding
         if (escrow.status != EscrowStatus.NONE)
             return Result<TaskEscrowDto>.ValidationError($"Cannot fund escrow in status {escrow.status}");
 
-        var allocation = await ResolveAllocationAsync(escrow, ct);
-        if (allocation is null
-            || !allocation.IsNodeHeld
-            || string.IsNullOrWhiteSpace(allocation.holdChain))
-        {
-            return Result<TaskEscrowDto>.Conflict(NoLinkedHoldError);
-        }
-
-        var hold = await _holds.GetAsync(new AzoaHoldReference(allocation.holdChain!, allocation.holdId!), ct);
-        if (hold.IsFailure)
-            return PropagateFailure(hold);
+        var legs = await ResolveAllocationsAsync(escrow, ct);
+        if (DescribeUnusableLegs(legs) is { } unusable)
+            return Result<TaskEscrowDto>.Conflict(unusable);
 
         // FUNDED is a statement about the node, not about this database. Only units the node
         // reports as held back it; a claimed-but-undrawn row, or one already spent or given
         // back, must not open a lifecycle whose every later step promises the money is there.
-        if (!string.Equals(hold.Value!.State, AzoaHoldStates.Held, StringComparison.OrdinalIgnoreCase))
-            return Result<TaskEscrowDto>.Conflict(DescribeUnfundableHold(hold.Value!.State));
+        // EVERY leg, because an award held in shares is only funded when all of them are.
+        foreach (var leg in legs)
+        {
+            var hold = await _holds.GetAsync(new AzoaHoldReference(leg.holdChain!, leg.holdId!), ct);
+            if (hold.IsFailure)
+                return PropagateFailure(hold);
+
+            if (!string.Equals(hold.Value!.State, AzoaHoldStates.Held, StringComparison.OrdinalIgnoreCase))
+                return Result<TaskEscrowDto>.Conflict(DescribeUnfundableHold(hold.Value!.State));
+        }
 
         var task = await GetTaskAsync(escrow, ct);
         var now = DateTime.UtcNow;
@@ -333,11 +334,13 @@ public class TaskEscrowService : ITaskEscrowService, ITaskEscrowFunding
         if (escrow.status != EscrowStatus.FUNDED)
             return Result<TaskEscrowDto>.ValidationError($"Cannot release escrow in status {escrow.status}");
 
-        var allocation = await ResolveAllocationAsync(escrow, ct);
-        if (allocation is null || string.IsNullOrWhiteSpace(allocation.id))
+        var legs = await ResolveAllocationsAsync(escrow, ct);
+        if (legs.Count == 0 || string.IsNullOrWhiteSpace(legs[0].id))
             return Result<TaskEscrowDto>.Conflict(NoLinkedHoldError);
 
-        var approved = await _awards.ApproveWorkCompletionAsync(allocation.id, dto.ReleasedByUserId, ct);
+        // One call settles the whole agreement - every beneficiary's leg, not just this one -
+        // so the escrow only reaches RELEASED when nothing is left held for anybody.
+        var approved = await _awards.ApproveWorkCompletionAsync(legs[0].id, dto.ReleasedByUserId, ct);
         if (approved.IsFailure)
             return PropagateFailure(approved);
 
@@ -406,22 +409,24 @@ public class TaskEscrowService : ITaskEscrowService, ITaskEscrowFunding
         if (escrow.status is not (EscrowStatus.FUNDED or EscrowStatus.DISPUTED))
             return Result<TaskEscrowDto>.ValidationError($"Cannot refund escrow in status {escrow.status}");
 
-        var allocation = await ResolveAllocationAsync(escrow, ct);
+        var legs = await ResolveAllocationsAsync(escrow, ct);
         // TokenAllocation.IsNodeHeld is the shared predicate; inlining the null-check here would
         // make this the one payout path that could disagree with the rest about what "held" means.
-        if (allocation is null
-            || !allocation.IsNodeHeld
-            || string.IsNullOrWhiteSpace(allocation.holdChain))
-        {
-            return Result<TaskEscrowDto>.Conflict(NoLinkedHoldError);
-        }
+        if (DescribeUnusableLegs(legs) is { } unrefundable)
+            return Result<TaskEscrowDto>.Conflict(unrefundable);
 
-        var refunded = await _holds.RefundAsync(
-            new AzoaHoldReference(allocation.holdChain!, allocation.holdId!),
-            dto.Reason,
-            ct);
-        if (refunded.IsFailure)
-            return PropagateFailure(refunded);
+        // Every beneficiary's leg goes back, and the escrow is only stamped REFUNDED below once
+        // they all have. Giving back one leg and calling the escrow refunded is how a guild's
+        // share stayed drawn from the project with nothing left that could return it.
+        foreach (var leg in legs)
+        {
+            var refunded = await _holds.RefundAsync(
+                new AzoaHoldReference(leg.holdChain!, leg.holdId!),
+                dto.Reason,
+                ct);
+            if (refunded.IsFailure)
+                return PropagateFailure(refunded);
+        }
 
         var task = await GetTaskAsync(escrow, ct);
         var now = DateTime.UtcNow;
@@ -497,23 +502,56 @@ public class TaskEscrowService : ITaskEscrowService, ITaskEscrowFunding
         => _taskRepository.GetByIdAsync(escrow.taskId, ct);
 
     /// <summary>
-    /// The <see cref="TokenAllocation"/> read-model of the hold this escrow's task was awarded
-    /// under, found by walking the escrow's own <c>taskId</c> to its commerce agreement and
-    /// from there to the allocation the agreement's award was reserved as. Null when either
-    /// join repository is unwired, or when no agreement/allocation exists yet — a caller that
-    /// gets null has nothing on the node to release or refund.
+    /// EVERY <see cref="TokenAllocation"/> the hold behind this escrow was reserved as, found by
+    /// walking the escrow's own <c>taskId</c> to its commerce agreement and from there to the
+    /// legs that agreement's award was held in. Empty when either join repository is unwired, or
+    /// when no agreement/allocation exists yet — a caller that gets an empty list has nothing on
+    /// the node to fund, release or refund.
     /// </summary>
-    private async Task<TokenAllocation?> ResolveAllocationAsync(TaskEscrow escrow, CancellationToken ct)
+    /// <remarks>
+    /// This used to answer <c>FindOneAsync</c>, which returns ONE arbitrary row. An accepted bid
+    /// that declared a guild share is held in TWO legs against the same agreement, so funding
+    /// checked a non-deterministic leg, refunding gave back a non-deterministic leg and then
+    /// stamped the whole escrow REFUNDED, and the other beneficiary's units stayed drawn from
+    /// the project with nothing that could reach them.
+    /// </remarks>
+    private async Task<IReadOnlyList<TokenAllocation>> ResolveAllocationsAsync(
+        TaskEscrow escrow,
+        CancellationToken ct)
     {
         if (_agreementRepository is null || _allocationRepository is null)
-            return null;
+            return Array.Empty<TokenAllocation>();
 
         var agreement = await _agreementRepository.FindOneAsync(a => a.taskId == escrow.taskId, ct);
         if (agreement is null)
-            return null;
+            return Array.Empty<TokenAllocation>();
 
-        return await _allocationRepository.FindOneAsync(a => a.taskCommerceAgreementId == agreement.id, ct);
+        return await ResolveAgreementLegsAsync(agreement.id, ct);
     }
+
+    /// <summary>Every leg one agreement's award was held in, in a stable order.</summary>
+    private async Task<IReadOnlyList<TokenAllocation>> ResolveAgreementLegsAsync(
+        string agreementId,
+        CancellationToken ct)
+    {
+        if (_allocationRepository is null)
+            return Array.Empty<TokenAllocation>();
+
+        var legs = await _allocationRepository.FindAsync(
+            a => a.taskCommerceAgreementId == agreementId, ct);
+
+        return legs.OrderBy(leg => leg.id, StringComparer.Ordinal).ToList();
+    }
+
+    /// <summary>
+    /// The legs, or the refusal that says none of them can be acted on. Every leg must be one the
+    /// node actually holds: acting on a set where only some are held would move part of an award
+    /// and report the whole of it.
+    /// </summary>
+    private static string? DescribeUnusableLegs(IReadOnlyList<TokenAllocation> legs) =>
+        legs.Count == 0 || legs.Any(leg => !leg.IsNodeHeld || string.IsNullOrWhiteSpace(leg.holdChain))
+            ? NoLinkedHoldError
+            : null;
 
     /// <summary>Re-wraps a failure from a downstream gateway result, keeping its result type.</summary>
     private static Result<TaskEscrowDto> PropagateFailure<TSource>(Result<TSource> source)

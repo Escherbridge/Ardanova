@@ -7,6 +7,7 @@ import {
 } from "~/server/api/trpc";
 import { apiClient } from "~/lib/api";
 import { projectMoneyViewSchema } from "~/lib/contracts/project-money-contract";
+import { PROJECT_FUNDING_UNIT } from "~/lib/contracts/project-create-contract";
 import { getAdminApiClient } from "~/server/admin-api-client";
 import {
   createFounderAllocationDtoSchema,
@@ -117,6 +118,12 @@ export const provisionProjectFundingSchema = z.object({
   contributorSupply: z.number().int().nonnegative(),
   investorSupply: z.number().int().nonnegative(),
   fundingGoal: z.number().positive(),
+  /**
+   * Declared, not assumed. `z.literal` means this client cannot send any other unit even by
+   * mistake, and the server refuses one by name - a goal stored in a different unit from the
+   * raise it is compared against is what mispriced every project's opening offer.
+   */
+  fundingGoalUnit: z.literal(PROJECT_FUNDING_UNIT),
   disclosure: z.string().trim().min(20).max(2000),
   reservedPercentage: z.number().min(0).max(100).default(0),
   successCriteria: z.string().trim().max(2000).optional(),

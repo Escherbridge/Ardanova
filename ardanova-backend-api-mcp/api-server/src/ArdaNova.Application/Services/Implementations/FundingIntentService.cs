@@ -12,8 +12,11 @@ using ArdaNova.Application.DTOs;
 using ArdaNova.Application.Services.Interfaces;
 using ArdaNova.Domain.Models.Entities;
 using ArdaNova.Domain.Models.Enums;
+using ArdaNova.Domain.Policies;
 using ArdaNova.Domain.ValueObjects;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 /// <summary>
 /// Sponsorship is an exchange: the sponsor's platform units become real project units on the node.
@@ -103,6 +106,7 @@ public sealed class FundingIntentService : IFundingIntentService
     private readonly IFundingSettlementReadiness _settlementReadiness;
     private readonly IAzoaValueEligibilityService _valueEligibility;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly ILogger<FundingIntentService> _logger;
 
     public FundingIntentService(
         IRepository<User> userRepository,
@@ -119,8 +123,10 @@ public sealed class FundingIntentService : IFundingIntentService
         IProjectGateService projectGate,
         IFundingSettlementReadiness settlementReadiness,
         IAzoaValueEligibilityService valueEligibility,
-        IUnitOfWork unitOfWork)
+        IUnitOfWork unitOfWork,
+        ILogger<FundingIntentService>? logger = null)
     {
+        _logger = logger ?? NullLogger<FundingIntentService>.Instance;
         _userRepository = userRepository;
         _projectRepository = projectRepository;
         _tokenConfigRepository = tokenConfigRepository;
@@ -207,6 +213,13 @@ public sealed class FundingIntentService : IFundingIntentService
 
         if (!TryQuote(requestedBaseUnits, declaredRate.Value!, assetScale, out var quote, out var quoteError))
             return Result<FundingCheckoutDto>.ValidationError(quoteError!);
+
+        // A price without a ceiling is not an offer. This is the LAST point at which ArdaNova can
+        // still say no - after it, the node is asked to move the sponsor's funds - so the project's
+        // declared sponsor allowance and its uncommitted supply are both checked here. Settlement
+        // records the draw against those counters; it deliberately does not refuse (see there).
+        if (DescribeSponsorSupplyRefusal(config, quote.Quantity) is { } supplyRefusal)
+            return Result<FundingCheckoutDto>.ValidationError(supplyRefusal);
 
         var intent = BuildIntent(
             actorId,
@@ -345,6 +358,25 @@ public sealed class FundingIntentService : IFundingIntentService
         long PlatformBaseUnits,
         long UsdReferenceMinorUnits,
         string ProjectUnitBaseUnits);
+
+    /// <summary>
+    /// Whether this project has room to promise <paramref name="wholeUnits"/> of stake, in the
+    /// same words and against the same declared allowances every other draw is checked against.
+    /// </summary>
+    /// <remarks>
+    /// This runs BEFORE the node is asked to move anything, because that is the moment ArdaNova
+    /// commits to issuing the units. Nothing on the sponsorship path used to count them at all:
+    /// a settled sponsorship moved the raise and left <c>investorSupply</c> untouched, so the
+    /// declared sponsor allowance bounded nothing and a project could promise its whole supply
+    /// over and over.
+    /// </remarks>
+    private static string? DescribeSponsorSupplyRefusal(ProjectTokenConfig config, long wholeUnits)
+    {
+        if (wholeUnits is <= 0 or > int.MaxValue)
+            return "That number of units is outside the range this project can issue.";
+
+        return ProjectStakePartitions.DescribeSponsorDraw(config, (int)wholeUnits);
+    }
 
     /// <summary>Turns "this much of my balance" into whole project units and the exact amount actually spent.</summary>
     /// <remarks>
@@ -554,15 +586,35 @@ public sealed class FundingIntentService : IFundingIntentService
             var existingInvestment = await _investmentRepository.GetByIdAsync(intent.id, ct);
             if (existingInvestment is null)
             {
+                // The quote already refused a quantity no int could hold, so this cannot overflow;
+                // `checked` keeps that an exception rather than a silently wrapped supply figure.
+                var sponsoredUnitsToCommit = checked((int)intent.projectUnitQuantity);
+
                 await _investmentRepository.AddAsync(BuildInvestment(intent, now), ct);
                 await _treasuryReceiptRepository.AddAsync(
                     BuildTreasuryReceipt(intent, config, receipt, operationId, platformAssetId, now),
                     ct);
 
+                // NOT a second refusal. The node has already moved the sponsor's funds by the
+                // time this runs, so turning them away here would be a person who paid and owns
+                // nothing - the exact failure this transaction exists to prevent. The refusal
+                // lives at the quote, before any node call; what belongs here is the record.
+                if (ProjectStakePartitions.DescribeSponsorDraw(config, sponsoredUnitsToCommit) is { } overdrawn)
+                {
+                    _logger.LogWarning(
+                        "Sponsorship {IntentId} settled beyond project {ConfigId}'s declared sponsor allowance: {Detail}",
+                        intent.id, config.id, overdrawn);
+                }
+
                 // The gate reads whole units, so the raise moves by the same exact reference the
                 // disclosure showed - never by a figure re-derived from a rate that has since moved.
                 config.fundingRaised = Money.ToDisplayDouble(
                     (decimal)config.fundingRaised + Money.FromMinorUnits(intent.usdReferenceMinorUnits));
+                // The units this sponsorship promised are now committed. Leaving these where they
+                // were let the sponsor allowance be drawn without limit and made every later
+                // "units remaining" figure on the project overstate what was actually free.
+                config.investorSupply += sponsoredUnitsToCommit;
+                config.allocatedSupply += sponsoredUnitsToCommit;
                 config.updatedAt = now;
                 await _tokenConfigRepository.UpdateAsync(config, ct);
             }

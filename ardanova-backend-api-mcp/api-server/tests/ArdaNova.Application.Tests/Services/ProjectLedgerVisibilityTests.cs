@@ -154,6 +154,34 @@ public sealed class ProjectLedgerVisibilityTests
     }
 
     /// <summary>
+    /// One consent is not another. <c>award-2</c>'s recipient is Ada, who DID tick "name me" when
+    /// she sponsored - and that agreement is about being listed as a backer, on a form about
+    /// sponsoring. Being paid to work on a project is a different disclosure that nobody in this
+    /// system has been asked about, so no award carries a name at all.
+    /// </summary>
+    [Fact]
+    public async Task Member_AnAwardIsNeverNamed_EvenWhenItsRecipientAgreedToBeNamedAsABacker()
+    {
+        var result = await _sut.GetProjectMoneyAsync(ProjectId, MemberId);
+
+        var view = result.Value!;
+
+        // Her sponsorship still carries her name: that IS what she agreed to.
+        view.Entries.Single(entry => entry.Id == "sponsorship:intent-1")
+            .CounterpartyName.Should().Be(SponsorOneName);
+
+        // Her award does not, and neither does anyone else's.
+        view.Entries.Single(entry => entry.Id == "award:award-2")
+            .CounterpartyName.Should().BeNull();
+        view.Entries
+            .Where(entry => entry.Id.StartsWith("award:", StringComparison.Ordinal))
+            .Should().OnlyContain(entry => entry.CounterpartyName == null);
+
+        // And the note the page shows says exactly that, rather than implying a choice was made.
+        ProjectMoneyDisclosures.NamesHiddenFromNonMembers.Should().Contain("paid to work");
+    }
+
+    /// <summary>
     /// Withholding the entries is not withholding the project. A stranger still gets the figures
     /// that let them decide whether to sponsor: the balance of record and aggregate support.
     /// </summary>

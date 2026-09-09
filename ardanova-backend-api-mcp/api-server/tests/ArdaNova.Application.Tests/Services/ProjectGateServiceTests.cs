@@ -44,6 +44,41 @@ public class ProjectGateServiceTests
         );
     }
 
+    /// <summary>
+    /// The gate compares two columns, so it is only a control while they are the same unit.
+    /// Both are dollars, and the comparison goes through the one reader that says so
+    /// (<c>ProjectFundingLedger</c>) rather than a hand-rolled <c>raised &lt; goal</c>.
+    /// </summary>
+    [Fact]
+    public async Task EvaluateGate1Async_WithNoDeclaredAsk_DoesNotClearOnZeroRaised()
+    {
+        var configId = "config-no-ask";
+        var config = new ProjectTokenConfig
+        {
+            id = configId,
+            projectId = "proj-1",
+            totalSupply = 10000,
+            fundingGoal = 0,
+            fundingRaised = 0,
+            gateStatus = ProjectGateStatus.FUNDING
+        };
+        _projectTokenConfigRepo
+            .Setup(repository => repository.GetByIdAsync(configId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(config);
+
+        var result = await _sut.EvaluateGate1Async(configId);
+
+        // `0 < 0` is false, so the old comparison cleared the gate for a project that had asked
+        // for nothing and taken nothing - unlocking every contributor award on it.
+        result.IsSuccess.Should().BeTrue();
+        result.Value!.Transitioned.Should().BeFalse();
+        config.gateStatus.Should().Be(ProjectGateStatus.FUNDING);
+        config.gate1ClearedAt.Should().BeNull();
+        _projectTokenConfigRepo.Verify(
+            repository => repository.UpdateAsync(It.IsAny<ProjectTokenConfig>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
     [Fact]
     public async Task EvaluateGate1Async_HappyPath_FundingMet_TransitionsToActive()
     {

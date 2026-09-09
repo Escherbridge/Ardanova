@@ -134,6 +134,7 @@ public class ProjectTokensController : ControllerBase
                 ContributorSupply = request.ContributorSupply,
                 InvestorSupply = request.InvestorSupply,
                 FundingGoal = request.FundingGoal,
+                FundingGoalUnit = request.FundingGoalUnit,
                 Disclosure = request.Disclosure,
                 ReservedPercentage = request.ReservedPercentage,
                 SuccessCriteria = request.SuccessCriteria,
@@ -470,6 +471,9 @@ public record ProvisionProjectFundingRequest
     public required int InvestorSupply { get; init; }
 
     public required double FundingGoal { get; init; }
+
+    /// <summary>The unit <see cref="FundingGoal"/> is in. Only the ledger unit (USD) is accepted.</summary>
+    public required string FundingGoalUnit { get; init; }
 
     public required string Disclosure { get; init; }
 

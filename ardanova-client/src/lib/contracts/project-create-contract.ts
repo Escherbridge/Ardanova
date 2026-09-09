@@ -573,12 +573,17 @@ export function toProjectRoleOpportunityInput(input: {
 }
 
 /**
- * The unit a funding goal is denominated in. Mirrors `ProjectFundingUnits.Arda` on the
- * server; the wizard shows a sponsor the dollar figure, not this code.
+ * The unit a funding goal is denominated in. Mirrors `ProjectFundingUnits.Ledger` on the
+ * server, and it is DOLLARS: the same unit the raise accumulates in, so the ask and the
+ * progress against it can be compared and divided without a conversion anywhere.
+ *
+ * It used to be "ARDA" while the server's raise counted dollars, which made the opening
+ * offering price about a hundred times the founder's intent. The server now refuses any
+ * other unit by name rather than trusting this constant.
  */
-export const PROJECT_FUNDING_UNIT = "ARDA";
+export const PROJECT_FUNDING_UNIT = "USD";
 
-/** ARDA carries two decimal places, so a goal cannot be finer than a hundredth of a unit. */
+/** Dollars carry two decimal places, so a goal cannot be finer than a cent. */
 export const PROJECT_FUNDING_DECIMALS = 2;
 
 /**
@@ -617,26 +622,31 @@ export function formatFundingAmount(amount: number): string {
 }
 
 /**
- * The sponsor-facing sentence for a goal: a dollar figure first, and an honest note when
- * the figure rests on the launch reference rate rather than a live one.
+ * The founder-facing caption under a dollar ask: how many platform units that ask is worth
+ * at the rate this client actually has, said as an approximation and never as a price.
+ *
+ * The ARGUMENT is dollars. The platform unit is derived FROM it and shown only as a caption -
+ * it is never what a person types and never what is stored, because the raise it will be
+ * compared against counts dollars.
  */
-export function describeFundingGoalInUsd(
-  fundingGoalUnits: number,
+export function describeFundingGoalInPlatformUnits(
+  fundingGoalDollars: number,
   liveRate: number | null,
 ): string {
   const rate = liveRate ?? ARDA_GENESIS_USD_RATE;
-  const dollars = formatUsdAmount(fundingGoalUnits * rate);
+  if (!(rate > 0)) return "";
+  const units = formatFundingAmount(fundingGoalDollars / rate);
   return liveRate === null
-    ? `about ${dollars} at the launch reference rate`
-    : `about ${dollars} at today's rate`;
+    ? `about ${units} platform units at the launch reference rate`
+    : `about ${units} platform units at today's rate`;
 }
 
 /**
- * Validates the typed funding goal. Returns undefined for an empty field - the goal is
- * optional - and throws with sponsor-readable text for anything that is not a usable
+ * Validates the typed funding goal, IN DOLLARS. Returns undefined for an empty field - the
+ * goal is optional - and throws with sponsor-readable text for anything that is not a usable
  * amount, so a bad value never reaches the create call as NaN.
  */
-export function parseFundingGoalUnits(value: string): number | undefined {
+export function parseFundingGoalDollars(value: string): number | undefined {
   const normalized = value.trim().replace(/,/g, "");
   if (!normalized) return undefined;
 

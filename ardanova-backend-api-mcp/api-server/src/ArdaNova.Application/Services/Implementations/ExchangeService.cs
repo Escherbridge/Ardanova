@@ -4,6 +4,7 @@ using ArdaNova.Application.Common.Results;
 using ArdaNova.Application.DTOs;
 using ArdaNova.Application.Services.Interfaces;
 using ArdaNova.Domain.Models.Entities;
+using ArdaNova.Domain.Policies;
 using AutoMapper;
 
 namespace ArdaNova.Application.Services.Interfaces
@@ -222,8 +223,11 @@ namespace ArdaNova.Application.Services.Implementations
     /// </para>
     /// <para>
     /// A project unit has TWO prices, told apart by <see cref="DeclaredProjectUnitRate.Source"/>:
-    /// the price its own backers set, and - before anyone has backed it - the OPENING OFFER its
-    /// founder named. Without the second, the first sponsorship of any project is unpriceable.
+    /// the OPENING OFFER its founder named, which every sponsor in the primary raise pays, and
+    /// the price its backers have set, which takes over only once the ask has been MET. Without
+    /// the first, the first sponsorship of any project is unpriceable; without the handover rule,
+    /// the price collapses the moment one sponsorship settles and later sponsors buy the same
+    /// units for a fraction of what the first paid.
     /// </para>
     /// </remarks>
     public class ExchangeService : IExchangeService, IProjectUnitRateSource
@@ -232,8 +236,8 @@ namespace ArdaNova.Application.Services.Implementations
         public const string DeclaredRateSource = "ardanova:treasury-rate";
 
         /// <summary>
-        /// What the node records when nobody has sponsored the project yet and it is priced at its
-        /// OPENING OFFER instead - the amount being raised over the whole supply. It rides the
+        /// What the node records while the primary raise is still open and the project is priced
+        /// at its OPENING OFFER - the dollars being raised over the whole supply. It rides the
         /// funding intent's <c>declaredRateSource</c> and the hashed terms snapshot, so the receipt
         /// says which of the two prices the sponsor was quoted rather than leaving it inferred.
         /// </summary>
@@ -386,14 +390,26 @@ namespace ArdaNova.Application.Services.Implementations
 
         /// <summary>Exact USD value of one whole project unit, and which price produced it.</summary>
         /// <remarks>
-        /// Two prices, one method. Once a project has taken sponsorship, its price is the one its
-        /// backers set: funding raised over total supply. BEFORE that, raised is 0, and a rate of
-        /// zero would make a sponsorship unbounded - so every downstream caller refuses it, which
-        /// is correct and which left the first sponsorship of any project unpriceable (OI-89b).
-        /// The OPENING OFFER the founder already named - the amount being raised over the whole
-        /// supply - prices that first one, on the same exact-decimal arithmetic, marked
-        /// <see cref="OfferingRateSource"/>. Both success paths are provably positive: total
-        /// supply is positive and the numerator is checked positive on the branch that uses it.
+        /// <para>
+        /// Two prices, one method, and BOTH numerators are dollars: <c>fundingGoal</c> and
+        /// <c>fundingRaised</c> are read together through <see cref="ProjectFundingLedger"/>,
+        /// which is the only place the pair is interpreted. Before that rule existed the goal
+        /// carried the founder's ARDA figure and this method divided it into a field declared
+        /// as dollars, so the first sponsor of every project paid about a hundred times the
+        /// founder's price for a hundredth of the promised units.
+        /// </para>
+        /// <para>
+        /// While the primary raise is OPEN the price is the founder's declared offering - the
+        /// ask over the whole supply - and it does not move: every sponsor in the raise buys at
+        /// the price the disclosure named, so sponsor #1 is not charged a fortune for what
+        /// sponsor #2 gets cheaply. Only once the ask is MET does the price become the one the
+        /// backers set, raised over supply, which at that moment equals the offering and can
+        /// only rise from there. The curve is continuous at the goal and never collapses.
+        /// </para>
+        /// <para>
+        /// Both success paths are provably positive: total supply is positive, and each branch
+        /// checks its own numerator positive before dividing.
+        /// </para>
         /// </remarks>
         private async Task<Result<ProjectUnitValuation>> GetProjectUnitValueExactAsync(
             string projectTokenConfigId,
@@ -412,14 +428,13 @@ namespace ArdaNova.Application.Services.Implementations
                     "Cannot calculate token value: total supply is zero or negative");
             }
 
-            if (!TryExactFromStoredAmount(config.fundingRaised, out var raised)
-                || !TryExactFromStoredAmount(config.fundingGoal, out var goal))
+            if (!ProjectFundingLedger.TryRead(config, out var funding))
             {
                 return Result<ProjectUnitValuation>.Failure(
                     "This project's funding figures cannot be read as an exact amount, so no price can be quoted");
             }
 
-            if (raised < 0)
+            if (funding.RaisedIsBroken)
             {
                 // Not an unsponsored project - a broken figure. Falling through to the opening
                 // offer would price it anyway and hide that, so it is refused by name.
@@ -427,20 +442,23 @@ namespace ArdaNova.Application.Services.Implementations
                     "This project's funding total is below zero, so no price can be quoted");
             }
 
-            if (raised > 0)
+            // The declared offering holds for the WHOLE primary raise, not just its first
+            // sponsorship. Handing sponsor #2 `raised / totalSupply` while the raise is barely
+            // begun would quote them a price orders of magnitude below what sponsor #1 paid.
+            if (funding.RaiseIsOpen)
             {
                 return Result<ProjectUnitValuation>.Success(
-                    new ProjectUnitValuation(raised / config.totalSupply, DeclaredRateSource));
+                    new ProjectUnitValuation(funding.GoalUsd / config.totalSupply, OfferingRateSource));
             }
 
-            if (goal <= 0)
+            if (!funding.NothingRaised)
             {
-                return Result<ProjectUnitValuation>.Failure(
-                    "This project has not set an amount to raise, so it has no opening price yet");
+                return Result<ProjectUnitValuation>.Success(
+                    new ProjectUnitValuation(funding.RaisedUsd / config.totalSupply, DeclaredRateSource));
             }
 
-            return Result<ProjectUnitValuation>.Success(
-                new ProjectUnitValuation(goal / config.totalSupply, OfferingRateSource));
+            return Result<ProjectUnitValuation>.Failure(
+                "This project has not set an amount to raise, so it has no opening price yet");
         }
 
         /// <summary>Exact ARDA value: total backing over circulating supply. Backing-derived, never pegged.</summary>

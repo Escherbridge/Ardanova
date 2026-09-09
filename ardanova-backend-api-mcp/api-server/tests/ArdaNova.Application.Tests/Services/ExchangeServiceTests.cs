@@ -333,10 +333,11 @@ public class ExchangeServiceTests
     }
 
     [Fact]
-    public async Task GetDeclaredRateAsync_OnceSponsorshipArrives_TheBackerSetPriceReplacesTheOffer()
+    public async Task GetDeclaredRateAsync_OnceTheAskIsMet_TheBackerSetPriceReplacesTheOffer()
     {
-        // The offer was $5 a unit; backers have since put in $100,000, which is $10 a unit. The
-        // opening offer is a starting price, not a floor the project keeps returning to.
+        // The ask was $50,000 and backers have put in $100,000, so the raise is over and the
+        // price is the one they set: $10 a unit. The handover is at the ASK BEING MET, not at
+        // the first sponsorship - see the collapse test below for why.
         ArrangeRate(fundingRaised: 100_000, totalSupply: 10_000, backing: 10_000, circulating: 5_000, fundingGoal: 50_000);
 
         var result = await _sut.GetDeclaredRateAsync("ptc1", CancellationToken.None);
@@ -422,6 +423,84 @@ public class ExchangeServiceTests
 
         result.IsSuccess.Should().BeFalse();
         result.Error.Should().Be("ARDA has no backing, so no rate can be quoted");
+    }
+
+    // -- The unit the ask is denominated in, and the price that must not collapse (OI-89b) --
+
+    [Fact]
+    public async Task GetDeclaredRateAsync_TheOpeningOfferDividesADollarAsk_NotAPlatformUnitOne()
+    {
+        // The worked example from the defect. A founder asks for $5,000 across 500,000 units,
+        // and one ARDA is worth $0.01, so a unit costs exactly ONE ARDA. When the ask was stored
+        // as the founder's platform-unit figure (500,000) and divided into a field declared as
+        // dollars, this came out at 100 ARDA a unit: the first sponsor of every project was
+        // charged a hundred times the founder's price and received a hundredth of the units.
+        ArrangeRate(
+            fundingRaised: 0,
+            totalSupply: 500_000,
+            backing: 10_000,
+            circulating: 1_000_000,
+            fundingGoal: 5_000);
+
+        var result = await _sut.GetDeclaredRateAsync("ptc1", CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value!.UsdMajorUnitsPerWholeProjectUnit.Should().Be("0.01");
+        result.Value.ArdaPerWholeProjectUnit.Should().Be("1");
+        result.Value.Source.Should().Be(ExchangeService.OfferingRateSource);
+
+        // Said as the sponsor experiences it: 1,000 ARDA buys 1,000 units, not 10.
+        var quoted = decimal.Parse(
+            result.Value.ArdaPerWholeProjectUnit,
+            System.Globalization.CultureInfo.InvariantCulture);
+        (1_000m / quoted).Should().Be(1_000m);
+    }
+
+    [Fact]
+    public async Task GetDeclaredRateAsync_APartlyFundedRaiseStillQuotesTheOffer_SoTheSecondSponsorPaysTheFirstsPrice()
+    {
+        // $50,000 asked across 500,000 units is $0.10 a unit, or 10 ARDA at $0.01 an ARDA. One
+        // $10 sponsorship has settled. Handing sponsor #2 `raised / totalSupply` here would
+        // quote them $0.00002 a unit - 1/5000th of what sponsor #1 paid, and enough for 1,000
+        // ARDA to buy the entire supply.
+        ArrangeRate(
+            fundingRaised: 10,
+            totalSupply: 500_000,
+            backing: 10_000,
+            circulating: 1_000_000,
+            fundingGoal: 50_000);
+
+        var result = await _sut.GetDeclaredRateAsync("ptc1", CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value!.UsdMajorUnitsPerWholeProjectUnit.Should().Be("0.1");
+        result.Value.ArdaPerWholeProjectUnit.Should().Be("10");
+        result.Value.Source.Should().Be(ExchangeService.OfferingRateSource);
+
+        // The count that must NOT move: the same 1,000 ARDA buys 100 units, never the supply.
+        var quoted = decimal.Parse(
+            result.Value.ArdaPerWholeProjectUnit,
+            System.Globalization.CultureInfo.InvariantCulture);
+        decimal.Floor(1_000m / quoted).Should().Be(100m);
+    }
+
+    [Fact]
+    public async Task GetDeclaredRateAsync_AtTheMomentTheAskIsMet_TheTwoPricesAgree()
+    {
+        // The handover is continuous: at raised == goal both formulas are the same number, so
+        // nothing jumps and nothing drops when the raise completes.
+        ArrangeRate(
+            fundingRaised: 50_000,
+            totalSupply: 500_000,
+            backing: 10_000,
+            circulating: 1_000_000,
+            fundingGoal: 50_000);
+
+        var result = await _sut.GetDeclaredRateAsync("ptc1", CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value!.UsdMajorUnitsPerWholeProjectUnit.Should().Be("0.1");
+        result.Value.Source.Should().Be(ExchangeService.DeclaredRateSource);
     }
 
     /// <summary>A project whose price is whatever these three figures make it.</summary>

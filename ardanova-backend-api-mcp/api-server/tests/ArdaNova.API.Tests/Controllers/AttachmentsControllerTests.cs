@@ -31,7 +31,8 @@ public sealed class AttachmentsControllerTests
 {
     private const string Actor = "owner-actor";
     private const string Victim = "victim-actor";
-    private const string ActorPrefixedPath = "user_owner-ac/20260909/photo_1234abcd.png";
+    // The owner segment carries the WHOLE actor id now, not an eight-character prefix.
+    private const string ActorPrefixedPath = "user_owner-actor/20260909/photo_1234abcd.png";
 
     [Fact]
     public async Task UploadUrl_IsMintedForTheActor_EvenWhenAnXUserIdHeaderNamesSomeoneElse()
@@ -155,8 +156,60 @@ public sealed class AttachmentsControllerTests
             new CreateAttachmentDto
             {
                 UploadedById = Actor,
-                BucketPath = "user_victim-a/20260909/photo_1234abcd.png",
+                BucketPath = "user_victim-actor/20260909/photo_1234abcd.png",
                 Type = MimeType.IMAGE
+            },
+            CancellationToken.None);
+
+        result.Should().BeOfType<ObjectResult>()
+            .Which.StatusCode.Should().Be(StatusCodes.Status403Forbidden);
+        attachments.VerifyNoOtherCalls();
+        storage.VerifyNoOtherCalls();
+    }
+
+    [Fact]
+    public async Task Create_RefusesAStoragePathWithNoOwnerSegment_AndWritesNothing()
+    {
+        // The guard used to SKIP every segment that did not start with "user_" and then answer
+        // true, so a key carrying no owner segment at all belonged to everybody: any object
+        // already in the bucket - a seed, a shared prefix, a future writer's - was claimable,
+        // and GetDownloadUrl would then presign it for the claimant.
+        var storage = new Mock<IStorageService>(MockBehavior.Strict);
+        var attachments = new Mock<IAttachmentService>(MockBehavior.Strict);
+        var controller = WithActor(CreateController(attachments, storage), Actor);
+
+        var result = await controller.Create(
+            new CreateAttachmentDto
+            {
+                UploadedById = Actor,
+                BucketPath = "shared/20260909/photo_1234abcd.png",
+                Type = MimeType.IMAGE,
+                FileSize = 1_024
+            },
+            CancellationToken.None);
+
+        result.Should().BeOfType<ObjectResult>()
+            .Which.StatusCode.Should().Be(StatusCodes.Status403Forbidden);
+        attachments.VerifyNoOtherCalls();
+        storage.VerifyNoOtherCalls();
+    }
+
+    [Fact]
+    public async Task Create_RefusesAStoragePathWhoseOwnerSegmentOnlySharesAPrefix_AndWritesNothing()
+    {
+        // The comparison was over the first EIGHT characters of an actor id, so two accounts
+        // that agreed on a prefix agreed on ownership. The segment carries the whole id now.
+        var storage = new Mock<IStorageService>(MockBehavior.Strict);
+        var attachments = new Mock<IAttachmentService>(MockBehavior.Strict);
+        var controller = WithActor(CreateController(attachments, storage), Actor);
+
+        var result = await controller.Create(
+            new CreateAttachmentDto
+            {
+                UploadedById = Actor,
+                BucketPath = "user_owner-ac/20260909/photo_1234abcd.png",
+                Type = MimeType.IMAGE,
+                FileSize = 1_024
             },
             CancellationToken.None);
 
@@ -177,7 +230,7 @@ public sealed class AttachmentsControllerTests
             {
                 Id = "attachment-1",
                 UploadedById = Victim,
-                BucketPath = "user_victim-a/20260909/photo_1234abcd.png"
+                BucketPath = "user_victim-actor/20260909/photo_1234abcd.png"
             }));
 
         var controller = WithActor(CreateController(attachments, storage), Actor);
@@ -203,7 +256,7 @@ public sealed class AttachmentsControllerTests
             {
                 Id = "attachment-1",
                 UploadedById = Victim,
-                BucketPath = "user_victim-a/20260909/photo_1234abcd.png"
+                BucketPath = "user_victim-actor/20260909/photo_1234abcd.png"
             }));
 
         var controller = WithActor(CreateController(attachments, storage), Actor);

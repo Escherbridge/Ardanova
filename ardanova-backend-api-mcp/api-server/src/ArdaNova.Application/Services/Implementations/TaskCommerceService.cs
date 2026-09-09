@@ -552,12 +552,14 @@ public class TaskCommerceService : ITaskCommerceService
     /// refuses the whole acceptance rather than being folded into the worker's leg.
     /// </summary>
     /// <remarks>
-    /// KNOWN GAP, and the reason the guild's share is described as "held" and never as "paid":
-    /// approval currently settles the CONTRIBUTOR's leg only.
-    /// <c>ProjectTokenService.ApproveWorkCompletionAsync</c> refuses any allocation whose
-    /// recipient is not the agreement's contributor (ProjectTokenService.cs:1181-1182), so the
-    /// guild's hold stays reserved until that check admits a declared split beneficiary. The
-    /// units are committed and refundable in the meantime; nothing is lost and nothing is paid.
+    /// Every leg written here is settleable and refundable.
+    /// <c>ProjectTokenService.ApproveWorkCompletionAsync</c> settles ALL of an agreement's legs
+    /// and credits each to its own recipient, and <c>TaskEscrowService</c> funds and refunds the
+    /// whole set. It was not always so: approval used to refuse any allocation whose recipient
+    /// was not the agreement's contributor while marking the agreement SETTLED anyway, and the
+    /// escrow resolved ONE arbitrary leg, so a guild's units were drawn from the project and
+    /// could never be paid out or returned. Adding a beneficiary here without a settle and a
+    /// refund that reach it is how that happened; do not add one that way again.
     /// </remarks>
     private async Task<Result<IReadOnlyList<AwardBeneficiary>>> ResolveBeneficiariesAsync(
         OpportunityBid bid,

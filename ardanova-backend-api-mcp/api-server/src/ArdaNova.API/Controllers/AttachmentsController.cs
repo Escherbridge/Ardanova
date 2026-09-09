@@ -4,6 +4,7 @@ using System;
 using System.Linq;
 using ArdaNova.API.Middleware;
 using ArdaNova.Application.Common.Results;
+using ArdaNova.Application.Common.Security;
 using ArdaNova.Application.DTOs;
 using ArdaNova.Application.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
@@ -31,10 +32,6 @@ public class AttachmentsController : ControllerBase
         + "cannot be checked against the limit.";
 
     private const string AttachmentNotFoundMessage = "Attachment not found";
-
-    private const string UserPathSegmentPrefix = "user_";
-
-    private const int UserPathSegmentIdLength = 8;
 
     private readonly IAttachmentService _attachmentService;
     private readonly IStorageService _storageService;
@@ -277,37 +274,13 @@ public class AttachmentsController : ControllerBase
         => string.Equals(attachment.UploadedById, ActorId, StringComparison.Ordinal);
 
     /// <summary>
-    /// A storage key minted by <c>GetPresignedUploadUrlAsync</c> carries a <c>user_</c> segment.
-    /// A key stamped for a different account is refused so an attachment cannot be claimed from
-    /// under its uploader.
+    /// Whether a storage key was minted for the calling actor. The proof - a matching owner
+    /// segment that must be PRESENT, carrying the whole actor id - lives in
+    /// <see cref="UserStoragePrefix"/>, the same type the key is minted with, so the two halves
+    /// cannot drift. A key with no owner segment is refused rather than shared with everybody.
     /// </summary>
     private static bool BucketPathBelongsToCaller(string bucketPath, string actorId)
-    {
-        if (string.IsNullOrEmpty(bucketPath))
-        {
-            return false;
-        }
-
-        var expected = UserPathSegmentPrefix
-            + actorId[..Math.Min(UserPathSegmentIdLength, actorId.Length)];
-
-        foreach (var segment in bucketPath.Split(
-            new[] { '/', '\\' },
-            StringSplitOptions.RemoveEmptyEntries))
-        {
-            if (!segment.StartsWith(UserPathSegmentPrefix, StringComparison.Ordinal))
-            {
-                continue;
-            }
-
-            if (!string.Equals(segment, expected, StringComparison.Ordinal))
-            {
-                return false;
-            }
-        }
-
-        return true;
-    }
+        => UserStoragePrefix.PathBelongsTo(bucketPath, actorId);
 
     private static bool HasDeclaredSize(UploadRequestDto request)
         => request.FileSize is > 0;

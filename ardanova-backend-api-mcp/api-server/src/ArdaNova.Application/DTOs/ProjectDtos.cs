@@ -1,6 +1,7 @@
 namespace ArdaNova.Application.DTOs;
 
 using System.Text.Json.Serialization;
+using ArdaNova.Domain.Models.Entities;
 using ArdaNova.Domain.Models.Enums;
 
 public record ProjectCreatorDto
@@ -23,8 +24,8 @@ public record ProjectDto
     public List<string> Categories { get; init; } = new();
     public ProjectStatus Status { get; init; }
     public decimal? FundingGoal { get; init; }
-    /// <summary>Unit <see cref="FundingGoal"/> is denominated in; "ARDA" for every project on this node.</summary>
-    public string FundingGoalUnit { get; init; } = "ARDA";
+    /// <summary>Unit <see cref="FundingGoal"/> is denominated in; dollars for every ask on this node.</summary>
+    public string FundingGoalUnit { get; init; } = ProjectFundingUnits.Ledger;
     public decimal CurrentFunding { get; init; }
     public int SupportersCount { get; init; }
     public int VotesCount { get; init; }
@@ -65,7 +66,7 @@ public record CreateProjectDto
     public required string Solution { get; init; }
     public required List<string> Categories { get; init; }
     public decimal? FundingGoal { get; init; }
-    /// <summary>Unit the goal is denominated in; omitted means the platform unit.</summary>
+    /// <summary>Unit the goal is denominated in; omitted means dollars, the only unit accepted.</summary>
     public string? FundingGoalUnit { get; init; }
     public string? Tags { get; init; }
     public string? Images { get; init; }
@@ -93,7 +94,7 @@ public record UpdateProjectDto
     public List<string>? Categories { get; init; }
     public ProjectStatus? Status { get; init; }
     public decimal? FundingGoal { get; init; }
-    /// <summary>Unit the goal is denominated in; omitted leaves the stored unit unchanged.</summary>
+    /// <summary>Unit the goal is denominated in; omitted leaves it alone, and only dollars are accepted.</summary>
     public string? FundingGoalUnit { get; init; }
     public string? Tags { get; init; }
     public string? Images { get; init; }

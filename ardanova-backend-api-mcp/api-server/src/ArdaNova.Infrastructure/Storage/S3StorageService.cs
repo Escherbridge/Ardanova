@@ -5,6 +5,7 @@ using Amazon;
 using Amazon.S3;
 using Amazon.S3.Model;
 using ArdaNova.Application.Common.Results;
+using ArdaNova.Application.Common.Security;
 using ArdaNova.Application.DTOs;
 using ArdaNova.Application.Services.Interfaces;
 using ArdaNova.Domain.Models.Enums;
@@ -359,9 +360,12 @@ public class S3StorageService : IStorageService, IDisposable
             parts.Add(folder.Trim('/'));
         }
 
-        if (!string.IsNullOrEmpty(userId))
+        // The WHOLE actor id, through the same type the attachment route checks it with. An
+        // eight-character prefix is a naming convention, not an identity, and a key minted
+        // without this segment cannot be claimed by anybody at all.
+        if (UserStoragePrefix.SegmentFor(userId) is { } ownerSegment)
         {
-            parts.Add($"user_{userId[..8]}");
+            parts.Add(ownerSegment);
         }
 
         parts.Add(timestamp);

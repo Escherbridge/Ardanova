@@ -236,8 +236,8 @@ function SharedAwardNotice({
           : `${workerShareUnits} ${assetCode} units are the worker's and ${guildShareUnits} are the guild's. Each share is set aside separately.`}
       </p>
       <p className="text-muted-foreground mt-1 text-sm">
-        The guild&apos;s share is held for the guild. Approving here settles the
-        worker&apos;s share only.
+        Each share is held for whoever it belongs to. Approving settles both at
+        once, and returning the award returns both.
       </p>
     </div>
   );

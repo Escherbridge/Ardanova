@@ -275,6 +275,78 @@ public class FundingIntentServiceTests
         _unitOfWork.Verify(work => work.RollbackTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
+    // -- The ceiling on what a sponsorship may promise, and the count that records it --
+
+    [Fact]
+    public async Task CreateCheckoutAsync_MoreUnitsThanTheSponsorAllowanceHasLeft_IsRefusedAndNothingIsWritten()
+    {
+        // The project set 2 units aside for sponsors. This offer would buy 3, so it is refused
+        // before the node is asked for anything: no intent, no settlement, no outbox, no call.
+        var fixture = ArrangeEligibleFunding();
+        fixture.Config.investorPartitionSupply = 2;
+        ArrangeRate(platformPerUnit: "3.00", referencePerUnit: "0.03");
+        var captured = CaptureRows();
+        ArrangeAcceptedDispatch(captured);
+
+        var result = await _sut.CreateCheckoutAsync(Request("9.00"), ActorId, IdempotencyKey);
+
+        result.IsSuccess.Should().BeFalse();
+        result.Type.Should().Be(ResultType.ValidationError);
+        result.Error.Should().Contain("sponsor stake");
+
+        captured.Intent.Should().BeNull();
+        captured.Settlement.Should().BeNull();
+        captured.Outbox.Should().BeNull();
+        _gateway.Verify(
+            gateway => gateway.DispatchAsync(
+                It.IsAny<AzoaSettlementRequest>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+
+        // The counters must not have moved either.
+        fixture.Config.investorSupply.Should().Be(0);
+        fixture.Config.allocatedSupply.Should().Be(0);
+        fixture.Config.fundingRaised.Should().Be(0d);
+    }
+
+    [Fact]
+    public async Task CreateCheckoutAsync_MoreUnitsThanTheWholeSupplyHasLeft_IsRefusedEvenWithinTheAllowance()
+    {
+        // The allowance says 1,000, but 999 of the 1,000 units that exist are already committed
+        // elsewhere. An allowance is not supply: both have to admit the draw.
+        var fixture = ArrangeEligibleFunding();
+        fixture.Config.investorPartitionSupply = 1_000;
+        fixture.Config.founderSupply = 999;
+        ArrangeRate(platformPerUnit: "3.00", referencePerUnit: "0.03");
+        var captured = CaptureRows();
+        ArrangeAcceptedDispatch(captured);
+
+        var result = await _sut.CreateCheckoutAsync(Request("9.00"), ActorId, IdempotencyKey);
+
+        result.IsSuccess.Should().BeFalse();
+        result.Error.Should().Contain("left to commit");
+        captured.Intent.Should().BeNull();
+        fixture.Config.investorSupply.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task CreateCheckoutAsync_ASettledSponsorshipCountsItsUnitsAgainstTheAllowance()
+    {
+        // Nothing on this path used to count the units a sponsorship promised: the raise moved
+        // and investorSupply stayed at zero, so the declared allowance bounded nothing at all.
+        var fixture = ArrangeEligibleFunding();
+        fixture.Config.investorPartitionSupply = 10;
+        ArrangeRate(platformPerUnit: "3.00", referencePerUnit: "0.03");
+        var captured = CaptureRows();
+        ArrangeAcceptedDispatch(captured);
+
+        var result = await _sut.CreateCheckoutAsync(Request("9.00"), ActorId, IdempotencyKey);
+
+        result.IsSuccess.Should().BeTrue();
+        captured.Investment!.tokenAmount.Should().Be(3);
+        fixture.Config.investorSupply.Should().Be(3);
+        fixture.Config.allocatedSupply.Should().Be(3);
+    }
+
     [Fact]
     public async Task CreateCheckoutAsync_ReadinessLapseHoldsTheSponsorshipInsteadOfRetryingForever()
     {
@@ -592,6 +664,9 @@ public class FundingIntentServiceTests
             status = ProjectTokenStatus.ACTIVE,
             gateStatus = ProjectGateStatus.FUNDING,
             totalSupply = 1_000,
+            // A project with no declared sponsor allowance has nothing to sell: the quote refuses
+            // it by name now, so the fixture declares one the way provisioning does.
+            investorPartitionSupply = 1_000,
             fundingGoal = 1_000d,
             fundingRaised = 0d,
             assetChain = "Algorand",

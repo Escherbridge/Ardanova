@@ -104,8 +104,15 @@ public static class ProjectMoneyDisclosures
         + "balance is read from this project's own funds account.";
 
     /// <summary>Stamped when the caller may not see who a counterparty was.</summary>
+    /// <remarks>
+    /// The second clause is a promise about a control, so it says exactly what the control does:
+    /// the only naming choice this system records is the one a sponsor makes when they pledge.
+    /// People paid to work on a project are never named, because they were never asked.
+    /// </remarks>
     public const string NamesHiddenFromNonMembers =
-        "People's names are shown to project members only, and only when the person chose to be named.";
+        "People's names are shown to project members only, and only where the person chose to be "
+        + "named when they sponsored. People paid to work on a project are not named: they have "
+        + "not been asked for that choice.";
 
     /// <summary>Stamped when the reader is not on the project, so no itemised movement is sent at all.</summary>
     public const string EntriesHiddenFromNonMembers =
@@ -272,7 +279,7 @@ public class ProjectLedgerService : IProjectLedgerService
         var naming = await ReadNamingConsentAsync(config, ct);
 
         await AddSponsorshipsAsync(entries, counterparties, naming, sponsorships, ct);
-        AddWorkerAwards(entries, counterparties, naming, config, awards);
+        AddWorkerAwards(entries, counterparties, config, awards);
         await AddBuyBacksAsync(entries, counterparties, config, ct);
         await AddRemainingTreasuryReceiptsAsync(entries, projectId, ct);
 
@@ -302,11 +309,11 @@ public class ProjectLedgerService : IProjectLedgerService
     /// </summary>
     /// <remarks>
     /// <see cref="ProjectInvestment.showBackerName"/> is the ONLY durable record of a person's
-    /// naming choice in this system, and it is per pledge. Both keys come out of the same single
-    /// query: the pledge's own id (which is the sponsorship's intent id) for a sponsorship entry,
-    /// and the person's user id for an award entry, which has no consent row of its own. Someone
-    /// with no pledge on this project has agreed to nothing, so they are not named - the page's own
-    /// sentence, "only when the person chose to be named", is enforced here rather than asserted.
+    /// naming choice in this system, and it is per pledge, given when SPONSORING. So this answers
+    /// for sponsorship entries and nothing else. <see cref="NamingConsent.CoversPerson"/> exists
+    /// for the sponsorship rows a person may hold under more than one pledge id; it is deliberately
+    /// NOT the answer for a worker's award, because agreeing to be listed as a backer is not
+    /// agreeing to be named as someone paid to do the work.
     /// </remarks>
     private async Task<NamingConsent> ReadNamingConsentAsync(
         ProjectTokenConfig config,
@@ -534,7 +541,6 @@ public class ProjectLedgerService : IProjectLedgerService
     private static void AddWorkerAwards(
         List<ProjectMoneyEntry> entries,
         CounterpartyNames counterparties,
-        NamingConsent naming,
         ProjectTokenConfig config,
         IReadOnlyList<TokenAllocation> awards)
     {
@@ -572,14 +578,19 @@ public class ProjectLedgerService : IProjectLedgerService
                 CounterpartyName: null,
                 VerifyReference: award.workerHoldId ?? award.holdId));
 
-            // TokenAllocation records no consent of its own, so the answer is the person's own
-            // agreement on this project. No agreement, no name: this line used to pass a literal
-            // true, which named every award recipient on a page that promises the opposite.
+            // NOBODY is named here, because nothing in this system records a consent to be named
+            // as someone PAID TO WORK on a project. This line has been wrong twice: first a
+            // literal true, which named every recipient on a page promising the opposite; then
+            // the person's sponsorship consent, which is an agreement to be listed as a BACKER -
+            // a different disclosure, given for a different act, on a different form. One
+            // consent standing in for another is not consent. What unblocks a name here is a
+            // naming choice captured where the work is agreed (a column on TokenAllocation, or
+            // on the commerce agreement), read the way the sponsorship's own choice is read.
             counterparties.Claim(
                 entryId,
                 award.recipientUserId,
                 role,
-                consented: naming.CoversPerson(award.recipientUserId));
+                consented: false);
         }
     }
 

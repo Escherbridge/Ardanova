@@ -454,10 +454,22 @@ public class ProjectService : IProjectService, IProjectVisibility
         return null;
     }
 
+    /// <summary>
+    /// The declared unit of an ask, refused unless it is the one the funding columns are kept in.
+    /// A goal in any other unit is stored beside a dollar total and divided into a dollar price.
+    /// </summary>
+    private static string? DescribeUnsupportedFundingUnit(string? declaredUnit) =>
+        declaredUnit is null || ProjectFundingUnits.IsLedgerUnit(declaredUnit)
+            ? null
+            : $"A funding goal must be declared in {ProjectFundingUnits.Ledger}; '{declaredUnit}' was sent.";
+
     public async Task<Result<ProjectDto>> CreateAsync(CreateProjectDto dto, CancellationToken ct = default)
     {
         var categoryError = ValidateCategories(dto.Categories);
         if (categoryError is not null) return categoryError;
+
+        if (DescribeUnsupportedFundingUnit(dto.FundingGoalUnit) is { } createUnitRefusal)
+            return Result<ProjectDto>.ValidationError(createUnitRefusal);
 
         var project = new Project
         {
@@ -472,7 +484,7 @@ public class ProjectService : IProjectService, IProjectVisibility
             categories = string.Join(",", dto.Categories),
             status = ProjectStatus.DRAFT,
             fundingGoal = dto.FundingGoal,
-            fundingGoalUnit = dto.FundingGoalUnit ?? ProjectFundingUnits.Arda,
+            fundingGoalUnit = dto.FundingGoalUnit ?? ProjectFundingUnits.Ledger,
             currentFunding = 0,
             supportersCount = 0,
             votesCount = 0,
@@ -503,6 +515,11 @@ public class ProjectService : IProjectService, IProjectVisibility
             var categoryError = ValidateCategories(dto.Categories);
             if (categoryError is not null) return categoryError;
         }
+
+        // Decided before any field is touched, for the same reason the lifecycle move below is:
+        // a refused unit must leave the tracked entity exactly as it was read.
+        if (DescribeUnsupportedFundingUnit(dto.FundingGoalUnit) is { } updateUnitRefusal)
+            return Result<ProjectDto>.ValidationError(updateUnitRefusal);
 
         var project = await _repository.GetByIdAsync(id, ct);
         if (project is null)
