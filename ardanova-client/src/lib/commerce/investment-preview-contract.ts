@@ -34,7 +34,14 @@ export interface FundingAmount {
   value: number;
 }
 
-/** Mirrors the funding-intent route's positive USD input contract. */
+/**
+ * Mirrors the funding-intent route's positive platform-unit input contract.
+ *
+ * NO LONGER ON THE SPONSOR SURFACE. What a person types is dollars, parsed by
+ * `sponsor-amount-contract.parseSponsorDollars`; this remains as the wire-shape parser for the
+ * amount the route itself takes, and its tests still pin that shape. Delete it only together
+ * with the last caller.
+ */
 export function parseFundingAmount(input: string): FundingAmount | null {
   const apiAmount = input.trim();
 

@@ -495,7 +495,18 @@ public class TokenBalanceService : ITokenBalanceService
         var liquidity = await IsBalanceLiquidAsync(
             dto.UserId, dto.ProjectTokenConfigId!, holderClass, ct);
 
-        return liquidity.IsSuccess ? dto with { IsLiquid = liquidity.Value } : dto;
+        if (!liquidity.IsSuccess)
+            return dto;
+
+        if (liquidity.Value)
+            return dto with { IsLiquid = true, RestrictedUntil = null };
+
+        // Held. The date the window ends is what a person actually needs to be told, and it
+        // already exists on their own awards - it was simply never carried to the wire, which
+        // is why the badge read "not available yet" with nothing after it. Still null when the
+        // hold carries no date: a promise nobody can date is one nobody may spend.
+        var window = await ReadWindowAsync(dto.UserId, dto.ProjectTokenConfigId!, ct);
+        return dto with { IsLiquid = false, RestrictedUntil = window.RestrictedUntil };
     }
 
     /// <summary>Reads the person's ARDA holding from the node, or says exactly why it cannot.</summary>

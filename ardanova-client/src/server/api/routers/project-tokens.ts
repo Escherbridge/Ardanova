@@ -7,7 +7,11 @@ import {
 } from "~/server/api/trpc";
 import { apiClient } from "~/lib/api";
 import { projectMoneyViewSchema } from "~/lib/contracts/project-money-contract";
-import { PROJECT_FUNDING_UNIT } from "~/lib/contracts/project-create-contract";
+import {
+  PROJECT_FUNDING_GOAL_MAX_DOLLARS,
+  PROJECT_FUNDING_GOAL_MIN_DOLLARS,
+  PROJECT_FUNDING_UNIT,
+} from "~/lib/contracts/project-create-contract";
 import { getAdminApiClient } from "~/server/admin-api-client";
 import {
   createFounderAllocationDtoSchema,
@@ -117,7 +121,21 @@ export const provisionProjectFundingSchema = z.object({
   totalSupply: z.number().int().positive(),
   contributorSupply: z.number().int().nonnegative(),
   investorSupply: z.number().int().nonnegative(),
-  fundingGoal: z.number().positive(),
+  /**
+   * Bounded and cent-precise, not merely positive. `z.number().positive()` let a $0.001 or a
+   * $1,000,000,000,000 ask through this boundary while the create wizard refused both in the
+   * browser - a bound one client applies is an affordance, not a control. The server refuses
+   * these too (`ProjectFundingLedger.DescribeUnusableGoalAmount`); this copy spares a round trip.
+   */
+  fundingGoal: z
+    .number()
+    .positive()
+    .min(PROJECT_FUNDING_GOAL_MIN_DOLLARS)
+    .max(PROJECT_FUNDING_GOAL_MAX_DOLLARS)
+    .refine(
+      (goal) => Number.isInteger(Math.round(goal * 100)) && Math.abs(goal * 100 - Math.round(goal * 100)) < 1e-9,
+      { message: "A funding goal cannot be finer than a cent." },
+    ),
   /**
    * Declared, not assumed. `z.literal` means this client cannot send any other unit even by
    * mistake, and the server refuses one by name - a goal stored in a different unit from the

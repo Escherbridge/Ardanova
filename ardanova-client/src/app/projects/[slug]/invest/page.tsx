@@ -21,15 +21,21 @@ import { Checkbox } from "~/components/ui/checkbox";
 import { Input } from "~/components/ui/input";
 import { ConversionChain } from "~/components/equity/conversion-chain";
 import { describeFundingError } from "~/lib/commerce/funding-intent-status";
+import { fundingProjectTokenConfigSchema } from "~/lib/commerce/investment-preview-contract";
 import {
-  fundingProjectTokenConfigSchema,
-  parseFundingAmount,
-} from "~/lib/commerce/investment-preview-contract";
+  SPONSOR_AMOUNT_HELP,
+  dollarsToPlatformUnits,
+  formatSponsorDollars,
+  parseSponsorDollars,
+  platformUnitsToDollars,
+  toPlatformUnitApiAmount,
+} from "~/lib/commerce/sponsor-amount-contract";
 import { reviewContactHref } from "~/components/azoa/custodial-account-card";
 import { evaluateValueActionAccount } from "~/lib/contracts/project-create-contract";
 import { cn } from "~/lib/utils";
 
-const QUICK_AMOUNTS = [100, 500, 1000, 5000];
+/** Dollars, because that is what a sponsor is choosing between. */
+const QUICK_AMOUNTS = [25, 100, 250, 1000];
 const STEP_LABELS = ["Amount", "Review", "Support"];
 
 /** sessionStorage key both this page and /invest/success read the quoted intent under. */
@@ -40,6 +46,8 @@ function intentStorageKey(slug: string) {
 /** What this page persists for the success page to show as "as quoted", never as confirmed. */
 interface QuotedIntent {
   intentId: string;
+  /** What the person actually named, in dollars. The figure the receipt leads with. */
+  dollarAmount: number | null;
   ardaAmount: number;
   quantity: number;
   unitName: string;
@@ -53,10 +61,6 @@ function formatUsd(value: number) {
     minimumFractionDigits: 2,
     maximumFractionDigits: 4,
   }).format(value);
-}
-
-function formatArda(value: number) {
-  return `${new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(value)} ARDA`;
 }
 
 function formatUnits(value: number, unit: string) {
@@ -119,13 +123,14 @@ export default function InvestPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const slug = params.slug as string;
+  // Dollars. The project page hands this over already in dollars (equity-preview.tsx).
   const initialAmount = searchParams.get("amount") ?? "100";
   const accountSetupHref = `/settings/verification?returnTo=${encodeURIComponent(
     `/projects/${slug}/invest`,
   )}`;
 
   const [step, setStep] = useState(1);
-  const [ardaInput, setArdaInput] = useState(initialAmount);
+  const [dollarInput, setDollarInput] = useState(initialAmount);
   const [debouncedInput, setDebouncedInput] = useState(initialAmount);
   const [checkLocked, setCheckLocked] = useState(false);
   const [checkTrust, setCheckTrust] = useState(false);
@@ -141,6 +146,7 @@ export default function InvestPage() {
           intentStorageKey(slug),
           JSON.stringify({
             intentId,
+            dollarAmount: lastQuoteRef.current?.dollarAmount ?? null,
             ardaAmount: Number(variables.amount),
             quantity: lastQuoteRef.current?.quantity ?? 0,
             unitName: lastQuoteRef.current?.unitName ?? "",
@@ -161,9 +167,9 @@ export default function InvestPage() {
   });
 
   useEffect(() => {
-    const timer = window.setTimeout(() => setDebouncedInput(ardaInput), 400);
+    const timer = window.setTimeout(() => setDebouncedInput(dollarInput), 400);
     return () => window.clearTimeout(timer);
-  }, [ardaInput]);
+  }, [dollarInput]);
 
   const projectQuery = api.project.getById.useQuery({ id: slug });
   const accountStatus = api.azoaCustodialAccount.getStatus.useQuery(undefined, {
@@ -187,22 +193,21 @@ export default function InvestPage() {
   const configContractInvalid =
     configQuery.data !== undefined && !configResult.success;
 
-  const currentAmount = parseFundingAmount(ardaInput);
-  const previewAmount = parseFundingAmount(debouncedInput);
+  // What the person typed, in DOLLARS. The platform-unit figure is derived from it below
+  // and never typed - the founder's ask was inverted this way first, and a sponsor
+  // spending in a unit they never chose was the other half of the same story.
+  const currentDollars = parseSponsorDollars(dollarInput);
+  const previewDollars = parseSponsorDollars(debouncedInput);
   const previewMatchesInput =
-    currentAmount !== null &&
-    previewAmount !== null &&
-    currentAmount.apiAmount === previewAmount.apiAmount;
+    currentDollars !== null &&
+    previewDollars !== null &&
+    currentDollars.normalized === previewDollars.normalized;
 
   const ardaBalanceQuery = api.tokenBalances.getArdaBalance.useQuery(
     undefined,
     { enabled: valueAccountReady, retry: false },
   );
   const availableArda = ardaBalanceQuery.data?.availableBalance ?? null;
-  const insufficientArda =
-    availableArda !== null &&
-    currentAmount !== null &&
-    currentAmount.value > availableArda;
 
   // One hop: ARDA -> project units. ardaPerUnit mirrors ExchangeService.GetDeclaredRateAsync
   // (unitValue / ardaValue); quantity floors and chargedArda ceils, mirroring
@@ -225,17 +230,33 @@ export default function InvestPage() {
       : null;
   const priceUnavailable = ardaPerUnit !== null && ardaPerUnit <= 0;
 
+  // Dollars -> platform units -> project units. The middle leg is the wire contract, not
+  // a thing a person is asked to hold in their head; the route still settles in ARDA.
+  const currentArda =
+    currentDollars && dollarsToPlatformUnits(currentDollars.value, usdPerArda);
+  const previewArda =
+    previewDollars && dollarsToPlatformUnits(previewDollars.value, usdPerArda);
+
+  const insufficientArda =
+    availableArda !== null &&
+    currentArda !== null &&
+    currentArda !== undefined &&
+    currentArda > availableArda;
+  const availableDollars = platformUnitsToDollars(availableArda ?? 0, usdPerArda);
+
   const quantity =
-    previewMatchesInput && previewAmount && ardaPerUnit && ardaPerUnit > 0
-      ? Math.floor(previewAmount.value / ardaPerUnit)
+    previewMatchesInput && previewArda && ardaPerUnit && ardaPerUnit > 0
+      ? Math.floor(previewArda / ardaPerUnit)
       : null;
   const chargedArda =
     quantity && quantity > 0 && ardaPerUnit
       ? Math.ceil(quantity * ardaPerUnit * 100) / 100
       : null;
-  const remainderArda =
-    previewAmount && chargedArda !== null
-      ? Math.max(0, Math.round((previewAmount.value - chargedArda) * 100) / 100)
+  const chargedDollars = 
+    chargedArda !== null ? platformUnitsToDollars(chargedArda, usdPerArda) : null;
+  const remainderDollars =
+    previewDollars && chargedDollars !== null
+      ? Math.max(0, Math.round((previewDollars.value - chargedDollars) * 100) / 100)
       : 0;
   const supplyShare =
     quantity && quantity > 0 && config && config.totalSupply > 0
@@ -255,6 +276,7 @@ export default function InvestPage() {
     quantity: number;
     unitName: string;
     supplySharePercent: number | null;
+    dollarAmount: number | null;
   } | null>(null);
   useEffect(() => {
     if (hasQuote && quantity && config) {
@@ -262,24 +284,26 @@ export default function InvestPage() {
         quantity,
         unitName: config.unitName,
         supplySharePercent: supplyShare,
+        dollarAmount: chargedDollars,
       };
     }
-  }, [hasQuote, quantity, config, supplyShare]);
+  }, [hasQuote, quantity, config, supplyShare, chargedDollars]);
 
   const handleQuickAmount = useCallback((amount: number) => {
     const next = String(amount);
-    setArdaInput(next);
+    setDollarInput(next);
     setDebouncedInput(next);
   }, []);
 
   const beginCheckout = () => {
-    if (!config || !currentAmount || !hasQuote || !previewMatchesInput) return;
+    if (!config || !currentArda || !hasQuote || !previewMatchesInput) return;
 
     checkoutIdempotencyKey.current ??= window.crypto.randomUUID();
     setStep(3);
     checkout.mutate({
       projectTokenConfigId: config.id,
-      amount: currentAmount.apiAmount,
+      // The route settles in platform units; the person never typed one.
+      amount: toPlatformUnitApiAmount(currentArda),
       disclosureVersion: "funding-disclosure-v1",
       displayNameConsent: showName,
       idempotencyKey: checkoutIdempotencyKey.current,
@@ -390,7 +414,7 @@ export default function InvestPage() {
         ? // The shared contract's own words, matching the server's refusal text.
           accountEvaluation.message
         : accountEvaluation.state === "service-unavailable"
-          ? "We could not confirm account setup. To protect your ARDA, support remains unavailable until the status can be confirmed."
+          ? "We could not confirm account setup. To protect your funds, support remains unavailable until the status can be confirmed."
           : "Complete account setup before funding a project. You can still review project details and estimates while setup is pending.";
 
     return (
@@ -454,7 +478,7 @@ export default function InvestPage() {
         </h1>
         <p className="text-muted-foreground mt-3 max-w-2xl text-sm sm:text-base">
           Review an estimate, acknowledge the current terms, then support
-          this project with ARDA from your balance. This is a durable
+          this project with funds from your balance. This is a durable
           sponsorship, not a hosted checkout — a browser redirect is never
           proof of a settled stake.
         </p>
@@ -473,7 +497,7 @@ export default function InvestPage() {
                   01 · Define an amount
                 </p>
                 <h2 id="amount-heading" className="mt-2 text-2xl font-bold">
-                  Amount to spend, in ARDA
+                  How much would you like to put in?
                 </h2>
               </div>
 
@@ -483,15 +507,15 @@ export default function InvestPage() {
                     key={amount}
                     type="button"
                     onClick={() => handleQuickAmount(amount)}
-                    aria-pressed={ardaInput === String(amount)}
+                    aria-pressed={dollarInput === String(amount)}
                     className={cn(
                       "min-h-11 border px-4 font-mono text-sm font-bold transition-colors",
-                      ardaInput === String(amount)
+                      dollarInput === String(amount)
                         ? "border-primary bg-primary text-primary-foreground"
                         : "border-border bg-background text-foreground hover:border-foreground",
                     )}
                   >
-                    {amount.toLocaleString()} ARDA
+                    {formatSponsorDollars(amount)}
                   </button>
                 ))}
               </div>
@@ -501,58 +525,59 @@ export default function InvestPage() {
                   htmlFor="funding-amount"
                   className="mb-2 block text-sm font-semibold"
                 >
-                  Custom amount in ARDA
+                  Another amount
                 </label>
                 <div className="relative">
+                  {/* The affix is a dollar sign, on the LEFT, where money is written. The
+                      ticker chip that used to sit on the right is the same shape the
+                      founder's ask lost when it became a dollar field. */}
+                  <span
+                    className="text-muted-foreground absolute top-1/2 left-4 -translate-y-1/2 font-mono text-lg"
+                    aria-hidden="true"
+                  >
+                    $
+                  </span>
                   <Input
                     id="funding-amount"
                     type="number"
                     inputMode="decimal"
-                    value={ardaInput}
-                    onChange={(event) => setArdaInput(event.target.value)}
-                    className="border-foreground h-12 pr-16 font-mono text-lg"
+                    value={dollarInput}
+                    onChange={(event) => setDollarInput(event.target.value)}
+                    className="border-foreground h-12 pl-9 font-mono text-lg"
                     placeholder="0.00"
-                    min="0.01"
+                    min="1"
                     step="0.01"
-                    aria-invalid={currentAmount === null}
+                    aria-invalid={currentDollars === null}
                     aria-describedby="funding-amount-help"
                   />
-                  <span
-                    className="text-muted-foreground absolute top-1/2 right-4 -translate-y-1/2 font-mono text-sm"
-                    aria-hidden="true"
-                  >
-                    ARDA
-                  </span>
                 </div>
                 <p
                   id="funding-amount-help"
                   className={cn(
                     "mt-2 text-xs",
-                    currentAmount
+                    currentDollars
                       ? "text-muted-foreground"
                       : "text-destructive",
                   )}
                 >
-                  {currentAmount
-                    ? "Use a positive amount with no more than two decimal places."
-                    : "Enter a positive ARDA amount with no more than two decimal places."}
+                  {SPONSOR_AMOUNT_HELP}
                 </p>
               </div>
 
-              {availableArda !== null && (
+              {availableDollars !== null && (
                 <p className="text-muted-foreground text-xs">
-                  You have {formatArda(availableArda)} available.
+                  You have {formatSponsorDollars(availableDollars)} available.
                 </p>
               )}
 
-              {insufficientArda && currentAmount && availableArda !== null && (
+              {insufficientArda && currentDollars && availableDollars !== null && (
                 <div
                   className="border-destructive bg-destructive/5 flex items-start justify-between gap-4 border p-3"
                   role="alert"
                 >
                   <p className="text-destructive text-sm">
-                    You have {formatArda(availableArda)} available, but this
-                    needs {formatArda(currentAmount.value)}.
+                    You have {formatSponsorDollars(availableDollars)} available,
+                    but this needs {formatSponsorDollars(currentDollars.value)}.
                   </p>
                   <Button asChild size="sm" variant="outline" className="shrink-0">
                     <Link href="/portfolio/add-funds">
@@ -576,7 +601,7 @@ export default function InvestPage() {
                 </h2>
               </div>
 
-              {!currentAmount ? (
+              {!currentDollars ? (
                 <p className="text-muted-foreground text-sm">
                   Enter a valid amount to request an estimate.
                 </p>
@@ -605,10 +630,10 @@ export default function InvestPage() {
               ) : hasQuote && quantity && chargedArda !== null ? (
                 <div className="space-y-4">
                   <ConversionChain
+                    dollarAmount={chargedDollars ?? 0}
                     ardaAmount={chargedArda}
                     projectUnits={quantity}
                     unitName={config.unitName}
-                    usdPerArda={usdPerArda ?? 0}
                   />
 
                   <p className="text-sm">
@@ -629,11 +654,11 @@ export default function InvestPage() {
                     </p>
                   </details>
 
-                  {remainderArda > 0 && (
+                  {remainderDollars > 0 && (
                     <p className="text-muted-foreground text-xs">
-                      Whole units only — {formatArda(remainderArda)} above the
-                      cost of {formatUnits(quantity, config.unitName)} stays
-                      in your balance.
+                      Whole units only — {formatSponsorDollars(remainderDollars)}
+                      {" "}above the cost of {formatUnits(quantity, config.unitName)}
+                      {" "}stays in your balance.
                     </p>
                   )}
                   {usdPerUnit !== undefined && (
@@ -651,7 +676,7 @@ export default function InvestPage() {
 
               <div className="border-primary text-muted-foreground border-l-4 pl-4 text-xs leading-relaxed">
                 <p>
-                  This estimate does not spend ARDA or create project units.
+                  This estimate does not spend anything or create project units.
                   Rates can change before settlement.
                 </p>
               </div>
@@ -670,7 +695,7 @@ export default function InvestPage() {
         </section>
       )}
 
-      {step === 2 && hasQuote && currentAmount && quantity && chargedArda !== null && (
+      {step === 2 && hasQuote && currentDollars && quantity && chargedArda !== null && (
         <section className="space-y-5" aria-labelledby="review-heading">
           <Card className="border-foreground">
             <CardContent className="space-y-4 p-5 sm:p-6">
@@ -684,10 +709,10 @@ export default function InvestPage() {
               </div>
 
               <ConversionChain
+                dollarAmount={chargedDollars ?? 0}
                 ardaAmount={chargedArda}
                 projectUnits={quantity}
                 unitName={config.unitName}
-                usdPerArda={usdPerArda ?? 0}
               />
 
               <details className="border-border border p-3 text-sm">
@@ -820,7 +845,7 @@ export default function InvestPage() {
                 </p>
                 <h2 id="checkout-heading" className="mt-2 text-2xl font-bold">
                   {checkout.isPending
-                    ? "Moving your ARDA now"
+                    ? "Moving your funds now"
                     : checkout.error
                       ? "Sponsorship unavailable"
                       : "Redirecting…"}
@@ -840,9 +865,11 @@ export default function InvestPage() {
                     Amount spent
                   </span>
                   <span className="font-mono font-bold">
-                    {currentAmount
-                      ? formatArda(currentAmount.value)
-                      : "Unavailable"}
+                    {chargedDollars !== null
+                      ? formatSponsorDollars(chargedDollars)
+                      : currentDollars
+                        ? formatSponsorDollars(currentDollars.value)
+                        : "Unavailable"}
                   </span>
                 </div>
               </div>

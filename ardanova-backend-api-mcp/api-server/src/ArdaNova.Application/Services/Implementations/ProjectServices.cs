@@ -472,6 +472,12 @@ public class ProjectService : IProjectService, IProjectVisibility
         if (DescribeUnsupportedFundingUnit(dto.FundingGoalUnit) is { } createUnitRefusal)
             return Result<ProjectDto>.ValidationError(createUnitRefusal);
 
+        // The other half of the same rule: the unit says which column, the amount says whether
+        // the figure is an ask at all. An unspecified goal stays allowed - a project may be
+        // published with no ask, which is not an ask of nothing.
+        if (ProjectFundingLedger.DescribeUnusableGoalAmount(dto.FundingGoal) is { } createGoalRefusal)
+            return Result<ProjectDto>.ValidationError(createGoalRefusal);
+
         var project = new Project
         {
             id = Guid.NewGuid().ToString(),
@@ -521,6 +527,9 @@ public class ProjectService : IProjectService, IProjectVisibility
         // a refused unit must leave the tracked entity exactly as it was read.
         if (DescribeUnsupportedFundingUnit(dto.FundingGoalUnit) is { } updateUnitRefusal)
             return Result<ProjectDto>.ValidationError(updateUnitRefusal);
+
+        if (ProjectFundingLedger.DescribeUnusableGoalAmount(dto.FundingGoal) is { } updateGoalRefusal)
+            return Result<ProjectDto>.ValidationError(updateGoalRefusal);
 
         var project = await _repository.GetByIdAsync(id, ct);
         if (project is null)

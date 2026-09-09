@@ -8,7 +8,13 @@ import { api } from "~/trpc/react";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { ConversionChain } from "~/components/equity/conversion-chain";
-import { parseFundingAmount } from "~/lib/commerce/investment-preview-contract";
+import {
+  SPONSOR_AMOUNT_HELP,
+  dollarsToPlatformUnits,
+  formatSponsorDollars,
+  parseSponsorDollars,
+  platformUnitsToDollars,
+} from "~/lib/commerce/sponsor-amount-contract";
 import { cn } from "~/lib/utils";
 
 type GateStatus = "FUNDING" | "ACTIVE" | "SUCCEEDED" | "FAILED";
@@ -20,15 +26,9 @@ interface ProjectTokenPreviewProps {
   unitName: string;
 }
 
-const QUICK_AMOUNTS = [100, 500, 1000, 5000];
+/** Dollars, matching the invest flow this hands off to. */
+const QUICK_AMOUNTS = [25, 100, 250, 1000];
 
-function formatUsd(value: number): string {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    minimumFractionDigits: 2,
-  }).format(value);
-}
 
 function formatPct(value: number) {
   return `${value.toFixed(4)}%`;
@@ -36,9 +36,12 @@ function formatPct(value: number) {
 
 /**
  * The funding preview embedded on a project page. Ownership of this widget is split from the
- * full invest flow at `/invest`: this quotes ARDA -> project units one hop, the full flow adds
- * the ARDA-balance check, acknowledgements, and checkout (W6.4). Prop contract is unchanged so
- * `funding-tab.tsx` (owned elsewhere) keeps working without edits.
+ * full invest flow at `/invest`: this quotes DOLLARS -> project units one hop, the full flow
+ * adds the balance check, acknowledgements, and checkout (W6.4). Prop contract is unchanged so
+ * `funding-tab.tsx` keeps working without edits.
+ *
+ * The amount handed to `/invest` in the query string is DOLLARS, which is what that page now
+ * reads. Both halves of the money story say the same unit; they did not before.
  */
 export default function ProjectTokenPreview({
   configId,
@@ -47,20 +50,20 @@ export default function ProjectTokenPreview({
   unitName,
 }: ProjectTokenPreviewProps) {
   const router = useRouter();
-  const [ardaInput, setArdaInput] = useState("100");
+  const [dollarInput, setDollarInput] = useState("100");
   const [debouncedInput, setDebouncedInput] = useState("100");
 
   useEffect(() => {
-    const timer = window.setTimeout(() => setDebouncedInput(ardaInput), 400);
+    const timer = window.setTimeout(() => setDebouncedInput(dollarInput), 400);
     return () => window.clearTimeout(timer);
-  }, [ardaInput]);
+  }, [dollarInput]);
 
-  const currentAmount = parseFundingAmount(ardaInput);
-  const previewAmount = parseFundingAmount(debouncedInput);
+  const currentDollars = parseSponsorDollars(dollarInput);
+  const previewDollars = parseSponsorDollars(debouncedInput);
   const previewMatchesInput =
-    currentAmount !== null &&
-    previewAmount !== null &&
-    currentAmount.apiAmount === previewAmount.apiAmount;
+    currentDollars !== null &&
+    previewDollars !== null &&
+    currentDollars.normalized === previewDollars.normalized;
   const isDisabled = gateStatus !== "FUNDING";
 
   const tokenValueQuery = api.exchange.getProjectTokenValue.useQuery(
@@ -90,14 +93,18 @@ export default function ProjectTokenPreview({
       : null;
   const priceUnavailable = ardaPerUnit !== null && ardaPerUnit <= 0;
 
+  const previewArda =
+    previewDollars && dollarsToPlatformUnits(previewDollars.value, usdPerArda);
   const quantity =
-    previewMatchesInput && previewAmount && ardaPerUnit && ardaPerUnit > 0
-      ? Math.floor(previewAmount.value / ardaPerUnit)
+    previewMatchesInput && previewArda && ardaPerUnit && ardaPerUnit > 0
+      ? Math.floor(previewArda / ardaPerUnit)
       : null;
   const chargedArda =
     quantity && quantity > 0 && ardaPerUnit
       ? Math.ceil(quantity * ardaPerUnit * 100) / 100
       : null;
+  const chargedDollars =
+    chargedArda !== null ? platformUnitsToDollars(chargedArda, usdPerArda) : null;
   const supplyShare =
     quantity && quantity > 0 && supplyQuery.data && supplyQuery.data.totalSupply > 0
       ? (quantity / supplyQuery.data.totalSupply) * 100
@@ -105,15 +112,16 @@ export default function ProjectTokenPreview({
 
   const handleQuickAmount = useCallback((amount: number) => {
     const next = String(amount);
-    setArdaInput(next);
+    setDollarInput(next);
     setDebouncedInput(next);
   }, []);
 
   const handleFund = () => {
-    if (!currentAmount || !previewMatchesInput || !quantity || quantity <= 0)
+    if (!currentDollars || !previewMatchesInput || !quantity || quantity <= 0)
       return;
+    // DOLLARS in the query string, which is the unit /invest now reads.
     router.push(
-      `/projects/${projectSlug}/invest?amount=${encodeURIComponent(currentAmount.apiAmount)}`,
+      `/projects/${projectSlug}/invest?amount=${encodeURIComponent(currentDollars.normalized)}`,
     );
   };
 
@@ -141,23 +149,23 @@ export default function ProjectTokenPreview({
         )}
       </div>
 
-      <div className="flex flex-wrap gap-2" aria-label="Quick ARDA amounts">
+      <div className="flex flex-wrap gap-2" aria-label="Quick amounts">
         {QUICK_AMOUNTS.map((amount) => (
           <button
             key={amount}
             type="button"
             onClick={() => handleQuickAmount(amount)}
             disabled={isDisabled}
-            aria-pressed={ardaInput === String(amount)}
+            aria-pressed={dollarInput === String(amount)}
             className={cn(
               "min-h-11 border px-3 font-mono text-xs font-bold transition-colors",
-              ardaInput === String(amount)
+              dollarInput === String(amount)
                 ? "border-primary bg-primary text-primary-foreground"
                 : "border-border bg-background text-foreground hover:border-foreground",
               isDisabled && "cursor-not-allowed opacity-45",
             )}
           >
-            {amount.toLocaleString()} ARDA
+            {formatSponsorDollars(amount)}
           </button>
         ))}
       </div>
@@ -167,28 +175,28 @@ export default function ProjectTokenPreview({
           htmlFor={`funding-preview-${configId}`}
           className="mb-2 block text-sm font-semibold"
         >
-          Amount in ARDA
+          How much would you like to put in?
         </label>
         <div className="relative">
+          <span
+            className="text-muted-foreground absolute top-1/2 left-3 -translate-y-1/2 font-mono text-sm"
+            aria-hidden="true"
+          >
+            $
+          </span>
           <Input
             id={`funding-preview-${configId}`}
             type="number"
             inputMode="decimal"
-            value={ardaInput}
-            onChange={(event) => setArdaInput(event.target.value)}
+            value={dollarInput}
+            onChange={(event) => setDollarInput(event.target.value)}
             disabled={isDisabled}
-            className="border-foreground h-11 font-mono"
+            className="border-foreground h-11 pl-7 font-mono"
             placeholder="0.00"
-            min="0.01"
+            min="1"
             step="0.01"
-            aria-invalid={!isDisabled && currentAmount === null}
+            aria-invalid={!isDisabled && currentDollars === null}
           />
-          <span
-            className="text-muted-foreground absolute top-1/2 right-3 -translate-y-1/2 font-mono text-xs"
-            aria-hidden="true"
-          >
-            ARDA
-          </span>
         </div>
       </div>
 
@@ -197,10 +205,8 @@ export default function ProjectTokenPreview({
           <p className="text-muted-foreground py-3 text-sm">
             New funding intents are unavailable in the current gate state.
           </p>
-        ) : !currentAmount ? (
-          <p className="text-destructive py-3 text-sm">
-            Enter a positive amount with no more than two decimal places.
-          </p>
+        ) : !currentDollars ? (
+          <p className="text-destructive py-3 text-sm">{SPONSOR_AMOUNT_HELP}</p>
         ) : !previewMatchesInput || estimateLoading ? (
           <div
             className="text-muted-foreground flex items-center gap-2 py-3 text-sm"
@@ -227,10 +233,10 @@ export default function ProjectTokenPreview({
         ) : quantity && quantity > 0 && chargedArda !== null ? (
           <div className="space-y-3">
             <ConversionChain
+              dollarAmount={chargedDollars ?? 0}
               ardaAmount={chargedArda}
               projectUnits={quantity}
               unitName={unitName}
-              usdPerArda={usdPerArda ?? 0}
             />
             <p className="text-sm">
               You&apos;ll hold <strong>{quantity.toLocaleString()} {unitName}</strong>
@@ -248,7 +254,7 @@ export default function ProjectTokenPreview({
             </details>
             {usdPerUnit !== undefined && (
               <p className="text-muted-foreground text-xs">
-                Reference value: {formatUsd(quantity * usdPerUnit)}
+                Reference value: {formatSponsorDollars(quantity * usdPerUnit)}
               </p>
             )}
           </div>
@@ -261,7 +267,7 @@ export default function ProjectTokenPreview({
 
       <div className="border-primary text-muted-foreground border-l-4 pl-3 text-xs leading-relaxed">
         <p>
-          This preview does not spend ARDA or guarantee unit allocation,
+          This preview does not spend anything or guarantee unit allocation,
           liquidity, redemption, or future value. Rates can change before
           settlement.
         </p>

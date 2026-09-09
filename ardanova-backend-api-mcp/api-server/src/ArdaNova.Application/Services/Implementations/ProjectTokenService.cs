@@ -182,6 +182,11 @@ public class ProjectTokenService : IProjectTokenService, IProjectTokenProvisioni
         if (ProjectFundingLedger.DescribeUnsupportedGoalUnit(dto.FundingGoalUnit) is { } badGoalUnit)
             return Result<ProjectTokenConfigDto>.ValidationError(badGoalUnit);
 
+        // Same door, the other half of the rule: an operator could put $0.001 or $1e12 into the
+        // column the opening price divides, in the right unit, and nothing refused it.
+        if (ProjectFundingLedger.DescribeUnusableGoalAmount(dto.FundingGoal) is { } badGoalAmount)
+            return Result<ProjectTokenConfigDto>.ValidationError(badGoalAmount);
+
         var reservedSupply = (int)(dto.ReservedPercentage * dto.TotalSupply / 100);
 
         var entity = new ProjectTokenConfig
@@ -667,11 +672,11 @@ public class ProjectTokenService : IProjectTokenService, IProjectTokenProvisioni
                 + $"more than the {declaration.TotalSupply} declared.";
         }
 
-        if (declaration.FundingGoal <= 0 || double.IsNaN(declaration.FundingGoal)
-            || double.IsInfinity(declaration.FundingGoal))
-        {
-            return "Set a funding goal above zero.";
-        }
+        // Magnitude and cent precision, not just "above zero". The wizard refuses these in the
+        // browser; funding-tab.tsx is a second field that did not, and the API takes the number
+        // directly, so the bound has to be stated at the door that writes the column.
+        if (ProjectFundingLedger.DescribeUnusableGoalAmount(declaration.FundingGoal) is { } badGoal)
+            return badGoal;
 
         // The ask is priced over the sponsor stake and nothing else
         // (<see cref="ProjectRaiseOffering"/>), so an ask with no sponsor stake behind it is an

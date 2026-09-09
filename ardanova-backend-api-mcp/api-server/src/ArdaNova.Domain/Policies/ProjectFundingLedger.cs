@@ -17,8 +17,9 @@ using ArdaNova.Domain.Models.Entities;
 /// </para>
 /// <para>
 /// This type READS the pair; it cannot tell what unit a stored double is in, and nothing that
-/// only reads two doubles ever could. The controls are the three REFUSALS at the writing doors,
-/// all of which state the rule in the words of <see cref="DescribeUnsupportedGoalUnit"/>:
+/// only reads two doubles ever could. The controls are the REFUSALS at the writing doors, all of
+/// which state the unit rule in the words of <see cref="DescribeUnsupportedGoalUnit"/> and the
+/// magnitude/precision rule in the words of <see cref="DescribeUnusableGoalAmount"/>:
 /// <c>ProjectTokenService.ValidateDeclaration</c> (the owner's declaration),
 /// <c>ProjectServices.CreateAsync</c>/<c>UpdateAsync</c> (the project's own ask) and
 /// <c>ProjectTokenService.CreateConfigAsync</c> (the operator's admin door). A writer that
@@ -40,6 +41,59 @@ public static class ProjectFundingLedger
             : $"A funding goal must be declared in {ProjectFundingUnits.Ledger}; "
                 + $"'{declaredUnit}' was sent, and a goal in any other unit would be priced "
                 + "against a dollar total.";
+
+    /// <summary>The smallest ask this platform accepts, in dollars: below a dollar there is nothing to raise.</summary>
+    public const decimal MinimumGoalUsd = 1m;
+
+    /// <summary>The largest ask this platform accepts, in dollars.</summary>
+    public const decimal MaximumGoalUsd = 1_000_000_000m;
+
+    /// <summary>Dollars carry two decimal places, so an ask cannot be finer than a cent.</summary>
+    public const int GoalDecimals = 2;
+
+    /// <summary>
+    /// The one refusal every door that WRITES an ask states about its MAGNITUDE and PRECISION,
+    /// beside <see cref="DescribeUnsupportedGoalUnit"/>, which states it about the unit.
+    /// </summary>
+    /// <remarks>
+    /// The wizard already refuses these in the browser (`parseFundingGoalDollars`), and that was
+    /// reported as "dollar min/max validation is enforced". It was not: `funding-tab.tsx` is a
+    /// SECOND funding-goal field that parsed with a bare Number() and checked only `goal > 0`,
+    /// the tRPC boundary took `z.number().positive()` with no ceiling and no cent rule, and this
+    /// class validated only the UNIT. A $0.001 or a $1,000,000,000,000 ask reached the column
+    /// the opening price divides through either of those doors. A bound a wizard applies is an
+    /// affordance; a bound the writing door applies is a control.
+    /// </remarks>
+    /// <returns>Null when the amount is a usable dollar ask; the refusal to show otherwise.</returns>
+    public static string? DescribeUnusableGoalAmount(double declaredGoal)
+        => double.IsFinite(declaredGoal) && TryExact(declaredGoal, out var goal)
+            ? DescribeUnusableGoalAmount(goal)
+            : "Set a funding goal above zero.";
+
+    /// <summary>
+    /// The same refusal for a door whose ask is an OPTIONAL decimal - a project may be published
+    /// with no ask at all, which is not the same as an ask of nothing.
+    /// </summary>
+    public static string? DescribeUnusableGoalAmount(decimal? declaredGoal)
+        => declaredGoal is { } goal ? DescribeUnusableGoalAmount(goal) : null;
+
+    /// <summary>The rule itself, on the exact figure. Every overload above lands here.</summary>
+    public static string? DescribeUnusableGoalAmount(decimal declaredGoal)
+    {
+        if (declaredGoal <= 0m)
+            return "Set a funding goal above zero.";
+
+        if (declaredGoal < MinimumGoalUsd)
+            return $"A funding goal must be at least {MinimumGoalUsd:C0}.";
+
+        if (declaredGoal > MaximumGoalUsd)
+            return $"A funding goal cannot be more than {MaximumGoalUsd:C0}.";
+
+        if (decimal.Round(declaredGoal, GoalDecimals) != declaredGoal)
+            return "A funding goal cannot be finer than a cent.";
+
+        return null;
+    }
 
     /// <summary>
     /// Reads both figures as exact decimals, or refuses. A stored double that is not finite, or

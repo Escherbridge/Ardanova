@@ -14,7 +14,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { Textarea } from "~/components/ui/textarea";
-import { PROJECT_FUNDING_UNIT } from "~/lib/contracts/project-create-contract";
+import {
+  PROJECT_FUNDING_UNIT,
+  parseFundingGoalDollars,
+} from "~/lib/contracts/project-create-contract";
 import {
   projectGateStatusDtoSchema,
   projectInvestorsResponseSchema,
@@ -195,7 +198,21 @@ function FundingDeclarationForm({
     const total = Number(totalSupply);
     const forSponsors = Number(investorSupply);
     const forWorkers = Number(contributorSupply);
-    const goal = Number(fundingGoal);
+    // The SECOND funding-goal field on this product. It used to parse with a bare Number() and
+    // check only `goal > 0`, so the wizard's dollar bounds were an affordance of one screen
+    // rather than a rule of the field. Both screens now state it in the same words, and the
+    // server refuses it independently (ProjectFundingLedger.DescribeUnusableGoalAmount).
+    let goal: number | undefined;
+    try {
+      goal = parseFundingGoalDollars(fundingGoal);
+    } catch (goalError) {
+      setError(
+        goalError instanceof Error
+          ? goalError.message
+          : "Set a funding goal above zero.",
+      );
+      return;
+    }
 
     if (!Number.isInteger(total) || total < 1) {
       setError("Set how many units of stake exist, as a whole number.");
@@ -216,7 +233,7 @@ function FundingDeclarationForm({
       );
       return;
     }
-    if (!(goal > 0)) {
+    if (goal === undefined) {
       setError("Set a funding goal above zero.");
       return;
     }
@@ -327,7 +344,7 @@ function FundingDeclarationForm({
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="funding-goal">Funding goal (USD)</Label>
+            <Label htmlFor="funding-goal">Funding goal, in dollars</Label>
             <Input
               id="funding-goal"
               inputMode="decimal"

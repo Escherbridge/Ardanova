@@ -27,6 +27,17 @@ function formatDate(value: string): string {
   }).format(new Date(value));
 }
 
+/** What the availability badge says: "now", "from <date>", or an honest "not yet". */
+function describeAvailability(holding: TokenBalanceDto): string {
+  if (holding.isLiquid) return "Available now";
+  if (!holding.restrictedUntil) return "Not available yet";
+
+  const parsed = new Date(holding.restrictedUntil);
+  return Number.isNaN(parsed.getTime())
+    ? "Not available yet"
+    : `Available from ${formatDate(holding.restrictedUntil)}`;
+}
+
 function shortenReference(value: string): string {
   return value.length > 18 ? `${value.slice(0, 8)}…${value.slice(-6)}` : value;
 }
@@ -66,14 +77,15 @@ export function PortfolioHoldingCard({
                 {holding.holderClass.toLowerCase()}
               </Badge>
             )}
-            {/* TokenBalanceDto carries no per-holding release date (only
-                FundingIntentStatusDto.releaseNotBefore does, per-sponsorship),
-                so this reads "not yet" rather than guessing a date. */}
+            {/* A held holding says WHEN, whenever the node knows when: the date comes off the
+                holder's own awards via UnitWindow. A hold with no release date still reads
+                "not available yet" — a promise nobody can date is one nobody may spend, and a
+                fabricated date would be worse than none. */}
             <Badge
               variant={holding.isLiquid ? "neon-green" : "outline"}
               size="sm"
             >
-              {holding.isLiquid ? "Available now" : "Not available yet"}
+              {describeAvailability(holding)}
             </Badge>
           </div>
         </div>

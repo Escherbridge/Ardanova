@@ -153,6 +153,85 @@ public class ProjectFundingDeclarationTests
             Times.Never);
         _unitOfWork.Verify(work => work.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
+
+    // -- The MAGNITUDE and PRECISION of the ask, not just its unit -----------------
+    //
+    // "Dollar min/max validation is enforced" was reported after the create wizard grew a
+    // parseFundingGoalDollars. It was enforced on ONE screen: funding-tab.tsx parsed the same
+    // field with a bare Number() and checked only `goal > 0`, the tRPC boundary took
+    // z.number().positive() with no ceiling and no cent rule, and this service validated the
+    // UNIT and never the figure. These pin the refusal at the door that writes the column.
+
+    [Theory]
+    // A tenth of a cent is BOTH below the floor and finer than a cent; the floor is the more
+    // useful thing to be told, so it is checked first and the expectation says so.
+    [InlineData(0.001, "at least")]
+    [InlineData(0.5, "at least")]
+    [InlineData(1_000_000_000_000d, "cannot be more than")]
+    [InlineData(1.005, "finer than a cent")]
+    [InlineData(5_000.005, "finer than a cent")]
+    [InlineData(0d, "above zero")]
+    public async Task ProvisionAsync_AnAskThatIsNotAUsableDollarFigure_IsRefusedAndNothingIsWritten(
+        double fundingGoal, string expectedFragment)
+    {
+        ArrangeOwnedProject();
+
+        var result = await _sut.ProvisionAsync("proj-1", Declaration(fundingGoal: fundingGoal), "owner-1");
+
+        result.IsSuccess.Should().BeFalse();
+        result.Type.Should().Be(ResultType.ValidationError);
+        result.Error.Should().Contain(expectedFragment);
+        result.Error.Should().Be(ProjectFundingLedger.DescribeUnusableGoalAmount(fundingGoal));
+
+        // The count that must not move: no config row, no save.
+        _configRepo.Verify(
+            repository => repository.AddAsync(It.IsAny<ProjectTokenConfig>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+        _unitOfWork.Verify(work => work.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task CreateConfigAsync_TheOperatorDoorAlsoRefusesAnAskOutsideTheDollarBounds()
+    {
+        // Same door as the unit test above, the other half of the rule: an operator could send
+        // a correctly-declared USD ask of one tenth of a cent and nothing refused it.
+        _configRepo
+            .Setup(repository => repository.FindOneAsync(
+                It.IsAny<System.Linq.Expressions.Expression<System.Func<ProjectTokenConfig, bool>>>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync((ProjectTokenConfig?)null);
+
+        var result = await _sut.CreateConfigAsync(new CreateProjectTokenConfigDto
+        {
+            ProjectId = "proj-1",
+            AssetName = "Riverside Allotment Stake",
+            UnitName = "PLOT",
+            AssetScale = 6,
+            TotalSupply = 1_000,
+            FundingGoal = 0.001,
+            FundingGoalUnit = "USD",
+        });
+
+        result.IsSuccess.Should().BeFalse();
+        result.Type.Should().Be(ResultType.ValidationError);
+        result.Error.Should().Be(ProjectFundingLedger.DescribeUnusableGoalAmount(0.001));
+
+        _configRepo.Verify(
+            repository => repository.AddAsync(It.IsAny<ProjectTokenConfig>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+        _unitOfWork.Verify(work => work.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ProvisionAsync_AnAskAtTheExactBounds_IsNotRefusedByTheAmountRule()
+    {
+        // The other side of a bound: a rule that refuses everything is not a control either.
+        ProjectFundingLedger.DescribeUnusableGoalAmount(1d).Should().BeNull();
+        ProjectFundingLedger.DescribeUnusableGoalAmount(1_000_000_000d).Should().BeNull();
+        ProjectFundingLedger.DescribeUnusableGoalAmount(5_000.01).Should().BeNull();
+
+        await Task.CompletedTask;
+    }
 }
 
 /// <summary>

@@ -12,6 +12,12 @@ export interface TokenBalanceDto {
   lockedBalance: number;
   updatedAt: string;
   availableBalance: number;
+  /**
+   * ISO-8601 instant this holding stops being held, or null when nothing is dated — either the
+   * units are already free, or they are held with no release date at all. Mirrors
+   * `TokenBalanceDto.RestrictedUntil`, computed from the holder's own awards.
+   */
+  restrictedUntil: string | null;
 }
 
 /** Compatibility alias; the API uses TokenBalanceDto for every holding. */

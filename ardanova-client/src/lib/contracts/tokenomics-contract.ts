@@ -1,3 +1,7 @@
+import {
+  PROJECT_FUNDING_GOAL_MAX_DOLLARS,
+  PROJECT_FUNDING_GOAL_MIN_DOLLARS,
+} from "~/lib/contracts/project-create-contract";
 import { z } from "zod";
 
 export const projectTokenStatusSchema = z.enum([
@@ -85,7 +89,17 @@ export const createProjectTokenConfigDtoSchema = z
     unitName: z.string().min(1),
     assetScale: z.number().int().min(0).max(18),
     totalSupply: z.number().int().positive(),
-    fundingGoal: z.number().finite().positive(),
+    // Bounded and cent-precise, like every other door that writes an ask. The server refuses
+    // these independently (ProjectFundingLedger.DescribeUnusableGoalAmount).
+    fundingGoal: z
+      .number()
+      .finite()
+      .positive()
+      .min(PROJECT_FUNDING_GOAL_MIN_DOLLARS)
+      .max(PROJECT_FUNDING_GOAL_MAX_DOLLARS)
+      .refine((goal) => Math.abs(goal * 100 - Math.round(goal * 100)) < 1e-9, {
+        message: "A funding goal cannot be finer than a cent.",
+      }),
     reservedPercentage: z.number().finite().min(0).max(100).optional(),
     successCriteria: z.string().nullable().optional(),
   })

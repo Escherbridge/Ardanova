@@ -1,5 +1,6 @@
 "use client";
 
+import { formatSponsorDollars } from "~/lib/commerce/sponsor-amount-contract";
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
@@ -19,6 +20,11 @@ const POLL_INTERVAL_MS = 5000;
 /** What the invest page persisted at checkout time — an estimate, never the confirmed figure. */
 interface QuotedIntent {
   intentId: string;
+  /**
+   * Dollars, the unit the sponsor typed. Null for an intent quoted before the sponsor surface
+   * was inverted; the receipt then falls back to the settlement figure rather than inventing one.
+   */
+  dollarAmount?: number | null;
   ardaAmount: number;
   quantity: number;
   unitName: string;
@@ -86,6 +92,16 @@ function formatPct(value: number) {
 
 function formatArda(value: number) {
   return `${new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(value)} ARDA`;
+}
+
+/**
+ * What the receipt LEADS with: the dollars the person named. The settlement figure stays
+ * underneath, because a receipt that never names it would not reconcile against the ledger.
+ */
+function describeQuotedSpend(quoted: QuotedIntent): string {
+  return quoted.dollarAmount != null
+    ? formatSponsorDollars(quoted.dollarAmount)
+    : formatArda(quoted.ardaAmount);
 }
 
 export default function InvestSuccessPage() {
@@ -190,11 +206,16 @@ function InvestSuccessFlow() {
                 As quoted when you confirmed
               </p>
               <p className="text-sm">
-                {formatArda(quotedIntent.ardaAmount)} for{" "}
+                {describeQuotedSpend(quotedIntent)} for{" "}
                 <strong>
                   {quotedIntent.quantity.toLocaleString()} {quotedIntent.unitName}
                 </strong>
               </p>
+              {quotedIntent.dollarAmount != null && (
+                <p className="text-muted-foreground font-mono text-[10px]">
+                  Settles as {formatArda(quotedIntent.ardaAmount)} from your balance.
+                </p>
+              )}
               {quotedIntent.supplySharePercent !== null && (
                 <details className="text-muted-foreground text-xs">
                   <summary className="text-foreground cursor-pointer font-semibold">
@@ -225,7 +246,7 @@ function InvestSuccessFlow() {
                 <span className="text-system mt-0.5 font-mono text-xs font-bold">
                   01
                 </span>
-                We&apos;re moving your ARDA now and recording the result on
+                We&apos;re moving your funds now and recording the result on
                 your sponsorship.
               </li>
               <li className="flex items-start gap-2">

@@ -135,6 +135,20 @@ public record TokenBalanceDto
     /// <summary>Base units committed elsewhere and therefore unavailable to move.</summary>
     public long LockedBalance { get; init; }
 
+    /// <summary>
+    /// When this holding's restricted window ends, or null when nothing is dated: either the
+    /// units are already free, or they are held with no release date at all.
+    /// </summary>
+    /// <remarks>
+    /// The portfolio badge used to read "Not available yet" with no date, because this field did
+    /// not exist - while a commit message said it read "Available from &lt;date&gt;". The date is
+    /// real: <c>UnitWindow.Restrict</c> already computes it from the holder's own awards
+    /// (<c>TokenAllocation.workerHoldReleasesAt</c>); it was simply never carried to the wire.
+    /// A held holding with NO date stays "not available yet" - a promise nobody can date is one
+    /// nobody may spend, and inventing a date would be worse than showing none.
+    /// </remarks>
+    public DateTimeOffset? RestrictedUntil { get; init; }
+
     /// <summary>The on-chain asset these units count; null when the row is internal bookkeeping.</summary>
     public string? AssetId { get; init; }
 
