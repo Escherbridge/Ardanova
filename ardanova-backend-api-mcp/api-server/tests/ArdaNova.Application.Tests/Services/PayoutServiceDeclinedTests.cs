@@ -1,5 +1,6 @@
 namespace ArdaNova.Application.Tests.Services;
 
+using System.Linq.Expressions;
 using System.Net;
 using System.Text;
 using ArdaNova.Application.Common.Interfaces;
@@ -143,6 +144,13 @@ public sealed class PayoutServiceDeclinedTests
                 .Returns(Task.CompletedTask);
             _unitOfWork.Setup(unit => unit.SaveChangesAsync(It.IsAny<CancellationToken>()))
                 .ReturnsAsync(1);
+            // The resumable-sale read. Production's Repository.FindAsync is a ToListAsync and so
+            // returns an EMPTY list, never null; an unconfigured mock returns null and would make
+            // the fixture, not the service, decide the outcome. Default it to the real contract.
+            _payoutRepository
+                .Setup(repo => repo.FindAsync(
+                    It.IsAny<Expression<Func<PayoutRequest, bool>>>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(Array.Empty<PayoutRequest>());
 
             _valueEligibility
                 .Setup(gate => gate.RequireReadyAsync(

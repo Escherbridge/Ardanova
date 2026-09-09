@@ -305,6 +305,17 @@ namespace ArdaNova.Application.Services.Implementations
             var priced = assessment.Value.Priced;
             var avatarId = assessment.Value.AvatarId;
 
+            // A retry of a sale that is STILL OPEN resumes it under the row it already has. The
+            // node derives this seller's place in its buy-back queue from the exchange key, and
+            // that key is derived from this row's id, so starting a second row would take a
+            // SECOND place while the abandoned one goes on holding capacity until it expires -
+            // making the next attempt strictly harder rather than easier (OI-44 c). One open sale
+            // of the same units is one place in line. The units are already set aside against
+            // that row, so nothing is locked a second time either.
+            var resumable = await FindResumableSaleAsync(userId, dto, ct);
+            if (resumable is not null)
+                return await SubmitSaleAsync(resumable, config, rate, priced, avatarId, ct);
+
             var lockResult = await _tokenBalanceService.LockAsync(
                 userId, dto.SourceProjectTokenConfigId, dto.SourceTokenAmount, dto.HolderClass, ct);
             if (!lockResult.IsSuccess)
@@ -347,6 +358,25 @@ namespace ArdaNova.Application.Services.Implementations
             await _payoutRepository.AddAsync(payoutRequest, ct);
             await _unitOfWork.SaveChangesAsync(ct);
 
+            return await SubmitSaleAsync(payoutRequest, config, rate, priced, avatarId, ct);
+        }
+
+        /// <summary>Sends one sale to the node under ITS OWN row's key, and applies the answer.</summary>
+        /// <remarks>
+        /// The key is the row's and nothing else's, so submitting the same row twice reaches the
+        /// node as ONE request: a settled exchange replays its receipt, and a sale waiting in the
+        /// node's buy-back queue re-reads the place it already holds instead of taking another.
+        /// That is the whole of "a retry keeps its place", and it only works while the row - and
+        /// therefore the key - is stable across attempts.
+        /// </remarks>
+        private async Task<Result<PayoutRequestDto>> SubmitSaleAsync(
+            PayoutRequest payoutRequest,
+            ProjectTokenConfig config,
+            DeclaredProjectUnitRate rate,
+            PricedSale priced,
+            Guid avatarId,
+            CancellationToken ct)
+        {
             var command = new ArdaNovaExchangeCommand(
                 ChainType: config.assetChain!,
                 IsBuy: false,
@@ -360,10 +390,44 @@ namespace ArdaNova.Application.Services.Implementations
                 Purpose: ExchangePurpose,
                 PreviewOnly: false);
 
-            var receipt = await _exchangeNode.ExchangeAsync(
+            var receipt = await _exchangeNode!.ExchangeAsync(
                 avatarId, command, payoutRequest.ExchangeIdempotencyKey, ct);
 
             return await ApplyExchangeOutcomeAsync(payoutRequest, receipt, ct);
+        }
+
+        /// <summary>
+        /// The open sale this request is a RETRY of, or null when it is a new one. Matched on the
+        /// units being sold rather than on the clock, because a seller who submits the same sale
+        /// again is asking for the place they already hold - never for a second one.
+        /// </summary>
+        /// <remarks>
+        /// A row the node has already answered for is deliberately excluded: its units have left,
+        /// and <see cref="ProcessPayoutAsync"/> is the read that settles it. The oldest match wins,
+        /// because that is the one holding the earliest place in the node's queue.
+        /// </remarks>
+        private async Task<PayoutRequest?> FindResumableSaleAsync(
+            string userId, CreatePayoutRequestDto dto, CancellationToken ct)
+        {
+            var configId = dto.SourceProjectTokenConfigId;
+            var unitAmount = dto.SourceTokenAmount;
+            var holderClass = dto.HolderClass;
+
+            Expression<Func<PayoutRequest, bool>> predicate = pr =>
+                pr.userId == userId
+                && pr.sourceProjectTokenConfigId == configId
+                && pr.sourceTokenAmount == unitAmount
+                && pr.holderClass == holderClass
+                && (pr.status == PayoutStatus.PENDING || pr.status == PayoutStatus.PROCESSING);
+
+            var open = await _payoutRepository.FindAsync(predicate, ct);
+
+            // IsNodeSettled reads a column through a computed property, so the exclusion happens
+            // here rather than in the predicate the database has to translate.
+            return open
+                .Where(candidate => !candidate.IsNodeSettled)
+                .OrderBy(candidate => candidate.requestedAt)
+                .FirstOrDefault();
         }
 
         /// <summary>Chases a sale the node's answer left ambiguous, and settles the row on what it finds.</summary>

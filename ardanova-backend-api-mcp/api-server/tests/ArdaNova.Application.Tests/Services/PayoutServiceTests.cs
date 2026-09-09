@@ -44,6 +44,14 @@ public class PayoutServiceTests
             .Returns(Task.CompletedTask);
         _unitOfWork.Setup(u => u.RollbackTransactionAsync(It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
+        // The resumable-sale read. Production's Repository.FindAsync is a ToListAsync and so
+        // returns an EMPTY list, never null; an unconfigured mock returns null and would make
+        // the fixture, not the service, decide the outcome. Default it to the real contract;
+        // the two tests that care about existing rows override this.
+        _payoutRepo
+            .Setup(repo => repo.FindAsync(
+                It.IsAny<Expression<Func<PayoutRequest, bool>>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<PayoutRequest>());
 
         // Selling runs through the NODE now, and each of these three is a gate the sale must
         // pass. A fixture that omitted them would not exercise the sale path at all - it would
