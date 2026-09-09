@@ -242,7 +242,16 @@ public class CredentialUtilityService : ICredentialUtilityService
         var credential = getResult.Value!;
         AsaInfoDto? asaInfo = null;
         bool chainVerified = false;
-        bool isOnChain = !string.IsNullOrEmpty(credential.AssetId);
+
+        // The identifier alone decides NOTHING here. A credential predating the issuance-node
+        // path carries an assetId written by the removed address-based mint (which minted to
+        // _platformAddress) or fabricated by the simulated provider; reading it as "on record"
+        // and then checking _platformAddress's ownership of it would return true and let the
+        // detail page render "Verified" over a credential that was never issued to anybody.
+        // Same gate as the member-facing screens use, asked HERE so the server never emits the
+        // claim in the first place rather than relying on a client to throw it away.
+        bool isOnChain = credential.IsIndependentlyVerifiable
+            && !string.IsNullOrEmpty(credential.AssetId);
 
         // 2. If credential has an assetId, fetch on-chain data
         if (isOnChain)
@@ -373,7 +382,10 @@ public class CredentialUtilityService : ICredentialUtilityService
                 // vocabulary anywhere a member can see. Renaming the columns is tracked separately.
                 MintTxHash = issued.Value!.IssuanceReference,
                 AssetId = issued.Value!.ProofReference,
-                MetadataUri = issued.Value!.MetadataUri ?? metadataResult.Value
+                MetadataUri = issued.Value!.MetadataUri ?? metadataResult.Value,
+                // The ONLY place this origin is stated, and so the only way a credential comes
+                // to read as independently verifiable. See MembershipCredentialDto.
+                Origin = CredentialProofOrigin.IssuanceNode,
             },
             ct);
 

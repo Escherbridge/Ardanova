@@ -725,7 +725,11 @@ public class MembershipCredentialServiceTests
         // Arrange
         var credentialId = Guid.NewGuid().ToString();
         var credential = CreateTestCredential(id: credentialId);
-        var mintDto = new UpdateMembershipCredentialMintDto { MintTxHash = "tx_mint_abc" };
+        var mintDto = new UpdateMembershipCredentialMintDto
+        {
+            MintTxHash = "tx_mint_abc",
+            Origin = CredentialProofOrigin.IssuanceNode,
+        };
 
         _repositoryMock.Setup(r => r.GetByIdAsync(credentialId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(credential);
@@ -757,7 +761,11 @@ public class MembershipCredentialServiceTests
     {
         // Arrange
         var credentialId = Guid.NewGuid().ToString();
-        var mintDto = new UpdateMembershipCredentialMintDto { MintTxHash = "tx_mint_abc" };
+        var mintDto = new UpdateMembershipCredentialMintDto
+        {
+            MintTxHash = "tx_mint_abc",
+            Origin = CredentialProofOrigin.IssuanceNode,
+        };
 
         _repositoryMock.Setup(r => r.GetByIdAsync(credentialId, It.IsAny<CancellationToken>()))
             .ReturnsAsync((MembershipCredential?)null);
@@ -768,6 +776,71 @@ public class MembershipCredentialServiceTests
         // Assert
         result.IsSuccess.Should().BeFalse();
         result.Type.Should().Be(ResultType.NotFound);
+    }
+
+    // The column the member-facing proof copy is gated on. It is asserted on the ENTITY the
+    // service persisted, not on a mapper double, because the mapper is stubbed in this suite
+    // and a test that read its return value would be asserting a property of its own fixture.
+
+    [Fact]
+    public async Task UpdateMintInfoAsync_stamps_the_issuance_column_only_for_the_node_origin()
+    {
+        var credentialId = Guid.NewGuid().ToString();
+        var credential = CreateTestCredential(id: credentialId);
+        credential.issuedThroughNodeAt = null;
+        var persisted = ArrangeMintInfoWrite(credentialId, credential);
+
+        var result = await _sut.UpdateMintInfoAsync(credentialId, new UpdateMembershipCredentialMintDto
+        {
+            MintTxHash = "issuance-reference-1",
+            AssetId = "proof-reference-1",
+            Origin = CredentialProofOrigin.IssuanceNode,
+        });
+
+        result.IsSuccess.Should().BeTrue();
+        persisted.Single().issuedThroughNodeAt.Should().NotBeNull(
+            "the issuance node is the one path that puts a proof in the member's hands");
+    }
+
+    [Fact]
+    public async Task UpdateMintInfoAsync_clears_the_issuance_column_for_a_platform_held_mint()
+    {
+        // The exact shape the removed address-based mint left behind: a real transaction hash
+        // and a real asset id, for an asset held at the PLATFORM's address. Recording it must
+        // not make the credential read as independently verifiable, and must not leave an
+        // earlier node stamp standing next to identifiers that have since been overwritten.
+        var credentialId = Guid.NewGuid().ToString();
+        var credential = CreateTestCredential(id: credentialId);
+        credential.issuedThroughNodeAt = DateTime.UtcNow.AddDays(-1);
+        var persisted = ArrangeMintInfoWrite(credentialId, credential);
+
+        var result = await _sut.UpdateMintInfoAsync(credentialId, new UpdateMembershipCredentialMintDto
+        {
+            MintTxHash = "PLATFORMHELDTXHASH",
+            AssetId = "1234567",
+            Origin = CredentialProofOrigin.PlatformHeldMint,
+        });
+
+        result.IsSuccess.Should().BeTrue();
+        persisted.Single().issuedThroughNodeAt.Should().BeNull(
+            "an asset in the platform's own hands proves nothing about the member");
+    }
+
+    /// <summary>Captures the entities handed to the repository so the columns can be asserted.</summary>
+    private List<MembershipCredential> ArrangeMintInfoWrite(
+        string credentialId, MembershipCredential credential)
+    {
+        var persisted = new List<MembershipCredential>();
+        _repositoryMock.Setup(r => r.GetByIdAsync(credentialId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(credential);
+        _repositoryMock.Setup(r => r.UpdateAsync(It.IsAny<MembershipCredential>(), It.IsAny<CancellationToken>()))
+            .Callback((MembershipCredential c, CancellationToken _) => persisted.Add(c))
+            .Returns(Task.CompletedTask);
+        _unitOfWorkMock.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(1);
+        _mapperMock.Setup(m => m.Map<MembershipCredentialDto>(It.IsAny<MembershipCredential>()))
+            .Returns((MembershipCredential c) => new MembershipCredentialDto { Id = c.id });
+        return persisted;
     }
 
     // ========================================================================

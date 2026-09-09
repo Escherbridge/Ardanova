@@ -13,6 +13,7 @@ import {
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
+import { asDollarFigure } from "~/lib/commerce/money-figures";
 import { api, type RouterOutputs } from "~/trpc/react";
 
 /** A project's money as the server returns it; mirrors ProjectMoneyView on the .NET side. */
@@ -241,9 +242,9 @@ function MoneyEntryRow({ entry }: { entry: ProjectMoneyEntry }) {
             {entry.unitLabel}
           </span>
         </p>
-        {entry.usdReferenceText && entry.unitLabel !== "USD" ? (
+        {entry.unitLabel !== "USD" && asDollarFigure(entry.usdReferenceText) ? (
           <p className="text-muted-foreground text-xs">
-            about ${entry.usdReferenceText} at the time
+            about {asDollarFigure(entry.usdReferenceText)} at the time
           </p>
         ) : null}
         {entry.isSettled ? null : (
@@ -261,6 +262,11 @@ function MoneyEntryRow({ entry }: { entry: ProjectMoneyEntry }) {
  * answer a non-member gets, and without it an empty entry list reads as "nothing has moved
  * yet" on a project that HAS been sponsored — a false statement to the very person being
  * asked for money.
+ *
+ * The headline is DOLLARS and says so. The server sends it bare ("1250.00"), and this card
+ * sits directly under the balance card, whose figure is followed by a unit label — so an
+ * unmarked number here is two large mono figures side by side, one labelled ARDA and one
+ * labelled nothing, on the screen a sponsor decides from. See ~/lib/commerce/money-figures.
  */
 function SupportSummary({ money }: { money: ProjectMoneyView }) {
   const { summary } = money;
@@ -277,7 +283,11 @@ function SupportSummary({ money }: { money: ProjectMoneyView }) {
         {hasSupport ? (
           <>
             <p className="font-mono text-2xl font-bold">
-              {summary.sponsorshipTotalUsdText}
+              {asDollarFigure(summary.sponsorshipTotalUsdText) ??
+                summary.sponsorshipTotalUsdText}{" "}
+              <span className="text-muted-foreground text-sm font-normal">
+                sponsored
+              </span>
             </p>
             <p className="text-muted-foreground text-xs">
               {formatCount(summary.sponsorCount, "sponsor", "sponsors")}

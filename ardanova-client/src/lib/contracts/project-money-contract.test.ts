@@ -23,7 +23,12 @@ describe("a project's money as it crosses the zod boundary", () => {
     balance: {
       isAvailable: true,
       fundsBaseUnits: 125_000,
-      fundsText: "$1,250.00",
+      // The SERVER's shape. ProjectLedgerService.FormatAmount is ToString("F2",
+      // InvariantCulture), so these figures cross the wire bare -- no symbol, no grouping.
+      // The fixture used to say "$1,250.00", which the server never produces, and the
+      // assertions below were therefore assertions about the fixture. Currency marking is a
+      // presentation concern and is tested in ~/lib/commerce/money-figures.test.ts.
+      fundsText: "1250.00",
       fundsScale: 2,
       fundsUnitLabel: "ARDA",
       observedAt: "2026-09-01T00:00:00Z",
@@ -34,7 +39,7 @@ describe("a project's money as it crosses the zod boundary", () => {
       sponsorCount: 4,
       contributorCount: 2,
       sponsorshipTotalUsdMinorUnits: 125_000,
-      sponsorshipTotalUsdText: "$1,250.00",
+      sponsorshipTotalUsdText: "1250.00",
     },
     entries: [],
     entriesVisible: false,
@@ -47,7 +52,7 @@ describe("a project's money as it crosses the zod boundary", () => {
     const parsed = projectMoneyViewSchema.parse(nonMemberResponse);
 
     expect(parsed.summary.sponsorCount).toBe(4);
-    expect(parsed.summary.sponsorshipTotalUsdText).toBe("$1,250.00");
+    expect(parsed.summary.sponsorshipTotalUsdText).toBe("1250.00");
     expect(parsed.summary.contributorCount).toBe(2);
   });
 
@@ -68,7 +73,7 @@ describe("a project's money as it crosses the zod boundary", () => {
         sponsorCount: 0,
         contributorCount: 0,
         sponsorshipTotalUsdMinorUnits: 0,
-        sponsorshipTotalUsdText: "$0.00",
+        sponsorshipTotalUsdText: "0.00",
       },
       entriesVisible: true,
       entriesHiddenNote: null,

@@ -233,7 +233,9 @@ public class CredentialUtilityServiceTests
             It.IsAny<CancellationToken>()), Times.Once);
         _credentialServiceMock.Verify(s => s.UpdateMintInfoAsync(
             "cred-1",
-            It.Is<UpdateMembershipCredentialMintDto>(d => d.AssetId == "proof-1" && d.MintTxHash == "issuance-1"),
+            It.Is<UpdateMembershipCredentialMintDto>(d =>
+                d.AssetId == "proof-1" && d.MintTxHash == "issuance-1"
+                && d.Origin == CredentialProofOrigin.IssuanceNode),
             It.IsAny<CancellationToken>()), Times.Once);
         _algorandServiceMock.Verify(s => s.MintSoulboundASAAsync(
             It.IsAny<string>(), It.IsAny<CredentialMetadataInput>(), It.IsAny<CancellationToken>()), Times.Never);
@@ -732,7 +734,8 @@ public class CredentialUtilityServiceTests
     {
         // Arrange
         var credentialId = "cred-chain";
-        var credential = CreateCredentialDto(id: credentialId, assetId: "asa-456", status: "ACTIVE");
+        var credential = CreateCredentialDto(
+            id: credentialId, assetId: "asa-456", status: "ACTIVE", isIndependentlyVerifiable: true);
 
         _credentialServiceMock
             .Setup(s => s.GetByIdAsync(credentialId, It.IsAny<CancellationToken>()))
@@ -763,6 +766,41 @@ public class CredentialUtilityServiceTests
         result.Value!.AsaInfo.Should().NotBeNull();
         result.Value!.AsaInfo!.AssetId.Should().Be("asa-456");
         result.Value!.ChainVerified.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task GetCredentialWithChainDataAsync_reports_nothing_for_a_credential_the_node_never_issued()
+    {
+        // The legacy shape: an asset id written by the removed address-based mint, or fabricated
+        // by the simulated provider. The ownership check behind ChainVerified asks whether the
+        // PLATFORM holds the asset, so it answers TRUE for exactly these rows — and the detail
+        // page renders ChainVerified == true as "Verified". The server must not emit the claim.
+        var credentialId = "cred-legacy";
+        var credential = CreateCredentialDto(
+            id: credentialId,
+            assetId: "asa-legacy",
+            mintTxHash: "PLATFORMHELDTXHASH",
+            status: "ACTIVE",
+            isIndependentlyVerifiable: false);
+
+        _credentialServiceMock
+            .Setup(s => s.GetByIdAsync(credentialId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<MembershipCredentialDto>.Success(credential));
+        _algorandServiceMock
+            .Setup(s => s.VerifyOwnershipAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<bool>.Success(true));
+
+        var result = await _sut.GetCredentialWithChainDataAsync(credentialId);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value!.IsOnChain.Should().BeFalse();
+        result.Value!.ChainVerified.Should().BeFalse(
+            "the platform holding an asset proves nothing about the member");
+        result.Value!.AsaInfo.Should().BeNull();
+        _algorandServiceMock.Verify(
+            s => s.VerifyOwnershipAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            Times.Never,
+            "the check is not merely discarded — it is never asked");
     }
 
     // ========================================================================
@@ -941,10 +979,12 @@ public class CredentialUtilityServiceTests
         string? tier = null,
         string? mintTxHash = null,
         string? revokeTxHash = null,
-        string? metadataUri = null)
+        string? metadataUri = null,
+        bool isIndependentlyVerifiable = false)
     {
         return new MembershipCredentialDto
         {
+            IsIndependentlyVerifiable = isIndependentlyVerifiable,
             Id = id ?? Guid.NewGuid().ToString(),
             ProjectId = projectId,
             GuildId = guildId,

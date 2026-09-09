@@ -1655,6 +1655,7 @@ model MembershipCredential {
   grantedByProposalId String?
   metadataUri         String?
   mintTxHash          String?
+  issuedThroughNodeAt DateTime?
   revokeTxHash        String?
   mintedAt            DateTime?
   revokedAt           DateTime?

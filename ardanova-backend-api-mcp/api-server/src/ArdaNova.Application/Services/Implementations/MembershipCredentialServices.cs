@@ -265,6 +265,7 @@ public class MembershipCredentialService : IMembershipCredentialService
                 existing.revokeTxHash = null;
                 existing.assetId = null;
                 existing.mintTxHash = null;
+                existing.issuedThroughNodeAt = null;
                 existing.metadataUri = null;
                 existing.updatedAt = DateTime.UtcNow;
 
@@ -361,6 +362,13 @@ public class MembershipCredentialService : IMembershipCredentialService
         if (dto.AssetId is not null) credential.assetId = dto.AssetId;
         if (dto.MetadataUri is not null) credential.metadataUri = dto.MetadataUri;
         credential.mintedAt = DateTime.UtcNow;
+
+        // The one place issuedThroughNodeAt is written, and the only origin that sets it. Any
+        // other origin CLEARS it: a platform-held mint recording over a node issuance would
+        // otherwise leave the earlier stamp standing while the identifiers next to it changed.
+        credential.issuedThroughNodeAt = dto.Origin == CredentialProofOrigin.IssuanceNode
+            ? DateTime.UtcNow
+            : null;
         credential.updatedAt = DateTime.UtcNow;
 
         await _repository.UpdateAsync(credential, ct);

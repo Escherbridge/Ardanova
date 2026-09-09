@@ -426,11 +426,13 @@ public class MappingProfile : Profile
             .ForMember(dest => dest.RevokeTxHash, opt => opt.MapFrom(src => src.revokeTxHash))
             .ForMember(dest => dest.MintedAt, opt => opt.MapFrom(src => src.mintedAt))
             .ForMember(dest => dest.RevokedAt, opt => opt.MapFrom(src => src.revokedAt))
-            // The issuance-path flag the member-facing screens gate their proof copy on.
-            // mintTxHash, never assetId — see MembershipCredentialDto.IsIndependentlyVerifiable.
+            // The issuance-path flag the member-facing screens gate their proof copy on. Read off
+            // issuedThroughNodeAt, which the node path alone stamps — NEVER off mintTxHash or
+            // assetId, which the removed platform-held mint also wrote and the simulated provider
+            // fabricated. See MembershipCredentialDto.IsIndependentlyVerifiable.
             .ForMember(
                 dest => dest.IsIndependentlyVerifiable,
-                opt => opt.MapFrom(src => !string.IsNullOrWhiteSpace(src.mintTxHash)))
+                opt => opt.MapFrom(src => src.issuedThroughNodeAt != null))
             .ForMember(dest => dest.CreatedAt, opt => opt.MapFrom(src => src.createdAt))
             .ForMember(dest => dest.UpdatedAt, opt => opt.MapFrom(src => src.updatedAt));
 

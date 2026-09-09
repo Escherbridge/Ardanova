@@ -41,6 +41,17 @@ public class MembershipCredential
 
     public string? mintTxHash { get; set; }
 
+    /// <summary>
+    /// When the credential ISSUANCE NODE issued this credential to its holder. Its OWN column,
+    /// not derived from mintTxHash or assetId: both of those were also written by the removed
+    /// address-based mint (which put the asset in the PLATFORM's hands) and fabricated outright
+    /// by the simulated provider, so a row predating the node path carries them and proves
+    /// nothing. Null on every such row, which is the fail-closed reading. Written in exactly one
+    /// place -- MembershipCredentialServices.UpdateMintInfoAsync, and only when the caller states
+    /// CredentialProofOrigin.IssuanceNode.
+    /// </summary>
+    public DateTime? issuedThroughNodeAt { get; set; }
+
     public string? revokeTxHash { get; set; }
 
     public DateTime? mintedAt { get; set; }
