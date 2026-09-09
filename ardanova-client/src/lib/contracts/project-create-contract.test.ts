@@ -1,11 +1,21 @@
+import { readFileSync } from "node:fs";
+
 import { describe, expect, it } from "vitest";
 
 import {
+  ARDA_GENESIS_USD_RATE,
+  ARDA_TICKER,
+  PROJECT_FUNDING_GOAL_MAX_DOLLARS,
+  PROJECT_FUNDING_GOAL_MIN_DOLLARS,
+  PROJECT_FUNDING_UNIT,
+  convertDollarsToPlatformUnits,
   createEmptyProjectFormData,
+  describeFundingGoalInPlatformUnits,
   describeValueActionUnderReview,
   evaluateValueActionAccount,
   isProjectRoleValueBearing,
   isValueActionAccountReady,
+  parseFundingGoalDollars,
   parseProjectCreateDraft,
   serializeProjectCreateDraft,
   toProjectRoleOpportunityInput,
@@ -344,6 +354,91 @@ describe("project creation contract", () => {
         }),
       ),
     ).toBeNull();
+  });
+});
+
+describe("the ask is entered in dollars", () => {
+  const wizardSource = readFileSync(
+    new URL("../../app/projects/create/page.tsx", import.meta.url),
+    "utf8",
+  );
+  const contractSource = readFileSync(
+    new URL("./project-create-contract.ts", import.meta.url),
+    "utf8",
+  );
+
+  it("takes a five-thousand-dollar ask as five thousand, not five hundred thousand", () => {
+    // A founder asking for $5,000 types 5000. What is stored is dollars, which is also the
+    // unit the raise accumulates in, so the ask and the progress against it never need a
+    // conversion. The 500,000 figure now lives only in the caption, derived for them.
+    expect(parseFundingGoalDollars("5000")).toBe(5000);
+    expect(PROJECT_FUNDING_UNIT).toBe("USD");
+    expect(convertDollarsToPlatformUnits(5000, null)).toBe(500_000);
+  });
+
+  it("derives the platform-unit figure exactly at the genesis rate", () => {
+    expect(ARDA_GENESIS_USD_RATE).toBe(0.01);
+    expect(convertDollarsToPlatformUnits(1, null)).toBe(100);
+    expect(convertDollarsToPlatformUnits(5000, 0.02)).toBe(250_000);
+    // No usable rate means no figure, never an invented one.
+    expect(convertDollarsToPlatformUnits(5000, 0)).toBeNull();
+    expect(convertDollarsToPlatformUnits(Number.NaN, null)).toBeNull();
+    expect(describeFundingGoalInPlatformUnits(5000, 0)).toBe("");
+  });
+
+  it("puts the ticker in the caption and says the figure is approximate", () => {
+    const caption = describeFundingGoalInPlatformUnits(5000, null);
+
+    expect(caption).toContain(`500,000 ${ARDA_TICKER}`);
+    expect(caption).toContain("≈");
+    expect(caption).toContain("launch reference rate");
+    expect(describeFundingGoalInPlatformUnits(5000, ARDA_GENESIS_USD_RATE)).toContain(
+      "today's rate",
+    );
+  });
+
+  it("keeps the ticker out of the field a founder types into", () => {
+    // The control, not the claim: the wizard's funding-goal field carries a dollar affix and
+    // the ticker appears nowhere in the wizard at all - it reaches the screen only through
+    // the caption builder below.
+    const fieldStart = wizardSource.indexOf('id="project-funding-goal"');
+    expect(fieldStart).toBeGreaterThan(-1);
+    const field = wizardSource.slice(fieldStart - 900, fieldStart + 900);
+
+    expect(field).toMatch(/>\s*\$\s*</);
+    expect(field).toContain('aria-label="Funding goal in US dollars"');
+    expect(wizardSource).not.toContain(ARDA_TICKER);
+  });
+
+  it("exports the ticker only for the caption that needs it", () => {
+    const declaration = `export const ARDA_TICKER = "${ARDA_TICKER}";`;
+    const captionStart = contractSource.indexOf(
+      "export function describeFundingGoalInPlatformUnits",
+    );
+    expect(captionStart).toBeGreaterThan(-1);
+    const captionBody = contractSource.slice(
+      captionStart,
+      contractSource.indexOf("\n}", captionStart),
+    );
+
+    expect(captionBody).toContain("ARDA_TICKER");
+    expect(
+      contractSource.replace(declaration, "").replace(captionBody, ""),
+    ).not.toContain("ARDA_TICKER");
+  });
+
+  it("refuses an ask that is not a usable dollar amount", () => {
+    expect(parseFundingGoalDollars("  ")).toBeUndefined();
+    expect(parseFundingGoalDollars("$5,000")).toBe(5000);
+    expect(parseFundingGoalDollars(String(PROJECT_FUNDING_GOAL_MIN_DOLLARS))).toBe(
+      PROJECT_FUNDING_GOAL_MIN_DOLLARS,
+    );
+    expect(() => parseFundingGoalDollars("0.50")).toThrow(/at least/);
+    expect(() =>
+      parseFundingGoalDollars(String(PROJECT_FUNDING_GOAL_MAX_DOLLARS + 1)),
+    ).toThrow(/cannot be more than/);
+    expect(() => parseFundingGoalDollars("5000.123")).toThrow(/finer than a cent/);
+    expect(() => parseFundingGoalDollars("not-an-amount")).toThrow(/dollar amount/);
   });
 });
 

@@ -19,7 +19,6 @@ import {
 import { TierProgress } from "~/components/credentials/tier-progress";
 import {
   getCredentialProofPresentation,
-  getCredentialProofReference,
   getTransferabilityLabel,
 } from "~/lib/credentials/credential-proof";
 import {
@@ -87,6 +86,10 @@ export default function CredentialDetailPage() {
   // The SAME report shape the card builds, gated on the SAME issuance flag. This page used
   // to omit isIndependentlyVerifiable, so the translator fell through to identifier presence
   // and read "Verified" on a row the card read as "Verification pending".
+  //
+  // assetId and mintTxHash stay in this report because getCredentialProofPresentation reads
+  // them internally to distinguish "recorded" from "still preparing" — but neither reaches
+  // the screen as text. A credential is a certificate, not a receipt.
   const report = {
     status: credential.status,
     isIndependentlyVerifiable: credential.isIndependentlyVerifiable,
@@ -96,7 +99,6 @@ export default function CredentialDetailPage() {
     chainVerified,
   };
   const proof = getCredentialProofPresentation(report);
-  const reference = getCredentialProofReference(report);
   const ProofIcon = proofPresentation[proof.state].icon;
   const proofTone = proofPresentation[proof.state].tone;
 
@@ -196,21 +198,6 @@ export default function CredentialDetailPage() {
                 </div>
               </div>
             </div>
-
-            {reference ? (
-              <DetailItem label="Reference">
-                <span className="inline-block max-w-full truncate font-mono text-xs">
-                  {reference}
-                </span>
-                <p className="text-muted-foreground mt-1 text-[10px]">
-                  Quote this if someone asks you to prove this credential.
-                </p>
-              </DetailItem>
-            ) : (
-              <p className="text-muted-foreground text-xs">
-                A reference appears here once verification finishes.
-              </p>
-            )}
           </CardContent>
         </Card>
       </div>

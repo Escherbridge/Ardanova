@@ -5,10 +5,7 @@ import { Badge } from "~/components/ui/badge";
 import { CredentialBadge } from "./credential-badge";
 import { BadgeCheck, Clock, PauseCircle, XCircle } from "lucide-react";
 import { cn } from "~/lib/utils";
-import {
-  getCredentialProofPresentation,
-  getCredentialProofReference,
-} from "~/lib/credentials/credential-proof";
+import { getCredentialProofPresentation } from "~/lib/credentials/credential-proof";
 import type { MembershipCredential } from "~/lib/api/ardanova/endpoints/membership-credentials";
 
 /**
@@ -79,15 +76,6 @@ function readVerification(
   return { label, detail, ...proofStyles[state] };
 }
 
-/**
- * The single reference a member can quote to prove this credential, and only when there is
- * something to prove: an un-issued credential has no reference, however many identifiers the
- * record happens to carry. The translator enforces that.
- */
-function proofReference(credential: CredentialWithIssuancePath): string | null {
-  return getCredentialProofReference(toProofReport(credential));
-}
-
 /** The credential as the shared translator reads it. Nothing is filtered on the way in. */
 function toProofReport(credential: CredentialWithIssuancePath) {
   return {
@@ -105,8 +93,9 @@ function formatDate(value?: string | null): string | null {
 }
 
 /**
- * The disclosure behind "View proof". Everything a member needs to show someone
- * else, and nothing that asks them to learn what any of it is made of.
+ * The disclosure behind "View proof": who issued this credential and when. It never carries an
+ * identifier a member could quote — a credential is a certificate, not a receipt, and the only
+ * claim it makes about verifiability is the status line above (see readVerification).
  */
 function ProofDisclosure({
   credential,
@@ -115,7 +104,6 @@ function ProofDisclosure({
   credential: CredentialWithIssuancePath;
   scopeLabel: string;
 }) {
-  const reference = proofReference(credential);
   const issuedOn = formatDate(credential.createdAt);
   const withdrawnOn = formatDate(credential.revokedAt);
 
@@ -146,18 +134,6 @@ function ProofDisclosure({
             <dt>Withdrawn on</dt>
             <dd className="text-foreground text-right">{withdrawnOn}</dd>
           </div>
-        )}
-        {reference ? (
-          <div className="flex items-start justify-between gap-2">
-            <dt>Reference</dt>
-            <dd className="text-foreground max-w-[60%] truncate text-right font-mono">
-              {reference}
-            </dd>
-          </div>
-        ) : (
-          <p className="pt-1">
-            A reference appears here once verification finishes.
-          </p>
         )}
       </dl>
     </details>

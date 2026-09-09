@@ -580,11 +580,21 @@ export function toProjectRoleOpportunityInput(input: {
  * It used to be "ARDA" while the server's raise counted dollars, which made the opening
  * offering price about a hundred times the founder's intent. The server now refuses any
  * other unit by name rather than trusting this constant.
+ *
+ * It is also what the founder TYPES: the wizard's funding-goal field is a dollar field with a
+ * `$` affix, and the unit figure is derived from it as a caption underneath. No one has to do
+ * arithmetic in a platform unit to ask for money.
  */
 export const PROJECT_FUNDING_UNIT = "USD";
 
 /** Dollars carry two decimal places, so a goal cannot be finer than a cent. */
 export const PROJECT_FUNDING_DECIMALS = 2;
+
+/** The smallest ask this platform accepts, in dollars: below a dollar there is nothing to raise. */
+export const PROJECT_FUNDING_GOAL_MIN_DOLLARS = 1;
+
+/** The largest ask this platform accepts, in dollars. */
+export const PROJECT_FUNDING_GOAL_MAX_DOLLARS = 1_000_000_000;
 
 /**
  * The genesis seed: 1 ARDA = $0.01 at launch. The live rate is backing-derived and floats
@@ -592,6 +602,15 @@ export const PROJECT_FUNDING_DECIMALS = 2;
  * when the treasury has not been read yet - never a stored or quoted price.
  */
 export const ARDA_GENESIS_USD_RATE = 0.01;
+
+/**
+ * The ticker a derived caption names its figure in. It exists for CAPTIONS ONLY: nothing a
+ * founder types is denominated in it, nothing this client stores is denominated in it, and
+ * nothing sent to the server is denominated in it - `PROJECT_FUNDING_UNIT` above is the
+ * stored unit and it is dollars. The only consumer in this module is
+ * `describeFundingGoalInPlatformUnits`, which builds the caption under a dollar figure.
+ */
+export const ARDA_TICKER = "ARDA";
 
 /**
  * The live ARDA/USD rate from a treasury status payload, or null when the node has no
@@ -622,47 +641,80 @@ export function formatFundingAmount(amount: number): string {
 }
 
 /**
- * The founder-facing caption under a dollar ask: how many platform units that ask is worth
+ * Dollars to platform units at a given rate, rounded to the unit's own decimal places so a
+ * caption never shows a figure finer than the unit can hold. Returns null when there is no
+ * usable rate or no usable amount, so a caller says nothing rather than inventing a number.
+ *
+ * The direction is fixed and one-way: dollars are the input, units are derived. At the
+ * genesis seed (1 ARDA = $0.01) a $5,000 ask derives 500,000 ARDA - which is the figure a
+ * founder used to have to type, and now never does.
+ */
+export function convertDollarsToPlatformUnits(
+  dollars: number,
+  liveRate: number | null,
+): number | null {
+  if (!Number.isFinite(dollars) || dollars < 0) return null;
+
+  const rate = liveRate ?? ARDA_GENESIS_USD_RATE;
+  if (!Number.isFinite(rate) || rate <= 0) return null;
+
+  const scale = 10 ** PROJECT_FUNDING_DECIMALS;
+  return Math.round((dollars / rate) * scale) / scale;
+}
+
+/**
+ * The founder-facing caption UNDER a dollar ask: how many platform units that ask is worth
  * at the rate this client actually has, said as an approximation and never as a price.
  *
- * The ARGUMENT is dollars. The platform unit is derived FROM it and shown only as a caption -
- * it is never what a person types and never what is stored, because the raise it will be
- * compared against counts dollars.
+ * The ARGUMENT is dollars, and the caption is the only place the ticker appears. A founder
+ * asking for rent money types the dollars; the unit figure is derived for them, is never
+ * what they type, and is never what is stored - the raise it will be compared against counts
+ * dollars (`PROJECT_FUNDING_UNIT`).
  */
 export function describeFundingGoalInPlatformUnits(
   fundingGoalDollars: number,
   liveRate: number | null,
 ): string {
-  const rate = liveRate ?? ARDA_GENESIS_USD_RATE;
-  if (!(rate > 0)) return "";
-  const units = formatFundingAmount(fundingGoalDollars / rate);
+  const units = convertDollarsToPlatformUnits(fundingGoalDollars, liveRate);
+  if (units === null) return "";
+
+  const figure = `${formatFundingAmount(units)} ${ARDA_TICKER}`;
   return liveRate === null
-    ? `about ${units} platform units at the launch reference rate`
-    : `about ${units} platform units at today's rate`;
+    ? `≈ ${figure} at the launch reference rate`
+    : `≈ ${figure} at today's rate`;
 }
 
 /**
- * Validates the typed funding goal, IN DOLLARS. Returns undefined for an empty field - the
- * goal is optional - and throws with sponsor-readable text for anything that is not a usable
- * amount, so a bad value never reaches the create call as NaN.
+ * Validates the typed funding goal, IN DOLLARS - the unit the field is affixed with, the unit
+ * this returns, and the unit the server stores. Returns undefined for an empty field (the goal
+ * is optional) and throws with sponsor-readable text for anything that is not a usable amount,
+ * so a bad value never reaches the create call as NaN.
+ *
+ * A leading `$` and thousands separators are accepted because the field shows a `$` affix and
+ * a founder may well retype it.
  */
 export function parseFundingGoalDollars(value: string): number | undefined {
-  const normalized = value.trim().replace(/,/g, "");
+  const normalized = value.trim().replace(/^\$/, "").replace(/,/g, "").trim();
   if (!normalized) return undefined;
 
   const parsed = Number(normalized);
   if (!Number.isFinite(parsed) || parsed <= 0) {
-    throw new Error("Funding goal must be a positive amount");
+    throw new Error("Funding goal must be a positive dollar amount");
   }
-  if (parsed > 1_000_000_000) {
-    throw new Error("Funding goal is larger than this platform supports");
+  if (parsed < PROJECT_FUNDING_GOAL_MIN_DOLLARS) {
+    throw new Error(
+      `Funding goal must be at least ${formatUsdAmount(PROJECT_FUNDING_GOAL_MIN_DOLLARS)}`,
+    );
+  }
+  if (parsed > PROJECT_FUNDING_GOAL_MAX_DOLLARS) {
+    throw new Error(
+      `Funding goal cannot be more than ${formatUsdAmount(PROJECT_FUNDING_GOAL_MAX_DOLLARS)}`,
+    );
   }
 
   const decimals = normalized.split(".")[1]?.length ?? 0;
   if (decimals > PROJECT_FUNDING_DECIMALS) {
-    throw new Error(
-      `Funding goal cannot be finer than ${PROJECT_FUNDING_DECIMALS} decimal places`,
-    );
+    throw new Error("Funding goal cannot be finer than a cent");
   }
 
   return parsed;

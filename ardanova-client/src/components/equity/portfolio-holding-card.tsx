@@ -66,11 +66,14 @@ export function PortfolioHoldingCard({
                 {holding.holderClass.toLowerCase()}
               </Badge>
             )}
+            {/* TokenBalanceDto carries no per-holding release date (only
+                FundingIntentStatusDto.releaseNotBefore does, per-sponsorship),
+                so this reads "not yet" rather than guessing a date. */}
             <Badge
               variant={holding.isLiquid ? "neon-green" : "outline"}
               size="sm"
             >
-              {holding.isLiquid ? "API: liquid" : "API: time-locked"}
+              {holding.isLiquid ? "Available now" : "Not available yet"}
             </Badge>
           </div>
         </div>
@@ -106,7 +109,7 @@ export function PortfolioHoldingCard({
           <div className="border-border bg-muted/20 flex items-start gap-2 border p-3">
             <Lock className="text-muted-foreground mt-0.5 h-4 w-4 shrink-0" />
             <p className="text-muted-foreground text-xs">
-              The API records {formatInteger(holding.lockedBalance)} units as
+              {formatInteger(holding.lockedBalance)} units are recorded as
               locked. This screen does not infer an unlock date.
             </p>
           </div>
@@ -118,7 +121,7 @@ export function PortfolioHoldingCard({
             rights. Those rights require a separate approved agreement.
           </p>
           <p className="font-mono text-[10px] tracking-wide uppercase">
-            API updated {formatDate(holding.updatedAt)}
+            Updated {formatDate(holding.updatedAt)}
           </p>
         </div>
 

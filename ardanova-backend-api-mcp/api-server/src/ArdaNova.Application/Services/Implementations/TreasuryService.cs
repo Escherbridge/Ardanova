@@ -52,11 +52,15 @@ public static class TreasuryPolicyView
     /// Cents are assigned exactly and the rounding remainder goes to operations, so the three
     /// views always sum back to the observed balance. A negative balance is impossible on a
     /// chain read, so it is reported as unavailable rather than split into negative buckets.
+    /// <para>
+    /// The ACCOUNT the balance was read from never travels with it. No overload here accepts
+    /// an address, so a caller cannot re-attach one: a sponsor is owed the amount, not the
+    /// rail (OI-89). An operator who needs the account reads it from an Operator-policy route.
+    /// </para>
     /// </remarks>
     public static TreasuryStatusDto WithChainBalance(
         TreasuryStatusDto dto,
         long chainBalanceMinorUnits,
-        string? treasuryAddress,
         DateTimeOffset observedAt)
     {
         if (chainBalanceMinorUnits < 0)
@@ -74,7 +78,7 @@ public static class TreasuryPolicyView
             OperationsBalance = Money.FromMinorUnits(operationsMinorUnits),
             IsChainBacked = true,
             ChainBalanceMinorUnits = chainBalanceMinorUnits,
-            TreasuryAddress = treasuryAddress,
+            TreasuryAddress = null,
             BalanceObservedAt = observedAt,
             BalanceUnavailableReason = null,
         };
@@ -86,19 +90,29 @@ public static class TreasuryPolicyView
 /// Every figure here is a READ of the project's treasury account on the node plus the rate
 /// ArdaNova declares. Nothing is a stored balance, and a figure that could not be read is null
 /// with <see cref="UnavailableReason"/> set - never a zero that reads as "no funds".
+/// <para>
+/// Amounts and dates ONLY. There is no address field and no rail fact on this record, because
+/// a sponsor asking what a project would pay for their units must never be handed the node
+/// account it would pay from, nor told which technology moved it (OI-89).
+/// </para>
 /// </remarks>
 /// <param name="TreasuryFundsMinorUnits">
 /// What the project's treasury holds of the platform unit, in minor units. ARDA carries two
 /// decimals, so its base units and its minor units are the same number.
 /// </param>
 /// <param name="MaxWholeUnitsFillableNow">Whole project units those funds could buy back at the declared rate.</param>
+/// <param name="TreasuryFundsVisible">
+/// Whether this reader is being shown the project's treasury position at all. False for a
+/// non-member, whose answer is the declared terms and nothing read from the treasury.
+/// </param>
+/// <param name="FundsHiddenNote">Why the funds line is missing, when it is. Null when the reader may see it.</param>
 /// <param name="Disclosure">The sentence a seller is shown before they commit. Plain words, no market terms.</param>
 public sealed record ProjectBuyBackFigures(
     string ProjectId,
-    string? TreasuryAddress,
-    bool IsChainBacked,
     long? TreasuryFundsMinorUnits,
     DateTimeOffset? ObservedAt,
+    bool TreasuryFundsVisible,
+    string? FundsHiddenNote,
     string? ArdaPerWholeProjectUnit,
     string? UsdMajorUnitsPerWholeProjectUnit,
     int ProjectUnitDecimals,
@@ -123,6 +137,24 @@ public static class BuyBackDisclosures
     /// <summary>Stamped when the platform unit has not been configured.</summary>
     public const string NoPlatformUnit =
         "This platform has no funds unit configured, so no buy-back figure can be quoted.";
+
+    /// <summary>Why a non-member is quoted the terms without the project's own funds line.</summary>
+    public const string FundsHiddenFromNonMembers =
+        "What this project currently holds is shown to the people working on it. The price "
+        + "and the promise above are the terms anyone is offered.";
+
+    /// <summary>Stamped for a non-member when no price is declared. Carries no internal detail.</summary>
+    public const string NoDeclaredPrice =
+        "This project has not declared a price for its units yet.";
+
+    /// <summary>
+    /// Stamped when the ports that decide who is asking are not wired, so the audience cannot
+    /// be established. The read REFUSES rather than falling through to the wider answer.
+    /// </summary>
+    public const string ScopeUndecidable =
+        "Buy-back figures cannot be answered on this deployment: the project-membership check "
+        + "they are scoped by is not wired, and an unscoped answer would publish one project's "
+        + "position to anyone signed in.";
 }
 
 /// <summary>
@@ -140,7 +172,15 @@ public interface IProjectBuyBackReadModel
     Task<Result<TreasuryStatusDto>> GetProjectStatusAsync(string projectId, CancellationToken ct = default);
 
     /// <summary>The declared figures the node's buy-back policy is asked to honour for one project.</summary>
-    Task<Result<ProjectBuyBackFigures>> GetBuyBackFiguresAsync(string projectId, CancellationToken ct = default);
+    /// <remarks>
+    /// <paramref name="viewer"/> is REQUIRED by the signature, not optional, so no caller can
+    /// reach these figures without naming who is asking. Membership branches the payload the
+    /// way the money page does; a project this viewer may not see answers NotFound.
+    /// </remarks>
+    Task<Result<ProjectBuyBackFigures>> GetBuyBackFiguresAsync(
+        string projectId,
+        ProjectViewer viewer,
+        CancellationToken ct = default);
 }
 
 /// <summary>
@@ -167,12 +207,20 @@ public class TreasuryService : ITreasuryService, IProjectBuyBackReadModel
     private readonly IAzoaProjectTreasuryReadModel? _projectTreasuryReadModel;
     private readonly IRepository<ProjectTokenConfig>? _projectTokenConfigRepository;
     private readonly IProjectUnitRateSource? _projectUnitRateSource;
+    private readonly IProjectVisibility? _projectVisibility;
+    private readonly IHierarchyAuthorizationService? _hierarchyAuthorization;
 
     /// <param name="projectTreasuryReadModel">
     /// The node read-model. Optional in the constructor only so the type still constructs
     /// without a container; when it is absent every balance-of-record read REFUSES rather than
     /// falling back to a database number.
     /// </param>
+    /// <param name="projectVisibility">
+    /// The one definition of which projects a viewer may see. Optional for the same reason as
+    /// the read-model above, and resolved the same way: absent means the project-scoped
+    /// buy-back read REFUSES, because an unscoped answer is the wider one.
+    /// </param>
+    /// <param name="hierarchyAuthorization">Decides membership, which branches the buy-back payload.</param>
     public TreasuryService(
         IRepository<PlatformTreasury> treasuryRepository,
         IRepository<PlatformTreasuryTransaction> transactionRepository,
@@ -180,7 +228,9 @@ public class TreasuryService : ITreasuryService, IProjectBuyBackReadModel
         IMapper mapper,
         IAzoaProjectTreasuryReadModel? projectTreasuryReadModel = null,
         IRepository<ProjectTokenConfig>? projectTokenConfigRepository = null,
-        IProjectUnitRateSource? projectUnitRateSource = null)
+        IProjectUnitRateSource? projectUnitRateSource = null,
+        IProjectVisibility? projectVisibility = null,
+        IHierarchyAuthorizationService? hierarchyAuthorization = null)
     {
         _treasuryRepository = treasuryRepository;
         _transactionRepository = transactionRepository;
@@ -189,6 +239,8 @@ public class TreasuryService : ITreasuryService, IProjectBuyBackReadModel
         _projectTreasuryReadModel = projectTreasuryReadModel;
         _projectTokenConfigRepository = projectTokenConfigRepository;
         _projectUnitRateSource = projectUnitRateSource;
+        _projectVisibility = projectVisibility;
+        _hierarchyAuthorization = hierarchyAuthorization;
     }
 
     public async Task<Result<bool>> ProcessFundingInflowAsync(
@@ -601,16 +653,43 @@ public class TreasuryService : ITreasuryService, IProjectBuyBackReadModel
             TreasuryPolicyView.WithChainBalance(
                 dto,
                 projectRead.Balance.BalanceBaseUnits,
-                projectRead.Balance.Address ?? projectRead.Config.treasuryAddress,
                 projectRead.Balance.ObservedAt));
     }
 
     /// <inheritdoc />
     public async Task<Result<ProjectBuyBackFigures>> GetBuyBackFiguresAsync(
-        string projectId, CancellationToken ct = default)
+        string projectId, ProjectViewer viewer, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(projectId))
             return Result<ProjectBuyBackFigures>.ValidationError("A project id is required.");
+
+        if (string.IsNullOrWhiteSpace(viewer.UserId) && !viewer.IsAdmin)
+            return Result<ProjectBuyBackFigures>.Unauthorized("A verified signed-in person is required.");
+
+        // Fail CLOSED when the ports that decide the audience are absent: without them this
+        // method cannot tell a member from a stranger, and the wider answer is the wrong guess.
+        if (_projectVisibility is null || _hierarchyAuthorization is null)
+            return Result<ProjectBuyBackFigures>.Forbidden(BuyBackDisclosures.ScopeUndecidable);
+
+        // The project's own visibility rule decides whether this reader may know it exists -
+        // the same ProjectQueryFilters.VisibleTo every project route answers through, so a
+        // DRAFT's terms are as private as the draft. NotFound rather than Forbidden, because
+        // confirming the project exists is itself the leak.
+        var visible = await _projectVisibility.GetVisibleByIdAsync(viewer, projectId, ct);
+        if (!visible.IsSuccess)
+        {
+            return Result<ProjectBuyBackFigures>.NotFound(
+                visible.Error ?? $"Project with id {projectId} not found");
+        }
+
+        var isMember = viewer.IsAdmin
+            || await _hierarchyAuthorization.IsProjectMemberAsync(viewer.UserId!, projectId, ct);
+
+        // Membership branches the PAYLOAD - the rule the money page established. A non-member's
+        // answer is built WITHOUT reading the treasury at all, so this project's funds and its
+        // fill capacity are absent from the returned object rather than blanked inside it.
+        if (!isMember)
+            return await GetPublishedTermsAsync(projectId, ct);
 
         var treasury = await GetOrCreateTreasuryAsync(ct);
 
@@ -628,8 +707,6 @@ public class TreasuryService : ITreasuryService, IProjectBuyBackReadModel
                 Unavailable(projectId, "No rate source is wired, so no buy-back price can be quoted.")
                 with
                 {
-                    TreasuryAddress = balance.Address ?? config.treasuryAddress,
-                    IsChainBacked = true,
                     TreasuryFundsMinorUnits = balance.BalanceBaseUnits,
                     ObservedAt = balance.ObservedAt,
                 });
@@ -639,11 +716,9 @@ public class TreasuryService : ITreasuryService, IProjectBuyBackReadModel
         if (!rate.IsSuccess || rate.Value is null)
         {
             return Result<ProjectBuyBackFigures>.Success(
-                Unavailable(projectId, rate.Error ?? "This project has no declared price yet.")
+                Unavailable(projectId, rate.Error ?? BuyBackDisclosures.NoDeclaredPrice)
                 with
                 {
-                    TreasuryAddress = balance.Address ?? config.treasuryAddress,
-                    IsChainBacked = true,
                     TreasuryFundsMinorUnits = balance.BalanceBaseUnits,
                     ObservedAt = balance.ObservedAt,
                 });
@@ -654,10 +729,10 @@ public class TreasuryService : ITreasuryService, IProjectBuyBackReadModel
 
         return Result<ProjectBuyBackFigures>.Success(new ProjectBuyBackFigures(
             ProjectId: projectId,
-            TreasuryAddress: balance.Address ?? config.treasuryAddress,
-            IsChainBacked: true,
             TreasuryFundsMinorUnits: balance.BalanceBaseUnits,
             ObservedAt: balance.ObservedAt,
+            TreasuryFundsVisible: true,
+            FundsHiddenNote: null,
             ArdaPerWholeProjectUnit: declared.ArdaPerWholeProjectUnit,
             UsdMajorUnitsPerWholeProjectUnit: declared.UsdMajorUnitsPerWholeProjectUnit,
             ProjectUnitDecimals: declared.ProjectUnitDecimals,
@@ -668,14 +743,47 @@ public class TreasuryService : ITreasuryService, IProjectBuyBackReadModel
             UnavailableReason: null));
     }
 
+    /// <summary>A non-member's answer: the declared terms and the promise, with no treasury read.</summary>
+    /// <remarks>
+    /// This path never calls <see cref="ReadProjectTreasuryAsync"/>. Nothing about the project's
+    /// position is fetched, so nothing about it can be returned - the withholding is the absence
+    /// of the read, not a field set to null after one.
+    /// </remarks>
+    private async Task<Result<ProjectBuyBackFigures>> GetPublishedTermsAsync(
+        string projectId, CancellationToken ct)
+    {
+        if (_projectTokenConfigRepository is null)
+            return Result<ProjectBuyBackFigures>.Success(PublishedTerms(projectId, null, BuyBackDisclosures.NoDeclaredPrice));
+
+        var config = await _projectTokenConfigRepository.FindOneAsync(row => row.projectId == projectId, ct);
+        if (config is null)
+        {
+            return Result<ProjectBuyBackFigures>.NotFound(
+                $"No project token configuration exists for project {projectId}.");
+        }
+
+        if (_projectUnitRateSource is null)
+            return Result<ProjectBuyBackFigures>.Success(PublishedTerms(projectId, null, BuyBackDisclosures.NoDeclaredPrice));
+
+        var rate = await _projectUnitRateSource.GetDeclaredRateAsync(config.id, ct);
+
+        // The rate source's own failure text is NOT relayed to a non-member: it can name
+        // configuration this reader has no business learning. They get the plain sentence.
+        return Result<ProjectBuyBackFigures>.Success(
+            rate.IsSuccess && rate.Value is not null
+                ? PublishedTerms(projectId, rate.Value, null)
+                : PublishedTerms(projectId, null, BuyBackDisclosures.NoDeclaredPrice));
+    }
+
     /// <summary>Figures with nothing read, and the reason in the open. Never zeroes standing in for a read.</summary>
+    /// <remarks>The reader was entitled to the funds line; the read is what failed, so it says so.</remarks>
     private static ProjectBuyBackFigures Unavailable(string projectId, string? reason) =>
         new(
             ProjectId: projectId,
-            TreasuryAddress: null,
-            IsChainBacked: false,
             TreasuryFundsMinorUnits: null,
             ObservedAt: null,
+            TreasuryFundsVisible: true,
+            FundsHiddenNote: null,
             ArdaPerWholeProjectUnit: null,
             UsdMajorUnitsPerWholeProjectUnit: null,
             ProjectUnitDecimals: 0,
@@ -684,6 +792,24 @@ public class TreasuryService : ITreasuryService, IProjectBuyBackReadModel
             RateDeclaredAt: null,
             Disclosure: BuyBackDisclosures.FilledFromProjectFunds,
             UnavailableReason: reason ?? TreasuryPolicyView.NoChainReadConfigured);
+
+    /// <summary>The published terms, with the funds line withheld and the reason for that said.</summary>
+    private static ProjectBuyBackFigures PublishedTerms(
+        string projectId, DeclaredProjectUnitRate? declared, string? unavailableReason) =>
+        new(
+            ProjectId: projectId,
+            TreasuryFundsMinorUnits: null,
+            ObservedAt: null,
+            TreasuryFundsVisible: false,
+            FundsHiddenNote: BuyBackDisclosures.FundsHiddenFromNonMembers,
+            ArdaPerWholeProjectUnit: declared?.ArdaPerWholeProjectUnit,
+            UsdMajorUnitsPerWholeProjectUnit: declared?.UsdMajorUnitsPerWholeProjectUnit,
+            ProjectUnitDecimals: declared?.ProjectUnitDecimals ?? 0,
+            MaxWholeUnitsFillableNow: null,
+            RateSource: declared?.Source,
+            RateDeclaredAt: declared?.DeclaredAt,
+            Disclosure: BuyBackDisclosures.FilledFromProjectFunds,
+            UnavailableReason: unavailableReason);
 
     /// <summary>
     /// Whole project units the observed funds could buy back at the declared price, rounded

@@ -289,7 +289,7 @@ function AwardWindowNotice({
       </p>
       <p className="text-muted-foreground mt-1 text-sm">
         {readableDate
-          ? "It is held until then so you are not taxed on it before you can actually realise it. Nobody can take it back in the meantime."
+          ? `It is set aside until ${readableDate} as part of the agreed terms. Nobody can take it back in the meantime.`
           : "The award is set aside for you now. Once the project owner approves your completed work, you will see the date from which you can move it."}
       </p>
     </div>

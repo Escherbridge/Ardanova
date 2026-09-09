@@ -6,7 +6,7 @@ import Link from "next/link";
 import { api } from "~/trpc/react";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent } from "~/components/ui/card";
-import { AlertCircle, ArrowLeft, CheckCircle2, Clock3, Lock, Wallet } from "lucide-react";
+import { AlertCircle, ArrowLeft, Briefcase, CheckCircle2, Clock3, Lock } from "lucide-react";
 import {
   describeFundingError,
   getFundingIntentPresentation,
@@ -209,7 +209,7 @@ function InvestSuccessFlow() {
               )}
               <p className="text-muted-foreground text-xs">
                 This is what you saw at checkout, not a confirmed figure. Your
-                portfolio reflects what the node actually recorded.
+                portfolio reflects what was actually recorded.
               </p>
             </CardContent>
           </Card>
@@ -225,8 +225,8 @@ function InvestSuccessFlow() {
                 <span className="text-system mt-0.5 font-mono text-xs font-bold">
                   01
                 </span>
-                The server asks the node to move your ARDA and records the
-                result on your sponsorship.
+                We&apos;re moving your ARDA now and recording the result on
+                your sponsorship.
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-system mt-0.5 font-mono text-xs font-bold">
@@ -262,7 +262,7 @@ function InvestSuccessFlow() {
             className="h-12 w-full font-mono font-bold"
           >
             <Link href="/portfolio">
-              <Wallet className="mr-2 size-4" />
+              <Briefcase className="mr-2 size-4" />
               VIEW MY PORTFOLIO
             </Link>
           </Button>

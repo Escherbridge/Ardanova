@@ -572,7 +572,7 @@ export default function InvestPage() {
                   Your share of this project
                 </p>
                 <h2 className="mt-2 text-xl font-bold">
-                  What the API can preview
+                  What this could get you
                 </h2>
               </div>
 
@@ -705,9 +705,9 @@ export default function InvestPage() {
 
               <p className="text-muted-foreground text-xs leading-relaxed">
                 Pressing Support creates an actor-owned, idempotent
-                sponsorship and asks the node to move exactly the amounts
-                above. Nothing here confirms settlement — the next screen
-                reads your actual sponsorship record.
+                sponsorship and starts moving exactly the amounts above.
+                Nothing here confirms settlement — the next screen reads your
+                actual sponsorship record.
               </p>
             </CardContent>
           </Card>
@@ -820,14 +820,14 @@ export default function InvestPage() {
                 </p>
                 <h2 id="checkout-heading" className="mt-2 text-2xl font-bold">
                   {checkout.isPending
-                    ? "Asking the node to move your ARDA"
+                    ? "Moving your ARDA now"
                     : checkout.error
                       ? "Sponsorship unavailable"
                       : "Redirecting…"}
                 </h2>
                 <p className="text-muted-foreground mt-2 text-sm leading-relaxed">
                   {checkout.isPending
-                    ? "The server locked your terms and is asking the node to complete the exchange. No stake is confirmed yet."
+                    ? "Your terms are locked in and the exchange is being completed now. No stake is confirmed yet."
                     : checkout.error
                       ? describeFundingError(checkout.error)
                       : "Your sponsorship was accepted. Taking you to its status now."}

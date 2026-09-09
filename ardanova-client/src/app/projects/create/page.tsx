@@ -23,7 +23,7 @@ import {
   TriangleAlert,
   ImagePlus,
   Paperclip,
-  Wallet,
+  HandCoins,
 } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
@@ -1930,7 +1930,7 @@ export default function CreateProjectPage() {
               <Card className="bg-card border-border">
                 <CardHeader className="pb-3">
                   <CardTitle className="flex items-center gap-2 text-lg">
-                    <Wallet className="text-system size-5" />
+                    <HandCoins className="text-system size-5" />
                     The ask
                   </CardTitle>
                   <p className="text-muted-foreground mt-1 text-sm">
@@ -1943,14 +1943,29 @@ export default function CreateProjectPage() {
                     htmlFor="project-funding-goal"
                     className="mb-2 block text-sm font-medium"
                   >
-                    Funding goal
+                    Funding goal, in dollars
                   </label>
-                  <div className="flex items-stretch gap-2">
+                  {/* Dollars are the input; the platform-unit figure is the caption below. */}
+                  <div
+                    className={cn(
+                      "bg-muted/50 focus-within:ring-ring/50 flex items-stretch rounded-lg border-2 focus-within:ring-2",
+                      errors.fundingGoal
+                        ? "border-destructive"
+                        : "border-border",
+                    )}
+                  >
+                    <span
+                      aria-hidden="true"
+                      className="text-muted-foreground flex items-center pl-4 text-lg"
+                    >
+                      $
+                    </span>
                     <input
                       type="text"
                       inputMode="decimal"
                       id="project-funding-goal"
                       aria-invalid={Boolean(errors.fundingGoal)}
+                      aria-label="Funding goal in US dollars"
                       aria-describedby={
                         errors.fundingGoal
                           ? "project-funding-goal-error"
@@ -1960,17 +1975,9 @@ export default function CreateProjectPage() {
                       onChange={(e) =>
                         handleChange("fundingGoal", e.target.value)
                       }
-                      placeholder="0.00"
-                      className={cn(
-                        "bg-muted/50 focus-visible:ring-ring/50 flex-1 rounded-lg border-2 px-4 py-3 focus:ring-2 focus:outline-none",
-                        errors.fundingGoal
-                          ? "border-destructive"
-                          : "border-border",
-                      )}
+                      placeholder="5,000.00"
+                      className="flex-1 rounded-lg bg-transparent px-2 py-3 focus:outline-none"
                     />
-                    <span className="border-border bg-muted/30 text-muted-foreground flex items-center rounded-lg border-2 px-4 font-mono text-sm">
-                      USD
-                    </span>
                   </div>
                   {errors.fundingGoal ? (
                     <p
@@ -1989,6 +1996,12 @@ export default function CreateProjectPage() {
                       {fundingGoalDollars === undefined
                         ? "Enter the amount you are asking for, in dollars."
                         : `Sponsors see ${formatUsdAmount(fundingGoalDollars)} — ${describeFundingGoalInPlatformUnits(fundingGoalDollars, ardaUsdRate)}.`}
+                    </p>
+                  )}
+                  {fundingGoalDollars !== undefined && (
+                    <p className="text-muted-foreground text-xs">
+                      You only ever enter dollars. The figure above is worked out
+                      for you and moves with the rate.
                     </p>
                   )}
                 </CardContent>
@@ -3092,7 +3105,7 @@ export default function CreateProjectPage() {
               <Card className="bg-card border-border">
                 <CardHeader className="pb-3">
                   <CardTitle className="flex items-center gap-2 text-lg">
-                    <Wallet className="text-system size-5" />
+                    <HandCoins className="text-system size-5" />
                     Stake in this project
                   </CardTitle>
                   <p className="text-muted-foreground mt-1 text-sm">
@@ -3421,7 +3434,9 @@ export default function CreateProjectPage() {
                         Funding goal
                       </p>
                       <p className="mt-1 text-sm">
-                        {formatUsdAmount(fundingGoalDollars)} -{" "}
+                        {formatUsdAmount(fundingGoalDollars)}
+                      </p>
+                      <p className="text-muted-foreground mt-0.5 text-xs">
                         {describeFundingGoalInPlatformUnits(
                           fundingGoalDollars,
                           ardaUsdRate,

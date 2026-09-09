@@ -1,0 +1,31 @@
+{
+  "_readme": "Committed exceptions for vocabulary.test.ts. Every entry needs a non-empty `reason` or the loader test fails. `paths` exempts a whole subtree (glob, `**` = any depth, `*` = one segment); `strings` exempts one chain-word `id` in one `file` (optionally narrowed to a `pathPrefix` instead of an exact file, and/or to hits whose copy contains `text`).",
+  "paths": [
+    {
+      "pattern": "src/app/admin/**",
+      "reason": "Operator console: src/app/admin/layout.tsx redirects any session whose role is not ADMIN before a page under it renders."
+    }
+  ],
+  "strings": [
+    {
+      "word": "node",
+      "file": "src/app/settings/verification/page.tsx",
+      "reason": "'node' names the configured Azoa deployment instance ('this Azoa node is explicitly offering...') -- federation terminology, not a blockchain node."
+    },
+    {
+      "word": "node",
+      "file": "src/app/opportunities/page.tsx",
+      "reason": "'Node.js' is the JavaScript runtime, listed as an example programming skill -- not a blockchain or federation node."
+    },
+    {
+      "word": "node",
+      "file": "src/components/opportunity-form.tsx",
+      "reason": "'Node.js' is the JavaScript runtime, offered as example skill-input text ('e.g., React, TypeScript, Node.js') -- not a blockchain or federation node."
+    },
+    {
+      "word": "custody",
+      "file": "src/app/settings/payouts/page.tsx",
+      "reason": "The sentence disclaims custody ('ArdaNova does not collect bank details, custody a payout account...') -- it states the platform does not perform the practice, it does not offer or describe one."
+    }
+  ]
+}

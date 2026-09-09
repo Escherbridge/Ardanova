@@ -7,6 +7,7 @@ import { useSession } from "next-auth/react";
 import {
   ArrowUpRight,
   Banknote,
+  Briefcase,
   CircleDollarSign,
   Coins,
   Layers3,
@@ -14,7 +15,6 @@ import {
   Lock,
   PauseCircle,
   Plus,
-  Wallet,
 } from "lucide-react";
 import type { PayoutStatus } from "~/lib/api/ardanova/endpoints/payouts";
 import { buildSignInHref } from "~/lib/auth-navigation";
@@ -49,11 +49,6 @@ function formatDate(value: string): string {
     day: "numeric",
     year: "numeric",
   }).format(new Date(value));
-}
-
-function shortenReference(value: string | null): string {
-  if (!value) return "Platform balance";
-  return value.length > 18 ? `${value.slice(0, 8)}…${value.slice(-6)}` : value;
 }
 
 const statusBadgeVariant = {
@@ -130,7 +125,7 @@ export default function PortfolioPage() {
               Recorded positions
             </p>
             <h1 className="text-foreground mt-2 flex items-center gap-3 text-4xl font-black tracking-tight uppercase">
-              <Wallet className="h-8 w-8" />
+              <Briefcase className="h-8 w-8" />
               Portfolio
             </h1>
             <p className="text-muted-foreground mt-3 max-w-2xl text-sm">
@@ -169,7 +164,7 @@ export default function PortfolioPage() {
           <div className="flex items-end justify-between gap-3">
             <div>
               <p className="text-muted-foreground font-mono text-[10px] tracking-[0.2em] uppercase">
-                Backend record
+                Platform record
               </p>
               <h2
                 id="portfolio-summary-heading"
@@ -207,7 +202,7 @@ export default function PortfolioPage() {
                     : formatUsd(portfolio?.totalPortfolioValueUsd ?? 0)
                 }
                 icon={<CircleDollarSign className="h-4 w-4" />}
-                detail="Portfolio-level API field; not calculated from individual cards."
+                detail="The platform's total figure; not a sum of the cards below."
               />
               <SummaryCard
                 label="Recorded liquid USD"
@@ -216,8 +211,8 @@ export default function PortfolioPage() {
                     ? "—"
                     : formatUsd(portfolio?.totalLiquidValueUsd ?? 0)
                 }
-                icon={<Wallet className="h-4 w-4" />}
-                detail="Value currently marked liquid by the portfolio endpoint."
+                icon={<Banknote className="h-4 w-4" />}
+                detail="Value currently marked as available to use."
               />
               <SummaryCard
                 label="Recorded locked USD"
@@ -227,7 +222,7 @@ export default function PortfolioPage() {
                     : formatUsd(portfolio?.totalLockedValueUsd ?? 0)
                 }
                 icon={<Lock className="h-4 w-4" />}
-                detail="Value currently marked locked by the portfolio endpoint."
+                detail="Value currently marked as locked."
               />
             </div>
           )}
@@ -343,10 +338,10 @@ export default function PortfolioPage() {
                 detail={`${payoutSummary.pendingCount} pending record${payoutSummary.pendingCount === 1 ? "" : "s"}; this is not confirmed settlement.`}
               />
               <SummaryCard
-                label="API completed-record USD"
+                label="Completed-record USD"
                 value={formatUsd(payoutSummary.completedRecordUsd)}
                 icon={<CircleDollarSign className="h-4 w-4" />}
-                detail="The current API has no durable reconciliation field, so this is not labeled reconciled."
+                detail="There is no durable reconciliation status yet, so this is not labeled reconciled."
               />
             </div>
           )}
@@ -375,16 +370,15 @@ export default function PortfolioPage() {
             <div className="border-border overflow-x-auto border-2">
               <table className="w-full min-w-[46rem] border-collapse">
                 <caption className="sr-only">
-                  Payout requests returned by the API and their recorded status
+                  Payout requests and their recorded status
                 </caption>
                 <thead className="border-border bg-muted/30 border-b">
                   <tr>
                     {[
                       "Requested",
-                      "Source configuration",
-                      "Tokens",
+                      "Stake",
                       "Recorded USD",
-                      "API status",
+                      "Status",
                     ].map((column) => (
                       <th
                         key={column}
@@ -404,12 +398,6 @@ export default function PortfolioPage() {
                     >
                       <td className="text-muted-foreground px-4 py-3 font-mono text-xs">
                         {formatDate(payout.requestedAt)}
-                      </td>
-                      <td
-                        className="max-w-56 truncate px-4 py-3 font-mono text-xs"
-                        title={payout.sourceProjectTokenConfigId ?? undefined}
-                      >
-                        {shortenReference(payout.sourceProjectTokenConfigId)}
                       </td>
                       <td className="px-4 py-3 font-mono text-xs">
                         {formatInteger(payout.sourceTokenAmount)}

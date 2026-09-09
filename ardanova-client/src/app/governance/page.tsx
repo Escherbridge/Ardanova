@@ -177,19 +177,22 @@ const statusVariants: Record<
 };
 
 /**
- * What a sponsor reads for each proposal type. The ids are wire values the router maps to the
- * API enum ("Token" -> SHARES), so they must not change; only the words on screen do. A sponsor
- * funds project units, and is never asked to know what a token is.
+ * What a sponsor reads for a proposal's actual type, keyed on the value the API serialises
+ * (ArdaNova.Domain.Models.Enums.ProposalType, e.g. "SHARES") — never on the browse page's own
+ * filter vocabulary below, which speaks its own separate ids. A sponsor funds project units,
+ * and is never asked to know what a token is.
  */
 const proposalTypeLabels: Record<string, string> = {
-  Token: "Project units",
+  SHARES: "Project units",
 };
 
 function proposalTypeLabel(type: string): string {
   return proposalTypeLabels[type] ?? type;
 }
 
-// Filter options
+// Filter options. Ids are this page's own filter vocabulary, translated to the API enum
+// server-side (see governance.ts's proposalTypeFilterToName) — independent of the label map
+// above, which speaks the API enum directly.
 const proposalTypeFilters = [
   { id: "all", label: "All Types" },
   { id: "Treasury", label: "Treasury" },
@@ -198,8 +201,12 @@ const proposalTypeFilters = [
   { id: "Operational", label: "Operational" },
   { id: "Emergency", label: "Emergency" },
   { id: "Constitutional", label: "Constitutional" },
-  { id: "Token", label: proposalTypeLabel("Token") },
+  { id: "Token", label: "Project units" },
 ];
+
+function proposalTypeFilterLabel(filterId: string): string {
+  return proposalTypeFilters.find((f) => f.id === filterId)?.label ?? filterId;
+}
 
 const proposalStatusFilters = [
   { id: "all", label: "All Statuses" },
@@ -485,7 +492,7 @@ export default function GovernancePage() {
                     size="sm"
                     className="cursor-pointer hover:opacity-80"
                   >
-                    {proposalTypeLabel(type)}
+                    {proposalTypeFilterLabel(type)}
                   </Badge>
                 </button>
               ))}
@@ -945,7 +952,7 @@ export default function GovernancePage() {
                       <Users className="size-4" />
                       <span>
                         {proposal.totalVotes} votes ·{" "}
-                        {proposal.totalVotingPower} total voting power
+                        {proposal.totalVotingPower} members can vote
                       </span>
                     </div>
                     <div className="flex items-center gap-1">
