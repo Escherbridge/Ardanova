@@ -41,6 +41,9 @@ public class ExchangeServiceTests
             id = projectTokenConfigId,
             fundingRaised = 10000.0,
             totalSupply = 1000,
+            // The ask is priced over the stake ON OFFER, so a fixture that sells its whole
+            // supply to sponsors is the one whose arithmetic is raised / totalSupply.
+            investorPartitionSupply = 1000,
             gateStatus = ProjectGateStatus.ACTIVE
         };
 
@@ -196,6 +199,9 @@ public class ExchangeServiceTests
             id = projectTokenConfigId,
             fundingRaised = 10000.0,
             totalSupply = 1000,
+            // The ask is priced over the stake ON OFFER, so a fixture that sells its whole
+            // supply to sponsors is the one whose arithmetic is raised / totalSupply.
+            investorPartitionSupply = 1000,
             gateStatus = ProjectGateStatus.ACTIVE
         };
 
@@ -503,8 +509,101 @@ public class ExchangeServiceTests
         result.Value.Source.Should().Be(ExchangeService.DeclaredRateSource);
     }
 
-    /// <summary>A project whose price is whatever these three figures make it.</summary>
-    private void ArrangeProject(double fundingRaised, double fundingGoal, int totalSupply)
+    // -- The ask is priced over the stake that is FOR SALE, so the raise can actually finish --
+
+    [Fact]
+    public async Task GetProjectTokenValueAsync_ProjectReservesStakeForWorkers_PricesTheAskOverTheSponsorStakeOnly()
+    {
+        // The funding wizard's own defaults: 1,000 units of stake, 600 offered to sponsors, 300
+        // held for the workers who do the job. The ask is $60,000, and the only units on sale are
+        // the 600 - so the price is $100 a unit, not the $60 that dividing over the whole supply
+        // gave. At $60 the 600 units on offer raise $36,000 against a $60,000 ask and the raise
+        // could never complete, whatever anyone paid.
+        ArrangeProject(fundingRaised: 0, fundingGoal: 60_000, totalSupply: 1_000, unitsOnOffer: 600);
+
+        var result = await _sut.GetProjectTokenValueAsync("ptc1", CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value.Should().Be(100.0);
+
+        // The invariant that makes the goal reachable: selling every unit on offer raises the ask
+        // exactly. This is the assertion the earlier remediation was missing.
+        (result.Value * 600).Should().Be(60_000.0);
+    }
+
+    [Fact]
+    public async Task GetProjectTokenValueAsync_WizardDefaultAsk_QuotesTheOfferedStakeNotTheWholeSupply()
+    {
+        // The reviewer's worked example, unrounded: $50,000 over 600 sponsor units is $83.33...,
+        // never the $50 that 1,000 units would have made it.
+        ArrangeProject(fundingRaised: 0, fundingGoal: 50_000, totalSupply: 1_000, unitsOnOffer: 600);
+
+        var result = await _sut.GetProjectTokenValueAsync("ptc1", CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value.Should().BeApproximately(83.333333, 0.000001);
+        result.Value.Should().NotBe(50.0);
+        (result.Value * 600).Should().BeApproximately(50_000.0, 0.01);
+    }
+
+    [Fact]
+    public async Task GetProjectTokenValueAsync_NoStakeSetAsideForSponsors_RefusesByNameInsteadOfPricingTheWholeSupply()
+    {
+        // Nothing is on offer, so there is no price. Dividing the ask over the whole supply here
+        // would quote a sponsor a number for units the sponsorship path then refuses to sell.
+        ArrangeProject(fundingRaised: 0, fundingGoal: 50_000, totalSupply: 1_000, unitsOnOffer: 0);
+
+        var result = await _sut.GetProjectTokenValueAsync("ptc1", CancellationToken.None);
+
+        result.IsSuccess.Should().BeFalse();
+        result.Error.Should().Be("This project has not set aside any stake for sponsors, so it has no price");
+    }
+
+    [Fact]
+    public async Task GetDeclaredRateAsync_PartitionedProject_TheTwoPricesStillAgreeAtTheGoal()
+    {
+        // Continuity check for a project that reserves worker stake. Both branches divide by the
+        // SAME denominator - the stake on offer - so nothing jumps when the raise completes. Had
+        // only the offering moved to the sponsor partition, the unit would have dropped from $100
+        // to $60 the instant the goal was met.
+        ArrangeRate(
+            fundingRaised: 59_999,
+            totalSupply: 1_000,
+            backing: 10_000,
+            circulating: 5_000,
+            fundingGoal: 60_000,
+            unitsOnOffer: 600);
+        var whileOpen = await _sut.GetDeclaredRateAsync("ptc1", CancellationToken.None);
+
+        ArrangeRate(
+            fundingRaised: 60_000,
+            totalSupply: 1_000,
+            backing: 10_000,
+            circulating: 5_000,
+            fundingGoal: 60_000,
+            unitsOnOffer: 600);
+        var onceMet = await _sut.GetDeclaredRateAsync("ptc1", CancellationToken.None);
+
+        whileOpen.IsSuccess.Should().BeTrue();
+        whileOpen.Value!.UsdMajorUnitsPerWholeProjectUnit.Should().Be("100");
+        whileOpen.Value.Source.Should().Be(ExchangeService.OfferingRateSource);
+
+        onceMet.IsSuccess.Should().BeTrue();
+        onceMet.Value!.UsdMajorUnitsPerWholeProjectUnit.Should().Be("100");
+        onceMet.Value.Source.Should().Be(ExchangeService.DeclaredRateSource);
+    }
+
+    /// <summary>
+    /// A project whose price is whatever these figures make it. <paramref name="unitsOnOffer"/>
+    /// defaults to the whole supply so the older cases keep their arithmetic; a project that
+    /// reserves stake for workers passes its own sponsor partition.
+    /// </summary>
+    private void ArrangeProject(
+        double fundingRaised,
+        double fundingGoal,
+        int totalSupply,
+        int? unitsOnOffer = null,
+        int unitsAlreadySold = 0)
     {
         _projectTokenConfigRepo
             .Setup(r => r.GetByIdAsync("ptc1", It.IsAny<CancellationToken>()))
@@ -513,6 +612,8 @@ public class ExchangeServiceTests
                 id = "ptc1",
                 assetScale = 2,
                 totalSupply = totalSupply,
+                investorPartitionSupply = unitsOnOffer ?? totalSupply,
+                investorSupply = unitsAlreadySold,
                 fundingRaised = fundingRaised,
                 fundingGoal = fundingGoal,
             });
@@ -541,9 +642,10 @@ public class ExchangeServiceTests
         int totalSupply,
         double backing,
         long circulating,
-        double fundingGoal = 0)
+        double fundingGoal = 0,
+        int? unitsOnOffer = null)
     {
-        ArrangeProject(fundingRaised, fundingGoal, totalSupply);
+        ArrangeProject(fundingRaised, fundingGoal, totalSupply, unitsOnOffer);
         ArrangeTreasury(backing, circulating);
     }
 }

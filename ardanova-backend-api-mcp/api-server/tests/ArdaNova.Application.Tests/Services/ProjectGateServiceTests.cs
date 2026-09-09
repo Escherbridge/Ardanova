@@ -217,6 +217,147 @@ public class ProjectGateServiceTests
         _tokenAllocationRepo.Verify(r => r.FindAsync(It.IsAny<Expression<Func<TokenAllocation, bool>>>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
+    // -- A raise also finishes when there is nothing left to sell (L2 remediation #2) --
+
+    [Fact]
+    public async Task EvaluateGate1Async_EverySponsorUnitSoldButCentsShortOfTheAsk_StillClears()
+    {
+        // The wizard's own defaults: 1,000 units, 600 offered to sponsors, 300 held for workers,
+        // a $50,000 ask priced at $83.33... a unit. Each sponsorship's dollar reference is FLOORED
+        // to the cent, so selling all 600 can land a few cents under the ask and stay there
+        // forever. With "raised >= goal" as the only condition those two cents froze the gate,
+        // and with it every worker's stake - the units are liquid only from ACTIVE.
+        var configId = "config-sold-out";
+        var config = new ProjectTokenConfig
+        {
+            id = configId,
+            projectId = "proj-1",
+            totalSupply = 1_000,
+            contributorPartitionSupply = 300,
+            investorPartitionSupply = 600,
+            investorSupply = 600,
+            fundingGoal = 50_000,
+            fundingRaised = 49_999.98,
+            gateStatus = ProjectGateStatus.FUNDING
+        };
+
+        _projectTokenConfigRepo.Setup(r => r.GetByIdAsync(configId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(config);
+        _projectTokenConfigRepo.Setup(r => r.UpdateAsync(It.IsAny<ProjectTokenConfig>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        _tokenAllocationRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<TokenAllocation, bool>>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<TokenAllocation>());
+        _tokenBalanceRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<TokenBalance, bool>>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<TokenBalance>());
+        _unitOfWork.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>())).ReturnsAsync(1);
+
+        var result = await _sut.EvaluateGate1Async(configId, CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value!.Transitioned.Should().BeTrue();
+        config.gateStatus.Should().Be(ProjectGateStatus.ACTIVE);
+        config.gate1ClearedAt.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task EvaluateGate1Async_SponsorStakeStillOnOfferAndAskUnmet_DoesNotClear()
+    {
+        // The counter that must NOT move. Units are still for sale and the ask is not met, so
+        // neither clearing condition holds; the sold-out backstop must not become a second way
+        // for a half-funded project to unlock its workers' stake.
+        var configId = "config-half-sold";
+        var config = new ProjectTokenConfig
+        {
+            id = configId,
+            projectId = "proj-1",
+            totalSupply = 1_000,
+            investorPartitionSupply = 600,
+            investorSupply = 599,
+            fundingGoal = 50_000,
+            fundingRaised = 49_916.65,
+            gateStatus = ProjectGateStatus.FUNDING
+        };
+
+        _projectTokenConfigRepo.Setup(r => r.GetByIdAsync(configId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(config);
+
+        var result = await _sut.EvaluateGate1Async(configId, CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value!.Transitioned.Should().BeFalse();
+        config.gateStatus.Should().Be(ProjectGateStatus.FUNDING);
+        config.gate1ClearedAt.Should().BeNull();
+        _projectTokenConfigRepo.Verify(
+            r => r.UpdateAsync(It.IsAny<ProjectTokenConfig>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task EvaluateGate1Async_NoSponsorStakeEverDeclared_IsNotSoldOut()
+    {
+        // The fail-open shape the backstop could most easily have introduced: `0 >= 0` is true,
+        // so a config that declared no sponsor partition and took not one cent would have read as
+        // "sold out" and cleared. A project that sold nothing has not sold out.
+        var configId = "config-unpartitioned";
+        var config = new ProjectTokenConfig
+        {
+            id = configId,
+            projectId = "proj-1",
+            totalSupply = 1_000,
+            investorPartitionSupply = 0,
+            investorSupply = 0,
+            fundingGoal = 50_000,
+            fundingRaised = 0,
+            gateStatus = ProjectGateStatus.FUNDING
+        };
+
+        _projectTokenConfigRepo.Setup(r => r.GetByIdAsync(configId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(config);
+
+        var result = await _sut.EvaluateGate1Async(configId, CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value!.Transitioned.Should().BeFalse();
+        config.gateStatus.Should().Be(ProjectGateStatus.FUNDING);
+        config.gate1ClearedAt.Should().BeNull();
+        _projectTokenConfigRepo.Verify(
+            r => r.UpdateAsync(It.IsAny<ProjectTokenConfig>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task EvaluateGate1Async_SponsorUnitsCommittedButNoMoneyTaken_DoesNotClear()
+    {
+        // The operator's grant route also writes `investorSupply`. Read on its own it would say
+        // "sold out" for a project that never took a cent, and clearing here would make every
+        // worker's stake liquid on an unfunded project. Sold out has to mean sold.
+        var configId = "config-granted-not-sold";
+        var config = new ProjectTokenConfig
+        {
+            id = configId,
+            projectId = "proj-1",
+            totalSupply = 1_000,
+            investorPartitionSupply = 600,
+            investorSupply = 600,
+            fundingGoal = 50_000,
+            fundingRaised = 0,
+            gateStatus = ProjectGateStatus.FUNDING
+        };
+
+        _projectTokenConfigRepo.Setup(r => r.GetByIdAsync(configId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(config);
+
+        var result = await _sut.EvaluateGate1Async(configId, CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value!.Transitioned.Should().BeFalse();
+        config.gateStatus.Should().Be(ProjectGateStatus.FUNDING);
+        config.gate1ClearedAt.Should().BeNull();
+        _projectTokenConfigRepo.Verify(
+            r => r.UpdateAsync(It.IsAny<ProjectTokenConfig>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
     [Fact]
     public async Task EvaluateGate1Async_ConfigNotFound_ReturnsFailure()
     {

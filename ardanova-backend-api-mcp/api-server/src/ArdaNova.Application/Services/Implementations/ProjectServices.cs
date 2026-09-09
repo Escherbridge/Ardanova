@@ -7,6 +7,7 @@ using ArdaNova.Application.DTOs;
 using ArdaNova.Application.Services.Interfaces;
 using ArdaNova.Domain.Models.Entities;
 using ArdaNova.Domain.Models.Enums;
+using ArdaNova.Domain.Policies;
 using AutoMapper;
 using TaskStatus = ArdaNova.Domain.Models.Enums.TaskStatus;
 
@@ -459,9 +460,9 @@ public class ProjectService : IProjectService, IProjectVisibility
     /// A goal in any other unit is stored beside a dollar total and divided into a dollar price.
     /// </summary>
     private static string? DescribeUnsupportedFundingUnit(string? declaredUnit) =>
-        declaredUnit is null || ProjectFundingUnits.IsLedgerUnit(declaredUnit)
+        declaredUnit is null
             ? null
-            : $"A funding goal must be declared in {ProjectFundingUnits.Ledger}; '{declaredUnit}' was sent.";
+            : ProjectFundingLedger.DescribeUnsupportedGoalUnit(declaredUnit);
 
     public async Task<Result<ProjectDto>> CreateAsync(CreateProjectDto dto, CancellationToken ct = default)
     {

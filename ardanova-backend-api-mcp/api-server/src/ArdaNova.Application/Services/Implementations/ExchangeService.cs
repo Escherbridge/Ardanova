@@ -237,7 +237,7 @@ namespace ArdaNova.Application.Services.Implementations
 
         /// <summary>
         /// What the node records while the primary raise is still open and the project is priced
-        /// at its OPENING OFFER - the dollars being raised over the whole supply. It rides the
+        /// at its OPENING OFFER - the ask over the sponsor stake on offer. It rides the
         /// funding intent's <c>declaredRateSource</c> and the hashed terms snapshot, so the receipt
         /// says which of the two prices the sponsor was quoted rather than leaving it inferred.
         /// </summary>
@@ -400,15 +400,23 @@ namespace ArdaNova.Application.Services.Implementations
         /// </para>
         /// <para>
         /// While the primary raise is OPEN the price is the founder's declared offering - the
-        /// ask over the whole supply - and it does not move: every sponsor in the raise buys at
-        /// the price the disclosure named, so sponsor #1 is not charged a fortune for what
-        /// sponsor #2 gets cheaply. Only once the ask is MET does the price become the one the
-        /// backers set, raised over supply, which at that moment equals the offering and can
-        /// only rise from there. The curve is continuous at the goal and never collapses.
+        /// ask over THE STAKE ACTUALLY ON OFFER - and it does not move: every sponsor in the
+        /// raise buys at the price the disclosure named, so sponsor #1 is not charged a fortune
+        /// for what sponsor #2 gets cheaply. Only once the ask is MET does the price become the
+        /// one the backers set, raised over the same denominator, which at that moment equals the
+        /// offering and can only rise from there. The curve is continuous at the goal.
         /// </para>
         /// <para>
-        /// Both success paths are provably positive: total supply is positive, and each branch
-        /// checks its own numerator positive before dividing.
+        /// The denominator is <see cref="ProjectRaiseOffering.TryUnitsOnOffer"/> - the declared
+        /// SPONSOR partition - not the whole supply. Dividing the ask over the whole supply while
+        /// the sponsorship path refuses to sell past the sponsor partition capped every raise at
+        /// <c>(sponsor partition / total supply) x ask</c>, so a project that set aside anything
+        /// for its workers could never reach its own goal and Gate 1 never cleared. Both halves
+        /// now read one number, and selling the whole offer raises exactly the ask.
+        /// </para>
+        /// <para>
+        /// Both success paths are provably positive: the units on offer are checked positive
+        /// before dividing, and each branch checks its own numerator positive too.
         /// </para>
         /// </remarks>
         private async Task<Result<ProjectUnitValuation>> GetProjectUnitValueExactAsync(
@@ -442,19 +450,28 @@ namespace ArdaNova.Application.Services.Implementations
                     "This project's funding total is below zero, so no price can be quoted");
             }
 
+            // The ask is priced over the stake that is FOR SALE. The sponsorship path refuses to
+            // commit past this same partition, so pricing over any wider denominator sells out
+            // the offer before the ask is met and the raise can never complete.
+            if (!ProjectRaiseOffering.TryUnitsOnOffer(config, out var unitsOnOffer))
+            {
+                return Result<ProjectUnitValuation>.Failure(
+                    "This project has not set aside any stake for sponsors, so it has no price");
+            }
+
             // The declared offering holds for the WHOLE primary raise, not just its first
-            // sponsorship. Handing sponsor #2 `raised / totalSupply` while the raise is barely
+            // sponsorship. Handing sponsor #2 `raised / unitsOnOffer` while the raise is barely
             // begun would quote them a price orders of magnitude below what sponsor #1 paid.
             if (funding.RaiseIsOpen)
             {
                 return Result<ProjectUnitValuation>.Success(
-                    new ProjectUnitValuation(funding.GoalUsd / config.totalSupply, OfferingRateSource));
+                    new ProjectUnitValuation(funding.GoalUsd / unitsOnOffer, OfferingRateSource));
             }
 
             if (!funding.NothingRaised)
             {
                 return Result<ProjectUnitValuation>.Success(
-                    new ProjectUnitValuation(funding.RaisedUsd / config.totalSupply, DeclaredRateSource));
+                    new ProjectUnitValuation(funding.RaisedUsd / unitsOnOffer, DeclaredRateSource));
             }
 
             return Result<ProjectUnitValuation>.Failure(

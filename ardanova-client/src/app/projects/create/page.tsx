@@ -631,9 +631,13 @@ export default function CreateProjectPage() {
         forSponsors !== undefined &&
         forWorkers !== undefined
       ) {
-        if (forSponsors + forWorkers < 1) {
+        if (forSponsors < 1) {
+          // What the project is asking for is spread across the SPONSOR units alone, so an ask
+          // with none set aside is an ask nobody can answer: there is nothing to sell, no
+          // sponsorship can settle, and the workers' stake never becomes theirs. The server
+          // refuses the same shape at provisioning.
           newErrors.fundingSponsorUnits =
-            "Set aside at least one unit for sponsors or workers";
+            "Set aside at least one unit for sponsors. What you are asking for is spread across these units, so with none there is nothing for a sponsor to take";
         } else if (forSponsors + forWorkers > total) {
           newErrors.fundingSponsorUnits = `Sponsor and worker shares add up to ${forSponsors + forWorkers} units, more than the ${total} that exist`;
         }

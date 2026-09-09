@@ -66,6 +66,14 @@ public record CreateProjectTokenConfigDto
     public required int? AssetScale { get; init; }
     public required int TotalSupply { get; init; }
     public required double FundingGoal { get; init; }
+
+    /// <summary>
+    /// The unit <see cref="FundingGoal"/> is denominated in. REQUIRED, and refused unless it is
+    /// the unit the funding columns are kept in: this door writes straight into the column the
+    /// opening price divides, and a default would let an omitted unit stand in for a declared one.
+    /// </summary>
+    public required string FundingGoalUnit { get; init; }
+
     public double ReservedPercentage { get; init; }
     public string? SuccessCriteria { get; init; }
 }

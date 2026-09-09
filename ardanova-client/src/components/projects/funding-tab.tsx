@@ -169,6 +169,11 @@ function FundingDeclarationForm({
   const [disclosure, setDisclosure] = useState(funding.disclosure ?? "");
   const [error, setError] = useState<string | null>(null);
 
+  // The offer the founder is actually making, in the words a sponsor will read it in. The ask is
+  // divided by the SPONSOR units - the only stake on sale - so the founder sees the same number
+  // the pricing path will quote rather than discovering it from the first sponsorship.
+  const offerPerSponsorUnit = describeOfferPerUnit(fundingGoal, investorSupply);
+
   const provision = api.projectTokens.provisionFunding.useMutation({
     onSuccess: (result) => {
       setError(null);
@@ -213,6 +218,15 @@ function FundingDeclarationForm({
     }
     if (!(goal > 0)) {
       setError("Set a funding goal above zero.");
+      return;
+    }
+    // The amount you are asking for is spread across the SPONSOR units and nothing else, so an
+    // ask with no sponsor units behind it can never be answered. The server refuses this shape
+    // too; saying it here saves the round trip.
+    if (forSponsors < 1) {
+      setError(
+        "Set aside at least one unit for sponsors. What you are asking for is spread across the sponsor units, so with none there is nothing for a sponsor to take.",
+      );
       return;
     }
 
@@ -322,6 +336,13 @@ function FundingDeclarationForm({
               disabled={declarationLocked || provision.isPending}
               required
             />
+            {offerPerSponsorUnit ? (
+              <p className="text-muted-foreground text-xs" data-testid="funding-offer-per-unit">
+                Sponsors pay {offerPerSponsorUnit} a unit. What you are asking for is
+                spread across the {investorSupply} units you set aside for sponsors, and
+                the raise is complete when they are taken.
+              </p>
+            ) : null}
           </div>
 
           <div className="space-y-1.5">
@@ -366,6 +387,26 @@ function FundingDeclarationForm({
       </CardContent>
     </Card>
   );
+}
+
+/**
+ * What one sponsor unit costs under a declaration: the whole ask over the units on offer. Returns
+ * null rather than a placeholder when either figure is not yet a usable number, so a half-typed
+ * form never shows a price that is not the one the server would quote.
+ */
+function describeOfferPerUnit(
+  fundingGoal: string,
+  sponsorUnits: string,
+): string | null {
+  const goal = Number(fundingGoal);
+  const units = Number(sponsorUnits);
+  if (!Number.isFinite(goal) || goal <= 0) return null;
+  if (!Number.isInteger(units) || units < 1) return null;
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 2,
+  }).format(goal / units);
 }
 
 /** The fundable project: what it has raised, what a stake means, and who has supported it. */

@@ -175,6 +175,13 @@ public class ProjectTokenService : IProjectTokenService, IProjectTokenProvisioni
         if (dto.AssetScale is not int assetScale || !FixedScaleAmount.IsSupportedScale(assetScale))
             return Result<ProjectTokenConfigDto>.ValidationError("Asset scale is required and must be between 0 and 18");
 
+        // The third door that writes `fundingGoal`. The owner's declaration and the project's own
+        // ask both refuse a non-dollar figure; this one used to take a bare double with no unit on
+        // the wire at all, so an operator could put a platform-unit ask into the column the
+        // opening price divides. The refusal is stated in the same words at all three.
+        if (ProjectFundingLedger.DescribeUnsupportedGoalUnit(dto.FundingGoalUnit) is { } badGoalUnit)
+            return Result<ProjectTokenConfigDto>.ValidationError(badGoalUnit);
+
         var reservedSupply = (int)(dto.ReservedPercentage * dto.TotalSupply / 100);
 
         var entity = new ProjectTokenConfig
@@ -649,9 +656,6 @@ public class ProjectTokenService : IProjectTokenService, IProjectTokenProvisioni
         if (declaration.ContributorSupply < 0 || declaration.InvestorSupply < 0)
             return "Worker and sponsor allowances cannot be negative.";
 
-        if (declaration.ContributorSupply + (long)declaration.InvestorSupply < 1)
-            return "Set aside at least one unit for workers or sponsors, or nobody can take part.";
-
         if (declaration.ReservedPercentage is < 0 or > 100)
             return "The founder reserve must be between 0 and 100 percent.";
 
@@ -669,14 +673,26 @@ public class ProjectTokenService : IProjectTokenService, IProjectTokenProvisioni
             return "Set a funding goal above zero.";
         }
 
-        // The unit is a CONTROL, not a label: `fundingGoal` sits beside `fundingRaised`, which
-        // accumulates dollars, and the opening price divides one into the other.
-        if (!ProjectFundingUnits.IsLedgerUnit(declaration.FundingGoalUnit))
+        // The ask is priced over the sponsor stake and nothing else
+        // (<see cref="ProjectRaiseOffering"/>), so an ask with no sponsor stake behind it is an
+        // ask nobody can answer: the offering is unpriceable, no sponsorship can settle, and the
+        // gate that would free the workers' units never clears. Refused at the door rather than
+        // discovered by the first sponsor.
+        // This subsumes the older "workers OR sponsors" rule, which was true when the ask was
+        // spread over the whole supply and is not any more: worker units are compensation, they
+        // are not on sale, so they cannot answer an ask.
+        if (declaration.InvestorSupply < 1)
         {
-            return $"A funding goal must be declared in {ProjectFundingUnits.Ledger}; "
-                + $"'{declaration.FundingGoalUnit}' was sent, and a goal in any other unit would be "
-                + "priced against a dollar total.";
+            return "Set aside at least one unit for sponsors. The amount you are asking for is "
+                + "spread across the sponsor units, so a project asking for funds with none set "
+                + "aside has nothing to offer and could never reach its goal.";
         }
+
+        // The unit is a CONTROL, not a label: `fundingGoal` sits beside `fundingRaised`, which
+        // accumulates dollars, and the opening price divides one into the other. This refusal is
+        // the control; the shared reader downstream cannot detect a unit in a stored double.
+        if (ProjectFundingLedger.DescribeUnsupportedGoalUnit(declaration.FundingGoalUnit) is { } badUnit)
+            return badUnit;
 
         var disclosure = declaration.Disclosure?.Trim() ?? string.Empty;
         if (disclosure.Length is < MinimumDisclosureLength or > MaximumDisclosureLength)

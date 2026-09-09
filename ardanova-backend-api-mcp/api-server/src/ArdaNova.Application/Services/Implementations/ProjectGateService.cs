@@ -66,10 +66,17 @@ namespace ArdaNova.Application.Services.Implementations
                 return Result<GateTransitionResultDto>.Failure($"Invalid gate status. Expected FUNDING, got {config.gateStatus}.");
             }
 
-            // 2. Check if funding goal is reached. Both figures are dollars, and the ONE reader
-            // that says so is shared with the pricing path - a hand-rolled `raised < goal` here
-            // is how the two columns drifted into different units in the first place.
-            if (!ProjectFundingLedger.GoalIsMet(config))
+            // 2. Is the primary raise finished? Both figures are dollars, and the ONE reader that
+            // says so is shared with the pricing path - a hand-rolled `raised < goal` here is how
+            // the two columns drifted into different units in the first place.
+            //
+            // The ask being met is not the only way a raise finishes. Each sponsorship's dollar
+            // reference is floored to the cent, so a project can sell every unit it offered and
+            // still sit a few cents under its ask; with the ask as the sole condition those cents
+            // froze the gate forever and with it every worker's stake. `RaiseIsComplete` clears on
+            // either - and refuses to treat a project that declared NO sponsor stake, or took no
+            // money for the units it did commit, as sold out.
+            if (!ProjectRaiseOffering.RaiseIsComplete(config))
             {
                 var noTransitionResult = new GateTransitionResultDto
                 {

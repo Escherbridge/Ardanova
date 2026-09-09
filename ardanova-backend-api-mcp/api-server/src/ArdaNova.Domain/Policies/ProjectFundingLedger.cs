@@ -16,15 +16,31 @@ using ArdaNova.Domain.Models.Entities;
 /// founder's price for a hundredth of the promised units.
 /// </para>
 /// <para>
-/// The correction is not a comment: the wire now carries the unit
-/// (<c>ProvisionProjectFundingRequest.FundingGoalUnit</c>), provisioning refuses anything but
-/// dollars by name, and every read of the pair goes through this one type. A future writer
-/// that puts a platform-unit figure back into either column fails at the door rather than
-/// silently re-pricing a raise.
+/// This type READS the pair; it cannot tell what unit a stored double is in, and nothing that
+/// only reads two doubles ever could. The controls are the three REFUSALS at the writing doors,
+/// all of which state the rule in the words of <see cref="DescribeUnsupportedGoalUnit"/>:
+/// <c>ProjectTokenService.ValidateDeclaration</c> (the owner's declaration),
+/// <c>ProjectServices.CreateAsync</c>/<c>UpdateAsync</c> (the project's own ask) and
+/// <c>ProjectTokenService.CreateConfigAsync</c> (the operator's admin door). A writer that
+/// bypasses all three still gets a mis-priced raise - the fix for that is another refusal at
+/// that door, not a claim made here.
 /// </para>
 /// </remarks>
 public static class ProjectFundingLedger
 {
+    /// <summary>
+    /// The one refusal every door that WRITES an ask states, so a goal can only ever be stored in
+    /// the unit the raise is compared and divided in. A goal in any other unit sits beside a
+    /// dollar total and is divided into a dollar price.
+    /// </summary>
+    /// <returns>Null when the declared unit is the ledger unit; the refusal to show otherwise.</returns>
+    public static string? DescribeUnsupportedGoalUnit(string? declaredUnit) =>
+        ProjectFundingUnits.IsLedgerUnit(declaredUnit)
+            ? null
+            : $"A funding goal must be declared in {ProjectFundingUnits.Ledger}; "
+                + $"'{declaredUnit}' was sent, and a goal in any other unit would be priced "
+                + "against a dollar total.";
+
     /// <summary>
     /// Reads both figures as exact decimals, or refuses. A stored double that is not finite, or
     /// that no decimal can hold, has no honest reading - so it is refused by name rather than

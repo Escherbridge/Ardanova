@@ -147,6 +147,7 @@ public class ProjectTokenServiceTests
             AssetScale = assetScale,
             TotalSupply = 1000000,
             FundingGoal = 50000,
+            FundingGoalUnit = "USD",
         };
 
         var result = await _sut.CreateConfigAsync(dto);
@@ -176,6 +177,7 @@ public class ProjectTokenServiceTests
             TotalSupply = 1000000,
             ReservedPercentage = 20,
             FundingGoal = 50000,
+            FundingGoalUnit = "USD",
             SuccessCriteria = "Deliver MVP"
         };
 
@@ -245,6 +247,7 @@ public class ProjectTokenServiceTests
             TotalSupply = 1000000,
             ReservedPercentage = 20,
             FundingGoal = 50000,
+            FundingGoalUnit = "USD",
             SuccessCriteria = "Deliver MVP"
         };
 
