@@ -34,3 +34,31 @@ is explicitly `false`, so a blank or missing setting resolves to "the chaser run
 to silence. Both are registered from `Infrastructure/DependencyInjection.cs`; without those
 two lines the services compile, are tested, and never run — which is the recorded defect
 class in RUNBOOK.md §2, a claim in prose that is not a control in code.
+
+# Dispatch ceiling
+
+`EconomicOutboxDispatchService` bounds one settlement's attempts with a single counter
+(`_maximumAttempts`, `DefaultMaximumAttempts = 10`, overridable at construction), but the
+counter ends in TWO OPPOSITE outcomes depending on which claim kind ran out, because a
+refusal and an unreadable result are not the same fact:
+
+- **`DispatchCeiling`** fires only after every DISPATCH attempt was refused in a way the
+  gateway itself called safely retryable — its own word that no value moved. It is
+  therefore the one refusal this seam may make TERMINAL:
+  `EconomicOutboxLeaseStore.FinalizeAsync`'s `isDispatchCeiling` check drives both the
+  outbox row and the settlement to `FAILED`, a Critical operator alert names the reserved
+  amount that must be returned by hand, and the row never retries again.
+- **`ReconciliationCeiling`** fires when the node's OUTCOME is still unreadable after
+  every RECONCILIATION attempt. It does the opposite on purpose: the settlement stays
+  `AWAITING_RECONCILIATION` (an `Unknown` outcome, never `FAILED`), because value MAY
+  already have moved and closing the row would hide that fact from whoever looks next.
+  An operator must reconcile it against the node by hand before anyone is told it
+  succeeded or failed.
+
+This is a different ceiling from the READINESS holding window (`ReadinessRefundDue`),
+which ends a settlement that never became dispatchable at all — see
+`Application/Services/Implementations/AGENTS.md`, "Reward dispatch hygiene", for why a
+readiness refusal must never be spent against this transport ceiling. All three paths —
+dispatch, reconciliation, and readiness — alert through the same
+`EconomicOperatorAlertCodes` / `OperatorAlertService` seam rather than a bespoke channel
+per ceiling, so an operator has one place to watch, not three.

@@ -9,6 +9,56 @@ using ArdaNova.Domain.Models.Entities;
 using ArdaNova.Domain.Models.Enums;
 using AutoMapper;
 
+/// <summary>
+/// On whose authority an open vote is ended before its window runs out. Required by
+/// <see cref="IProposalVoteClosing.CloseVoteAsync"/>, so a new closing seam cannot be written
+/// without answering the question — the compiler refuses the call otherwise.
+/// </summary>
+/// <remarks>
+/// <para>There is no "unknown" authority and no default that permits anything. The seam that
+/// carries no caller identity — the generic proposal update — supplies
+/// <see cref="Unattributed"/>, which refuses, so an early close is impossible except through a
+/// door that positively names its closer.</para>
+/// <para><b>The author is never independent of their own proposal.</b> OI-46: an author who may
+/// publish a proposal, vote on it and close it has manufactured a decision of record without
+/// anybody else seeing the vote open.</para>
+/// </remarks>
+public sealed record ProposalCloseAuthority
+{
+    private ProposalCloseAuthority(string? closerId, bool runsTheProject)
+    {
+        CloserId = closerId;
+        RunsTheProject = runsTheProject;
+    }
+
+    /// <summary>The member ending the vote, or null when no caller identity reached this service.</summary>
+    public string? CloserId { get; }
+
+    /// <summary>True only where the caller proved the closer runs this project or administers the platform.</summary>
+    public bool RunsTheProject { get; }
+
+    /// <summary>No identity reached the service, so nothing may be closed early. The value every identity-less seam supplies.</summary>
+    public static ProposalCloseAuthority Unattributed { get; } = new(null, false);
+
+    /// <summary>A member the calling controller authenticated AND checked runs this project. A blank id resolves to <see cref="Unattributed"/>, never to a pass.</summary>
+    public static ProposalCloseAuthority ProjectAuthority(string? closerId) =>
+        string.IsNullOrWhiteSpace(closerId) ? Unattributed : new ProposalCloseAuthority(closerId, true);
+
+    /// <summary>Whether this authority may end a vote early on a proposal raised by <paramref name="proposalCreatorId"/>.</summary>
+    public bool MayEndEarly(string? proposalCreatorId) =>
+        RunsTheProject &&
+        !string.IsNullOrWhiteSpace(CloserId) &&
+        !string.Equals(CloserId, proposalCreatorId, StringComparison.Ordinal);
+}
+
+/// <summary>Ending an open vote early — a different authority from editing a proposal, so callers depend on it explicitly rather than reaching it through the update seam.</summary>
+/// <remarks>Declared beside its only implementation so the authority type and the seam that honours it cannot drift apart; registered on the same scoped <see cref="GovernanceService"/> instance.</remarks>
+public interface IProposalVoteClosing
+{
+    /// <summary>Shuts an open voting window now. The outcome is NOT resolved in this request — see <see cref="GovernanceService.CloseVoteAsync"/>.</summary>
+    Task<Result<ProposalDto>> CloseVoteAsync(string proposalId, ProposalCloseAuthority authority, CancellationToken ct = default);
+}
+
 /// <summary>Project decisions as a vote of record: one member one vote, quorum in members, outcomes resolved from the tally.</summary>
 /// <remarks>
 /// <para>Rationale and the close-vs-cancel rule: see <c>ArdaNova.Application/Services/AGENTS.md</c> §Governance.</para>
@@ -22,10 +72,13 @@ using AutoMapper;
 /// answer "who may vote here", so it refuses every ballot and reports an empty electorate — which
 /// can only ever resolve to EXPIRED, never to PASSED.</para>
 /// </remarks>
-public class GovernanceService : IGovernanceService
+public class GovernanceService : IGovernanceService, IProposalVoteClosing
 {
     /// <summary>Every eligible member carries exactly one vote; a ballot never carries a caller-supplied weight.</summary>
     private const decimal OneMemberOneVote = 1m;
+
+    /// <summary>The fewest ballots that can carry a decision, whatever percentage the proposal declared.</summary>
+    private const int MinimumBallotsForQuorum = 2;
 
     private readonly IRepository<Proposal> _proposalRepository;
     private readonly IRepository<Vote> _voteRepository;
@@ -195,8 +248,10 @@ public class GovernanceService : IGovernanceService
         if (proposal is null)
             return Result<ProposalDto>.NotFound($"Proposal with id {id} not found");
 
+        // This seam carries no caller identity, so it cannot end an open vote: closing is a
+        // separate act with its own authority (IProposalVoteClosing).
         if (proposal.status == ProposalStatus.ACTIVE)
-            return await CloseActiveProposalAsync(proposal, dto, ct);
+            return await CloseActiveProposalAsync(proposal, dto, ProposalCloseAuthority.Unattributed, ct);
 
         if (proposal.status != ProposalStatus.DRAFT)
             return Result<ProposalDto>.ValidationError("Only draft proposals can be edited");
@@ -530,14 +585,22 @@ public class GovernanceService : IGovernanceService
             votesByChoice);
     }
 
-    /// <summary>Quorum is a share of the members who may vote, rounded up, and never zero.</summary>
+    /// <summary>Quorum is a share of the members who may vote, rounded up, and never fewer ballots than one member acting alone can produce.</summary>
+    /// <remarks>
+    /// The declared percentage is not a floor. One percent of forty members rounds up to a single
+    /// ballot, and the single ballot an attacker can produce is their own — so
+    /// <see cref="MinimumBallotsForQuorum"/> is applied ON TOP of the percentage. Only an
+    /// electorate too small to reach it falls back below it, and there the whole register has
+    /// voted, which is not the same act as one member manufacturing a decision.
+    /// </remarks>
     private static int VotesNeededForQuorum(int eligibleMembers, int quorumPercent)
     {
         if (eligibleMembers <= 0)
-            return 1;
+            return MinimumBallotsForQuorum;
 
         var clamped = Math.Clamp(quorumPercent, 0, 100);
-        var needed = (int)Math.Ceiling(eligibleMembers * clamped / 100.0);
+        var byDeclaredPercentage = (int)Math.Ceiling(eligibleMembers * clamped / 100.0);
+        var needed = Math.Max(byDeclaredPercentage, MinimumBallotsForQuorum);
         return Math.Clamp(needed, 1, eligibleMembers);
     }
 
@@ -584,10 +647,31 @@ public class GovernanceService : IGovernanceService
             : ProposalStatus.REJECTED;
     }
 
-    /// <summary>Closing an open vote early: the window is pulled in to now and the outcome is resolved from the ballots on file. Nothing else about the proposal may move.</summary>
+    /// <summary>Shuts an open voting window now, on a named authority. The outcome is left to the ordinary due-resolution path, so no single request both ends a vote and declares its result.</summary>
+    public async Task<Result<ProposalDto>> CloseVoteAsync(
+        string proposalId,
+        ProposalCloseAuthority authority,
+        CancellationToken ct = default)
+    {
+        var proposal = await _proposalRepository.GetByIdAsync(proposalId, ct);
+        if (proposal is null)
+            return Result<ProposalDto>.NotFound($"Proposal with id {proposalId} not found");
+
+        if (proposal.status != ProposalStatus.ACTIVE)
+            return Result<ProposalDto>.ValidationError("Only an open vote can be closed");
+
+        return await CloseActiveProposalAsync(
+            proposal,
+            new UpdateProposalDto { VotingEnd = DateTime.UtcNow },
+            authority,
+            ct);
+    }
+
+    /// <summary>Closing an open vote early: the window is pulled in to now, and nothing else about the proposal may move. This is the ONLY place a voting window moves once ballots can exist, so the authority question is answered here rather than at each door that reaches it.</summary>
     private async Task<Result<ProposalDto>> CloseActiveProposalAsync(
         Proposal proposal,
         UpdateProposalDto dto,
+        ProposalCloseAuthority authority,
         CancellationToken ct)
     {
         var rewritesRecord =
@@ -615,6 +699,12 @@ public class GovernanceService : IGovernanceService
             return Result<ProposalDto>.Success(await EnrichProposalDtoAsync(proposal, ct));
         }
 
+        // Ending a vote the members can still take part in is an act of authority, and the
+        // proposal's own author never holds it — OI-46.
+        if (!authority.MayEndEarly(proposal.creatorId))
+            return Result<ProposalDto>.Forbidden(
+                "Only someone who runs this project, and who did not raise this proposal, can end the vote before it closes on its own");
+
         if (dto.VotingEnd.Value > currentEnd)
             return Result<ProposalDto>.ValidationError("A voting window can be shortened but never extended");
 
@@ -623,8 +713,9 @@ public class GovernanceService : IGovernanceService
         await _proposalRepository.UpdateAsync(proposal, ct);
         await _unitOfWork.SaveChangesAsync(ct);
 
-        await ResolveDueProposalsAsync(new[] { proposal }, ct);
-
+        // Deliberately NOT resolved here: closing shuts the window, and the outcome is read off
+        // the ballots on file by the ordinary due-resolution path. One request cannot both pull
+        // the closing time in and stamp the decision it produced.
         var resultDto = await EnrichProposalDtoAsync(proposal, ct);
         return Result<ProposalDto>.Success(resultDto);
     }

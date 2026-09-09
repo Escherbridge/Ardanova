@@ -61,3 +61,54 @@ authority and route policy.
 Tenant custody remains anchored to the configured tenant GUID. Every returned
 account status must match that tenant and the actor-derived ArdaNova user before
 thin avatar, wallet, or KYC references are persisted.
+
+# On-ramp
+
+`AzoaFiatRailGateway` is the ONE adapter ArdaNova uses to add funds: it calls the node's
+`Fiat.USD` rail and nothing else, using the custody key under the same route-family
+restriction as every other typed client in this directory (`CheckoutPrefix`,
+`PriceSchedulePath`). ArdaNova never holds a card credential, never terminates a payment
+webhook, and never names a payment provider anywhere a person can read.
+
+`ArdaOnRampOptions` (section `Azoa:OnRamp`, defined in `AzoaFiatRailGateway.cs`) is this
+deployment's own on-ramp configuration, separate from `AzoaSettings`: `Enabled` is the
+master switch — off leaves the seam bound to its fail-closed refusal; `AssetId` names the
+ARDA asset the money buys, blank meaning nothing is registered; `UnitsPerUsdMinorUnit`
+(default `"100"`) is the ONE-TIME genesis price registration — 1 ARDA = $0.01 — not a
+per-tick rate, because the live rate is backing-derived from that seed (users think in
+dollars; ARDA is at most a derived caption, never the unit a sponsor is asked to reason
+in); `MinimumAmountMinorUnits`/`MaximumAmountMinorUnits` bound one payment ($1–$10,000 by
+default).
+
+`ArdaOnRampPriceScheduleRegistrar` declares that price to the node exactly once, after
+boot. It never blocks startup and never throws: an unregistered price makes the on-ramp
+issue nothing, which is the fail-closed outcome, so a loud log is the right escalation —
+the same shape every other AZOA seam here takes: a refusal to serve, never a refusal to
+boot.
+
+# Settlement gateway
+
+`AzoaSettlementGateway` settles ArdaNova's own immutable economic decisions as AZOA
+exchange operations — one node call per settlement, carrying token base units only. It
+never learns a fiat amount: a settlement whose asset code IS a currency (`FiatAssetCodes`:
+USD, EUR, GBP, …) is refused here before the call is made, never sent to the node as if it
+were a token unit. Everything the exchange needs beyond the settlement row — the project,
+its asset, the reserve partition, both legs, and the declared rate — travels in the
+settlement's own immutable terms snapshot, locked at authorization time; unreadable terms
+are a refusal here, never a guess.
+
+Reconciliation reads `GET /api/exchange/receipt/{idempotencyKey}`, not an operation id —
+the allocation receipt route cannot resolve one, so the durable idempotency key is the
+only handle that survives an ambiguous dispatch. Amount accounting is a control, not a
+log line: gross is what the payer side gave up, net is what the beneficiary side
+received, and the difference is the fee the node kept. A receipt that lands MORE than
+ArdaNova authorised is not a bonus — it is unreconciled, and dispatch stops rather than
+accepting it.
+
+`DisabledAzoaSettlementGateway` is what is registered when no node is selected to settle:
+every capability answer (`CanDispatch`, `CanReconcile`, `HasCurrentOperatorAttestation`,
+`SupportsCanonicalFundingSettlement`) is `false`, and it still implements
+`ISelectedNodeSettlementCapability` on purpose — readiness is a type test
+(`gateway is ISelectedNodeSettlementCapability`), so a disabled gateway that merely
+omitted the interface would pass that gate by accident of typing rather than by declaring
+what it cannot do.

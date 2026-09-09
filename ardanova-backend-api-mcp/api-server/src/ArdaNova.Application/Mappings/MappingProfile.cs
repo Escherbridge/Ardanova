@@ -406,9 +406,6 @@ public class MappingProfile : Profile
         CreateMap<Notification, NotificationDto>();
         CreateMap<Activity, ActivityDto>();
 
-        // Governance mappings
-        CreateMap<DelegatedVote, DelegatedVoteDto>();
-
         // Membership Credential mappings
         CreateMap<MembershipCredential, MembershipCredentialDto>()
             .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.id))

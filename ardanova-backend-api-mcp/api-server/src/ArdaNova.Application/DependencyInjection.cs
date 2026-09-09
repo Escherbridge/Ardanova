@@ -99,7 +99,11 @@ public static class DependencyInjection
 
         // Governance services
         services.AddScoped<IGovernanceService, GovernanceService>();
-        services.AddScoped<IDelegatedVoteService, DelegatedVoteService>();
+        // Ending an open vote early is a different authority from editing a proposal, so the
+        // closing seam is the same scoped instance under its own interface - the
+        // IProjectVisibility pattern. With this registration the ONLY way to reach it is with a
+        // ProposalCloseAuthority in hand.
+        services.AddScoped<IProposalVoteClosing>(sp => (IProposalVoteClosing)sp.GetRequiredService<IGovernanceService>());
         services.AddScoped<IMembershipCredentialService, MembershipCredentialService>();
         services.AddScoped<ICredentialUtilityService, CredentialUtilityService>();
 

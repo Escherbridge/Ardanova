@@ -238,23 +238,6 @@ public sealed class SensitiveMutationBoundaryTests
     }
 
     [Fact]
-    public void DelegatedVoteMutations_FailClosedBeforeServiceInvocation()
-    {
-        var delegations = new Mock<IDelegatedVoteService>(MockBehavior.Strict);
-        var controller = new DelegatedVotesController(delegations.Object);
-
-        var results = new IActionResult[]
-        {
-            controller.Create(null!, CancellationToken.None),
-            controller.Update("delegation-1", null!, CancellationToken.None),
-            controller.Revoke("delegation-1", CancellationToken.None),
-        };
-
-        results.Should().AllSatisfy(result => AssertPaused(result, "authenticated delegator"));
-        delegations.VerifyNoOtherCalls();
-    }
-
-    [Fact]
     public void ReferralRewardClaim_FailsClosedBeforeServiceInvocation()
     {
         var referrals = new Mock<IReferralService>(MockBehavior.Strict);

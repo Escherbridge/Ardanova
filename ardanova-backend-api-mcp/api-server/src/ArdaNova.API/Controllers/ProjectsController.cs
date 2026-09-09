@@ -28,6 +28,7 @@ public class ProjectsController : ControllerBase
     private readonly IProjectUpdateService _updateService;
     private readonly IProjectSupportService _supportService;
     private readonly IGovernanceService _governanceService;
+    private readonly IProposalVoteClosing _voteClosing;
     private readonly IProjectInvitationService _invitationService;
     private readonly IHierarchyAuthorizationService _hierarchyAuthorization;
     private readonly IMembershipCredentialService _membershipCredentialService;
@@ -43,6 +44,7 @@ public class ProjectsController : ControllerBase
         IProjectUpdateService updateService,
         IProjectSupportService supportService,
         IGovernanceService governanceService,
+        IProposalVoteClosing voteClosing,
         IProjectInvitationService invitationService,
         IHierarchyAuthorizationService hierarchyAuthorization,
         IMembershipCredentialService membershipCredentialService)
@@ -57,6 +59,7 @@ public class ProjectsController : ControllerBase
         _updateService = updateService;
         _supportService = supportService;
         _governanceService = governanceService;
+        _voteClosing = voteClosing;
         _invitationService = invitationService;
         _hierarchyAuthorization = hierarchyAuthorization;
         _membershipCredentialService = membershipCredentialService;
@@ -911,7 +914,7 @@ public class ProjectsController : ControllerBase
         return ToActionResult(result);
     }
 
-    /// <summary>Ends the voting window now and records PASSED, REJECTED or EXPIRED from the ballots on file. This is not a withdrawal - see CancelProposal.</summary>
+    /// <summary>Ends the voting window now. The author of a proposal may never do this, and closing does not declare the outcome - that is read off the ballots on file. This is not a withdrawal - see CancelProposal.</summary>
     [HttpPost("{projectId}/proposals/{proposalId}/close")]
     [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
     public async Task<IActionResult> CloseProposal(string projectId, string proposalId, CancellationToken ct)
@@ -921,14 +924,14 @@ public class ProjectsController : ControllerBase
             return ToActionResult(proposal);
         if (!string.Equals(proposal.Value!.ProjectId, projectId, StringComparison.Ordinal))
             return NotFound(new { error = "Proposal not found in the routed project" });
-        if (!IsAdmin &&
-            !string.Equals(proposal.Value.CreatorId, ActorId, StringComparison.Ordinal) &&
-            !await CanManageProjectAsync(projectId, ct))
+        if (!IsAdmin && !await CanManageProjectAsync(projectId, ct))
             return NotAuthorized("Only the people who run this project can close a vote");
 
-        var result = await _governanceService.UpdateProposalAsync(
+        // The author test itself lives at the counter, in CloseActiveProposalAsync, so the other
+        // close route inherits it; this door only proves who is asking.
+        var result = await _voteClosing.CloseVoteAsync(
             proposalId,
-            new UpdateProposalDto { VotingEnd = DateTime.UtcNow },
+            ProposalCloseAuthority.ProjectAuthority(ActorId),
             ct);
         return ToActionResult(result);
     }

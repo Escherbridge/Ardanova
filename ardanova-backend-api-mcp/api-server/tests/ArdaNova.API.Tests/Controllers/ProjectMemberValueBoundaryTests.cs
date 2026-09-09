@@ -114,6 +114,7 @@ public sealed class ProjectMemberValueBoundaryTests
             new Mock<IProjectUpdateService>(MockBehavior.Strict).Object,
             new Mock<IProjectSupportService>(MockBehavior.Strict).Object,
             new Mock<IGovernanceService>(MockBehavior.Strict).Object,
+            new Mock<IProposalVoteClosing>(MockBehavior.Strict).Object,
             new Mock<IProjectInvitationService>(MockBehavior.Strict).Object,
             hierarchy ?? new Mock<IHierarchyAuthorizationService>(MockBehavior.Strict).Object,
             new Mock<IMembershipCredentialService>(MockBehavior.Strict).Object);

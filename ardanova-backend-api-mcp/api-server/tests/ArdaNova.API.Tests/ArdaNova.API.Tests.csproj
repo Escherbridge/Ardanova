@@ -43,7 +43,6 @@
     <Compile Include="..\..\src\ArdaNova.API\Controllers\ReferralsController.cs" Link="Controllers\ReferralsController.cs" />
     <Compile Include="..\..\src\ArdaNova.API\Controllers\ChatController.cs" Link="Controllers\ChatController.cs" />
     <Compile Include="..\..\src\ArdaNova.API\Controllers\NotificationsController.cs" Link="Controllers\NotificationsController.cs" />
-    <Compile Include="..\..\src\ArdaNova.API\Controllers\DelegatedVotesController.cs" Link="Controllers\DelegatedVotesController.cs" />
     <Compile Include="..\..\src\ArdaNova.API\Controllers\AdminAzoaBindingController.cs" Link="Controllers\AdminAzoaBindingController.cs" />
     <Compile Include="..\..\src\ArdaNova.API\Controllers\AttachmentsController.cs" Link="Controllers\AttachmentsController.cs" />
     <Compile Include="..\..\src\ArdaNova.Infrastructure\Storage\StorageConfiguration.cs" Link="Storage\StorageConfiguration.cs" />

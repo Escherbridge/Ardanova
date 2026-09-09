@@ -35,7 +35,6 @@ import { WalletsEndpoint } from "./endpoints/wallets";
 import { AttachmentsEndpoint } from "./endpoints/attachments";
 import { AddFundsEndpoint } from "./endpoints/add-funds";
 import { TaskEscrowsEndpoint } from "./endpoints/task-escrows";
-import { DelegatedVotesEndpoint } from "./endpoints/delegated-votes";
 import { AzoaCustodialAccountEndpoint } from "./endpoints/azoa-custodial-account";
 import { FundingIntentsEndpoint } from "./endpoints/funding-intents";
 
@@ -298,11 +297,6 @@ export type {
   ResolveDisputeDto,
 } from "./endpoints/task-escrows";
 export type {
-  DelegatedVote,
-  CreateDelegatedVoteDto,
-  UpdateDelegatedVoteDto,
-} from "./endpoints/delegated-votes";
-export type {
   AzoaCustodialAccountCapabilitiesDto,
   AzoaCustodialAccountStatusDto,
   AzoaKycSessionDto,
@@ -366,7 +360,6 @@ export class ArdaNovaApiClient extends BaseApiClient {
   readonly wallets: WalletsEndpoint;
   readonly attachments: AttachmentsEndpoint;
   readonly taskEscrows: TaskEscrowsEndpoint;
-  readonly delegatedVotes: DelegatedVotesEndpoint;
   readonly azoaCustodialAccount: AzoaCustodialAccountEndpoint;
   readonly fundingIntents: FundingIntentsEndpoint;
   readonly addFunds: AddFundsEndpoint;
@@ -407,7 +400,6 @@ export class ArdaNovaApiClient extends BaseApiClient {
     this.wallets = new WalletsEndpoint(this);
     this.attachments = new AttachmentsEndpoint(this);
     this.taskEscrows = new TaskEscrowsEndpoint(this);
-    this.delegatedVotes = new DelegatedVotesEndpoint(this);
     this.azoaCustodialAccount = new AzoaCustodialAccountEndpoint(this);
     this.fundingIntents = new FundingIntentsEndpoint(this);
     this.addFunds = new AddFundsEndpoint(this);
