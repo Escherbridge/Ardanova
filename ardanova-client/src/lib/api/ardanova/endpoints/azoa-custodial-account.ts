@@ -1,6 +1,13 @@
 import { type BaseApiClient, type ApiResponse } from "../../base-client";
 
-export type AzoaKycStatus = "Unknown" | "Pending" | "Approved" | "Rejected";
+/** Mirrors the node's TenantKycStatus. "UnderReview" means setup is FINISHED and a
+ *  reviewer owes a decision - it is not another kind of unfinished setup. */
+export type AzoaKycStatus =
+  | "Unknown"
+  | "Pending"
+  | "Approved"
+  | "Rejected"
+  | "UnderReview";
 
 export interface AzoaCustodialAccountStatusDto {
   avatarId?: string | null;
@@ -12,6 +19,8 @@ export interface AzoaCustodialAccountStatusDto {
   walletReady: boolean;
   ready: boolean;
   unavailableReason?: string | null;
+  /** When an open review is due a decision; null unless `kycStatus` is "UnderReview". */
+  reviewDueAt?: string | null;
 }
 
 export interface AzoaCustodialAccountCapabilitiesDto {

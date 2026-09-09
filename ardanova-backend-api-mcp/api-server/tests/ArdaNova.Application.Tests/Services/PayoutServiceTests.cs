@@ -69,9 +69,9 @@ public class PayoutServiceTests
             _mapper.Object,
             _tokenBalanceService.Object,
             _exchangeService.Object,
+            _valueEligibility.Object,
             _exchangeNode.Object,
-            _rateSource.Object,
-            _valueEligibility.Object
+            _rateSource.Object
         );
     }
 

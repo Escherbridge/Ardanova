@@ -173,7 +173,7 @@ export default async function KycOperationsPage({
           Member-facing statuses
         </h2>
         <p className="text-muted-foreground text-sm leading-relaxed">
-          Azoa now computes an{" "}
+          Azoa computes an{" "}
           <span className="text-foreground font-mono font-semibold">
             &quot;Under review — contact support&quot;
           </span>{" "}
@@ -181,10 +181,13 @@ export default async function KycOperationsPage({
           still awaits a compliance decision (an AML screening match that
           needs a human verdict). No reason is disclosed to the member or to
           ArdaNova; Azoa&apos;s operator resolves it from the node&apos;s own
-          review queue. ArdaNova&apos;s projection of this exact state is not
-          wired yet — see AzoaCustodialAccountService.ProjectVerificationLevel
-          for the blocking gap — so it still surfaces as a generic error here
-          today.
+          review queue. ArdaNova consumes this state on both surfaces that
+          matter: the value-rail gate returns that exact message instead of
+          a generic refusal, and the member&apos;s verification level is held
+          neutral for as long as the review stays open — a person already at
+          PRO keeps that grade while a review is pending, since being pulled
+          into review is not itself a demotion. Only an actual rejection
+          demotes.
         </p>
       </section>
 

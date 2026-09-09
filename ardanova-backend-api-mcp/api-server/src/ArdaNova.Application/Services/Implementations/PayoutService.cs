@@ -209,11 +209,6 @@ namespace ArdaNova.Application.Services.Implementations
         public const string NoCashOutConfigured =
             "Sending money to a bank account is not switched on for this deployment, so nothing was moved.";
 
-        /// <summary>Why any value action is refused when the readiness gate itself is absent.</summary>
-        public const string NoEligibilityGateConfigured =
-            "We could not confirm account setup just now, so nothing was moved. This is not a problem "
-            + "with your account - please try again shortly.";
-
         /// <summary>What the node records as the reason these units moved.</summary>
         private const string ExchangePurpose = "unit-sale";
 
@@ -230,7 +225,7 @@ namespace ArdaNova.Application.Services.Implementations
         private readonly ITokenBalanceService _tokenBalanceService;
         private readonly IAzoaExchangeNode? _exchangeNode;
         private readonly IProjectUnitRateSource? _rateSource;
-        private readonly IAzoaValueEligibilityService? _valueEligibility;
+        private readonly IAzoaValueEligibilityService _valueEligibility;
         private readonly IAzoaCashOutNode? _cashOutNode;
         private readonly IRepository<User>? _userRepository;
         private readonly IRepository<TokenBalance>? _tokenBalanceRepository;
@@ -257,9 +252,9 @@ namespace ArdaNova.Application.Services.Implementations
             IMapper mapper,
             ITokenBalanceService tokenBalanceService,
             IExchangeService exchangeService,
+            IAzoaValueEligibilityService valueEligibility,
             IAzoaExchangeNode? exchangeNode = null,
             IProjectUnitRateSource? rateSource = null,
-            IAzoaValueEligibilityService? valueEligibility = null,
             IAzoaCashOutNode? cashOutNode = null,
             IRepository<User>? userRepository = null,
             IRepository<TokenBalance>? tokenBalanceRepository = null,
@@ -274,7 +269,8 @@ namespace ArdaNova.Application.Services.Implementations
             _ = exchangeService;
             _exchangeNode = exchangeNode;
             _rateSource = rateSource;
-            _valueEligibility = valueEligibility;
+            _valueEligibility = valueEligibility
+                ?? throw new ArgumentNullException(nameof(valueEligibility));
             _cashOutNode = cashOutNode;
             _userRepository = userRepository;
             _tokenBalanceRepository = tokenBalanceRepository;
@@ -895,9 +891,6 @@ namespace ArdaNova.Application.Services.Implementations
             if (_exchangeNode is null || _rateSource is null)
                 return Result<SaleAssessment>.Failure(NoExchangeConfigured);
 
-            if (_valueEligibility is null)
-                return Result<SaleAssessment>.Conflict(NoEligibilityGateConfigured);
-
             var readiness = await _valueEligibility.RequireReadyAsync(userId, SellAction, ct);
             if (!readiness.IsSuccess)
                 return ValueEligibilityFailure.Propagate<AzoaCustodialAccountStatusDto, SaleAssessment>(readiness);
@@ -1236,9 +1229,6 @@ namespace ArdaNova.Application.Services.Implementations
 
             if (action is not null)
             {
-                if (_valueEligibility is null)
-                    return new ResolvedAvatar<T>(Guid.Empty, Result<T>.Conflict(NoEligibilityGateConfigured));
-
                 var readiness = await _valueEligibility.RequireReadyAsync(userId, action, ct);
                 if (!readiness.IsSuccess)
                 {

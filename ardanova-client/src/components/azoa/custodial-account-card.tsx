@@ -15,10 +15,29 @@ import {
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import type { AzoaCustodialAccountStatusDto } from "~/lib/api/ardanova";
-import { isValueActionAccountReady } from "~/lib/contracts/project-create-contract";
+import { evaluateValueActionAccount } from "~/lib/contracts/project-create-contract";
 import { cn } from "~/lib/utils";
 
 type AccountStepIcon = "account" | "identity" | "wallet";
+
+/**
+ * Plain words for the identity step. The wire values are AZOA's TenantKycStatus members;
+ * printing one puts "UnderReview" in front of a sponsor who never asked to read an enum.
+ */
+function describeIdentityStep(kycStatus: string | null | undefined): string {
+  switch (kycStatus) {
+    case "Approved":
+      return "Identity check: complete";
+    case "Pending":
+      return "Identity check: in progress";
+    case "UnderReview":
+      return "Identity check: complete, final review open";
+    case "Rejected":
+      return "Identity check: not approved";
+    default:
+      return "Identity check: not started";
+  }
+}
 
 interface AccountStep {
   label: string;
@@ -46,8 +65,15 @@ export function CustodialAccountCard({
   verificationHref = "/settings/verification",
   onEnsure,
 }: CustodialAccountCardProps) {
+  // One classification for the whole card, from the shared contract. Rendering
+  // `status.kycStatus` or `status.unavailableReason` directly is what put a machine
+  // token and a provider diagnostic on a sponsor's own account screen.
+  const evaluation = evaluateValueActionAccount(status, {
+    loadFailed: Boolean(statusError),
+  });
+  const underReview = evaluation.state === "under-review";
   const kycApproved = status?.kycStatus === "Approved";
-  const accountSetupComplete = isValueActionAccountReady(status);
+  const accountSetupComplete = evaluation.ready;
   const needsProvisioning =
     status?.identityReady !== true ||
     status.walletReady !== true ||
@@ -59,11 +85,13 @@ export function CustodialAccountCard({
     ? "Checking"
     : accountSetupComplete
       ? "Account setup complete"
-      : status?.identityReady && status.walletReady
-        ? "Identity check needed"
-        : status?.identityReady
-          ? "Account completion pending"
-          : "Setup required";
+      : underReview
+        ? "Final review in progress"
+        : status?.identityReady && status.walletReady
+          ? "Identity check needed"
+          : status?.identityReady
+            ? "Account completion pending"
+            : "Setup required";
   const steps: AccountStep[] = [
     {
       label: "Account setup",
@@ -73,9 +101,7 @@ export function CustodialAccountCard({
     },
     {
       label: "Identity check",
-      detail: status
-        ? `Identity status: ${status.kycStatus}`
-        : "Identity status: Not checked",
+      detail: describeIdentityStep(status?.kycStatus),
       complete: kycApproved,
       icon: "identity",
     },
@@ -86,7 +112,13 @@ export function CustodialAccountCard({
       icon: "wallet",
     },
   ];
-  const unavailable = ensureError ?? statusError ?? status?.unavailableReason;
+  // A problem is worth an alarm; a held review is not. Neither ever carries the node's
+  // own words: "service-unavailable" is the contract's classification of a blank read OR
+  // an unavailableReason, and the copy that goes with it says nothing about this person.
+  const unavailable =
+    ensureError ??
+    statusError ??
+    (evaluation.state === "service-unavailable" ? evaluation.message : null);
 
   return (
     <section
@@ -187,9 +219,11 @@ export function CustodialAccountCard({
           >
             {unavailable
               ? unavailable
-              : accountSetupComplete
-                ? "Account setup is complete. Funding, paid work, and payouts still require their own server-side project checks."
-                : "Creating this account does not move money or approve a payment. You can create projects and collaborate while setup is pending; funding, paid work, and rewards stay unavailable."}
+              : underReview
+                ? evaluation.message
+                : accountSetupComplete
+                  ? "Account setup is complete. Funding, paid work, and payouts still require their own server-side project checks."
+                  : "Creating this account does not move money or approve a payment. You can create projects and collaborate while setup is pending; funding, paid work, and rewards stay unavailable."}
           </p>
         </div>
         <div className="flex flex-col gap-2 sm:min-w-52">
@@ -209,7 +243,7 @@ export function CustodialAccountCard({
                 : "Start account setup"}
             </Button>
           )}
-          {!kycApproved && verificationHref && (
+          {!kycApproved && !underReview && verificationHref && (
             <Button variant="outline" className="min-h-11 w-full" asChild>
               <Link href={verificationHref}>
                 Review identity setup

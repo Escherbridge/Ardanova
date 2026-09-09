@@ -327,16 +327,23 @@ export function isProjectCreateCompensationModel(
 }
 
 /**
- * How a value-action account check resolved. Mirrors the three outcomes of the
- * server gate (`AzoaValueEligibilityService`) so an outage is never presented as
- * unfinished setup.
+ * How a value-action account check resolved. Mirrors the four outcomes of the
+ * server gate (`AzoaValueEligibilityService.RequireReadyAsync`) so an outage is
+ * never presented as unfinished setup, and a person waiting on a human decision
+ * is never told to redo a check they already passed.
  *
- * Per-person limits are expressed as AZOA uniqueness requirements - one verified
- * person resolves to exactly one avatar - never as a count of ArdaNova rows.
+ * CHECKLIST NOTE - per-person limits. A limit of the form "one X per person" is
+ * expressed as an AZOA uniqueness requirement - one verified person resolves to
+ * exactly one avatar, and AZOA enforces that uniqueness at the identity - never
+ * as a count of ArdaNova rows, which are per-account and so count accounts, not
+ * people. A uniqueness denial reuses `VALUE_ACTION_SETUP_INCOMPLETE_MESSAGE`
+ * verbatim: it must be indistinguishable from ordinary ineligibility (D23), or
+ * the copy tells one tenant that its person exists on another.
  */
 export type ValueActionAccountState =
   | "ready"
   | "setup-incomplete"
+  | "under-review"
   | "service-unavailable";
 
 /** The readiness projection the gate reads; further fields on the API DTO are ignored. */
@@ -350,6 +357,8 @@ export interface ValueActionAccountStatus {
   walletReady: boolean;
   ready: boolean;
   unavailableReason?: string | null;
+  /** When the open compliance review is due a decision; set only under review. */
+  reviewDueAt?: string | null;
 }
 
 export interface ValueActionAccountEvaluation {
@@ -361,17 +370,48 @@ export interface ValueActionAccountEvaluation {
 /** Only an approved identity check clears a value-bearing action; every other status is incomplete. */
 export const VALUE_ACTION_APPROVED_KYC_STATUS = "Approved";
 
+/**
+ * Setup is finished and a reviewer still owes this account a decision. The wire value
+ * must match AZOA TenantKycStatus member for member; the gateway parses it by name.
+ */
+export const VALUE_ACTION_UNDER_REVIEW_KYC_STATUS = "UnderReview";
+
 export const VALUE_ACTION_SETUP_INCOMPLETE_MESSAGE =
   "Finish your account setup before you can fund work or be paid. You can keep creating projects and collaborating while setup is pending.";
 
 export const VALUE_ACTION_SERVICE_UNAVAILABLE_MESSAGE =
   "We could not confirm your account setup just now, so nothing was moved. This is not a problem with your account, so please try again shortly.";
 
+const reviewDecisionDateFormat = new Intl.DateTimeFormat("en-GB", {
+  day: "numeric",
+  month: "long",
+  year: "numeric",
+  timeZone: "UTC",
+});
+
+/**
+ * What a held account is told. Mirrors ValueEligibilityMessages.UnderReview on the
+ * server, and like it says nothing about why a review is open - not the check that
+ * opened it, not a score, not a name match. It says the two things this person can act
+ * on: nothing is left for them to redo, and a human can be reached.
+ */
+export function describeValueActionUnderReview(
+  reviewDueAt?: string | null,
+): string {
+  const due = reviewDueAt ? new Date(reviewDueAt) : null;
+  const decisionExpected =
+    due && !Number.isNaN(due.getTime())
+      ? `by ${reviewDecisionDateFormat.format(due)}`
+      : "shortly";
+  return `Your identity check is complete and our review team is finishing one last check on your account, so nothing was moved. A decision is expected ${decisionExpected} - there is nothing for you to redo. Contact support if you need it sooner.`;
+}
+
 /**
  * Classifies a value-action account. An unread, failed, or node-disabled account
  * is "service-unavailable" and must never be shown as unfinished setup; pass
- * `loadFailed` when the status request itself errored. A request still in flight
- * is neither outcome - render a loading state instead of calling this.
+ * `loadFailed` when the status request itself errored. An account held for a human
+ * decision is "under-review" and must never be shown as either of those. A request
+ * still in flight is none of them - render a loading state instead of calling this.
  */
 export function evaluateValueActionAccount(
   status: ValueActionAccountStatus | null | undefined,
@@ -386,6 +426,16 @@ export function evaluateValueActionAccount(
       state: "service-unavailable",
       ready: false,
       message: VALUE_ACTION_SERVICE_UNAVAILABLE_MESSAGE,
+    };
+  }
+
+  // Checked before readiness, exactly as the server orders it: setup is done and a person
+  // still owes a decision, so neither "try again shortly" nor "finish your setup" is true.
+  if (status.kycStatus === VALUE_ACTION_UNDER_REVIEW_KYC_STATUS) {
+    return {
+      state: "under-review",
+      ready: false,
+      message: describeValueActionUnderReview(status.reviewDueAt),
     };
   }
 
@@ -416,7 +466,11 @@ function hasEveryValueActionReadinessSignal(
   );
 }
 
-/** Full account readiness is required for value-bearing actions, not drafts. */
+/**
+ * Full account readiness is required for value-bearing actions, not drafts. Every
+ * non-"ready" outcome is false here; which one it was decides the words, never the
+ * permission - read `evaluateValueActionAccount` when the words matter.
+ */
 export function isValueActionAccountReady(
   status: ValueActionAccountStatus | null | undefined,
 ): boolean {

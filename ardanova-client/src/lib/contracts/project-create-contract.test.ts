@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   createEmptyProjectFormData,
+  describeValueActionUnderReview,
   evaluateValueActionAccount,
   isProjectRoleValueBearing,
   isValueActionAccountReady,
@@ -12,6 +13,7 @@ import {
   toOptionalIsoDate,
   VALUE_ACTION_SERVICE_UNAVAILABLE_MESSAGE,
   VALUE_ACTION_SETUP_INCOMPLETE_MESSAGE,
+  VALUE_ACTION_UNDER_REVIEW_KYC_STATUS,
 } from "./project-create-contract";
 
 describe("project creation contract", () => {
@@ -100,6 +102,71 @@ describe("project creation contract", () => {
         unavailableReason: "Custody is disabled on this node.",
       }),
     ).toBe(false);
+  });
+
+  it("tells a held account a reviewer owes it a decision, not to redo setup", () => {
+    const evaluation = evaluateValueActionAccount({
+      ...readyAccountStatus(),
+      kycStatus: VALUE_ACTION_UNDER_REVIEW_KYC_STATUS,
+      reviewDueAt: "2026-09-21T13:30:00Z",
+    });
+
+    expect(evaluation.state).toBe("under-review");
+    expect(evaluation.ready).toBe(false);
+    expect(evaluation.message).toContain("21 September 2026");
+
+    // The two messages this outcome exists to stop being mistaken for.
+    expect(evaluation.message).not.toBe(VALUE_ACTION_SETUP_INCOMPLETE_MESSAGE);
+    expect(evaluation.message).not.toBe(VALUE_ACTION_SERVICE_UNAVAILABLE_MESSAGE);
+  });
+
+  it("refuses a held account even though every other readiness signal is present", () => {
+    expect(
+      isValueActionAccountReady({
+        ...readyAccountStatus(),
+        kycStatus: VALUE_ACTION_UNDER_REVIEW_KYC_STATUS,
+      }),
+    ).toBe(false);
+  });
+
+  it("says a decision is due shortly when the node named no review date", () => {
+    const evaluation = evaluateValueActionAccount({
+      ...readyAccountStatus(),
+      kycStatus: VALUE_ACTION_UNDER_REVIEW_KYC_STATUS,
+    });
+
+    expect(evaluation.state).toBe("under-review");
+    expect(evaluation.message).toBe(describeValueActionUnderReview(null));
+    expect(describeValueActionUnderReview("not-a-date")).toBe(
+      describeValueActionUnderReview(null),
+    );
+  });
+
+  it("never discloses why a review is open", () => {
+    const message = describeValueActionUnderReview("2026-09-21T13:30:00Z");
+
+    for (const disclosure of [
+      "aml",
+      "sanction",
+      "screening",
+      "watchlist",
+      "risk",
+      "match",
+    ]) {
+      expect(message.toLowerCase()).not.toContain(disclosure);
+    }
+  });
+
+  it("reports a node outage ahead of a pending review", () => {
+    const evaluation = evaluateValueActionAccount({
+      ...readyAccountStatus(),
+      kycStatus: VALUE_ACTION_UNDER_REVIEW_KYC_STATUS,
+      reviewDueAt: "2026-09-21T13:30:00Z",
+      unavailableReason: "Custody is disabled on this node.",
+    });
+
+    expect(evaluation.state).toBe("service-unavailable");
+    expect(evaluation.message).toBe(VALUE_ACTION_SERVICE_UNAVAILABLE_MESSAGE);
   });
 
   it("keeps explicitly compensated roles out of pre-setup project drafts", () => {

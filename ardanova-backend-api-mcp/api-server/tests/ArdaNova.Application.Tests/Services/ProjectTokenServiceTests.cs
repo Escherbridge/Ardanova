@@ -11,6 +11,7 @@ using ArdaNova.Domain.Models.Enums;
 using AutoMapper;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 
 public class ProjectTokenServiceTests
@@ -53,7 +54,8 @@ public class ProjectTokenServiceTests
             _mapperMock.Object,
             _tokenBalanceServiceMock.Object,
             _treasuryServiceMock.Object,
-            _loggerMock.Object);
+            _loggerMock.Object,
+            new Mock<IAzoaValueEligibilityService>().Object);
     }
 
     /// <summary>
@@ -1623,6 +1625,8 @@ public class ProjectTokenServiceTests
             .ReturnsAsync(Result<AzoaCustodialAccountStatusDto>.Success(new AzoaCustodialAccountStatusDto
             {
                 AvatarId = WorkerAvatarId.ToString(),
+                WalletId = "wallet-1",
+                WalletAddress = "WORKER-ACCOUNT-ADDRESS",
                 KycStatus = AzoaKycStatus.Approved,
                 IdentityReady = true,
                 KycReady = true,
@@ -1656,6 +1660,9 @@ public class ProjectTokenServiceTests
             _tokenBalanceServiceMock.Object,
             _treasuryServiceMock.Object,
             _loggerMock.Object,
+            new AzoaValueEligibilityService(
+                _awardAccountsMock.Object,
+                NullLogger<AzoaValueEligibilityService>.Instance),
             _awardProjectRepoMock.Object,
             assets: null,
             ownerAccounts: _awardAccountsMock.Object,

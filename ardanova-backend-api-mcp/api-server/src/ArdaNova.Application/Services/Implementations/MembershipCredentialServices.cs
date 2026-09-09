@@ -217,7 +217,11 @@ public class MembershipCredentialService : IMembershipCredentialService
         // KYC gate: require PRO verification to receive credentials
         var gateResult = await _kycGateService.RequireProAsync(dto.UserId, ct);
         if (!gateResult.IsSuccess)
-            return Result<MembershipCredentialDto>.Forbidden(gateResult.Error!);
+        {
+            // Propagate, never flatten: forcing every refusal to Forbidden would undo the
+            // gate's distinction between "could not confirm" and "not allowed" right here.
+            return ValueEligibilityFailure.Propagate<bool, MembershipCredentialDto>(gateResult);
+        }
 
         // Validate grantedVia enum
         if (!Enum.TryParse<MembershipGrantType>(dto.GrantedVia, true, out var grantType))

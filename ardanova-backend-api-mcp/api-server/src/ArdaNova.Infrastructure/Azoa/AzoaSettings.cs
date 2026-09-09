@@ -84,13 +84,30 @@ public class AzoaSettings
     /// <summary>Delay between bounded hosted cycles.</summary>
     public int SettlementOutboxIntervalSeconds { get; set; } = 15;
 
-    /// <summary>Explicitly enables tenant-bound per-user custody and KYC orchestration.</summary>
+    /// <summary>
+    /// Explicitly enables tenant-bound per-user custody and KYC orchestration. Flipping this
+    /// alone does not make identity/KYC/wallet provisioning work: the AZOA node's own three
+    /// legs -- custody (<c>CustodialAccounts__CustodyMode=Platform</c> plus a boot-validated
+    /// <c>AZOA__WalletEncryptionKey</c>), a live chain (<c>Blockchain__Mode</c> not
+    /// <c>Simulated</c>), and KYC (<c>Kyc__Identomat__CompanyKey</c>/<c>ConfigId</c>/
+    /// <c>CallbackApiKey</c>) -- must each be live on the AZOA Railway service first. Any leg
+    /// still missing surfaces by name, never silently, in the capabilities probe this app reads
+    /// at <c>GET /api/tenant/custodial-accounts/capabilities</c> and republishes verbatim as
+    /// this service's own <c>/ready</c> response under
+    /// <c>checks.azoa.custodialAccountsUnavailableReason</c> (see Program.cs). Setting this
+    /// flag before every AZOA leg is live does not corrupt anything, but it does turn this
+    /// app's own <c>/ready</c> not_ready -- see <see cref="TenantId"/> for why it should wait.
+    /// </summary>
     public bool EnableCustodialAccounts { get; set; }
 
     /// <summary>
     /// GUID minted by AZOA when the ArdaNova tenant is provisioned (see the AZOA repo's
     /// docs/NODE-HOST.md, section 8.6). Required, and validated as a GUID, whenever
-    /// <see cref="EnableCustodialAccounts"/> is true.
+    /// <see cref="EnableCustodialAccounts"/> is true -- so set this and
+    /// <see cref="CustodyApiKey"/> together, from the one onboarding call, never
+    /// <see cref="EnableCustodialAccounts"/> alone: an enabled flag with no matching tenant
+    /// fails the GUID check above and takes this app's own <c>/ready</c> to not_ready, not just
+    /// the custodial-accounts sub-check.
     /// </summary>
     public string TenantId { get; set; } = string.Empty;
 

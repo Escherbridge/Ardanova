@@ -101,8 +101,9 @@ public class KycGateServiceTests
         // Assert
         result.IsFailure.Should().BeTrue();
         result.Type.Should().Be(ResultType.Forbidden);
-        result.Error.Should().Contain("AZOA identity approval");
-        result.Error.Should().Contain("/settings/verification");
+        result.Error.Should().Be(ValueEligibilityMessages.SetupIncomplete(string.Empty));
+        result.Error.Should().NotContain("AZOA");
+        result.Error.Should().NotContain("/settings/verification");
     }
 
     [Fact]
@@ -120,7 +121,7 @@ public class KycGateServiceTests
         // Assert
         result.IsFailure.Should().BeTrue();
         result.Type.Should().Be(ResultType.Forbidden);
-        result.Error.Should().Contain("AZOA identity approval");
+        result.Error.Should().Be(ValueEligibilityMessages.SetupIncomplete(string.Empty));
     }
 
     [Fact]
@@ -140,7 +141,7 @@ public class KycGateServiceTests
     }
 
     [Fact]
-    public async Task RequireProAsync_WhenLocalLevelIsProButAzoaIsUnavailable_ReturnsForbidden()
+    public async Task RequireProAsync_WhenLocalLevelIsProButAzoaIsUnavailable_ReturnsConflict()
     {
         var userId = Guid.NewGuid().ToString();
         _userRepositoryMock
@@ -152,7 +153,34 @@ public class KycGateServiceTests
 
         var result = await _sut.RequireProAsync(userId);
 
+        // An unreadable node says nothing about this person, so it must not deny them.
+        result.Type.Should().Be(ResultType.Conflict);
+        result.Error.Should().Be(ValueEligibilityMessages.ServiceUnavailable);
+        result.Error.Should().NotContain("AZOA unavailable");
+    }
+
+    [Fact]
+    public async Task RequireProAsync_WhenAccountIsUnderReview_SaysThereIsNothingToRedo()
+    {
+        var userId = Guid.NewGuid().ToString();
+        var reviewDueAt = new DateTimeOffset(2026, 10, 1, 0, 0, 0, TimeSpan.Zero);
+        _userRepositoryMock
+            .Setup(x => x.GetByIdAsync(userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new User { id = userId, verificationLevel = VerificationLevel.PRO });
+        _azoaAccountsMock
+            .Setup(x => x.GetStatusAsync(userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<AzoaCustodialAccountStatusDto>.Success(new()
+            {
+                IdentityReady = true,
+                KycStatus = AzoaKycStatus.UnderReview,
+                ReviewDueAt = reviewDueAt,
+            }));
+
+        var result = await _sut.RequireProAsync(userId);
+
         result.Type.Should().Be(ResultType.Forbidden);
+        result.Error.Should().Be(ValueEligibilityMessages.UnderReview(reviewDueAt));
+        result.Error.Should().NotBe(ValueEligibilityMessages.SetupIncomplete(string.Empty));
     }
 
     #endregion

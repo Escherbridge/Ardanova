@@ -108,7 +108,8 @@ namespace ArdaNova.Application.Tests.Flows
                 _mapper,
                 _tokenBalanceService,
                 _treasuryService,
-                _projectTokenLoggerMock.Object);
+                _projectTokenLoggerMock.Object,
+                new Mock<IAzoaValueEligibilityService>().Object);
 
             _exchangeService = new ExchangeService(
                 _configRepoMock.Object,
@@ -130,7 +131,8 @@ namespace ArdaNova.Application.Tests.Flows
                 _unitOfWorkMock.Object,
                 _mapper,
                 _tokenBalanceService,
-                _exchangeService);
+                _exchangeService,
+                new Mock<IAzoaValueEligibilityService>().Object);
         }
 
         private void SetupRepositoryMocks()

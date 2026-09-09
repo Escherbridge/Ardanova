@@ -56,9 +56,27 @@ public sealed class AzoaValueEligibilityService : IAzoaValueEligibilityService
         var status = statusResult.Value;
 
         // The node itself reported it cannot provide the account. That is a platform state;
-        // telling this person to finish setup would be both false and unactionable.
+        // telling this person to finish setup would be both false and unactionable. It is
+        // checked FIRST: when the node cannot answer, nothing else it said is worth reading.
         if (!string.IsNullOrWhiteSpace(status.UnavailableReason))
             return Unconfirmable(userId, action, status.UnavailableReason, null);
+
+        // Setup is done and a person still owes this account a decision. Neither of the other
+        // two refusals is true here: "try again shortly" is false because a human review is
+        // not transient, and "complete your account setup" is false because there is nothing
+        // left for them to complete. The allow/deny answer is unchanged - IsReadyForValueAction
+        // already refuses any status that is not Approved - so this only replaces the words.
+        if (status.KycStatus == AzoaKycStatus.UnderReview)
+        {
+            _logger.LogInformation(
+                "Value-action eligibility for {ValueAction} is held pending review for user {UserId}; due {ReviewDueAt}.",
+                action,
+                userId,
+                status.ReviewDueAt);
+
+            return Result<AzoaCustodialAccountStatusDto>.Forbidden(
+                ValueEligibilityMessages.UnderReview(status.ReviewDueAt));
+        }
 
         if (!IsReadyForValueAction(status))
         {
@@ -70,6 +88,13 @@ public sealed class AzoaValueEligibilityService : IAzoaValueEligibilityService
     }
 
     /// <summary>One readiness rule for every participant: funder, owner, assignee and beneficiary alike.</summary>
+    /// <remarks>
+    /// Every signal is REQUIRED, never conditional. A guard of the shape
+    /// <c>avatarId.HasValue &amp;&amp; avatarId == expected</c> skips itself when the value is
+    /// absent, which is the fail-open shape this codebase has shipped repeatedly: a missing
+    /// avatar becomes a pass rather than a refusal. Here a blank avatar id fails the
+    /// predicate outright.
+    /// </remarks>
     private static bool IsReadyForValueAction(AzoaCustodialAccountStatusDto status)
         => status.Ready
            && status.IdentityReady

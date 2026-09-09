@@ -148,6 +148,131 @@ public class AzoaValueEligibilityServiceTests
         await act.Should().ThrowAsync<OperationCanceledException>();
     }
 
+    [Fact]
+    public async Task RequireReadyAsync_TellsAHeldSubjectAReviewerOwesThemADecision()
+    {
+        var reviewDueAt = new DateTimeOffset(2026, 9, 21, 13, 30, 0, TimeSpan.Zero);
+        StubStatus(Result<AzoaCustodialAccountStatusDto>.Success(ReadyStatus() with
+        {
+            KycStatus = AzoaKycStatus.UnderReview,
+            ReviewDueAt = reviewDueAt,
+        }));
+
+        var result = await _sut.RequireReadyAsync("user-1", SetupAction);
+
+        result.Type.Should().Be(ResultType.Forbidden);
+        result.Error.Should().Be(ValueEligibilityMessages.UnderReview(reviewDueAt));
+        result.Error.Should().Contain("21 September 2026");
+
+        // The two refusals this outcome exists to stop being mistaken for.
+        result.Error.Should().NotContain("Complete your account setup");
+        result.Error.Should().NotContain("try again shortly");
+    }
+
+    [Fact]
+    public async Task RequireReadyAsync_HoldsAReviewedAccountClosedEvenWhenEverySignalLooksReady()
+    {
+        StubStatus(Result<AzoaCustodialAccountStatusDto>.Success(ReadyStatus() with
+        {
+            KycStatus = AzoaKycStatus.UnderReview,
+        }));
+
+        var result = await _sut.RequireReadyAsync("user-1", SetupAction);
+
+        result.IsSuccess.Should().BeFalse();
+        result.Type.Should().Be(ResultType.Forbidden);
+        result.Error.Should().Be(ValueEligibilityMessages.UnderReview(null));
+        result.Error.Should().Contain("shortly");
+    }
+
+    [Fact]
+    public async Task RequireReadyAsync_NeverDisclosesWhyAReviewIsOpen()
+    {
+        StubStatus(Result<AzoaCustodialAccountStatusDto>.Success(ReadyStatus() with
+        {
+            KycStatus = AzoaKycStatus.UnderReview,
+            ReviewDueAt = DateTimeOffset.UtcNow.AddDays(3),
+        }));
+
+        var result = await _sut.RequireReadyAsync("user-1", SetupAction);
+
+        foreach (var disclosure in new[] { "AML", "sanction", "screening", "watchlist", "risk", "match", "PEP" })
+        {
+            result.Error.Should().NotContainEquivalentOf(disclosure);
+        }
+    }
+
+    [Fact]
+    public async Task RequireReadyAsync_ReportsANodeOutageAheadOfAPendingReview()
+    {
+        StubStatus(Result<AzoaCustodialAccountStatusDto>.Success(ReadyStatus() with
+        {
+            KycStatus = AzoaKycStatus.UnderReview,
+            ReviewDueAt = DateTimeOffset.UtcNow.AddDays(3),
+            UnavailableReason = "Custody is disabled on this node.",
+        }));
+
+        var result = await _sut.RequireReadyAsync("user-1", SetupAction);
+
+        // When the node cannot answer, nothing else it said is worth repeating to a person.
+        result.Type.Should().Be(ResultType.Conflict);
+        result.Error.Should().Be(ValueEligibilityMessages.ServiceUnavailable);
+    }
+
+    [Fact]
+    public void UnderReview_ReadsAsAPendingDecisionRatherThanAnOutageOrUnfinishedSetup()
+    {
+        var withDate = ValueEligibilityMessages.UnderReview(
+            new DateTimeOffset(2026, 12, 1, 0, 0, 0, TimeSpan.Zero));
+
+        withDate.Should().Contain("by 1 December 2026");
+        withDate.Should().NotBe(ValueEligibilityMessages.ServiceUnavailable);
+        withDate.Should().NotBe(ValueEligibilityMessages.SetupIncomplete(SetupAction));
+        withDate.Should().NotBe(ValueEligibilityMessages.SubjectUnknown);
+    }
+
+    [Theory]
+    [InlineData(ResultType.Conflict, ResultType.Conflict, 409)]
+    [InlineData(ResultType.NotFound, ResultType.NotFound, 403)]
+    [InlineData(ResultType.Unauthorized, ResultType.Unauthorized, 403)]
+    [InlineData(ResultType.Forbidden, ResultType.Forbidden, 403)]
+    public void Propagate_CarriesTheOutcomeAndItsStatusCodeToTheEdgeWithoutFlattening(
+        ResultType readinessType,
+        ResultType expectedType,
+        int expectedStatusCode)
+    {
+        var readiness = ResultOfType(readinessType, "the gate's own words");
+
+        var propagated = ValueEligibilityFailure.Propagate<AzoaCustodialAccountStatusDto, string>(readiness);
+
+        propagated.Type.Should().Be(expectedType);
+        propagated.Error.Should().Be("the gate's own words");
+        ValueEligibilityFailure.StatusCode(readiness).Should().Be(expectedStatusCode);
+    }
+
+    [Fact]
+    public void Propagate_KeepsAnUnconfirmableReadinessOutOfTheForbiddenOverride()
+    {
+        var unconfirmable = Result<AzoaCustodialAccountStatusDto>
+            .Conflict(ValueEligibilityMessages.ServiceUnavailable);
+
+        var propagated = ValueEligibilityFailure.Propagate<AzoaCustodialAccountStatusDto, string>(
+            unconfirmable,
+            "You cannot do that.");
+
+        // An override may reword a Forbidden; it must never turn a 409 into a 403.
+        propagated.Type.Should().Be(ResultType.Conflict);
+        propagated.Error.Should().Be(ValueEligibilityMessages.ServiceUnavailable);
+    }
+
+    private static Result<AzoaCustodialAccountStatusDto> ResultOfType(ResultType type, string error) => type switch
+    {
+        ResultType.Conflict => Result<AzoaCustodialAccountStatusDto>.Conflict(error),
+        ResultType.NotFound => Result<AzoaCustodialAccountStatusDto>.NotFound(error),
+        ResultType.Unauthorized => Result<AzoaCustodialAccountStatusDto>.Unauthorized(error),
+        _ => Result<AzoaCustodialAccountStatusDto>.Forbidden(error),
+    };
+
     public static IEnumerable<object[]> IncompleteStatuses()
     {
         yield return [ReadyStatus() with { Ready = false }];
@@ -158,6 +283,11 @@ public class AzoaValueEligibilityServiceTests
         yield return [ReadyStatus() with { KycStatus = AzoaKycStatus.Unknown }];
         yield return [ReadyStatus() with { KycStatus = AzoaKycStatus.Pending }];
         yield return [ReadyStatus() with { KycStatus = AzoaKycStatus.Rejected }];
+
+        // AzoaKycStatus.UnderReview is deliberately absent: it is refused too, but with its
+        // own words. Adding it here would pass only if the held case regressed to
+        // "complete your account setup", which is the copy this gate exists to stop.
+
         yield return [ReadyStatus() with { WalletReady = false }];
         yield return [ReadyStatus() with { WalletId = null }];
         yield return [ReadyStatus() with { WalletAddress = null }];

@@ -41,7 +41,6 @@ The flag is honored only when `NODE_ENV=development`, creates a clearly marked p
 - `/people` and `/guilds` — people and collective coordination
 - `/dashboard/profile` — identity, contribution history, and explicit Azoa account setup
 - `/settings/verification` — Azoa-backed identity verification status and recovery
-- `/settings/wallets` — non-custodial external address references, kept separate from Azoa custody
 - `/portfolio` — pending and reconciled value
 - `/swap` — supported exchange flow with explicit transaction state
 
@@ -70,9 +69,9 @@ It deliberately does not ask people to paste public identity-document URLs.
 Reference-based providers require an Azoa-owned private upload, malware-scan,
 retention, and scoped-review workflow before ArdaNova may enable that path.
 
-External addresses saved under `/settings/wallets` are a separate,
-non-custodial feature. Saving one does not prove control and never converts it
-into the Azoa-managed wallet.
+There is no self-managed address surface. The managed account Azoa provisions is
+the only account ArdaNova coordinates, so nobody is asked to hold, paste, or prove
+control of an address to take part.
 
 ### Core product loop
 

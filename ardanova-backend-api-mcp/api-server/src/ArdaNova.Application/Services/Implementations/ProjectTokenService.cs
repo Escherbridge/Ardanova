@@ -41,6 +41,13 @@ public class ProjectTokenService : IProjectTokenService, IProjectTokenProvisioni
     public const int PlatformAssetScale = 6;
 
     private const string DefaultChainType = "Algorand";
+
+    /// <summary>What the person was trying to do, for the shared gate's own refusal copy.</summary>
+    private const string FundingSetupAction = "set up funding for a project";
+
+    /// <summary>What the worker was trying to do, for the shared gate's own refusal copy.</summary>
+    private const string AwardHandoverAction = "receive this award";
+
     private const int MaximumAssetNameLength = 32;
     private const int MaximumUnitNameLength = 8;
     private const int MinimumDisclosureLength = 20;
@@ -85,6 +92,7 @@ public class ProjectTokenService : IProjectTokenService, IProjectTokenProvisioni
     private readonly IRepository<Project>? _projectRepo;
     private readonly IAlgorandService? _assets;
     private readonly IAzoaCustodialAccountService? _ownerAccounts;
+    private readonly IAzoaValueEligibilityService _valueEligibility;
     private readonly IAzoaProjectTokenNodeGateway? _nodeGateway;
     private readonly IAzoaHoldGateway? _holds;
     private readonly IRepository<TaskCommerceAgreement>? _agreementRepo;
@@ -112,6 +120,7 @@ public class ProjectTokenService : IProjectTokenService, IProjectTokenProvisioni
         ITokenBalanceService tokenBalanceService,
         ITreasuryService treasuryService,
         ILogger<ProjectTokenService> logger,
+        IAzoaValueEligibilityService valueEligibility,
         IRepository<Project>? projectRepo = null,
         IAlgorandService? assets = null,
         IAzoaCustodialAccountService? ownerAccounts = null,
@@ -132,6 +141,8 @@ public class ProjectTokenService : IProjectTokenService, IProjectTokenProvisioni
         _tokenBalanceService = tokenBalanceService;
         _treasuryService = treasuryService;
         _logger = logger;
+        _valueEligibility = valueEligibility
+            ?? throw new ArgumentNullException(nameof(valueEligibility));
         _projectRepo = projectRepo;
         _assets = assets;
         _ownerAccounts = ownerAccounts;
@@ -297,8 +308,13 @@ public class ProjectTokenService : IProjectTokenService, IProjectTokenProvisioni
                 "Only the person who created this project can set up its funding.");
         }
 
-        if (await RequireOwnerReadyForValueAsync(requestedByUserId, ct) is { } notReady)
-            return Result<ProjectTokenFundingDto>.Forbidden(notReady);
+        var ownerReadiness = await _valueEligibility.RequireReadyAsync(
+            requestedByUserId, FundingSetupAction, ct);
+        if (!ownerReadiness.IsSuccess)
+        {
+            return ValueEligibilityFailure
+                .Propagate<AzoaCustodialAccountStatusDto, ProjectTokenFundingDto>(ownerReadiness);
+        }
 
         if (ValidateDeclaration(declaration) is { } invalid)
             return Result<ProjectTokenFundingDto>.ValidationError(invalid);
@@ -460,31 +476,6 @@ public class ProjectTokenService : IProjectTokenService, IProjectTokenProvisioni
                 }
                 : DescribeFunding(projectId, config, isOwner));
     }
-
-    /// <summary>Uniform value-action readiness (D46): a completed identity check and a ready account, or nothing.</summary>
-    private async Task<string?> RequireOwnerReadyForValueAsync(string userId, CancellationToken ct)
-    {
-        var status = await _ownerAccounts!.GetStatusAsync(userId, ct);
-        if (status.IsFailure || status.Value is null)
-        {
-            return status.Error
-                ?? "Your account readiness could not be confirmed, so funding setup cannot start.";
-        }
-
-        var account = status.Value;
-        if (IsValueReady(account))
-            return null;
-
-        return account.UnavailableReason
-            ?? "Finish verifying your identity before setting up funding for a project.";
-    }
-
-    /// <summary>
-    /// The one readiness predicate every value path in this service reads (D46). Four flags
-    /// checked in one place, so a path can never be gated on three of them by accident.
-    /// </summary>
-    private static bool IsValueReady(AzoaCustodialAccountStatusDto account)
-        => account.Ready && account.KycReady && account.WalletReady && account.IdentityReady;
 
     /// <summary>Writes a declaration onto a config whose stake does not exist yet.</summary>
     private static void ApplyDeclaration(ProjectTokenConfig config, ProjectTokenDeclaration declaration)
@@ -1315,22 +1306,21 @@ public class ProjectTokenService : IProjectTokenService, IProjectTokenProvisioni
         return null;
     }
 
-    /// <summary>The worker's avatar on the node, refused unless their account is value-ready (D46).</summary>
+    /// <summary>
+    /// The worker's avatar on the node, refused unless the SHARED gate says their account is
+    /// value-ready (D46). This service used to keep its own four-flag predicate, which drifted
+    /// from the gate in both directions: it never required the avatar and managed-account
+    /// evidence the gate requires, and it answered an unreadable node with Forbidden carrying
+    /// the raw provider diagnostic - telling a worker they are not allowed, in the node's own
+    /// words, because the platform was down.
+    /// </summary>
     private async Task<Result<Guid>> ResolveReadyAvatarAsync(string userId, CancellationToken ct)
     {
-        var status = await _ownerAccounts!.GetStatusAsync(userId, ct);
-        if (status.IsFailure || status.Value is null)
-            return Result<Guid>.Conflict(status.Error ?? ValueEligibilityMessages.ServiceUnavailable);
+        var readiness = await _valueEligibility.RequireReadyAsync(userId, AwardHandoverAction, ct);
+        if (!readiness.IsSuccess)
+            return ValueEligibilityFailure.Propagate<AzoaCustodialAccountStatusDto, Guid>(readiness);
 
-        var account = status.Value;
-        if (!IsValueReady(account))
-        {
-            return Result<Guid>.Forbidden(
-                account.UnavailableReason
-                ?? "This worker has not finished account setup, so their award cannot be handed over yet.");
-        }
-
-        return Guid.TryParse(account.AvatarId, out var avatarId) && avatarId != Guid.Empty
+        return Guid.TryParse(readiness.Value?.AvatarId, out var avatarId) && avatarId != Guid.Empty
             ? Result<Guid>.Success(avatarId)
             : Result<Guid>.Conflict(ValueEligibilityMessages.SubjectUnknown);
     }

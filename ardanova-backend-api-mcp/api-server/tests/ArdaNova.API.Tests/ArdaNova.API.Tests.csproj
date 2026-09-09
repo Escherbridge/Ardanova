@@ -44,6 +44,7 @@
     <Compile Include="..\..\src\ArdaNova.API\Controllers\ChatController.cs" Link="Controllers\ChatController.cs" />
     <Compile Include="..\..\src\ArdaNova.API\Controllers\NotificationsController.cs" Link="Controllers\NotificationsController.cs" />
     <Compile Include="..\..\src\ArdaNova.API\Controllers\DelegatedVotesController.cs" Link="Controllers\DelegatedVotesController.cs" />
+    <Compile Include="..\..\src\ArdaNova.API\Controllers\AdminAzoaBindingController.cs" Link="Controllers\AdminAzoaBindingController.cs" />
     <Compile Include="..\..\src\ArdaNova.API\Middleware\ApiKeyMiddleware.cs" Link="Middleware\ApiKeyMiddleware.cs" />
     <Compile Include="..\..\src\ArdaNova.API\Middleware\ActorAssertionMiddleware.cs" Link="Middleware\ActorAssertionMiddleware.cs" />
     <Compile Include="..\..\src\ArdaNova.API\EventBus\Abstractions\*.cs" Link="EventBus\Abstractions\%(Filename)%(Extension)" />

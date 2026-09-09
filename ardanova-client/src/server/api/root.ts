@@ -31,7 +31,6 @@ import { exchangeRouter } from "~/server/api/routers/exchange";
 import { userRouter } from "~/server/api/routers/user";
 import { notificationRouter } from "~/server/api/routers/notification";
 import { activityRouter } from "~/server/api/routers/activity";
-import { walletRouter } from "~/server/api/routers/wallet";
 import { attachmentRouter } from "~/server/api/routers/attachment";
 import { taskEscrowRouter } from "~/server/api/routers/task-escrow";
 import { delegatedVoteRouter } from "~/server/api/routers/delegated-vote";
@@ -80,7 +79,6 @@ export const appRouter = createTRPCRouter({
   user: userRouter,
   notification: notificationRouter,
   activity: activityRouter,
-  wallet: walletRouter,
   attachment: attachmentRouter,
   taskEscrow: taskEscrowRouter,
   delegatedVote: delegatedVoteRouter,
