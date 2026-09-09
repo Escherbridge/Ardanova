@@ -110,6 +110,33 @@ export const tokenAllocationDtoSchema = z
   })
   .strict();
 
+/**
+ * What a NON-MEMBER receives from the allocation routes: proof that work has been set aside,
+ * with no per-worker award size, no recipient id and no settlement reference. The route
+ * answers a member with an array and everyone else with this object, so a caller must
+ * discriminate on the shape rather than read an empty array as "nothing is allocated".
+ */
+export const projectAllocationSummaryDtoSchema = z
+  .object({
+    allocationCount: nonnegativeIntegerSchema,
+    totalUnitsAllocated: nonnegativeIntegerSchema,
+    totalEquityPercentage: z.number().finite(),
+    distributedCount: nonnegativeIntegerSchema,
+  })
+  .strict();
+
+export type ProjectAllocationSummaryDto = z.infer<
+  typeof projectAllocationSummaryDtoSchema
+>;
+
+/** Either the itemised allocations (a member) or the aggregate (everyone else). */
+export const tokenAllocationViewSchema = z.union([
+  z.array(tokenAllocationDtoSchema),
+  projectAllocationSummaryDtoSchema,
+]);
+
+export type TokenAllocationView = z.infer<typeof tokenAllocationViewSchema>;
+
 export const createTokenAllocationDtoSchema = z
   .object({
     pbiId: z.string().min(1).nullable().optional(),

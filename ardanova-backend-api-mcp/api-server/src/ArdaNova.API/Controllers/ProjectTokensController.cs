@@ -1,4 +1,4 @@
-namespace ArdaNova.API.Controllers;
+﻿namespace ArdaNova.API.Controllers;
 
 using System.Linq;
 using System.Security.Claims;
@@ -267,18 +267,64 @@ public class ProjectTokensController : ControllerBase
         return ToActionResult(result);
     }
 
+    /// <summary>
+    /// What a project has set aside, as a person is allowed to see it. This route used to
+    /// carry no <c>[Authorize]</c> and no membership check at all, so an ANONYMOUS caller
+    /// read every worker's award size, the recipient's internal user id and the settlement
+    /// reference — the very facts the project ledger withholds from a signed-in stranger.
+    /// Members see the itemised allocations; everyone else sees proof that work has been
+    /// staked (a count and the totals), which is what a sponsor legitimately needs.
+    /// </summary>
     [HttpGet("{configId}/allocations")]
+    [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
     public async Task<IActionResult> GetAllocations(string configId, CancellationToken ct)
     {
+        var config = await _projectTokenConfigRepository.GetByIdAsync(configId, ct);
+        if (config is null)
+            return NotFound(new { error = $"Project token config {configId} not found" });
+
         var result = await _projectTokenService.GetAllocationsByProjectAsync(configId, ct);
-        return ToActionResult(result);
+        if (!result.IsSuccess || result.Value is null)
+            return ToActionResult(result);
+
+        var isMember = await _hierarchyAuthorization.IsProjectMemberAsync(ActorId, config.projectId, ct);
+        return isMember
+            ? Ok(result.Value)
+            : Ok(ProjectAllocationSummaryDto.Of(result.Value));
     }
 
+    /// <summary>
+    /// The allocations against one backlog item, under the same membership rule as
+    /// <see cref="GetAllocations"/>: the project the item belongs to is resolved from the
+    /// allocations themselves, because a backlog item that has none discloses nothing and
+    /// needs no lookup.
+    /// </summary>
     [HttpGet("allocations/by-pbi/{pbiId}")]
+    [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
     public async Task<IActionResult> GetAllocationsByPbi(string pbiId, CancellationToken ct)
     {
         var result = await _projectTokenService.GetAllocationsByPbiAsync(pbiId, ct);
-        return ToActionResult(result);
+        if (!result.IsSuccess || result.Value is null)
+            return ToActionResult(result);
+
+        var allocations = result.Value;
+        if (allocations.Count == 0)
+            return Ok(allocations);
+
+        // Every allocation on one backlog item belongs to one project's config; a mixed set
+        // would be a data fault, and treating it as non-member is the fail-closed reading.
+        var configIds = allocations.Select(allocation => allocation.ProjectTokenConfigId).Distinct().ToList();
+        var isMember = false;
+        if (configIds.Count == 1)
+        {
+            var config = await _projectTokenConfigRepository.GetByIdAsync(configIds[0], ct);
+            if (config is not null)
+                isMember = await _hierarchyAuthorization.IsProjectMemberAsync(ActorId, config.projectId, ct);
+        }
+
+        return isMember
+            ? Ok(allocations)
+            : Ok(ProjectAllocationSummaryDto.Of(allocations));
     }
 
     /// <summary>
@@ -435,6 +481,28 @@ public record ProvisionProjectFundingRequest
 public record FailProjectRequest
 {
     public required string Reason { get; init; }
+}
+
+/// <summary>
+/// What a non-member sees from GetAllocations: proof that work has been staked, with no
+/// per-worker award size, no recipient id and no settlement reference. The shape is an
+/// OBJECT where a member's answer is an ARRAY, so a caller has to discriminate rather than
+/// silently read an empty list as "nothing has been set aside".
+/// </summary>
+public record ProjectAllocationSummaryDto
+{
+    public required int AllocationCount { get; init; }
+    public required int TotalUnitsAllocated { get; init; }
+    public required double TotalEquityPercentage { get; init; }
+    public required int DistributedCount { get; init; }
+
+    public static ProjectAllocationSummaryDto Of(IReadOnlyList<TokenAllocationDto> allocations) => new()
+    {
+        AllocationCount = allocations.Count,
+        TotalUnitsAllocated = allocations.Sum(allocation => allocation.TokenAmount),
+        TotalEquityPercentage = allocations.Sum(allocation => allocation.EquityPercentage),
+        DistributedCount = allocations.Count(allocation => allocation.DistributedAt is not null),
+    };
 }
 
 /// <summary>What a non-member sees from GetInvestors: proof the project has backers, with no

@@ -7,9 +7,11 @@ import SupplyBreakdownBar from "~/components/equity/supply-breakdown-bar";
 import { Badge } from "~/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import {
+  projectAllocationSummaryDtoSchema,
   projectGateStatusDtoSchema,
   projectTokenConfigDtoSchema,
   tokenAllocationDtoSchema,
+  type ProjectAllocationSummaryDto,
   type ProjectTokenConfigDto,
 } from "~/lib/contracts/tokenomics-contract";
 import { api } from "~/trpc/react";
@@ -70,9 +72,16 @@ function TokenPositionContent({ config }: { config: ProjectTokenConfigDto }) {
     configId: config.id,
   });
   const supplyResult = projectTokenConfigDtoSchema.safeParse(supplyQuery.data);
+  // The route branches its payload on project membership: a member is answered with the
+  // itemised allocations, everyone else with an aggregate object. Discriminating on the
+  // shape is required — parsing only the array shape would turn a withheld answer into
+  // "no allocations recorded", which is a different and untrue statement.
   const allocationResult = tokenAllocationDtoSchema
     .array()
     .safeParse(allocationsQuery.data);
+  const allocationSummaryResult = projectAllocationSummaryDtoSchema.safeParse(
+    allocationsQuery.data,
+  );
   const gateResult = projectGateStatusDtoSchema.safeParse(gateQuery.data);
   const gate = gateResult.success ? gateResult.data : undefined;
 
@@ -180,15 +189,47 @@ function TokenPositionContent({ config }: { config: ProjectTokenConfigDto }) {
                 Loading allocations…
               </span>
             </div>
-          ) : allocationsQuery.error || !allocationResult.success ? (
+          ) : allocationResult.success ? (
+            <AllocationTable allocations={allocationResult.data} />
+          ) : allocationSummaryResult.success ? (
+            <AllocationSummary summary={allocationSummaryResult.data} />
+          ) : (
             <p className="text-muted-foreground p-5 text-xs" role="status">
               Allocation records are unavailable. No allocation is inferred.
             </p>
-          ) : (
-            <AllocationTable allocations={allocationResult.data} />
           )}
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+/**
+ * What a person who is not on this project sees: proof that work has been set aside, with
+ * no per-worker award size, no recipient and no settlement reference. Shown INSTEAD of the
+ * table, never as an empty table — "no allocations recorded" would be a different claim
+ * from "these are not yours to read".
+ */
+function AllocationSummary({
+  summary,
+}: {
+  summary: ProjectAllocationSummaryDto;
+}) {
+  return (
+    <div className="space-y-2 p-5">
+      <p className="font-mono text-sm font-bold">
+        {summary.allocationCount === 1
+          ? "1 allocation recorded"
+          : `${summary.allocationCount} allocations recorded`}
+        {summary.allocationCount > 0
+          ? ` · ${summary.distributedCount} paid out`
+          : ""}
+      </p>
+      <p className="text-muted-foreground text-xs">
+        {summary.totalUnitsAllocated.toLocaleString("en-US")} units set aside in
+        total. Who each allocation is for, and how large it is, is shown to
+        project members only.
+      </p>
     </div>
   );
 }

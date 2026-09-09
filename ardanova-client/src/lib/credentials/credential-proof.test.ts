@@ -30,6 +30,7 @@ describe("reading a credential's proof", () => {
     expect(
       getCredentialProofPresentation({
         status: "ACTIVE",
+        isIndependentlyVerifiable: true,
         isOnChain: true,
         chainVerified: true,
       }).state,
@@ -37,19 +38,41 @@ describe("reading a credential's proof", () => {
     expect(
       getCredentialProofPresentation({
         status: "ACTIVE",
+        isIndependentlyVerifiable: true,
         isOnChain: true,
         chainVerified: false,
       }).state,
     ).toBe("recorded");
   });
 
-  it("treats a reference on its own as recorded, which is what the card had", () => {
+  it("treats a reference on its own as recorded, once the node says it issued it", () => {
     expect(
       getCredentialProofPresentation({
         status: "ACTIVE",
+        isIndependentlyVerifiable: true,
         mintTxHash: "0xabc",
       }).state,
     ).toBe("recorded");
+  });
+
+  it("refuses every proof reading for a credential the node did not issue", () => {
+    // The whole point of the flag. A row can carry a fabricated identifier — the shipped
+    // simulated provider made one up — and identifier PRESENCE must decide nothing. This is
+    // the same question both screens ask, so neither can read "Verified" while the other
+    // reads "Verification pending" about the same credential.
+    const unissued: CredentialProofReport[] = [
+      { status: "ACTIVE", assetId: "12345" },
+      { status: "ACTIVE", mintTxHash: "0xabc" },
+      { status: "ACTIVE", isOnChain: true },
+      { status: "ACTIVE", chainVerified: true },
+      { status: "ACTIVE", isIndependentlyVerifiable: false, chainVerified: true },
+      { status: "ACTIVE", isIndependentlyVerifiable: null, assetId: "12345" },
+    ];
+
+    for (const report of unissued) {
+      expect(getCredentialProofPresentation(report).state).toBe("preparing");
+      expect(getCredentialProofReference(report)).toBeNull();
+    }
   });
 
   it("treats an absent proof as still being prepared, never as a failure", () => {
@@ -69,14 +92,26 @@ describe("reading a credential's proof", () => {
   });
 
   it("offers one reference, preferring the asset id, and never an empty one", () => {
+    const issued = { isIndependentlyVerifiable: true } as const;
     expect(
-      getCredentialProofReference({ assetId: "12345", mintTxHash: "0xabc" }),
+      getCredentialProofReference({
+        ...issued,
+        assetId: "12345",
+        mintTxHash: "0xabc",
+      }),
     ).toBe("12345");
-    expect(getCredentialProofReference({ mintTxHash: "0xabc" })).toBe("0xabc");
     expect(
-      getCredentialProofReference({ assetId: "   ", mintTxHash: "0xabc" }),
+      getCredentialProofReference({ ...issued, mintTxHash: "0xabc" }),
     ).toBe("0xabc");
-    expect(getCredentialProofReference({ assetId: "   " })).toBeNull();
+    expect(
+      getCredentialProofReference({
+        ...issued,
+        assetId: "   ",
+        mintTxHash: "0xabc",
+      }),
+    ).toBe("0xabc");
+    expect(getCredentialProofReference({ ...issued, assetId: "   " })).toBeNull();
+    expect(getCredentialProofReference({ ...issued })).toBeNull();
     expect(getCredentialProofReference({})).toBeNull();
     expect(getCredentialProofReference(null)).toBeNull();
   });
@@ -115,6 +150,10 @@ describe("the words a non-crypto member is shown about a credential", () => {
   const everyReport: (CredentialProofReport | null | undefined)[] = [
     { status: "REVOKED" },
     { status: "SUSPENDED" },
+    { status: "ACTIVE", isIndependentlyVerifiable: true, chainVerified: true },
+    { status: "ACTIVE", isIndependentlyVerifiable: true, isOnChain: true },
+    { status: "ACTIVE", isIndependentlyVerifiable: true, assetId: "12345" },
+    { status: "ACTIVE", isIndependentlyVerifiable: true, mintTxHash: "0xabc" },
     { status: "ACTIVE", chainVerified: true },
     { status: "ACTIVE", isOnChain: true },
     { status: "ACTIVE", assetId: "12345" },

@@ -20,6 +20,13 @@ export interface MembershipCredential {
   grantedByProposalId?: string | null;
   isTransferable?: boolean;
   mintTxHash?: string | null;
+  /**
+   * True only when the credential went through the issuance node and the node returned an
+   * issuance reference. Derived server-side from that reference, never from `assetId`; see
+   * MembershipCredentialDto.IsIndependentlyVerifiable. Optional here so an older API reads
+   * as NOT verifiable rather than as verified.
+   */
+  isIndependentlyVerifiable?: boolean | null;
   revokeTxHash?: string | null;
   createdAt?: string;
   updatedAt?: string;

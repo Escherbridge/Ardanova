@@ -12,21 +12,18 @@ import {
 import type { MembershipCredential } from "~/lib/api/ardanova/endpoints/membership-credentials";
 
 /**
- * A credential plus the server's issuance-path flag.
+ * A credential as this card reads it. `isIndependentlyVerifiable` now lives on
+ * `MembershipCredential` itself — the server publishes it off the issuance reference the
+ * issuance node returned (MembershipCredentialDto.IsIndependentlyVerifiable) — and this
+ * alias is kept only so the intent stays legible at the call sites below.
  *
- * `isIndependentlyVerifiable` is true only when the credential was issued through the credential
- * issuance node - the one path that puts a proof in the MEMBER's hands. It is read as `=== true`,
- * so a credential from an API that does not publish the field yet reads as NOT verifiable.
- *
- * That fail-closed default is the point of this type. The presence of a stored identifier is not
- * evidence of anything: the shipped simulated provider fabricated one outright, and the
- * address-based mint it replaced put a real asset in the PLATFORM's own hands, which proves
- * nothing about the member. `CredentialUtilityService.GrantAndMintAsync` now refuses to record any
- * proof reference unless the issuance node produced it; this flag is how a screen asks.
+ * The flag is read as `=== true` by the shared translator, so a credential from an API that
+ * does not publish it yet reads as NOT verifiable. That fail-closed default is the point: the
+ * presence of a stored identifier is not evidence of anything, because the shipped simulated
+ * provider fabricated one outright and the address-based mint it replaced put a real asset in
+ * the PLATFORM's own hands, which proves nothing about the member.
  */
-type CredentialWithIssuancePath = MembershipCredential & {
-  isIndependentlyVerifiable?: boolean | null;
-};
+type CredentialWithIssuancePath = MembershipCredential;
 
 interface CredentialCardProps {
   credential: CredentialWithIssuancePath;
@@ -63,43 +60,42 @@ const proofStyles = {
   preparing: { icon: Clock, tone: "text-neon-yellow" },
 } as const;
 
-/** Whether the server says this credential went through the issuance path. Absent means no. */
-function wasIndependentlyIssued(credential: CredentialWithIssuancePath): boolean {
-  return credential.isIndependentlyVerifiable === true;
-}
-
 /**
  * One reading of a credential, in plain words.
  *
- * The words come from ~/lib/credentials/credential-proof.ts, which is the single place the
- * node's chain vocabulary is translated - the card and the credential detail page must not
- * drift into saying different things about the same credential.
+ * The words AND the issuance gate both come from ~/lib/credentials/credential-proof.ts. The
+ * gate used to live here, in this component, which is exactly how the card and the credential
+ * detail page came to say different things about the same credential: the detail page built
+ * its report from identifier PRESENCE and read "Verified" where the card read "Verification
+ * pending". Passing the flag through instead of pre-filtering the identifiers is what makes
+ * that drift impossible rather than merely discouraged.
  */
 function readVerification(
   credential: CredentialWithIssuancePath,
 ): VerificationState {
-  // The proof reading is gated on the issuance path, never on the presence of an identifier.
-  // Withdrawn and paused still outrank everything, which is why status is passed through.
-  const issued = wasIndependentlyIssued(credential);
-  const { state, label, detail } = getCredentialProofPresentation({
-    status: credential.status,
-    assetId: issued ? credential.assetId : null,
-    mintTxHash: issued ? credential.mintTxHash : null,
-  });
+  const { state, label, detail } = getCredentialProofPresentation(
+    toProofReport(credential),
+  );
   return { label, detail, ...proofStyles[state] };
 }
 
 /**
  * The single reference a member can quote to prove this credential, and only when there is
  * something to prove: an un-issued credential has no reference, however many identifiers the
- * record happens to carry.
+ * record happens to carry. The translator enforces that.
  */
 function proofReference(credential: CredentialWithIssuancePath): string | null {
-  if (!wasIndependentlyIssued(credential)) return null;
-  return getCredentialProofReference({
+  return getCredentialProofReference(toProofReport(credential));
+}
+
+/** The credential as the shared translator reads it. Nothing is filtered on the way in. */
+function toProofReport(credential: CredentialWithIssuancePath) {
+  return {
+    status: credential.status,
+    isIndependentlyVerifiable: credential.isIndependentlyVerifiable,
     assetId: credential.assetId,
     mintTxHash: credential.mintTxHash,
-  });
+  };
 }
 
 function formatDate(value?: string | null): string | null {

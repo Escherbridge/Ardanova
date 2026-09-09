@@ -92,6 +92,8 @@ function MoneyTabContent({ money }: { money: ProjectMoneyView }) {
     <div className="space-y-6">
       <BalanceCard money={money} />
 
+      <SupportSummary money={money} />
+
       <div className="flex flex-wrap items-center gap-2">
         {ENTRY_FILTERS.map((option) => (
           <Button
@@ -107,7 +109,9 @@ function MoneyTabContent({ money }: { money: ProjectMoneyView }) {
         ))}
       </div>
 
-      {entries.length === 0 ? (
+      {!money.entriesVisible ? (
+        <EntriesWithheld note={money.entriesHiddenNote} />
+      ) : entries.length === 0 ? (
         <EmptyEntries hasAnyEntries={money.entries.length > 0} />
       ) : (
         <ul className="space-y-3">
@@ -119,7 +123,7 @@ function MoneyTabContent({ money }: { money: ProjectMoneyView }) {
         </ul>
       )}
 
-      {money.counterpartyNamesNote ? (
+      {money.entriesVisible && money.counterpartyNamesNote ? (
         <p className="text-muted-foreground text-xs">
           {money.counterpartyNamesNote}
         </p>
@@ -248,6 +252,73 @@ function MoneyEntryRow({ entry }: { entry: ProjectMoneyEntry }) {
           </Badge>
         )}
       </div>
+    </div>
+  );
+}
+
+/**
+ * Support this project has, shown to everyone including a signed-in stranger. It is the whole
+ * answer a non-member gets, and without it an empty entry list reads as "nothing has moved
+ * yet" on a project that HAS been sponsored — a false statement to the very person being
+ * asked for money.
+ */
+function SupportSummary({ money }: { money: ProjectMoneyView }) {
+  const { summary } = money;
+  const hasSupport = summary.sponsorCount > 0 || summary.contributorCount > 0;
+
+  return (
+    <Card className="border-foreground">
+      <CardHeader className="pb-2">
+        <CardTitle className="font-mono text-base tracking-wide uppercase">
+          Support
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        {hasSupport ? (
+          <>
+            <p className="font-mono text-2xl font-bold">
+              {summary.sponsorshipTotalUsdText}
+            </p>
+            <p className="text-muted-foreground text-xs">
+              {formatCount(summary.sponsorCount, "sponsor", "sponsors")}
+              {" · "}
+              {formatCount(
+                summary.contributorCount,
+                "person paid in stake",
+                "people paid in stake",
+              )}
+            </p>
+          </>
+        ) : (
+          <p className="text-muted-foreground text-xs">
+            No sponsorship has settled yet.
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+/** Plural-safe count. "1 sponsor", never "1 sponsors". */
+function formatCount(count: number, one: string, many: string): string {
+  return `${count} ${count === 1 ? one : many}`;
+}
+
+/**
+ * The reader is not on this project, so the server built no entries for them at all. This is
+ * NOT the same statement as "nothing has moved", and saying the latter here would contradict
+ * the support figure directly above it.
+ */
+function EntriesWithheld({ note }: { note?: string | null }) {
+  return (
+    <div className="border-border flex flex-col items-center justify-center gap-2 border p-8 text-center">
+      <p className="text-muted-foreground font-mono text-sm font-bold uppercase">
+        Individual movements are private
+      </p>
+      <p className="text-muted-foreground text-xs">
+        {note ??
+          "Individual movements are shown to project members only. Everyone else sees how much support this project has, not who gave what."}
+      </p>
     </div>
   );
 }

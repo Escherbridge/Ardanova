@@ -18,6 +18,19 @@
 export type CredentialProofReport = {
   /** The credential's lifecycle status, in the API's enum values. */
   status?: string | null;
+  /**
+   * Whether the credential went through the issuance node — the one path that puts a proof in
+   * the MEMBER's hands. Read as `=== true`, so a report that omits it (an older API, a caller
+   * that only holds a partial record) reads as NOT verifiable.
+   *
+   * This is the gate, and it lives HERE rather than at each screen. Every identifier below is
+   * ignored while it is anything but true: the shipped simulated provider fabricated an
+   * `assetId` outright, and the address-based mint it replaced put a real asset in the
+   * PLATFORM's hands. Two screens read this module — the card and the credential detail page
+   * — and gating at one of them is how they came to say "Verification pending" and "Verified"
+   * about the same credential.
+   */
+  isIndependentlyVerifiable?: boolean | null;
   /** The node's proof identifiers. Either one, if present, is a quotable reference. */
   assetId?: string | null;
   mintTxHash?: string | null;
@@ -25,6 +38,13 @@ export type CredentialProofReport = {
   isOnChain?: boolean | null;
   chainVerified?: boolean | null;
 };
+
+/** Whether the node says this credential went through the issuance path. Absent means no. */
+function wasIndependentlyIssued(
+  report: CredentialProofReport | null | undefined,
+): boolean {
+  return report?.isIndependentlyVerifiable === true;
+}
 
 /** The only proof readings a member-facing screen may show. */
 export type CredentialProofState =
@@ -84,6 +104,8 @@ export function getCredentialProofReference(
   report: CredentialProofReport | null | undefined,
 ): string | null {
   if (!report) return null;
+  // An un-issued credential has no reference, however many identifiers the record carries.
+  if (!wasIndependentlyIssued(report)) return null;
   for (const candidate of [report.assetId, report.mintTxHash]) {
     const trimmed = candidate?.trim() ?? "";
     if (trimmed.length > 0) return trimmed;
@@ -106,6 +128,11 @@ export function getCredentialProofPresentation(
   const status = normalize(report.status);
   if (status === "REVOKED") return withdrawn;
   if (status === "SUSPENDED") return paused;
+
+  // Below status, the issuance path decides. Identifier PRESENCE decides nothing: a row
+  // carrying a fabricated identifier reads "still being prepared", which is true — no proof
+  // the member can show exists for it.
+  if (!wasIndependentlyIssued(report)) return preparing;
 
   if (report.chainVerified === true) return verified;
   if (report.isOnChain === true) return recorded;

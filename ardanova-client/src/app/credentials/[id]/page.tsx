@@ -84,8 +84,12 @@ export default function CredentialDetailPage() {
   const scope = credential.projectId ? "PROJECT" : "GUILD";
   const statusCfg = statusConfig[credential.status];
 
+  // The SAME report shape the card builds, gated on the SAME issuance flag. This page used
+  // to omit isIndependentlyVerifiable, so the translator fell through to identifier presence
+  // and read "Verified" on a row the card read as "Verification pending".
   const report = {
     status: credential.status,
+    isIndependentlyVerifiable: credential.isIndependentlyVerifiable,
     assetId: asaInfo?.assetId ?? credential.assetId,
     mintTxHash: credential.mintTxHash,
     isOnChain,

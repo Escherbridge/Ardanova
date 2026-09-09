@@ -1,4 +1,4 @@
-namespace ArdaNova.Application.DTOs;
+﻿namespace ArdaNova.Application.DTOs;
 
 public record MembershipCredentialDto
 {
@@ -19,6 +19,23 @@ public record MembershipCredentialDto
     public DateTime? RevokedAt { get; init; }
     public DateTime CreatedAt { get; init; }
     public DateTime UpdatedAt { get; init; }
+
+    /// <summary>
+    /// True only when this credential went through the credential ISSUANCE NODE — the one
+    /// path that puts a proof in the MEMBER's hands — and the node returned an issuance
+    /// reference for it.
+    /// <para>
+    /// It is derived from <c>mintTxHash</c> and NEVER from <c>assetId</c>. That column is
+    /// written in exactly one place, <c>MembershipCredentialServices.UpdateMintInfoAsync</c>,
+    /// whose only production caller is <c>CredentialUtilityService.IssueThroughNodeAsync</c>,
+    /// where it carries <c>IssuanceReference</c> off the node's own result. AssetId is not
+    /// usable for this: the shipped simulated provider fabricated one outright, and the
+    /// address-based mint it replaced put a real asset in the PLATFORM's hands, which proves
+    /// nothing about the member. A re-grant of a withdrawn credential clears both columns,
+    /// so the flag goes back to false until the node issues again.
+    /// </para>
+    /// </summary>
+    public bool IsIndependentlyVerifiable { get; init; }
 }
 
 public record GrantMembershipCredentialDto
