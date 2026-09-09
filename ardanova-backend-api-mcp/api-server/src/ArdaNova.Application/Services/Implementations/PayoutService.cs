@@ -1212,7 +1212,10 @@ namespace ArdaNova.Application.Services.Implementations
             if (restriction.RestrictedUnits > 0
                 && TokenLiquidityPolicy.IsLiquid(holderClass, gateStatus))
             {
-                return restriction.RestrictedUntil is { } until
+                // The date comes through UnitWindow.DatedReleaseFor, the same rule the portfolio
+                // DTO publishes through, so a sentence here and a badge there cannot disagree
+                // about whether this hold is one the platform may put a date on.
+                return UnitWindow.DatedReleaseFor(holderClass, gateStatus, restriction) is { } until
                     ? $"These units are yours, held until {until.UtcDateTime:d MMMM yyyy}."
                     : "These units are yours, but they are still held.";
             }

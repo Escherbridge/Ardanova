@@ -2,6 +2,7 @@
 
 import { Lock, PauseCircle, ArrowUpRight } from "lucide-react";
 import type { TokenBalanceDto } from "~/lib/api/ardanova/endpoints/token-balances";
+import { describeHoldRelease } from "~/lib/commerce/portfolio-contract";
 import { api } from "~/trpc/react";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
@@ -78,6 +79,7 @@ function HoldingCard({
   const projectLabel = configQuery.data?.assetName ?? "Project units";
   const unitName = configQuery.data?.unitName ?? "units";
   const hasPayoutContext = holding.holderClass !== null;
+  const release = describeHoldRelease(holding.restrictedUntil);
 
   return (
     <Card className="border-border rounded-none border-2" padding="none">
@@ -121,8 +123,15 @@ function HoldingCard({
           <div className="border-border bg-muted/20 flex items-start gap-2 border p-3">
             <Lock className="text-muted-foreground mt-0.5 h-4 w-4 shrink-0" />
             <p className="text-muted-foreground text-xs">
-              {formatUnits(holding.lockedBalance)} {unitName} are still in
-              their hold window. This screen does not infer a release date.
+              {/*
+                A release date is shown only when the API sent one, and the API sends one only
+                when the date is the WHOLE of the hold. Where the project's own progress is also
+                holding these units there is no date to give — that release turns on an outcome,
+                not on a day — and this panel says so rather than inventing one.
+              */}
+              {release.kind === "dated"
+                ? `${formatUnits(holding.lockedBalance)} ${unitName} are held until ${formatDate(release.on.toISOString())}.`
+                : `${formatUnits(holding.lockedBalance)} ${unitName} are still held. This screen does not infer a release date.`}
             </p>
           </div>
         )}

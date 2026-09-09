@@ -7,6 +7,7 @@ using ArdaNova.Application.Services.Implementations;
 using ArdaNova.Application.Services.Interfaces;
 using ArdaNova.Domain.Models.Entities;
 using ArdaNova.Domain.Models.Enums;
+using ArdaNova.Domain.Policies;
 using AutoMapper;
 using FluentAssertions;
 using Moq;
@@ -565,6 +566,122 @@ public class ProjectServiceTests
         // Assert
         result.IsSuccess.Should().BeTrue();
         project.categories.Should().Be("HEALTHCARE,EDUCATION");
+    }
+
+    [Fact]
+    public async Task UpdateAsync_AnEditedAsk_IsActuallyWrittenToTheColumn()
+    {
+        // This door validated the ask and then never assigned it: the owner was told the edit
+        // saved and the column did not move, while the UNIT beside it was written on the same
+        // request. The counter is the column, so that is what this asserts.
+        var projectId = Guid.NewGuid().ToString();
+        var project = new Project
+        {
+            id = projectId,
+            createdById = Guid.NewGuid().ToString(),
+            title = "Riverside Allotment",
+            description = "Desc",
+            problemStatement = "Problem",
+            solution = "Solution",
+            categories = "TECHNOLOGY",
+            status = ProjectStatus.DRAFT,
+            fundingGoal = 5_000m,
+            fundingGoalUnit = "USD",
+            createdAt = DateTime.UtcNow,
+            updatedAt = DateTime.UtcNow,
+        };
+
+        _repositoryMock.Setup(r => r.GetByIdAsync(projectId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(project);
+        _repositoryMock.Setup(r => r.UpdateAsync(It.IsAny<Project>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        _unitOfWorkMock.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>())).ReturnsAsync(1);
+        _mapperMock.Setup(m => m.Map<ProjectDto>(It.IsAny<Project>()))
+            .Returns(new ProjectDto { Title = "Riverside Allotment" });
+
+        var result = await _sut.UpdateAsync(projectId, new UpdateProjectDto { FundingGoal = 7_500.25m });
+
+        result.IsSuccess.Should().BeTrue();
+        project.fundingGoal.Should().Be(7_500.25m);
+    }
+
+    [Theory]
+    [InlineData(0.5)]              // below the floor
+    [InlineData(1_000_000_001)]    // above the ceiling
+    [InlineData(5_000.005)]        // finer than a cent
+    [InlineData(0)]                // an ask of nothing
+    public async Task UpdateAsync_AnUnusableAsk_IsRefusedAndTheColumnDoesNotMove(decimal ask)
+    {
+        var projectId = Guid.NewGuid().ToString();
+        var project = new Project
+        {
+            id = projectId,
+            createdById = Guid.NewGuid().ToString(),
+            title = "Riverside Allotment",
+            description = "Desc",
+            problemStatement = "Problem",
+            solution = "Solution",
+            categories = "TECHNOLOGY",
+            status = ProjectStatus.DRAFT,
+            fundingGoal = 5_000m,
+            fundingGoalUnit = "USD",
+            createdAt = DateTime.UtcNow,
+            updatedAt = DateTime.UtcNow,
+        };
+
+        _repositoryMock.Setup(r => r.GetByIdAsync(projectId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(project);
+
+        var result = await _sut.UpdateAsync(
+            projectId, new UpdateProjectDto { Title = "A new title", FundingGoal = ask });
+
+        result.IsSuccess.Should().BeFalse();
+        result.Type.Should().Be(ResultType.ValidationError);
+        result.Error.Should().Be(ProjectFundingLedger.DescribeUnusableGoalAmount(ask));
+
+        // The counters that must not move: the ask, the title beside it, and the save.
+        project.fundingGoal.Should().Be(5_000m);
+        project.title.Should().Be("Riverside Allotment");
+        _repositoryMock.Verify(
+            r => r.UpdateAsync(It.IsAny<Project>(), It.IsAny<CancellationToken>()), Times.Never);
+        _unitOfWorkMock.Verify(
+            u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_AnOmittedAsk_LeavesTheColumnAlone()
+    {
+        // A project may carry no ask, and an edit that does not mention the ask is not an ask of
+        // nothing - so absent must stay absent rather than being refused or zeroed.
+        var projectId = Guid.NewGuid().ToString();
+        var project = new Project
+        {
+            id = projectId,
+            createdById = Guid.NewGuid().ToString(),
+            title = "Riverside Allotment",
+            description = "Desc",
+            problemStatement = "Problem",
+            solution = "Solution",
+            categories = "TECHNOLOGY",
+            status = ProjectStatus.DRAFT,
+            fundingGoal = 5_000m,
+            fundingGoalUnit = "USD",
+            createdAt = DateTime.UtcNow,
+            updatedAt = DateTime.UtcNow,
+        };
+
+        _repositoryMock.Setup(r => r.GetByIdAsync(projectId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(project);
+        _repositoryMock.Setup(r => r.UpdateAsync(It.IsAny<Project>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        _unitOfWorkMock.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>())).ReturnsAsync(1);
+        _mapperMock.Setup(m => m.Map<ProjectDto>(It.IsAny<Project>()))
+            .Returns(new ProjectDto { Title = "A new title" });
+
+        var result = await _sut.UpdateAsync(projectId, new UpdateProjectDto { Title = "A new title" });
+
+        result.IsSuccess.Should().BeTrue();
+        project.fundingGoal.Should().Be(5_000m);
     }
 
     [Fact]

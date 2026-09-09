@@ -18,6 +18,20 @@ public sealed record UnitWindowRestriction(long RestrictedUnits, DateTimeOffset?
 }
 
 /// <summary>
+/// Whether a holding may move, and the ONLY release date that may be shown for it.
+/// </summary>
+/// <param name="IsLiquid">True when at least some of the holding may move right now.</param>
+/// <param name="DatedRelease">
+/// The date the hold ends, or null when nothing dates it - including when the project's gate is
+/// part of the hold, because a gate moves on an outcome and not on a date.
+/// </param>
+public readonly record struct HoldingLiquidity(bool IsLiquid, DateTimeOffset? DatedRelease)
+{
+    /// <summary>Nothing holds this holding back, so there is no date to give.</summary>
+    public static HoldingLiquidity Free { get; } = new(true, null);
+}
+
+/// <summary>
 /// The ONE rule for the worker's own restricted window: what it holds back, and until when.
 /// </summary>
 /// <remarks>
@@ -51,6 +65,28 @@ public static class UnitWindow
     public static bool IsAwardLiquid(
         TokenAllocation award, ProjectGateStatus gateStatus, DateTimeOffset now)
         => TokenLiquidityPolicy.IsLiquid(award.holderClass, gateStatus) && HasElapsed(award, now);
+
+    /// <summary>
+    /// The date a hold ENDS, or null when something UNDATED is also holding these units.
+    /// </summary>
+    /// <remarks>
+    /// <c>workerHoldReleasesAt</c> is stamped at award approval and knows nothing about the
+    /// project's gate, so a worker on a still-FUNDING project has a real date sitting on units
+    /// the gate ALSO refuses to release. Showing that date would promise a release the gate does
+    /// not honour: the window ends on 14 March, the gate may never move at all, and "Available
+    /// from 14 March" would be a date this platform cannot keep. A date is only publishable when
+    /// the window is the WHOLE of the remaining hold - which is exactly what
+    /// <see cref="TokenLiquidityPolicy.IsLiquid"/> being true means. This is the same rule
+    /// <c>PayoutService.DescribeIlliquidity</c> states in the holder's own words; both read it
+    /// here so there is one rule rather than two that can drift.
+    /// </remarks>
+    public static DateTimeOffset? DatedReleaseFor(
+        TokenHolderClass holderClass,
+        ProjectGateStatus gateStatus,
+        UnitWindowRestriction restriction)
+        => TokenLiquidityPolicy.IsLiquid(holderClass, gateStatus)
+            ? restriction.RestrictedUntil
+            : null;
 
     /// <summary>What a holder's awards still hold back, summed over the awards themselves.</summary>
     public static UnitWindowRestriction Restrict(IEnumerable<TokenAllocation> awards, DateTimeOffset now)
@@ -435,6 +471,28 @@ public class TokenBalanceService : ITokenBalanceService
         TokenHolderClass holderClass,
         CancellationToken ct = default)
     {
+        var reading = await ReadLiquidityAsync(userId, projectTokenConfigId, holderClass, ct);
+        return reading.IsSuccess
+            ? Result<bool>.Success(reading.Value.IsLiquid)
+            : Result<bool>.Failure(reading.Error!);
+    }
+
+    /// <summary>
+    /// One holding's liquidity AND the only release date that may be published for it.
+    /// </summary>
+    /// <remarks>
+    /// Both answers come out of one reading because they are one decision. Computing "is it
+    /// held?" here and "until when?" somewhere else is how a held holding came to be stamped
+    /// with a window date it could not keep: the gate refused the units, and a second, separate
+    /// window read then dated the refusal anyway. <see cref="UnitWindow.DatedReleaseFor"/> is the
+    /// rule, and it is applied at the same counter that decides the flag.
+    /// </remarks>
+    private async Task<Result<HoldingLiquidity>> ReadLiquidityAsync(
+        string userId,
+        string projectTokenConfigId,
+        TokenHolderClass holderClass,
+        CancellationToken ct)
+    {
         Expression<Func<TokenBalance, bool>> balancePredicate = tb =>
             tb.userId == userId &&
             tb.projectTokenConfigId == projectTokenConfigId &&
@@ -443,27 +501,36 @@ public class TokenBalanceService : ITokenBalanceService
         var balance = await _tokenBalanceRepository.FindOneAsync(balancePredicate, ct);
         if (balance != null && balance.isPlatformToken)
         {
-            return Result<bool>.Success(true);
+            return Result<HoldingLiquidity>.Success(HoldingLiquidity.Free);
         }
 
         var config = await _projectTokenConfigRepository.GetByIdAsync(projectTokenConfigId, ct);
         if (config == null)
         {
-            return Result<bool>.Failure("Project token configuration not found");
-        }
-
-        if (!TokenLiquidityPolicy.IsLiquid(holderClass, config.gateStatus))
-        {
-            return Result<bool>.Success(false);
+            return Result<HoldingLiquidity>.Failure("Project token configuration not found");
         }
 
         var restriction = await ReadWindowAsync(userId, projectTokenConfigId, ct);
-        if (restriction.RestrictedUnits <= 0)
+
+        // The date is decided by the SAME predicate that decides the flag, so a gate hold can
+        // never leave here carrying a window date.
+        var datedRelease = UnitWindow.DatedReleaseFor(holderClass, config.gateStatus, restriction);
+
+        if (!TokenLiquidityPolicy.IsLiquid(holderClass, config.gateStatus))
         {
-            return Result<bool>.Success(true);
+            return Result<HoldingLiquidity>.Success(new HoldingLiquidity(false, datedRelease));
         }
 
-        return Result<bool>.Success(restriction.RestrictedUnits < (balance?.balance ?? 0));
+        if (restriction.RestrictedUnits <= 0)
+        {
+            return Result<HoldingLiquidity>.Success(HoldingLiquidity.Free);
+        }
+
+        // Some of the holding may already be free while the rest sits in a dated window. The gate
+        // is open on this branch, so the date is one the platform can keep either way.
+        return Result<HoldingLiquidity>.Success(new HoldingLiquidity(
+            restriction.RestrictedUnits < (balance?.balance ?? 0),
+            datedRelease));
     }
 
     /// <summary>This holder's restricted window for one project's units.</summary>
@@ -492,21 +559,22 @@ public class TokenBalanceService : ITokenBalanceService
             return dto;
         }
 
-        var liquidity = await IsBalanceLiquidAsync(
+        var reading = await ReadLiquidityAsync(
             dto.UserId, dto.ProjectTokenConfigId!, holderClass, ct);
 
-        if (!liquidity.IsSuccess)
+        if (!reading.IsSuccess)
             return dto;
 
-        if (liquidity.Value)
-            return dto with { IsLiquid = true, RestrictedUntil = null };
-
-        // Held. The date the window ends is what a person actually needs to be told, and it
-        // already exists on their own awards - it was simply never carried to the wire, which
-        // is why the badge read "not available yet" with nothing after it. Still null when the
-        // hold carries no date: a promise nobody can date is one nobody may spend.
-        var window = await ReadWindowAsync(dto.UserId, dto.ProjectTokenConfigId!, ct);
-        return dto with { IsLiquid = false, RestrictedUntil = window.RestrictedUntil };
+        // The date the window ends is what a person actually needs to be told, and it already
+        // exists on their own awards - it was simply never carried to the wire, which is why the
+        // badge read "not available yet" with nothing after it. It is null whenever the hold
+        // carries no date AND whenever the gate is part of the hold: a promise nobody can date is
+        // one nobody may spend, and a date the gate does not honour is worse than none.
+        return dto with
+        {
+            IsLiquid = reading.Value.IsLiquid,
+            RestrictedUntil = reading.Value.DatedRelease,
+        };
     }
 
     /// <summary>Reads the person's ARDA holding from the node, or says exactly why it cannot.</summary>

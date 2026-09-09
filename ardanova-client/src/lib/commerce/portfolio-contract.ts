@@ -58,3 +58,21 @@ export function getCancellablePayouts(
         payout.sourceProjectTokenConfigId === sourceProjectTokenConfigId),
   );
 }
+
+/**
+ * What a held holding may honestly say about WHEN it is released.
+ *
+ * The API sends `restrictedUntil` only when the date is the whole of the remaining hold: a
+ * project gate moves on an outcome, not on a date, so a holding the gate is also holding comes
+ * back with no date at all (TokenBalanceService.ReadLiquidityAsync -> UnitWindow.DatedReleaseFor).
+ * This function therefore never has to decide whether a date is honest - it only has to refuse to
+ * invent one, which is what an unparseable value gets.
+ */
+export function describeHoldRelease(
+  restrictedUntil: string | null | undefined,
+): { readonly kind: "dated"; readonly on: Date } | { readonly kind: "undated" } {
+  if (!restrictedUntil) return { kind: "undated" };
+
+  const on = new Date(restrictedUntil);
+  return Number.isNaN(on.getTime()) ? { kind: "undated" } : { kind: "dated", on };
+}

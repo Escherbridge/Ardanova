@@ -279,12 +279,77 @@ public class WorkerWindowSpendSeamTests
         updatedAt = DateTime.UtcNow,
     };
 
+    [Fact]
+    public async Task AGateHeldHolding_IsNotStampedWithADateTheGateWillNotHonour()
+    {
+        // A worker on a still-FUNDING project. Their award carries a real release date, stamped
+        // at approval, which knows nothing about the gate - and the gate refuses these units
+        // whatever that date says. Publishing it would put "Available from <date>" in front of a
+        // person whose release ALSO needs an outcome nobody can put a day on.
+        var service = BuildBalanceService(
+            heldUnits: 100,
+            awardUnits: 100,
+            releasesAt: DateTimeOffset.UtcNow.AddDays(45),
+            gateStatus: ProjectGateStatus.FUNDING);
+
+        var holding = await service.GetBalanceAsync(
+            WorkerId, SourceConfigId, TokenHolderClass.CONTRIBUTOR, CancellationToken.None);
+
+        holding.IsSuccess.Should().BeTrue();
+        holding.Value!.IsLiquid.Should().BeFalse();
+        holding.Value.RestrictedUntil.Should().BeNull(
+            "the gate moves on an outcome, not on a date, so there is no date to publish");
+    }
+
+    [Fact]
+    public async Task AWindowHeldHolding_CarriesTheDateItsOwnAwardsName()
+    {
+        // The positive control for the test above: the same rows, the same dated award, and only
+        // the gate moves - so a null date there can only have come from the gate, and a rule that
+        // never publishes a date would not be a control either.
+        var releasesAt = DateTimeOffset.UtcNow.AddDays(45);
+
+        var service = BuildBalanceService(
+            heldUnits: 100,
+            awardUnits: 100,
+            releasesAt: releasesAt,
+            gateStatus: ProjectGateStatus.ACTIVE);
+
+        var holding = await service.GetBalanceAsync(
+            WorkerId, SourceConfigId, TokenHolderClass.CONTRIBUTOR, CancellationToken.None);
+
+        holding.IsSuccess.Should().BeTrue();
+        holding.Value!.IsLiquid.Should().BeFalse();
+        holding.Value.RestrictedUntil.Should().Be(releasesAt);
+    }
+
+    [Fact]
+    public async Task AHoldWithNoDateAtAll_PublishesNoDate_EvenWithTheGateOpen()
+    {
+        var service = BuildBalanceService(
+            heldUnits: 100,
+            awardUnits: 100,
+            releasesAt: null,
+            gateStatus: ProjectGateStatus.ACTIVE);
+
+        var holding = await service.GetBalanceAsync(
+            WorkerId, SourceConfigId, TokenHolderClass.CONTRIBUTOR, CancellationToken.None);
+
+        holding.Value!.IsLiquid.Should().BeFalse();
+        holding.Value.RestrictedUntil.Should().BeNull(
+            "a promise nobody can date is one nobody may spend");
+    }
+
     private static TokenBalanceService BuildBalanceService(
-        long heldUnits, int awardUnits, DateTimeOffset releasesAt)
+        long heldUnits,
+        int awardUnits,
+        DateTimeOffset? releasesAt,
+        ProjectGateStatus gateStatus = ProjectGateStatus.ACTIVE)
     {
         var balances = new Mock<IRepository<TokenBalance>>();
         var configs = new Mock<IRepository<ProjectTokenConfig>>();
         var allocations = new Mock<IRepository<TokenAllocation>>();
+        var mapper = new Mock<IMapper>();
 
         balances.Setup(repo => repo.FindOneAsync(
                 It.IsAny<Expression<Func<TokenBalance, bool>>>(), It.IsAny<CancellationToken>()))
@@ -294,7 +359,7 @@ public class WorkerWindowSpendSeamTests
             .ReturnsAsync(new ProjectTokenConfig
             {
                 id = SourceConfigId,
-                gateStatus = ProjectGateStatus.ACTIVE,
+                gateStatus = gateStatus,
             });
 
         allocations.Setup(repo => repo.FindAsync(
@@ -304,11 +369,26 @@ public class WorkerWindowSpendSeamTests
                 WorkerWindowFixtures.HeldAward(awardUnits, releasesAt, WorkerId),
             });
 
+        // The DTO the read path stamps. Deliberately stamped liquid on the way in, so the flag
+        // and the date on the way out can only have come from the live reading.
+        mapper.Setup(map => map.Map<TokenBalanceDto>(It.IsAny<TokenBalance>()))
+            .Returns((TokenBalance row) => new TokenBalanceDto
+            {
+                Id = row.id,
+                UserId = row.userId,
+                ProjectTokenConfigId = row.projectTokenConfigId,
+                IsPlatformToken = row.isPlatformToken,
+                HolderClass = row.holderClass,
+                IsLiquid = true,
+                Balance = row.balance,
+                LockedBalance = row.lockedBalance,
+            });
+
         return new TokenBalanceService(
             balances.Object,
             configs.Object,
             new Mock<IUnitOfWork>().Object,
-            new Mock<IMapper>().Object,
+            mapper.Object,
             allocationRepository: allocations.Object);
     }
 

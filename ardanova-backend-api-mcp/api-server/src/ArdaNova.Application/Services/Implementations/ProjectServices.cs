@@ -559,6 +559,13 @@ public class ProjectService : IProjectService, IProjectVisibility
         if (dto.MediaPaths is not null) project.mediaPaths = dto.MediaPaths;
         if (dto.FundingGoalUnit is not null) project.fundingGoalUnit = dto.FundingGoalUnit;
 
+        // The ask itself. This door validated the figure above and then never assigned it, so an
+        // owner could edit their ask, be told it saved, and find the column unmoved - while the
+        // UNIT beside it was written on the same request. A validated-and-dropped field is the
+        // worse half of both: the refusal costs the caller a round trip and the acceptance
+        // changes nothing. Absent still means "leave it alone"; a project may carry no ask at all.
+        if (dto.FundingGoal.HasValue) project.fundingGoal = dto.FundingGoal.Value;
+
         project.updatedAt = DateTime.UtcNow;
 
         await _repository.UpdateAsync(project, ct);

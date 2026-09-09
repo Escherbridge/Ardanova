@@ -136,16 +136,21 @@ public record TokenBalanceDto
     public long LockedBalance { get; init; }
 
     /// <summary>
-    /// When this holding's restricted window ends, or null when nothing is dated: either the
-    /// units are already free, or they are held with no release date at all.
+    /// The date this holding stops being held, or null when NOTHING here may be dated.
     /// </summary>
     /// <remarks>
-    /// The portfolio badge used to read "Not available yet" with no date, because this field did
-    /// not exist - while a commit message said it read "Available from &lt;date&gt;". The date is
-    /// real: <c>UnitWindow.Restrict</c> already computes it from the holder's own awards
-    /// (<c>TokenAllocation.workerHoldReleasesAt</c>); it was simply never carried to the wire.
-    /// A held holding with NO date stays "not available yet" - a promise nobody can date is one
-    /// nobody may spend, and inventing a date would be worse than showing none.
+    /// The date is real: <c>UnitWindow.Restrict</c> computes it from the holder's own awards
+    /// (<c>TokenAllocation.workerHoldReleasesAt</c>); it was simply never carried to the wire, so
+    /// the portfolio read "not available yet" with nothing after it.
+    /// <para>
+    /// It is null in TWO cases, and a reader may treat them the same: the hold carries no date at
+    /// all, or the project's GATE is part of the hold. <c>workerHoldReleasesAt</c> is stamped at
+    /// award approval and knows nothing about the gate, so a worker on a still-FUNDING project
+    /// has a dated award sitting on units the gate also refuses - and publishing that date would
+    /// promise a release the gate does not honour. <c>UnitWindow.DatedReleaseFor</c> is the rule,
+    /// applied in <c>TokenBalanceService.ReadLiquidityAsync</c> at the same counter that decides
+    /// <see cref="IsLiquid"/>, so the two can never disagree.
+    /// </para>
     /// </remarks>
     public DateTimeOffset? RestrictedUntil { get; init; }
 

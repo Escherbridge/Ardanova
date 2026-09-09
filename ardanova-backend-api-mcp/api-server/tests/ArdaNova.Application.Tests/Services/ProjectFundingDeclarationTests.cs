@@ -26,6 +26,7 @@ public class ProjectFundingDeclarationTests
     private readonly Mock<IRepository<Project>> _projectRepo = new();
     private readonly Mock<IUnitOfWork> _unitOfWork = new();
     private readonly Mock<IAzoaValueEligibilityService> _valueEligibility = new();
+    private readonly Mock<IAlgorandService> _assets = new();
     private readonly ProjectTokenService _sut;
 
     public ProjectFundingDeclarationTests()
@@ -49,7 +50,7 @@ public class ProjectFundingDeclarationTests
             new Mock<ILogger<ProjectTokenService>>().Object,
             _valueEligibility.Object,
             _projectRepo.Object,
-            new Mock<IAlgorandService>().Object,
+            _assets.Object,
             new Mock<IAzoaCustodialAccountService>().Object,
             [new Mock<IAzoaProjectTokenNodeGateway>().Object]);
     }
@@ -222,15 +223,47 @@ public class ProjectFundingDeclarationTests
         _unitOfWork.Verify(work => work.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
-    [Fact]
-    public async Task ProvisionAsync_AnAskAtTheExactBounds_IsNotRefusedByTheAmountRule()
+    [Theory]
+    [InlineData(1d)]                    // the floor itself
+    [InlineData(1_000_000_000d)]        // the ceiling itself
+    [InlineData(5_000.01)]              // an exact cent
+    public async Task ProvisionAsync_AnAskAtTheExactBounds_ReachesTheColumnUnrefused(double fundingGoal)
     {
-        // The other side of a bound: a rule that refuses everything is not a control either.
-        ProjectFundingLedger.DescribeUnusableGoalAmount(1d).Should().BeNull();
-        ProjectFundingLedger.DescribeUnusableGoalAmount(1_000_000_000d).Should().BeNull();
-        ProjectFundingLedger.DescribeUnusableGoalAmount(5_000.01).Should().BeNull();
+        // The other side of a bound: a rule that refuses everything is not a control either. It
+        // is asserted at the SAME counter as the refusals - the config row the door writes -
+        // because asserting DescribeUnusableGoalAmount(1d) is null only restates the rule to
+        // itself and proves nothing about the door.
+        ArrangeOwnedProject();
 
-        await Task.CompletedTask;
+        ProjectTokenConfig? written = null;
+        _configRepo
+            .Setup(repository => repository.AddAsync(
+                It.IsAny<ProjectTokenConfig>(), It.IsAny<CancellationToken>()))
+            .Returns((ProjectTokenConfig config, CancellationToken _) =>
+            {
+                written = config;
+                return Task.FromResult(config);
+            });
+
+        // Setup stops at the stake itself: this test is about the ask reaching the column, and
+        // the leg after it needs a node nothing here is standing up.
+        _assets
+            .Setup(assets => assets.CreateFungibleASAAsync(
+                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<ulong>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<FungibleAsaCreateResult>.Failure("the stake rail is not wired in this test"));
+
+        var result = await _sut.ProvisionAsync(
+            "proj-1", Declaration(fundingGoal: fundingGoal), "owner-1");
+
+        // The ask cleared the amount rule and was written as declared.
+        written.Should().NotBeNull("an ask at the bound must reach the column the price divides");
+        written!.fundingGoal.Should().Be(fundingGoal);
+
+        // And it did not stop on the amount rule on the way.
+        result.Type.Should().NotBe(ResultType.ValidationError);
+        result.Error.Should().NotContain("at least")
+            .And.NotContain("cannot be more than")
+            .And.NotContain("finer than a cent");
     }
 }
 
