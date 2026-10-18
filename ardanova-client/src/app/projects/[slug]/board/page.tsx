@@ -1,5 +1,7 @@
 "use client";
 
+import { describeMutationError } from "~/components/ui/query-error-copy";
+
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -458,7 +460,7 @@ export default function ProjectBoardPage() {
       void refetch();
       toast.success("Task updated");
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => toast.error(describeMutationError(e, "update the task status")),
   });
 
   const { data: members } = api.project.getMembers.useQuery(
@@ -471,7 +473,7 @@ export default function ProjectBoardPage() {
       void refetch();
       toast.success("Assignee updated");
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => toast.error(describeMutationError(e, "assign the task")),
   });
 
   const handleAssign = (taskId: string, assigneeId: string | null) =>

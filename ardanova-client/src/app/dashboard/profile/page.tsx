@@ -1,5 +1,7 @@
 "use client";
 
+import { describeMutationError } from "~/components/ui/query-error-copy";
+
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { api } from "~/trpc/react";
@@ -144,7 +146,7 @@ export default function ProfilePage() {
       await utils.azoaCustodialAccount.getStatus.invalidate();
       toast.success("Your secure Azoa account status is up to date.");
     },
-    onError: (error) => toast.error(error.message),
+    onError: (error) => toast.error(describeMutationError(error, "set up your account")),
   });
 
   const acceptMutation = api.project.acceptInvitation.useMutation({
@@ -153,7 +155,7 @@ export default function ProfilePage() {
       toast.success("Invitation accepted — you have joined the project.");
     },
     onError: (err) => {
-      toast.error(err.message);
+      toast.error(describeMutationError(err, "accept the invitation"));
     },
   });
 
@@ -163,7 +165,7 @@ export default function ProfilePage() {
       toast.success("Invitation declined.");
     },
     onError: (err) => {
-      toast.error(err.message);
+      toast.error(describeMutationError(err, "decline the invitation"));
     },
   });
 

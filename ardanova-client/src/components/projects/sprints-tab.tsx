@@ -1,5 +1,7 @@
 "use client";
 
+import { describeMutationError } from "~/components/ui/query-error-copy";
+
 import { useState } from "react";
 import {
   ChevronRight,
@@ -400,7 +402,7 @@ function SprintDetail({
       toast.success("Sprint started");
       void utils.sprint.getById.invalidate({ id: sprintId });
     },
-    onError: (err) => toast.error(`Failed: ${err.message}`),
+    onError: (err) => toast.error(describeMutationError(err, "start the sprint")),
   });
 
   const completeMutation = api.sprint.complete.useMutation({
@@ -408,7 +410,7 @@ function SprintDetail({
       toast.success("Sprint completed");
       void utils.sprint.getById.invalidate({ id: sprintId });
     },
-    onError: (err) => toast.error(`Failed: ${err.message}`),
+    onError: (err) => toast.error(describeMutationError(err, "complete the sprint")),
   });
 
   const cancelMutation = api.sprint.cancel.useMutation({
@@ -416,7 +418,7 @@ function SprintDetail({
       toast.success("Sprint cancelled");
       void utils.sprint.getById.invalidate({ id: sprintId });
     },
-    onError: (err) => toast.error(`Failed: ${err.message}`),
+    onError: (err) => toast.error(describeMutationError(err, "cancel the sprint")),
   });
 
   if (isLoading) {

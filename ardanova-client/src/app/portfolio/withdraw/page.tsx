@@ -1,5 +1,7 @@
 "use client";
 
+import { describeMutationError } from "~/components/ui/query-error-copy";
+
 import { Suspense, useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -291,7 +293,7 @@ function WithdrawPageInner() {
                 Nothing was sent
               </p>
               <p className="text-destructive mt-1 text-sm">
-                {withdraw.error.message}
+                {describeMutationError(withdraw.error, "send the withdrawal")}
               </p>
               <p className="text-muted-foreground mt-1 text-xs">
                 Your balance has not changed.
@@ -401,7 +403,7 @@ function WithdrawPageInner() {
                   </Button>
                   {beginSetup.error && (
                     <p className="text-destructive text-xs" role="alert">
-                      {beginSetup.error.message}
+                      {describeMutationError(beginSetup.error, "start payout setup")}
                     </p>
                   )}
                 </>
@@ -544,7 +546,7 @@ function WithdrawPageInner() {
               className="border-destructive bg-destructive/10 text-destructive border-2 p-3 text-sm"
               role="alert"
             >
-              {cancelSale.error.message}
+              {describeMutationError(cancelSale.error, "cancel the sale")}
             </p>
           )}
 
@@ -653,7 +655,7 @@ function WithdrawPageInner() {
                 className="border-destructive bg-destructive/10 text-destructive border-2 p-3 text-sm"
                 role="alert"
               >
-                {cancelSale.error.message}
+                {describeMutationError(cancelSale.error, "cancel the sale")}
               </p>
             )}
 

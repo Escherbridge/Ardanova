@@ -1,5 +1,7 @@
 "use client";
 
+import { describeMutationError } from "~/components/ui/query-error-copy";
+
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
@@ -85,14 +87,14 @@ export default function CreateTaskPage() {
       toast.success("Task created");
       router.push("/tasks");
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => toast.error(describeMutationError(e, "create the task")),
   });
   const createPbi = api.backlog.createPbi.useMutation({
     onSuccess: () => {
       toast.success("PBI created");
       router.push("/tasks");
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => toast.error(describeMutationError(e, "create the PBI")),
   });
   const { options: priorityLevels } = useEnumOptions("TaskPriority");
   const { options: taskTypes } = useEnumOptions("TaskType", taskTypeLabels);
@@ -224,10 +226,7 @@ export default function CreateTaskPage() {
       }
     } catch (error) {
       setErrors({
-        submit:
-          error instanceof Error
-            ? error.message
-            : "Work item could not be created",
+        submit: describeMutationError(error, "create the work item"),
       });
     } finally {
       setIsSubmitting(false);

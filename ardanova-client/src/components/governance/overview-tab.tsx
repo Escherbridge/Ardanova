@@ -1,5 +1,7 @@
 "use client";
 
+import { describeMutationError } from "~/components/ui/query-error-copy";
+
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
@@ -52,7 +54,7 @@ export default function OverviewTab({
       });
     },
     onError: (error) => {
-      alert(error.message);
+      alert(describeMutationError(error, "record your vote"));
     },
   });
 

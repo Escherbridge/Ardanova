@@ -15,7 +15,8 @@ const KNOWN_UNDEFINED_TOKENS = new Set([
 
 /** Ceilings measured at loop2/design. Lower them when debt is paid; never raise them. */
 const RAW_PALETTE_CEILING = 156;
-const RAW_ERROR_MESSAGE_CEILING = 70;
+const RAW_ERROR_MESSAGE_CEILING = 52;
+const RAW_ERROR_NOTIFIER_CEILING = 1;
 
 const TOKEN_FAMILIES =
   "neon|system|primary|brand|success|warning|destructive|muted|chart|sidebar|card|popover|secondary";
@@ -34,6 +35,10 @@ const rawPaletteClass = new RegExp(
 );
 /** A JSX expression that renders a raw error message, e.g. `{mutation.error.message}`. */
 const rawErrorMessageExpression = /\{[^{}]*\berror\??\.message\b[^{}]*\}/g;
+/** A toast/alert call (args may span lines, two paren levels deep) that shows any `x.message`. */
+const notifierCall =
+  /\b(?:toast(?:\.\w+)?|alert)\(((?:[^()]|\((?:[^()]|\([^()]*\))*\))*)\)/g;
+const rawMessageArgument = /\b\w+\??\.message\b/;
 
 function sourceFiles(directory: string): string[] {
   return fs.readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
@@ -88,5 +93,19 @@ describe("design tokens", () => {
         0,
       );
     expect(count).toBeLessThanOrEqual(RAW_ERROR_MESSAGE_CEILING);
+  });
+
+  it("toast/alert calls that show a raw error message do not grow past the ceiling", () => {
+    const leaks = files.flatMap(({ relative, text }) =>
+      [...text.matchAll(notifierCall)]
+        .filter((match) => rawMessageArgument.test(match[1] ?? ""))
+        .map(
+          (match) =>
+            `${relative}:${text.slice(0, match.index).split("\n").length}`,
+        ),
+    );
+    expect(leaks.length, leaks.join("\n")).toBeLessThanOrEqual(
+      RAW_ERROR_NOTIFIER_CEILING,
+    );
   });
 });

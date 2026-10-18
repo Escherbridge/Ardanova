@@ -1,5 +1,7 @@
 "use client";
 
+import { describeMutationError } from "~/components/ui/query-error-copy";
+
 import { useState } from "react";
 import {
   Plus,
@@ -83,7 +85,7 @@ export default function RoadmapTab({ projectId, isOwner }: RoadmapTabProps) {
       void utils.project.getMilestones.invalidate({ projectId });
     },
     onError: (err) => {
-      toast.error(`Failed to add milestone: ${err.message}`);
+      toast.error(describeMutationError(err, "add the milestone"));
     },
   });
 
@@ -269,7 +271,7 @@ function MilestoneNode({
       });
     },
     onError: (err) => {
-      toast.error(`Failed to create epic: ${err.message}`);
+      toast.error(describeMutationError(err, "create the epic"));
     },
   });
 

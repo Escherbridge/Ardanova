@@ -1,5 +1,7 @@
 "use client";
 
+import { describeMutationError } from "~/components/ui/query-error-copy";
+
 import { useState, useMemo } from "react";
 import Link from "next/link";
 import {
@@ -569,7 +571,7 @@ function TaskCard({ task }: { task: ProjectTask }) {
       void utils.task.getAll.invalidate();
     },
     onError: (err) => {
-      toast.error(`Failed to update: ${err.message}`);
+      toast.error(describeMutationError(err, "update the status"));
     },
   });
 
@@ -683,7 +685,7 @@ function TaskListItem({ task }: { task: ProjectTask }) {
       void utils.task.getAll.invalidate();
     },
     onError: (err) => {
-      toast.error(`Failed to update: ${err.message}`);
+      toast.error(describeMutationError(err, "update the status"));
     },
   });
 

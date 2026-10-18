@@ -1,5 +1,7 @@
 "use client";
 
+import { describeMutationError } from "~/components/ui/query-error-copy";
+
 import { cloneElement, useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
 import { api, type RouterInputs, type RouterOutputs } from "~/trpc/react";
@@ -349,7 +351,7 @@ function TaskRow({
       void utils.task.getByPbiId.invalidate();
       toast.success("Task deleted");
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => toast.error(describeMutationError(e, "delete the task")),
   });
 
   // Match an opportunity explicitly linked to this task.
@@ -527,7 +529,7 @@ function PbiNode({
       void utils.backlog.getPbisByFeatureId.invalidate();
       toast.success("PBI deleted");
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => toast.error(describeMutationError(e, "delete the PBI")),
   });
 
   // Fetch tasks for this PBI when expanded
@@ -704,7 +706,7 @@ function FeatureNode({
       void utils.feature.getBySprintId.invalidate();
       toast.success("Feature deleted");
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => toast.error(describeMutationError(e, "delete the feature")),
   });
 
   return (
@@ -837,7 +839,7 @@ function SprintNode({
       void utils.sprint.getByEpicId.invalidate();
       toast.success("Sprint deleted");
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => toast.error(describeMutationError(e, "delete the sprint")),
   });
 
   const dateLabel =
@@ -984,7 +986,7 @@ function EpicNode({
       void utils.epic.getByMilestoneId.invalidate();
       toast.success("Epic deleted");
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => toast.error(describeMutationError(e, "delete the epic")),
   });
 
   return (
@@ -1044,7 +1046,7 @@ function MilestoneNode({
       void utils.project.getMilestones.invalidate({ projectId });
       toast.success("Milestone deleted");
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => toast.error(describeMutationError(e, "delete the milestone")),
   });
 
   return (
@@ -1253,7 +1255,7 @@ function MilestoneAddForm({
       toast.success("Milestone created");
       onClose();
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => toast.error(describeMutationError(e, "add the milestone")),
   });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -1324,7 +1326,7 @@ function EpicAddForm({
       toast.success("Epic created");
       onClose();
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => toast.error(describeMutationError(e, "create the epic")),
   });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -1403,7 +1405,7 @@ function SprintAddForm({
       toast.success("Sprint created");
       onClose();
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => toast.error(describeMutationError(e, "create the sprint")),
   });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -1493,7 +1495,7 @@ function FeatureAddForm({
       toast.success("Feature created");
       onClose();
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => toast.error(describeMutationError(e, "create the feature")),
   });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -1580,7 +1582,7 @@ function PbiAddForm({
       toast.success("PBI created");
       onClose();
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => toast.error(describeMutationError(e, "create the PBI")),
   });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -1684,7 +1686,7 @@ function TaskAddForm({
       toast.success("Task created");
       onClose();
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => toast.error(describeMutationError(e, "create the task")),
   });
 
   const handleSubmit = (e: React.FormEvent) => {

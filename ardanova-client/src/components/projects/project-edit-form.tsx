@@ -1,5 +1,7 @@
 "use client";
 
+import { describeMutationError } from "~/components/ui/query-error-copy";
+
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -188,7 +190,7 @@ function ProjectEditFormFields({
       router.push(`/projects/${project.slug}`);
     },
     onError: (err) => {
-      toast.error(`Failed to update project: ${err.message}`);
+      toast.error(describeMutationError(err, "update the project"));
     },
   });
 

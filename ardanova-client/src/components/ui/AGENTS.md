@@ -49,6 +49,14 @@ Rendering `{mutation.error.message}` is how `/tasks/create` showed users
 - `src/styles/design-gate.test.ts` caps the number of `{…error.message}` JSX
   expressions in `src/`. Migrating a site lowers the ceiling. Adding one fails
   the test.
+- Toasts and `alert()` go through the same copy:
+  `toast.error(describeMutationError(e, "create the task"))`. Loop-2
+  integration migrated all 50 mutation toast/alert sites (including the
+  `/tasks/create` PBI path that leaked the `URGENT` Zod dump, both as a toast and
+  as the inline `errors.submit`). The one exception is `bid-accept-button.tsx`'s
+  client-side navigation `catch`, whose `Error` is authored locally, not a tRPC
+  failure. The gate's notifier ratchet (`RAW_ERROR_NOTIFIER_CEILING`) counts
+  `toast(...)`/`alert(...)` calls whose arguments contain any `x.message`.
 
 ## status-page
 

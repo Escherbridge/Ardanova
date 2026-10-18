@@ -1,5 +1,7 @@
 "use client";
 
+import { describeMutationError } from "~/components/ui/query-error-copy";
+
 import { api } from "~/trpc/react";
 import { toast } from "sonner";
 
@@ -124,7 +126,7 @@ export function useOpportunityMutations() {
       void utils.opportunityBid.getByBidderId.invalidate();
     },
     onError: (error) => {
-      toast.error(error.message || "Failed to withdraw your proposal");
+      toast.error(describeMutationError(error, "withdraw your proposal"));
     },
   });
 

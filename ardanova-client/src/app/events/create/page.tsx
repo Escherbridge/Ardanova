@@ -1,5 +1,7 @@
 "use client";
 
+import { describeMutationError } from "~/components/ui/query-error-copy";
+
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -83,7 +85,7 @@ export default function CreateEventPage() {
       toast.success("Event created");
       router.push("/events");
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => toast.error(describeMutationError(e, "create the event")),
   });
   const { options: eventTypes } = useEnumOptions("EventType");
   const [formData, setFormData] = useState<EventFormData>({

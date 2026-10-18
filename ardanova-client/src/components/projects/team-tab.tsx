@@ -1,5 +1,7 @@
 "use client";
 
+import { describeMutationError } from "~/components/ui/query-error-copy";
+
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { api, type RouterInputs, type RouterOutputs } from "~/trpc/react";
@@ -206,7 +208,7 @@ function InviteMemberDialog({
       void utils.project.getInvitations.invalidate({ projectId });
     },
     onError: (error) => {
-      toast.error(error.message || "Failed to send invitation");
+      toast.error(describeMutationError(error, "send the invitation"));
     },
   });
 
@@ -514,7 +516,7 @@ export default function TeamTab({
       setAvailability("");
     },
     onError: (error) => {
-      alert(error.message);
+      alert(describeMutationError(error, "send your application"));
     },
   });
 
@@ -535,7 +537,7 @@ export default function TeamTab({
       if (context?.previous) {
         utils.project.getApplications.setData({ projectId }, context.previous);
       }
-      alert(err.message);
+      alert(describeMutationError(err, "review the application"));
     },
     onSettled: () => {
       void utils.project.getApplications.invalidate({ projectId });
@@ -549,7 +551,7 @@ export default function TeamTab({
       void utils.membershipCredential.getByProjectId.invalidate({ projectId });
     },
     onError: (error) => {
-      toast.error(error.message || "Failed to grant credential");
+      toast.error(describeMutationError(error, "grant the credential"));
     },
   });
 
@@ -559,7 +561,7 @@ export default function TeamTab({
       void utils.project.getMembers.invalidate({ projectId });
     },
     onError: (error) => {
-      toast.error(error.message || "Failed to update member role");
+      toast.error(describeMutationError(error, "update the member role"));
     },
   });
 
@@ -569,7 +571,7 @@ export default function TeamTab({
       void utils.opportunity.getByProjectId.invalidate({ projectId });
     },
     onError: (error) => {
-      toast.error(error.message || "Failed to assign role");
+      toast.error(describeMutationError(error, "assign the role"));
     },
   });
 

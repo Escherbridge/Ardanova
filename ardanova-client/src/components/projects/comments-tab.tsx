@@ -1,5 +1,7 @@
 "use client";
 
+import { describeMutationError } from "~/components/ui/query-error-copy";
+
 import { useState } from "react";
 import { useSession } from "next-auth/react";
 import { api, type RouterOutputs } from "~/trpc/react";
@@ -77,7 +79,7 @@ export default function CommentsTab({ projectId }: CommentsTabProps) {
       if (context?.previous) {
         utils.comment.getByTarget.setData(commentTarget, context.previous);
       }
-      toast.error(`Comment was not posted: ${err.message}`);
+      toast.error(describeMutationError(err, "post the comment"));
     },
     onSettled: () => {
       void utils.comment.getByTarget.invalidate(commentTarget);
@@ -89,7 +91,7 @@ export default function CommentsTab({ projectId }: CommentsTabProps) {
       void utils.comment.getByTarget.invalidate(commentTarget);
     },
     onError: (err) => {
-      toast.error(`Comment was not deleted: ${err.message}`);
+      toast.error(describeMutationError(err, "delete the comment"));
     },
   });
 

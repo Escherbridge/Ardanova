@@ -1,5 +1,7 @@
 "use client";
 
+import { describeMutationError } from "~/components/ui/query-error-copy";
+
 import { useId, useState } from "react";
 import { api, type RouterInputs } from "~/trpc/react";
 import { toast } from "sonner";
@@ -204,9 +206,7 @@ export default function CreateWorkItemModal({
   };
 
   const handleError = (error: unknown) => {
-    toast.error(
-      error instanceof Error ? error.message : "Failed to create item",
-    );
+    toast.error(describeMutationError(error, "create the item"));
   };
 
   // Mutations

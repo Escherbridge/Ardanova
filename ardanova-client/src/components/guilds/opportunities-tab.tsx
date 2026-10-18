@@ -1,5 +1,7 @@
 "use client";
 
+import { describeQueryError } from "~/components/ui/query-error-copy";
+
 import { useEffect } from "react";
 import { api } from "~/trpc/react";
 import {
@@ -91,7 +93,7 @@ export function OpportunitiesTab({
   // Show toast notification on error
   useEffect(() => {
     if (error) {
-      toast.error(error.message || "Failed to load opportunities");
+      toast.error(describeQueryError(error).explanation);
     }
   }, [error]);
 

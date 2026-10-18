@@ -1,5 +1,7 @@
 "use client";
 
+import { describeMutationError } from "~/components/ui/query-error-copy";
+
 import { useState } from "react";
 import { api } from "~/trpc/react";
 import {
@@ -65,7 +67,7 @@ export function ReviewsTab({
       if (context?.previous) {
         utils.guild.getReviews.setData({ guildId }, context.previous);
       }
-      alert(err.message);
+      alert(describeMutationError(err, "post your review"));
     },
     onSettled: () => {
       void utils.guild.getReviews.invalidate({ guildId });
@@ -94,7 +96,7 @@ export function ReviewsTab({
       if (context?.previous) {
         utils.guild.getReviews.setData({ guildId }, context.previous);
       }
-      alert(err.message);
+      alert(describeMutationError(err, "delete the review"));
     },
     onSettled: () => {
       void utils.guild.getReviews.invalidate({ guildId });

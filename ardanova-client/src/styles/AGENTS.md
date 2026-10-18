@@ -55,6 +55,9 @@ semantic token directly.
    `RAW_PALETTE_CEILING`;
 3. JSX `{…error.message}` expressions grow past `RAW_ERROR_MESSAGE_CEILING`
    (see `components/ui/AGENTS.md` §mutation-error).
+4. `toast(...)` / `alert(...)` calls whose arguments show any `x.message` grow
+   past `RAW_ERROR_NOTIFIER_CEILING`. The JSX regex cannot see these, and toasts
+   were where most mutation failures leaked raw text.
 
 The ceilings are a ratchet. Lower them in the same commit that pays down the
 debt, and never raise them.

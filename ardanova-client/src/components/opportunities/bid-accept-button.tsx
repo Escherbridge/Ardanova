@@ -1,5 +1,7 @@
 "use client";
 
+import { describeMutationError } from "~/components/ui/query-error-copy";
+
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
@@ -49,7 +51,7 @@ export function BidAcceptButton({
         );
       }
     },
-    onError: (error) => toast.error(error.message),
+    onError: (error) => toast.error(describeMutationError(error, "accept the proposal")),
   });
 
   return (

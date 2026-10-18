@@ -1,5 +1,7 @@
 "use client";
 
+import { describeMutationError } from "~/components/ui/query-error-copy";
+
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -205,7 +207,7 @@ export default function SellUnitsPage() {
                 Nothing was sold
               </p>
               <p className="text-destructive mt-1 text-sm">
-                {sell.error.message}
+                {describeMutationError(sell.error, "complete the sale")}
               </p>
               <p className="text-muted-foreground mt-1 text-xs">
                 Your units are exactly where they were.

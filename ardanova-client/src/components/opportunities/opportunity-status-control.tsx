@@ -1,5 +1,7 @@
 "use client";
 
+import { describeMutationError } from "~/components/ui/query-error-copy";
+
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -31,7 +33,7 @@ export function OpportunityStatusControl({
       void utils.opportunity.getById.invalidate({ id: opportunityId });
       router.refresh();
     },
-    onError: (error: { message: string }) => toast.error(error.message),
+    onError: (error: { message: string }) => toast.error(describeMutationError(error, "update the opportunity")),
   };
   const update = api.opportunity.update.useMutation(refreshOnChange);
   const close = api.opportunity.close.useMutation(refreshOnChange);

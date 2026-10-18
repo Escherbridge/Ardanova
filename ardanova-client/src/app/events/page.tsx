@@ -1,5 +1,7 @@
 "use client";
 
+import { describeMutationError } from "~/components/ui/query-error-copy";
+
 import { useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { api } from "~/trpc/react";
@@ -223,7 +225,7 @@ export default function EventsPage() {
       void utils.event.getRegisteredEvents.invalidate();
       toast.success("Registered");
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => toast.error(describeMutationError(e, "register you for the event")),
   });
 
   const unregisterMutation = api.event.unregister.useMutation({
@@ -232,7 +234,7 @@ export default function EventsPage() {
       void utils.event.getRegisteredEvents.invalidate();
       toast.success("Unregistered");
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => toast.error(describeMutationError(e, "cancel your registration")),
   });
 
   const registeredIds = useMemo(() => {

@@ -1,5 +1,7 @@
 "use client";
 
+import { describeMutationError } from "~/components/ui/query-error-copy";
+
 import { useId, useState } from "react";
 import Link from "next/link";
 import { api, type RouterInputs, type RouterOutputs } from "~/trpc/react";
@@ -320,7 +322,7 @@ function CommentSection({
         targetId,
       });
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => toast.error(describeMutationError(e, "post the comment")),
   });
 
   const handleSubmit = (e: React.FormEvent) => {

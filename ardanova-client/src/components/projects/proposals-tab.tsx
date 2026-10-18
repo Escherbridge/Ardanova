@@ -1,5 +1,7 @@
 "use client";
 
+import { MutationErrorNotice } from "~/components/ui/query-error-state";
+
 import { useState, useEffect, useRef, type ReactNode } from "react";
 import { useSession } from "next-auth/react";
 import { z } from "zod";
@@ -20,7 +22,6 @@ import {
   MessageSquare,
   ChevronDown,
   ChevronUp,
-  AlertCircle,
   Pencil,
   Send,
 } from "lucide-react";
@@ -289,11 +290,10 @@ function ProposalDiscussion({
       )}
 
       {commentMutation.error && (
-        <div className="rounded-md border border-red-200 bg-red-50 p-3">
-          <p className="text-sm text-red-800">
-            {commentMutation.error.message}
-          </p>
-        </div>
+        <MutationErrorNotice
+          error={commentMutation.error}
+          action="post your comment"
+        />
       )}
     </div>
   );
@@ -912,12 +912,10 @@ export default function ProposalsTab({
                   </Button>
                 </div>
                 {createMutation.error && (
-                  <div className="flex items-start gap-2 rounded-md border border-red-200 bg-red-50 p-3">
-                    <AlertCircle className="mt-0.5 h-5 w-5 flex-shrink-0 text-red-600" />
-                    <p className="text-sm text-red-800">
-                      {createMutation.error.message}
-                    </p>
-                  </div>
+                  <MutationErrorNotice
+                    error={createMutation.error}
+                    action="create the proposal"
+                  />
                 )}
               </form>
             </CardContent>
@@ -1293,12 +1291,10 @@ export default function ProposalsTab({
                               </Button>
                             </div>
                             {updateMutation.error && (
-                              <div className="flex items-start gap-2 rounded-md border border-red-200 bg-red-50 p-3">
-                                <AlertCircle className="mt-0.5 h-5 w-5 flex-shrink-0 text-red-600" />
-                                <p className="text-sm text-red-800">
-                                  {updateMutation.error.message}
-                                </p>
-                              </div>
+                              <MutationErrorNotice
+                                error={updateMutation.error}
+                                action="update the proposal"
+                              />
                             )}
                           </div>
                         ) : (
@@ -1574,9 +1570,10 @@ export default function ProposalsTab({
                                         {voteMutation.error &&
                                           voteMutation.variables?.proposalId ===
                                             proposal.id && (
-                                            <p className="text-sm text-red-700">
-                                              {voteMutation.error.message}
-                                            </p>
+                                            <MutationErrorNotice
+                                              error={voteMutation.error}
+                                              action="record your vote"
+                                            />
                                           )}
                                       </div>
                                     )}

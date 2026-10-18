@@ -1,5 +1,7 @@
 "use client";
 
+import { describeMutationError } from "~/components/ui/query-error-copy";
+
 import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
@@ -140,7 +142,7 @@ export default function ProjectDetailPage() {
       void utils.project.getById.invalidate({ id: routeId });
     },
     onError: (error) => {
-      toast.error(error.message || "Failed to publish project");
+      toast.error(describeMutationError(error, "publish the project"));
     },
   });
   const membersQuery = api.project.getMembers.useQuery(
