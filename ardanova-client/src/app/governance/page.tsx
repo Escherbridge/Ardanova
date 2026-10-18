@@ -162,6 +162,7 @@ const statusVariants: Record<
   Rejected: "destructive",
   Executed: "neon-purple",
   Expired: "secondary",
+  Cancelled: "secondary",
   Draft: "secondary",
 };
 
@@ -204,7 +205,11 @@ const proposalStatusFilters = [
   { id: "Rejected", label: "Rejected" },
   { id: "Executed", label: "Executed" },
   { id: "Expired", label: "Expired" },
+  { id: "Cancelled", label: "Withdrawn" },
 ];
+
+/** Proposals fetched per page; the API pages, so nothing past this many is ever silently dropped. */
+const PROPOSALS_PER_PAGE = 50;
 
 const quorumFilters = [
   { id: "all", label: "Any Quorum" },
@@ -253,6 +258,7 @@ export default function GovernancePage() {
   const [selectedStatus, setSelectedStatus] = useState("all");
   const [selectedQuorum, setSelectedQuorum] = useState("all");
   const [selectedTime, setSelectedTime] = useState("all");
+  const [page, setPage] = useState(1);
 
   // Debounce search query
   useEffect(() => {
@@ -262,6 +268,11 @@ export default function GovernancePage() {
 
     return () => clearTimeout(timer);
   }, [searchQuery]);
+
+  // A narrower server query starts again from its first page.
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch, selectedType, selectedStatus]);
 
   // Fetch proposals from API with debounced search
   const {
@@ -289,11 +300,13 @@ export default function GovernancePage() {
             | "Passed"
             | "Rejected"
             | "Executed"
-            | "Expired")
+            | "Expired"
+            | "Cancelled")
         : undefined,
-    limit: 50,
-    page: 1,
+    limit: PROPOSALS_PER_PAGE,
+    page,
   });
+  const totalPages = proposalsResult?.totalPages ?? 0;
 
   // Transform API proposals to display format
   const proposals = (proposalsResult?.items || []).map((proposal) =>
@@ -972,6 +985,37 @@ export default function GovernancePage() {
               </div>
             </article>
           ))
+        )}
+        {totalPages > 1 && (
+          <nav
+            aria-label="Proposal pages"
+            className="flex items-center justify-between gap-2 px-4 py-4"
+          >
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page <= 1 || isLoading}
+              onClick={() => setPage((current) => Math.max(1, current - 1))}
+            >
+              Previous
+            </Button>
+            <span className="text-muted-foreground text-sm">
+              Page {page} of {totalPages}
+              {proposalsResult?.totalCount
+                ? ` · ${proposalsResult.totalCount} proposals`
+                : ""}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page >= totalPages || isLoading}
+              onClick={() =>
+                setPage((current) => Math.min(totalPages, current + 1))
+              }
+            >
+              Next
+            </Button>
+          </nav>
         )}
       </div>
     </FeedLayout>
