@@ -100,5 +100,6 @@ in-flight security-hardening pass.
 - [ ] [User Directory Privacy](tracks/user-directory-privacy/spec.md) - Unauthenticated `user.getAll` exposes every email/phone; protect the procedures and project a public profile DTO in .NET. **P0 security.**
 - [ ] [Terms and Privacy Pages](tracks/legal-pages/spec.md) - Publish human-approved terms and privacy notice and link them from sign-up and add-funds. **P1, blocked on approved text.**
 - [ ] [Nova AI powered by OVERSEASGENAI](tracks/nova-ai-ogai-partner/spec.md) - White-label project refinement via the OGAI partner validate API; .NET-only caller. **Loop 1 built; rollout owner-gated.**
+- [ ] [Nova AI modes beyond refinement](tracks/nova-ai-partner-modes/spec.md) - Ask/Draft/Review/Present/Rehearse need a new OGAI partner capability (validate does not map); brief prefill for project create. **Proposed; needs OGAI lease holder.**
 - [ ] [Retire ardanova-ai-client](tracks/ai-client-retirement/spec.md) - Dormant FastAPI/CrewAI service superseded by Nova AI; routes now key-guarded. **Proposal; owner decides deletion.**
 - [ ] [Backend Authorization Hardening](tracks/backend-authz-hardening_20261017/spec.md) - User PII projection, actor gating for 12 service-key-only controllers, ownership checks moved into .NET services. **P0 security; from loop-1 backend QA.**
