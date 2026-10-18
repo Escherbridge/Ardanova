@@ -74,6 +74,8 @@
   --color-input: var(--input);
   --color-ring: var(--ring);
 
+  /* Bare `neon` (~74 uses) previously generated no CSS. See src/styles/AGENTS.md §neon-aliases. */
+  --color-neon: var(--neon-cyan);
   --color-neon-cyan: var(--neon-cyan);
   --color-neon-pink: var(--neon-pink);
   --color-neon-green: var(--neon-green);
@@ -125,11 +127,12 @@
   --input: #87817a;
   --ring: #117b88;
 
+  /* Legacy aliases; pink is the text-safe deep red, purple is distinct from cyan. See src/styles/AGENTS.md §neon-aliases. */
   --neon-cyan: var(--system);
-  --neon-pink: var(--primary);
+  --neon-pink: #b8322a;
   --neon-green: var(--success);
   --neon-yellow: var(--warning);
-  --neon-purple: var(--system);
+  --neon-purple: var(--chart-5);
 
   --chart-1: var(--system);
   --chart-2: var(--primary);
@@ -180,7 +183,7 @@
   --neon-pink: var(--primary);
   --neon-green: var(--success);
   --neon-yellow: var(--warning);
-  --neon-purple: var(--system);
+  --neon-purple: var(--chart-5);
 
   --chart-1: var(--system);
   --chart-2: var(--primary);
@@ -227,10 +230,10 @@
   --input: #87817a;
   --ring: #117b88;
   --neon-cyan: var(--system);
-  --neon-pink: var(--primary);
+  --neon-pink: #b8322a;
   --neon-green: var(--success);
   --neon-yellow: var(--warning);
-  --neon-purple: var(--system);
+  --neon-purple: #5d4b91;
 }
 
 @layer base {
@@ -466,7 +469,7 @@
 
   .neon-text-pink,
   .neon-subtle-pink {
-    color: var(--primary);
+    color: var(--neon-pink);
     text-shadow: none;
   }
 
