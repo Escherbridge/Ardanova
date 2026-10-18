@@ -118,7 +118,6 @@ public class GuildServiceTests
         {
             Name = "New Guild",
             Description = "New guild description",
-            OwnerId = ownerId,
             Email = "guild@test.com"
         };
         var guildDto = new GuildDto { Name = "New Guild" };
@@ -135,7 +134,7 @@ public class GuildServiceTests
         _mapperMock.Setup(m => m.Map<GuildDto>(It.IsAny<Guild>())).Returns(guildDto);
 
         // Act
-        var result = await _sut.CreateAsync(dto);
+        var result = await _sut.CreateAsync(new GuildActor(ownerId), dto);
 
         // Assert
         result.IsSuccess.Should().BeTrue();
@@ -204,7 +203,7 @@ public class GuildServiceTests
             .ReturnsAsync(1);
 
         // Act
-        var result = await _sut.DeleteAsync(guildId, ownerId);
+        var result = await _sut.DeleteAsync(guildId, new GuildActor(ownerId));
 
         // Assert
         result.IsSuccess.Should().BeTrue();
