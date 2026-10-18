@@ -4,6 +4,7 @@ using System.Security.Claims;
 using ArdaNova.API.Middleware;
 using ArdaNova.Application.Common.Results;
 using ArdaNova.Application.DTOs;
+using ArdaNova.Application.Services.Implementations;
 using ArdaNova.Application.Services.Interfaces;
 using ArdaNova.Domain.Models.Enums;
 using Microsoft.AspNetCore.Authorization;
@@ -22,6 +23,7 @@ public class TasksController : ControllerBase
     private readonly IProductBacklogItemService _pbiService;
     private readonly IHierarchyAuthorizationService _authorization;
     private readonly IAzoaValueEligibilityService _valueEligibility;
+    private readonly IProjectVisibility _projectVisibility;
 
     public TasksController(
         ITaskService taskService,
@@ -32,7 +34,8 @@ public class TasksController : ControllerBase
         IFeatureService featureService,
         IProductBacklogItemService pbiService,
         IHierarchyAuthorizationService authorization,
-        IAzoaValueEligibilityService valueEligibility)
+        IAzoaValueEligibilityService valueEligibility,
+        IProjectVisibility projectVisibility)
     {
         _taskService = taskService;
         _projectService = projectService;
@@ -43,19 +46,20 @@ public class TasksController : ControllerBase
         _pbiService = pbiService;
         _authorization = authorization;
         _valueEligibility = valueEligibility;
+        _projectVisibility = projectVisibility;
     }
 
     [HttpGet]
     public async Task<IActionResult> GetAll(CancellationToken ct)
     {
-        var result = await _taskService.GetAllAsync(ct);
+        var result = await _taskService.GetAllAsync(Viewer, ct);
         return ToActionResult(result);
     }
 
     [HttpGet("paged")]
     public async Task<IActionResult> GetPaged([FromQuery] int page = 1, [FromQuery] int pageSize = 10, CancellationToken ct = default)
     {
-        var result = await _taskService.GetPagedAsync(page, pageSize, ct);
+        var result = await _taskService.GetPagedAsync(Viewer, page, pageSize, ct);
         return ToActionResult(result);
     }
 
@@ -70,7 +74,7 @@ public class TasksController : ControllerBase
         [FromQuery] int pageSize = 10,
         CancellationToken ct = default)
     {
-        var result = await _taskService.SearchAsync(searchTerm, status, priority, taskType, projectId, page, pageSize, ct);
+        var result = await _taskService.SearchAsync(Viewer, searchTerm, status, priority, taskType, projectId, page, pageSize, ct);
         return ToActionResult(result);
     }
 
@@ -78,6 +82,8 @@ public class TasksController : ControllerBase
     public async Task<IActionResult> GetById(string id, CancellationToken ct)
     {
         var result = await _taskService.GetByIdAsync(id, ct);
+        if (result.IsSuccess && await ProjectNotVisibleAsync(result.Value!.ProjectId, ct) is not null)
+            return NotFound(new { error = $"Task with id {id} not found" });
         return ToActionResult(result);
     }
 
@@ -92,6 +98,9 @@ public class TasksController : ControllerBase
     [HttpGet("project/{projectId}")]
     public async Task<IActionResult> GetByProjectId(string projectId, CancellationToken ct)
     {
+        if (await ProjectNotVisibleAsync(projectId, ct) is { } hidden)
+            return hidden;
+
         var result = await _taskService.GetByProjectIdAsync(projectId, ct);
         return ToActionResult(result);
     }
@@ -99,6 +108,10 @@ public class TasksController : ControllerBase
     [HttpGet("pbi/{pbiId}")]
     public async Task<IActionResult> GetByPbiId(string pbiId, CancellationToken ct)
     {
+        var pbi = await _pbiService.GetByIdAsync(pbiId, ct);
+        if (!pbi.IsSuccess || await ProjectNotVisibleAsync(pbi.Value!.ProjectId, ct) is not null)
+            return NotFound(new { error = $"Backlog item with id {pbiId} not found" });
+
         var result = await _taskService.GetByPbiIdAsync(pbiId, ct);
         return ToActionResult(result);
     }
@@ -191,6 +204,35 @@ public class TasksController : ControllerBase
         return ToActionResult(result);
     }
 
+    [HttpPut("{id}/assign")]
+    [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
+    public async Task<IActionResult> Assign(string id, [FromBody] AssignTaskDto dto, CancellationToken ct)
+    {
+        var task = await GetVerifiedTaskAsync(id, ct);
+        if (task is null)
+            return Forbid();
+
+        var assigneeId = string.IsNullOrWhiteSpace(dto.UserId) ? null : dto.UserId;
+        if (!await CanAssignAsync(task, assigneeId, ct))
+            return Forbid();
+        if (assigneeId is not null &&
+            !await _authorization.IsProjectMemberAsync(assigneeId, task.ProjectId, ct))
+            return BadRequest(new { error = "Assignee must be a member of the project" });
+
+        if (assigneeId is not null && task.EquityReward is > 0m)
+        {
+            var readinessFailure = await RequirePaidTaskAccountSetupAsync(
+                assigneeId,
+                "assign a paid task",
+                ct);
+            if (readinessFailure is not null)
+                return readinessFailure;
+        }
+
+        var result = await _taskService.AssignAsync(id, assigneeId, ct);
+        return ToActionResult(result);
+    }
+
     [HttpDelete("{id}")]
     [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
     public async Task<IActionResult> Delete(string id, CancellationToken ct)
@@ -204,6 +246,33 @@ public class TasksController : ControllerBase
     }
 
     private string ActorId => User.FindFirstValue(ClaimTypes.NameIdentifier)!;
+
+    /// <summary>Only a verified actor assertion names a viewer; every other read is the public's.</summary>
+    private ProjectViewer Viewer => ActorAssertionMiddleware.TryGetActorId(User, out var actorId)
+        ? new ProjectViewer(actorId, IsAdmin)
+        : ProjectViewer.Anonymous;
+
+    /// <summary>NotFound when the task's project is hidden from this viewer; see Controllers/AGENTS.md §Task visibility.</summary>
+    private async Task<IActionResult?> ProjectNotVisibleAsync(string projectId, CancellationToken ct)
+    {
+        var project = await _projectVisibility.GetVisibleByIdAsync(Viewer, projectId, ct);
+        return project.IsSuccess
+            ? null
+            : NotFound(new { error = $"Project with id {projectId} not found" });
+    }
+
+    /// <summary>Managers assign anyone or no one; a member may claim an unassigned task or release their own.</summary>
+    private async Task<bool> CanAssignAsync(TaskDto task, string? assigneeId, CancellationToken ct)
+    {
+        if (await CanManageProjectAsync(task.ProjectId, ct))
+            return true;
+
+        var claimsUnassigned = task.AssignedToId is null &&
+                               string.Equals(assigneeId, ActorId, StringComparison.Ordinal);
+        var releasesOwn = assigneeId is null &&
+                          string.Equals(task.AssignedToId, ActorId, StringComparison.Ordinal);
+        return claimsUnassigned || releasesOwn;
+    }
 
     private bool IsAdmin => User.IsInRole(UserRole.ADMIN.ToString());
 

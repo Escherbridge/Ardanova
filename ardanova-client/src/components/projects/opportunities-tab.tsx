@@ -1903,7 +1903,7 @@ function TeamPositionsView({
           {canManage && (
             <Button asChild variant="outline" size="sm" className="min-h-11">
               <Link
-                href={`/opportunities/create?entityType=project&entityId=${projectId}&entitySlug=${projectSlug}`}
+                href={`/opportunities/create?projectId=${encodeURIComponent(projectId)}&projectSlug=${encodeURIComponent(projectSlug)}`}
               >
                 <Plus className="mr-1.5 h-3.5 w-3.5" />
                 Create Position

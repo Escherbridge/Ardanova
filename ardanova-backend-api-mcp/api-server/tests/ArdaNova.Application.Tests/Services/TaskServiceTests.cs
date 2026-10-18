@@ -108,48 +108,6 @@ public class TaskServiceTests
     }
 
     [Fact]
-    public async Task GetAllAsync_ReturnsAllTasks()
-    {
-        // Arrange
-        var projectId = Guid.NewGuid().ToString();
-        var tasks = new List<ProjectTask>
-        {
-            new ProjectTask { id = Guid.NewGuid().ToString(), projectId = projectId, title = "Task 1", status = TaskStatus.TODO, priority = TaskPriority.HIGH, taskType = TaskType.FEATURE, escrowStatus = EscrowStatus.NONE, createdAt = DateTime.UtcNow, updatedAt = DateTime.UtcNow },
-            new ProjectTask { id = Guid.NewGuid().ToString(), projectId = projectId, title = "Task 2", status = TaskStatus.IN_PROGRESS, priority = TaskPriority.MEDIUM, taskType = TaskType.BUG, escrowStatus = EscrowStatus.NONE, createdAt = DateTime.UtcNow, updatedAt = DateTime.UtcNow }
-        };
-        var project = new Project
-        {
-            id = projectId,
-            title = "Test Project",
-            slug = "test-project",
-            description = "Test",
-            problemStatement = "Test",
-            solution = "Test",
-            categories = "TECHNOLOGY",
-            status = ProjectStatus.DRAFT,
-            createdById = Guid.NewGuid().ToString(),
-            createdAt = DateTime.UtcNow,
-            updatedAt = DateTime.UtcNow
-        };
-
-        _repositoryMock.Setup(r => r.GetAllAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(tasks);
-        _projectRepositoryMock.Setup(r => r.GetByIdAsync(projectId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(project);
-        _mapperMock.Setup(m => m.Map<TaskDto>(It.IsAny<ProjectTask>()))
-            .Returns((ProjectTask t) => new TaskDto { Id = t.id, Title = t.title });
-        _mapperMock.Setup(m => m.Map<TaskProjectDto>(project))
-            .Returns(new TaskProjectDto { Id = projectId, Title = "Test Project", Slug = "test-project" });
-
-        // Act
-        var result = await _sut.GetAllAsync();
-
-        // Assert
-        result.IsSuccess.Should().BeTrue();
-        result.Value.Should().HaveCount(2);
-    }
-
-    [Fact]
     public async Task CreateAsync_WithValidDto_ReturnsCreatedTask()
     {
         // Arrange

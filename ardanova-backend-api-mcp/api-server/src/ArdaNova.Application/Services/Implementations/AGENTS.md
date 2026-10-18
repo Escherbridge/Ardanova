@@ -137,3 +137,30 @@ or from an env var, which REPLACES the C# default rather than leaving it — res
 channel, log Critical" explicitly in code, which is the narrowest setting and the shape a
 deploy produces most easily. That resolution is the control; the empty key in
 `appsettings.json` is only discoverability and cannot widen anything.
+# Opportunity visibility
+
+`OpportunityService` answers every list, search and detail read through `VisibleOpportunities(viewer)`,
+which composes `ProjectQueryFilters.VisibleTo` instead of re-deriving it. A role attached to a DRAFT
+project is as private as the draft, and a role whose own status is DRAFT is visible only to its poster
+and the project's team (creator or members). `GetByIdAsync` stays unscoped because the controller's
+management and apply checks need the row itself; any public route uses `GetVisibleByIdAsync`.
+`TaskService` does the same for task lists and search (`VisibleTasks`); single-task and per-project
+reads are gated in `TasksController` by the project visibility seam.
+
+# Hiring and applications
+
+Both application kinds are a one-step state machine: PENDING moves once, to ACCEPTED, REJECTED or
+WITHDRAWN, and every later move is refused with `ApplicationNoLongerPending`. A reviewer may only
+accept or reject an opportunity application; withdrawing belongs to the applicant (the project
+withdraw route is applicant-only for the same reason). Accepting seats the applicant as a
+`ProjectMember` in the same `SaveChangesAsync`, so the status and the membership commit together and
+the person hired can be assigned work straight away (task assignment requires membership). A project
+application seats a CONTRIBUTOR because its role title is applicant-written; an opportunity seats the
+manager-chosen `projectRole`, never FOUNDER. A project application is refused from the creator, an
+existing member, or a user who already has a PENDING one.
+
+# Task assignment
+
+`TaskService.AssignAsync` is the only write of `assignedToId` after creation. It refuses once an
+accepted bid's agreement exists or escrow is no longer NONE: the agreement names the worker, and
+swapping the assignee underneath it would pay one person for another's work.

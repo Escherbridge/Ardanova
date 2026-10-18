@@ -1132,15 +1132,28 @@ public class ProjectSupportService : IProjectSupportService
     }
 }
 
+/// <summary>Project applications as a state machine: PENDING moves once, to ACCEPTED, REJECTED or WITHDRAWN.</summary>
 public class ProjectApplicationService : IProjectApplicationService
 {
+    /// <summary>Why a review or withdrawal was refused: the application already has an outcome.</summary>
+    public const string ApplicationNoLongerPending = "Only a pending application can be accepted, rejected or withdrawn.";
+
     private readonly IRepository<ProjectApplication> _repository;
+    private readonly IRepository<Project> _projectRepository;
+    private readonly IRepository<ProjectMember> _memberRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IMapper _mapper;
 
-    public ProjectApplicationService(IRepository<ProjectApplication> repository, IUnitOfWork unitOfWork, IMapper mapper)
+    public ProjectApplicationService(
+        IRepository<ProjectApplication> repository,
+        IRepository<Project> projectRepository,
+        IRepository<ProjectMember> memberRepository,
+        IUnitOfWork unitOfWork,
+        IMapper mapper)
     {
         _repository = repository;
+        _projectRepository = projectRepository;
+        _memberRepository = memberRepository;
         _unitOfWork = unitOfWork;
         _mapper = mapper;
     }
@@ -1167,6 +1180,18 @@ public class ProjectApplicationService : IProjectApplicationService
 
     public async Task<Result<ProjectApplicationDto>> CreateAsync(CreateProjectApplicationDto dto, CancellationToken ct = default)
     {
+        var project = await _projectRepository.GetByIdAsync(dto.ProjectId, ct);
+        if (project is null)
+            return Result<ProjectApplicationDto>.NotFound($"Project with id {dto.ProjectId} not found");
+        if (string.Equals(project.createdById, dto.UserId, StringComparison.Ordinal))
+            return Result<ProjectApplicationDto>.ValidationError("You created this project, so you are already on its team.");
+        if (await _memberRepository.FindOneAsync(m => m.projectId == dto.ProjectId && m.userId == dto.UserId, ct) is not null)
+            return Result<ProjectApplicationDto>.ValidationError("You are already a member of this project.");
+        if (await _repository.FindOneAsync(
+                a => a.projectId == dto.ProjectId && a.userId == dto.UserId && a.status == ApplicationStatus.PENDING,
+                ct) is not null)
+            return Result<ProjectApplicationDto>.ValidationError("You already have a pending application to this project.");
+
         var app = new ProjectApplication
         {
             id = Guid.NewGuid().ToString(),
@@ -1201,12 +1226,28 @@ public class ProjectApplicationService : IProjectApplicationService
         var app = await _repository.GetByIdAsync(id, ct);
         if (app is null)
             return Result<ProjectApplicationDto>.NotFound($"Application with id {id} not found");
+        if (app.status != ApplicationStatus.PENDING)
+            return Result<ProjectApplicationDto>.ValidationError(ApplicationNoLongerPending);
 
         app.status = ApplicationStatus.ACCEPTED;
         app.reviewMessage = reviewMessage;
         app.reviewedAt = DateTime.UtcNow;
 
         await _repository.UpdateAsync(app, ct);
+        // Hiring finishes in the same save: the accepted applicant is a member, so work can be assigned to them.
+        if (await _memberRepository.FindOneAsync(m => m.projectId == app.projectId && m.userId == app.userId, ct) is null)
+        {
+            await _memberRepository.AddAsync(new ProjectMember
+            {
+                id = Guid.NewGuid().ToString(),
+                projectId = app.projectId,
+                userId = app.userId,
+                role = ProjectRole.CONTRIBUTOR,
+                shareBalance = 0,
+                votingPower = 0,
+                joinedAt = DateTime.UtcNow
+            }, ct);
+        }
         await _unitOfWork.SaveChangesAsync(ct);
         return Result<ProjectApplicationDto>.Success(_mapper.Map<ProjectApplicationDto>(app));
     }
@@ -1216,6 +1257,8 @@ public class ProjectApplicationService : IProjectApplicationService
         var app = await _repository.GetByIdAsync(id, ct);
         if (app is null)
             return Result<ProjectApplicationDto>.NotFound($"Application with id {id} not found");
+        if (app.status != ApplicationStatus.PENDING)
+            return Result<ProjectApplicationDto>.ValidationError(ApplicationNoLongerPending);
 
         app.status = ApplicationStatus.REJECTED;
         app.reviewMessage = reviewMessage;
@@ -1231,6 +1274,8 @@ public class ProjectApplicationService : IProjectApplicationService
         var app = await _repository.GetByIdAsync(id, ct);
         if (app is null)
             return Result<ProjectApplicationDto>.NotFound($"Application with id {id} not found");
+        if (app.status != ApplicationStatus.PENDING)
+            return Result<ProjectApplicationDto>.ValidationError(ApplicationNoLongerPending);
 
         app.status = ApplicationStatus.WITHDRAWN;
 

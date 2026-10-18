@@ -1,0 +1,9 @@
+{
+  "id": "projects-hiring-completion_20261017",
+  "title": "Projects hiring completion",
+  "type": "feature",
+  "status": "new",
+  "created": "2026-10-17",
+  "origin": "loop1/projects fix lane",
+  "partitions": { "confidence": "none" }
+}

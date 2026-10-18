@@ -41,6 +41,7 @@ type TaskStatus = RouterInputs["task"]["updateStatus"]["status"];
 type TaskPriority = NonNullable<RouterInputs["task"]["create"]["priority"]>;
 type BoardTask = RouterOutputs["task"]["getAll"]["items"][number];
 type TaskAssignee = { name?: string | null; image?: string | null };
+type BoardMember = RouterOutputs["project"]["getMembers"][number];
 
 function TodoColumnIcon({ className }: { className?: string }) {
   return <Circle className={className} aria-hidden="true" />;
@@ -174,10 +175,14 @@ function formatDueDate(date: Date | null): string {
 
 function TaskCard({
   task,
+  members,
   onMove,
+  onAssign,
 }: {
   task: BoardTask;
+  members: BoardMember[];
   onMove: (taskId: string, status: TaskStatus) => void;
+  onAssign: (taskId: string, assigneeId: string | null) => void;
 }) {
   const assignedTo = getTaskAssignee(task);
   const priority = normalizePriority(task.priority);
@@ -235,6 +240,28 @@ function TaskCard({
                 {col.label}
               </DropdownMenuItem>
             ))}
+            <DropdownMenuItem
+              disabled
+              className="text-muted-foreground font-mono text-xs tracking-widest uppercase"
+            >
+              Assign to
+            </DropdownMenuItem>
+            {members.map((member) => (
+              <DropdownMenuItem
+                key={member.userId}
+                disabled={task.assignedToId === member.userId}
+                onClick={() => onAssign(String(task.id), member.userId)}
+              >
+                {member.user?.name ?? member.user?.email ?? "Member"}
+              </DropdownMenuItem>
+            ))}
+            {task.assignedToId && (
+              <DropdownMenuItem
+                onClick={() => onAssign(String(task.id), null)}
+              >
+                Unassign
+              </DropdownMenuItem>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
@@ -433,6 +460,22 @@ export default function ProjectBoardPage() {
     },
     onError: (e) => toast.error(e.message),
   });
+
+  const { data: members } = api.project.getMembers.useQuery(
+    { projectId },
+    { enabled: !!projectId },
+  );
+
+  const assignTask = api.task.assign.useMutation({
+    onSuccess: () => {
+      void refetch();
+      toast.success("Assignee updated");
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const handleAssign = (taskId: string, assigneeId: string | null) =>
+    assignTask.mutate({ id: taskId, assigneeId });
 
   const tasks = useMemo(() => tasksData?.items ?? [], [tasksData]);
 
@@ -680,7 +723,13 @@ export default function ProjectBoardPage() {
                     )}
                   >
                     {colTasks.map((task) => (
-                      <TaskCard key={task.id} task={task} onMove={handleMove} />
+                      <TaskCard
+                        key={task.id}
+                        task={task}
+                        members={members ?? []}
+                        onMove={handleMove}
+                        onAssign={handleAssign}
+                      />
                     ))}
                     <QuickAddForm
                       projectId={projectId}

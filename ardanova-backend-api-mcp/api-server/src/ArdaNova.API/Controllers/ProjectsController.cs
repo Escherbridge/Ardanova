@@ -539,9 +539,9 @@ public class ProjectsController : ControllerBase
             return ToActionResult(application);
         if (!string.Equals(application.Value!.ProjectId, projectId, StringComparison.Ordinal))
             return NotFound(new { error = "Application not found in the routed project" });
+        // Withdrawing is the applicant's own decision; a manager's answer is accept or reject.
         if (!IsAdmin &&
-            !string.Equals(application.Value.UserId, ActorId, StringComparison.Ordinal) &&
-            !await CanManageProjectAsync(projectId, ct))
+            !string.Equals(application.Value.UserId, ActorId, StringComparison.Ordinal))
             return Forbid();
 
         var result = await _applicationService.WithdrawAsync(applicationId, ct);

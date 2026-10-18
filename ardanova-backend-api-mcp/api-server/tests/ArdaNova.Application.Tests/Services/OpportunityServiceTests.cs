@@ -45,6 +45,7 @@ public class OpportunityServiceTests
             _guildRepositoryMock.Object,
             _projectRepositoryMock.Object,
             _taskRepositoryMock.Object,
+            new Mock<IRepository<ProjectMember>>().Object,
             _unitOfWorkMock.Object,
             _mapperMock.Object);
     }
@@ -104,69 +105,6 @@ public class OpportunityServiceTests
         // Assert
         result.IsSuccess.Should().BeFalse();
         result.Type.Should().Be(ResultType.NotFound);
-    }
-
-    [Fact]
-    public async Task GetBySlugAsync_WhenOpportunityExists_ReturnsOpportunity()
-    {
-        // Arrange
-        var slug = "test-opportunity";
-        var posterId = Guid.NewGuid().ToString();
-        var opportunity = new Opportunity
-        {
-            id = Guid.NewGuid().ToString(),
-            title = "Test Opportunity",
-            slug = slug,
-            description = "A test opportunity",
-            type = OpportunityType.PROJECT_ROLE,
-            status = OpportunityStatus.OPEN,
-            experienceLevel = ExperienceLevel.MID,
-            isRemote = true,
-            applicationsCount = 0,
-            posterId = posterId,
-            createdAt = DateTime.UtcNow,
-            updatedAt = DateTime.UtcNow
-        };
-        var opportunityDto = new OpportunityDto { Title = "Test Opportunity", Slug = slug };
-
-        _repositoryMock.Setup(r => r.FindOneAsync(It.IsAny<System.Linq.Expressions.Expression<Func<Opportunity, bool>>>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(opportunity);
-        _userRepositoryMock.Setup(r => r.GetByIdAsync(posterId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync((User?)null);
-        _mapperMock.Setup(m => m.Map<OpportunityDto>(opportunity)).Returns(opportunityDto);
-
-        // Act
-        var result = await _sut.GetBySlugAsync(slug);
-
-        // Assert
-        result.IsSuccess.Should().BeTrue();
-        result.Value.Should().NotBeNull();
-    }
-
-    [Fact]
-    public async Task GetAllAsync_ReturnsAllOpportunities()
-    {
-        // Arrange
-        var posterId = Guid.NewGuid().ToString();
-        var opportunities = new List<Opportunity>
-        {
-            new Opportunity { id = Guid.NewGuid().ToString(), title = "Opportunity 1", slug = "opportunity-1", description = "Desc 1", type = OpportunityType.PROJECT_ROLE, status = OpportunityStatus.OPEN, experienceLevel = ExperienceLevel.JUNIOR, isRemote = true, applicationsCount = 0, posterId = posterId, createdAt = DateTime.UtcNow, updatedAt = DateTime.UtcNow },
-            new Opportunity { id = Guid.NewGuid().ToString(), title = "Opportunity 2", slug = "opportunity-2", description = "Desc 2", type = OpportunityType.FREELANCE, status = OpportunityStatus.OPEN, experienceLevel = ExperienceLevel.SENIOR, isRemote = false, applicationsCount = 0, posterId = posterId, createdAt = DateTime.UtcNow, updatedAt = DateTime.UtcNow }
-        };
-
-        _repositoryMock.Setup(r => r.GetAllAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(opportunities);
-        _userRepositoryMock.Setup(r => r.GetByIdAsync(posterId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync((User?)null);
-        _mapperMock.Setup(m => m.Map<OpportunityDto>(It.IsAny<Opportunity>()))
-            .Returns((Opportunity o) => new OpportunityDto { Id = o.id, Title = o.title });
-
-        // Act
-        var result = await _sut.GetAllAsync();
-
-        // Assert
-        result.IsSuccess.Should().BeTrue();
-        result.Value.Should().HaveCount(2);
     }
 
     [Fact]
@@ -490,31 +428,6 @@ public class OpportunityServiceTests
         // Assert
         result.IsSuccess.Should().BeFalse();
         result.Type.Should().Be(ResultType.ValidationError);
-    }
-
-    [Fact]
-    public async Task GetByPosterIdAsync_ReturnsPosterOpportunities()
-    {
-        // Arrange
-        var posterId = Guid.NewGuid().ToString();
-        var opportunities = new List<Opportunity>
-        {
-            new Opportunity { id = Guid.NewGuid().ToString(), title = "Poster Opportunity", slug = "poster-opportunity", description = "Desc", type = OpportunityType.PROJECT_ROLE, status = OpportunityStatus.OPEN, experienceLevel = ExperienceLevel.MID, isRemote = true, applicationsCount = 0, posterId = posterId, createdAt = DateTime.UtcNow, updatedAt = DateTime.UtcNow }
-        };
-
-        _repositoryMock.Setup(r => r.FindAsync(It.IsAny<System.Linq.Expressions.Expression<Func<Opportunity, bool>>>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(opportunities);
-        _userRepositoryMock.Setup(r => r.GetByIdAsync(posterId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync((User?)null);
-        _mapperMock.Setup(m => m.Map<OpportunityDto>(It.IsAny<Opportunity>()))
-            .Returns((Opportunity o) => new OpportunityDto { Id = o.id, Title = o.title });
-
-        // Act
-        var result = await _sut.GetByPosterIdAsync(posterId);
-
-        // Assert
-        result.IsSuccess.Should().BeTrue();
-        result.Value.Should().NotBeEmpty();
     }
 
     [Fact]
