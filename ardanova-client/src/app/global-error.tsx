@@ -6,6 +6,7 @@ import { useEffect } from "react";
 
 import { StatusPage } from "~/components/brand/status-page";
 import { Button } from "~/components/ui/button";
+import { fontVariables } from "~/styles/fonts";
 
 /** Last-resort boundary when the root layout itself fails; must render its own html/body. */
 export default function GlobalError({
@@ -20,7 +21,7 @@ export default function GlobalError({
   }, [error]);
 
   return (
-    <html lang="en">
+    <html lang="en" className={fontVariables}>
       <body className="bg-background min-h-screen font-sans antialiased">
         <StatusPage
           eyebrow="Error / ArdaNova is unavailable"

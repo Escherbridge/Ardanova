@@ -1,9 +1,9 @@
 import "~/styles/globals.css";
 
 import { type Metadata } from "next";
-import { Inter, JetBrains_Mono } from "next/font/google";
 import { Toaster } from "sonner";
 
+import { fontVariables } from "~/styles/fonts";
 import { TRPCReactProvider } from "~/trpc/react";
 import { AuthSessionProvider } from "~/providers/session-provider";
 import { isDevelopmentAuthPreviewEnabled } from "~/server/auth";
@@ -44,23 +44,11 @@ export const metadata: Metadata = {
   },
 };
 
-const inter = Inter({
-  subsets: ["latin"],
-  variable: "--font-inter",
-  display: "swap",
-});
-
-const jetbrainsMono = JetBrains_Mono({
-  subsets: ["latin"],
-  variable: "--font-jetbrains-mono",
-  display: "swap",
-});
-
 export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={`${inter.variable} ${jetbrainsMono.variable}`}>
+    <html lang="en" className={fontVariables}>
       <body className="bg-background min-h-screen font-sans antialiased">
         <AuthSessionProvider
           refetchOnWindowFocus={!isDevelopmentAuthPreviewEnabled}
