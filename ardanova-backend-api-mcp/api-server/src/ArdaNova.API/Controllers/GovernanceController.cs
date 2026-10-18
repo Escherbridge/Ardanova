@@ -4,6 +4,7 @@ using System.Security.Claims;
 using ArdaNova.API.Middleware;
 using ArdaNova.Application.Common.Results;
 using ArdaNova.Application.DTOs;
+using ArdaNova.Application.Services.Implementations;
 using ArdaNova.Application.Services.Interfaces;
 using ArdaNova.Domain.Models.Enums;
 using Microsoft.AspNetCore.Authorization;
@@ -31,14 +32,14 @@ public class GovernanceController : ControllerBase
     [HttpGet("proposals")]
     public async Task<IActionResult> GetAllProposals(CancellationToken ct)
     {
-        var result = await _governanceService.GetAllProposalsAsync(ct);
+        var result = await _governanceService.GetAllVisibleProposalsAsync(Viewer, ct);
         return ToActionResult(result);
     }
 
     [HttpGet("proposals/paged")]
     public async Task<IActionResult> GetProposalsPaged([FromQuery] int page = 1, [FromQuery] int pageSize = 10, CancellationToken ct = default)
     {
-        var result = await _governanceService.GetProposalsPagedAsync(page, pageSize, ct);
+        var result = await _governanceService.GetVisibleProposalsPagedAsync(Viewer, page, pageSize, ct);
         return ToActionResult(result);
     }
 
@@ -52,28 +53,28 @@ public class GovernanceController : ControllerBase
         [FromQuery] int pageSize = 10,
         CancellationToken ct = default)
     {
-        var result = await _governanceService.SearchProposalsAsync(searchTerm, type, status, projectId, page, pageSize, ct);
+        var result = await _governanceService.SearchVisibleProposalsAsync(Viewer, searchTerm, type, status, projectId, page, pageSize, ct);
         return ToActionResult(result);
     }
 
     [HttpGet("proposals/{id}")]
     public async Task<IActionResult> GetProposalById(string id, CancellationToken ct)
     {
-        var result = await _governanceService.GetProposalByIdAsync(id, ct);
+        var result = await _governanceService.GetVisibleProposalByIdAsync(Viewer, id, ct);
         return ToActionResult(result);
     }
 
     [HttpGet("proposals/active")]
     public async Task<IActionResult> GetActiveProposals(CancellationToken ct)
     {
-        var result = await _governanceService.GetActiveProposalsAsync(ct);
+        var result = await _governanceService.GetVisibleActiveProposalsAsync(Viewer, ct);
         return ToActionResult(result);
     }
 
     [HttpGet("proposals/proposer/{proposerId}")]
     public async Task<IActionResult> GetByProposerId(string proposerId, CancellationToken ct)
     {
-        var result = await _governanceService.GetByProposerIdAsync(proposerId, ct);
+        var result = await _governanceService.GetVisibleByProposerIdAsync(Viewer, proposerId, ct);
         return ToActionResult(result);
     }
 
@@ -131,6 +132,9 @@ public class GovernanceController : ControllerBase
     [HttpGet("proposals/{id}/votes")]
     public async Task<IActionResult> GetVotes(string id, CancellationToken ct)
     {
+        if (await ProposalNotVisibleAsync(id, ct) is { } hidden)
+            return hidden;
+
         var result = await _governanceService.GetVotesAsync(id, ct);
         return ToActionResult(result);
     }
@@ -149,6 +153,9 @@ public class GovernanceController : ControllerBase
     [HttpGet("proposals/{id}/summary")]
     public async Task<IActionResult> GetVoteSummary(string id, CancellationToken ct)
     {
+        if (await ProposalNotVisibleAsync(id, ct) is { } hidden)
+            return hidden;
+
         var result = await _governanceService.GetVoteSummaryAsync(id, ct);
         return ToActionResult(result);
     }
@@ -212,6 +219,9 @@ public class GovernanceController : ControllerBase
     [HttpGet("proposals/{id}/comments")]
     public async Task<IActionResult> GetProposalComments(string id, CancellationToken ct)
     {
+        if (await ProposalNotVisibleAsync(id, ct) is { } hidden)
+            return hidden;
+
         var result = await _governanceService.GetProposalCommentsAsync(id, ct);
         return ToActionResult(result);
     }
@@ -249,6 +259,18 @@ public class GovernanceController : ControllerBase
     private string ActorId => User.FindFirstValue(ClaimTypes.NameIdentifier)!;
 
     private bool IsAdmin => User.IsInRole(UserRole.ADMIN.ToString());
+
+    /// <summary>Only a verified actor assertion names a viewer; every other read is the public's.</summary>
+    private ProjectViewer Viewer => ActorAssertionMiddleware.TryGetActorId(User, out var actorId)
+        ? new ProjectViewer(actorId, IsAdmin)
+        : ProjectViewer.Anonymous;
+
+    /// <summary>NotFound when this viewer may not see the proposal, so a private proposal's ballots and discussion are as hidden as the proposal itself.</summary>
+    private async Task<IActionResult?> ProposalNotVisibleAsync(string proposalId, CancellationToken ct)
+    {
+        var proposal = await _governanceService.GetVisibleProposalByIdAsync(Viewer, proposalId, ct);
+        return proposal.IsSuccess ? null : ToActionResult(proposal);
+    }
 
     /// <summary>A proposal's lifecycle belongs to the people who run its project, plus — where it is their own — the member who raised it. Returns the refusal to send, or null when the actor may act.</summary>
     private async Task<IActionResult?> DenyUnlessMayActOnProposalAsync(

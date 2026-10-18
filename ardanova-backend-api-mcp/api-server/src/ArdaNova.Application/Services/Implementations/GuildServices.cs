@@ -1,5 +1,6 @@
 namespace ArdaNova.Application.Services.Implementations;
 
+using System.Data.Common;
 using ArdaNova.Application.Common.Interfaces;
 using ArdaNova.Application.Common.Results;
 using ArdaNova.Application.DTOs;
@@ -7,6 +8,7 @@ using ArdaNova.Application.Services.Interfaces;
 using ArdaNova.Domain.Models.Entities;
 using ArdaNova.Domain.Models.Enums;
 using AutoMapper;
+using Microsoft.EntityFrameworkCore;
 
 /// <summary>Who may act on a guild. One rule set for every guild service; rationale in <c>Services/AGENTS.md</c> §Guild authority.</summary>
 internal static class GuildAuthority
@@ -43,6 +45,17 @@ internal static class GuildAuthority
             m => m.guildId == guildId && m.userId == actorId && m.role == GuildMemberRole.ADMIN, ct);
     }
 
+    /// <summary>Whether <paramref name="userId"/> already belongs to the guild: its owner of record (even with no OWNER row, as on legacy guilds) or any membership row.</summary>
+    public static async Task<bool> IsMemberAsync(
+        Guild guild, string userId, IRepository<GuildMember> members, CancellationToken ct)
+    {
+        if (string.Equals(guild.ownerId, userId, StringComparison.Ordinal))
+            return true;
+
+        var guildId = guild.id;
+        return await members.ExistsAsync(m => m.guildId == guildId && m.userId == userId, ct);
+    }
+
     /// <summary>Parses a role a caller may hand out. OWNER is never grantable: ownership moves only by an explicit transfer, which does not exist yet.</summary>
     public static bool TryParseGrantableRole(string? value, out GuildMemberRole role)
     {
@@ -57,6 +70,10 @@ internal static class GuildAuthority
         return true;
     }
 
+    /// <summary>The (guildId, userId) unique index refused a second membership row: a concurrent request added this person first.</summary>
+    public static bool IsDuplicateMembership(DbUpdateException failure) =>
+        failure.InnerException is DbException { SqlState: "23505" };
+
     public const string GrantableRolesMessage = "Role must be one of ADMIN, MANAGER, MEMBER or APPRENTICE";
 }
 
@@ -65,6 +82,7 @@ public class GuildService : IGuildService
     private readonly IRepository<Guild> _repository;
     private readonly IRepository<GuildMember> _memberRepository;
     private readonly IRepository<ProjectTask> _taskRepository;
+    private readonly IRepository<Project>? _projectRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IMapper _mapper;
 
@@ -73,21 +91,43 @@ public class GuildService : IGuildService
         IRepository<GuildMember> memberRepository,
         IRepository<ProjectTask> taskRepository,
         IUnitOfWork unitOfWork,
-        IMapper mapper)
+        IMapper mapper,
+        IRepository<Project>? projectRepository = null)
     {
         _repository = repository;
         _memberRepository = memberRepository;
         _taskRepository = taskRepository;
+        _projectRepository = projectRepository;
         _unitOfWork = unitOfWork;
         _mapper = mapper;
     }
+
+    /// <summary>ProjectsCount is counted from the projects actually assigned to each guild, never read from the stored counter nothing maintains.</summary>
+    private async Task<IReadOnlyList<GuildDto>> WithProjectCountsAsync(IReadOnlyList<GuildDto> guilds, CancellationToken ct)
+    {
+        if (guilds.Count == 0)
+            return guilds;
+        if (_projectRepository is null)
+            return guilds.Select(g => g with { ProjectsCount = 0 }).ToList();
+
+        var guildIds = guilds.Select(g => g.Id).ToList();
+        var assigned = await _projectRepository.FindProjectedAsync(
+            p => p.assignedGuildId != null && guildIds.Contains(p.assignedGuildId),
+            p => p.assignedGuildId!,
+            ct);
+        var counts = assigned.GroupBy(id => id).ToDictionary(g => g.Key, g => g.Count());
+        return guilds.Select(g => g with { ProjectsCount = counts.GetValueOrDefault(g.Id) }).ToList();
+    }
+
+    private async Task<GuildDto> WithProjectCountAsync(GuildDto guild, CancellationToken ct)
+        => (await WithProjectCountsAsync(new[] { guild }, ct))[0];
 
     public async Task<Result<GuildDto>> GetByIdAsync(string id, CancellationToken ct = default)
     {
         var guild = await _repository.GetByIdAsync(id, ct);
         if (guild is null)
             return Result<GuildDto>.NotFound($"Guild with id {id} not found");
-        return Result<GuildDto>.Success(_mapper.Map<GuildDto>(guild));
+        return Result<GuildDto>.Success(await WithProjectCountAsync(_mapper.Map<GuildDto>(guild), ct));
     }
 
     public async Task<Result<GuildDto>> GetBySlugAsync(string slug, CancellationToken ct = default)
@@ -95,19 +135,20 @@ public class GuildService : IGuildService
         var guild = await _repository.FindOneAsync(g => g.slug == slug, ct);
         if (guild is null)
             return Result<GuildDto>.NotFound($"Guild with slug {slug} not found");
-        return Result<GuildDto>.Success(_mapper.Map<GuildDto>(guild));
+        return Result<GuildDto>.Success(await WithProjectCountAsync(_mapper.Map<GuildDto>(guild), ct));
     }
 
     public async Task<Result<IReadOnlyList<GuildDto>>> GetAllAsync(CancellationToken ct = default)
     {
         var guilds = await _repository.GetAllAsync(ct);
-        return Result<IReadOnlyList<GuildDto>>.Success(_mapper.Map<IReadOnlyList<GuildDto>>(guilds));
+        return Result<IReadOnlyList<GuildDto>>.Success(await WithProjectCountsAsync(_mapper.Map<IReadOnlyList<GuildDto>>(guilds), ct));
     }
 
     public async Task<Result<PagedResult<GuildDto>>> GetPagedAsync(int page, int pageSize, CancellationToken ct = default)
     {
         var result = await _repository.GetPagedAsync(page, pageSize, null, ct);
-        return Result<PagedResult<GuildDto>>.Success(result.Map(_mapper.Map<GuildDto>));
+        var items = await WithProjectCountsAsync(result.Items.Select(_mapper.Map<GuildDto>).ToList(), ct);
+        return Result<PagedResult<GuildDto>>.Success(new PagedResult<GuildDto>(items.ToList(), result.TotalCount, result.Page, result.PageSize));
     }
 
     public async Task<Result<GuildDto>> GetByOwnerIdAsync(string ownerId, CancellationToken ct = default)
@@ -115,13 +156,13 @@ public class GuildService : IGuildService
         var guild = await _repository.FindOneAsync(g => g.ownerId == ownerId, ct);
         if (guild is null)
             return Result<GuildDto>.NotFound($"Guild with owner {ownerId} not found");
-        return Result<GuildDto>.Success(_mapper.Map<GuildDto>(guild));
+        return Result<GuildDto>.Success(await WithProjectCountAsync(_mapper.Map<GuildDto>(guild), ct));
     }
 
     public async Task<Result<IReadOnlyList<GuildDto>>> GetVerifiedAsync(CancellationToken ct = default)
     {
         var guilds = await _repository.FindAsync(g => g.isVerified, ct);
-        return Result<IReadOnlyList<GuildDto>>.Success(_mapper.Map<IReadOnlyList<GuildDto>>(guilds));
+        return Result<IReadOnlyList<GuildDto>>.Success(await WithProjectCountsAsync(_mapper.Map<IReadOnlyList<GuildDto>>(guilds), ct));
     }
 
     private static string GenerateSlug(string name)
@@ -317,8 +358,7 @@ public class GuildMemberService : IGuildMemberService
             return Result<GuildMemberDto>.NotFound("That user does not exist");
 
         var userId = dto.UserId;
-        var existing = await _repository.FindOneAsync(m => m.guildId == guildId && m.userId == userId, ct);
-        if (existing is not null)
+        if (await GuildAuthority.IsMemberAsync(guild, userId, _repository, ct))
             return Result<GuildMemberDto>.Conflict("That person is already a member of this guild");
 
         var member = new GuildMember
@@ -333,7 +373,15 @@ public class GuildMemberService : IGuildMemberService
         await _repository.AddAsync(member, ct);
         guild.membersCount++;
         await _guildRepository.UpdateAsync(guild, ct);
-        await _unitOfWork.SaveChangesAsync(ct);
+        try
+        {
+            await _unitOfWork.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException failure) when (GuildAuthority.IsDuplicateMembership(failure))
+        {
+            _unitOfWork.ClearTrackedChanges();
+            return Result<GuildMemberDto>.Conflict("That person is already a member of this guild");
+        }
         return Result<GuildMemberDto>.Success(ToDto(member, user));
     }
 
@@ -465,8 +513,7 @@ public class GuildReviewService : IGuildReviewService
             return Result<GuildReviewDto>.NotFound($"Guild with id {guildId} not found");
 
         var reviewerId = actor.Id;
-        if (guild.ownerId == reviewerId ||
-            await _memberRepository.ExistsAsync(m => m.guildId == guildId && m.userId == reviewerId, ct))
+        if (await GuildAuthority.IsMemberAsync(guild, reviewerId, _memberRepository, ct))
             return Result<GuildReviewDto>.Forbidden("Members cannot review their own guild");
 
         if (await _repository.ExistsAsync(r => r.guildId == guildId && r.userId == reviewerId, ct))
@@ -717,7 +764,7 @@ public class GuildApplicationService : IGuildApplicationService
             return Result<GuildApplicationDto>.NotFound($"Guild with id {guildId} not found");
 
         var applicantId = actor.Id;
-        if (await _memberRepository.ExistsAsync(m => m.guildId == guildId && m.userId == applicantId, ct))
+        if (await GuildAuthority.IsMemberAsync(guild, applicantId, _memberRepository, ct))
             return Result<GuildApplicationDto>.Conflict("You are already a member of this guild");
         if (await _repository.ExistsAsync(a => a.guildId == guildId && a.userId == applicantId && a.status == MembershipRequestStatus.PENDING, ct))
             return Result<GuildApplicationDto>.Conflict("You already have an application waiting for this guild");
@@ -758,7 +805,7 @@ public class GuildApplicationService : IGuildApplicationService
             return Result<GuildApplicationDto>.Forbidden("Only the guild owner can admit an admin");
 
         var applicantId = application.userId;
-        if (await _memberRepository.ExistsAsync(m => m.guildId == guildId && m.userId == applicantId, ct))
+        if (await GuildAuthority.IsMemberAsync(guild, applicantId, _memberRepository, ct))
             return Result<GuildApplicationDto>.Conflict("User is already a member of this guild");
 
         application.status = MembershipRequestStatus.APPROVED;
@@ -778,7 +825,15 @@ public class GuildApplicationService : IGuildApplicationService
         guild.membersCount++;
         await _guildRepository.UpdateAsync(guild, ct);
 
-        await _unitOfWork.SaveChangesAsync(ct);
+        try
+        {
+            await _unitOfWork.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException failure) when (GuildAuthority.IsDuplicateMembership(failure))
+        {
+            _unitOfWork.ClearTrackedChanges();
+            return Result<GuildApplicationDto>.Conflict("User is already a member of this guild");
+        }
         return Result<GuildApplicationDto>.Success(ToDto(application));
     }
 
@@ -966,7 +1021,7 @@ public class GuildInvitationService : IGuildInvitationService
             return Result<GuildInvitationDto>.ValidationError("No ArdaNova account uses that email yet. Ask them to sign up, then invite them again.");
 
         var inviteeId = invitee.id;
-        if (await _memberRepository.ExistsAsync(m => m.guildId == guildId && m.userId == inviteeId, ct))
+        if (await GuildAuthority.IsMemberAsync(guild, inviteeId, _memberRepository, ct))
             return Result<GuildInvitationDto>.Conflict("That person is already a member of this guild");
 
         var open = await _repository.FindAsync(
@@ -1008,7 +1063,7 @@ public class GuildInvitationService : IGuildInvitationService
             return Result<GuildInvitationDto>.ValidationError("This invitation can no longer be accepted");
 
         var inviteeId = invitation.invitedUserId;
-        if (await _memberRepository.ExistsAsync(m => m.guildId == guildId && m.userId == inviteeId, ct))
+        if (await GuildAuthority.IsMemberAsync(guild, inviteeId, _memberRepository, ct))
             return Result<GuildInvitationDto>.Conflict("You are already a member of this guild");
 
         invitation.status = InvitationStatus.ACCEPTED;
@@ -1026,7 +1081,15 @@ public class GuildInvitationService : IGuildInvitationService
         guild.membersCount++;
         await _guildRepository.UpdateAsync(guild, ct);
 
-        await _unitOfWork.SaveChangesAsync(ct);
+        try
+        {
+            await _unitOfWork.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException failure) when (GuildAuthority.IsDuplicateMembership(failure))
+        {
+            _unitOfWork.ClearTrackedChanges();
+            return Result<GuildInvitationDto>.Conflict("You are already a member of this guild");
+        }
         return Result<GuildInvitationDto>.Success(ToDto(invitation, guild));
     }
 

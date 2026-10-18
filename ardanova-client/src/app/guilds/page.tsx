@@ -768,7 +768,7 @@ export default function GuildsPage() {
                     <div className="mt-1 flex items-center gap-3">
                       {renderRating(guild.rating)}
                       <span className="text-muted-foreground text-sm">
-                        {guild.projectsCount ?? 0} projects completed
+                        {guild.projectsCount ?? 0} projects
                       </span>
                     </div>
                   </div>

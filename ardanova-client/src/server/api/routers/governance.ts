@@ -7,6 +7,16 @@ import {
 } from "~/server/api/trpc";
 import { type ApiResponse } from "~/lib/api";
 import { apiClient, type Proposal } from "~/lib/api/ardanova";
+import { runWithActorAssertion } from "~/server/actor-assertion";
+
+/** A public read that names the signed-in reader, so the API can show them their own drafts and private projects. */
+type Reader = { id?: string | null; role?: string } | null | undefined;
+
+/** Runs a read with the reader attached as the actor, or anonymously when signed out. */
+async function readAsViewer<T>(reader: Reader, call: () => Promise<T>): Promise<T> {
+  if (!reader?.id) return call();
+  return runWithActorAssertion({ subject: reader.id, role: reader.role }, call);
+}
 
 // Filter labels the browse page already speaks. They are not the API's vocabulary, so they are translated below.
 const ProposalTypeFilter = z.enum([
@@ -173,17 +183,19 @@ export const governanceRouter = createTRPCRouter({
         projectId: z.string().optional(),
       }),
     )
-    .query(async ({ input }) => {
-      const response = await apiClient.governance.search({
-        searchTerm: input.search,
-        type: input.type ? proposalTypeFilterToName[input.type] : undefined,
-        status: input.status
-          ? proposalStatusFilterToName[input.status]
-          : undefined,
-        projectId: input.projectId,
-        page: input.page,
-        pageSize: input.limit,
-      });
+    .query(async ({ input, ctx }) => {
+      const response = await readAsViewer(ctx.session?.user, () =>
+        apiClient.governance.search({
+          searchTerm: input.search,
+          type: input.type ? proposalTypeFilterToName[input.type] : undefined,
+          status: input.status
+            ? proposalStatusFilterToName[input.status]
+            : undefined,
+          projectId: input.projectId,
+          page: input.page,
+          pageSize: input.limit,
+        }),
+      );
 
       if (response.error) {
         throw new Error(response.error);
@@ -202,8 +214,10 @@ export const governanceRouter = createTRPCRouter({
   // Get active proposals
   getActive: publicProcedure
     .input(z.object({ limit: z.number().min(1).max(20).default(10) }))
-    .query(async ({ input }) => {
-      const response = await apiClient.governance.getActive();
+    .query(async ({ input, ctx }) => {
+      const response = await readAsViewer(ctx.session?.user, () =>
+        apiClient.governance.getActive(),
+      );
 
       if (response.error) {
         throw new Error(response.error);
@@ -217,8 +231,10 @@ export const governanceRouter = createTRPCRouter({
   // Get proposal by ID
   getById: publicProcedure
     .input(z.object({ id: z.string() }))
-    .query(async ({ input }) => {
-      const response = await apiClient.governance.getById(input.id);
+    .query(async ({ input, ctx }) => {
+      const response = await readAsViewer(ctx.session?.user, () =>
+        apiClient.governance.getById(input.id),
+      );
 
       if (!response.data) {
         throw new Error("Proposal not found");
@@ -230,15 +246,18 @@ export const governanceRouter = createTRPCRouter({
   // Get proposal by ID with project slug for redirects
   getByIdWithProjectSlug: publicProcedure
     .input(z.object({ id: z.string() }))
-    .query(async ({ input }) => {
-      const response = await apiClient.governance.getById(input.id);
+    .query(async ({ input, ctx }) => {
+      const response = await readAsViewer(ctx.session?.user, () =>
+        apiClient.governance.getById(input.id),
+      );
       if (!response.data) {
         throw new Error("Proposal not found");
       }
 
       // Get project for slug
-      const projectResponse = await apiClient.projects.getById(
-        response.data.projectId,
+      const projectId = response.data.projectId;
+      const projectResponse = await readAsViewer(ctx.session?.user, () =>
+        apiClient.projects.getById(projectId),
       );
 
       return {
@@ -262,10 +281,10 @@ export const governanceRouter = createTRPCRouter({
   /** The tally plus the size of the electorate it is measured against, so quorum can be read as members rather than as a bare number. */
   getVoteSummary: publicProcedure
     .input(z.object({ proposalId: z.string() }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
       // The API's tally owns quorum arithmetic (including its two-ballot floor); this is a pass-through.
-      const summaryResponse = await apiClient.governance.getVoteSummary(
-        input.proposalId,
+      const summaryResponse = await readAsViewer(ctx.session?.user, () =>
+        apiClient.governance.getVoteSummary(input.proposalId),
       );
       const summary = summaryResponse.data;
       if (summaryResponse.error || !summary) {
@@ -322,8 +341,10 @@ export const governanceRouter = createTRPCRouter({
         limit: z.number().min(1).max(100).default(50),
       }),
     )
-    .query(async ({ input }) => {
-      const response = await apiClient.governance.getVotes(input.proposalId);
+    .query(async ({ input, ctx }) => {
+      const response = await readAsViewer(ctx.session?.user, () =>
+        apiClient.governance.getVotes(input.proposalId),
+      );
 
       if (response.error) {
         throw new Error(response.error);

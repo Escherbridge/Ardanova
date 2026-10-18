@@ -213,6 +213,70 @@ public class GuildAuthorityFlowTests
         _guilds.Rows.Single().rating.Should().Be(4m);
     }
 
+    /// <summary>A guild as legacy rows and seed-local-demo.ts left it: an owner of record and no OWNER membership row.</summary>
+    private Guild LegacyGuild(string ownerId)
+    {
+        var guild = new Guild { id = "legacy", name = "Neighborhood Infrastructure Guild", slug = "legacy", email = "g@x.test", ownerId = ownerId, projectsCount = 3 };
+        _guilds.Rows.Add(guild);
+        return guild;
+    }
+
+    [Fact]
+    public async Task On_a_guild_with_no_owner_row_the_owner_still_counts_as_a_member_and_cannot_be_invited_admitted_or_added()
+    {
+        var guild = LegacyGuild("alice");
+        _members.Rows.Add(new GuildMember { id = "admin-bob", guildId = guild.id, userId = "bob", role = GuildMemberRole.ADMIN, joinedAt = DateTime.UtcNow });
+
+        var selfInviteByEmail = await _invitationService.CreateAsync(guild.id, Alice, new CreateGuildInvitationDto { InvitedEmail = "alice@example.test", Role = "MEMBER" });
+        var adminInvitesOwner = await _invitationService.CreateAsync(guild.id, Bob, new CreateGuildInvitationDto { InvitedUserId = "alice", Role = "MEMBER" });
+        var ownerApplies = await _applicationService.CreateAsync(guild.id, Alice, new CreateGuildApplicationDto { RequestedRole = "MEMBER", Message = "Let me in" });
+        var ownerAdded = await _memberService.CreateAsync(guild.id, Alice, new CreateGuildMemberDto { UserId = "alice", Role = GuildMemberRole.MEMBER });
+
+        selfInviteByEmail.Type.Should().Be(ResultType.Conflict);
+        adminInvitesOwner.Type.Should().Be(ResultType.Conflict);
+        ownerApplies.Type.Should().Be(ResultType.Conflict);
+        ownerAdded.Type.Should().Be(ResultType.Conflict);
+        _invitations.Rows.Should().BeEmpty();
+        _applications.Rows.Should().BeEmpty();
+        _members.Rows.Should().NotContain(m => m.userId == "alice", "the owner must not gain a second, lesser membership");
+    }
+
+    [Fact]
+    public async Task A_membership_another_request_stores_first_is_reported_as_already_a_member_not_an_error()
+    {
+        _unitOfWork.Unique(_members, m => (m.guildId, m.userId));
+        var guild = await Found(Alice, "Roofers");
+        var invite = await _invitationService.CreateAsync(guild.Id, Alice, new CreateGuildInvitationDto { InvitedUserId = "carol", Role = "MEMBER" });
+
+        // Carol's application is approved in another tab after this accept has checked and found no membership.
+        _members.AfterExists = () =>
+        {
+            _members.AfterExists = null;
+            _members.Rows.Add(new GuildMember { id = "concurrent", guildId = guild.Id, userId = "carol", role = GuildMemberRole.MEMBER, joinedAt = DateTime.UtcNow });
+        };
+        var accepted = await _invitationService.AcceptAsync(guild.Id, invite.Value!.Id, Carol);
+
+        accepted.Type.Should().Be(ResultType.Conflict);
+        _members.Rows.Where(m => m.userId == "carol").Should().ContainSingle().Which.id.Should().Be("concurrent");
+    }
+
+    [Fact]
+    public async Task A_guilds_project_count_is_the_projects_assigned_to_it_not_the_stored_counter()
+    {
+        var projects = new InMemoryRepository<Project>();
+        var mapper = new MapperConfiguration(cfg => cfg.AddProfile<MappingProfile>()).CreateMapper();
+        var guildService = new GuildService(_guilds, _members, _tasks, _unitOfWork, mapper, projects);
+        var guild = LegacyGuild("alice");
+        projects.Rows.Add(new Project { id = "p1", title = "Cool roofs", slug = "cool-roofs", assignedGuildId = guild.id });
+        projects.Rows.Add(new Project { id = "p2", title = "Unrelated", slug = "unrelated" });
+
+        var detail = await guildService.GetBySlugAsync("legacy");
+        var directory = await guildService.GetAllAsync();
+
+        detail.Value!.ProjectsCount.Should().Be(1, "the stored projectsCount of 3 is a number nothing maintains");
+        directory.Value!.Should().ContainSingle().Which.ProjectsCount.Should().Be(1);
+    }
+
     private async Task<GuildMemberDto> AddMember(string guildId, GuildActor by, string userId, GuildMemberRole role)
     {
         var result = await _memberService.CreateAsync(guildId, by, new CreateGuildMemberDto { UserId = userId, Role = role });
