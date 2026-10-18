@@ -11,6 +11,14 @@ without turning the platform into a blockchain product. Blockchain is the accoun
 beneath the experience, never the pitch: a sponsor should never need to know a chain name, see a
 wallet address, or hear the word "gas."
 
+## Architecture ownership
+Four tiers, four owners: the **client** (`ardanova-client/`, Next.js) owns the user experience;
+the **.NET backend** (`ardanova-backend-api-mcp/`) owns the HTTP API and the MCP server —
+business logic, authorization, and the only tier holding Azoa credentials; **Azoa** (external
+node, separate repo) owns financial workflows — custody, minting, exchange, cash-out; **Nova
+AI** (`ardanova-ai-client/`, the AI orchestration service) operates the platform assistant. See
+[`tech-stack.md`](tech-stack.md) for the technical breakdown.
+
 ## Core Value Proposition
 - **The solutionary loop**: discover a problem, define a solution, iterate — evidence-rich work
   over passive engagement.
@@ -59,7 +67,8 @@ the terms, AZOA moves the value under its own custody. See
   ARDA is the single platform currency that bridges every project token to fiat. No separate
   stablecoin leg, no "ARDA is internal-only" framing — ARDA is what the user sees.
 - **Game SDK**: Integration for play-to-earn mechanics.
-- **Gamma API + MCP**: AI-powered project generation and management.
+- **Nova AI (Gamma API + MCP)**: AI-powered project generation and management, via the AI
+  orchestration service — implemented, not yet wired into the product (see `tech-stack.md`).
 
 ## User Roles
 - **Innovator**: Project creators and founders.

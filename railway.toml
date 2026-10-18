@@ -2,9 +2,20 @@
 # ArdaNova Railway Deployment Guide
 # ============================================
 #
-# This is a monorepo with two coupled services:
-# 1. ardanova-backend-api-mcp/ - .NET API
+# This is a monorepo with two coupled services that this guide's digest-pinned
+# release flow covers, plus a third AI service deployed separately:
+# 1. ardanova-backend-api-mcp/ - .NET API (BFF + MCP tool host)
 # 2. ardanova-client/ - Next.js 15 Frontend
+# 3. ardanova-ai-client/ - Python FastAPI AI orchestration service (Nova AI).
+#    Deployed on Railway as "Aradnova-AI" directly from its own Dockerfile
+#    (commit cfee56c), NOT through the GHCR image pipeline in steps 3-4 below,
+#    and its docker-compose block here is commented out. Not yet wired into
+#    the product (ardanova-client does not call it). See ardanova-ai-client/README.md.
+#
+# Azoa is an external, self-hostable blockchain-operations node in its own
+# repository -- NOT a service deployed from this repo. Only the .NET API talks
+# to it, over scoped typed clients using separate custody/value/issuance/quest
+# API keys (see the Azoa__* variables below).
 #
 # SHARED ENVIRONMENT:
 # ------------------

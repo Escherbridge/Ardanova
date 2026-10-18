@@ -4,6 +4,28 @@ The ArdaNova frontend is a Next.js workspace for turning attention into accounta
 
 See the repository-level [Brand guidelines](../documentation/BRAND_GUIDELINES.md), [Linguistic guide](../documentation/LINGUISTIC_GUIDE.md), [Frontend experience](../documentation/FRONTEND_EXPERIENCE.md), and [release playbook](../documentation/FRONTEND_RELEASE_PLAYBOOK.md) before introducing new layout, color, community activity, AI, transaction, or deployment patterns.
 
+## Architecture
+
+This app **owns the user experience** and nothing else: no business logic, no database beyond
+auth/session, and no Azoa credentials. It is the first of ArdaNova's four tiers.
+
+- **Data path:** tRPC routers (`src/server/api/routers/`) are thin proxies that call `apiClient`
+  (`src/lib/api/ardanova/`), which talks to the .NET backend,
+  [`ardanova-backend-api-mcp`](../ardanova-backend-api-mcp/), over HTTP with a shared `API_KEY`.
+  Prisma is used directly only for NextAuth session/auth state; every other read or write goes
+  through the API.
+- **Read-only Azoa layer:** `src/lib/azoa-sdk/client.ts` is a browser-safe client (npm
+  `azoa-sdk`, no API key, `NEXT_PUBLIC_AZOA_BASE_URL`) that reads wallets, portfolios, holons,
+  and action run-state directly into React Query. It intentionally never calls a write method
+  (`mintNft`, `transferNft`, `executeSwap`, ...) — this layer exists in the codebase but is not
+  currently wired into a UI surface.
+- **No value writes:** this app never mints, transfers, swaps, releases escrow, or otherwise
+  moves value. Those operations happen in the .NET API against Azoa, the external
+  financial-workflow node ArdaNova leverages (see the backend README for that boundary).
+- **Nova AI:** the platform assistant is a separate Python FastAPI service,
+  [`ardanova-ai-client`](../ardanova-ai-client/), which is meant to call the .NET API's MCP
+  tools. This client does not call the AI service directly — that integration is not yet wired.
+
 ## Run locally
 
 Requirements: Node.js 20+, npm 10+, PostgreSQL, and the environment values described in [`.env.example`](./.env.example).
@@ -117,7 +139,7 @@ Use `npm run format:check` only for deliberate repository-wide formatting cleanu
 
 ## Production and Railway
 
-Production is built from [`Dockerfile`](./Dockerfile) using the standalone Next.js output. [`railway.toml`](./railway.toml) configures the Dockerfile builder and the `/api/ready` deployment check. `/api/health` is process liveness only; `/api/ready` additionally checks required runtime configuration and the backend through a bounded request.
+Production is built from [`Dockerfile`](./Dockerfile) using the standalone Next.js output and deployed to Railway as a digest-pinned `ghcr.io` image, not via a Railway build step. The repository-root [`railway.toml`](../railway.toml) is a commented deployment guide (service setup, shared variables, private networking) rather than active build/deploy config. `/api/health` is process liveness only; `/api/ready` additionally checks required runtime configuration and the backend through a bounded request.
 
 The image accepts `DEPENDENCY_INSTALL_CACHE_KEY`; Git CI supplies a unique
 run/attempt value so the `npm ci` dependency layer is fresh for every release

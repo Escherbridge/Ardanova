@@ -1,5 +1,9 @@
 # Frontend source guidance
 
+## Tier boundary
+
+This is the UX tier of a four-tier system: `ardanova-client` (this app) → `ardanova-backend-api-mcp` (.NET BFF + MCP server) → Azoa (external financial-workflow node) → Algorand. Own the experience, not the business logic. tRPC routers (`src/server/api/routers/`) stay thin proxies that call `apiClient` (`src/lib/api/ardanova/`), which calls the .NET API; never add Prisma-backed business logic to a router (the one exception is auth/session management, which Prisma owns directly for NextAuth). The browser-safe `azoa-sdk` layer (`src/lib/azoa-sdk/client.ts`) is READ-ONLY: it has no API key and reads wallets, portfolios, holons, and action run-state into React Query — it must never call a write method (`mintNft`, `transferNft`, `executeSwap`, ...). Every value-bearing action (mint, transfer, swap, escrow release, payout) is submitted to the .NET API and executed there against Azoa; this tier only renders the resulting state.
+
 ## Experience invariant
 
 ArdaNova is expressive in public storytelling, quiet in the workspace, and explicit whenever a person or machine can change state. The canonical rationale lives in [`../../documentation/FRONTEND_EXPERIENCE.md`](../../documentation/FRONTEND_EXPERIENCE.md) and [`../../documentation/BRAND_GUIDELINES.md`](../../documentation/BRAND_GUIDELINES.md).

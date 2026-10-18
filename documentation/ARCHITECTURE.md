@@ -4,48 +4,146 @@ This document provides a detailed technical architecture for the ArdaNova platfo
 
 ---
 
-## Recent Updates (January 2025)
+## Architecture at a glance (2026-10)
 
-### Architecture Enhancements ✅
+ArdaNova is **four tiers plus one external dependency**:
 
-| Component                     | Status         | Description                                                                    |
-| ----------------------------- | -------------- | ------------------------------------------------------------------------------ |
-| `ardanova-client`             | ✅ Active      | Main Next.js app (all features consolidated)                                   |
-| `ardanova-backend-api-mcp`    | ✅ Complete    | .NET 10 API + MCP Server (40+ tools)                                           |
-| `Event Bus`                   | ✅ Complete    | In-memory event bus with domain events                                         |
-| `WebSocket/SignalR`           | ✅ Complete    | Real-time updates via SignalR hubs                                             |
-| `File Storage`                | ✅ Complete    | S3/Local storage with env var binding                                          |
-| `Dev Scripts`                 | ✅ Complete    | Bash & PowerShell scripts (Docker/Podman)                                      |
-| `C# Generator`                | ✅ Complete    | Attribute-based EF Core configuration                                          |
-| `Membership Management`       | ✅ Complete    | Project & Guild invitations/applications                                       |
-| `Events System`               | ✅ Complete    | Events, attendees, reminders, co-hosts                                         |
-| `Social Features`             | ✅ Complete    | User/Project/Guild following system                                            |
-| `Trending System`             | ✅ Complete    | Analytics-driven trending for discovery                                        |
-| `ardanova-ai-client`          | 🔄 Stubbed     | Python AI orchestrator (structure ready)                                       |
-| `ardanova-game-sdk`           | 🔄 TODO        | Unity & Godot SDKs (NuGet)                                                     |
-| `contracts`                   | 🔄 Stubbed     | Algorand Powered Automated agreements (structure ready)                        |
-| `Credential Utility Service`  | 🔄 In Progress | Soulbound ASA minting, guild credentials, tier system                          |
-| `Algorand Integration (.NET)` | 🔄 In Progress | dotnet-algorand-sdk for on-chain credential operations                         |
-| `Azoa Identity & Custody`     | 🔄 In Progress | Tenant-bound account/KYC gateway complete; production KMS/provider unavailable |
+1. **`ardanova-client/`** — Next.js 15 (App Router, tRPC, NextAuth v5, Prisma for
+   auth/session only). **Owns the user experience.** tRPC routers are thin proxies
+   that call `apiClient` (`src/lib/api/ardanova/`) → the .NET API; no business
+   logic lives in Next.js. It also ships a browser-safe, **read-only** AZOA layer
+   (`src/lib/azoa-sdk/client.ts`, npm `azoa-sdk`, no API key, configured from
+   `NEXT_PUBLIC_AZOA_BASE_URL`) that reads wallets/portfolios/holons/action
+   run-state into React Query. It never performs value-bearing writes — the SDK's
+   write methods (`mintNft`, `fungibleMint`, `transferNft`, `executeSwap`, …) are
+   imported but intentionally never invoked from this layer.
+2. **`ardanova-backend-api-mcp/`** — .NET 10 (`ArdaNova.API`, `.Application`,
+   `.Domain`, `.Infrastructure`, `.MCP`). **The backend-for-frontend**: the HTTP
+   API the client calls, AND the MCP server (`ArdaNova.MCP/Tools/`). Owns
+   business logic, authorization, EF Core/PostgreSQL, SignalR, the event bus —
+   and is the **only** tier that holds AZOA credentials.
+3. **AZOA** — external, generic, self-hostable blockchain-operations node (a
+   separate repo). ArdaNova leverages it for financial workflows: identity/KYC,
+   custodial accounts & managed wallets, NFT/fungible minting, allocations,
+   reserve partitions, project tokens, credential issuance, cash-out, quests, and
+   a DAG action engine for multi-step value workflows — see
+   [Financial workflows via AZOA](#financial-workflows-via-azoa). Algorand is the
+   chain AZOA settles value to; ArdaNova never calls Algorand directly for value
+   movement and hosts no explorer — chain state is inspected through AZOA
+   operator tooling.
+4. **`ardanova-ai-client/`** — Python **FastAPI** (uvicorn, port 8081)
+   orchestration service that operates **Nova AI**, the platform assistant.
+   CrewAI crews (`src/crews/`: pitch, project analysis), LangGraph workflows
+   (`src/workflows/`) that decide which crew(s) run, and an MCP client
+   (`src/mcp/client.py`, default `mcp_server_url=http://localhost:8080`) meant to
+   reach the .NET MCP tools; Gamma API for pitch decks
+   (`src/core/tools/gamma_tool.py`). **Implemented, not yet wired end to end**:
+   `ardanova-client` has no caller into this service today; its
+   `ai-orchestrator` entry is commented out in `docker-compose.yml` /
+   `docker-compose.dev.yml`; and `MCPClient.call_tool`/`list_tools`/`get_resource`
+   are still stub methods, so nothing in this service can reach the MCP server
+   yet even though the CrewAI crews are fully built. Real HTTP surface today:
+   `GET /health` and `POST /api/agent/{analyze-project, pitch/generate,
+   pitch/enhance, pitch/deck}`. Details: `ardanova-ai-client/AGENTS.md`,
+   `ardanova-ai-client/README.md`.
 
-**Key Changes:**
+### Trust boundaries
+
+- **Only `ArdaNova.Infrastructure/Azoa/` holds AZOA credentials.** Custody,
+  value, quest, and issuance keys are four separate secrets — Production
+  rejects reusing the same secret across them (see
+  [Financial workflows via AZOA](#financial-workflows-via-azoa)).
+- **The client's AZOA layer is read-only.** No API key ever reaches the
+  browser; the SDK is constructed without one, and its write methods are
+  never called from `ardanova-client`.
+- **MCP tools are discovery-only.** The stdio MCP host has no trusted
+  end-user principal, so `ArdaNova.MCP/Tools/` exposes only non-sensitive
+  reads — no value-, role-, credential-, or governance-mutating tool is
+  reachable through MCP (`ArdaNova.MCP/Tools/AGENTS.md`). The AI client's
+  `MCP_TOOL_REGISTRY` (`src/core/tools/mcp_tool.py`) still lists `escrow`,
+  `exchange`, and delegation write tools — those have no corresponding
+  `*Tools.cs` file server-side and were intentionally removed; treat that
+  registry as aspirational, not current capability.
+
+```
+                         ┌─────────────────────┐
+                         │   ardanova-client    │  Next.js 15 / tRPC
+                         │  (owns the UX)       │  read-only AZOA reads only
+                         └──────────┬───────────┘
+                     tRPC →         │         ← read-only AZOA reads
+                   .NET API         │           (no API key, browser-safe)
+                                    ▼
+                   ┌────────────────────────────────┐        MCP (discovery-only,
+                   │   ardanova-backend-api-mcp      │◀───┐   no trusted principal)
+                   │        (.NET 10, the BFF)       │    │
+                   │  API · Application · Domain ·   │    │
+                   │  Infrastructure · MCP            │    │
+                   │  ONLY tier holding AZOA creds    │    │
+                   └───────┬───────────────┬──────────┘    │
+                           │               │ scoped typed   │
+                 PostgreSQL│               │ clients:       │
+                  SignalR  │               │ custody/value/ │
+                           ▼               │ quest/issuance │
+                   ┌──────────────┐        ▼                │
+                   │  PostgreSQL  │  ┌─────────────────┐     │
+                   └──────────────┘  │  AZOA (external) │    │
+                                      │ financial         │  │
+                                      │ workflows          │  │
+                                      └────────┬──────────┘  │
+                                               │ settles to  │
+                                               ▼             │
+                                      ┌──────────────┐       │
+                                      │   Algorand    │       │
+                                      │ (underlying   │       │
+                                      │    chain)     │       │
+                                      └──────────────┘        │
+                                                               │
+                   ┌────────────────────────────────┐        │
+                   │       ardanova-ai-client         │────────┘
+                   │  FastAPI, operates Nova AI       │
+                   │  CrewAI + LangGraph + Gamma       │
+                   │  NOT YET WIRED from ardanova-client│
+                   └────────────────────────────────┘
+```
+
+### Component status (2026-10)
+
+| Component                     | Status                      | Description                                                                    |
+| ------------------------------ | --------------------------- | ------------------------------------------------------------------------------ |
+| `ardanova-client`             | ✅ Active                   | Next.js 15, tRPC thin proxies, read-only AZOA layer                            |
+| `ardanova-backend-api-mcp`    | ✅ Active                   | .NET 10 API (42 controllers) + MCP server (42 tools, discovery-only)           |
+| `Event Bus`                   | ✅ Complete                 | In-memory event bus with domain events                                         |
+| `WebSocket/SignalR`           | ✅ Complete                 | Real-time updates via SignalR hubs                                             |
+| `File Storage`                | ✅ Complete                 | S3/Local storage with env var binding                                          |
+| `Dev Scripts`                 | ✅ Complete                 | Bash & PowerShell scripts (Docker/Podman)                                      |
+| `C# Generator`                | ✅ Complete                 | Attribute-based EF Core configuration                                          |
+| `Membership Management`       | ✅ Complete                 | Project & Guild invitations/applications                                       |
+| `Events System`               | ✅ Complete                 | Events, attendees, reminders, co-hosts                                         |
+| `Social Features`             | ✅ Complete                 | User/Project/Guild following system                                            |
+| `Trending System`             | ✅ Complete                 | Analytics-driven trending for discovery                                        |
+| `AZOA integration (.NET)`     | 🔄 In Progress              | Custody/value/quest/issuance clients + settlement + on-ramp gateways live; see `ArdaNova.Infrastructure/Azoa/AGENTS.md` |
+| `ardanova-ai-client`          | 🔄 Implemented, not wired   | FastAPI + CrewAI + LangGraph orchestrator operating Nova AI; real endpoints exist but `ardanova-client` doesn't call it and its MCP client is a stub |
+| `ardanova-game-sdk`           | 🔄 TODO                     | Unity & Godot SDKs (NuGet)                                                     |
+| `contracts`                   | 🔄 Stubbed                  | `__init__.py`-only package skeletons (governance, tokens, ico, exchange, escrow) |
+| `Credential Utility Service`  | 🔄 In Progress              | Soulbound ASA minting, guild credentials, tier system                          |
+| `Algorand Integration (.NET)` | 🔄 In Progress              | dotnet-algorand-sdk; also reachable AZOA-backed via `AzoaBackedAlgorandService` |
+| `Azoa Identity & Custody`     | 🔄 In Progress              | Tenant-bound account/KYC gateway complete; production KMS/provider unavailable |
+
+**Key changes since January 2025:**
 
 - DAO, Studio, Exchange, and Agent UI consolidated into main platform. **Explorer is retired,
   not planned** — chain state is inspected through AZOA operator tooling, never an
   ArdaNova-hosted view (see `conductor/product.md` "Blockchain operations").
-- Event Bus implemented for domain event publishing
-- SignalR WebSocket hub for real-time client updates
-- S3-compatible file storage service with presigned URLs
-- Development scripts for Docker/Podman (hot-reload support)
-- AI client structure with MCP client stubs
-- Alogrand Powered Automated agreement directory structure with PyTeal stubs
-- EF Core relationship fixes for multi-FK entities
-- **C# Generator enhanced with attribute-based EF Core configuration**
-- DbContext simplified from 682 lines to ~120 lines (OnModelCreating: 570+ → 9 lines)
-- **Project & Guild membership management** (invitations, applications, requests)
-- **Events system** with attendees, co-hosts, reminders, and multiple event types
-- **Social following system** for users, projects, and guilds with notification preferences
-- **Trending system** with score-based ranking for projects, guilds, and posts
+- **AZOA is now the financial-workflow boundary**: identity/custody/value/quest/issuance all
+  route through scoped typed clients in `ArdaNova.Infrastructure/Azoa/`, not through a
+  client-side or direct-Algorand path.
+- `ardanova-ai-client` moved from "structure ready" to **implemented but not wired**: real
+  FastAPI routes and built CrewAI/LangGraph pipelines exist, but the client doesn't call it yet
+  and its MCP client is still a stub.
+- Event Bus, SignalR hub, S3-compatible storage, dev scripts, and the attribute-based C#
+  generator remain complete and unchanged.
+- **Project & Guild membership management**, **Events system**, **Social following system**, and
+  **Trending system** remain complete and unchanged.
 
 ---
 
@@ -82,8 +180,8 @@ This document provides a detailed technical architecture for the ArdaNova platfo
 │  ┌────────────────────────────────────────────────────────────────────────┐ │
 │  │                     ARDANOVA-CLIENT (Next.js 15)                       │ │
 │  │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐    │ │
-│  │  │ Projects │ │   DAO    │ │  Studio  │ │ Exchange │ │  Agent   │    │ │
-│  │  │Dashboard │ │Governance│ │  (Gamma) │ │  Tokens  │ │   Chat   │    │ │
+│  │  │ Projects │ │Governance│ │  Studio  │ │   Swap   │ │  Chats   │    │ │
+│  │  │Dashboard │ │          │ │  (Gamma) │ │          │ │          │    │ │
 │  │  └────┬─────┘ └────┬─────┘ └────┬─────┘ └────┬─────┘ └────┬─────┘    │ │
 │  │       └────────────┴────────────┴─────┬──────┴────────────┘          │ │
 │  │                                       │                               │ │
@@ -94,43 +192,58 @@ This document provides a detailed technical architecture for the ArdaNova platfo
 │  │  │  tRPC   │                   │  SignalR    │              │ Storage ││ │
 │  │  │ Client  │                   │  WebSocket  │              │  Client ││ │
 │  │  └────┬────┘                   └──────┬──────┘              └────┬────┘│ │
-│  └───────┼───────────────────────────────┼───────────────────────────┼────┘ │
-│          │                               │                           │       │
-└──────────┼───────────────────────────────┼───────────────────────────┼───────┘
-           │                               │                           │
-           ▼                               ▼                           ▼
+│  │       │                                                           │     │ │
+│  │       │          ┌──────────────────────────┐                    │     │ │
+│  │       │          │ azoa-sdk (READ-ONLY)      │                    │     │ │
+│  │       │          │ wallets/portfolios/holons │                    │     │ │
+│  │       │          │ no API key, browser-safe  │                    │     │ │
+│  │       │          └─────────────┬────────────┘                    │     │ │
+│  └───────┼────────────────────────┼───────────────┼───────────────────┼────┘ │
+│          │                        │                │                   │     │
+└──────────┼────────────────────────┼────────────────┼───────────────────┼─────┘
+           │                        │ read-only       │                   │
+           ▼                        │ AZOA reads      ▼                   ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                           ARDANOVA-BACKEND-API-MCP                          │
-│                            (.NET 10 + MCP Server)                           │
+│                       (.NET 10, the backend-for-frontend)                   │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                              │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐    │
 │  │ Controllers  │  │  Event Bus   │  │  SignalR Hub │  │   Storage    │    │
-│  │  (14 APIs)   │  │ (In-Memory)  │  │ (WebSocket)  │  │   Service    │    │
+│  │ (42 REST)    │  │ (In-Memory)  │  │ (WebSocket)  │  │   Service    │    │
 │  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘    │
 │         │                 │                 │                 │             │
 │         └─────────────────┴─────────────────┴─────────────────┘             │
 │                                    │                                         │
-│                         ┌──────────▼──────────┐                             │
-│                         │    Application      │                             │
-│                         │     Services        │                             │
-│                         │   (28+ Services)    │                             │
-│                         └──────────┬──────────┘                             │
-│                                    │                                         │
-│                         ┌──────────▼──────────┐                             │
-│                         │   Infrastructure    │                             │
-│                         │ Repository Pattern  │                             │
-│                         └──────────┬──────────┘                             │
-│                                    │                                         │
-└────────────────────────────────────┼─────────────────────────────────────────┘
+│                         ┌──────────▼──────────┐    ┌───────────────────┐   │
+│                         │    Application      │    │   ArdaNova.MCP     │   │
+│                         │     Services        │    │ 42 tools, DISCOVERY-│   │
+│                         │                     │    │ ONLY (no trusted   │   │
+│                         └──────────┬──────────┘    │ end-user principal)│   │
+│                                    │                └─────────┬──────────┘   │
+│                         ┌──────────▼──────────┐               │              │
+│                         │   Infrastructure    │               │ MCP          │
+│                         │ Repository Pattern  │               │              │
+│                         │ Azoa/ (ONLY tier     │               ▼              │
+│                         │ holding AZOA creds)  │     ┌────────────────────┐ │
+│                         └──────────┬──────────┘     │ ardanova-ai-client  │ │
+│                                    │                 │ (FastAPI, Nova AI)  │ │
+└────────────────────────────────────┼─────────────────  NOT YET WIRED ──────┘─┘
                                      │
            ┌─────────────────────────┼─────────────────────────┐
            │                         │                         │
            ▼                         ▼                         ▼
     ┌──────────────┐         ┌──────────────┐         ┌──────────────┐
-    │  PostgreSQL  │         │     S3       │         │   Algorand   │
-    │  (Database)  │         │   Storage    │         │ Secure Ledger│
-    └──────────────┘         └──────────────┘         └──────────────┘
+    │  PostgreSQL  │         │     S3       │         │     AZOA      │
+    │  (Database)  │         │   Storage    │         │  (external)   │
+    └──────────────┘         └──────────────┘         └──────┬───────┘
+                                                               │ settles to
+                                                               ▼
+                                                        ┌──────────────┐
+                                                        │   Algorand    │
+                                                        │ (underlying   │
+                                                        │    chain)     │
+                                                        └──────────────┘
 ```
 
 ### Core Principles
@@ -140,8 +253,11 @@ This document provides a detailed technical architecture for the ArdaNova platfo
 3. **Clean Architecture** - Separation of concerns in backend
 4. **Event-Driven** - Domain events for loose coupling
 5. **Real-Time** - WebSocket for instant updates
-6. **AI-First** - Native AI integration via MCP protocol
+6. **AI-First** - Native AI integration via MCP protocol (discovery-only until end-user
+   authorization reaches the stdio host)
 7. **Decentralization** - Progressive ownership via Cooperatives / DAOs
+8. **Credential isolation** - Only `ArdaNova.Infrastructure/Azoa/` ever holds an AZOA credential;
+   the client's AZOA reads are unauthenticated/read-only and MCP tools never see one
 
 ---
 
@@ -150,64 +266,76 @@ This document provides a detailed technical architecture for the ArdaNova platfo
 ```
 ardanova/
 │
-├── ardanova-client/                    # Main Next.js application (all features)
+├── ardanova-client/                    # Main Next.js application (owns the UX)
 │   ├── src/
 │   │   ├── app/                        # Next.js 15 App Router
-│   │   │   ├── auth/                   # Authentication pages
+│   │   │   ├── auth/, login/, sign-up/, signup/  # Authentication pages
 │   │   │   ├── dashboard/              # User dashboard
 │   │   │   ├── projects/               # Project listing & details
-│   │   │   ├── marketplace/            # Task marketplace (TODO)
-│   │   │   ├── dao/                    # Governance UI (TODO)
-│   │   │   ├── studio/                 # Pitch builder (TODO)
-│   │   │   ├── exchange/               # Token exchange (TODO)
-│   │   │   ├── explorer/               # RETIRED — not planned; AZOA is the chain boundary
-│   │   │   ├── agent/                  # AI agent chat (TODO)
+│   │   │   ├── governance/             # Governance UI
+│   │   │   ├── studio/                 # Pitch builder (Gamma-backed)
+│   │   │   ├── swap/                   # Token swap UI
+│   │   │   ├── opportunities/, tasks/  # Task/opportunity marketplace
+│   │   │   ├── guilds/, people/        # Guild & social surfaces
+│   │   │   ├── credentials/, portfolio/, events/, chats/, admin/, settings/
+│   │   │   ├── (no explorer/ — RETIRED, not planned; AZOA is the chain boundary)
 │   │   │   └── api/                    # Next.js API routes
 │   │   │
 │   │   ├── components/                 # Shared UI components
 │   │   ├── lib/                        # Utilities and helpers
-│   │   │   ├── api/                    # API client for .NET backend
-│   │   │   ├── blockchain/             # Algorand integration (TODO)
-│   │   │   └── hooks/                  # Real-time WebSocket hooks
+│   │   │   ├── api/                    # apiClient for .NET backend (lib/api/ardanova/)
+│   │   │   ├── azoa-sdk/               # READ-ONLY AZOA client (npm `azoa-sdk`, no API key)
+│   │   │   ├── chat/, commerce/, contracts/, credentials/, studio/, vocabulary/
+│   │   │   └── websocket/               # Real-time WebSocket hooks
 │   │   │
 │   │   ├── server/                     # Server-side code
-│   │   │   ├── api/routers/            # tRPC routers
-│   │   │   ├── auth/                   # NextAuth configuration
-│   │   │   └── db.ts                   # Prisma client
+│   │   │   ├── api/routers/            # tRPC routers (thin proxies to apiClient)
+│   │   │   ├── auth/                   # NextAuth v5 configuration
+│   │   │   └── db.ts                   # Prisma client (auth/session only)
 │   │   │
 │   │   └── trpc/                       # tRPC client
 │   │
 │   ├── prisma/                         # Database schema & migrations
 │   └── public/                         # Static assets
 │
-├── ardanova-backend-api-mcp/           # .NET 10 Backend + MCP Server
-│   ├── ardanova.sln                    # Solution file (6 projects)
+├── ardanova-backend-api-mcp/           # .NET 10 Backend + MCP Server (the BFF)
+│   ├── ardanova.sln                    # Solution file
 │   └── api-server/
 │       └── src/
-│           ├── ArdaNova.Domain/        # Entities, Enums (60+ entities)
-│           ├── ArdaNova.Application/   # Services, DTOs (28+ services)
+│           ├── ArdaNova.Domain/        # Entities, Enums (99+ entity files)
+│           ├── ArdaNova.Application/   # Services, DTOs (52+ service implementations)
 │           │   ├── Common/             # Result<T>, PagedResult<T>
-│           │   ├── DTOs/               # 15+ DTO files
+│           │   ├── DTOs/               # DTO files
+│           │   ├── Azoa/               # Quest authoring DTOs (server-side only)
 │           │   ├── Mappings/           # AutoMapper profiles
 │           │   └── Services/           # Business logic
-│           ├── ArdaNova.Infrastructure/# DbContext, Repositories
+│           ├── ArdaNova.Infrastructure/# DbContext, Repositories, external gateways
 │           │   ├── Data/               # EF Core DbContext
 │           │   ├── Repositories/       # Generic Repository
-│           │   └── Storage/            # S3/Local storage ✅
+│           │   ├── Storage/            # S3/Local storage ✅
+│           │   ├── Algorand/           # Legacy/simulated on-chain signer (IAlgorandService)
+│           │   └── Azoa/               # ONLY tier holding AZOA creds — custody/value/quest/
+│           │                           # issuance clients, settlement + fiat on-ramp gateways
+│           │                           # (see `Azoa/AGENTS.md`, "Financial workflows via AZOA")
 │           ├── ArdaNova.API/           # Controllers, Middleware
-│           │   ├── Controllers/        # 14 REST controllers ✅
+│           │   ├── Controllers/        # 42 REST controllers ✅
 │           │   ├── EventBus/           # Domain event bus ✅
 │           │   ├── WebSocket/          # SignalR hub ✅
 │           │   └── Middleware/         # API key, exception handling
-│           └── ArdaNova.MCP/           # 40+ MCP Tools
+│           └── ArdaNova.MCP/           # 42 MCP Tools, DISCOVERY-ONLY (see Tools/AGENTS.md)
 │
-├── ardanova-ai-client/                 # Python AI Orchestrator ✅ STUBBED
+├── ardanova-ai-client/                 # Python FastAPI service operating Nova AI
 │   ├── src/
-│   │   ├── api/                        # FastAPI endpoints
+│   │   ├── api/                        # FastAPI app (main.py) + routes.py (/api/agent/*)
 │   │   ├── orchestrator/               # Agent orchestration
 │   │   ├── agents/                     # Agent definitions
-│   │   ├── mcp/                        # MCP client
-│   │   └── config/                     # Settings
+│   │   ├── core/                       # agent_builder, crew_builder, graph_builder, state,
+│   │   │                               # tools/ (mcp_tool.py, gamma_tool.py)
+│   │   ├── crews/                      # CrewAI crews (pitch, project analysis) — built
+│   │   ├── workflows/                  # LangGraph workflows — nodes still return placeholders
+│   │   ├── mcp/                        # MCP client — call_tool/list_tools are stubs
+│   │   └── config/                     # Settings (port 8081)
+│   ├── AGENTS.md                       # Boundary rules (no AZOA creds, MCP discovery-only)
 │   ├── requirements.txt
 │   └── Dockerfile
 │
@@ -713,6 +841,29 @@ The main platform is a Next.js 15 application using the App Router pattern.
                                                  │PostgreSQL│  │    S3    │
                                                  └──────────┘  └──────────┘
 ```
+
+This is the path for everything that is **not** a financial workflow (reads/writes on
+projects, guilds, events, social graph, etc.). tRPC routers never talk to Prisma for this
+data — they proxy to `apiClient`, which calls the .NET API.
+
+### Financial Request Flow: Client → tRPC → API → AZOA → Algorand
+
+```
+┌──────────┐    ┌──────────┐    ┌──────────┐    ┌──────────────────┐    ┌──────────┐    ┌──────────┐
+│  React   │───>│  tRPC    │───>│   API    │───>│  ArdaNova.        │───>│   AZOA    │───>│ Algorand │
+│Component │    │ (server) │    │  Client  │    │  Infrastructure/  │    │(external) │    │ (chain)  │
+└──────────┘    └──────────┘    └──────────┘    │  Azoa/ (scoped    │    └──────────┘    └──────────┘
+                                                 │  typed clients)   │
+                                                 └──────────────────┘
+```
+
+Value-bearing operations (custody, minting, allocations, cash-out, quests, …) never reach
+Prisma or Algorand directly from the client — they cross into AZOA only from
+`ArdaNova.Infrastructure/Azoa/`, which is the only code that holds an AZOA credential. See
+[Financial workflows via AZOA](#financial-workflows-via-azoa). The client's own `azoa-sdk`
+layer bypasses the .NET API for **reads only** (wallets/portfolios/holons/action run-state),
+using the signed-in user's own bearer token — never the tenant key — so it cannot originate a
+write even if a write method were called.
 
 ### Real-Time Event Flow
 
@@ -1364,7 +1515,7 @@ The generator:
 
 ## API Layer
 
-### REST Controllers (17 Total)
+### REST Controllers (42 controller files)
 
 | Controller                        | Endpoints | Description                                            |
 | --------------------------------- | --------- | ------------------------------------------------------ |
@@ -1386,7 +1537,7 @@ The generator:
 | `KycController`                   | 6         | Retired local KYC routes return 410                    |
 | `AzoaCustodialAccountController`  | 5         | Actor-bound capability, account, and KYC orchestration |
 
-### Service Layer (28+ Services)
+### Service Layer (52 service implementations)
 
 | Category               | Services                                                                                                                                                                                                 |
 | ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -1446,43 +1597,108 @@ The generator:
 
 ## AI & MCP Integration
 
-### Python AI Orchestrator (Stubbed)
+### Python AI Orchestrator (FastAPI, operates Nova AI — implemented, not yet wired)
+
+Real tree (verified against source, replacing the earlier "stubbed" placeholder tree):
 
 ```
 ardanova-ai-client/
 ├── src/
+│   ├── agents/                # Agent definitions
 │   ├── api/
-│   │   └── main.py           # FastAPI application
-│   ├── orchestrator/         # Agent routing & context
-│   ├── agents/
-│   │   ├── base.py           # Base agent class
-│   │   ├── project_manager.py
-│   │   ├── pitch_generator.py
-│   │   ├── governance.py
-│   │   └── token_analyst.py
+│   │   ├── main.py            # FastAPI app: CORS, lifespan-managed MCPClient/builders
+│   │   └── routes.py          # /api/agent/{analyze-project, pitch/generate,
+│   │                          #   pitch/enhance, pitch/deck}; main.py also exposes /health
+│   ├── config/
+│   │   └── settings.py        # App settings (port 8081, mcp_server_url default :8080)
+│   ├── core/
+│   │   ├── agent_builder.py   # Builds CrewAI agents from MCP tool registry
+│   │   ├── crew_builder.py    # Assembles crews from agents
+│   │   ├── graph_builder.py   # LangGraph graph assembly
+│   │   ├── state.py           # Shared workflow state
+│   │   └── tools/
+│   │       ├── mcp_tool.py    # CrewAI tool wrapping MCP calls (registry caveat below)
+│   │       └── gamma_tool.py  # Gamma API client for pitch decks
+│   ├── crews/                 # CrewAI crews — fully built
+│   │   ├── pitch_crew.py
+│   │   └── project_analysis_crew.py
 │   ├── mcp/
-│   │   └── client.py         # MCP protocol client
-│   └── config/
-│       └── settings.py       # App settings
+│   │   └── client.py          # MCP client — call_tool/list_tools/get_resource are still
+│   │                          #   unimplemented stubs; nothing reaches the MCP server yet
+│   ├── orchestrator/          # Agent routing & context
+│   └── workflows/             # LangGraph workflows — nodes return placeholder data,
+│       ├── pitch_generation.py#   crews are built but not yet invoked from the graph
+│       └── project_analysis.py
+├── AGENTS.md                  # Boundary rules + known gaps (authoritative)
 ├── requirements.txt
-└── Dockerfile
+└── Dockerfile                 # EXPOSE 8081, uvicorn src.api.main:app
 ```
 
-### MCP Tools (40+ Implemented)
+This is **FastAPI**, confirmed in `src/api/main.py` (`from fastapi import FastAPI`) — not
+Sanic. The `ai-orchestrator` service block is commented out in both `docker-compose.yml` and
+`docker-compose.dev.yml`, and nothing under `ardanova-client/src` calls this service, so the
+client → Nova AI leg is **planned, not yet wired**, even though the FastAPI routes and CrewAI
+crews themselves are real and built. See `ardanova-ai-client/AGENTS.md` for the full boundary
+rules and known gaps.
 
-| Category       | Tools                                                                                                   |
-| -------------- | ------------------------------------------------------------------------------------------------------- |
-| **User**       | user_get_by_id, user_get_by_email, user_create, user_update, user_verify                                |
-| **Project**    | project_get_by_id, project_get_by_slug, project_create, project_update, project_publish, project_delete |
-| **Agency**     | agency_get_by_id, agency_create, agency_verify, agency_delete                                           |
-| **Business**   | business_get_by_id, business_create, business_upgrade_plan                                              |
-| **Task**       | task_assign, task_complete, task_review                                                                 |
-| **Governance** | proposal_create, proposal_vote                                                                          |
-| **Analytics**  | analytics*\*, report*\*                                                                                 |
+### MCP Tools (42 implemented, discovery-only)
+
+The stdio MCP host has no trusted end-user principal (`ArdaNova.MCP/Tools/AGENTS.md`), so
+every tool below is a read or a non-sensitive log/notification write — no value-, role-,
+credential-, or governance-mutating tool exists here. Tool files live in
+`ArdaNova.MCP/Tools/*.cs`:
+
+| Category                 | Tools (representative)                                                                                                                             |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| **User**                 | user_get_by_id, user_get_by_email, user_get_paged                                                                                                 |
+| **Project**              | project_get_by_id, project_get_by_slug, project_get_all, project_get_paged, project_get_by_user, project_get_by_category, project_get_featured    |
+| **Guild**                | guild_get_by_id, guild_get_by_slug, guild_get_paged, guild_get_by_owner, guild_get_verified                                                       |
+| **Wallet**               | wallet_get_by_id, wallet_get_by_user_id, wallet_get_by_address, wallet_get_primary                                                                |
+| **Notification**         | notification_get_by_id, notification_get_unread, notification_get_summary, notification_create, notification_mark_read, notification_mark_all_read |
+| **Activity**             | activity_get_by_id, activity_get_by_user_id, activity_get_by_project_id, activity_create                                                          |
+| **Gamification**        | streak_get_by_user_id, streak_record_activity, streak_reset, referral_get_by_id, referral_get_by_referrer, referral_get_by_code, referral_complete |
+| **Membership credential** | membership_credential_get_by_id, _get_by_project, _get_active_by_project, _get_by_user, _check                                                   |
+
+`MCP_TOOL_REGISTRY` in `ardanova-ai-client/src/core/tools/mcp_tool.py` additionally lists
+`escrow`, `exchange`, and delegation (`governance`) write tools — those have no matching
+`*Tools.cs` file; they were intentionally removed server-side for lacking a verified caller
+principal (`ArdaNova.MCP/Tools/AGENTS.md`). Treat those registry entries as aspirational, not
+current capability.
 
 ---
 
-## Blockchain Integration
+## Ledger Integration
+
+Financial workflows (identity/KYC, custody, minting, allocations, cash-out, quests, …) go
+through **AZOA**, the external blockchain-operations node — never directly from
+`ardanova-client` and never directly against Algorand. **Algorand is the underlying chain**
+AZOA settles value to; ArdaNova's own `ArdaNova.Infrastructure/Algorand/` code is a narrower,
+credential-specific path (below) that is itself swappable to route through AZOA.
+
+### Financial workflows via AZOA
+
+`ArdaNova.Infrastructure/Azoa/` is the **only** code in the platform that holds an AZOA
+credential, via scoped typed HTTP clients — one per workflow family, so a leaked key cannot
+cross trust boundaries:
+
+- **Custody** (`AzoaCustodialNodeClient`, `Azoa:CustodyApiKey`) — tenant provisioning, managed
+  wallets, KYC read/submit.
+- **Value** (`AzoaNodeClient`, `Azoa:ValueApiKey`) — allocations, fungible-mint, reserve
+  partitions.
+- **Quest** (`AzoaQuestNodeClient`, `Azoa:QuestApiKey`) — the DAG action engine's quest
+  authoring/read/signal routes.
+- **Issuance** (`AzoaCredentialIssuanceClient`, `Azoa:IssuanceApiKey`) — credential minting.
+- Cross-cutting: `AzoaProjectTokenNodeGateway` (needs both custody + value keys),
+  `AzoaCashOutClient` (custody key), `AzoaSettlementGateway` (exchange operations, token base
+  units only — never a fiat amount), `AzoaFiatRailGateway` (the one on-ramp adapter, custody
+  key, `Fiat.USD` rail only).
+
+Production enforces the four keys as **separate secrets** and rejects reuse across them; a
+`Azoa:TenantApiKey` fallback exists only outside Production. Full transport rules (route
+allow-lists, credential separation, error-message sanitization) live in
+`ArdaNova.Infrastructure/Azoa/AGENTS.md`. The canonical integration contract — AZOA's mental
+model, custody-follows-the-operator rule, and the action-engine semantics — is
+`conductor/ARDANOVA-AZOA-INTEGRATION-CONTRACT.md` (byte-identical copy lives in the AZOA repo).
 
 ### Credential Utility Service (In Progress)
 
@@ -1530,6 +1746,13 @@ The first Algorand integration: soulbound membership credentials minted as ASAs 
 └──────────────────────────────────────────────────────────────────┘
 ```
 
+`IAlgorandService` is now a seam with three selectable providers (`Algorand:Provider`:
+Legacy | Azoa | Simulated — see `Infrastructure/DependencyInjection.cs`): the legacy
+custodial-mnemonic signer shown above, `AzoaBackedAlgorandService` (routes the same calls
+through the shared AZOA node instead), and a simulated provider for environments without a
+live signer. Callers (`CredentialUtilityService`, tokenomics) keep calling the same interface
+unchanged regardless of which provider is active.
+
 ### Algorand Configuration
 
 | Variable                     | Description               | Default                              |
@@ -1555,18 +1778,24 @@ contracts/
     └── __init__.py
 ```
 
-### Client Integration (TODO)
+### Client Integration
+
+`ardanova-client` does **not** have a direct Algorand SDK integration — `lib/blockchain/`
+(ASA token management, ICO/exchange logic, wallet connectors, indexer client) does not exist
+in the repo and remains aspirational/TODO. What exists and is live today is narrower and
+read-only:
 
 ```
-lib/blockchain/
-├── sdk/            # Core Algorand SDK wrapper
-├── tokens/         # ASA token management
-├── ico/            # ICO lifecycle management
-├── exchange/       # Token exchange logic
-├── wallet/         # Wallet connection (Pera, Defly)
-├── indexer/        # Algorand indexer client
-└── contracts/      # Smart contract ABIs & interactions
+ardanova-client/src/lib/azoa-sdk/
+├── client.ts       # Browser-safe AzoaApiClient singleton, NO API key, configured from
+│                   #   NEXT_PUBLIC_AZOA_BASE_URL; write methods imported but never called
+├── queries.ts       # React Query wrappers (wallets, portfolios, holons, action run-state)
+└── types.ts
 ```
+
+Any value-bearing operation — mint, transfer, allocation, swap-execute, bridge — is
+intentionally unreachable from this layer; it goes through the .NET API, per
+[Financial workflows via AZOA](#financial-workflows-via-azoa).
 
 ---
 
@@ -1616,8 +1845,14 @@ lib/blockchain/
 │                              │                                   │
 │                              ▼                                   │
 │  ┌─────────────────────────────────────────────────────────┐    │
+│  │              FINANCIAL-WORKFLOW TIER (external)           │    │
+│  │  AZOA — called ONLY from ArdaNova.Infrastructure/Azoa/,   │    │
+│  │  not hosted by or deployed alongside ArdaNova             │    │
+│  └──────────────────────────┬──────────────────────────────┘    │
+│                              ▼                                   │
+│  ┌─────────────────────────────────────────────────────────┐    │
 │  │                   BLOCKCHAIN TIER                        │    │
-│  │  Algorand (TestNet → MainNet)                           │    │
+│  │  Algorand (TestNet → MainNet) — the chain AZOA settles to │    │
 │  └─────────────────────────────────────────────────────────┘    │
 │                                                                  │
 └─────────────────────────────────────────────────────────────────┘
@@ -1626,10 +1861,14 @@ lib/blockchain/
 ### Subdomains
 
 | Subdomain        | Service                  | Description                  |
-| ---------------- | ------------------------ | ---------------------------- |
-| www.ardanova.com | ardanova-client          | Main platform (all features) |
-| api.ardanova.com | ardanova-backend-api-mcp | .NET 10 API + MCP + SignalR  |
-| ai.ardanova.com  | ardanova-ai-client       | Python AI orchestrator       |
+| ---------------- | ------------------------ | ----------------------------- |
+| www.ardanova.com | ardanova-client          | Main platform (owns the UX)  |
+| api.ardanova.com | ardanova-backend-api-mcp | .NET 10 API + MCP + SignalR; only tier holding AZOA credentials |
+| ai.ardanova.com  | ardanova-ai-client       | FastAPI orchestrator operating Nova AI (implemented, not yet wired to `ardanova-client`) |
+
+AZOA itself has no `ardanova.com` subdomain — it is an external, separately-hosted node called
+server-side only (see [Financial workflows via AZOA](#financial-workflows-via-azoa)); ArdaNova
+exposes no explorer or AZOA-facing public endpoint of its own.
 
 ---
 
@@ -1685,9 +1924,9 @@ lib/blockchain/
 | Feature                         | Status      | Location                                                      |
 | ------------------------------- | ----------- | ------------------------------------------------------------- |
 | .NET Backend API                | ✅ Complete | `ardanova-backend-api-mcp/`                                   |
-| 14 REST Controllers             | ✅ Complete | `ArdaNova.API/Controllers/`                                   |
-| 28+ Application Services        | ✅ Complete | `ArdaNova.Application/Services/`                              |
-| 40+ MCP Tools                   | ✅ Complete | `ArdaNova.MCP/`                                               |
+| 42 REST Controllers             | ✅ Complete | `ArdaNova.API/Controllers/`                                   |
+| 52+ Application Services        | ✅ Complete | `ArdaNova.Application/Services/`                              |
+| 42 MCP Tools (discovery-only)   | ✅ Complete | `ArdaNova.MCP/`                                               |
 | Event Bus                       | ✅ Complete | `ArdaNova.API/EventBus/`                                      |
 | SignalR WebSocket               | ✅ Complete | `ArdaNova.API/WebSocket/`                                     |
 | S3 File Storage                 | ✅ Complete | `ArdaNova.Infrastructure/Storage/`                            |
@@ -1697,7 +1936,7 @@ lib/blockchain/
 | EF Core Conventions             | ✅ Complete | `ArdaNova.Infrastructure/Conventions/`                        |
 | Dev Scripts (Bash/PS)           | ✅ Complete | `scripts/`                                                    |
 | Docker Compose (Dev)            | ✅ Complete | `docker-compose.dev.yml`                                      |
-| AI Client Stub                  | ✅ Stubbed  | `ardanova-ai-client/`                                         |
+| AI Client (FastAPI, Nova AI)    | 🔄 Implemented, not wired | `ardanova-ai-client/` — real routes + CrewAI/LangGraph built; MCP client is a stub and `ardanova-client` has no caller into it yet |
 | Smart Contracts Stub            | ✅ Stubbed  | `contracts/`                                                  |
 | **Project Invitations**         | ✅ Complete | `ArdaNova.Domain/Models/Entities/ProjectInvitation.cs`        |
 | **Project Membership Requests** | ✅ Complete | `ArdaNova.Domain/Models/Entities/ProjectMembershipRequest.cs` |
@@ -1739,11 +1978,11 @@ lib/blockchain/
 | Events Services                 | 🔄 TODO        | CRUD services for events system                                    |
 | Following Services              | 🔄 TODO        | CRUD services for social following                                 |
 | Trending Analytics Job          | 🔄 TODO        | Background job to calculate trending scores                        |
-| DAO UI                          | 🔄 TODO        | Governance proposals, voting                                       |
-| Studio UI                       | 🔄 TODO        | Gamma API integration                                              |
-| Exchange UI                     | 🔄 TODO        | Token swap, liquidity                                              |
+| Governance UI (`app/governance/`) | 🔄 In Progress | Governance proposals, voting — real pages exist, not a stub        |
+| Studio UI (`app/studio/`)       | 🔄 In Progress | Gamma API integration — real pages exist, not a stub               |
+| Swap UI (`app/swap/`)           | 🔄 In Progress | Token swap — real pages exist, not a stub                          |
 | Explorer UI                     | ⛔ Retired     | Not planned — AZOA is the custody/chain boundary, not an ArdaNova-hosted surface   |
-| Agent UI                        | 🔄 TODO        | AI agent chat interface                                            |
+| Member chat UI (`app/chats/`)   | ✅ Active      | Member-to-member messaging via the .NET chat endpoints; no Nova AI chat surface exists yet |
 | Game SDK                        | 🔄 TODO        | Unity & Godot SDKs                                                 |
 
 ### Known Issues

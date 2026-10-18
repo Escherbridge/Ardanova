@@ -1,5 +1,14 @@
 # Application dependency notes
 
+## Tier boundary
+
+This project owns business logic and authorization. It never calls Azoa or Algorand directly:
+any value-bearing workflow (custody, minting, allocation, exchange, cash-out, quests) is
+delegated through the Infrastructure-owned ports (`ArdaNova.Infrastructure/Azoa/`,
+`ArdaNova.Infrastructure/Algorand/`) that this layer depends on as interfaces. Only
+`ArdaNova.Infrastructure` holds Azoa credentials and transport details; see
+`ArdaNova.Infrastructure/Azoa/AGENTS.md` for the client/key boundaries this layer relies on.
+
 ## Object mapping
 
 AutoMapper is pinned to 14.x, the final MIT-licensed line that includes the

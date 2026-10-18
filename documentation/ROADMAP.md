@@ -163,11 +163,12 @@ ardanova/
 │       └── tests/
 │           └── ArdaNova.Application.Tests/
 │
-├── ardanova-ai-client/                 # Python AI Orchestrator (TODO)
+├── ardanova-ai-client/                 # Nova AI orchestration service (FastAPI; built, not wired)
 │   ├── src/
-│   │   ├── api/                        # FastAPI endpoints
-│   │   ├── orchestrator/               # AI agent orchestration logic
-│   │   ├── agents/                     # Agent definitions & behaviors
+│   │   ├── api/                        # FastAPI app + routes
+│   │   ├── core/                       # Agent/crew/graph builders, MCP + Gamma tools
+│   │   ├── crews/                      # CrewAI crews (pitch, project analysis)
+│   │   ├── workflows/                  # LangGraph workflows
 │   │   └── mcp/                        # MCP client (connects to .NET MCP)
 │   ├── requirements.txt
 │   └── Dockerfile
@@ -1383,18 +1384,19 @@ const agentCommands = {
    - ✅ EnumStringConvention for all enums stored as strings
    - ✅ DbContext simplified from 682 → 120 lines (OnModelCreating: 570+ → 9 lines)
 
-3. **Python AI Orchestrator** (`ardanova-ai-client/`) 🔄 STUBBED
-   - ✅ Directory structure created
-   - FastAPI service setup
-   - MCP client connection to .NET backend
-   - Agent framework (routing, context, streaming)
-   - Initial agents: Project Manager, Code Assistant
+3. **Nova AI orchestration service** (`ardanova-ai-client/`) 🔄 BUILT, NOT WIRED
+   - ✅ FastAPI service (port 8081): project-analysis and pitch routes
+   - ✅ CrewAI crews (pitch, project analysis) and LangGraph workflow graphs
+   - MCP client connection to the .NET MCP tools (`src/mcp/client.py` methods are still stubs)
+   - Workflow nodes invoke the built crews (they return placeholders today)
+   - Client integration: nothing in `ardanova-client` calls the service yet
+   - See `ardanova-ai-client/README.md` and `ardanova-ai-client/AGENTS.md`
 
 4. **Main Platform Consolidation** (`ardanova-client/`)
    - Integrate DAO governance UI (proposals, voting)
    - Integrate Pitch Studio (Gamma API)
    - Integrate Exchange UI (swap, liquidity)
-   - Integrate Explorer (token/transaction viewer)
+   - ~~Integrate Explorer (token/transaction viewer)~~ Retired: chain state is inspected through Azoa operator tooling
    - Embed AI Agent chat interface (tRPC to Python orchestrator)
    - Gamification logic (XP, badges, leaderboards) in `/lib/gamification/`
    - Services in `/services/` (notifications, media, oracle)

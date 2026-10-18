@@ -11,6 +11,7 @@ type: index
 - [Product Guidelines](product-guidelines.md) - QA checklist and best practices.
 - [Tracks Registry](tracks.md) - Every track, its status, and the cross-cutting status notes.
 - [AZOA Integration Contract](ARDANOVA-AZOA-INTEGRATION-CONTRACT.md) - The AZOA node boundary. **Byte-identical with AZOA's copy — change both in the same commit window.**
+- [Platform Architecture](../documentation/ARCHITECTURE.md) - Detailed technical architecture: repository structure, service boundaries, data flow, and integration patterns.
 - [Runbook](RUNBOOK.md) - Current environment state, open blockers, and what is uncommitted right now.
 
 ## Usage
