@@ -148,6 +148,21 @@ public class GuildAuthorityFlowTests
         (await _invitationService.GetPendingForUserAsync("carol")).Value.Should().BeEmpty();
     }
 
+    [Fact]
+    public async Task An_invitation_by_account_id_never_stores_or_shows_managers_the_invitees_email()
+    {
+        var guild = await Found(Alice, "Roofers");
+
+        var invite = await _invitationService.CreateAsync(guild.Id, Alice, new CreateGuildInvitationDto { InvitedUserId = "carol", Role = "MEMBER" });
+        var managerView = await _invitationService.GetByGuildIdAsync(guild.Id, Alice);
+
+        invite.IsSuccess.Should().BeTrue(invite.Error);
+        invite.Value!.InvitedEmail.Should().BeNull();
+        managerView.Value!.Should().ContainSingle().Which.InvitedEmail.Should().BeNull();
+        _invitations.Rows.Single().invitedEmail.Should().BeNull();
+        (await _invitationService.GetPendingForUserAsync("carol")).Value.Should().ContainSingle();
+    }
+
     [Theory]
     [InlineData("nobody@example.test", "MEMBER", ResultType.ValidationError)]
     [InlineData("carol@example.test", "OWNER", ResultType.ValidationError)]

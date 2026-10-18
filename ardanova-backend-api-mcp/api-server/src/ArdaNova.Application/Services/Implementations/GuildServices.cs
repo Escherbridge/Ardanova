@@ -979,7 +979,8 @@ public class GuildInvitationService : IGuildInvitationService
             id = Guid.NewGuid().ToString(),
             guildId = guildId,
             invitedUserId = inviteeId,
-            invitedEmail = invitedEmail ?? invitee.email,
+            // Only what the inviter typed; an id-based invite must not disclose the account email to managers.
+            invitedEmail = invitedEmail,
             invitedById = actor.Id,
             role = role,
             message = dto.Message,
