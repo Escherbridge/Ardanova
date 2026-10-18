@@ -296,6 +296,30 @@ public class TaskActorBoundaryTests
         tasks.Verify(service => service.AssignAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Assign_OnAHiddenDraftReadsExactlyLikeAMissingTask(bool taskExists)
+    {
+        var tasks = new Mock<ITaskService>();
+        tasks.Setup(service => service.GetByIdAsync("task-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(taskExists
+                ? Result<TaskDto>.Success(new TaskDto { Id = "task-1", ProjectId = "project-draft" })
+                : Result<TaskDto>.NotFound("Task with id task-1 not found"));
+        var visibility = new Mock<IProjectVisibility>();
+        visibility.Setup(service => service.GetVisibleByIdAsync(It.IsAny<ProjectViewer>(), "project-draft", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<ProjectDto>.NotFound("Project with id project-draft not found"));
+        var controller = WithActor(
+            CreateController(tasks.Object, authorization: Membership(manager: false, member: false).Object, visibility: visibility.Object),
+            "stranger");
+
+        var result = await controller.Assign("task-1", new AssignTaskDto { UserId = "stranger" }, CancellationToken.None);
+
+        result.Should().BeOfType<NotFoundObjectResult>()
+            .Which.Value.Should().BeEquivalentTo(new { error = "Task with id task-1 not found" });
+        tasks.Verify(service => service.AssignAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
     [Fact]
     public async Task Assign_AManagerCannotHandWorkToSomeoneOffTheTeam()
     {
@@ -371,7 +395,16 @@ public class TaskActorBoundaryTests
             new Mock<IProductBacklogItemService>(MockBehavior.Strict).Object,
             authorization,
             valueEligibility ?? new Mock<IAzoaValueEligibilityService>().Object,
-            visibility ?? new Mock<IProjectVisibility>(MockBehavior.Strict).Object);
+            visibility ?? VisibleProjects().Object);
+    }
+
+    private static Mock<IProjectVisibility> VisibleProjects()
+    {
+        var visibility = new Mock<IProjectVisibility>();
+        visibility.Setup(service => service.GetVisibleByIdAsync(It.IsAny<ProjectViewer>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((ProjectViewer _, string projectId, CancellationToken _) =>
+                Result<ProjectDto>.Success(new ProjectDto { Id = projectId, CreatedById = "owner", Title = "Project", Slug = "project", Description = "" }));
+        return visibility;
     }
 
     private static T WithActor<T>(T controller, string actorId, UserRole? role = null)

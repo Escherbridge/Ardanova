@@ -208,9 +208,10 @@ public class TasksController : ControllerBase
     [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
     public async Task<IActionResult> Assign(string id, [FromBody] AssignTaskDto dto, CancellationToken ct)
     {
+        // Visibility first: a hidden draft's task must be indistinguishable from a missing one.
         var task = await GetVerifiedTaskAsync(id, ct);
-        if (task is null)
-            return Forbid();
+        if (task is null || await ProjectNotVisibleAsync(task.ProjectId, ct) is not null)
+            return NotFound(new { error = $"Task with id {id} not found" });
 
         var assigneeId = string.IsNullOrWhiteSpace(dto.UserId) ? null : dto.UserId;
         if (!await CanAssignAsync(task, assigneeId, ct))
