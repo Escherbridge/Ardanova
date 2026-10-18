@@ -60,9 +60,9 @@ export function ProfileDataCard() {
           Download my profile data
         </Button>
         <p className="text-muted-foreground text-xs">
-          Closing an account is not available yet. Projects, guilds and token
-          balances you hold have to be handed over or settled first, and that
-          closure process is still being built.
+          Closing an account is not available yet. Projects, guilds and stakes
+          you hold have to be handed over or settled first, and that closure
+          process is still being built.
         </p>
       </CardContent>
     </Card>
