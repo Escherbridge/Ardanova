@@ -30,6 +30,8 @@ export function novaErrorCode(
   if (status === 429 && error === "nova_turn_in_flight") return "CONFLICT";
   if (status === 429) return "TOO_MANY_REQUESTS";
   if (status === 503 && error === "nova_capacity") return "SERVICE_UNAVAILABLE";
+  if (status === 503 && error === "nova_reply_unusable")
+    return "PRECONDITION_FAILED";
   return "INTERNAL_SERVER_ERROR";
 }
 

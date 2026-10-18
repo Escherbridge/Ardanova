@@ -21,6 +21,7 @@ public sealed class NovaOrchestrationService : INovaOrchestrationService
     public const string CapacityError = NovaErrors.Capacity;
     public const string SessionNotFoundError = NovaErrors.SessionNotFound;
     public const string TurnInFlightError = NovaErrors.TurnInFlight;
+    public const string ReplyUnusableError = NovaErrors.ReplyUnusable;
 
     private readonly IOgaiClient _client;
     private readonly NovaSessionAllowance _allowance;
@@ -99,7 +100,7 @@ public sealed class NovaOrchestrationService : INovaOrchestrationService
         }
     }
 
-    /// <summary>Spends the allowance on a first live turn, calls upstream and maps its reply; the caller holds the turn slot.</summary>
+    /// <summary>Spends the allowance on a first live turn and gives it back unless the member receives a usable reply.</summary>
     private async Task<Result<NovaRefineResponseDto>> RunTurnAsync(
         string idea,
         List<NovaTurnDto> turns,
@@ -109,16 +110,38 @@ public sealed class NovaOrchestrationService : INovaOrchestrationService
         DateTimeOffset expiresAt,
         CancellationToken ct)
     {
-        var firstTurn = turns.Count == 0;
-        var spendsAllowance = firstTurn && CountsAllowance;
+        var spendsAllowance = turns.Count == 0 && CountsAllowance;
         if (spendsAllowance && !_allowance.TryStart(actorId))
             return Result<NovaRefineResponseDto>.Conflict(QuotaError);
 
+        var answered = false;
+        try
+        {
+            var outcome = await AnswerTurnAsync(idea, turns, upstreamState, sessionId, actorId, expiresAt, ct);
+            answered = outcome.IsSuccess;
+            return outcome;
+        }
+        finally
+        {
+            // Any refusal, drop or cancellation after the claim gives it back: the member never saw an answer.
+            if (spendsAllowance && !answered)
+                _allowance.Refund(actorId);
+        }
+    }
+
+    /// <summary>Calls upstream and maps its reply, dropping any reply a member must not see.</summary>
+    private async Task<Result<NovaRefineResponseDto>> AnswerTurnAsync(
+        string idea,
+        List<NovaTurnDto> turns,
+        string? upstreamState,
+        string? sessionId,
+        string actorId,
+        DateTimeOffset expiresAt,
+        CancellationToken ct)
+    {
         var upstream = await _client.ValidateAsync(idea, turns, upstreamState, sessionId, ct);
         if (upstream.IsFailure || upstream.Value is null)
         {
-            if (spendsAllowance)
-                _allowance.Refund(actorId);
             return upstream.Type switch
             {
                 ResultType.ValidationError => Result<NovaRefineResponseDto>.ValidationError(upstream.Error ?? "Nova AI could not use that input."),
@@ -128,25 +151,28 @@ public sealed class NovaOrchestrationService : INovaOrchestrationService
             };
         }
 
+        // OGAI replays an answered continuation byte for byte, so a dropped one would fail every retry: start again instead.
+        var dropped = Result<NovaRefineResponseDto>.Failure(turns.Count == 0 ? UnavailableError : ReplyUnusableError);
         var turnResult = upstream.Value;
-        if (turnResult.Type is not ("question" or "verdict") || (turnResult.Type == "verdict" && turnResult.Verdict is null))
+        if (turnResult.Type is not ("question" or "verdict")
+            || (turnResult.Type == "verdict" && (turnResult.Verdict is null || !NovaVerdictOutcomes.Known.Contains(turnResult.Verdict.Outcome))))
         {
             _logger.LogWarning("Nova upstream returned an unusable turn {Type}", turnResult.Type);
-            return Result<NovaRefineResponseDto>.Failure(UnavailableError);
+            return dropped;
         }
 
         // Defense in depth: the partner API already hides its own name; a slip is dropped, never shown.
         if (NamesUpstream(turnResult))
         {
             _logger.LogWarning("Nova upstream reply named the provider; dropped");
-            return Result<NovaRefineResponseDto>.Failure(UnavailableError);
+            return dropped;
         }
 
         // A question whose state cannot fit a ticket the client will send back is a dead end; say so now, not next turn.
         if (turnResult.Type == "question" && turnResult.State is { Length: > NovaSessionTickets.MaxUpstreamStateLength })
         {
             _logger.LogWarning("Nova upstream state of {Length} characters exceeds the ticket limit", turnResult.State.Length);
-            return Result<NovaRefineResponseDto>.Failure(UnavailableError);
+            return dropped;
         }
 
         var ticket = string.IsNullOrWhiteSpace(turnResult.SessionId) || string.IsNullOrWhiteSpace(turnResult.State)
@@ -163,12 +189,28 @@ public sealed class NovaOrchestrationService : INovaOrchestrationService
             MaxQuestions = turnResult.MaxQuestions,
             State = ticket,
             SessionId = turnResult.SessionId,
-            Verdict = turnResult.Verdict,
+            Verdict = WithLinkableSources(turnResult.Verdict),
             Vertical = turnResult.Vertical,
             Brief = turnResult.Brief,
             RemainingToday = CountsAllowance ? _allowance.Remaining(actorId) : null,
         });
     }
+
+    /// <summary>Keeps only sources a member can safely open: absolute http(s) URLs.</summary>
+    private static NovaVerdictDto? WithLinkableSources(NovaVerdictDto? verdict)
+        => verdict is null ? null : new NovaVerdictDto
+        {
+            Outcome = verdict.Outcome,
+            Headline = verdict.Headline,
+            Summary = verdict.Summary,
+            Strengths = verdict.Strengths,
+            Risks = verdict.Risks,
+            NextStep = verdict.NextStep,
+            Sources = verdict.Sources
+                .Where(source => Uri.TryCreate(source.Url, UriKind.Absolute, out var url)
+                    && (url.Scheme == Uri.UriSchemeHttps || url.Scheme == Uri.UriSchemeHttp))
+                .ToList(),
+        };
 
     /// <summary>True when any member-visible text of the turn contains a hidden upstream name.</summary>
     private static bool NamesUpstream(OgaiTurn turn)

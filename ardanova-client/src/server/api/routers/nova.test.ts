@@ -40,6 +40,7 @@ describe("nova router", () => {
     [429, "nova_turn_in_flight", "CONFLICT"],
     [503, "nova_capacity", "SERVICE_UNAVAILABLE"],
     [503, "nova_unavailable", "INTERNAL_SERVER_ERROR"],
+    [503, "nova_reply_unusable", "PRECONDITION_FAILED"],
     [404, "nova_session_not_found", "NOT_FOUND"],
     [408, "Request timeout", "TIMEOUT"],
   ])(

@@ -76,6 +76,7 @@ public sealed class NovaSessionTickets
         foreach (var field in new[] { Domain, actorId, sessionId, expires.ToString(CultureInfo.InvariantCulture), upstreamState })
         {
             var bytes = Encoding.UTF8.GetBytes(field);
+            // Load-bearing: the length prefix pins every field boundary; do not "simplify" to a plain join (Ogai/AGENTS.md §Session tickets).
             var length = new byte[4];
             BinaryPrimitives.WriteInt32BigEndian(length, bytes.Length);
             buffer.AddRange(length);

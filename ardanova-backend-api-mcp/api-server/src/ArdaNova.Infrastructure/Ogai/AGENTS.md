@@ -41,8 +41,11 @@ form that fails with "try again in a moment" forever, and a local preview is dis
 - Input mirrors the upstream form (idea 20-2000 chars, at most 8 turns, answers 1-1500), so a refusal
   never spends a session or a model call.
 - `NovaSessionAllowance`: at most 10 new sessions per member per UTC day (in memory, single replica;
-  a restart forgets the count, and the OGAI partner quota still binds). A first turn that fails
-  upstream is given back. Only a `live` client spends it: the local preview's fixed questions cost
+  a restart forgets the count, and the OGAI partner quota still binds). A first turn the member
+  does not receive is given back, whatever the reason: an upstream failure, a reply ArdaNova drops (brand
+  leak, oversized state, unknown type or outcome) or a cancellation. `RunTurnAsync` refunds in a `finally`
+  keyed on success, so a new drop reason cannot quietly cost members their day again (loop 4 found three
+  drop paths that spent the allowance and then said "not your fault, try again"). Only a `live` client spends it: the local preview's fixed questions cost
   nothing, and counting them used to lock QA lanes out for the day while the sheet said "not connected".
   `GET /api/nova/status` (per actor) and every live reply carry `remainingToday` (and status `dailyLimit`),
   null when nothing is counted, so the sheet can say "N of 10 left today".
@@ -55,7 +58,9 @@ form that fails with "try again in a moment" forever, and a local preview is dis
   continuation whose ticket is not this actor's live ticket for this session returns NotFound
   `nova_session_not_found` (404) before any upstream call, so a leaked or guessed session id can neither be
   taken over nor used to run turns outside the daily cap. "Not yours" and "expired" are the same 404 on
-  purpose: a different answer would tell a prober which ids are real. Ownership lives in the signed state, not
+  purpose: a different answer would tell a prober which ids are real. The MAC length-prefixes every field
+  (`Mac()`), which is what stops two different (actor, session, expiry, state) lists from producing the same
+  MAC input; keep the prefix if that loop is ever rewritten. Ownership lives in the signed state, not
   in memory, so a refinement survives a restart, a redeploy and a second replica. The expiry is set on the
   first turn and carried forward: `SessionLifetime` is 1 h 55 min, inside OGAI's 2 h `sessionLifetime` with
   margin for the first turn's own duration, so ArdaNova expires a session before OGAI would refuse it.
@@ -69,8 +74,19 @@ form that fails with "try again in a moment" forever, and a local preview is dis
   member-visible text (vertical included) `NovaBrand.NamesUpstream` (503), and stamps
   `Assistant = "Nova AI"` itself rather than trusting upstream. `HiddenNames` mirrors OGAI's own list for
   this brand (including "ogai"), and the host's name is also matched letters-only (`HiddenLetters`), so
-  "Overseas Gen-AI" or a zero-width space inside the name is still caught. A rare false positive (a
-  sentence ending "overseas." followed by "GenAI") costs one 503 and a retry, never a leak.
+  "Overseas Gen-AI" or a zero-width space inside the name is still caught. The short name is also matched
+  from a word start across up to four adjacent words (`HiddenShortLetters`), so "OG-AI", "O.G.A.I." and
+  "OG AI" are caught while "yoga is" or "log aisle" are not. A rare false positive (a sentence ending
+  "overseas." followed by "GenAI") costs one dropped reply, never a leak, and never the member's allowance.
+- Dropped replies: on a first turn the code is `nova_unavailable` (a retry mints a fresh upstream session, so
+  "try again" is honest). On a continuation it is `nova_reply_unusable`: OGAI's turn ledger replays an answered
+  (session, turn) byte for byte, so the same reply would be dropped on every retry until the session expired.
+  The client says "Start over" instead of "try again" for that code.
+- A verdict outcome outside `go`, `adjust`, `not_yet`, `preview` (`NovaVerdictOutcomes.Known`) is dropped, so the
+  client never renders an upstream string raw as a badge. Verdict sources whose URL is not absolute http(s) are
+  removed before the reply leaves .NET (the client also renders such a source as plain text).
+- The local preview answers a continuation that does not match its idea or state with NotFound, so the member
+  sees "start again" (404) rather than "check your input" (400).
 - No member identity, project data or PII leaves ArdaNova: only the idea and answers the member typed.
   OGAI keeps no transcript for partner calls.
 
@@ -85,7 +101,8 @@ form that fails with "try again in a moment" forever, and a local preview is dis
 | (none: this member already has a turn running) | Conflict `nova_turn_in_flight` | 429 |
 | 429 `quota`, 503 `spend_closed` (the partner's whole day, shared by every member) | Failure `nova_capacity` | 503 |
 | (none: ticket not this actor's, or expired) | NotFound `nova_session_not_found` | 404 |
-| 401, 5xx, timeout, malformed, brand leak | Failure `nova_unavailable` | 503 |
+| 401, 5xx, timeout, malformed; a first-turn reply ArdaNova drops | Failure `nova_unavailable` | 503 |
+| a continuation reply ArdaNova drops (brand leak, oversized state, unknown type or outcome) | Failure `nova_reply_unusable` | 503 (client: start over) |
 
 A 429 that is not `quota` (OGAI's turn-in-flight) maps to 503 so the member simply retries. The client keys
 its copy on the code: `nova_daily_limit` says "your limit", `nova_capacity` says "Nova AI is at capacity today",
@@ -103,7 +120,9 @@ seconds; the long budget only matters on the slow path. If OGAI's budget changes
 Tests: `tests/ArdaNova.API.Tests/Controllers/NovaControllerFlowTests.cs` drive the controller with a
 fake partner HTTP handler (state round-trip, verdict with brief, brand leak dropped in plain and disguised
 forms, status mapping with capacity vs member limit and no key in logs, allowance and refund, foreign session
-404, a refinement continuing on a fresh service instance, expiry before any upstream call, upstream session
+404, a refinement continuing on a fresh service instance, refund of every dropped first turn, a dropped
+continuation answering "start over" on each retry, short-form brand names caught and ordinary words not, an
+unknown outcome dropped, non-web sources removed, a stale local preview as 404, expiry before any upstream call, upstream session
 expiry as 404, Production off, local preview that never spends the allowance, one turn at a time per member,
 remaining count in status and replies) and pin the partner wire contract with OGAI
 (`PartnerContract*`: a state of exactly 512 characters round-trips and 513 fails on the first turn; a community
