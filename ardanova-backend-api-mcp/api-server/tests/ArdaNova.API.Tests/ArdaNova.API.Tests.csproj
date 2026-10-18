@@ -42,6 +42,9 @@
     <Compile Include="..\..\src\ArdaNova.API\Controllers\ReferralsController.cs" Link="Controllers\ReferralsController.cs" />
     <Compile Include="..\..\src\ArdaNova.API\Controllers\AzoaAvatarController.cs" Link="Controllers\AzoaAvatarController.cs" />
     <Compile Include="..\..\src\ArdaNova.API\Controllers\DelegatedVotesController.cs" Link="Controllers\DelegatedVotesController.cs" />
+    <Compile Include="..\..\src\ArdaNova.API\Controllers\NovaController.cs" Link="Controllers\NovaController.cs" />
+    <Compile Include="..\..\src\ArdaNova.Infrastructure\Ogai\OgaiClient.cs" Link="Ogai\OgaiClient.cs" />
+    <Compile Include="..\..\src\ArdaNova.Infrastructure\Ogai\LocalNovaPreviewClient.cs" Link="Ogai\LocalNovaPreviewClient.cs" />
     <Compile Include="..\..\src\ArdaNova.API\Middleware\ApiKeyMiddleware.cs" Link="Middleware\ApiKeyMiddleware.cs" />
     <Compile Include="..\..\src\ArdaNova.API\Middleware\ActorAssertionMiddleware.cs" Link="Middleware\ActorAssertionMiddleware.cs" />
     <Compile Include="..\..\src\ArdaNova.API\EventBus\Abstractions\*.cs" Link="EventBus\Abstractions\%(Filename)%(Extension)" />
