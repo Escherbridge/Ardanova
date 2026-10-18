@@ -14,6 +14,14 @@ export interface Proposal {
   votingStart?: string | null;
   votingEnd?: string | null;
   createdAt: string;
+  votesCount?: number;
+  /** Confirmed members who may vote; the electorate quorum is measured against. */
+  eligibleMembers?: number;
+  /** Ballots needed for quorum, computed by the API's own tally rule. */
+  votesNeededForQuorum?: number;
+  quorumReached?: boolean;
+  /** Ballots cast per declared choice number (JSON object keys are strings). */
+  votesByChoice?: Record<string, number>;
   [key: string]: unknown;
 }
 
@@ -34,6 +42,14 @@ export interface ProposalVoteSummary {
   totalVotes: number;
   /** Whether enough of the project's confirmed members have voted; the API owns this rule. */
   quorumReached: boolean;
+  winningOption?: number | null;
+  /** Per-choice tallies keyed by choice number. */
+  optionSummaries?: Record<
+    string,
+    { choice: number; voteCount: number; percentage: number }
+  >;
+  eligibleMembers: number;
+  votesNeededForQuorum: number;
   options?: unknown[];
   [key: string]: unknown;
 }
