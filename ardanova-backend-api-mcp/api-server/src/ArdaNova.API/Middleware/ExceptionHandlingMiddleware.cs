@@ -1,10 +1,14 @@
 namespace ArdaNova.API.Middleware;
 
-using System.Net;
-using System.Text.Json;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
 
+/// <summary>Last-resort handler: unexpected exceptions become an opaque 500 envelope. See AGENTS.md §Error envelope.</summary>
 public class ExceptionHandlingMiddleware
 {
+    public const string ServerErrorMessage = "An error occurred processing your request.";
+    public const string BadRequestMessage = "The request could not be read.";
+    public const string InvalidValueMessage = "The request contained an invalid value.";
     private readonly RequestDelegate _next;
     private readonly ILogger<ExceptionHandlingMiddleware> _logger;
 
@@ -20,37 +24,40 @@ public class ExceptionHandlingMiddleware
         {
             await _next(context);
         }
+        catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested)
+        {
+            // The caller disconnected; there is nobody left to answer.
+        }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "An unhandled exception occurred");
-            await HandleExceptionAsync(context, ex);
+            var (statusCode, message) = Classify(ex);
+            if (statusCode >= StatusCodes.Status500InternalServerError)
+                _logger.LogError(ex, "Unhandled exception for {Method} {Path}", context.Request.Method, context.Request.Path);
+            else
+                _logger.LogWarning(ex, "Rejected request for {Method} {Path} with {StatusCode}", context.Request.Method, context.Request.Path, statusCode);
+
+            if (context.Response.HasStarted)
+            {
+                _logger.LogWarning("Response already started for {Method} {Path}; aborting instead of writing an error envelope", context.Request.Method, context.Request.Path);
+                throw;
+            }
+
+            context.Response.Clear();
+            await ApiErrorEnvelope.WriteAsync(context, statusCode, message);
         }
     }
 
-    private static async Task HandleExceptionAsync(HttpContext context, Exception exception)
+    /// <summary>Maps an escaped exception to a status and a fixed message; exception text is never echoed.</summary>
+    internal static (int StatusCode, string Message) Classify(Exception exception) => exception switch
     {
-        context.Response.ContentType = "application/json";
-
-        var (statusCode, message) = exception switch
-        {
-            ArgumentException => (HttpStatusCode.BadRequest, exception.Message),
-            KeyNotFoundException => (HttpStatusCode.NotFound, exception.Message),
-            UnauthorizedAccessException => (HttpStatusCode.Unauthorized, exception.Message),
-            InvalidOperationException => (HttpStatusCode.BadRequest, exception.Message),
-            _ => (HttpStatusCode.InternalServerError, "An error occurred processing your request")
-        };
-
-        context.Response.StatusCode = (int)statusCode;
-
-        var response = new
-        {
-            error = message,
-            statusCode = (int)statusCode
-        };
-
-        var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-        await context.Response.WriteAsJsonAsync(response, jsonOptions);
-    }
+        BadHttpRequestException badRequest when badRequest.StatusCode is >= 400 and < 500
+            => (badRequest.StatusCode, BadRequestMessage),
+        ArgumentNullException
+            => (StatusCodes.Status500InternalServerError, ServerErrorMessage),
+        ArgumentException
+            => (StatusCodes.Status400BadRequest, InvalidValueMessage),
+        _ => (StatusCodes.Status500InternalServerError, ServerErrorMessage)
+    };
 }
 
 public static class ExceptionHandlingMiddlewareExtensions

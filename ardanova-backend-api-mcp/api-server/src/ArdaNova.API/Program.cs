@@ -77,8 +77,10 @@ builder.Services.AddControllers()
     {
         options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
         options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
-    });
+    })
+    .AddArdaNovaErrorEnvelope();
 builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddArdaNovaAuthentication();
 builder.Services.AddArdaNovaAuthorization();
 builder.Services.AddSwaggerGen(c =>
 {
