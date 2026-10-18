@@ -26,6 +26,30 @@ Small brand-red text (eyebrows, `text-xs` labels) uses `brand-signal-deep`
 (#b8322a, 5.2:1 on paper). `--primary` / `brand-signal` (#ef4638) is about
 3.3:1 on paper. Keep it for fills, borders and display-size type.
 
+## text-safe-accents
+
+`text-primary` appeared about 200 times, often as `text-xs` eyebrows, at
+3.28:1 on paper. The tinted-badge recipe `bg-X/20 text-X` also failed AA for
+primary (2.56), system/neon (3.38), neon-pink (3.85), destructive (4.03),
+warning (4.08) and success (4.22). Darkening `--primary` would also have
+darkened every brand fill. Instead the theme splits text from fill:
+
+- Tailwind v4 resolves `text-X` from `--text-color-X` before `--color-X`
+  (`themeKeys: ["--text-color", "--color"]` in tailwindcss 4.1). The
+  `@theme inline` block maps `--text-color-{primary,destructive,system,
+  success,warning}` and their `neon-*` aliases to `--{accent}-text`. `bg-*`,
+  `border-*` and `fill-*` still read `--color-X`, so fills keep the brand hue.
+- `--primary-text` and the other text tokens are set per theme block. In light
+  themes they are darker (`#a32b23`, `#0b5f69`, `#1d5a43`, `#6b4a00`). In
+  `.dark` only red changes, to `#ff8b80`; the other dark accents already
+  passed.
+- The `token contrast (WCAG AA)` gate recomputes every pair from `globals.css`:
+  text on background, card and muted surfaces, text on its own 10% and 20%
+  tint, and solid `X-foreground` on `X`. A new accent or a retuned hex that
+  fails 4.5:1 turns the suite red.
+- `text-primary-foreground` and other `-foreground` keys are separate theme
+  keys and are unaffected.
+
 ## neon-aliases
 
 `neon-*` are legacy aliases kept so older screens compile. New code uses the
@@ -60,7 +84,19 @@ semantic token directly.
    past `RAW_ERROR_NOTIFIER_CEILING`. The JSX regex cannot see these, and toasts
    were where most mutation failures leaked raw text.
 
-The ceilings are a ratchet. Lower them in the same commit that pays down the
+5. `border-white/N` / `divide-white/N` classes grow past
+   `WHITE_ALPHA_BORDER_CEILING`. These were left over from the old dark theme
+   and do not show on `#f4efeb` paper. Replace them with `border-border`.
+6. `app/**/page.tsx` files whose page and ancestor layouts (excluding the
+   root layout) set no `metadata.title` / `generateMetadata` grow past
+   `UNTITLED_PAGE_CEILING`. Without one, the route serves the root default
+   title, so browser tabs and screen-reader announcements cannot tell the
+   routes apart (WCAG 2.4.2). The usual fix is a sibling server `layout.tsx`
+   with `export const metadata = { title: "Projects" }`; the root template
+   appends " — ArdaNova".
+7. any text token pair falls below 4.5:1 (see §text-safe-accents).
+
+The ceilings were re-measured at loop3 (palette 156 → 144). The ceilings are a ratchet. Lower them in the same commit that pays down the
 debt, and never raise them.
 
 ## fonts
