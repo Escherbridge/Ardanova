@@ -1,0 +1,10 @@
+{
+  "track_id": "backend-ownership-enforcement_20261017",
+  "type": "bug",
+  "status": "pending",
+  "created_at": "2026-10-17",
+  "updated_at": "2026-10-17",
+  "description": "Finish moving ownership checks and error mapping into .NET after loop 2 closed the service-key-only mutation gap and user PII leak at the API pipeline; make the C# generator preserve hand-written entity code so the CI contract gate can pass.",
+  "source": "loop2 backend QA + adversarial critique; supersedes the open parts of backend-authz-hardening_20261017",
+  "partitions": { "confidence": "none" }
+}
