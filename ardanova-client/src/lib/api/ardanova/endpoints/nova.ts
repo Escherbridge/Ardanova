@@ -55,9 +55,22 @@ export interface NovaRefineResponse {
   brief?: NovaBrief | null;
 }
 
+/** A refinement turn may take the upstream's retry-and-fallback path (~88 s); .NET gives up at 95 s, so wait for its answer. */
+export const NOVA_TURN_TIMEOUT_MS = 100_000;
+
+export interface NovaStatus {
+  assistant: string;
+  /** "live", "local-preview" (fixed practice questions) or "off" (not connected on this deployment). */
+  refinement: "live" | "local-preview" | "off";
+}
+
 /** Actor-signed Nova AI routes; .NET is the only caller of the upstream service. */
 export class NovaEndpoint {
   constructor(private readonly client: BaseApiClient) {}
+
+  status(): Promise<ApiResponse<NovaStatus>> {
+    return this.client.get<NovaStatus>("/api/nova/status");
+  }
 
   refineProject(
     request: NovaRefineRequest,

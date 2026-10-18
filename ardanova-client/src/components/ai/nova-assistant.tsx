@@ -51,6 +51,12 @@ import {
   NovaRefinePanel,
   type NovaRefineConversation,
 } from "./nova-refine-panel";
+import {
+  isRefinementInProgress,
+  readRefineConversation,
+  writeRefineConversation,
+} from "./nova-refine-storage";
+import { api } from "~/trpc/react";
 
 type NovaSurface = "refine" | "preview";
 
@@ -236,6 +242,12 @@ export function NovaAssistant({ pathname }: { pathname: string }) {
   const [surface, setSurface] = useState<NovaSurface>("refine");
   const [refineConversation, setRefineConversation] =
     useState<NovaRefineConversation>(emptyRefineConversation);
+  const [refineRestored, setRefineRestored] = useState(false);
+  const [refineSaved, setRefineSaved] = useState(true);
+  const novaStatus = api.nova.status.useQuery(undefined, {
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
   const [mode, setMode] = useState<NovaMode>("Ask");
   const [prompt, setPrompt] = useState(context.suggestedPrompts.Ask);
   const [histories, setHistories] =
@@ -284,7 +296,7 @@ export function NovaAssistant({ pathname }: { pathname: string }) {
         if (restored.success) {
           nextMode = restored.data.mode;
           nextPrompt = restored.data.prompt;
-          nextHistories = restored.data.histories;
+          nextHistories = compactHistories(restored.data.histories);
           const recoveredEdit = restored.data.edit;
           if (
             recoveredEdit &&
@@ -344,6 +356,32 @@ export function NovaAssistant({ pathname }: { pathname: string }) {
     restoredStorageKey,
     storageKey,
   ]);
+
+  // The refinement is one conversation across routes, so it has its own tab-scoped key (see AGENTS.md).
+  useEffect(() => {
+    const restored = readRefineConversation(window.sessionStorage);
+    if (restored) setRefineConversation(restored);
+    setRefineRestored(true);
+  }, []);
+
+  useEffect(() => {
+    if (!refineRestored) return;
+    setRefineSaved(
+      writeRefineConversation(window.sessionStorage, refineConversation),
+    );
+  }, [refineConversation, refineRestored]);
+
+  const refineAtRisk =
+    !refineSaved && isRefinementInProgress(refineConversation);
+  useEffect(() => {
+    if (!refineAtRisk) return;
+    const warnBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warnBeforeUnload);
+    return () => window.removeEventListener("beforeunload", warnBeforeUnload);
+  }, [refineAtRisk]);
 
   useEffect(() => {
     if (!hasUnsavedEdit) return;
@@ -543,7 +581,11 @@ export function NovaAssistant({ pathname }: { pathname: string }) {
             </Badge>
             <span className="text-muted-foreground font-mono text-[0.65rem] tracking-[0.12em] uppercase">
               {surface === "refine" ? (
-                "Project refinement · idea and answers go to Nova AI · not saved to records"
+                refineSaved ? (
+                  "Project refinement · idea and answers go to Nova AI · kept in this tab, not in records"
+                ) : (
+                  "Project refinement · idea and answers go to Nova AI · tab storage unavailable, a reload loses it"
+                )
               ) : (
                 <>
                   Local draft only · nothing is sent ·{" "}
@@ -605,6 +647,7 @@ export function NovaAssistant({ pathname }: { pathname: string }) {
             <NovaRefinePanel
               conversation={refineConversation}
               onChange={setRefineConversation}
+              availability={novaStatus.data?.refinement ?? (novaStatus.isError ? null : undefined)}
             />
           )}
           {surface === "preview" && (
