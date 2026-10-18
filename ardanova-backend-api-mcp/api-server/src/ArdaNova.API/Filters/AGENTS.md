@@ -187,13 +187,12 @@ The property is typed `UserDto`, so the field names stay and only the values are
 blanked; `role` is kept. No controller returns this DTO today, so this is
 defence in depth.
 
-`ProjectMemberDto.User.Email` (single member or a list, from
-`GET /api/Projects/{id}/members` and the other member routes) is nulled unless
-the viewer is that member or an administrator. Loop 4 QA read every member's
-email through the public `project.getMembers` procedure. The UI's
-`member.user?.name ?? member.user?.email ?? "Member"` fallbacks still render.
-Project invitations (`InvitedEmail`, `InvitedUser`) are not covered: the
-inviter needs that address.
+`ProjectMemberDto.User.Email` is deliberately *not* handled here. Whether a
+viewer may see it depends on the project (a manager needs the address of the
+people they manage), and this filter has no project context. The single rule
+lives in `ProjectsController` (Controllers/AGENTS.md §Member disclosure). The
+loop 4 integration removed a filter branch that nulled the email for everyone
+but the member: it ran after the controller and hid emails from managers too.
 
 ## Paging bounds
 

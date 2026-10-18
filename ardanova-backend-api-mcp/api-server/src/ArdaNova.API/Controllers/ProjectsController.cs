@@ -382,7 +382,7 @@ public class ProjectsController : ControllerBase
 
         var result = await _memberService.GetByProjectIdAsync(projectId, ct);
         if (result.IsSuccess && !await ViewerManagesProjectAsync(projectId, ct))
-            return Ok(result.Value!.Select(WithoutEmail).ToList());
+            return Ok(result.Value!.Select(WithoutOthersEmail).ToList());
         return ToActionResult(result);
     }
 
@@ -396,7 +396,7 @@ public class ProjectsController : ControllerBase
         if (result.IsSuccess && !string.Equals(result.Value!.ProjectId, projectId, StringComparison.Ordinal))
             return NotFound(new { error = $"Member with id {memberId} not found" });
         if (result.IsSuccess && !await ViewerManagesProjectAsync(projectId, ct))
-            return Ok(WithoutEmail(result.Value!));
+            return Ok(WithoutOthersEmail(result.Value!));
         return ToActionResult(result);
     }
 
@@ -741,9 +741,11 @@ public class ProjectsController : ControllerBase
     private async Task<bool> ViewerManagesProjectAsync(string projectId, CancellationToken ct)
         => Viewer.UserId is not null && await CanManageProjectAsync(projectId, ct);
 
-    /// <summary>A member row with the contact email removed, for viewers who do not manage the project.</summary>
-    private static ProjectMemberDto WithoutEmail(ProjectMemberDto member)
-        => member.User is null ? member : member with { User = member.User with { Email = null } };
+    /// <summary>The single member-email rule for non-managers: only the member's own row keeps its email. See Controllers/AGENTS.md §Member disclosure.</summary>
+    private ProjectMemberDto WithoutOthersEmail(ProjectMemberDto member)
+        => member.User is null || (Viewer.UserId is { } self && string.Equals(member.UserId, self, StringComparison.Ordinal))
+            ? member
+            : member with { User = member.User with { Email = null } };
 
     private NotFoundObjectResult ProposalNotInProject() =>
         NotFound(new { error = "Proposal not found in the routed project" });

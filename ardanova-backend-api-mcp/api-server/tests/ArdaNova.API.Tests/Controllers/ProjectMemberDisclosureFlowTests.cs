@@ -2,6 +2,7 @@ namespace ArdaNova.API.Tests.Controllers;
 
 using System.Security.Claims;
 using ArdaNova.API.Controllers;
+using ArdaNova.API.Filters;
 using ArdaNova.API.Middleware;
 using ArdaNova.Application.Common.Interfaces;
 using ArdaNova.Application.Common.Results;
@@ -14,9 +15,10 @@ using ArdaNova.Domain.Models.Enums;
 using AutoMapper;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Filters;
 
 /// <summary>
-/// What /api/projects tells a viewer about a team and a hidden project: member emails only to managers,
+/// What /api/projects tells a viewer about a team and a hidden project: member emails only to managers (and each member's own),
 /// a member read bound to its routed project, and refused writes on a hidden project worded as a missing one.
 /// </summary>
 public sealed class ProjectMemberDisclosureFlowTests
@@ -25,6 +27,7 @@ public sealed class ProjectMemberDisclosureFlowTests
     private const string HiddenProject = "project-hidden";
     private const string Founder = "founder-1";
     private const string Outsider = "outsider-1";
+    private const string Colleague = "colleague-1";
 
     private readonly ListRepository<ProjectMember> _members = new();
     private readonly ListRepository<User> _users = new();
@@ -41,27 +44,47 @@ public sealed class ProjectMemberDisclosureFlowTests
         _users.Items.AddRange(
         [
             new User { id = Founder, email = "founder@example.test", name = "Founder" },
+            new User { id = Colleague, email = "colleague@example.test", name = "Colleague" },
             new User { id = "hidden-member", email = "hidden@example.test", name = "Hidden" },
         ]);
         _members.Items.AddRange(
         [
             new ProjectMember { id = "public-row", projectId = PublicProject, userId = Founder, role = ProjectRole.FOUNDER, joinedAt = DateTime.UtcNow },
+            new ProjectMember { id = "colleague-row", projectId = PublicProject, userId = Colleague, role = ProjectRole.CONTRIBUTOR, joinedAt = DateTime.UtcNow },
             new ProjectMember { id = "hidden-row", projectId = HiddenProject, userId = "hidden-member", role = ProjectRole.CONTRIBUTOR, joinedAt = DateTime.UtcNow },
         ]);
         _memberService = new ProjectMemberService(
             _members, _users, new ListRepository<ProjectTask>(), new Mock<IUnitOfWork>().Object, mapper);
     }
 
-    [Fact]
-    public async Task TheMembersList_ShowsEmailsToManagersOnly()
+    public static TheoryData<string?, string?[]> RosterViewers => new()
     {
-        var anonymous = await Controller(actorId: null).GetMembers(PublicProject, CancellationToken.None);
-        var outsider = await Controller(Outsider).GetMembers(PublicProject, CancellationToken.None);
-        var founder = await Controller(Founder).GetMembers(PublicProject, CancellationToken.None);
+        { null, [null, null] },
+        { Outsider, [null, null] },
+        { Colleague, [null, "colleague@example.test"] },
+        { Founder, ["founder@example.test", "colleague@example.test"] },
+    };
 
-        Emails(anonymous).Should().Equal((string?)null);
-        Emails(outsider).Should().Equal((string?)null);
-        Emails(founder).Should().Equal("founder@example.test");
+    /// <summary>Runs through the global privacy filter too, as the real pipeline does, so a second redaction path would turn this red for the manager.</summary>
+    [Theory]
+    [MemberData(nameof(RosterViewers))]
+    public async Task TheMembersList_ShowsEmailsToManagers_AndEachMemberTheirOwn(string? viewer, string?[] expected)
+    {
+        var controller = Controller(viewer);
+        var result = ThroughPrivacyFilter(controller, await controller.GetMembers(PublicProject, CancellationToken.None));
+
+        Emails(result).Should().Equal(expected);
+    }
+
+    [Fact]
+    public async Task ASingleMemberRead_RedactsForAnonymous_AndKeepsTheEmailForAManager()
+    {
+        var anonymous = await Controller(actorId: null).GetMemberById(PublicProject, "colleague-row", CancellationToken.None);
+        var manager = Controller(Founder);
+        var managed = ThroughPrivacyFilter(manager, await manager.GetMemberById(PublicProject, "colleague-row", CancellationToken.None));
+
+        SingleEmail(anonymous).Should().BeNull();
+        SingleEmail(managed).Should().Be("colleague@example.test");
     }
 
     [Fact]
@@ -111,9 +134,22 @@ public sealed class ProjectMemberDisclosureFlowTests
         };
     }
 
+    private static IActionResult ThroughPrivacyFilter(ControllerBase controller, IActionResult result)
+    {
+        var action = new ActionContext(controller.HttpContext, new Microsoft.AspNetCore.Routing.RouteData(), new Microsoft.AspNetCore.Mvc.Abstractions.ActionDescriptor());
+        var context = new ResultExecutingContext(action, [], result, controller);
+        new UserDirectoryPrivacyFilter().OnResultExecuting(context);
+        return context.Result;
+    }
+
+    private static string? SingleEmail(IActionResult result)
+        => result.Should().BeAssignableTo<ObjectResult>().Which.Value
+            .Should().BeOfType<ProjectMemberDto>().Which.User?.Email;
+
     private static IEnumerable<string?> Emails(IActionResult result)
-        => result.Should().BeOfType<OkObjectResult>().Which.Value
+        => result.Should().BeAssignableTo<ObjectResult>().Which.Value
             .Should().BeAssignableTo<IEnumerable<ProjectMemberDto>>().Which
+            .OrderBy(member => member.Id == "public-row" ? 0 : 1)
             .Select(member => member.User?.Email);
 
     private ProjectsController Controller(string? actorId, bool hiddenProjectExists = true)

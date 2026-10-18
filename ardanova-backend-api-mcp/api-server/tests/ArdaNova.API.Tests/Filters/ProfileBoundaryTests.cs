@@ -1,42 +1,13 @@
-using System.Security.Claims;
-using System.Text.Json;
-using ArdaNova.API.Filters;
-using ArdaNova.API.Middleware;
 using ArdaNova.API.Readiness;
 using ArdaNova.Application.DTOs;
 using ArdaNova.Application.Validators;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.Abstractions;
-using Microsoft.AspNetCore.Mvc.Filters;
-using Microsoft.AspNetCore.Routing;
 
 namespace ArdaNova.API.Tests.Filters;
 
-/// <summary>Profile-shaped data at the API edge: member rosters keep emails private, and contact/link fields refuse script-capable or malformed values.</summary>
+/// <summary>Profile-shaped data at the API edge: contact/link fields refuse script-capable or malformed values. Member-email disclosure is covered by ProjectMemberDisclosureFlowTests.</summary>
 public sealed class ProfileBoundaryTests
 {
     private const string Member = "member-user-0001";
-    private const string Colleague = "colleague-user-01";
-
-    [Theory]
-    [InlineData(null)]
-    [InlineData(Colleague)]
-    [InlineData(Member)]
-    public void ProjectRoster_ShowsAMembersEmailOnlyToThatMember(string? viewer)
-    {
-        var roster = new List<ProjectMemberDto> { MemberRow(Member), MemberRow(Colleague) };
-
-        var body = RunPrivacyFilter(roster, viewer);
-
-        body.Should().Contain("Name of " + Member).And.Contain("Name of " + Colleague);
-        body.Contains($"{Member}@example.test").Should().Be(viewer == Member);
-        body.Contains($"{Colleague}@example.test").Should().Be(viewer == Colleague);
-    }
-
-    [Fact]
-    public void SingleMemberResponse_IsRedactedForAnonymousViewers()
-        => RunPrivacyFilter(MemberRow(Member), viewer: null).Should().NotContain("@");
 
     public static TheoryData<object, string> RefusedProfileValues => new()
     {
@@ -83,36 +54,6 @@ public sealed class ProfileBoundaryTests
 
         clock.Advance(ReadinessSummaryCache.Lifetime);
         cache.TryGet(out _).Should().BeFalse("a stale verdict forces a fresh database probe");
-    }
-
-    private static ProjectMemberDto MemberRow(string userId) => new()
-    {
-        Id = $"pm-{userId}",
-        ProjectId = "project-1",
-        UserId = userId,
-        User = new ProjectMemberUserDto { Id = userId, Name = "Name of " + userId, Email = $"{userId}@example.test" },
-    };
-
-    private static string RunPrivacyFilter(object value, string? viewer)
-    {
-        var http = new DefaultHttpContext();
-        if (viewer is not null)
-            http.User = new ClaimsPrincipal(new ClaimsIdentity(
-                [
-                    new Claim(ClaimTypes.NameIdentifier, viewer),
-                    new Claim("sub", viewer),
-                    new Claim(ActorAssertionMiddleware.ClaimType, "v2"),
-                ],
-                ActorAssertionMiddleware.AuthenticationType));
-
-        var result = new OkObjectResult(value);
-        var context = new ResultExecutingContext(
-            new ActionContext(http, new RouteData(), new ActionDescriptor()),
-            [],
-            result,
-            controller: new object());
-        new UserDirectoryPrivacyFilter().OnResultExecuting(context);
-        return JsonSerializer.Serialize(result.Value, result.Value!.GetType());
     }
 
     private static IReadOnlyDictionary<string, string[]> Validate(object request)

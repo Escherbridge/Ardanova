@@ -146,8 +146,10 @@ panel too, not only the poster.
 ## Member disclosure
 
 `GET /api/projects/{id}/members` and `GET /api/projects/{id}/members/{memberId}` are anonymous-readable,
-so a member's `user.email` is filled only for an admin or a project manager. Everyone else receives
-`email: null`, and the UI falls back to the member's name. The single-member read also checks that the
+so a member's `user.email` is filled only for an admin, a project manager, or that member's own row.
+Everyone else receives `email: null`, and the UI falls back to the member's name. This is the only
+member-email rule: `UserDirectoryPrivacyFilter` leaves `ProjectMemberDto` alone, because it cannot tell
+a manager from a stranger. The add and update member routes are manager-only, so they return the full row. The single-member read also checks that the
 row belongs to the routed project, the same check the update and remove routes make. Without it, a
 member of a hidden draft could be read through any public project's URL.
 
