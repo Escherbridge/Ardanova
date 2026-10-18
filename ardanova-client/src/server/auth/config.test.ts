@@ -470,7 +470,7 @@ describe("authConfig", () => {
         profile: googleProfile("test@example.com"),
       });
 
-      expect(result).toBe(false);
+      expect(result).toBe("/auth/error?error=AccountNotLinked");
       expect(mockCreate).not.toHaveBeenCalled();
       error.mockRestore();
     });
@@ -525,7 +525,7 @@ describe("authConfig", () => {
         profile: googleProfile("test@example.com"),
       });
 
-      expect(result).toBe(false);
+      expect(result).toBe("/auth/error?error=AccountNotLinked");
       expect(mockAccountCreate).not.toHaveBeenCalled();
       error.mockRestore();
     });

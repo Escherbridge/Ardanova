@@ -109,7 +109,7 @@ const authForPage = cache(async (): Promise<Session | null> => {
 });
 
 function isSessionEndpoint(request: NextRequest): boolean {
-  return request.nextUrl.pathname.replace(/\/+$/, "").endsWith("/session");
+  return request.nextUrl.pathname.replace(/\/+$/, "") === "/api/auth/session";
 }
 
 /** Auth.js route handlers; under the preview, `/session` reports the same identity as `auth()`. */
