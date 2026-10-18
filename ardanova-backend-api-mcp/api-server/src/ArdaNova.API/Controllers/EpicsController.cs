@@ -48,6 +48,8 @@ public class EpicsController : ControllerBase
         var milestone = await _milestoneService.GetByIdAsync(dto.MilestoneId, ct);
         if (!milestone.IsSuccess)
             return ToActionResult(milestone);
+        if (!await _projectVisibility.IsVisibleAsync(Viewer, milestone.Value!.ProjectId, ct))
+            return NotFound(new { error = $"Milestone with id {dto.MilestoneId} not found" });
         if (!await HasValidMilestoneAncestryAsync(milestone.Value!, ct))
             return BadRequest(new { error = "Milestone ancestry could not be verified" });
         if (!await CanManageProjectAsync(milestone.Value!.ProjectId, ct))
@@ -68,7 +70,7 @@ public class EpicsController : ControllerBase
     [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
     public async Task<IActionResult> Update(string id, [FromBody] UpdateEpicDto dto, CancellationToken ct)
     {
-        var epic = await _epicService.GetByIdAsync(id, ct);
+        var epic = await GetVisibleEpicAsync(id, ct);
         if (!epic.IsSuccess)
             return ToActionResult(epic);
         if (!await HasValidEpicAncestryAsync(epic.Value!, ct))
@@ -87,7 +89,7 @@ public class EpicsController : ControllerBase
     [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
     public async Task<IActionResult> Delete(string id, CancellationToken ct)
     {
-        var epic = await _epicService.GetByIdAsync(id, ct);
+        var epic = await GetVisibleEpicAsync(id, ct);
         if (!epic.IsSuccess)
             return ToActionResult(epic);
         if (!await HasValidEpicAncestryAsync(epic.Value!, ct))
@@ -103,7 +105,7 @@ public class EpicsController : ControllerBase
     [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
     public async Task<IActionResult> Assign(string id, [FromBody] AssignEpicDto dto, CancellationToken ct)
     {
-        var epic = await _epicService.GetByIdAsync(id, ct);
+        var epic = await GetVisibleEpicAsync(id, ct);
         if (!epic.IsSuccess)
             return ToActionResult(epic);
         if (!await HasValidEpicAncestryAsync(epic.Value!, ct))
@@ -122,7 +124,7 @@ public class EpicsController : ControllerBase
     [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
     public async Task<IActionResult> UpdateStatus(string id, [FromBody] UpdateEpicStatusDto dto, CancellationToken ct)
     {
-        var epic = await _epicService.GetByIdAsync(id, ct);
+        var epic = await GetVisibleEpicAsync(id, ct);
         if (!epic.IsSuccess)
             return ToActionResult(epic);
         if (!await HasValidEpicAncestryAsync(epic.Value!, ct))
@@ -138,7 +140,7 @@ public class EpicsController : ControllerBase
     [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
     public async Task<IActionResult> UpdatePriority(string id, [FromBody] UpdateEpicPriorityDto dto, CancellationToken ct)
     {
-        var epic = await _epicService.GetByIdAsync(id, ct);
+        var epic = await GetVisibleEpicAsync(id, ct);
         if (!epic.IsSuccess)
             return ToActionResult(epic);
         if (!await HasValidEpicAncestryAsync(epic.Value!, ct))
@@ -148,6 +150,15 @@ public class EpicsController : ControllerBase
 
         var result = await _epicService.UpdatePriorityAsync(id, dto.Priority, ct);
         return ToActionResult(result);
+    }
+
+    /// <summary>The epic, or the same NotFound a missing one gets when its project is hidden from this viewer.</summary>
+    private async Task<Result<EpicDto>> GetVisibleEpicAsync(string id, CancellationToken ct)
+    {
+        var item = await _epicService.GetByIdAsync(id, ct);
+        return item.IsSuccess && !await _projectVisibility.IsVisibleAsync(Viewer, item.Value!.ProjectId, ct)
+            ? Result<EpicDto>.NotFound($"Epic with id {id} not found")
+            : item;
     }
 
     private string ActorId => User.FindFirstValue(ClaimTypes.NameIdentifier)!;

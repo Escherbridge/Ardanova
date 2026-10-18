@@ -71,6 +71,24 @@ public class SprintsController : ControllerBase
             : NotFound(new { error = $"Epic with id {epicId} not found" });
     }
 
+    /// <summary>The sprint, or the same NotFound a missing one gets when its project is hidden from this viewer.</summary>
+    private async Task<Result<SprintDto>> GetVisibleSprintAsync(string id, CancellationToken ct)
+    {
+        var item = await _sprintService.GetByIdAsync(id, ct);
+        return item.IsSuccess && !await _projectVisibility.IsVisibleAsync(Viewer, item.Value!.ProjectId, ct)
+            ? Result<SprintDto>.NotFound($"Sprint with id {id} not found")
+            : item;
+    }
+
+    /// <summary>The parent epic, or the same NotFound a missing one gets when its project is hidden from this viewer.</summary>
+    private async Task<Result<EpicDto>> GetVisibleEpicAsync(string id, CancellationToken ct)
+    {
+        var item = await _epicService.GetByIdAsync(id, ct);
+        return item.IsSuccess && !await _projectVisibility.IsVisibleAsync(Viewer, item.Value!.ProjectId, ct)
+            ? Result<EpicDto>.NotFound($"Epic with id {id} not found")
+            : item;
+    }
+
     /// <summary>Only a verified actor assertion names a viewer; every other read is the public's.</summary>
     private ProjectViewer Viewer => ActorAssertionMiddleware.TryGetActorId(User, out var actorId)
         ? new ProjectViewer(actorId, User.IsInRole(UserRole.ADMIN.ToString()))
@@ -80,7 +98,7 @@ public class SprintsController : ControllerBase
     [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
     public async Task<IActionResult> Create([FromBody] CreateSprintDto dto, CancellationToken ct)
     {
-        var epic = await _epicService.GetByIdAsync(dto.EpicId, ct);
+        var epic = await GetVisibleEpicAsync(dto.EpicId, ct);
         if (!epic.IsSuccess)
             return ToActionResult(epic);
         if (!await HasValidEpicAncestryAsync(epic.Value!, ct))
@@ -108,7 +126,7 @@ public class SprintsController : ControllerBase
     [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
     public async Task<IActionResult> Update(string id, [FromBody] UpdateSprintDto dto, CancellationToken ct)
     {
-        var sprint = await _sprintService.GetByIdAsync(id, ct);
+        var sprint = await GetVisibleSprintAsync(id, ct);
         if (!sprint.IsSuccess)
             return ToActionResult(sprint);
         if (!await HasValidSprintAncestryAsync(sprint.Value!, ct))
@@ -127,7 +145,7 @@ public class SprintsController : ControllerBase
     [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
     public async Task<IActionResult> Delete(string id, CancellationToken ct)
     {
-        var sprint = await _sprintService.GetByIdAsync(id, ct);
+        var sprint = await GetVisibleSprintAsync(id, ct);
         if (!sprint.IsSuccess)
             return ToActionResult(sprint);
         if (!await HasValidSprintAncestryAsync(sprint.Value!, ct))
