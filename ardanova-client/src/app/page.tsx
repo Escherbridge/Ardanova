@@ -95,7 +95,7 @@ export default async function Home() {
           Skip to main content
         </a>
 
-        <header className="sticky top-0 z-50 border-b border-black/70 bg-[#f4efeb]">
+        <header className="sticky top-0 z-50 border-b border-black/70 bg-brand-paper">
           <div className="mx-auto flex min-h-16 max-w-[1440px] items-center justify-between gap-6 px-4 md:px-8">
             <Link
               aria-label="ArdaNova home"
@@ -157,7 +157,7 @@ export default async function Home() {
               <div className="flex flex-col justify-between gap-14 px-4 py-16 md:px-8 md:py-24 lg:min-h-[calc(100svh-4rem)] lg:border-r lg:border-black/70 lg:py-16">
                 <div className="flex items-center justify-between gap-4 border-t border-black/70 pt-3 font-mono text-[10px] font-semibold tracking-[0.16em] uppercase">
                   <span>Social layer for doing</span>
-                  <span className="text-[#b8322a]">Human review / always</span>
+                  <span className="text-brand-signal-deep">Human review / always</span>
                 </div>
 
                 <div className="min-w-0">
@@ -166,7 +166,7 @@ export default async function Home() {
                   </Badge>
                   <h1 className="display-type max-w-5xl uppercase">
                     Turn attention.
-                    <span className="block text-[#cf392f]">Into</span>
+                    <span className="block text-brand-signal-hot">Into</span>
                     action.
                   </h1>
                 </div>
@@ -192,14 +192,14 @@ export default async function Home() {
                 </div>
               </div>
 
-              <div className="bg-[#ef4638] p-4 md:p-8 lg:flex lg:items-center">
+              <div className="bg-brand-signal p-4 md:p-8 lg:flex lg:items-center">
                 <SignalCanvas />
               </div>
             </div>
           </section>
 
-          <section className="border-b border-black/70 bg-[#151513] text-[#f4efeb]">
-            <div className="mx-auto grid max-w-[1440px] divide-y divide-[#f4efeb]/35 border-x-0 border-[#f4efeb]/35 md:grid-cols-4 md:divide-x md:divide-y-0 lg:border-x">
+          <section className="border-b border-black/70 bg-brand-ink text-brand-paper">
+            <div className="mx-auto grid max-w-[1440px] divide-y divide-brand-paper/35 border-x-0 border-brand-paper/35 md:grid-cols-4 md:divide-x md:divide-y-0 lg:border-x">
               <div className="p-5 font-mono text-xs tracking-[0.16em] uppercase">
                 The solutionary loop
               </div>
@@ -209,7 +209,7 @@ export default async function Home() {
                   key={label}
                 >
                   <span>{label}</span>
-                  <span className="font-mono text-[#70d7e2]">0{index + 1}</span>
+                  <span className="font-mono text-brand-cyan">0{index + 1}</span>
                 </div>
               ))}
             </div>
@@ -266,12 +266,12 @@ export default async function Home() {
           </section>
 
           <section
-            className="border-b border-black/70 bg-[#fffdfa]"
+            className="border-b border-black/70 bg-brand-paper-bright"
             id="rights"
           >
             <div className="mx-auto max-w-[1440px] px-4 py-20 md:px-8 md:py-28">
               <div className="mb-14 max-w-4xl">
-                <p className="mb-4 font-mono text-xs font-semibold tracking-[0.16em] text-[#b8322a] uppercase">
+                <p className="mb-4 font-mono text-xs font-semibold tracking-[0.16em] text-brand-signal-deep uppercase">
                   02 / Rights without hand-waving
                 </p>
                 <h2 className="text-4xl leading-[0.92] font-black tracking-[-0.055em] break-words uppercase sm:text-5xl md:text-7xl">
@@ -280,7 +280,7 @@ export default async function Home() {
               </div>
 
               <div className="grid border border-black/70 lg:grid-cols-2">
-                <article className="flex min-h-[360px] flex-col justify-between bg-[#ef4638] p-7 text-[#151513] md:p-10 lg:border-r lg:border-black/70">
+                <article className="flex min-h-[360px] flex-col justify-between bg-brand-signal p-7 text-brand-ink md:p-10 lg:border-r lg:border-black/70">
                   <div className="flex items-center justify-between border-b border-black/70 pb-4 font-mono text-xs font-semibold tracking-[0.16em] uppercase">
                     <span>Record A</span>
                     <span>Work + value</span>
@@ -296,16 +296,16 @@ export default async function Home() {
                   </div>
                 </article>
 
-                <article className="flex min-h-[360px] flex-col justify-between bg-[#151513] p-7 text-[#f4efeb] md:p-10">
-                  <div className="flex items-center justify-between border-b border-[#f4efeb]/50 pb-4 font-mono text-xs font-semibold tracking-[0.16em] uppercase">
+                <article className="flex min-h-[360px] flex-col justify-between bg-brand-ink p-7 text-brand-paper md:p-10">
+                  <div className="flex items-center justify-between border-b border-brand-paper/50 pb-4 font-mono text-xs font-semibold tracking-[0.16em] uppercase">
                     <span>Record B</span>
-                    <span className="text-[#70d7e2]">Voice + permissions</span>
+                    <span className="text-brand-cyan">Voice + permissions</span>
                   </div>
                   <div>
                     <h3 className="mb-5 max-w-lg text-4xl leading-none font-black tracking-[-0.05em] uppercase md:text-5xl">
                       Governance and decision rights
                     </h3>
-                    <p className="max-w-xl text-lg leading-relaxed text-[#d6d0ca]">
+                    <p className="max-w-xl text-lg leading-relaxed text-brand-stone-light">
                       Keep proposals, voting or approval rules, delegated roles,
                       and recorded outcomes distinct from economic interests.
                     </p>
@@ -325,13 +325,13 @@ export default async function Home() {
           </section>
 
           <section
-            className="border-b border-black/70 bg-[#151513] text-[#f4efeb]"
+            className="border-b border-black/70 bg-brand-ink text-brand-paper"
             id="nova"
           >
             <div className="mx-auto grid max-w-[1440px] lg:grid-cols-2">
-              <div className="flex flex-col justify-between gap-14 border-[#f4efeb]/35 p-6 md:p-12 lg:min-h-[760px] lg:border-r">
+              <div className="flex flex-col justify-between gap-14 border-brand-paper/35 p-6 md:p-12 lg:min-h-[760px] lg:border-r">
                 <div>
-                  <div className="mb-8 flex items-center gap-3 font-mono text-xs font-semibold tracking-[0.16em] text-[#70d7e2] uppercase">
+                  <div className="mb-8 flex items-center gap-3 font-mono text-xs font-semibold tracking-[0.16em] text-brand-cyan uppercase">
                     <Bot aria-hidden="true" className="size-5" />
                     Nova / optional assistive layer
                   </div>
@@ -341,29 +341,29 @@ export default async function Home() {
                 </div>
 
                 <div className="max-w-xl">
-                  <p className="mb-8 text-lg leading-relaxed text-[#d6d0ca]">
+                  <p className="mb-8 text-lg leading-relaxed text-brand-stone-light">
                     Nova is designed to help shape project briefs, compare
                     proposals, prepare presentations, and surface reconciliation
                     questions. It can accelerate the draft—not become the
                     authority.
                   </p>
-                  <div className="border-l-4 border-[#ef4638] pl-5 text-xl leading-snug font-bold">
+                  <div className="border-l-4 border-brand-signal pl-5 text-xl leading-snug font-bold">
                     Nothing publishes, signs, or settles without deliberate
                     human review.
                   </div>
                 </div>
               </div>
 
-              <div className="bg-[#252522] p-4 md:p-8 lg:flex lg:items-center">
-                <div className="w-full border border-[#f4efeb]/45 bg-[#151513]">
-                  <div className="flex items-center justify-between border-b border-[#f4efeb]/45 px-4 py-3 font-mono text-[10px] font-semibold tracking-[0.16em] uppercase">
+              <div className="bg-brand-ink-raised p-4 md:p-8 lg:flex lg:items-center">
+                <div className="w-full border border-brand-paper/45 bg-brand-ink">
+                  <div className="flex items-center justify-between border-b border-brand-paper/45 px-4 py-3 font-mono text-[10px] font-semibold tracking-[0.16em] uppercase">
                     <span>Illustrative Nova workflow</span>
-                    <span className="text-[#70d7e2]">Draft state</span>
+                    <span className="text-brand-cyan">Draft state</span>
                   </div>
 
                   <div className="space-y-4 p-4 md:p-6">
-                    <div className="border border-[#f4efeb]/35 bg-[#252522] p-4">
-                      <p className="mb-2 font-mono text-[10px] tracking-[0.14em] text-[#aaa59f] uppercase">
+                    <div className="border border-brand-paper/35 bg-brand-ink-raised p-4">
+                      <p className="mb-2 font-mono text-[10px] tracking-[0.14em] text-brand-stone uppercase">
                         Human request
                       </p>
                       <p className="leading-relaxed">
@@ -373,13 +373,13 @@ export default async function Home() {
                       </p>
                     </div>
 
-                    <div className="border border-[#70d7e2] bg-[#1c2d2e] p-4 md:p-5">
+                    <div className="border border-brand-cyan bg-brand-cyan-deep p-4 md:p-5">
                       <div className="mb-5 flex items-center justify-between gap-4">
-                        <p className="font-mono text-[10px] tracking-[0.14em] text-[#70d7e2] uppercase">
+                        <p className="font-mono text-[10px] tracking-[0.14em] text-brand-cyan uppercase">
                           Nova prepared 3 artifacts
                         </p>
                         <Badge
-                          className="border-[#ef4638] text-[#ff8b80]"
+                          className="border-brand-signal text-brand-signal-soft"
                           variant="outline"
                         >
                           Review required
@@ -389,14 +389,14 @@ export default async function Home() {
                         {novaArtifacts.map((artifact) => {
                           return (
                             <li
-                              className="grid grid-cols-[auto_1fr_auto] items-center gap-3 border-t border-[#f4efeb]/20 pt-3"
+                              className="grid grid-cols-[auto_1fr_auto] items-center gap-3 border-t border-brand-paper/20 pt-3"
                               key={artifact.title}
                             >
                               {artifact.icon}
                               <span className="text-sm font-semibold">
                                 {artifact.title}
                               </span>
-                              <span className="text-right font-mono text-[9px] tracking-[0.08em] text-[#aaa59f] uppercase">
+                              <span className="text-right font-mono text-[9px] tracking-[0.08em] text-brand-stone uppercase">
                                 {artifact.note}
                               </span>
                             </li>
@@ -405,11 +405,11 @@ export default async function Home() {
                       </ul>
                     </div>
 
-                    <div className="grid grid-cols-2 border border-[#f4efeb]/35 text-center text-xs font-bold uppercase">
-                      <span className="border-r border-[#f4efeb]/35 p-3">
+                    <div className="grid grid-cols-2 border border-brand-paper/35 text-center text-xs font-bold uppercase">
+                      <span className="border-r border-brand-paper/35 p-3">
                         Compare changes
                       </span>
-                      <span className="bg-[#f4efeb] p-3 text-[#151513]">
+                      <span className="bg-brand-paper p-3 text-brand-ink">
                         Approve or revise
                       </span>
                     </div>
@@ -462,7 +462,7 @@ export default async function Home() {
             </div>
           </section>
 
-          <section className="bg-[#ef4638] text-[#151513]">
+          <section className="bg-brand-signal text-brand-ink">
             <div className="mx-auto grid max-w-[1440px] gap-10 px-4 py-20 md:px-8 md:py-24 lg:grid-cols-[1fr_auto] lg:items-end">
               <div>
                 <p className="mb-4 font-mono text-xs font-semibold tracking-[0.16em] uppercase">
@@ -474,7 +474,7 @@ export default async function Home() {
               </div>
               <Button
                 asChild
-                className="border-[#151513] bg-[#151513] text-[#f4efeb] hover:bg-[#2b2b27]"
+                className="border-brand-ink bg-brand-ink text-brand-paper hover:bg-brand-ink-hover"
                 size="xl"
               >
                 <Link href={session ? workspaceHref : signupHref}>
@@ -486,11 +486,11 @@ export default async function Home() {
           </section>
         </main>
 
-        <footer className="border-t border-black/70 bg-[#151513] text-[#f4efeb]">
+        <footer className="border-t border-black/70 bg-brand-ink text-brand-paper">
           <div className="mx-auto grid max-w-[1440px] gap-10 px-4 py-10 md:grid-cols-[1fr_auto] md:px-8">
             <div>
               <ArdaNovaWordmark className="mb-4 text-lg" />
-              <p className="max-w-lg text-sm leading-relaxed text-[#bdb8b1]">
+              <p className="max-w-lg text-sm leading-relaxed text-brand-stone-mid">
                 A social layer for discovering problems, defining solutions, and
                 iterating together—with explicit rights and people in control of
                 every consequential action.
@@ -501,44 +501,44 @@ export default async function Home() {
               className="grid grid-cols-2 gap-x-8 gap-y-3 text-sm md:grid-cols-3"
             >
               <Link
-                className="inline-flex min-h-11 items-center hover:text-[#70d7e2]"
+                className="inline-flex min-h-11 items-center hover:text-brand-cyan"
                 href="/projects"
               >
                 Projects
               </Link>
               <Link
-                className="inline-flex min-h-11 items-center hover:text-[#70d7e2]"
+                className="inline-flex min-h-11 items-center hover:text-brand-cyan"
                 href="/opportunities"
               >
                 Opportunities
               </Link>
               <Link
-                className="inline-flex min-h-11 items-center hover:text-[#70d7e2]"
+                className="inline-flex min-h-11 items-center hover:text-brand-cyan"
                 href="/governance"
               >
                 Governance
               </Link>
               <Link
-                className="inline-flex min-h-11 items-center hover:text-[#70d7e2]"
+                className="inline-flex min-h-11 items-center hover:text-brand-cyan"
                 href="#method"
               >
                 Method
               </Link>
               <Link
-                className="inline-flex min-h-11 items-center hover:text-[#70d7e2]"
+                className="inline-flex min-h-11 items-center hover:text-brand-cyan"
                 href="#nova"
               >
                 Nova AI
               </Link>
               <Link
-                className="inline-flex min-h-11 items-center hover:text-[#70d7e2]"
+                className="inline-flex min-h-11 items-center hover:text-brand-cyan"
                 href={workspaceHref}
               >
                 Workspace
               </Link>
             </nav>
           </div>
-          <div className="border-t border-[#f4efeb]/25 px-4 py-4 text-center font-mono text-[10px] tracking-[0.14em] text-[#aaa59f] uppercase">
+          <div className="border-t border-brand-paper/25 px-4 py-4 text-center font-mono text-[10px] tracking-[0.14em] text-brand-stone uppercase">
             © {new Date().getFullYear()} ArdaNova / Discover · define · iterate
           </div>
         </footer>

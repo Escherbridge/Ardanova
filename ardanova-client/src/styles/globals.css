@@ -14,6 +14,22 @@
   --grid-gutter: 1.5rem;
   --grid-margin: 2rem;
   --space-unit: 0.25rem;
+
+  /* Fixed brand palette: does not flip with .dark. See src/styles/AGENTS.md §brand-palette. */
+  --color-brand-paper: #f4efeb;
+  --color-brand-paper-bright: #fffdfa;
+  --color-brand-ink: #151513;
+  --color-brand-ink-raised: #252522;
+  --color-brand-ink-hover: #2b2b27;
+  --color-brand-signal: #ef4638;
+  --color-brand-signal-hot: #cf392f;
+  --color-brand-signal-deep: #b8322a;
+  --color-brand-signal-soft: #ff8b80;
+  --color-brand-cyan: #70d7e2;
+  --color-brand-cyan-deep: #1c2d2e;
+  --color-brand-stone: #aaa59f;
+  --color-brand-stone-mid: #bdb8b1;
+  --color-brand-stone-light: #d6d0ca;
 }
 
 @theme inline {
