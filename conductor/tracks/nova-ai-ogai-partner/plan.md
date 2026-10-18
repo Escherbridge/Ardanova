@@ -10,7 +10,7 @@ title: Nova AI powered by OVERSEASGENAI — plan
 - [x] tRPC proxy and live "Refine idea" surface; truthful disclaimers; stale-version fix (vitest).
 - [ ] Adversarial review of both branches (`/security-review`: partner auth, key handling).
 
-## Phase 2 — Rollout (owner-gated)
+## Phase 2 — Rollout (owner-gated; step by step in `go-live-checklist.md`)
 - [ ] Generate key; set `Ogai__BaseUrl`, `Ogai__PartnerApiKey` (ArdaNova) and `PARTNER_API_KEYS` (OGAI).
 - [ ] OGAI lease holder merges and deploys `partner/ardanova-nova`.
 - [ ] Live smoke: refinement to a verdict through the deployed ArdaNova stack; check logs carry no content or key.

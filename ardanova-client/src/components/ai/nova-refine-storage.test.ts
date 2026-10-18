@@ -37,6 +37,8 @@ class TabStorage implements Storage {
   }
 }
 
+const member = "member-1";
+
 const midRefinement: NovaRefineConversation = {
   idea: "A tool library run by a neighbourhood guild, lending power tools.",
   turns: [
@@ -59,8 +61,8 @@ describe("Nova refinement survives a reload in the same tab", () => {
   it("restores the idea, answers, half-typed answer and the state needed to continue", () => {
     const tab = new TabStorage();
 
-    expect(writeRefineConversation(tab, midRefinement)).toBe(true);
-    const afterReload = readRefineConversation(tab);
+    expect(writeRefineConversation(tab, midRefinement, member)).toBe(true);
+    const afterReload = readRefineConversation(tab, member);
 
     expect(afterReload).toEqual(midRefinement);
     expect(isRefinementInProgress(afterReload!)).toBe(true);
@@ -75,29 +77,53 @@ describe("Nova refinement survives a reload in the same tab", () => {
       reply: { ...midRefinement.reply!, state: fullTicket },
     };
 
-    writeRefineConversation(tab, conversation);
+    writeRefineConversation(tab, conversation, member);
 
-    expect(readRefineConversation(tab)?.reply?.state).toBe(fullTicket);
+    expect(readRefineConversation(tab, member)?.reply?.state).toBe(fullTicket);
   });
 
   it("starts clean when the saved copy is unreadable, and Start over clears it", () => {
     const tab = new TabStorage();
-    tab.setItem(REFINE_STORAGE_KEY, '{"version":1,"idea":42}');
-    expect(readRefineConversation(tab)).toBeNull();
+    tab.setItem(
+      REFINE_STORAGE_KEY,
+      '{"version":2,"owner":"member-1","idea":42}',
+    );
+    expect(readRefineConversation(tab, member)).toBeNull();
 
-    writeRefineConversation(tab, midRefinement);
-    writeRefineConversation(tab, {
-      idea: "",
-      turns: [],
-      reply: null,
-      answer: "",
-    });
+    writeRefineConversation(tab, midRefinement, member);
+    writeRefineConversation(
+      tab,
+      { idea: "", turns: [], reply: null, answer: "" },
+      member,
+    );
     expect(tab.getItem(REFINE_STORAGE_KEY)).toBeNull();
   });
 
   it("reports blocked storage so the sheet can warn before a reload loses the conversation", () => {
-    expect(writeRefineConversation(new TabStorage(true), midRefinement)).toBe(
-      false,
+    expect(
+      writeRefineConversation(new TabStorage(true), midRefinement, member),
+    ).toBe(false);
+  });
+});
+
+describe("a refinement belongs to the member who wrote it", () => {
+  it("is never shown to the next member who signs in on the same tab, and is erased", () => {
+    const tab = new TabStorage();
+    writeRefineConversation(tab, midRefinement, member);
+
+    expect(readRefineConversation(tab, "member-2")).toBeNull();
+    expect(tab.getItem(REFINE_STORAGE_KEY)).toBeNull();
+    expect(readRefineConversation(tab, member)).toBeNull();
+  });
+
+  it("erases an unowned copy left by an older version", () => {
+    const tab = new TabStorage();
+    tab.setItem(
+      "ardanova:nova:refine:v1",
+      JSON.stringify({ version: 1, ...midRefinement }),
     );
+
+    expect(readRefineConversation(tab, member)).toBeNull();
+    expect(tab.length).toBe(0);
   });
 });

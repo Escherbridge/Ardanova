@@ -10,6 +10,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
+import { useSession } from "next-auth/react";
 import { z } from "zod";
 
 import { Badge } from "~/components/ui/badge";
@@ -51,6 +52,7 @@ import {
   NovaRefinePanel,
   type NovaRefineConversation,
 } from "./nova-refine-panel";
+import { refineDisclosure } from "./nova-refine-copy";
 import {
   isRefinementInProgress,
   readRefineConversation,
@@ -242,8 +244,11 @@ export function NovaAssistant({ pathname }: { pathname: string }) {
   const [surface, setSurface] = useState<NovaSurface>("refine");
   const [refineConversation, setRefineConversation] =
     useState<NovaRefineConversation>(emptyRefineConversation);
-  const [refineRestored, setRefineRestored] = useState(false);
+  const [refineRestoredFor, setRefineRestoredFor] = useState<string | null>(
+    null,
+  );
   const [refineSaved, setRefineSaved] = useState(true);
+  const refineOwner = useSession().data?.user?.id ?? null;
   const novaStatus = api.nova.status.useQuery(undefined, {
     staleTime: 5 * 60_000,
     retry: false,
@@ -357,19 +362,33 @@ export function NovaAssistant({ pathname }: { pathname: string }) {
     storageKey,
   ]);
 
-  // The refinement is one conversation across routes, so it has its own tab-scoped key (see AGENTS.md).
+  // One conversation across routes, in a tab-scoped key bound to the signed-in member (see AGENTS.md).
   useEffect(() => {
-    const restored = readRefineConversation(window.sessionStorage);
-    if (restored) setRefineConversation(restored);
-    setRefineRestored(true);
-  }, []);
+    if (!refineOwner) return;
+    const restored = readRefineConversation(window.sessionStorage, refineOwner);
+    setRefineConversation(restored ?? emptyRefineConversation);
+    setRefineRestoredFor(refineOwner);
+  }, [refineOwner]);
 
   useEffect(() => {
-    if (!refineRestored) return;
+    // Until this member's copy is restored, the state still holds the previous member's conversation.
+    if (!refineOwner || refineRestoredFor !== refineOwner) return;
     setRefineSaved(
-      writeRefineConversation(window.sessionStorage, refineConversation),
+      writeRefineConversation(
+        window.sessionStorage,
+        refineConversation,
+        refineOwner,
+      ),
     );
-  }, [refineConversation, refineRestored]);
+  }, [refineConversation, refineRestoredFor, refineOwner]);
+
+  const refineAvailability =
+    novaStatus.data?.refinement ?? (novaStatus.isError ? null : undefined);
+  const refineCopy = refineDisclosure(
+    refineAvailability,
+    refineConversation.reply?.mode,
+    refineSaved,
+  );
 
   const refineAtRisk =
     !refineSaved && isRefinementInProgress(refineConversation);
@@ -581,11 +600,7 @@ export function NovaAssistant({ pathname }: { pathname: string }) {
             </Badge>
             <span className="text-muted-foreground font-mono text-[0.65rem] tracking-[0.12em] uppercase">
               {surface === "refine" ? (
-                refineSaved ? (
-                  "Project refinement · idea and answers go to Nova AI · kept in this tab, not in records"
-                ) : (
-                  "Project refinement · idea and answers go to Nova AI · tab storage unavailable, a reload loses it"
-                )
+                refineCopy.subtitle
               ) : (
                 <>
                   Local draft only · nothing is sent ·{" "}
@@ -609,7 +624,7 @@ export function NovaAssistant({ pathname }: { pathname: string }) {
           </SheetTitle>
           <SheetDescription id="nova-description" className="max-w-md text-sm">
             {surface === "refine"
-              ? "Nova AI tests a project idea with hard questions and a feasibility verdict. It reads only what you type, not the page records, and you retain every consequential decision."
+              ? refineCopy.description
               : "This local preview uses your prompt and the route label, not the page records. You review every draft and retain every consequential decision."}
           </SheetDescription>
           <div
@@ -647,10 +662,7 @@ export function NovaAssistant({ pathname }: { pathname: string }) {
             <NovaRefinePanel
               conversation={refineConversation}
               onChange={setRefineConversation}
-              availability={
-                novaStatus.data?.refinement ??
-                (novaStatus.isError ? null : undefined)
-              }
+              availability={refineAvailability}
               allowance={
                 novaStatus.data?.dailyLimit != null &&
                 novaStatus.data.remainingToday != null
@@ -1023,9 +1035,11 @@ export function NovaAssistant({ pathname }: { pathname: string }) {
           <p className="text-xs leading-relaxed">
             {NOVA_NON_ACTIONS.join(" · ")}
           </p>
-          <p className="mt-3 font-mono text-[0.6rem] tracking-[0.12em] uppercase opacity-70">
-            Nova AI project refinement is powered by OVERSEASGENAI
-          </p>
+          {refineCopy.showsProviderCredit && (
+            <p className="mt-3 font-mono text-[0.6rem] tracking-[0.12em] uppercase opacity-70">
+              Nova AI project refinement is powered by OVERSEASGENAI
+            </p>
+          )}
         </div>
       </SheetContent>
     </Sheet>

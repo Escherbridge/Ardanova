@@ -1,0 +1,9 @@
+{
+  "id": "nova-ai-loop4-followups_20261018",
+  "title": "Nova AI loop-4 follow-ups",
+  "type": "chore",
+  "status": "proposed",
+  "created": "2026-10-18",
+  "depends_on": ["nova-ai-ogai-partner"],
+  "partitions": { "confidence": "none" }
+}

@@ -29,7 +29,7 @@ public sealed class LocalNovaPreviewClient : IOgaiClient
     {
         var expectedSession = SessionFor(idea);
         if (turns.Count > 0 && (sessionId != expectedSession || state != StateFor(turns.Count - 1)))
-            return Task.FromResult(Result<OgaiTurn>.ValidationError("That refinement is out of date. Start again."));
+            return Task.FromResult(Result<OgaiTurn>.NotFound("That refinement is out of date. Start again."));
 
         if (turns.Count < Questions.Length)
         {

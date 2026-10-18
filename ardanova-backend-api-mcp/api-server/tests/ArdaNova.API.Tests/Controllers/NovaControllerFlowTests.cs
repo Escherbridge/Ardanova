@@ -48,14 +48,96 @@ public class NovaControllerFlowTests
     [InlineData("Overseas Gen-AI wants to know: who pays?")]
     [InlineData("OVERSEAS\u200bGENAI asks: who pays?")]
     [InlineData("As OGAI I ask: who pays?")]
-    public async Task ReplyNamingTheUpstreamProviderNeverReachesTheMember(string leak)
+    [InlineData("Powered by OG-AI: who pays?")]
+    [InlineData("O.G.A.I. asks: who pays?")]
+    [InlineData("OG AI wants to know: who pays?")]
+    public async Task ReplyNamingTheUpstreamProviderNeverReachesTheMemberNorCostsTheirAllowance(string leak)
     {
         var nova = NovaFor(new FakePartnerApi { Leak = leak });
 
         var result = await nova.Controller.RefineProject(new NovaRefineRequestDto { Idea = Idea }, CancellationToken.None);
 
         StatusOf(result).Should().Be(StatusCodes.Status503ServiceUnavailable);
+        ErrorOf(result).Should().Be("nova_unavailable", "a fresh first turn mints a new upstream session, so retrying can succeed");
         JsonSerializer.Serialize(((ObjectResult)result).Value).Should().NotContainEquivalentOf("ogai").And.NotContainEquivalentOf("overseas");
+        RemainingOf(nova).Should().Be(10, "ArdaNova refused the reply, so the member never got the refinement they paid for");
+    }
+
+    [Theory]
+    [InlineData("Would yoga instructors in town pay for this?")]
+    [InlineData("Is the log aisle in the hardware store your rival?")]
+    public async Task OrdinaryWordsNearTheShortNameStillReachTheMember(string question)
+    {
+        var nova = NovaFor(new FakePartnerApi { Leak = question });
+
+        var reply = await RefineAsync(nova, new NovaRefineRequestDto { Idea = Idea });
+
+        reply.Question.Should().Be(question);
+    }
+
+    [Fact]
+    public async Task AContinuationArdaNovaDropsTellsTheMemberToStartAgainOnEveryRetry()
+    {
+        var upstream = new FakePartnerApi { Leak = "Powered by OG-AI: who pays?", LeakFromTurn = 2 };
+        var nova = NovaFor(upstream);
+        var first = await RefineAsync(nova, new NovaRefineRequestDto { Idea = Idea });
+
+        var dropped = await nova.Controller.RefineProject(Continuation(first), CancellationToken.None);
+        var retried = await nova.Controller.RefineProject(Continuation(first), CancellationToken.None);
+        var startedAgain = await RefineAsync(nova, new NovaRefineRequestDto { Idea = Idea });
+
+        ErrorOf(dropped).Should().Be("nova_reply_unusable", "the partner replays an answered turn, so 'try again' would loop forever");
+        ErrorOf(retried).Should().Be("nova_reply_unusable");
+        startedAgain.Number.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task AFirstTurnWhoseStateCannotRoundTripCostsTheMemberNothing()
+    {
+        var nova = NovaFor(new FakePartnerApi { StateLength = NovaSessionTickets.MaxUpstreamStateLength + 1 });
+
+        var result = await nova.Controller.RefineProject(new NovaRefineRequestDto { Idea = Idea }, CancellationToken.None);
+
+        StatusOf(result).Should().Be(StatusCodes.Status503ServiceUnavailable);
+        RemainingOf(nova).Should().Be(10);
+    }
+
+    [Fact]
+    public async Task AVerdictWithAnOutcomeNovaCannotLabelIsNeverShownRaw()
+    {
+        var nova = NovaFor(new FakePartnerApi { Outcome = "Ask OVERSEAS support" });
+        var reply = await RefineAsync(nova, new NovaRefineRequestDto { Idea = Idea });
+        var turns = new List<NovaTurnDto>();
+        IActionResult result;
+        do
+        {
+            turns.Add(new NovaTurnDto { Question = reply.Question!, Answer = "Forty households asked." });
+            result = await nova.Controller.RefineProject(new NovaRefineRequestDto { Idea = Idea, Turns = turns, State = reply.State, SessionId = reply.SessionId }, CancellationToken.None);
+            if (result is OkObjectResult { Value: NovaRefineResponseDto next } && next.Type == "question")
+                reply = next;
+            else
+                break;
+        } while (true);
+
+        ErrorOf(result).Should().Be("nova_reply_unusable");
+    }
+
+    [Fact]
+    public async Task VerdictSourcesThatAreNotWebLinksAreDropped()
+    {
+        var nova = NovaFor(new FakePartnerApi
+        {
+            Sources = [("Survey", "https://example.org/survey"), ("Script", "javascript:alert(1)"), ("Data", "data:text/html,hi"), ("Relative", "/admin")],
+        });
+        var reply = await RefineAsync(nova, new NovaRefineRequestDto { Idea = Idea });
+        var turns = new List<NovaTurnDto>();
+        while (reply.Type == "question")
+        {
+            turns.Add(new NovaTurnDto { Question = reply.Question!, Answer = "Forty households asked." });
+            reply = await RefineAsync(nova, new NovaRefineRequestDto { Idea = Idea, Turns = turns, State = reply.State, SessionId = reply.SessionId });
+        }
+
+        reply.Verdict!.Sources.Select(source => source.Url).Should().Equal("https://example.org/survey");
     }
 
     [Theory]
@@ -229,6 +311,24 @@ public class NovaControllerFlowTests
     }
 
     [Fact]
+    public async Task AStaleLocalPreviewTellsTheMemberToStartAgainNotToFixTheirInput()
+    {
+        var nova = NovaFor(new LocalNovaPreviewClient());
+        var first = await RefineAsync(nova, new NovaRefineRequestDto { Idea = Idea });
+
+        var otherIdea = await nova.Controller.RefineProject(new NovaRefineRequestDto
+        {
+            Idea = Idea + " Now with bikes.",
+            Turns = [new NovaTurnDto { Question = first.Question!, Answer = "Renters." }],
+            State = first.State,
+            SessionId = first.SessionId,
+        }, CancellationToken.None);
+
+        StatusOf(otherIdea).Should().Be(StatusCodes.Status404NotFound);
+        ErrorOf(otherIdea).Should().Be("nova_session_not_found");
+    }
+
+    [Fact]
     public async Task LocalPreviewNeverSpendsTheMembersDailyNovaAiAllowance()
     {
         var nova = NovaFor(new LocalNovaPreviewClient(), dailySessions: 1);
@@ -281,6 +381,9 @@ public class NovaControllerFlowTests
         StatusOf(result).Should().Be(StatusCodes.Status200OK, JsonSerializer.Serialize((result as ObjectResult)?.Value));
         return (NovaRefineResponseDto)((OkObjectResult)result).Value!;
     }
+
+    private static int? RemainingOf(NovaHarness nova)
+        => ((NovaStatusDto)((OkObjectResult)nova.Controller.Status().Result!).Value!).RemainingToday;
 
     private static int? StatusOf(IActionResult result) => (result as ObjectResult)?.StatusCode;
 
@@ -340,6 +443,10 @@ public class NovaControllerFlowTests
         public const int QuestionsBeforeVerdict = 2;
         public (HttpStatusCode Status, string Body)? FailWith { get; set; }
         public string? Leak { get; init; }
+        /// <summary>First question number (1-based) that carries <see cref="Leak"/>; earlier ones stay clean.</summary>
+        public int LeakFromTurn { get; init; } = 1;
+        public string Outcome { get; init; } = "adjust";
+        public (string Title, string Url)[] Sources { get; init; } = [];
         public List<string> SeenAuthorization { get; } = [];
         /// <summary>When set, every turn waits for it, as a slow upstream turn does.</summary>
         public TaskCompletionSource? Hold { get; set; }
@@ -370,7 +477,7 @@ public class NovaControllerFlowTests
                 return Json(HttpStatusCode.OK, JsonSerializer.Serialize(new
                 {
                     type = "question", assistant = "Nova AI", sessionId = "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
-                    question = Leak ?? $"Question {answered + 1}: who pays?", number = answered + 1, maxQuestions = 8,
+                    question = Leak is not null && answered + 1 >= LeakFromTurn ? Leak : $"Question {answered + 1}: who pays?", number = answered + 1, maxQuestions = 8,
                     state = StateFor(answered + 1),
                 }));
             }
@@ -379,9 +486,9 @@ public class NovaControllerFlowTests
                 type = "verdict", assistant = "Nova AI", sessionId = "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
                 verdict = new
                 {
-                    outcome = "adjust", headline = "Promising, with one change.", summary = "Members want tools without buying them.",
+                    outcome = Outcome, headline = "Promising, with one change.", summary = "Members want tools without buying them.",
                     strengths = new[] { "A clear community" }, risks = new[] { "Repair costs are untested" },
-                    nextStep = "Ask twenty members what they would pay.", sources = Array.Empty<object>(),
+                    nextStep = "Ask twenty members what they would pay.", sources = Sources.Select(source => new { title = source.Title, url = source.Url }).ToArray(),
                 },
                 vertical = Vertical,
                 brief = new

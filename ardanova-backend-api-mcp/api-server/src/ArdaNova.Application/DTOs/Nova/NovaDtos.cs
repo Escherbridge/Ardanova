@@ -88,6 +88,9 @@ public static class NovaBrand
     /// <summary>The upstream's name as letters only; matched against a reply's letters so spacing or invisible characters cannot hide it.</summary>
     public const string HiddenLetters = "overseasgenai";
 
+    /// <summary>The upstream's short name as letters only; matched from a word start so "OG-AI", "O.G.A.I." and "OG AI" are caught but "yoga is" is not.</summary>
+    public const string HiddenShortLetters = "ogai";
+
     /// <summary>True when text names the upstream, plainly or disguised.</summary>
     public static bool NamesUpstream(string? text)
     {
@@ -95,9 +98,34 @@ public static class NovaBrand
             return false;
         if (HiddenNames.Any(name => text.Contains(name, StringComparison.OrdinalIgnoreCase)))
             return true;
-        var letters = new string(text.Where(char.IsLetterOrDigit).Select(char.ToLowerInvariant).ToArray());
-        return letters.Contains(HiddenLetters, StringComparison.Ordinal);
+        if (LettersOf(text).Contains(HiddenLetters, StringComparison.Ordinal))
+            return true;
+        return StartsAWordRun(WordsOf(text), HiddenShortLetters);
     }
+
+    /// <summary>True when the letters of some run of adjacent words, joined, begin with <paramref name="target"/>.</summary>
+    private static bool StartsAWordRun(string[] words, string target)
+    {
+        for (var start = 0; start < words.Length; start++)
+        {
+            var joined = string.Empty;
+            for (var end = start; end < words.Length && joined.Length < target.Length; end++)
+                joined += words[end];
+            if (joined.StartsWith(target, StringComparison.Ordinal))
+                return true;
+        }
+        return false;
+    }
+
+    private static string LettersOf(string text)
+        => new(text.Where(char.IsLetterOrDigit).Select(char.ToLowerInvariant).ToArray());
+
+    /// <summary>Whitespace-separated words reduced to their lower-case letters; punctuation-only words vanish.</summary>
+    private static string[] WordsOf(string text)
+        => text.Split(' ', '\t', '\n', '\r', ' ')
+            .Select(LettersOf)
+            .Where(word => word.Length > 0)
+            .ToArray();
 }
 
 /// <summary>Error codes a Nova result carries; the controller maps them to HTTP and the client to copy.</summary>
@@ -111,6 +139,14 @@ public static class NovaErrors
     public const string SessionNotFound = "nova_session_not_found";
     /// <summary>This member already has a turn being answered; one at a time, so nobody holds the shared capacity.</summary>
     public const string TurnInFlight = "nova_turn_in_flight";
+    /// <summary>The partner answered a continuation ArdaNova cannot show; it replays that answer on every retry, so the member starts again.</summary>
+    public const string ReplyUnusable = "nova_reply_unusable";
+}
+
+/// <summary>Verdict outcomes a member may see; anything else from upstream is dropped, never rendered raw.</summary>
+public static class NovaVerdictOutcomes
+{
+    public static readonly IReadOnlySet<string> Known = new HashSet<string>(StringComparer.Ordinal) { "go", "adjust", "not_yet", "preview" };
 }
 
 /// <summary>Values for <see cref="NovaStatusDto.Refinement"/>.</summary>
