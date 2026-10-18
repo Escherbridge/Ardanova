@@ -68,6 +68,9 @@ interface WorkItemFormData {
   tags: string[];
 }
 
+/** Radix Select reserves the empty string, so "no assignee" needs its own value. */
+const UNASSIGNED = "__unassigned__";
+
 export default function CreateTaskPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -105,6 +108,12 @@ export default function CreateTaskPage() {
     assignee: "",
     tags: [],
   });
+  // Assignment needs a project member's user id, so the picker lists the chosen project's team.
+  const { data: projectMembers, isLoading: membersLoading } =
+    api.project.getMembers.useQuery(
+      { projectId: formData.projectId },
+      { enabled: Boolean(formData.projectId) && itemType === "task" },
+    );
   const [newTag, setNewTag] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -113,7 +122,14 @@ export default function CreateTaskPage() {
     field: Key,
     value: WorkItemFormData[Key],
   ) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
+    setFormData((prev) => ({
+      ...prev,
+      [field]: value,
+      // A member of one project is not an assignee on another.
+      ...(field === "projectId" && value !== prev.projectId
+        ? { assignee: "" }
+        : {}),
+    }));
     if (errors[field]) {
       setErrors((prev) => {
         const newErrors = { ...prev };
@@ -203,6 +219,7 @@ export default function CreateTaskPage() {
             ? Number(formData.estimatedHours)
             : undefined,
           dueDate: formData.dueDate || undefined,
+          assigneeId: formData.assignee || undefined,
         });
       }
     } catch (error) {
@@ -530,14 +547,34 @@ export default function CreateTaskPage() {
                     >
                       Assignee
                     </label>
-                    <input
-                      type="text"
-                      id="task-assignee"
-                      value={formData.assignee}
-                      onChange={(e) => handleChange("assignee", e.target.value)}
-                      placeholder="@username or email"
-                      className="bg-muted/50 border-border focus-visible:ring-ring/50 w-full rounded-none border-2 px-4 py-3 focus:ring-2 focus:outline-none"
-                    />
+                    <Select
+                      value={formData.assignee || UNASSIGNED}
+                      onValueChange={(value) =>
+                        handleChange(
+                          "assignee",
+                          value === UNASSIGNED ? "" : value,
+                        )
+                      }
+                      disabled={!formData.projectId || membersLoading}
+                    >
+                      <SelectTrigger id="task-assignee" className="border-border">
+                        <SelectValue
+                          placeholder={
+                            formData.projectId
+                              ? "Unassigned"
+                              : "Choose a project first"
+                          }
+                        />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={UNASSIGNED}>Unassigned</SelectItem>
+                        {(projectMembers ?? []).map((member) => (
+                          <SelectItem key={member.userId} value={member.userId}>
+                            {member.user?.name ?? member.user?.email ?? member.userId}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
               )}

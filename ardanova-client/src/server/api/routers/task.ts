@@ -5,10 +5,20 @@ import {
   publicProcedure,
 } from "~/server/api/trpc";
 import { apiClient } from "~/lib/api";
+import { runWithActorAssertion } from "~/server/actor-assertion";
 import {
   hierarchyAuthorization,
   type HierarchyParent,
 } from "~/server/api/lib/hierarchy-auth";
+
+/** A public read that names the signed-in reader, so the API can show them their own drafts. */
+type Reader = { id?: string | null; role?: string } | null | undefined;
+
+/** Runs a read with the reader attached as the actor, or anonymously when signed out. */
+async function readAsViewer<T>(reader: Reader, call: () => Promise<T>): Promise<T> {
+  if (!reader?.id) return call();
+  return runWithActorAssertion({ subject: reader.id, role: reader.role }, call);
+}
 
 // Enums matching DBML/backend exactly (SCREAMING_SNAKE_CASE)
 const TaskType = z.enum([
@@ -162,16 +172,18 @@ export const taskRouter = createTRPCRouter({
         projectId: z.string().optional(),
       }),
     )
-    .query(async ({ input }) => {
-      const response = await apiClient.tasks.search({
-        searchTerm: input.search,
-        status: input.status,
-        priority: input.priority,
-        taskType: input.type,
-        projectId: input.projectId,
-        page: input.page,
-        pageSize: input.limit,
-      });
+    .query(async ({ input, ctx }) => {
+      const response = await readAsViewer(ctx.session?.user, () =>
+        apiClient.tasks.search({
+          searchTerm: input.search,
+          status: input.status,
+          priority: input.priority,
+          taskType: input.type,
+          projectId: input.projectId,
+          page: input.page,
+          pageSize: input.limit,
+        }),
+      );
 
       if (response.error) {
         throw new Error(response.error);
@@ -216,8 +228,10 @@ export const taskRouter = createTRPCRouter({
   // Get tasks by PBI ID
   getByPbiId: publicProcedure
     .input(z.object({ pbiId: z.string() }))
-    .query(async ({ input }) => {
-      const response = await apiClient.tasks.getByPbiId(input.pbiId);
+    .query(async ({ input, ctx }) => {
+      const response = await readAsViewer(ctx.session?.user, () =>
+        apiClient.tasks.getByPbiId(input.pbiId),
+      );
 
       if (response.error) {
         throw new Error(response.error);
@@ -229,8 +243,10 @@ export const taskRouter = createTRPCRouter({
   // Get task by ID
   getById: publicProcedure
     .input(z.object({ id: z.string() }))
-    .query(async ({ input }) => {
-      const response = await apiClient.tasks.getById(input.id);
+    .query(async ({ input, ctx }) => {
+      const response = await readAsViewer(ctx.session?.user, () =>
+        apiClient.tasks.getById(input.id),
+      );
 
       if (response.error || !response.data) {
         throw new Error(response.error ?? "Task not found");
@@ -302,6 +318,20 @@ export const taskRouter = createTRPCRouter({
 
       if (response.error || !response.data) {
         throw new Error(response.error ?? "Failed to update task status");
+      }
+
+      return response.data;
+    }),
+
+  // Assign, reassign, claim or release a task. The API decides who may: managers assign any
+  // project member or no one; a member may claim an unassigned task or release their own.
+  assign: protectedProcedure
+    .input(z.object({ id: z.string(), assigneeId: z.string().nullable() }))
+    .mutation(async ({ input }) => {
+      const response = await apiClient.tasks.assign(input.id, input.assigneeId);
+
+      if (response.error || !response.data) {
+        throw new Error(response.error ?? "Failed to assign task");
       }
 
       return response.data;

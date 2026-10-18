@@ -175,6 +175,13 @@ export class TasksEndpoint {
     return this.client.patch<Task>(`/api/tasks/${id}/status`, { status });
   }
 
+  /** The only assignment boundary: a member's user id assigns, null unassigns. */
+  assign(id: string, userId: string | null): Promise<ApiResponse<Task>> {
+    return this.client.put<Task>(`/api/tasks/${encodeURIComponent(id)}/assign`, {
+      userId,
+    });
+  }
+
   getByPbiId(pbiId: string): Promise<ApiResponse<Task[]>> {
     return this.client.get<Task[]>(`/api/tasks/pbi/${pbiId}`);
   }

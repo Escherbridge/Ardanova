@@ -6,10 +6,20 @@ import {
   publicProcedure,
 } from "~/server/api/trpc";
 import { apiClient } from "~/lib/api";
+import { runWithActorAssertion } from "~/server/actor-assertion";
 import {
   canCreateGuildOpportunity,
   canCreateProjectOpportunity,
 } from "~/server/api/lib/permissions";
+
+/** A public read that names the signed-in reader, so the API can show them their own drafts. */
+type Reader = { id?: string | null; role?: string } | null | undefined;
+
+/** Runs a read with the reader attached as the actor, or anonymously when signed out. */
+async function readAsViewer<T>(reader: Reader, call: () => Promise<T>): Promise<T> {
+  if (!reader?.id) return call();
+  return runWithActorAssertion({ subject: reader.id, role: reader.role }, call);
+}
 
 // Enum values are API-driven from the backend enum service — validated server-side
 
@@ -141,16 +151,18 @@ export const opportunityRouter = createTRPCRouter({
         sourceType: z.enum(["guild", "project"]).optional(),
       }),
     )
-    .query(async ({ input }) => {
-      const response = await apiClient.opportunities.search({
-        searchTerm: input.search,
-        type: input.type,
-        experienceLevel: input.experienceLevel,
-        skills: input.skill,
-        sourceType: input.sourceType,
-        page: input.page,
-        pageSize: input.limit,
-      });
+    .query(async ({ input, ctx }) => {
+      const response = await readAsViewer(ctx.session?.user, () =>
+        apiClient.opportunities.search({
+          searchTerm: input.search,
+          type: input.type,
+          experienceLevel: input.experienceLevel,
+          skills: input.skill,
+          sourceType: input.sourceType,
+          page: input.page,
+          pageSize: input.limit,
+        }),
+      );
 
       if (response.error) {
         throw new Error(response.error);
@@ -169,12 +181,17 @@ export const opportunityRouter = createTRPCRouter({
   // Get opportunity by ID or slug
   getById: publicProcedure
     .input(z.object({ id: z.string() }))
-    .query(async ({ input }) => {
-      let response = await apiClient.opportunities.getById(input.id);
+    .query(async ({ input, ctx }) => {
+      const reader = ctx.session?.user;
+      let response = await readAsViewer(reader, () =>
+        apiClient.opportunities.getById(input.id),
+      );
 
       // Fallback to slug lookup
       if (response.status === 404 || !response.data) {
-        response = await apiClient.opportunities.getBySlug(input.id);
+        response = await readAsViewer(reader, () =>
+          apiClient.opportunities.getBySlug(input.id),
+        );
       }
 
       if (!response.data) {
@@ -199,9 +216,9 @@ export const opportunityRouter = createTRPCRouter({
   // Get opportunities by guild ID
   getByGuildId: publicProcedure
     .input(z.object({ guildId: z.string() }))
-    .query(async ({ input }) => {
-      const response = await apiClient.opportunities.getByGuildId(
-        input.guildId,
+    .query(async ({ input, ctx }) => {
+      const response = await readAsViewer(ctx.session?.user, () =>
+        apiClient.opportunities.getByGuildId(input.guildId),
       );
 
       if (response.error) {
@@ -214,9 +231,9 @@ export const opportunityRouter = createTRPCRouter({
   // Get opportunities by project ID
   getByProjectId: publicProcedure
     .input(z.object({ projectId: z.string() }))
-    .query(async ({ input }) => {
-      const response = await apiClient.opportunities.getByProjectId(
-        input.projectId,
+    .query(async ({ input, ctx }) => {
+      const response = await readAsViewer(ctx.session?.user, () =>
+        apiClient.opportunities.getByProjectId(input.projectId),
       );
 
       if (response.error) {
@@ -290,7 +307,7 @@ export const opportunityRouter = createTRPCRouter({
       z.object({
         applicationId: z.string(),
         opportunityId: z.string(),
-        status: z.enum(["pending", "reviewing", "accepted", "rejected"]),
+        status: z.enum(["accepted", "rejected"]),
         reviewNotes: z.string().optional(),
       }),
     )
@@ -420,9 +437,9 @@ export const opportunityRouter = createTRPCRouter({
   // Get updates for an opportunity
   getUpdates: publicProcedure
     .input(z.object({ opportunityId: z.string() }))
-    .query(async ({ input }) => {
-      const response = await apiClient.opportunities.getUpdates(
-        input.opportunityId,
+    .query(async ({ input, ctx }) => {
+      const response = await readAsViewer(ctx.session?.user, () =>
+        apiClient.opportunities.getUpdates(input.opportunityId),
       );
 
       if (response.error) {
@@ -507,9 +524,9 @@ export const opportunityRouter = createTRPCRouter({
   // Get comments for an opportunity
   getComments: publicProcedure
     .input(z.object({ opportunityId: z.string() }))
-    .query(async ({ input }) => {
-      const response = await apiClient.opportunities.getComments(
-        input.opportunityId,
+    .query(async ({ input, ctx }) => {
+      const response = await readAsViewer(ctx.session?.user, () =>
+        apiClient.opportunities.getComments(input.opportunityId),
       );
 
       if (response.error) {

@@ -258,7 +258,7 @@ function ProjectEditFormFields({
       category === "OTHER" ? formData.otherCategory.trim() : category,
     );
 
-    void updateMutation.mutateAsync({
+    updateMutation.mutate({
       id: project.id,
       title: formData.title,
       description: formData.solution,

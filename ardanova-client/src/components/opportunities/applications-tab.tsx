@@ -31,14 +31,14 @@ interface ApplicationsTabProps {
 
 const statusColors: Record<string, string> = {
   pending: "bg-yellow-500/20 text-yellow-500 border-yellow-500/30",
-  reviewing: "bg-blue-500/20 text-blue-500 border-blue-500/30",
+  withdrawn: "bg-muted text-muted-foreground border-border",
   accepted: "bg-green-500/20 text-green-500 border-green-500/30",
   rejected: "bg-red-500/20 text-red-500 border-red-500/30",
 };
 
 const statusLabels: Record<string, string> = {
   pending: "Pending",
-  reviewing: "Reviewing",
+  withdrawn: "Withdrawn",
   accepted: "Accepted",
   rejected: "Rejected",
 };
@@ -112,12 +112,10 @@ export default function ApplicationsTab({
     },
   });
 
+  // A reviewer decides a PENDING application once: accept or reject. Withdrawing is the applicant's.
   const handleStatusChange = (applicationId: string, newStatus: string) => {
-    updateStatus.mutate({
-      applicationId,
-      opportunityId,
-      status: newStatus as "pending" | "reviewing" | "accepted" | "rejected",
-    });
+    if (newStatus !== "accepted" && newStatus !== "rejected") return;
+    updateStatus.mutate({ applicationId, opportunityId, status: newStatus });
   };
 
   if (!isOwner) {
@@ -246,7 +244,10 @@ export default function ApplicationsTab({
                 onValueChange={(value) =>
                   handleStatusChange(application.id, value)
                 }
-                disabled={updatingId === application.id}
+                disabled={
+                  updatingId === application.id ||
+                  (application.status?.toLowerCase() ?? "pending") !== "pending"
+                }
               >
                 <SelectTrigger className="w-[180px]">
                   {updatingId === application.id ? (
@@ -259,10 +260,14 @@ export default function ApplicationsTab({
                   )}
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="pending">Pending</SelectItem>
-                  <SelectItem value="reviewing">Reviewing</SelectItem>
-                  <SelectItem value="accepted">Accepted</SelectItem>
-                  <SelectItem value="rejected">Rejected</SelectItem>
+                  <SelectItem value="pending" disabled>
+                    Pending
+                  </SelectItem>
+                  <SelectItem value="accepted">Accept</SelectItem>
+                  <SelectItem value="rejected">Reject</SelectItem>
+                  <SelectItem value="withdrawn" disabled>
+                    Withdrawn
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
