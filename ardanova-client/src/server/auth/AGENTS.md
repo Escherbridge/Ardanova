@@ -2,15 +2,21 @@
 
 ## Real session authority
 
-`auth()` is the only session helper authorized for API routes, tRPC context, realtime endpoints, SDK routes, privileged layouts, ownership checks, or server-side data access. It always delegates to NextAuth.
+`auth()` is the only session helper authorized for API routes, tRPC context, realtime endpoints, SDK routes, privileged layouts, ownership checks, or server-side data access. It returns the NextAuth provider session, or — only when every development-preview guard passes and no provider session exists — the seeded preview identity described below. `providerAuth()` is the provider session alone; the sign-in page uses it so it stays reachable during a preview.
 
-## Development page preview
+## Development preview
 
-`authForPage()` may return a synthetic session only when all local-preview guards pass. Use it only to render non-privileged interface pages for local visual testing. A preview session must never authorize a query, mutation, realtime connection, ownership decision, or admin view.
+The preview is denied when `NODE_ENV` is not `development`, when Railway or Vercel hosted-runtime variables are present, and when `DEV_AUTH_BYPASS` is not exactly `true`. Production readiness (`src/lib/health/readiness.ts`) independently refuses any configured `DEV_AUTH_BYPASS`. Keep all layers.
 
-The preview is denied when `NODE_ENV` is not `development` and when Railway or Vercel hosted-runtime variables are present. Keep both layers: production denial prevents accidental deployment, while separation from `auth()` prevents a local preview from reaching real services as an authenticated identity.
+Data-capable preview identity: `auth()` returns a preview session only for the database row written by `scripts/seed-local-demo.ts` (`id = local-preview-user`, `email = preview@local.ardanova.test`); the seed itself is gated by `assertLocalDemoSeedAllowed`. Its claims (`name`, `role`, `userType`, `isVerified`, `verificationLevel`) are read from that row on every request exactly as a JWT refresh reads them, so the shell, the tRPC context, the client session, and the .NET API all agree on one subject. `protectedProcedure` signs actor assertions for it like any other user, so backend permissions still apply — the preview skips only the OAuth round trip, never authorization. This replaced the earlier split (page-only synthetic session, real `auth()` for data), which rendered a signed-in shell over a data layer that returned `UNAUTHORIZED` for every protected call.
 
-The preview user identifier intentionally has no corresponding database record. Data-backed controls should surface their normal unavailable or unauthorized state during preview rather than creating a special mutation path.
+Page-only fallback: on an unseeded database, `authForPage()` still returns a hard-coded synthetic session so pages render for visual QA, but `auth()` returns `null` and every data-backed control surfaces its normal unauthorized state. A synthetic identity with no row never authorizes anything.
+
+Client session parity: `handlers.GET` answers `/api/auth/session` with the seeded preview session when the guards pass and no provider cookie exists, so `useSession()` consumers outside `AuthenticatedLayout`'s seeded `SessionProvider` see the same subject.
+
+## User directory privacy
+
+`user.getAll`, `user.search`, `user.getById` and `user.getFollowingWithUsers` are browseable without sign-in or across users, so `routers/user.ts` projects every record through `toPublicUser`, which drops `email`, `emailVerified`, `phone`, `role` and `trustScore`. `getById` returns the full record only when the signed-in subject asks for their own id. The .NET `UserService.SearchAsync` matches name by substring but email only by exact, case-insensitive equality, so a substring query cannot enumerate addresses while an inviter who already knows an address can still find that person. `profile.getProfileById` lives in `routers/profile.ts` (another lane) and still needs the same projection.
 
 ## Authentication logs
 

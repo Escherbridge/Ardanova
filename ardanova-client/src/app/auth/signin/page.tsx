@@ -9,7 +9,7 @@ import {
   buildSignInHref,
   normalizeInternalCallbackUrl,
 } from "~/lib/auth-navigation";
-import { auth, signIn } from "~/server/auth";
+import { providerAuth, signIn } from "~/server/auth";
 
 export const metadata: Metadata = {
   title: "Sign in",
@@ -24,7 +24,7 @@ interface SignInPageProps {
 }
 
 export default async function SignInPage({ searchParams }: SignInPageProps) {
-  const session = await auth();
+  const session = await providerAuth();
   const { mode, callbackUrl: requestedCallbackUrl } = await searchParams;
   const isSignUp = mode === "signup";
   const callbackUrl = normalizeInternalCallbackUrl(requestedCallbackUrl);
