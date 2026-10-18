@@ -975,25 +975,36 @@ public class GovernanceService : IGovernanceService, IProposalVoteClosing
         return Result<IReadOnlyList<ProposalCommentDto>>.Success(result);
     }
 
+    /// <summary>The author may post only where they may read: a hidden proposal answers NotFound, exactly as its GET does. See Services/AGENTS.md §Governance visibility.</summary>
     public async Task<Result<ProposalCommentDto>> CreateProposalCommentAsync(CreateProposalCommentDto dto, CancellationToken ct = default)
     {
-        var proposal = await _proposalRepository.GetByIdAsync(dto.ProposalId, ct);
-        if (proposal is null)
-            return Result<ProposalCommentDto>.NotFound($"Proposal with id {dto.ProposalId} not found");
-
         if (string.IsNullOrWhiteSpace(dto.UserId))
             return Result<ProposalCommentDto>.Unauthorized("A comment must be written by a signed-in member");
 
-        if (string.IsNullOrWhiteSpace(dto.Content))
-            return Result<ProposalCommentDto>.ValidationError("Write something before posting a comment");
+        var author = await _userRepository.GetByIdAsync(dto.UserId, ct);
+        var viewer = new ProjectViewer(dto.UserId, author?.role == UserRole.ADMIN);
+        var proposalId = dto.ProposalId;
+        if (!VisibleProposals(viewer).Any(p => p.id == proposalId))
+            return Result<ProposalCommentDto>.NotFound($"Proposal with id {proposalId} not found");
+
+        var contentError = ValidateCommentContent(dto.Content);
+        if (contentError is not null)
+            return Result<ProposalCommentDto>.ValidationError(contentError);
+
+        if (!string.IsNullOrEmpty(dto.ParentId))
+        {
+            var parent = await _proposalCommentRepository.GetByIdAsync(dto.ParentId, ct);
+            if (parent is null || parent.proposalId != proposalId)
+                return Result<ProposalCommentDto>.ValidationError("That reply target is not a comment on this proposal");
+        }
 
         var comment = new ProposalComment
         {
             id = Guid.NewGuid().ToString(),
-            proposalId = dto.ProposalId,
+            proposalId = proposalId,
             userId = dto.UserId,
             content = dto.Content,
-            parentId = dto.ParentId,
+            parentId = string.IsNullOrEmpty(dto.ParentId) ? null : dto.ParentId,
             createdAt = DateTime.UtcNow,
             updatedAt = DateTime.UtcNow
         };
@@ -1001,14 +1012,25 @@ public class GovernanceService : IGovernanceService, IProposalVoteClosing
         await _proposalCommentRepository.AddAsync(comment, ct);
         await _unitOfWork.SaveChangesAsync(ct);
 
-        var user = await _userRepository.GetByIdAsync(dto.UserId, ct);
         var commentDto = _mapper.Map<ProposalCommentDto>(comment);
         commentDto = commentDto with
         {
-            User = user is not null ? _mapper.Map<ProposalCommentUserDto>(user) : null
+            User = author is not null ? _mapper.Map<ProposalCommentUserDto>(author) : null
         };
 
         return Result<ProposalCommentDto>.Success(commentDto);
+    }
+
+    /// <summary>The longest comment a proposal discussion stores; the column itself is unbounded text.</summary>
+    public const int MaxCommentLength = 10_000;
+
+    private static string? ValidateCommentContent(string? content)
+    {
+        if (string.IsNullOrWhiteSpace(content))
+            return "Write something before posting a comment";
+        return content.Length > MaxCommentLength
+            ? $"A comment can be at most {MaxCommentLength:N0} characters"
+            : null;
     }
 
     public async Task<Result<ProposalCommentDto>> UpdateProposalCommentAsync(
@@ -1022,7 +1044,11 @@ public class GovernanceService : IGovernanceService, IProposalVoteClosing
         if (comment is null || comment.proposalId != proposalId)
             return Result<ProposalCommentDto>.NotFound("Comment not found");
         if (comment.userId != userId)
-            return Result<ProposalCommentDto>.ValidationError("Only the author can update this comment");
+            return Result<ProposalCommentDto>.Forbidden("Only the author can update this comment");
+
+        var contentError = ValidateCommentContent(dto.Content);
+        if (contentError is not null)
+            return Result<ProposalCommentDto>.ValidationError(contentError);
 
         comment.content = dto.Content;
         comment.updatedAt = DateTime.UtcNow;
@@ -1048,7 +1074,7 @@ public class GovernanceService : IGovernanceService, IProposalVoteClosing
         if (comment is null || comment.proposalId != proposalId)
             return Result<bool>.NotFound("Comment not found");
         if (comment.userId != userId)
-            return Result<bool>.ValidationError("Only the author can delete this comment");
+            return Result<bool>.Forbidden("Only the author can delete this comment");
 
         await _proposalCommentRepository.DeleteAsync(comment, ct);
         await _unitOfWork.SaveChangesAsync(ct);

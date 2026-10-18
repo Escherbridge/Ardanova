@@ -277,6 +277,56 @@ public class GuildAuthorityFlowTests
         directory.Value!.Should().ContainSingle().Which.ProjectsCount.Should().Be(1);
     }
 
+    [Fact]
+    public async Task A_second_review_another_request_stores_first_is_already_reviewed_and_the_rating_counts_it_once()
+    {
+        _unitOfWork.Unique(_reviews, r => (r.guildId, r.userId));
+        var projects = new InMemoryRepository<Project>();
+        var mapper = new MapperConfiguration(cfg => cfg.AddProfile<MappingProfile>()).CreateMapper();
+        var guildService = new GuildService(_guilds, _members, _tasks, _unitOfWork, mapper, projects, _reviews);
+        var guild = await Found(Alice, "Roofers");
+
+        // Carol's other tab posts a 2-star review after this request found none.
+        _reviews.AfterExists = () =>
+        {
+            _reviews.AfterExists = null;
+            _reviews.Rows.Add(new GuildReview { id = "concurrent", guildId = guild.Id, userId = "carol", rating = 2, createdAt = DateTime.UtcNow });
+        };
+        var raced = await _reviewService.CreateAsync(guild.Id, Carol, new CreateGuildReviewDto { Rating = 5 });
+        var bobs = await _reviewService.CreateAsync(guild.Id, Bob, new CreateGuildReviewDto { Rating = 4 });
+
+        raced.Type.Should().Be(ResultType.Conflict);
+        _reviews.Rows.Where(r => r.userId == "carol").Should().ContainSingle().Which.id.Should().Be("concurrent");
+        bobs.IsSuccess.Should().BeTrue(bobs.Error);
+
+        // A stale stored aggregate is never what a reader sees.
+        _guilds.Rows.Single().reviewsCount = 7;
+        _guilds.Rows.Single().rating = 1m;
+        var detail = await guildService.GetByIdAsync(guild.Id);
+        detail.Value!.ReviewsCount.Should().Be(2);
+        detail.Value.Rating.Should().Be(3m);
+    }
+
+    [Fact]
+    public async Task A_review_can_only_name_a_project_of_the_reviewers_that_the_guild_was_assigned_to()
+    {
+        var projects = new InMemoryRepository<Project>();
+        var reviewService = new GuildReviewService(_reviews, _guilds, _members, _unitOfWork, projects);
+        var guild = await Found(Alice, "Roofers");
+        projects.Rows.Add(new Project { id = "carols-roof", title = "Carol's roof", slug = "carols-roof", createdById = "carol", assignedGuildId = guild.Id });
+        projects.Rows.Add(new Project { id = "bobs-shed", title = "Bob's shed", slug = "bobs-shed", createdById = "bob", assignedGuildId = guild.Id });
+        projects.Rows.Add(new Project { id = "carols-other", title = "Unassigned", slug = "carols-other", createdById = "carol" });
+
+        var someoneElsesProject = await reviewService.CreateAsync(guild.Id, Carol, new CreateGuildReviewDto { Rating = 1, ProjectId = "bobs-shed" });
+        var unassignedProject = await reviewService.CreateAsync(guild.Id, Carol, new CreateGuildReviewDto { Rating = 1, ProjectId = "carols-other" });
+        var genuine = await reviewService.CreateAsync(guild.Id, Carol, new CreateGuildReviewDto { Rating = 5, ProjectId = "carols-roof" });
+
+        someoneElsesProject.Type.Should().Be(ResultType.ValidationError);
+        unassignedProject.Type.Should().Be(ResultType.ValidationError);
+        genuine.IsSuccess.Should().BeTrue(genuine.Error);
+        _reviews.Rows.Should().ContainSingle().Which.projectId.Should().Be("carols-roof");
+    }
+
     private async Task<GuildMemberDto> AddMember(string guildId, GuildActor by, string userId, GuildMemberRole role)
     {
         var result = await _memberService.CreateAsync(guildId, by, new CreateGuildMemberDto { UserId = userId, Role = role });

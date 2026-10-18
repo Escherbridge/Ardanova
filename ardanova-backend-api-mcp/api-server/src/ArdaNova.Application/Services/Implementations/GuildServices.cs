@@ -70,8 +70,8 @@ internal static class GuildAuthority
         return true;
     }
 
-    /// <summary>The (guildId, userId) unique index refused a second membership row: a concurrent request added this person first.</summary>
-    public static bool IsDuplicateMembership(DbUpdateException failure) =>
+    /// <summary>A (guildId, userId) unique index (membership or review) refused a second row: a concurrent request stored this person first.</summary>
+    public static bool IsDuplicateGuildUserRow(DbUpdateException failure) =>
         failure.InnerException is DbException { SqlState: "23505" };
 
     public const string GrantableRolesMessage = "Role must be one of ADMIN, MANAGER, MEMBER or APPRENTICE";
@@ -83,6 +83,7 @@ public class GuildService : IGuildService
     private readonly IRepository<GuildMember> _memberRepository;
     private readonly IRepository<ProjectTask> _taskRepository;
     private readonly IRepository<Project>? _projectRepository;
+    private readonly IRepository<GuildReview>? _reviewRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IMapper _mapper;
 
@@ -92,31 +93,57 @@ public class GuildService : IGuildService
         IRepository<ProjectTask> taskRepository,
         IUnitOfWork unitOfWork,
         IMapper mapper,
-        IRepository<Project>? projectRepository = null)
+        IRepository<Project>? projectRepository = null,
+        IRepository<GuildReview>? reviewRepository = null)
     {
         _repository = repository;
         _memberRepository = memberRepository;
         _taskRepository = taskRepository;
         _projectRepository = projectRepository;
+        _reviewRepository = reviewRepository;
         _unitOfWork = unitOfWork;
         _mapper = mapper;
     }
 
-    /// <summary>ProjectsCount is counted from the projects actually assigned to each guild, never read from the stored counter nothing maintains.</summary>
+    /// <summary>ProjectsCount, ReviewsCount and Rating are counted from the rows themselves, never read from stored counters that concurrent writes can leave stale.</summary>
     private async Task<IReadOnlyList<GuildDto>> WithProjectCountsAsync(IReadOnlyList<GuildDto> guilds, CancellationToken ct)
     {
         if (guilds.Count == 0)
             return guilds;
-        if (_projectRepository is null)
-            return guilds.Select(g => g with { ProjectsCount = 0 }).ToList();
 
         var guildIds = guilds.Select(g => g.Id).ToList();
-        var assigned = await _projectRepository.FindProjectedAsync(
-            p => p.assignedGuildId != null && guildIds.Contains(p.assignedGuildId),
-            p => p.assignedGuildId!,
-            ct);
-        var counts = assigned.GroupBy(id => id).ToDictionary(g => g.Key, g => g.Count());
-        return guilds.Select(g => g with { ProjectsCount = counts.GetValueOrDefault(g.Id) }).ToList();
+        var projectCounts = new Dictionary<string, int>();
+        if (_projectRepository is not null)
+        {
+            var assigned = await _projectRepository.FindProjectedAsync(
+                p => p.assignedGuildId != null && guildIds.Contains(p.assignedGuildId),
+                p => p.assignedGuildId!,
+                ct);
+            projectCounts = assigned.GroupBy(id => id).ToDictionary(g => g.Key, g => g.Count());
+        }
+
+        Dictionary<string, List<int>>? ratings = null;
+        if (_reviewRepository is not null)
+        {
+            var reviews = await _reviewRepository.FindProjectedAsync(
+                r => guildIds.Contains(r.guildId),
+                r => new { r.guildId, r.rating },
+                ct);
+            ratings = reviews.GroupBy(r => r.guildId).ToDictionary(g => g.Key, g => g.Select(r => r.rating).ToList());
+        }
+
+        return guilds.Select(g =>
+        {
+            var derived = g with { ProjectsCount = g.Id is null ? 0 : projectCounts.GetValueOrDefault(g.Id) };
+            if (ratings is null || g.Id is null)
+                return derived;
+            var guildRatings = ratings.GetValueOrDefault(g.Id);
+            return derived with
+            {
+                ReviewsCount = guildRatings?.Count ?? 0,
+                Rating = guildRatings is { Count: > 0 } ? (decimal)guildRatings.Sum() / guildRatings.Count : null
+            };
+        }).ToList();
     }
 
     private async Task<GuildDto> WithProjectCountAsync(GuildDto guild, CancellationToken ct)
@@ -377,7 +404,7 @@ public class GuildMemberService : IGuildMemberService
         {
             await _unitOfWork.SaveChangesAsync(ct);
         }
-        catch (DbUpdateException failure) when (GuildAuthority.IsDuplicateMembership(failure))
+        catch (DbUpdateException failure) when (GuildAuthority.IsDuplicateGuildUserRow(failure))
         {
             _unitOfWork.ClearTrackedChanges();
             return Result<GuildMemberDto>.Conflict("That person is already a member of this guild");
@@ -456,17 +483,20 @@ public class GuildReviewService : IGuildReviewService
     private readonly IRepository<Guild> _guildRepository;
     private readonly IRepository<GuildMember> _memberRepository;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IRepository<Project>? _projectRepository;
 
     public GuildReviewService(
         IRepository<GuildReview> repository,
         IRepository<Guild> guildRepository,
         IRepository<GuildMember> memberRepository,
-        IUnitOfWork unitOfWork)
+        IUnitOfWork unitOfWork,
+        IRepository<Project>? projectRepository = null)
     {
         _repository = repository;
         _guildRepository = guildRepository;
         _memberRepository = memberRepository;
         _unitOfWork = unitOfWork;
+        _projectRepository = projectRepository;
     }
 
     private static GuildReviewDto ToDto(GuildReview review) => new()
@@ -500,7 +530,7 @@ public class GuildReviewService : IGuildReviewService
         return Result<IReadOnlyList<GuildReviewDto>>.Success(reviews.Select(ToDto).ToList());
     }
 
-    /// <summary>One review per person per guild, never by the guild's own members.</summary>
+    /// <summary>One review per person per guild, never by the guild's own members; the (guildId, userId) unique index settles a race. See Services/AGENTS.md §Guild reviews.</summary>
     public async Task<Result<GuildReviewDto>> CreateAsync(string guildId, GuildActor actor, CreateGuildReviewDto dto, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(actor.Id))
@@ -516,8 +546,11 @@ public class GuildReviewService : IGuildReviewService
         if (await GuildAuthority.IsMemberAsync(guild, reviewerId, _memberRepository, ct))
             return Result<GuildReviewDto>.Forbidden("Members cannot review their own guild");
 
+        if (!string.IsNullOrEmpty(dto.ProjectId) && !await IsReviewersProjectWithGuildAsync(dto.ProjectId, guildId, reviewerId, ct))
+            return Result<GuildReviewDto>.ValidationError("A review can only name a project of yours that this guild was assigned to");
+
         if (await _repository.ExistsAsync(r => r.guildId == guildId && r.userId == reviewerId, ct))
-            return Result<GuildReviewDto>.Conflict("You have already reviewed this guild");
+            return Result<GuildReviewDto>.Conflict(AlreadyReviewed);
 
         var review = new GuildReview
         {
@@ -526,18 +559,38 @@ public class GuildReviewService : IGuildReviewService
             userId = reviewerId,
             rating = dto.Rating,
             comment = dto.Comment,
-            projectId = dto.ProjectId,
+            projectId = string.IsNullOrEmpty(dto.ProjectId) ? null : dto.ProjectId,
             createdAt = DateTime.UtcNow
         };
 
-        var existing = await _repository.FindAsync(r => r.guildId == guildId, ct);
         await _repository.AddAsync(review, ct);
-        guild.reviewsCount = existing.Count + 1;
-        guild.rating = (decimal)(existing.Sum(r => r.rating) + dto.Rating) / (existing.Count + 1);
-        await _guildRepository.UpdateAsync(guild, ct);
+        try
+        {
+            await _unitOfWork.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException failure) when (GuildAuthority.IsDuplicateGuildUserRow(failure))
+        {
+            _unitOfWork.ClearTrackedChanges();
+            return Result<GuildReviewDto>.Conflict(AlreadyReviewed);
+        }
 
+        // Recounted from the stored rows after the insert, so a concurrent review is included rather than overwritten.
+        await RecalculateAsync(guildId, ct);
         await _unitOfWork.SaveChangesAsync(ct);
         return Result<GuildReviewDto>.Success(ToDto(review));
+    }
+
+    private const string AlreadyReviewed = "You have already reviewed this guild";
+
+    /// <summary>The named project exists, the guild was assigned to it, and the reviewer created it.</summary>
+    private async Task<bool> IsReviewersProjectWithGuildAsync(string projectId, string guildId, string reviewerId, CancellationToken ct)
+    {
+        if (_projectRepository is null)
+            return false;
+        var project = await _projectRepository.GetByIdAsync(projectId, ct);
+        return project is not null
+            && project.assignedGuildId == guildId
+            && project.createdById == reviewerId;
     }
 
     public async Task<Result<GuildReviewDto>> UpdateAsync(string guildId, string id, GuildActor actor, UpdateGuildReviewDto dto, CancellationToken ct = default)
@@ -829,7 +882,7 @@ public class GuildApplicationService : IGuildApplicationService
         {
             await _unitOfWork.SaveChangesAsync(ct);
         }
-        catch (DbUpdateException failure) when (GuildAuthority.IsDuplicateMembership(failure))
+        catch (DbUpdateException failure) when (GuildAuthority.IsDuplicateGuildUserRow(failure))
         {
             _unitOfWork.ClearTrackedChanges();
             return Result<GuildApplicationDto>.Conflict("User is already a member of this guild");
@@ -1085,7 +1138,7 @@ public class GuildInvitationService : IGuildInvitationService
         {
             await _unitOfWork.SaveChangesAsync(ct);
         }
-        catch (DbUpdateException failure) when (GuildAuthority.IsDuplicateMembership(failure))
+        catch (DbUpdateException failure) when (GuildAuthority.IsDuplicateGuildUserRow(failure))
         {
             _unitOfWork.ClearTrackedChanges();
             return Result<GuildInvitationDto>.Conflict("You are already a member of this guild");

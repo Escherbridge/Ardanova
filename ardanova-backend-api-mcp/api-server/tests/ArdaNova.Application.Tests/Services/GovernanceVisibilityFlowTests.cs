@@ -140,4 +140,51 @@ public class GovernanceVisibilityFlowTests
         thread.Value!.Should().ContainSingle()
             .Which.Content.Should().Be("Should we use white membrane?");
     }
+    [Fact]
+    public async Task Only_someone_who_may_read_a_proposal_may_write_into_its_discussion()
+    {
+        _users.Rows.Add(new User { id = "platform-admin", email = "admin@example.test", name = "Admin", role = UserRole.ADMIN });
+
+        var outsiderOnDraft = await _sut.CreateProposalCommentAsync(Comment("members-draft", "outsider", "Injected into a private draft"));
+        var outsiderOnHiddenProject = await _sut.CreateProposalCommentAsync(Comment("hidden-project-vote", "outsider", "Injected into a private project"));
+        var outsiderOnOpenVote = await _sut.CreateProposalCommentAsync(Comment("open-vote", "outsider", "A public question"));
+        var founderOnDraft = await _sut.CreateProposalCommentAsync(Comment("members-draft", "founder", "Reviewing before it opens"));
+        var adminOnHiddenProject = await _sut.CreateProposalCommentAsync(Comment("hidden-project-vote", "platform-admin", "Moderation note"));
+
+        outsiderOnDraft.Type.Should().Be(ResultType.NotFound, "a write must not reveal or reach a proposal the reader cannot see");
+        outsiderOnHiddenProject.Type.Should().Be(ResultType.NotFound);
+        outsiderOnOpenVote.IsSuccess.Should().BeTrue(outsiderOnOpenVote.Error);
+        founderOnDraft.IsSuccess.Should().BeTrue(founderOnDraft.Error);
+        adminOnHiddenProject.IsSuccess.Should().BeTrue(adminOnHiddenProject.Error);
+        _comments.Rows.Should().NotContain(c => c.userId == "outsider" && c.proposalId != "open-vote");
+    }
+
+    [Fact]
+    public async Task A_reply_must_thread_under_a_comment_on_the_same_proposal_and_stay_within_the_length_limit()
+    {
+        var onDraft = await _sut.CreateProposalCommentAsync(Comment("members-draft", "member", "Private thread"));
+        var crossThreaded = await _sut.CreateProposalCommentAsync(Comment("open-vote", "member", "Reply", parentId: onDraft.Value!.Id));
+        var missingParent = await _sut.CreateProposalCommentAsync(Comment("open-vote", "member", "Reply", parentId: "no-such-comment"));
+        var oversized = await _sut.CreateProposalCommentAsync(Comment("open-vote", "member", new string('x', GovernanceService.MaxCommentLength + 1)));
+        var top = await _sut.CreateProposalCommentAsync(Comment("open-vote", "member", "Top"));
+        var reply = await _sut.CreateProposalCommentAsync(Comment("open-vote", "founder", "Reply", parentId: top.Value!.Id));
+        var oversizedEdit = await _sut.UpdateProposalCommentAsync("open-vote", top.Value.Id, "member", new UpdateProposalCommentDto { Content = new string('x', GovernanceService.MaxCommentLength + 1) });
+        var othersEdit = await _sut.UpdateProposalCommentAsync("open-vote", top.Value.Id, "founder", new UpdateProposalCommentDto { Content = "Rewritten" });
+        var othersDelete = await _sut.DeleteProposalCommentAsync("open-vote", top.Value.Id, "founder");
+
+        crossThreaded.Type.Should().Be(ResultType.ValidationError);
+        missingParent.Type.Should().Be(ResultType.ValidationError);
+        oversized.Type.Should().Be(ResultType.ValidationError);
+        reply.IsSuccess.Should().BeTrue(reply.Error);
+        oversizedEdit.Type.Should().Be(ResultType.ValidationError);
+        othersEdit.Type.Should().Be(ResultType.Forbidden);
+        othersDelete.Type.Should().Be(ResultType.Forbidden);
+
+        var thread = await _sut.GetProposalCommentsAsync("open-vote");
+        thread.Value!.Should().ContainSingle().Which.Should().Match<ProposalCommentDto>(c =>
+            c.Content == "Top" && c.Replies!.Single().Content == "Reply");
+    }
+
+    private static CreateProposalCommentDto Comment(string proposalId, string userId, string content, string? parentId = null)
+        => new() { ProposalId = proposalId, UserId = userId, Content = content, ParentId = parentId };
 }

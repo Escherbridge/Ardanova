@@ -32,10 +32,24 @@ ownership checks.
   admit or add themselves into a second, lesser row.
 - **Concurrent joins are settled by the `(guildId, userId)` unique index.** The existence checks
   are not atomic; a 23505 on save becomes the same "already a member" Conflict
-  (`GuildAuthority.IsDuplicateMembership`), mirroring the ballot index below.
-- **`ProjectsCount` is counted, not stored.** Nothing maintains `Guild.projectsCount`, so
-  `GuildService` reads count the projects whose `assignedGuildId` is the guild.
-- Members cannot review their own guild; one review per person per guild.
+  (`GuildAuthority.IsDuplicateGuildUserRow`), mirroring the ballot index below.
+- **`ProjectsCount`, `ReviewsCount` and `Rating` are counted, not stored.** Nothing maintains
+  `Guild.projectsCount`, and the stored `rating`/`reviewsCount` were a read-modify-write that two
+  concurrent reviews left wrong, so `GuildService` reads derive all three from the rows
+  (`assignedGuildId` projects; `GuildReview` ratings). The stored columns are still recounted after
+  each review write, best effort, for any raw-SQL reader.
+
+### Guild reviews
+
+- Members cannot review their own guild; one review per person per guild, enforced by the
+  `GuildReview (guildId, userId)` unique index (migration
+  `20261018120000_guild_review_one_per_reviewer`, which also removes pre-existing duplicates). A
+  23505 on save is the same "already reviewed" Conflict as the pre-check.
+- A review may name a `projectId` only when that project exists, was assigned to this guild, and
+  was created by the reviewer; anything else is a ValidationError, so a review cannot claim a
+  working relationship that never existed. Reviews without a project are still accepted: requiring
+  a real engagement before anyone may review is a product decision tracked in
+  `conductor/tracks/guild-review-integrity_20261018`.
 - `VerifyAsync` (the verified badge) is gated on the admin API key in the controller.
 - Guild child DTOs are mapped by hand in the service (there are no AutoMapper maps for
   invitations, applications, updates or follows); member reads carry name/image, never email.
@@ -57,6 +71,19 @@ confirmed members with a two-ballot floor, outcome resolved from the tally.
   `EligibleMembers`, `VotesNeededForQuorum`, `QuorumReached` and per-choice counts from
   `TallyAsync`; clients display these and never recompute quorum.
 - Closing early vs. cancelling: see the `ProposalCloseAuthority` remarks in `GovernanceServices.cs`.
+  Both close routes (`PATCH /api/Governance/proposals/{id}/close` and
+  `POST /api/projects/{pid}/proposals/{id}/close`) prove the closer runs the project and then call
+  `IProposalVoteClosing.CloseVoteAsync` with `ProjectAuthority`. The governance route used to go
+  through the generic update seam, which carries `Unattributed` and therefore refused every early
+  close, even a legitimate manager's.
+- **Writing into a discussion requires reading it.** `CreateProposalCommentAsync` resolves the
+  author's `ProjectViewer` (admin from the stored user role) and answers NotFound unless the
+  proposal is in `VisibleProposals` for them, so neither comment route can post into a DRAFT or a
+  private project's proposal the author cannot GET. Visibility is the only bar: anyone who can read
+  a published proposal may discuss it (voting, unlike commenting, still requires membership).
+  A reply's `parentId` must be a comment on the same proposal (otherwise a ValidationError, not an
+  opaque FK 400), and content is capped at `MaxCommentLength` (10,000 characters) on create and
+  edit. Editing or deleting someone else's comment is Forbidden (403), not a 400.
 - **Route-bound request fields.** `CreateProposalCommentDto.ProposalId`/`UserId` are not
   `required`: the client posts `{content, parentId}` and the controller fills both from the route
   and the actor. A C# `required` member makes System.Text.Json reject a body that omits it, so
