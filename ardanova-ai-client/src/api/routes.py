@@ -7,13 +7,15 @@ Each endpoint delegates to a LangGraph workflow.
 
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
+
+from .auth import require_service_key
 
 from ..workflows.pitch_generation import deck_only_graph, pitch_generation_graph
 from ..workflows.project_analysis import project_analysis_graph
 
-router = APIRouter(prefix="/api/agent", tags=["agent"])
+router = APIRouter(prefix="/api/agent", tags=["agent"], dependencies=[Depends(require_service_key)])
 
 
 class ProjectAnalysisRequest(BaseModel):

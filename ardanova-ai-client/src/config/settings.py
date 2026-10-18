@@ -19,6 +19,9 @@ class Settings(BaseSettings):
     # API Key for backend
     api_key: str = ""
 
+    # Key callers must send as X-Api-Key; empty refuses every agent route (fail closed)
+    inbound_api_key: str = ""
+
     # Server
     port: int = 8081
     debug: bool = False
