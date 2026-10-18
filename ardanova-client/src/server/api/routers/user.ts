@@ -1,6 +1,27 @@
 import { z } from "zod";
 import { createTRPCRouter, protectedProcedure, publicProcedure } from "~/server/api/trpc";
 import { apiClient } from "~/lib/api";
+import type { User } from "~/lib/api/ardanova/endpoints/users";
+
+const privateUserFields = [
+  "email",
+  "emailVerified",
+  "phone",
+  "role",
+  "trustScore",
+] as const;
+
+/** A user as anyone may see them; contact and authority fields belong to the user alone. */
+export type PublicUser = Omit<User, (typeof privateUserFields)[number]> & {
+  email?: string;
+};
+
+/** Strips contact and authority fields; see `src/server/auth/AGENTS.md` §User directory privacy. */
+export function toPublicUser(user: User): PublicUser {
+  const projected: Partial<User> = { ...user };
+  for (const field of privateUserFields) delete projected[field];
+  return projected as PublicUser;
+}
 
 export const userRouter = createTRPCRouter({
   // Get all users with pagination
@@ -17,7 +38,7 @@ export const userRouter = createTRPCRouter({
         throw new Error(response.error);
       }
       return {
-        items: response.data?.items ?? [],
+        items: (response.data?.items ?? []).map(toPublicUser),
         nextCursor: response.data?.hasNextPage ? String(input.page + 1) : undefined,
         totalCount: response.data?.totalCount,
         totalPages: response.data?.totalPages,
@@ -39,20 +60,22 @@ export const userRouter = createTRPCRouter({
         throw new Error(response.error);
       }
       return {
-        items: response.data?.items ?? [],
+        items: (response.data?.items ?? []).map(toPublicUser),
         totalCount: response.data?.totalCount,
       };
     }),
 
-  // Get user by ID
+  // Get user by ID; the full record only for the signed-in user themself
   getById: publicProcedure
     .input(z.object({ id: z.string() }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }): Promise<User | PublicUser> => {
       const response = await apiClient.users.getById(input.id);
       if (response.error || !response.data) {
         throw new Error(response.error ?? "User not found");
       }
-      return response.data;
+      return ctx.session?.user.id === response.data.id
+        ? response.data
+        : toPublicUser(response.data);
     }),
 
   // Follow a user
@@ -115,7 +138,7 @@ export const userRouter = createTRPCRouter({
         follows.map(async (follow) => {
           const userResp = await apiClient.users.getById(follow.followingId);
           if (userResp.error || !userResp.data) return null;
-          return userResp.data;
+          return toPublicUser(userResp.data);
         })
       );
 
