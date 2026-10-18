@@ -41,3 +41,19 @@ exceptions because they authenticate with a provider signature and the signed
 hub handshake respectively; neither exception makes its downstream actions
 anonymous. A service-key principal satisfies only the fallback, not actor or
 admin policies.
+
+## Denial status codes
+
+The middleware above builds every identity, so no ASP.NET authentication scheme
+was ever registered. With no scheme, every `Forbid()`, every `Challenge()` and
+every `[Authorize]` policy failure threw `InvalidOperationException` ("No
+authenticationScheme was specified"), and `ExceptionHandlingMiddleware` turned
+that into HTTP 400 with the framework message. Callers could not tell "not
+allowed" from "bad input".
+
+`StatusCodeAuthenticationHandler` is the default scheme only so that denials get
+the right answer: a challenge writes 401 and a forbid writes 403, both as
+`{ error, statusCode }` JSON. Its authenticate step always returns `NoResult`,
+so it can never create or replace an identity. The authentication middleware
+that ASP.NET adds automatically runs it before the API-key middleware, and it
+changes nothing. Do not add identity logic to this handler.
