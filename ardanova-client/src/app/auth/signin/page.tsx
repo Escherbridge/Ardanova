@@ -188,6 +188,24 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
             to this ArdaNova workspace. Creating an account and signing in use
             the same secure provider flow.
           </p>
+          <p className="mt-3 text-xs leading-relaxed text-[#aaa59f]">
+            {isSignUp ? "By creating an account" : "By continuing"} you agree to
+            the{" "}
+            <Link
+              className="underline underline-offset-2 hover:text-[#f6f0eb]"
+              href="/terms"
+            >
+              Terms of use
+            </Link>{" "}
+            and{" "}
+            <Link
+              className="underline underline-offset-2 hover:text-[#f6f0eb]"
+              href="/privacy"
+            >
+              Privacy notice
+            </Link>
+            .
+          </p>
 
           <div className="mt-6 border border-[#f6f0eb]/25 p-4">
             <div className="flex gap-3">
