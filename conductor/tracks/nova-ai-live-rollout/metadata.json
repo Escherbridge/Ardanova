@@ -1,0 +1,12 @@
+{
+  "id": "nova-ai-live-rollout",
+  "title": "Nova AI live rollout: first real end-to-end run against OVERSEASGENAI",
+  "type": "chore",
+  "status": "proposed",
+  "created": "2026-10-18",
+  "depends_on": ["nova-ai-ogai-partner"],
+  "external": {
+    "overseasgenai": { "branch": "partner/ardanova-nova", "head": "2d70a4f", "pushed": false, "deployed": false }
+  },
+  "partitions": { "confidence": "none" }
+}
