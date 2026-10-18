@@ -46,7 +46,7 @@ const TaskStatus = z.enum([
 
 // Task creation input schema
 const createTaskSchema = z.object({
-  title: z.string().min(1, "Task title is required"),
+  title: z.string().trim().min(1, "Task title is required").max(200),
   description: z.string().optional(),
   type: TaskType,
   priority: TaskPriority.default("MEDIUM"),
@@ -67,7 +67,7 @@ const createTaskSchema = z.object({
 const updateTaskSchema = z
   .object({
     id: z.string(),
-    title: z.string().min(1).optional(),
+    title: z.string().trim().min(1).max(200).optional(),
     description: z.string().optional(),
     type: TaskType.optional(),
     priority: TaskPriority.optional(),

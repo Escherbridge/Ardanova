@@ -198,7 +198,7 @@ public sealed class ProjectMemberValueBoundaryTests
         IProjectService? projects = null)
         => new(
             projects ?? new Mock<IProjectService>(MockBehavior.Strict).Object,
-            new Mock<IProjectVisibility>(MockBehavior.Strict).Object,
+            PublishedProjectOne(),
             new Mock<IProjectResourceService>(MockBehavior.Strict).Object,
             new Mock<IProjectMilestoneService>(MockBehavior.Strict).Object,
             members,
@@ -211,6 +211,15 @@ public sealed class ProjectMemberValueBoundaryTests
             new Mock<IProjectInvitationService>(MockBehavior.Strict).Object,
             hierarchy ?? new Mock<IHierarchyAuthorizationService>(MockBehavior.Strict).Object,
             new Mock<IMembershipCredentialService>(MockBehavior.Strict).Object);
+
+    /// <summary>project-1 is visible to everyone, so a refusal there stays a 403 rather than a hidden-project 404.</summary>
+    private static IProjectVisibility PublishedProjectOne()
+    {
+        var visibility = new Mock<IProjectVisibility>(MockBehavior.Strict);
+        visibility.Setup(v => v.GetVisibleByIdAsync(It.IsAny<ProjectViewer>(), "project-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<ProjectDto>.Success(new ProjectDto { Id = "project-1" }));
+        return visibility.Object;
+    }
 
     private static T WithActor<T>(T controller, string actorId)
         where T : ControllerBase

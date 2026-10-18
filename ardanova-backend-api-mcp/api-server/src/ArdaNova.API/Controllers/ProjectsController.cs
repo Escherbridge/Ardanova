@@ -172,7 +172,7 @@ public class ProjectsController : ControllerBase
         if (!project.IsSuccess)
             return ToActionResult(project);
         if (!await CanManageProjectAsync(project.Value!.Id, ct))
-            return Forbid();
+            return await HiddenOrRefusedAsync(project.Value.Id, Forbid(), ct);
 
         var result = await _projectService.UpdateAsync(id, dto, ct);
         return ToActionResult(result);
@@ -187,9 +187,11 @@ public class ProjectsController : ControllerBase
             return ToActionResult(project);
         var standing = await ActorStandingAsync(project.Value!, ct);
         if (ProjectMemberRolePolicy.RefuseProjectDelete(IsAdmin, standing) is { } refusal)
-            return MemberAuthorityRefused(refusal);
+            return await HiddenOrRefusedAsync(id, MemberAuthorityRefused(refusal), ct);
 
         var result = await _projectService.DeleteAsync(id, ct);
+        if (result.Type == ResultType.Conflict)
+            return Conflict(new { error = result.Error });
         return result.IsSuccess ? NoContent() : ToActionResult(result);
     }
 
@@ -203,7 +205,7 @@ public class ProjectsController : ControllerBase
         if (!project.IsSuccess)
             return ToActionResult(project);
         if (!await CanManageProjectAsync(project.Value!.Id, ct))
-            return Forbid();
+            return await HiddenOrRefusedAsync(project.Value.Id, Forbid(), ct);
 
         var result = await _projectService.PublishAsync(id, ct);
         return ToActionResult(result);
@@ -265,7 +267,7 @@ public class ProjectsController : ControllerBase
         if (!string.Equals(resource.Value!.ProjectId, projectId, StringComparison.Ordinal))
             return NotFound(new { error = "Resource not found in the routed project" });
         if (!await CanManageProjectAsync(projectId, ct))
-            return Forbid();
+            return await HiddenOrRefusedAsync(projectId, Forbid(), ct);
 
         var result = await _resourceService.UpdateAsync(resourceId, dto, ct);
         return ToActionResult(result);
@@ -281,7 +283,7 @@ public class ProjectsController : ControllerBase
         if (!string.Equals(resource.Value!.ProjectId, projectId, StringComparison.Ordinal))
             return NotFound(new { error = "Resource not found in the routed project" });
         if (!await CanManageProjectAsync(projectId, ct))
-            return Forbid();
+            return await HiddenOrRefusedAsync(projectId, Forbid(), ct);
 
         var result = await _resourceService.DeleteAsync(resourceId, ct);
         return result.IsSuccess ? NoContent() : ToActionResult(result);
@@ -297,7 +299,7 @@ public class ProjectsController : ControllerBase
         if (!string.Equals(resource.Value!.ProjectId, projectId, StringComparison.Ordinal))
             return NotFound(new { error = "Resource not found in the routed project" });
         if (!await CanManageProjectAsync(projectId, ct))
-            return Forbid();
+            return await HiddenOrRefusedAsync(projectId, Forbid(), ct);
 
         var result = await _resourceService.MarkObtainedAsync(resourceId, obtained, ct);
         return ToActionResult(result);
@@ -379,6 +381,8 @@ public class ProjectsController : ControllerBase
             return hidden;
 
         var result = await _memberService.GetByProjectIdAsync(projectId, ct);
+        if (result.IsSuccess && !await ViewerManagesProjectAsync(projectId, ct))
+            return Ok(result.Value!.Select(WithoutEmail).ToList());
         return ToActionResult(result);
     }
 
@@ -389,6 +393,10 @@ public class ProjectsController : ControllerBase
             return hidden;
 
         var result = await _memberService.GetByIdAsync(memberId, ct);
+        if (result.IsSuccess && !string.Equals(result.Value!.ProjectId, projectId, StringComparison.Ordinal))
+            return NotFound(new { error = $"Member with id {memberId} not found" });
+        if (result.IsSuccess && !await ViewerManagesProjectAsync(projectId, ct))
+            return Ok(WithoutEmail(result.Value!));
         return ToActionResult(result);
     }
 
@@ -400,7 +408,7 @@ public class ProjectsController : ControllerBase
         if (!project.IsSuccess)
             return ToActionResult(project);
         if (ProjectMemberRolePolicy.RefuseAdd(ActorId, IsAdmin, project.Value!.CreatedById, dto.UserId, dto.Role) is { } refusal)
-            return MemberAuthorityRefused(refusal);
+            return await HiddenOrRefusedAsync(projectId, MemberAuthorityRefused(refusal), ct);
 
         var dtoWithProject = dto with { ProjectId = projectId, InvitedById = ActorId };
         var result = await _memberService.CreateAsync(dtoWithProject, ct);
@@ -431,7 +439,7 @@ public class ProjectsController : ControllerBase
         if (!string.Equals(member.Value!.ProjectId, projectId, StringComparison.Ordinal))
             return NotFound(new { error = "Member not found in the routed project" });
         if (!await CanManageProjectAsync(projectId, ct))
-            return Forbid();
+            return await HiddenOrRefusedAsync(projectId, Forbid(), ct);
         if (dto.Role is { } requestedRole)
         {
             var project = await _projectService.GetByIdAsync(projectId, ct);
@@ -458,7 +466,7 @@ public class ProjectsController : ControllerBase
             return NotFound(new { error = "Member not found in the routed project" });
         var leaving = string.Equals(member.Value.UserId, ActorId, StringComparison.Ordinal);
         if (!leaving && !await CanManageProjectAsync(projectId, ct))
-            return Forbid();
+            return await HiddenOrRefusedAsync(projectId, Forbid(), ct);
         var project = await _projectService.GetByIdAsync(projectId, ct);
         if (!project.IsSuccess)
             return ToActionResult(project);
@@ -724,6 +732,18 @@ public class ProjectsController : ControllerBase
             ? null
             : ProposalNotInProject();
     }
+
+    /// <summary>The refusal, unless the project is hidden from this viewer: then the same 404 a missing project gets.</summary>
+    private async Task<IActionResult> HiddenOrRefusedAsync(string projectId, IActionResult refusal, CancellationToken ct)
+        => await ProjectNotVisibleAsync(projectId, ct) ?? refusal;
+
+    /// <summary>True for an admin or a project manager; anonymous and plain viewers are not.</summary>
+    private async Task<bool> ViewerManagesProjectAsync(string projectId, CancellationToken ct)
+        => Viewer.UserId is not null && await CanManageProjectAsync(projectId, ct);
+
+    /// <summary>A member row with the contact email removed, for viewers who do not manage the project.</summary>
+    private static ProjectMemberDto WithoutEmail(ProjectMemberDto member)
+        => member.User is null ? member : member with { User = member.User with { Email = null } };
 
     private NotFoundObjectResult ProposalNotInProject() =>
         NotFound(new { error = "Proposal not found in the routed project" });

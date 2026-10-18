@@ -57,24 +57,49 @@ public class OpportunityService : IOpportunityService
     public const string ReviewerMayOnlyAcceptOrReject =
         "A reviewer can accept or reject an application; only the applicant can withdraw it.";
 
-    /// <summary>Hiring finishes here: an accepted project-role applicant becomes a project member in the same save.</summary>
-    private async Task SeatAcceptedApplicantAsync(OpportunityApplication application, CancellationToken ct)
+    /// <summary>Why an apply or accept was refused: the applicant already holds the offered rank, or a higher one, on this project.</summary>
+    public const string ApplicantAlreadyHoldsRole =
+        "The applicant already holds this role, or a higher one, on this project.";
+
+    /// <summary>Refuses a project-role hire the applicant would gain nothing from; see Services/Implementations/AGENTS.md §Hiring an existing member.</summary>
+    private async Task<string?> RefuseHireOfHeldRankAsync(Opportunity opportunity, string applicantId, CancellationToken ct)
     {
-        var opportunity = await _repository.GetByIdAsync(application.opportunityId, ct);
-        if (opportunity?.projectId is not { } projectId)
+        if (opportunity.projectId is not { } projectId)
+            return null;
+
+        var project = await _projectRepository.GetByIdAsync(projectId, ct);
+        var membership = await _memberRepository.FindOneAsync(
+            member => member.projectId == projectId && member.userId == applicantId, ct);
+        var held = ProjectMemberRolePolicy.EffectiveRole(applicantId, project?.createdById ?? string.Empty, membership?.role);
+        return held is { } heldRole &&
+               ProjectMemberRolePolicy.Rank(heldRole) >= ProjectMemberRolePolicy.Rank(ProjectMemberRolePolicy.SeatedRole(opportunity.projectRole))
+            ? ApplicantAlreadyHoldsRole
+            : null;
+    }
+
+    /// <summary>Hiring finishes here: an accepted project-role applicant is seated, or promoted to the offered role, in the same save.</summary>
+    private async Task SeatAcceptedApplicantAsync(Opportunity opportunity, OpportunityApplication application, CancellationToken ct)
+    {
+        if (opportunity.projectId is not { } projectId)
             return;
 
-        var alreadyMember = await _memberRepository.FindOneAsync(
+        var seatedRole = ProjectMemberRolePolicy.SeatedRole(opportunity.projectRole);
+        var existing = await _memberRepository.FindOneAsync(
             member => member.projectId == projectId && member.userId == application.applicantId, ct);
-        if (alreadyMember is not null)
+        if (existing is not null)
+        {
+            // RefuseHireOfHeldRankAsync ran first, so an existing row here always ranks below the offer.
+            existing.role = seatedRole;
+            await _memberRepository.UpdateAsync(existing, ct);
             return;
+        }
 
         await _memberRepository.AddAsync(new ProjectMember
         {
             id = Guid.NewGuid().ToString(),
             projectId = projectId,
             userId = application.applicantId,
-            role = ProjectMemberRolePolicy.SeatedRole(opportunity.projectRole),
+            role = seatedRole,
             shareBalance = 0,
             votingPower = 0,
             joinedAt = DateTime.UtcNow,
@@ -384,6 +409,9 @@ public class OpportunityService : IOpportunityService
         if (existingApplication is not null)
             return Result<OpportunityApplicationDto>.ValidationError("User has already applied to this opportunity");
 
+        if (await RefuseHireOfHeldRankAsync(opportunity, dto.ApplicantId, ct) is { } heldOnApply)
+            return Result<OpportunityApplicationDto>.ValidationError(heldOnApply);
+
         if (opportunity.maxApplications.HasValue && opportunity.applicationsCount >= opportunity.maxApplications.Value)
             return Result<OpportunityApplicationDto>.ValidationError("Opportunity has reached maximum applications");
 
@@ -461,13 +489,19 @@ public class OpportunityService : IOpportunityService
         if (dto.Status is not (ApplicationStatus.ACCEPTED or ApplicationStatus.REJECTED))
             return Result<OpportunityApplicationDto>.ValidationError(ReviewerMayOnlyAcceptOrReject);
 
+        var opportunity = await _repository.GetByIdAsync(application.opportunityId, ct);
+        // Decided before the application is touched: ACCEPTED must always mean the role was seated.
+        if (dto.Status == ApplicationStatus.ACCEPTED && opportunity is not null &&
+            await RefuseHireOfHeldRankAsync(opportunity, application.applicantId, ct) is { } heldOnAccept)
+            return Result<OpportunityApplicationDto>.ValidationError(heldOnAccept);
+
         application.status = dto.Status;
         application.reviewNotes = dto.ReviewNotes;
         application.reviewedAt = DateTime.UtcNow;
 
         await _applicationRepository.UpdateAsync(application, ct);
-        if (dto.Status == ApplicationStatus.ACCEPTED)
-            await SeatAcceptedApplicantAsync(application, ct);
+        if (dto.Status == ApplicationStatus.ACCEPTED && opportunity is not null)
+            await SeatAcceptedApplicantAsync(opportunity, application, ct);
         await _unitOfWork.SaveChangesAsync(ct);
 
         var applicationDto = _mapper.Map<OpportunityApplicationDto>(application);

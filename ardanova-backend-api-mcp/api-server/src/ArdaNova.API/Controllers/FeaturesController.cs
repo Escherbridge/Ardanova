@@ -50,7 +50,7 @@ public class FeaturesController : ControllerBase
     [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
     public async Task<IActionResult> Create([FromBody] CreateFeatureDto dto, CancellationToken ct)
     {
-        var sprint = await _sprintService.GetByIdAsync(dto.SprintId, ct);
+        var sprint = await GetVisibleSprintAsync(dto.SprintId, ct);
         if (!sprint.IsSuccess)
             return ToActionResult(sprint);
         if (!await HasValidSprintAncestryAsync(sprint.Value!, ct))
@@ -72,7 +72,7 @@ public class FeaturesController : ControllerBase
     [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
     public async Task<IActionResult> Update(string id, [FromBody] UpdateFeatureDto dto, CancellationToken ct)
     {
-        var feature = await _featureService.GetByIdAsync(id, ct);
+        var feature = await GetVisibleFeatureAsync(id, ct);
         if (!feature.IsSuccess)
             return ToActionResult(feature);
         if (!await HasValidFeatureAncestryAsync(feature.Value!, ct))
@@ -91,7 +91,7 @@ public class FeaturesController : ControllerBase
     [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
     public async Task<IActionResult> Delete(string id, CancellationToken ct)
     {
-        var feature = await _featureService.GetByIdAsync(id, ct);
+        var feature = await GetVisibleFeatureAsync(id, ct);
         if (!feature.IsSuccess)
             return ToActionResult(feature);
         if (!await HasValidFeatureAncestryAsync(feature.Value!, ct))
@@ -107,7 +107,7 @@ public class FeaturesController : ControllerBase
     [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
     public async Task<IActionResult> Assign(string id, [FromBody] AssignFeatureDto dto, CancellationToken ct)
     {
-        var feature = await _featureService.GetByIdAsync(id, ct);
+        var feature = await GetVisibleFeatureAsync(id, ct);
         if (!feature.IsSuccess)
             return ToActionResult(feature);
         if (!await HasValidFeatureAncestryAsync(feature.Value!, ct))
@@ -126,7 +126,7 @@ public class FeaturesController : ControllerBase
     [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
     public async Task<IActionResult> UpdateStatus(string id, [FromBody] UpdateFeatureStatusDto dto, CancellationToken ct)
     {
-        var feature = await _featureService.GetByIdAsync(id, ct);
+        var feature = await GetVisibleFeatureAsync(id, ct);
         if (!feature.IsSuccess)
             return ToActionResult(feature);
         if (!await HasValidFeatureAncestryAsync(feature.Value!, ct))
@@ -142,7 +142,7 @@ public class FeaturesController : ControllerBase
     [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
     public async Task<IActionResult> UpdatePriority(string id, [FromBody] UpdateFeaturePriorityDto dto, CancellationToken ct)
     {
-        var feature = await _featureService.GetByIdAsync(id, ct);
+        var feature = await GetVisibleFeatureAsync(id, ct);
         if (!feature.IsSuccess)
             return ToActionResult(feature);
         if (!await HasValidFeatureAncestryAsync(feature.Value!, ct))
@@ -152,6 +152,24 @@ public class FeaturesController : ControllerBase
 
         var result = await _featureService.UpdatePriorityAsync(id, dto.Priority, ct);
         return ToActionResult(result);
+    }
+
+    /// <summary>The feature, or the same NotFound a missing one gets when its project is hidden from this viewer.</summary>
+    private async Task<Result<FeatureDto>> GetVisibleFeatureAsync(string id, CancellationToken ct)
+    {
+        var item = await _featureService.GetByIdAsync(id, ct);
+        return item.IsSuccess && !await _projectVisibility.IsVisibleAsync(Viewer, item.Value!.ProjectId, ct)
+            ? Result<FeatureDto>.NotFound($"Feature with id {id} not found")
+            : item;
+    }
+
+    /// <summary>The parent sprint, or the same NotFound a missing one gets when its project is hidden from this viewer.</summary>
+    private async Task<Result<SprintDto>> GetVisibleSprintAsync(string id, CancellationToken ct)
+    {
+        var item = await _sprintService.GetByIdAsync(id, ct);
+        return item.IsSuccess && !await _projectVisibility.IsVisibleAsync(Viewer, item.Value!.ProjectId, ct)
+            ? Result<SprintDto>.NotFound($"Sprint with id {id} not found")
+            : item;
     }
 
     private string ActorId => User.FindFirstValue(ClaimTypes.NameIdentifier)!;
