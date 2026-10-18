@@ -7,7 +7,7 @@ import { Button } from "~/components/ui/button";
 import { buildSignInHref } from "~/lib/auth-navigation";
 import { cn } from "~/lib/utils";
 
-import { describeQueryError } from "./query-error-copy";
+import { describeMutationError, describeQueryError } from "./query-error-copy";
 
 /** Honest-failure card for a failed query (extracted from the chats inbox pattern). See `src/components/ui/AGENTS.md` §query-error-state. */
 export function QueryErrorState({
@@ -49,5 +49,30 @@ export function QueryErrorState({
         </Button>
       ) : null}
     </div>
+  );
+}
+
+/** Inline notice for a failed mutation; never renders the raw error message. See `src/components/ui/AGENTS.md` §mutation-error. */
+export function MutationErrorNotice({
+  error,
+  action,
+  className,
+}: {
+  error: unknown;
+  /** Verb phrase completing "We couldn't …", e.g. "create the PBI". */
+  action: string;
+  className?: string;
+}) {
+  if (!error) return null;
+  return (
+    <p
+      className={cn(
+        "border-destructive bg-destructive/10 text-foreground border-2 p-3 text-sm leading-6",
+        className,
+      )}
+      role="alert"
+    >
+      {describeMutationError(error, action)}
+    </p>
   );
 }

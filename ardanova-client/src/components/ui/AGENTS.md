@@ -25,6 +25,31 @@ empty state or an indefinite "Loading…".
   permission failures surface immediately instead of after three retries plus
   backoff (~8s of "Loading…").
 
+## mutation-error
+
+`describeMutationError(error, action)` and `<MutationErrorNotice>` are the
+write-side twin of `describeQueryError`. They exist because a failed tRPC
+input check arrives with `error.message` set to the stringified Zod issue array.
+Rendering `{mutation.error.message}` is how `/tasks/create` showed users
+`[{"received":"URGENT","code":"invalid_enum_value",...}]`.
+
+- Zod failures read `data.zodError.fieldErrors` (shaped by the errorFormatter
+  in `server/api/trpc.ts`) and name the fields in plain words: "We couldn't
+  create the PBI: check the priority field. Nothing was saved."
+- Author-written `TRPCError` messages (FORBIDDEN / CONFLICT / BAD_REQUEST) are
+  passed through when they look like prose. JSON, multi-line text and
+  stack-like text never are. `INTERNAL_SERVER_ERROR` always gets the generic
+  service sentence, because routers re-throw raw .NET `response.error` strings
+  there.
+- Every sentence ends "Nothing was saved." This is the portfolio page's honest
+  failure voice (`app/portfolio/page.tsx`, "This is not a zero balance"), so
+  users never have to guess whether a write half-landed.
+- `action` completes "We couldn't …", for example "create the PBI", "cast your
+  vote" or "request the withdrawal".
+- `src/styles/design-gate.test.ts` caps the number of `{…error.message}` JSX
+  expressions in `src/`. Migrating a site lowers the ceiling. Adding one fails
+  the test.
+
 ## status-page
 
 `components/brand/status-page.tsx` renders the public-shell header and a
