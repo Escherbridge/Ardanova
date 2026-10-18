@@ -98,8 +98,8 @@ function declarationsFrom(start: number): Map<string, string> {
   const body = globalsCss.slice(start, globalsCss.indexOf("\n}", start));
   return new Map(
     [...body.matchAll(/(--[a-z0-9-]+)\s*:\s*([^;]+);/g)].map((match) => [
-      match[1]!,
-      match[2]!.trim(),
+      match[1],
+      match[2].trim(),
     ]),
   );
 }
@@ -107,7 +107,9 @@ function declarationsFrom(start: number): Map<string, string> {
 /** Custom properties of one top-level theme block (`:root`, `.dark`, `.public-shell`). */
 function cssBlock(selector: string): Map<string, string> {
   const escaped = selector.replace(/[.]/g, "\\.");
-  return declarationsFrom(globalsCss.search(new RegExp(`^${escaped}\\s*\\{`, "m")));
+  return declarationsFrom(
+    globalsCss.search(new RegExp(`^${escaped}\\s*\\{`, "m")),
+  );
 }
 
 const themeInline = declarationsFrom(globalsCss.indexOf("@theme inline"));
@@ -119,12 +121,14 @@ function resolveColor(value: string, theme: Map<string, string>): string {
   for (let depth = 0; depth < 10; depth++) {
     const reference = /^var\((--[a-z0-9-]+)\)$/.exec(current);
     if (!reference) break;
-    const name = reference[1]!;
+    const name = reference[1];
     current =
       theme.get(name) ?? rootTheme.get(name) ?? themeInline.get(name) ?? "";
   }
   if (!/^#[0-9a-f]{6}$/i.test(current)) {
-    throw new Error(`${value} did not resolve to a hex colour (got "${current}")`);
+    throw new Error(
+      `${value} did not resolve to a hex colour (got "${current}")`,
+    );
   }
   return current;
 }
@@ -137,14 +141,14 @@ function luminance(hex: string): number {
       ? channel / 12.92
       : ((channel + 0.055) / 1.055) ** 2.4;
   });
-  return 0.2126 * red! + 0.7152 * green! + 0.0722 * blue!;
+  return 0.2126 * red + 0.7152 * green + 0.0722 * blue;
 }
 
 function contrast(first: string, second: string): number {
   const [lighter, darker] = [luminance(first), luminance(second)].sort(
     (a, b) => b - a,
   );
-  return (lighter! + 0.05) / (darker! + 0.05);
+  return (lighter + 0.05) / (darker + 0.05);
 }
 
 /** `fill` at `alpha` composited over `base`, as `bg-X/20` renders. */
@@ -169,9 +173,9 @@ function textToken(name: string): string {
 }
 
 const themeColors = new Set(
-  [
-    ...globalsCss.matchAll(/--color-([a-z0-9-]+)\s*:/g),
-  ].map((match) => match[1]),
+  [...globalsCss.matchAll(/--color-([a-z0-9-]+)\s*:/g)].map(
+    (match) => match[1],
+  ),
 );
 
 describe("design tokens", () => {
@@ -236,7 +240,11 @@ describe("design tokens", () => {
       .filter(({ relative }) => {
         const page = path.join(SRC, relative);
         if (hasTitle(page)) return false;
-        for (let dir = path.dirname(page); dir !== app; dir = path.dirname(dir)) {
+        for (
+          let dir = path.dirname(page);
+          dir !== app;
+          dir = path.dirname(dir)
+        ) {
           if (hasTitle(path.join(dir, "layout.tsx"))) return false;
         }
         return true;
@@ -274,13 +282,13 @@ describe("token contrast (WCAG AA)", () => {
         check(`text-${accent} on surface ${i}`, text, surface),
       );
       for (const alpha of [0.1, 0.2]) {
-        for (const base of surfaces.slice(0, 2)) {
+        surfaces.forEach((base, i) =>
           check(
-            `text-${accent} on bg-${accent}/${alpha * 100}`,
+            `text-${accent} on bg-${accent}/${alpha * 100} over surface ${i}`,
             text,
             tint(fill, base, alpha),
-          );
-        }
+          ),
+        );
       }
     }
     for (const accent of FILL_PAIRS) {

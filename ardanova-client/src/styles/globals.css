@@ -89,6 +89,7 @@
   --text-color-system: var(--system-text);
   --text-color-neon: var(--system-text);
   --text-color-neon-cyan: var(--system-text);
+  --text-color-neon-purple: var(--purple-text);
   --text-color-success: var(--success-text);
   --text-color-neon-green: var(--success-text);
   --text-color-warning: var(--warning-text);
@@ -138,11 +139,12 @@
   --border: #87817a;
   --input: #87817a;
   --ring: #117b88;
-  --primary-text: #a32b23;
-  --system-text: #0b5f69;
+  --primary-text: #962820;
+  --system-text: #0b5c66;
   --success-text: #1d5a43;
   --warning-text: #6b4a00;
-  --destructive-text: #a32b23;
+  --destructive-text: #962820;
+  --purple-text: #574688;
 
   /* Legacy aliases; pink is the text-safe deep red, purple is distinct from cyan. See src/styles/AGENTS.md §neon-aliases. */
   --neon-cyan: var(--system);
@@ -200,6 +202,7 @@
   --success-text: var(--success);
   --warning-text: var(--warning);
   --destructive-text: #ff8b80;
+  --purple-text: var(--chart-5);
 
   --neon-cyan: var(--system);
   --neon-pink: var(--primary);
@@ -251,11 +254,12 @@
   --border: #87817a;
   --input: #87817a;
   --ring: #117b88;
-  --primary-text: #a32b23;
-  --system-text: #0b5f69;
+  --primary-text: #962820;
+  --system-text: #0b5c66;
   --success-text: #1d5a43;
   --warning-text: #6b4a00;
-  --destructive-text: #a32b23;
+  --destructive-text: #962820;
+  --purple-text: #574688;
   --neon-cyan: var(--system);
   --neon-pink: #b8322a;
   --neon-green: var(--success);

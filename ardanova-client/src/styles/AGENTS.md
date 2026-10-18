@@ -37,15 +37,17 @@ darkened every brand fill. Instead the theme splits text from fill:
 - Tailwind v4 resolves `text-X` from `--text-color-X` before `--color-X`
   (`themeKeys: ["--text-color", "--color"]` in tailwindcss 4.1). The
   `@theme inline` block maps `--text-color-{primary,destructive,system,
-  success,warning}` and their `neon-*` aliases to `--{accent}-text`. `bg-*`,
+success,warning}` and their `neon-*` aliases to `--{accent}-text`. `bg-*`,
   `border-*` and `fill-*` still read `--color-X`, so fills keep the brand hue.
 - `--primary-text` and the other text tokens are set per theme block. In light
-  themes they are darker (`#a32b23`, `#0b5f69`, `#1d5a43`, `#6b4a00`). In
-  `.dark` only red changes, to `#ff8b80`; the other dark accents already
-  passed.
+  themes they are darker (`#962820`, `#0b5c66`, `#1d5a43`, `#6b4a00`, and
+  `--purple-text` `#574688` for `neon-purple`). In `.dark` only red changes,
+  to `#ff8b80`; the other dark accents already passed. Red, teal and purple
+  were darkened again at loop3 integration, when the gate started tinting
+  over `muted` too (badges sit on muted rows): they read 4.13-4.47 there.
 - The `token contrast (WCAG AA)` gate recomputes every pair from `globals.css`:
   text on background, card and muted surfaces, text on its own 10% and 20%
-  tint, and solid `X-foreground` on `X`. A new accent or a retuned hex that
+  tint over each of those three surfaces, and solid `X-foreground` on `X`. A new accent or a retuned hex that
   fails 4.5:1 turns the suite red.
 - `text-primary-foreground` and other `-foreground` keys are separate theme
   keys and are unaffected.
