@@ -159,6 +159,27 @@ application seats a CONTRIBUTOR because its role title is applicant-written; an 
 manager-chosen `projectRole`, never FOUNDER. A project application is refused from the creator, an
 existing member, or a user who already has a PENDING one.
 
+## Hiring an existing member
+
+An accepted opportunity application must leave the applicant holding the offered role. When the
+applicant is already a member ranked *below* the offer, accepting promotes their existing row in the
+same save (one membership per user per project; the reviewer already passed `RefuseRoleOffer`, so the
+promotion is never above the reviewer's own rank). When the applicant already holds the offered rank
+or a higher one (the creator always ranks as FOUNDER), both `ApplyAsync` and the ACCEPT are refused
+with `ApplicantAlreadyHoldsRole` and the application stays PENDING. Before this, the accept returned
+ACCEPTED while the member silently kept their old role, and a stale lower-role accept could have
+demoted them.
+
+# Project delete
+
+The database restricts deleting a project that still has children (every FK to `Project` is
+`ON DELETE RESTRICT`), and `ExceptionHandlingMiddleware` hides that foreign-key error behind a
+generic 400. `ProjectService.DeleteAsync` therefore refuses up front with a 409 and
+`ProjectHasPlannedWork` when the project has any task or milestone. Every epic, sprint, feature
+and PBI hangs off a milestone, so those two checks cover the whole plan. A project with history
+should be moved to CANCELLED instead. Deleting stays meant for an empty project, for example the
+create page rolling back a project whose creation failed halfway.
+
 # Task assignment
 
 `TaskService.AssignAsync` is the only write of `assignedToId` after creation. It refuses once an
@@ -207,3 +228,11 @@ call `ProjectVisibilityExtensions.IsVisibleAsync` before returning anything. Thi
 parent) returns the same 404 body as a missing item. An empty 200 list would also reveal that the
 hidden project exists. The tRPC `publicProcedure` attaches the signed-in actor, so a draft project's
 own team can still read its backlog.
+
+Writes follow the same rule. The epic, sprint and feature write routes, and the creates that load a
+parent milestone, epic or sprint, load the item through a `GetVisible*Async` helper in the
+controller. A hidden item answers with the missing item's 404 before any ancestry or permission
+check runs. `ProjectsController` applies the same rule through `HiddenOrRefusedAsync`. This covers
+project update, publish and delete, adding, changing and removing members, and resource writes. A
+refusal on a hidden project becomes the missing project's 404, so a 403 only ever confirms a project
+the caller can already see.

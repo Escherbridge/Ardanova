@@ -274,19 +274,29 @@ public static class ProjectLifecycle
 
 public class ProjectService : IProjectService, IProjectVisibility
 {
+    /// <summary>Why a delete was refused: planned work hangs off the project; see Services/Implementations/AGENTS.md §Project delete.</summary>
+    public const string ProjectHasPlannedWork =
+        "This project has milestones or tasks, so it cannot be deleted. Set its status to CANCELLED instead.";
+
     private readonly IProjectRepository _repository;
     private readonly IRepository<User> _userRepository;
+    private readonly IRepository<ProjectTask> _taskRepository;
+    private readonly IRepository<ProjectMilestone> _milestoneRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IMapper _mapper;
 
     public ProjectService(
         IProjectRepository repository,
         IRepository<User> userRepository,
+        IRepository<ProjectTask> taskRepository,
+        IRepository<ProjectMilestone> milestoneRepository,
         IUnitOfWork unitOfWork,
         IMapper mapper)
     {
         _repository = repository;
         _userRepository = userRepository;
+        _taskRepository = taskRepository;
+        _milestoneRepository = milestoneRepository;
         _unitOfWork = unitOfWork;
         _mapper = mapper;
     }
@@ -592,6 +602,11 @@ public class ProjectService : IProjectService, IProjectVisibility
         if (project is null)
             return Result<bool>.NotFound($"Project with id {id} not found");
 
+        // Epics, sprints, features and PBIs all hang off a milestone, so these two cover the whole plan.
+        if (await _taskRepository.ExistsAsync(task => task.projectId == id, ct) ||
+            await _milestoneRepository.ExistsAsync(milestone => milestone.projectId == id, ct))
+            return Result<bool>.Conflict(ProjectHasPlannedWork);
+
         await _repository.DeleteAsync(project, ct);
         await _unitOfWork.SaveChangesAsync(ct);
         return Result<bool>.Success(true);
@@ -811,8 +826,8 @@ public class ProjectTaskService : IProjectTaskService
             return Result<ProjectTaskDto>.NotFound($"Task with id {id} not found");
 
         task.status = status;
-        if (status == TaskStatus.COMPLETED)
-            task.completedAt = DateTime.UtcNow;
+        // Stamped once on COMPLETED and cleared on reopen, the same rule TaskService follows.
+        task.completedAt = status == TaskStatus.COMPLETED ? task.completedAt ?? DateTime.UtcNow : null;
         task.updatedAt = DateTime.UtcNow;
 
         await _repository.UpdateAsync(task, ct);

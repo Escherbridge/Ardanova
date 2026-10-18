@@ -27,6 +27,31 @@ public class TaskService : ITaskService
     /// <summary>Why a task was refused: a blank title leaves an unlabeled card on the board.</summary>
     public const string TaskTitleRequired = "A task needs a title.";
 
+    /// <summary>Longest task title the board accepts.</summary>
+    public const int TaskTitleMaxLength = 200;
+
+    /// <summary>Why a task was refused: the title would not fit a board card.</summary>
+    public static readonly string TaskTitleTooLong = $"A task title can be at most {TaskTitleMaxLength} characters.";
+
+    /// <summary>Why a task was refused: hours of work cannot be negative.</summary>
+    public const string TaskHoursNegative = "Estimated and actual hours cannot be negative.";
+
+    /// <summary>The first problem with a task's title or hours, or null when they are usable.</summary>
+    private static string? DescribeInvalidTaskFields(string? title, bool titleSupplied, int? estimatedHours, int? actualHours)
+    {
+        if (titleSupplied && string.IsNullOrWhiteSpace(title))
+            return TaskTitleRequired;
+        if (title is not null && title.Trim().Length > TaskTitleMaxLength)
+            return TaskTitleTooLong;
+        if (estimatedHours is < 0 || actualHours is < 0)
+            return TaskHoursNegative;
+        return null;
+    }
+
+    /// <summary>completedAt follows the status: stamped once on COMPLETED, cleared when the task is reopened.</summary>
+    private static void StampCompletion(ProjectTask task)
+        => task.completedAt = task.status == TaskStatus.COMPLETED ? task.completedAt ?? DateTime.UtcNow : null;
+
     private readonly IRepository<ProjectTask> _repository;
     private readonly IRepository<User> _userRepository;
     private readonly IRepository<Project> _projectRepository;
@@ -145,8 +170,8 @@ public class TaskService : ITaskService
 
     public async Task<Result<TaskDto>> CreateAsync(CreateTaskDto dto, CancellationToken ct = default)
     {
-        if (string.IsNullOrWhiteSpace(dto.Title))
-            return Result<TaskDto>.ValidationError(TaskTitleRequired);
+        if (DescribeInvalidTaskFields(dto.Title, true, dto.EstimatedHours, null) is { } createRefusal)
+            return Result<TaskDto>.ValidationError(createRefusal);
 
         var project = await _projectRepository.GetByIdAsync(dto.ProjectId, ct);
         if (project is null)
@@ -188,8 +213,8 @@ public class TaskService : ITaskService
         var task = await _repository.GetByIdAsync(id, ct);
         if (task is null)
             return Result<TaskDto>.NotFound($"Task with id {id} not found");
-        if (dto.Title is not null && string.IsNullOrWhiteSpace(dto.Title))
-            return Result<TaskDto>.ValidationError(TaskTitleRequired);
+        if (DescribeInvalidTaskFields(dto.Title, dto.Title is not null, dto.EstimatedHours, dto.ActualHours) is { } updateRefusal)
+            return Result<TaskDto>.ValidationError(updateRefusal);
 
         // The award collapse: one award figure of record per task. Once a bid has been
         // accepted the agreement owns it and the units behind it are already set aside on the
@@ -212,9 +237,7 @@ public class TaskService : ITaskService
         if (dto.ActualHours.HasValue) task.actualHours = dto.ActualHours;
         if (dto.DueDate.HasValue) task.dueDate = dto.DueDate;
         task.updatedAt = DateTime.UtcNow;
-
-        if (dto.Status == TaskStatus.COMPLETED && task.completedAt == null)
-            task.completedAt = DateTime.UtcNow;
+        StampCompletion(task);
 
         await _repository.UpdateAsync(task, ct);
         await _unitOfWork.SaveChangesAsync(ct);
@@ -231,9 +254,7 @@ public class TaskService : ITaskService
 
         task.status = status;
         task.updatedAt = DateTime.UtcNow;
-
-        if (status == TaskStatus.COMPLETED && task.completedAt == null)
-            task.completedAt = DateTime.UtcNow;
+        StampCompletion(task);
 
         await _repository.UpdateAsync(task, ct);
         await _unitOfWork.SaveChangesAsync(ct);

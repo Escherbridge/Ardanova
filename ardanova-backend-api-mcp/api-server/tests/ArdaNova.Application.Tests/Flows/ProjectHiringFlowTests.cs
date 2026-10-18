@@ -333,6 +333,129 @@ public class ProjectHiringFlowTests
         _tasks.Items.Single(task => task.id == "task-public").assignedToId.Should().BeNull();
     }
 
+    /// <summary>Internal promotion: an existing member hired into a higher role holds that role afterwards, in one row.</summary>
+    [Fact]
+    public async Task AcceptingAMembersApplicationForAHigherRole_PromotesThem()
+    {
+        _members.Add(new ProjectMember
+        {
+            id = "member-row",
+            projectId = PublishedProjectId,
+            userId = Applicant,
+            role = ProjectRole.CONTRIBUTOR,
+            joinedAt = DateTime.UtcNow
+        });
+        _opportunities.Add(NewOpportunity("lead-role", PublishedProjectId, OpportunityStatus.OPEN, ProjectRole.LEADER));
+        var applied = await _opportunityService.ApplyAsync("lead-role", new ApplyToOpportunityDto
+        {
+            ApplicantId = Applicant,
+            CoverLetter = "I have run the survey crew for a season."
+        });
+
+        var accepted = await _opportunityService.UpdateApplicationStatusAsync(
+            applied.Value!.Id, new UpdateApplicationStatusDto { Status = ApplicationStatus.ACCEPTED });
+
+        accepted.Value!.Status.Should().Be(ApplicationStatus.ACCEPTED);
+        _members.Items.Should().ContainSingle(member => member.userId == Applicant)
+            .Which.role.Should().Be(ProjectRole.LEADER);
+    }
+
+    /// <summary>ACCEPTED always means the role was seated: a hire the applicant already outranks is refused, never a silent no-op or a demotion.</summary>
+    [Fact]
+    public async Task AHireTheApplicantAlreadyOutranks_IsRefused_OnApplyAndOnAccept()
+    {
+        _opportunities.Add(NewOpportunity("contributor-role", PublishedProjectId, OpportunityStatus.OPEN, ProjectRole.CONTRIBUTOR));
+        _opportunities.Add(NewOpportunity("core-role", PublishedProjectId, OpportunityStatus.OPEN, ProjectRole.CORE_CONTRIBUTOR));
+        var lowerApplication = await _opportunityService.ApplyAsync("contributor-role", new ApplyToOpportunityDto { ApplicantId = Applicant, CoverLetter = "Hi" });
+        var higherApplication = await _opportunityService.ApplyAsync("core-role", new ApplyToOpportunityDto { ApplicantId = Applicant, CoverLetter = "Hi" });
+        await _opportunityService.UpdateApplicationStatusAsync(
+            higherApplication.Value!.Id, new UpdateApplicationStatusDto { Status = ApplicationStatus.ACCEPTED });
+
+        var staleAccept = await _opportunityService.UpdateApplicationStatusAsync(
+            lowerApplication.Value!.Id, new UpdateApplicationStatusDto { Status = ApplicationStatus.ACCEPTED });
+        _opportunities.Add(NewOpportunity("another-contributor-role", PublishedProjectId, OpportunityStatus.OPEN, ProjectRole.CONTRIBUTOR));
+        var lateApply = await _opportunityService.ApplyAsync("another-contributor-role", new ApplyToOpportunityDto { ApplicantId = Applicant, CoverLetter = "Hi" });
+        var founderApply = await _opportunityService.ApplyAsync("core-role", new ApplyToOpportunityDto { ApplicantId = Founder, CoverLetter = "Hi" });
+
+        staleAccept.Error.Should().Be(OpportunityService.ApplicantAlreadyHoldsRole);
+        lateApply.Error.Should().Be(OpportunityService.ApplicantAlreadyHoldsRole);
+        founderApply.Error.Should().Be(OpportunityService.ApplicantAlreadyHoldsRole);
+        _opportunityApplications.Items.Single(application => application.id == lowerApplication.Value.Id)
+            .status.Should().Be(ApplicationStatus.PENDING);
+        _members.Items.Should().ContainSingle(member => member.userId == Applicant)
+            .Which.role.Should().Be(ProjectRole.CORE_CONTRIBUTOR);
+    }
+
+    [Fact]
+    public async Task ReopeningACompletedTask_ClearsItsCompletionDate()
+    {
+        var completed = await _taskService.UpdateStatusAsync("task-public", TaskStatus.COMPLETED);
+        var reopened = await _taskService.UpdateStatusAsync("task-public", TaskStatus.IN_PROGRESS);
+        var completedAgain = await _taskService.UpdateAsync("task-public", new UpdateTaskDto { Status = TaskStatus.COMPLETED });
+
+        completed.Value!.CompletedAt.Should().NotBeNull();
+        reopened.Value!.CompletedAt.Should().BeNull();
+        completedAgain.Value!.CompletedAt.Should().NotBeNull();
+    }
+
+    [Theory]
+    [InlineData("title too long", 201, null, null)]
+    [InlineData("negative estimate", 10, -1, null)]
+    [InlineData("negative actual", 10, null, -1)]
+    public async Task UnusableTaskFields_AreRefused_AndTheTaskIsUnchanged(string because, int titleLength, int? estimatedHours, int? actualHours)
+    {
+        var expected = titleLength > TaskService.TaskTitleMaxLength ? TaskService.TaskTitleTooLong : TaskService.TaskHoursNegative;
+
+        // Create takes no actual hours, so that case is an update-only refusal.
+        var created = actualHours is null
+            ? await _taskService.CreateAsync(new CreateTaskDto
+            {
+                ProjectId = PublishedProjectId,
+                Title = new string('t', titleLength),
+                EstimatedHours = estimatedHours,
+            })
+            : null;
+        var updated = await _taskService.UpdateAsync("task-public", new UpdateTaskDto
+        {
+            Title = new string('t', titleLength),
+            EstimatedHours = estimatedHours,
+            ActualHours = actualHours,
+        });
+
+        created?.Error.Should().Be(expected, because);
+        updated.Error.Should().Be(expected, because);
+        _tasks.Items.Should().HaveCount(2);
+        _tasks.Items.Single(task => task.id == "task-public").title.Should().Be("public plan");
+    }
+
+    /// <summary>The database refuses to orphan a project's plan; the service says so instead of surfacing a foreign-key error.</summary>
+    [Fact]
+    public async Task AProjectWithPlannedWork_CannotBeDeleted_ButAnEmptyOneCan()
+    {
+        var milestones = new ListRepository<ProjectMilestone>();
+        _projects.Add(NewProject("project-empty", ProjectStatus.DRAFT));
+        _projects.Add(NewProject("project-with-milestone", ProjectStatus.DRAFT));
+        milestones.Add(new ProjectMilestone { id = "milestone-1", projectId = "project-with-milestone", title = "Survey" });
+        var projectRepository = new Mock<IProjectRepository>();
+        projectRepository.Setup(r => r.GetByIdAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((string id, CancellationToken _) => _projects.Items.FirstOrDefault(project => project.id == id));
+        projectRepository.Setup(r => r.DeleteAsync(It.IsAny<Project>(), It.IsAny<CancellationToken>()))
+            .Callback((Project project, CancellationToken _) => _projects.Items.Remove(project))
+            .Returns(Task.CompletedTask);
+        var projectService = new ProjectService(projectRepository.Object, _users, _tasks, milestones, _unitOfWork, _mapper);
+
+        var withTasks = await projectService.DeleteAsync(PublishedProjectId);
+        var withMilestone = await projectService.DeleteAsync("project-with-milestone");
+        var empty = await projectService.DeleteAsync("project-empty");
+
+        withTasks.Type.Should().Be(ResultType.Conflict);
+        withTasks.Error.Should().Be(ProjectService.ProjectHasPlannedWork);
+        withMilestone.Type.Should().Be(ResultType.Conflict);
+        empty.IsSuccess.Should().BeTrue();
+        _projects.Items.Select(project => project.id)
+            .Should().BeEquivalentTo(new[] { DraftProjectId, PublishedProjectId, "project-with-milestone" });
+    }
+
     private static Project NewProject(string id, ProjectStatus status) => new()
     {
         id = id,
