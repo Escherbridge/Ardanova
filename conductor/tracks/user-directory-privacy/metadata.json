@@ -1,0 +1,31 @@
+{
+  "id": "user-directory-privacy",
+  "title": "User Directory Privacy",
+  "type": "bug",
+  "status": "proposed",
+  "priority": "P0",
+  "created": "2026-10-17",
+  "partitions": {
+    "confidence": "hypothesis",
+    "computed_at_commit": "f9c933a",
+    "slices": [
+      {
+        "name": "backend-projection",
+        "owns": [
+          "ardanova-backend-api-mcp/api-server/ArdaNova.Application/DTOs/PublicUserProfileDto.cs",
+          "ardanova-backend-api-mcp/api-server/ArdaNova.Application/Services/UserService.cs",
+          "ardanova-backend-api-mcp/api-server/ArdaNova.API/Controllers/UsersController.cs",
+          "ardanova-backend-api-mcp/api-server/tests/ArdaNova.Application.Tests/"
+        ]
+      },
+      {
+        "name": "client-proxy",
+        "owns": [
+          "ardanova-client/src/server/api/routers/user.ts",
+          "ardanova-client/src/lib/api/ardanova/endpoints/users.ts",
+          "ardanova-client/src/app/people/"
+        ]
+      }
+    ]
+  }
+}

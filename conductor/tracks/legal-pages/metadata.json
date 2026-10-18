@@ -1,0 +1,11 @@
+{
+  "id": "legal-pages",
+  "title": "Terms and Privacy Pages",
+  "type": "feature",
+  "status": "proposed",
+  "priority": "P1",
+  "created": "2026-10-17",
+  "partitions": {
+    "confidence": "none"
+  }
+}
