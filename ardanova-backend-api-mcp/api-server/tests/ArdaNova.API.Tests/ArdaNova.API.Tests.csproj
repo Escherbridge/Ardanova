@@ -47,8 +47,6 @@
     <Compile Include="..\..\src\ArdaNova.API\Controllers\AttachmentsController.cs" Link="Controllers\AttachmentsController.cs" />
     <Compile Include="..\..\src\ArdaNova.Infrastructure\Storage\StorageConfiguration.cs" Link="Storage\StorageConfiguration.cs" />
     <Compile Include="..\..\src\ArdaNova.Infrastructure\Storage\LocalStorageService.cs" Link="Storage\LocalStorageService.cs" />
-    <Compile Include="..\..\src\ArdaNova.API\Controllers\AzoaAvatarController.cs" Link="Controllers\AzoaAvatarController.cs" />
-    <Compile Include="..\..\src\ArdaNova.API\Controllers\DelegatedVotesController.cs" Link="Controllers\DelegatedVotesController.cs" />
     <Compile Include="..\..\src\ArdaNova.API\Controllers\NovaController.cs" Link="Controllers\NovaController.cs" />
     <Compile Include="..\..\src\ArdaNova.Infrastructure\Ogai\OgaiClient.cs" Link="Ogai\OgaiClient.cs" />
     <Compile Include="..\..\src\ArdaNova.Infrastructure\Ogai\LocalNovaPreviewClient.cs" Link="Ogai\LocalNovaPreviewClient.cs" />
