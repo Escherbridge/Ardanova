@@ -18,6 +18,19 @@ public sealed record ProjectViewer(string? UserId, bool IsAdmin)
     public static readonly ProjectViewer Anonymous = new(null, false);
 }
 
+/// <summary>Visibility gate for project-scoped hierarchy reads; see Services/Implementations/AGENTS.md §Hierarchy read visibility.</summary>
+public static class ProjectVisibilityExtensions
+{
+    /// <summary>True when this viewer may see the project; a hidden project and a missing one answer the same.</summary>
+    public static async Task<bool> IsVisibleAsync(
+        this IProjectVisibility visibility,
+        ProjectViewer viewer,
+        string? projectId,
+        CancellationToken ct = default)
+        => !string.IsNullOrEmpty(projectId) &&
+           (await visibility.GetVisibleByIdAsync(viewer, projectId, ct)).IsSuccess;
+}
+
 /// <summary>Viewer-scoped project reads; every list, search and detail route answers through this surface.</summary>
 public interface IProjectVisibility
 {

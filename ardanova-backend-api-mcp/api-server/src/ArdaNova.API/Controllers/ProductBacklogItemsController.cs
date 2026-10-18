@@ -4,6 +4,7 @@ using System.Security.Claims;
 using ArdaNova.API.Middleware;
 using ArdaNova.Application.Common.Results;
 using ArdaNova.Application.DTOs;
+using ArdaNova.Application.Services.Implementations;
 using ArdaNova.Application.Services.Interfaces;
 using ArdaNova.Domain.Models.Enums;
 using Microsoft.AspNetCore.Authorization;
@@ -20,6 +21,7 @@ public class ProductBacklogItemsController : ControllerBase
     private readonly ISprintService _sprintService;
     private readonly IFeatureService _featureService;
     private readonly IHierarchyAuthorizationService _authorization;
+    private readonly IProjectVisibility _projectVisibility;
 
     public ProductBacklogItemsController(
         IProductBacklogItemService pbiService,
@@ -28,8 +30,10 @@ public class ProductBacklogItemsController : ControllerBase
         IEpicService epicService,
         ISprintService sprintService,
         IFeatureService featureService,
-        IHierarchyAuthorizationService authorization)
+        IHierarchyAuthorizationService authorization,
+        IProjectVisibility projectVisibility)
     {
+        _projectVisibility = projectVisibility;
         _pbiService = pbiService;
         _projectService = projectService;
         _milestoneService = milestoneService;
@@ -42,6 +46,10 @@ public class ProductBacklogItemsController : ControllerBase
     [HttpGet("features/{featureId}/product-backlog-items")]
     public async Task<IActionResult> GetByFeatureId(string featureId, CancellationToken ct)
     {
+        var feature = await _featureService.GetByIdAsync(featureId, ct);
+        if (!feature.IsSuccess || !await _projectVisibility.IsVisibleAsync(Viewer, feature.Value!.ProjectId, ct))
+            return NotFound(new { error = $"Feature with id {featureId} not found" });
+
         var result = await _pbiService.GetByFeatureIdAsync(featureId, ct);
         return ToActionResult(result);
     }
@@ -50,12 +58,18 @@ public class ProductBacklogItemsController : ControllerBase
     public async Task<IActionResult> GetById(string id, CancellationToken ct)
     {
         var result = await _pbiService.GetByIdAsync(id, ct);
+        // Visibility first: a hidden draft's backlog item must be indistinguishable from a missing one.
+        if (result.IsSuccess && !await _projectVisibility.IsVisibleAsync(Viewer, result.Value!.ProjectId, ct))
+            return NotFound(new { error = $"Product backlog item with id {id} not found" });
         return ToActionResult(result);
     }
 
     [HttpGet("projects/{projectId}/product-backlog-items")]
     public async Task<IActionResult> GetByProjectId(string projectId, CancellationToken ct)
     {
+        if (!await _projectVisibility.IsVisibleAsync(Viewer, projectId, ct))
+            return NotFound(new { error = $"Project with id {projectId} not found" });
+
         var result = await _pbiService.GetByProjectIdAsync(projectId, ct);
         return ToActionResult(result);
     }
@@ -189,6 +203,11 @@ public class ProductBacklogItemsController : ControllerBase
     private string ActorId => User.FindFirstValue(ClaimTypes.NameIdentifier)!;
 
     private bool IsAdmin => User.IsInRole(UserRole.ADMIN.ToString());
+
+    /// <summary>Only a verified actor assertion names a viewer; every other read is the public's.</summary>
+    private ProjectViewer Viewer => ActorAssertionMiddleware.TryGetActorId(User, out var actorId)
+        ? new ProjectViewer(actorId, User.IsInRole(UserRole.ADMIN.ToString()))
+        : ProjectViewer.Anonymous;
 
     private Task<bool> CanManageProjectAsync(string projectId, CancellationToken ct)
         => IsAdmin

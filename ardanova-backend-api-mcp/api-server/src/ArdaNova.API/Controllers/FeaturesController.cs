@@ -4,6 +4,7 @@ using System.Security.Claims;
 using ArdaNova.API.Middleware;
 using ArdaNova.Application.Common.Results;
 using ArdaNova.Application.DTOs;
+using ArdaNova.Application.Services.Implementations;
 using ArdaNova.Application.Services.Interfaces;
 using ArdaNova.Domain.Models.Enums;
 using Microsoft.AspNetCore.Authorization;
@@ -16,23 +17,34 @@ public class FeaturesController : ControllerBase
     private readonly IFeatureService _featureService;
     private readonly ISprintService _sprintService;
     private readonly IHierarchyAuthorizationService _authorization;
+    private readonly IProjectVisibility _projectVisibility;
 
     public FeaturesController(
         IFeatureService featureService,
         ISprintService sprintService,
-        IHierarchyAuthorizationService authorization)
+        IHierarchyAuthorizationService authorization,
+        IProjectVisibility projectVisibility)
     {
         _featureService = featureService;
         _sprintService = sprintService;
         _authorization = authorization;
+        _projectVisibility = projectVisibility;
     }
 
     [HttpGet("{id}")]
     public async Task<IActionResult> GetById(string id, CancellationToken ct)
     {
         var result = await _featureService.GetByIdAsync(id, ct);
+        // Visibility first: a hidden draft's feature must be indistinguishable from a missing one.
+        if (result.IsSuccess && !await _projectVisibility.IsVisibleAsync(Viewer, result.Value!.ProjectId, ct))
+            return NotFound(new { error = $"Feature with id {id} not found" });
         return ToActionResult(result);
     }
+
+    /// <summary>Only a verified actor assertion names a viewer; every other read is the public's.</summary>
+    private ProjectViewer Viewer => ActorAssertionMiddleware.TryGetActorId(User, out var actorId)
+        ? new ProjectViewer(actorId, User.IsInRole(UserRole.ADMIN.ToString()))
+        : ProjectViewer.Anonymous;
 
     [HttpPost]
     [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
@@ -219,15 +231,31 @@ public record UpdateFeaturePriorityDto
 public class SprintFeaturesController : ControllerBase
 {
     private readonly IFeatureService _featureService;
+    private readonly ISprintService _sprintService;
+    private readonly IProjectVisibility _projectVisibility;
 
-    public SprintFeaturesController(IFeatureService featureService)
+    public SprintFeaturesController(
+        IFeatureService featureService,
+        ISprintService sprintService,
+        IProjectVisibility projectVisibility)
     {
         _featureService = featureService;
+        _sprintService = sprintService;
+        _projectVisibility = projectVisibility;
     }
+
+    /// <summary>Only a verified actor assertion names a viewer; every other read is the public's.</summary>
+    private ProjectViewer Viewer => ActorAssertionMiddleware.TryGetActorId(User, out var actorId)
+        ? new ProjectViewer(actorId, User.IsInRole(UserRole.ADMIN.ToString()))
+        : ProjectViewer.Anonymous;
 
     [HttpGet]
     public async Task<IActionResult> GetBySprintId(string sprintId, CancellationToken ct)
     {
+        var sprint = await _sprintService.GetByIdAsync(sprintId, ct);
+        if (!sprint.IsSuccess || !await _projectVisibility.IsVisibleAsync(Viewer, sprint.Value!.ProjectId, ct))
+            return NotFound(new { error = $"Sprint with id {sprintId} not found" });
+
         var result = await _featureService.GetBySprintIdAsync(sprintId, ct);
         return ToActionResult(result);
     }

@@ -4,6 +4,7 @@ using System.Security.Claims;
 using ArdaNova.API.Middleware;
 using ArdaNova.Application.Common.Results;
 using ArdaNova.Application.DTOs;
+using ArdaNova.Application.Services.Implementations;
 using ArdaNova.Application.Services.Interfaces;
 using ArdaNova.Domain.Models.Enums;
 using Microsoft.AspNetCore.Authorization;
@@ -15,21 +16,27 @@ public class SprintsController : ControllerBase
     private readonly ISprintService _sprintService;
     private readonly IEpicService _epicService;
     private readonly IHierarchyAuthorizationService _authorization;
+    private readonly IProjectVisibility _projectVisibility;
 
     public SprintsController(
         ISprintService sprintService,
         IEpicService epicService,
-        IHierarchyAuthorizationService authorization)
+        IHierarchyAuthorizationService authorization,
+        IProjectVisibility projectVisibility)
     {
         _sprintService = sprintService;
         _epicService = epicService;
         _authorization = authorization;
+        _projectVisibility = projectVisibility;
     }
 
     // ===== EPIC-BASED ROUTES =====
     [HttpGet("api/epics/{epicId}/sprints")]
     public async Task<IActionResult> GetByEpicId(string epicId, CancellationToken ct)
     {
+        if (await EpicNotVisibleAsync(epicId, ct) is { } hidden)
+            return hidden;
+
         var result = await _sprintService.GetByEpicIdAsync(epicId, ct);
         return ToActionResult(result);
     }
@@ -37,6 +44,9 @@ public class SprintsController : ControllerBase
     [HttpGet("api/epics/{epicId}/sprints/active")]
     public async Task<IActionResult> GetActiveSprint(string epicId, CancellationToken ct)
     {
+        if (await EpicNotVisibleAsync(epicId, ct) is { } hidden)
+            return hidden;
+
         var result = await _sprintService.GetActiveByEpicIdAsync(epicId, ct);
         return ToActionResult(result);
     }
@@ -46,8 +56,25 @@ public class SprintsController : ControllerBase
     public async Task<IActionResult> GetById(string id, CancellationToken ct)
     {
         var result = await _sprintService.GetByIdAsync(id, ct);
+        // Visibility first: a hidden draft's sprint must be indistinguishable from a missing one.
+        if (result.IsSuccess && !await _projectVisibility.IsVisibleAsync(Viewer, result.Value!.ProjectId, ct))
+            return NotFound(new { error = $"Sprint with id {id} not found" });
         return ToActionResult(result);
     }
+
+    /// <summary>NotFound, worded as a missing epic, when the epic is missing or its project is hidden from this viewer.</summary>
+    private async Task<IActionResult?> EpicNotVisibleAsync(string epicId, CancellationToken ct)
+    {
+        var epic = await _epicService.GetByIdAsync(epicId, ct);
+        return epic.IsSuccess && await _projectVisibility.IsVisibleAsync(Viewer, epic.Value!.ProjectId, ct)
+            ? null
+            : NotFound(new { error = $"Epic with id {epicId} not found" });
+    }
+
+    /// <summary>Only a verified actor assertion names a viewer; every other read is the public's.</summary>
+    private ProjectViewer Viewer => ActorAssertionMiddleware.TryGetActorId(User, out var actorId)
+        ? new ProjectViewer(actorId, User.IsInRole(UserRole.ADMIN.ToString()))
+        : ProjectViewer.Anonymous;
 
     [HttpPost("api/sprints")]
     [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]

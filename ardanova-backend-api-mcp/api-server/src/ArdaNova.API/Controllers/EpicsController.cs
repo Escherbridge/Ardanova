@@ -4,6 +4,7 @@ using System.Security.Claims;
 using ArdaNova.API.Middleware;
 using ArdaNova.Application.Common.Results;
 using ArdaNova.Application.DTOs;
+using ArdaNova.Application.Services.Implementations;
 using ArdaNova.Application.Services.Interfaces;
 using ArdaNova.Domain.Models.Enums;
 using Microsoft.AspNetCore.Authorization;
@@ -16,21 +17,27 @@ public class EpicsController : ControllerBase
     private readonly IEpicService _epicService;
     private readonly IProjectMilestoneService _milestoneService;
     private readonly IHierarchyAuthorizationService _authorization;
+    private readonly IProjectVisibility _projectVisibility;
 
     public EpicsController(
         IEpicService epicService,
         IProjectMilestoneService milestoneService,
-        IHierarchyAuthorizationService authorization)
+        IHierarchyAuthorizationService authorization,
+        IProjectVisibility projectVisibility)
     {
         _epicService = epicService;
         _milestoneService = milestoneService;
         _authorization = authorization;
+        _projectVisibility = projectVisibility;
     }
 
     [HttpGet("{id}")]
     public async Task<IActionResult> GetById(string id, CancellationToken ct)
     {
         var result = await _epicService.GetByIdAsync(id, ct);
+        // Visibility first: a hidden draft's epic must be indistinguishable from a missing one.
+        if (result.IsSuccess && !await _projectVisibility.IsVisibleAsync(Viewer, result.Value!.ProjectId, ct))
+            return NotFound(new { error = $"Epic with id {id} not found" });
         return ToActionResult(result);
     }
 
@@ -147,6 +154,11 @@ public class EpicsController : ControllerBase
 
     private bool IsAdmin => User.IsInRole(UserRole.ADMIN.ToString());
 
+    /// <summary>Only a verified actor assertion names a viewer; every other read is the public's.</summary>
+    private ProjectViewer Viewer => ActorAssertionMiddleware.TryGetActorId(User, out var actorId)
+        ? new ProjectViewer(actorId, User.IsInRole(UserRole.ADMIN.ToString()))
+        : ProjectViewer.Anonymous;
+
     private Task<bool> CanManageProjectAsync(string projectId, CancellationToken ct)
         => IsAdmin
             ? Task.FromResult(true)
@@ -216,18 +228,28 @@ public record UpdateEpicStatusDto
 public class ProjectEpicsController : ControllerBase
 {
     private readonly IEpicService _epicService;
+    private readonly IProjectVisibility _projectVisibility;
 
-    public ProjectEpicsController(IEpicService epicService)
+    public ProjectEpicsController(IEpicService epicService, IProjectVisibility projectVisibility)
     {
         _epicService = epicService;
+        _projectVisibility = projectVisibility;
     }
 
     [HttpGet]
     public async Task<IActionResult> GetByProjectId(string projectId, CancellationToken ct)
     {
+        if (!await _projectVisibility.IsVisibleAsync(Viewer, projectId, ct))
+            return NotFound(new { error = $"Project with id {projectId} not found" });
+
         var result = await _epicService.GetByProjectIdAsync(projectId, ct);
         return ToActionResult(result);
     }
+
+    /// <summary>Only a verified actor assertion names a viewer; every other read is the public's.</summary>
+    private ProjectViewer Viewer => ActorAssertionMiddleware.TryGetActorId(User, out var actorId)
+        ? new ProjectViewer(actorId, User.IsInRole(UserRole.ADMIN.ToString()))
+        : ProjectViewer.Anonymous;
 
     private IActionResult ToActionResult<T>(Result<T> result)
     {
@@ -253,20 +275,32 @@ public class MilestoneEpicsController : ControllerBase
     private readonly IEpicService _epicService;
     private readonly IProjectMilestoneService _milestoneService;
     private readonly IHierarchyAuthorizationService _authorization;
+    private readonly IProjectVisibility _projectVisibility;
 
     public MilestoneEpicsController(
         IEpicService epicService,
         IProjectMilestoneService milestoneService,
-        IHierarchyAuthorizationService authorization)
+        IHierarchyAuthorizationService authorization,
+        IProjectVisibility projectVisibility)
     {
         _epicService = epicService;
         _milestoneService = milestoneService;
         _authorization = authorization;
+        _projectVisibility = projectVisibility;
     }
+
+    /// <summary>Only a verified actor assertion names a viewer; every other read is the public's.</summary>
+    private ProjectViewer Viewer => ActorAssertionMiddleware.TryGetActorId(User, out var actorId)
+        ? new ProjectViewer(actorId, User.IsInRole(UserRole.ADMIN.ToString()))
+        : ProjectViewer.Anonymous;
 
     [HttpGet]
     public async Task<IActionResult> GetByMilestoneId(string milestoneId, CancellationToken ct)
     {
+        var milestone = await _milestoneService.GetByIdAsync(milestoneId, ct);
+        if (!milestone.IsSuccess || !await _projectVisibility.IsVisibleAsync(Viewer, milestone.Value!.ProjectId, ct))
+            return NotFound(new { error = $"Milestone with id {milestoneId} not found" });
+
         var result = await _epicService.GetByMilestoneIdAsync(milestoneId, ct);
         return ToActionResult(result);
     }
