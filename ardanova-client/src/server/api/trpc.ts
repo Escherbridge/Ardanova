@@ -11,7 +11,7 @@ import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
 import { ZodError } from "zod";
 
-import { authForPage } from "~/server/auth";
+import { auth } from "~/server/auth";
 import { runWithActorAssertion } from "~/server/actor-assertion";
 import {
   type UserRole,
@@ -35,8 +35,8 @@ import {
  * @see https://trpc.io/docs/server/context
  */
 export const createTRPCContext = async (opts: { headers: Headers }) => {
-  // Same session source as pages/layouts, so the local DEV_AUTH_BYPASS preview reaches tRPC too.
-  const session = await authForPage();
+  // auth(), not authForPage(): only the seeded preview row may reach data; see src/server/auth/AGENTS.md.
+  const session = await auth();
 
   return {
     session,

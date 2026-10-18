@@ -14,7 +14,8 @@ vi.mock("~/server/auth", () => ({
   authForPage: async () => sessions.page,
 }));
 
-const { createTRPCContext, createTRPCRouter, protectedProcedure } = await import("./trpc");
+const { createTRPCContext, createTRPCRouter, protectedProcedure } =
+  await import("./trpc");
 
 const router = createTRPCRouter({
   whoAmI: protectedProcedure.query(({ ctx }) => ({ id: ctx.session.user.id })),
@@ -50,7 +51,8 @@ describe("tRPC request context", () => {
     sessions.cookie = null;
   });
 
-  it("serves protected procedures from the page session source (DEV_AUTH_BYPASS preview)", async () => {
+  it("serves protected procedures to the seeded preview identity that auth() returns", async () => {
+    sessions.cookie = previewSession;
     sessions.page = previewSession;
 
     const { status, body } = await callWhoAmI();
@@ -59,12 +61,20 @@ describe("tRPC request context", () => {
     expect(body).toContain("local-preview-user");
   });
 
+  it("refuses the page-only synthetic preview, which never authorizes data", async () => {
+    sessions.page = previewSession;
+
+    const { status } = await callWhoAmI();
+
+    expect(status).toBe(401);
+  });
+
   it("rejects without a session and never ships the server stack trace", async () => {
     const { status, body } = await callWhoAmI();
 
     expect(status).toBe(401);
     expect(body).toContain("UNAUTHORIZED");
-    expect(body).not.toContain("\"stack\"");
+    expect(body).not.toContain('"stack"');
     expect(body).not.toContain("trpc.ts");
   });
 });
