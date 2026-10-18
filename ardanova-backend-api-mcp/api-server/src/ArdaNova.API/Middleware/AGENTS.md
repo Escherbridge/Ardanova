@@ -42,21 +42,6 @@ hub handshake respectively; neither exception makes its downstream actions
 anonymous. A service-key principal satisfies only the fallback, not actor or
 admin policies.
 
-## Denial status codes
-
-The middleware above builds every identity, so no ASP.NET authentication scheme
-was ever registered. With no scheme, every `Forbid()`, every `Challenge()` and
-every `[Authorize]` policy failure threw `InvalidOperationException` ("No
-authenticationScheme was specified"), and `ExceptionHandlingMiddleware` turned
-that into HTTP 400 with the framework message. Callers could not tell "not
-allowed" from "bad input".
-
-`StatusCodeAuthenticationHandler` is the default scheme only so that denials get
-the right answer: a challenge writes 401 and a forbid writes 403, both as
-`{ error, statusCode }` JSON. Its authenticate step always returns `NoResult`,
-so it can never create or replace an identity. The authentication middleware
-that ASP.NET adds automatically runs it before the API-key middleware, and it
-changes nothing. Do not add identity logic to this handler.
 ## Authorization denials
 
 Identity is built by `ApiKeyMiddleware` (service principal, optional `Admin`
@@ -73,10 +58,22 @@ Status mapping:
 
 - missing/invalid service key: 401 from `ApiKeyMiddleware` (unchanged);
 - invalid, replayed or tampered actor assertion: 401 from `ActorAssertionMiddleware` (unchanged);
-- a policy that requires the actor claim, and no actor claim is present: 401
+- a policy that contains `ActorAssertionRequirement` (the `ActorAssertion`
+  policy), and the principal has no single valid actor identity
+  (`ActorAssertionMiddleware.TryGetActorId`): 401
   (`ArdaNovaAuthorizationResultHandler`), because the caller has not proven who
   it acts for;
 - anything else that fails a policy, or a controller `Forbid()`: 403.
+
+The handler recognises the actor policy by requirement *type*, so the policy
+must keep using `ActorAssertionRequirement`. Rewriting it as `RequireAssertion`
+or `RequireClaim` silently turns every missing-actor 401 into a 403 (this
+happened once: the handler looked for a `ClaimsAuthorizationRequirement` that
+the policy never contained). `AuthorizationPipelineTests` pins the 401.
+
+There is exactly one authentication scheme (`ArdaNova`). Loop 1 briefly
+registered a second denial-only scheme (`StatusCodeAuthenticationHandler`); it
+was folded into this one. Do not add another `AddAuthentication(...)` default.
 
 The handler only shapes the response. The allow/deny decision is still made by
 the policies in `ArdaNovaAuthorizationExtensions` and by the controllers.
@@ -85,7 +82,9 @@ HTTP requests through the production middleware order and pins each outcome.
 
 ## Error envelope
 
-Every error the pipeline writes itself has the same shape:
+Every error the pipeline writes itself (`ApiKeyMiddleware`,
+`ActorAssertionMiddleware`, the denial scheme, `ExceptionHandlingMiddleware`,
+model validation) goes through `ApiErrorEnvelope` and has the same shape:
 `{ "error": string, "statusCode": number, "traceId": string }`. Model-validation
 failures add `errors: { field: string[] }` (`ApiErrorEnvelope.AddArdaNovaErrorEnvelope`).
 Input-formatter exception text is turned off, so JSON errors no longer leak

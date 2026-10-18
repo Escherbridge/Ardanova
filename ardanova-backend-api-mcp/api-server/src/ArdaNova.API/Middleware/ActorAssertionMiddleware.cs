@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using ArdaNova.Application.Common.Interfaces;
 using ArdaNova.Application.Common.Security;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
@@ -279,11 +280,8 @@ public sealed class ActorAssertionMiddleware
         => Guid.TryParseExact(value, "D", out var parsed)
             && string.Equals(value, parsed.ToString("D"), StringComparison.Ordinal);
 
-    private static async Task RejectAsync(HttpContext context, int statusCode, string error)
-    {
-        context.Response.StatusCode = statusCode;
-        await context.Response.WriteAsJsonAsync(new { error });
-    }
+    private static Task RejectAsync(HttpContext context, int statusCode, string error)
+        => ApiErrorEnvelope.WriteAsync(context, statusCode, error);
 
     private static byte[] FromBase64Url(string value)
     {
@@ -315,6 +313,18 @@ public sealed class ActorAssertionMiddleware
     private sealed record BodyDigest(bool IsTooLarge, string Sha256)
     {
         public static BodyDigest TooLarge { get; } = new(true, string.Empty);
+    }
+}
+
+/// <summary>Self-handling requirement behind the ActorAssertion policy; a named type so the denial handler can recognise it (see AGENTS.md §Authorization denials).</summary>
+public sealed class ActorAssertionRequirement
+    : AuthorizationHandler<ActorAssertionRequirement>, IAuthorizationRequirement
+{
+    protected override Task HandleRequirementAsync(AuthorizationHandlerContext context, ActorAssertionRequirement requirement)
+    {
+        if (ActorAssertionMiddleware.TryGetActorId(context.User, out _))
+            context.Succeed(requirement);
+        return Task.CompletedTask;
     }
 }
 

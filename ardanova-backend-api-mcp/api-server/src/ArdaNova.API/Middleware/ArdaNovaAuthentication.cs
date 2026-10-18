@@ -1,7 +1,6 @@
 using System.Text.Encodings.Web;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Authorization.Infrastructure;
 using Microsoft.AspNetCore.Authorization.Policy;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
@@ -54,11 +53,10 @@ public sealed class ArdaNovaAuthorizationResultHandler : IAuthorizationMiddlewar
     }
 
     private static bool RequiresActorAssertion(AuthorizationPolicy policy)
-        => policy.Requirements.OfType<ClaimsAuthorizationRequirement>()
-            .Any(requirement => requirement.ClaimType == ActorAssertionMiddleware.ClaimType);
+        => policy.Requirements.OfType<ActorAssertionRequirement>().Any();
 
     private static bool HasActorAssertion(HttpContext context)
-        => context.User.HasClaim(claim => claim.Type == ActorAssertionMiddleware.ClaimType);
+        => ActorAssertionMiddleware.TryGetActorId(context.User, out _);
 }
 
 public static class ArdaNovaAuthenticationExtensions

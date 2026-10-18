@@ -19,7 +19,7 @@ public class DenialStatusCodeTests
 
     public static TheoryData<string, ClaimsPrincipal, int> PolicyDenials => new()
     {
-        { "service key without an actor assertion", ServiceKeyCaller, StatusCodes.Status403Forbidden },
+        { "service key without an actor assertion", ServiceKeyCaller, StatusCodes.Status401Unauthorized },
         { "no authenticated caller at all", Anonymous, StatusCodes.Status401Unauthorized },
     };
 
@@ -65,7 +65,7 @@ public class DenialStatusCodeTests
         services.AddLogging();
         services.AddSingleton<EndpointDataSource>(new DefaultEndpointDataSource());
         services.AddArdaNovaAuthorization();
-        services.AddArdaNovaDenialStatusCodes();
+        services.AddArdaNovaAuthentication();
         return services.BuildServiceProvider();
     }
 

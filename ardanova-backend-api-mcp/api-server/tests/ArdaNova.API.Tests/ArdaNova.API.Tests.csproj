@@ -52,7 +52,6 @@
     <Compile Include="..\..\src\ArdaNova.Infrastructure\Ogai\LocalNovaPreviewClient.cs" Link="Ogai\LocalNovaPreviewClient.cs" />
     <Compile Include="..\..\src\ArdaNova.API\Middleware\ApiKeyMiddleware.cs" Link="Middleware\ApiKeyMiddleware.cs" />
     <Compile Include="..\..\src\ArdaNova.API\Middleware\ActorAssertionMiddleware.cs" Link="Middleware\ActorAssertionMiddleware.cs" />
-    <Compile Include="..\..\src\ArdaNova.API\Middleware\StatusCodeAuthenticationHandler.cs" Link="Middleware\StatusCodeAuthenticationHandler.cs" />
     <Compile Include="..\..\src\ArdaNova.API\Controllers\UsersController.cs" Link="Controllers\UsersController.cs" />
     <Compile Include="..\..\src\ArdaNova.API\Controllers\UserSkillsController.cs" Link="Controllers\UserSkillsController.cs" />
     <Compile Include="..\..\src\ArdaNova.API\Controllers\UserExperienceController.cs" Link="Controllers\UserExperienceController.cs" />

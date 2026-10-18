@@ -47,8 +47,7 @@ public class ApiKeyMiddleware
         if (!context.Request.Headers.TryGetValue(ApiKeyHeaderName, out var extractedApiKey))
         {
             _logger.LogWarning("API Key was not provided for {Path}", context.Request.Path);
-            context.Response.StatusCode = 401;
-            await context.Response.WriteAsJsonAsync(new { error = "API Key was not provided" });
+            await ApiErrorEnvelope.WriteAsync(context, 401, "API Key was not provided");
             return;
         }
 
@@ -60,16 +59,14 @@ public class ApiKeyMiddleware
             _logger.LogError(
                 "API Key is not configured as a generated secret with at least {MinimumBytes} bytes",
                 MinimumApiKeyBytes);
-            context.Response.StatusCode = 500;
-            await context.Response.WriteAsJsonAsync(new { error = "API Key is not configured securely" });
+            await ApiErrorEnvelope.WriteAsync(context, 500, "API Key is not configured securely");
             return;
         }
 
         if (!MatchesSecret(apiKey, extractedApiKey.ToString()))
         {
             _logger.LogWarning("Invalid API Key provided for {Path}", context.Request.Path);
-            context.Response.StatusCode = 401;
-            await context.Response.WriteAsJsonAsync(new { error = "Invalid API Key" });
+            await ApiErrorEnvelope.WriteAsync(context, 401, "Invalid API Key");
             return;
         }
 
@@ -147,8 +144,7 @@ public static class ArdaNovaAuthorizationExtensions
             options.AddPolicy(AuthorizationPolicies.AdminApiKey, policy =>
                 policy.RequireAuthenticatedUser().RequireRole(ApiKeyMiddleware.AdminRole));
             options.AddPolicy(AuthorizationPolicies.ActorAssertion, policy =>
-                policy.RequireAssertion(context =>
-                    ActorAssertionMiddleware.TryGetActorId(context.User, out _)));
+                policy.AddRequirements(new ActorAssertionRequirement()));
         });
 
         return services;
