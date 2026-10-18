@@ -9,6 +9,7 @@ import GoogleProvider from "next-auth/providers/google";
 import { Prisma } from "@prisma/client";
 import { db } from "~/server/db";
 import { env } from "~/env";
+import { ACCOUNT_NOT_LINKED_REDIRECT } from "./error-codes";
 
 const isDevelopment = process.env.NODE_ENV === "development";
 const legacyGoogleLinkUserIds = new Set(
@@ -202,7 +203,7 @@ function applyAuthorizationClaims(token: JWT, user: AuthUser) {
 async function handleSignIn({
   account,
   profile,
-}: SignInCallbackParams): Promise<boolean> {
+}: SignInCallbackParams): Promise<boolean | string> {
   const identity = getVerifiedGoogleIdentity({ account, profile });
   if (!identity) {
     console.error(
@@ -230,7 +231,7 @@ async function handleSignIn({
       console.error(
         "[NextAuth] Google identity requires explicit account linking; sign-in denied.",
       );
-      return false;
+      return ACCOUNT_NOT_LINKED_REDIRECT;
     }
 
     await db.user.create({

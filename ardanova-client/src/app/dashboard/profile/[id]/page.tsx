@@ -4,7 +4,10 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
-import { Badge } from "~/components/ui/badge";
+import { FollowControl } from "~/components/profile/follow-control";
+import { ProfileDetails } from "~/components/profile/profile-details";
+import { ProfileIdentityBadges } from "~/components/profile/profile-identity-badges";
+import { QueryErrorState } from "~/components/ui/query-error-state";
 import { Button } from "~/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { Calendar, FolderKanban, Users } from "lucide-react";
@@ -18,7 +21,10 @@ export default function UserProfilePage() {
     data: profileUser,
     isLoading: userLoading,
     error: userError,
-  } = api.user.getById.useQuery({ id: userId }, { enabled: !!userId });
+  } = api.profile.getProfileById.useQuery(
+    { userId },
+    { enabled: !!userId, retry: false },
+  );
 
   const {
     data: userProjects,
@@ -56,9 +62,11 @@ export default function UserProfilePage() {
   if (userError || !profileUser) {
     return (
       <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 p-6">
-        <p className="text-destructive">
-          {userError?.message ?? "User not found."}
-        </p>
+        {userError ? (
+          <QueryErrorState title="This profile could not be loaded" error={userError} />
+        ) : (
+          <p className="text-destructive">User not found.</p>
+        )}
         <Button asChild variant="outline">
           <Link href="/people">Back to People</Link>
         </Button>
@@ -90,13 +98,17 @@ export default function UserProfilePage() {
                   <h1 className="text-foreground text-2xl font-bold">
                     {profileUser.name ?? "Member"}
                   </h1>
-                  <Badge variant="neon">
-                    {profileUser.userType ?? "Member"}
-                  </Badge>
+                  <ProfileIdentityBadges
+                    userType={profileUser.userType}
+                    verificationLevel={profileUser.verificationLevel}
+                  />
                 </div>
-                <p className="text-muted-foreground mb-4">
-                  {profileUser.bio ?? "No bio yet."}
+                <p className="text-muted-foreground mb-4 whitespace-pre-line">
+                  {profileUser.bio || "No bio yet."}
                 </p>
+                <div className="mb-4">
+                  <FollowControl userId={profileUser.id} />
+                </div>
                 <div className="flex flex-wrap gap-x-6 gap-y-3 text-sm">
                   <div className="flex items-center gap-2">
                     <FolderKanban className="text-primary size-4" />
@@ -133,6 +145,10 @@ export default function UserProfilePage() {
             </div>
           </CardContent>
         </Card>
+
+        <div className="mb-6">
+          <ProfileDetails profile={profileUser} />
+        </div>
 
         <Tabs defaultValue="projects" className="w-full">
           <TabsList className="w-full justify-start overflow-x-auto">

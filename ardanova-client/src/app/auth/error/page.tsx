@@ -4,42 +4,21 @@ import Link from "next/link";
 import { ArdaNovaWordmark } from "~/components/brand/wordmark";
 import { Button } from "~/components/ui/button";
 
+import {
+  authErrorMessages,
+  resolveAuthErrorReference,
+  retrySignInHref,
+} from "./copy";
 import { authErrorSecondaryButtonClass } from "./styles";
 
 interface ErrorPageProps {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; callbackUrl?: string | string[] }>;
 }
 
-const errorMessages = {
-  Configuration: {
-    title: "Sign-in is not configured here.",
-    description:
-      "This environment cannot reach its authentication provider. No account or workspace action was completed.",
-  },
-  AccessDenied: {
-    title: "This account cannot enter.",
-    description:
-      "The provider returned an access denial. Check the account you selected or ask a workspace steward for help.",
-  },
-  Verification: {
-    title: "That verification is no longer valid.",
-    description:
-      "The sign-in verification expired or was already used. Start a new sign-in request.",
-  },
-  Default: {
-    title: "Sign-in did not complete.",
-    description:
-      "Your workspace remains unchanged. Try again, or return to the public site while the connection is checked.",
-  },
-} as const;
-
 export default async function ErrorPage({ searchParams }: ErrorPageProps) {
-  const { error } = await searchParams;
-  const reference =
-    error && Object.hasOwn(errorMessages, error)
-      ? (error as keyof typeof errorMessages)
-      : "Default";
-  const errorInfo = errorMessages[reference];
+  const { error, callbackUrl } = await searchParams;
+  const reference = resolveAuthErrorReference(error);
+  const errorInfo = authErrorMessages[reference];
 
   return (
     <main className="grid min-h-screen bg-[#151513] text-[#f6f0eb] lg:grid-cols-[minmax(0,1fr)_minmax(26rem,0.7fr)]">
@@ -89,7 +68,7 @@ export default async function ErrorPage({ searchParams }: ErrorPageProps) {
               asChild
               className="border-[#f6f0eb] bg-[#f6f0eb] text-[#151513] hover:bg-[#dcd6d0]"
             >
-              <Link href="/auth/signin">
+              <Link href={retrySignInHref(callbackUrl)}>
                 <RotateCcw className="size-4" aria-hidden="true" />
                 Try sign-in again
               </Link>

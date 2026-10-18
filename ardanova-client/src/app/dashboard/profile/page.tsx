@@ -11,6 +11,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { CredentialList } from "~/components/credentials/credential-list";
 import { CredentialBadge } from "~/components/credentials/credential-badge";
 import { CustodialAccountCard } from "~/components/azoa/custodial-account-card";
+import { ProfileDetails } from "~/components/profile/profile-details";
+import { ProfileIdentityBadges } from "~/components/profile/profile-identity-badges";
 import {
   Settings,
   Calendar,
@@ -187,10 +189,11 @@ export default function ProfilePage() {
     { enabled: !!user?.id },
   );
 
-  const { data: meProfile, error: profileError } = api.user.getById.useQuery(
-    { id: user?.id ?? "" },
-    { enabled: !!user?.id },
-  );
+  const { data: meProfile, error: profileError } =
+    api.profile.getMyProfile.useQuery(undefined, {
+      enabled: !!user?.id,
+      retry: false,
+    });
 
   const activeCredentials =
     credentials?.filter((c) => c.status === "ACTIVE") ?? [];
@@ -240,9 +243,17 @@ export default function ProfilePage() {
                   <h1 className="text-foreground text-2xl font-bold">
                     {user?.name || "Anonymous User"}
                   </h1>
-                  <Badge variant="neon">Member</Badge>
+                  <ProfileIdentityBadges
+                    userType={meProfile?.userType ?? user?.userType}
+                    verificationLevel={
+                      meProfile?.verificationLevel ?? user?.verificationLevel
+                    }
+                  />
                 </div>
-                <p className="text-muted-foreground mb-4">{user?.email}</p>
+                <p className="text-muted-foreground mb-2">{user?.email}</p>
+                <p className="text-muted-foreground mb-4 whitespace-pre-line">
+                  {meProfile?.bio || "Add a bio so collaborators know what you work on."}
+                </p>
                 <div className="flex flex-wrap gap-6 text-sm">
                   <div className="flex items-center gap-2">
                     <FolderKanban className="text-primary size-4" />
@@ -306,9 +317,9 @@ export default function ProfilePage() {
 
               <div className="flex gap-2 sm:ml-auto">
                 <Button variant="outline" size="sm" asChild>
-                  <Link href="/settings">
+                  <Link href="/settings/profile">
                     <Settings className="mr-2 size-4" />
-                    Open settings
+                    Edit profile
                   </Link>
                 </Button>
               </div>
@@ -326,6 +337,16 @@ export default function ProfilePage() {
             onEnsure={() => ensureCustody.mutate()}
           />
         </div>
+
+        {meProfile && (
+          <div className="mb-6">
+            <ProfileDetails
+              profile={meProfile}
+              emptySkillsMessage="No skills yet. Add them from Edit profile."
+              emptyExperienceMessage="No experience yet. Add it from Edit profile."
+            />
+          </div>
+        )}
 
         {/* Profile Tabs */}
         <Tabs defaultValue="projects" className="w-full">

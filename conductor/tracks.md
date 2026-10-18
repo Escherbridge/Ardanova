@@ -102,3 +102,4 @@ in-flight security-hardening pass.
 - [ ] [Nova AI powered by OVERSEASGENAI](tracks/nova-ai-ogai-partner/spec.md) - White-label project refinement via the OGAI partner validate API; .NET-only caller. **Loop 1 built; rollout owner-gated.**
 - [ ] [Retire ardanova-ai-client](tracks/ai-client-retirement/spec.md) - Dormant FastAPI/CrewAI service superseded by Nova AI; routes now key-guarded. **Proposal; owner decides deletion.**
 - [ ] [Backend Authorization Hardening](tracks/backend-authz-hardening_20261017/spec.md) - User PII projection, actor gating for 12 service-key-only controllers, ownership checks moved into .NET services. **P0 security; from loop-1 backend QA.**
+- [ ] [API Path-Segment Safety](tracks/api-path-segment-safety/spec.md) - Unencoded ids in endpoints/*.ts let any public procedure issue arbitrary server-keyed GETs; central path builder + id schema sweep. **P0 security; user/profile routers closed in loop 2.**
