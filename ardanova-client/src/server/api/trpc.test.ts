@@ -22,8 +22,24 @@ const {
 } = await import("./trpc");
 const { isActorAssertionActive } = await import("~/server/actor-assertion");
 const { apiPath } = await import("~/lib/api/path");
+const { BaseApiClient } = await import("~/lib/api/base-client");
+
+const backend = new BaseApiClient({ baseUrl: "https://api.example.test" });
+
+/** The router idiom used across the BFF: rethrow the API's message as a plain Error. */
+async function rethrowingRead(fallback?: string) {
+  const response = await backend.get<{ id: string }>(
+    "/api/Referrals/referral-1",
+  );
+  if (!response.data) throw new Error(fallback ?? response.error);
+  return response.data;
+}
 
 const router = createTRPCRouter({
+  apiRead: publicProcedure.query(() => rethrowingRead()),
+  apiReadWithOwnMessage: publicProcedure.query(() =>
+    rethrowingRead("Failed to fetch referral"),
+  ),
   whoAmI: protectedProcedure.query(({ ctx }) => ({ id: ctx.session.user.id })),
   publicRead: publicProcedure.query(() => ({
     signedAsActor: isActorAssertionActive(),
@@ -59,6 +75,7 @@ describe("tRPC request context", () => {
   beforeEach(() => {
     sessions.page = null;
     sessions.cookie = null;
+    vi.unstubAllGlobals();
   });
 
   it("serves protected procedures to the seeded preview identity that auth() returns", async () => {
@@ -111,6 +128,61 @@ describe("tRPC request context", () => {
 
     expect(status).toBe(200);
     expect(body).toContain('"signedAsActor":false');
+  });
+
+  it.each([
+    [
+      403,
+      "You do not have permission to perform this action.",
+      403,
+      "FORBIDDEN",
+    ],
+    [404, "The requested resource was not found.", 404, "NOT_FOUND"],
+    [429, "Too many requests. Try again shortly.", 429, "TOO_MANY_REQUESTS"],
+    [
+      500,
+      "An error occurred processing your request.",
+      500,
+      "INTERNAL_SERVER_ERROR",
+    ],
+  ])(
+    "keeps the API's %i when a router rethrows its message",
+    async (apiStatus, message, expectedStatus, expectedCode) => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue(
+          new Response(
+            JSON.stringify({ error: message, statusCode: apiStatus }),
+            {
+              status: apiStatus,
+            },
+          ),
+        ),
+      );
+
+      const { status, body } = await callWhoAmI("apiRead");
+
+      expect(status).toBe(expectedStatus);
+      expect(body).toContain(expectedCode);
+    },
+  );
+
+  it("does not guess a status for a router that replaced the API's message", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValue(
+          new Response(
+            JSON.stringify({ error: "Not found", statusCode: 404 }),
+            { status: 404 },
+          ),
+        ),
+    );
+
+    const { status } = await callWhoAmI("apiReadWithOwnMessage");
+
+    expect(status).toBe(500);
   });
 
   it("answers an id the API client refuses to path as a 400, not a server fault", async () => {
