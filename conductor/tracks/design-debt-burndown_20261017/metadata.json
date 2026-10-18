@@ -1,0 +1,10 @@
+{
+  "track_id": "design-debt-burndown_20261017",
+  "type": "chore",
+  "status": "pending",
+  "created_at": "2026-10-17",
+  "updated_at": "2026-10-17",
+  "description": "Migrate raw error.message sites, raw Tailwind palette classes and missing route titles onto the loop-2 design-system seams; ratchet ceilings to zero.",
+  "source": "loop2 design QA + adversarial critique",
+  "partitions": { "confidence": "none" }
+}

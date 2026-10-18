@@ -20,7 +20,8 @@ const badgeVariants = cva(
         neon: "border-system bg-system text-system-foreground",
         "neon-pink": "border-primary bg-primary text-primary-foreground",
         "neon-green": "border-success bg-success text-success-foreground",
-        "neon-purple": "border-system bg-system text-system-foreground",
+        "neon-purple":
+          "border-neon-purple bg-neon-purple text-system-foreground",
         "neon-solid": "border-system bg-system text-system-foreground",
         "neon-pink-solid": "border-primary bg-primary text-primary-foreground",
         "neon-green-solid": "border-success bg-success text-success-foreground",

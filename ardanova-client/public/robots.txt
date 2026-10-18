@@ -1,0 +1,10 @@
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /admin/
+Disallow: /dashboard/
+Disallow: /settings/
+Disallow: /chats/
+Disallow: /portfolio/
+Disallow: /swap/
+Disallow: /auth/error

@@ -20,7 +20,7 @@ export function ArdaNovaWordmark({
       <span aria-hidden="true">ARDANOVA</span>
       <span
         aria-hidden="true"
-        className={cn("size-2.5 bg-brand-signal", accentClassName)}
+        className={cn("bg-brand-signal size-2.5", accentClassName)}
       />
     </span>
   );
