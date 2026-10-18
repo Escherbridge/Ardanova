@@ -21,6 +21,7 @@ public sealed class ProjectMemberServiceTests
         var service = new ProjectMemberService(
             members.Object,
             users.Object,
+            new Mock<IRepository<ProjectTask>>(MockBehavior.Strict).Object,
             unitOfWork.Object,
             mapper.Object);
 

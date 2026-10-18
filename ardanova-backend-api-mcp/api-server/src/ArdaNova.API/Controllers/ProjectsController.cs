@@ -185,8 +185,9 @@ public class ProjectsController : ControllerBase
         var project = await _projectService.GetByIdAsync(id, ct);
         if (!project.IsSuccess)
             return ToActionResult(project);
-        if (!await CanManageProjectAsync(project.Value!.Id, ct))
-            return Forbid();
+        var standing = await ActorStandingAsync(project.Value!, ct);
+        if (ProjectMemberRolePolicy.RefuseProjectDelete(IsAdmin, standing) is { } refusal)
+            return MemberAuthorityRefused(refusal);
 
         var result = await _projectService.DeleteAsync(id, ct);
         return result.IsSuccess ? NoContent() : ToActionResult(result);
@@ -395,10 +396,13 @@ public class ProjectsController : ControllerBase
     [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
     public async Task<IActionResult> AddMember(string projectId, [FromBody] CreateProjectMemberDto dto, CancellationToken ct)
     {
-        if (!await CanManageProjectAsync(projectId, ct))
-            return Forbid();
+        var project = await _projectService.GetByIdAsync(projectId, ct);
+        if (!project.IsSuccess)
+            return ToActionResult(project);
+        if (ProjectMemberRolePolicy.RefuseAdd(ActorId, IsAdmin, project.Value!.CreatedById, dto.UserId, dto.Role) is { } refusal)
+            return MemberAuthorityRefused(refusal);
 
-        var dtoWithProject = dto with { ProjectId = projectId };
+        var dtoWithProject = dto with { ProjectId = projectId, InvitedById = ActorId };
         var result = await _memberService.CreateAsync(dtoWithProject, ct);
         return result.IsSuccess
             ? CreatedAtAction(nameof(GetMemberById), new { projectId, memberId = result.Value!.Id }, result.Value)
@@ -428,6 +432,16 @@ public class ProjectsController : ControllerBase
             return NotFound(new { error = "Member not found in the routed project" });
         if (!await CanManageProjectAsync(projectId, ct))
             return Forbid();
+        if (dto.Role is { } requestedRole)
+        {
+            var project = await _projectService.GetByIdAsync(projectId, ct);
+            if (!project.IsSuccess)
+                return ToActionResult(project);
+            var standing = await ActorStandingAsync(project.Value!, ct);
+            if (ProjectMemberRolePolicy.RefuseRoleChange(
+                    ActorId, IsAdmin, standing, member.Value.UserId, member.Value.Role, requestedRole) is { } refusal)
+                return MemberAuthorityRefused(refusal);
+        }
 
         var result = await _memberService.UpdateAsync(memberId, dto, ct);
         return ToActionResult(result);
@@ -442,8 +456,15 @@ public class ProjectsController : ControllerBase
             return ToActionResult(member);
         if (!string.Equals(member.Value!.ProjectId, projectId, StringComparison.Ordinal))
             return NotFound(new { error = "Member not found in the routed project" });
-        if (!await CanManageProjectAsync(projectId, ct))
+        var leaving = string.Equals(member.Value.UserId, ActorId, StringComparison.Ordinal);
+        if (!leaving && !await CanManageProjectAsync(projectId, ct))
             return Forbid();
+        var project = await _projectService.GetByIdAsync(projectId, ct);
+        if (!project.IsSuccess)
+            return ToActionResult(project);
+        var standing = await ActorStandingAsync(project.Value!, ct);
+        if (ProjectMemberRolePolicy.RefuseRemoval(ActorId, IsAdmin, standing, member.Value.UserId, member.Value.Role) is { } refusal)
+            return MemberAuthorityRefused(refusal);
 
         var result = await _memberService.DeleteAsync(memberId, ct);
         return result.IsSuccess ? NoContent() : ToActionResult(result);
@@ -698,6 +719,20 @@ public class ProjectsController : ControllerBase
         > MaximumPageSize => MaximumPageSize,
         _ => pageSize
     };
+
+    /// <summary>The actor's effective project role (creator counts as founder), or null for a non-member.</summary>
+    private async Task<ProjectRole?> ActorStandingAsync(ProjectDto project, CancellationToken ct)
+    {
+        var members = await _memberService.GetByProjectIdAsync(project.Id, ct);
+        var row = members.IsSuccess
+            ? members.Value!.FirstOrDefault(m => string.Equals(m.UserId, ActorId, StringComparison.Ordinal))
+            : null;
+        return ProjectMemberRolePolicy.EffectiveRole(ActorId, project.CreatedById, row?.Role);
+    }
+
+    /// <summary>An explicit 403 body naming the member-authority rule that refused the change.</summary>
+    private ObjectResult MemberAuthorityRefused(string refusal)
+        => StatusCode(StatusCodes.Status403Forbidden, new { error = refusal });
 
     private Task<bool> CanManageProjectAsync(string projectId, CancellationToken ct)
         => IsAdmin
