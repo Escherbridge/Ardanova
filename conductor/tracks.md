@@ -24,6 +24,7 @@ type: index
 ## Revenue & Equity UI (Tracks 15-16) — Phase B: Core Revenue
 - [ ] [Token & Equity Frontend UI](tracks/15-token-equity-ui/spec.md) - Project funding, investment flow, portfolio, payouts, equity dashboard. **P0**
 - [ ] [Application & Hiring Flow UI](tracks/16-application-hiring-ui/spec.md) - Apply to opportunities, application review, accept/reject. **P1**
+- [ ] [Projects Hiring Completion](tracks/projects-hiring-completion_20261017/spec.md) - Covers what loop 1 left open: role headcount, guild seating, applicant notifications, a DB-enforced single pending application, the dev-bypass tRPC context, 403 refusals, and the remaining assignee pickers. **P1**
 
 ## Growth & Polish (Tracks 17-19) — Phase C
 - [ ] [Onboarding & First-Time Experience](tracks/17-onboarding/spec.md) - User type selection, profile wizard, first action prompt. **P1**
