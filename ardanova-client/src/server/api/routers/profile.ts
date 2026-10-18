@@ -6,7 +6,58 @@ import {
   protectedProcedure,
 } from "~/server/api/trpc";
 import { apiClient } from "~/lib/api";
+import type { ApiResponse } from "~/lib/api/base-client";
 import { recordIdSchema, requireRequestedUser, toPublicUser } from "./user";
+
+/** True for an absolute http(s) URL; mirrors the .NET profile link rule (UserProfileRules). */
+export function isHttpUrl(value: string): boolean {
+  try {
+    const url = new URL(value.trim());
+    return (
+      (url.protocol === "http:" || url.protocol === "https:") && url.host !== ""
+    );
+  } catch {
+    return false;
+  }
+}
+
+/** A handle without a scheme, or an http(s) URL; anything naming another scheme is refused. */
+function isHandleOrHttpUrl(value: string): boolean {
+  const trimmed = value.trim();
+  if (!trimmed) return true;
+  if (!/^[a-z][a-z0-9+.-]*:/i.test(trimmed) && !trimmed.startsWith("//"))
+    return true;
+  return isHttpUrl(trimmed);
+}
+
+const linkMessage = "Use an http:// or https:// link.";
+const optionalHttpUrl = z
+  .string()
+  .max(500)
+  .refine((value) => value === "" || isHttpUrl(value), linkMessage);
+
+/** Maps a failed .NET response onto the matching tRPC error, keeping the backend's 4xx reason. */
+export function backendFailure(
+  response: ApiResponse<unknown>,
+  fallback: string,
+): TRPCError {
+  const status = response.status;
+  const code =
+    status === 400 || status === 409 || status === 422
+      ? "BAD_REQUEST"
+      : status === 401
+        ? "UNAUTHORIZED"
+        : status === 403
+          ? "FORBIDDEN"
+          : status === 404
+            ? "NOT_FOUND"
+            : "INTERNAL_SERVER_ERROR";
+  const message =
+    code !== "INTERNAL_SERVER_ERROR" && response.error
+      ? response.error
+      : fallback;
+  return new TRPCError({ code, message });
+}
 
 // ---------------------------------------------------------------------------
 // Router
@@ -81,19 +132,23 @@ export const profileRouter = createTRPCRouter({
         bio: z.string().max(2000).optional(),
         location: z.string().max(200).optional(),
         phone: z.string().max(30).optional(),
-        website: z.string().url().max(500).optional().or(z.literal("")),
-        linkedIn: z.string().max(500).optional(),
-        twitter: z.string().max(100).optional(),
-      })
+        website: optionalHttpUrl.optional(),
+        linkedIn: z
+          .string()
+          .max(500)
+          .refine(isHandleOrHttpUrl, linkMessage)
+          .optional(),
+        twitter: z
+          .string()
+          .max(100)
+          .refine(isHandleOrHttpUrl, linkMessage)
+          .optional(),
+      }),
     )
     .mutation(async ({ input, ctx }) => {
       const response = await apiClient.users.update(ctx.session.user.id, input);
-      if (!response.data) {
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "Failed to update profile",
-        });
-      }
+      if (!response.data)
+        throw backendFailure(response, "Failed to update profile");
       return response.data;
     }),
 
@@ -101,17 +156,17 @@ export const profileRouter = createTRPCRouter({
    * Update the current user's profile image.
    */
   updateProfileImage: protectedProcedure
-    .input(z.object({ imageUrl: z.string().url() }))
+    .input(
+      z.object({
+        imageUrl: z.string().max(2048).refine(isHttpUrl, linkMessage),
+      }),
+    )
     .mutation(async ({ input, ctx }) => {
       const response = await apiClient.users.update(ctx.session.user.id, {
         image: input.imageUrl,
       });
-      if (!response.data) {
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "Failed to update image",
-        });
-      }
+      if (!response.data)
+        throw backendFailure(response, "Failed to update image");
       return response.data;
     }),
 
@@ -125,19 +180,14 @@ export const profileRouter = createTRPCRouter({
       z.object({
         skill: z.string().min(1).max(100),
         level: z.number().int().min(1).max(10).optional(),
-      })
+      }),
     )
     .mutation(async ({ input, ctx }) => {
       const response = await apiClient.users.addSkill(ctx.session.user.id, {
         skill: input.skill,
         level: input.level,
       });
-      if (!response.data) {
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "Failed to add skill",
-        });
-      }
+      if (!response.data) throw backendFailure(response, "Failed to add skill");
       return response.data;
     }),
 
@@ -149,11 +199,9 @@ export const profileRouter = createTRPCRouter({
     .mutation(async ({ input, ctx }) => {
       const response = await apiClient.users.deleteSkill(
         ctx.session.user.id,
-        input.skillId
+        input.skillId,
       );
-      if (response.error) {
-        throw new TRPCError({ code: "NOT_FOUND", message: response.error });
-      }
+      if (response.error) throw backendFailure(response, "Failed to remove");
       return { success: true };
     }),
 
@@ -165,18 +213,17 @@ export const profileRouter = createTRPCRouter({
       z.object({
         skillId: recordIdSchema,
         level: z.number().int().min(1).max(10).optional(),
-      })
+      }),
     )
     .mutation(async ({ input, ctx }) => {
       const { skillId, ...data } = input;
       const response = await apiClient.users.updateSkill(
         ctx.session.user.id,
         skillId,
-        data
+        data,
       );
-      if (!response.data) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Skill not found" });
-      }
+      if (!response.data)
+        throw backendFailure(response, "Failed to update skill");
       return response.data;
     }),
 
@@ -187,14 +234,19 @@ export const profileRouter = createTRPCRouter({
    */
   addExperience: protectedProcedure
     .input(
-      z.object({
-        title: z.string().min(1).max(200),
-        company: z.string().min(1).max(200),
-        description: z.string().max(2000).optional(),
-        startDate: z.coerce.date(),
-        endDate: z.coerce.date().optional(),
-        isCurrent: z.boolean().optional(),
-      })
+      z
+        .object({
+          title: z.string().min(1).max(200),
+          company: z.string().min(1).max(200),
+          description: z.string().max(2000).optional(),
+          startDate: z.coerce.date(),
+          endDate: z.coerce.date().optional(),
+          isCurrent: z.boolean().optional(),
+        })
+        .refine((entry) => !entry.endDate || entry.endDate >= entry.startDate, {
+          message: "The end date is before the start date.",
+          path: ["endDate"],
+        }),
     )
     .mutation(async ({ input, ctx }) => {
       const response = await apiClient.users.addExperience(
@@ -206,14 +258,10 @@ export const profileRouter = createTRPCRouter({
           startDate: input.startDate.toISOString(),
           endDate: input.endDate?.toISOString(),
           isCurrent: input.isCurrent,
-        }
+        },
       );
-      if (!response.data) {
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "Failed to add experience",
-        });
-      }
+      if (!response.data)
+        throw backendFailure(response, "Failed to add experience");
       return response.data;
     }),
 
@@ -225,11 +273,9 @@ export const profileRouter = createTRPCRouter({
     .mutation(async ({ input, ctx }) => {
       const response = await apiClient.users.deleteExperience(
         ctx.session.user.id,
-        input.experienceId
+        input.experienceId,
       );
-      if (response.error) {
-        throw new TRPCError({ code: "NOT_FOUND", message: response.error });
-      }
+      if (response.error) throw backendFailure(response, "Failed to remove");
       return { success: true };
     }),
 
@@ -246,7 +292,7 @@ export const profileRouter = createTRPCRouter({
         startDate: z.coerce.date().optional(),
         endDate: z.coerce.date().optional().nullable(),
         isCurrent: z.boolean().optional(),
-      })
+      }),
     )
     .mutation(async ({ input, ctx }) => {
       const { experienceId } = input;
@@ -260,14 +306,10 @@ export const profileRouter = createTRPCRouter({
           startDate: input.startDate?.toISOString(),
           endDate: input.endDate?.toISOString() ?? undefined,
           isCurrent: input.isCurrent,
-        }
+        },
       );
-      if (!response.data) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Experience not found",
-        });
-      }
+      if (!response.data)
+        throw backendFailure(response, "Failed to update experience");
       return response.data;
     }),
 });

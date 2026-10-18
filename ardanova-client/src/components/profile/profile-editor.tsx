@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Checkbox } from "~/components/ui/checkbox";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
+import { describeMutationError } from "~/components/ui/query-error-copy";
 import { QueryErrorState } from "~/components/ui/query-error-state";
 import { Textarea } from "~/components/ui/textarea";
 import { api } from "~/trpc/react";
@@ -53,7 +54,9 @@ const emptyExperience = {
 /** Self-service editor for the signed-in member's profile, skills and experience. */
 export function ProfileEditor() {
   const utils = api.useUtils();
-  const profile = api.profile.getMyProfile.useQuery(undefined, { retry: false });
+  const profile = api.profile.getMyProfile.useQuery(undefined, {
+    retry: false,
+  });
   const saved = profileFormFrom(profile.data);
   const [values, setValues] = useState<ProfileFormValues>(saved);
   const [skillName, setSkillName] = useState("");
@@ -76,29 +79,34 @@ export function ProfileEditor() {
       await refresh();
       toast.success("Profile saved.");
     },
-    onError: () => toast.error("Profile could not be saved. Check the fields and try again."),
+    onError: (error) =>
+      toast.error(describeMutationError(error, "save your profile")),
   });
   const addSkill = api.profile.addSkill.useMutation({
     onSuccess: async () => {
       setSkillName("");
       await refresh();
     },
-    onError: () => toast.error("Skill could not be added."),
+    onError: (error) =>
+      toast.error(describeMutationError(error, "add the skill")),
   });
   const removeSkill = api.profile.removeSkill.useMutation({
     onSuccess: refresh,
-    onError: () => toast.error("Skill could not be removed."),
+    onError: (error) =>
+      toast.error(describeMutationError(error, "remove the skill")),
   });
   const addExperience = api.profile.addExperience.useMutation({
     onSuccess: async () => {
       setExperience(emptyExperience);
       await refresh();
     },
-    onError: () => toast.error("Experience could not be added. Check the dates."),
+    onError: (error) =>
+      toast.error(describeMutationError(error, "add the experience")),
   });
   const removeExperience = api.profile.removeExperience.useMutation({
     onSuccess: refresh,
-    onError: () => toast.error("Experience could not be removed."),
+    onError: (error) =>
+      toast.error(describeMutationError(error, "remove the experience")),
   });
 
   if (profile.isLoading) {
@@ -131,7 +139,11 @@ export function ProfileEditor() {
 
   const submitExperience = (event: FormEvent) => {
     event.preventDefault();
-    if (!experience.title.trim() || !experience.company.trim() || !experience.startDate) {
+    if (
+      !experience.title.trim() ||
+      !experience.company.trim() ||
+      !experience.startDate
+    ) {
       return;
     }
     addExperience.mutate({
@@ -173,7 +185,9 @@ export function ProfileEditor() {
                 value={values.bio}
                 maxLength={2000}
                 rows={4}
-                onChange={(event) => setValues({ ...values, bio: event.target.value })}
+                onChange={(event) =>
+                  setValues({ ...values, bio: event.target.value })
+                }
               />
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
@@ -190,12 +204,19 @@ export function ProfileEditor() {
                       setValues({ ...values, [field]: event.target.value })
                     }
                   />
-                  {hint && <p className="text-muted-foreground text-xs">{hint}</p>}
+                  {hint && (
+                    <p className="text-muted-foreground text-xs">{hint}</p>
+                  )}
                 </div>
               ))}
             </div>
-            <Button type="submit" disabled={!hasChanges || updateProfile.isPending}>
-              {updateProfile.isPending && <Loader2 className="mr-2 size-4 animate-spin" />}
+            <Button
+              type="submit"
+              disabled={!hasChanges || updateProfile.isPending}
+            >
+              {updateProfile.isPending && (
+                <Loader2 className="mr-2 size-4 animate-spin" />
+              )}
               Save profile
             </Button>
           </form>
@@ -220,7 +241,10 @@ export function ProfileEditor() {
                 >
                   <span>
                     {skill.skill}
-                    <span className="text-muted-foreground"> · {skill.level}/10</span>
+                    <span className="text-muted-foreground">
+                      {" "}
+                      · {skill.level}/10
+                    </span>
                   </span>
                   <Button
                     type="button"
@@ -236,7 +260,10 @@ export function ProfileEditor() {
               ))}
             </ul>
           )}
-          <form onSubmit={submitSkill} className="flex flex-col gap-3 sm:flex-row sm:items-end">
+          <form
+            onSubmit={submitSkill}
+            className="flex flex-col gap-3 sm:flex-row sm:items-end"
+          >
             <div className="flex-1 space-y-2">
               <Label htmlFor="skill-name">Skill</Label>
               <Input
@@ -257,7 +284,10 @@ export function ProfileEditor() {
                 onChange={(event) => setSkillLevel(event.target.value)}
               />
             </div>
-            <Button type="submit" disabled={!skillName.trim() || addSkill.isPending}>
+            <Button
+              type="submit"
+              disabled={!skillName.trim() || addSkill.isPending}
+            >
               <Plus className="mr-2 size-4" />
               Add skill
             </Button>
@@ -286,7 +316,9 @@ export function ProfileEditor() {
                     size="sm"
                     aria-label={`Remove ${entry.title} at ${entry.company}`}
                     disabled={removeExperience.isPending}
-                    onClick={() => removeExperience.mutate({ experienceId: entry.id })}
+                    onClick={() =>
+                      removeExperience.mutate({ experienceId: entry.id })
+                    }
                   >
                     <Trash2 className="size-4" />
                   </Button>
@@ -314,7 +346,10 @@ export function ProfileEditor() {
                   value={experience.company}
                   maxLength={200}
                   onChange={(event) =>
-                    setExperience({ ...experience, company: event.target.value })
+                    setExperience({
+                      ...experience,
+                      company: event.target.value,
+                    })
                   }
                 />
               </div>
@@ -325,7 +360,10 @@ export function ProfileEditor() {
                   type="date"
                   value={experience.startDate}
                   onChange={(event) =>
-                    setExperience({ ...experience, startDate: event.target.value })
+                    setExperience({
+                      ...experience,
+                      startDate: event.target.value,
+                    })
                   }
                 />
               </div>
@@ -337,7 +375,10 @@ export function ProfileEditor() {
                   value={experience.endDate}
                   disabled={experience.isCurrent}
                   onChange={(event) =>
-                    setExperience({ ...experience, endDate: event.target.value })
+                    setExperience({
+                      ...experience,
+                      endDate: event.target.value,
+                    })
                   }
                 />
               </div>
@@ -360,7 +401,10 @@ export function ProfileEditor() {
                 maxLength={2000}
                 rows={3}
                 onChange={(event) =>
-                  setExperience({ ...experience, description: event.target.value })
+                  setExperience({
+                    ...experience,
+                    description: event.target.value,
+                  })
                 }
               />
             </div>

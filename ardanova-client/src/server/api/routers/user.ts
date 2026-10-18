@@ -1,6 +1,10 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { createTRPCRouter, protectedProcedure, publicProcedure } from "~/server/api/trpc";
+import {
+  createTRPCRouter,
+  protectedProcedure,
+  publicProcedure,
+} from "~/server/api/trpc";
 import { apiClient } from "~/lib/api";
 import type { User } from "~/lib/api/ardanova/endpoints/users";
 
@@ -24,13 +28,26 @@ export function toPublicUser(user: User): PublicUser {
   return projected as PublicUser;
 }
 
+/** Literal .NET route segments that sit beside `{id}` templates (e.g. GET /api/Users/paged). */
+const reservedRouteSegments = new Set([
+  "paged",
+  "search",
+  "email",
+  "me",
+  "admin",
+]);
+
 /** A record id safe to place in an API path segment; see `src/server/auth/AGENTS.md` §Path-safe ids. */
 export const recordIdSchema = z
   .string()
-  .regex(/^[A-Za-z0-9_-]{1,128}$/, "Invalid id");
+  .regex(/^[A-Za-z0-9_-]{1,128}$/, "Invalid id")
+  .refine((id) => !reservedRouteSegments.has(id.toLowerCase()), "Invalid id");
 
 /** Returns the record only when the backend answered with the user that was asked for. */
-export function requireRequestedUser(user: User | undefined, requestedId: string): User {
+export function requireRequestedUser(
+  user: User | undefined,
+  requestedId: string,
+): User {
   if (!user || typeof user !== "object" || user.id !== requestedId) {
     throw new TRPCError({ code: "NOT_FOUND", message: "User not found" });
   }
@@ -44,7 +61,7 @@ export const userRouter = createTRPCRouter({
       z.object({
         limit: z.number().min(1).max(100).default(20),
         page: z.number().min(1).default(1),
-      })
+      }),
     )
     .query(async ({ input }) => {
       const response = await apiClient.users.getAll(input.page, input.limit);
@@ -53,7 +70,9 @@ export const userRouter = createTRPCRouter({
       }
       return {
         items: (response.data?.items ?? []).map(toPublicUser),
-        nextCursor: response.data?.hasNextPage ? String(input.page + 1) : undefined,
+        nextCursor: response.data?.hasNextPage
+          ? String(input.page + 1)
+          : undefined,
         totalCount: response.data?.totalCount,
         totalPages: response.data?.totalPages,
       };
@@ -66,10 +85,14 @@ export const userRouter = createTRPCRouter({
         query: z.string(),
         page: z.number().min(1).default(1),
         limit: z.number().min(1).max(100).default(20),
-      })
+      }),
     )
     .query(async ({ input }) => {
-      const response = await apiClient.users.search(input.query, input.page, input.limit);
+      const response = await apiClient.users.search(
+        input.query,
+        input.page,
+        input.limit,
+      );
       if (response.error) {
         throw new Error(response.error);
       }
@@ -150,7 +173,7 @@ export const userRouter = createTRPCRouter({
           const userResp = await apiClient.users.getById(follow.followingId);
           if (userResp.error || !userResp.data) return null;
           return toPublicUser(userResp.data);
-        })
+        }),
       );
 
       return userResults.filter((u): u is NonNullable<typeof u> => u !== null);
@@ -161,7 +184,10 @@ export const userRouter = createTRPCRouter({
     .input(z.object({ userId: recordIdSchema }))
     .query(async ({ input, ctx }) => {
       const followerId = ctx.session.user.id;
-      const response = await apiClient.users.isFollowing(input.userId, followerId);
+      const response = await apiClient.users.isFollowing(
+        input.userId,
+        followerId,
+      );
       if (response.error) {
         throw new Error(response.error);
       }
