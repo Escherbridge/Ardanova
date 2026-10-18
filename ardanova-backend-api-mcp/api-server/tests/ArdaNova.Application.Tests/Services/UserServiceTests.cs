@@ -20,9 +20,10 @@ public class UserServiceTests
     [Theory]
     [InlineData("ardanova.test", new string[0])]
     [InlineData("preview@", new string[0])]
-    [InlineData("  Preview@Local.ArdaNova.Test ", new[] { "u-preview" })]
+    [InlineData("  Preview@Local.ArdaNova.Test ", new string[0])]
+    [InlineData("preview@local.ardanova.test", new string[0])]
     [InlineData("steward", new[] { "u-preview" })]
-    public async Task SearchAsync_MatchesNamesBySubstringButEmailsOnlyExactly(string query, string[] expectedIds)
+    public async Task SearchAsync_MatchesNamesOnlyAndNeverConfirmsAnEmailOwner(string query, string[] expectedIds)
     {
         var users = new List<User>
         {
