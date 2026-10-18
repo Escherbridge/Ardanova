@@ -711,6 +711,23 @@ public class ProjectsController : ControllerBase
             : NotFound(new { error = $"Project with id {projectId} not found" });
     }
 
+    /// <summary>NotFound unless the project is visible and the proposal is visible to this viewer and filed under it; same policy as /api/Governance reads.</summary>
+    private async Task<IActionResult?> ProposalNotVisibleAsync(string projectId, string proposalId, CancellationToken ct)
+    {
+        if (await ProjectNotVisibleAsync(projectId, ct) is { } hidden)
+            return hidden;
+
+        var proposal = await _governanceService.GetVisibleProposalByIdAsync(Viewer, proposalId, ct);
+        if (!proposal.IsSuccess)
+            return ToActionResult(proposal);
+        return string.Equals(proposal.Value!.ProjectId, projectId, StringComparison.Ordinal)
+            ? null
+            : ProposalNotInProject();
+    }
+
+    private NotFoundObjectResult ProposalNotInProject() =>
+        NotFound(new { error = "Proposal not found in the routed project" });
+
     private static int NormalizePage(int page) => page < 1 ? 1 : page;
 
     private static int NormalizePageSize(int pageSize) => pageSize switch
@@ -903,7 +920,7 @@ public class ProjectsController : ControllerBase
         if (await ProjectNotVisibleAsync(projectId, ct) is { } hidden)
             return hidden;
 
-        var result = await _governanceService.SearchProposalsAsync(null, null, null, projectId, page, pageSize, ct);
+        var result = await _governanceService.SearchVisibleProposalsAsync(Viewer, null, null, null, projectId, page, pageSize, ct);
         return ToActionResult(result);
     }
 
@@ -913,7 +930,9 @@ public class ProjectsController : ControllerBase
         if (await ProjectNotVisibleAsync(projectId, ct) is { } hidden)
             return hidden;
 
-        var result = await _governanceService.GetProposalByIdAsync(proposalId, ct);
+        var result = await _governanceService.GetVisibleProposalByIdAsync(Viewer, proposalId, ct);
+        if (result.IsSuccess && !string.Equals(result.Value!.ProjectId, projectId, StringComparison.Ordinal))
+            return ProposalNotInProject();
         return ToActionResult(result);
     }
 
@@ -1029,7 +1048,7 @@ public class ProjectsController : ControllerBase
     [HttpGet("{projectId}/proposals/{proposalId}/comments")]
     public async Task<IActionResult> GetProposalComments(string projectId, string proposalId, CancellationToken ct)
     {
-        if (await ProjectNotVisibleAsync(projectId, ct) is { } hidden)
+        if (await ProposalNotVisibleAsync(projectId, proposalId, ct) is { } hidden)
             return hidden;
 
         var result = await _governanceService.GetProposalCommentsAsync(proposalId, ct);
@@ -1056,7 +1075,7 @@ public class ProjectsController : ControllerBase
     [HttpGet("{projectId}/proposals/{proposalId}/summary")]
     public async Task<IActionResult> GetProposalVoteSummary(string projectId, string proposalId, CancellationToken ct)
     {
-        if (await ProjectNotVisibleAsync(projectId, ct) is { } hidden)
+        if (await ProposalNotVisibleAsync(projectId, proposalId, ct) is { } hidden)
             return hidden;
 
         var result = await _governanceService.GetVoteSummaryAsync(proposalId, ct);
@@ -1067,7 +1086,7 @@ public class ProjectsController : ControllerBase
     [HttpGet("{projectId}/proposals/{proposalId}/votes")]
     public async Task<IActionResult> GetVotes(string projectId, string proposalId, CancellationToken ct)
     {
-        if (await ProjectNotVisibleAsync(projectId, ct) is { } hidden)
+        if (await ProposalNotVisibleAsync(projectId, proposalId, ct) is { } hidden)
             return hidden;
 
         var result = await _governanceService.GetVotesAsync(proposalId, ct);
