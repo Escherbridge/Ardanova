@@ -29,8 +29,7 @@ public class ProjectServiceTests
         _sut = new ProjectService(
             _repositoryMock.Object,
             _userRepositoryMock.Object,
-            new Mock<IRepository<ProjectTask>>().Object,
-            new Mock<IRepository<ProjectMilestone>>().Object,
+            Mock.Of<IProjectDeletionBlockers>(b => b.FindAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()) == Task.FromResult<IReadOnlyList<string>>(Array.Empty<string>())),
             _unitOfWorkMock.Object,
             _mapperMock.Object);
     }

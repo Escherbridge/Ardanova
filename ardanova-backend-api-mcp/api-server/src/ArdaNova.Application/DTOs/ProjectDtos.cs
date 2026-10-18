@@ -361,6 +361,14 @@ public record UpdateProjectEquityDto
     public decimal? InvestmentAmount { get; init; }
 }
 
+/// <summary>The 409 body for a refused project delete: the message and the entity kinds still referencing the project.</summary>
+public record ProjectDeletionBlockedDto
+{
+    public required string Error { get; init; }
+    public string Code { get; init; } = "PROJECT_HAS_DEPENDENTS";
+    public required IReadOnlyList<string> BlockedBy { get; init; }
+}
+
 public record ProjectMemberDto
 {
     public string Id { get; init; } = null!;

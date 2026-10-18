@@ -26,6 +26,8 @@ public interface IProjectService
     Task<Result<ProjectDto>> CreateAsync(CreateProjectDto dto, CancellationToken ct = default);
     Task<Result<ProjectDto>> UpdateAsync(string id, UpdateProjectDto dto, CancellationToken ct = default);
     Task<Result<bool>> DeleteAsync(string id, CancellationToken ct = default);
+    /// <summary>Entity names whose rows still reference the project and stop it being deleted; empty when it may be.</summary>
+    Task<IReadOnlyList<string>> GetDeletionBlockersAsync(string id, CancellationToken ct = default);
     Task<Result<ProjectDto>> PublishAsync(string id, CancellationToken ct = default);
     Task<Result<ProjectDto>> SetFeaturedAsync(string id, bool featured, CancellationToken ct = default);
 }

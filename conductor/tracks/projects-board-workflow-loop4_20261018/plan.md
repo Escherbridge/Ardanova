@@ -21,4 +21,5 @@ type: plan
 - [ ] Add length caps to descriptions, cover letters and opportunity titles, mirrored in zod (req 7)
 
 ## Phase 4: Delete [P2]
+- [x] Typed 409 naming every foreign-key dependent that blocks a delete (loop 4 integration; `ProjectDeletionBlockers`)
 - [ ] Choose between an empty-only delete and a soft delete, then expose "Delete project" only for an empty DRAFT (req 8)

@@ -39,8 +39,7 @@ public class ProjectPublishTransitionTests
         _sut = new ProjectService(
             _repositoryMock.Object,
             _userRepositoryMock.Object,
-            new Mock<IRepository<ProjectTask>>().Object,
-            new Mock<IRepository<ProjectMilestone>>().Object,
+            new Mock<IProjectDeletionBlockers>().Object,
             _unitOfWorkMock.Object,
             _mapperMock.Object);
     }

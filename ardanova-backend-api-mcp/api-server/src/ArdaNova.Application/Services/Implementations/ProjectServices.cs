@@ -274,29 +274,27 @@ public static class ProjectLifecycle
 
 public class ProjectService : IProjectService, IProjectVisibility
 {
-    /// <summary>Why a delete was refused: planned work hangs off the project; see Services/Implementations/AGENTS.md §Project delete.</summary>
-    public const string ProjectHasPlannedWork =
-        "This project has milestones or tasks, so it cannot be deleted. Set its status to CANCELLED instead.";
+    /// <summary>Why a delete was refused, naming what still references the project; see Services/Implementations/AGENTS.md §Project delete.</summary>
+    public static string DeletionBlockedMessage(IEnumerable<string> blockers)
+        => "This project still has " + string.Join(", ", blockers.Select(ProjectDeletionBlockerLabels.Describe)) +
+           ", so it cannot be deleted. Set its status to CANCELLED instead.";
 
     private readonly IProjectRepository _repository;
     private readonly IRepository<User> _userRepository;
-    private readonly IRepository<ProjectTask> _taskRepository;
-    private readonly IRepository<ProjectMilestone> _milestoneRepository;
+    private readonly IProjectDeletionBlockers _deletionBlockers;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IMapper _mapper;
 
     public ProjectService(
         IProjectRepository repository,
         IRepository<User> userRepository,
-        IRepository<ProjectTask> taskRepository,
-        IRepository<ProjectMilestone> milestoneRepository,
+        IProjectDeletionBlockers deletionBlockers,
         IUnitOfWork unitOfWork,
         IMapper mapper)
     {
         _repository = repository;
         _userRepository = userRepository;
-        _taskRepository = taskRepository;
-        _milestoneRepository = milestoneRepository;
+        _deletionBlockers = deletionBlockers;
         _unitOfWork = unitOfWork;
         _mapper = mapper;
     }
@@ -602,15 +600,17 @@ public class ProjectService : IProjectService, IProjectVisibility
         if (project is null)
             return Result<bool>.NotFound($"Project with id {id} not found");
 
-        // Epics, sprints, features and PBIs all hang off a milestone, so these two cover the whole plan.
-        if (await _taskRepository.ExistsAsync(task => task.projectId == id, ct) ||
-            await _milestoneRepository.ExistsAsync(milestone => milestone.projectId == id, ct))
-            return Result<bool>.Conflict(ProjectHasPlannedWork);
+        var blockers = await _deletionBlockers.FindAsync(id, ct);
+        if (blockers.Count > 0)
+            return Result<bool>.Conflict(DeletionBlockedMessage(blockers));
 
         await _repository.DeleteAsync(project, ct);
         await _unitOfWork.SaveChangesAsync(ct);
         return Result<bool>.Success(true);
     }
+
+    public Task<IReadOnlyList<string>> GetDeletionBlockersAsync(string id, CancellationToken ct = default)
+        => _deletionBlockers.FindAsync(id, ct);
 
     /// <summary>Idempotent: a project that is already public comes back untouched and keeps its first publish date.</summary>
     public async Task<Result<ProjectDto>> PublishAsync(string id, CancellationToken ct = default)

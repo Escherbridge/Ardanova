@@ -97,6 +97,17 @@ public sealed class ProjectMemberDisclosureFlowTests
             .Which.Value.Should().BeEquivalentTo(new { error = "Member with id hidden-row not found" });
     }
 
+    [Fact]
+    public async Task AFoundersDeleteOfAProjectWithDependents_Is409NamingWhatBlocksIt()
+    {
+        var result = await Controller(Founder).Delete(PublicProject, CancellationToken.None);
+
+        var body = result.Should().BeOfType<ConflictObjectResult>().Which.Value.Should().BeOfType<ProjectDeletionBlockedDto>().Subject;
+        body.BlockedBy.Should().Equal("Epic");
+        body.Code.Should().Be("PROJECT_HAS_DEPENDENTS");
+        body.Error.Should().Contain("epics");
+    }
+
     public static TheoryData<string> ProjectWrites => ["update", "publish", "delete", "addMember"];
 
     [Theory]
@@ -162,6 +173,12 @@ public sealed class ProjectMemberDisclosureFlowTests
             .ReturnsAsync(hiddenProjectExists
                 ? Result<ProjectDto>.Success(new ProjectDto { Id = HiddenProject, CreatedById = Founder })
                 : Result<ProjectDto>.NotFound($"Project with id {HiddenProject} not found"));
+
+        // The public project still has a root-level epic, so the database would refuse its delete.
+        projects.Setup(p => p.DeleteAsync(PublicProject, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<bool>.Conflict(ProjectService.DeletionBlockedMessage(["Epic"])));
+        projects.Setup(p => p.GetDeletionBlockersAsync(PublicProject, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(["Epic"]);
 
         // The hidden project is a draft only its founder sees.
         var visibility = new Mock<IProjectVisibility>(MockBehavior.Strict);

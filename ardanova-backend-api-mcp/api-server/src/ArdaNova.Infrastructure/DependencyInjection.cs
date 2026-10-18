@@ -82,6 +82,7 @@ public static class DependencyInjection
 
         // Entity-specific Repositories
         services.AddScoped<IProjectRepository, ProjectRepository>();
+        services.AddScoped<IProjectDeletionBlockers, ProjectDeletionBlockers>();
 
         // Unit of Work
         services.AddScoped<IUnitOfWork, UnitOfWork.UnitOfWork>();

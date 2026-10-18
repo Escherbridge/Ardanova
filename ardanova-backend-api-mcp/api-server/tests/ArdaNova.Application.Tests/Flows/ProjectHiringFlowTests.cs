@@ -428,34 +428,6 @@ public class ProjectHiringFlowTests
         _tasks.Items.Single(task => task.id == "task-public").title.Should().Be("public plan");
     }
 
-    /// <summary>The database refuses to orphan a project's plan; the service says so instead of surfacing a foreign-key error.</summary>
-    [Fact]
-    public async Task AProjectWithPlannedWork_CannotBeDeleted_ButAnEmptyOneCan()
-    {
-        var milestones = new ListRepository<ProjectMilestone>();
-        _projects.Add(NewProject("project-empty", ProjectStatus.DRAFT));
-        _projects.Add(NewProject("project-with-milestone", ProjectStatus.DRAFT));
-        milestones.Add(new ProjectMilestone { id = "milestone-1", projectId = "project-with-milestone", title = "Survey" });
-        var projectRepository = new Mock<IProjectRepository>();
-        projectRepository.Setup(r => r.GetByIdAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((string id, CancellationToken _) => _projects.Items.FirstOrDefault(project => project.id == id));
-        projectRepository.Setup(r => r.DeleteAsync(It.IsAny<Project>(), It.IsAny<CancellationToken>()))
-            .Callback((Project project, CancellationToken _) => _projects.Items.Remove(project))
-            .Returns(Task.CompletedTask);
-        var projectService = new ProjectService(projectRepository.Object, _users, _tasks, milestones, _unitOfWork, _mapper);
-
-        var withTasks = await projectService.DeleteAsync(PublishedProjectId);
-        var withMilestone = await projectService.DeleteAsync("project-with-milestone");
-        var empty = await projectService.DeleteAsync("project-empty");
-
-        withTasks.Type.Should().Be(ResultType.Conflict);
-        withTasks.Error.Should().Be(ProjectService.ProjectHasPlannedWork);
-        withMilestone.Type.Should().Be(ResultType.Conflict);
-        empty.IsSuccess.Should().BeTrue();
-        _projects.Items.Select(project => project.id)
-            .Should().BeEquivalentTo(new[] { DraftProjectId, PublishedProjectId, "project-with-milestone" });
-    }
-
     private static Project NewProject(string id, ProjectStatus status) => new()
     {
         id = id,

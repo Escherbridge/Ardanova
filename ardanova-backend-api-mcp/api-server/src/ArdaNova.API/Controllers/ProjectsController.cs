@@ -191,7 +191,11 @@ public class ProjectsController : ControllerBase
 
         var result = await _projectService.DeleteAsync(id, ct);
         if (result.Type == ResultType.Conflict)
-            return Conflict(new { error = result.Error });
+            return Conflict(new ProjectDeletionBlockedDto
+            {
+                Error = result.Error!,
+                BlockedBy = await _projectService.GetDeletionBlockersAsync(id, ct),
+            });
         return result.IsSuccess ? NoContent() : ToActionResult(result);
     }
 

@@ -103,8 +103,7 @@ public class DraftProjectVisibilityBoundaryTests
         _projectService = new ProjectService(
             _projects.Object,
             _users.Object,
-            new Mock<IRepository<ProjectTask>>().Object,
-            new Mock<IRepository<ProjectMilestone>>().Object,
+            new Mock<IProjectDeletionBlockers>().Object,
             _unitOfWork.Object,
             _mapper.Object);
 

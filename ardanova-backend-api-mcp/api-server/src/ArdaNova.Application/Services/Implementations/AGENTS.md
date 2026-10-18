@@ -172,13 +172,24 @@ demoted them.
 
 # Project delete
 
-The database restricts deleting a project that still has children (every FK to `Project` is
-`ON DELETE RESTRICT`), and `ExceptionHandlingMiddleware` hides that foreign-key error behind a
-generic 400. `ProjectService.DeleteAsync` therefore refuses up front with a 409 and
-`ProjectHasPlannedWork` when the project has any task or milestone. Every epic, sprint, feature
-and PBI hangs off a milestone, so those two checks cover the whole plan. A project with history
-should be moved to CANCELLED instead. Deleting stays meant for an empty project, for example the
-create page rolling back a project whose creation failed halfway.
+The database restricts deleting a project that still has children, and `ExceptionHandlingMiddleware`
+hides that foreign-key error behind a generic 400. `ProjectService.DeleteAsync` therefore asks
+`IProjectDeletionBlockers` first and refuses with a 409 (`DeletionBlockedMessage`) naming what is left.
+`ProjectsController.Delete` answers with `ProjectDeletionBlockedDto`
+(`{ error, code: "PROJECT_HAS_DEPENDENTS", blockedBy: ["Epic", ...] }`).
+
+Which tables block is derived, not listed by hand: `Infrastructure/Repositories/ProjectDeletionBlockers`
+takes every *required* foreign key to `Project` from the EF model (Prisma emits `ON DELETE RESTRICT`
+for required relations and `SET NULL` for optional ones) and runs one `EXISTS` per table in a single
+`UNION ALL` query. `ProjectDeletionFlowTests` pins that set to the `RESTRICT` constraints parsed from
+`ardanova-client/prisma/migrations`, so a new dependent table added through the DBML turns the test red
+until it is covered and labelled (`ProjectDeletionBlockerLabels`). Loop 4 review found the earlier
+task-or-milestone check missed root-level epics, sprints, features and PBIs (all `RESTRICT`, none needing
+a milestone) and every non-plan dependent (members, followers, comments, treasury...), so the opaque 400
+was still reachable.
+
+A project with history should be moved to CANCELLED instead. Deleting stays meant for an empty project,
+for example the create page rolling back a project whose creation failed halfway.
 
 # Task assignment
 
