@@ -1,6 +1,7 @@
 namespace ArdaNova.Infrastructure.Storage;
 
 using ArdaNova.Application.Common.Results;
+using ArdaNova.Application.Common.Security;
 using ArdaNova.Application.DTOs;
 using ArdaNova.Application.Services.Interfaces;
 using ArdaNova.Domain.Models.Enums;
@@ -104,13 +105,13 @@ public class LocalStorageService : IStorageService
             {
                 DownloadUrl = GetPublicUrl(bucketPath),
                 FileName = fileName ?? Path.GetFileName(bucketPath),
-                ExpiresAt = DateTime.UtcNow.AddMinutes(expirationMinutes)
+                ExpiresAt = DateTime.UtcNow.AddMinutes(UploadContentPolicy.ClampDownloadMinutes(expirationMinutes))
             }));
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error generating download URL for {BucketPath}", bucketPath);
-            return Task.FromResult(Result<DownloadResponseDto>.Failure($"Failed to generate download URL: {ex.Message}"));
+            return Task.FromResult(Result<DownloadResponseDto>.Failure("Failed to generate download URL."));
         }
     }
 
@@ -170,7 +171,7 @@ public class LocalStorageService : IStorageService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error uploading file {FileName}", fileName);
-            return Result<string>.Failure($"Failed to upload file: {ex.Message}");
+            return Result<string>.Failure("Failed to upload file.");
         }
     }
 
@@ -199,7 +200,7 @@ public class LocalStorageService : IStorageService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error deleting file {BucketPath}", bucketPath);
-            return Task.FromResult(Result<bool>.Failure($"Failed to delete file: {ex.Message}"));
+            return Task.FromResult(Result<bool>.Failure("Failed to delete file."));
         }
     }
 
@@ -224,7 +225,7 @@ public class LocalStorageService : IStorageService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error checking if file exists {BucketPath}", bucketPath);
-            return Task.FromResult(Result<bool>.Failure($"Failed to check file existence: {ex.Message}"));
+            return Task.FromResult(Result<bool>.Failure("Failed to check file existence."));
         }
     }
 
@@ -311,7 +312,7 @@ public class LocalStorageService : IStorageService
         {
             _logger.LogError(ex, "Error copying file from {Source} to {Destination}",
                 sourcePath, destinationPath);
-            return Result<string>.Failure($"Failed to copy file: {ex.Message}");
+            return Result<string>.Failure("Failed to copy file.");
         }
     }
 

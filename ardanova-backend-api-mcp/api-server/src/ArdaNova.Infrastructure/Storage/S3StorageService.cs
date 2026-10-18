@@ -71,6 +71,12 @@ public class S3StorageService : IStorageService, IDisposable
                     $"File size exceeds maximum allowed size of {_config.MaxFileSizeBytes / 1024 / 1024}MB");
             }
 
+            if (!UploadContentPolicy.IsAllowedContentType(request.ContentType))
+            {
+                return Result<UploadResponseDto>.ValidationError(
+                    $"Content type '{request.ContentType}' is not allowed");
+            }
+
             // Validate extension if restrictions exist
             if (_config.AllowedExtensions.Count > 0)
             {
@@ -112,7 +118,7 @@ public class S3StorageService : IStorageService, IDisposable
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error generating presigned upload URL for {FileName}", request.FileName);
-            return Result<UploadResponseDto>.Failure($"Failed to generate upload URL: {ex.Message}");
+            return Result<UploadResponseDto>.Failure("Failed to generate upload URL.");
         }
     }
 
@@ -124,7 +130,7 @@ public class S3StorageService : IStorageService, IDisposable
     {
         try
         {
-            var expiresAt = DateTime.UtcNow.AddMinutes(expirationMinutes);
+            var expiresAt = DateTime.UtcNow.AddMinutes(UploadContentPolicy.ClampDownloadMinutes(expirationMinutes));
 
             var presignRequest = new GetPreSignedUrlRequest
             {
@@ -139,7 +145,7 @@ public class S3StorageService : IStorageService, IDisposable
             {
                 presignRequest.ResponseHeaderOverrides = new ResponseHeaderOverrides
                 {
-                    ContentDisposition = $"attachment; filename=\"{fileName}\""
+                    ContentDisposition = $"attachment; filename=\"{UploadContentPolicy.SafeAttachmentName(fileName)}\""
                 };
             }
 
@@ -155,7 +161,7 @@ public class S3StorageService : IStorageService, IDisposable
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error generating presigned download URL for {BucketPath}", bucketPath);
-            return Result<DownloadResponseDto>.Failure($"Failed to generate download URL: {ex.Message}");
+            return Result<DownloadResponseDto>.Failure("Failed to generate download URL.");
         }
     }
 
@@ -191,7 +197,7 @@ public class S3StorageService : IStorageService, IDisposable
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error uploading file {FileName}", fileName);
-            return Result<string>.Failure($"Failed to upload file: {ex.Message}");
+            return Result<string>.Failure("Failed to upload file.");
         }
     }
 
@@ -219,7 +225,7 @@ public class S3StorageService : IStorageService, IDisposable
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error deleting file {BucketPath}", bucketPath);
-            return Result<bool>.Failure($"Failed to delete file: {ex.Message}");
+            return Result<bool>.Failure("Failed to delete file.");
         }
     }
 
@@ -243,7 +249,7 @@ public class S3StorageService : IStorageService, IDisposable
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error checking if file exists {BucketPath}", bucketPath);
-            return Result<bool>.Failure($"Failed to check file existence: {ex.Message}");
+            return Result<bool>.Failure("Failed to check file existence.");
         }
     }
 
@@ -341,7 +347,7 @@ public class S3StorageService : IStorageService, IDisposable
         {
             _logger.LogError(ex, "Error copying file from {Source} to {Destination}",
                 sourcePath, destinationPath);
-            return Result<string>.Failure($"Failed to copy file: {ex.Message}");
+            return Result<string>.Failure("Failed to copy file.");
         }
     }
 

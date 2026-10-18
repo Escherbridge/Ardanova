@@ -24,6 +24,9 @@ public sealed class ErrorEnvelopeResultFilter : IAlwaysRunResultFilter
 
     internal static IActionResult Normalize(HttpContext context, IActionResult result) => result switch
     {
+        // 501/503 carry authored "not available" messages; every other 5xx may carry exception text.
+        ObjectResult { StatusCode: int status and >= 500 and not (StatusCodes.Status501NotImplemented or StatusCodes.Status503ServiceUnavailable) }
+            => new ObjectResult(ApiErrorEnvelope.Create(context, status, ExceptionHandlingMiddleware.ServerErrorMessage)) { StatusCode = status },
         ObjectResult { StatusCode: int status and >= 400 } objectResult
             => new ObjectResult(Envelope(context, status, objectResult.Value)) { StatusCode = status },
         StatusCodeResult { StatusCode: >= 400 } statusResult
