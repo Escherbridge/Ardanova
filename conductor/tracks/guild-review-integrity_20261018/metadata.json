@@ -1,0 +1,8 @@
+{
+  "track_id": "guild-review-integrity_20261018",
+  "type": "bug",
+  "status": "new",
+  "created_at": "2026-10-18",
+  "description": "Loop 3 guild/governance follow-ups: decide who may review a guild, escrow dispute adjudication (funder self-refund of DISPUTED, no contributor dispute path), rehearse and apply the two pending guild migrations, and project-scoped comment route parity.",
+  "partitions": { "confidence": "none" }
+}
