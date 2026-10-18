@@ -178,6 +178,12 @@ public class EventService : IEventService
         if (evt is null)
             return Result<EventDto>.NotFound($"Event with id {id} not found");
 
+        // A partial update may move one end only, so the order is checked on the merged values.
+        var mergedStart = dto.StartDate ?? evt.startDate;
+        var mergedEnd = dto.EndDate ?? evt.endDate;
+        if (mergedEnd < mergedStart)
+            return Result<EventDto>.ValidationError("EndDate must not be before StartDate.");
+
         if (dto.Title is not null) evt.title = dto.Title;
         if (dto.Description is not null) evt.description = dto.Description;
         if (dto.Type.HasValue) evt.type = dto.Type.Value;

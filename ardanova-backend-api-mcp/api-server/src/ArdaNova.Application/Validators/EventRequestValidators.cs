@@ -31,7 +31,7 @@ public sealed class CreateEventValidator : RequestValidator<CreateEventDto>
     }
 }
 
-/// <summary>Checks supplied fields only; an end date sent without its start is compared by the service, not here.</summary>
+/// <summary>Checks supplied fields only; a lone start or end date is ordered against the stored one in EventService.UpdateAsync.</summary>
 public sealed class UpdateEventValidator : RequestValidator<UpdateEventDto>
 {
     protected override void Check(UpdateEventDto request, ValidationErrors errors)

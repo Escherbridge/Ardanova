@@ -430,4 +430,40 @@ public class EventServiceTests
         result.IsSuccess.Should().BeTrue();
         result.Value.Should().NotBeEmpty();
     }
+
+    /// <summary>The validator only sees the fields sent, so a lone date that crosses the stored one is refused here, before any write.</summary>
+    [Theory]
+    [InlineData(null, -1, false)]   // end moved before the stored start
+    [InlineData(3, null, false)]    // start moved after the stored end
+    [InlineData(null, 5, true)]     // end moved later
+    [InlineData(-2, null, true)]    // start moved earlier
+    [InlineData(4, 6, true)]        // both moved together
+    public async Task UpdateAsync_OrdersALoneDateAgainstTheStoredOne(int? startShiftHours, int? endShiftHours, bool accepted)
+    {
+        var start = new DateTime(2026, 11, 1, 10, 0, 0, DateTimeKind.Utc);
+        var end = start.AddHours(2);
+        var evt = new Event { id = "event-1", title = "Workshop", slug = "workshop", organizerId = "organizer-1", timezone = "UTC", startDate = start, endDate = end };
+        _repositoryMock.Setup(r => r.GetByIdAsync("event-1", It.IsAny<CancellationToken>())).ReturnsAsync(evt);
+        _mapperMock.Setup(m => m.Map<EventDto>(It.IsAny<Event>())).Returns((Event e) => new EventDto { Id = e.id, Title = e.title });
+        var dto = new UpdateEventDto
+        {
+            StartDate = startShiftHours is { } s ? start.AddHours(s) : null,
+            EndDate = endShiftHours is { } e ? start.AddHours(e) : null,
+        };
+
+        var result = await _sut.UpdateAsync("event-1", dto);
+
+        result.IsSuccess.Should().Be(accepted);
+        if (accepted)
+        {
+            evt.startDate.Should().Be(dto.StartDate ?? start);
+            evt.endDate.Should().Be(dto.EndDate ?? end);
+            return;
+        }
+        result.Type.Should().Be(ResultType.ValidationError);
+        evt.startDate.Should().Be(start);
+        evt.endDate.Should().Be(end);
+        _repositoryMock.Verify(r => r.UpdateAsync(It.IsAny<Event>(), It.IsAny<CancellationToken>()), Times.Never);
+        _unitOfWorkMock.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
 }
