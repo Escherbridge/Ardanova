@@ -116,6 +116,17 @@ function joinList(items: string[]): string {
   return `${items.slice(0, -1).join(", ")} and ${items.at(-1)}`;
 }
 
+/** Deployment/configuration or vendor wording written for operators, never for end users. */
+const OPERATOR_MESSAGE =
+  /\b(?:not configured|misconfigured|configuration|tenant|custodial|azoa|api key|webhook|environment variable)\b/i;
+
+/** True when the server message is operator/config wording that must never be shown verbatim. */
+export function isOperatorMessage(error: unknown): boolean {
+  if (typeof error !== "object" || error === null) return false;
+  const message = (error as { message?: unknown }).message;
+  return typeof message === "string" && OPERATOR_MESSAGE.test(message);
+}
+
 /** Author-written TRPCError copy is shown; serialized payloads, stack-ish or multi-line text never are. */
 function readableServerMessage(error: unknown): string | undefined {
   if (typeof error !== "object" || error === null) return undefined;
@@ -139,6 +150,9 @@ const NOTHING_SAVED = "Nothing was saved.";
 /** Plain-language sentence for a failed mutation, e.g. action = "create the PBI". See `src/components/ui/AGENTS.md` §mutation-error. */
 export function describeMutationError(error: unknown, action: string): string {
   const lead = `We couldn't ${action}`;
+  if (isOperatorMessage(error)) {
+    return `${lead}: this is not switched on for this deployment yet. ${NOTHING_SAVED}`;
+  }
   const fields = readInvalidFields(error).map(humanizeField);
   if (fields.length > 0) {
     const noun = fields.length === 1 ? "field" : "fields";

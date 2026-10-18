@@ -63,6 +63,14 @@ describe("describeMutationError", () => {
     ],
     [
       {
+        message:
+          "AZOA tenant-bound custodial account onboarding is not configured.",
+        data: { code: "CONFLICT" },
+      },
+      "We couldn't cast your vote: this is not switched on for this deployment yet. Nothing was saved.",
+    ],
+    [
+      {
         message: "Request failed with status code 500",
         data: { code: "INTERNAL_SERVER_ERROR" },
       },
