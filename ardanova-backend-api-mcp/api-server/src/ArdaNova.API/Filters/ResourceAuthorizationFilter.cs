@@ -20,10 +20,14 @@ public enum ResourceRule
     ProjectCatalogManager,
     /// <summary>The verified actor is the referrer or the referred user.</summary>
     ReferralParticipant,
+    /// <summary>The verified actor created or belongs to the named project.</summary>
+    ProjectAffiliate,
+    /// <summary>The verified actor owns or belongs to the named guild.</summary>
+    GuildAffiliate,
 }
 
-/// <summary>Which record an action touches (read like a subject binding) and the rule that guards it.</summary>
-public sealed record ResourceGuard(ResourceRule Rule, ActorSubjectBinding Record)
+/// <summary>Which record an action touches (read like a subject binding) and the rule that guards it; an optional record is checked only when the request names one.</summary>
+public sealed record ResourceGuard(ResourceRule Rule, ActorSubjectBinding Record, bool Optional = false)
 {
     public bool RequiresActor => Rule != ResourceRule.EventViewer;
 }
@@ -46,6 +50,12 @@ public sealed class ResourceAuthorizationFilter(ResourceGuard guard) : IAsyncAct
         if (!ViewerAuthority.IsAdministrator(http.User))
         {
             var recordId = Guard.Record.ReadSubject(context.ActionArguments);
+            if (Guard.Optional && string.IsNullOrEmpty(recordId))
+            {
+                await next();
+                return;
+            }
+
             var access = string.IsNullOrEmpty(recordId)
                 ? ResourceAccess.NotFound
                 : await CheckAsync(http.RequestServices.GetRequiredService<IResourceAuthority>(), actorId, recordId, http.RequestAborted);
@@ -70,6 +80,8 @@ public sealed class ResourceAuthorizationFilter(ResourceGuard guard) : IAsyncAct
             ResourceRule.ProductManager => authority.CanManageProductAsync(actorId!, recordId, ct),
             ResourceRule.ProjectCatalogManager => authority.CanManageProjectCatalogAsync(actorId!, recordId, ct),
             ResourceRule.ReferralParticipant => authority.CanReadReferralAsync(actorId!, recordId, ct),
+            ResourceRule.ProjectAffiliate => authority.CanAffiliateWithProjectAsync(actorId!, recordId, ct),
+            ResourceRule.GuildAffiliate => authority.CanAffiliateWithGuildAsync(actorId!, recordId, ct),
             _ => Task.FromResult(ResourceAccess.Denied),
         };
 

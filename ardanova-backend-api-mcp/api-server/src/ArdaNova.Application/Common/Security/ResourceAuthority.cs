@@ -72,6 +72,10 @@ public interface IResourceAuthority
     Task<ResourceAccess> CanManageProductAsync(string actorId, string productId, CancellationToken ct = default);
     Task<ResourceAccess> CanManageProjectCatalogAsync(string actorId, string projectId, CancellationToken ct = default);
     Task<ResourceAccess> CanReadReferralAsync(string actorId, string referralId, CancellationToken ct = default);
+    /// <summary>The actor created or belongs to the project, so may attach their own records (events) to it.</summary>
+    Task<ResourceAccess> CanAffiliateWithProjectAsync(string actorId, string projectId, CancellationToken ct = default);
+    /// <summary>The actor owns or belongs to the guild, so may attach their own records (events) to it.</summary>
+    Task<ResourceAccess> CanAffiliateWithGuildAsync(string actorId, string guildId, CancellationToken ct = default);
     Task<EventViewerRelations> GetEventViewerRelationsAsync(string viewerId, IReadOnlyCollection<string> eventIds, CancellationToken ct = default);
 }
 
@@ -145,6 +149,28 @@ public sealed class ResourceAuthority(
         if (parties.Count == 0)
             return ResourceAccess.NotFound;
         return parties[0].referrerId == actorId || parties[0].referredId == actorId
+            ? ResourceAccess.Allowed
+            : ResourceAccess.Denied;
+    }
+
+    public async Task<ResourceAccess> CanAffiliateWithProjectAsync(string actorId, string projectId, CancellationToken ct = default)
+    {
+        var creators = await projects.FindProjectedAsync(p => p.id == projectId, p => p.createdById, ct);
+        if (creators.Count == 0)
+            return ResourceAccess.NotFound;
+        return creators[0] == actorId
+            || await projectMembers.ExistsAsync(m => m.projectId == projectId && m.userId == actorId, ct)
+            ? ResourceAccess.Allowed
+            : ResourceAccess.Denied;
+    }
+
+    public async Task<ResourceAccess> CanAffiliateWithGuildAsync(string actorId, string guildId, CancellationToken ct = default)
+    {
+        var owners = await guilds.FindProjectedAsync(g => g.id == guildId, g => g.ownerId, ct);
+        if (owners.Count == 0)
+            return ResourceAccess.NotFound;
+        return owners[0] == actorId
+            || await guildMembers.ExistsAsync(m => m.guildId == guildId && m.userId == actorId, ct)
             ? ResourceAccess.Allowed
             : ResourceAccess.Denied;
     }

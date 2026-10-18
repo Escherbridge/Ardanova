@@ -84,6 +84,7 @@ builder.Services.AddControllers(options => options.AddArdaNovaEndpointPolicies()
     .AddJsonOptions(options => ArdaNovaJson.Configure(options.JsonSerializerOptions))
     .AddArdaNovaErrorEnvelope();
 builder.Services.AddArdaNovaActorRateLimiting(builder.Configuration);
+builder.Services.AddSingleton(sp => new ReadinessSummaryCache(sp.GetService<TimeProvider>() ?? TimeProvider.System));
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddArdaNovaAuthentication();
 builder.Services.AddArdaNovaAuthorization();
@@ -124,6 +125,7 @@ EconomyModeHealthCheck.LogStartupBanner(app.Logger, economyMode, app.Environment
 
 // Configure the HTTP request pipeline
 app.UseExceptionHandling();
+app.UseArdaNovaStatusEnvelope();
 
 if (app.Environment.IsDevelopment())
 {
@@ -167,10 +169,17 @@ app.MapGet("/ready", async (
     IAzoaCustodialAccountGateway custodialAccountGateway,
     ISettlementOutboxRuntimeCapability outboxRuntime,
     AlgorandProviderCapabilities algorandCapabilities,
+    ReadinessSummaryCache summaryCache,
     HttpContext httpContext,
     CancellationToken cancellationToken) =>
 {
     httpContext.Response.Headers.CacheControl = "no-store";
+    var showsDetails = ReadinessDisclosure.ShowsDetails(httpContext, configuration);
+    if (!showsDetails && summaryCache.TryGet(out var cachedReady))
+        return Results.Json(
+            ReadinessDisclosure.Summary(cachedReady, DateTime.UtcNow),
+            statusCode: cachedReady ? StatusCodes.Status200OK : StatusCodes.Status503ServiceUnavailable);
+
     var apiKey = ApiKeyMiddleware.GetApiKey(configuration);
     var adminApiKey = Environment.GetEnvironmentVariable("ADMIN_API_KEY")
         ?? configuration["AdminApiKey:Key"];
@@ -285,7 +294,8 @@ app.MapGet("/ready", async (
 
     var ready = configurationReady && databaseReady && releaseSchemaReady;
     var readyStatus = ready ? StatusCodes.Status200OK : StatusCodes.Status503ServiceUnavailable;
-    if (!ReadinessDisclosure.ShowsDetails(httpContext, configuration))
+    summaryCache.Store(ready);
+    if (!showsDetails)
         return Results.Json(ReadinessDisclosure.Summary(ready, DateTime.UtcNow), statusCode: readyStatus);
 
     return Results.Json(new

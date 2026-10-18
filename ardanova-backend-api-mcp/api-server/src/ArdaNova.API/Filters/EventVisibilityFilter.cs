@@ -43,8 +43,9 @@ public sealed class EventVisibilityFilter : IAsyncResultFilter
                         StatusCode = StatusCodes.Status404NotFound,
                     },
                     EventDto => Replace(result, shown[0]),
-                    // Counts stay the repository's; see AGENTS.md for why a page may come back short.
-                    PagedResult<EventDto> page => Replace(result, new PagedResult<EventDto>(shown, page.TotalCount, page.Page, page.PageSize)),
+                    // Hidden rows leave the total too, or a search count betrays them; see AGENTS.md §Event visibility.
+                    PagedResult<EventDto> page => Replace(result, new PagedResult<EventDto>(
+                        shown, page.TotalCount - (events.Count - shown.Count), page.Page, page.PageSize)),
                     _ => Replace(result, shown),
                 };
             }

@@ -68,6 +68,8 @@ public sealed class UserDirectoryPrivacyFilter : IResultFilter
             IEnumerable<UserDto> users => users.Select(user => Project(user, actorId)).ToList(),
             AttachmentWithUserDto attachment => RedactUploader(attachment, actorId),
             IEnumerable<AttachmentWithUserDto> attachments => attachments.Select(a => RedactUploader(a, actorId)).ToList(),
+            ProjectMemberDto member => RedactMember(member, actorId),
+            IEnumerable<ProjectMemberDto> members => members.Select(m => RedactMember(m, actorId)).ToList(),
             _ => value,
         };
         if (!ReferenceEquals(result.Value, value))
@@ -82,6 +84,13 @@ public sealed class UserDirectoryPrivacyFilter : IResultFilter
         => actorId is not null && string.Equals(user.Id, actorId, StringComparison.Ordinal)
             ? user
             : PublicUserView.From(user);
+
+    /// <summary>A project member's email is for that member alone; the roster keeps name and image.</summary>
+    private static ProjectMemberDto RedactMember(ProjectMemberDto member, string? actorId)
+        => member.User is not { Email: not null } user
+            || (actorId is not null && string.Equals(user.Id, actorId, StringComparison.Ordinal))
+            ? member
+            : member with { User = user with { Email = null } };
 
     /// <summary>Nested uploader keeps its UserDto type, so the private fields are blanked rather than projected away.</summary>
     private static AttachmentWithUserDto RedactUploader(AttachmentWithUserDto attachment, string? actorId)

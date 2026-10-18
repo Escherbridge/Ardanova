@@ -189,10 +189,16 @@ public sealed class EndpointPolicyPipelineTests : IAsyncLifetime
     [Theory]
     [InlineData("/api/Users")]
     [InlineData("/api/Users/email/victim@example.test")]
-    public async Task UnpagedAndByEmailUserLookups_RequireTheAdminKey(string route)
+    public async Task UnpagedAndByEmailUserLookups_RequireTheAdminKeyAndASignedAdministrator(string route)
     {
-        (await SendAsync(HttpMethod.Get, route)).StatusCode.Should().Be(HttpStatusCode.Forbidden);
-        (await SendAsync(HttpMethod.Get, route, adminKey: true)).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await SendAsync(HttpMethod.Get, route)).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        (await SendAsync(HttpMethod.Get, route, adminKey: true)).StatusCode.Should().Be(HttpStatusCode.Unauthorized, "a leaked admin key alone must not dump user PII");
+        (await SendAsync(HttpMethod.Get, route, actor: Attacker, role: "ADMIN")).StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        (await SendAsync(HttpMethod.Get, route, actor: Attacker, adminKey: true)).StatusCode.Should().Be(HttpStatusCode.Forbidden);
+
+        var served = await SendAsync(HttpMethod.Get, route, actor: Attacker, role: "ADMIN", adminKey: true);
+        served.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await served.Content.ReadAsStringAsync()).Should().Contain("victim@example.test");
     }
 
     [Theory]

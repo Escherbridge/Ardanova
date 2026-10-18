@@ -11,35 +11,41 @@ public sealed class EndpointAuthorizationConvention : IApplicationModelConventio
     private static readonly HashSet<string> MutatingMethods =
         new(StringComparer.OrdinalIgnoreCase) { "POST", "PUT", "PATCH", "DELETE" };
 
-    /// <summary>Policies added to specific actions, on top of whatever the controller declares.</summary>
-    public static readonly IReadOnlyDictionary<string, string> PolicyOverrides =
-        new Dictionary<string, string>(StringComparer.Ordinal)
+    private static readonly string[] Administrator = [AuthorizationPolicies.ActorAdministrator];
+
+    /// <summary>Full-PII user dumps need the admin key and a signed administrator, so a leaked key alone is not enough.</summary>
+    private static readonly string[] AdminKeyAndAdministrator =
+        [AuthorizationPolicies.AdminApiKey, AuthorizationPolicies.ActorAdministrator];
+
+    /// <summary>Policies added to specific actions, on top of whatever the controller declares; every listed policy must pass.</summary>
+    public static readonly IReadOnlyDictionary<string, string[]> PolicyOverrides =
+        new Dictionary<string, string[]>(StringComparer.Ordinal)
         {
-            ["Users.GetAll"] = AuthorizationPolicies.AdminApiKey,
-            ["Users.GetByEmail"] = AuthorizationPolicies.AdminApiKey,
+            ["Users.GetAll"] = AdminKeyAndAdministrator,
+            ["Users.GetByEmail"] = AdminKeyAndAdministrator,
 
-            ["Achievements.Create"] = AuthorizationPolicies.ActorAdministrator,
-            ["Achievements.Update"] = AuthorizationPolicies.ActorAdministrator,
-            ["Achievements.Delete"] = AuthorizationPolicies.ActorAdministrator,
-            ["Achievements.UpdateProgress"] = AuthorizationPolicies.ActorAdministrator,
-            ["Achievements.AwardAchievement"] = AuthorizationPolicies.ActorAdministrator,
+            ["Achievements.Create"] = Administrator,
+            ["Achievements.Update"] = Administrator,
+            ["Achievements.Delete"] = Administrator,
+            ["Achievements.UpdateProgress"] = Administrator,
+            ["Achievements.AwardAchievement"] = Administrator,
 
-            ["Leaderboards.Create"] = AuthorizationPolicies.ActorAdministrator,
-            ["Leaderboards.Delete"] = AuthorizationPolicies.ActorAdministrator,
-            ["Leaderboards.AddEntry"] = AuthorizationPolicies.ActorAdministrator,
-            ["Leaderboards.UpdateEntry"] = AuthorizationPolicies.ActorAdministrator,
-            ["Leaderboards.DeleteEntry"] = AuthorizationPolicies.ActorAdministrator,
+            ["Leaderboards.Create"] = Administrator,
+            ["Leaderboards.Delete"] = Administrator,
+            ["Leaderboards.AddEntry"] = Administrator,
+            ["Leaderboards.UpdateEntry"] = Administrator,
+            ["Leaderboards.DeleteEntry"] = Administrator,
 
-            ["XPEvents.AwardXP"] = AuthorizationPolicies.ActorAdministrator,
+            ["XPEvents.AwardXP"] = Administrator,
 
-            ["Referrals.Complete"] = AuthorizationPolicies.ActorAdministrator,
-            ["Referrals.Expire"] = AuthorizationPolicies.ActorAdministrator,
-            ["Referrals.Cancel"] = AuthorizationPolicies.ActorAdministrator,
+            ["Referrals.Complete"] = Administrator,
+            ["Referrals.Expire"] = Administrator,
+            ["Referrals.Cancel"] = Administrator,
 
-            ["Activities.Delete"] = AuthorizationPolicies.ActorAdministrator,
+            ["Activities.Delete"] = Administrator,
 
-            ["UserStreaks.Create"] = AuthorizationPolicies.ActorAdministrator,
-            ["UserStreaks.Delete"] = AuthorizationPolicies.ActorAdministrator,
+            ["UserStreaks.Create"] = Administrator,
+            ["UserStreaks.Delete"] = Administrator,
         };
 
     /// <summary>Mutating verbs that are reads in disguise and stay callable with the service key alone.</summary>
@@ -62,20 +68,25 @@ public sealed class EndpointAuthorizationConvention : IApplicationModelConventio
             ["Products.Create"] = new("dto", "UserId"),
         };
 
-    /// <summary>Actions that touch one existing record and must pass that record's rule (admins excepted).</summary>
-    public static readonly IReadOnlyDictionary<string, ResourceGuard> ResourceGuards =
-        new Dictionary<string, ResourceGuard>(StringComparer.Ordinal)
+    /// <summary>Actions that touch existing records and must pass each record's rule, in order (admins excepted).</summary>
+    public static readonly IReadOnlyDictionary<string, ResourceGuard[]> ResourceGuards =
+        new Dictionary<string, ResourceGuard[]>(StringComparer.Ordinal)
         {
-            ["Events.Update"] = new(ResourceRule.EventOrganizer, new("id")),
-            ["Events.Delete"] = new(ResourceRule.EventOrganizer, new("id")),
-            ["Events.GetById"] = new(ResourceRule.EventViewer, new("id")),
-            ["Events.GetAttendees"] = new(ResourceRule.EventViewer, new("id")),
-            ["Events.Register"] = new(ResourceRule.EventViewer, new("id")),
-            ["Products.Create"] = new(ResourceRule.ProjectCatalogManager, new("dto", "ProjectId")),
-            ["Products.Update"] = new(ResourceRule.ProductManager, new("id")),
-            ["Products.Delete"] = new(ResourceRule.ProductManager, new("id")),
-            ["Products.ToggleActive"] = new(ResourceRule.ProductManager, new("id")),
-            ["Referrals.GetById"] = new(ResourceRule.ReferralParticipant, new("id")),
+            ["Events.Create"] =
+            [
+                new(ResourceRule.ProjectAffiliate, new("dto", "ProjectId"), Optional: true),
+                new(ResourceRule.GuildAffiliate, new("dto", "GuildId"), Optional: true),
+            ],
+            ["Events.Update"] = [new(ResourceRule.EventOrganizer, new("id"))],
+            ["Events.Delete"] = [new(ResourceRule.EventOrganizer, new("id"))],
+            ["Events.GetById"] = [new(ResourceRule.EventViewer, new("id"))],
+            ["Events.GetAttendees"] = [new(ResourceRule.EventViewer, new("id"))],
+            ["Events.Register"] = [new(ResourceRule.EventViewer, new("id"))],
+            ["Products.Create"] = [new(ResourceRule.ProjectCatalogManager, new("dto", "ProjectId"))],
+            ["Products.Update"] = [new(ResourceRule.ProductManager, new("id"))],
+            ["Products.Delete"] = [new(ResourceRule.ProductManager, new("id"))],
+            ["Products.ToggleActive"] = [new(ResourceRule.ProductManager, new("id"))],
+            ["Referrals.GetById"] = [new(ResourceRule.ReferralParticipant, new("id"))],
         };
 
     /// <summary>Override and binding keys that matched an action; the rest name an action that is not loaded.</summary>
@@ -89,9 +100,10 @@ public sealed class EndpointAuthorizationConvention : IApplicationModelConventio
             {
                 var key = $"{controller.ControllerName}.{action.ActionName}";
 
-                if (PolicyOverrides.TryGetValue(key, out var overridePolicy))
+                if (PolicyOverrides.TryGetValue(key, out var overridePolicies))
                 {
-                    Require(action, overridePolicy);
+                    foreach (var policy in overridePolicies)
+                        Require(action, policy);
                     MatchedKeys.Add(key);
                 }
                 else if (IsMutation(action)
@@ -108,10 +120,13 @@ public sealed class EndpointAuthorizationConvention : IApplicationModelConventio
                     MatchedKeys.Add(key);
                 }
 
-                if (ResourceGuards.TryGetValue(key, out var guard))
+                if (ResourceGuards.TryGetValue(key, out var guards))
                 {
-                    guard.Record.EnsureBindsTo(action, key);
-                    action.Filters.Add(new ResourceAuthorizationFilter(guard));
+                    foreach (var guard in guards)
+                    {
+                        guard.Record.EnsureBindsTo(action, key);
+                        action.Filters.Add(new ResourceAuthorizationFilter(guard));
+                    }
                     MatchedKeys.Add(key);
                 }
             }
