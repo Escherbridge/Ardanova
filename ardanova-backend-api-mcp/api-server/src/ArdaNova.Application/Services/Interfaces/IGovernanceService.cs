@@ -2,6 +2,7 @@ namespace ArdaNova.Application.Services.Interfaces;
 
 using ArdaNova.Application.Common.Results;
 using ArdaNova.Application.DTOs;
+using ArdaNova.Application.Services.Implementations;
 using ArdaNova.Domain.Models.Enums;
 
 public interface IGovernanceService
@@ -20,6 +21,22 @@ public interface IGovernanceService
         CancellationToken ct = default);
     Task<Result<IReadOnlyList<ProposalDto>>> GetActiveProposalsAsync(CancellationToken ct = default);
     Task<Result<IReadOnlyList<ProposalDto>>> GetByProposerIdAsync(string proposerId, CancellationToken ct = default);
+
+    // Viewer-scoped reads for anonymous-readable routes; see Services/AGENTS.md section Governance visibility
+    Task<Result<ProposalDto>> GetVisibleProposalByIdAsync(ProjectViewer viewer, string id, CancellationToken ct = default);
+    Task<Result<IReadOnlyList<ProposalDto>>> GetAllVisibleProposalsAsync(ProjectViewer viewer, CancellationToken ct = default);
+    Task<Result<PagedResult<ProposalDto>>> GetVisibleProposalsPagedAsync(ProjectViewer viewer, int page, int pageSize, CancellationToken ct = default);
+    Task<Result<PagedResult<ProposalDto>>> SearchVisibleProposalsAsync(
+        ProjectViewer viewer,
+        string? searchTerm,
+        ProposalType? type,
+        ProposalStatus? status,
+        string? projectId,
+        int page,
+        int pageSize,
+        CancellationToken ct = default);
+    Task<Result<IReadOnlyList<ProposalDto>>> GetVisibleActiveProposalsAsync(ProjectViewer viewer, CancellationToken ct = default);
+    Task<Result<IReadOnlyList<ProposalDto>>> GetVisibleByProposerIdAsync(ProjectViewer viewer, string proposerId, CancellationToken ct = default);
     Task<Result<ProposalDto>> CreateProposalAsync(CreateProposalDto dto, CancellationToken ct = default);
     Task<Result<ProposalDto>> UpdateProposalAsync(string id, UpdateProposalDto dto, CancellationToken ct = default);
     Task<Result<bool>> DeleteProposalAsync(string id, CancellationToken ct = default);

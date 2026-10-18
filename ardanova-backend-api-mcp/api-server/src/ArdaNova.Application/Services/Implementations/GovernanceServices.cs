@@ -148,7 +148,7 @@ public class GovernanceService : IGovernanceService, IProposalVoteClosing
         return Result<PagedResult<ProposalDto>>.Success(new PagedResult<ProposalDto>(dtos.ToList(), result.TotalCount, result.Page, result.PageSize));
     }
 
-    public async Task<Result<PagedResult<ProposalDto>>> SearchProposalsAsync(
+    public Task<Result<PagedResult<ProposalDto>>> SearchProposalsAsync(
         string? searchTerm,
         ProposalType? type,
         ProposalStatus? status,
@@ -156,8 +156,20 @@ public class GovernanceService : IGovernanceService, IProposalVoteClosing
         int page,
         int pageSize,
         CancellationToken ct = default)
+        => SearchWithinAsync(_proposalRepository.Query(), searchTerm, type, status, projectId, page, pageSize, ct);
+
+    /// <summary>The source decides what may be seen; the caller's filters only narrow it.</summary>
+    private async Task<Result<PagedResult<ProposalDto>>> SearchWithinAsync(
+        IQueryable<Proposal> source,
+        string? searchTerm,
+        ProposalType? type,
+        ProposalStatus? status,
+        string? projectId,
+        int page,
+        int pageSize,
+        CancellationToken ct)
     {
-        var query = _proposalRepository.Query();
+        var query = source;
 
         if (!string.IsNullOrWhiteSpace(searchTerm))
         {
@@ -205,6 +217,87 @@ public class GovernanceService : IGovernanceService, IProposalVoteClosing
         await ResolveDueProposalsAsync(proposals, ct);
         var dtos = await EnrichProposalDtosAsync(proposals, ct);
         return Result<IReadOnlyList<ProposalDto>>.Success(dtos);
+    }
+
+    // ===== Viewer-scoped reads: see Services/AGENTS.md section Governance visibility =====
+
+    public async Task<Result<ProposalDto>> GetVisibleProposalByIdAsync(ProjectViewer viewer, string id, CancellationToken ct = default)
+    {
+        var proposal = VisibleProposals(viewer).FirstOrDefault(p => p.id == id);
+        if (proposal is null)
+            return Result<ProposalDto>.NotFound($"Proposal with id {id} not found");
+
+        await ResolveDueProposalsAsync(new[] { proposal }, ct);
+        return Result<ProposalDto>.Success(await EnrichProposalDtoAsync(proposal, ct));
+    }
+
+    public async Task<Result<IReadOnlyList<ProposalDto>>> GetAllVisibleProposalsAsync(ProjectViewer viewer, CancellationToken ct = default)
+    {
+        var proposals = VisibleProposals(viewer).ToList();
+        await ResolveDueProposalsAsync(proposals, ct);
+        return Result<IReadOnlyList<ProposalDto>>.Success(await EnrichProposalDtosAsync(proposals, ct));
+    }
+
+    public Task<Result<PagedResult<ProposalDto>>> GetVisibleProposalsPagedAsync(ProjectViewer viewer, int page, int pageSize, CancellationToken ct = default)
+        => SearchWithinAsync(VisibleProposals(viewer), null, null, null, null, page, pageSize, ct);
+
+    public Task<Result<PagedResult<ProposalDto>>> SearchVisibleProposalsAsync(
+        ProjectViewer viewer,
+        string? searchTerm,
+        ProposalType? type,
+        ProposalStatus? status,
+        string? projectId,
+        int page,
+        int pageSize,
+        CancellationToken ct = default)
+        => SearchWithinAsync(VisibleProposals(viewer), searchTerm, type, status, projectId, page, pageSize, ct);
+
+    public async Task<Result<IReadOnlyList<ProposalDto>>> GetVisibleActiveProposalsAsync(ProjectViewer viewer, CancellationToken ct = default)
+    {
+        var proposals = VisibleProposals(viewer).Where(p => p.status == ProposalStatus.ACTIVE).ToList();
+        await ResolveDueProposalsAsync(proposals, ct);
+        var stillActive = proposals.Where(p => p.status == ProposalStatus.ACTIVE).ToList();
+        return Result<IReadOnlyList<ProposalDto>>.Success(await EnrichProposalDtosAsync(stillActive, ct));
+    }
+
+    public async Task<Result<IReadOnlyList<ProposalDto>>> GetVisibleByProposerIdAsync(ProjectViewer viewer, string proposerId, CancellationToken ct = default)
+    {
+        var proposals = VisibleProposals(viewer).Where(p => p.creatorId == proposerId).ToList();
+        await ResolveDueProposalsAsync(proposals, ct);
+        return Result<IReadOnlyList<ProposalDto>>.Success(await EnrichProposalDtosAsync(proposals, ct));
+    }
+
+    /// <summary>Proposals this viewer may see: the project must be visible to them, and a DRAFT proposal only to its author and the people who run the project.</summary>
+    private IQueryable<Proposal> VisibleProposals(ProjectViewer viewer)
+    {
+        if (viewer.IsAdmin)
+            return _proposalRepository.Query();
+
+        var visibleProjectIds = _projectRepository.Query()
+            .Where(ProjectQueryFilters.VisibleTo(viewer))
+            .Select(project => project.id);
+
+        var viewerId = viewer.UserId;
+        if (string.IsNullOrEmpty(viewerId))
+        {
+            return _proposalRepository.Query().Where(p =>
+                p.status != ProposalStatus.DRAFT && visibleProjectIds.Contains(p.projectId));
+        }
+
+        // Mirrors HierarchyAuthorizationService.CanManageProjectAsync: the creator, or a FOUNDER/LEADER/CORE_CONTRIBUTOR member.
+        var managedProjectIds = _projectRepository.Query()
+            .Where(project => project.createdById == viewerId
+                || project.ProjectMembers.Any(member => member.userId == viewerId
+                    && (member.role == ProjectRole.FOUNDER
+                        || member.role == ProjectRole.LEADER
+                        || member.role == ProjectRole.CORE_CONTRIBUTOR)))
+            .Select(project => project.id);
+
+        return _proposalRepository.Query().Where(p =>
+            visibleProjectIds.Contains(p.projectId)
+            && (p.status != ProposalStatus.DRAFT
+                || p.creatorId == viewerId
+                || managedProjectIds.Contains(p.projectId)));
     }
 
     public async Task<Result<ProposalDto>> CreateProposalAsync(CreateProposalDto dto, CancellationToken ct = default)
@@ -890,6 +983,9 @@ public class GovernanceService : IGovernanceService, IProposalVoteClosing
 
         if (string.IsNullOrWhiteSpace(dto.UserId))
             return Result<ProposalCommentDto>.Unauthorized("A comment must be written by a signed-in member");
+
+        if (string.IsNullOrWhiteSpace(dto.Content))
+            return Result<ProposalCommentDto>.ValidationError("Write something before posting a comment");
 
         var comment = new ProposalComment
         {

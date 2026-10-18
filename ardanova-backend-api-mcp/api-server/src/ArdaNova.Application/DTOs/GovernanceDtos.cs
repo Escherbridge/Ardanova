@@ -143,10 +143,11 @@ public record ProposalCommentUserDto
     public string? Image { get; init; }
 }
 
+/// <summary>A comment request body. ProposalId and UserId come from the route and the actor, never the body, so a body may omit them; see Services/AGENTS.md §Governance.</summary>
 public record CreateProposalCommentDto
 {
-    public required string ProposalId { get; init; }
-    public required string UserId { get; init; }
+    public string ProposalId { get; init; } = string.Empty;
+    public string UserId { get; init; } = string.Empty;
     public required string Content { get; init; }
     public string? ParentId { get; init; }
 }

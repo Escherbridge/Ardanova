@@ -25,6 +25,16 @@ ownership checks.
   Email-only rows stay fail-closed (see `ArdaNova.API/Controllers/AGENTS.md` §Email-only
   invitations). Trade-off: a manager can learn whether an email has an account; acceptable for a
   member-to-member invite, revisit if invites open to the public.
+- **The owner of record is a member.** `GuildAuthority.IsMemberAsync` answers "already belongs"
+  from `guild.ownerId` OR a membership row, because legacy and seeded guilds have no OWNER row
+  (migration `20261017130000_guild_owner_member_backfill` adds them). Every "already a member"
+  check (add member, invite create/accept, apply/admit, review) uses it, so an owner cannot invite,
+  admit or add themselves into a second, lesser row.
+- **Concurrent joins are settled by the `(guildId, userId)` unique index.** The existence checks
+  are not atomic; a 23505 on save becomes the same "already a member" Conflict
+  (`GuildAuthority.IsDuplicateMembership`), mirroring the ballot index below.
+- **`ProjectsCount` is counted, not stored.** Nothing maintains `Guild.projectsCount`, so
+  `GuildService` reads count the projects whose `assignedGuildId` is the guild.
 - Members cannot review their own guild; one review per person per guild.
 - `VerifyAsync` (the verified badge) is gated on the admin API key in the controller.
 - Guild child DTOs are mapped by hand in the service (there are no AutoMapper maps for
@@ -47,3 +57,26 @@ confirmed members with a two-ballot floor, outcome resolved from the tally.
   `EligibleMembers`, `VotesNeededForQuorum`, `QuorumReached` and per-choice counts from
   `TallyAsync`; clients display these and never recompute quorum.
 - Closing early vs. cancelling: see the `ProposalCloseAuthority` remarks in `GovernanceServices.cs`.
+- **Route-bound request fields.** `CreateProposalCommentDto.ProposalId`/`UserId` are not
+  `required`: the client posts `{content, parentId}` and the controller fills both from the route
+  and the actor. A C# `required` member makes System.Text.Json reject a body that omits it, so
+  every comment failed model binding with a 400 before the controller ran. Do not mark a field
+  `required` on a request DTO when the server supplies it.
+
+### Governance visibility
+
+Every anonymous-readable `/api/Governance/*` read answers for a `ProjectViewer` (built in the
+controller only from a verified actor assertion) through `GovernanceService.VisibleProposals`:
+
+- the proposal's project must pass `ProjectQueryFilters.VisibleTo` (DRAFT projects are private
+  to their creator, members and admins), and
+- a DRAFT proposal is visible only to its author and to the people who run the project (creator,
+  FOUNDER, LEADER, CORE_CONTRIBUTOR — the same set as `CanManageProjectAsync`). Admins see all.
+
+Votes, vote summary and comments open with the same check and answer NotFound, so a private
+proposal's ballots and discussion are as hidden as the proposal. Search and paging apply the
+visibility source first and the caller's filters after, so `projectId` cannot widen it. The
+unscoped `IGovernanceService` reads remain for internal callers; the project-scoped routes in
+`ProjectsController` still use them (tracked in `conductor/tracks/governance-reachability_20261018`).
+The Next.js `governance` router wraps its public reads in `readAsViewer` so a signed-in reader is
+named to the API.
