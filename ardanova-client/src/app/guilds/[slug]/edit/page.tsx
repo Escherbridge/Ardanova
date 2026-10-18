@@ -24,9 +24,15 @@ export default async function EditGuildPage({ params }: EditGuildPageProps) {
   }
   const guild = response.data;
 
-  // Check ownership
+  // Same rule as GuildAuthority.CanManageAsync: the owner or an ADMIN member may edit; the API re-checks on save.
   if (guild.ownerId !== session.user.id) {
-    redirect(`/guilds/${slug}`);
+    const members = await apiClient.guilds.getMembers(guild.id);
+    const isAdmin = (members.data ?? []).some(
+      (member) => member.userId === session.user.id && member.role === "ADMIN",
+    );
+    if (!isAdmin) {
+      redirect(`/guilds/${slug}`);
+    }
   }
 
   return <GuildForm mode="edit" guild={guild} />;

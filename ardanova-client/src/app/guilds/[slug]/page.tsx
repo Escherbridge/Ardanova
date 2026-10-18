@@ -29,6 +29,7 @@ import {
   ReviewsTab,
   OpportunitiesTab,
 } from "~/components/guilds";
+import { JoinGuildPanel } from "~/components/guilds/join-guild-panel";
 
 const tabs: { id: string; label: string }[] = [
   { id: "overview", label: "Overview" },
@@ -81,6 +82,8 @@ export default function GuildDetailPage() {
   // Role from members list; if missing (legacy guilds created before owner row existed), infer OWNER from guild.ownerId
   const userMember = members?.find((member) => member.userId === currentUserId);
   const userRole = userMember?.role ?? (isOwner ? "OWNER" : undefined);
+  // Matches GuildAuthority.CanManageAsync: the owner or an ADMIN member (components/guilds/AGENTS.md §Who manages).
+  const canManage = isOwner || userRole === "ADMIN";
 
   if (isLoading) {
     return (
@@ -177,18 +180,28 @@ export default function GuildDetailPage() {
                   <div className="mt-2">{renderRating(guild.rating)}</div>
                 </div>
 
-                {isOwner && (
-                  <Button
-                    variant="outline"
-                    asChild
-                    className="w-full sm:w-auto"
-                  >
-                    <Link href={`/guilds/${slug}/edit`}>
-                      <Edit className="mr-2 size-4" />
-                      Edit Guild
-                    </Link>
-                  </Button>
-                )}
+                <div className="flex flex-col gap-2 sm:items-end">
+                  {canManage && (
+                    <Button
+                      variant="outline"
+                      asChild
+                      className="w-full sm:w-auto"
+                    >
+                      <Link href={`/guilds/${slug}/edit`}>
+                        <Edit className="mr-2 size-4" />
+                        Edit Guild
+                      </Link>
+                    </Button>
+                  )}
+                  {currentUserId && !membersLoading && (
+                    <JoinGuildPanel
+                      guildId={guild.id}
+                      guildName={guild.name}
+                      membershipId={userMember?.id}
+                      isOwner={isOwner}
+                    />
+                  )}
+                </div>
               </div>
 
               <p className="text-muted-foreground mt-4 line-clamp-2">
@@ -316,10 +329,14 @@ export default function GuildDetailPage() {
       >
         {activeTab === "overview" && <OverviewTab guild={guild} />}
         {activeTab === "updates" && (
-          <UpdatesTab guildId={guild.id} isOwner={isOwner} />
+          <UpdatesTab guildId={guild.id} canManage={canManage} />
         )}
         {activeTab === "members" && (
-          <MembersTab guildId={guild.id} isOwner={isOwner} />
+          <MembersTab
+            guildId={guild.id}
+            isOwner={isOwner}
+            canManage={canManage}
+          />
         )}
         {activeTab === "opportunities" && (
           <OpportunitiesTab

@@ -28,12 +28,21 @@ import {
   SelectValue,
 } from "~/components/ui/select";
 import { CredentialBadge } from "~/components/credentials/credential-badge";
+import { describeMutationError } from "~/components/ui/query-error-copy";
 import { Loader2, Users, UserMinus, Mail } from "lucide-react";
+import { ApplicationsPanel } from "./applications-panel";
 
 interface MembersTabProps {
   guildId: string;
+  /** Owner of record; only the owner appoints, demotes or removes admins. */
   isOwner: boolean;
+  /** Owner or ADMIN: the people the API lets invite, remove, change roles and review applications. */
+  canManage: boolean;
 }
+
+/** Roles a manager can set on an existing member; ADMIN is offered to the owner only. */
+const ASSIGNABLE_ROLES = ["ADMIN", "MANAGER", "MEMBER", "APPRENTICE"] as const;
+type AssignableRole = (typeof ASSIGNABLE_ROLES)[number];
 
 type MemberRole = "OWNER" | "ADMIN" | "MEMBER";
 
@@ -50,10 +59,11 @@ const getRoleBadgeVariant = (role: string) => {
   }
 };
 
-export function MembersTab({ guildId, isOwner }: MembersTabProps) {
+export function MembersTab({ guildId, isOwner, canManage }: MembersTabProps) {
   const [showInviteDialog, setShowInviteDialog] = useState(false);
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<"MEMBER" | "ADMIN">("MEMBER");
+  const [inviteSentTo, setInviteSentTo] = useState<string | null>(null);
   const [memberToRemove, setMemberToRemove] = useState<{
     id: string;
     name: string;
@@ -78,20 +88,31 @@ export function MembersTab({ guildId, isOwner }: MembersTabProps) {
   // Pending invitations are shown apart from members: an invitee is not a member until they accept.
   const { data: invitations } = api.guild.getInvitations.useQuery(
     { guildId },
-    { enabled: isOwner },
+    { enabled: canManage },
   );
   const pendingInvitations = (invitations ?? []).filter(
     (invitation) => invitation.status === "PENDING",
   );
 
   const inviteMemberMutation = api.guild.createInvitation.useMutation({
-    onSuccess: () => {
+    onSuccess: (invitation) => {
+      setInviteSentTo(invitation.invitedEmail ?? null);
       setShowInviteDialog(false);
       setEmail("");
       setRole("MEMBER");
       void utils.guild.getInvitations.invalidate({ guildId });
     },
   });
+
+  const updateRoleMutation = api.guild.updateMember.useMutation({
+    onSettled: () => {
+      void utils.guild.getMembers.invalidate({ guildId });
+    },
+  });
+
+  /** Mirrors the API: the owner row never changes here, and only the owner touches ADMIN. */
+  const canChangeMember = (memberRole: string | null | undefined) =>
+    canManage && memberRole !== "OWNER" && (memberRole !== "ADMIN" || isOwner);
 
   // Mutation for removing member
   const removeMemberMutation = api.guild.removeMember.useMutation({
@@ -120,7 +141,7 @@ export function MembersTab({ guildId, isOwner }: MembersTabProps) {
     e.preventDefault();
     if (!email.trim()) return;
 
-    // The API binds the invitation to the account that owns this email, or refuses it.
+    // The API answers the same whether or not an account uses this email (Services/AGENTS.md §Email invitations).
     inviteMemberMutation.mutate({
       guildId,
       invitedEmail: email.trim(),
@@ -157,7 +178,7 @@ export function MembersTab({ guildId, isOwner }: MembersTabProps) {
                 People who are part of this guild
               </CardDescription>
             </div>
-            {isOwner && (
+            {canManage && (
               <Button
                 onClick={() => setShowInviteDialog(true)}
                 variant="default"
@@ -170,6 +191,21 @@ export function MembersTab({ guildId, isOwner }: MembersTabProps) {
           </div>
         </CardHeader>
         <CardContent>
+          {inviteSentTo && (
+            <p role="status" className="text-muted-foreground mb-4 text-sm">
+              Invitation recorded for {inviteSentTo}. If an ArdaNova account
+              uses that email, its owner will find it under their guild
+              invitations.
+            </p>
+          )}
+          {updateRoleMutation.error && (
+            <p role="alert" className="text-destructive mb-4 text-sm">
+              {describeMutationError(
+                updateRoleMutation.error,
+                "change that role",
+              )}
+            </p>
+          )}
           {!members || members.length === 0 ? (
             <div className="text-muted-foreground py-8 text-center">
               No members yet.
@@ -191,8 +227,7 @@ export function MembersTab({ guildId, isOwner }: MembersTabProps) {
                       </Avatar>
                       <div className="space-y-1">
                         <div className="font-medium">
-                          {member.user?.name ??
-                            "Unknown User"}
+                          {member.user?.name ?? "Unknown User"}
                         </div>
                         <div className="flex items-center justify-center gap-1.5">
                           <Badge
@@ -216,7 +251,39 @@ export function MembersTab({ guildId, isOwner }: MembersTabProps) {
                       <div className="text-muted-foreground text-xs">
                         Joined {new Date(member.joinedAt).toLocaleDateString()}
                       </div>
-                      {isOwner && member.role !== "OWNER" && (
+                      {canChangeMember(member.role) && (
+                        <Select
+                          value={member.role ?? "MEMBER"}
+                          onValueChange={(value) =>
+                            updateRoleMutation.mutate({
+                              guildId,
+                              memberId: member.id,
+                              role: value as AssignableRole,
+                            })
+                          }
+                          disabled={
+                            updateRoleMutation.isPending &&
+                            updateRoleMutation.variables?.memberId === member.id
+                          }
+                        >
+                          <SelectTrigger
+                            className="w-full"
+                            aria-label={`Role for ${member.user?.name ?? "this member"}`}
+                          >
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {ASSIGNABLE_ROLES.filter(
+                              (option) => option !== "ADMIN" || isOwner,
+                            ).map((option) => (
+                              <SelectItem key={option} value={option}>
+                                {option}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                      {canChangeMember(member.role) && (
                         <Button
                           variant="outline"
                           size="sm"
@@ -224,9 +291,7 @@ export function MembersTab({ guildId, isOwner }: MembersTabProps) {
                           onClick={() =>
                             setMemberToRemove({
                               id: member.id,
-                              name:
-                                member.user?.name ??
-                                "this member",
+                              name: member.user?.name ?? "this member",
                             })
                           }
                           disabled={
@@ -252,7 +317,9 @@ export function MembersTab({ guildId, isOwner }: MembersTabProps) {
         </CardContent>
       </Card>
 
-      {isOwner && pendingInvitations.length > 0 && (
+      {canManage && <ApplicationsPanel guildId={guildId} isOwner={isOwner} />}
+
+      {canManage && pendingInvitations.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -287,8 +354,8 @@ export function MembersTab({ guildId, isOwner }: MembersTabProps) {
           <DialogHeader>
             <DialogTitle>Invite New Member</DialogTitle>
             <DialogDescription>
-              Send an invitation to join your guild. They will receive an email
-              notification.
+              Invite someone by the email on their ArdaNova account. They join
+              only when they accept it from their guild invitations.
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleInviteMember}>
@@ -338,14 +405,16 @@ export function MembersTab({ guildId, isOwner }: MembersTabProps) {
                         </span>
                       </div>
                     </SelectItem>
-                    <SelectItem value="ADMIN">
-                      <div className="flex items-center gap-2">
-                        <Badge variant="neon-purple">ADMIN</Badge>
-                        <span className="text-muted-foreground text-xs">
-                          Management access
-                        </span>
-                      </div>
-                    </SelectItem>
+                    {isOwner && (
+                      <SelectItem value="ADMIN">
+                        <div className="flex items-center gap-2">
+                          <Badge variant="neon-purple">ADMIN</Badge>
+                          <span className="text-muted-foreground text-xs">
+                            Management access
+                          </span>
+                        </div>
+                      </SelectItem>
+                    )}
                   </SelectContent>
                 </Select>
               </div>
@@ -456,7 +525,8 @@ export function MembersTab({ guildId, isOwner }: MembersTabProps) {
             <div className="border-border flex items-center gap-3 rounded border p-3">
               <Badge variant="neon-purple">ADMIN</Badge>
               <p className="text-muted-foreground text-sm">
-                Can manage guild content and moderate members
+                Can edit the guild, post updates, invite, review applications
+                and manage members (but not other admins)
               </p>
             </div>
             <div className="border-border flex items-center gap-3 rounded border p-3">

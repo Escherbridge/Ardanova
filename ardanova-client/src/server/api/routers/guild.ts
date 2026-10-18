@@ -48,7 +48,10 @@ function unwrap<T>(response: ApiResponse<T>, fallback: string): T {
 }
 
 /** For calls that answer 204 No Content. */
-function ensureOk(response: ApiResponse<unknown>, fallback: string): { success: true } {
+function ensureOk(
+  response: ApiResponse<unknown>,
+  fallback: string,
+): { success: true } {
   if (response.error) throw apiError(response, fallback);
   return { success: true };
 }
@@ -152,7 +155,10 @@ export const guildRouter = createTRPCRouter({
   delete: protectedProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ input }) =>
-      ensureOk(await apiClient.guilds.delete(input.id), "Failed to delete guild"),
+      ensureOk(
+        await apiClient.guilds.delete(input.id),
+        "Failed to delete guild",
+      ),
     ),
 
   getMembers: publicProcedure
@@ -163,23 +169,7 @@ export const guildRouter = createTRPCRouter({
       return response.data ?? [];
     }),
 
-  addMember: protectedProcedure
-    .input(
-      z.object({
-        guildId: z.string(),
-        userId: z.string(),
-        role: GrantableGuildRoleSchema,
-      }),
-    )
-    .mutation(async ({ input }) =>
-      unwrap(
-        await apiClient.guilds.addMember(input.guildId, {
-          userId: input.userId,
-          role: input.role,
-        }),
-        "Failed to add member",
-      ),
-    ),
+  // No direct add: people join by accepting an invitation or through an approved application (Services/AGENTS.md §Guild authority).
 
   updateMember: protectedProcedure
     .input(
@@ -281,9 +271,33 @@ export const guildRouter = createTRPCRouter({
     .input(z.object({ guildId: z.string() }))
     .query(async ({ input }) => {
       const response = await apiClient.guilds.getApplications(input.guildId);
-      if (response.error) throw apiError(response, "Failed to load applications");
+      if (response.error)
+        throw apiError(response, "Failed to load applications");
       return response.data ?? [];
     }),
+
+  /** The signed-in member's own applications to this guild, so the page can show "application pending". */
+  getMyApplications: protectedProcedure
+    .input(z.object({ guildId: z.string() }))
+    .query(async ({ input }) => {
+      const response = await apiClient.guilds.getMyApplications(input.guildId);
+      if (response.error) {
+        throw apiError(response, "Failed to load your applications");
+      }
+      return response.data ?? [];
+    }),
+
+  withdrawApplication: protectedProcedure
+    .input(z.object({ guildId: z.string(), applicationId: z.string() }))
+    .mutation(async ({ input }) =>
+      unwrap(
+        await apiClient.guilds.withdrawApplication(
+          input.guildId,
+          input.applicationId,
+        ),
+        "Failed to withdraw application",
+      ),
+    ),
 
   submitApplication: protectedProcedure
     .input(
@@ -339,14 +353,16 @@ export const guildRouter = createTRPCRouter({
     .input(z.object({ guildId: z.string() }))
     .query(async ({ input }) => {
       const response = await apiClient.guilds.getInvitations(input.guildId);
-      if (response.error) throw apiError(response, "Failed to load invitations");
+      if (response.error)
+        throw apiError(response, "Failed to load invitations");
       return response.data ?? [];
     }),
 
   /** Invitations addressed to the signed-in member that can still be answered. */
   getMyInvitations: protectedProcedure.query(async () => {
     const response = await apiClient.guilds.getMyInvitations();
-    if (response.error) throw apiError(response, "Failed to load your invitations");
+    if (response.error)
+      throw apiError(response, "Failed to load your invitations");
     return response.data ?? [];
   }),
 
@@ -429,7 +445,8 @@ export const guildRouter = createTRPCRouter({
         input.guildId,
         ctx.session.user.id,
       );
-      if (response.error) throw apiError(response, "Failed to read follow state");
+      if (response.error)
+        throw apiError(response, "Failed to read follow state");
       return response.data ?? false;
     }),
 });
