@@ -63,6 +63,8 @@ const updateOpportunitySchema = z.object({
   projectRole: z
     .enum(["FOUNDER", "LEADER", "CORE_CONTRIBUTOR", "CONTRIBUTOR", "OBSERVER"])
     .optional(),
+  /** OPEN takes applications; DRAFT pauses the role. Closing uses `close`. */
+  status: z.enum(["DRAFT", "OPEN"]).optional(),
 });
 
 export const opportunityRouter = createTRPCRouter({
@@ -116,7 +118,7 @@ export const opportunityRouter = createTRPCRouter({
         compensation: input.compensationAmount,
         compensationDetails: input.compensationModel,
         equityPercent: input.equityPercent,
-        isOpenForApplications: input.isOpenForApplications ?? false,
+        isOpenForApplications: input.isOpenForApplications ?? true,
         location: input.location,
         isRemote: input.isRemote ?? false,
         deadline: input.deadline,
@@ -275,21 +277,8 @@ export const opportunityRouter = createTRPCRouter({
   // Get applications for an opportunity (only for poster)
   getApplications: protectedProcedure
     .input(z.object({ opportunityId: z.string() }))
-    .query(async ({ input, ctx }) => {
-      const userId = ctx.session.user.id;
-
-      // Verify ownership
-      const opportunity = await apiClient.opportunities.getById(
-        input.opportunityId,
-      );
-      if (opportunity.error || !opportunity.data) {
-        throw new Error("Opportunity not found");
-      }
-
-      if (opportunity.data.posterId !== userId) {
-        throw new Error("Access denied: You do not own this opportunity");
-      }
-
+    .query(async ({ input }) => {
+      // Management rights are checked by the API (any project manager, not only the poster).
       const response = await apiClient.opportunities.getApplications(
         input.opportunityId,
       );
@@ -311,25 +300,12 @@ export const opportunityRouter = createTRPCRouter({
         reviewNotes: z.string().optional(),
       }),
     )
-    .mutation(async ({ input, ctx }) => {
-      const userId = ctx.session.user.id;
-
-      // Verify ownership of opportunity
-      const opportunity = await apiClient.opportunities.getById(
-        input.opportunityId,
-      );
-      if (opportunity.error || !opportunity.data) {
-        throw new Error("Opportunity not found");
-      }
-
-      if (opportunity.data.posterId !== userId) {
-        throw new Error("Access denied: You do not own this opportunity");
-      }
-
+    .mutation(async ({ input }) => {
+      // Management rights are checked by the API (any project manager, not only the poster).
       const response = await apiClient.opportunities.updateApplicationStatus(
         input.applicationId,
         {
-          status: input.status,
+          status: input.status.toUpperCase(),
           reviewNotes: input.reviewNotes,
         },
       );
@@ -346,20 +322,9 @@ export const opportunityRouter = createTRPCRouter({
   // Update opportunity
   update: protectedProcedure
     .input(updateOpportunitySchema)
-    .mutation(async ({ input, ctx }) => {
+    .mutation(async ({ input }) => {
       const { id, ...data } = input;
-      const userId = ctx.session.user.id;
-
-      // Verify ownership
-      const existing = await apiClient.opportunities.getById(id);
-      if (existing.error || !existing.data) {
-        throw new Error("Opportunity not found");
-      }
-
-      if (existing.data.posterId !== userId) {
-        throw new Error("Access denied: You do not own this opportunity");
-      }
-
+      // Management rights are checked by the API (any project manager, not only the poster).
       const response = await apiClient.opportunities.update(id, {
         title: data.title,
         description: data.description,
@@ -373,6 +338,7 @@ export const opportunityRouter = createTRPCRouter({
         deadline: data.deadline,
         maxApplications: data.maxApplications,
         projectRole: data.projectRole,
+        status: data.status,
       });
 
       if (response.error || !response.data) {
@@ -385,19 +351,8 @@ export const opportunityRouter = createTRPCRouter({
   // Close opportunity
   close: protectedProcedure
     .input(z.object({ id: z.string() }))
-    .mutation(async ({ input, ctx }) => {
-      const userId = ctx.session.user.id;
-
-      // Verify ownership
-      const existing = await apiClient.opportunities.getById(input.id);
-      if (existing.error || !existing.data) {
-        throw new Error("Opportunity not found");
-      }
-
-      if (existing.data.posterId !== userId) {
-        throw new Error("Access denied: You do not own this opportunity");
-      }
-
+    .mutation(async ({ input }) => {
+      // Management rights are checked by the API (any project manager, not only the poster).
       const response = await apiClient.opportunities.close(input.id);
 
       if (response.error) {
@@ -410,19 +365,8 @@ export const opportunityRouter = createTRPCRouter({
   // Delete opportunity
   delete: protectedProcedure
     .input(z.object({ id: z.string() }))
-    .mutation(async ({ input, ctx }) => {
-      const userId = ctx.session.user.id;
-
-      // Verify ownership
-      const existing = await apiClient.opportunities.getById(input.id);
-      if (existing.error || !existing.data) {
-        throw new Error("Opportunity not found");
-      }
-
-      if (existing.data.posterId !== userId) {
-        throw new Error("Access denied: You do not own this opportunity");
-      }
-
+    .mutation(async ({ input }) => {
+      // Management rights are checked by the API (any project manager, not only the poster).
       const response = await apiClient.opportunities.delete(input.id);
 
       if (response.error) {
@@ -459,21 +403,8 @@ export const opportunityRouter = createTRPCRouter({
         images: z.string().optional(),
       }),
     )
-    .mutation(async ({ input, ctx }) => {
-      const userId = ctx.session.user.id;
-
-      // Verify ownership
-      const opportunity = await apiClient.opportunities.getById(
-        input.opportunityId,
-      );
-      if (opportunity.error || !opportunity.data) {
-        throw new Error("Opportunity not found");
-      }
-
-      if (opportunity.data.posterId !== userId) {
-        throw new Error("Access denied: You do not own this opportunity");
-      }
-
+    .mutation(async ({ input }) => {
+      // Management rights are checked by the API (any project manager, not only the poster).
       const response = await apiClient.opportunities.createUpdate(
         input.opportunityId,
         {
@@ -493,21 +424,8 @@ export const opportunityRouter = createTRPCRouter({
   // Delete an update (owner only)
   deleteUpdate: protectedProcedure
     .input(z.object({ updateId: z.string(), opportunityId: z.string() }))
-    .mutation(async ({ input, ctx }) => {
-      const userId = ctx.session.user.id;
-
-      // Verify ownership of opportunity
-      const opportunity = await apiClient.opportunities.getById(
-        input.opportunityId,
-      );
-      if (opportunity.error || !opportunity.data) {
-        throw new Error("Opportunity not found");
-      }
-
-      if (opportunity.data.posterId !== userId) {
-        throw new Error("Access denied: You do not own this opportunity");
-      }
-
+    .mutation(async ({ input }) => {
+      // Management rights are checked by the API (any project manager, not only the poster).
       const response = await apiClient.opportunities.deleteUpdate(
         input.updateId,
       );
@@ -564,37 +482,8 @@ export const opportunityRouter = createTRPCRouter({
   // Delete a comment (only comment author or opportunity owner)
   deleteComment: protectedProcedure
     .input(z.object({ commentId: z.string(), opportunityId: z.string() }))
-    .mutation(async ({ input, ctx }) => {
-      const userId = ctx.session.user.id;
-
-      // Get opportunity to check ownership
-      const opportunity = await apiClient.opportunities.getById(
-        input.opportunityId,
-      );
-      if (opportunity.error || !opportunity.data) {
-        throw new Error("Opportunity not found");
-      }
-
-      // Get comments to find the specific comment
-      const commentsResponse = await apiClient.opportunities.getComments(
-        input.opportunityId,
-      );
-      const comment = commentsResponse.data?.find(
-        (c) => c.id === input.commentId,
-      );
-
-      if (!comment) {
-        throw new Error("Comment not found");
-      }
-
-      // Allow deletion if user is opportunity owner or comment author
-      const isOwner = opportunity.data.posterId === userId;
-      const isAuthor = comment.userId === userId;
-
-      if (!isOwner && !isAuthor) {
-        throw new Error("Access denied: You cannot delete this comment");
-      }
-
+    .mutation(async ({ input }) => {
+      // The API lets the comment's author or the opportunity's managers delete it.
       const response = await apiClient.opportunities.deleteComment(
         input.commentId,
       );
