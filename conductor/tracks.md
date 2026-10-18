@@ -49,3 +49,4 @@ type: index
 - [ ] [AZOA Provider Adapter](tracks/azoa-provider-adapter/spec.md) - `AzoaBackedAlgorandService` behind `IAlgorandService`, feature-flagged, platform mnemonic removed. **Backend-only.**
 - [ ] [AZOA Quest Authoring](tracks/azoa-quest-authoring/spec.md) - Publish scrum-lifecycle quest definitions/templates; avatars self-run; board events → gate signals.
 - [ ] [Treasury / Reward → AZOA Allocation](tracks/treasury-reward-to-azoa-allocation/spec.md) - Funding + task reward → `POST /api/allocation` with stable idempotency keys. **Real-value flip gated on AZOA P7.**
+- [ ] [Backend Authorization Hardening](tracks/backend-authz-hardening_20261017/spec.md) - User PII projection, actor gating for 12 service-key-only controllers, ownership checks moved into .NET services. **P0 security; from loop-1 backend QA.**

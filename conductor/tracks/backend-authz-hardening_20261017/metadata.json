@@ -1,0 +1,10 @@
+{
+  "track_id": "backend-authz-hardening_20261017",
+  "type": "bug",
+  "status": "pending",
+  "created_at": "2026-10-17",
+  "updated_at": "2026-10-17",
+  "description": "Move authorization for user PII reads and service-key-only mutations into the .NET backend; finish robustness follow-ups from loop-1 backend QA.",
+  "source": "loop1 backend QA + adversarial critique",
+  "partitions": { "confidence": "none" }
+}
