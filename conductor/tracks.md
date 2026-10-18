@@ -102,3 +102,4 @@ in-flight security-hardening pass.
 - [ ] [Nova AI powered by OVERSEASGENAI](tracks/nova-ai-ogai-partner/spec.md) - White-label project refinement via the OGAI partner validate API; .NET-only caller. **Loop 1 built; rollout owner-gated.**
 - [ ] [Retire ardanova-ai-client](tracks/ai-client-retirement/spec.md) - Dormant FastAPI/CrewAI service superseded by Nova AI; routes now key-guarded. **Proposal; owner decides deletion.**
 - [ ] [Backend Authorization Hardening](tracks/backend-authz-hardening_20261017/spec.md) - User PII projection, actor gating for 12 service-key-only controllers, ownership checks moved into .NET services. **P0 security; from loop-1 backend QA.**
+- [ ] [Governance Reachability and Proposal Privacy](tracks/governance-reachability_20261018/spec.md) - Voting needs a credential the local sandbox cannot issue, solo projects never reach quorum, project-scoped proposal routes still leak drafts. **From loop-2 guilds QA.**

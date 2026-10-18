@@ -1,0 +1,8 @@
+{
+  "track_id": "governance-reachability_20261018",
+  "type": "bug",
+  "status": "new",
+  "created_at": "2026-10-18",
+  "description": "Loop 2 guild/governance follow-ups: voting is unreachable without a MembershipCredential, solo projects can never reach the two-ballot quorum floor, the project-scoped proposal routes still leak drafts and cross-project ids, invites reveal account existence, and the local seed fabricates guild data.",
+  "partitions": { "confidence": "none" }
+}
