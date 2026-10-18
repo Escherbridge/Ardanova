@@ -48,16 +48,19 @@ function buildKycUrl(params: Record<string, string | undefined>): string {
 async function unbindAzoaAccount(identifier: string, formData: FormData) {
   "use server";
 
-  const reason = String(formData.get("reason") ?? "").trim();
+  const submittedReason = formData.get("reason");
+  const reason =
+    typeof submittedReason === "string" ? submittedReason.trim() : "";
   const session = await auth();
   if (!session?.user?.id || session.user.role !== "ADMIN") {
-    redirect(
-      buildKycUrl({ identifier, error: "Admin access required." }),
-    );
+    redirect(buildKycUrl({ identifier, error: "Admin access required." }));
   }
   if (!reason) {
     redirect(
-      buildKycUrl({ identifier, error: "A reason is required to unbind an AZOA account." }),
+      buildKycUrl({
+        identifier,
+        error: "A reason is required to unbind an AZOA account.",
+      }),
     );
   }
 
@@ -87,7 +90,11 @@ async function unbindAzoaAccount(identifier: string, formData: FormData) {
 export default async function KycOperationsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ identifier?: string; error?: string; unbound?: string }>;
+  searchParams: Promise<{
+    identifier?: string;
+    error?: string;
+    unbound?: string;
+  }>;
 }) {
   const params = await searchParams;
   const identifier = params.identifier?.trim();
@@ -118,7 +125,9 @@ export default async function KycOperationsPage({
 
   const hasBinding = Boolean(
     binding &&
-      (binding.azoaAvatarId ?? binding.azoaWalletId ?? binding.azoaWalletAddress),
+      (binding.azoaAvatarId ??
+        binding.azoaWalletId ??
+        binding.azoaWalletAddress),
   );
 
   return (
@@ -177,23 +186,25 @@ export default async function KycOperationsPage({
           <span className="text-foreground font-mono font-semibold">
             &quot;Under review — contact support&quot;
           </span>{" "}
-          state for a member whose identity is verified but whose account
-          still awaits a compliance decision (an AML screening match that
-          needs a human verdict). No reason is disclosed to the member or to
-          ArdaNova; Azoa&apos;s operator resolves it from the node&apos;s own
-          review queue. ArdaNova consumes this state on both surfaces that
-          matter: the value-rail gate returns that exact message instead of
-          a generic refusal, and the member&apos;s verification level is held
-          neutral for as long as the review stays open — a person already at
-          PRO keeps that grade while a review is pending, since being pulled
-          into review is not itself a demotion. Only an actual rejection
-          demotes.
+          state for a member whose identity is verified but whose account still
+          awaits a compliance decision (an AML screening match that needs a
+          human verdict). No reason is disclosed to the member or to ArdaNova;
+          Azoa&apos;s operator resolves it from the node&apos;s own review
+          queue. ArdaNova consumes this state on both surfaces that matter: the
+          value-rail gate returns that exact message instead of a generic
+          refusal, and the member&apos;s verification level is held neutral for
+          as long as the review stays open — a person already at PRO keeps that
+          grade while a review is pending, since being pulled into review is not
+          itself a demotion. Only an actual rejection demotes.
         </p>
       </section>
 
       <section className="border-foreground bg-card space-y-5 border-2 p-5 md:p-6">
         <div className="flex items-start gap-3">
-          <Unlink className="text-primary mt-1 size-8 shrink-0" aria-hidden="true" />
+          <Unlink
+            className="text-primary mt-1 size-8 shrink-0"
+            aria-hidden="true"
+          />
           <div>
             <h2 className="font-mono text-xl font-black uppercase">
               Unbind an AZOA account
@@ -202,11 +213,11 @@ export default async function KycOperationsPage({
               Recovery tool for a node rebuild (a dev volume wipe invalidates
               every azoaAvatarId Azoa previously issued). ArdaNova&apos;s unique
               index on azoaAvatarId keeps enforcing the stale value, so the
-              member&apos;s next account-setup call Conflicts forever until it is
-              cleared here. Unbinding never contacts Azoa — it only clears
+              member&apos;s next account-setup call Conflicts forever until it
+              is cleared here. Unbinding never contacts Azoa — it only clears
               ArdaNova&apos;s local pointers so Azoa can provision a fresh
-              binding on the member&apos;s next call. Every unbind is logged with
-              the operator&apos;s identity and the reason given.
+              binding on the member&apos;s next call. Every unbind is logged
+              with the operator&apos;s identity and the reason given.
             </p>
           </div>
         </div>
@@ -225,7 +236,11 @@ export default async function KycOperationsPage({
               required
             />
           </div>
-          <Button type="submit" variant="outline" className="border-foreground border-2 font-mono uppercase">
+          <Button
+            type="submit"
+            variant="outline"
+            className="border-foreground border-2 font-mono uppercase"
+          >
             Look up
           </Button>
         </form>
@@ -268,13 +283,17 @@ export default async function KycOperationsPage({
                 <dt className="text-muted-foreground font-mono text-xs tracking-widest uppercase">
                   AZOA avatar id
                 </dt>
-                <dd className="font-mono">{binding.azoaAvatarId ?? "— not bound —"}</dd>
+                <dd className="font-mono">
+                  {binding.azoaAvatarId ?? "— not bound —"}
+                </dd>
               </div>
               <div>
                 <dt className="text-muted-foreground font-mono text-xs tracking-widest uppercase">
                   AZOA wallet id
                 </dt>
-                <dd className="font-mono">{binding.azoaWalletId ?? "— not bound —"}</dd>
+                <dd className="font-mono">
+                  {binding.azoaWalletId ?? "— not bound —"}
+                </dd>
               </div>
               <div className="sm:col-span-2">
                 <dt className="text-muted-foreground font-mono text-xs tracking-widest uppercase">
@@ -288,11 +307,18 @@ export default async function KycOperationsPage({
 
             {hasBinding ? (
               <form
-                action={unbindAzoaAccount.bind(null, binding.userId)}
+                action={
+                  unbindAzoaAccount.bind(null, binding.userId) as (
+                    formData: FormData,
+                  ) => Promise<void>
+                }
                 className="space-y-3 border-t-2 border-dashed pt-4"
               >
                 <div className="space-y-1.5">
-                  <Label htmlFor="reason" className="font-mono text-xs uppercase">
+                  <Label
+                    htmlFor="reason"
+                    className="font-mono text-xs uppercase"
+                  >
                     Reason (required, audited)
                   </Label>
                   <Textarea

@@ -74,7 +74,8 @@ function wentWrong(detail?: string | null): FundingIntentPresentation {
     outcome: "went-wrong",
     heading: "Something went wrong",
     detail:
-      detail?.trim() || "This sponsorship could not be completed. Nothing was taken.",
+      detail?.trim() ||
+      "This sponsorship could not be completed. Nothing was taken.",
     poll: false,
   };
 }
@@ -144,7 +145,7 @@ export function describeFundingError(error?: FundingRequestErrorLike): string {
   if (message) return message;
 
   const code = error?.data?.code;
-  if (code && code in CODE_FALLBACKS) return CODE_FALLBACKS[code]!;
+  if (code && code in CODE_FALLBACKS) return CODE_FALLBACKS[code];
 
   return GENERIC_FUNDING_ERROR;
 }

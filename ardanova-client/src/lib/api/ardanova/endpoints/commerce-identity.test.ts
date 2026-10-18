@@ -57,8 +57,6 @@ describe("commerce self-service API contracts", () => {
     await new TaskEscrowsEndpoint(client).getMine();
     await new TaskEscrowsEndpoint(client).create({
       taskId: "task-1",
-      shareId: "share-1",
-      amount: 10,
     });
     await new TaskEscrowsEndpoint(client).dispute("escrow-1", {
       reason: "QUALITY_ISSUE",
@@ -87,6 +85,7 @@ describe("commerce self-service API contracts", () => {
         projectTokenConfigId: "config-1",
         amount: "12.34",
         disclosureVersion: "funding-disclosure-v1",
+        displayNameConsent: false,
       },
       "9e68f25a-589c-472a-ab2d-0b4161c5ab89",
     );
@@ -112,7 +111,7 @@ describe("commerce self-service API contracts", () => {
       {
         method: "POST",
         endpoint: "/api/taskescrows",
-        body: { taskId: "task-1", shareId: "share-1", amount: 10 },
+        body: { taskId: "task-1" },
       },
       {
         method: "POST",
@@ -151,6 +150,7 @@ describe("commerce self-service API contracts", () => {
           projectTokenConfigId: "config-1",
           amount: "12.34",
           disclosureVersion: "funding-disclosure-v1",
+          displayNameConsent: false,
         },
         headers: {
           "X-Idempotency-Key": "9e68f25a-589c-472a-ab2d-0b4161c5ab89",

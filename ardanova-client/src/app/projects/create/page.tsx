@@ -363,9 +363,7 @@ export default function CreateProjectPage() {
       return next;
     });
 
-  const handleMediaSelected = async (
-    event: ChangeEvent<HTMLInputElement>,
-  ) => {
+  const handleMediaSelected = async (event: ChangeEvent<HTMLInputElement>) => {
     const chosen = Array.from(event.target.files ?? []);
     // Reset immediately so re-picking the same file still fires a change event.
     event.target.value = "";
@@ -420,8 +418,8 @@ export default function CreateProjectPage() {
       }
 
       for (let index = 0; index < accepted.length; index += 1) {
-        const file = accepted[index]!;
-        const target = uploads[index]!;
+        const file = accepted[index];
+        const target = uploads[index];
         const response = await fetch(target.uploadUrl, {
           method: "PUT",
           headers: { "Content-Type": file.type, ...(target.headers ?? {}) },
@@ -618,7 +616,8 @@ export default function CreateProjectPage() {
       const forWorkers = parseWholeUnits(funding.workerUnits);
 
       if (total === undefined || total < 1) {
-        newErrors.fundingTotalUnits = "Enter a whole number of units, at least 1";
+        newErrors.fundingTotalUnits =
+          "Enter a whole number of units, at least 1";
       }
       if (forSponsors === undefined) {
         newErrors.fundingSponsorUnits = "Enter a whole number of units";
@@ -970,9 +969,7 @@ export default function CreateProjectPage() {
         : rolesToSave.filter((role) => !isProjectRoleValueBearing(role));
 
       if (paidRolesAwaitingSetup.length > 0) {
-        failedRoleIds.push(
-          ...paidRolesAwaitingSetup.map((role) => role.id),
-        );
+        failedRoleIds.push(...paidRolesAwaitingSetup.map((role) => role.id));
         partialWarnings.push(
           valueAccountUnderReview
             ? "Paid role listings remain saved in this recovery draft until the review of your account finishes."
@@ -1917,7 +1914,10 @@ export default function CreateProjectPage() {
                             className="mt-1 min-h-11 w-full"
                             onClick={() => removeMedia(item.bucketPath)}
                           >
-                            <Trash2 className="mr-2 size-4" aria-hidden="true" />
+                            <Trash2
+                              className="mr-2 size-4"
+                              aria-hidden="true"
+                            />
                             Remove
                           </Button>
                         </li>
@@ -2000,8 +2000,8 @@ export default function CreateProjectPage() {
                   )}
                   {fundingGoalDollars !== undefined && (
                     <p className="text-muted-foreground text-xs">
-                      You only ever enter dollars. The figure above is worked out
-                      for you and moves with the rate.
+                      You only ever enter dollars. The figure above is worked
+                      out for you and moves with the rate.
                     </p>
                   )}
                 </CardContent>
@@ -2448,447 +2448,466 @@ export default function CreateProjectPage() {
             <div className="space-y-6">
               {/* Account setup is asked for here, at the step where a role first carries
                   money - not before the creator has written anything. */}
-            <section
-              className="border-foreground bg-card border-2"
-              aria-labelledby="project-readiness-title"
-              aria-live="polite"
-            >
-              <div className="flex flex-col gap-4 p-4 sm:flex-row sm:items-start sm:justify-between sm:p-5">
-                <div className="flex items-start gap-3">
-                  <span className="border-foreground bg-system/10 text-system flex size-10 shrink-0 items-center justify-center border-2">
-                    {valueAccountCheckPending ? (
-                      <Loader2 className="size-5 animate-spin" aria-hidden="true" />
-                    ) : valueAccountReady ? (
-                      <ShieldCheck className="size-5" aria-hidden="true" />
-                    ) : (
-                      <TriangleAlert className="size-5" aria-hidden="true" />
-                    )}
-                  </span>
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h2
-                        id="project-readiness-title"
-                        className="font-mono text-base font-black uppercase"
+              <section
+                className="border-foreground bg-card border-2"
+                aria-labelledby="project-readiness-title"
+                aria-live="polite"
+              >
+                <div className="flex flex-col gap-4 p-4 sm:flex-row sm:items-start sm:justify-between sm:p-5">
+                  <div className="flex items-start gap-3">
+                    <span className="border-foreground bg-system/10 text-system flex size-10 shrink-0 items-center justify-center border-2">
+                      {valueAccountCheckPending ? (
+                        <Loader2
+                          className="size-5 animate-spin"
+                          aria-hidden="true"
+                        />
+                      ) : valueAccountReady ? (
+                        <ShieldCheck className="size-5" aria-hidden="true" />
+                      ) : (
+                        <TriangleAlert className="size-5" aria-hidden="true" />
+                      )}
+                    </span>
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h2
+                          id="project-readiness-title"
+                          className="font-mono text-base font-black uppercase"
+                        >
+                          {valueAccountUnderReview
+                            ? "Account review status"
+                            : "Account setup status"}
+                        </h2>
+                        <Badge
+                          variant={valueAccountReady ? "success" : "outline"}
+                        >
+                          {valueAccountCheckPending
+                            ? "Checking"
+                            : valueAccountReady
+                              ? "Complete"
+                              : valueAccountUnderReview
+                                ? "In review"
+                                : "Setup needed"}
+                        </Badge>
+                      </div>
+                      <p
+                        id="team-roles-readiness"
+                        className="text-muted-foreground mt-2 max-w-2xl text-sm leading-relaxed"
                       >
-                        {valueAccountUnderReview
-                          ? "Account review status"
-                          : "Account setup status"}
-                      </h2>
-                      <Badge variant={valueAccountReady ? "success" : "outline"}>
                         {valueAccountCheckPending
-                          ? "Checking"
+                          ? "Checking the account setup needed for funding and paid work."
                           : valueAccountReady
-                            ? "Complete"
+                            ? "Account setup is complete. You can publish paid role listings when the project is ready; the server checks every value-bearing action again."
                             : valueAccountUnderReview
-                              ? "In review"
-                              : "Setup needed"}
-                      </Badge>
+                              ? // The shared contract's own words, matching the server's refusal
+                                // text. The node's `unavailableReason` is a provider diagnostic
+                                // and is never printed at a creator.
+                                accountEvaluation.message
+                              : accountEvaluation.state ===
+                                  "service-unavailable"
+                                ? "We could not confirm account setup. You can still create a project draft; funding and paid role listings remain unavailable until status is confirmed."
+                                : "You can create a project draft and collaborate now. Complete account setup before funding a project, publishing paid roles, or receiving money or rewards."}
+                      </p>
                     </div>
-                    <p
-                      id="team-roles-readiness"
-                      className="text-muted-foreground mt-2 max-w-2xl text-sm leading-relaxed"
-                    >
-                      {valueAccountCheckPending
-                        ? "Checking the account setup needed for funding and paid work."
-                        : valueAccountReady
-                          ? "Account setup is complete. You can publish paid role listings when the project is ready; the server checks every value-bearing action again."
-                          : valueAccountUnderReview
-                            ? // The shared contract's own words, matching the server's refusal
-                              // text. The node's `unavailableReason` is a provider diagnostic
-                              // and is never printed at a creator.
-                              accountEvaluation.message
-                            : accountEvaluation.state === "service-unavailable"
-                              ? "We could not confirm account setup. You can still create a project draft; funding and paid role listings remain unavailable until status is confirmed."
-                              : "You can create a project draft and collaborate now. Complete account setup before funding a project, publishing paid roles, or receiving money or rewards."}
-                    </p>
                   </div>
-                </div>
 
-                {!valueAccountCheckPending && !valueAccountReady && (
-                  <div className="flex w-full flex-col gap-2 sm:w-auto">
-                    {valueAccountUnderReview ? (
-                      reviewContact && (
+                  {!valueAccountCheckPending && !valueAccountReady && (
+                    <div className="flex w-full flex-col gap-2 sm:w-auto">
+                      {valueAccountUnderReview ? (
+                        reviewContact && (
+                          <Button className="min-h-11 w-full sm:w-auto" asChild>
+                            <a href={reviewContact}>
+                              <ShieldCheck
+                                className="size-4"
+                                aria-hidden="true"
+                              />
+                              Contact the review team
+                            </a>
+                          </Button>
+                        )
+                      ) : (
                         <Button className="min-h-11 w-full sm:w-auto" asChild>
-                          <a href={reviewContact}>
-                            <ShieldCheck className="size-4" aria-hidden="true" />
-                            Contact the review team
-                          </a>
+                          <Link href="/settings/verification?returnTo=%2Fprojects%2Fcreate">
+                            <ShieldCheck
+                              className="size-4"
+                              aria-hidden="true"
+                            />
+                            Review account setup
+                          </Link>
                         </Button>
-                      )
-                    ) : (
-                      <Button className="min-h-11 w-full sm:w-auto" asChild>
-                        <Link href="/settings/verification?returnTo=%2Fprojects%2Fcreate">
-                          <ShieldCheck className="size-4" aria-hidden="true" />
-                          Review account setup
-                        </Link>
+                      )}
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="min-h-11 w-full sm:w-auto"
+                        disabled={custodyStatus.isFetching}
+                        onClick={() => void custodyStatus.refetch()}
+                      >
+                        <RefreshCw
+                          className={cn(
+                            "size-4",
+                            custodyStatus.isFetching && "animate-spin",
+                          )}
+                          aria-hidden="true"
+                        />
+                        Check again
                       </Button>
-                    )}
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="min-h-11 w-full sm:w-auto"
-                      disabled={custodyStatus.isFetching}
-                      onClick={() => void custodyStatus.refetch()}
-                    >
-                      <RefreshCw
-                        className={cn(
-                          "size-4",
-                          custodyStatus.isFetching && "animate-spin",
-                        )}
-                        aria-hidden="true"
-                      />
-                      Check again
-                    </Button>
-                  </div>
-                )}
-              </div>
-
-              <div className="border-foreground grid border-t-2 sm:grid-cols-3">
-                <div className="border-foreground flex items-center justify-between gap-3 border-b-2 px-4 py-3 sm:border-r-2 sm:border-b-0">
-                  <span className="text-sm font-medium">Account setup</span>
-                  <span className="font-mono text-xs uppercase">
-                    {custodyStatus.data?.identityReady ? "Ready" : "Not confirmed"}
-                  </span>
-                </div>
-                <div className="border-foreground flex items-center justify-between gap-3 border-b-2 px-4 py-3 sm:border-r-2 sm:border-b-0">
-                  <span className="text-sm font-medium">Identity check</span>
-                  <span className="font-mono text-xs uppercase">
-                    {describeIdentityStep(custodyStatus.data?.kycStatus)}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between gap-3 px-4 py-3">
-                  <span className="text-sm font-medium">Managed payment account</span>
-                  <span className="font-mono text-xs uppercase">
-                    {custodyStatus.data?.walletReady ? "Ready" : "Not confirmed"}
-                  </span>
-                </div>
-              </div>
-
-              {!valueAccountReady && (
-                <p className="border-foreground text-muted-foreground border-t-2 px-4 py-3 text-xs leading-relaxed sm:px-5">
-                  {valueAccountUnderReview
-                    ? "Keep shaping and saving this project draft. Only funding and paid role listings wait for the review decision."
-                    : "Keep shaping and saving this project draft. Visiting account setup will not erase it in this tab; only funding and paid role listings wait for completion."}
-                </p>
-              )}
-            </section>
-
-            <Card className="bg-card border-border">
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="flex items-center gap-2 text-lg">
-                      <Users className="text-system size-5" />
-                      Team Roles
-                    </CardTitle>
-                    <p className="text-muted-foreground mt-1 text-sm">
-                      Define roles and compensation for your team
-                    </p>
-                  </div>
-                  {!isAddingRole && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setIsAddingRole(true)}
-                    >
-                      <Plus className="mr-2 size-4" />
-                      Add Role
-                    </Button>
+                    </div>
                   )}
                 </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {/* Add/Edit Role Form */}
-                {isAddingRole && (
-                  <Card className="bg-muted/30 border-border border-2 border-dashed">
-                    <CardContent className="space-y-4 p-4">
-                      <div>
-                        <label
-                          htmlFor="project-role-title"
-                          className="mb-2 block text-sm font-medium"
-                        >
-                          Role Title <span className="text-system">*</span>
-                        </label>
-                        <input
-                          type="text"
-                          id="project-role-title"
-                          required
-                          aria-invalid={Boolean(errors.roleTitle)}
-                          aria-describedby={
-                            errors.roleTitle
-                              ? "project-role-title-error"
-                              : undefined
-                          }
-                          value={roleForm.title}
-                          onChange={(e) => {
-                            setRoleForm((prev) => ({
-                              ...prev,
-                              title: e.target.value,
-                            }));
-                            setErrors((previous) => {
-                              const next = { ...previous };
-                              delete next.roleTitle;
-                              return next;
-                            });
-                          }}
-                          placeholder="e.g., Lead Developer"
-                          className="bg-background border-border focus-visible:ring-ring/50 w-full rounded-lg border-2 px-4 py-2 focus:ring-2 focus:outline-none"
-                        />
-                        {errors.roleTitle && (
-                          <p
-                            id="project-role-title-error"
-                            role="alert"
-                            className="text-destructive mt-1 text-sm"
-                          >
-                            {errors.roleTitle}
-                          </p>
-                        )}
-                      </div>
-                      <div>
-                        <label
-                          htmlFor="project-role-description"
-                          className="mb-2 block text-sm font-medium"
-                        >
-                          Description
-                        </label>
-                        <textarea
-                          id="project-role-description"
-                          value={roleForm.description}
-                          onChange={(e) =>
-                            setRoleForm((prev) => ({
-                              ...prev,
-                              description: e.target.value,
-                            }))
-                          }
-                          placeholder="Describe the role responsibilities..."
-                          rows={2}
-                          className="bg-background border-border focus-visible:ring-ring/50 w-full resize-none rounded-lg border-2 px-4 py-2 focus:ring-2 focus:outline-none"
-                        />
-                      </div>
-                      <div>
-                        <label
-                          htmlFor="project-role-compensation"
-                          className="mb-2 block text-sm font-medium"
-                        >
-                          Compensation Model
-                        </label>
-                        <Select
-                          value={roleForm.compensationModel}
-                          onValueChange={(value) => {
-                            if (!isProjectCreateCompensationModel(value)) return;
-                            setRoleForm((prev) => ({
-                              ...prev,
-                              compensationModel: value,
-                            }));
-                          }}
-                        >
-                          <SelectTrigger id="project-role-compensation">
-                            <SelectValue placeholder="Select model" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {compensationModels.map((model) => (
-                              <SelectItem key={model.id} value={model.id}>
-                                {model.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div>
-                        <label
-                          htmlFor="project-role-base"
-                          className="mb-2 block text-sm font-medium"
-                        >
-                          Base Role
-                        </label>
-                        <Select
-                          value={roleForm.projectRole}
-                          onValueChange={(value) => {
-                            if (isProjectRole(value)) {
-                              setRoleForm((prev) => ({
-                                ...prev,
-                                projectRole: value,
-                              }));
-                            }
-                          }}
-                        >
-                          <SelectTrigger
-                            id="project-role-base"
-                            aria-describedby="project-role-base-help"
-                          >
-                            <SelectValue placeholder="Select base role" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="FOUNDER">Founder</SelectItem>
-                            <SelectItem value="LEADER">Leader</SelectItem>
-                            <SelectItem value="CORE_CONTRIBUTOR">
-                              Core Contributor
-                            </SelectItem>
-                            <SelectItem value="CONTRIBUTOR">
-                              Contributor
-                            </SelectItem>
-                            <SelectItem value="OBSERVER">Observer</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <p
-                          id="project-role-base-help"
-                          className="text-muted-foreground mt-1 text-xs"
-                        >
-                          The organizational role granted when this position is
-                          filled
-                        </p>
-                      </div>
-                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                        <div>
-                          <label
-                            htmlFor="project-role-share"
-                            className="mb-2 block text-sm font-medium"
-                          >
-                            Share Amount
-                          </label>
-                          <input
-                            type="number"
-                            id="project-role-share"
-                            value={roleForm.shareAmount}
-                            onChange={(e) =>
-                              setRoleForm((prev) => ({
-                                ...prev,
-                                shareAmount: e.target.value,
-                              }))
-                            }
-                            placeholder="0"
-                            min="0"
-                            className="bg-background border-border focus-visible:ring-ring/50 w-full rounded-lg border-2 px-4 py-2 focus:ring-2 focus:outline-none"
-                          />
-                        </div>
-                        <div>
-                          <label
-                            htmlFor="project-role-equity"
-                            className="mb-2 block text-sm font-medium"
-                          >
-                            Allocation percentage
-                          </label>
-                          <input
-                            type="number"
-                            id="project-role-equity"
-                            value={roleForm.equityPercent}
-                            onChange={(e) =>
-                              setRoleForm((prev) => ({
-                                ...prev,
-                                equityPercent: e.target.value,
-                              }))
-                            }
-                            placeholder="0"
-                            min="0"
-                            max="100"
-                            className="bg-background border-border focus-visible:ring-ring/50 w-full rounded-lg border-2 px-4 py-2 focus:ring-2 focus:outline-none"
-                          />
-                        </div>
-                      </div>
-                      <div className="flex min-h-11 items-center gap-2">
-                        <input
-                          type="checkbox"
-                          id="roleOpen"
-                          checked={roleForm.isOpenForApplications}
-                          onChange={(e) =>
-                            setRoleForm((prev) => ({
-                              ...prev,
-                              isOpenForApplications: e.target.checked,
-                            }))
-                          }
-                          className="border-border size-5 rounded"
-                        />
-                        <label
-                          htmlFor="roleOpen"
-                          className="text-sm font-medium"
-                        >
-                          Open for applications
-                        </label>
-                      </div>
-                      <div className="flex justify-end gap-2 pt-2">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={cancelRoleEdit}
-                        >
-                          Cancel
-                        </Button>
-                        <Button variant="default" size="sm" onClick={addRole}>
-                          {editingRoleId ? "Update" : "Add"} Role
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
 
-                {/* Role List */}
-                {formData.roles.length === 0 && !isAddingRole && (
-                  <div className="text-muted-foreground py-8 text-center">
-                    <Users className="mx-auto mb-2 size-12 opacity-50" />
-                    <p>No roles defined yet</p>
-                    <p className="text-sm">
-                      Click &ldquo;Add Role&rdquo; to define team roles
-                    </p>
+                <div className="border-foreground grid border-t-2 sm:grid-cols-3">
+                  <div className="border-foreground flex items-center justify-between gap-3 border-b-2 px-4 py-3 sm:border-r-2 sm:border-b-0">
+                    <span className="text-sm font-medium">Account setup</span>
+                    <span className="font-mono text-xs uppercase">
+                      {custodyStatus.data?.identityReady
+                        ? "Ready"
+                        : "Not confirmed"}
+                    </span>
                   </div>
-                )}
+                  <div className="border-foreground flex items-center justify-between gap-3 border-b-2 px-4 py-3 sm:border-r-2 sm:border-b-0">
+                    <span className="text-sm font-medium">Identity check</span>
+                    <span className="font-mono text-xs uppercase">
+                      {describeIdentityStep(custodyStatus.data?.kycStatus)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3 px-4 py-3">
+                    <span className="text-sm font-medium">
+                      Managed payment account
+                    </span>
+                    <span className="font-mono text-xs uppercase">
+                      {custodyStatus.data?.walletReady
+                        ? "Ready"
+                        : "Not confirmed"}
+                    </span>
+                  </div>
+                </div>
 
-                {formData.roles.map((role) => (
-                  <Card key={role.id} className="bg-card border-border">
-                    <CardContent className="p-4">
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2">
-                            <h4 className="font-medium">{role.title}</h4>
-                            {role.isOpenForApplications && (
-                              <Badge variant="secondary" className="text-xs">
-                                Open
-                              </Badge>
-                            )}
-                          </div>
-                          {role.description && (
-                            <p className="text-muted-foreground mt-1 text-sm">
-                              {role.description}
+                {!valueAccountReady && (
+                  <p className="border-foreground text-muted-foreground border-t-2 px-4 py-3 text-xs leading-relaxed sm:px-5">
+                    {valueAccountUnderReview
+                      ? "Keep shaping and saving this project draft. Only funding and paid role listings wait for the review decision."
+                      : "Keep shaping and saving this project draft. Visiting account setup will not erase it in this tab; only funding and paid role listings wait for completion."}
+                  </p>
+                )}
+              </section>
+
+              <Card className="bg-card border-border">
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="flex items-center gap-2 text-lg">
+                        <Users className="text-system size-5" />
+                        Team Roles
+                      </CardTitle>
+                      <p className="text-muted-foreground mt-1 text-sm">
+                        Define roles and compensation for your team
+                      </p>
+                    </div>
+                    {!isAddingRole && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setIsAddingRole(true)}
+                      >
+                        <Plus className="mr-2 size-4" />
+                        Add Role
+                      </Button>
+                    )}
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {/* Add/Edit Role Form */}
+                  {isAddingRole && (
+                    <Card className="bg-muted/30 border-border border-2 border-dashed">
+                      <CardContent className="space-y-4 p-4">
+                        <div>
+                          <label
+                            htmlFor="project-role-title"
+                            className="mb-2 block text-sm font-medium"
+                          >
+                            Role Title <span className="text-system">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            id="project-role-title"
+                            required
+                            aria-invalid={Boolean(errors.roleTitle)}
+                            aria-describedby={
+                              errors.roleTitle
+                                ? "project-role-title-error"
+                                : undefined
+                            }
+                            value={roleForm.title}
+                            onChange={(e) => {
+                              setRoleForm((prev) => ({
+                                ...prev,
+                                title: e.target.value,
+                              }));
+                              setErrors((previous) => {
+                                const next = { ...previous };
+                                delete next.roleTitle;
+                                return next;
+                              });
+                            }}
+                            placeholder="e.g., Lead Developer"
+                            className="bg-background border-border focus-visible:ring-ring/50 w-full rounded-lg border-2 px-4 py-2 focus:ring-2 focus:outline-none"
+                          />
+                          {errors.roleTitle && (
+                            <p
+                              id="project-role-title-error"
+                              role="alert"
+                              className="text-destructive mt-1 text-sm"
+                            >
+                              {errors.roleTitle}
                             </p>
                           )}
-                          <div className="text-muted-foreground mt-2 flex flex-wrap gap-3 text-sm">
-                            {role.compensationModel && (
-                              <span>
-                                Model:{" "}
-                                {compensationModels.find(
-                                  (m) => m.id === role.compensationModel,
-                                )?.label || role.compensationModel}
-                              </span>
-                            )}
-                            {role.shareAmount && (
-                              <span>Shares: {role.shareAmount}</span>
-                            )}
-                            {role.equityPercent && (
-                              <span>Allocation: {role.equityPercent}%</span>
-                            )}
+                        </div>
+                        <div>
+                          <label
+                            htmlFor="project-role-description"
+                            className="mb-2 block text-sm font-medium"
+                          >
+                            Description
+                          </label>
+                          <textarea
+                            id="project-role-description"
+                            value={roleForm.description}
+                            onChange={(e) =>
+                              setRoleForm((prev) => ({
+                                ...prev,
+                                description: e.target.value,
+                              }))
+                            }
+                            placeholder="Describe the role responsibilities..."
+                            rows={2}
+                            className="bg-background border-border focus-visible:ring-ring/50 w-full resize-none rounded-lg border-2 px-4 py-2 focus:ring-2 focus:outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label
+                            htmlFor="project-role-compensation"
+                            className="mb-2 block text-sm font-medium"
+                          >
+                            Compensation Model
+                          </label>
+                          <Select
+                            value={roleForm.compensationModel}
+                            onValueChange={(value) => {
+                              if (!isProjectCreateCompensationModel(value))
+                                return;
+                              setRoleForm((prev) => ({
+                                ...prev,
+                                compensationModel: value,
+                              }));
+                            }}
+                          >
+                            <SelectTrigger id="project-role-compensation">
+                              <SelectValue placeholder="Select model" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {compensationModels.map((model) => (
+                                <SelectItem key={model.id} value={model.id}>
+                                  {model.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div>
+                          <label
+                            htmlFor="project-role-base"
+                            className="mb-2 block text-sm font-medium"
+                          >
+                            Base Role
+                          </label>
+                          <Select
+                            value={roleForm.projectRole}
+                            onValueChange={(value) => {
+                              if (isProjectRole(value)) {
+                                setRoleForm((prev) => ({
+                                  ...prev,
+                                  projectRole: value,
+                                }));
+                              }
+                            }}
+                          >
+                            <SelectTrigger
+                              id="project-role-base"
+                              aria-describedby="project-role-base-help"
+                            >
+                              <SelectValue placeholder="Select base role" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="FOUNDER">Founder</SelectItem>
+                              <SelectItem value="LEADER">Leader</SelectItem>
+                              <SelectItem value="CORE_CONTRIBUTOR">
+                                Core Contributor
+                              </SelectItem>
+                              <SelectItem value="CONTRIBUTOR">
+                                Contributor
+                              </SelectItem>
+                              <SelectItem value="OBSERVER">Observer</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <p
+                            id="project-role-base-help"
+                            className="text-muted-foreground mt-1 text-xs"
+                          >
+                            The organizational role granted when this position
+                            is filled
+                          </p>
+                        </div>
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                          <div>
+                            <label
+                              htmlFor="project-role-share"
+                              className="mb-2 block text-sm font-medium"
+                            >
+                              Share Amount
+                            </label>
+                            <input
+                              type="number"
+                              id="project-role-share"
+                              value={roleForm.shareAmount}
+                              onChange={(e) =>
+                                setRoleForm((prev) => ({
+                                  ...prev,
+                                  shareAmount: e.target.value,
+                                }))
+                              }
+                              placeholder="0"
+                              min="0"
+                              className="bg-background border-border focus-visible:ring-ring/50 w-full rounded-lg border-2 px-4 py-2 focus:ring-2 focus:outline-none"
+                            />
+                          </div>
+                          <div>
+                            <label
+                              htmlFor="project-role-equity"
+                              className="mb-2 block text-sm font-medium"
+                            >
+                              Allocation percentage
+                            </label>
+                            <input
+                              type="number"
+                              id="project-role-equity"
+                              value={roleForm.equityPercent}
+                              onChange={(e) =>
+                                setRoleForm((prev) => ({
+                                  ...prev,
+                                  equityPercent: e.target.value,
+                                }))
+                              }
+                              placeholder="0"
+                              min="0"
+                              max="100"
+                              className="bg-background border-border focus-visible:ring-ring/50 w-full rounded-lg border-2 px-4 py-2 focus:ring-2 focus:outline-none"
+                            />
                           </div>
                         </div>
-                        <div className="flex gap-2">
+                        <div className="flex min-h-11 items-center gap-2">
+                          <input
+                            type="checkbox"
+                            id="roleOpen"
+                            checked={roleForm.isOpenForApplications}
+                            onChange={(e) =>
+                              setRoleForm((prev) => ({
+                                ...prev,
+                                isOpenForApplications: e.target.checked,
+                              }))
+                            }
+                            className="border-border size-5 rounded"
+                          />
+                          <label
+                            htmlFor="roleOpen"
+                            className="text-sm font-medium"
+                          >
+                            Open for applications
+                          </label>
+                        </div>
+                        <div className="flex justify-end gap-2 pt-2">
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => editRole(role)}
+                            onClick={cancelRoleEdit}
                           >
-                            <Pencil className="size-4" />
+                            Cancel
                           </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => removeRole(role.id)}
-                          >
-                            <Trash2 className="text-destructive size-4" />
+                          <Button variant="default" size="sm" onClick={addRole}>
+                            {editingRoleId ? "Update" : "Add"} Role
                           </Button>
                         </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </CardContent>
-            </Card>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Role List */}
+                  {formData.roles.length === 0 && !isAddingRole && (
+                    <div className="text-muted-foreground py-8 text-center">
+                      <Users className="mx-auto mb-2 size-12 opacity-50" />
+                      <p>No roles defined yet</p>
+                      <p className="text-sm">
+                        Click &ldquo;Add Role&rdquo; to define team roles
+                      </p>
+                    </div>
+                  )}
+
+                  {formData.roles.map((role) => (
+                    <Card key={role.id} className="bg-card border-border">
+                      <CardContent className="p-4">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <h4 className="font-medium">{role.title}</h4>
+                              {role.isOpenForApplications && (
+                                <Badge variant="secondary" className="text-xs">
+                                  Open
+                                </Badge>
+                              )}
+                            </div>
+                            {role.description && (
+                              <p className="text-muted-foreground mt-1 text-sm">
+                                {role.description}
+                              </p>
+                            )}
+                            <div className="text-muted-foreground mt-2 flex flex-wrap gap-3 text-sm">
+                              {role.compensationModel && (
+                                <span>
+                                  Model:{" "}
+                                  {compensationModels.find(
+                                    (m) => m.id === role.compensationModel,
+                                  )?.label || role.compensationModel}
+                                </span>
+                              )}
+                              {role.shareAmount && (
+                                <span>Shares: {role.shareAmount}</span>
+                              )}
+                              {role.equityPercent && (
+                                <span>Allocation: {role.equityPercent}%</span>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => editRole(role)}
+                            >
+                              <Pencil className="size-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => removeRole(role.id)}
+                            >
+                              <Trash2 className="text-destructive size-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </CardContent>
+              </Card>
             </div>
           )}
 
@@ -3131,8 +3150,8 @@ export default function CreateProjectPage() {
                       Let people sponsor this project and earn stake for working
                       on it.
                       <span className="text-muted-foreground block text-xs">
-                        Leave this off to publish without funding. You can set it
-                        up later from the project&rsquo;s Funding tab.
+                        Leave this off to publish without funding. You can set
+                        it up later from the project&rsquo;s Funding tab.
                       </span>
                     </span>
                   </label>
@@ -3168,7 +3187,10 @@ export default function CreateProjectPage() {
                             )}
                           />
                           {errors.fundingStakeName ? (
-                            <p role="alert" className="text-destructive mt-1 text-sm">
+                            <p
+                              role="alert"
+                              className="text-destructive mt-1 text-sm"
+                            >
                               {errors.fundingStakeName}
                             </p>
                           ) : (
@@ -3207,7 +3229,10 @@ export default function CreateProjectPage() {
                             )}
                           />
                           {errors.fundingUnitLabel ? (
-                            <p role="alert" className="text-destructive mt-1 text-sm">
+                            <p
+                              role="alert"
+                              className="text-destructive mt-1 text-sm"
+                            >
                               {errors.fundingUnitLabel}
                             </p>
                           ) : (
@@ -3247,7 +3272,10 @@ export default function CreateProjectPage() {
                             )}
                           />
                           {errors.fundingTotalUnits && (
-                            <p role="alert" className="text-destructive mt-1 text-sm">
+                            <p
+                              role="alert"
+                              className="text-destructive mt-1 text-sm"
+                            >
                               {errors.fundingTotalUnits}
                             </p>
                           )}
@@ -3280,7 +3308,10 @@ export default function CreateProjectPage() {
                             )}
                           />
                           {errors.fundingSponsorUnits && (
-                            <p role="alert" className="text-destructive mt-1 text-sm">
+                            <p
+                              role="alert"
+                              className="text-destructive mt-1 text-sm"
+                            >
                               {errors.fundingSponsorUnits}
                             </p>
                           )}
@@ -3313,7 +3344,10 @@ export default function CreateProjectPage() {
                             )}
                           />
                           {errors.fundingWorkerUnits && (
-                            <p role="alert" className="text-destructive mt-1 text-sm">
+                            <p
+                              role="alert"
+                              className="text-destructive mt-1 text-sm"
+                            >
                               {errors.fundingWorkerUnits}
                             </p>
                           )}
@@ -3348,7 +3382,10 @@ export default function CreateProjectPage() {
                           )}
                         />
                         {errors.fundingDisclosure ? (
-                          <p role="alert" className="text-destructive mt-1 text-sm">
+                          <p
+                            role="alert"
+                            className="text-destructive mt-1 text-sm"
+                          >
                             {errors.fundingDisclosure}
                           </p>
                         ) : (
@@ -3892,8 +3929,10 @@ export default function CreateProjectPage() {
                   ) : (
                     "Create Project"
                   )
+                ) : recovery ? (
+                  "Save remaining non-paid setup"
                 ) : (
-                  recovery ? "Save remaining non-paid setup" : "Create project draft"
+                  "Create project draft"
                 )}
               </Button>
             </div>

@@ -43,8 +43,8 @@ export default function GlobalError({
               <Button type="button" onClick={reset}>
                 Try again
               </Button>
-              {/* Plain anchor: the client router may be what failed. */}
               <Button asChild variant="outline">
+                {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- global-error replaces the root layout and the client router may be what failed; a full document load is the point. */}
                 <a href="/">Back to the home page</a>
               </Button>
             </>

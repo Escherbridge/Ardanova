@@ -163,7 +163,10 @@ function WithdrawPageInner() {
     onSettled: () => setCancellingId(null),
   });
 
-  const amountMinorUnits = useMemo(() => toMinorUnits(amountText), [amountText]);
+  const amountMinorUnits = useMemo(
+    () => toMinorUnits(amountText),
+    [amountText],
+  );
 
   useEffect(() => {
     if (sessionStatus === "unauthenticated") {
@@ -202,11 +205,11 @@ function WithdrawPageInner() {
     amountMinorUnits > quote.cashableMinorUnits;
 
   const amountProblem = belowMinimum
-    ? `The smallest amount you can send is ${formatMoney(quote!.minimumAmountMinorUnits)}.`
+    ? `The smallest amount you can send is ${formatMoney(quote.minimumAmountMinorUnits)}.`
     : aboveMaximum
-      ? `The most you can send at once is ${formatMoney(quote!.maximumAmountMinorUnits)}.`
+      ? `The most you can send at once is ${formatMoney(quote.maximumAmountMinorUnits)}.`
       : moreThanAvailable
-        ? `You have ${formatMoney(quote!.cashableMinorUnits)} ready to send right now.`
+        ? `You have ${formatMoney(quote.cashableMinorUnits)} ready to send right now.`
         : null;
 
   const canSend =
@@ -267,8 +270,12 @@ function WithdrawPageInner() {
           >
             <CheckCircle2 className="text-primary mt-0.5 h-5 w-5 shrink-0" />
             <div>
-              <p className="font-mono text-sm font-bold uppercase">On its way</p>
-              <p className="text-muted-foreground mt-1 text-sm">{sentMessage}</p>
+              <p className="font-mono text-sm font-bold uppercase">
+                On its way
+              </p>
+              <p className="text-muted-foreground mt-1 text-sm">
+                {sentMessage}
+              </p>
             </div>
           </div>
         )}
@@ -368,10 +375,11 @@ function WithdrawPageInner() {
                 <>
                   {bank.outstandingRequirementCount > 0 && (
                     <p className="text-muted-foreground text-xs">
-                      There {bank.outstandingRequirementCount === 1 ? "is" : "are"}{" "}
+                      There{" "}
+                      {bank.outstandingRequirementCount === 1 ? "is" : "are"}{" "}
                       {bank.outstandingRequirementCount} thing
-                      {bank.outstandingRequirementCount === 1 ? "" : "s"} left to
-                      confirm before money can arrive.
+                      {bank.outstandingRequirementCount === 1 ? "" : "s"} left
+                      to confirm before money can arrive.
                     </p>
                   )}
                   <Button
@@ -410,7 +418,10 @@ function WithdrawPageInner() {
             <p className="text-primary font-mono text-[10px] tracking-[0.2em] uppercase">
               How much
             </p>
-            <h2 id="amount-heading" className="mt-1 text-xl font-black uppercase">
+            <h2
+              id="amount-heading"
+              className="mt-1 text-xl font-black uppercase"
+            >
               Send money
             </h2>
           </div>
@@ -427,7 +438,10 @@ function WithdrawPageInner() {
               aria-describedby="withdraw-amount-help"
               aria-invalid={amountProblem !== null}
             />
-            <p id="withdraw-amount-help" className="text-muted-foreground text-xs">
+            <p
+              id="withdraw-amount-help"
+              className="text-muted-foreground text-xs"
+            >
               {amountProblem ??
                 (bankReady
                   ? "Enter an amount up to what is ready to send."
@@ -513,7 +527,10 @@ function WithdrawPageInner() {
             <p className="text-primary font-mono text-[10px] tracking-[0.2em] uppercase">
               Step one
             </p>
-            <h2 id="sales-heading" className="mt-1 text-xl font-black uppercase">
+            <h2
+              id="sales-heading"
+              className="mt-1 text-xl font-black uppercase"
+            >
               Sales still going through
             </h2>
             <p className="text-muted-foreground mt-2 text-xs">
