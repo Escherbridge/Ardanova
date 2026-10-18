@@ -1,0 +1,11 @@
+{
+  "id": "nova-ai-ogai-partner",
+  "title": "Nova AI powered by OVERSEASGENAI (white-label)",
+  "type": "feature",
+  "status": "in_progress",
+  "created": "2026-10-17",
+  "external": {
+    "overseasgenai": { "branch": "partner/ardanova-nova", "pushed": false, "deployed": false }
+  },
+  "partitions": { "confidence": "none" }
+}
