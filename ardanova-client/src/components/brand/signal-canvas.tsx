@@ -44,6 +44,8 @@ export function SignalCanvas({ className }: SignalCanvasProps) {
           <circle cx="454" cy="348" r="13" />
           <circle cx="553" cy="530" r="13" />
         </g>
+        {/* Ink ground band: keeps the caption off the red peak (was ~1.0:1). */}
+        <rect fill="#131313" height="87" width="640" y="713" />
         <path d="M0 713h640" stroke="#f2e8e4" strokeWidth="2" />
         <path d="M504 0v800" stroke="#f2e8e4" strokeWidth="2" />
         <text
