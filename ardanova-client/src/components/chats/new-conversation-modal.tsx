@@ -192,7 +192,9 @@ export function NewConversationModal({
                       )}
                     </div>
                     <p className="text-muted-foreground truncate text-xs">
-                      {user.isSelf ? "Message yourself" : user.email}
+                      {user.isSelf
+                        ? "Message yourself"
+                        : "Start a conversation"}
                     </p>
                   </div>
                   {isCreating && (

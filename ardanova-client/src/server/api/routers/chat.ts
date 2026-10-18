@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
 import { apiClient } from "~/lib/api";
+import { toPublicUser } from "./user";
 
 // Create group conversation schema
 const createGroupSchema = z.object({
@@ -43,12 +44,12 @@ export const chatRouter = createTRPCRouter({
         throw new Error(response.error);
       }
 
-      const users = response.data?.items ?? [];
+      // Same directory redaction as user.search; an exact-email match must not echo the address back.
+      const users = (response.data?.items ?? []).map(toPublicUser);
 
       return users.map((u) => ({
         id: u.id,
-        name: u.name ?? u.email,
-        email: u.email,
+        name: u.name ?? "Unnamed member",
         image: u.image,
         isSelf: u.id === userId,
       }));
@@ -89,7 +90,9 @@ export const chatRouter = createTRPCRouter({
   getConversation: protectedProcedure
     .input(z.object({ conversationId: z.string() }))
     .query(async ({ input }) => {
-      const response = await apiClient.chat.getConversation(input.conversationId);
+      const response = await apiClient.chat.getConversation(
+        input.conversationId,
+      );
 
       if (response.error || !response.data) {
         throw new Error(response.error ?? "Conversation not found");
@@ -230,12 +233,9 @@ export const chatRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input }) => {
-      const response = await apiClient.chat.updateMessage(
-        input.messageId,
-        {
-          message: input.message,
-        },
-      );
+      const response = await apiClient.chat.updateMessage(input.messageId, {
+        message: input.message,
+      });
       if (response.error || !response.data) {
         throw new Error(response.error ?? "Failed to update message");
       }
@@ -262,10 +262,7 @@ export const chatRouter = createTRPCRouter({
     )
     .mutation(async ({ input }) => {
       const { conversationId, ...dto } = input;
-      const response = await apiClient.chat.updateGroup(
-        conversationId,
-        dto,
-      );
+      const response = await apiClient.chat.updateGroup(conversationId, dto);
       if (response.error || !response.data) {
         throw new Error(response.error ?? "Failed to update group");
       }
@@ -281,13 +278,10 @@ export const chatRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input }) => {
-      const response = await apiClient.chat.addMember(
-        input.conversationId,
-        {
-          userId: input.memberUserId,
-          role: input.role,
-        },
-      );
+      const response = await apiClient.chat.addMember(input.conversationId, {
+        userId: input.memberUserId,
+        role: input.role,
+      });
       if (response.error || !response.data) {
         throw new Error(response.error ?? "Failed to add member");
       }
@@ -315,7 +309,9 @@ export const chatRouter = createTRPCRouter({
   leaveConversation: protectedProcedure
     .input(z.object({ conversationId: z.string() }))
     .mutation(async ({ input }) => {
-      const response = await apiClient.chat.leaveConversation(input.conversationId);
+      const response = await apiClient.chat.leaveConversation(
+        input.conversationId,
+      );
       if (response.error) {
         throw new Error(response.error ?? "Failed to leave conversation");
       }
