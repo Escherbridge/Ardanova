@@ -57,3 +57,51 @@ the right answer: a challenge writes 401 and a forbid writes 403, both as
 so it can never create or replace an identity. The authentication middleware
 that ASP.NET adds automatically runs it before the API-key middleware, and it
 changes nothing. Do not add identity logic to this handler.
+## Authorization denials
+
+Identity is built by `ApiKeyMiddleware` (service principal, optional `Admin`
+role) and `ActorAssertionMiddleware` (added actor identity). Neither is an
+ASP.NET authentication handler, so the pipeline registers a denial-only default
+scheme (`ArdaNovaDenialAuthenticationHandler`). Its `HandleAuthenticateAsync`
+always returns `NoResult`, so the automatic `UseAuthentication()` that
+`WebApplication` inserts can never replace the principal. It exists only so that
+`ChallengeAsync`/`ForbidAsync` (and therefore every controller `Forbid()`) write
+401/403 envelopes. Without it they throw "No authenticationScheme was
+specified", which used to surface as a 400 with the framework message.
+
+Status mapping:
+
+- missing/invalid service key: 401 from `ApiKeyMiddleware` (unchanged);
+- invalid, replayed or tampered actor assertion: 401 from `ActorAssertionMiddleware` (unchanged);
+- a policy that requires the actor claim, and no actor claim is present: 401
+  (`ArdaNovaAuthorizationResultHandler`), because the caller has not proven who
+  it acts for;
+- anything else that fails a policy, or a controller `Forbid()`: 403.
+
+The handler only shapes the response. The allow/deny decision is still made by
+the policies in `ArdaNovaAuthorizationExtensions` and by the controllers.
+`tests/ArdaNova.API.Tests/Middleware/AuthorizationPipelineTests.cs` sends real
+HTTP requests through the production middleware order and pins each outcome.
+
+## Error envelope
+
+Every error the pipeline writes itself has the same shape:
+`{ "error": string, "statusCode": number, "traceId": string }`. Model-validation
+failures add `errors: { field: string[] }` (`ApiErrorEnvelope.AddArdaNovaErrorEnvelope`).
+Input-formatter exception text is turned off, so JSON errors no longer leak
+DTO namespaces. Controller-authored `BadRequest(new { error })` bodies still use
+the same `error` key, so the BFF reads one field.
+
+`ExceptionHandlingMiddleware` never echoes exception text. Services report
+expected failures through `Result<T>`, so an exception reaching it is a server
+fault and becomes a 500. Two cases are exceptions:
+
+- a 4xx `BadHttpRequestException` (Kestrel body or limit faults) keeps its status;
+- an `ArgumentException` that is not an `ArgumentNullException` becomes a generic 400.
+  This is because some services still call `Enum.Parse` on request values (see the
+  `backend-authz-hardening_20261017` track). Remove this case once those calls use `TryParse`.
+
+`InvalidOperationException` is no longer a 400. In this codebase it marks
+configuration and invariant failures, which belong in 5xx monitoring. A response
+that has already started is rethrown so the server aborts it, instead of being
+written over.

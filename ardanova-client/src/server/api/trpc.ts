@@ -11,7 +11,7 @@ import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
 import { ZodError } from "zod";
 
-import { auth } from "~/server/auth";
+import { authForPage } from "~/server/auth";
 import { runWithActorAssertion } from "~/server/actor-assertion";
 import {
   type UserRole,
@@ -35,7 +35,8 @@ import {
  * @see https://trpc.io/docs/server/context
  */
 export const createTRPCContext = async (opts: { headers: Headers }) => {
-  const session = await auth();
+  // Same session source as pages/layouts, so the local DEV_AUTH_BYPASS preview reaches tRPC too.
+  const session = await authForPage();
 
   return {
     session,
@@ -53,10 +54,12 @@ export const createTRPCContext = async (opts: { headers: Headers }) => {
 const t = initTRPC.context<typeof createTRPCContext>().create({
   transformer: superjson,
   errorFormatter({ shape, error }) {
+    // Never ship server stack traces (absolute paths, bundle layout) to the browser.
+    const { stack: _stack, ...data } = shape.data;
     return {
       ...shape,
       data: {
-        ...shape.data,
+        ...data,
         zodError:
           error.cause instanceof ZodError ? error.cause.flatten() : null,
       },

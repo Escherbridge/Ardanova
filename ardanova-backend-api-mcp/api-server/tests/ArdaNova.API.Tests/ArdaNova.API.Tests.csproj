@@ -58,6 +58,9 @@
     <Compile Include="..\..\src\ArdaNova.API\Controllers\UsersController.cs" Link="Controllers\UsersController.cs" />
     <Compile Include="..\..\src\ArdaNova.API\Controllers\UserSkillsController.cs" Link="Controllers\UserSkillsController.cs" />
     <Compile Include="..\..\src\ArdaNova.API\Controllers\UserExperienceController.cs" Link="Controllers\UserExperienceController.cs" />
+    <Compile Include="..\..\src\ArdaNova.API\Middleware\ApiErrorEnvelope.cs" Link="Middleware\ApiErrorEnvelope.cs" />
+    <Compile Include="..\..\src\ArdaNova.API\Middleware\ArdaNovaAuthentication.cs" Link="Middleware\ArdaNovaAuthentication.cs" />
+    <Compile Include="..\..\src\ArdaNova.API\Middleware\ExceptionHandlingMiddleware.cs" Link="Middleware\ExceptionHandlingMiddleware.cs" />
     <Compile Include="..\..\src\ArdaNova.API\EventBus\Abstractions\*.cs" Link="EventBus\Abstractions\%(Filename)%(Extension)" />
     <Compile Include="..\..\src\ArdaNova.API\EventBus\Events\*.cs" Link="EventBus\Events\%(Filename)%(Extension)" />
     <Compile Include="..\..\src\ArdaNova.API\EventBus\Implementation\*.cs" Link="EventBus\Implementation\%(Filename)%(Extension)" />
