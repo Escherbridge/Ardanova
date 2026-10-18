@@ -608,8 +608,12 @@ public class ${table.name}
     const generatedEntityFileSet = new Set(
       generatedModels.map((m) => `${m}.cs`),
     );
+    // Only a file shaped like generator output (it maps a table) is stale; hand-written
+    // policy/helper files in Entities/ (e.g. PostVisibilityPolicy.cs) are never removed.
     const staleEntityFiles = existingEntityFiles.filter(
-      (f) => !generatedEntityFileSet.has(f),
+      (f) =>
+        !generatedEntityFileSet.has(f) &&
+        fs.readFileSync(path.join(entityDir, f), "utf-8").includes("[Table("),
     );
 
     if (staleEntityFiles.length > 0) {

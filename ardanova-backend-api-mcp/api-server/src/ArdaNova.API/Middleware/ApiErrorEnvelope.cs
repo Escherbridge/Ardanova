@@ -51,6 +51,6 @@ public static class ApiErrorEnvelope
         return mvc;
     }
 
-    private static string TraceId(HttpContext context)
+    public static string TraceId(HttpContext context)
         => Activity.Current?.Id ?? context.TraceIdentifier;
 }

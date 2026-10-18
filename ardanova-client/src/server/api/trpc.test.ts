@@ -14,17 +14,19 @@ vi.mock("~/server/auth", () => ({
   authForPage: async () => sessions.page,
 }));
 
-const { createTRPCContext, createTRPCRouter, protectedProcedure } =
+const { createTRPCContext, createTRPCRouter, protectedProcedure, publicProcedure } =
   await import("./trpc");
+const { isActorAssertionActive } = await import("~/server/actor-assertion");
 
 const router = createTRPCRouter({
   whoAmI: protectedProcedure.query(({ ctx }) => ({ id: ctx.session.user.id })),
+  publicRead: publicProcedure.query(() => ({ signedAsActor: isActorAssertionActive() })),
 });
 
-async function callWhoAmI() {
+async function callWhoAmI(path = "whoAmI") {
   const response = await fetchRequestHandler({
     endpoint: "/api/trpc",
-    req: new Request("http://localhost:3000/api/trpc/whoAmI"),
+    req: new Request(`http://localhost:3000/api/trpc/${path}`),
     router,
     createContext: ({ req }) => createTRPCContext({ headers: req.headers }),
   });
@@ -76,5 +78,21 @@ describe("tRPC request context", () => {
     expect(body).toContain("UNAUTHORIZED");
     expect(body).not.toContain('"stack"');
     expect(body).not.toContain("trpc.ts");
+  });
+
+  it("signs public reads as the signed-in user so .NET can return their own private fields", async () => {
+    sessions.cookie = previewSession;
+
+    const { status, body } = await callWhoAmI("publicRead");
+
+    expect(status).toBe(200);
+    expect(body).toContain('"signedAsActor":true');
+  });
+
+  it("leaves anonymous public reads unsigned", async () => {
+    const { status, body } = await callWhoAmI("publicRead");
+
+    expect(status).toBe(200);
+    expect(body).toContain('"signedAsActor":false');
   });
 });

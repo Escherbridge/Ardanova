@@ -10,12 +10,13 @@ public class PagedResult<T>
     public bool HasPreviousPage => Page > 1;
     public bool HasNextPage => Page < TotalPages;
 
+    /// <summary>Normalises page and pageSize, so TotalPages never divides by zero and HasNextPage always terminates.</summary>
     public PagedResult(IReadOnlyList<T> items, int totalCount, int page, int pageSize)
     {
         Items = items;
-        TotalCount = totalCount;
-        Page = page;
-        PageSize = pageSize;
+        TotalCount = Math.Max(0, totalCount);
+        PageSize = Math.Max(1, pageSize);
+        Page = Math.Max(1, page);
     }
 
     public static PagedResult<T> Empty(int page, int pageSize) =>

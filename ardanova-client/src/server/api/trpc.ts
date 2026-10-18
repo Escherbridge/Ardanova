@@ -120,7 +120,15 @@ const timingMiddleware = t.middleware(async ({ next, path }) => {
  * guarantee that a user querying is authorized, but you can still access user session data if they
  * are logged in.
  */
-export const publicProcedure = t.procedure.use(timingMiddleware);
+export const publicProcedure = t.procedure
+  .use(timingMiddleware)
+  .use(({ ctx, next }) => {
+    // A signed-in caller is still identified on public reads, so .NET can return their own private fields.
+    const user = ctx.session?.user;
+    return user?.id
+      ? runWithActorAssertion({ subject: user.id, role: user.role }, () => next())
+      : next();
+  });
 
 /**
  * Protected (authenticated) procedure

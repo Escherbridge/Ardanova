@@ -110,14 +110,37 @@ public class Repository<T> : IRepository<T> where T : class
         Expression<Func<T, bool>>? predicate = null,
         CancellationToken cancellationToken = default)
     {
+        (page, pageSize) = PageRequest.Normalize(page, pageSize);
         var query = predicate is null ? _dbSet : _dbSet.Where(predicate);
         var totalCount = await query.CountAsync(cancellationToken);
-        var items = await query
+        var items = await InStableOrder(query)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync(cancellationToken);
 
         return new PagedResult<T>(items, totalCount, page, pageSize);
+    }
+
+    /// <summary>Orders by createdAt (when mapped) then the primary key, so consecutive pages never repeat or skip rows. See Repositories/AGENTS.md §Paging.</summary>
+    protected IQueryable<T> InStableOrder(IQueryable<T> query)
+    {
+        var entityType = _context.Model.FindEntityType(typeof(T));
+        if (entityType is null)
+            return query;
+
+        var orderColumns = new List<string>();
+        if (entityType.FindProperty("createdAt") is not null)
+            orderColumns.Add("createdAt");
+        orderColumns.AddRange(entityType.FindPrimaryKey()?.Properties.Select(p => p.Name) ?? []);
+
+        IOrderedQueryable<T>? ordered = null;
+        foreach (var column in orderColumns.Distinct())
+        {
+            ordered = ordered is null
+                ? query.OrderBy(entity => EF.Property<object>(entity, column))
+                : ordered.ThenBy(entity => EF.Property<object>(entity, column));
+        }
+        return ordered ?? query;
     }
 
     public virtual IQueryable<T> Query()
