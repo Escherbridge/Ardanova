@@ -120,3 +120,10 @@ happened to their money.
 
 Retries reuse ONE request key per attempt. The server resumes that person's open payment for a
 repeated key, so a fresh key per tap would open a second payment page for one intent.
+## Task visibility
+
+Task and opportunity reads are anonymous-readable, so they open with the same project-visibility
+check as `ProjectsController`: a task, task list or backlog-item task list on a project this viewer
+may not see reads as 404 (Forbidden would confirm the draft exists). `PUT /api/tasks/{id}/assign` is
+the task's assignment action: managers assign any project member or null; a non-manager member may
+only claim an unassigned task for themselves or release their own.

@@ -81,3 +81,9 @@ public record UpdateTaskStatusDto
 {
     public required TaskStatus Status { get; init; }
 }
+
+/// <summary>Body of PUT /api/tasks/{id}/assign: a project member's user id assigns, null unassigns.</summary>
+public record AssignTaskDto
+{
+    public string? UserId { get; init; }
+}

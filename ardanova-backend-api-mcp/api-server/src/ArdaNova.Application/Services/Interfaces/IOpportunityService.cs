@@ -2,15 +2,19 @@ namespace ArdaNova.Application.Services.Interfaces;
 
 using ArdaNova.Application.Common.Results;
 using ArdaNova.Application.DTOs;
+using ArdaNova.Application.Services.Implementations;
 using ArdaNova.Domain.Models.Enums;
 
 public interface IOpportunityService
 {
     Task<Result<OpportunityDto>> GetByIdAsync(string id, CancellationToken ct = default);
-    Task<Result<OpportunityDto>> GetBySlugAsync(string slug, CancellationToken ct = default);
-    Task<Result<IReadOnlyList<OpportunityDto>>> GetAllAsync(CancellationToken ct = default);
-    Task<Result<PagedResult<OpportunityDto>>> GetPagedAsync(int page, int pageSize, CancellationToken ct = default);
+    /// <summary>The opportunity only when this viewer may see it: its project is visible and it is not someone else's DRAFT.</summary>
+    Task<Result<OpportunityDto>> GetVisibleByIdAsync(ProjectViewer viewer, string id, CancellationToken ct = default);
+    Task<Result<OpportunityDto>> GetBySlugAsync(ProjectViewer viewer, string slug, CancellationToken ct = default);
+    Task<Result<IReadOnlyList<OpportunityDto>>> GetAllAsync(ProjectViewer viewer, CancellationToken ct = default);
+    Task<Result<PagedResult<OpportunityDto>>> GetPagedAsync(ProjectViewer viewer, int page, int pageSize, CancellationToken ct = default);
     Task<Result<PagedResult<OpportunityDto>>> SearchAsync(
+        ProjectViewer viewer,
         string? searchTerm,
         OpportunityType? type,
         OpportunityStatus? status,
@@ -20,9 +24,9 @@ public interface IOpportunityService
         int page,
         int pageSize,
         CancellationToken ct = default);
-    Task<Result<IReadOnlyList<OpportunityDto>>> GetByPosterIdAsync(string posterId, CancellationToken ct = default);
-    Task<Result<IReadOnlyList<OpportunityDto>>> GetByGuildIdAsync(string guildId, CancellationToken ct = default);
-    Task<Result<IReadOnlyList<OpportunityDto>>> GetByProjectIdAsync(string projectId, CancellationToken ct = default);
+    Task<Result<IReadOnlyList<OpportunityDto>>> GetByPosterIdAsync(ProjectViewer viewer, string posterId, CancellationToken ct = default);
+    Task<Result<IReadOnlyList<OpportunityDto>>> GetByGuildIdAsync(ProjectViewer viewer, string guildId, CancellationToken ct = default);
+    Task<Result<IReadOnlyList<OpportunityDto>>> GetByProjectIdAsync(ProjectViewer viewer, string projectId, CancellationToken ct = default);
     Task<Result<OpportunityDto>> CreateAsync(CreateOpportunityDto dto, CancellationToken ct = default);
     Task<Result<OpportunityDto>> UpdateAsync(string id, UpdateOpportunityDto dto, CancellationToken ct = default);
     Task<Result<OpportunityDto>> CloseAsync(string id, CancellationToken ct = default);
@@ -30,6 +34,7 @@ public interface IOpportunityService
     Task<Result<OpportunityApplicationDto>> ApplyAsync(string opportunityId, ApplyToOpportunityDto dto, CancellationToken ct = default);
     Task<Result<OpportunityApplicationDto>> GetApplicationByIdAsync(string applicationId, CancellationToken ct = default);
     Task<Result<IReadOnlyList<OpportunityApplicationDto>>> GetApplicationsAsync(string opportunityId, CancellationToken ct = default);
+    /// <summary>A reviewer's decision on a PENDING application; ACCEPTED on a project role also seats the applicant on the team.</summary>
     Task<Result<OpportunityApplicationDto>> UpdateApplicationStatusAsync(string applicationId, UpdateApplicationStatusDto dto, CancellationToken ct = default);
 
     // Updates

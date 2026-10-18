@@ -6,6 +6,7 @@ using ArdaNova.API.Controllers;
 using ArdaNova.API.Middleware;
 using ArdaNova.Application.Common.Results;
 using ArdaNova.Application.DTOs;
+using ArdaNova.Application.Services.Implementations;
 using ArdaNova.Application.Services.Interfaces;
 using ArdaNova.Domain.Models.Enums;
 using Microsoft.AspNetCore.Authorization;
@@ -191,7 +192,7 @@ public class OpportunityActorBoundaryTests
     public async Task Apply_UsesSignedActorAsApplicant()
     {
         var opportunities = new Mock<IOpportunityService>();
-        opportunities.Setup(service => service.GetByIdAsync("opportunity-1", It.IsAny<CancellationToken>()))
+        opportunities.Setup(service => service.GetVisibleByIdAsync(It.IsAny<ProjectViewer>(), "opportunity-1", It.IsAny<CancellationToken>()))
             .ReturnsAsync(Result<OpportunityDto>.Success(Opportunity("opportunity-1", "other-user")));
         opportunities.Setup(service => service.ApplyAsync(
                 "opportunity-1",

@@ -4,6 +4,7 @@ using System.Security.Claims;
 using ArdaNova.API.Middleware;
 using ArdaNova.Application.Common.Results;
 using ArdaNova.Application.DTOs;
+using ArdaNova.Application.Services.Implementations;
 using ArdaNova.Application.Services.Interfaces;
 using ArdaNova.Domain.Models.Enums;
 using Microsoft.AspNetCore.Authorization;
@@ -36,14 +37,14 @@ public class OpportunitiesController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> GetAll(CancellationToken ct)
     {
-        var result = await _opportunityService.GetAllAsync(ct);
+        var result = await _opportunityService.GetAllAsync(Viewer, ct);
         return ToActionResult(result);
     }
 
     [HttpGet("paged")]
     public async Task<IActionResult> GetPaged([FromQuery] int page = 1, [FromQuery] int pageSize = 10, CancellationToken ct = default)
     {
-        var result = await _opportunityService.GetPagedAsync(page, pageSize, ct);
+        var result = await _opportunityService.GetPagedAsync(Viewer, page, pageSize, ct);
         return ToActionResult(result);
     }
 
@@ -59,42 +60,42 @@ public class OpportunitiesController : ControllerBase
         [FromQuery] int pageSize = 10,
         CancellationToken ct = default)
     {
-        var result = await _opportunityService.SearchAsync(searchTerm, type, status, experienceLevel, skills, sourceType, page, pageSize, ct);
+        var result = await _opportunityService.SearchAsync(Viewer, searchTerm, type, status, experienceLevel, skills, sourceType, page, pageSize, ct);
         return ToActionResult(result);
     }
 
     [HttpGet("{id}")]
     public async Task<IActionResult> GetById(string id, CancellationToken ct)
     {
-        var result = await _opportunityService.GetByIdAsync(id, ct);
+        var result = await _opportunityService.GetVisibleByIdAsync(Viewer, id, ct);
         return ToActionResult(result);
     }
 
     [HttpGet("slug/{slug}")]
     public async Task<IActionResult> GetBySlug(string slug, CancellationToken ct)
     {
-        var result = await _opportunityService.GetBySlugAsync(slug, ct);
+        var result = await _opportunityService.GetBySlugAsync(Viewer, slug, ct);
         return ToActionResult(result);
     }
 
     [HttpGet("poster/{posterId}")]
     public async Task<IActionResult> GetByPosterId(string posterId, CancellationToken ct)
     {
-        var result = await _opportunityService.GetByPosterIdAsync(posterId, ct);
+        var result = await _opportunityService.GetByPosterIdAsync(Viewer, posterId, ct);
         return ToActionResult(result);
     }
 
     [HttpGet("guild/{guildId}")]
     public async Task<IActionResult> GetByGuildId(string guildId, CancellationToken ct)
     {
-        var result = await _opportunityService.GetByGuildIdAsync(guildId, ct);
+        var result = await _opportunityService.GetByGuildIdAsync(Viewer, guildId, ct);
         return ToActionResult(result);
     }
 
     [HttpGet("project/{projectId}")]
     public async Task<IActionResult> GetByProjectId(string projectId, CancellationToken ct)
     {
-        var result = await _opportunityService.GetByProjectIdAsync(projectId, ct);
+        var result = await _opportunityService.GetByProjectIdAsync(Viewer, projectId, ct);
         return ToActionResult(result);
     }
 
@@ -181,7 +182,7 @@ public class OpportunitiesController : ControllerBase
     [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
     public async Task<IActionResult> Apply(string id, [FromBody] ApplyToOpportunityDto dto, CancellationToken ct)
     {
-        var opportunity = await _opportunityService.GetByIdAsync(id, ct);
+        var opportunity = await _opportunityService.GetVisibleByIdAsync(Viewer, id, ct);
         if (!opportunity.IsSuccess)
             return ToActionResult(opportunity);
         if (string.Equals(opportunity.Value!.PosterId, ActorId, StringComparison.Ordinal))
@@ -229,6 +230,10 @@ public class OpportunitiesController : ControllerBase
     [HttpGet("{opportunityId}/updates")]
     public async Task<IActionResult> GetUpdates(string opportunityId, CancellationToken ct)
     {
+        var visible = await _opportunityService.GetVisibleByIdAsync(Viewer, opportunityId, ct);
+        if (!visible.IsSuccess)
+            return ToActionResult(visible);
+
         var result = await _opportunityService.GetUpdatesAsync(opportunityId, ct);
         return ToActionResult(result);
     }
@@ -269,6 +274,10 @@ public class OpportunitiesController : ControllerBase
     [HttpGet("{opportunityId}/comments")]
     public async Task<IActionResult> GetComments(string opportunityId, CancellationToken ct)
     {
+        var visible = await _opportunityService.GetVisibleByIdAsync(Viewer, opportunityId, ct);
+        if (!visible.IsSuccess)
+            return ToActionResult(visible);
+
         var result = await _opportunityService.GetCommentsAsync(opportunityId, ct);
         return ToActionResult(result);
     }
@@ -316,6 +325,11 @@ public class OpportunitiesController : ControllerBase
     private string ActorId => User.FindFirstValue(ClaimTypes.NameIdentifier)!;
 
     private bool IsAdmin => User.IsInRole(UserRole.ADMIN.ToString());
+
+    /// <summary>Only a verified actor assertion names a viewer; every other read is the public's.</summary>
+    private ProjectViewer Viewer => ActorAssertionMiddleware.TryGetActorId(User, out var actorId)
+        ? new ProjectViewer(actorId, IsAdmin)
+        : ProjectViewer.Anonymous;
 
     private Task<bool> CanManageProjectAsync(string projectId, CancellationToken ct)
         => IsAdmin

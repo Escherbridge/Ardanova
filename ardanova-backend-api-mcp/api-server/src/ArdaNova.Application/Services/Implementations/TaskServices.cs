@@ -20,6 +20,10 @@ public class TaskService : ITaskService
         "This task's award was agreed when the bid was accepted and the units are already set "
         + "aside for the worker, so it can no longer be changed here.";
 
+    /// <summary>Why a task's worker cannot be swapped once a bid was accepted or escrow is in play.</summary>
+    public const string WorkerBelongsToTheAgreement =
+        "This task's worker was agreed through an accepted bid, so it can no longer be reassigned here.";
+
     private readonly IRepository<ProjectTask> _repository;
     private readonly IRepository<User> _userRepository;
     private readonly IRepository<Project> _projectRepository;
@@ -58,21 +62,24 @@ public class TaskService : ITaskService
         return Result<TaskDto>.Success(dto);
     }
 
-    public async Task<Result<IReadOnlyList<TaskDto>>> GetAllAsync(CancellationToken ct = default)
+    public async Task<Result<IReadOnlyList<TaskDto>>> GetAllAsync(ProjectViewer viewer, CancellationToken ct = default)
     {
-        var tasks = await _repository.GetAllAsync(ct);
+        var tasks = VisibleTasks(viewer).ToList();
         var dtos = await EnrichTaskDtosAsync(tasks, ct);
         return Result<IReadOnlyList<TaskDto>>.Success(dtos);
     }
 
-    public async Task<Result<PagedResult<TaskDto>>> GetPagedAsync(int page, int pageSize, CancellationToken ct = default)
+    public async Task<Result<PagedResult<TaskDto>>> GetPagedAsync(ProjectViewer viewer, int page, int pageSize, CancellationToken ct = default)
     {
-        var result = await _repository.GetPagedAsync(page, pageSize, null, ct);
-        var dtos = await EnrichTaskDtosAsync(result.Items, ct);
-        return Result<PagedResult<TaskDto>>.Success(new PagedResult<TaskDto>(dtos.ToList(), result.TotalCount, result.Page, result.PageSize));
+        var query = VisibleTasks(viewer).OrderByDescending(t => t.createdAt);
+        var totalCount = query.Count();
+        var items = query.Skip((page - 1) * pageSize).Take(pageSize).ToList();
+        var dtos = await EnrichTaskDtosAsync(items, ct);
+        return Result<PagedResult<TaskDto>>.Success(new PagedResult<TaskDto>(dtos.ToList(), totalCount, page, pageSize));
     }
 
     public async Task<Result<PagedResult<TaskDto>>> SearchAsync(
+        ProjectViewer viewer,
         string? searchTerm,
         TaskStatus? status,
         TaskPriority? priority,
@@ -82,7 +89,7 @@ public class TaskService : ITaskService
         int pageSize,
         CancellationToken ct = default)
     {
-        var query = _repository.Query();
+        var query = VisibleTasks(viewer);
 
         if (!string.IsNullOrWhiteSpace(searchTerm))
         {
@@ -227,6 +234,26 @@ public class TaskService : ITaskService
         return Result<TaskDto>.Success(resultDto);
     }
 
+    public async Task<Result<TaskDto>> AssignAsync(string id, string? userId, CancellationToken ct = default)
+    {
+        var task = await _repository.GetByIdAsync(id, ct);
+        if (task is null)
+            return Result<TaskDto>.NotFound($"Task with id {id} not found");
+
+        var agreement = await _agreementRepository.FindOneAsync(item => item.taskId == id, ct);
+        if (agreement is not null || task.escrowStatus != EscrowStatus.NONE)
+            return Result<TaskDto>.Conflict(WorkerBelongsToTheAgreement);
+
+        task.assignedToId = string.IsNullOrWhiteSpace(userId) ? null : userId;
+        task.updatedAt = DateTime.UtcNow;
+
+        await _repository.UpdateAsync(task, ct);
+        await _unitOfWork.SaveChangesAsync(ct);
+
+        var resultDto = await EnrichTaskDtoAsync(task, ct);
+        return Result<TaskDto>.Success(resultDto);
+    }
+
     public async Task<Result<bool>> DeleteAsync(string id, CancellationToken ct = default)
     {
         var task = await _repository.GetByIdAsync(id, ct);
@@ -236,6 +263,18 @@ public class TaskService : ITaskService
         await _repository.DeleteAsync(task, ct);
         await _unitOfWork.SaveChangesAsync(ct);
         return Result<bool>.Success(true);
+    }
+
+    /// <summary>Tasks whose project this viewer may see, composed from the one project visibility predicate.</summary>
+    private IQueryable<ProjectTask> VisibleTasks(ProjectViewer viewer)
+    {
+        if (viewer.IsAdmin)
+            return _repository.Query();
+
+        var visibleProjectIds = _projectRepository.Query()
+            .Where(ProjectQueryFilters.VisibleTo(viewer))
+            .Select(project => project.id);
+        return _repository.Query().Where(task => visibleProjectIds.Contains(task.projectId));
     }
 
     private async Task<TaskDto> EnrichTaskDtoAsync(ProjectTask task, CancellationToken ct)

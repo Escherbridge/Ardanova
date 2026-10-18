@@ -20,6 +20,7 @@ public class OpportunityService : IOpportunityService
     private readonly IRepository<Guild> _guildRepository;
     private readonly IRepository<Project> _projectRepository;
     private readonly IRepository<ProjectTask> _taskRepository;
+    private readonly IRepository<ProjectMember> _memberRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IMapper _mapper;
 
@@ -32,6 +33,7 @@ public class OpportunityService : IOpportunityService
         IRepository<Guild> guildRepository,
         IRepository<Project> projectRepository,
         IRepository<ProjectTask> taskRepository,
+        IRepository<ProjectMember> memberRepository,
         IUnitOfWork unitOfWork,
         IMapper mapper)
     {
@@ -43,8 +45,69 @@ public class OpportunityService : IOpportunityService
         _guildRepository = guildRepository;
         _projectRepository = projectRepository;
         _taskRepository = taskRepository;
+        _memberRepository = memberRepository;
         _unitOfWork = unitOfWork;
         _mapper = mapper;
+    }
+
+    /// <summary>Why a review was refused: the application already has an outcome.</summary>
+    public const string ApplicationNoLongerPending = "Only a pending application can be reviewed.";
+
+    /// <summary>Why a review was refused: withdrawing belongs to the applicant, and PENDING is not a decision.</summary>
+    public const string ReviewerMayOnlyAcceptOrReject =
+        "A reviewer can accept or reject an application; only the applicant can withdraw it.";
+
+    /// <summary>Hiring finishes here: an accepted project-role applicant becomes a project member in the same save.</summary>
+    private async Task SeatAcceptedApplicantAsync(OpportunityApplication application, CancellationToken ct)
+    {
+        var opportunity = await _repository.GetByIdAsync(application.opportunityId, ct);
+        if (opportunity?.projectId is not { } projectId)
+            return;
+
+        var alreadyMember = await _memberRepository.FindOneAsync(
+            member => member.projectId == projectId && member.userId == application.applicantId, ct);
+        if (alreadyMember is not null)
+            return;
+
+        await _memberRepository.AddAsync(new ProjectMember
+        {
+            id = Guid.NewGuid().ToString(),
+            projectId = projectId,
+            userId = application.applicantId,
+            role = opportunity.projectRole is { } role && role != ProjectRole.FOUNDER ? role : ProjectRole.CONTRIBUTOR,
+            shareBalance = 0,
+            votingPower = 0,
+            joinedAt = DateTime.UtcNow,
+            invitedById = opportunity.posterId
+        }, ct);
+    }
+
+    /// <summary>Opportunities this viewer may see; see Services/Implementations/AGENTS.md section Opportunity visibility.</summary>
+    private IQueryable<Opportunity> VisibleOpportunities(ProjectViewer viewer)
+    {
+        if (viewer.IsAdmin)
+            return _repository.Query();
+
+        var visibleProjectIds = _projectRepository.Query()
+            .Where(ProjectQueryFilters.VisibleTo(viewer))
+            .Select(project => project.id);
+        var viewerId = viewer.UserId;
+        if (string.IsNullOrEmpty(viewerId))
+        {
+            return _repository.Query().Where(o =>
+                o.status != OpportunityStatus.DRAFT &&
+                (o.projectId == null || visibleProjectIds.Contains(o.projectId)));
+        }
+
+        var teamProjectIds = _projectRepository.Query()
+            .Where(project => project.createdById == viewerId ||
+                              project.ProjectMembers.Any(member => member.userId == viewerId))
+            .Select(project => project.id);
+        return _repository.Query().Where(o =>
+            (o.projectId == null || visibleProjectIds.Contains(o.projectId)) &&
+            (o.status != OpportunityStatus.DRAFT ||
+             o.posterId == viewerId ||
+             (o.projectId != null && teamProjectIds.Contains(o.projectId))));
     }
 
     private static string GenerateSlug(string title)
@@ -65,9 +128,19 @@ public class OpportunityService : IOpportunityService
         return Result<OpportunityDto>.Success(dto);
     }
 
-    public async Task<Result<OpportunityDto>> GetBySlugAsync(string slug, CancellationToken ct = default)
+    public async Task<Result<OpportunityDto>> GetVisibleByIdAsync(ProjectViewer viewer, string id, CancellationToken ct = default)
     {
-        var opportunity = await _repository.FindOneAsync(o => o.slug == slug, ct);
+        var opportunity = VisibleOpportunities(viewer).FirstOrDefault(o => o.id == id);
+        if (opportunity is null)
+            return Result<OpportunityDto>.NotFound($"Opportunity with id {id} not found");
+
+        var dto = await EnrichOpportunityDtoAsync(opportunity, ct);
+        return Result<OpportunityDto>.Success(dto);
+    }
+
+    public async Task<Result<OpportunityDto>> GetBySlugAsync(ProjectViewer viewer, string slug, CancellationToken ct = default)
+    {
+        var opportunity = VisibleOpportunities(viewer).FirstOrDefault(o => o.slug == slug);
         if (opportunity is null)
             return Result<OpportunityDto>.NotFound($"Opportunity with slug {slug} not found");
 
@@ -75,21 +148,24 @@ public class OpportunityService : IOpportunityService
         return Result<OpportunityDto>.Success(dto);
     }
 
-    public async Task<Result<IReadOnlyList<OpportunityDto>>> GetAllAsync(CancellationToken ct = default)
+    public async Task<Result<IReadOnlyList<OpportunityDto>>> GetAllAsync(ProjectViewer viewer, CancellationToken ct = default)
     {
-        var opportunities = await _repository.GetAllAsync(ct);
+        var opportunities = VisibleOpportunities(viewer).ToList();
         var dtos = await EnrichOpportunityDtosAsync(opportunities, ct);
         return Result<IReadOnlyList<OpportunityDto>>.Success(dtos);
     }
 
-    public async Task<Result<PagedResult<OpportunityDto>>> GetPagedAsync(int page, int pageSize, CancellationToken ct = default)
+    public async Task<Result<PagedResult<OpportunityDto>>> GetPagedAsync(ProjectViewer viewer, int page, int pageSize, CancellationToken ct = default)
     {
-        var result = await _repository.GetPagedAsync(page, pageSize, null, ct);
-        var dtos = await EnrichOpportunityDtosAsync(result.Items, ct);
-        return Result<PagedResult<OpportunityDto>>.Success(new PagedResult<OpportunityDto>(dtos.ToList(), result.TotalCount, result.Page, result.PageSize));
+        var query = VisibleOpportunities(viewer).OrderByDescending(o => o.createdAt);
+        var totalCount = query.Count();
+        var items = query.Skip((page - 1) * pageSize).Take(pageSize).ToList();
+        var dtos = await EnrichOpportunityDtosAsync(items, ct);
+        return Result<PagedResult<OpportunityDto>>.Success(new PagedResult<OpportunityDto>(dtos.ToList(), totalCount, page, pageSize));
     }
 
     public async Task<Result<PagedResult<OpportunityDto>>> SearchAsync(
+        ProjectViewer viewer,
         string? searchTerm,
         OpportunityType? type,
         OpportunityStatus? status,
@@ -100,7 +176,7 @@ public class OpportunityService : IOpportunityService
         int pageSize,
         CancellationToken ct = default)
     {
-        var query = _repository.Query();
+        var query = VisibleOpportunities(viewer);
 
         if (!string.IsNullOrWhiteSpace(searchTerm))
         {
@@ -144,23 +220,23 @@ public class OpportunityService : IOpportunityService
         return Result<PagedResult<OpportunityDto>>.Success(new PagedResult<OpportunityDto>(dtos.ToList(), totalCount, page, pageSize));
     }
 
-    public async Task<Result<IReadOnlyList<OpportunityDto>>> GetByPosterIdAsync(string posterId, CancellationToken ct = default)
+    public async Task<Result<IReadOnlyList<OpportunityDto>>> GetByPosterIdAsync(ProjectViewer viewer, string posterId, CancellationToken ct = default)
     {
-        var opportunities = await _repository.FindAsync(o => o.posterId == posterId, ct);
+        var opportunities = VisibleOpportunities(viewer).Where(o => o.posterId == posterId).ToList();
         var dtos = await EnrichOpportunityDtosAsync(opportunities, ct);
         return Result<IReadOnlyList<OpportunityDto>>.Success(dtos);
     }
 
-    public async Task<Result<IReadOnlyList<OpportunityDto>>> GetByGuildIdAsync(string guildId, CancellationToken ct = default)
+    public async Task<Result<IReadOnlyList<OpportunityDto>>> GetByGuildIdAsync(ProjectViewer viewer, string guildId, CancellationToken ct = default)
     {
-        var opportunities = await _repository.FindAsync(o => o.guildId == guildId, ct);
+        var opportunities = VisibleOpportunities(viewer).Where(o => o.guildId == guildId).ToList();
         var dtos = await EnrichOpportunityDtosAsync(opportunities, ct);
         return Result<IReadOnlyList<OpportunityDto>>.Success(dtos);
     }
 
-    public async Task<Result<IReadOnlyList<OpportunityDto>>> GetByProjectIdAsync(string projectId, CancellationToken ct = default)
+    public async Task<Result<IReadOnlyList<OpportunityDto>>> GetByProjectIdAsync(ProjectViewer viewer, string projectId, CancellationToken ct = default)
     {
-        var opportunities = await _repository.FindAsync(o => o.projectId == projectId, ct);
+        var opportunities = VisibleOpportunities(viewer).Where(o => o.projectId == projectId).ToList();
         var dtos = await EnrichOpportunityDtosAsync(opportunities, ct);
         return Result<IReadOnlyList<OpportunityDto>>.Success(dtos);
     }
@@ -358,11 +434,18 @@ public class OpportunityService : IOpportunityService
         if (application is null)
             return Result<OpportunityApplicationDto>.NotFound($"Application with id {applicationId} not found");
 
+        if (application.status != ApplicationStatus.PENDING)
+            return Result<OpportunityApplicationDto>.ValidationError(ApplicationNoLongerPending);
+        if (dto.Status is not (ApplicationStatus.ACCEPTED or ApplicationStatus.REJECTED))
+            return Result<OpportunityApplicationDto>.ValidationError(ReviewerMayOnlyAcceptOrReject);
+
         application.status = dto.Status;
         application.reviewNotes = dto.ReviewNotes;
         application.reviewedAt = DateTime.UtcNow;
 
         await _applicationRepository.UpdateAsync(application, ct);
+        if (dto.Status == ApplicationStatus.ACCEPTED)
+            await SeatAcceptedApplicantAsync(application, ct);
         await _unitOfWork.SaveChangesAsync(ct);
 
         var applicationDto = _mapper.Map<OpportunityApplicationDto>(application);

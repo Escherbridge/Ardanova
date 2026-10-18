@@ -6,6 +6,7 @@ using ArdaNova.API.Controllers;
 using ArdaNova.API.Middleware;
 using ArdaNova.Application.Common.Results;
 using ArdaNova.Application.DTOs;
+using ArdaNova.Application.Services.Implementations;
 using ArdaNova.Application.Services.Interfaces;
 using ArdaNova.Domain.Models.Enums;
 using Microsoft.AspNetCore.Authorization;
@@ -242,11 +243,90 @@ public class TaskActorBoundaryTests
         action.GetCustomAttribute<AuthorizeAttribute>()?.Policy.Should().Be(AuthorizationPolicies.ActorAssertion);
     }
 
+    [Fact]
+    public async Task GetById_ATaskOnAHiddenDraftProjectReadsAsNotFound()
+    {
+        var tasks = new Mock<ITaskService>();
+        tasks.Setup(service => service.GetByIdAsync("task-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<TaskDto>.Success(new TaskDto { Id = "task-1", ProjectId = "project-draft", Title = "secret draft plan" }));
+        var visibility = new Mock<IProjectVisibility>();
+        visibility.Setup(service => service.GetVisibleByIdAsync(It.IsAny<ProjectViewer>(), "project-draft", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<ProjectDto>.NotFound("Project with id project-draft not found"));
+        var controller = WithActor(CreateController(tasks.Object, visibility: visibility.Object), "stranger");
+
+        var result = await controller.GetById("task-1", CancellationToken.None);
+
+        result.Should().BeOfType<NotFoundObjectResult>();
+    }
+
+    [Fact]
+    public async Task Assign_AMemberMayClaimAnUnassignedTask()
+    {
+        var tasks = new Mock<ITaskService>();
+        tasks.Setup(service => service.GetByIdAsync("task-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<TaskDto>.Success(new TaskDto { Id = "task-1", ProjectId = "project-1" }));
+        tasks.Setup(service => service.AssignAsync("task-1", "actor-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<TaskDto>.Success(new TaskDto { Id = "task-1", ProjectId = "project-1", AssignedToId = "actor-1" }));
+        var controller = WithActor(
+            CreateController(tasks.Object, authorization: Membership(manager: false, member: true).Object),
+            "actor-1");
+
+        var result = await controller.Assign("task-1", new AssignTaskDto { UserId = "actor-1" }, CancellationToken.None);
+
+        result.Should().BeOfType<OkObjectResult>()
+            .Which.Value.Should().BeOfType<TaskDto>()
+            .Which.AssignedToId.Should().Be("actor-1");
+    }
+
+    [Theory]
+    [InlineData("other-user", "actor-1")]
+    [InlineData(null, "someone-else")]
+    public async Task Assign_ANonManagerCannotTakeOverOrHandOutWork(string? currentAssignee, string requestedAssignee)
+    {
+        var tasks = new Mock<ITaskService>();
+        tasks.Setup(service => service.GetByIdAsync("task-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<TaskDto>.Success(new TaskDto { Id = "task-1", ProjectId = "project-1", AssignedToId = currentAssignee }));
+        var controller = WithActor(
+            CreateController(tasks.Object, authorization: Membership(manager: false, member: true).Object),
+            "actor-1");
+
+        var result = await controller.Assign("task-1", new AssignTaskDto { UserId = requestedAssignee }, CancellationToken.None);
+
+        result.Should().BeOfType<ForbidResult>();
+        tasks.Verify(service => service.AssignAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Assign_AManagerCannotHandWorkToSomeoneOffTheTeam()
+    {
+        var tasks = new Mock<ITaskService>();
+        tasks.Setup(service => service.GetByIdAsync("task-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<TaskDto>.Success(new TaskDto { Id = "task-1", ProjectId = "project-1" }));
+        var controller = WithActor(
+            CreateController(tasks.Object, authorization: Membership(manager: true, member: false).Object),
+            "actor-1");
+
+        var result = await controller.Assign("task-1", new AssignTaskDto { UserId = "outsider" }, CancellationToken.None);
+
+        result.Should().BeOfType<BadRequestObjectResult>();
+    }
+
+    private static Mock<IHierarchyAuthorizationService> Membership(bool manager, bool member)
+    {
+        var authorization = new Mock<IHierarchyAuthorizationService>();
+        authorization.Setup(service => service.CanManageProjectAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(manager);
+        authorization.Setup(service => service.IsProjectMemberAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(member);
+        return authorization;
+    }
+
     private static TasksController CreateController(
         ITaskService tasks,
         IProjectService? projects = null,
         IHierarchyAuthorizationService? authorization = null,
-        IAzoaValueEligibilityService? valueEligibility = null)
+        IAzoaValueEligibilityService? valueEligibility = null,
+        IProjectVisibility? visibility = null)
     {
         if (projects is null)
         {
@@ -290,7 +370,8 @@ public class TaskActorBoundaryTests
             new Mock<IFeatureService>(MockBehavior.Strict).Object,
             new Mock<IProductBacklogItemService>(MockBehavior.Strict).Object,
             authorization,
-            valueEligibility ?? new Mock<IAzoaValueEligibilityService>().Object);
+            valueEligibility ?? new Mock<IAzoaValueEligibilityService>().Object,
+            visibility ?? new Mock<IProjectVisibility>(MockBehavior.Strict).Object);
     }
 
     private static T WithActor<T>(T controller, string actorId, UserRole? role = null)
