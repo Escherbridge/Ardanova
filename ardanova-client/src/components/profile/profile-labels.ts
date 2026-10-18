@@ -21,3 +21,18 @@ export function profileIdentityLabels(identity: {
     verification,
   };
 }
+
+/** "Mar 2024" for a stored experience date, read as a UTC calendar date so the viewer's zone cannot shift the month. */
+export function formatExperienceMonth(
+  value: string | Date | null | undefined,
+): string {
+  if (!value) return "";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? ""
+    : date.toLocaleDateString("en-US", {
+        month: "short",
+        year: "numeric",
+        timeZone: "UTC",
+      });
+}
