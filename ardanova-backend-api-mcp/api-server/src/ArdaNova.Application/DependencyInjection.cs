@@ -176,6 +176,10 @@ public static class DependencyInjection
         // Enum lookup (singleton - enum types are static)
         services.AddSingleton<IEnumLookupService, EnumLookupService>();
 
+        // API pipeline: record-level authorization and request validators (backend lane).
+        services.AddScoped<Common.Security.IResourceAuthority, Common.Security.ResourceAuthority>();
+        Validators.RequestValidatorRegistration.AddRequestValidators(services);
+
         return services;
     }
 }

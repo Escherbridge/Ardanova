@@ -106,6 +106,21 @@ configuration and invariant failures, which belong in 5xx monitoring. A response
 that has already started is rethrown so the server aborts it, instead of being
 written over.
 
+## Rate limiting
+
+`ActorRateLimiting` (registered in `Program.cs`, placed after
+`UseActorAssertions`) gives each verified actor a fixed window of
+`RateLimiting:ActorRequestsPerMinute` requests (default 600; no value, or a
+value of 0 or less, means the default). Going over the limit returns a 429
+envelope with `Retry-After`.
+
+Requests without an actor are not limited. Every one of them comes from the BFF
+over a single service key, so a limit on that partition would let one noisy
+visitor throttle the whole site. Anonymous abuse has to be limited at the edge,
+in the Next.js middleware or the proxy, which can see the visitor's IP. The
+limiter is in-process: with N API replicas, the effective budget is N times the
+setting.
+
 ## Database faults
 
 `Classify` walks the inner-exception chain for an exception that exposes a

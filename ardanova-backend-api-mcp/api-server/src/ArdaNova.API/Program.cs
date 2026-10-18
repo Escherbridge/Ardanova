@@ -1,4 +1,3 @@
-using System.Text.Json.Serialization;
 using ArdaNova.API.Filters;
 using ArdaNova.API.HealthChecks;
 using ArdaNova.API.Middleware;
@@ -82,12 +81,9 @@ builder.Services.AddCors(options =>
 });
 
 builder.Services.AddControllers(options => options.AddArdaNovaEndpointPolicies())
-    .AddJsonOptions(options =>
-    {
-        options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
-        options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
-    })
+    .AddJsonOptions(options => ArdaNovaJson.Configure(options.JsonSerializerOptions))
     .AddArdaNovaErrorEnvelope();
+builder.Services.AddArdaNovaActorRateLimiting(builder.Configuration);
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddArdaNovaAuthentication();
 builder.Services.AddArdaNovaAuthorization();
@@ -143,6 +139,8 @@ app.UseCors("SignalR");
 app.UseApiKeyAuthentication();
 
 app.UseActorAssertions();
+
+app.UseArdaNovaActorRateLimiting();
 
 app.UseAuthorization();
 
@@ -286,6 +284,10 @@ app.MapGet("/ready", async (
     }
 
     var ready = configurationReady && databaseReady && releaseSchemaReady;
+    var readyStatus = ready ? StatusCodes.Status200OK : StatusCodes.Status503ServiceUnavailable;
+    if (!ReadinessDisclosure.ShowsDetails(httpContext, configuration))
+        return Results.Json(ReadinessDisclosure.Summary(ready, DateTime.UtcNow), statusCode: readyStatus);
+
     return Results.Json(new
     {
         status = ready ? "ready" : "not_ready",
@@ -316,7 +318,7 @@ app.MapGet("/ready", async (
                 credentialLifecycleSupported = algorandCapabilities.SupportsAddressBasedCredentialLifecycle,
             }
         }
-    }, statusCode: ready ? StatusCodes.Status200OK : StatusCodes.Status503ServiceUnavailable);
+    }, statusCode: readyStatus);
 }).AllowAnonymous();
 
 app.Run();

@@ -215,9 +215,9 @@ public sealed class EndpointPolicyPipelineTests : IAsyncLifetime
     [Fact]
     public async Task BusinessNotFound_UsesTheSharedEnvelope()
     {
-        var response = await SendAsync(HttpMethod.Get, "/api/Events/does-not-exist");
+        var response = await SendAsync(HttpMethod.Get, "/api/Referrals/code/does-not-exist");
 
-        await AssertEnvelopeAsync(response, HttpStatusCode.NotFound, "Event not found");
+        await AssertEnvelopeAsync(response, HttpStatusCode.NotFound, "Referral not found");
     }
 
     [Fact]
@@ -239,7 +239,9 @@ public sealed class EndpointPolicyPipelineTests : IAsyncLifetime
     public void EveryPolicyOverrideAndSubjectBinding_NamesALoadedAction()
     {
         var configured = EndpointAuthorizationConvention.PolicyOverrides.Keys
-            .Concat(EndpointAuthorizationConvention.SubjectBindings.Keys);
+            .Concat(EndpointAuthorizationConvention.SubjectBindings.Keys)
+            .Concat(EndpointAuthorizationConvention.ResourceGuards.Keys)
+            .Distinct();
 
         _convention.MatchedKeys.Should().BeEquivalentTo(configured);
     }
@@ -308,6 +310,8 @@ public sealed class EndpointPolicyPipelineTests : IAsyncLifetime
         var referrals = new Mock<IReferralService>();
         referrals.Setup(s => s.GetByReferredIdAsync(Victim, It.IsAny<CancellationToken>()))
             .ReturnsAsync(Result<ReferralDto>.Success(new ReferralDto { Id = "referral-1", ReferredId = Victim }));
+        referrals.Setup(s => s.GetByCodeAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<ReferralDto>.NotFound("Referral not found"));
         services.AddSingleton(referrals.Object);
         services.AddSingleton(new Mock<IUserStreakService>().Object);
     }

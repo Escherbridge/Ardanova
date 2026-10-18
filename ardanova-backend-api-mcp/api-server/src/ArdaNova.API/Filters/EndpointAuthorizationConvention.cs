@@ -59,6 +59,23 @@ public sealed class EndpointAuthorizationConvention : IApplicationModelConventio
             ["Referrals.GetByReferredId"] = new("referredId"),
             ["UserStreaks.RecordActivity"] = new("userId"),
             ["UserStreaks.ResetStreak"] = new("userId"),
+            ["Products.Create"] = new("dto", "UserId"),
+        };
+
+    /// <summary>Actions that touch one existing record and must pass that record's rule (admins excepted).</summary>
+    public static readonly IReadOnlyDictionary<string, ResourceGuard> ResourceGuards =
+        new Dictionary<string, ResourceGuard>(StringComparer.Ordinal)
+        {
+            ["Events.Update"] = new(ResourceRule.EventOrganizer, new("id")),
+            ["Events.Delete"] = new(ResourceRule.EventOrganizer, new("id")),
+            ["Events.GetById"] = new(ResourceRule.EventViewer, new("id")),
+            ["Events.GetAttendees"] = new(ResourceRule.EventViewer, new("id")),
+            ["Events.Register"] = new(ResourceRule.EventViewer, new("id")),
+            ["Products.Create"] = new(ResourceRule.ProjectCatalogManager, new("dto", "ProjectId")),
+            ["Products.Update"] = new(ResourceRule.ProductManager, new("id")),
+            ["Products.Delete"] = new(ResourceRule.ProductManager, new("id")),
+            ["Products.ToggleActive"] = new(ResourceRule.ProductManager, new("id")),
+            ["Referrals.GetById"] = new(ResourceRule.ReferralParticipant, new("id")),
         };
 
     /// <summary>Override and binding keys that matched an action; the rest name an action that is not loaded.</summary>
@@ -88,6 +105,13 @@ public sealed class EndpointAuthorizationConvention : IApplicationModelConventio
                 {
                     binding.EnsureBindsTo(action, key);
                     action.Filters.Add(new ActorSubjectBindingFilter(binding));
+                    MatchedKeys.Add(key);
+                }
+
+                if (ResourceGuards.TryGetValue(key, out var guard))
+                {
+                    guard.Record.EnsureBindsTo(action, key);
+                    action.Filters.Add(new ResourceAuthorizationFilter(guard));
                     MatchedKeys.Add(key);
                 }
             }

@@ -66,6 +66,8 @@ public sealed class UserDirectoryPrivacyFilter : IResultFilter
             UserDto user => Project(user, actorId),
             PagedResult<UserDto> page => page.Map(user => Project(user, actorId)),
             IEnumerable<UserDto> users => users.Select(user => Project(user, actorId)).ToList(),
+            AttachmentWithUserDto attachment => RedactUploader(attachment, actorId),
+            IEnumerable<AttachmentWithUserDto> attachments => attachments.Select(a => RedactUploader(a, actorId)).ToList(),
             _ => value,
         };
         if (!ReferenceEquals(result.Value, value))
@@ -80,4 +82,20 @@ public sealed class UserDirectoryPrivacyFilter : IResultFilter
         => actorId is not null && string.Equals(user.Id, actorId, StringComparison.Ordinal)
             ? user
             : PublicUserView.From(user);
+
+    /// <summary>Nested uploader keeps its UserDto type, so the private fields are blanked rather than projected away.</summary>
+    private static AttachmentWithUserDto RedactUploader(AttachmentWithUserDto attachment, string? actorId)
+        => attachment.UploadedBy is not { } uploader
+            || (actorId is not null && string.Equals(uploader.Id, actorId, StringComparison.Ordinal))
+            ? attachment
+            : attachment with
+            {
+                UploadedBy = uploader with
+                {
+                    Email = null!,
+                    EmailVerified = null,
+                    Phone = null,
+                    TrustScore = 0,
+                },
+            };
 }
