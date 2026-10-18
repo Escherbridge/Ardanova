@@ -134,7 +134,7 @@ public sealed class SensitiveMutationBoundaryTests
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(Result<VoteDto>.Success(new VoteDto { Id = "vote-1", ProposalId = "proposal-1", VoterId = "actor-1" }));
         var controller = WithActor(
-            new GovernanceController(governance.Object, new Mock<IHierarchyAuthorizationService>(MockBehavior.Strict).Object),
+            new GovernanceController(governance.Object, new Mock<IHierarchyAuthorizationService>(MockBehavior.Strict).Object, new Mock<IProposalVoteClosing>(MockBehavior.Strict).Object),
             "actor-1");
 
         var result = await controller.CastVote(
@@ -158,7 +158,7 @@ public sealed class SensitiveMutationBoundaryTests
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(Result<ProposalCommentDto>.Success(new ProposalCommentDto { Id = "comment-1", ProposalId = "proposal-1", UserId = "actor-1", Content = "hi" }));
         var controller = WithActor(
-            new GovernanceController(governance.Object, new Mock<IHierarchyAuthorizationService>(MockBehavior.Strict).Object),
+            new GovernanceController(governance.Object, new Mock<IHierarchyAuthorizationService>(MockBehavior.Strict).Object, new Mock<IProposalVoteClosing>(MockBehavior.Strict).Object),
             "actor-1");
 
         var result = await controller.CreateProposalComment(
@@ -180,7 +180,7 @@ public sealed class SensitiveMutationBoundaryTests
         hierarchy
             .Setup(service => service.IsProjectMemberAsync("actor-1", "project-1", It.IsAny<CancellationToken>()))
             .ReturnsAsync(false);
-        var controller = WithActor(new GovernanceController(governance.Object, hierarchy.Object), "actor-1");
+        var controller = WithActor(new GovernanceController(governance.Object, hierarchy.Object, new Mock<IProposalVoteClosing>(MockBehavior.Strict).Object), "actor-1");
 
         var result = await controller.CreateProposal(
             new CreateProposalDto
@@ -216,7 +216,7 @@ public sealed class SensitiveMutationBoundaryTests
         hierarchy
             .Setup(service => service.CanManageProjectAsync("bystander-1", "project-1", It.IsAny<CancellationToken>()))
             .ReturnsAsync(false);
-        var controller = WithActor(new GovernanceController(governance.Object, hierarchy.Object), "bystander-1");
+        var controller = WithActor(new GovernanceController(governance.Object, hierarchy.Object, new Mock<IProposalVoteClosing>(MockBehavior.Strict).Object), "bystander-1");
 
         var results = new IActionResult[]
         {

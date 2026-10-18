@@ -18,13 +18,16 @@ public class GovernanceController : ControllerBase
 {
     private readonly IGovernanceService _governanceService;
     private readonly IHierarchyAuthorizationService _hierarchyAuthorization;
+    private readonly IProposalVoteClosing _voteClosing;
 
     public GovernanceController(
         IGovernanceService governanceService,
-        IHierarchyAuthorizationService hierarchyAuthorization)
+        IHierarchyAuthorizationService hierarchyAuthorization,
+        IProposalVoteClosing voteClosing)
     {
         _governanceService = governanceService;
         _hierarchyAuthorization = hierarchyAuthorization;
+        _voteClosing = voteClosing;
     }
 
     // Proposal endpoints
@@ -174,21 +177,24 @@ public class GovernanceController : ControllerBase
         return ToActionResult(result);
     }
 
-    /// <summary>Closing ends the voting window now and records the outcome; withdrawing (cancel) throws the proposal away and is refused once anyone has voted.</summary>
+    /// <summary>Closing ends the voting window now on the closer's named authority, the same seam as the project-scoped close; withdrawing (cancel) throws the proposal away and is refused once anyone has voted.</summary>
     [HttpPatch("proposals/{id}/close")]
     [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
     public async Task<IActionResult> CloseProposal(string id, CancellationToken ct)
     {
-        var denied = await DenyUnlessMayActOnProposalAsync(id, ct);
-        if (denied is not null)
-            return denied;
+        var proposal = await _governanceService.GetProposalByIdAsync(id, ct);
+        if (!proposal.IsSuccess)
+            return ToActionResult(proposal);
+        if (!IsAdmin && !await _hierarchyAuthorization.CanManageProjectAsync(ActorId, proposal.Value!.ProjectId, ct))
+            return NotAuthorized(EarlyCloseRefusal);
 
-        var result = await _governanceService.UpdateProposalAsync(
-            id,
-            new UpdateProposalDto { VotingEnd = DateTime.UtcNow },
-            ct);
+        // The author test (OI-46) lives in CloseActiveProposalAsync, so a manager who raised this proposal is still refused there.
+        var result = await _voteClosing.CloseVoteAsync(id, ProposalCloseAuthority.ProjectAuthority(ActorId), ct);
         return ToActionResult(result);
     }
+
+    private const string EarlyCloseRefusal =
+        "Only someone who runs this project, and who did not raise this proposal, can end the vote before it closes on its own";
 
     [HttpPatch("proposals/{id}/cancel")]
     [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
