@@ -1,4 +1,6 @@
 -- Every guild's owner is represented by an OWNER membership row. Data only; no schema change.
+-- UNREHEARSED: not yet applied to a copy of any populated database. Before `migrate deploy`, preview the
+-- rows it would add: the SELECT below without the INSERT line. Additive only (INSERT; no UPDATE/DELETE/DDL).
 -- Lands AFTER 20261017120000_vote_one_ballot_per_member.
 --
 -- GuildService.CreateAsync has always written the OWNER row in the same save as the guild, but
