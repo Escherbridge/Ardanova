@@ -1,4 +1,7 @@
 -- One member, one ballot, enforced by the database.
+-- UNREHEARSED: not yet applied to a copy of any populated database. Before `migrate deploy`,
+-- count duplicates (SELECT "proposalId","voterId",count(*) FROM "Vote" GROUP BY 1,2 HAVING count(*)>1)
+-- and record the rows the DELETE below will remove; it is destructive by design.
 -- Lands AFTER 20261017000000_financial_engine_domain.
 --
 -- GovernanceService.CastVoteAsync checks for an existing ballot and then inserts. Two requests

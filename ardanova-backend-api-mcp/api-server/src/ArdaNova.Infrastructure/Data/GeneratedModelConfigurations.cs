@@ -17,6 +17,7 @@ public static class GeneratedModelConfigurations
         modelBuilder.Entity<LeaderboardEntry>().HasIndex(e => new { e.leaderboardId, e.userId }).IsUnique();
         modelBuilder.Entity<ProjectComment>().HasIndex(e => new { e.targetType, e.targetId });
         modelBuilder.Entity<ProjectMember>().HasIndex(e => new { e.projectId, e.userId }).IsUnique();
+        modelBuilder.Entity<Vote>().HasIndex(e => new { e.proposalId, e.voterId }).IsUnique();
         modelBuilder.Entity<GuildMember>().HasIndex(e => new { e.guildId, e.userId }).IsUnique();
         modelBuilder.Entity<MembershipCredential>().HasIndex(e => new { e.projectId, e.userId }).IsUnique();
         modelBuilder.Entity<MembershipCredential>().HasIndex(e => new { e.guildId, e.userId }).IsUnique();

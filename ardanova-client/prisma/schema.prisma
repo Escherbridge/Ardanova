@@ -1500,6 +1500,8 @@ model Vote {
   createdAt  DateTime @default(now())
   proposal   Proposal @relation("Vote_proposalId", fields: [proposalId], references: [id])
   voter      User     @relation("Vote_voterId", fields: [voterId], references: [id])
+
+  @@unique([proposalId, voterId])
 }
 
 model ProposalExecution {
