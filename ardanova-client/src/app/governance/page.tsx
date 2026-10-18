@@ -953,8 +953,8 @@ export default function GovernancePage() {
                     <div className="flex items-center gap-1">
                       <Users className="size-4" />
                       <span>
-                        {proposal.totalVotes} votes ·{" "}
-                        {proposal.eligibleMembers} members can vote
+                        {proposal.totalVotes} votes · {proposal.eligibleMembers}{" "}
+                        members can vote
                       </span>
                     </div>
                     <div className="flex items-center gap-1">

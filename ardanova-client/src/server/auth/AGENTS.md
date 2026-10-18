@@ -43,6 +43,7 @@ The immutable identity anchor is the existing `Account(provider, providerAccount
 Production users created by the legacy Google-only callback may be migrated through `AUTH_GOOGLE_LEGACY_LINK_USER_IDS`. The operator must list exact persisted user IDs after reviewing the affected rows. The callback still requires Google's verified email and matching subject, rechecks the same normalized email and absence of all provider accounts in a serializable transaction, and stores only the immutable Google account link. Remove each allowlist entry after that user signs in; never use email addresses or broad flags in this setting.
 
 Auth.js omits `user` when refreshing an existing JWT despite declaring it as required in the callback type. The local callback contract models that field as optional. Missing users and database failures clear authorization claims rather than preserving stale privileges.
+
 ## Google OAuth deployment contract
 
 - `AUTH_URL` is the canonical public frontend origin, with no path or trailing slash.
