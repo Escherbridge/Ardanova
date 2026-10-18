@@ -15,6 +15,7 @@ import { formatEnumLabel } from "~/hooks/use-enum";
 import { useOpportunityMutations } from "~/hooks/use-opportunity-mutations";
 import type { OpportunityBid } from "~/lib/api/ardanova/endpoints/opportunity-bids";
 import { api } from "~/trpc/react";
+import { ApplyForm } from "~/components/opportunities/apply-form";
 
 interface BidFormProps {
   opportunityId: string;
@@ -55,13 +56,31 @@ function parsePositiveInteger(raw: string): number | undefined {
  * too. The award is denominated in the project's own units, with a reference ARDA figure
  * shown alongside so the number is never read as a token price.
  */
-export function BidForm({
+export function BidForm(props: BidFormProps) {
+  const { data: session, status: sessionStatus } = useSession();
+  const isAuthenticated = sessionStatus === "authenticated" && !!session?.user;
+
+  // Joining the team is the primary path; paid terms are a second, optional offer.
+  return (
+    <div className="space-y-6">
+      {isAuthenticated ? (
+        <ApplyForm
+          opportunityId={props.opportunityId}
+          opportunityStatus={props.opportunityStatus}
+        />
+      ) : null}
+      <PaidProposalForm {...props} isAuthenticated={isAuthenticated} />
+    </div>
+  );
+}
+
+/** Paid-work proposal; an award is required because task commerce cannot accept an unpaid bid. */
+function PaidProposalForm({
   opportunityId,
   opportunityStatus,
   projectId,
-}: BidFormProps) {
-  const { data: session, status: sessionStatus } = useSession();
-  const isAuthenticated = sessionStatus === "authenticated" && !!session?.user;
+  isAuthenticated,
+}: BidFormProps & { isAuthenticated: boolean }) {
 
   const { createBid, withdrawBid, isCreatingBid, isWithdrawingBid } =
     useOpportunityMutations();
@@ -128,8 +147,10 @@ export function BidForm({
       );
       return;
     }
-    if (proposedAmount.trim() && amountValue === undefined) {
-      setValidationError("Enter a positive award amount, or leave it blank.");
+    if (amountValue === undefined) {
+      setValidationError(
+        "Enter a positive award. To help without pay, apply for the role instead.",
+      );
       return;
     }
     if (
@@ -165,7 +186,7 @@ export function BidForm({
     return (
       <Card className="bg-card border-border">
         <CardHeader className="pb-3">
-          <CardTitle className="text-lg">Propose terms</CardTitle>
+          <CardTitle className="text-lg">Propose paid terms</CardTitle>
         </CardHeader>
         <CardContent>
           <p className="text-muted-foreground text-sm">
@@ -222,7 +243,7 @@ export function BidForm({
   return (
     <Card className="bg-card border-border">
       <CardHeader className="pb-3">
-        <CardTitle className="text-lg">Propose terms</CardTitle>
+        <CardTitle className="text-lg">Propose paid terms</CardTitle>
       </CardHeader>
       <CardContent>
         {myBid && (
@@ -263,7 +284,7 @@ export function BidForm({
                   step="any"
                   value={proposedAmount}
                   onChange={(event) => setProposedAmount(event.target.value)}
-                  placeholder="Optional"
+                  required
                 />
                 {ardaReference !== null && (
                   <p className="text-muted-foreground text-xs">

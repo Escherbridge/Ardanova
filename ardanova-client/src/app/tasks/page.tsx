@@ -46,7 +46,7 @@ import { TaskEconomicState } from "~/components/tasks/task-economic-state";
 type ApiTask = RouterOutputs["task"]["getMyTasks"]["items"][number];
 type ApiPbi = RouterOutputs["backlog"]["getPbisByProjectId"][number];
 
-type TaskColumnId = "todo" | "in_progress" | "review" | "done";
+type TaskColumnId = "todo" | "in_progress" | "review" | "blocked" | "done";
 
 const taskStatuses: {
   id: TaskColumnId;
@@ -71,6 +71,12 @@ const taskStatuses: {
     label: "In Review",
     color: "text-neon-purple",
     bgColor: "bg-neon-purple/10",
+  },
+  {
+    id: "blocked",
+    label: "Blocked",
+    color: "text-destructive",
+    bgColor: "bg-destructive/10",
   },
   {
     id: "done",
@@ -100,7 +106,7 @@ function apiStatusToColumn(status: string): TaskColumnId {
   if (u === "COMPLETED") return "done";
   if (u === "IN_PROGRESS") return "in_progress";
   if (u === "REVIEW") return "review";
-  if (u === "BLOCKED") return "todo";
+  if (u === "BLOCKED") return "blocked";
   return "todo";
 }
 
@@ -114,6 +120,8 @@ function columnToApiStatus(
       return "IN_PROGRESS";
     case "review":
       return "REVIEW";
+    case "blocked":
+      return "BLOCKED";
     case "done":
       return "COMPLETED";
     default:
@@ -146,7 +154,9 @@ type TaskRow = {
   reward: number;
   escrowStatus?: string | null;
   tags: string[];
-  storyPoints: number;
+  /** Only a backlog item carries story points; a task's hour estimate is not converted into one. */
+  storyPoints: number | null;
+  estimatedHours: number | null;
 };
 
 function mapApiTaskToRow(task: ApiTask): TaskRow {
@@ -188,10 +198,8 @@ function mapApiTaskToRow(task: ApiTask): TaskRow {
     reward: typeof equity === "number" ? Number(equity) : 0,
     escrowStatus,
     tags: task.taskType ? [String(task.taskType)] : [],
-    storyPoints:
-      typeof hours === "number" && hours > 0
-        ? Math.min(13, Math.max(1, Math.round(hours)))
-        : 5,
+    storyPoints: null,
+    estimatedHours: typeof hours === "number" && hours > 0 ? hours : null,
   };
 }
 
@@ -224,7 +232,8 @@ function mapPbiToRow(pbi: ApiPbi): TaskRow | null {
     reward: 0,
     escrowStatus: null,
     tags: pbi.type ? [String(pbi.type)] : [],
-    storyPoints: typeof pbi.storyPoints === "number" ? pbi.storyPoints : 3,
+    storyPoints: typeof pbi.storyPoints === "number" ? pbi.storyPoints : null,
+    estimatedHours: null,
   };
 }
 
@@ -349,9 +358,15 @@ function TaskCard({
             allocationUnits={task.reward}
             escrowStatus={task.escrowStatus}
           />
-          <Badge variant="secondary" size="sm" className="px-1 text-[10px]">
-            {task.storyPoints} SP
-          </Badge>
+          {task.storyPoints !== null ? (
+            <Badge variant="secondary" size="sm" className="px-1 text-[10px]">
+              {task.storyPoints} SP
+            </Badge>
+          ) : task.estimatedHours !== null ? (
+            <Badge variant="secondary" size="sm" className="px-1 text-[10px]">
+              {task.estimatedHours}h
+            </Badge>
+          ) : null}
         </div>
       </div>
     </div>
@@ -496,10 +511,13 @@ export default function TasksPage() {
     const inProgress = filteredRows.filter(
       (t) => t.column === "in_progress",
     ).length;
-    const totalPoints = filteredRows.reduce((sum, t) => sum + t.storyPoints, 0);
+    const totalPoints = filteredRows.reduce(
+      (sum, t) => sum + (t.storyPoints ?? 0),
+      0,
+    );
     const completedPoints = filteredRows
       .filter((t) => t.column === "done")
-      .reduce((sum, t) => sum + t.storyPoints, 0);
+      .reduce((sum, t) => sum + (t.storyPoints ?? 0), 0);
     return { total, completed, inProgress, totalPoints, completedPoints };
   }, [filteredRows]);
 
@@ -513,16 +531,20 @@ export default function TasksPage() {
     // Determine if this is a PBI or task by checking against known PBI rows
     const item = rows.find((r) => r.id === itemId);
     if (item?.kind === "pbi") {
-      const pbiStatusMap: Record<
-        TaskColumnId,
-        "NEW" | "READY" | "IN_PROGRESS" | "DONE"
+      // A backlog item has no review or blocked state; moving it there would snap back on reload.
+      const pbiStatusMap: Partial<
+        Record<TaskColumnId, "NEW" | "IN_PROGRESS" | "DONE">
       > = {
         todo: "NEW",
         in_progress: "IN_PROGRESS",
-        review: "READY",
         done: "DONE",
       };
-      updatePbiStatus.mutate({ id: itemId, status: pbiStatusMap[column] });
+      const pbiStatus = pbiStatusMap[column];
+      if (!pbiStatus) {
+        toast.info("Backlog items move between To Do, In Progress and Done.");
+        return;
+      }
+      updatePbiStatus.mutate({ id: itemId, status: pbiStatus });
     } else {
       updateTaskStatus.mutate({
         id: itemId,

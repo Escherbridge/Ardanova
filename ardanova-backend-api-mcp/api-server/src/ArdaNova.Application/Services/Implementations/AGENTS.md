@@ -164,3 +164,22 @@ existing member, or a user who already has a PENDING one.
 `TaskService.AssignAsync` is the only write of `assignedToId` after creation. It refuses once an
 accepted bid's agreement exists or escrow is no longer NONE: the agreement names the worker, and
 swapping the assignee underneath it would pay one person for another's work.
+
+# Project member authority
+
+`ProjectMemberRolePolicy` is the rank rule `ProjectsController` applies after its manager gate
+(FOUNDER > LEADER > CORE_CONTRIBUTOR > CONTRIBUTOR > OBSERVER; the project's creator always ranks as
+FOUNDER even without a membership row). The manager gate alone let any CORE_CONTRIBUTOR delete the
+founder's project, seat anyone as FOUNDER, or raise their own role, so:
+
+- A membership is created only with the member's consent: an invitation they accept or an
+  application a manager accepts. The direct `POST members` route is reserved for the creator seating
+  their own FOUNDER row during project creation (and admins); `InvitedById` is the signed actor.
+- FOUNDER is never grantable by a role change, the founder's row is never changed or removed (admins
+  excepted), nobody changes their own role, and a manager acts only on members ranked below them and
+  grants only roles below their own.
+- Anyone except the founder may remove themself (leave). Deleting the project is founder-only.
+
+`ProjectMemberService.DeleteAsync` unassigns the removed person's unfinished tasks in that project in
+the same save, so a former member cannot keep moving work they no longer belong to; completed tasks
+keep their assignee as history.

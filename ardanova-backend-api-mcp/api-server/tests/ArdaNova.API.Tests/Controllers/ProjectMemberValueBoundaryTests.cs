@@ -78,11 +78,15 @@ public sealed class ProjectMemberValueBoundaryTests
                 UserId = "member-user-1",
                 Role = ProjectRole.LEADER,
             }));
+        members.Setup(service => service.GetByProjectIdAsync("project-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<IReadOnlyList<ProjectMemberDto>>.Success([]));
         var hierarchy = new Mock<IHierarchyAuthorizationService>();
         hierarchy.Setup(service => service.CanManageProjectAsync(
                 "manager-1", "project-1", It.IsAny<CancellationToken>()))
             .ReturnsAsync(true);
-        var controller = WithActor(CreateController(members.Object, hierarchy.Object), "manager-1");
+        var controller = WithActor(
+            CreateController(members.Object, hierarchy.Object, ProjectCreatedBy("manager-1")),
+            "manager-1");
 
         var result = await controller.UpdateMember(
             "project-1",
@@ -95,6 +99,83 @@ public sealed class ProjectMemberValueBoundaryTests
         hierarchy.VerifyAll();
     }
 
+    /// <summary>A CORE_CONTRIBUTOR passes the manager gate but may not raise themself, crown anyone, or delete the project.</summary>
+    [Fact]
+    public async Task ACoreContributorManager_CannotEscalateRolesOrDeleteTheFoundersProject()
+    {
+        var members = new Mock<IProjectMemberService>(MockBehavior.Strict);
+        members.Setup(service => service.GetByIdAsync("own-row", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<ProjectMemberDto>.Success(Member("own-row", "core-1", ProjectRole.CORE_CONTRIBUTOR)));
+        members.Setup(service => service.GetByIdAsync("peer-row", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<ProjectMemberDto>.Success(Member("peer-row", "peer-1", ProjectRole.CONTRIBUTOR)));
+        members.Setup(service => service.GetByProjectIdAsync("project-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<IReadOnlyList<ProjectMemberDto>>.Success(
+                [Member("own-row", "core-1", ProjectRole.CORE_CONTRIBUTOR), Member("peer-row", "peer-1", ProjectRole.CONTRIBUTOR)]));
+        var hierarchy = new Mock<IHierarchyAuthorizationService>();
+        hierarchy.Setup(service => service.CanManageProjectAsync("core-1", "project-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+        var controller = WithActor(
+            CreateController(members.Object, hierarchy.Object, ProjectCreatedBy("founder-1")),
+            "core-1");
+
+        var raiseSelf = await controller.UpdateMember(
+            "project-1", "own-row", new UpdateProjectMemberDto { Role = ProjectRole.LEADER }, CancellationToken.None);
+        var crownPeer = await controller.UpdateMember(
+            "project-1", "peer-row", new UpdateProjectMemberDto { Role = ProjectRole.FOUNDER }, CancellationToken.None);
+        var promotePeerToOwnRank = await controller.UpdateMember(
+            "project-1", "peer-row", new UpdateProjectMemberDto { Role = ProjectRole.CORE_CONTRIBUTOR }, CancellationToken.None);
+        var seatStranger = await controller.AddMember(
+            "project-1", new CreateProjectMemberDto { UserId = "stranger-1", Role = ProjectRole.CONTRIBUTOR }, CancellationToken.None);
+        var deleteProject = await controller.Delete("project-1", CancellationToken.None);
+
+        RefusalOf(raiseSelf).Should().Be(ProjectMemberRolePolicy.CannotChangeOwnRole);
+        RefusalOf(crownPeer).Should().Be(ProjectMemberRolePolicy.FounderIsNotGrantable);
+        RefusalOf(promotePeerToOwnRank).Should().Be(ProjectMemberRolePolicy.OutranksActor);
+        RefusalOf(seatStranger).Should().Be(ProjectMemberRolePolicy.FounderSeatOnly);
+        RefusalOf(deleteProject).Should().Be(ProjectMemberRolePolicy.FounderOnlyDelete);
+    }
+
+    /// <summary>Project creation's step 4: the creator seats their own founder row, attributed to themself.</summary>
+    [Fact]
+    public async Task TheCreator_SeatsTheirOwnFounderRow()
+    {
+        var members = new Mock<IProjectMemberService>(MockBehavior.Strict);
+        members.Setup(service => service.CreateAsync(
+                It.Is<CreateProjectMemberDto>(dto => dto.ProjectId == "project-1" && dto.UserId == "founder-1" &&
+                                                     dto.Role == ProjectRole.FOUNDER && dto.InvitedById == "founder-1"),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<ProjectMemberDto>.Success(Member("founder-row", "founder-1", ProjectRole.FOUNDER)));
+        var controller = WithActor(
+            CreateController(members.Object, projects: ProjectCreatedBy("founder-1")),
+            "founder-1");
+
+        var result = await controller.AddMember(
+            "project-1",
+            new CreateProjectMemberDto { UserId = "founder-1", Role = ProjectRole.FOUNDER, InvitedById = "spoofed" },
+            CancellationToken.None);
+
+        result.Should().BeOfType<CreatedAtActionResult>()
+            .Which.Value.Should().BeOfType<ProjectMemberDto>().Which.Role.Should().Be(ProjectRole.FOUNDER);
+    }
+
+    private static string? RefusalOf(IActionResult result)
+    {
+        var response = result.Should().BeOfType<ObjectResult>().Subject;
+        response.StatusCode.Should().Be(StatusCodes.Status403Forbidden);
+        return response.Value!.GetType().GetProperty("error")!.GetValue(response.Value) as string;
+    }
+
+    private static ProjectMemberDto Member(string id, string userId, ProjectRole role)
+        => new() { Id = id, ProjectId = "project-1", UserId = userId, Role = role };
+
+    private static IProjectService ProjectCreatedBy(string creatorId)
+    {
+        var projects = new Mock<IProjectService>(MockBehavior.Strict);
+        projects.Setup(service => service.GetByIdAsync("project-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<ProjectDto>.Success(new ProjectDto { Id = "project-1", CreatedById = creatorId }));
+        return projects.Object;
+    }
+
     public static TheoryData<UpdateProjectMemberDto> DirectAllocationChanges =>
     [
         new UpdateProjectMemberDto { ShareBalance = 1m },
@@ -102,9 +183,10 @@ public sealed class ProjectMemberValueBoundaryTests
 
     private static ProjectsController CreateController(
         IProjectMemberService members,
-        IHierarchyAuthorizationService? hierarchy = null)
+        IHierarchyAuthorizationService? hierarchy = null,
+        IProjectService? projects = null)
         => new(
-            new Mock<IProjectService>(MockBehavior.Strict).Object,
+            projects ?? new Mock<IProjectService>(MockBehavior.Strict).Object,
             new Mock<IProjectVisibility>(MockBehavior.Strict).Object,
             new Mock<IProjectResourceService>(MockBehavior.Strict).Object,
             new Mock<IProjectMilestoneService>(MockBehavior.Strict).Object,

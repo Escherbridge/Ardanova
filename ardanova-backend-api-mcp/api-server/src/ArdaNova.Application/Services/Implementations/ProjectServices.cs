@@ -1538,13 +1538,20 @@ public class ProjectMemberService : IProjectMemberService
 {
     private readonly IRepository<ProjectMember> _repository;
     private readonly IRepository<User> _userRepository;
+    private readonly IRepository<ProjectTask> _taskRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IMapper _mapper;
 
-    public ProjectMemberService(IRepository<ProjectMember> repository, IRepository<User> userRepository, IUnitOfWork unitOfWork, IMapper mapper)
+    public ProjectMemberService(
+        IRepository<ProjectMember> repository,
+        IRepository<User> userRepository,
+        IRepository<ProjectTask> taskRepository,
+        IUnitOfWork unitOfWork,
+        IMapper mapper)
     {
         _repository = repository;
         _userRepository = userRepository;
+        _taskRepository = taskRepository;
         _unitOfWork = unitOfWork;
         _mapper = mapper;
     }
@@ -1660,6 +1667,19 @@ public class ProjectMemberService : IProjectMemberService
         var member = await _repository.GetByIdAsync(id, ct);
         if (member is null)
             return Result<bool>.NotFound($"Member with id {id} not found");
+
+        // A removed member's unfinished work goes back to the pool, in the same save.
+        var openAssignments = await _taskRepository.FindAsync(
+            task => task.projectId == member.projectId &&
+                    task.assignedToId == member.userId &&
+                    task.status != TaskStatus.COMPLETED,
+            ct);
+        foreach (var task in openAssignments)
+        {
+            task.assignedToId = null;
+            task.updatedAt = DateTime.UtcNow;
+            await _taskRepository.UpdateAsync(task, ct);
+        }
 
         await _repository.DeleteAsync(member, ct);
         await _unitOfWork.SaveChangesAsync(ct);

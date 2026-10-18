@@ -182,6 +182,67 @@ public class ProjectHiringFlowTests
     }
 
     [Fact]
+    public async Task ARoleSavedAsDraft_TakesApplicationsOnlyOnceItsTeamOpensIt()
+    {
+        var created = await _opportunityService.CreateAsync(new CreateOpportunityDto
+        {
+            PosterId = Founder,
+            ProjectId = PublishedProjectId,
+            Title = "Heat mapper",
+            Description = "Map the hottest blocks.",
+            Type = OpportunityType.PROJECT_ROLE,
+            ExperienceLevel = ExperienceLevel.JUNIOR,
+            IsOpenForApplications = false,
+        });
+        var roleId = created.Value!.Id;
+        var whileDraft = await _opportunityService.ApplyAsync(roleId, new ApplyToOpportunityDto
+        {
+            ApplicantId = Applicant,
+            CoverLetter = "I map heat islands for a living."
+        });
+
+        var opened = await _opportunityService.UpdateAsync(roleId, new UpdateOpportunityDto { Status = OpportunityStatus.OPEN });
+        var publicView = await _opportunityService.GetVisibleByIdAsync(ProjectViewer.Anonymous, roleId);
+        var onceOpen = await _opportunityService.ApplyAsync(roleId, new ApplyToOpportunityDto
+        {
+            ApplicantId = Applicant,
+            CoverLetter = "I map heat islands for a living."
+        });
+
+        whileDraft.Type.Should().Be(ResultType.ValidationError);
+        opened.Value!.IsOpenForApplications.Should().BeTrue();
+        publicView.IsSuccess.Should().BeTrue();
+        onceOpen.IsSuccess.Should().BeTrue();
+        _opportunityApplications.Items.Should().ContainSingle(application => application.applicantId == Applicant);
+    }
+
+    [Fact]
+    public async Task RemovingAMember_ReturnsTheirUnfinishedTasksToThePool()
+    {
+        _members.Add(new ProjectMember
+        {
+            id = "member-row",
+            projectId = PublishedProjectId,
+            userId = Applicant,
+            role = ProjectRole.CONTRIBUTOR,
+            joinedAt = DateTime.UtcNow
+        });
+        await _taskService.AssignAsync("task-public", Applicant);
+        var finished = NewTask("task-finished", PublishedProjectId, "done plan");
+        finished.status = TaskStatus.COMPLETED;
+        finished.assignedToId = Applicant;
+        _tasks.Add(finished);
+        var memberService = new ProjectMemberService(_members, _users, _tasks, _unitOfWork, _mapper);
+
+        var removed = await memberService.DeleteAsync("member-row");
+
+        removed.IsSuccess.Should().BeTrue();
+        _members.Items.Should().BeEmpty();
+        _tasks.Items.Single(task => task.id == "task-public").assignedToId.Should().BeNull();
+        _tasks.Items.Single(task => task.id == "task-finished").assignedToId.Should().Be(Applicant);
+    }
+
+    [Fact]
     public async Task ATaskWhoseBidWasAccepted_CannotBeHandedToSomeoneElse()
     {
         _agreements.Add(new TaskCommerceAgreement { id = "agreement-1", taskId = "task-public" });

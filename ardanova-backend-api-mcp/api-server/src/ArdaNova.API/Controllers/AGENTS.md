@@ -130,6 +130,9 @@ answer 404 with the same body (otherwise its 403-vs-400 split is an existence or
 the task's assignment action: managers assign any project member or null; a non-manager member may
 only claim an unassigned task for themselves or release their own.
 
+`PUT /api/tasks/{id}`, `PATCH /api/tasks/{id}/status` and `DELETE /api/tasks/{id}` follow the same
+404-first rule through `GetVisibleTaskAsync`; only a visible task can then be refused with 403.
+
 ## Profile ownership
 
 Skill and experience writes (`UserSkillsController`, `UserExperienceController`) require
@@ -139,3 +142,13 @@ opaque child ID cannot be used to probe or change another person's profile. Read
 `POST /api/users/{id}/verify` is retired (410) because a person marking their own account
 verified is not evidence; AZOA KYC is authoritative. Owner denials return an explicit 403 body
 instead of `Forbid()`.
+
+## Bid privacy
+
+Opportunity bids carry a private proposal and price. Every bid read requires `ActorAssertion`: the
+per-opportunity list is for that opportunity's managers (project managers for a project role, else
+the poster) and answers 404 to everyone else; a single bid is readable by its bidder or a manager;
+the guild listing returns only the actor's own bids. The bidder's email is never part of a bid
+(`OpportunityBidService` nulls it), matching the public-user redaction elsewhere. Role hiring
+(apply, accept, seat as member) uses opportunity applications; bids are for paid task work and go
+through task commerce, which needs a positive award.

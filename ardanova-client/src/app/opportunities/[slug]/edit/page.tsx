@@ -1,6 +1,7 @@
 import { redirect, notFound } from "next/navigation";
 import { auth } from "~/server/auth";
 import { apiClient } from "~/lib/api";
+import { runWithActorAssertion } from "~/server/actor-assertion";
 import { buildSignInHref } from "~/lib/auth-navigation";
 import { OpportunityForm } from "~/components/opportunity-form";
 import { toOpportunityPageData } from "../opportunity-page-contract";
@@ -21,7 +22,11 @@ export default async function EditOpportunityPage({
     redirect(buildSignInHref(`/opportunities/${slug}/edit`));
   }
 
-  const response = await apiClient.opportunities.getBySlug(slug);
+  // Signed read so the poster can still reach a DRAFT role (anonymous reads hide drafts).
+  const response = await runWithActorAssertion(
+    { subject: session.user.id, role: session.user.role },
+    () => apiClient.opportunities.getBySlug(slug),
+  );
   if (response.error || !response.data) {
     notFound();
   }
