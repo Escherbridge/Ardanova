@@ -29,6 +29,13 @@ status onto the matching tRPC code (`backendFailure`), and only 5xx replies
 are reduced to a generic line. `ProfileDataCard` downloads the
 `getMyProfile` record as JSON. It does not offer account closure, which is
 blocked on the policy in `conductor/tracks/account-closure-and-export_20261018`.
+When `getMyProfile` refetches (after a skill or experience change, or on
+window focus), the form is reseeded only if the saved scalar fields changed,
+and `reseedProfileForm` keeps any field the member is still editing. A plain
+reseed used to wipe an unsaved bio whenever a skill was added. Experience
+dates are calendar dates stored as UTC midnight, so `formatExperienceMonth`
+formats them in UTC; formatting in the viewer's zone showed "Mar 1" as
+"Feb" for everyone west of UTC.
 Phone is the only private field on the form. Email comes from
 the sign-in account and cannot be edited here. userType is still assigned
 by the platform; the self-service choice belongs to

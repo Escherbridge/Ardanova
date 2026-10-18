@@ -127,3 +127,10 @@ feedback; the service rules are the ones that apply.
   controller sets them from the route after the actor check. They used to be `required`, which made
   System.Text.Json reject the client's `{skill, level}` body with a 400 before the controller ran, so
   every Add skill and Add experience failed.
+
+## User search privacy
+
+`UserService.SearchAsync` backs the public, unauthenticated `user.search` and `GET /api/Users/search`.
+It matches display names only. It used to also match an exact email, which let an anonymous caller
+confirm who owns an address and link it to a name, bio and LinkedIn. Inviting a known person by email
+goes through the manager-only invitation path above, where that disclosure is scoped to managers.

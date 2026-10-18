@@ -115,11 +115,10 @@ public class UserService : IUserService
 
     public async Task<Result<PagedResult<UserDto>>> SearchAsync(string query, int page, int pageSize, CancellationToken ct = default)
     {
-        // Email is an exact-match lookup only, so a substring query cannot enumerate addresses.
+        // Name-only: public search never matches email; see Services/AGENTS.md §User search privacy.
         var lowerQuery = query.Trim().ToLower();
         var result = await _repository.GetPagedAsync(page, pageSize,
-            u => u.name != null && u.name.ToLower().Contains(lowerQuery) ||
-                 u.email.ToLower() == lowerQuery,
+            u => u.name != null && u.name.ToLower().Contains(lowerQuery),
             ct);
         return Result<PagedResult<UserDto>>.Success(result.Map(_mapper.Map<UserDto>));
     }
@@ -406,8 +405,8 @@ public class UserExperienceService : IUserExperienceService
             return Result<UserExperienceDto>.ValidationError(invalid);
 
         if (dto.IsCurrent == true) exp.endDate = null;
-        if (dto.Title is not null) exp.title = dto.Title;
-        if (dto.Company is not null) exp.company = dto.Company;
+        if (dto.Title is not null) exp.title = dto.Title.Trim();
+        if (dto.Company is not null) exp.company = dto.Company.Trim();
         if (dto.Description is not null) exp.description = dto.Description;
         if (dto.StartDate.HasValue) exp.startDate = dto.StartDate.Value;
         if (dto.EndDate.HasValue) exp.endDate = dto.EndDate;

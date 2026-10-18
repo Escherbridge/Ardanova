@@ -28,6 +28,23 @@ export function profileFormFrom(profile: ProfileFormSource | undefined): Profile
   ) as unknown as ProfileFormValues;
 }
 
+/** Three-way merge on refetch: an unsaved edit keeps its draft; untouched or now-saved fields take the server value. */
+export function reseedProfileForm(
+  draft: ProfileFormValues,
+  previousSaved: ProfileFormValues,
+  nextSaved: ProfileFormValues,
+): ProfileFormValues {
+  const stillPending = profileUpdateFrom(draft, nextSaved);
+  return Object.fromEntries(
+    fields.map((field) => [
+      field,
+      draft[field] !== previousSaved[field] && field in stillPending
+        ? draft[field]
+        : nextSaved[field],
+    ]),
+  ) as unknown as ProfileFormValues;
+}
+
 /** Prefixes `https://` onto a bare domain so `example.org` passes URL validation. */
 export function normalizeWebsite(value: string): string {
   const trimmed = value.trim();

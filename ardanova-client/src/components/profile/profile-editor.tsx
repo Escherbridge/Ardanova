@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Loader2, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -17,6 +17,7 @@ import { api } from "~/trpc/react";
 import {
   profileFormFrom,
   profileUpdateFrom,
+  reseedProfileForm,
   type ProfileFormValues,
 } from "./profile-form";
 import { ProfileIdentityBadges } from "./profile-identity-badges";
@@ -63,9 +64,17 @@ export function ProfileEditor() {
   const [skillLevel, setSkillLevel] = useState("5");
   const [experience, setExperience] = useState(emptyExperience);
 
+  const lastSaved = useRef<ProfileFormValues>(saved);
+  const savedKey = JSON.stringify(saved);
   useEffect(() => {
-    if (profile.data) setValues(profileFormFrom(profile.data));
-  }, [profile.data]);
+    if (!profile.data) return;
+    const nextSaved = profileFormFrom(profile.data);
+    const previousSaved = lastSaved.current;
+    lastSaved.current = nextSaved;
+    setValues((draft) => reseedProfileForm(draft, previousSaved, nextSaved));
+    // Keyed on the saved scalars only, so a skills/experience refetch never touches the draft.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [savedKey]);
 
   const refresh = async () => {
     await Promise.all([

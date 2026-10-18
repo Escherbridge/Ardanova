@@ -1,7 +1,14 @@
 import { describe, expect, it } from "vitest";
 
-import { profileFormFrom, profileUpdateFrom } from "./profile-form";
-import { profileIdentityLabels } from "./profile-labels";
+import {
+  profileFormFrom,
+  profileUpdateFrom,
+  reseedProfileForm,
+} from "./profile-form";
+import {
+  formatExperienceMonth,
+  profileIdentityLabels,
+} from "./profile-labels";
 
 const saved = profileFormFrom({
   name: "Ada",
@@ -21,6 +28,42 @@ describe("profile edit payload", () => {
     ["a new phone", { ...saved, phone: " +1 555 0100 " }, { phone: "+1 555 0100" }],
   ])("sends only real changes for %s", (_case, values, expected) => {
     expect(profileUpdateFrom(values, saved)).toEqual(expected);
+  });
+});
+
+describe("profile form reseed after a refetch", () => {
+  it.each([
+    [
+      "a skill was added while the bio was being edited",
+      { ...saved, bio: "Draft bio" },
+      saved,
+      { bio: "Draft bio", name: "Ada" },
+    ],
+    [
+      "another tab renamed the member and this form is untouched",
+      { ...saved },
+      { ...saved, name: "Ada L." },
+      { bio: "Builds tools.", name: "Ada L." },
+    ],
+    [
+      "the draft was just saved and the server normalized the website",
+      { ...saved, website: "ada.org" },
+      { ...saved, website: "https://ada.org" },
+      { website: "https://ada.org" },
+    ],
+  ])("when %s", (_case, draft, nextSaved, expected) => {
+    expect(reseedProfileForm(draft, saved, nextSaved)).toMatchObject(expected);
+  });
+});
+
+describe("experience month label", () => {
+  it.each([
+    ["2024-03-01T00:00:00Z", "Mar 2024"],
+    ["2024-12-31T00:00:00.000Z", "Dec 2024"],
+    [null, ""],
+    ["not a date", ""],
+  ])("labels %s as %s whatever the viewer's zone", (value, expected) => {
+    expect(formatExperienceMonth(value)).toBe(expected);
   });
 });
 

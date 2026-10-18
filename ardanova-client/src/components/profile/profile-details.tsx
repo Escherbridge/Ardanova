@@ -2,6 +2,8 @@ import { Briefcase, Globe, Link2, MapPin, Sparkles } from "lucide-react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 
+import { formatExperienceMonth } from "./profile-labels";
+
 export interface ProfileDetailsData {
   location?: string | null;
   website?: string | null;
@@ -17,14 +19,6 @@ export interface ProfileDetailsData {
     endDate?: string | null;
     isCurrent: boolean;
   }[];
-}
-
-function formatMonth(value: string | null | undefined): string {
-  if (!value) return "";
-  const date = new Date(value);
-  return Number.isNaN(date.getTime())
-    ? ""
-    : date.toLocaleDateString("en-US", { month: "short", year: "numeric" });
 }
 
 /** Only http(s) links are rendered as anchors; anything else is shown as text. */
@@ -130,8 +124,8 @@ export function ProfileDetails({
                     {entry.title} · {entry.company}
                   </p>
                   <p className="text-muted-foreground text-xs">
-                    {formatMonth(entry.startDate)} –{" "}
-                    {entry.isCurrent ? "present" : formatMonth(entry.endDate) || "—"}
+                    {formatExperienceMonth(entry.startDate)} –{" "}
+                    {entry.isCurrent ? "present" : formatExperienceMonth(entry.endDate) || "—"}
                   </p>
                   {entry.description && (
                     <p className="text-muted-foreground mt-1 text-sm">
