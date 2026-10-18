@@ -1,0 +1,10 @@
+{
+  "track_id": "design-loop4-followups_20261018",
+  "type": "chore",
+  "status": "pending",
+  "created_at": "2026-10-18",
+  "updated_at": "2026-10-18",
+  "description": "Loop-4 design follow-ups in feature-lane files: wire shouldRetryQuery globally (still unwired since loop 3), route custody errors through the copy mapper, backend reason codes for operator messages, neon button text, task priority swatches, /people default tab, verification vendor naming.",
+  "source": "loop4 design QA + adversarial critique",
+  "partitions": { "confidence": "none" }
+}

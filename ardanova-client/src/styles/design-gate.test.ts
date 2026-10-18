@@ -36,7 +36,12 @@ const TEXT_ACCENTS = [
   "neon-green",
   "neon-yellow",
   "neon-purple",
+  "accent",
 ] as const;
+/** Surface/fill tokens with no text-safe value: `text-X` on them renders a pale tint as body copy. */
+const FILL_ONLY_TOKENS = ["accent", "secondary", "muted", "input", "ring", "border"];
+/** Decorative, aria-hidden uses of a fill token as text; each is a deferred item for its lane. */
+const KNOWN_FILL_AS_TEXT = new Set(["app/dashboard/tasks/page.tsx:border"]);
 /** Solid-fill pairs (`bg-X text-X-foreground`) used by Badge and Button. */
 const FILL_PAIRS = [
   "primary",
@@ -188,6 +193,21 @@ describe("design tokens", () => {
         .filter((key) => !KNOWN_UNDEFINED_TOKENS.has(key)),
     );
     expect([...new Set(undefinedTokens)]).toEqual([]);
+  });
+
+  it("fill-only tokens are never used as a text colour unless they have a text-safe override", () => {
+    const fillAsText = new RegExp(
+      `(?<![\\w-])(?:[\\w-]+:)*text-(${FILL_ONLY_TOKENS.join("|")})(?:/\\d+)?(?![\\w-])`,
+      "g",
+    );
+    const misuses = files.flatMap(({ relative, text }) =>
+      [...text.matchAll(fillAsText)]
+        .map((match) => match[1]!)
+        .filter((name) => !themeInline.has(`--text-color-${name}`))
+        .map((name) => `${relative}:${name}`)
+        .filter((key) => !KNOWN_FILL_AS_TEXT.has(key)),
+    );
+    expect([...new Set(misuses)]).toEqual([]);
   });
 
   it("raw Tailwind palette classes do not grow past the ceiling", () => {
