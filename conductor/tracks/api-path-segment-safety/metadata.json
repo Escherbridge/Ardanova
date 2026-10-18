@@ -1,0 +1,30 @@
+{
+  "id": "api-path-segment-safety",
+  "title": "API Path-Segment Safety",
+  "type": "bug",
+  "status": "proposed",
+  "priority": "P0",
+  "created": "2026-10-17",
+  "partitions": {
+    "confidence": "hypothesis",
+    "computed_at_commit": "29d057f",
+    "slices": [
+      {
+        "name": "central-guard",
+        "owns": [
+          "ardanova-client/src/lib/api/base-client.ts",
+          "ardanova-client/src/lib/api/base-client.test.ts",
+          "ardanova-client/src/server/api/ids.ts"
+        ]
+      },
+      {
+        "name": "endpoint-sweep",
+        "owns": ["ardanova-client/src/lib/api/ardanova/endpoints/"]
+      },
+      {
+        "name": "router-sweep",
+        "owns": ["ardanova-client/src/server/api/routers/"]
+      }
+    ]
+  }
+}

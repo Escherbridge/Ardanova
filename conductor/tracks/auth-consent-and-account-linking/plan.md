@@ -4,9 +4,12 @@ type: plan
 # Plan: Auth Consent, Account Linking, and Honest Sign-in Errors
 
 ## Phase 1: Read-surface and copy fixes (no schema)
-- [ ] Apply `toPublicUser` in `routers/profile.ts` `getProfileById`; add a router test that an anonymous read has no `email` or `phone` (owner: profile lane)
-- [ ] `/dashboard/profile` badge shows `session.user.userType` and `verificationLevel` (owner: dashboard lane)
-- [ ] `/auth/error`: separate ArdaNova refusals from provider denials (owner: auth lane, `src/app/auth/error/**`)
+- [x] Apply `toPublicUser` in `routers/profile.ts` `getProfileById`; add a router test that an anonymous read has no `email` or `phone` (loop 2, `profile.test.ts`)
+- [x] `/dashboard/profile` badge shows the real `userType` and `verificationLevel` (loop 2, `components/profile/profile-identity-badges.tsx`)
+- [x] `/auth/error`: separate ArdaNova refusals from provider denials. The callback returns `AccountNotLinked`, and "Try sign-in again" keeps `callbackUrl` (loop 2)
+- [x] Self-service profile editing at `/settings/profile`, plus Follow on other members' profiles (loop 2)
+- [ ] Self-service `userType` choice at first sign-in. Today `UsersController.UpdateUserType` is admin-only and `UpdateUserDto` has no `userType`. Add a .NET self-service endpoint limited to non-privileged types, with tests, and an onboarding step
+- [ ] Account deletion: a self-service `DELETE /api/users/{id}` already exists (actor == id), but no UI calls it, and the cascade or retention policy for owned projects and funds has not been decided
 - [ ] `ExceptionHandlingMiddleware`: return a generic message for `InvalidOperationException` (owner: API platform lane)
 - [ ] `ArdaNovaApiClient.VerifyAsync` (`ArdaNova.API/Client`): remove it, because `/verify` now returns 410
 
