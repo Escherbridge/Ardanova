@@ -36,7 +36,8 @@ export const metadata: Metadata = {
     siteName: "ArdaNova",
   },
   twitter: {
-    card: "summary_large_image",
+    // No share image ships yet; "summary_large_image" without one renders a broken card.
+    card: "summary",
     title: "ArdaNova — Shared project workspace",
     description:
       "A reviewable workspace for shared work, decisions, and contributor rights.",
