@@ -81,3 +81,35 @@ describe("user directory privacy", () => {
     });
   });
 });
+
+describe("user ids reaching the API path", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    users.getById.mockResolvedValue({
+      data: { items: [steward], totalCount: 1, hasNextPage: false },
+    });
+  });
+
+  it.each([
+    ["a list route", "paged?page=1&pageSize=3"],
+    ["a parent-directory hop", "../users/paged?pageSize=1&x="],
+    ["an email lookup", "email/steward@example.org"],
+    ["an encoded slash", "user%2Fpaged"],
+  ])("rejects %s before any backend call", async (_shape, id) => {
+    const caller = await callerAs(null);
+
+    await expect(caller.getById({ id })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    await expect(caller.getFollowCounts({ userId: id })).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+    });
+    expect(users.getById).not.toHaveBeenCalled();
+  });
+
+  it("refuses a backend answer that is not the user that was asked for", async () => {
+    const caller = await callerAs(null);
+
+    await expect(caller.getById({ id: steward.id })).rejects.toMatchObject({
+      code: "NOT_FOUND",
+    });
+  });
+});

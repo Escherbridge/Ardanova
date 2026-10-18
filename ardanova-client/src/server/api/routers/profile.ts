@@ -6,6 +6,7 @@ import {
   protectedProcedure,
 } from "~/server/api/trpc";
 import { apiClient } from "~/lib/api";
+import { recordIdSchema, requireRequestedUser, toPublicUser } from "./user";
 
 // ---------------------------------------------------------------------------
 // Router
@@ -34,21 +35,19 @@ export const profileRouter = createTRPCRouter({
   }),
 
   /**
-   * Get any user's public profile by ID.
+   * Get any user's profile by ID; contact and authority fields only for the user themself.
    */
   getProfileById: publicProcedure
-    .input(z.object({ userId: z.string().min(1) }))
-    .query(async ({ input }) => {
+    .input(z.object({ userId: recordIdSchema }))
+    .query(async ({ input, ctx }) => {
       const response = await apiClient.users.getById(input.userId);
-      if (!response.data) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Profile not found" });
-      }
+      const user = requireRequestedUser(response.data, input.userId);
       const [skillsRes, experienceRes] = await Promise.all([
         apiClient.users.getSkills(input.userId),
         apiClient.users.getExperience(input.userId),
       ]);
       return {
-        ...response.data,
+        ...(ctx.session?.user.id === user.id ? user : toPublicUser(user)),
         skills: skillsRes.data ?? [],
         experience: experienceRes.data ?? [],
       };
@@ -146,7 +145,7 @@ export const profileRouter = createTRPCRouter({
    * Remove a skill from the current user's profile.
    */
   removeSkill: protectedProcedure
-    .input(z.object({ skillId: z.string().min(1) }))
+    .input(z.object({ skillId: recordIdSchema }))
     .mutation(async ({ input, ctx }) => {
       const response = await apiClient.users.deleteSkill(
         ctx.session.user.id,
@@ -164,7 +163,7 @@ export const profileRouter = createTRPCRouter({
   updateSkill: protectedProcedure
     .input(
       z.object({
-        skillId: z.string().min(1),
+        skillId: recordIdSchema,
         level: z.number().int().min(1).max(10).optional(),
       })
     )
@@ -222,7 +221,7 @@ export const profileRouter = createTRPCRouter({
    * Remove an experience entry from the current user's profile.
    */
   removeExperience: protectedProcedure
-    .input(z.object({ experienceId: z.string().min(1) }))
+    .input(z.object({ experienceId: recordIdSchema }))
     .mutation(async ({ input, ctx }) => {
       const response = await apiClient.users.deleteExperience(
         ctx.session.user.id,
@@ -240,7 +239,7 @@ export const profileRouter = createTRPCRouter({
   updateExperience: protectedProcedure
     .input(
       z.object({
-        experienceId: z.string().min(1),
+        experienceId: recordIdSchema,
         title: z.string().min(1).max(200).optional(),
         company: z.string().min(1).max(200).optional(),
         description: z.string().max(2000).optional().nullable(),
