@@ -145,7 +145,9 @@ public class OpportunitiesController : ControllerBase
             return ToActionResult(opportunity);
 
         var currentOpportunity = opportunity.Value!;
+        // Only a re-role seats a different rank; the edit form resends the unchanged role, which a co-manager may keep.
         if (dto.ProjectRole.HasValue &&
+            dto.ProjectRole != currentOpportunity.ProjectRole &&
             !string.IsNullOrWhiteSpace(currentOpportunity.ProjectId) &&
             await RoleOfferRefusedAsync(currentOpportunity.ProjectId, dto.ProjectRole, ct) is { } refused)
             return refused;

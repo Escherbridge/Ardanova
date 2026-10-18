@@ -86,10 +86,9 @@ public class OpportunityManagementFlowTests
         result.Should().BeOfType<ForbidResult>();
     }
 
-    /// <summary>A co-manager who does not outrank the role cannot seat it: posting, re-roling or accepting are all refused before any write.</summary>
+    /// <summary>A co-manager who does not outrank the role cannot seat it: posting or accepting is refused before any write (re-roling: see the escalation fact).</summary>
     [Theory]
     [InlineData("create")]
-    [InlineData("update")]
     [InlineData("accept")]
     public async Task ACoManagerOutrankedByTheRole_CannotOfferIt(string action)
     {
@@ -124,6 +123,49 @@ public class OpportunityManagementFlowTests
         var refusal = result.Should().BeOfType<ObjectResult>().Subject;
         refusal.StatusCode.Should().Be(StatusCodes.Status403Forbidden);
         refusal.Value.Should().BeEquivalentTo(new { error = ProjectMemberRolePolicy.OutranksActor });
+    }
+
+    /// <summary>Re-roling a CONTRIBUTOR listing up to LEADER is refused for a co-manager the LEADER rank outranks.</summary>
+    [Fact]
+    public async Task ACoManager_CannotEscalateAListingToARoleThatOutranksThem()
+    {
+        var opportunities = ReadableOpportunity(commentAuthor: "someone-else", offeredRole: ProjectRole.CONTRIBUTOR);
+        opportunities.Setup(s => s.RefuseRoleOfferAsync(
+                It.Is<ProjectViewer>(viewer => viewer.UserId == Actor), ManagedProject, ProjectRole.LEADER, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ProjectMemberRolePolicy.OutranksActor);
+        var controller = Controller(opportunities.Object, actorManagesProject: true);
+
+        var result = await controller.Update(
+            "opportunity-1",
+            new UpdateOpportunityDto { Title = "Lead the build", ProjectRole = ProjectRole.LEADER },
+            CancellationToken.None);
+
+        // Strict mock: UpdateAsync would throw if reached.
+        result.Should().BeOfType<ObjectResult>().Which.StatusCode.Should().Be(StatusCodes.Status403Forbidden);
+    }
+
+    /// <summary>The edit form resends the listing's existing role; a co-manager outranked by it may still edit copy.</summary>
+    [Fact]
+    public async Task ACoManager_CanEditAListingWhoseUnchangedRoleOutranksThem()
+    {
+        var opportunities = ReadableOpportunity(commentAuthor: "someone-else", offeredRole: ProjectRole.LEADER);
+        opportunities.Setup(s => s.RefuseRoleOfferAsync(
+                It.IsAny<ProjectViewer>(), ManagedProject, ProjectRole.LEADER, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ProjectMemberRolePolicy.OutranksActor);
+        opportunities.Setup(s => s.UpdateAsync(
+                "opportunity-1",
+                It.Is<UpdateOpportunityDto>(dto => dto.Title == "Clearer title"),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<OpportunityDto>.Success(Opportunity() with { Title = "Clearer title", ProjectRole = ProjectRole.LEADER }));
+        var controller = Controller(opportunities.Object, actorManagesProject: true);
+
+        var result = await controller.Update(
+            "opportunity-1",
+            new UpdateOpportunityDto { Title = "Clearer title", ProjectRole = ProjectRole.LEADER },
+            CancellationToken.None);
+
+        result.Should().BeOfType<OkObjectResult>()
+            .Which.Value.Should().BeOfType<OpportunityDto>().Which.Title.Should().Be("Clearer title");
     }
 
     [Fact]
