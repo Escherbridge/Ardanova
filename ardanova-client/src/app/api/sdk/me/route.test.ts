@@ -1,14 +1,17 @@
 import { NextResponse } from "next/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import type * as ArdanovaClientModule from "~/lib/api/ardanova";
+
 vi.mock("server-only", () => ({}));
 
-const { getSessionOrError } = vi.hoisted(() => ({ getSessionOrError: vi.fn() }));
+const { getSessionOrError } = vi.hoisted(() => ({
+  getSessionOrError: vi.fn(),
+}));
 vi.mock("../_lib/session", () => ({ getSessionOrError }));
 vi.mock("~/lib/api", async () => {
-  const { ArdaNovaApiClient } = await vi.importActual<typeof import("~/lib/api/ardanova")>(
-    "~/lib/api/ardanova",
-  );
+  const { ArdaNovaApiClient } =
+    await vi.importActual<typeof ArdanovaClientModule>("~/lib/api/ardanova");
   return { apiClient: new ArdaNovaApiClient({ baseUrl: "http://api.test" }) };
 });
 vi.mock("~/env", () => ({ env: {} }));
@@ -19,9 +22,13 @@ let fetchMock: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
   vi.stubEnv("ACTOR_ASSERTION_HMAC_KEY", "k".repeat(64));
-  fetchMock = vi.fn().mockResolvedValue(
-    new Response(JSON.stringify({ id: "user-1", email: "me@example.test" }), { status: 200 }),
-  );
+  fetchMock = vi
+    .fn()
+    .mockResolvedValue(
+      new Response(JSON.stringify({ id: "user-1", email: "me@example.test" }), {
+        status: 200,
+      }),
+    );
   vi.stubGlobal("fetch", fetchMock);
 });
 afterEach(() => {
@@ -44,7 +51,7 @@ describe("GET /api/sdk/me", () => {
     const assertion = new Headers(init.headers).get("X-Ardanova-Actor");
     expect(assertion).toBeTruthy();
     const payload = JSON.parse(
-      Buffer.from(assertion!.split(".")[0]!, "base64url").toString("utf8"),
+      Buffer.from(assertion!.split(".")[0] ?? "", "base64url").toString("utf8"),
     ) as { subject: string };
     expect(payload.subject).toBe("user-1");
   });
