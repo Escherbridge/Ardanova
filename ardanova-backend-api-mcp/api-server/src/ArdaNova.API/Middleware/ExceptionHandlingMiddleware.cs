@@ -56,8 +56,36 @@ public class ExceptionHandlingMiddleware
             => (StatusCodes.Status500InternalServerError, ServerErrorMessage),
         ArgumentException
             => (StatusCodes.Status400BadRequest, InvalidValueMessage),
-        _ => (StatusCodes.Status500InternalServerError, ServerErrorMessage)
+        _ => ClassifyDatabaseFault(exception)
+            ?? (StatusCodes.Status500InternalServerError, ServerErrorMessage)
     };
+
+    /// <summary>Maps a PostgreSQL data or constraint fault caused by the request to 4xx; see AGENTS.md §Database faults.</summary>
+    private static (int StatusCode, string Message)? ClassifyDatabaseFault(Exception exception)
+    {
+        for (var current = exception; current is not null; current = current.InnerException)
+        {
+            if (current.GetType().GetProperty("SqlState")?.GetValue(current) is not string sqlState)
+                continue;
+
+            return sqlState switch
+            {
+                UniqueViolation => (StatusCodes.Status409Conflict, ConflictMessage),
+                ForeignKeyViolation or CheckViolation
+                    => (StatusCodes.Status400BadRequest, InvalidValueMessage),
+                _ when sqlState.StartsWith(DataExceptionClass, StringComparison.Ordinal)
+                    => (StatusCodes.Status400BadRequest, InvalidValueMessage),
+                _ => null,
+            };
+        }
+        return null;
+    }
+
+    public const string ConflictMessage = "The request conflicts with existing data.";
+    private const string DataExceptionClass = "22";
+    private const string UniqueViolation = "23505";
+    private const string ForeignKeyViolation = "23503";
+    private const string CheckViolation = "23514";
 }
 
 public static class ExceptionHandlingMiddlewareExtensions

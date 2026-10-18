@@ -88,8 +88,9 @@ model validation) goes through `ApiErrorEnvelope` and has the same shape:
 `{ "error": string, "statusCode": number, "traceId": string }`. Model-validation
 failures add `errors: { field: string[] }` (`ApiErrorEnvelope.AddArdaNovaErrorEnvelope`).
 Input-formatter exception text is turned off, so JSON errors no longer leak
-DTO namespaces. Controller-authored `BadRequest(new { error })` bodies still use
-the same `error` key, so the BFF reads one field.
+DTO namespaces. Controller-authored results (`NotFound(new { error })`, bare `NotFound()`,
+`ProblemDetails`, strings) are rewritten into the same envelope by
+`Filters/ErrorEnvelopeResultFilter` (see `Filters/AGENTS.md` §Error envelope).
 
 `ExceptionHandlingMiddleware` never echoes exception text. Services report
 expected failures through `Result<T>`, so an exception reaching it is a server
@@ -104,3 +105,20 @@ fault and becomes a 500. Two cases are exceptions:
 configuration and invariant failures, which belong in 5xx monitoring. A response
 that has already started is rethrown so the server aborts it, instead of being
 written over.
+
+## Database faults
+
+`Classify` walks the inner-exception chain for an exception that exposes a
+`SqlState` string (Npgsql's `PostgresException`). It reads the property by
+reflection, so this file needs no Npgsql reference. The mapping:
+
+- `22xxx` (data exception, e.g. invalid JSON for a `jsonb` column, value too
+  long): 400;
+- `23505` (unique violation): 409;
+- `23503` (foreign key violation) and `23514` (check violation): 400.
+
+Any other state stays a 500. That includes `23502` (not-null violation),
+because a missing required value is a server bug, not something the caller
+did. Like every other case, the mapped message is fixed and never echoes the
+database text. Without this mapping, `POST /api/Achievements` with a
+plain-text `criteria` returned an opaque 500.
