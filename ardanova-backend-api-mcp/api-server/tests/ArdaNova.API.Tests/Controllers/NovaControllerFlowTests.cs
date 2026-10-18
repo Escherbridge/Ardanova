@@ -87,6 +87,31 @@ public class NovaControllerFlowTests
     }
 
     [Fact]
+    public async Task AnotherMembersSessionReadsAsNotFoundAndSpendsNothingUpstream()
+    {
+        var upstream = new FakePartnerApi();
+        var owner = NovaFor(upstream);
+        var intruder = owner with { Controller = ControllerFor(owner.Service, "member-2") };
+        var first = await RefineAsync(owner, new NovaRefineRequestDto { Idea = Idea });
+        var continuation = new NovaRefineRequestDto
+        {
+            Idea = Idea,
+            Turns = [new NovaTurnDto { Question = first.Question!, Answer = "Forty households asked." }],
+            State = first.State,
+            SessionId = first.SessionId,
+        };
+        var callsBefore = upstream.SeenAuthorization.Count;
+
+        var hijack = await intruder.Controller.RefineProject(continuation, CancellationToken.None);
+        var callsAfterHijack = upstream.SeenAuthorization.Count;
+        var ownersTurn = await RefineAsync(owner, continuation);
+
+        StatusOf(hijack).Should().Be(StatusCodes.Status404NotFound);
+        callsAfterHijack.Should().Be(callsBefore);
+        ownersTurn.Number.Should().Be(2);
+    }
+
+    [Fact]
     public async Task UnconfiguredEnvironmentRunsTheLabelledLocalPreview()
     {
         var nova = NovaFor(new LocalNovaPreviewClient());
@@ -113,7 +138,7 @@ public class NovaControllerFlowTests
 
     private static int? StatusOf(IActionResult result) => (result as ObjectResult)?.StatusCode;
 
-    private sealed record NovaHarness(NovaController Controller, List<string> Logs);
+    private sealed record NovaHarness(NovaController Controller, INovaOrchestrationService Service, List<string> Logs);
 
     private static NovaHarness NovaFor(FakePartnerApi upstream, int dailySessions = 10)
     {
@@ -128,18 +153,19 @@ public class NovaControllerFlowTests
         logs ??= [];
         var service = new NovaOrchestrationService(client, new NovaSessionAllowance(TimeProvider.System, dailySessions),
             new CapturingLogger<NovaOrchestrationService>(logs));
-        var controller = new NovaController(service)
-        {
-            ControllerContext = new ControllerContext
-            {
-                HttpContext = new DefaultHttpContext
-                {
-                    User = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, "member-1")], "test")),
-                },
-            },
-        };
-        return new NovaHarness(controller, logs);
+        return new NovaHarness(ControllerFor(service, "member-1"), service, logs);
     }
+
+    private static NovaController ControllerFor(INovaOrchestrationService service, string actorId) => new(service)
+    {
+        ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext
+            {
+                User = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, actorId)], "test")),
+            },
+        },
+    };
 
     /// <summary>Behaves like POST /api/partner/v1/validate: asks numbered questions, checks the state round-trip, then a verdict.</summary>
     private sealed class FakePartnerApi : HttpMessageHandler

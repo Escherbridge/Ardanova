@@ -21,6 +21,7 @@ const refineInput = z.object({
 export function novaErrorCode(status: number): TRPCError["code"] {
   if (status === 400) return "BAD_REQUEST";
   if (status === 401) return "UNAUTHORIZED";
+  if (status === 404) return "NOT_FOUND";
   if (status === 429) return "TOO_MANY_REQUESTS";
   return "INTERNAL_SERVER_ERROR";
 }

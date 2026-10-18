@@ -9,7 +9,11 @@ public sealed class NovaSessionAllowance
 
     private readonly TimeProvider _time;
     private readonly int _cap;
+    /// <summary>How long a started refinement may be continued by its actor.</summary>
+    public static readonly TimeSpan SessionLifetime = TimeSpan.FromHours(6);
+
     private readonly ConcurrentDictionary<string, (DateOnly Day, int Used)> _used = new();
+    private readonly ConcurrentDictionary<(string ActorId, string SessionId), DateTimeOffset> _owned = new();
 
     public NovaSessionAllowance(TimeProvider time, int dailySessionsPerActor = DefaultDailySessionsPerActor)
     {
@@ -33,6 +37,19 @@ public sealed class NovaSessionAllowance
             });
         return granted;
     }
+
+    /// <summary>Records that the upstream issued this session to this actor; keyed by the pair, so a shared preview id never transfers ownership.</summary>
+    public void BindSession(string actorId, string sessionId)
+    {
+        var now = _time.GetUtcNow();
+        foreach (var stale in _owned.Where(entry => entry.Value <= now).Select(entry => entry.Key).ToArray())
+            _owned.TryRemove(stale, out _);
+        _owned[(actorId, sessionId)] = now + SessionLifetime;
+    }
+
+    /// <summary>True only when this actor started (and still holds) the session.</summary>
+    public bool OwnsSession(string actorId, string sessionId)
+        => _owned.TryGetValue((actorId, sessionId), out var expiresAt) && expiresAt > _time.GetUtcNow();
 
     /// <summary>Gives back a session whose first turn failed upstream.</summary>
     public void Refund(string actorId)

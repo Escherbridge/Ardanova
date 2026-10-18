@@ -18,6 +18,7 @@ public sealed class NovaOrchestrationService : INovaOrchestrationService
     /// <summary>Error codes the controller maps to HTTP; the member-facing copy lives in the client.</summary>
     public const string UnavailableError = "nova_unavailable";
     public const string QuotaError = "nova_daily_limit";
+    public const string SessionNotFoundError = "nova_session_not_found";
 
     private readonly IOgaiClient _client;
     private readonly NovaSessionAllowance _allowance;
@@ -61,6 +62,10 @@ public sealed class NovaOrchestrationService : INovaOrchestrationService
         if (!firstTurn && (string.IsNullOrWhiteSpace(request.State) || string.IsNullOrWhiteSpace(request.SessionId)))
             return Result<NovaRefineResponseDto>.ValidationError("Continue the refinement with the state Nova AI returned.");
 
+        // A continuation must name a session this actor started; anyone else's id reads as absent.
+        if (!firstTurn && !_allowance.OwnsSession(actorId, request.SessionId!))
+            return Result<NovaRefineResponseDto>.NotFound(SessionNotFoundError);
+
         if (firstTurn && !_allowance.TryStart(actorId))
             return Result<NovaRefineResponseDto>.Conflict(QuotaError);
 
@@ -90,6 +95,9 @@ public sealed class NovaOrchestrationService : INovaOrchestrationService
             _logger.LogWarning("Nova upstream reply named the provider; dropped");
             return Result<NovaRefineResponseDto>.Failure(UnavailableError);
         }
+
+        if (!string.IsNullOrWhiteSpace(turnResult.SessionId))
+            _allowance.BindSession(actorId, turnResult.SessionId);
 
         return Result<NovaRefineResponseDto>.Success(new NovaRefineResponseDto
         {

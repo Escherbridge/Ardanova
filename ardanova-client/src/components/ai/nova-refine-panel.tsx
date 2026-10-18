@@ -44,6 +44,8 @@ function describeError(code: string | undefined): string {
   if (code === "BAD_REQUEST")
     return "Nova AI could not use that input. Check the idea and your answers, then try again.";
   if (code === "UNAUTHORIZED") return "Sign in again to use Nova AI.";
+  if (code === "NOT_FOUND")
+    return "This refinement has expired. Start again from your idea.";
   return "Nova AI is unavailable right now. Your idea and answers are still here; try again in a moment.";
 }
 

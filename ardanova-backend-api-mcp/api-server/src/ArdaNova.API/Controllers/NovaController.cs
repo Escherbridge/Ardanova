@@ -34,6 +34,7 @@ public sealed class NovaController : ControllerBase
             {
                 ResultType.ValidationError or ResultType.BadRequest => BadRequest(new { error = result.Error }),
                 ResultType.Unauthorized => Unauthorized(new { error = result.Error }),
+                ResultType.NotFound => NotFound(new { error = result.Error }),
                 ResultType.Conflict => StatusCode(StatusCodes.Status429TooManyRequests, new { error = result.Error }),
                 _ => StatusCode(StatusCodes.Status503ServiceUnavailable, new { error = result.Error }),
             };

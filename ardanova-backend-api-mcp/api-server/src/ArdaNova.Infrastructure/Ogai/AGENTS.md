@@ -38,6 +38,12 @@ BFF or the browser, and the AI client service (`ardanova-ai-client`) is not on t
 - `NovaSessionAllowance`: at most 10 new sessions per member per UTC day (in memory, single replica;
   a restart forgets the count, and the OGAI partner quota still binds). A first turn that fails
   upstream is given back.
+- Session binding: every successful turn records `(actorId, sessionId)` in the allowance (6 h
+  lifetime). A continuation whose session this actor was not issued returns NotFound
+  `nova_session_not_found` (404) before any upstream call, so a leaked or guessed session id can
+  neither be taken over nor used to run turns outside the daily cap. Keyed by the pair because the
+  local preview derives session ids from the idea text. In memory like the counter: a restart makes
+  in-flight refinements read as expired.
 - Brand guard: OGAI already hides its own names; the service additionally drops any reply whose
   member-visible text contains `NovaBrand.HiddenNames` (503), and stamps `Assistant = "Nova AI"`
   itself rather than trusting upstream.
@@ -51,10 +57,11 @@ BFF or the browser, and the AI client service (`ardanova-ai-client`) is not on t
 | 200 question/verdict | Success | 200 |
 | 400 | ValidationError | 400 |
 | 429 `quota`, or member allowance spent | Conflict `nova_daily_limit` | 429 |
+| (none: continuation of a session not bound to this actor) | NotFound `nova_session_not_found` | 404 |
 | 401, 5xx, timeout, malformed, brand leak | Failure `nova_unavailable` | 503 |
 
 A 429 that is not `quota` (OGAI's turn-in-flight) maps to 503 so the member simply retries.
 
 Tests: `tests/ArdaNova.API.Tests/Controllers/NovaControllerFlowTests.cs` drive the controller with a
 fake partner HTTP handler (state round-trip, verdict with brief, brand leak dropped, status mapping
-with no key in logs, allowance and refund, local preview).
+with no key in logs, allowance and refund, foreign session 404, local preview).
