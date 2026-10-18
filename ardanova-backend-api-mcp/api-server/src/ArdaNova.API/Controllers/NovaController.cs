@@ -22,6 +22,10 @@ public sealed class NovaController : ControllerBase
         _nova = nova;
     }
 
+    /// <summary>Whether project refinement is live, a local preview, or off on this deployment.</summary>
+    [HttpGet("status")]
+    public ActionResult<NovaStatusDto> Status() => Ok(_nova.GetStatus());
+
     /// <summary>One project-refinement turn for the signed actor: the next question, or the feasibility verdict.</summary>
     [HttpPost("project-refinement")]
     public async Task<IActionResult> RefineProject([FromBody] NovaRefineRequestDto request, CancellationToken ct)

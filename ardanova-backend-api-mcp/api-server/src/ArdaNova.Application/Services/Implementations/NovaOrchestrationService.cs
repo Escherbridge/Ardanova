@@ -16,20 +16,25 @@ public sealed class NovaOrchestrationService : INovaOrchestrationService
     public const int MaxTurns = 8;
 
     /// <summary>Error codes the controller maps to HTTP; the member-facing copy lives in the client.</summary>
-    public const string UnavailableError = "nova_unavailable";
-    public const string QuotaError = "nova_daily_limit";
-    public const string SessionNotFoundError = "nova_session_not_found";
+    public const string UnavailableError = NovaErrors.Unavailable;
+    public const string QuotaError = NovaErrors.DailyLimit;
+    public const string CapacityError = NovaErrors.Capacity;
+    public const string SessionNotFoundError = NovaErrors.SessionNotFound;
 
     private readonly IOgaiClient _client;
     private readonly NovaSessionAllowance _allowance;
+    private readonly NovaSessionTickets _tickets;
     private readonly ILogger<NovaOrchestrationService> _logger;
 
-    public NovaOrchestrationService(IOgaiClient client, NovaSessionAllowance allowance, ILogger<NovaOrchestrationService> logger)
+    public NovaOrchestrationService(IOgaiClient client, NovaSessionAllowance allowance, NovaSessionTickets tickets, ILogger<NovaOrchestrationService> logger)
     {
         _client = client;
         _allowance = allowance;
+        _tickets = tickets;
         _logger = logger;
     }
+
+    public NovaStatusDto GetStatus() => new() { Refinement = _client.Availability };
 
     public async Task<Result<NovaRefineResponseDto>> RefineProjectIdeaAsync(
         NovaRefineRequestDto request,
@@ -62,14 +67,16 @@ public sealed class NovaOrchestrationService : INovaOrchestrationService
         if (!firstTurn && (string.IsNullOrWhiteSpace(request.State) || string.IsNullOrWhiteSpace(request.SessionId)))
             return Result<NovaRefineResponseDto>.ValidationError("Continue the refinement with the state Nova AI returned.");
 
-        // A continuation must name a session this actor started; anyone else's id reads as absent.
-        if (!firstTurn && !_allowance.OwnsSession(actorId, request.SessionId!))
+        // A continuation must carry this actor's live ticket for this session; anyone else's, or an expired one, reads as absent.
+        string? upstreamState = null;
+        var expiresAt = _tickets.NewExpiry();
+        if (!firstTurn && !_tickets.TryOpen(request.State, actorId, request.SessionId!, out upstreamState, out expiresAt))
             return Result<NovaRefineResponseDto>.NotFound(SessionNotFoundError);
 
         if (firstTurn && !_allowance.TryStart(actorId))
             return Result<NovaRefineResponseDto>.Conflict(QuotaError);
 
-        var upstream = await _client.ValidateAsync(idea, turns, firstTurn ? null : request.State, firstTurn ? null : request.SessionId, ct);
+        var upstream = await _client.ValidateAsync(idea, turns, upstreamState, firstTurn ? null : request.SessionId, ct);
         if (upstream.IsFailure || upstream.Value is null)
         {
             if (firstTurn)
@@ -77,7 +84,8 @@ public sealed class NovaOrchestrationService : INovaOrchestrationService
             return upstream.Type switch
             {
                 ResultType.ValidationError => Result<NovaRefineResponseDto>.ValidationError(upstream.Error ?? "Nova AI could not use that input."),
-                ResultType.Conflict => Result<NovaRefineResponseDto>.Conflict(QuotaError),
+                ResultType.NotFound => Result<NovaRefineResponseDto>.NotFound(SessionNotFoundError),
+                _ when upstream.Error == CapacityError => Result<NovaRefineResponseDto>.Failure(CapacityError),
                 _ => Result<NovaRefineResponseDto>.Failure(UnavailableError),
             };
         }
@@ -96,8 +104,9 @@ public sealed class NovaOrchestrationService : INovaOrchestrationService
             return Result<NovaRefineResponseDto>.Failure(UnavailableError);
         }
 
-        if (!string.IsNullOrWhiteSpace(turnResult.SessionId))
-            _allowance.BindSession(actorId, turnResult.SessionId);
+        var ticket = string.IsNullOrWhiteSpace(turnResult.SessionId) || string.IsNullOrWhiteSpace(turnResult.State)
+            ? null
+            : _tickets.Issue(actorId, turnResult.SessionId, turnResult.State, expiresAt);
 
         return Result<NovaRefineResponseDto>.Success(new NovaRefineResponseDto
         {
@@ -107,7 +116,7 @@ public sealed class NovaOrchestrationService : INovaOrchestrationService
             Question = turnResult.Question,
             Number = turnResult.Number,
             MaxQuestions = turnResult.MaxQuestions,
-            State = turnResult.State,
+            State = ticket,
             SessionId = turnResult.SessionId,
             Verdict = turnResult.Verdict,
             Vertical = turnResult.Vertical,
@@ -118,7 +127,7 @@ public sealed class NovaOrchestrationService : INovaOrchestrationService
     /// <summary>True when any member-visible text of the turn contains a hidden upstream name.</summary>
     private static bool NamesUpstream(OgaiTurn turn)
     {
-        var visible = new List<string?> { turn.Question };
+        var visible = new List<string?> { turn.Question, turn.Vertical };
         if (turn.Verdict is { } verdict)
         {
             visible.AddRange([verdict.Headline, verdict.Summary, verdict.NextStep]);
@@ -131,7 +140,6 @@ public sealed class NovaOrchestrationService : INovaOrchestrationService
             visible.AddRange([brief.WorkingName, brief.OneLiner, brief.Customer, brief.Problem, brief.Offer, brief.Pricing]);
             visible.AddRange(brief.Channels.Concat(brief.Milestones).Concat(brief.Metrics));
         }
-        return visible.Any(text => text is not null &&
-            NovaBrand.HiddenNames.Any(name => text.Contains(name, StringComparison.OrdinalIgnoreCase)));
+        return visible.Any(NovaBrand.NamesUpstream);
     }
 }

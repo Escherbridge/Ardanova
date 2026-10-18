@@ -81,7 +81,48 @@ public static class NovaBrand
     public const string AssistantName = "Nova AI";
 
     /// <summary>Upstream names that must never appear in a member-facing reply (see Infrastructure/Ogai/AGENTS.md).</summary>
-    public static readonly string[] HiddenNames = ["overseasgenai", "overseas genai", "overseas gen ai"];
+    public static readonly string[] HiddenNames = ["overseasgenai", "overseas genai", "overseas gen ai", "ogai"];
+
+    /// <summary>The upstream's name as letters only; matched against a reply's letters so spacing or invisible characters cannot hide it.</summary>
+    public const string HiddenLetters = "overseasgenai";
+
+    /// <summary>True when text names the upstream, plainly or disguised.</summary>
+    public static bool NamesUpstream(string? text)
+    {
+        if (string.IsNullOrEmpty(text))
+            return false;
+        if (HiddenNames.Any(name => text.Contains(name, StringComparison.OrdinalIgnoreCase)))
+            return true;
+        var letters = new string(text.Where(char.IsLetterOrDigit).Select(char.ToLowerInvariant).ToArray());
+        return letters.Contains(HiddenLetters, StringComparison.Ordinal);
+    }
+}
+
+/// <summary>Error codes a Nova result carries; the controller maps them to HTTP and the client to copy.</summary>
+public static class NovaErrors
+{
+    public const string Unavailable = "nova_unavailable";
+    /// <summary>This member's own daily allowance is spent.</summary>
+    public const string DailyLimit = "nova_daily_limit";
+    /// <summary>Nova AI's platform-wide daily capacity is spent; no member's fault.</summary>
+    public const string Capacity = "nova_capacity";
+    public const string SessionNotFound = "nova_session_not_found";
+}
+
+/// <summary>Values for <see cref="NovaStatusDto.Refinement"/>.</summary>
+public static class NovaAvailability
+{
+    public const string Live = "live";
+    public const string LocalPreview = "local-preview";
+    public const string Off = "off";
+}
+
+/// <summary>Which Nova AI capabilities this deployment serves, so the client never offers a dead feature.</summary>
+public sealed class NovaStatusDto
+{
+    public string Assistant { get; init; } = NovaBrand.AssistantName;
+    /// <summary>"live", "local-preview" (fixed practice questions) or "off" (not connected on this deployment).</summary>
+    public string Refinement { get; init; } = NovaAvailability.Off;
 }
 
 /// <summary>One upstream refinement turn as the partner API returns it; mapped to <see cref="NovaRefineResponseDto"/>.</summary>
