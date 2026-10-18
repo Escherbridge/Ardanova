@@ -1,0 +1,10 @@
+{
+  "track_id": "account-closure-and-export_20261018",
+  "type": "feature",
+  "status": "pending",
+  "created_at": "2026-10-18",
+  "updated_at": "2026-10-18",
+  "description": "Self-service account closure (soft delete + anonymization behind ownership/balance blockers) and a complete .NET-served data export; replaces the unguarded hard delete behind DELETE /api/users/{id}.",
+  "source": "loop3 auth QA + adversarial critique (no deletion/export control; backend DELETE is an unguarded hard delete)",
+  "partitions": { "confidence": "none" }
+}

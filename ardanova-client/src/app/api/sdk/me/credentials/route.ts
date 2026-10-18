@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSessionOrError } from "../../_lib/session";
 import { apiClient } from "~/lib/api";
+import { runWithActorAssertion } from "~/server/actor-assertion";
 
 /**
  * GET /api/sdk/me/credentials
@@ -12,8 +13,9 @@ export async function GET() {
   const { session, error } = await getSessionOrError();
   if (error) return error;
 
-  const response = await apiClient.membershipCredentials.getByUserId(
-    session.user.id,
+  const response = await runWithActorAssertion(
+    { subject: session.user.id, role: session.user.role },
+    () => apiClient.membershipCredentials.getByUserId(session.user.id),
   );
 
   if (response.error) {

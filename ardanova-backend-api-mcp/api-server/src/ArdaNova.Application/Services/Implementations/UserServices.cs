@@ -7,6 +7,7 @@ using ArdaNova.Application.Services.Interfaces;
 using ArdaNova.Domain.Models.Entities;
 using ArdaNova.Domain.Models.Enums;
 using AutoMapper;
+using System.Text.RegularExpressions;
 
 public class UserService : IUserService
 {
@@ -70,18 +71,22 @@ public class UserService : IUserService
 
     public async Task<Result<UserDto>> UpdateAsync(string id, UpdateUserDto dto, CancellationToken ct = default)
     {
+        var invalid = UserProfileRules.ValidateProfileUpdate(dto);
+        if (invalid is not null)
+            return Result<UserDto>.ValidationError(invalid);
+
         var user = await _repository.GetByIdAsync(id, ct);
         if (user is null)
             return Result<UserDto>.NotFound($"User with id {id} not found");
 
-        if (dto.Name is not null) user.name = dto.Name;
+        if (dto.Name is not null) user.name = dto.Name.Trim();
         if (dto.Bio is not null) user.bio = dto.Bio;
         if (dto.Location is not null) user.location = dto.Location;
         if (dto.Phone is not null) user.phone = dto.Phone;
-        if (dto.Website is not null) user.website = dto.Website;
-        if (dto.LinkedIn is not null) user.linkedIn = dto.LinkedIn;
-        if (dto.Twitter is not null) user.twitter = dto.Twitter;
-        if (dto.Image is not null) user.image = dto.Image;
+        if (dto.Website is not null) user.website = dto.Website.Trim();
+        if (dto.LinkedIn is not null) user.linkedIn = dto.LinkedIn.Trim();
+        if (dto.Twitter is not null) user.twitter = dto.Twitter.Trim();
+        if (dto.Image is not null) user.image = dto.Image.Trim();
         user.updatedAt = DateTime.UtcNow;
 
         await _repository.UpdateAsync(user, ct);
@@ -285,11 +290,20 @@ public class UserSkillService : IUserSkillService
 
     public async Task<Result<UserSkillDto>> CreateAsync(CreateUserSkillDto dto, CancellationToken ct = default)
     {
+        var name = dto.Skill?.Trim() ?? string.Empty;
+        var invalid = UserProfileRules.ValidateSkill(name, dto.Level);
+        if (invalid is not null)
+            return Result<UserSkillDto>.ValidationError(invalid);
+
+        var existing = await _repository.FindAsync(s => s.userId == dto.UserId, ct);
+        if (existing.Any(s => string.Equals(s.skill.Trim(), name, StringComparison.OrdinalIgnoreCase)))
+            return Result<UserSkillDto>.ValidationError($"You already list {name} as a skill.");
+
         var skill = new UserSkill
         {
             id = Guid.NewGuid().ToString(),
             userId = dto.UserId,
-            skill = dto.Skill,
+            skill = name,
             level = dto.Level
         };
         await _repository.AddAsync(skill, ct);
@@ -302,6 +316,9 @@ public class UserSkillService : IUserSkillService
         var skill = await _repository.GetByIdAsync(id, ct);
         if (skill is null || skill.userId != userId)
             return Result<UserSkillDto>.NotFound($"Skill with id {id} not found");
+
+        if (dto.Level.HasValue && !UserProfileRules.IsSkillLevel(dto.Level.Value))
+            return Result<UserSkillDto>.ValidationError(UserProfileRules.SkillLevelMessage);
 
         if (dto.Level.HasValue) skill.level = dto.Level.Value;
 
@@ -351,12 +368,17 @@ public class UserExperienceService : IUserExperienceService
 
     public async Task<Result<UserExperienceDto>> CreateAsync(CreateUserExperienceDto dto, CancellationToken ct = default)
     {
+        var invalid = UserProfileRules.ValidateExperience(
+            dto.Title, dto.Company, dto.Description, dto.StartDate, dto.EndDate, dto.IsCurrent);
+        if (invalid is not null)
+            return Result<UserExperienceDto>.ValidationError(invalid);
+
         var exp = new UserExperience
         {
             id = Guid.NewGuid().ToString(),
             userId = dto.UserId,
-            title = dto.Title,
-            company = dto.Company,
+            title = dto.Title.Trim(),
+            company = dto.Company.Trim(),
             description = dto.Description,
             startDate = dto.StartDate,
             endDate = dto.EndDate,
@@ -373,6 +395,17 @@ public class UserExperienceService : IUserExperienceService
         if (exp is null || exp.userId != userId)
             return Result<UserExperienceDto>.NotFound($"Experience with id {id} not found");
 
+        var invalid = UserProfileRules.ValidateExperience(
+            dto.Title ?? exp.title,
+            dto.Company ?? exp.company,
+            dto.Description ?? exp.description,
+            dto.StartDate ?? exp.startDate,
+            dto.EndDate ?? (dto.IsCurrent == true ? null : exp.endDate),
+            dto.IsCurrent ?? exp.isCurrent);
+        if (invalid is not null)
+            return Result<UserExperienceDto>.ValidationError(invalid);
+
+        if (dto.IsCurrent == true) exp.endDate = null;
         if (dto.Title is not null) exp.title = dto.Title;
         if (dto.Company is not null) exp.company = dto.Company;
         if (dto.Description is not null) exp.description = dto.Description;
@@ -394,5 +427,75 @@ public class UserExperienceService : IUserExperienceService
         await _repository.DeleteAsync(exp, ct);
         await _unitOfWork.SaveChangesAsync(ct);
         return Result<bool>.Success(true);
+    }
+}
+
+/// <summary>Profile field rules every caller (BFF, SDK, MCP) gets; see Services/AGENTS.md §Profile rules.</summary>
+public static class UserProfileRules
+{
+    public const string SkillLevelMessage = "Skill level must be between 1 and 10.";
+
+    private static readonly Regex SchemePrefix = new("^[A-Za-z][A-Za-z0-9+.-]*:", RegexOptions.Compiled);
+
+    /// <summary>True when the level is on the 1-10 scale.</summary>
+    public static bool IsSkillLevel(int level) => level is >= 1 and <= 10;
+
+    /// <summary>Null when the skill is valid, else the reason.</summary>
+    public static string? ValidateSkill(string trimmedName, int level)
+    {
+        if (trimmedName.Length == 0) return "Skill name is required.";
+        if (trimmedName.Length > 100) return "Skill name must be 100 characters or fewer.";
+        return IsSkillLevel(level) ? null : SkillLevelMessage;
+    }
+
+    /// <summary>Null when the experience entry is valid, else the reason.</summary>
+    public static string? ValidateExperience(
+        string? title, string? company, string? description, DateTime startDate, DateTime? endDate, bool isCurrent)
+    {
+        if (string.IsNullOrWhiteSpace(title)) return "Role title is required.";
+        if (title.Trim().Length > 200) return "Role title must be 200 characters or fewer.";
+        if (string.IsNullOrWhiteSpace(company)) return "Organization is required.";
+        if (company.Trim().Length > 200) return "Organization must be 200 characters or fewer.";
+        if (description is { Length: > 2000 }) return "Description must be 2000 characters or fewer.";
+        if (isCurrent && endDate.HasValue) return "A role you still hold has no end date.";
+        if (endDate.HasValue && endDate.Value < startDate) return "The end date is before the start date.";
+        return null;
+    }
+
+    /// <summary>Null when every supplied profile field is within limits and every link is http(s), else the reason.</summary>
+    public static string? ValidateProfileUpdate(UpdateUserDto dto)
+    {
+        if (dto.Name is not null && dto.Name.Trim().Length == 0) return "Display name cannot be empty.";
+        return TooLong(dto.Name, 100, "Display name")
+            ?? TooLong(dto.Bio, 2000, "Bio")
+            ?? TooLong(dto.Location, 200, "Location")
+            ?? TooLong(dto.Phone, 30, "Phone")
+            ?? TooLong(dto.Website, 500, "Website")
+            ?? TooLong(dto.LinkedIn, 500, "LinkedIn")
+            ?? TooLong(dto.Twitter, 100, "Twitter / X")
+            ?? TooLong(dto.Image, 2048, "Profile image")
+            ?? UnsafeLink(dto.Website, "Website", requireAbsolute: true)
+            ?? UnsafeLink(dto.LinkedIn, "LinkedIn", requireAbsolute: false)
+            ?? UnsafeLink(dto.Twitter, "Twitter / X", requireAbsolute: false)
+            ?? UnsafeLink(dto.Image, "Profile image", requireAbsolute: true);
+    }
+
+    private static string? TooLong(string? value, int max, string label)
+        => value is not null && value.Trim().Length > max ? $"{label} must be {max} characters or fewer." : null;
+
+    // Scheme allowlist: anything that names a scheme must be http(s) with a host; a bare handle passes when requireAbsolute is false.
+    private static string? UnsafeLink(string? value, string label, bool requireAbsolute)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return null;
+        var trimmed = value.Trim();
+        if (trimmed.Any(char.IsControl)) return $"{label} contains characters that are not allowed.";
+        if (!requireAbsolute && !SchemePrefix.IsMatch(trimmed) && !trimmed.StartsWith("//", StringComparison.Ordinal))
+            return null;
+
+        return Uri.TryCreate(trimmed, UriKind.Absolute, out var uri)
+            && (uri.Scheme == Uri.UriSchemeHttps || uri.Scheme == Uri.UriSchemeHttp)
+            && !string.IsNullOrEmpty(uri.Host)
+                ? null
+                : $"{label} must be an http:// or https:// link.";
     }
 }

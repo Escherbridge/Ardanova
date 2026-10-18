@@ -107,3 +107,23 @@ unscoped `IGovernanceService` reads remain for internal callers; the project-sco
 `ProjectsController` still use them (tracked in `conductor/tracks/governance-reachability_20261018`).
 The Next.js `governance` router wraps its public reads in `readAsViewer` so a signed-in reader is
 named to the API.
+
+## Profile rules
+
+`UserProfileRules` (bottom of `UserServices.cs`) holds every rule for profile, skill and experience
+writes, because the .NET API is reachable by any BFF, SDK or MCP client with an API key and an actor
+assertion. The Next.js zod checks in `routers/profile.ts` only mirror these rules to give earlier
+feedback; the service rules are the ones that apply.
+
+- **Links**: website and profile image must be absolute `http(s)` URLs. LinkedIn and Twitter may be a
+  bare handle, but any value that names a scheme (or starts with `//`) must be `http(s)` with a host.
+  This blocks stored `javascript:`/`data:` URLs, which every non-web consumer (SDK, MCP, email) would
+  otherwise trust. An empty string still clears a field.
+- **Skills**: the name is trimmed and 1-100 characters, the level is 1-10 on create and update, and the
+  same name (case-insensitive) cannot be listed twice by one user.
+- **Experience**: title and organization are required (at most 200 characters each). The end date cannot
+  be before the start date, and a current role has no end date. Marking an entry current clears its stored end date.
+- **Owner id**: `CreateUserSkillDto.UserId` and `CreateUserExperienceDto.UserId` are `[JsonIgnore]`. The
+  controller sets them from the route after the actor check. They used to be `required`, which made
+  System.Text.Json reject the client's `{skill, level}` body with a 400 before the controller ran, so
+  every Add skill and Add experience failed.

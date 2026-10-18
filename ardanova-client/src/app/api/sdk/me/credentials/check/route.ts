@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getSessionOrError } from "../../../_lib/session";
 import { apiClient } from "~/lib/api";
+import { runWithActorAssertion } from "~/server/actor-assertion";
 
 const TIER_RANK: Record<string, number> = {
   BRONZE: 1,
@@ -28,11 +29,17 @@ export async function GET(request: NextRequest) {
   if (error) return error;
 
   const { searchParams } = new URL(request.url);
+  return runWithActorAssertion(
+    { subject: session.user.id, role: session.user.role },
+    () => checkCredential(searchParams, session.user.id),
+  );
+}
+
+/** Credential gate for one user, run under that user's signed actor assertion. */
+async function checkCredential(searchParams: URLSearchParams, userId: string) {
   const projectId = searchParams.get("projectId");
   const guildId = searchParams.get("guildId");
   const minTier = searchParams.get("minTier");
-
-  const userId = session.user.id;
 
   // Check credential by project or guild
   if (projectId) {

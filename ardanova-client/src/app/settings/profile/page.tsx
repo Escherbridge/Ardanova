@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { UserRound } from "lucide-react";
 
+import { ProfileDataCard } from "~/components/profile/profile-data-card";
 import { ProfileEditor } from "~/components/profile/profile-editor";
 
 export const metadata: Metadata = { title: "Profile settings" };
@@ -21,6 +22,7 @@ export default function ProfileSettingsPage() {
         </p>
       </div>
       <ProfileEditor />
+      <ProfileDataCard />
     </div>
   );
 }
