@@ -16,13 +16,6 @@ import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
 import { api } from "~/trpc/react";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "~/components/ui/select";
 
 interface ApplicationsTabProps {
   opportunityId: string;
@@ -48,6 +41,11 @@ export default function ApplicationsTab({
   isOwner,
 }: ApplicationsTabProps) {
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  // A decision is final (accepting also seats the applicant), so each one is confirmed first.
+  const [confirming, setConfirming] = useState<{
+    applicationId: string;
+    status: "accepted" | "rejected";
+  } | null>(null);
   const [feedback, setFeedback] = useState<{
     type: "success" | "error";
     message: string;
@@ -113,8 +111,11 @@ export default function ApplicationsTab({
   });
 
   // A reviewer decides a PENDING application once: accept or reject. Withdrawing is the applicant's.
-  const handleStatusChange = (applicationId: string, newStatus: string) => {
-    if (newStatus !== "accepted" && newStatus !== "rejected") return;
+  const handleStatusChange = (
+    applicationId: string,
+    newStatus: "accepted" | "rejected",
+  ) => {
+    setConfirming(null);
     updateStatus.mutate({ applicationId, opportunityId, status: newStatus });
   };
 
@@ -235,42 +236,78 @@ export default function ApplicationsTab({
               </div>
             )}
 
-            <div className="flex items-center gap-3 border-t pt-2">
-              <span className="text-muted-foreground text-sm">
-                Update Status:
-              </span>
-              <Select
-                value={application.status?.toLowerCase() || "pending"}
-                onValueChange={(value) =>
-                  handleStatusChange(application.id, value)
-                }
-                disabled={
-                  updatingId === application.id ||
-                  (application.status?.toLowerCase() ?? "pending") !== "pending"
-                }
-              >
-                <SelectTrigger className="w-[180px]">
-                  {updatingId === application.id ? (
-                    <div className="flex items-center gap-2">
-                      <Loader2 className="size-4 animate-spin" />
-                      <span>Updating...</span>
-                    </div>
-                  ) : (
-                    <SelectValue />
-                  )}
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="pending" disabled>
-                    Pending
-                  </SelectItem>
-                  <SelectItem value="accepted">Accept</SelectItem>
-                  <SelectItem value="rejected">Reject</SelectItem>
-                  <SelectItem value="withdrawn" disabled>
-                    Withdrawn
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            {(application.status?.toLowerCase() ?? "pending") === "pending" && (
+              <div className="flex flex-wrap items-center gap-3 border-t pt-2">
+                {updatingId === application.id ? (
+                  <span className="text-muted-foreground flex items-center gap-2 text-sm">
+                    <Loader2 className="size-4 animate-spin" />
+                    Updating...
+                  </span>
+                ) : confirming?.applicationId === application.id ? (
+                  <>
+                    <span className="text-sm">
+                      {confirming.status === "accepted"
+                        ? `Accept ${application.applicant?.name ?? "this applicant"}? They join the team in this role. This can't be undone.`
+                        : `Reject ${application.applicant?.name ?? "this applicant"}? This can't be undone.`}
+                    </span>
+                    <Button
+                      size="sm"
+                      className="min-h-11"
+                      variant={
+                        confirming.status === "accepted"
+                          ? "default"
+                          : "destructive"
+                      }
+                      onClick={() =>
+                        handleStatusChange(application.id, confirming.status)
+                      }
+                    >
+                      {confirming.status === "accepted"
+                        ? "Yes, accept"
+                        : "Yes, reject"}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="min-h-11"
+                      onClick={() => setConfirming(null)}
+                    >
+                      Cancel
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button
+                      size="sm"
+                      className="min-h-11 gap-1.5"
+                      onClick={() =>
+                        setConfirming({
+                          applicationId: application.id,
+                          status: "accepted",
+                        })
+                      }
+                    >
+                      <CheckCircle className="size-4" aria-hidden="true" />
+                      Accept
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="min-h-11 gap-1.5"
+                      onClick={() =>
+                        setConfirming({
+                          applicationId: application.id,
+                          status: "rejected",
+                        })
+                      }
+                    >
+                      <XCircle className="size-4" aria-hidden="true" />
+                      Reject
+                    </Button>
+                  </>
+                )}
+              </div>
+            )}
 
             <div className="text-muted-foreground text-xs">
               Applied on {new Date(application.appliedAt).toLocaleDateString()}

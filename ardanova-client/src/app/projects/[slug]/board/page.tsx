@@ -830,22 +830,59 @@ export default function ProjectBoardPage() {
                         {pCfg.label}
                       </Badge>
                     </div>
-                    <div>
-                      {assignedTo ? (
-                        <div className="flex items-center gap-1.5">
-                          <Avatar className="border-border size-5 border">
-                            <AvatarImage src={assignedTo.image ?? undefined} />
-                            <AvatarFallback className="text-[10px]">
-                              {(assignedTo.name ?? "U").charAt(0)}
-                            </AvatarFallback>
-                          </Avatar>
-                          <span className="text-muted-foreground truncate text-xs">
-                            {assignedTo.name ?? "User"}
-                          </span>
-                        </div>
-                      ) : (
-                        <span className="text-muted-foreground text-xs">—</span>
-                      )}
+                    <div className="min-w-0">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button
+                            className="flex min-h-11 max-w-full items-center gap-1.5 text-xs"
+                            aria-label={`Assign ${task.title}`}
+                          >
+                            {assignedTo ? (
+                              <>
+                                <Avatar className="border-border size-5 border">
+                                  <AvatarImage
+                                    src={assignedTo.image ?? undefined}
+                                  />
+                                  <AvatarFallback className="text-[10px]">
+                                    {(assignedTo.name ?? "U").charAt(0)}
+                                  </AvatarFallback>
+                                </Avatar>
+                                <span className="text-muted-foreground truncate">
+                                  {assignedTo.name ?? "User"}
+                                </span>
+                              </>
+                            ) : (
+                              <span className="text-muted-foreground">
+                                Unassigned
+                              </span>
+                            )}
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent className="border-border border-2">
+                          {(members ?? []).map((member) => (
+                            <DropdownMenuItem
+                              key={member.userId}
+                              disabled={task.assignedToId === member.userId}
+                              onClick={() =>
+                                handleAssign(String(task.id), member.userId)
+                              }
+                            >
+                              {member.user?.name ??
+                                member.user?.email ??
+                                "Member"}
+                            </DropdownMenuItem>
+                          ))}
+                          {task.assignedToId && (
+                            <DropdownMenuItem
+                              onClick={() =>
+                                handleAssign(String(task.id), null)
+                              }
+                            >
+                              Unassign
+                            </DropdownMenuItem>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
                     <div className="text-right">
                       {equity > 0 ? (

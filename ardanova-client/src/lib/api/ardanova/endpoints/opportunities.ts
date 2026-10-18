@@ -183,6 +183,15 @@ export class OpportunitiesEndpoint {
     );
   }
 
+  /** Whether the signed viewer manages this opportunity (co-managers included, not only the poster). */
+  getViewerManagement(
+    id: string,
+  ): Promise<ApiResponse<{ canManage: boolean }>> {
+    return this.client.get<{ canManage: boolean }>(
+      apiPath`/api/opportunities/${id}/management`,
+    );
+  }
+
   getByPosterId(posterId: string): Promise<ApiResponse<Opportunity[]>> {
     return this.client.get<Opportunity[]>(
       apiPath`/api/opportunities/poster/${posterId}`,
