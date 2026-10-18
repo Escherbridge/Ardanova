@@ -320,6 +320,39 @@ public class TaskActorBoundaryTests
         tasks.Verify(service => service.AssignAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
+    /// <summary>Update, status change and delete answer a hidden draft's task exactly like a missing one (no 403 oracle).</summary>
+    [Theory]
+    [InlineData("update", true)]
+    [InlineData("update", false)]
+    [InlineData("status", true)]
+    [InlineData("status", false)]
+    [InlineData("delete", true)]
+    [InlineData("delete", false)]
+    public async Task TaskMutations_OnAHiddenDraftReadExactlyLikeAMissingTask(string mutation, bool taskExists)
+    {
+        var tasks = new Mock<ITaskService>(MockBehavior.Strict);
+        tasks.Setup(service => service.GetByIdAsync("task-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(taskExists
+                ? Result<TaskDto>.Success(new TaskDto { Id = "task-1", ProjectId = "project-draft" })
+                : Result<TaskDto>.NotFound("Task with id task-1 not found"));
+        var visibility = new Mock<IProjectVisibility>();
+        visibility.Setup(service => service.GetVisibleByIdAsync(It.IsAny<ProjectViewer>(), "project-draft", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<ProjectDto>.NotFound("Project with id project-draft not found"));
+        var controller = WithActor(
+            CreateController(tasks.Object, authorization: Membership(manager: false, member: false).Object, visibility: visibility.Object),
+            "stranger");
+
+        var result = mutation switch
+        {
+            "update" => await controller.Update("task-1", new UpdateTaskDto { Title = "Probe" }, CancellationToken.None),
+            "status" => await controller.UpdateStatus("task-1", new UpdateTaskStatusDto { Status = TaskStatus.IN_PROGRESS }, CancellationToken.None),
+            _ => await controller.Delete("task-1", CancellationToken.None),
+        };
+
+        result.Should().BeOfType<NotFoundObjectResult>()
+            .Which.Value.Should().BeEquivalentTo(new { error = "Task with id task-1 not found" });
+    }
+
     [Fact]
     public async Task Assign_AManagerCannotHandWorkToSomeoneOffTheTeam()
     {

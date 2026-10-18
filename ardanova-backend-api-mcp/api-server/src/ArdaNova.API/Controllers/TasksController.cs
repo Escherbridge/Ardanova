@@ -166,9 +166,9 @@ public class TasksController : ControllerBase
     [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
     public async Task<IActionResult> Update(string id, [FromBody] UpdateTaskDto dto, CancellationToken ct)
     {
-        var task = await GetVerifiedTaskAsync(id, ct);
+        var task = await GetVisibleTaskAsync(id, ct);
         if (task is null)
-            return Forbid();
+            return TaskNotFound(id);
         // Changing what a task pays is a project-management decision, and once a bid has been
         // accepted the service refuses it outright: the agreement owns the award from then on.
         var structuralChange = dto.EquityReward.HasValue;
@@ -196,8 +196,10 @@ public class TasksController : ControllerBase
     [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
     public async Task<IActionResult> UpdateStatus(string id, [FromBody] UpdateTaskStatusDto dto, CancellationToken ct)
     {
-        var task = await GetVerifiedTaskAsync(id, ct);
-        if (task is null || !await CanWorkOnTaskAsync(task, ct))
+        var task = await GetVisibleTaskAsync(id, ct);
+        if (task is null)
+            return TaskNotFound(id);
+        if (!await CanWorkOnTaskAsync(task, ct))
             return Forbid();
 
         var result = await _taskService.UpdateStatusAsync(id, dto.Status, ct);
@@ -209,9 +211,9 @@ public class TasksController : ControllerBase
     public async Task<IActionResult> Assign(string id, [FromBody] AssignTaskDto dto, CancellationToken ct)
     {
         // Visibility first: a hidden draft's task must be indistinguishable from a missing one.
-        var task = await GetVerifiedTaskAsync(id, ct);
-        if (task is null || await ProjectNotVisibleAsync(task.ProjectId, ct) is not null)
-            return NotFound(new { error = $"Task with id {id} not found" });
+        var task = await GetVisibleTaskAsync(id, ct);
+        if (task is null)
+            return TaskNotFound(id);
 
         var assigneeId = string.IsNullOrWhiteSpace(dto.UserId) ? null : dto.UserId;
         if (!await CanAssignAsync(task, assigneeId, ct))
@@ -238,8 +240,10 @@ public class TasksController : ControllerBase
     [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
     public async Task<IActionResult> Delete(string id, CancellationToken ct)
     {
-        var task = await GetVerifiedTaskAsync(id, ct);
-        if (task is null || !await CanManageProjectAsync(task.ProjectId, ct))
+        var task = await GetVisibleTaskAsync(id, ct);
+        if (task is null)
+            return TaskNotFound(id);
+        if (!await CanManageProjectAsync(task.ProjectId, ct))
             return Forbid();
 
         var result = await _taskService.DeleteAsync(id, ct);
@@ -340,6 +344,15 @@ public class TasksController : ControllerBase
         return project.IsSuccess &&
                string.Equals(project.Value!.AssignedGuildId, guildId, StringComparison.Ordinal);
     }
+
+    /// <summary>404-first for every task mutation: missing, mis-parented and hidden-project tasks are indistinguishable.</summary>
+    private async Task<TaskDto?> GetVisibleTaskAsync(string id, CancellationToken ct)
+    {
+        var task = await GetVerifiedTaskAsync(id, ct);
+        return task is null || await ProjectNotVisibleAsync(task.ProjectId, ct) is not null ? null : task;
+    }
+
+    private NotFoundObjectResult TaskNotFound(string id) => NotFound(new { error = $"Task with id {id} not found" });
 
     private async Task<TaskDto?> GetVerifiedTaskAsync(string id, CancellationToken ct)
     {
