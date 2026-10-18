@@ -27,8 +27,9 @@ record who did it and when.
    OGAI route is not mounted, that call falls through to the static site, and every member turn fails as
    `nova_unavailable`. If OGAI is live and ArdaNova is not configured, nothing happens: Nova stays `off`.
 2. **Generate the key once.** The raw key goes only to ArdaNova. OGAI stores only its SHA-256.
-3. **Merge ArdaNova's `loop4/nova` (or later) before the smoke test.** It refunds dropped first turns, ends the
-   endless retry on a dropped continuation, and hides the provider credit outside live mode.
+3. **Deploy ArdaNova `main` at or after merge `3e5bf8e` (loop 4 nova lane) before the smoke test.** That merge
+   refunds dropped first turns, ends the endless retry on a dropped continuation, and hides the provider credit
+   outside live mode.
 
 ## A. Generate the partner key (operator terminal, never in chat or logs)
 
@@ -65,7 +66,8 @@ record who did it and when.
 
 ## C. ArdaNova (Railway service Ardanova-BFF)
 
-- [ ] Merge the Nova lane branch (`loop4/nova`) to `main` and let CI build both images.
+- [ ] Confirm the deployed `main` contains merge `3e5bf8e` (`git merge-base --is-ancestor 3e5bf8e <deployed sha>`).
+      The loop 4 nova lane is already merged locally; push `main` and let CI build both images.
 - [ ] On **Ardanova-BFF**, set:
   - `Ogai__BaseUrl=https://<ogai-host>`. It must be https in Production, or the API refuses to start
     (`OgaiRegistration`). Give the origin only, with no path.
