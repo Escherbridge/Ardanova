@@ -6,3 +6,4 @@ export { OpportunitiesTab } from "./opportunities-tab";
 
 // Re-export types
 export * from "./types";
+export { MyGuildInvitations } from "./my-guild-invitations";

@@ -27,6 +27,11 @@ import { handleTabListKeyDown } from "~/lib/accessibility";
 import { api } from "~/trpc/react";
 import { FeedLayout } from "~/components/layouts/feed-layout";
 import type { Proposal as ApiProposal } from "~/lib/api/ardanova/endpoints/governance";
+import {
+  quorumProgressPercent,
+  readProposalOptions,
+  type TallyOption,
+} from "~/components/governance/proposal-tally";
 
 // Types for display
 interface DisplayProposal {
@@ -37,12 +42,16 @@ interface DisplayProposal {
   project: { id: string; name: string; slug: string };
   creator: { id: string; name: string; avatar?: string };
   description: string;
-  options: Array<{ label: string; votes: number; percentage: number }>;
+  options: TallyOption[];
+  /** Declared quorum, as a share of members. */
   quorum: number;
+  /** Turnout toward quorum, 0-100, in members. */
   currentQuorum: number;
+  quorumReached: boolean;
+  votesNeededForQuorum: number;
   threshold: number;
   totalVotes: number;
-  totalVotingPower: number;
+  eligibleMembers: number;
   votingEnds: Date;
   createdAt: Date;
 }
@@ -66,39 +75,17 @@ interface ProposalWithRelations extends ApiProposal {
 function transformProposal(
   apiProposal: ProposalWithRelations,
 ): DisplayProposal {
-  // Parse options from JSON string
-  let options = [
-    { label: "For", votes: 0, percentage: 0 },
-    { label: "Against", votes: 0, percentage: 0 },
-    { label: "Abstain", votes: 0, percentage: 0 },
-  ];
-  try {
-    const parsed: unknown = JSON.parse(apiProposal.options || "[]");
-    if (Array.isArray(parsed) && parsed.length > 0) {
-      const totalVotes = apiProposal.votesCount || 1;
-      options = parsed.map((option) => {
-        const record =
-          typeof option === "object" && option !== null
-            ? (option as Record<string, unknown>)
-            : {};
-        const votes = typeof record.votes === "number" ? record.votes : 0;
-        return {
-          label: typeof record.label === "string" ? record.label : "Option",
-          votes,
-          percentage:
-            totalVotes > 0 ? Math.round((votes / totalVotes) * 100) : 0,
-        };
-      });
-    }
-  } catch {}
+  // Labels come from the proposal's declared options; counts come from the API tally.
+  const options = readProposalOptions(
+    apiProposal.options,
+    apiProposal.votesByChoice,
+  );
 
-  // Calculate current quorum percentage
-  const totalVotingPower = apiProposal.totalVotingPower ?? 0;
+  // Quorum is turnout in members against the API's own threshold, never ballots over ballots.
   const votesCount = apiProposal.votesCount ?? 0;
-  const currentQuorum =
-    totalVotingPower > 0
-      ? Math.round((votesCount / totalVotingPower) * 100)
-      : 0;
+  const eligibleMembers = apiProposal.eligibleMembers ?? 0;
+  const votesNeededForQuorum = apiProposal.votesNeededForQuorum ?? 0;
+  const currentQuorum = quorumProgressPercent(votesCount, votesNeededForQuorum);
 
   return {
     id: apiProposal.id,
@@ -119,9 +106,11 @@ function transformProposal(
     options,
     quorum: apiProposal.quorum,
     currentQuorum,
+    quorumReached: apiProposal.quorumReached ?? false,
+    votesNeededForQuorum,
     threshold: apiProposal.threshold,
     totalVotes: votesCount,
-    totalVotingPower: Math.round(totalVotingPower),
+    eligibleMembers,
     votingEnds: apiProposal.votingEnd
       ? new Date(apiProposal.votingEnd)
       : new Date(),
@@ -330,7 +319,7 @@ export default function GovernancePage() {
 
     // Quorum filter
     if (selectedQuorum !== "all") {
-      const quorumReached = prop.currentQuorum >= prop.quorum;
+      const quorumReached = prop.quorumReached;
       if (selectedQuorum === "reached" && !quorumReached) return false;
       if (selectedQuorum === "not-reached" && quorumReached) return false;
     }
@@ -952,13 +941,15 @@ export default function GovernancePage() {
                       <Users className="size-4" />
                       <span>
                         {proposal.totalVotes} votes ·{" "}
-                        {proposal.totalVotingPower} members can vote
+                        {proposal.eligibleMembers} members can vote
                       </span>
                     </div>
                     <div className="flex items-center gap-1">
                       <Scale className="size-4" />
                       <span>
-                        Quorum: {proposal.currentQuorum}% / {proposal.quorum}%
+                        {proposal.eligibleMembers > 0
+                          ? `Quorum: ${proposal.totalVotes} of ${proposal.votesNeededForQuorum} members${proposal.quorumReached ? " (reached)" : ""}`
+                          : "Quorum: no confirmed members yet"}
                       </span>
                     </div>
                     {proposal.status === "Active" && (

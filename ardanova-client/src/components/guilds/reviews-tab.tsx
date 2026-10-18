@@ -51,9 +51,9 @@ export function ReviewsTab({
         {
           id: "temp-" + Date.now(),
           guildId: newReview.guildId,
-          reviewerId: currentUserId ?? "current-user",
+          userId: currentUserId ?? "current-user",
           rating: newReview.rating,
-          content: newReview.content ?? null,
+          comment: newReview.comment ?? null,
           createdAt: new Date().toISOString(),
         },
         ...(old ?? []),
@@ -108,7 +108,7 @@ export function ReviewsTab({
     createReviewMutation.mutate({
       guildId,
       rating,
-      content: content.trim(),
+      comment: content.trim(),
     });
   };
 
@@ -348,7 +348,7 @@ export function ReviewsTab({
                 <div className="flex items-start gap-4">
                   <Avatar className="h-10 w-10">
                     <AvatarFallback>
-                      {review.reviewerId === currentUserId ? "YO" : "R"}
+                      {review.userId === currentUserId ? "YO" : "R"}
                     </AvatarFallback>
                   </Avatar>
                   <div className="flex-1 space-y-2">
@@ -356,7 +356,7 @@ export function ReviewsTab({
                       <div>
                         <div className="flex items-center gap-2">
                           <span className="font-semibold">
-                            {review.reviewerId === currentUserId
+                            {review.userId === currentUserId
                               ? "You"
                               : "Guild reviewer"}
                           </span>
@@ -366,7 +366,7 @@ export function ReviewsTab({
                           {formatDate(review.createdAt)}
                         </div>
                       </div>
-                      {currentUserId === review.reviewerId && (
+                      {currentUserId === review.userId && (
                         <Button
                           variant="ghost"
                           size="sm"
@@ -390,7 +390,7 @@ export function ReviewsTab({
                       )}
                     </div>
                     <p className="text-foreground text-sm whitespace-pre-wrap">
-                      {review.content ?? "No comment provided"}
+                      {review.comment ?? "No comment provided"}
                     </p>
                   </div>
                 </div>

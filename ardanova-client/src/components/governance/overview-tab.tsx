@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { z } from "zod";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
 import { Progress } from "~/components/ui/progress";
@@ -14,6 +13,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { api } from "~/trpc/react";
+import { quorumProgressPercent, readProposalOptions } from "./proposal-tally";
 
 interface OverviewTabProps {
   proposal: {
@@ -33,51 +33,6 @@ interface OverviewTabProps {
   isCreator: boolean;
 }
 
-const votingOptionsSchema = z
-  .array(
-    z
-      .object({
-        label: z.string().trim().min(1),
-        choice: z.number().int().nonnegative(),
-      })
-      .strict(),
-  )
-  .min(1);
-
-// The proposal contract stores labels and choices; vote summaries are separate.
-function parseVotingOptions(
-  optionsStr: string,
-): Array<{ label: string; choice: number; votes: number; percentage: number }> {
-  try {
-    const parsed: unknown = JSON.parse(optionsStr);
-    const result = votingOptionsSchema.safeParse(parsed);
-    if (result.success) {
-      return result.data.map((option) => ({
-        label: option.label,
-        choice: option.choice,
-        votes: 0,
-        percentage: 0,
-      }));
-    }
-  } catch {
-    // Fallback to default options
-  }
-  return [
-    { label: "For", choice: 0, votes: 0, percentage: 0 },
-    { label: "Against", choice: 1, votes: 0, percentage: 0 },
-    { label: "Abstain", choice: 2, votes: 0, percentage: 0 },
-  ];
-}
-
-function mapChoiceToVote(choice: number): "for" | "against" | "abstain" {
-  const mapping: Record<number, "for" | "against" | "abstain"> = {
-    0: "for",
-    1: "against",
-    2: "abstain",
-  };
-  return mapping[choice] ?? "abstain";
-}
-
 export default function OverviewTab({
   proposal,
   isCreator: _isCreator,
@@ -92,6 +47,9 @@ export default function OverviewTab({
       setSelectedVote(null);
       setVoteReason("");
       void utils.governance.getById.invalidate({ id: proposal.id });
+      void utils.governance.getVoteSummary.invalidate({
+        proposalId: proposal.id,
+      });
     },
     onError: (error) => {
       alert(error.message);
@@ -99,7 +57,6 @@ export default function OverviewTab({
   });
 
   // The API serialises enums by name (JsonStringEnumConverter), so the wire value is "ACTIVE".
-  const votingOptions = parseVotingOptions(proposal.options);
   const isActive = proposal.status.toUpperCase() === "ACTIVE";
 
   // Quorum is turnout among the project's confirmed members, not a share of any voting power:
@@ -110,11 +67,17 @@ export default function OverviewTab({
   const eligibleMembers = voteSummary?.eligibleMembers ?? 0;
   const votesCast = voteSummary?.totalVotes ?? 0;
   const votesNeededForQuorum = voteSummary?.votesNeededForQuorum ?? 0;
-  const quorumProgress =
-    votesNeededForQuorum > 0
-      ? Math.min((votesCast / votesNeededForQuorum) * 100, 100)
-      : 0;
+  const quorumProgress = quorumProgressPercent(votesCast, votesNeededForQuorum);
   const quorumReached = voteSummary?.quorumReached ?? false;
+
+  // Labels are the proposal's own options; counts are the API tally per choice number.
+  const votesByChoice = Object.fromEntries(
+    Object.entries(voteSummary?.optionSummaries ?? {}).map(([choice, entry]) => [
+      choice,
+      entry.voteCount,
+    ]),
+  );
+  const votingOptions = readProposalOptions(proposal.options, votesByChoice);
 
   const handleVote = (e: React.FormEvent) => {
     e.preventDefault();
@@ -122,7 +85,7 @@ export default function OverviewTab({
 
     voteMutation.mutate({
       proposalId: proposal.id,
-      vote: mapChoiceToVote(selectedVote),
+      choice: selectedVote,
       reason: voteReason || undefined,
     });
   };
@@ -176,6 +139,12 @@ export default function OverviewTab({
 
           {/* Vote Breakdown */}
           <div className="space-y-4">
+            {votingOptions.length === 0 && (
+              <p className="text-muted-foreground text-sm">
+                This proposal&apos;s options can&apos;t be read, so no votes can
+                be recorded against it.
+              </p>
+            )}
             {votingOptions.map((option, i) => (
               <div key={i} className="space-y-2">
                 <div className="flex items-center justify-between">

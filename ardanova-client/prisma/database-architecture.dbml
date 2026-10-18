@@ -991,6 +991,10 @@ Table Vote {
   reason text
   txHash varchar
   createdAt datetime [not null, default: `now()`]
+
+  indexes {
+    (proposalId, voterId) [unique]
+  }
 }
 Ref: Vote.proposalId > Proposal.id
 Ref: Vote.voterId > User.id

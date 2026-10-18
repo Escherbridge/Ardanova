@@ -1,5 +1,6 @@
 namespace ArdaNova.Application.Services.Implementations;
 
+using System.Data.Common;
 using System.Text.Json;
 using ArdaNova.Application.Common.Interfaces;
 using ArdaNova.Application.Common.Results;
@@ -8,6 +9,7 @@ using ArdaNova.Application.Services.Interfaces;
 using ArdaNova.Domain.Models.Entities;
 using ArdaNova.Domain.Models.Enums;
 using AutoMapper;
+using Microsoft.EntityFrameworkCore;
 
 /// <summary>
 /// On whose authority an open vote is ended before its window runs out. Required by
@@ -79,6 +81,12 @@ public class GovernanceService : IGovernanceService, IProposalVoteClosing
 
     /// <summary>The fewest ballots that can carry a decision, whatever percentage the proposal declared.</summary>
     private const int MinimumBallotsForQuorum = 2;
+
+    /// <summary>The shortest time a vote may stay open, so the members a decision binds can see it before it closes.</summary>
+    public static readonly TimeSpan MinimumVotingWindow = TimeSpan.FromHours(12);
+
+    /// <summary>SQLSTATE for a unique-constraint violation: the (proposalId, voterId) index refusing a second ballot.</summary>
+    private const string UniqueViolationSqlState = "23505";
 
     private readonly IRepository<Proposal> _proposalRepository;
     private readonly IRepository<Vote> _voteRepository;
@@ -212,8 +220,9 @@ public class GovernanceService : IGovernanceService, IProposalVoteClosing
         if (shapeError is not null)
             return Result<ProposalDto>.ValidationError(shapeError);
 
-        if (dto.VotingEnd.HasValue && dto.VotingEnd.Value <= DateTime.UtcNow)
-            return Result<ProposalDto>.ValidationError("The voting window must end in the future");
+        var windowError = ValidateVotingEnd(dto.VotingEnd);
+        if (windowError is not null)
+            return Result<ProposalDto>.ValidationError(windowError);
 
         var proposal = new Proposal
         {
@@ -262,6 +271,10 @@ public class GovernanceService : IGovernanceService, IProposalVoteClosing
         var shapeError = ValidateProposalShape(options, quorum, threshold);
         if (shapeError is not null)
             return Result<ProposalDto>.ValidationError(shapeError);
+
+        var windowError = ValidateVotingEnd(dto.VotingEnd);
+        if (windowError is not null)
+            return Result<ProposalDto>.ValidationError(windowError);
 
         if (dto.Title is not null) proposal.title = dto.Title;
         if (dto.Description is not null) proposal.description = dto.Description;
@@ -350,7 +363,16 @@ public class GovernanceService : IGovernanceService, IProposalVoteClosing
         };
 
         await _voteRepository.AddAsync(vote, ct);
-        await _unitOfWork.SaveChangesAsync(ct);
+        try
+        {
+            await _unitOfWork.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException failure) when (failure.InnerException is DbException { SqlState: UniqueViolationSqlState })
+        {
+            // A concurrent request recorded this member's ballot between the check above and this insert.
+            _unitOfWork.ClearTrackedChanges();
+            return Result<VoteDto>.ValidationError("You have already voted on this proposal");
+        }
 
         var voteDto = _mapper.Map<VoteDto>(vote);
         var voter = await _userRepository.GetByIdAsync(voterId, ct);
@@ -425,7 +447,9 @@ public class GovernanceService : IGovernanceService, IProposalVoteClosing
             TotalVotingPower = tally.VotesCast,
             OptionSummaries = optionSummaries,
             QuorumReached = tally.QuorumReached,
-            WinningOption = tally.PassingChoice
+            WinningOption = tally.PassingChoice,
+            EligibleMembers = tally.EligibleMembers,
+            VotesNeededForQuorum = tally.VotesNeededForQuorum
         };
 
         return Result<ProposalVoteSummaryDto>.Success(summary);
@@ -521,11 +545,14 @@ public class GovernanceService : IGovernanceService, IProposalVoteClosing
         if (shapeError is not null)
             return Result<ProposalDto>.ValidationError(shapeError);
 
+        // A stated closing time the members could not see in time is refused, never silently moved.
+        var windowError = ValidateVotingEnd(proposal.votingEnd);
+        if (windowError is not null)
+            return Result<ProposalDto>.ValidationError(windowError);
+
         proposal.status = ProposalStatus.ACTIVE;
         proposal.votingStart = DateTime.UtcNow;
-        // A window that already lies in the past would open and resolve in the same breath.
-        if (proposal.votingEnd is null || proposal.votingEnd <= DateTime.UtcNow)
-            proposal.votingEnd = DateTime.UtcNow.AddDays(7);
+        proposal.votingEnd ??= DateTime.UtcNow.AddDays(7);
         proposal.updatedAt = DateTime.UtcNow;
 
         await _proposalRepository.UpdateAsync(proposal, ct);
@@ -720,6 +747,17 @@ public class GovernanceService : IGovernanceService, IProposalVoteClosing
         return Result<ProposalDto>.Success(resultDto);
     }
 
+    /// <summary>A stated closing time must leave the vote open for at least <see cref="MinimumVotingWindow"/> from now.</summary>
+    private static string? ValidateVotingEnd(DateTime? votingEnd)
+    {
+        if (!votingEnd.HasValue)
+            return null;
+
+        return votingEnd.Value < DateTime.UtcNow.Add(MinimumVotingWindow)
+            ? $"Voting must stay open for at least {MinimumVotingWindow.TotalHours:0} hours so every member can see it - choose a later closing time"
+            : null;
+    }
+
     /// <summary>A proposal must offer at least two real options and state quorum and threshold as percentages.</summary>
     private static string? ValidateProposalShape(string options, int quorumPercent, int thresholdPercent)
     {
@@ -783,13 +821,16 @@ public class GovernanceService : IGovernanceService, IProposalVoteClosing
 
     private async Task<ProposalDto> EnrichProposalDtoAsync(Proposal proposal, CancellationToken ct)
     {
-        var votes = await _voteRepository.FindAsync(v => v.proposalId == proposal.id, ct);
-        var votesList = votes.ToList();
+        var tally = await TallyAsync(proposal, ct);
 
         var dto = _mapper.Map<ProposalDto>(proposal) with
         {
-            VotesCount = votesList.Count,
-            TotalVotingPower = votesList.Count
+            VotesCount = tally.VotesCast,
+            TotalVotingPower = tally.VotesCast,
+            EligibleMembers = tally.EligibleMembers,
+            VotesNeededForQuorum = tally.VotesNeededForQuorum,
+            QuorumReached = tally.QuorumReached,
+            VotesByChoice = tally.VotesByChoice.ToDictionary(entry => entry.Key, entry => entry.Value)
         };
 
         var creator = await _userRepository.GetByIdAsync(proposal.creatorId, ct);

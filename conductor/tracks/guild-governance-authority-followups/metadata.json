@@ -1,0 +1,8 @@
+{
+  "track_id": "guild-governance-authority-followups",
+  "type": "feature",
+  "status": "new",
+  "created_at": "2026-10-17",
+  "description": "Follow-ups from loop 1 guild/governance fix lane: ownership transfer, two-party disputes, local-preview auth, create-form fields, verified-email invites, draft duration, API contract tests.",
+  "partitions": { "confidence": "none" }
+}

@@ -263,37 +263,15 @@ export const governanceRouter = createTRPCRouter({
   getVoteSummary: publicProcedure
     .input(z.object({ proposalId: z.string() }))
     .query(async ({ input }) => {
-      const proposalResponse = await apiClient.governance.getById(
+      // The API's tally owns quorum arithmetic (including its two-ballot floor); this is a pass-through.
+      const summaryResponse = await apiClient.governance.getVoteSummary(
         input.proposalId,
       );
-      const proposal = requireProposal(proposalResponse, "Proposal not found");
-
-      const [summaryResponse, membersResponse] = await Promise.all([
-        apiClient.governance.getVoteSummary(input.proposalId),
-        apiClient.membershipCredentials.getActiveByProjectId(
-          proposal.projectId,
-        ),
-      ]);
-
       const summary = summaryResponse.data;
       if (summaryResponse.error || !summary) {
         throw apiError(summaryResponse, "Failed to read the vote summary");
       }
-
-      const eligibleMembers = membersResponse.data?.length ?? 0;
-      const votesNeededForQuorum =
-        eligibleMembers > 0
-          ? Math.min(
-              Math.max(Math.ceil((eligibleMembers * proposal.quorum) / 100), 1),
-              eligibleMembers,
-            )
-          : 1;
-
-      return {
-        ...summary,
-        eligibleMembers,
-        votesNeededForQuorum,
-      };
+      return summary;
     }),
 
   // Vote on a proposal
