@@ -54,8 +54,22 @@ jobs:
       - name: Test
         run: dotnet test ardanova.sln --configuration Release --no-build
 
+      # `dotnet list --vulnerable` always exits 0, so the gate reads its JSON and fails on high/critical
+      # advisories, except those the repo explicitly accepts via NuGetAuditSuppress in Directory.Build.props.
       - name: Audit dependencies
-        run: dotnet list ardanova.sln package --vulnerable --include-transitive
+        run: |
+          dotnet list ardanova.sln package --vulnerable --include-transitive --format json > vulnerable-packages.json
+          suppressed=$(grep -o 'NuGetAuditSuppress Include="[^"]*"' api-server/Directory.Build.props \
+            | sed 's/.*Include="//; s/"$//' | jq -R . | jq -s .)
+          blocking=$(jq --argjson suppressed "$suppressed" '[.projects[]?.frameworks[]?
+            | (.topLevelPackages // []) + (.transitivePackages // []) | .[]
+            | select(any(.vulnerabilities[]?;
+                (.severity == "High" or .severity == "Critical") and (.advisoryurl as $url | $suppressed | index($url) | not)))
+            | "\(.id) \(.resolvedVersion)"] | unique' vulnerable-packages.json)
+          if [ "$(echo "$blocking" | jq 'length')" -gt 0 ]; then
+            echo "::error::High or critical NuGet advisories: $blocking"
+            exit 1
+          fi
 
   validate-client:
     name: Validate Next.js client
