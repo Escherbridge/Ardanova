@@ -22,9 +22,9 @@ public sealed class NovaController : ControllerBase
         _nova = nova;
     }
 
-    /// <summary>Whether project refinement is live, a local preview, or off on this deployment.</summary>
+    /// <summary>Whether project refinement is live, a local preview, or off on this deployment, and the actor's refinements left today.</summary>
     [HttpGet("status")]
-    public ActionResult<NovaStatusDto> Status() => Ok(_nova.GetStatus());
+    public ActionResult<NovaStatusDto> Status() => Ok(_nova.GetStatus(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? string.Empty));
 
     /// <summary>One project-refinement turn for the signed actor: the next question, or the feasibility verdict.</summary>
     [HttpPost("project-refinement")]

@@ -12,8 +12,8 @@ public interface INovaOrchestrationService
         string actorId,
         CancellationToken ct = default);
 
-    /// <summary>Which Nova AI capabilities this deployment serves.</summary>
-    NovaStatusDto GetStatus();
+    /// <summary>Which Nova AI capabilities this deployment serves, and the actor's daily refinements left when live.</summary>
+    NovaStatusDto GetStatus(string actorId);
 }
 
 /// <summary>Port onto the OVERSEASGENAI partner validate API (Infrastructure/Ogai); never exposed to members.</summary>

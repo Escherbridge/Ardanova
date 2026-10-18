@@ -33,6 +33,8 @@ public sealed class NovaRefineResponseDto
     public NovaVerdictDto? Verdict { get; init; }
     public string? Vertical { get; init; }
     public NovaBriefDto? Brief { get; init; }
+    /// <summary>New live refinements this member can still start today; null when nothing is counted (local preview, off).</summary>
+    public int? RemainingToday { get; init; }
 }
 
 /// <summary>The feasibility verdict: go, adjust or not_yet, with the evidence it relied on.</summary>
@@ -107,6 +109,8 @@ public static class NovaErrors
     /// <summary>Nova AI's platform-wide daily capacity is spent; no member's fault.</summary>
     public const string Capacity = "nova_capacity";
     public const string SessionNotFound = "nova_session_not_found";
+    /// <summary>This member already has a turn being answered; one at a time, so nobody holds the shared capacity.</summary>
+    public const string TurnInFlight = "nova_turn_in_flight";
 }
 
 /// <summary>Values for <see cref="NovaStatusDto.Refinement"/>.</summary>
@@ -123,6 +127,10 @@ public sealed class NovaStatusDto
     public string Assistant { get; init; } = NovaBrand.AssistantName;
     /// <summary>"live", "local-preview" (fixed practice questions) or "off" (not connected on this deployment).</summary>
     public string Refinement { get; init; } = NovaAvailability.Off;
+    /// <summary>New live refinements a member may start per UTC day; null unless refinement is live.</summary>
+    public int? DailyLimit { get; init; }
+    /// <summary>How many of those this member has left today; null unless refinement is live.</summary>
+    public int? RemainingToday { get; init; }
 }
 
 /// <summary>One upstream refinement turn as the partner API returns it; mapped to <see cref="NovaRefineResponseDto"/>.</summary>

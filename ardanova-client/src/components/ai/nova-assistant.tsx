@@ -647,7 +647,19 @@ export function NovaAssistant({ pathname }: { pathname: string }) {
             <NovaRefinePanel
               conversation={refineConversation}
               onChange={setRefineConversation}
-              availability={novaStatus.data?.refinement ?? (novaStatus.isError ? null : undefined)}
+              availability={
+                novaStatus.data?.refinement ??
+                (novaStatus.isError ? null : undefined)
+              }
+              allowance={
+                novaStatus.data?.dailyLimit != null &&
+                novaStatus.data.remainingToday != null
+                  ? {
+                      dailyLimit: novaStatus.data.dailyLimit,
+                      remainingToday: novaStatus.data.remainingToday,
+                    }
+                  : null
+              }
             />
           )}
           {surface === "preview" && (
