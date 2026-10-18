@@ -1,0 +1,10 @@
+{
+  "track_id": "profile-directory-followups_20261018",
+  "type": "feature",
+  "status": "pending",
+  "created_at": "2026-10-18",
+  "updated_at": "2026-10-18",
+  "description": "Edit UI for existing skills/experience, server-side paginated people directory, invite-by-email via the manager path only, closure-gap wording fix, and auth QA hygiene (seeded user restore, dashboard overlay triage).",
+  "source": "loop4 auth QA + adversarial critique",
+  "partitions": { "confidence": "none" }
+}
