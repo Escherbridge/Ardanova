@@ -27,6 +27,7 @@ type: index
 
 ## Growth & Polish (Tracks 17-19) — Phase C
 - [ ] [Onboarding & First-Time Experience](tracks/17-onboarding/spec.md) - User type selection, profile wizard, first action prompt. **P1**
+- [ ] [Auth Consent & Account Linking](tracks/auth-consent-and-account-linking/spec.md) - Terms/Privacy consent before the workspace, verified linking for email collisions, honest sign-in errors, profile-router PII projection. **P1**
 - [ ] [Search & Discovery Enhancement](tracks/18-search-discovery/spec.md) - Global search, advanced filters, trending, recommendations. **P1**
 - [ ] [Governance & Voting Polish](tracks/19-governance-polish/spec.md) - Credential-gated voting, delegation, execution feedback. **P2**
 
