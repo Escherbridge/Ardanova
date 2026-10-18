@@ -11,12 +11,18 @@ public interface INovaOrchestrationService
         NovaRefineRequestDto request,
         string actorId,
         CancellationToken ct = default);
+
+    /// <summary>Which Nova AI capabilities this deployment serves.</summary>
+    NovaStatusDto GetStatus();
 }
 
 /// <summary>Port onto the OVERSEASGENAI partner validate API (Infrastructure/Ogai); never exposed to members.</summary>
 public interface IOgaiClient
 {
-    /// <summary>Sends one validate turn. ValidationError = input refused, Conflict = quota, Failure = unavailable.</summary>
+    /// <summary>A <see cref="NovaAvailability"/> value: what this client really answers with.</summary>
+    string Availability { get; }
+
+    /// <summary>Sends one validate turn. ValidationError = input refused, NotFound = session expired upstream, Failure = unavailable (error <see cref="NovaErrors.Capacity"/> when the partner's day is spent).</summary>
     Task<Result<OgaiTurn>> ValidateAsync(
         string idea,
         IReadOnlyList<NovaTurnDto> turns,

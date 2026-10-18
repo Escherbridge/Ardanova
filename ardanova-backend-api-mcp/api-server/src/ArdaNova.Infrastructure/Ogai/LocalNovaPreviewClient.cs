@@ -11,6 +11,8 @@ public sealed class LocalNovaPreviewClient : IOgaiClient
 {
     public const string PreviewOutcome = "preview";
 
+    public string Availability => NovaAvailability.LocalPreview;
+
     private static readonly string[] Questions =
     [
         "Who has this problem, specifically: what kind of person or organisation, and where?",
@@ -67,6 +69,8 @@ public sealed class LocalNovaPreviewClient : IOgaiClient
 /// <summary>Production without Ogai configuration: Nova AI is off rather than silently faked.</summary>
 public sealed class DisabledOgaiClient : IOgaiClient
 {
+    public string Availability => NovaAvailability.Off;
+
     public Task<Result<OgaiTurn>> ValidateAsync(
         string idea,
         IReadOnlyList<NovaTurnDto> turns,

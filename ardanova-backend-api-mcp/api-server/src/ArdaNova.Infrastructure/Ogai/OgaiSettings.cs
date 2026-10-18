@@ -11,8 +11,8 @@ public sealed class OgaiSettings
     /// <summary>Raw partner API key (secret store only); sent as a bearer token, never logged.</summary>
     public string PartnerApiKey { get; set; } = string.Empty;
 
-    /// <summary>Per-turn timeout; kept under the BFF's 30 s client timeout so .NET answers first.</summary>
-    public int TimeoutSeconds { get; set; } = 28;
+    /// <summary>Per-turn timeout: covers the upstream's retry-and-fallback budget (~88 s) and stays under the BFF's Nova timeout (100 s). See AGENTS.md §Turn budget.</summary>
+    public int TimeoutSeconds { get; set; } = 95;
 
     /// <summary>True when both the origin and the key are set.</summary>
     public bool IsConfigured => !string.IsNullOrWhiteSpace(BaseUrl) && !string.IsNullOrWhiteSpace(PartnerApiKey);

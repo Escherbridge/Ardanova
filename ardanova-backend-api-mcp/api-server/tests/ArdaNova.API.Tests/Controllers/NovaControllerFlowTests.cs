@@ -43,29 +43,36 @@ public class NovaControllerFlowTests
         upstream.SeenAuthorization.Should().AllBe($"Bearer {PartnerKey}");
     }
 
-    [Fact]
-    public async Task ReplyNamingTheUpstreamProviderNeverReachesTheMember()
+    [Theory]
+    [InlineData("Built with OVERSEASGENAI: who pays?")]
+    [InlineData("Overseas Gen-AI wants to know: who pays?")]
+    [InlineData("OVERSEAS\u200bGENAI asks: who pays?")]
+    [InlineData("As OGAI I ask: who pays?")]
+    public async Task ReplyNamingTheUpstreamProviderNeverReachesTheMember(string leak)
     {
-        var nova = NovaFor(new FakePartnerApi { Leak = "Built with OVERSEASGENAI: who pays?" });
+        var nova = NovaFor(new FakePartnerApi { Leak = leak });
 
         var result = await nova.Controller.RefineProject(new NovaRefineRequestDto { Idea = Idea }, CancellationToken.None);
 
         StatusOf(result).Should().Be(StatusCodes.Status503ServiceUnavailable);
-        JsonSerializer.Serialize(((ObjectResult)result).Value).Should().NotContainEquivalentOf("overseasgenai");
+        JsonSerializer.Serialize(((ObjectResult)result).Value).Should().NotContainEquivalentOf("ogai").And.NotContainEquivalentOf("overseas");
     }
 
     [Theory]
-    [InlineData(HttpStatusCode.Unauthorized, "", StatusCodes.Status503ServiceUnavailable)]
-    [InlineData(HttpStatusCode.ServiceUnavailable, """{"error":"unavailable","reason":"spend_closed"}""", StatusCodes.Status503ServiceUnavailable)]
-    [InlineData(HttpStatusCode.TooManyRequests, """{"error":"quota","reason":"daily_sessions"}""", StatusCodes.Status429TooManyRequests)]
-    [InlineData(HttpStatusCode.BadRequest, """{"error":"Something went wrong. Please try again."}""", StatusCodes.Status400BadRequest)]
-    public async Task UpstreamRefusalsMapToMemberStatusesAndNeverLogTheKey(HttpStatusCode upstreamStatus, string upstreamBody, int expected)
+    [InlineData(HttpStatusCode.Unauthorized, "", StatusCodes.Status503ServiceUnavailable, "nova_unavailable")]
+    [InlineData(HttpStatusCode.ServiceUnavailable, """{"error":"unavailable","reason":"calls_full"}""", StatusCodes.Status503ServiceUnavailable, "nova_unavailable")]
+    [InlineData(HttpStatusCode.ServiceUnavailable, """{"error":"unavailable","reason":"spend_closed"}""", StatusCodes.Status503ServiceUnavailable, "nova_capacity")]
+    [InlineData(HttpStatusCode.TooManyRequests, """{"error":"quota","reason":"daily_sessions"}""", StatusCodes.Status503ServiceUnavailable, "nova_capacity")]
+    [InlineData(HttpStatusCode.BadRequest, """{"error":"Something went wrong. Please try again."}""", StatusCodes.Status400BadRequest, null)]
+    public async Task UpstreamRefusalsMapToMemberStatusesAndNeverLogTheKey(HttpStatusCode upstreamStatus, string upstreamBody, int expected, string? expectedError)
     {
         var nova = NovaFor(new FakePartnerApi { FailWith = (upstreamStatus, upstreamBody) });
 
         var result = await nova.Controller.RefineProject(new NovaRefineRequestDto { Idea = Idea }, CancellationToken.None);
 
         StatusOf(result).Should().Be(expected);
+        if (expectedError is not null)
+            ErrorOf(result).Should().Be(expectedError, "the partner's whole day being spent is capacity, never this member's own limit");
         nova.Logs.Should().NotContain(line => line.Contains(PartnerKey));
     }
 
@@ -112,6 +119,63 @@ public class NovaControllerFlowTests
     }
 
     [Fact]
+    public async Task ARefinementContinuesAfterARestartOrOnAnotherReplica()
+    {
+        var upstream = new FakePartnerApi();
+        var clock = new ManualClock();
+        var before = NovaFor(upstream, clock: clock);
+        var first = await RefineAsync(before, new NovaRefineRequestDto { Idea = Idea });
+
+        var after = NovaFor(upstream, clock: clock);
+        var second = await RefineAsync(after, Continuation(first));
+
+        second.Number.Should().Be(2, "ownership travels in the signed state, not in one process's memory");
+    }
+
+    [Fact]
+    public async Task AnExpiredRefinementReadsAsNotFoundBeforeAnyUpstreamCall()
+    {
+        var upstream = new FakePartnerApi();
+        var clock = new ManualClock();
+        var nova = NovaFor(upstream, clock: clock);
+        var first = await RefineAsync(nova, new NovaRefineRequestDto { Idea = Idea });
+        var callsBefore = upstream.SeenAuthorization.Count;
+
+        clock.Advance(TimeSpan.FromHours(2));
+        var late = await nova.Controller.RefineProject(Continuation(first), CancellationToken.None);
+
+        StatusOf(late).Should().Be(StatusCodes.Status404NotFound);
+        ErrorOf(late).Should().Be("nova_session_not_found");
+        upstream.SeenAuthorization.Count.Should().Be(callsBefore, "a session past the upstream's lifetime is never sent there");
+    }
+
+    [Fact]
+    public async Task UpstreamSessionExpiryTellsTheMemberToStartAgainNotToFixTheirInput()
+    {
+        var upstream = new FakePartnerApi();
+        var nova = NovaFor(upstream);
+        var first = await RefineAsync(nova, new NovaRefineRequestDto { Idea = Idea });
+        upstream.FailWith = (HttpStatusCode.BadRequest, """{"error":"session","reason":"state_expired"}""");
+
+        var result = await nova.Controller.RefineProject(Continuation(first), CancellationToken.None);
+
+        StatusOf(result).Should().Be(StatusCodes.Status404NotFound);
+        ErrorOf(result).Should().Be("nova_session_not_found");
+    }
+
+    [Fact]
+    public async Task ProductionWithoutTheServiceSaysOffAndNeverPretends()
+    {
+        var nova = NovaFor(new DisabledOgaiClient());
+
+        var status = (NovaStatusDto)((OkObjectResult)nova.Controller.Status().Result!).Value!;
+        var turn = await nova.Controller.RefineProject(new NovaRefineRequestDto { Idea = Idea }, CancellationToken.None);
+
+        status.Refinement.Should().Be("off");
+        StatusOf(turn).Should().Be(StatusCodes.Status503ServiceUnavailable);
+    }
+
+    [Fact]
     public async Task UnconfiguredEnvironmentRunsTheLabelledLocalPreview()
     {
         var nova = NovaFor(new LocalNovaPreviewClient());
@@ -125,6 +189,7 @@ public class NovaControllerFlowTests
         }
 
         reply.Mode.Should().Be("local-preview");
+        ((NovaStatusDto)((OkObjectResult)nova.Controller.Status().Result!).Value!).Refinement.Should().Be("local-preview");
         reply.Verdict!.Outcome.Should().Be(LocalNovaPreviewClient.PreviewOutcome);
         reply.Brief.Should().BeNull("the preview analyses nothing, so it proposes no brief");
     }
@@ -138,21 +203,42 @@ public class NovaControllerFlowTests
 
     private static int? StatusOf(IActionResult result) => (result as ObjectResult)?.StatusCode;
 
+    private static string? ErrorOf(IActionResult result)
+        => JsonSerializer.SerializeToNode((result as ObjectResult)?.Value)?["error"]?.GetValue<string>();
+
+    private static NovaRefineRequestDto Continuation(NovaRefineResponseDto question) => new()
+    {
+        Idea = Idea,
+        Turns = [new NovaTurnDto { Question = question.Question!, Answer = "Forty households asked." }],
+        State = question.State,
+        SessionId = question.SessionId,
+    };
+
+    private static readonly byte[] TicketKey = NovaSessionTickets.DeriveKey("nova-test-ticket-secret-0123456789abcdef");
+
+    private sealed class ManualClock : TimeProvider
+    {
+        private DateTimeOffset _now = new(2026, 10, 17, 9, 0, 0, TimeSpan.Zero);
+        public override DateTimeOffset GetUtcNow() => _now;
+        public void Advance(TimeSpan by) => _now += by;
+    }
+
     private sealed record NovaHarness(NovaController Controller, INovaOrchestrationService Service, List<string> Logs);
 
-    private static NovaHarness NovaFor(FakePartnerApi upstream, int dailySessions = 10)
+    private static NovaHarness NovaFor(FakePartnerApi upstream, int dailySessions = 10, TimeProvider? clock = null)
     {
         var logs = new List<string>();
         var http = new HttpClient(upstream) { BaseAddress = new Uri("https://ogai.test/") };
         http.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", PartnerKey);
-        return NovaFor(new OgaiClient(http, new CapturingLogger<OgaiClient>(logs)), dailySessions, logs);
+        return NovaFor(new OgaiClient(http, new CapturingLogger<OgaiClient>(logs)), dailySessions, logs, clock);
     }
 
-    private static NovaHarness NovaFor(IOgaiClient client, int dailySessions = 10, List<string>? logs = null)
+    private static NovaHarness NovaFor(IOgaiClient client, int dailySessions = 10, List<string>? logs = null, TimeProvider? clock = null)
     {
         logs ??= [];
-        var service = new NovaOrchestrationService(client, new NovaSessionAllowance(TimeProvider.System, dailySessions),
-            new CapturingLogger<NovaOrchestrationService>(logs));
+        clock ??= TimeProvider.System;
+        var service = new NovaOrchestrationService(client, new NovaSessionAllowance(clock, dailySessions),
+            new NovaSessionTickets(TicketKey, clock), new CapturingLogger<NovaOrchestrationService>(logs));
         return new NovaHarness(ControllerFor(service, "member-1"), service, logs);
     }
 

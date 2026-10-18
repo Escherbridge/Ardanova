@@ -1,0 +1,12 @@
+{
+  "id": "nova-ai-partner-modes",
+  "title": "Nova AI modes beyond refinement, and a project prefill from the brief",
+  "type": "feature",
+  "status": "proposed",
+  "created": "2026-10-17",
+  "depends_on": ["nova-ai-ogai-partner"],
+  "external": {
+    "overseasgenai": { "branch": null, "pushed": false, "deployed": false }
+  },
+  "partitions": { "confidence": "none" }
+}

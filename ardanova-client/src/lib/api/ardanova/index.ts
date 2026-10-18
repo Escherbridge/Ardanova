@@ -37,7 +37,7 @@ import { AddFundsEndpoint } from "./endpoints/add-funds";
 import { TaskEscrowsEndpoint } from "./endpoints/task-escrows";
 import { AzoaCustodialAccountEndpoint } from "./endpoints/azoa-custodial-account";
 import { FundingIntentsEndpoint } from "./endpoints/funding-intents";
-import { NovaEndpoint } from "./endpoints/nova";
+import { NOVA_TURN_TIMEOUT_MS, NovaEndpoint } from "./endpoints/nova";
 
 // Re-export types from endpoints
 export type {
@@ -313,6 +313,7 @@ export type {
   NovaRefineResponse,
   NovaVerdict,
   NovaBrief,
+  NovaStatus,
 } from "./endpoints/nova";
 
 // Re-export schemas for validation
@@ -411,7 +412,7 @@ export class ArdaNovaApiClient extends BaseApiClient {
     this.azoaCustodialAccount = new AzoaCustodialAccountEndpoint(this);
     this.fundingIntents = new FundingIntentsEndpoint(this);
     this.addFunds = new AddFundsEndpoint(this);
-    this.nova = new NovaEndpoint(this);
+    this.nova = new NovaEndpoint(new BaseApiClient({ ...config, timeout: NOVA_TURN_TIMEOUT_MS }));
   }
 
   health() {

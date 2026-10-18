@@ -1,13 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import { RotateCcw, Send } from "lucide-react";
+import Link from "next/link";
+import { ClipboardCopy, RotateCcw, Send } from "lucide-react";
 
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import { Textarea } from "~/components/ui/textarea";
 import type {
+  NovaBrief,
   NovaRefineResponse,
+  NovaStatus,
   NovaTurn,
 } from "~/lib/api/ardanova/endpoints/nova";
 import { api } from "~/trpc/react";
@@ -38,9 +41,13 @@ const outcomeLabel: Record<string, string> = {
 };
 
 /** Member-facing copy for a failed turn, keyed by the tRPC code the nova router maps. */
-function describeError(code: string | undefined): string {
+export function describeError(code: string | undefined): string {
   if (code === "TOO_MANY_REQUESTS")
-    return "You have reached today's Nova AI refinement limit. Try again tomorrow.";
+    return "You have used all of your Nova AI refinements for today. Try again tomorrow.";
+  if (code === "SERVICE_UNAVAILABLE")
+    return "Nova AI is at capacity for today across ArdaNova. This is not your own limit. Your idea and answers are still here; try again tomorrow.";
+  if (code === "TIMEOUT")
+    return "Nova AI took too long to answer. Your idea and answers are still here; try again.";
   if (code === "BAD_REQUEST")
     return "Nova AI could not use that input. Check the idea and your answers, then try again.";
   if (code === "UNAUTHORIZED") return "Sign in again to use Nova AI.";
@@ -49,19 +56,71 @@ function describeError(code: string | undefined): string {
   return "Nova AI is unavailable right now. Your idea and answers are still here; try again in a moment.";
 }
 
+/** Plain-text brief for the clipboard, so a member can paste it into a new project. */
+export function briefAsText(brief: NovaBrief): string {
+  const list = (title: string, items: string[]) =>
+    items.length > 0 ? [title, ...items.map((item) => `- ${item}`)] : [];
+  return [
+    brief.workingName,
+    brief.oneLiner,
+    "",
+    `Customer: ${brief.customer}`,
+    `Problem: ${brief.problem}`,
+    `Offer: ${brief.offer}`,
+    `Pricing: ${brief.pricing}`,
+    ...list("First channels", brief.channels),
+    ...list("Milestones", brief.milestones),
+    ...list("Numbers to watch", brief.metrics),
+  ].join("\n");
+}
+
 export function NovaRefinePanel({
   conversation,
   onChange,
+  availability,
 }: {
   conversation: NovaRefineConversation;
   onChange: (next: NovaRefineConversation) => void;
+  /** From nova.status; undefined while loading and null when unknown, which both keep the form. */
+  availability?: NovaStatus["refinement"] | null;
 }) {
   const refine = api.nova.refineProject.useMutation();
   const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
   const { idea, turns, reply, answer } = conversation;
   const ideaLength = idea.trim().length;
   const started = reply !== null;
-  const isPreview = reply?.mode === "local-preview";
+  const isPreview =
+    reply?.mode === "local-preview" ||
+    (reply === null && availability === "local-preview");
+  const pendingLabel = "Asking Nova AI… this can take up to a minute";
+
+  async function copyBrief(brief: NovaBrief) {
+    try {
+      await navigator.clipboard.writeText(briefAsText(brief));
+      setCopied(true);
+    } catch {
+      setError("Copying is blocked in this browser. Select the brief and copy it instead.");
+    }
+  }
+
+  if (availability === "off" && !started) {
+    return (
+      <section className="border-b-2 p-5" aria-labelledby="nova-refine-heading">
+        <h3
+          id="nova-refine-heading"
+          className="mb-3 font-mono text-sm font-black tracking-[0.08em] uppercase"
+        >
+          Refine a project idea
+        </h3>
+        <p className="bg-muted border-l-4 p-3 text-xs leading-relaxed" role="status">
+          Nova AI project refinement is not available on this deployment.
+          Nothing you type here would be sent. The preview tools still work
+          locally.
+        </p>
+      </section>
+    );
+  }
 
   async function send(nextTurns: NovaTurn[]) {
     setError(null);
@@ -73,6 +132,7 @@ export function NovaRefinePanel({
         sessionId:
           nextTurns.length > 0 ? (reply?.sessionId ?? undefined) : undefined,
       });
+      setCopied(false);
       onChange({ idea, turns: nextTurns, reply: next, answer: "" });
     } catch (cause) {
       const code = (cause as { data?: { code?: string } } | null)?.data?.code;
@@ -137,7 +197,7 @@ export function NovaRefinePanel({
             disabled={ideaLength < MIN_IDEA || refine.isPending}
           >
             <Send className="size-4" aria-hidden="true" />
-            {refine.isPending ? "Asking Nova AI…" : "Start refinement"}
+            {refine.isPending ? pendingLabel : "Start refinement"}
           </Button>
         </div>
       )}
@@ -185,7 +245,7 @@ export function NovaRefinePanel({
             disabled={!answer.trim() || refine.isPending}
           >
             <Send className="size-4" aria-hidden="true" />
-            {refine.isPending ? "Asking Nova AI…" : "Answer"}
+            {refine.isPending ? pendingLabel : "Answer"}
           </Button>
         </div>
       )}
@@ -267,6 +327,24 @@ export function NovaRefinePanel({
                 This brief is a starting point for you to review. Nova AI has
                 not created or changed any project.
               </p>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <Button
+                  variant="outline"
+                  className="min-h-11"
+                  onClick={() => reply.brief && void copyBrief(reply.brief)}
+                >
+                  <ClipboardCopy className="size-4" aria-hidden="true" />
+                  {copied ? "Brief copied" : "Copy brief"}
+                </Button>
+                <Button asChild variant="ghost" className="min-h-11">
+                  <Link href="/projects/create">Start a project</Link>
+                </Button>
+              </div>
+              <p className="text-muted-foreground mt-2" aria-live="polite">
+                {copied
+                  ? "Paste it into the new project form. Nothing is filled in for you."
+                  : "Copy the brief, then paste it into the new project form."}
+              </p>
             </div>
           )}
         </div>
@@ -288,6 +366,7 @@ export function NovaRefinePanel({
           className="mt-3 min-h-11"
           onClick={() => {
             setError(null);
+            setCopied(false);
             onChange({ ...emptyRefineConversation, idea });
           }}
           disabled={refine.isPending}
@@ -295,6 +374,12 @@ export function NovaRefinePanel({
           <RotateCcw className="size-4" aria-hidden="true" />
           Start over
         </Button>
+      )}
+      {started && !isPreview && (
+        <p className="text-muted-foreground mt-1 text-xs">
+          Starting over begins a new refinement, which counts toward your daily
+          Nova AI limit.
+        </p>
       )}
     </section>
   );
