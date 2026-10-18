@@ -14,6 +14,13 @@ existing ADMIN (`canChangeMember` in `members-tab.tsx`). The edit route
 (`app/guilds/[slug]/edit/page.tsx`) applies the same owner-or-ADMIN rule before rendering the
 form; the API re-checks on save.
 
+A non-owner ADMIN's role comes from the members list, so it is unknown while that query loads.
+The page derives `roleResolved` (signed out, the owner, or members loaded) and renders no
+role-gated control until it is true: Edit Guild and `JoinGuildPanel` wait in the header, and the
+non-overview tabs show a spinner instead of mounting with `canManage = false` and then re-rendering
+with the manager controls. This is the same wait `JoinGuildPanel` already had, applied to every
+`canManage` consumer.
+
 ## Joining a guild
 
 `join-guild-panel.tsx` (in the guild header, for signed-in viewers) is the only way into a guild

@@ -84,6 +84,8 @@ export default function GuildDetailPage() {
   const userRole = userMember?.role ?? (isOwner ? "OWNER" : undefined);
   // Matches GuildAuthority.CanManageAsync: the owner or an ADMIN member (components/guilds/AGENTS.md §Who manages).
   const canManage = isOwner || userRole === "ADMIN";
+  // An ADMIN's role is only known once members load; until then nothing role-gated renders (components/guilds/AGENTS.md §Who manages).
+  const roleResolved = !currentUserId || isOwner || !membersLoading;
 
   if (isLoading) {
     return (
@@ -181,7 +183,7 @@ export default function GuildDetailPage() {
                 </div>
 
                 <div className="flex flex-col gap-2 sm:items-end">
-                  {canManage && (
+                  {roleResolved && canManage && (
                     <Button
                       variant="outline"
                       asChild
@@ -193,7 +195,7 @@ export default function GuildDetailPage() {
                       </Link>
                     </Button>
                   )}
-                  {currentUserId && !membersLoading && (
+                  {currentUserId && roleResolved && !membersLoading && (
                     <JoinGuildPanel
                       guildId={guild.id}
                       guildName={guild.name}
@@ -328,17 +330,25 @@ export default function GuildDetailPage() {
         aria-labelledby={`guild-workspace-tab-${activeTab}`}
       >
         {activeTab === "overview" && <OverviewTab guild={guild} />}
-        {activeTab === "updates" && (
+        {activeTab !== "overview" && !roleResolved && (
+          <div className="flex justify-center py-12">
+            <Loader2
+              className="text-primary size-6 animate-spin"
+              aria-label="Loading your role in this guild"
+            />
+          </div>
+        )}
+        {activeTab === "updates" && roleResolved && (
           <UpdatesTab guildId={guild.id} canManage={canManage} />
         )}
-        {activeTab === "members" && (
+        {activeTab === "members" && roleResolved && (
           <MembersTab
             guildId={guild.id}
             isOwner={isOwner}
             canManage={canManage}
           />
         )}
-        {activeTab === "opportunities" && (
+        {activeTab === "opportunities" && roleResolved && (
           <OpportunitiesTab
             guildId={guild.id}
             guildSlug={slug}
@@ -346,7 +356,7 @@ export default function GuildDetailPage() {
             userRole={userRole}
           />
         )}
-        {activeTab === "reviews" && (
+        {activeTab === "reviews" && roleResolved && (
           <ReviewsTab
             guildId={guild.id}
             isOwner={isOwner}
