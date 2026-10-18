@@ -23,6 +23,13 @@ public record ProposalDto
     public ProposalProjectDto? Project { get; init; }
     public int VotesCount { get; init; }
     public decimal TotalVotingPower { get; init; }
+    /// <summary>Confirmed members of the project who may vote - the electorate quorum is measured against.</summary>
+    public int EligibleMembers { get; init; }
+    /// <summary>Ballots needed for quorum, as the tally computes it (never fewer than two).</summary>
+    public int VotesNeededForQuorum { get; init; }
+    public bool QuorumReached { get; init; }
+    /// <summary>Ballots cast per declared choice number.</summary>
+    public Dictionary<int, int> VotesByChoice { get; init; } = new();
 }
 
 public record ProposalCreatorDto
@@ -102,6 +109,10 @@ public record ProposalVoteSummaryDto
     public Dictionary<int, VoteOptionSummary> OptionSummaries { get; init; } = new();
     public bool QuorumReached { get; init; }
     public int? WinningOption { get; init; }
+    /// <summary>Confirmed members who may vote on this proposal.</summary>
+    public int EligibleMembers { get; init; }
+    /// <summary>Ballots needed for quorum, computed by the same rule that resolves the proposal.</summary>
+    public int VotesNeededForQuorum { get; init; }
 }
 
 public record VoteOptionSummary
