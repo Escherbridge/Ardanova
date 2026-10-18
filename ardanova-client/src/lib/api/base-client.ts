@@ -127,62 +127,6 @@ export class BaseApiClient {
     });
   }
 
-  /** Multipart POST — omits `Content-Type` so the boundary is set automatically. */
-  async postFormData<T>(
-    endpoint: string,
-    formData: FormData,
-    extraHeaders?: Record<string, string>,
-  ): Promise<ApiResponse<T>> {
-    if (isActorAssertionActive()) {
-      throw new Error("Actor-signed multipart requests are not supported.");
-    }
-
-    const url = `${this.baseUrl}${endpoint}`;
-    const headers: Record<string, string> = {
-      ...this.defaultHeaders,
-      ...extraHeaders,
-    };
-    delete headers["Content-Type"];
-    delete headers["X-Ardanova-Actor"];
-
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), this.timeout);
-
-      const response = await fetch(url, {
-        method: "POST",
-        body: formData,
-        headers,
-        signal: controller.signal,
-      });
-
-      clearTimeout(timeoutId);
-
-      if (!response.ok) {
-        return failed(response.status, await response.text());
-      }
-
-      const text = await response.text();
-      if (!text) {
-        return { status: response.status };
-      }
-
-      const data = JSON.parse(text) as T;
-      return { data, status: response.status };
-    } catch (error) {
-      if (error instanceof Error && error.name === "AbortError") {
-        return {
-          error: "Request timeout",
-          status: 408,
-        };
-      }
-      return {
-        error: error instanceof Error ? error.message : "Unknown error",
-        status: 500,
-      };
-    }
-  }
-
   put<T>(endpoint: string, body?: unknown): Promise<ApiResponse<T>> {
     return this.request<T>(endpoint, {
       method: "PUT",
