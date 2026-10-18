@@ -68,8 +68,15 @@ public class InMemoryRepository<T> : IRepository<T> where T : class
         return Task.CompletedTask;
     }
 
+    /// <summary>Runs after an ExistsAsync read and before its result returns: models another request writing in between.</summary>
+    public Action? AfterExists { get; set; }
+
     public Task<bool> ExistsAsync(Expression<Func<T, bool>> predicate, CancellationToken cancellationToken = default)
-        => Task.FromResult(Rows.Any(predicate.Compile()));
+    {
+        var found = Rows.Any(predicate.Compile());
+        AfterExists?.Invoke();
+        return Task.FromResult(found);
+    }
 
     public Task<int> CountAsync(Expression<Func<T, bool>>? predicate = null, CancellationToken cancellationToken = default)
         => Task.FromResult(predicate is null ? Rows.Count : Rows.Count(predicate.Compile()));
