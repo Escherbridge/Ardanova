@@ -153,6 +153,17 @@ public class GovernanceController : ControllerBase
         return ToActionResult(result);
     }
 
+    /// <summary>The signed actor's own standing on a proposal they can see: may they vote, and what did they cast.</summary>
+    [HttpGet("proposals/{id}/my-ballot")]
+    [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
+    public async Task<IActionResult> GetMyBallot(string id, CancellationToken ct)
+    {
+        if (await ProposalNotVisibleAsync(id, ct) is { } hidden)
+            return hidden;
+
+        return ToActionResult(await _governanceService.GetBallotStatusAsync(id, ActorId, ct));
+    }
+
     [HttpGet("proposals/{id}/summary")]
     public async Task<IActionResult> GetVoteSummary(string id, CancellationToken ct)
     {

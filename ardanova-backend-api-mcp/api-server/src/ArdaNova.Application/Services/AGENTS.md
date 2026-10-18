@@ -9,8 +9,14 @@ caller cannot even express one). The Next.js `guild` router is a pass-through an
 ownership checks.
 
 - **Owner**: `guild.ownerId`, an `OWNER` membership row, or a platform admin.
-  **Manager**: owner, or an `ADMIN` member. Managers edit the profile, post updates, add/remove
-  members, invite, and review applications.
+  **Manager**: owner, or an `ADMIN` member. Managers edit the profile, post updates, remove
+  members, change roles, invite, and review applications. The client mirrors this as
+  `canManage = isOwner || role === "ADMIN"` (see `ardanova-client/src/components/guilds/AGENTS.md`).
+- **Nobody is put in a guild without consenting.** A person joins only by accepting an invitation
+  addressed to them or by an application they made being approved. `GuildMemberService.CreateAsync`
+  (`POST /api/Guilds/{id}/members`) is a platform-admin repair path only; a guild manager gets 403.
+  It used to let any manager attach any account (including public figures or competitors) to a
+  guild whose member list is public.
 - **OWNER is never grantable** through member update, add, invitation or application
   (`GuildAuthority.TryParseGrantableRole`). Ownership transfer is a separate act that does not
   exist yet. The OWNER row cannot be re-roled or removed.
@@ -19,12 +25,10 @@ ownership checks.
 - **Every child lookup is scoped by `(guildId, id)`.** A member, review, update, application or
   invitation id that belongs to another guild is NotFound through this guild's route. This closes
   the cross-guild IDOR where an owner of guild A changed roles in guild B.
-- **Invitations bind to an account at creation.** The invitee is looked up by user id or by the
-  email on their account (case-insensitive); no account means the invitation is refused, not
-  stored. Accept/reject require `invitedUserId == actor`, `PENDING`, and not expired (14 days).
-  Email-only rows stay fail-closed (see `ArdaNova.API/Controllers/AGENTS.md` §Email-only
-  invitations). Trade-off: a manager can learn whether an email has an account; acceptable for a
-  member-to-member invite, revisit if invites open to the public.
+- **Invitations bind to an account at creation, when they can.** Accept/reject require
+  `invitedUserId == actor`, `PENDING`, and not expired (14 days). Email-only rows stay fail-closed
+  (see `ArdaNova.API/Controllers/AGENTS.md` §Email-only invitations). See §Email invitations for
+  why an email invitation always answers the same way.
 - **The owner of record is a member.** `GuildAuthority.IsMemberAsync` answers "already belongs"
   from `guild.ownerId` OR a membership row, because legacy and seeded guilds have no OWNER row
   (migration `20261017130000_guild_owner_member_backfill` adds them). Every "already a member"
@@ -38,6 +42,33 @@ ownership checks.
   concurrent reviews left wrong, so `GuildService` reads derive all three from the rows
   (`assignedGuildId` projects; `GuildReview` ratings). The stored columns are still recounted after
   each review write, best effort, for any raw-SQL reader.
+
+### Email invitations
+
+Anyone can found a guild and so become a manager, so an invitation response that differs by
+whether an email has an account is an account-enumeration oracle (QA confirmed it live: unknown
+email 400, registered email 409). `GuildInvitationService.CreateAsync` by email therefore:
+
+- refuses only a duplicate of the inviter's own still-pending invitation to the *same email* (409);
+  nothing about the account decides the answer;
+- binds the row to the account when an account uses the email, is not already a member, and has no
+  answerable invitation here; otherwise it stores an **unbound** row (no `invitedUserId`) that nobody
+  can accept and that expires in 14 days;
+- returns the row through `ToManagerDto`, which drops `InvitedUserId` whenever the row was made by
+  email. Every manager read (`GetByGuildIdAsync`, `GetByIdAsync` for a non-invitee) uses it too.
+
+Invitations by account id keep their distinct answers (unknown id 404, already a member 409): ids
+come from public member and profile lists, so they reveal nothing new. Remaining gaps, tracked in
+`conductor/tracks/guild-join-and-vote-integrity_20261018`: binding an unbound row when that email
+signs up and verifies, and a per-actor invitation rate limit (only the global 600/min actor limiter
+applies today).
+
+### Guild applications
+
+`GET /api/Guilds/{id}/applications/mine` (`GetMineAsync`) returns the signed actor's own
+applications to that guild so the page can show "pending" and offer withdraw. The literal `mine`
+segment outranks the `{applicationId}` route. The managers' list fills `Applicant` (name and image
+only) from the user repository; the applicant's own reads do not need it.
 
 ### Guild reviews
 
@@ -67,6 +98,12 @@ confirmed members with a two-ballot floor, outcome resolved from the tally.
   now is refused at create, draft edit and publish. Publish refuses rather than silently moving
   the date: a closing time the gate does not honour is worse than none. 12 h (not 24) so a
   one-day draft can still be opened the same day it was written.
+- **The ballot gate is one rule set.** `CastVoteAsync` and `GetBallotStatusAsync`
+  (`GET /api/Governance/proposals/{id}/my-ballot`) share `VotingWindowRefusal` and
+  `VoterRefusalAsync`, so the client is offered a ballot form exactly when a cast would be accepted:
+  not to signed-out viewers, non-confirmed members, people who already voted, or after `votingEnd`.
+  The status endpoint opens with the visibility check, so it cannot confirm that a hidden proposal
+  exists.
 - **The tally is the only arithmetic.** `ProposalDto` and the vote summary both expose
   `EligibleMembers`, `VotesNeededForQuorum`, `QuorumReached` and per-choice counts from
   `TallyAsync`; clients display these and never recompute quorum.

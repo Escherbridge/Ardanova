@@ -144,6 +144,8 @@ public record GuildApplicationDto
     public DateTime? ReviewedAt { get; init; }
     public string? ReviewMessage { get; init; }
     public string? ReviewedById { get; init; }
+    /// <summary>The applicant's public profile (never their email), filled on the managers' list.</summary>
+    public GuildMemberUserDto? Applicant { get; init; }
 }
 
 /// <summary>The signed actor applying to the routed guild.</summary>

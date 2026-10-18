@@ -70,6 +70,30 @@ export interface GuildInvitation {
   respondedAt?: string | null;
 }
 
+/** Matches `GuildApplicationDto`. Status is PENDING, APPROVED, REJECTED or WITHDRAWN. */
+export interface GuildApplication {
+  id: string;
+  guildId: string;
+  userId: string;
+  requestedRole: string;
+  message: string;
+  skills?: string | null;
+  experience?: string | null;
+  portfolio?: string | null;
+  availability?: string | null;
+  status: string;
+  appliedAt: string;
+  reviewedAt?: string | null;
+  reviewMessage?: string | null;
+  reviewedById?: string | null;
+  /** Public profile, filled on the managers' list only. */
+  applicant?: {
+    id: string;
+    name?: string | null;
+    image?: string | null;
+  } | null;
+}
+
 /** Matches `CreateGuildDto`; the owner is the signed actor, so no owner id is sent. */
 export interface CreateGuildDto {
   name: string;
@@ -269,6 +293,7 @@ export class GuildsEndpoint {
     );
   }
 
+  /** Platform-operator repair only: the API refuses everyone else, who join by invitation or application. */
   addMember(
     guildId: string,
     data: CreateGuildMemberDto,
@@ -352,9 +377,28 @@ export class GuildsEndpoint {
     );
   }
 
-  getApplications(guildId: string): Promise<ApiResponse<unknown[]>> {
-    return this.client.get<unknown[]>(
+  /** Managers only. */
+  getApplications(guildId: string): Promise<ApiResponse<GuildApplication[]>> {
+    return this.client.get<GuildApplication[]>(
       apiPath`/api/guilds/${guildId}/applications`,
+    );
+  }
+
+  /** The signed actor's own applications to this guild, newest first. */
+  getMyApplications(guildId: string): Promise<ApiResponse<GuildApplication[]>> {
+    return this.client.get<GuildApplication[]>(
+      apiPath`/api/guilds/${guildId}/applications/mine`,
+    );
+  }
+
+  /** Only the applicant may withdraw, and only while pending. */
+  withdrawApplication(
+    guildId: string,
+    applicationId: string,
+  ): Promise<ApiResponse<GuildApplication>> {
+    return this.client.post<GuildApplication>(
+      apiPath`/api/guilds/${guildId}/applications/${applicationId}/withdraw`,
+      {},
     );
   }
 
@@ -369,8 +413,11 @@ export class GuildsEndpoint {
       portfolio?: string;
       availability?: string;
     },
-  ): Promise<ApiResponse<unknown>> {
-    return this.client.post(apiPath`/api/guilds/${guildId}/applications`, data);
+  ): Promise<ApiResponse<GuildApplication>> {
+    return this.client.post<GuildApplication>(
+      apiPath`/api/guilds/${guildId}/applications`,
+      data,
+    );
   }
 
   getApplicationById(
@@ -422,7 +469,7 @@ export class GuildsEndpoint {
     return this.client.get<GuildInvitation[]>("/api/guilds/invitations/mine");
   }
 
-  /** Matches `CreateGuildInvitationDto`; the inviter is the signed actor and the invitee must already have an account. */
+  /** Matches `CreateGuildInvitationDto`; the inviter is the signed actor. An email invite answers the same whether or not an account uses it. */
   createInvitation(
     guildId: string,
     data: {

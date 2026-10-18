@@ -46,6 +46,8 @@ public interface IGovernanceService
     Task<Result<IReadOnlyList<VoteDto>>> GetVotesAsync(string proposalId, CancellationToken ct = default);
     Task<Result<VoteDto>> GetUserVoteAsync(string proposalId, string userId, CancellationToken ct = default);
     Task<Result<ProposalVoteSummaryDto>> GetVoteSummaryAsync(string proposalId, CancellationToken ct = default);
+    /// <summary>Whether this member may vote now, by the same checks CastVoteAsync applies, and what they already cast.</summary>
+    Task<Result<BallotStatusDto>> GetBallotStatusAsync(string proposalId, string voterId, CancellationToken ct = default);
 
     // Proposal lifecycle
     Task<Result<ProposalDto>> ExecuteProposalAsync(string id, CancellationToken ct = default);

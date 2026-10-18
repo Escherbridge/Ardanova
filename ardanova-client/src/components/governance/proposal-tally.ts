@@ -7,7 +7,10 @@ export interface TallyOption {
 }
 
 /** Ballots per choice as the API serialises them (JSON object keys arrive as strings). */
-export type VotesByChoice = Record<string, number | undefined> | undefined | null;
+export type VotesByChoice =
+  | Record<string, number | undefined>
+  | undefined
+  | null;
 
 /**
  * Reads a proposal's declared options and joins them to the tally, mirroring the API's
@@ -48,7 +51,10 @@ export function readProposalOptions(
   }
 
   const counts = votesByChoice ?? {};
-  const votesCast = Object.values(counts).reduce<number>((sum, n) => sum + (n ?? 0), 0);
+  const votesCast = Object.values(counts).reduce<number>(
+    (sum, n) => sum + (n ?? 0),
+    0,
+  );
   return declared.map(({ label, choice }) => {
     const votes = counts[String(choice)] ?? 0;
     return {
@@ -67,4 +73,31 @@ export function quorumProgressPercent(
 ): number {
   if (votesNeededForQuorum <= 0) return 0;
   return Math.min(Math.round((votesCast * 100) / votesNeededForQuorum), 100);
+}
+
+/** What to tell a viewer of an ACTIVE proposal who is not being offered the ballot form. */
+export function ballotStandingMessage({
+  isSignedIn,
+  ballotLoading,
+  windowHasEnded,
+  ballot,
+  choiceLabel,
+}: {
+  isSignedIn: boolean;
+  ballotLoading: boolean;
+  windowHasEnded: boolean;
+  ballot?: {
+    canVote: boolean;
+    reason?: string | null;
+    choice?: number | null;
+  } | null;
+  choiceLabel?: string;
+}): string {
+  if (ballot?.choice !== undefined && ballot?.choice !== null) {
+    return `You voted ${choiceLabel ?? `option ${ballot.choice}`}. Ballots are final.`;
+  }
+  if (windowHasEnded) return "Voting has closed; the result is being counted.";
+  if (!isSignedIn) return "Sign in to vote on this proposal.";
+  if (ballotLoading) return "Checking whether you can vote…";
+  return ballot?.reason ?? "You can't vote on this proposal.";
 }

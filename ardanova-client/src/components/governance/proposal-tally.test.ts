@@ -1,5 +1,56 @@
 import { describe, expect, it } from "vitest";
-import { quorumProgressPercent, readProposalOptions } from "./proposal-tally";
+import {
+  ballotStandingMessage,
+  quorumProgressPercent,
+  readProposalOptions,
+} from "./proposal-tally";
+
+describe("ballotStandingMessage", () => {
+  const base = {
+    isSignedIn: true,
+    ballotLoading: false,
+    windowHasEnded: false,
+  };
+  const notConfirmed = "Only confirmed members of this project can vote on it";
+  it.each([
+    {
+      name: "a cast ballot is reported by its option label, even after the window ends",
+      input: {
+        ...base,
+        windowHasEnded: true,
+        ballot: { canVote: false, choice: 0 },
+        choiceLabel: "For",
+      },
+      expected: "You voted For. Ballots are final.",
+    },
+    {
+      name: "choice 0 is a real ballot, not an absent one",
+      input: { ...base, ballot: { canVote: false, choice: 0 } },
+      expected: "You voted option 0. Ballots are final.",
+    },
+    {
+      name: "an ended window says so instead of the eligibility reason",
+      input: {
+        ...base,
+        windowHasEnded: true,
+        ballot: { canVote: false, reason: notConfirmed },
+      },
+      expected: "Voting has closed; the result is being counted.",
+    },
+    {
+      name: "a signed-out viewer is asked to sign in",
+      input: { ...base, isSignedIn: false },
+      expected: "Sign in to vote on this proposal.",
+    },
+    {
+      name: "an ineligible member sees the server's own refusal reason",
+      input: { ...base, ballot: { canVote: false, reason: notConfirmed } },
+      expected: notConfirmed,
+    },
+  ])("$name", ({ input, expected }) => {
+    expect(ballotStandingMessage(input)).toBe(expected);
+  });
+});
 
 describe("readProposalOptions", () => {
   it.each([

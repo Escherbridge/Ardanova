@@ -9,10 +9,10 @@ import { Loader2, Bell, Plus, Trash2, Send } from "lucide-react";
 
 interface UpdatesTabProps {
   guildId: string;
-  isOwner: boolean;
+  canManage: boolean;
 }
 
-export function UpdatesTab({ guildId, isOwner }: UpdatesTabProps) {
+export function UpdatesTab({ guildId, canManage }: UpdatesTabProps) {
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -133,7 +133,7 @@ export function UpdatesTab({ guildId, isOwner }: UpdatesTabProps) {
           <Bell className="text-muted-foreground h-5 w-5" />
           <h2 className="text-xl font-semibold">Guild Updates</h2>
         </div>
-        {isOwner && !isFormOpen && (
+        {canManage && !isFormOpen && (
           <Button onClick={() => setIsFormOpen(true)} size="sm">
             <Plus className="mr-2 h-4 w-4" />
             New Update
@@ -142,7 +142,7 @@ export function UpdatesTab({ guildId, isOwner }: UpdatesTabProps) {
       </div>
 
       {/* Create Update Form */}
-      {isOwner && isFormOpen && (
+      {canManage && isFormOpen && (
         <Card>
           <CardHeader>
             <CardTitle>Post a New Update</CardTitle>
@@ -245,7 +245,7 @@ export function UpdatesTab({ guildId, isOwner }: UpdatesTabProps) {
             <Bell className="text-muted-foreground mb-4 h-12 w-12" />
             <h3 className="mb-2 text-lg font-semibold">No updates yet</h3>
             <p className="text-muted-foreground max-w-sm text-center text-sm">
-              {isOwner
+              {canManage
                 ? "Share news and announcements with your community by posting your first update."
                 : "Check back later for updates from the guild."}
             </p>
@@ -273,7 +273,7 @@ export function UpdatesTab({ guildId, isOwner }: UpdatesTabProps) {
                           <span>{formatDate(update.createdAt)}</span>
                         </div>
                       </div>
-                      {isOwner && (
+                      {canManage && (
                         <Button
                           variant="ghost"
                           size="sm"

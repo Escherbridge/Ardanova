@@ -115,6 +115,18 @@ public record ProposalVoteSummaryDto
     public int VotesNeededForQuorum { get; init; }
 }
 
+/// <summary>One member's standing on one proposal, so the client offers a ballot only to someone the server will accept it from.</summary>
+public record BallotStatusDto
+{
+    public bool VotingOpen { get; init; }
+    public bool CanVote { get; init; }
+    /// <summary>Why <see cref="CanVote"/> is false, in the words CastVote would refuse with.</summary>
+    public string? Reason { get; init; }
+    /// <summary>The choice this member already cast, if any.</summary>
+    public int? Choice { get; init; }
+    public DateTime? VotedAt { get; init; }
+}
+
 public record VoteOptionSummary
 {
     public int Choice { get; init; }
