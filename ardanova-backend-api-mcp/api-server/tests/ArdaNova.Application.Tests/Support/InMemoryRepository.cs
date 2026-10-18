@@ -15,19 +15,28 @@ public class InMemoryRepository<T> : IRepository<T> where T : class
 
     public List<T> Rows { get; } = new();
 
+    /// <summary>Read queries served so far, for asserting that two paths do the same database work.</summary>
+    public int Reads { get; private set; }
+
     /// <summary>Runs after a FindOneAsync read and before its result returns: models another request writing in between.</summary>
     public Action? AfterFindOne { get; set; }
 
     private static string IdOf(T entity) => (string)IdProperty.GetValue(entity)!;
 
     public Task<T?> GetByIdAsync(string id, CancellationToken cancellationToken = default)
-        => Task.FromResult(Rows.FirstOrDefault(r => IdOf(r) == id));
+    {
+        Reads++;
+        return Task.FromResult(Rows.FirstOrDefault(r => IdOf(r) == id));
+    }
 
     public Task<IReadOnlyList<T>> GetAllAsync(CancellationToken cancellationToken = default)
         => Task.FromResult<IReadOnlyList<T>>(Rows.ToList());
 
     public Task<IReadOnlyList<T>> FindAsync(Expression<Func<T, bool>> predicate, CancellationToken cancellationToken = default)
-        => Task.FromResult<IReadOnlyList<T>>(Rows.Where(predicate.Compile()).ToList());
+    {
+        Reads++;
+        return Task.FromResult<IReadOnlyList<T>>(Rows.Where(predicate.Compile()).ToList());
+    }
 
     public Task<IReadOnlyList<TResult>> FindProjectedAsync<TResult>(
         Expression<Func<T, bool>> predicate, Expression<Func<T, TResult>> selector, CancellationToken cancellationToken = default)
@@ -35,6 +44,7 @@ public class InMemoryRepository<T> : IRepository<T> where T : class
 
     public Task<T?> FindOneAsync(Expression<Func<T, bool>> predicate, CancellationToken cancellationToken = default)
     {
+        Reads++;
         var found = Rows.FirstOrDefault(predicate.Compile());
         AfterFindOne?.Invoke();
         return Task.FromResult(found);
@@ -73,6 +83,7 @@ public class InMemoryRepository<T> : IRepository<T> where T : class
 
     public Task<bool> ExistsAsync(Expression<Func<T, bool>> predicate, CancellationToken cancellationToken = default)
     {
+        Reads++;
         var found = Rows.Any(predicate.Compile());
         AfterExists?.Invoke();
         return Task.FromResult(found);

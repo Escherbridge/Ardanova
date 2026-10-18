@@ -54,6 +54,11 @@ email 400, registered email 409). `GuildInvitationService.CreateAsync` by email 
 - binds the row to the account when an account uses the email, is not already a member, and has no
   answerable invitation here; otherwise it stores an **unbound** row (no `invitedUserId`) that nobody
   can accept and that expires in 14 days;
+- does the same work either way: the member-row and open-invitation probes always run, against the
+  sentinel id `~no-account~` when no account matches, so response time does not split known from
+  unknown emails (loop 4 integration; the earlier `&&` chain skipped both queries for an unknown email).
+  The duplicate check is scoped to `invitedById`, so a second manager inviting the same email gets a
+  new row (unbound, because one is already waiting) rather than a 409 about a colleague's invitation;
 - returns the row through `ToManagerDto`, which drops `InvitedUserId` whenever the row was made by
   email. Every manager read (`GetByGuildIdAsync`, `GetByIdAsync` for a non-invitee) uses it too.
 

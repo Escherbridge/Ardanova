@@ -359,6 +359,44 @@ public class GuildAuthorityFlowTests
     }
 
     [Fact]
+    public async Task An_email_invitation_costs_the_same_reads_whether_or_not_an_account_uses_the_email()
+    {
+        var guild = await Found(Mallory, "Timing guild");
+        await AddMember(guild.Id, Mallory, "bob", GuildMemberRole.MEMBER);
+
+        async Task<int> ReadsFor(string email)
+        {
+            var before = _users.Reads + _members.Reads + _invitations.Reads + _guilds.Reads;
+            var answer = await _invitationService.CreateAsync(guild.Id, Mallory, new CreateGuildInvitationDto { InvitedEmail = email, Role = "MEMBER" });
+            answer.IsSuccess.Should().BeTrue(answer.Error);
+            return _users.Reads + _members.Reads + _invitations.Reads + _guilds.Reads - before;
+        }
+
+        var unknown = await ReadsFor("nobody@example.test");
+        var member = await ReadsFor("bob@example.test");
+        var bindable = await ReadsFor("carol@example.test");
+
+        member.Should().Be(unknown);
+        bindable.Should().Be(unknown);
+    }
+
+    [Fact]
+    public async Task A_second_manager_can_invite_an_email_a_colleague_already_invited()
+    {
+        var guild = await Found(Mallory, "Shared inbox guild");
+        await AddMember(guild.Id, Mallory, "alice", GuildMemberRole.ADMIN);
+
+        var first = await _invitationService.CreateAsync(guild.Id, Mallory, new CreateGuildInvitationDto { InvitedEmail = "carol@example.test", Role = "MEMBER" });
+        var second = await _invitationService.CreateAsync(guild.Id, Alice, new CreateGuildInvitationDto { InvitedEmail = "carol@example.test", Role = "MEMBER" });
+        var repeat = await _invitationService.CreateAsync(guild.Id, Alice, new CreateGuildInvitationDto { InvitedEmail = "carol@example.test", Role = "MEMBER" });
+
+        first.IsSuccess.Should().BeTrue(first.Error);
+        second.IsSuccess.Should().BeTrue(second.Error);
+        repeat.Type.Should().Be(ResultType.Conflict, "only the inviter's own pending invite conflicts");
+        (await _invitationService.GetPendingForUserAsync("carol")).Value.Should().ContainSingle("the colleague's row stays unbound");
+    }
+
+    [Fact]
     public async Task A_guild_manager_cannot_put_someone_in_the_guild_without_their_consent()
     {
         var guild = await Found(Alice, "Roofers");

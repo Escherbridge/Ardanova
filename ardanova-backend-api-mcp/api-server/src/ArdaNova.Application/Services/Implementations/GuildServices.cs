@@ -1107,17 +1107,21 @@ public class GuildInvitationService : IGuildInvitationService
             var email = invitedEmail;
 
             // Only the inviter's own earlier email invitations decide a conflict here, never anything about the account.
+            var inviterId = actor.Id;
             var sameEmail = await _repository.FindAsync(
-                i => i.guildId == guildId && i.invitedEmail == email && i.status == InvitationStatus.PENDING, ct);
+                i => i.guildId == guildId && i.invitedById == inviterId && i.invitedEmail == email && i.status == InvitationStatus.PENDING, ct);
             if (sameEmail.Any(IsAnswerable))
                 return Result<GuildInvitationDto>.Conflict("An invitation to that email is already waiting");
 
             // Bind only when an account owns the email, is not yet a member, and has nothing waiting; otherwise store an
-            // unbound row that nobody can accept. Either way the inviter sees the same answer.
+            // unbound row that nobody can accept. Both probes always run (against a sentinel id when no account matches),
+            // so a known and an unknown email cost the same queries as well as giving the same answer.
             var owner = await _userRepository.FindOneAsync(u => u.email.ToLower() == email, ct);
-            inviteeId = owner is not null &&
-                        !await GuildAuthority.IsMemberAsync(guild, owner.id, _memberRepository, ct) &&
-                        !await HasAnswerableInvitationAsync(guildId, owner.id, ct)
+            var candidateId = owner?.id ?? NoAccountCandidateId;
+            var hasMemberRow = await _memberRepository.ExistsAsync(m => m.guildId == guildId && m.userId == candidateId, ct);
+            var hasOpenInvitation = await HasAnswerableInvitationAsync(guildId, candidateId, ct);
+            var isOwnerOfRecord = string.Equals(guild.ownerId, candidateId, StringComparison.Ordinal);
+            inviteeId = owner is not null && !isOwnerOfRecord && !hasMemberRow && !hasOpenInvitation
                 ? owner.id
                 : null;
         }
@@ -1145,6 +1149,9 @@ public class GuildInvitationService : IGuildInvitationService
         await _unitOfWork.SaveChangesAsync(ct);
         return Result<GuildInvitationDto>.Success(ToManagerDto(invitation, guild));
     }
+
+    /// <summary>A user id no account can have, probed when an invited email matches no account.</summary>
+    private const string NoAccountCandidateId = "~no-account~";
 
     private async Task<bool> HasAnswerableInvitationAsync(string guildId, string userId, CancellationToken ct)
     {
