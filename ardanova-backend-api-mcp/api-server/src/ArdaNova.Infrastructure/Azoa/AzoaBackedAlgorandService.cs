@@ -139,7 +139,7 @@ public sealed class AzoaBackedAlgorandService : IAlgorandService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to build ARC-19 metadata for credential {CredentialId}", credential.CredentialId);
-            return Task.FromResult(Result<string>.Failure($"Failed to build ARC-19 metadata: {ex.Message}"));
+            return Task.FromResult(Result<string>.Failure("Failed to build ARC-19 metadata."));
         }
     }
 

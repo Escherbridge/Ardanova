@@ -15,6 +15,10 @@ import { auth } from "~/server/auth";
 import { runWithActorAssertion } from "~/server/actor-assertion";
 import { InvalidApiPathError } from "~/lib/api/path";
 import {
+  findApiFailure,
+  runWithApiFailureTrail,
+} from "~/lib/api/failure-trail";
+import {
   type UserRole,
   type UserType,
   type VerificationLevel,
@@ -127,6 +131,33 @@ const invalidApiPathMiddleware = t.middleware(async ({ next }) => {
   return result;
 });
 
+/** tRPC codes for the API statuses a caller caused; anything else stays a server fault. */
+const apiStatusCodes: Partial<Record<number, TRPCError["code"]>> = {
+  400: "BAD_REQUEST",
+  401: "UNAUTHORIZED",
+  403: "FORBIDDEN",
+  404: "NOT_FOUND",
+  409: "CONFLICT",
+  429: "TOO_MANY_REQUESTS",
+};
+
+/** A router that rethrows the API's 4xx message verbatim keeps the API's status. See lib/api/AGENTS.md §Failure trail. */
+const apiStatusMiddleware = t.middleware(({ next }) =>
+  runWithApiFailureTrail(async () => {
+    const result = await next();
+    if (result.ok || result.error.code !== "INTERNAL_SERVER_ERROR")
+      return result;
+    const failure = findApiFailure(result.error.message);
+    const code = failure ? apiStatusCodes[failure.status] : undefined;
+    if (!code) return result;
+    throw new TRPCError({
+      code,
+      message: result.error.message,
+      cause: result.error.cause,
+    });
+  }),
+);
+
 /**
  * Public (unauthenticated) procedure
  *
@@ -137,6 +168,7 @@ const invalidApiPathMiddleware = t.middleware(async ({ next }) => {
 export const publicProcedure = t.procedure
   .use(timingMiddleware)
   .use(invalidApiPathMiddleware)
+  .use(apiStatusMiddleware)
   .use(({ ctx, next }) => {
     // A signed-in caller is still identified on public reads, so .NET can return their own private fields.
     const user = ctx.session?.user;
@@ -158,6 +190,7 @@ export const publicProcedure = t.procedure
 export const protectedProcedure = t.procedure
   .use(timingMiddleware)
   .use(invalidApiPathMiddleware)
+  .use(apiStatusMiddleware)
   .use(({ ctx, next }) => {
     const session = ctx.session;
     const user = session?.user;

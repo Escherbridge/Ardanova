@@ -1,5 +1,9 @@
 import "server-only";
-import { getActorAssertion, isActorAssertionActive } from "~/server/actor-assertion";
+import {
+  getActorAssertion,
+  isActorAssertionActive,
+} from "~/server/actor-assertion";
+import { recordApiFailure } from "./failure-trail";
 
 /**
  * Generic Base API Client
@@ -44,20 +48,21 @@ export class BaseApiClient {
 
   protected async request<T>(
     endpoint: string,
-    options: RequestInit = {}
+    options: RequestInit = {},
   ): Promise<ApiResponse<T>> {
     const url = `${this.baseUrl}${endpoint}`;
 
     const headers = new Headers(this.defaultHeaders);
-    new Headers(options.headers).forEach((value, name) => headers.set(name, value));
+    new Headers(options.headers).forEach((value, name) =>
+      headers.set(name, value),
+    );
     headers.delete("X-Ardanova-Actor");
     const hasActorAssertion = isActorAssertionActive();
     const actorBody = hasActorAssertion
       ? materializeActorRequestBody(options.body)
       : undefined;
-    const bodyBytes = actorBody === undefined
-      ? undefined
-      : new TextEncoder().encode(actorBody);
+    const bodyBytes =
+      actorBody === undefined ? undefined : new TextEncoder().encode(actorBody);
     const actorAssertion = getActorAssertion({
       method: options.method ?? "GET",
       url,
@@ -81,11 +86,7 @@ export class BaseApiClient {
       clearTimeout(timeoutId);
 
       if (!response.ok) {
-        const errorText = await response.text();
-        return {
-          error: readApiError(errorText, response.status),
-          status: response.status,
-        };
+        return failed(response.status, await response.text());
       }
 
       // Handle empty responses
@@ -114,7 +115,11 @@ export class BaseApiClient {
     return this.request<T>(endpoint, { method: "GET" });
   }
 
-  post<T>(endpoint: string, body?: unknown, extraHeaders?: Record<string, string>): Promise<ApiResponse<T>> {
+  post<T>(
+    endpoint: string,
+    body?: unknown,
+    extraHeaders?: Record<string, string>,
+  ): Promise<ApiResponse<T>> {
     return this.request<T>(endpoint, {
       method: "POST",
       body: body ? JSON.stringify(body) : undefined,
@@ -123,13 +128,20 @@ export class BaseApiClient {
   }
 
   /** Multipart POST — omits `Content-Type` so the boundary is set automatically. */
-  async postFormData<T>(endpoint: string, formData: FormData, extraHeaders?: Record<string, string>): Promise<ApiResponse<T>> {
+  async postFormData<T>(
+    endpoint: string,
+    formData: FormData,
+    extraHeaders?: Record<string, string>,
+  ): Promise<ApiResponse<T>> {
     if (isActorAssertionActive()) {
       throw new Error("Actor-signed multipart requests are not supported.");
     }
 
     const url = `${this.baseUrl}${endpoint}`;
-    const headers: Record<string, string> = { ...this.defaultHeaders, ...extraHeaders };
+    const headers: Record<string, string> = {
+      ...this.defaultHeaders,
+      ...extraHeaders,
+    };
     delete headers["Content-Type"];
     delete headers["X-Ardanova-Actor"];
 
@@ -147,11 +159,7 @@ export class BaseApiClient {
       clearTimeout(timeoutId);
 
       if (!response.ok) {
-        const errorText = await response.text();
-        return {
-          error: readApiError(errorText, response.status),
-          status: response.status,
-        };
+        return failed(response.status, await response.text());
       }
 
       const text = await response.text();
@@ -194,12 +202,23 @@ export class BaseApiClient {
   }
 }
 
-function materializeActorRequestBody(body: BodyInit | null | undefined): string {
+function materializeActorRequestBody(
+  body: BodyInit | null | undefined,
+): string {
   if (body === undefined || body === null) return "";
   if (typeof body !== "string") {
-    throw new Error("Actor-signed requests require a materialized JSON string body.");
+    throw new Error(
+      "Actor-signed requests require a materialized JSON string body.",
+    );
   }
   return body;
+}
+
+/** A non-2xx response, also noted on the procedure's failure trail so tRPC can keep its status. */
+function failed<T>(status: number, errorText: string): ApiResponse<T> {
+  const error = readApiError(errorText, status);
+  recordApiFailure({ status, message: error });
+  return { error, status };
 }
 
 /** Extracts safe server action messages from JSON error envelopes and problem details. */
@@ -226,7 +245,11 @@ function readApiError(errorText: string, status: number): string {
 /**
  * Create a client with API Key authentication
  */
-export function createApiKeyClient(baseUrl: string, apiKey: string, headerName = "X-Api-Key") {
+export function createApiKeyClient(
+  baseUrl: string,
+  apiKey: string,
+  headerName = "X-Api-Key",
+) {
   return new BaseApiClient({
     baseUrl,
     headers: { [headerName]: apiKey },

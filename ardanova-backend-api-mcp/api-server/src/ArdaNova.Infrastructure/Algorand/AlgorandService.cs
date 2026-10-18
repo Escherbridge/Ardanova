@@ -90,7 +90,7 @@ public class AlgorandService : IAlgorandService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to build ARC-19 metadata for credential {CredentialId}", credential.CredentialId);
-            return Task.FromResult(Result<string>.Failure($"Failed to build ARC-19 metadata: {ex.Message}"));
+            return Task.FromResult(Result<string>.Failure("Failed to build ARC-19 metadata."));
         }
     }
 
@@ -170,7 +170,7 @@ public class AlgorandService : IAlgorandService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to mint soulbound ASA for credential {CredentialId}", metadata.CredentialId);
-            return Result<SoulboundAsaMintResult>.Failure($"Failed to mint soulbound ASA: {ex.Message}");
+            return Result<SoulboundAsaMintResult>.Failure("Failed to mint soulbound ASA.");
         }
     }
 
@@ -213,7 +213,7 @@ public class AlgorandService : IAlgorandService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to burn ASA {AssetId}", assetId);
-            return Result<string>.Failure($"Failed to burn ASA: {ex.Message}");
+            return Result<string>.Failure("Failed to burn ASA.");
         }
     }
 
@@ -265,7 +265,7 @@ public class AlgorandService : IAlgorandService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to get ASA info for {AssetId}", assetId);
-            return Result<AsaInfoDto>.Failure($"Failed to get ASA info: {ex.Message}");
+            return Result<AsaInfoDto>.Failure("Failed to get ASA info.");
         }
     }
 
@@ -294,7 +294,7 @@ public class AlgorandService : IAlgorandService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to verify ownership of ASA {AssetId} for address {Address}", assetId, address);
-            return Result<bool>.Failure($"Failed to verify ownership: {ex.Message}");
+            return Result<bool>.Failure("Failed to verify ownership.");
         }
     }
 
@@ -358,7 +358,7 @@ public class AlgorandService : IAlgorandService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to create fungible ASA {Name}", name);
-            return Result<FungibleAsaCreateResult>.Failure($"Failed to create fungible ASA: {ex.Message}");
+            return Result<FungibleAsaCreateResult>.Failure("Failed to create fungible ASA.");
         }
     }
 
@@ -403,7 +403,7 @@ public class AlgorandService : IAlgorandService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to transfer ASA {AssetId}", assetId);
-            return Result<string>.Failure($"Failed to transfer ASA: {ex.Message}");
+            return Result<string>.Failure("Failed to transfer ASA.");
         }
     }
 
@@ -427,7 +427,7 @@ public class AlgorandService : IAlgorandService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to get balance of ASA {AssetId} for {Address}", assetId, address);
-            return Result<ulong>.Failure($"Failed to get ASA balance: {ex.Message}");
+            return Result<ulong>.Failure("Failed to get ASA balance.");
         }
     }
 
@@ -473,7 +473,7 @@ public class AlgorandService : IAlgorandService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to clawback ASA {AssetId} from {Address}", assetId, fromAddress);
-            return Result<string>.Failure($"Failed to clawback ASA: {ex.Message}");
+            return Result<string>.Failure("Failed to clawback ASA.");
         }
     }
 
