@@ -138,4 +138,27 @@ public class GovernanceBallotIntegrityFlowTests
         afterTwo.Value!.QuorumReached.Should().BeTrue();
         afterTwo.Value.VotesByChoice[1].Should().Be(2);
     }
+
+    [Fact]
+    public async Task The_ballot_status_offers_a_vote_exactly_when_casting_one_would_be_accepted()
+    {
+        _users.Rows.Add(new User { id = "outsider", email = "o@example.test", name = "outsider" });
+        var proposal = await OpenProposal();
+
+        var before = await _sut.GetBallotStatusAsync(proposal.Id, "ben");
+        var outsider = await _sut.GetBallotStatusAsync(proposal.Id, "outsider");
+        var outsiderCast = await _sut.CastVoteAsync(proposal.Id, new CastVoteDto { VoterId = "outsider", Choice = 0 });
+        (await _sut.CastVoteAsync(proposal.Id, new CastVoteDto { VoterId = "ben", Choice = 1 })).IsSuccess.Should().BeTrue();
+        var after = await _sut.GetBallotStatusAsync(proposal.Id, "ben");
+
+        before.Value!.Should().Match<BallotStatusDto>(s => s.VotingOpen && s.CanVote && s.Choice == null);
+        outsider.Value!.CanVote.Should().BeFalse();
+        outsider.Value.Reason.Should().Be(outsiderCast.Error, "the form and the cast must refuse in the same words");
+        after.Value!.Should().Match<BallotStatusDto>(s => !s.CanVote && s.Choice == 1 && s.Reason!.Contains("already voted"));
+
+        // Window over: no ballot is offered, but the member still sees what they cast.
+        _proposals.Rows.Single(p => p.id == proposal.Id).votingEnd = DateTime.UtcNow.AddMinutes(-1);
+        var closed = await _sut.GetBallotStatusAsync(proposal.Id, "ben");
+        closed.Value!.Should().Match<BallotStatusDto>(s => !s.VotingOpen && !s.CanVote && s.Choice == 1);
+    }
 }

@@ -14,8 +14,13 @@ import {
   Vote,
   Loader2,
 } from "lucide-react";
+import { useSession } from "next-auth/react";
 import { api } from "~/trpc/react";
-import { quorumProgressPercent, readProposalOptions } from "./proposal-tally";
+import {
+  ballotStandingMessage,
+  quorumProgressPercent,
+  readProposalOptions,
+} from "./proposal-tally";
 
 interface OverviewTabProps {
   proposal: {
@@ -52,6 +57,9 @@ export default function OverviewTab({
       void utils.governance.getVoteSummary.invalidate({
         proposalId: proposal.id,
       });
+      void utils.governance.getMyBallot.invalidate({
+        proposalId: proposal.id,
+      });
     },
     onError: (error) => {
       alert(describeMutationError(error, "record your vote"));
@@ -60,6 +68,19 @@ export default function OverviewTab({
 
   // The API serialises enums by name (JsonStringEnumConverter), so the wire value is "ACTIVE".
   const isActive = proposal.status.toUpperCase() === "ACTIVE";
+  const windowHasEnded =
+    !!proposal.votingEnd &&
+    new Date(proposal.votingEnd).getTime() <= Date.now();
+
+  // The form is offered only when the API says this member's ballot would be accepted (components/governance/AGENTS.md §Ballot gate).
+  const { status: sessionStatus } = useSession();
+  const isSignedIn = sessionStatus === "authenticated";
+  const { data: ballot, isLoading: ballotLoading } =
+    api.governance.getMyBallot.useQuery(
+      { proposalId: proposal.id },
+      { enabled: isActive && isSignedIn },
+    );
+  const canVote = isActive && !windowHasEnded && ballot?.canVote === true;
 
   // Quorum is turnout among the project's confirmed members, not a share of any voting power:
   // the summary endpoint owns that arithmetic so the page and the tally can never disagree.
@@ -245,8 +266,27 @@ export default function OverviewTab({
         </CardContent>
       </Card>
 
+      {/* Ballot standing when no form is offered: signed out, already voted, not eligible, or window over */}
+      {isActive && !canVote && (
+        <Card className="bg-card border-border border-2">
+          <CardContent className="pt-6">
+            <p className="text-muted-foreground text-sm" role="status">
+              {ballotStandingMessage({
+                isSignedIn,
+                ballotLoading,
+                windowHasEnded,
+                ballot,
+                choiceLabel: votingOptions.find(
+                  (option) => option.choice === ballot?.choice,
+                )?.label,
+              })}
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Cast Vote Section */}
-      {isActive && (
+      {canVote && (
         <Card className="bg-card border-primary border-2">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg">

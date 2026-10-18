@@ -336,6 +336,17 @@ export const governanceRouter = createTRPCRouter({
       return response.data ?? null;
     }),
 
+  /** The signed-in member's standing on a proposal; the API applies the same checks as casting, so the form is offered only when a ballot would be accepted. */
+  getMyBallot: protectedProcedure
+    .input(z.object({ proposalId: z.string() }))
+    .query(async ({ input }) => {
+      const response = await apiClient.governance.getMyBallot(input.proposalId);
+      if (response.error || !response.data) {
+        throw apiError(response, "Failed to read your ballot");
+      }
+      return response.data;
+    }),
+
   // Get votes for a proposal
   getVotes: publicProcedure
     .input(

@@ -103,6 +103,15 @@ export interface SearchProposalsParams {
   pageSize?: number;
 }
 
+/** Matches `BallotStatusDto`. */
+export interface BallotStatus {
+  votingOpen: boolean;
+  canVote: boolean;
+  reason?: string | null;
+  choice?: number | null;
+  votedAt?: string | null;
+}
+
 export class GovernanceEndpoint {
   constructor(private client: BaseApiClient) {}
 
@@ -163,6 +172,13 @@ export class GovernanceEndpoint {
   ): Promise<ApiResponse<Vote | null>> {
     return this.client.get<Vote | null>(
       apiPath`/api/governance/proposals/${proposalId}/my-vote?userId=${userId}`,
+    );
+  }
+
+  /** Matches `BallotStatusDto`: may the signed actor vote now (same checks as casting), and what they already cast. */
+  getMyBallot(proposalId: string): Promise<ApiResponse<BallotStatus>> {
+    return this.client.get<BallotStatus>(
+      apiPath`/api/governance/proposals/${proposalId}/my-ballot`,
     );
   }
 

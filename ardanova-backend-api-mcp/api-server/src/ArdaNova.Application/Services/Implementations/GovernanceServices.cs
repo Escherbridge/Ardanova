@@ -409,11 +409,8 @@ public class GovernanceService : IGovernanceService, IProposalVoteClosing
 
         await ResolveDueProposalsAsync(new[] { proposal }, ct);
 
-        if (proposal.status != ProposalStatus.ACTIVE)
-            return Result<VoteDto>.ValidationError("Voting is not open for this proposal");
-
-        if (proposal.votingEnd.HasValue && DateTime.UtcNow > proposal.votingEnd.Value)
-            return Result<VoteDto>.ValidationError("Voting has closed for this proposal");
+        if (VotingWindowRefusal(proposal) is { } closed)
+            return closed;
 
         if (string.IsNullOrWhiteSpace(dto.VoterId))
             return Result<VoteDto>.Unauthorized("A vote must be cast by a signed-in member");
@@ -424,25 +421,10 @@ public class GovernanceService : IGovernanceService, IProposalVoteClosing
         if (!declaredChoices.Contains(dto.Choice))
             return Result<VoteDto>.ValidationError("That option is not on this proposal");
 
-        // The membership gate lives here, not only in the controllers, so both routes into a ballot enforce it.
-        if (_membershipCredentialRepository is null)
-            return Result<VoteDto>.Forbidden(
-                "Voting is unavailable here until this project's member register is connected");
-
         var voterId = dto.VoterId;
-        var projectId = proposal.projectId;
-        var isEligible = await _membershipCredentialRepository.ExistsAsync(
-            credential => credential.projectId == projectId &&
-                          credential.userId == voterId &&
-                          credential.status == MembershipCredentialStatus.ACTIVE,
-            ct);
-        if (!isEligible)
-            return Result<VoteDto>.Forbidden("Only confirmed members of this project can vote on it");
-
-        var existingVote = await _voteRepository.FindOneAsync(
-            v => v.proposalId == proposalId && v.voterId == voterId, ct);
-        if (existingVote is not null)
-            return Result<VoteDto>.ValidationError("You have already voted on this proposal");
+        var (refusal, _) = await VoterRefusalAsync(proposal, voterId, ct);
+        if (refusal is not null)
+            return refusal;
 
         var vote = new Vote
         {
@@ -473,6 +455,80 @@ public class GovernanceService : IGovernanceService, IProposalVoteClosing
             voteDto = voteDto with { Voter = _mapper.Map<VoteUserDto>(voter) };
 
         return Result<VoteDto>.Success(voteDto);
+    }
+
+    /// <summary>Whether this member could cast a ballot right now, by the same checks <see cref="CastVoteAsync"/> applies, plus the ballot they already cast.</summary>
+    public async Task<Result<BallotStatusDto>> GetBallotStatusAsync(string proposalId, string voterId, CancellationToken ct = default)
+    {
+        var proposal = await _proposalRepository.GetByIdAsync(proposalId, ct);
+        if (proposal is null)
+            return Result<BallotStatusDto>.NotFound($"Proposal with id {proposalId} not found");
+
+        await ResolveDueProposalsAsync(new[] { proposal }, ct);
+
+        if (VotingWindowRefusal(proposal) is { } closed)
+        {
+            var cast = string.IsNullOrWhiteSpace(voterId)
+                ? null
+                : await _voteRepository.FindOneAsync(v => v.proposalId == proposalId && v.voterId == voterId, ct);
+            return Result<BallotStatusDto>.Success(new BallotStatusDto
+            {
+                VotingOpen = false,
+                CanVote = false,
+                Reason = closed.Error,
+                Choice = cast?.choice,
+                VotedAt = cast?.createdAt
+            });
+        }
+
+        var (refusal, existing) = await VoterRefusalAsync(proposal, voterId, ct);
+        return Result<BallotStatusDto>.Success(new BallotStatusDto
+        {
+            VotingOpen = true,
+            CanVote = refusal is null,
+            Reason = refusal?.Error,
+            Choice = existing?.choice,
+            VotedAt = existing?.createdAt
+        });
+    }
+
+    /// <summary>The refusal when the proposal is not taking ballots now, or null while its window is open.</summary>
+    private static Result<VoteDto>? VotingWindowRefusal(Proposal proposal)
+    {
+        if (proposal.status != ProposalStatus.ACTIVE)
+            return Result<VoteDto>.ValidationError("Voting is not open for this proposal");
+        if (proposal.votingEnd.HasValue && DateTime.UtcNow > proposal.votingEnd.Value)
+            return Result<VoteDto>.ValidationError("Voting has closed for this proposal");
+        return null;
+    }
+
+    /// <summary>The refusal when this member may not vote (not confirmed, or already voted), with the ballot already on file. The membership gate lives in the service so every route into a ballot enforces it.</summary>
+    private async Task<(Result<VoteDto>? Refusal, Vote? Existing)> VoterRefusalAsync(Proposal proposal, string voterId, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(voterId))
+            return (Result<VoteDto>.Unauthorized("A vote must be cast by a signed-in member"), null);
+
+        if (_membershipCredentialRepository is null)
+            return (Result<VoteDto>.Forbidden(
+                "Voting is unavailable here until this project's member register is connected"), null);
+
+        var proposalId = proposal.id;
+        var existing = await _voteRepository.FindOneAsync(
+            v => v.proposalId == proposalId && v.voterId == voterId, ct);
+
+        var projectId = proposal.projectId;
+        var isEligible = await _membershipCredentialRepository.ExistsAsync(
+            credential => credential.projectId == projectId &&
+                          credential.userId == voterId &&
+                          credential.status == MembershipCredentialStatus.ACTIVE,
+            ct);
+        if (!isEligible)
+            return (Result<VoteDto>.Forbidden("Only confirmed members of this project can vote on it"), existing);
+
+        if (existing is not null)
+            return (Result<VoteDto>.ValidationError("You have already voted on this proposal"), existing);
+
+        return (null, null);
     }
 
     public async Task<Result<IReadOnlyList<VoteDto>>> GetVotesAsync(string proposalId, CancellationToken ct = default)
