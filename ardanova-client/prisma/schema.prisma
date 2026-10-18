@@ -1651,6 +1651,8 @@ model GuildReview {
   createdAt DateTime @default(now())
   guild     Guild    @relation("GuildReview_guildId", fields: [guildId], references: [id])
   user      User     @relation("GuildReview_userId", fields: [userId], references: [id])
+
+  @@unique([guildId, userId])
 }
 
 model GuildUpdate {
