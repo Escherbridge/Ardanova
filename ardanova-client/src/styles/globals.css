@@ -94,6 +94,7 @@
   --text-color-neon-green: var(--success-text);
   --text-color-warning: var(--warning-text);
   --text-color-neon-yellow: var(--warning-text);
+  --text-color-accent: var(--system-text);
 
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);

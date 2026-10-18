@@ -97,6 +97,12 @@ semantic token directly.
    with `export const metadata = { title: "Projects" }`; the root template
    appends " — ArdaNova".
 7. any text token pair falls below 4.5:1 (see §text-safe-accents).
+8. a fill-only token (`accent`, `secondary`, `muted`, `input`, `ring`,
+   `border`) is used as `text-X` without a `--text-color-X` override. The
+   contrast check only covers tokens it is told about, so it passed 9/9 while
+   `/dashboard`'s "01 / Discover" rendered `text-accent` (`#dcebed`) at 1.21:1.
+   `--text-color-accent` now maps to `--system-text` (accent is the teal
+   family), and `accent` is in `TEXT_ACCENTS` so the pair is measured.
 
 The ceilings were re-measured at loop3 (palette 156 → 144). The ceilings are a ratchet. Lower them in the same commit that pays down the
 debt, and never raise them.
