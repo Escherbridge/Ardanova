@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using ArdaNova.API.Filters;
 using ArdaNova.API.HealthChecks;
 using ArdaNova.API.Middleware;
 using ArdaNova.API.Readiness;
@@ -80,7 +81,7 @@ builder.Services.AddCors(options =>
     });
 });
 
-builder.Services.AddControllers()
+builder.Services.AddControllers(options => options.AddArdaNovaEndpointPolicies())
     .AddJsonOptions(options =>
     {
         options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;

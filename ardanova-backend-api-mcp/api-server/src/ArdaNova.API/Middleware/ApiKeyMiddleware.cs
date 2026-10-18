@@ -130,10 +130,15 @@ public static class AuthorizationPolicies
 {
     public const string AdminApiKey = "AdminApiKey";
     public const string ActorAssertion = "ActorAssertion";
+    /// <summary>A verified actor whose signed role is ADMIN; a missing actor still answers 401.</summary>
+    public const string ActorAdministrator = "ActorAdministrator";
 }
 
 public static class ArdaNovaAuthorizationExtensions
 {
+    /// <summary>The actor role the BFF signs for platform administrators (UserRole.ADMIN).</summary>
+    public const string ActorAdministratorRole = "ADMIN";
+
     public static IServiceCollection AddArdaNovaAuthorization(this IServiceCollection services)
     {
         services.AddAuthorization(options =>
@@ -145,6 +150,9 @@ public static class ArdaNovaAuthorizationExtensions
                 policy.RequireAuthenticatedUser().RequireRole(ApiKeyMiddleware.AdminRole));
             options.AddPolicy(AuthorizationPolicies.ActorAssertion, policy =>
                 policy.AddRequirements(new ActorAssertionRequirement()));
+            options.AddPolicy(AuthorizationPolicies.ActorAdministrator, policy =>
+                policy.AddRequirements(new ActorAssertionRequirement())
+                    .RequireRole(ActorAdministratorRole));
         });
 
         return services;

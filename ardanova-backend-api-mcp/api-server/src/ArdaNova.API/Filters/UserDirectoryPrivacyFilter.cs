@@ -1,0 +1,83 @@
+using System.Security.Claims;
+using ArdaNova.Application.Common.Results;
+using ArdaNova.Application.DTOs;
+using ArdaNova.Domain.Models.Enums;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Filters;
+
+namespace ArdaNova.API.Filters;
+
+/// <summary>A user as anyone may see them: no contact, authority or trust fields. See Filters/AGENTS.md §User directory privacy.</summary>
+public sealed record PublicUserView
+{
+    public required string Id { get; init; }
+    public string? Name { get; init; }
+    public string? Image { get; init; }
+    public string? Bio { get; init; }
+    public string? Location { get; init; }
+    public string? Website { get; init; }
+    public string? LinkedIn { get; init; }
+    public string? Twitter { get; init; }
+    public UserType UserType { get; init; }
+    public bool IsVerified { get; init; }
+    public int TotalXP { get; init; }
+    public int Level { get; init; }
+    public UserTier Tier { get; init; }
+    public VerificationLevel VerificationLevel { get; init; }
+    public DateTime CreatedAt { get; init; }
+    public DateTime UpdatedAt { get; init; }
+
+    public static PublicUserView From(UserDto user) => new()
+    {
+        Id = user.Id,
+        Name = user.Name,
+        Image = user.Image,
+        Bio = user.Bio,
+        Location = user.Location,
+        Website = user.Website,
+        LinkedIn = user.LinkedIn,
+        Twitter = user.Twitter,
+        UserType = user.UserType,
+        IsVerified = user.IsVerified,
+        TotalXP = user.TotalXP,
+        Level = user.Level,
+        Tier = user.Tier,
+        VerificationLevel = user.VerificationLevel,
+        CreatedAt = user.CreatedAt,
+        UpdatedAt = user.UpdatedAt,
+    };
+}
+
+/// <summary>Projects every top-level UserDto response to <see cref="PublicUserView"/> unless the viewer is that user or an administrator.</summary>
+public sealed class UserDirectoryPrivacyFilter : IResultFilter
+{
+    public void OnResultExecuting(ResultExecutingContext context)
+    {
+        if (context.Result is not ObjectResult { Value: { } value } result)
+            return;
+
+        var viewer = context.HttpContext.User;
+        if (ViewerAuthority.IsAdministrator(viewer))
+            return;
+
+        var actorId = ViewerAuthority.ActorId(viewer);
+        result.Value = value switch
+        {
+            UserDto user => Project(user, actorId),
+            PagedResult<UserDto> page => page.Map(user => Project(user, actorId)),
+            IEnumerable<UserDto> users => users.Select(user => Project(user, actorId)).ToList(),
+            _ => value,
+        };
+        if (!ReferenceEquals(result.Value, value))
+            result.DeclaredType = null;
+    }
+
+    public void OnResultExecuted(ResultExecutedContext context)
+    {
+    }
+
+    private static object Project(UserDto user, string? actorId)
+        => actorId is not null && string.Equals(user.Id, actorId, StringComparison.Ordinal)
+            ? user
+            : PublicUserView.From(user);
+}
