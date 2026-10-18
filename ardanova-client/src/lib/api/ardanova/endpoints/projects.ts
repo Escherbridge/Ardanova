@@ -1,3 +1,4 @@
+import { apiPath, query } from "../../path";
 import {
   type BaseApiClient,
   type ApiResponse,
@@ -330,17 +331,17 @@ export class ProjectsEndpoint {
   constructor(private client: BaseApiClient) {}
 
   getById(id: string): Promise<ApiResponse<Project>> {
-    return this.client.get<Project>(`/api/projects/${encodeURIComponent(id)}`);
+    return this.client.get<Project>(apiPath`/api/projects/${id}`);
   }
 
   getBySlug(slug: string): Promise<ApiResponse<Project>> {
     return this.client.get<Project>(
-      `/api/projects/slug/${encodeURIComponent(slug)}`,
+      apiPath`/api/projects/slug/${slug}`,
     );
   }
 
   getAll(): Promise<ApiResponse<Project[]>> {
-    return this.client.get<Project[]>(`/api/projects`);
+    return this.client.get<Project[]>(apiPath`/api/projects`);
   }
 
   getPaged(
@@ -348,54 +349,50 @@ export class ProjectsEndpoint {
     pageSize = 10,
   ): Promise<ApiResponse<PagedResult<Project>>> {
     return this.client.get<PagedResult<Project>>(
-      `/api/projects/paged?page=${page}&pageSize=${pageSize}`,
+      apiPath`/api/projects/paged?page=${page}&pageSize=${pageSize}`,
     );
   }
 
   search(
     params: SearchProjectsParams = {},
   ): Promise<ApiResponse<PagedResult<Project>>> {
-    const queryParts: string[] = [];
-    if (params.searchTerm)
-      queryParts.push(`searchTerm=${encodeURIComponent(params.searchTerm)}`);
-    if (params.status)
-      queryParts.push(`status=${encodeURIComponent(params.status)}`);
-    if (params.category)
-      queryParts.push(`category=${encodeURIComponent(params.category)}`);
-    if (params.projectType)
-      queryParts.push(`projectType=${encodeURIComponent(params.projectType)}`);
-    queryParts.push(`page=${params.page ?? 1}`);
-    queryParts.push(`pageSize=${params.pageSize ?? 10}`);
-    const queryString = queryParts.join("&");
+    const queryString = query({
+      searchTerm: params.searchTerm || undefined,
+      status: params.status || undefined,
+      category: params.category || undefined,
+      projectType: params.projectType || undefined,
+      page: params.page ?? 1,
+      pageSize: params.pageSize ?? 10,
+    });
     return this.client.get<PagedResult<Project>>(
-      `/api/projects/search?${queryString}`,
+      apiPath`/api/projects/search?${queryString}`,
     );
   }
 
   getByUserId(userId: string): Promise<ApiResponse<Project[]>> {
-    return this.client.get<Project[]>(`/api/projects/user/${userId}`);
+    return this.client.get<Project[]>(apiPath`/api/projects/user/${userId}`);
   }
 
   getByStatus(status: ProjectStatus): Promise<ApiResponse<Project[]>> {
     return this.client.get<Project[]>(
-      `/api/projects/status/${encodeURIComponent(status)}`,
+      apiPath`/api/projects/status/${status}`,
     );
   }
 
   getByCategory(category: string): Promise<ApiResponse<Project[]>> {
     return this.client.get<Project[]>(
-      `/api/projects/category/${encodeURIComponent(category)}`,
+      apiPath`/api/projects/category/${category}`,
     );
   }
 
   getByProjectType(projectType: ProjectType): Promise<ApiResponse<Project[]>> {
     return this.client.get<Project[]>(
-      `/api/projects/type/${encodeURIComponent(projectType)}`,
+      apiPath`/api/projects/type/${projectType}`,
     );
   }
 
   getFeatured(): Promise<ApiResponse<Project[]>> {
-    return this.client.get<Project[]>(`/api/projects/featured`);
+    return this.client.get<Project[]>(apiPath`/api/projects/featured`);
   }
 
   create(data: CreateProjectDto): Promise<ApiResponse<Project>> {
@@ -403,20 +400,20 @@ export class ProjectsEndpoint {
   }
 
   update(id: string, data: UpdateProjectDto): Promise<ApiResponse<Project>> {
-    return this.client.put<Project>(`/api/projects/${id}`, data);
+    return this.client.put<Project>(apiPath`/api/projects/${id}`, data);
   }
 
   delete(id: string): Promise<ApiResponse<void>> {
-    return this.client.delete(`/api/projects/${id}`);
+    return this.client.delete(apiPath`/api/projects/${id}`);
   }
 
   publish(id: string): Promise<ApiResponse<Project>> {
-    return this.client.post<Project>(`/api/projects/${id}/publish`);
+    return this.client.post<Project>(apiPath`/api/projects/${id}/publish`);
   }
 
   setFeatured(id: string, featured: boolean): Promise<ApiResponse<Project>> {
     return this.client.post<Project>(
-      `/api/projects/${id}/featured?featured=${featured}`,
+      apiPath`/api/projects/${id}/featured?featured=${featured}`,
     );
   }
 
@@ -427,7 +424,7 @@ export class ProjectsEndpoint {
     data: CreateResourceDto,
   ): Promise<ApiResponse<ProjectResource>> {
     return this.client.post<ProjectResource>(
-      `/api/projects/${projectId}/resources`,
+      apiPath`/api/projects/${projectId}/resources`,
       data,
     );
   }
@@ -438,7 +435,7 @@ export class ProjectsEndpoint {
     data: UpdateResourceDto,
   ): Promise<ApiResponse<ProjectResource>> {
     return this.client.put<ProjectResource>(
-      `/api/projects/${projectId}/resources/${resourceId}`,
+      apiPath`/api/projects/${projectId}/resources/${resourceId}`,
       data,
     );
   }
@@ -448,13 +445,13 @@ export class ProjectsEndpoint {
     resourceId: string,
   ): Promise<ApiResponse<void>> {
     return this.client.delete(
-      `/api/projects/${projectId}/resources/${resourceId}`,
+      apiPath`/api/projects/${projectId}/resources/${resourceId}`,
     );
   }
 
   getResources(projectId: string): Promise<ApiResponse<ProjectResource[]>> {
     return this.client.get<ProjectResource[]>(
-      `/api/projects/${projectId}/resources`,
+      apiPath`/api/projects/${projectId}/resources`,
     );
   }
 
@@ -463,7 +460,7 @@ export class ProjectsEndpoint {
     resourceId: string,
   ): Promise<ApiResponse<ProjectResource>> {
     return this.client.get<ProjectResource>(
-      `/api/projects/${projectId}/resources/${resourceId}`,
+      apiPath`/api/projects/${projectId}/resources/${resourceId}`,
     );
   }
 
@@ -474,7 +471,7 @@ export class ProjectsEndpoint {
     data: CreateMilestoneDto,
   ): Promise<ApiResponse<ProjectMilestone>> {
     return this.client.post<ProjectMilestone>(
-      `/api/projects/${projectId}/milestones`,
+      apiPath`/api/projects/${projectId}/milestones`,
       data,
     );
   }
@@ -485,7 +482,7 @@ export class ProjectsEndpoint {
     data: UpdateMilestoneDto,
   ): Promise<ApiResponse<ProjectMilestone>> {
     return this.client.put<ProjectMilestone>(
-      `/api/projects/${projectId}/milestones/${milestoneId}`,
+      apiPath`/api/projects/${projectId}/milestones/${milestoneId}`,
       data,
     );
   }
@@ -495,13 +492,13 @@ export class ProjectsEndpoint {
     milestoneId: string,
   ): Promise<ApiResponse<void>> {
     return this.client.delete(
-      `/api/projects/${projectId}/milestones/${milestoneId}`,
+      apiPath`/api/projects/${projectId}/milestones/${milestoneId}`,
     );
   }
 
   getMilestones(projectId: string): Promise<ApiResponse<ProjectMilestone[]>> {
     return this.client.get<ProjectMilestone[]>(
-      `/api/projects/${projectId}/milestones`,
+      apiPath`/api/projects/${projectId}/milestones`,
     );
   }
 
@@ -510,7 +507,7 @@ export class ProjectsEndpoint {
     milestoneId: string,
   ): Promise<ApiResponse<ProjectMilestone>> {
     return this.client.get<ProjectMilestone>(
-      `/api/projects/${projectId}/milestones/${milestoneId}`,
+      apiPath`/api/projects/${projectId}/milestones/${milestoneId}`,
     );
   }
 
@@ -519,7 +516,7 @@ export class ProjectsEndpoint {
     milestoneId: string,
   ): Promise<ApiResponse<ProjectMilestone>> {
     return this.client.post<ProjectMilestone>(
-      `/api/projects/${projectId}/milestones/${milestoneId}/complete`,
+      apiPath`/api/projects/${projectId}/milestones/${milestoneId}/complete`,
     );
   }
 
@@ -530,7 +527,7 @@ export class ProjectsEndpoint {
     data: AddMemberDto,
   ): Promise<ApiResponse<ProjectMember>> {
     return this.client.post<ProjectMember>(
-      `/api/projects/${projectId}/members`,
+      apiPath`/api/projects/${projectId}/members`,
       data,
     );
   }
@@ -541,7 +538,7 @@ export class ProjectsEndpoint {
     data: UpdateMemberDto,
   ): Promise<ApiResponse<ProjectMember>> {
     return this.client.put<ProjectMember>(
-      `/api/projects/${projectId}/members/${memberId}`,
+      apiPath`/api/projects/${projectId}/members/${memberId}`,
       data,
     );
   }
@@ -550,12 +547,12 @@ export class ProjectsEndpoint {
     projectId: string,
     memberId: string,
   ): Promise<ApiResponse<void>> {
-    return this.client.delete(`/api/projects/${projectId}/members/${memberId}`);
+    return this.client.delete(apiPath`/api/projects/${projectId}/members/${memberId}`);
   }
 
   getMembers(projectId: string): Promise<ApiResponse<ProjectMember[]>> {
     return this.client.get<ProjectMember[]>(
-      `/api/projects/${projectId}/members`,
+      apiPath`/api/projects/${projectId}/members`,
     );
   }
 
@@ -564,7 +561,7 @@ export class ProjectsEndpoint {
     memberId: string,
   ): Promise<ApiResponse<ProjectMember>> {
     return this.client.get<ProjectMember>(
-      `/api/projects/${projectId}/members/${memberId}`,
+      apiPath`/api/projects/${projectId}/members/${memberId}`,
     );
   }
 
@@ -583,7 +580,7 @@ export class ProjectsEndpoint {
     data: CreateApplicationDto,
   ): Promise<ApiResponse<ProjectApplication>> {
     return this.client.post<ProjectApplication>(
-      `/api/projects/${projectId}/applications`,
+      apiPath`/api/projects/${projectId}/applications`,
       data,
     );
   }
@@ -592,7 +589,7 @@ export class ProjectsEndpoint {
     projectId: string,
   ): Promise<ApiResponse<ProjectApplication[]>> {
     return this.client.get<ProjectApplication[]>(
-      `/api/projects/${projectId}/applications`,
+      apiPath`/api/projects/${projectId}/applications`,
     );
   }
 
@@ -607,19 +604,19 @@ export class ProjectsEndpoint {
         : {};
     if (data.status === "ACCEPTED") {
       return this.client.post<ProjectApplication>(
-        `/api/projects/${projectId}/applications/${applicationId}/accept`,
+        apiPath`/api/projects/${projectId}/applications/${applicationId}/accept`,
         body,
       );
     }
     if (data.status === "REJECTED") {
       return this.client.post<ProjectApplication>(
-        `/api/projects/${projectId}/applications/${applicationId}/reject`,
+        apiPath`/api/projects/${projectId}/applications/${applicationId}/reject`,
         body,
       );
     }
     if (data.status === "WITHDRAWN") {
       return this.client.post<ProjectApplication>(
-        `/api/projects/${projectId}/applications/${applicationId}/withdraw`,
+        apiPath`/api/projects/${projectId}/applications/${applicationId}/withdraw`,
       );
     }
     return Promise.resolve({
@@ -634,7 +631,7 @@ export class ProjectsEndpoint {
     applicationId: string,
   ): Promise<ApiResponse<ProjectApplication>> {
     return this.client.get<ProjectApplication>(
-      `/api/projects/${projectId}/applications/${applicationId}`,
+      apiPath`/api/projects/${projectId}/applications/${applicationId}`,
     );
   }
 
@@ -652,14 +649,14 @@ export class ProjectsEndpoint {
     data: CreateProposalDto,
   ): Promise<ApiResponse<Proposal>> {
     return this.client.post<Proposal>(
-      `/api/projects/${projectId}/proposals`,
+      apiPath`/api/projects/${projectId}/proposals`,
       data,
     );
   }
 
   getProposals(projectId: string): Promise<ApiResponse<PagedResult<Proposal>>> {
     return this.client.get<PagedResult<Proposal>>(
-      `/api/projects/${projectId}/proposals`,
+      apiPath`/api/projects/${projectId}/proposals`,
     );
   }
 
@@ -668,7 +665,7 @@ export class ProjectsEndpoint {
     proposalId: string,
   ): Promise<ApiResponse<Proposal>> {
     return this.client.get<Proposal>(
-      `/api/projects/${projectId}/proposals/${proposalId}`,
+      apiPath`/api/projects/${projectId}/proposals/${proposalId}`,
     );
   }
 
@@ -678,7 +675,7 @@ export class ProjectsEndpoint {
     data: CastVoteDto,
   ): Promise<ApiResponse<Vote>> {
     return this.client.post<Vote>(
-      `/api/projects/${projectId}/proposals/${proposalId}/votes`,
+      apiPath`/api/projects/${projectId}/proposals/${proposalId}/votes`,
       data,
     );
   }
@@ -688,7 +685,7 @@ export class ProjectsEndpoint {
     proposalId: string,
   ): Promise<ApiResponse<Vote[]>> {
     return this.client.get<Vote[]>(
-      `/api/projects/${projectId}/proposals/${proposalId}/votes`,
+      apiPath`/api/projects/${projectId}/proposals/${proposalId}/votes`,
     );
   }
 
@@ -698,7 +695,7 @@ export class ProjectsEndpoint {
     proposalId: string,
   ): Promise<ApiResponse<Proposal>> {
     return this.client.post<Proposal>(
-      `/api/projects/${projectId}/proposals/${proposalId}/close`,
+      apiPath`/api/projects/${projectId}/proposals/${proposalId}/close`,
     );
   }
 
@@ -708,7 +705,7 @@ export class ProjectsEndpoint {
     proposalId: string,
   ): Promise<ApiResponse<Proposal>> {
     return this.client.post<Proposal>(
-      `/api/projects/${projectId}/proposals/${proposalId}/cancel`,
+      apiPath`/api/projects/${projectId}/proposals/${proposalId}/cancel`,
     );
   }
 
@@ -718,7 +715,7 @@ export class ProjectsEndpoint {
     data: UpdateProposalDto,
   ): Promise<ApiResponse<Proposal>> {
     return this.client.put<Proposal>(
-      `/api/projects/${projectId}/proposals/${proposalId}`,
+      apiPath`/api/projects/${projectId}/proposals/${proposalId}`,
       data,
     );
   }
@@ -728,7 +725,7 @@ export class ProjectsEndpoint {
     proposalId: string,
   ): Promise<ApiResponse<Proposal>> {
     return this.client.post<Proposal>(
-      `/api/projects/${projectId}/proposals/${proposalId}/publish`,
+      apiPath`/api/projects/${projectId}/proposals/${proposalId}/publish`,
     );
   }
 
@@ -737,7 +734,7 @@ export class ProjectsEndpoint {
     proposalId: string,
   ): Promise<ApiResponse<ProposalComment[]>> {
     return this.client.get<ProposalComment[]>(
-      `/api/projects/${projectId}/proposals/${proposalId}/comments`,
+      apiPath`/api/projects/${projectId}/proposals/${proposalId}/comments`,
     );
   }
 
@@ -747,7 +744,7 @@ export class ProjectsEndpoint {
     data: Omit<CreateProposalCommentDto, "proposalId">,
   ): Promise<ApiResponse<ProposalComment>> {
     return this.client.post<ProposalComment>(
-      `/api/projects/${projectId}/proposals/${proposalId}/comments`,
+      apiPath`/api/projects/${projectId}/proposals/${proposalId}/comments`,
       data,
     );
   }
@@ -764,14 +761,14 @@ export class ProjectsEndpoint {
       userId: data.userId ?? data.createdById,
     };
     return this.client.post<ProjectUpdate>(
-      `/api/projects/${projectId}/updates`,
+      apiPath`/api/projects/${projectId}/updates`,
       normalizedData,
     );
   }
 
   getUpdates(projectId: string): Promise<ApiResponse<ProjectUpdate[]>> {
     return this.client.get<ProjectUpdate[]>(
-      `/api/projects/${projectId}/updates`,
+      apiPath`/api/projects/${projectId}/updates`,
     );
   }
 
@@ -779,7 +776,7 @@ export class ProjectsEndpoint {
     projectId: string,
     updateId: string,
   ): Promise<ApiResponse<void>> {
-    return this.client.delete(`/api/projects/${projectId}/updates/${updateId}`);
+    return this.client.delete(apiPath`/api/projects/${projectId}/updates/${updateId}`);
   }
 
   getUpdateById(
@@ -787,7 +784,7 @@ export class ProjectsEndpoint {
     updateId: string,
   ): Promise<ApiResponse<ProjectUpdate>> {
     return this.client.get<ProjectUpdate>(
-      `/api/projects/${projectId}/updates/${updateId}`,
+      apiPath`/api/projects/${projectId}/updates/${updateId}`,
     );
   }
 
@@ -798,14 +795,14 @@ export class ProjectsEndpoint {
     data: CreateCommentDto,
   ): Promise<ApiResponse<ProjectComment>> {
     return this.client.post<ProjectComment>(
-      `/api/projects/${projectId}/comments`,
+      apiPath`/api/projects/${projectId}/comments`,
       data,
     );
   }
 
   getComments(projectId: string): Promise<ApiResponse<ProjectComment[]>> {
     return this.client.get<ProjectComment[]>(
-      `/api/projects/${projectId}/comments`,
+      apiPath`/api/projects/${projectId}/comments`,
     );
   }
 
@@ -814,7 +811,7 @@ export class ProjectsEndpoint {
     targetId: string,
   ): Promise<ApiResponse<ProjectComment[]>> {
     return this.client.get<ProjectComment[]>(
-      `/api/projects/comments/target/${targetType}/${targetId}`,
+      apiPath`/api/projects/comments/target/${targetType}/${targetId}`,
     );
   }
 
@@ -823,7 +820,7 @@ export class ProjectsEndpoint {
     commentId: string,
   ): Promise<ApiResponse<void>> {
     return this.client.delete(
-      `/api/projects/${projectId}/comments/${commentId}`,
+      apiPath`/api/projects/${projectId}/comments/${commentId}`,
     );
   }
 
@@ -832,7 +829,7 @@ export class ProjectsEndpoint {
     commentId: string,
   ): Promise<ApiResponse<ProjectComment>> {
     return this.client.get<ProjectComment>(
-      `/api/projects/${projectId}/comments/${commentId}`,
+      apiPath`/api/projects/${projectId}/comments/${commentId}`,
     );
   }
 
@@ -843,7 +840,7 @@ export class ProjectsEndpoint {
     data: CreateSupportDto,
   ): Promise<ApiResponse<ProjectSupport>> {
     return this.client.post<ProjectSupport>(
-      `/api/projects/${projectId}/support`,
+      apiPath`/api/projects/${projectId}/support`,
       data,
     );
   }
@@ -853,20 +850,20 @@ export class ProjectsEndpoint {
     supportId: string,
   ): Promise<ApiResponse<void>> {
     return this.client.delete(
-      `/api/projects/${projectId}/support/${supportId}`,
+      apiPath`/api/projects/${projectId}/support/${supportId}`,
     );
   }
 
   /** No dedicated UsersController route found; keep until backend exposes user support list. */
   getUserSupports(userId: string): Promise<ApiResponse<ProjectSupport[]>> {
     return this.client.get<ProjectSupport[]>(
-      `/api/project-support/user/${userId}`,
+      apiPath`/api/project-support/user/${userId}`,
     );
   }
 
   getSupporters(projectId: string): Promise<ApiResponse<ProjectSupport[]>> {
     return this.client.get<ProjectSupport[]>(
-      `/api/projects/${projectId}/support`,
+      apiPath`/api/projects/${projectId}/support`,
     );
   }
 
@@ -875,7 +872,7 @@ export class ProjectsEndpoint {
     supportId: string,
   ): Promise<ApiResponse<ProjectSupport>> {
     return this.client.get<ProjectSupport>(
-      `/api/projects/${projectId}/support/${supportId}`,
+      apiPath`/api/projects/${projectId}/support/${supportId}`,
     );
   }
 
@@ -883,7 +880,7 @@ export class ProjectsEndpoint {
 
   getInvitations(projectId: string): Promise<ApiResponse<ProjectInvitation[]>> {
     return this.client.get<ProjectInvitation[]>(
-      `/api/projects/${projectId}/invitations`,
+      apiPath`/api/projects/${projectId}/invitations`,
     );
   }
 
@@ -891,7 +888,7 @@ export class ProjectsEndpoint {
     userId: string,
   ): Promise<ApiResponse<ProjectInvitation[]>> {
     return this.client.get<ProjectInvitation[]>(
-      `/api/project-invitations/user/${userId}`,
+      apiPath`/api/project-invitations/user/${userId}`,
     );
   }
 
@@ -900,7 +897,7 @@ export class ProjectsEndpoint {
     data: CreateProjectInvitationDto,
   ): Promise<ApiResponse<ProjectInvitation>> {
     return this.client.post<ProjectInvitation>(
-      `/api/projects/${projectId}/invitations`,
+      apiPath`/api/projects/${projectId}/invitations`,
       data,
     );
   }
@@ -910,7 +907,7 @@ export class ProjectsEndpoint {
     invitationId: string,
   ): Promise<ApiResponse<ProjectInvitation>> {
     return this.client.post<ProjectInvitation>(
-      `/api/projects/${projectId}/invitations/${invitationId}/accept`,
+      apiPath`/api/projects/${projectId}/invitations/${invitationId}/accept`,
     );
   }
 
@@ -919,7 +916,7 @@ export class ProjectsEndpoint {
     invitationId: string,
   ): Promise<ApiResponse<ProjectInvitation>> {
     return this.client.post<ProjectInvitation>(
-      `/api/projects/${projectId}/invitations/${invitationId}/reject`,
+      apiPath`/api/projects/${projectId}/invitations/${invitationId}/reject`,
     );
   }
 }

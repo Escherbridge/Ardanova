@@ -13,6 +13,7 @@ import { ZodError } from "zod";
 
 import { auth } from "~/server/auth";
 import { runWithActorAssertion } from "~/server/actor-assertion";
+import { InvalidApiPathError } from "~/lib/api/path";
 import {
   type UserRole,
   type UserType,
@@ -113,6 +114,15 @@ const timingMiddleware = t.middleware(async ({ next, path }) => {
   return result;
 });
 
+/** An id the API client refuses to place in a URL path is the caller's bad input, not a server fault. */
+const invalidApiPathMiddleware = t.middleware(async ({ next }) => {
+  const result = await next();
+  if (!result.ok && result.error.cause instanceof InvalidApiPathError) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid id", cause: result.error.cause });
+  }
+  return result;
+});
+
 /**
  * Public (unauthenticated) procedure
  *
@@ -122,6 +132,7 @@ const timingMiddleware = t.middleware(async ({ next, path }) => {
  */
 export const publicProcedure = t.procedure
   .use(timingMiddleware)
+  .use(invalidApiPathMiddleware)
   .use(({ ctx, next }) => {
     // A signed-in caller is still identified on public reads, so .NET can return their own private fields.
     const user = ctx.session?.user;
@@ -140,6 +151,7 @@ export const publicProcedure = t.procedure
  */
 export const protectedProcedure = t.procedure
   .use(timingMiddleware)
+  .use(invalidApiPathMiddleware)
   .use(({ ctx, next }) => {
     const session = ctx.session;
     const user = session?.user;

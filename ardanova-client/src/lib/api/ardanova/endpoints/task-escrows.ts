@@ -1,3 +1,4 @@
+import { apiPath } from "../../path";
 import { type BaseApiClient, type ApiResponse } from "../../base-client";
 import type { TaskEscrowDto } from "~/lib/contracts/task-escrow-contract";
 
@@ -30,13 +31,13 @@ export class TaskEscrowsEndpoint {
 
   getById(id: string): Promise<ApiResponse<TaskEscrow>> {
     return this.client.get<TaskEscrow>(
-      `/api/taskescrows/${encodeURIComponent(id)}`,
+      apiPath`/api/taskescrows/${id}`,
     );
   }
 
   getByTaskId(taskId: string): Promise<ApiResponse<TaskEscrow>> {
     return this.client.get<TaskEscrow>(
-      `/api/taskescrows/task/${encodeURIComponent(taskId)}`,
+      apiPath`/api/taskescrows/task/${taskId}`,
     );
   }
 
@@ -59,7 +60,7 @@ export class TaskEscrowsEndpoint {
    */
   fund(id: string): Promise<ApiResponse<TaskEscrow>> {
     return this.client.post<TaskEscrow>(
-      `/api/taskescrows/${encodeURIComponent(id)}/fund`,
+      apiPath`/api/taskescrows/${id}/fund`,
       {},
     );
   }
@@ -70,7 +71,7 @@ export class TaskEscrowsEndpoint {
    */
   release(id: string): Promise<ApiResponse<TaskEscrow>> {
     return this.client.post<TaskEscrow>(
-      `/api/taskescrows/${encodeURIComponent(id)}/release`,
+      apiPath`/api/taskescrows/${id}/release`,
       {},
     );
   }
@@ -80,14 +81,14 @@ export class TaskEscrowsEndpoint {
     data: DisputeEscrowDto,
   ): Promise<ApiResponse<TaskEscrow>> {
     return this.client.post<TaskEscrow>(
-      `/api/taskescrows/${encodeURIComponent(id)}/dispute`,
+      apiPath`/api/taskescrows/${id}/dispute`,
       data,
     );
   }
 
   refund(id: string, data: RefundEscrowDto): Promise<ApiResponse<TaskEscrow>> {
     return this.client.post<TaskEscrow>(
-      `/api/taskescrows/${encodeURIComponent(id)}/refund`,
+      apiPath`/api/taskescrows/${id}/refund`,
       data,
     );
   }
@@ -98,7 +99,7 @@ export class TaskEscrowsEndpoint {
     data: ResolveDisputeDto,
   ): Promise<ApiResponse<TaskEscrow>> {
     return this.client.post<TaskEscrow>(
-      `/api/taskescrows/${encodeURIComponent(id)}/resolve`,
+      apiPath`/api/taskescrows/${id}/resolve`,
       data,
     );
   }

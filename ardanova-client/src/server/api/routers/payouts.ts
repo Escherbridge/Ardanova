@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { apiPath } from "~/lib/api/path";
 import { TRPCError } from "@trpc/server";
 import {
   createTRPCRouter,
@@ -198,7 +199,7 @@ export const payoutsRouter = createTRPCRouter({
         units: String(input.units),
       });
       const response = await apiClient.get<unknown>(
-        `/api/Payouts/quote?${params.toString()}`,
+        apiPath`/api/Payouts/quote?${params}`,
       );
 
       if (response.error || response.data === undefined) {

@@ -1,3 +1,4 @@
+import { apiPath, query } from "../../path";
 import { type BaseApiClient, type ApiResponse } from "../../base-client";
 import type { TokenHolderClass } from "./project-tokens";
 
@@ -47,8 +48,8 @@ export class TokenBalancesEndpoint {
     projectTokenConfigId: string,
     holderClass: TokenHolderClass,
   ): Promise<ApiResponse<TokenBalanceDto>> {
-    const q = `?projectTokenConfigId=${encodeURIComponent(projectTokenConfigId)}&holderClass=${encodeURIComponent(holderClass)}`;
-    return this.client.get<TokenBalanceDto>(`/api/TokenBalance/me/balance${q}`);
+    const q = query({ projectTokenConfigId, holderClass });
+    return this.client.get<TokenBalanceDto>(apiPath`/api/TokenBalance/me/balance${q}`);
   }
 
   getArdaBalance(): Promise<ApiResponse<TokenBalanceDto>> {
@@ -63,13 +64,13 @@ export class TokenBalancesEndpoint {
     projectTokenConfigId: string,
     holderClass: TokenHolderClass,
   ): Promise<ApiResponse<boolean>> {
-    const q = `?projectTokenConfigId=${encodeURIComponent(projectTokenConfigId)}&holderClass=${encodeURIComponent(holderClass)}`;
-    return this.client.get<boolean>(`/api/TokenBalance/me/liquidity${q}`);
+    const q = query({ projectTokenConfigId, holderClass });
+    return this.client.get<boolean>(apiPath`/api/TokenBalance/me/liquidity${q}`);
   }
 
   getProjectTokenValue(configId: string): Promise<ApiResponse<number>> {
     return this.client.get<number>(
-      `/api/TokenBalance/exchange/project-token-value/${encodeURIComponent(configId)}`,
+      apiPath`/api/TokenBalance/exchange/project-token-value/${configId}`,
     );
   }
 
@@ -81,9 +82,9 @@ export class TokenBalancesEndpoint {
     projectTokenConfigId: string,
     tokenAmount: number,
   ): Promise<ApiResponse<ConversionPreviewDto>> {
-    const q = `?projectTokenConfigId=${encodeURIComponent(projectTokenConfigId)}&tokenAmount=${tokenAmount}`;
+    const q = query({ projectTokenConfigId, tokenAmount });
     return this.client.get<ConversionPreviewDto>(
-      `/api/TokenBalance/exchange/conversion-preview${q}`,
+      apiPath`/api/TokenBalance/exchange/conversion-preview${q}`,
     );
   }
 }

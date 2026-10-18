@@ -1,3 +1,4 @@
+import { apiPath } from "../../path";
 import { type BaseApiClient, type ApiResponse, type PagedResult } from "../../base-client";
 
 export interface Notification {
@@ -24,7 +25,7 @@ export class NotificationsEndpoint {
   constructor(private client: BaseApiClient) {}
 
   getById(id: string): Promise<ApiResponse<Notification>> {
-    return this.client.get<Notification>(`/api/notifications/${encodeURIComponent(id)}`);
+    return this.client.get<Notification>(apiPath`/api/notifications/${id}`);
   }
 
   getMine(): Promise<ApiResponse<Notification[]>> {
@@ -34,7 +35,7 @@ export class NotificationsEndpoint {
   getPaged(page = 1, pageSize = 10): Promise<ApiResponse<PagedResult<Notification>>> {
     const q = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
     return this.client.get<PagedResult<Notification>>(
-      `/api/notifications/me/paged?${q.toString()}`
+      apiPath`/api/notifications/me/paged?${q}`
     );
   }
 
@@ -47,7 +48,7 @@ export class NotificationsEndpoint {
   }
 
   markAsRead(id: string): Promise<ApiResponse<Notification>> {
-    return this.client.post<Notification>(`/api/notifications/${encodeURIComponent(id)}/read`, {});
+    return this.client.post<Notification>(apiPath`/api/notifications/${id}/read`, {});
   }
 
   markAllAsRead(): Promise<ApiResponse<{ success: boolean }>> {
@@ -58,7 +59,7 @@ export class NotificationsEndpoint {
   }
 
   delete(id: string): Promise<ApiResponse<void>> {
-    return this.client.delete(`/api/notifications/${encodeURIComponent(id)}`);
+    return this.client.delete(apiPath`/api/notifications/${id}`);
   }
 
   deleteAll(): Promise<ApiResponse<void>> {

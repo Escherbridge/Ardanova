@@ -1,3 +1,4 @@
+import { apiPath, query } from "../../path";
 import { type BaseApiClient, type ApiResponse, type PagedResult } from "../../base-client";
 
 export interface Attachment {
@@ -65,15 +66,15 @@ export class AttachmentsEndpoint {
 
   getPaged(page = 1, pageSize = 10): Promise<ApiResponse<PagedResult<Attachment>>> {
     const q = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
-    return this.client.get<PagedResult<Attachment>>(`/api/attachments?${q.toString()}`);
+    return this.client.get<PagedResult<Attachment>>(apiPath`/api/attachments?${q}`);
   }
 
   getById(id: string): Promise<ApiResponse<Attachment>> {
-    return this.client.get<Attachment>(`/api/attachments/${encodeURIComponent(id)}`);
+    return this.client.get<Attachment>(apiPath`/api/attachments/${id}`);
   }
 
   getByUserId(userId: string): Promise<ApiResponse<Attachment[]>> {
-    return this.client.get<Attachment[]>(`/api/attachments/user/${encodeURIComponent(userId)}`);
+    return this.client.get<Attachment[]>(apiPath`/api/attachments/user/${userId}`);
   }
 
   getUploadUrl(userId: string, request: UploadRequestDto): Promise<ApiResponse<UploadResponseDto>> {
@@ -95,12 +96,12 @@ export class AttachmentsEndpoint {
   getDownloadUrl(id: string, expirationMinutes = 60): Promise<ApiResponse<DownloadResponseDto>> {
     const q = new URLSearchParams({ expirationMinutes: String(expirationMinutes) });
     return this.client.get<DownloadResponseDto>(
-      `/api/attachments/${encodeURIComponent(id)}/download-url?${q.toString()}`
+      apiPath`/api/attachments/${id}/download-url?${q}`
     );
   }
 
   getPublicUrl(id: string): Promise<ApiResponse<{ url: string }>> {
-    return this.client.get<{ url: string }>(`/api/attachments/${encodeURIComponent(id)}/public-url`);
+    return this.client.get<{ url: string }>(apiPath`/api/attachments/${id}/public-url`);
   }
 
   create(data: CreateAttachmentDto): Promise<ApiResponse<Attachment>> {
@@ -115,11 +116,11 @@ export class AttachmentsEndpoint {
   ): Promise<ApiResponse<Attachment>> {
     const form = new FormData();
     form.append("file", file, fileName);
-    const q = options?.folder ? `?folder=${encodeURIComponent(options.folder)}` : "";
-    return this.client.postFormData<Attachment>(`/api/attachments/upload${q}`, form, userHeader(userId));
+    const q = query({ folder: options?.folder || undefined });
+    return this.client.postFormData<Attachment>(apiPath`/api/attachments/upload${q}`, form, userHeader(userId));
   }
 
   delete(id: string): Promise<ApiResponse<void>> {
-    return this.client.delete(`/api/attachments/${encodeURIComponent(id)}`);
+    return this.client.delete(apiPath`/api/attachments/${id}`);
   }
 }

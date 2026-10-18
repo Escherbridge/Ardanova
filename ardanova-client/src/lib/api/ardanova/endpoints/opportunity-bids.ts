@@ -1,3 +1,4 @@
+import { apiPath } from "../../path";
 import { type BaseApiClient, type ApiResponse } from "../../base-client";
 
 export type OpportunityBidStatus = "SUBMITTED" | "UNDER_REVIEW" | "ACCEPTED" | "REJECTED" | "WITHDRAWN" | "COMPLETED";
@@ -49,11 +50,11 @@ export class OpportunityBidsEndpoint {
   constructor(private client: BaseApiClient) {}
 
   getByOpportunityId(opportunityId: string): Promise<ApiResponse<OpportunityBid[]>> {
-    return this.client.get<OpportunityBid[]>(`/api/opportunities/${encodeURIComponent(opportunityId)}/bids`);
+    return this.client.get<OpportunityBid[]>(apiPath`/api/opportunities/${opportunityId}/bids`);
   }
 
   getById(id: string): Promise<ApiResponse<OpportunityBid>> {
-    return this.client.get<OpportunityBid>(`/api/opportunity-bids/${id}`);
+    return this.client.get<OpportunityBid>(apiPath`/api/opportunity-bids/${id}`);
   }
 
   getMine(): Promise<ApiResponse<OpportunityBid[]>> {
@@ -61,7 +62,7 @@ export class OpportunityBidsEndpoint {
   }
 
   getByGuildId(guildId: string): Promise<ApiResponse<OpportunityBid[]>> {
-    return this.client.get<OpportunityBid[]>(`/api/opportunity-bids/guild/${guildId}`);
+    return this.client.get<OpportunityBid[]>(apiPath`/api/opportunity-bids/guild/${guildId}`);
   }
 
   create(data: CreateOpportunityBid): Promise<ApiResponse<OpportunityBid>> {
@@ -69,26 +70,26 @@ export class OpportunityBidsEndpoint {
   }
 
   update(id: string, data: UpdateOpportunityBid): Promise<ApiResponse<OpportunityBid>> {
-    return this.client.put<OpportunityBid>(`/api/opportunity-bids/${id}`, data);
+    return this.client.put<OpportunityBid>(apiPath`/api/opportunity-bids/${id}`, data);
   }
 
   accept(id: string): Promise<ApiResponse<TaskCommerceAcceptance>> {
-    return this.client.post<TaskCommerceAcceptance>(`/api/opportunity-bids/${id}/accept`, {});
+    return this.client.post<TaskCommerceAcceptance>(apiPath`/api/opportunity-bids/${id}/accept`, {});
   }
 
   reject(id: string): Promise<ApiResponse<OpportunityBid>> {
-    return this.client.post<OpportunityBid>(`/api/opportunity-bids/${id}/reject`, {});
+    return this.client.post<OpportunityBid>(apiPath`/api/opportunity-bids/${id}/reject`, {});
   }
 
   withdraw(id: string): Promise<ApiResponse<OpportunityBid>> {
-    return this.client.post<OpportunityBid>(`/api/opportunity-bids/${id}/withdraw`, {});
+    return this.client.post<OpportunityBid>(apiPath`/api/opportunity-bids/${id}/withdraw`, {});
   }
 
   complete(id: string): Promise<ApiResponse<OpportunityBid>> {
-    return this.client.post<OpportunityBid>(`/api/opportunity-bids/${id}/complete`, {});
+    return this.client.post<OpportunityBid>(apiPath`/api/opportunity-bids/${id}/complete`, {});
   }
 
   delete(id: string): Promise<ApiResponse<void>> {
-    return this.client.delete(`/api/opportunity-bids/${id}`);
+    return this.client.delete(apiPath`/api/opportunity-bids/${id}`);
   }
 }

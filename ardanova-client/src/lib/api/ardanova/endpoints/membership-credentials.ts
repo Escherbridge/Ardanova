@@ -1,3 +1,4 @@
+import { apiPath } from "../../path";
 import { type BaseApiClient, type ApiResponse } from "../../base-client";
 
 export type MembershipCredentialStatus = "ACTIVE" | "REVOKED" | "SUSPENDED";
@@ -67,35 +68,35 @@ export class MembershipCredentialsEndpoint {
   constructor(private client: BaseApiClient) {}
 
   getById(id: string): Promise<ApiResponse<MembershipCredential>> {
-    return this.client.get<MembershipCredential>(`/api/membershipcredentials/${id}`);
+    return this.client.get<MembershipCredential>(apiPath`/api/membershipcredentials/${id}`);
   }
 
   getByProjectId(projectId: string): Promise<ApiResponse<MembershipCredential[]>> {
-    return this.client.get<MembershipCredential[]>(`/api/membershipcredentials/project/${projectId}`);
+    return this.client.get<MembershipCredential[]>(apiPath`/api/membershipcredentials/project/${projectId}`);
   }
 
   getActiveByProjectId(projectId: string): Promise<ApiResponse<MembershipCredential[]>> {
-    return this.client.get<MembershipCredential[]>(`/api/membershipcredentials/project/${projectId}/active`);
+    return this.client.get<MembershipCredential[]>(apiPath`/api/membershipcredentials/project/${projectId}/active`);
   }
 
   getByUserId(userId: string): Promise<ApiResponse<MembershipCredential[]>> {
-    return this.client.get<MembershipCredential[]>(`/api/membershipcredentials/user/${userId}`);
+    return this.client.get<MembershipCredential[]>(apiPath`/api/membershipcredentials/user/${userId}`);
   }
 
   getByProjectAndUser(projectId: string, userId: string): Promise<ApiResponse<MembershipCredential | null>> {
-    return this.client.get<MembershipCredential | null>(`/api/membershipcredentials/project/${projectId}/user/${userId}`);
+    return this.client.get<MembershipCredential | null>(apiPath`/api/membershipcredentials/project/${projectId}/user/${userId}`);
   }
 
   getByGuildId(guildId: string): Promise<ApiResponse<MembershipCredential[]>> {
-    return this.client.get<MembershipCredential[]>(`/api/membershipcredentials/guild/${guildId}`);
+    return this.client.get<MembershipCredential[]>(apiPath`/api/membershipcredentials/guild/${guildId}`);
   }
 
   getActiveByGuildId(guildId: string): Promise<ApiResponse<MembershipCredential[]>> {
-    return this.client.get<MembershipCredential[]>(`/api/membershipcredentials/guild/${guildId}/active`);
+    return this.client.get<MembershipCredential[]>(apiPath`/api/membershipcredentials/guild/${guildId}/active`);
   }
 
   getByGuildAndUser(guildId: string, userId: string): Promise<ApiResponse<MembershipCredential | null>> {
-    return this.client.get<MembershipCredential | null>(`/api/membershipcredentials/guild/${guildId}/user/${userId}`);
+    return this.client.get<MembershipCredential | null>(apiPath`/api/membershipcredentials/guild/${guildId}/user/${userId}`);
   }
 
   grant(data: GrantMembershipCredentialDto): Promise<ApiResponse<MembershipCredential>> {
@@ -103,18 +104,18 @@ export class MembershipCredentialsEndpoint {
   }
 
   revoke(id: string, data?: RevokeMembershipCredentialDto): Promise<ApiResponse<unknown>> {
-    return this.client.post(`/api/membershipcredentials/${id}/revoke`, data ?? {});
+    return this.client.post(apiPath`/api/membershipcredentials/${id}/revoke`, data ?? {});
   }
 
   suspend(id: string): Promise<ApiResponse<unknown>> {
-    return this.client.post(`/api/membershipcredentials/${id}/suspend`, {});
+    return this.client.post(apiPath`/api/membershipcredentials/${id}/suspend`, {});
   }
 
   reactivate(id: string): Promise<ApiResponse<unknown>> {
-    return this.client.post(`/api/membershipcredentials/${id}/reactivate`, {});
+    return this.client.post(apiPath`/api/membershipcredentials/${id}/reactivate`, {});
   }
 
   updateTier(id: string, data: UpdateCredentialTierDto): Promise<ApiResponse<MembershipCredential>> {
-    return this.client.patch<MembershipCredential>(`/api/membershipcredentials/${id}/tier`, data);
+    return this.client.patch<MembershipCredential>(apiPath`/api/membershipcredentials/${id}/tier`, data);
   }
 }

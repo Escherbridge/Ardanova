@@ -1,3 +1,4 @@
+import { apiPath } from "../../path";
 import { type BaseApiClient, type ApiResponse } from "../../base-client";
 
 // ============ Type Definitions ============
@@ -77,7 +78,7 @@ export class BacklogEndpoint {
     featureId: string,
   ): Promise<ApiResponse<ProductBacklogItem[]>> {
     return this.client.get<ProductBacklogItem[]>(
-      `/api/features/${featureId}/product-backlog-items`,
+      apiPath`/api/features/${featureId}/product-backlog-items`,
     );
   }
 
@@ -89,7 +90,7 @@ export class BacklogEndpoint {
     projectId: string,
   ): Promise<ApiResponse<ProductBacklogItem[]>> {
     return this.client.get<ProductBacklogItem[]>(
-      `/api/projects/${projectId}/product-backlog-items`,
+      apiPath`/api/projects/${projectId}/product-backlog-items`,
     );
   }
 
@@ -99,7 +100,7 @@ export class BacklogEndpoint {
    */
   getPbiById(id: string): Promise<ApiResponse<ProductBacklogItem>> {
     return this.client.get<ProductBacklogItem>(
-      `/api/product-backlog-items/${id}`,
+      apiPath`/api/product-backlog-items/${id}`,
     );
   }
 
@@ -125,7 +126,7 @@ export class BacklogEndpoint {
     data: UpdateProductBacklogItem,
   ): Promise<ApiResponse<ProductBacklogItem>> {
     return this.client.put<ProductBacklogItem>(
-      `/api/product-backlog-items/${id}`,
+      apiPath`/api/product-backlog-items/${id}`,
       data,
     );
   }
@@ -135,7 +136,7 @@ export class BacklogEndpoint {
    * Maps to DELETE /api/product-backlog-items/{id}
    */
   deletePbi(id: string): Promise<ApiResponse<void>> {
-    return this.client.delete(`/api/product-backlog-items/${id}`);
+    return this.client.delete(apiPath`/api/product-backlog-items/${id}`);
   }
 
   /**
@@ -147,7 +148,7 @@ export class BacklogEndpoint {
     userId: string | null,
   ): Promise<ApiResponse<ProductBacklogItem>> {
     return this.client.put<ProductBacklogItem>(
-      `/api/product-backlog-items/${id}/assign`,
+      apiPath`/api/product-backlog-items/${id}/assign`,
       { userId },
     );
   }
@@ -161,7 +162,7 @@ export class BacklogEndpoint {
     status: PbiStatus,
   ): Promise<ApiResponse<ProductBacklogItem>> {
     return this.client.put<ProductBacklogItem>(
-      `/api/product-backlog-items/${id}/status`,
+      apiPath`/api/product-backlog-items/${id}/status`,
       { status },
     );
   }

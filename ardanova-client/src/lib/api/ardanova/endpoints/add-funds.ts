@@ -1,3 +1,4 @@
+import { apiPath } from "../../path";
 import { type ApiResponse, type BaseApiClient } from "../../base-client";
 
 /** How much to add, in whole cents. Dollars never cross the wire as a decimal. */
@@ -48,7 +49,7 @@ export class AddFundsEndpoint {
   /** Reads one payment belonging to the signed-in person. Another person's id reads nothing. */
   getPayment(paymentId: string): Promise<ApiResponse<AddFundsPayment>> {
     return this.client.get<AddFundsPayment>(
-      `/api/add-funds/${encodeURIComponent(paymentId)}`,
+      apiPath`/api/add-funds/${paymentId}`,
     );
   }
 }

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { segment } from "~/lib/api/path";
 import { TRPCError } from "@trpc/server";
 import {
   createTRPCRouter,
@@ -34,11 +35,11 @@ const guildScope = z.object({
 });
 
 function scopePath(base: string, scope: { projectId: string } | { guildId: string }, userId: string) {
-  const segment =
+  const scoped =
     "projectId" in scope
-      ? `project/${encodeURIComponent(scope.projectId)}`
-      : `guild/${encodeURIComponent(scope.guildId)}`;
-  return `${base}/${segment}/user/${encodeURIComponent(userId)}`;
+      ? `project/${segment(scope.projectId)}`
+      : `guild/${segment(scope.guildId)}`;
+  return `${base}/${scoped}/user/${segment(userId)}`;
 }
 
 /** Turns an API refusal into the tRPC code that matches it, so the UI can tell them apart. */

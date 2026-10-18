@@ -1,3 +1,4 @@
+import { apiPath } from "../../path";
 import { type BaseApiClient, type ApiResponse } from "../../base-client";
 
 export interface Product {
@@ -35,11 +36,11 @@ export class ProductsEndpoint {
   constructor(private client: BaseApiClient) {}
 
   getById(id: string): Promise<ApiResponse<Product>> {
-    return this.client.get<Product>(`/api/products/${id}`);
+    return this.client.get<Product>(apiPath`/api/products/${id}`);
   }
 
   getByProjectId(projectId: string): Promise<ApiResponse<Product[]>> {
-    return this.client.get<Product[]>(`/api/products/project/${projectId}`);
+    return this.client.get<Product[]>(apiPath`/api/products/project/${projectId}`);
   }
 
   create(data: CreateProduct): Promise<ApiResponse<Product>> {
@@ -47,14 +48,14 @@ export class ProductsEndpoint {
   }
 
   update(id: string, data: UpdateProduct): Promise<ApiResponse<Product>> {
-    return this.client.put<Product>(`/api/products/${id}`, data);
+    return this.client.put<Product>(apiPath`/api/products/${id}`, data);
   }
 
   delete(id: string): Promise<ApiResponse<void>> {
-    return this.client.delete(`/api/products/${id}`);
+    return this.client.delete(apiPath`/api/products/${id}`);
   }
 
   toggleActive(id: string): Promise<ApiResponse<Product>> {
-    return this.client.post<Product>(`/api/products/${id}/toggle-active`, {});
+    return this.client.post<Product>(apiPath`/api/products/${id}/toggle-active`, {});
   }
 }

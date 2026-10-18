@@ -1,3 +1,4 @@
+import { apiPath } from "../../path";
 import { type BaseApiClient, type ApiResponse } from "../../base-client";
 
 // ============ Type Definitions ============
@@ -33,24 +34,24 @@ export class ReferralsEndpoint {
   constructor(private client: BaseApiClient) {}
 
   getById(id: string): Promise<ApiResponse<Referral>> {
-    return this.client.get<Referral>(`/api/referrals/${id}`);
+    return this.client.get<Referral>(apiPath`/api/referrals/${id}`);
   }
 
   getByReferrerId(referrerId: string): Promise<ApiResponse<Referral[]>> {
     return this.client.get<Referral[]>(
-      `/api/referrals/referrer/${referrerId}`,
+      apiPath`/api/referrals/referrer/${referrerId}`,
     );
   }
 
   getByReferredId(referredId: string): Promise<ApiResponse<Referral>> {
     return this.client.get<Referral>(
-      `/api/referrals/referred/${referredId}`,
+      apiPath`/api/referrals/referred/${referredId}`,
     );
   }
 
   getByCode(code: string): Promise<ApiResponse<Referral>> {
     return this.client.get<Referral>(
-      `/api/referrals/code/${encodeURIComponent(code)}`,
+      apiPath`/api/referrals/code/${code}`,
     );
   }
 
@@ -59,21 +60,21 @@ export class ReferralsEndpoint {
   }
 
   complete(id: string): Promise<ApiResponse<Referral>> {
-    return this.client.post<Referral>(`/api/referrals/${id}/complete`, {});
+    return this.client.post<Referral>(apiPath`/api/referrals/${id}/complete`, {});
   }
 
   claimReward(
     id: string,
     data: ClaimReferralRewardDto,
   ): Promise<ApiResponse<Referral>> {
-    return this.client.post<Referral>(`/api/referrals/${id}/claim`, data);
+    return this.client.post<Referral>(apiPath`/api/referrals/${id}/claim`, data);
   }
 
   expire(id: string): Promise<ApiResponse<Referral>> {
-    return this.client.post<Referral>(`/api/referrals/${id}/expire`, {});
+    return this.client.post<Referral>(apiPath`/api/referrals/${id}/expire`, {});
   }
 
   cancel(id: string): Promise<ApiResponse<Referral>> {
-    return this.client.post<Referral>(`/api/referrals/${id}/cancel`, {});
+    return this.client.post<Referral>(apiPath`/api/referrals/${id}/cancel`, {});
   }
 }

@@ -1,3 +1,4 @@
+import { apiPath } from "../../path";
 import { type BaseApiClient, type ApiResponse, type PagedResult } from "../../base-client";
 
 export interface Proposal {
@@ -102,7 +103,7 @@ export class GovernanceEndpoint {
   constructor(private client: BaseApiClient) {}
 
   getById(id: string): Promise<ApiResponse<Proposal>> {
-    return this.client.get<Proposal>(`/api/governance/proposals/${id}`);
+    return this.client.get<Proposal>(apiPath`/api/governance/proposals/${id}`);
   }
 
   getActive(): Promise<ApiResponse<Proposal[]>> {
@@ -110,7 +111,7 @@ export class GovernanceEndpoint {
   }
 
   getByCreatorId(creatorId: string): Promise<ApiResponse<Proposal[]>> {
-    return this.client.get<Proposal[]>(`/api/governance/proposals/proposer/${creatorId}`);
+    return this.client.get<Proposal[]>(apiPath`/api/governance/proposals/proposer/${creatorId}`);
   }
 
   search(params: SearchProposalsParams = {}): Promise<ApiResponse<PagedResult<Proposal>>> {
@@ -121,7 +122,7 @@ export class GovernanceEndpoint {
     if (params.projectId) sp.set("projectId", params.projectId ?? "");
     sp.set("page", String(params.page ?? 1));
     sp.set("pageSize", String(params.pageSize ?? 10));
-    return this.client.get<PagedResult<Proposal>>(`/api/governance/proposals/search?${sp.toString()}`);
+    return this.client.get<PagedResult<Proposal>>(apiPath`/api/governance/proposals/search?${sp}`);
   }
 
   create(data: CreateProposalDto): Promise<ApiResponse<Proposal>> {
@@ -129,38 +130,38 @@ export class GovernanceEndpoint {
   }
 
   update(id: string, data: UpdateProposalDto): Promise<ApiResponse<Proposal>> {
-    return this.client.put<Proposal>(`/api/governance/proposals/${id}`, data);
+    return this.client.put<Proposal>(apiPath`/api/governance/proposals/${id}`, data);
   }
 
   delete(id: string): Promise<ApiResponse<void>> {
-    return this.client.delete(`/api/governance/proposals/${id}`);
+    return this.client.delete(apiPath`/api/governance/proposals/${id}`);
   }
 
   vote(proposalId: string, dto: CastVoteDto): Promise<ApiResponse<Vote>> {
-    return this.client.post<Vote>(`/api/governance/proposals/${proposalId}/vote`, dto);
+    return this.client.post<Vote>(apiPath`/api/governance/proposals/${proposalId}/vote`, dto);
   }
 
   getMyVote(proposalId: string, userId: string): Promise<ApiResponse<Vote | null>> {
-    return this.client.get<Vote | null>(`/api/governance/proposals/${proposalId}/my-vote?userId=${encodeURIComponent(userId)}`);
+    return this.client.get<Vote | null>(apiPath`/api/governance/proposals/${proposalId}/my-vote?userId=${userId}`);
   }
 
   getVotes(proposalId: string): Promise<ApiResponse<Vote[]>> {
-    return this.client.get<Vote[]>(`/api/governance/proposals/${proposalId}/votes`);
+    return this.client.get<Vote[]>(apiPath`/api/governance/proposals/${proposalId}/votes`);
   }
 
   getVoteSummary(proposalId: string): Promise<ApiResponse<ProposalVoteSummary>> {
-    return this.client.get<ProposalVoteSummary>(`/api/governance/proposals/${proposalId}/summary`);
+    return this.client.get<ProposalVoteSummary>(apiPath`/api/governance/proposals/${proposalId}/summary`);
   }
 
   execute(id: string): Promise<ApiResponse<Proposal>> {
-    return this.client.patch<Proposal>(`/api/governance/proposals/${id}/execute`, {});
+    return this.client.patch<Proposal>(apiPath`/api/governance/proposals/${id}/execute`, {});
   }
 
   cancel(id: string): Promise<ApiResponse<Proposal>> {
-    return this.client.patch<Proposal>(`/api/governance/proposals/${id}/cancel`, {});
+    return this.client.patch<Proposal>(apiPath`/api/governance/proposals/${id}/cancel`, {});
   }
 
   publishProposal(id: string): Promise<ApiResponse<Proposal>> {
-    return this.client.patch<Proposal>(`/api/governance/proposals/${id}/publish`, {});
+    return this.client.patch<Proposal>(apiPath`/api/governance/proposals/${id}/publish`, {});
   }
 }

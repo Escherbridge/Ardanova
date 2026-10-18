@@ -1,3 +1,4 @@
+import { apiPath } from "../../path";
 import {
   type BaseApiClient,
   type ApiResponse,
@@ -109,17 +110,17 @@ export class PostsEndpoint {
       pageSize: String(pageSize),
     });
     return this.client.get<PagedResult<Post>>(
-      `/api/projects/${encodeURIComponent(projectId)}/field-notes?${q.toString()}`,
+      apiPath`/api/projects/${projectId}/field-notes?${q}`,
     );
   }
 
   getById(id: string): Promise<ApiResponse<Post>> {
-    return this.client.get<Post>(`/api/posts/${encodeURIComponent(id)}`);
+    return this.client.get<Post>(apiPath`/api/posts/${id}`);
   }
 
   getByUserId(userId: string): Promise<ApiResponse<Post[]>> {
     return this.client.get<Post[]>(
-      `/api/posts/user/${encodeURIComponent(userId)}`,
+      apiPath`/api/posts/user/${userId}`,
     );
   }
 
@@ -128,45 +129,45 @@ export class PostsEndpoint {
   }
 
   update(id: string, data: UpdatePostDto): Promise<ApiResponse<Post>> {
-    return this.client.put<Post>(`/api/posts/${encodeURIComponent(id)}`, data);
+    return this.client.put<Post>(apiPath`/api/posts/${id}`, data);
   }
 
   delete(id: string): Promise<ApiResponse<void>> {
-    return this.client.delete(`/api/posts/${encodeURIComponent(id)}`);
+    return this.client.delete(apiPath`/api/posts/${id}`);
   }
 
   like(id: string): Promise<ApiResponse<Post>> {
     return this.client.post<Post>(
-      `/api/posts/${encodeURIComponent(id)}/like`,
+      apiPath`/api/posts/${id}/like`,
       {},
     );
   }
 
   unlike(id: string): Promise<ApiResponse<Post>> {
-    return this.client.delete(`/api/posts/${encodeURIComponent(id)}/like`);
+    return this.client.delete(apiPath`/api/posts/${id}/like`);
   }
 
   share(id: string, data?: CreatePostShareDto): Promise<ApiResponse<Post>> {
     return this.client.post<Post>(
-      `/api/posts/${encodeURIComponent(id)}/share`,
+      apiPath`/api/posts/${id}/share`,
       data ?? {},
     );
   }
 
   bookmark(id: string): Promise<ApiResponse<boolean>> {
     return this.client.post<boolean>(
-      `/api/posts/${encodeURIComponent(id)}/bookmark`,
+      apiPath`/api/posts/${id}/bookmark`,
       {},
     );
   }
 
   unbookmark(id: string): Promise<ApiResponse<boolean>> {
-    return this.client.delete(`/api/posts/${encodeURIComponent(id)}/bookmark`);
+    return this.client.delete(apiPath`/api/posts/${id}/bookmark`);
   }
 
   getComments(id: string): Promise<ApiResponse<PostComment[]>> {
     return this.client.get<PostComment[]>(
-      `/api/posts/${encodeURIComponent(id)}/comments`,
+      apiPath`/api/posts/${id}/comments`,
     );
   }
 
@@ -175,7 +176,7 @@ export class PostsEndpoint {
     data: CreatePostCommentDto,
   ): Promise<ApiResponse<PostComment>> {
     return this.client.post<PostComment>(
-      `/api/posts/${encodeURIComponent(id)}/comments`,
+      apiPath`/api/posts/${id}/comments`,
       data,
     );
   }
@@ -185,7 +186,7 @@ export class PostsEndpoint {
     commentId: string,
   ): Promise<ApiResponse<void>> {
     return this.client.delete(
-      `/api/posts/${encodeURIComponent(id)}/comments/${encodeURIComponent(commentId)}`,
+      apiPath`/api/posts/${id}/comments/${commentId}`,
     );
   }
 }

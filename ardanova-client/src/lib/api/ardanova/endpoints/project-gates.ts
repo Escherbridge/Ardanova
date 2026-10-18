@@ -1,3 +1,4 @@
+import { apiPath, query } from "../../path";
 import { type BaseApiClient, type ApiResponse } from "../../base-client";
 import type {
   FailProjectDto,
@@ -11,7 +12,7 @@ export class ProjectGatesEndpoint {
 
   getStatus(configId: string): Promise<ApiResponse<ProjectGateStatusDto>> {
     return this.client.get<ProjectGateStatusDto>(
-      `/api/ProjectTokens/${encodeURIComponent(configId)}/gate`,
+      apiPath`/api/ProjectTokens/${configId}/gate`,
     );
   }
 
@@ -19,7 +20,7 @@ export class ProjectGatesEndpoint {
     configId: string,
   ): Promise<ApiResponse<GateTransitionResultDto>> {
     return this.client.post<GateTransitionResultDto>(
-      `/api/ProjectTokens/${encodeURIComponent(configId)}/gate/evaluate`,
+      apiPath`/api/ProjectTokens/${configId}/gate/evaluate`,
       {},
     );
   }
@@ -28,9 +29,9 @@ export class ProjectGatesEndpoint {
     configId: string,
     verifiedByUserId: string,
   ): Promise<ApiResponse<GateTransitionResultDto>> {
-    const q = `?verifiedByUserId=${encodeURIComponent(verifiedByUserId)}`;
+    const q = query({ verifiedByUserId });
     return this.client.post<GateTransitionResultDto>(
-      `/api/ProjectTokens/${encodeURIComponent(configId)}/gate/clear${q}`,
+      apiPath`/api/ProjectTokens/${configId}/gate/clear${q}`,
       {},
     );
   }
@@ -40,7 +41,7 @@ export class ProjectGatesEndpoint {
     dto: FailProjectDto,
   ): Promise<ApiResponse<GateTransitionResultDto>> {
     return this.client.post<GateTransitionResultDto>(
-      `/api/ProjectTokens/${encodeURIComponent(configId)}/gate/fail`,
+      apiPath`/api/ProjectTokens/${configId}/gate/fail`,
       dto,
     );
   }

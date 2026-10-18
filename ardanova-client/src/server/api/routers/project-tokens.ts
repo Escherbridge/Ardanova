@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { apiPath, segment } from "~/lib/api/path";
 import { TRPCError } from "@trpc/server";
 import {
   createTRPCRouter,
@@ -497,7 +498,7 @@ export const projectTokensRouter = createTRPCRouter({
     .input(z.object({ projectId: z.string().min(1) }))
     .query(async ({ input }) => {
       const response = await apiClient.get<unknown>(
-        `/api/ProjectTokens/funding/by-project/${encodeURIComponent(input.projectId)}`,
+        apiPath`/api/ProjectTokens/funding/by-project/${input.projectId}`,
       );
 
       if (response.error || !response.data) {
@@ -557,7 +558,7 @@ export const projectTokensRouter = createTRPCRouter({
     .input(z.object({ projectId: z.string().min(1) }))
     .query(async ({ input }) => {
       const response = await apiClient.get<unknown>(
-        `${PROJECT_MONEY_PATH_PREFIX}/${encodeURIComponent(input.projectId)}/money`,
+        `${PROJECT_MONEY_PATH_PREFIX}/${segment(input.projectId)}/money`,
       );
 
       if (response.error || !response.data) {

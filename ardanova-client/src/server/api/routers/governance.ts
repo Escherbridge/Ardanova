@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { apiPath } from "~/lib/api/path";
 import { TRPCError } from "@trpc/server";
 import {
   createTRPCRouter,
@@ -361,7 +362,7 @@ export const governanceRouter = createTRPCRouter({
     .mutation(async ({ input }) => {
       const { id, options, ...rest } = input;
       const response = await apiClient.put<Proposal>(
-        `/api/governance/proposals/${id}`,
+        apiPath`/api/governance/proposals/${id}`,
         {
           ...rest,
           ...(options ? { options: JSON.stringify(options) } : {}),
@@ -391,7 +392,7 @@ export const governanceRouter = createTRPCRouter({
     .input(z.object({ id: z.string() }))
     .mutation(async ({ input }) => {
       const response = await apiClient.patch<Proposal>(
-        `/api/governance/proposals/${input.id}/close`,
+        apiPath`/api/governance/proposals/${input.id}/close`,
         {},
       );
 

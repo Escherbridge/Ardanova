@@ -1,3 +1,4 @@
+import { apiPath, query } from "../../path";
 import { type BaseApiClient, type ApiResponse } from "../../base-client";
 
 // ============ Type Definitions ============
@@ -47,7 +48,7 @@ export class XPEventsEndpoint {
   constructor(private client: BaseApiClient) {}
 
   getTotalXP(userId: string): Promise<ApiResponse<number>> {
-    return this.client.get<number>(`/api/xpevents/user/${userId}/total`);
+    return this.client.get<number>(apiPath`/api/xpevents/user/${userId}/total`);
   }
 
   getHistory(
@@ -56,20 +57,16 @@ export class XPEventsEndpoint {
     limit?: number,
     offset?: number,
   ): Promise<ApiResponse<XPEventDto[]>> {
-    const queryParts: string[] = [];
-    if (eventType) queryParts.push(`eventType=${encodeURIComponent(eventType)}`);
-    if (limit !== undefined) queryParts.push(`limit=${limit}`);
-    if (offset !== undefined) queryParts.push(`offset=${offset}`);
-    const queryString = queryParts.length > 0 ? `?${queryParts.join("&")}` : "";
-    return this.client.get<XPEventDto[]>(`/api/xpevents/user/${userId}/history${queryString}`);
+    const queryString = query({ eventType: eventType || undefined, limit, offset });
+    return this.client.get<XPEventDto[]>(apiPath`/api/xpevents/user/${userId}/history${queryString}`);
   }
 
   getXPByEventType(userId: string, eventType: string): Promise<ApiResponse<number>> {
-    return this.client.get<number>(`/api/xpevents/user/${userId}/by-type/${encodeURIComponent(eventType)}`);
+    return this.client.get<number>(apiPath`/api/xpevents/user/${userId}/by-type/${eventType}`);
   }
 
   getSummary(userId: string): Promise<ApiResponse<XPSummaryDto>> {
-    return this.client.get<XPSummaryDto>(`/api/xpevents/user/${userId}/summary`);
+    return this.client.get<XPSummaryDto>(apiPath`/api/xpevents/user/${userId}/summary`);
   }
 
   getRewardsConfig(): Promise<ApiResponse<XPRewardsConfigDto>> {
@@ -77,7 +74,7 @@ export class XPEventsEndpoint {
   }
 
   getLevelInfo(level: number): Promise<ApiResponse<LevelInfoDto>> {
-    return this.client.get<LevelInfoDto>(`/api/xpevents/level-info/${level}`);
+    return this.client.get<LevelInfoDto>(apiPath`/api/xpevents/level-info/${level}`);
   }
 
   award(data: AwardXPDto): Promise<ApiResponse<XPEventDto>> {

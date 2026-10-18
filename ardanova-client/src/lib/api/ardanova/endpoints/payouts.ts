@@ -1,3 +1,4 @@
+import { apiPath } from "../../path";
 import { type BaseApiClient, type ApiResponse } from "../../base-client";
 import type { ProjectGateStatus, TokenHolderClass } from "./project-tokens";
 
@@ -46,7 +47,7 @@ export class PayoutsEndpoint {
     payoutRequestId: string,
   ): Promise<ApiResponse<PayoutRequestDto>> {
     return this.client.post<PayoutRequestDto>(
-      `/api/Payouts/${encodeURIComponent(payoutRequestId)}/process`,
+      apiPath`/api/Payouts/${payoutRequestId}/process`,
       {},
     );
   }
@@ -55,7 +56,7 @@ export class PayoutsEndpoint {
     payoutRequestId: string,
   ): Promise<ApiResponse<PayoutRequestDto>> {
     return this.client.post<PayoutRequestDto>(
-      `/api/Payouts/${encodeURIComponent(payoutRequestId)}/cancel`,
+      apiPath`/api/Payouts/${payoutRequestId}/cancel`,
       {},
     );
   }

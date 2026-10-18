@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { apiPath } from "~/lib/api/path";
 import { TRPCError } from "@trpc/server";
 import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
 import { apiClient } from "~/lib/api";
@@ -127,7 +128,7 @@ export const swapRouter = createTRPCRouter({
         sourceTokenAmount: String(input.sourceTokenAmount),
       });
       const response = await apiClient.get<unknown>(
-        `/api/Swaps/preview?${params.toString()}`,
+        apiPath`/api/Swaps/preview?${params}`,
       );
 
       if (response.error || response.data === undefined) {

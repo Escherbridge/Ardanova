@@ -1,3 +1,4 @@
+import { apiPath } from "../../path";
 import { type BaseApiClient, type ApiResponse, type PagedResult } from "../../base-client";
 
 export interface Event {
@@ -96,27 +97,27 @@ export class EventsEndpoint {
   constructor(private client: BaseApiClient) {}
 
   getById(id: string): Promise<ApiResponse<Event>> {
-    return this.client.get<Event>(`/api/events/${id}`);
+    return this.client.get<Event>(apiPath`/api/events/${id}`);
   }
 
   getBySlug(slug: string): Promise<ApiResponse<Event>> {
-    return this.client.get<Event>(`/api/events/slug/${encodeURIComponent(slug)}`);
+    return this.client.get<Event>(apiPath`/api/events/slug/${slug}`);
   }
 
   getUpcoming(limit = 10): Promise<ApiResponse<Event[]>> {
-    return this.client.get<Event[]>(`/api/events/upcoming?limit=${limit}`);
+    return this.client.get<Event[]>(apiPath`/api/events/upcoming?limit=${limit}`);
   }
 
   getByOrganizerId(organizerId: string): Promise<ApiResponse<Event[]>> {
-    return this.client.get<Event[]>(`/api/events/organizer/${organizerId}`);
+    return this.client.get<Event[]>(apiPath`/api/events/organizer/${organizerId}`);
   }
 
   getRegisteredEvents(userId: string): Promise<ApiResponse<Event[]>> {
-    return this.client.get<Event[]>(`/api/events/user/${userId}/registered`);
+    return this.client.get<Event[]>(apiPath`/api/events/user/${userId}/registered`);
   }
 
   getAttendees(eventId: string): Promise<ApiResponse<EventAttendee[]>> {
-    return this.client.get<EventAttendee[]>(`/api/events/${eventId}/attendees`);
+    return this.client.get<EventAttendee[]>(apiPath`/api/events/${eventId}/attendees`);
   }
 
   search(params: SearchEventsParams = {}): Promise<ApiResponse<PagedResult<Event>>> {
@@ -127,7 +128,7 @@ export class EventsEndpoint {
     if (params.upcoming != null) sp.set("upcoming", String(params.upcoming));
     sp.set("page", String(params.page ?? 1));
     sp.set("pageSize", String(params.pageSize ?? 10));
-    return this.client.get<PagedResult<Event>>(`/api/events/search?${sp.toString()}`);
+    return this.client.get<PagedResult<Event>>(apiPath`/api/events/search?${sp}`);
   }
 
   create(data: CreateEventDto): Promise<ApiResponse<Event>> {
@@ -135,18 +136,18 @@ export class EventsEndpoint {
   }
 
   update(id: string, data: UpdateEventDto): Promise<ApiResponse<Event>> {
-    return this.client.put<Event>(`/api/events/${id}`, data);
+    return this.client.put<Event>(apiPath`/api/events/${id}`, data);
   }
 
   delete(id: string): Promise<ApiResponse<void>> {
-    return this.client.delete(`/api/events/${id}`);
+    return this.client.delete(apiPath`/api/events/${id}`);
   }
 
   register(eventId: string, dto: RegisterEventDto): Promise<ApiResponse<unknown>> {
-    return this.client.post(`/api/events/${eventId}/register`, dto);
+    return this.client.post(apiPath`/api/events/${eventId}/register`, dto);
   }
 
   unregister(eventId: string, userId: string): Promise<ApiResponse<void>> {
-    return this.client.delete(`/api/events/${eventId}/register?userId=${encodeURIComponent(userId)}`);
+    return this.client.delete(apiPath`/api/events/${eventId}/register?userId=${userId}`);
   }
 }

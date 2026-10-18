@@ -17,10 +17,12 @@ vi.mock("~/server/auth", () => ({
 const { createTRPCContext, createTRPCRouter, protectedProcedure, publicProcedure } =
   await import("./trpc");
 const { isActorAssertionActive } = await import("~/server/actor-assertion");
+const { apiPath } = await import("~/lib/api/path");
 
 const router = createTRPCRouter({
   whoAmI: protectedProcedure.query(({ ctx }) => ({ id: ctx.session.user.id })),
   publicRead: publicProcedure.query(() => ({ signedAsActor: isActorAssertionActive() })),
+  traversalId: publicProcedure.query(() => apiPath`/api/users/${".."}/skills`),
 });
 
 async function callWhoAmI(path = "whoAmI") {
@@ -94,5 +96,21 @@ describe("tRPC request context", () => {
 
     expect(status).toBe(200);
     expect(body).toContain('"signedAsActor":false');
+  });
+
+  it("never signs public reads for the page-only synthetic preview", async () => {
+    sessions.page = previewSession;
+
+    const { status, body } = await callWhoAmI("publicRead");
+
+    expect(status).toBe(200);
+    expect(body).toContain('"signedAsActor":false');
+  });
+
+  it("answers an id the API client refuses to path as a 400, not a server fault", async () => {
+    const { status, body } = await callWhoAmI("traversalId");
+
+    expect(status).toBe(400);
+    expect(body).toContain("BAD_REQUEST");
   });
 });

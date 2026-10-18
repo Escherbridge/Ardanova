@@ -1,3 +1,4 @@
+import { apiPath } from "../../path";
 import { type BaseApiClient, type ApiResponse } from "../../base-client";
 
 // ============ Type Definitions ============
@@ -60,12 +61,12 @@ export class AchievementsEndpoint {
   }
 
   getById(id: string): Promise<ApiResponse<AchievementDto>> {
-    return this.client.get<AchievementDto>(`/api/achievements/${id}`);
+    return this.client.get<AchievementDto>(apiPath`/api/achievements/${id}`);
   }
 
   getByCategory(category: string): Promise<ApiResponse<AchievementDto[]>> {
     return this.client.get<AchievementDto[]>(
-      `/api/achievements/category/${encodeURIComponent(category)}`,
+      apiPath`/api/achievements/category/${category}`,
     );
   }
 
@@ -74,15 +75,15 @@ export class AchievementsEndpoint {
   }
 
   update(id: string, data: UpdateAchievementDto): Promise<ApiResponse<AchievementDto>> {
-    return this.client.put<AchievementDto>(`/api/achievements/${id}`, data);
+    return this.client.put<AchievementDto>(apiPath`/api/achievements/${id}`, data);
   }
 
   delete(id: string): Promise<ApiResponse<boolean>> {
-    return this.client.delete<boolean>(`/api/achievements/${id}`);
+    return this.client.delete<boolean>(apiPath`/api/achievements/${id}`);
   }
 
   getUserAchievements(userId: string): Promise<ApiResponse<UserAchievementDto[]>> {
-    return this.client.get<UserAchievementDto[]>(`/api/achievements/user/${userId}`);
+    return this.client.get<UserAchievementDto[]>(apiPath`/api/achievements/user/${userId}`);
   }
 
   updateProgress(
@@ -91,7 +92,7 @@ export class AchievementsEndpoint {
     data: UpdateProgressDto,
   ): Promise<ApiResponse<UserAchievementDto>> {
     return this.client.put<UserAchievementDto>(
-      `/api/achievements/user/${userId}/${achievementId}/progress`,
+      apiPath`/api/achievements/user/${userId}/${achievementId}/progress`,
       data,
     );
   }
@@ -101,7 +102,7 @@ export class AchievementsEndpoint {
     achievementId: string,
   ): Promise<ApiResponse<UserAchievementDto>> {
     return this.client.post<UserAchievementDto>(
-      `/api/achievements/user/${userId}/${achievementId}/award`,
+      apiPath`/api/achievements/user/${userId}/${achievementId}/award`,
     );
   }
 }

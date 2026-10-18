@@ -1,3 +1,4 @@
+import { apiPath, query } from "../../path";
 import { type BaseApiClient, type ApiResponse } from "../../base-client";
 
 export type TreasuryTransactionType =
@@ -37,7 +38,7 @@ export class TreasuryEndpoint {
     limit: number,
   ): Promise<ApiResponse<TreasuryTransactionDto[]>> {
     return this.client.get<TreasuryTransactionDto[]>(
-      `/api/Treasury/transactions?limit=${limit}`,
+      apiPath`/api/Treasury/transactions?limit=${limit}`,
     );
   }
 
@@ -51,9 +52,8 @@ export class TreasuryEndpoint {
     usdAmount: number,
     projectId?: string,
   ): Promise<ApiResponse<unknown>> {
-    let q = `?usdAmount=${encodeURIComponent(String(usdAmount))}`;
-    if (projectId) q += `&projectId=${encodeURIComponent(projectId)}`;
-    return this.client.post<unknown>(`/api/Treasury/funding-inflow${q}`, {});
+    const q = query({ usdAmount, projectId: projectId || undefined });
+    return this.client.post<unknown>(apiPath`/api/Treasury/funding-inflow${q}`, {});
   }
 
   applyIndexReturn(): Promise<ApiResponse<unknown>> {
@@ -62,7 +62,7 @@ export class TreasuryEndpoint {
 
   rebalance(requiredLiquid: number): Promise<ApiResponse<unknown>> {
     return this.client.post<unknown>(
-      `/api/Treasury/rebalance?requiredLiquid=${encodeURIComponent(String(requiredLiquid))}`,
+      apiPath`/api/Treasury/rebalance?requiredLiquid=${String(requiredLiquid)}`,
       {},
     );
   }

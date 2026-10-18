@@ -1,3 +1,4 @@
+import { apiPath, query } from "../../path";
 import type {
   CreateFounderAllocationDto,
   CreateInvestorAllocationDto,
@@ -49,7 +50,7 @@ export class ProjectTokensEndpoint {
 
   getConfig(id: string): Promise<ApiResponse<ProjectTokenConfigDto>> {
     return this.client.get<ProjectTokenConfigDto>(
-      `/api/ProjectTokens/config/${encodeURIComponent(id)}`,
+      apiPath`/api/ProjectTokens/config/${id}`,
     );
   }
 
@@ -66,13 +67,13 @@ export class ProjectTokensEndpoint {
     projectId: string,
   ): Promise<ApiResponse<ProjectTokenConfigDto>> {
     return this.client.get<ProjectTokenConfigDto>(
-      `/api/ProjectTokens/config/by-project/${encodeURIComponent(projectId)}`,
+      apiPath`/api/ProjectTokens/config/by-project/${projectId}`,
     );
   }
 
   getSupply(id: string): Promise<ApiResponse<ProjectTokenConfigDto>> {
     return this.client.get<ProjectTokenConfigDto>(
-      `/api/ProjectTokens/config/${encodeURIComponent(id)}/supply`,
+      apiPath`/api/ProjectTokens/config/${id}/supply`,
     );
   }
 
@@ -81,7 +82,7 @@ export class ProjectTokensEndpoint {
     dto: CreateTokenAllocationDto,
   ): Promise<ApiResponse<TokenAllocationDto>> {
     return this.client.post<TokenAllocationDto>(
-      `/api/ProjectTokens/${encodeURIComponent(configId)}/allocate/pbi`,
+      apiPath`/api/ProjectTokens/${configId}/allocate/pbi`,
       dto,
     );
   }
@@ -91,7 +92,7 @@ export class ProjectTokensEndpoint {
     dto: CreateInvestorAllocationDto,
   ): Promise<ApiResponse<TokenAllocationDto>> {
     return this.client.post<TokenAllocationDto>(
-      `/api/ProjectTokens/${encodeURIComponent(configId)}/allocate/investor`,
+      apiPath`/api/ProjectTokens/${configId}/allocate/investor`,
       dto,
     );
   }
@@ -101,7 +102,7 @@ export class ProjectTokensEndpoint {
     dto: CreateFounderAllocationDto,
   ): Promise<ApiResponse<TokenAllocationDto>> {
     return this.client.post<TokenAllocationDto>(
-      `/api/ProjectTokens/${encodeURIComponent(configId)}/allocate/founder`,
+      apiPath`/api/ProjectTokens/${configId}/allocate/founder`,
       dto,
     );
   }
@@ -115,20 +116,20 @@ export class ProjectTokensEndpoint {
     allocationId: string,
   ): Promise<ApiResponse<TokenAllocationDto>> {
     return this.client.post<TokenAllocationDto>(
-      `/api/ProjectTokens/allocations/${encodeURIComponent(allocationId)}/distribute`,
+      apiPath`/api/ProjectTokens/allocations/${allocationId}/distribute`,
     );
   }
 
   revoke(allocationId: string): Promise<ApiResponse<TokenAllocationDto>> {
     return this.client.post<TokenAllocationDto>(
-      `/api/ProjectTokens/allocations/${encodeURIComponent(allocationId)}/revoke`,
+      apiPath`/api/ProjectTokens/allocations/${allocationId}/revoke`,
       {},
     );
   }
 
   getAllocations(configId: string): Promise<ApiResponse<TokenAllocationDto[]>> {
     return this.client.get<TokenAllocationDto[]>(
-      `/api/ProjectTokens/${encodeURIComponent(configId)}/allocations`,
+      apiPath`/api/ProjectTokens/${configId}/allocations`,
     );
   }
 
@@ -136,7 +137,7 @@ export class ProjectTokensEndpoint {
     pbiId: string,
   ): Promise<ApiResponse<TokenAllocationDto[]>> {
     return this.client.get<TokenAllocationDto[]>(
-      `/api/ProjectTokens/allocations/by-pbi/${encodeURIComponent(pbiId)}`,
+      apiPath`/api/ProjectTokens/allocations/by-pbi/${pbiId}`,
     );
   }
 
@@ -149,13 +150,13 @@ export class ProjectTokensEndpoint {
     configId: string,
   ): Promise<ApiResponse<ProjectInvestorsResponseDto>> {
     return this.client.get<ProjectInvestorsResponseDto>(
-      `/api/ProjectTokens/${encodeURIComponent(configId)}/investors`,
+      apiPath`/api/ProjectTokens/${configId}/investors`,
     );
   }
 
   getGateStatus(configId: string): Promise<ApiResponse<ProjectGateStatusDto>> {
     return this.client.get<ProjectGateStatusDto>(
-      `/api/ProjectTokens/${encodeURIComponent(configId)}/gate`,
+      apiPath`/api/ProjectTokens/${configId}/gate`,
     );
   }
 
@@ -163,7 +164,7 @@ export class ProjectTokensEndpoint {
     configId: string,
   ): Promise<ApiResponse<GateTransitionResultDto>> {
     return this.client.post<GateTransitionResultDto>(
-      `/api/ProjectTokens/${encodeURIComponent(configId)}/gate/evaluate`,
+      apiPath`/api/ProjectTokens/${configId}/gate/evaluate`,
       {},
     );
   }
@@ -172,9 +173,9 @@ export class ProjectTokensEndpoint {
     configId: string,
     verifiedByUserId: string,
   ): Promise<ApiResponse<GateTransitionResultDto>> {
-    const query = `?verifiedByUserId=${encodeURIComponent(verifiedByUserId)}`;
+    const search = query({ verifiedByUserId });
     return this.client.post<GateTransitionResultDto>(
-      `/api/ProjectTokens/${encodeURIComponent(configId)}/gate/clear${query}`,
+      apiPath`/api/ProjectTokens/${configId}/gate/clear${search}`,
       {},
     );
   }
@@ -184,21 +185,21 @@ export class ProjectTokensEndpoint {
     dto: FailProjectDto,
   ): Promise<ApiResponse<GateTransitionResultDto>> {
     return this.client.post<GateTransitionResultDto>(
-      `/api/ProjectTokens/${encodeURIComponent(configId)}/gate/fail`,
+      apiPath`/api/ProjectTokens/${configId}/gate/fail`,
       dto,
     );
   }
 
   burnFounder(configId: string): Promise<ApiResponse<boolean>> {
     return this.client.post<boolean>(
-      `/api/ProjectTokens/${encodeURIComponent(configId)}/burn-founder`,
+      apiPath`/api/ProjectTokens/${configId}/burn-founder`,
       {},
     );
   }
 
   trustProtection(configId: string): Promise<ApiResponse<boolean>> {
     return this.client.post<boolean>(
-      `/api/ProjectTokens/${encodeURIComponent(configId)}/trust-protection`,
+      apiPath`/api/ProjectTokens/${configId}/trust-protection`,
       {},
     );
   }

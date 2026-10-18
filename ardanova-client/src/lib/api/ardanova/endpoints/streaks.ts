@@ -1,3 +1,4 @@
+import { apiPath } from "../../path";
 import { type BaseApiClient, type ApiResponse } from "../../base-client";
 
 // ============ Type Definitions ============
@@ -24,11 +25,11 @@ export class StreaksEndpoint {
   constructor(private client: BaseApiClient) {}
 
   getById(id: string): Promise<ApiResponse<UserStreak>> {
-    return this.client.get<UserStreak>(`/api/userstreaks/${id}`);
+    return this.client.get<UserStreak>(apiPath`/api/userstreaks/${id}`);
   }
 
   getByUserId(userId: string): Promise<ApiResponse<UserStreak>> {
-    return this.client.get<UserStreak>(`/api/userstreaks/user/${userId}`);
+    return this.client.get<UserStreak>(apiPath`/api/userstreaks/user/${userId}`);
   }
 
   create(data: CreateUserStreakDto): Promise<ApiResponse<UserStreak>> {
@@ -37,19 +38,19 @@ export class StreaksEndpoint {
 
   recordActivity(userId: string): Promise<ApiResponse<UserStreak>> {
     return this.client.post<UserStreak>(
-      `/api/userstreaks/user/${userId}/record`,
+      apiPath`/api/userstreaks/user/${userId}/record`,
       {},
     );
   }
 
   resetStreak(userId: string): Promise<ApiResponse<UserStreak>> {
     return this.client.post<UserStreak>(
-      `/api/userstreaks/user/${userId}/reset`,
+      apiPath`/api/userstreaks/user/${userId}/reset`,
       {},
     );
   }
 
   delete(id: string): Promise<ApiResponse<void>> {
-    return this.client.delete(`/api/userstreaks/${id}`);
+    return this.client.delete(apiPath`/api/userstreaks/${id}`);
   }
 }

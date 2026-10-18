@@ -1,3 +1,4 @@
+import { apiPath } from "../../path";
 import { type BaseApiClient, type ApiResponse } from "../../base-client";
 
 // ============ Type Definitions ============
@@ -116,12 +117,12 @@ export class ChatEndpoint {
     if (params.pageSize) searchParams.set("pageSize", String(params.pageSize));
 
     return this.client.get<CursorPaginatedResult<ChatConversation>>(
-      `/api/chat/conversations?${searchParams.toString()}`,
+      apiPath`/api/chat/conversations?${searchParams}`,
     );
   }
 
   getConversation(conversationId: string): Promise<ApiResponse<ChatConversation>> {
-    return this.client.get<ChatConversation>(`/api/chat/conversations/${conversationId}`);
+    return this.client.get<ChatConversation>(apiPath`/api/chat/conversations/${conversationId}`);
   }
 
   getOrCreateDirect(dto: GetOrCreateDirectDto): Promise<ApiResponse<ChatConversation>> {
@@ -143,7 +144,7 @@ export class ChatEndpoint {
     dto: UpdateGroupDto,
   ): Promise<ApiResponse<ChatConversation>> {
     return this.client.put<ChatConversation>(
-      `/api/chat/conversations/${conversationId}`,
+      apiPath`/api/chat/conversations/${conversationId}`,
       dto,
     );
   }
@@ -153,7 +154,7 @@ export class ChatEndpoint {
     dto: AddMemberDto,
   ): Promise<ApiResponse<ChatConversation>> {
     return this.client.post<ChatConversation>(
-      `/api/chat/conversations/${conversationId}/members`,
+      apiPath`/api/chat/conversations/${conversationId}/members`,
       dto,
     );
   }
@@ -163,13 +164,13 @@ export class ChatEndpoint {
     memberUserId: string,
   ): Promise<ApiResponse<void>> {
     return this.client.delete(
-      `/api/chat/conversations/${conversationId}/members/${memberUserId}`,
+      apiPath`/api/chat/conversations/${conversationId}/members/${memberUserId}`,
     );
   }
 
   leaveConversation(conversationId: string): Promise<ApiResponse<{ success: boolean }>> {
     return this.client.post<{ success: boolean }>(
-      `/api/chat/conversations/${conversationId}/leave`,
+      apiPath`/api/chat/conversations/${conversationId}/leave`,
       {},
     );
   }
@@ -186,7 +187,7 @@ export class ChatEndpoint {
     if (cursor) searchParams.set("cursor", cursor);
 
     return this.client.get<CursorPaginatedResult<ChatMessage>>(
-      `/api/chat/conversations/${conversationId}/messages?${searchParams.toString()}`,
+      apiPath`/api/chat/conversations/${conversationId}/messages?${searchParams}`,
     );
   }
 
@@ -202,13 +203,13 @@ export class ChatEndpoint {
     dto: UpdateMessageDto,
   ): Promise<ApiResponse<ChatMessage>> {
     return this.client.put<ChatMessage>(
-      `/api/chat/messages/${messageId}`,
+      apiPath`/api/chat/messages/${messageId}`,
       dto,
     );
   }
 
   deleteMessage(messageId: string): Promise<ApiResponse<void>> {
-    return this.client.delete(`/api/chat/messages/${messageId}`);
+    return this.client.delete(apiPath`/api/chat/messages/${messageId}`);
   }
 
   markAsRead(dto: MarkAsReadDto): Promise<ApiResponse<{ success: boolean }>> {

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { apiPath } from "~/lib/api/path";
 import { TRPCError } from "@trpc/server";
 import {
   createTRPCRouter,
@@ -1263,7 +1264,7 @@ export const projectRouter = createTRPCRouter({
       });
 
       const response = await apiClient.post<ProjectProposal>(
-        `/api/projects/${input.projectId}/proposals/${input.proposalId}/close`,
+        apiPath`/api/projects/${input.projectId}/proposals/${input.proposalId}/close`,
       );
 
       if (response.error || !response.data) {
@@ -1301,7 +1302,7 @@ export const projectRouter = createTRPCRouter({
       }
 
       const response = await apiClient.post<ProjectProposal>(
-        `/api/projects/${input.projectId}/proposals/${input.proposalId}/cancel`,
+        apiPath`/api/projects/${input.projectId}/proposals/${input.proposalId}/cancel`,
       );
 
       if (response.error || !response.data) {
@@ -1337,7 +1338,7 @@ export const projectRouter = createTRPCRouter({
       });
 
       const response = await apiClient.post<ProjectProposal>(
-        `/api/projects/${input.projectId}/proposals/${input.proposalId}/execute`,
+        apiPath`/api/projects/${input.projectId}/proposals/${input.proposalId}/execute`,
       );
 
       if (response.error || !response.data) {

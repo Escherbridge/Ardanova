@@ -1,3 +1,4 @@
+import { apiPath } from "../../path";
 import {
   type BaseApiClient,
   type ApiResponse,
@@ -126,18 +127,18 @@ export class UsersEndpoint {
   constructor(private client: BaseApiClient) {}
 
   getById(id: string): Promise<ApiResponse<User>> {
-    return this.client.get<User>(`/api/users/${id}`);
+    return this.client.get<User>(apiPath`/api/users/${id}`);
   }
 
   getByEmail(email: string): Promise<ApiResponse<User>> {
     return this.client.get<User>(
-      `/api/users/email/${encodeURIComponent(email)}`,
+      apiPath`/api/users/email/${email}`,
     );
   }
 
   getAll(page = 1, pageSize = 10): Promise<ApiResponse<PagedResult<User>>> {
     return this.client.get<PagedResult<User>>(
-      `/api/users/paged?page=${page}&pageSize=${pageSize}`,
+      apiPath`/api/users/paged?page=${page}&pageSize=${pageSize}`,
     );
   }
 
@@ -147,7 +148,7 @@ export class UsersEndpoint {
     pageSize = 20,
   ): Promise<ApiResponse<PagedResult<User>>> {
     return this.client.get<PagedResult<User>>(
-      `/api/users/search?query=${encodeURIComponent(query)}&page=${page}&pageSize=${pageSize}`,
+      apiPath`/api/users/search?query=${query}&page=${page}&pageSize=${pageSize}`,
     );
   }
 
@@ -156,38 +157,38 @@ export class UsersEndpoint {
   }
 
   update(id: string, data: UpdateUserDto): Promise<ApiResponse<User>> {
-    return this.client.put<User>(`/api/users/${id}`, data);
+    return this.client.put<User>(apiPath`/api/users/${id}`, data);
   }
 
   delete(id: string): Promise<ApiResponse<void>> {
-    return this.client.delete(`/api/users/${id}`);
+    return this.client.delete(apiPath`/api/users/${id}`);
   }
 
   updateRole(
     id: string,
     dto: AdminUpdateUserRoleDto,
   ): Promise<ApiResponse<User>> {
-    return this.client.put<User>(`/api/users/${id}/role`, dto);
+    return this.client.put<User>(apiPath`/api/users/${id}/role`, dto);
   }
 
   updateUserType(
     id: string,
     dto: AdminUpdateUserTypeDto,
   ): Promise<ApiResponse<User>> {
-    return this.client.put<User>(`/api/users/${id}/user-type`, dto);
+    return this.client.put<User>(apiPath`/api/users/${id}/user-type`, dto);
   }
 
   // ---- Skills ----
 
   getSkills(userId: string): Promise<ApiResponse<UserSkill[]>> {
-    return this.client.get<UserSkill[]>(`/api/users/${userId}/skills`);
+    return this.client.get<UserSkill[]>(apiPath`/api/users/${userId}/skills`);
   }
 
   addSkill(
     userId: string,
     data: CreateUserSkillDto,
   ): Promise<ApiResponse<UserSkill>> {
-    return this.client.post<UserSkill>(`/api/users/${userId}/skills`, data);
+    return this.client.post<UserSkill>(apiPath`/api/users/${userId}/skills`, data);
   }
 
   updateSkill(
@@ -196,19 +197,19 @@ export class UsersEndpoint {
     data: UpdateUserSkillDto,
   ): Promise<ApiResponse<UserSkill>> {
     return this.client.put<UserSkill>(
-      `/api/users/${userId}/skills/${skillId}`,
+      apiPath`/api/users/${userId}/skills/${skillId}`,
       data,
     );
   }
 
   deleteSkill(userId: string, skillId: string): Promise<ApiResponse<void>> {
-    return this.client.delete(`/api/users/${userId}/skills/${skillId}`);
+    return this.client.delete(apiPath`/api/users/${userId}/skills/${skillId}`);
   }
 
   // ---- Experience ----
 
   getExperience(userId: string): Promise<ApiResponse<UserExperience[]>> {
-    return this.client.get<UserExperience[]>(`/api/users/${userId}/experience`);
+    return this.client.get<UserExperience[]>(apiPath`/api/users/${userId}/experience`);
   }
 
   addExperience(
@@ -216,7 +217,7 @@ export class UsersEndpoint {
     data: CreateUserExperienceDto,
   ): Promise<ApiResponse<UserExperience>> {
     return this.client.post<UserExperience>(
-      `/api/users/${userId}/experience`,
+      apiPath`/api/users/${userId}/experience`,
       data,
     );
   }
@@ -227,7 +228,7 @@ export class UsersEndpoint {
     data: UpdateUserExperienceDto,
   ): Promise<ApiResponse<UserExperience>> {
     return this.client.put<UserExperience>(
-      `/api/users/${userId}/experience/${experienceId}`,
+      apiPath`/api/users/${userId}/experience/${experienceId}`,
       data,
     );
   }
@@ -237,7 +238,7 @@ export class UsersEndpoint {
     experienceId: string,
   ): Promise<ApiResponse<void>> {
     return this.client.delete(
-      `/api/users/${userId}/experience/${experienceId}`,
+      apiPath`/api/users/${userId}/experience/${experienceId}`,
     );
   }
 
@@ -247,7 +248,7 @@ export class UsersEndpoint {
     userId: string,
     followerId: string,
   ): Promise<ApiResponse<UserFollowDto>> {
-    return this.client.post<UserFollowDto>(`/api/users/${userId}/follow`, {
+    return this.client.post<UserFollowDto>(apiPath`/api/users/${userId}/follow`, {
       followerId,
       followingId: userId,
     });
@@ -255,16 +256,16 @@ export class UsersEndpoint {
 
   unfollow(userId: string, followerId: string): Promise<ApiResponse<void>> {
     return this.client.delete(
-      `/api/users/${userId}/follow?followerId=${followerId}`,
+      apiPath`/api/users/${userId}/follow?followerId=${followerId}`,
     );
   }
 
   getFollowers(userId: string): Promise<ApiResponse<UserFollowDto[]>> {
-    return this.client.get<UserFollowDto[]>(`/api/users/${userId}/followers`);
+    return this.client.get<UserFollowDto[]>(apiPath`/api/users/${userId}/followers`);
   }
 
   getFollowing(userId: string): Promise<ApiResponse<UserFollowDto[]>> {
-    return this.client.get<UserFollowDto[]>(`/api/users/${userId}/following`);
+    return this.client.get<UserFollowDto[]>(apiPath`/api/users/${userId}/following`);
   }
 
   isFollowing(
@@ -272,13 +273,13 @@ export class UsersEndpoint {
     followerId: string,
   ): Promise<ApiResponse<boolean>> {
     return this.client.get<boolean>(
-      `/api/users/${userId}/follow/check?followerId=${followerId}`,
+      apiPath`/api/users/${userId}/follow/check?followerId=${followerId}`,
     );
   }
 
   getFollowCounts(userId: string): Promise<ApiResponse<UserFollowCounts>> {
     return this.client.get<UserFollowCounts>(
-      `/api/users/${userId}/follow/counts`,
+      apiPath`/api/users/${userId}/follow/counts`,
     );
   }
 }

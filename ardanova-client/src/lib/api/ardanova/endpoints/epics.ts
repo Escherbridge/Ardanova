@@ -1,3 +1,4 @@
+import { apiPath } from "../../path";
 import { type BaseApiClient, type ApiResponse } from "../../base-client";
 
 export type EpicStatus = "PLANNED" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
@@ -46,15 +47,15 @@ export class EpicsEndpoint {
   constructor(private client: BaseApiClient) {}
 
   getByMilestoneId(milestoneId: string): Promise<ApiResponse<Epic[]>> {
-    return this.client.get<Epic[]>(`/api/milestones/${milestoneId}/epics`);
+    return this.client.get<Epic[]>(apiPath`/api/milestones/${milestoneId}/epics`);
   }
 
   getByProjectId(projectId: string): Promise<ApiResponse<Epic[]>> {
-    return this.client.get<Epic[]>(`/api/projects/${projectId}/epics`);
+    return this.client.get<Epic[]>(apiPath`/api/projects/${projectId}/epics`);
   }
 
   getById(id: string): Promise<ApiResponse<Epic>> {
-    return this.client.get<Epic>(`/api/epics/${id}`);
+    return this.client.get<Epic>(apiPath`/api/epics/${id}`);
   }
 
   create(data: CreateEpic): Promise<ApiResponse<Epic>> {
@@ -62,25 +63,25 @@ export class EpicsEndpoint {
   }
 
   update(id: string, data: UpdateEpic): Promise<ApiResponse<Epic>> {
-    return this.client.put<Epic>(`/api/epics/${id}`, data);
+    return this.client.put<Epic>(apiPath`/api/epics/${id}`, data);
   }
 
   assign(id: string, userId: string | null): Promise<ApiResponse<Epic>> {
-    return this.client.put<Epic>(`/api/epics/${id}/assign`, { userId });
+    return this.client.put<Epic>(apiPath`/api/epics/${id}/assign`, { userId });
   }
 
   updateStatus(id: string, status: EpicStatus): Promise<ApiResponse<Epic>> {
-    return this.client.put<Epic>(`/api/epics/${id}/status`, { status });
+    return this.client.put<Epic>(apiPath`/api/epics/${id}/status`, { status });
   }
 
   updatePriority(
     id: string,
     priority: EpicPriority,
   ): Promise<ApiResponse<Epic>> {
-    return this.client.put<Epic>(`/api/epics/${id}/priority`, { priority });
+    return this.client.put<Epic>(apiPath`/api/epics/${id}/priority`, { priority });
   }
 
   delete(id: string): Promise<ApiResponse<void>> {
-    return this.client.delete(`/api/epics/${id}`);
+    return this.client.delete(apiPath`/api/epics/${id}`);
   }
 }

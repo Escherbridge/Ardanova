@@ -1,3 +1,4 @@
+import { apiPath } from "../../path";
 import { type BaseApiClient, type ApiResponse } from "../../base-client";
 
 // ============ Type Definitions ============
@@ -46,18 +47,18 @@ export class LeaderboardsEndpoint {
   constructor(private client: BaseApiClient) {}
 
   getById(id: string): Promise<ApiResponse<LeaderboardDto>> {
-    return this.client.get<LeaderboardDto>(`/api/leaderboards/${id}`);
+    return this.client.get<LeaderboardDto>(apiPath`/api/leaderboards/${id}`);
   }
 
   getByPeriod(period: string): Promise<ApiResponse<LeaderboardDto[]>> {
     return this.client.get<LeaderboardDto[]>(
-      `/api/leaderboards/period/${encodeURIComponent(period)}`,
+      apiPath`/api/leaderboards/period/${period}`,
     );
   }
 
   getByCategory(category: string): Promise<ApiResponse<LeaderboardDto[]>> {
     return this.client.get<LeaderboardDto[]>(
-      `/api/leaderboards/category/${encodeURIComponent(category)}`,
+      apiPath`/api/leaderboards/category/${category}`,
     );
   }
 
@@ -66,14 +67,14 @@ export class LeaderboardsEndpoint {
   }
 
   delete(id: string): Promise<ApiResponse<void>> {
-    return this.client.delete(`/api/leaderboards/${id}`);
+    return this.client.delete(apiPath`/api/leaderboards/${id}`);
   }
 
   getEntries(
     leaderboardId: string,
   ): Promise<ApiResponse<LeaderboardEntryDto[]>> {
     return this.client.get<LeaderboardEntryDto[]>(
-      `/api/leaderboards/${leaderboardId}/entries`,
+      apiPath`/api/leaderboards/${leaderboardId}/entries`,
     );
   }
 
@@ -91,20 +92,20 @@ export class LeaderboardsEndpoint {
     data: UpdateLeaderboardEntryDto,
   ): Promise<ApiResponse<LeaderboardEntryDto>> {
     return this.client.put<LeaderboardEntryDto>(
-      `/api/leaderboards/entries/${entryId}`,
+      apiPath`/api/leaderboards/entries/${entryId}`,
       data,
     );
   }
 
   deleteEntry(entryId: string): Promise<ApiResponse<void>> {
-    return this.client.delete(`/api/leaderboards/entries/${entryId}`);
+    return this.client.delete(apiPath`/api/leaderboards/entries/${entryId}`);
   }
 
   getUserRankings(
     userId: string,
   ): Promise<ApiResponse<LeaderboardEntryDto[]>> {
     return this.client.get<LeaderboardEntryDto[]>(
-      `/api/leaderboards/user/${userId}/rankings`,
+      apiPath`/api/leaderboards/user/${userId}/rankings`,
     );
   }
 }

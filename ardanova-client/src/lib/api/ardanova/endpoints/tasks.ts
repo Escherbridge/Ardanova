@@ -1,3 +1,4 @@
+import { apiPath } from "../../path";
 import {
   type BaseApiClient,
   type ApiResponse,
@@ -134,12 +135,12 @@ export class TasksEndpoint {
   constructor(private client: BaseApiClient) {}
 
   getById(id: string): Promise<ApiResponse<Task>> {
-    return this.client.get<Task>(`/api/tasks/${id}`);
+    return this.client.get<Task>(apiPath`/api/tasks/${id}`);
   }
 
   getCommerce(id: string): Promise<ApiResponse<TaskCommerceView>> {
     return this.client.get<TaskCommerceView>(
-      `/api/task-commerce/${encodeURIComponent(id)}`,
+      apiPath`/api/task-commerce/${id}`,
     );
   }
 
@@ -159,7 +160,7 @@ export class TasksEndpoint {
     sp.set("page", String(params.page ?? 1));
     sp.set("pageSize", String(params.pageSize ?? 10));
     return this.client.get<PagedResult<Task>>(
-      `/api/tasks/search?${sp.toString()}`,
+      apiPath`/api/tasks/search?${sp}`,
     );
   }
 
@@ -168,25 +169,25 @@ export class TasksEndpoint {
   }
 
   update(id: string, data: UpdateTaskDto): Promise<ApiResponse<Task>> {
-    return this.client.put<Task>(`/api/tasks/${id}`, data);
+    return this.client.put<Task>(apiPath`/api/tasks/${id}`, data);
   }
 
   updateStatus(id: string, status: TaskStatus): Promise<ApiResponse<Task>> {
-    return this.client.patch<Task>(`/api/tasks/${id}/status`, { status });
+    return this.client.patch<Task>(apiPath`/api/tasks/${id}/status`, { status });
   }
 
   /** The only assignment boundary: a member's user id assigns, null unassigns. */
   assign(id: string, userId: string | null): Promise<ApiResponse<Task>> {
-    return this.client.put<Task>(`/api/tasks/${encodeURIComponent(id)}/assign`, {
+    return this.client.put<Task>(apiPath`/api/tasks/${id}/assign`, {
       userId,
     });
   }
 
   getByPbiId(pbiId: string): Promise<ApiResponse<Task[]>> {
-    return this.client.get<Task[]>(`/api/tasks/pbi/${pbiId}`);
+    return this.client.get<Task[]>(apiPath`/api/tasks/pbi/${pbiId}`);
   }
 
   delete(id: string): Promise<ApiResponse<void>> {
-    return this.client.delete(`/api/tasks/${id}`);
+    return this.client.delete(apiPath`/api/tasks/${id}`);
   }
 }

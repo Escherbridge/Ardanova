@@ -1,3 +1,4 @@
+import { apiPath } from "../../path";
 import {
   type BaseApiClient,
   type ApiResponse,
@@ -173,30 +174,30 @@ export class OpportunitiesEndpoint {
   constructor(private client: BaseApiClient) {}
 
   getById(id: string): Promise<ApiResponse<Opportunity>> {
-    return this.client.get<Opportunity>(`/api/opportunities/${id}`);
+    return this.client.get<Opportunity>(apiPath`/api/opportunities/${id}`);
   }
 
   getBySlug(slug: string): Promise<ApiResponse<Opportunity>> {
     return this.client.get<Opportunity>(
-      `/api/opportunities/slug/${encodeURIComponent(slug)}`,
+      apiPath`/api/opportunities/slug/${slug}`,
     );
   }
 
   getByPosterId(posterId: string): Promise<ApiResponse<Opportunity[]>> {
     return this.client.get<Opportunity[]>(
-      `/api/opportunities/poster/${posterId}`,
+      apiPath`/api/opportunities/poster/${posterId}`,
     );
   }
 
   getByGuildId(guildId: string): Promise<ApiResponse<Opportunity[]>> {
     return this.client.get<Opportunity[]>(
-      `/api/opportunities/guild/${guildId}`,
+      apiPath`/api/opportunities/guild/${guildId}`,
     );
   }
 
   getByProjectId(projectId: string): Promise<ApiResponse<Opportunity[]>> {
     return this.client.get<Opportunity[]>(
-      `/api/opportunities/project/${projectId}`,
+      apiPath`/api/opportunities/project/${projectId}`,
     );
   }
 
@@ -224,7 +225,7 @@ export class OpportunitiesEndpoint {
         totalPages?: number;
         hasNextPage?: boolean;
       }
-    >(`/api/opportunities/search?${sp.toString()}`);
+    >(apiPath`/api/opportunities/search?${sp}`);
   }
 
   create(data: CreateOpportunityDto): Promise<ApiResponse<Opportunity>> {
@@ -235,15 +236,15 @@ export class OpportunitiesEndpoint {
     id: string,
     data: UpdateOpportunityDto,
   ): Promise<ApiResponse<Opportunity>> {
-    return this.client.put<Opportunity>(`/api/opportunities/${id}`, data);
+    return this.client.put<Opportunity>(apiPath`/api/opportunities/${id}`, data);
   }
 
   close(id: string): Promise<ApiResponse<Opportunity>> {
-    return this.client.patch<Opportunity>(`/api/opportunities/${id}/close`, {});
+    return this.client.patch<Opportunity>(apiPath`/api/opportunities/${id}/close`, {});
   }
 
   delete(id: string): Promise<ApiResponse<void>> {
-    return this.client.delete(`/api/opportunities/${id}`);
+    return this.client.delete(apiPath`/api/opportunities/${id}`);
   }
 
   apply(
@@ -251,7 +252,7 @@ export class OpportunitiesEndpoint {
     dto: ApplyToOpportunityDto,
   ): Promise<ApiResponse<OpportunityApplication>> {
     return this.client.post<OpportunityApplication>(
-      `/api/opportunities/${opportunityId}/apply`,
+      apiPath`/api/opportunities/${opportunityId}/apply`,
       dto,
     );
   }
@@ -260,7 +261,7 @@ export class OpportunitiesEndpoint {
     opportunityId: string,
   ): Promise<ApiResponse<OpportunityApplication[]>> {
     return this.client.get<OpportunityApplication[]>(
-      `/api/opportunities/${opportunityId}/applications`,
+      apiPath`/api/opportunities/${opportunityId}/applications`,
     );
   }
 
@@ -269,14 +270,14 @@ export class OpportunitiesEndpoint {
     data: UpdateApplicationStatusDto,
   ): Promise<ApiResponse<OpportunityApplication>> {
     return this.client.patch<OpportunityApplication>(
-      `/api/opportunities/applications/${applicationId}/status`,
+      apiPath`/api/opportunities/applications/${applicationId}/status`,
       data,
     );
   }
 
   getUpdates(opportunityId: string): Promise<ApiResponse<OpportunityUpdate[]>> {
     return this.client.get<OpportunityUpdate[]>(
-      `/api/opportunities/${opportunityId}/updates`,
+      apiPath`/api/opportunities/${opportunityId}/updates`,
     );
   }
 
@@ -285,20 +286,20 @@ export class OpportunitiesEndpoint {
     data: CreateOpportunityUpdateDto,
   ): Promise<ApiResponse<OpportunityUpdate>> {
     return this.client.post<OpportunityUpdate>(
-      `/api/opportunities/${opportunityId}/updates`,
+      apiPath`/api/opportunities/${opportunityId}/updates`,
       data,
     );
   }
 
   deleteUpdate(updateId: string): Promise<ApiResponse<void>> {
-    return this.client.delete(`/api/opportunities/updates/${updateId}`);
+    return this.client.delete(apiPath`/api/opportunities/updates/${updateId}`);
   }
 
   getComments(
     opportunityId: string,
   ): Promise<ApiResponse<OpportunityCommentDto[]>> {
     return this.client.get<OpportunityCommentDto[]>(
-      `/api/opportunities/${opportunityId}/comments`,
+      apiPath`/api/opportunities/${opportunityId}/comments`,
     );
   }
 
@@ -307,12 +308,12 @@ export class OpportunitiesEndpoint {
     data: CreateOpportunityCommentDto,
   ): Promise<ApiResponse<OpportunityCommentDto>> {
     return this.client.post<OpportunityCommentDto>(
-      `/api/opportunities/${opportunityId}/comments`,
+      apiPath`/api/opportunities/${opportunityId}/comments`,
       data,
     );
   }
 
   deleteComment(commentId: string): Promise<ApiResponse<void>> {
-    return this.client.delete(`/api/opportunities/comments/${commentId}`);
+    return this.client.delete(apiPath`/api/opportunities/comments/${commentId}`);
   }
 }

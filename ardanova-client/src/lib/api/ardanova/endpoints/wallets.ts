@@ -1,3 +1,4 @@
+import { apiPath } from "../../path";
 import { type BaseApiClient, type ApiResponse } from "../../base-client";
 
 export interface Wallet {
@@ -52,7 +53,7 @@ export class WalletsEndpoint {
   constructor(private client: BaseApiClient) {}
 
   getById(id: string): Promise<ApiResponse<Wallet>> {
-    return this.client.get<Wallet>(`/api/wallets/${encodeURIComponent(id)}`);
+    return this.client.get<Wallet>(apiPath`/api/wallets/${id}`);
   }
 
   getMine(): Promise<ApiResponse<Wallet[]>> {
@@ -61,7 +62,7 @@ export class WalletsEndpoint {
 
   getByAddress(address: string): Promise<ApiResponse<Wallet>> {
     return this.client.get<Wallet>(
-      `/api/wallets/address/${encodeURIComponent(address)}`,
+      apiPath`/api/wallets/address/${address}`,
     );
   }
 
@@ -75,7 +76,7 @@ export class WalletsEndpoint {
 
   update(id: string, data: UpdateWalletDto): Promise<ApiResponse<Wallet>> {
     return this.client.put<Wallet>(
-      `/api/wallets/${encodeURIComponent(id)}`,
+      apiPath`/api/wallets/${id}`,
       data,
     );
   }
@@ -84,7 +85,7 @@ export class WalletsEndpoint {
     id: string,
   ): Promise<ApiResponse<WalletVerificationChallenge>> {
     return this.client.post<WalletVerificationChallenge>(
-      `/api/wallets/${encodeURIComponent(id)}/verification-challenge`,
+      apiPath`/api/wallets/${id}/verification-challenge`,
       {},
     );
   }
@@ -94,19 +95,19 @@ export class WalletsEndpoint {
     data: CompleteWalletVerificationDto,
   ): Promise<ApiResponse<Wallet>> {
     return this.client.post<Wallet>(
-      `/api/wallets/${encodeURIComponent(id)}/verification-challenge/complete`,
+      apiPath`/api/wallets/${id}/verification-challenge/complete`,
       data,
     );
   }
 
   setPrimary(id: string): Promise<ApiResponse<Wallet>> {
     return this.client.post<Wallet>(
-      `/api/wallets/${encodeURIComponent(id)}/set-primary`,
+      apiPath`/api/wallets/${id}/set-primary`,
       {},
     );
   }
 
   delete(id: string): Promise<ApiResponse<void>> {
-    return this.client.delete(`/api/wallets/${encodeURIComponent(id)}`);
+    return this.client.delete(apiPath`/api/wallets/${id}`);
   }
 }

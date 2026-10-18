@@ -1,3 +1,4 @@
+import { apiPath } from "../../path";
 import { type ApiResponse, type BaseApiClient } from "../../base-client";
 
 export interface CreateFundingIntentRequest {
@@ -42,6 +43,6 @@ export class FundingIntentsEndpoint {
   }
 
   getStatus(intentId: string): Promise<ApiResponse<FundingIntentStatus>> {
-    return this.client.get<FundingIntentStatus>(`/api/funding-intents/${encodeURIComponent(intentId)}`);
+    return this.client.get<FundingIntentStatus>(apiPath`/api/funding-intents/${intentId}`);
   }
 }

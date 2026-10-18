@@ -1,3 +1,4 @@
+import { apiPath } from "../../path";
 import { type BaseApiClient, type ApiResponse } from "../../base-client";
 import type { MembershipCredential } from "./membership-credentials";
 
@@ -48,12 +49,12 @@ export class CredentialUtilityEndpoint {
   }
 
   revokeAndBurn(id: string): Promise<ApiResponse<MembershipCredential>> {
-    return this.client.post<MembershipCredential>(`/api/CredentialUtility/${encodeURIComponent(id)}/revoke-and-burn`, {});
+    return this.client.post<MembershipCredential>(apiPath`/api/CredentialUtility/${id}/revoke-and-burn`, {});
   }
 
   upgradeTier(id: string, body: UpdateTierDto): Promise<ApiResponse<MembershipCredential>> {
     return this.client.patch<MembershipCredential>(
-      `/api/CredentialUtility/${encodeURIComponent(id)}/upgrade-tier`,
+      apiPath`/api/CredentialUtility/${id}/upgrade-tier`,
       body,
     );
   }
@@ -63,10 +64,10 @@ export class CredentialUtilityEndpoint {
   }
 
   retryMint(id: string): Promise<ApiResponse<MembershipCredential>> {
-    return this.client.post<MembershipCredential>(`/api/CredentialUtility/${encodeURIComponent(id)}/retry-mint`, {});
+    return this.client.post<MembershipCredential>(apiPath`/api/CredentialUtility/${id}/retry-mint`, {});
   }
 
   getChainData(id: string): Promise<ApiResponse<CredentialChainDataResponse>> {
-    return this.client.get<CredentialChainDataResponse>(`/api/CredentialUtility/${encodeURIComponent(id)}/chain-data`);
+    return this.client.get<CredentialChainDataResponse>(apiPath`/api/CredentialUtility/${id}/chain-data`);
   }
 }

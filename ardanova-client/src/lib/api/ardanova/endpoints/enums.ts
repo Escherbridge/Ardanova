@@ -1,3 +1,4 @@
+import { apiPath } from "../../path";
 import { type BaseApiClient, type ApiResponse } from "../../base-client";
 
 export class EnumsEndpoint {
@@ -8,6 +9,6 @@ export class EnumsEndpoint {
   }
 
   getByName(name: string): Promise<ApiResponse<string[]>> {
-    return this.client.get<string[]>(`/api/enums/${encodeURIComponent(name)}`);
+    return this.client.get<string[]>(apiPath`/api/enums/${name}`);
   }
 }
