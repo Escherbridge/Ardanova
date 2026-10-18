@@ -1,0 +1,8 @@
+{
+  "track_id": "guild-join-and-vote-integrity_20261018",
+  "type": "bug",
+  "status": "new",
+  "created_at": "2026-10-18",
+  "description": "Loop 4 guild/governance follow-ups: escrow dispute adjudication carry-over, electorate snapshot for the tally, real execution effects, binding email invitations on verified signup plus rate limit, ownership transfer and guild deletion UI, live quorum-floor test and seeds.",
+  "partitions": { "confidence": "none" }
+}
