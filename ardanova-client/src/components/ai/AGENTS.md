@@ -34,6 +34,18 @@ nothing outlives the tab, and the state it holds is useless to anyone else: .NET
 `beforeunload` warning guards an in-progress refinement, the same contract the preview tools follow
 for unsaved edits. Tests: `nova-refine-storage.test.ts`.
 
+## Session ticket size (`lib/nova-state-limits.ts`)
+
+The `state` a member carries is `nv1.<10-digit expiry>.<64 hex HMAC>.<upstream state>`: a fixed
+80-character envelope around OGAI's state. The tRPC input and the tab-storage schema both used to cap
+`state` at 512, the pre-ticket upstream limit, so the envelope ate 80 characters of it with zero margin:
+an upstream state over 432 characters would have been issued by .NET and then refused (400) on the next
+turn, or dropped on reload. Both caps are now `NOVA_STATE_MAX_CHARS` = envelope + `OGAI_STATE_MAX_CHARS`
+(512). .NET mirrors the same numbers (`NovaSessionTickets.EnvelopeLength`, `MaxUpstreamStateLength`,
+`MaxTicketLength`) and refuses an oversized continuation before any HMAC work. If OGAI ever documents a
+different state limit, change both twins together. Boundary tests: `server/api/routers/nova.test.ts` and
+`NovaSessionTicketsTests` in Application.Tests.
+
 ## Stale-source detection (`nova-history.ts`)
 
 Present is built from an accepted Draft, Rehearse from an accepted Present. Each snapshot records

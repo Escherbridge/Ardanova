@@ -54,6 +54,10 @@ form that fails with "try again in a moment" forever, and a local preview is dis
   margin for the first turn's own duration, so ArdaNova expires a session before OGAI would refuse it.
   Without `Nova:SessionKey` or the actor-assertion key (local dev only) the key is random per process, and a
   restart then reads in-flight refinements as expired.
+- Ticket size: the envelope is a fixed `EnvelopeLength` (80) characters, so `MaxTicketLength` = 80 +
+  `MaxUpstreamStateLength` (512). `TryOpen` refuses anything longer, and a `question` turn whose upstream
+  state exceeds 512 fails now (503 `nova_unavailable`) instead of issuing a ticket the client would refuse
+  on the next turn. The client caps (`ardanova-client/src/lib/nova-state-limits.ts`) are the same sum.
 - Brand guard: OGAI already hides its own names; the service additionally drops any reply whose
   member-visible text (vertical included) `NovaBrand.NamesUpstream` (503), and stamps
   `Assistant = "Nova AI"` itself rather than trusting upstream. `HiddenNames` mirrors OGAI's own list for

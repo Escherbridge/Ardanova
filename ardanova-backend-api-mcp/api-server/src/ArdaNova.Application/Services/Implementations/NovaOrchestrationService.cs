@@ -104,6 +104,13 @@ public sealed class NovaOrchestrationService : INovaOrchestrationService
             return Result<NovaRefineResponseDto>.Failure(UnavailableError);
         }
 
+        // A question whose state cannot fit a ticket the client will send back is a dead end; say so now, not next turn.
+        if (turnResult.Type == "question" && turnResult.State is { Length: > NovaSessionTickets.MaxUpstreamStateLength })
+        {
+            _logger.LogWarning("Nova upstream state of {Length} characters exceeds the ticket limit", turnResult.State.Length);
+            return Result<NovaRefineResponseDto>.Failure(UnavailableError);
+        }
+
         var ticket = string.IsNullOrWhiteSpace(turnResult.SessionId) || string.IsNullOrWhiteSpace(turnResult.State)
             ? null
             : _tickets.Issue(actorId, turnResult.SessionId, turnResult.State, expiresAt);

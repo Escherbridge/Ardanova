@@ -12,6 +12,7 @@ vi.mock("~/lib/api", () => ({ apiClient: { nova } }));
 
 import { TRPCError } from "@trpc/server";
 import { createCallerFactory, createTRPCContext } from "~/server/api/trpc";
+import { NOVA_STATE_MAX_CHARS } from "~/lib/nova-state-limits";
 import { novaRouter } from "./nova";
 
 const start = {
@@ -51,6 +52,29 @@ describe("nova router", () => {
 
       expect(failure).toBeInstanceOf(TRPCError);
       expect((failure as TRPCError).code).toBe(code);
+    },
+  );
+
+  it.each([
+    [NOVA_STATE_MAX_CHARS, true],
+    [NOVA_STATE_MAX_CHARS + 1, false],
+  ])(
+    "a continuation state of %i characters (ticket envelope + upstream max is the cap) reaches .NET: %s",
+    async (length, forwarded) => {
+      nova.refineProject.mockResolvedValue({ status: 200, data: { type: "question" } });
+      const continuation = {
+        ...start,
+        turns: [{ question: "Who has this problem?", answer: "Renters on our street." }],
+        state: `nv1.1792000000.${"A".repeat(64)}.`.padEnd(length, "s"),
+        sessionId: "session-1",
+      };
+
+      const outcome = await (await caller())
+        .refineProject(continuation)
+        .catch((cause: unknown) => cause);
+
+      expect(nova.refineProject).toHaveBeenCalledTimes(forwarded ? 1 : 0);
+      if (!forwarded) expect((outcome as TRPCError).code).toBe("BAD_REQUEST");
     },
   );
 

@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { NOVA_STATE_MAX_CHARS } from "~/lib/nova-state-limits";
 import type { NovaRefineConversation } from "./nova-refine-panel";
 
 /** One key per tab: the refinement follows the member across routes. See AGENTS.md §Refinement persistence. */
@@ -17,7 +18,7 @@ const replySchema = z.object({
   question: text(400).nullish(),
   number: z.number().int().nullish(),
   maxQuestions: z.number().int().nullish(),
-  state: text(512).nullish(),
+  state: text(NOVA_STATE_MAX_CHARS).nullish(),
   sessionId: text(64).nullish(),
   verdict: z
     .object({

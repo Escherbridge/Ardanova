@@ -12,6 +12,15 @@ public sealed class NovaSessionTickets
     public static readonly TimeSpan SessionLifetime = TimeSpan.FromHours(2) - TimeSpan.FromMinutes(5);
 
     public const int MinKeyBytes = 32;
+
+    /// <summary>Largest upstream state carried; the client twin is OGAI_STATE_MAX_CHARS (src/lib/nova-state-limits.ts).</summary>
+    public const int MaxUpstreamStateLength = 512;
+
+    /// <summary>"nv1." + 10-digit unix expiry + "." + 64 hex HMAC + ".": the fixed part of every ticket.</summary>
+    public const int EnvelopeLength = 4 + 10 + 1 + 64 + 1;
+
+    /// <summary>Longest ticket a member can legitimately present; the client twin is NOVA_STATE_MAX_CHARS.</summary>
+    public const int MaxTicketLength = EnvelopeLength + MaxUpstreamStateLength;
     private const string Prefix = "nv1";
     private const string Domain = "ardanova/nova-session-ticket/v1";
 
@@ -41,7 +50,9 @@ public sealed class NovaSessionTickets
     {
         upstreamState = string.Empty;
         expiresAt = default;
-        var parts = (ticket ?? string.Empty).Split('.', 4);
+        if (ticket is null || ticket.Length > MaxTicketLength)
+            return false;
+        var parts = ticket.Split('.', 4);
         if (parts.Length != 4 || parts[0] != Prefix
             || !long.TryParse(parts[1], NumberStyles.None, CultureInfo.InvariantCulture, out var expires))
             return false;

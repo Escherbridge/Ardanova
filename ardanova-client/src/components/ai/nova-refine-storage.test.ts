@@ -7,6 +7,7 @@ import {
   REFINE_STORAGE_KEY,
   writeRefineConversation,
 } from "./nova-refine-storage";
+import { NOVA_STATE_MAX_CHARS, OGAI_STATE_MAX_CHARS } from "~/lib/nova-state-limits";
 
 /** sessionStorage stand-in; `blocked` throws like a private window or a full quota. */
 class TabStorage implements Storage {
@@ -58,6 +59,17 @@ describe("Nova refinement survives a reload in the same tab", () => {
 
     expect(afterReload).toEqual(midRefinement);
     expect(isRefinementInProgress(afterReload!)).toBe(true);
+  });
+
+  it("keeps a ticket around the largest upstream state, which the old 512 cap silently dropped", () => {
+    const tab = new TabStorage();
+    const fullTicket = `nv1.1792000000.${"A".repeat(64)}.${"s".repeat(OGAI_STATE_MAX_CHARS)}`;
+    expect(fullTicket).toHaveLength(NOVA_STATE_MAX_CHARS);
+    const conversation = { ...midRefinement, reply: { ...midRefinement.reply!, state: fullTicket } };
+
+    writeRefineConversation(tab, conversation);
+
+    expect(readRefineConversation(tab)?.reply?.state).toBe(fullTicket);
   });
 
   it("starts clean when the saved copy is unreadable, and Start over clears it", () => {

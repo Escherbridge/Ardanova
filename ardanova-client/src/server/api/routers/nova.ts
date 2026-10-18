@@ -1,6 +1,7 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { apiClient } from "~/lib/api";
+import { NOVA_STATE_MAX_CHARS } from "~/lib/nova-state-limits";
 import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
 
 const refineInput = z.object({
@@ -13,7 +14,7 @@ const refineInput = z.object({
       }),
     )
     .max(8),
-  state: z.string().max(512).optional(),
+  state: z.string().max(NOVA_STATE_MAX_CHARS).optional(),
   sessionId: z.string().max(64).optional(),
 });
 
