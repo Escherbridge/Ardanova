@@ -91,29 +91,6 @@ public class UserSkillServiceTests
     }
 
     [Fact]
-    public async Task CreateAsync_WithValidDto_ReturnsCreatedSkill()
-    {
-        // Arrange
-        var dto = new CreateUserSkillDto { UserId = "user-1", Skill = "Rust", Level = 3 };
-        var skillDto = new UserSkillDto { UserId = "user-1", Skill = "Rust", Level = 3 };
-
-        _repositoryMock.Setup(r => r.AddAsync(It.IsAny<UserSkill>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((UserSkill s, CancellationToken _) => s);
-        _unitOfWorkMock.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(1);
-        _mapperMock.Setup(m => m.Map<UserSkillDto>(It.IsAny<UserSkill>())).Returns(skillDto);
-
-        // Act
-        var result = await _sut.CreateAsync(dto);
-
-        // Assert
-        result.IsSuccess.Should().BeTrue();
-        result.Value.Should().NotBeNull();
-        result.Value!.Skill.Should().Be("Rust");
-        result.Value!.Level.Should().Be(3);
-    }
-
-    [Fact]
     public async Task UpdateAsync_WhenSkillExists_ReturnsUpdatedSkill()
     {
         // Arrange

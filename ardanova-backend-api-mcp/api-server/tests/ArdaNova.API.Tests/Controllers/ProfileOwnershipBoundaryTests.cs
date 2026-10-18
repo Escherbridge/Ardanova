@@ -2,6 +2,7 @@ namespace ArdaNova.API.Tests.Controllers;
 
 using System.Reflection;
 using System.Security.Claims;
+using System.Text.Json;
 using ArdaNova.API.Controllers;
 using ArdaNova.API.Middleware;
 using ArdaNova.Application.Common.Results;
@@ -61,6 +62,37 @@ public class ProfileOwnershipBoundaryTests
 
         result.Should().BeOfType<OkObjectResult>().Which.Value.Should().BeOfType<UserSkillDto>()
             .Which.Level.Should().Be(7);
+    }
+
+    [Fact]
+    public void CreateBodies_InTheShapeTheClientSends_BindWithoutAUserId_AndIgnoreAnInjectedOne()
+    {
+        var web = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+
+        var skill = JsonSerializer.Deserialize<CreateUserSkillDto>(
+            """{"skill":"Rust","level":7,"userId":"someone-else"}""", web)!;
+        var experience = JsonSerializer.Deserialize<CreateUserExperienceDto>(
+            """{"title":"Engineer","company":"Acme","startDate":"2024-01-01T00:00:00.000Z","isCurrent":true}""", web)!;
+
+        skill.Skill.Should().Be("Rust");
+        skill.UserId.Should().BeEmpty();
+        experience.Title.Should().Be("Engineer");
+        experience.UserId.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task SkillCreate_OnOwnProfile_StoresUnderTheRouteUser()
+    {
+        var skills = new Mock<IUserSkillService>(MockBehavior.Strict);
+        skills.Setup(service => service.CreateAsync(It.IsAny<CreateUserSkillDto>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((CreateUserSkillDto dto, CancellationToken _) =>
+                Result<UserSkillDto>.Success(new UserSkillDto { Id = "skill-1", UserId = dto.UserId, Skill = dto.Skill, Level = dto.Level }));
+        var controller = WithActor(new UserSkillsController(skills.Object), "actor-1");
+
+        var result = await controller.Create("actor-1", new CreateUserSkillDto { Skill = "Rust", Level = 7 }, CancellationToken.None);
+
+        result.Should().BeOfType<CreatedAtActionResult>().Which.Value.Should().BeOfType<UserSkillDto>()
+            .Which.UserId.Should().Be("actor-1");
     }
 
     [Fact]

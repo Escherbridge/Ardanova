@@ -1,5 +1,6 @@
 namespace ArdaNova.Application.DTOs;
 
+using System.Text.Json.Serialization;
 using ArdaNova.Domain.Models.Enums;
 
 public record UserDto
@@ -72,7 +73,9 @@ public record UserSkillDto
 
 public record CreateUserSkillDto
 {
-    public required string UserId { get; init; }
+    /// <summary>Owner id; bound from the route by the controller, never from the request body.</summary>
+    [JsonIgnore]
+    public string UserId { get; init; } = string.Empty;
     public required string Skill { get; init; }
     public int Level { get; init; } = 1;
 }
@@ -96,7 +99,9 @@ public record UserExperienceDto
 
 public record CreateUserExperienceDto
 {
-    public required string UserId { get; init; }
+    /// <summary>Owner id; bound from the route by the controller, never from the request body.</summary>
+    [JsonIgnore]
+    public string UserId { get; init; } = string.Empty;
     public required string Title { get; init; }
     public required string Company { get; init; }
     public string? Description { get; init; }
