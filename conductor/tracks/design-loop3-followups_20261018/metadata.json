@@ -1,0 +1,10 @@
+{
+  "track_id": "design-loop3-followups_20261018",
+  "type": "chore",
+  "status": "pending",
+  "created_at": "2026-10-18",
+  "updated_at": "2026-10-18",
+  "description": "Loop-3 design follow-ups that sit in feature-lane files: wire the query retry predicate, honest invest NOT_FOUND state, per-route titles, white-alpha borders and the off-system proposals tab. Each lowers a design-gate ceiling.",
+  "source": "loop3 design QA + adversarial critique",
+  "partitions": { "confidence": "none" }
+}
