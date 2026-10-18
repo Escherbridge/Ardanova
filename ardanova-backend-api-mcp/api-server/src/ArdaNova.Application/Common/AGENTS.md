@@ -22,6 +22,11 @@ API tests.
   once for a whole list, and the policy then judges every row in memory.
   "Attending" means `GOING`, `MAYBE` or `ATTENDED`. `INVITED` grants
   visibility but not the meeting link. `NOT_GOING` grants nothing.
+- **Affiliation.** `CanAffiliateWithProjectAsync` and
+  `CanAffiliateWithGuildAsync` accept the creator or owner, or any member (any
+  role). Events.Create uses them so that an event can only be attached to a
+  community the organizer belongs to. The set matches the `ProjectIds` and
+  `GuildIds` relations that `EventVisibilityPolicy` reads.
 - **Not found vs denied.** An event the viewer may not see is `NotFound`, not
   `Denied`, so ids cannot be used to discover private events. Other rules
   return `Denied` for a row that exists, because the caller already knows it

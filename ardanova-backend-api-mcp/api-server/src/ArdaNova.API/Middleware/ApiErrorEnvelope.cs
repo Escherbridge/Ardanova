@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
@@ -50,6 +51,14 @@ public static class ApiErrorEnvelope
         });
         return mvc;
     }
+
+    /// <summary>Gives bodiless error statuses (unmatched route, 405, bare 4xx from routing) the shared envelope.</summary>
+    public static IApplicationBuilder UseArdaNovaStatusEnvelope(this IApplicationBuilder app)
+        => app.UseStatusCodePages(context =>
+        {
+            var http = context.HttpContext;
+            return WriteAsync(http, http.Response.StatusCode, Filters.ErrorEnvelopeResultFilter.DefaultMessage(http.Response.StatusCode));
+        });
 
     public static string TraceId(HttpContext context)
         => Activity.Current?.Id ?? context.TraceIdentifier;

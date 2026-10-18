@@ -68,6 +68,31 @@ Prefer a precise intermediate state over optimistic “success” copy. Retain t
 - Honor reduced motion and keep ambient animation out of operational flows.
 - Test primary routes with keyboard navigation and at desktop and narrow mobile widths.
 
+## Security headers
+
+`middleware.ts` now runs on every request except build assets (`_next/static`,
+`_next/image` and `favicon.ico`). It adds the following headers:
+
+- `nosniff`;
+- framing denied, through both `X-Frame-Options: DENY` and the CSP `frame-ancestors 'none'`;
+- `strict-origin-when-cross-origin` referrers;
+- a `Permissions-Policy` that turns off camera, microphone and geolocation, none of which the app uses;
+- HSTS, in production only.
+
+Loop 4 QA found Next.js sent none of these.
+
+What was deliberately left out:
+
+- A full script/style CSP. Next's inline bootstrap scripts need nonces, and
+  adding them touches every layout, so it is tracked in
+  `backend-loop4-residuals_20261018`.
+- `payment=()`. Blocking the Payment Request API would also block wallet buttons
+  inside Stripe's iframes.
+
+The matcher used to cover only the authenticated prefixes. It is now global,
+so `x-ardanova-request-path` is also always set by the server, and a client can
+no longer supply its own value on routes outside those prefixes.
+
 ## Comments and documentation
 
 Keep source comments terse and local. Put cross-cutting rationale in this file or the nearest directory-level `AGENTS.md`, then link to it from code only when necessary.

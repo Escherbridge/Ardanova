@@ -268,6 +268,58 @@ public sealed class ResourceGuardPipelineTests : IAsyncLifetime
         await AssertEnvelopeAsync(response, HttpStatusCode.Forbidden);
     }
 
+    [Theory]
+    [InlineData(Stranger, "project-1", null, HttpStatusCode.Forbidden)]
+    [InlineData(ProjectContributor, "project-1", null, HttpStatusCode.Created)]
+    [InlineData(ProjectFounder, "project-1", null, HttpStatusCode.Created)]
+    [InlineData(Stranger, null, "guild-1", HttpStatusCode.Forbidden)]
+    [InlineData(Attendee, null, "guild-1", HttpStatusCode.Created)]
+    [InlineData(ProjectContributor, "project-1", "guild-1", HttpStatusCode.Forbidden)]
+    [InlineData(Stranger, "no-such-project", null, HttpStatusCode.NotFound)]
+    [InlineData(Stranger, null, null, HttpStatusCode.Created)]
+    public async Task EventCreate_UnderAProjectOrGuild_NeedsTheOrganizerToBelongThere(
+        string actor, string? projectId, string? guildId, HttpStatusCode expected)
+    {
+        var before = World.Events.Count;
+
+        var response = await _host.SendAsync(HttpMethod.Post, "/api/Events", new
+        {
+            organizerId = actor,
+            title = "Community meetup",
+            type = "MEETING",
+            timezone = "UTC",
+            visibility = "PROJECT_MEMBERS",
+            projectId,
+            guildId,
+            meetingUrl = "https://meet.example.test/meetup",
+            startDate = "2027-03-01T10:00:00Z",
+            endDate = "2027-03-01T11:00:00Z",
+        }, actor);
+
+        response.StatusCode.Should().Be(expected);
+        World.Events.Should().HaveCount(expected == HttpStatusCode.Created ? before + 1 : before);
+    }
+
+    [Theory]
+    [InlineData(null, 0)]
+    [InlineData(Stranger, 0)]
+    [InlineData(Invitee, 1)]
+    public async Task EventSearchTotals_DoNotCountEventsTheViewerCannotSee(string? viewer, int expectedTotal)
+    {
+        var response = await _host.SendAsync(HttpMethod.Get, "/api/Events/search?searchTerm=board%20dinner", actor: viewer);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        document.RootElement.GetProperty("totalCount").GetInt32().Should().Be(expectedTotal);
+        document.RootElement.GetProperty("items").GetArrayLength().Should().Be(expectedTotal);
+    }
+
+    [Theory]
+    [InlineData("GET", "/api/NoSuchThing", HttpStatusCode.NotFound)]
+    [InlineData("DELETE", "/api/Events", HttpStatusCode.MethodNotAllowed)]
+    public async Task UnroutableRequests_StillAnswerWithTheErrorEnvelope(string method, string target, HttpStatusCode expected)
+        => await AssertEnvelopeAsync(await _host.SendAsync(new HttpMethod(method), target), expected);
+
     [Fact]
     public void EveryResourceGuard_NamesALoadedAction()
         => _host.Convention.MatchedKeys.Should().Contain(EndpointAuthorizationConvention.ResourceGuards.Keys);
@@ -318,6 +370,13 @@ public sealed class ResourceGuardPipelineTests : IAsyncLifetime
             new() { id = "pm-2", projectId = "project-1", userId = ProjectContributor, role = ProjectRole.CONTRIBUTOR },
         ];
 
+        public List<Guild> Guilds { get; } = [new() { id = "guild-1", ownerId = Organizer }];
+
+        public List<GuildMember> GuildMembers { get; } =
+        [
+            new() { id = "gm-1", guildId = "guild-1", userId = Attendee },
+        ];
+
         public List<Product> Products { get; } = [new() { id = "product-1", projectId = "project-1", name = "Mug", userId = ProjectFounder }];
 
         public List<Referral> Referrals { get; } =
@@ -332,8 +391,8 @@ public sealed class ResourceGuardPipelineTests : IAsyncLifetime
             services.AddSingleton<IRepository<EventCoHost>>(new InMemoryRepository<EventCoHost>([]));
             services.AddSingleton<IRepository<Project>>(new InMemoryRepository<Project>(Projects));
             services.AddSingleton<IRepository<ProjectMember>>(new InMemoryRepository<ProjectMember>(ProjectMembers));
-            services.AddSingleton<IRepository<Guild>>(new InMemoryRepository<Guild>([]));
-            services.AddSingleton<IRepository<GuildMember>>(new InMemoryRepository<GuildMember>([]));
+            services.AddSingleton<IRepository<Guild>>(new InMemoryRepository<Guild>(Guilds));
+            services.AddSingleton<IRepository<GuildMember>>(new InMemoryRepository<GuildMember>(GuildMembers));
             services.AddSingleton<IRepository<Product>>(new InMemoryRepository<Product>(Products));
             services.AddSingleton<IRepository<Referral>>(new InMemoryRepository<Referral>(Referrals));
             services.AddScoped<IResourceAuthority, ResourceAuthority>();
@@ -354,6 +413,18 @@ public sealed class ResourceGuardPipelineTests : IAsyncLifetime
                     : Result<EventDto>.NotFound("Event not found"));
             service.Setup(s => s.GetUpcomingAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync(() => Result<IReadOnlyList<EventDto>>.Success(Events.Select(ToDto).ToList()));
+            service.Setup(s => s.SearchAsync(
+                    It.IsAny<string?>(), It.IsAny<EventType?>(), It.IsAny<EventStatus?>(), It.IsAny<bool?>(),
+                    It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync((string? term, EventType? _, EventStatus? _, bool? _, int page, int pageSize, CancellationToken _) =>
+                {
+                    // The repository matches every row, hidden or not, as the real query does.
+                    var matches = Events
+                        .Where(e => term is null || e.title.Contains(term, StringComparison.OrdinalIgnoreCase))
+                        .Select(ToDto)
+                        .ToList();
+                    return Result<PagedResult<EventDto>>.Success(new PagedResult<EventDto>(matches, matches.Count, page, pageSize));
+                });
             service.Setup(s => s.GetAttendeesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync((string id, CancellationToken _) => Result<IReadOnlyList<EventAttendeeDto>>.Success(
                     Attendees.Where(a => a.eventId == id).Select(a => new EventAttendeeDto { Id = a.id, EventId = id, UserId = a.userId }).ToList()));
@@ -473,6 +544,7 @@ public sealed class ResourceGuardPipelineTests : IAsyncLifetime
 
             _app = builder.Build();
             _app.UseExceptionHandling();
+            _app.UseArdaNovaStatusEnvelope();
             _app.UseApiKeyAuthentication();
             _app.UseActorAssertions();
             _app.UseArdaNovaActorRateLimiting();

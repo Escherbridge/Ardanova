@@ -1,4 +1,4 @@
-import { apiPath, query } from "../../path";
+import { apiPath } from "../../path";
 import {
   type BaseApiClient,
   type ApiResponse,
@@ -133,22 +133,6 @@ export class AttachmentsEndpoint {
 
   create(data: CreateAttachmentDto): Promise<ApiResponse<Attachment>> {
     return this.client.post<Attachment>("/api/attachments", data);
-  }
-
-  upload(
-    userId: string,
-    file: Blob,
-    fileName: string,
-    options?: { folder?: string },
-  ): Promise<ApiResponse<Attachment>> {
-    const form = new FormData();
-    form.append("file", file, fileName);
-    const q = query({ folder: options?.folder || undefined });
-    return this.client.postFormData<Attachment>(
-      apiPath`/api/attachments/upload${q}`,
-      form,
-      userHeader(userId),
-    );
   }
 
   delete(id: string): Promise<ApiResponse<void>> {

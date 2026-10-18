@@ -26,7 +26,11 @@ controller, so a feature controller cannot leave them out.
   create/delete, activity delete) requires `ActorAdministrator`: a verified
   actor whose signed role is `ADMIN`, which the BFF's `adminProcedure` sends.
   The unpaged user list and the email-to-user lookup require the admin key
-  (`AdminApiKey`), because they are enumeration and identity-lookup surfaces.
+  (`AdminApiKey`) *and* a signed administrator (`ActorAdministrator`), because
+  they return every user's email, phone and trust score. Loop 4 QA showed the
+  admin key alone was enough; now a leaked key without an admin's signed
+  assertion gets 401. Neither route has a BFF caller (the client's user list
+  uses `/api/users/paged`), so nothing legitimate changed.
 - **Subject bindings.** `SubjectBindings` names the parameter, or the body
   property, that holds the user the request acts for (event organizer,
   attendee, activity owner, referrer, streak owner, referral reader).
@@ -48,7 +52,8 @@ attributed to a second real user with nothing linking the two.
 
 ## Resource guards
 
-`ResourceGuards` maps an action to a `ResourceGuard(rule, record)`. The record
+`ResourceGuards` maps an action to one or more `ResourceGuard(rule, record)`
+entries, each added as its own filter in list order. The record
 is read exactly like a subject binding (parameter, or a body property) and is
 checked the same way at startup by `EnsureBindsTo`. `ResourceAuthorizationFilter`
 then asks `IResourceAuthority` (Application/Common/Security) about that one
@@ -61,6 +66,16 @@ row, before the feature service runs:
 | `ProjectCatalogManager` | `Products.Create` (`dto.ProjectId`) | project creator, or a FOUNDER/LEADER/CORE_CONTRIBUTOR member |
 | `ProductManager` | `Products.Update`, `Products.Delete`, `Products.ToggleActive` | a manager of the product's project |
 | `ReferralParticipant` | `Referrals.GetById` | the referrer or the referred user |
+| `ProjectAffiliate` (optional) | `Events.Create` (`dto.ProjectId`) | the project creator or any member |
+| `GuildAffiliate` (optional) | `Events.Create` (`dto.GuildId`) | the guild owner or any member |
+
+An `Optional` guard is skipped when the request leaves its record empty, so an
+event with no project or guild needs no lookup. Loop 4 QA created events,
+including `PROJECT_MEMBERS` ones with a meeting link, under a project and a
+guild the actor did not belong to; those events then appeared to the real
+members under the community's name. "Any member" (not just managers) is the
+same set that may *see* a `PROJECT_MEMBERS`/`GUILD_MEMBERS` event, so anyone
+who can read a community's events may also host one.
 
 Outcomes: no actor where one is required gives 401; an unknown id gives 404;
 a known row the actor may not touch gives 403. An event the viewer may not see
@@ -92,9 +107,15 @@ attendee.
 
 `meetingUrl` is blanked unless the viewer is a host or an attendee with status
 `GOING`/`MAYBE`/`ATTENDED`. A single hidden event becomes a 404 envelope. In
-lists, hidden rows are dropped. A `PagedResult` keeps the repository's
-`totalCount`, so a page can come back short. Filtering at the query belongs to
-the events lane (same track). The viewer's relations are loaded once per
+lists, hidden rows are dropped. In a `PagedResult`, `totalCount` drops by the
+number of hidden rows on that page. Before loop 4 it kept the repository's
+count, and because search matches title and description,
+`search?searchTerm=…` returned `{items: [], totalCount: 1}` for a hidden
+`INVITE_ONLY` event. That let anyone recover its text one character at a time.
+What remains: a hidden row on *another* page still counts toward that page's
+total, and pages can still come back short. Only filtering at the query closes
+that, and it belongs to the events lane (track
+`backend-loop4-residuals_20261018`). The viewer's relations are loaded once per
 response with id-keyed queries, so a list costs a fixed number of lookups, not
 one per row.
 
@@ -166,6 +187,14 @@ The property is typed `UserDto`, so the field names stay and only the values are
 blanked; `role` is kept. No controller returns this DTO today, so this is
 defence in depth.
 
+`ProjectMemberDto.User.Email` (single member or a list, from
+`GET /api/Projects/{id}/members` and the other member routes) is nulled unless
+the viewer is that member or an administrator. Loop 4 QA read every member's
+email through the public `project.getMembers` procedure. The UI's
+`member.user?.name ?? member.user?.email ?? "Member"` fallbacks still render.
+Project invitations (`InvitedEmail`, `InvitedUser`) are not covered: the
+inviter needs that address.
+
 ## Paging bounds
 
 `PagingArgumentFilter` clamps bound `int` arguments named
@@ -197,6 +226,12 @@ controller-authored 4xx/5xx result into the middleware's
 
 Extra fields a controller adds (for example `code`) are kept. `ForbidResult`
 and `ChallengeResult` are left alone, because the denial scheme writes those.
+
+Responses that never reach a controller (an unmatched route gives 404, a
+known route with the wrong verb gives 405) come back with no body from
+routing. `UseArdaNovaStatusEnvelope` (Middleware/ApiErrorEnvelope.cs, wired
+right after `UseExceptionHandling`) is `UseStatusCodePages`. It writes the same
+envelope, using `DefaultMessage`, but only when the response has no body yet.
 
 For 5xx results, only a 501 or 503 keeps its message. Those are the
 controllers' authored "not available" texts. Every other 5xx (500, 502, 504)

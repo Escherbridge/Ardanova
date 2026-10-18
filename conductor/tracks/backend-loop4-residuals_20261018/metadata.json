@@ -1,0 +1,10 @@
+{
+  "track_id": "backend-loop4-residuals_20261018",
+  "type": "bug",
+  "status": "pending",
+  "created_at": "2026-10-18",
+  "updated_at": "2026-10-18",
+  "description": "What loop 4 could not close in its own files: event capacity race, query-level event visibility, edge rate limiting, least-privilege keys, full CSP, remaining DTO validators, a shared nested-user projection, QA harness secrets and a CI-safe C# generator.",
+  "source": "loop4 backend QA + adversarial critique; supersedes backend-api-boundary-completion_20261018 item 2",
+  "partitions": { "confidence": "none" }
+}
