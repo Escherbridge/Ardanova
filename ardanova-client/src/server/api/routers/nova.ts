@@ -27,6 +27,7 @@ export function novaErrorCode(
   if (status === 401) return "UNAUTHORIZED";
   if (status === 404) return "NOT_FOUND";
   if (status === 408) return "TIMEOUT";
+  if (status === 429 && error === "nova_turn_in_flight") return "CONFLICT";
   if (status === 429) return "TOO_MANY_REQUESTS";
   if (status === 503 && error === "nova_capacity") return "SERVICE_UNAVAILABLE";
   return "INTERNAL_SERVER_ERROR";

@@ -194,6 +194,87 @@ public class NovaControllerFlowTests
         reply.Brief.Should().BeNull("the preview analyses nothing, so it proposes no brief");
     }
 
+    [Fact]
+    public async Task AMemberRunsOneTurnAtATimeSoNobodyHoldsTheSharedCapacity()
+    {
+        var upstream = new FakePartnerApi { Hold = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously) };
+        var nova = NovaFor(upstream);
+        var start = new NovaRefineRequestDto { Idea = Idea };
+
+        var slow = nova.Controller.RefineProject(start, CancellationToken.None);
+        var parallel = await nova.Controller.RefineProject(start, CancellationToken.None);
+        upstream.Hold.SetResult();
+        var finished = await slow;
+        var next = await nova.Controller.RefineProject(start, CancellationToken.None);
+
+        StatusOf(parallel).Should().Be(StatusCodes.Status429TooManyRequests);
+        ErrorOf(parallel).Should().Be("nova_turn_in_flight", "a turn already running is not the member's daily limit");
+        StatusOf(finished).Should().Be(StatusCodes.Status200OK);
+        StatusOf(next).Should().Be(StatusCodes.Status200OK, "the slot frees once the slow turn answers");
+        ((NovaStatusDto)((OkObjectResult)nova.Controller.Status().Result!).Value!).RemainingToday.Should().Be(8, "the refused parallel start spent nothing");
+    }
+
+    [Fact]
+    public async Task LiveRepliesAndStatusSayHowManyRefinementsAreLeftToday()
+    {
+        var nova = NovaFor(new FakePartnerApi(), dailySessions: 3);
+
+        var before = (NovaStatusDto)((OkObjectResult)nova.Controller.Status().Result!).Value!;
+        var first = await RefineAsync(nova, new NovaRefineRequestDto { Idea = Idea });
+        var second = await RefineAsync(nova, Continuation(first));
+
+        before.Should().BeEquivalentTo(new { Refinement = "live", DailyLimit = 3, RemainingToday = 3 });
+        first.RemainingToday.Should().Be(2);
+        second.RemainingToday.Should().Be(2, "answering a question continues the same refinement");
+    }
+
+    [Fact]
+    public async Task LocalPreviewNeverSpendsTheMembersDailyNovaAiAllowance()
+    {
+        var nova = NovaFor(new LocalNovaPreviewClient(), dailySessions: 1);
+        var start = new NovaRefineRequestDto { Idea = Idea };
+
+        var first = await RefineAsync(nova, start);
+        var second = await RefineAsync(nova, start);
+
+        second.Mode.Should().Be("local-preview", "fixed practice questions cost nothing, so they never count toward the limit");
+        first.RemainingToday.Should().BeNull();
+        ((NovaStatusDto)((OkObjectResult)nova.Controller.Status().Result!).Value!).RemainingToday.Should().BeNull();
+    }
+
+    /// <summary>Partner wire contract pinned with OVERSEASGENAI (twin: its partner_contract_test.go): states up to 512 characters round-trip.</summary>
+    [Theory]
+    [InlineData(NovaSessionTickets.MaxUpstreamStateLength, StatusCodes.Status200OK)]
+    [InlineData(NovaSessionTickets.MaxUpstreamStateLength + 1, StatusCodes.Status503ServiceUnavailable)]
+    public async Task PartnerContractStateAtTheSharedLimitRoundTripsAndOneOverFailsAtOnce(int stateLength, int expected)
+    {
+        var nova = NovaFor(new FakePartnerApi { StateLength = stateLength });
+
+        var first = await nova.Controller.RefineProject(new NovaRefineRequestDto { Idea = Idea }, CancellationToken.None);
+        var outcome = expected == StatusCodes.Status200OK
+            ? await nova.Controller.RefineProject(Continuation((NovaRefineResponseDto)((OkObjectResult)first).Value!), CancellationToken.None)
+            : first;
+
+        StatusOf(outcome).Should().Be(expected);
+    }
+
+    [Fact]
+    public async Task PartnerContractCommunityProjectVerdictWithoutALaunchVerticalKeepsItsBrief()
+    {
+        var nova = NovaFor(new FakePartnerApi { Vertical = "none" });
+
+        var reply = await RefineAsync(nova, new NovaRefineRequestDto { Idea = Idea });
+        var turns = new List<NovaTurnDto>();
+        while (reply.Type == "question")
+        {
+            turns.Add(new NovaTurnDto { Question = reply.Question!, Answer = "Neighbours chip in 5 a month." });
+            reply = await RefineAsync(nova, new NovaRefineRequestDto { Idea = Idea, Turns = turns, State = reply.State, SessionId = reply.SessionId });
+        }
+
+        reply.Vertical.Should().Be("none");
+        reply.Brief!.WorkingName.Should().Be("Guild Tool Library");
+    }
+
     private static async Task<NovaRefineResponseDto> RefineAsync(NovaHarness nova, NovaRefineRequestDto request)
     {
         var result = await nova.Controller.RefineProject(request, CancellationToken.None);
@@ -260,6 +341,14 @@ public class NovaControllerFlowTests
         public (HttpStatusCode Status, string Body)? FailWith { get; set; }
         public string? Leak { get; init; }
         public List<string> SeenAuthorization { get; } = [];
+        /// <summary>When set, every turn waits for it, as a slow upstream turn does.</summary>
+        public TaskCompletionSource? Hold { get; set; }
+        /// <summary>Pads each issued state to this many characters; 0 keeps "state-N".</summary>
+        public int StateLength { get; init; }
+        public string Vertical { get; init; } = "services";
+
+        private string StateFor(int number)
+            => StateLength > 0 ? $"state-{number}".PadRight(StateLength, 's') : $"state-{number}";
 
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
         {
@@ -268,10 +357,12 @@ public class NovaControllerFlowTests
                 return Json(HttpStatusCode.NotFound, "{}");
             if (FailWith is { } failure)
                 return Json(failure.Status, failure.Body);
+            if (Hold is { } hold)
+                await hold.Task.WaitAsync(ct);
 
             var body = JsonNode.Parse(await request.Content!.ReadAsStringAsync(ct))!;
             var answered = body["turns"]!.AsArray().Count;
-            if (answered > 0 && body["state"]?.GetValue<string>() != $"state-{answered}")
+            if (answered > 0 && body["state"]?.GetValue<string>() != StateFor(answered))
                 return Json(HttpStatusCode.BadRequest, """{"error":"Something went wrong. Please try again."}""");
 
             if (answered < QuestionsBeforeVerdict)
@@ -280,7 +371,7 @@ public class NovaControllerFlowTests
                 {
                     type = "question", assistant = "Nova AI", sessionId = "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
                     question = Leak ?? $"Question {answered + 1}: who pays?", number = answered + 1, maxQuestions = 8,
-                    state = $"state-{answered + 1}",
+                    state = StateFor(answered + 1),
                 }));
             }
             return Json(HttpStatusCode.OK, JsonSerializer.Serialize(new
@@ -292,7 +383,7 @@ public class NovaControllerFlowTests
                     strengths = new[] { "A clear community" }, risks = new[] { "Repair costs are untested" },
                     nextStep = "Ask twenty members what they would pay.", sources = Array.Empty<object>(),
                 },
-                vertical = "services",
+                vertical = Vertical,
                 brief = new
                 {
                     workingName = "Guild Tool Library", oneLiner = "Shared power tools for guild members.", customer = "Renters.",

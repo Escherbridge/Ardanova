@@ -42,7 +42,14 @@ form that fails with "try again in a moment" forever, and a local preview is dis
   never spends a session or a model call.
 - `NovaSessionAllowance`: at most 10 new sessions per member per UTC day (in memory, single replica;
   a restart forgets the count, and the OGAI partner quota still binds). A first turn that fails
-  upstream is given back.
+  upstream is given back. Only a `live` client spends it: the local preview's fixed questions cost
+  nothing, and counting them used to lock QA lanes out for the day while the sheet said "not connected".
+  `GET /api/nova/status` (per actor) and every live reply carry `remainingToday` (and status `dailyLimit`),
+  null when nothing is counted, so the sheet can say "N of 10 left today".
+- One turn in flight per member (`NovaSessionAllowance.TryBeginTurn`/`EndTurn`, held in a `finally`). OGAI
+  gives each partner 8 concurrent model-call slots and a turn can hold one for about 88 s, so without
+  this one account firing parallel first turns could fill every slot and push every other member to
+  "unavailable". A second turn while one runs is 429 `nova_turn_in_flight` and spends nothing.
 - Session tickets (`NovaSessionTickets`): the `state` a member gets back is not the upstream's state but
   `nv1.<expiry>.<hmac>.<upstream state>`, with the HMAC over (actor, session, expiry, upstream state). A
   continuation whose ticket is not this actor's live ticket for this session returns NotFound
@@ -75,6 +82,7 @@ form that fails with "try again in a moment" forever, and a local preview is dis
 | 400 `session` (state expired or forged upstream) | NotFound `nova_session_not_found` | 404 |
 | other 400 | ValidationError | 400 |
 | (none: this member's own 10 a day spent) | Conflict `nova_daily_limit` | 429 |
+| (none: this member already has a turn running) | Conflict `nova_turn_in_flight` | 429 |
 | 429 `quota`, 503 `spend_closed` (the partner's whole day, shared by every member) | Failure `nova_capacity` | 503 |
 | (none: ticket not this actor's, or expired) | NotFound `nova_session_not_found` | 404 |
 | 401, 5xx, timeout, malformed, brand leak | Failure `nova_unavailable` | 503 |
@@ -96,4 +104,9 @@ Tests: `tests/ArdaNova.API.Tests/Controllers/NovaControllerFlowTests.cs` drive t
 fake partner HTTP handler (state round-trip, verdict with brief, brand leak dropped in plain and disguised
 forms, status mapping with capacity vs member limit and no key in logs, allowance and refund, foreign session
 404, a refinement continuing on a fresh service instance, expiry before any upstream call, upstream session
-expiry as 404, Production off, local preview).
+expiry as 404, Production off, local preview that never spends the allowance, one turn at a time per member,
+remaining count in status and replies) and pin the partner wire contract with OGAI
+(`PartnerContract*`: a state of exactly 512 characters round-trips and 513 fails on the first turn; a community
+verdict with vertical `none` keeps its brief). The OGAI twin is `apps/site/server/intake/validate/partner_contract_test.go`
+on `partner/ardanova-nova`; change both together. OGAI's real state is 54 characters (8-byte start + 32-byte HMAC,
+base64url) and its session id 26, well inside 512 and 64.

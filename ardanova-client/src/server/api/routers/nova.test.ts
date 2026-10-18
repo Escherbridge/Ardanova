@@ -37,6 +37,7 @@ describe("nova router", () => {
 
   it.each([
     [429, "nova_daily_limit", "TOO_MANY_REQUESTS"],
+    [429, "nova_turn_in_flight", "CONFLICT"],
     [503, "nova_capacity", "SERVICE_UNAVAILABLE"],
     [503, "nova_unavailable", "INTERNAL_SERVER_ERROR"],
     [404, "nova_session_not_found", "NOT_FOUND"],

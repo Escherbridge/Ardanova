@@ -20,6 +20,7 @@ public sealed class NovaOrchestrationService : INovaOrchestrationService
     public const string QuotaError = NovaErrors.DailyLimit;
     public const string CapacityError = NovaErrors.Capacity;
     public const string SessionNotFoundError = NovaErrors.SessionNotFound;
+    public const string TurnInFlightError = NovaErrors.TurnInFlight;
 
     private readonly IOgaiClient _client;
     private readonly NovaSessionAllowance _allowance;
@@ -34,7 +35,19 @@ public sealed class NovaOrchestrationService : INovaOrchestrationService
         _logger = logger;
     }
 
-    public NovaStatusDto GetStatus() => new() { Refinement = _client.Availability };
+    public NovaStatusDto GetStatus(string actorId)
+    {
+        var counted = CountsAllowance && !string.IsNullOrWhiteSpace(actorId);
+        return new()
+        {
+            Refinement = _client.Availability,
+            DailyLimit = counted ? _allowance.DailyLimit : null,
+            RemainingToday = counted ? _allowance.Remaining(actorId) : null,
+        };
+    }
+
+    /// <summary>Only the live service spends the member's daily allowance; the preview's fixed questions cost nothing.</summary>
+    private bool CountsAllowance => _client.Availability == NovaAvailability.Live;
 
     public async Task<Result<NovaRefineResponseDto>> RefineProjectIdeaAsync(
         NovaRefineRequestDto request,
@@ -73,13 +86,38 @@ public sealed class NovaOrchestrationService : INovaOrchestrationService
         if (!firstTurn && !_tickets.TryOpen(request.State, actorId, request.SessionId!, out upstreamState, out expiresAt))
             return Result<NovaRefineResponseDto>.NotFound(SessionNotFoundError);
 
-        if (firstTurn && !_allowance.TryStart(actorId))
+        // One turn at a time per member, so no account can hold several of the partner's shared model-call slots.
+        if (!_allowance.TryBeginTurn(actorId))
+            return Result<NovaRefineResponseDto>.Conflict(TurnInFlightError);
+        try
+        {
+            return await RunTurnAsync(idea, turns, upstreamState, firstTurn ? null : request.SessionId, actorId, expiresAt, ct);
+        }
+        finally
+        {
+            _allowance.EndTurn(actorId);
+        }
+    }
+
+    /// <summary>Spends the allowance on a first live turn, calls upstream and maps its reply; the caller holds the turn slot.</summary>
+    private async Task<Result<NovaRefineResponseDto>> RunTurnAsync(
+        string idea,
+        List<NovaTurnDto> turns,
+        string? upstreamState,
+        string? sessionId,
+        string actorId,
+        DateTimeOffset expiresAt,
+        CancellationToken ct)
+    {
+        var firstTurn = turns.Count == 0;
+        var spendsAllowance = firstTurn && CountsAllowance;
+        if (spendsAllowance && !_allowance.TryStart(actorId))
             return Result<NovaRefineResponseDto>.Conflict(QuotaError);
 
-        var upstream = await _client.ValidateAsync(idea, turns, upstreamState, firstTurn ? null : request.SessionId, ct);
+        var upstream = await _client.ValidateAsync(idea, turns, upstreamState, sessionId, ct);
         if (upstream.IsFailure || upstream.Value is null)
         {
-            if (firstTurn)
+            if (spendsAllowance)
                 _allowance.Refund(actorId);
             return upstream.Type switch
             {
@@ -128,6 +166,7 @@ public sealed class NovaOrchestrationService : INovaOrchestrationService
             Verdict = turnResult.Verdict,
             Vertical = turnResult.Vertical,
             Brief = turnResult.Brief,
+            RemainingToday = CountsAllowance ? _allowance.Remaining(actorId) : null,
         });
     }
 

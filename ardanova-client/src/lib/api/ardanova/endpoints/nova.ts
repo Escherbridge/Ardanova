@@ -53,6 +53,8 @@ export interface NovaRefineResponse {
   verdict?: NovaVerdict | null;
   vertical?: string | null;
   brief?: NovaBrief | null;
+  /** Live refinements this member can still start today; null when nothing is counted (local preview). */
+  remainingToday?: number | null;
 }
 
 /** A refinement turn may take the upstream's retry-and-fallback path (~88 s); .NET gives up at 95 s, so wait for its answer. */
@@ -62,6 +64,10 @@ export interface NovaStatus {
   assistant: string;
   /** "live", "local-preview" (fixed practice questions) or "off" (not connected on this deployment). */
   refinement: "live" | "local-preview" | "off";
+  /** New live refinements a member may start per UTC day; null unless live. */
+  dailyLimit?: number | null;
+  /** How many of those this member has left today; null unless live. */
+  remainingToday?: number | null;
 }
 
 /** Actor-signed Nova AI routes; .NET is the only caller of the upstream service. */
