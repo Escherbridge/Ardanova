@@ -12,7 +12,6 @@ public interface IUserService
     Task<Result<UserDto>> UpdateAsync(string id, UpdateUserDto dto, CancellationToken ct = default);
     Task<Result<bool>> DeleteAsync(string id, CancellationToken ct = default);
     Task<Result<UserDto>> GetByEmailAsync(string email, CancellationToken ct = default);
-    Task<Result<UserDto>> VerifyAsync(string id, CancellationToken ct = default);
     Task<Result<PagedResult<UserDto>>> SearchAsync(string query, int page, int pageSize, CancellationToken ct = default);
     Task<Result<UserDto>> UpdateRoleAsync(string id, AdminUpdateUserRoleDto dto, CancellationToken ct = default);
     Task<Result<UserDto>> UpdateUserTypeAsync(string id, AdminUpdateUserTypeDto dto, CancellationToken ct = default);
@@ -40,8 +39,10 @@ public interface IUserSkillService
     Task<Result<UserSkillDto>> GetByIdAsync(string id, CancellationToken ct = default);
     Task<Result<IReadOnlyList<UserSkillDto>>> GetByUserIdAsync(string userId, CancellationToken ct = default);
     Task<Result<UserSkillDto>> CreateAsync(CreateUserSkillDto dto, CancellationToken ct = default);
-    Task<Result<UserSkillDto>> UpdateAsync(string id, UpdateUserSkillDto dto, CancellationToken ct = default);
-    Task<Result<bool>> DeleteAsync(string id, CancellationToken ct = default);
+    /// <summary>Updates a skill only when it belongs to <paramref name="userId"/>; otherwise NotFound.</summary>
+    Task<Result<UserSkillDto>> UpdateAsync(string userId, string id, UpdateUserSkillDto dto, CancellationToken ct = default);
+    /// <summary>Deletes a skill only when it belongs to <paramref name="userId"/>; otherwise NotFound.</summary>
+    Task<Result<bool>> DeleteAsync(string userId, string id, CancellationToken ct = default);
 }
 
 public interface IUserExperienceService
@@ -49,6 +50,8 @@ public interface IUserExperienceService
     Task<Result<UserExperienceDto>> GetByIdAsync(string id, CancellationToken ct = default);
     Task<Result<IReadOnlyList<UserExperienceDto>>> GetByUserIdAsync(string userId, CancellationToken ct = default);
     Task<Result<UserExperienceDto>> CreateAsync(CreateUserExperienceDto dto, CancellationToken ct = default);
-    Task<Result<UserExperienceDto>> UpdateAsync(string id, UpdateUserExperienceDto dto, CancellationToken ct = default);
-    Task<Result<bool>> DeleteAsync(string id, CancellationToken ct = default);
+    /// <summary>Updates an experience entry only when it belongs to <paramref name="userId"/>; otherwise NotFound.</summary>
+    Task<Result<UserExperienceDto>> UpdateAsync(string userId, string id, UpdateUserExperienceDto dto, CancellationToken ct = default);
+    /// <summary>Deletes an experience entry only when it belongs to <paramref name="userId"/>; otherwise NotFound.</summary>
+    Task<Result<bool>> DeleteAsync(string userId, string id, CancellationToken ct = default);
 }

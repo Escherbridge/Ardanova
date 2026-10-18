@@ -131,7 +131,7 @@ public class UserSkillServiceTests
         _mapperMock.Setup(m => m.Map<UserSkillDto>(It.IsAny<UserSkill>())).Returns(updatedDto);
 
         // Act
-        var result = await _sut.UpdateAsync(skillId, dto);
+        var result = await _sut.UpdateAsync("user-1", skillId, dto);
 
         // Assert
         result.IsSuccess.Should().BeTrue();
@@ -150,7 +150,7 @@ public class UserSkillServiceTests
             .ReturnsAsync((UserSkill?)null);
 
         // Act
-        var result = await _sut.UpdateAsync(skillId, dto);
+        var result = await _sut.UpdateAsync("user-1", skillId, dto);
 
         // Assert
         result.IsSuccess.Should().BeFalse();
@@ -172,7 +172,7 @@ public class UserSkillServiceTests
             .ReturnsAsync(1);
 
         // Act
-        var result = await _sut.DeleteAsync(skillId);
+        var result = await _sut.DeleteAsync("user-1", skillId);
 
         // Assert
         result.IsSuccess.Should().BeTrue();
@@ -187,10 +187,39 @@ public class UserSkillServiceTests
             .ReturnsAsync((UserSkill?)null);
 
         // Act
-        var result = await _sut.DeleteAsync(skillId);
+        var result = await _sut.DeleteAsync("user-1", skillId);
 
         // Assert
         result.IsSuccess.Should().BeFalse();
         result.Type.Should().Be(ResultType.NotFound);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_WhenSkillBelongsToAnotherUser_ReturnsNotFoundAndLeavesItUnchanged()
+    {
+        var skillId = Guid.NewGuid().ToString();
+        var skill = new UserSkill { id = skillId, userId = "owner-1", skill = "C#", level = 5 };
+        _repositoryMock.Setup(r => r.GetByIdAsync(skillId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(skill);
+
+        var result = await _sut.UpdateAsync("intruder-1", skillId, new UpdateUserSkillDto { Level = 1 });
+
+        result.Type.Should().Be(ResultType.NotFound);
+        skill.level.Should().Be(5);
+        _unitOfWorkMock.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task DeleteAsync_WhenSkillBelongsToAnotherUser_ReturnsNotFoundWithoutDeleting()
+    {
+        var skillId = Guid.NewGuid().ToString();
+        var skill = new UserSkill { id = skillId, userId = "owner-1", skill = "C#", level = 5 };
+        _repositoryMock.Setup(r => r.GetByIdAsync(skillId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(skill);
+
+        var result = await _sut.DeleteAsync("intruder-1", skillId);
+
+        result.Type.Should().Be(ResultType.NotFound);
+        _repositoryMock.Verify(r => r.DeleteAsync(It.IsAny<UserSkill>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 }

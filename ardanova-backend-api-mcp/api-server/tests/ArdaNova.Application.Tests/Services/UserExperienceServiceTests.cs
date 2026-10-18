@@ -156,7 +156,7 @@ public class UserExperienceServiceTests
         _mapperMock.Setup(m => m.Map<UserExperienceDto>(It.IsAny<UserExperience>())).Returns(updatedDto);
 
         // Act
-        var result = await _sut.UpdateAsync(expId, dto);
+        var result = await _sut.UpdateAsync("user-1", expId, dto);
 
         // Assert
         result.IsSuccess.Should().BeTrue();
@@ -176,7 +176,7 @@ public class UserExperienceServiceTests
             .ReturnsAsync((UserExperience?)null);
 
         // Act
-        var result = await _sut.UpdateAsync(expId, dto);
+        var result = await _sut.UpdateAsync("user-1", expId, dto);
 
         // Assert
         result.IsSuccess.Should().BeFalse();
@@ -202,7 +202,7 @@ public class UserExperienceServiceTests
             .ReturnsAsync(1);
 
         // Act
-        var result = await _sut.DeleteAsync(expId);
+        var result = await _sut.DeleteAsync("user-1", expId);
 
         // Assert
         result.IsSuccess.Should().BeTrue();
@@ -217,10 +217,47 @@ public class UserExperienceServiceTests
             .ReturnsAsync((UserExperience?)null);
 
         // Act
-        var result = await _sut.DeleteAsync(expId);
+        var result = await _sut.DeleteAsync("user-1", expId);
 
         // Assert
         result.IsSuccess.Should().BeFalse();
         result.Type.Should().Be(ResultType.NotFound);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_WhenExperienceBelongsToAnotherUser_ReturnsNotFoundAndLeavesItUnchanged()
+    {
+        var expId = Guid.NewGuid().ToString();
+        var experience = new UserExperience
+        {
+            id = expId, userId = "owner-1", title = "Dev", company = "A",
+            startDate = new DateTime(2022, 1, 1), isCurrent = true
+        };
+        _repositoryMock.Setup(r => r.GetByIdAsync(expId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(experience);
+
+        var result = await _sut.UpdateAsync("intruder-1", expId, new UpdateUserExperienceDto { Title = "Renamed" });
+
+        result.Type.Should().Be(ResultType.NotFound);
+        experience.title.Should().Be("Dev");
+        _unitOfWorkMock.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task DeleteAsync_WhenExperienceBelongsToAnotherUser_ReturnsNotFoundWithoutDeleting()
+    {
+        var expId = Guid.NewGuid().ToString();
+        var experience = new UserExperience
+        {
+            id = expId, userId = "owner-1", title = "Dev", company = "A",
+            startDate = DateTime.UtcNow, isCurrent = false
+        };
+        _repositoryMock.Setup(r => r.GetByIdAsync(expId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(experience);
+
+        var result = await _sut.DeleteAsync("intruder-1", expId);
+
+        result.Type.Should().Be(ResultType.NotFound);
+        _repositoryMock.Verify(r => r.DeleteAsync(It.IsAny<UserExperience>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 }

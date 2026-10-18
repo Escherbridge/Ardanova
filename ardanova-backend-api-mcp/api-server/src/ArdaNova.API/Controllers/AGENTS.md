@@ -120,3 +120,13 @@ happened to their money.
 
 Retries reuse ONE request key per attempt. The server resumes that person's open payment for a
 repeated key, so a fresh key per tap would open a second payment page for one intent.
+
+## Profile ownership
+
+Skill and experience writes (`UserSkillsController`, `UserExperienceController`) require
+`ActorAssertion` and a route `userId` equal to the signed actor. The service also limits update
+and delete to that owner and returns `NotFound` for a row that belongs to someone else, so an
+opaque child ID cannot be used to probe or change another person's profile. Reads stay public.
+`POST /api/users/{id}/verify` is retired (410) because a person marking their own account
+verified is not evidence; AZOA KYC is authoritative. Owner denials return an explicit 403 body
+instead of `Forbid()`.
