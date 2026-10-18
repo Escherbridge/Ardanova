@@ -88,6 +88,7 @@ builder.Services.AddControllers()
     });
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddArdaNovaAuthorization();
+builder.Services.AddArdaNovaDenialStatusCodes();
 builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new() { Title = "ArdaNova API", Version = "v1" });

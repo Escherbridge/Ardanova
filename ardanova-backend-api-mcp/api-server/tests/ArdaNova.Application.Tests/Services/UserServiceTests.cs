@@ -17,6 +17,29 @@ public class UserServiceTests
     private readonly Mock<IMapper> _mapperMock;
     private readonly UserService _sut;
 
+    [Theory]
+    [InlineData("ardanova.test", new string[0])]
+    [InlineData("preview@", new string[0])]
+    [InlineData("  Preview@Local.ArdaNova.Test ", new[] { "u-preview" })]
+    [InlineData("steward", new[] { "u-preview" })]
+    public async Task SearchAsync_MatchesNamesBySubstringButEmailsOnlyExactly(string query, string[] expectedIds)
+    {
+        var users = new List<User>
+        {
+            new() { id = "u-preview", email = "preview@local.ardanova.test", name = "ArdaNova Preview Steward" },
+            new() { id = "u-other", email = "other@local.ardanova.test", name = "Someone Else" },
+        };
+        System.Linq.Expressions.Expression<Func<User, bool>>? predicate = null;
+        _repositoryMock.Setup(r => r.GetPagedAsync(1, 20, It.IsAny<System.Linq.Expressions.Expression<Func<User, bool>>>(), It.IsAny<CancellationToken>()))
+            .Callback<int, int, System.Linq.Expressions.Expression<Func<User, bool>>?, CancellationToken>((_, _, p, _) => predicate = p)
+            .ReturnsAsync(() => new PagedResult<User>(users.Where(predicate!.Compile()).ToList(), 0, 1, 20));
+        _mapperMock.Setup(m => m.Map<UserDto>(It.IsAny<User>())).Returns((object source) => new UserDto { Id = ((User)source).id, Email = ((User)source).email });
+
+        var result = await _sut.SearchAsync(query, 1, 20);
+
+        result.Value!.Items.Select(u => u.Id).Should().BeEquivalentTo(expectedIds);
+    }
+
     public UserServiceTests()
     {
         _repositoryMock = new Mock<IRepository<User>>();
@@ -199,32 +222,6 @@ public class UserServiceTests
         result.IsSuccess.Should().BeTrue();
         result.Value.Should().NotBeNull();
         result.Value!.Email.Should().Be(email);
-    }
-
-    [Fact]
-    public async Task VerifyAsync_WhenUserExists_VerifiesUser()
-    {
-        // Arrange
-        var userId = Guid.NewGuid().ToString();
-        var user = new User { id = userId, email = "test@example.com", name = "Test User", verificationLevel = VerificationLevel.ANONYMOUS, createdAt = DateTime.UtcNow, updatedAt = DateTime.UtcNow };
-        var userDto = new UserDto { Email = "test@example.com", IsVerified = true };
-
-        _repositoryMock.Setup(r => r.GetByIdAsync(userId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(user);
-
-        _repositoryMock.Setup(r => r.UpdateAsync(It.IsAny<User>(), It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
-
-        _unitOfWorkMock.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(1);
-
-        _mapperMock.Setup(m => m.Map<UserDto>(It.IsAny<User>())).Returns(userDto);
-
-        // Act
-        var result = await _sut.VerifyAsync(userId);
-
-        // Assert
-        result.IsSuccess.Should().BeTrue();
     }
 
     [Fact]

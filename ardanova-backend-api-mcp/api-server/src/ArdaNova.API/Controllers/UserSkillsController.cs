@@ -1,10 +1,15 @@
 namespace ArdaNova.API.Controllers;
 
+using System.Security.Claims;
+using ArdaNova.API.Middleware;
 using ArdaNova.Application.Common.Results;
 using ArdaNova.Application.DTOs;
 using ArdaNova.Application.Services.Interfaces;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
+/// <summary>Profile skills; writes are owner-only (see Controllers/AGENTS.md §Profile ownership).</summary>
 [ApiController]
 [Route("api/users/{userId}/skills")]
 public class UserSkillsController : ControllerBase
@@ -24,8 +29,10 @@ public class UserSkillsController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
     public async Task<IActionResult> Create(string userId, [FromBody] CreateUserSkillDto dto, CancellationToken ct)
     {
+        if (!IsActor(userId)) return ForbiddenProfile();
         var createDto = dto with { UserId = userId };
         var result = await _userSkillService.CreateAsync(createDto, ct);
         return result.IsSuccess
@@ -34,16 +41,20 @@ public class UserSkillsController : ControllerBase
     }
 
     [HttpPut("{skillId}")]
+    [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
     public async Task<IActionResult> Update(string userId, string skillId, [FromBody] UpdateUserSkillDto dto, CancellationToken ct)
     {
-        var result = await _userSkillService.UpdateAsync(skillId, dto, ct);
+        if (!IsActor(userId)) return ForbiddenProfile();
+        var result = await _userSkillService.UpdateAsync(userId, skillId, dto, ct);
         return ToActionResult(result);
     }
 
     [HttpDelete("{skillId}")]
+    [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
     public async Task<IActionResult> Delete(string userId, string skillId, CancellationToken ct)
     {
-        var result = await _userSkillService.DeleteAsync(skillId, ct);
+        if (!IsActor(userId)) return ForbiddenProfile();
+        var result = await _userSkillService.DeleteAsync(userId, skillId, ct);
         return result.IsSuccess ? NoContent() : ToActionResult(result);
     }
 
@@ -57,8 +68,14 @@ public class UserSkillsController : ControllerBase
             ResultType.NotFound => NotFound(new { error = result.Error }),
             ResultType.ValidationError => BadRequest(new { error = result.Error }),
             ResultType.Unauthorized => Unauthorized(new { error = result.Error }),
-            ResultType.Forbidden => Forbid(),
+            ResultType.Forbidden => ForbiddenProfile(),
             _ => BadRequest(new { error = result.Error })
         };
     }
+
+    private ObjectResult ForbiddenProfile()
+        => StatusCode(StatusCodes.Status403Forbidden, new { error = "Only the profile owner can change skills." });
+
+    private bool IsActor(string userId)
+        => string.Equals(User.FindFirstValue(ClaimTypes.NameIdentifier), userId, StringComparison.Ordinal);
 }

@@ -127,3 +127,13 @@ check as `ProjectsController`: a task, task list or backlog-item task list on a 
 may not see reads as 404 (Forbidden would confirm the draft exists). `PUT /api/tasks/{id}/assign` is
 the task's assignment action: managers assign any project member or null; a non-manager member may
 only claim an unassigned task for themselves or release their own.
+
+## Profile ownership
+
+Skill and experience writes (`UserSkillsController`, `UserExperienceController`) require
+`ActorAssertion` and a route `userId` equal to the signed actor. The service also limits update
+and delete to that owner and returns `NotFound` for a row that belongs to someone else, so an
+opaque child ID cannot be used to probe or change another person's profile. Reads stay public.
+`POST /api/users/{id}/verify` is retired (410) because a person marking their own account
+verified is not evidence; AZOA KYC is authoritative. Owner denials return an explicit 403 body
+instead of `Forbid()`.

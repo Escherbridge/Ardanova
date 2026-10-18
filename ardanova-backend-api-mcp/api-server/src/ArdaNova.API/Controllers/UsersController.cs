@@ -6,6 +6,7 @@ using ArdaNova.Application.Common.Results;
 using ArdaNova.Application.DTOs;
 using ArdaNova.Application.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
 [ApiController]
@@ -70,7 +71,7 @@ public class UsersController : ControllerBase
     [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
     public async Task<IActionResult> Update(string id, [FromBody] UpdateUserDto dto, CancellationToken ct)
     {
-        if (!IsActor(id)) return Forbid();
+        if (!IsActor(id)) return Forbidden();
         var result = await _userService.UpdateAsync(id, dto, ct);
         return ToActionResult(result);
     }
@@ -79,19 +80,19 @@ public class UsersController : ControllerBase
     [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
     public async Task<IActionResult> Delete(string id, CancellationToken ct)
     {
-        if (!IsActor(id)) return Forbid();
+        if (!IsActor(id)) return Forbidden();
         var result = await _userService.DeleteAsync(id, ct);
         return result.IsSuccess ? NoContent() : ToActionResult(result);
     }
 
+    /// <summary>Retired: self-declared verification is not evidence; AZOA KYC is authoritative.</summary>
     [HttpPost("{id}/verify")]
     [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
-    public async Task<IActionResult> Verify(string id, CancellationToken ct)
-    {
-        if (!IsActor(id)) return Forbid();
-        var result = await _userService.VerifyAsync(id, ct);
-        return ToActionResult(result);
-    }
+    public IActionResult Verify(string id)
+        => StatusCode(StatusCodes.Status410Gone, new
+        {
+            error = "Self-service verification is retired; AZOA KYC is authoritative."
+        });
 
     [HttpPut("{id}/role")]
     [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
@@ -182,10 +183,13 @@ public class UsersController : ControllerBase
             ResultType.NotFound => NotFound(new { error = result.Error }),
             ResultType.ValidationError => BadRequest(new { error = result.Error }),
             ResultType.Unauthorized => Unauthorized(new { error = result.Error }),
-            ResultType.Forbidden => Forbid(),
+            ResultType.Forbidden => Forbidden(),
             _ => BadRequest(new { error = result.Error })
         };
     }
+
+    private ObjectResult Forbidden()
+        => StatusCode(StatusCodes.Status403Forbidden, new { error = "Only this account's owner can perform that action." });
 
     private string ActorId => User.FindFirstValue(ClaimTypes.NameIdentifier)!;
 

@@ -108,27 +108,13 @@ public class UserService : IUserService
         return Result<UserDto>.Success(_mapper.Map<UserDto>(user));
     }
 
-    public async Task<Result<UserDto>> VerifyAsync(string id, CancellationToken ct = default)
-    {
-        var user = await _repository.GetByIdAsync(id, ct);
-        if (user is null)
-            return Result<UserDto>.NotFound($"User with id {id} not found");
-
-        user.isVerified = true;
-        user.emailVerified = DateTime.UtcNow;
-        user.updatedAt = DateTime.UtcNow;
-
-        await _repository.UpdateAsync(user, ct);
-        await _unitOfWork.SaveChangesAsync(ct);
-        return Result<UserDto>.Success(_mapper.Map<UserDto>(user));
-    }
-
     public async Task<Result<PagedResult<UserDto>>> SearchAsync(string query, int page, int pageSize, CancellationToken ct = default)
     {
-        var lowerQuery = query.ToLower();
+        // Email is an exact-match lookup only, so a substring query cannot enumerate addresses.
+        var lowerQuery = query.Trim().ToLower();
         var result = await _repository.GetPagedAsync(page, pageSize,
             u => u.name != null && u.name.ToLower().Contains(lowerQuery) ||
-                 u.email.ToLower().Contains(lowerQuery),
+                 u.email.ToLower() == lowerQuery,
             ct);
         return Result<PagedResult<UserDto>>.Success(result.Map(_mapper.Map<UserDto>));
     }
@@ -311,10 +297,10 @@ public class UserSkillService : IUserSkillService
         return Result<UserSkillDto>.Success(_mapper.Map<UserSkillDto>(skill));
     }
 
-    public async Task<Result<UserSkillDto>> UpdateAsync(string id, UpdateUserSkillDto dto, CancellationToken ct = default)
+    public async Task<Result<UserSkillDto>> UpdateAsync(string userId, string id, UpdateUserSkillDto dto, CancellationToken ct = default)
     {
         var skill = await _repository.GetByIdAsync(id, ct);
-        if (skill is null)
+        if (skill is null || skill.userId != userId)
             return Result<UserSkillDto>.NotFound($"Skill with id {id} not found");
 
         if (dto.Level.HasValue) skill.level = dto.Level.Value;
@@ -324,10 +310,10 @@ public class UserSkillService : IUserSkillService
         return Result<UserSkillDto>.Success(_mapper.Map<UserSkillDto>(skill));
     }
 
-    public async Task<Result<bool>> DeleteAsync(string id, CancellationToken ct = default)
+    public async Task<Result<bool>> DeleteAsync(string userId, string id, CancellationToken ct = default)
     {
         var skill = await _repository.GetByIdAsync(id, ct);
-        if (skill is null)
+        if (skill is null || skill.userId != userId)
             return Result<bool>.NotFound($"Skill with id {id} not found");
 
         await _repository.DeleteAsync(skill, ct);
@@ -381,10 +367,10 @@ public class UserExperienceService : IUserExperienceService
         return Result<UserExperienceDto>.Success(_mapper.Map<UserExperienceDto>(exp));
     }
 
-    public async Task<Result<UserExperienceDto>> UpdateAsync(string id, UpdateUserExperienceDto dto, CancellationToken ct = default)
+    public async Task<Result<UserExperienceDto>> UpdateAsync(string userId, string id, UpdateUserExperienceDto dto, CancellationToken ct = default)
     {
         var exp = await _repository.GetByIdAsync(id, ct);
-        if (exp is null)
+        if (exp is null || exp.userId != userId)
             return Result<UserExperienceDto>.NotFound($"Experience with id {id} not found");
 
         if (dto.Title is not null) exp.title = dto.Title;
@@ -399,10 +385,10 @@ public class UserExperienceService : IUserExperienceService
         return Result<UserExperienceDto>.Success(_mapper.Map<UserExperienceDto>(exp));
     }
 
-    public async Task<Result<bool>> DeleteAsync(string id, CancellationToken ct = default)
+    public async Task<Result<bool>> DeleteAsync(string userId, string id, CancellationToken ct = default)
     {
         var exp = await _repository.GetByIdAsync(id, ct);
-        if (exp is null)
+        if (exp is null || exp.userId != userId)
             return Result<bool>.NotFound($"Experience with id {id} not found");
 
         await _repository.DeleteAsync(exp, ct);
