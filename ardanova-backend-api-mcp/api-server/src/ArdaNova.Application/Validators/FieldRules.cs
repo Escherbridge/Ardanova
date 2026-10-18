@@ -1,9 +1,13 @@
 namespace ArdaNova.Application.Validators;
 
+using System.Text.RegularExpressions;
+
 /// <summary>Shared field checks used by the request validators.</summary>
-public static class FieldRules
+public static partial class FieldRules
 {
     public const int NameLength = 200;
+    public const int EmailLength = 254;
+    public const int PhoneLength = 50;
     public const int ShortTextLength = 500;
     public const int LongTextLength = 20_000;
     public const int UrlLength = 2_048;
@@ -53,6 +57,30 @@ public static class FieldRules
         errors.When(value.Length > UrlLength || !(isPath || IsWebUrl(value)), field, $"{field} must be an http or https URL or a site path.");
     }
 
+    /// <summary>A profile handle (no scheme) or an http(s) URL; control characters are refused because browsers strip them out of href schemes.</summary>
+    public static void HandleOrWebUrl(this ValidationErrors errors, string field, string? value)
+    {
+        if (string.IsNullOrEmpty(value))
+            return;
+        var trimmed = value.Trim();
+        var namesScheme = SchemePrefix().IsMatch(trimmed) || trimmed.StartsWith("//", StringComparison.Ordinal);
+        errors.When(
+            value.Length > ShortTextLength || value.Any(char.IsControl) || (namesScheme && !IsWebUrl(trimmed)),
+            field,
+            $"{field} must be a handle or an http or https URL.");
+    }
+
+    /// <summary>One plain address: something@domain.tld, no spaces, at most 254 characters.</summary>
+    public static void Email(this ValidationErrors errors, string field, string? value, bool required)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            errors.When(required, field, $"{field} is required.");
+            return;
+        }
+        errors.When(value.Length > EmailLength || !EmailShape().IsMatch(value), field, $"{field} must be a valid email address.");
+    }
+
     public static void Timezone(this ValidationErrors errors, string field, string? value)
     {
         if (value is null)
@@ -75,4 +103,10 @@ public static class FieldRules
     public static bool IsKnownTimezone(string value)
         => value.Length is > 0 and <= 64
             && (FormTimezones.Contains(value) || TimeZoneInfo.TryFindSystemTimeZoneById(value, out _));
+
+    [GeneratedRegex("^[a-z][a-z0-9+.-]*:", RegexOptions.IgnoreCase)]
+    private static partial Regex SchemePrefix();
+
+    [GeneratedRegex(@"^[^@\s]+@[^@\s]+\.[^@\s]+$")]
+    private static partial Regex EmailShape();
 }
