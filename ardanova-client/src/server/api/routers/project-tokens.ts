@@ -134,7 +134,9 @@ export const provisionProjectFundingSchema = z.object({
     .min(PROJECT_FUNDING_GOAL_MIN_DOLLARS)
     .max(PROJECT_FUNDING_GOAL_MAX_DOLLARS)
     .refine(
-      (goal) => Number.isInteger(Math.round(goal * 100)) && Math.abs(goal * 100 - Math.round(goal * 100)) < 1e-9,
+      (goal) =>
+        Number.isInteger(Math.round(goal * 100)) &&
+        Math.abs(goal * 100 - Math.round(goal * 100)) < 1e-9,
       { message: "A funding goal cannot be finer than a cent." },
     ),
   /**
@@ -241,7 +243,8 @@ async function readGuildShareUnits(
 ): Promise<number | null> {
   if (!opportunityId) return 0;
 
-  const response = await apiClient.opportunityBids.getByOpportunityId(opportunityId);
+  const response =
+    await apiClient.opportunityBids.getByOpportunityId(opportunityId);
   if (response.error || !response.data) return null;
 
   const accepted = response.data.filter(
@@ -322,13 +325,17 @@ async function resolveTaskWorkApproval(
     return { ...shares, isApproved: Boolean(commerce.workerHoldReleasesAt) };
   }
 
-  const configResponse = await apiClient.projectTokens.getConfigByProject(task.projectId);
+  const configResponse = await apiClient.projectTokens.getConfigByProject(
+    task.projectId,
+  );
   const config = configResponse.data;
   if (configResponse.error || !config) {
     return { ...shares, blockedReason: APPROVAL_UNREADABLE };
   }
 
-  const allocationsResponse = await apiClient.projectTokens.getAllocations(config.id);
+  const allocationsResponse = await apiClient.projectTokens.getAllocations(
+    config.id,
+  );
   if (allocationsResponse.error || !allocationsResponse.data) {
     return { ...shares, blockedReason: APPROVAL_UNREADABLE };
   }
@@ -720,7 +727,10 @@ export const projectTokensRouter = createTRPCRouter({
   approveTaskWork: protectedProcedure
     .input(z.object({ taskId: z.string().min(1) }))
     .mutation(async ({ input, ctx }) => {
-      const approval = await resolveTaskWorkApproval(input.taskId, ctx.session.user.id);
+      const approval = await resolveTaskWorkApproval(
+        input.taskId,
+        ctx.session.user.id,
+      );
 
       if (!approval.viewerIsProjectOwner) {
         throw new TRPCError({ code: "FORBIDDEN", message: APPROVAL_NOT_OWNER });

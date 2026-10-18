@@ -99,7 +99,6 @@ export const formatRoleName = (role: string) => {
     .join(" ");
 };
 
-
 const DEFAULT_ROLES = [
   {
     id: "FOUNDER",
@@ -1291,8 +1290,7 @@ export default function TeamTab({
                           Founder / Member Pool
                         </span>
                         <span className="text-muted-foreground">
-                          {founderPct}% ({founderSupply.toLocaleString()}{" "}
-                          units)
+                          {founderPct}% ({founderSupply.toLocaleString()} units)
                         </span>
                       </div>
                       <div className="bg-muted h-2 overflow-hidden rounded-none">
@@ -1309,8 +1307,7 @@ export default function TeamTab({
                             Written off
                           </span>
                           <span className="text-muted-foreground">
-                            {burnedPct}% ({burnedSupply.toLocaleString()}{" "}
-                            units)
+                            {burnedPct}% ({burnedSupply.toLocaleString()} units)
                           </span>
                         </div>
                         <div className="bg-muted h-2 overflow-hidden rounded-none">

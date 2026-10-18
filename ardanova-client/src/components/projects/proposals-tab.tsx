@@ -482,7 +482,10 @@ export default function ProposalsTab({
   /** The reason the last lifecycle action on this proposal was refused, so a silent no-op is impossible. */
   const proposalActionError = (proposalId: string): string | null => {
     const attempts = [
-      { error: closeMutation.error, target: closeMutation.variables?.proposalId },
+      {
+        error: closeMutation.error,
+        target: closeMutation.variables?.proposalId,
+      },
       {
         error: withdrawMutation.error,
         target: withdrawMutation.variables?.proposalId,
@@ -1443,7 +1446,9 @@ export default function ProposalsTab({
                                     <p className="text-xs text-gray-500">
                                       {displayedTotalVotes} of{" "}
                                       {turnout.eligibleMembers} member
-                                      {turnout.eligibleMembers === 1 ? "" : "s"}{" "}
+                                      {turnout.eligibleMembers === 1
+                                        ? ""
+                                        : "s"}{" "}
                                       voted · {turnout.votesNeeded} needed
                                     </p>
                                   </div>

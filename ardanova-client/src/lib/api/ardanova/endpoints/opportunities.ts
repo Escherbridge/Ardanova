@@ -236,11 +236,17 @@ export class OpportunitiesEndpoint {
     id: string,
     data: UpdateOpportunityDto,
   ): Promise<ApiResponse<Opportunity>> {
-    return this.client.put<Opportunity>(apiPath`/api/opportunities/${id}`, data);
+    return this.client.put<Opportunity>(
+      apiPath`/api/opportunities/${id}`,
+      data,
+    );
   }
 
   close(id: string): Promise<ApiResponse<Opportunity>> {
-    return this.client.patch<Opportunity>(apiPath`/api/opportunities/${id}/close`, {});
+    return this.client.patch<Opportunity>(
+      apiPath`/api/opportunities/${id}/close`,
+      {},
+    );
   }
 
   delete(id: string): Promise<ApiResponse<void>> {
@@ -314,6 +320,8 @@ export class OpportunitiesEndpoint {
   }
 
   deleteComment(commentId: string): Promise<ApiResponse<void>> {
-    return this.client.delete(apiPath`/api/opportunities/comments/${commentId}`);
+    return this.client.delete(
+      apiPath`/api/opportunities/comments/${commentId}`,
+    );
   }
 }

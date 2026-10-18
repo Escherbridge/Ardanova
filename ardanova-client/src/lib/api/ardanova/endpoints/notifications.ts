@@ -1,5 +1,9 @@
 import { apiPath } from "../../path";
-import { type BaseApiClient, type ApiResponse, type PagedResult } from "../../base-client";
+import {
+  type BaseApiClient,
+  type ApiResponse,
+  type PagedResult,
+} from "../../base-client";
 
 export interface Notification {
   id: string;
@@ -32,10 +36,16 @@ export class NotificationsEndpoint {
     return this.client.get<Notification[]>("/api/notifications/me");
   }
 
-  getPaged(page = 1, pageSize = 10): Promise<ApiResponse<PagedResult<Notification>>> {
-    const q = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+  getPaged(
+    page = 1,
+    pageSize = 10,
+  ): Promise<ApiResponse<PagedResult<Notification>>> {
+    const q = new URLSearchParams({
+      page: String(page),
+      pageSize: String(pageSize),
+    });
     return this.client.get<PagedResult<Notification>>(
-      apiPath`/api/notifications/me/paged?${q}`
+      apiPath`/api/notifications/me/paged?${q}`,
     );
   }
 
@@ -44,17 +54,22 @@ export class NotificationsEndpoint {
   }
 
   getSummary(): Promise<ApiResponse<NotificationSummary>> {
-    return this.client.get<NotificationSummary>("/api/notifications/me/summary");
+    return this.client.get<NotificationSummary>(
+      "/api/notifications/me/summary",
+    );
   }
 
   markAsRead(id: string): Promise<ApiResponse<Notification>> {
-    return this.client.post<Notification>(apiPath`/api/notifications/${id}/read`, {});
+    return this.client.post<Notification>(
+      apiPath`/api/notifications/${id}/read`,
+      {},
+    );
   }
 
   markAllAsRead(): Promise<ApiResponse<{ success: boolean }>> {
     return this.client.post<{ success: boolean }>(
       "/api/notifications/me/read-all",
-      {}
+      {},
     );
   }
 

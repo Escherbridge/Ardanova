@@ -43,6 +43,8 @@ export class FundingIntentsEndpoint {
   }
 
   getStatus(intentId: string): Promise<ApiResponse<FundingIntentStatus>> {
-    return this.client.get<FundingIntentStatus>(apiPath`/api/funding-intents/${intentId}`);
+    return this.client.get<FundingIntentStatus>(
+      apiPath`/api/funding-intents/${intentId}`,
+    );
   }
 }

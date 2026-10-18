@@ -1,6 +1,7 @@
 ---
 type: reference
 ---
+
 # components/ui
 
 Shared design-system primitives. Radius and shadow scales are zeroed in

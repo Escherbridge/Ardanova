@@ -282,7 +282,9 @@ export default function ProjectDetailPage() {
                       <Button
                         type="button"
                         size="sm"
-                        onClick={() => publishMutation.mutate({ id: project.id })}
+                        onClick={() =>
+                          publishMutation.mutate({ id: project.id })
+                        }
                         disabled={publishMutation.isPending}
                       >
                         {publishMutation.isPending ? (

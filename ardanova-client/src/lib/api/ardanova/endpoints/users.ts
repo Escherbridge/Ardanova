@@ -131,9 +131,7 @@ export class UsersEndpoint {
   }
 
   getByEmail(email: string): Promise<ApiResponse<User>> {
-    return this.client.get<User>(
-      apiPath`/api/users/email/${email}`,
-    );
+    return this.client.get<User>(apiPath`/api/users/email/${email}`);
   }
 
   getAll(page = 1, pageSize = 10): Promise<ApiResponse<PagedResult<User>>> {
@@ -188,7 +186,10 @@ export class UsersEndpoint {
     userId: string,
     data: CreateUserSkillDto,
   ): Promise<ApiResponse<UserSkill>> {
-    return this.client.post<UserSkill>(apiPath`/api/users/${userId}/skills`, data);
+    return this.client.post<UserSkill>(
+      apiPath`/api/users/${userId}/skills`,
+      data,
+    );
   }
 
   updateSkill(
@@ -209,7 +210,9 @@ export class UsersEndpoint {
   // ---- Experience ----
 
   getExperience(userId: string): Promise<ApiResponse<UserExperience[]>> {
-    return this.client.get<UserExperience[]>(apiPath`/api/users/${userId}/experience`);
+    return this.client.get<UserExperience[]>(
+      apiPath`/api/users/${userId}/experience`,
+    );
   }
 
   addExperience(
@@ -248,10 +251,13 @@ export class UsersEndpoint {
     userId: string,
     followerId: string,
   ): Promise<ApiResponse<UserFollowDto>> {
-    return this.client.post<UserFollowDto>(apiPath`/api/users/${userId}/follow`, {
-      followerId,
-      followingId: userId,
-    });
+    return this.client.post<UserFollowDto>(
+      apiPath`/api/users/${userId}/follow`,
+      {
+        followerId,
+        followingId: userId,
+      },
+    );
   }
 
   unfollow(userId: string, followerId: string): Promise<ApiResponse<void>> {
@@ -261,11 +267,15 @@ export class UsersEndpoint {
   }
 
   getFollowers(userId: string): Promise<ApiResponse<UserFollowDto[]>> {
-    return this.client.get<UserFollowDto[]>(apiPath`/api/users/${userId}/followers`);
+    return this.client.get<UserFollowDto[]>(
+      apiPath`/api/users/${userId}/followers`,
+    );
   }
 
   getFollowing(userId: string): Promise<ApiResponse<UserFollowDto[]>> {
-    return this.client.get<UserFollowDto[]>(apiPath`/api/users/${userId}/following`);
+    return this.client.get<UserFollowDto[]>(
+      apiPath`/api/users/${userId}/following`,
+    );
   }
 
   isFollowing(

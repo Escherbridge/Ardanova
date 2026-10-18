@@ -1,6 +1,10 @@
 import { apiPath } from "../../path";
 import { z } from "zod";
-import { type BaseApiClient, type ApiResponse, type PagedResult } from "../../base-client";
+import {
+  type BaseApiClient,
+  type ApiResponse,
+  type PagedResult,
+} from "../../base-client";
 
 /** Request bodies here match the .NET DTOs exactly; identity (owner, reviewer, inviter) always comes from the signed actor. See endpoints/AGENTS.md §Guilds. */
 
@@ -231,11 +235,15 @@ export class GuildsEndpoint {
   }
 
   getByOwnerId(ownerId: string): Promise<ApiResponse<Guild | Guild[]>> {
-    return this.client.get<Guild | Guild[]>(apiPath`/api/guilds/owner/${ownerId}`);
+    return this.client.get<Guild | Guild[]>(
+      apiPath`/api/guilds/owner/${ownerId}`,
+    );
   }
 
   getPaged(page = 1, limit = 10): Promise<ApiResponse<PagedResult<Guild>>> {
-    return this.client.get<PagedResult<Guild>>(apiPath`/api/guilds/paged?page=${page}&pageSize=${limit}`);
+    return this.client.get<PagedResult<Guild>>(
+      apiPath`/api/guilds/paged?page=${page}&pageSize=${limit}`,
+    );
   }
 
   getVerified(): Promise<ApiResponse<Guild[]>> {
@@ -256,52 +264,98 @@ export class GuildsEndpoint {
   }
 
   getMembers(guildId: string): Promise<ApiResponse<GuildMember[]>> {
-    return this.client.get<GuildMember[]>(apiPath`/api/guilds/${guildId}/members`);
+    return this.client.get<GuildMember[]>(
+      apiPath`/api/guilds/${guildId}/members`,
+    );
   }
 
-  addMember(guildId: string, data: CreateGuildMemberDto): Promise<ApiResponse<GuildMember>> {
-    return this.client.post<GuildMember>(apiPath`/api/guilds/${guildId}/members`, data);
+  addMember(
+    guildId: string,
+    data: CreateGuildMemberDto,
+  ): Promise<ApiResponse<GuildMember>> {
+    return this.client.post<GuildMember>(
+      apiPath`/api/guilds/${guildId}/members`,
+      data,
+    );
   }
 
-  updateMember(guildId: string, memberId: string, data: UpdateGuildMemberDto): Promise<ApiResponse<GuildMember>> {
-    return this.client.put<GuildMember>(apiPath`/api/guilds/${guildId}/members/${memberId}`, data);
+  updateMember(
+    guildId: string,
+    memberId: string,
+    data: UpdateGuildMemberDto,
+  ): Promise<ApiResponse<GuildMember>> {
+    return this.client.put<GuildMember>(
+      apiPath`/api/guilds/${guildId}/members/${memberId}`,
+      data,
+    );
   }
 
   removeMember(guildId: string, memberId: string): Promise<ApiResponse<void>> {
-    return this.client.delete(apiPath`/api/guilds/${guildId}/members/${memberId}`);
+    return this.client.delete(
+      apiPath`/api/guilds/${guildId}/members/${memberId}`,
+    );
   }
 
   getReviews(guildId: string): Promise<ApiResponse<GuildReview[]>> {
-    return this.client.get<GuildReview[]>(apiPath`/api/guilds/${guildId}/reviews`);
+    return this.client.get<GuildReview[]>(
+      apiPath`/api/guilds/${guildId}/reviews`,
+    );
   }
 
-  createReview(guildId: string, data: CreateGuildReviewDto): Promise<ApiResponse<GuildReview>> {
-    return this.client.post<GuildReview>(apiPath`/api/guilds/${guildId}/reviews`, data);
+  createReview(
+    guildId: string,
+    data: CreateGuildReviewDto,
+  ): Promise<ApiResponse<GuildReview>> {
+    return this.client.post<GuildReview>(
+      apiPath`/api/guilds/${guildId}/reviews`,
+      data,
+    );
   }
 
-  updateReview(guildId: string, reviewId: string, data: UpdateGuildReviewDto): Promise<ApiResponse<GuildReview>> {
-    return this.client.put<GuildReview>(apiPath`/api/guilds/${guildId}/reviews/${reviewId}`, data);
+  updateReview(
+    guildId: string,
+    reviewId: string,
+    data: UpdateGuildReviewDto,
+  ): Promise<ApiResponse<GuildReview>> {
+    return this.client.put<GuildReview>(
+      apiPath`/api/guilds/${guildId}/reviews/${reviewId}`,
+      data,
+    );
   }
 
   deleteReview(guildId: string, reviewId: string): Promise<ApiResponse<void>> {
-    return this.client.delete(apiPath`/api/guilds/${guildId}/reviews/${reviewId}`);
+    return this.client.delete(
+      apiPath`/api/guilds/${guildId}/reviews/${reviewId}`,
+    );
   }
 
   getUpdates(guildId: string): Promise<ApiResponse<GuildUpdate[]>> {
-    return this.client.get<GuildUpdate[]>(apiPath`/api/guilds/${guildId}/updates`);
+    return this.client.get<GuildUpdate[]>(
+      apiPath`/api/guilds/${guildId}/updates`,
+    );
   }
 
   /** Matches `CreateGuildUpdateDto`; the author is the signed actor. */
-  createUpdate(guildId: string, data: { title: string; content: string; images?: string }): Promise<ApiResponse<GuildUpdate>> {
-    return this.client.post<GuildUpdate>(apiPath`/api/guilds/${guildId}/updates`, data);
+  createUpdate(
+    guildId: string,
+    data: { title: string; content: string; images?: string },
+  ): Promise<ApiResponse<GuildUpdate>> {
+    return this.client.post<GuildUpdate>(
+      apiPath`/api/guilds/${guildId}/updates`,
+      data,
+    );
   }
 
   deleteUpdate(guildId: string, updateId: string): Promise<ApiResponse<void>> {
-    return this.client.delete(apiPath`/api/guilds/${guildId}/updates/${updateId}`);
+    return this.client.delete(
+      apiPath`/api/guilds/${guildId}/updates/${updateId}`,
+    );
   }
 
   getApplications(guildId: string): Promise<ApiResponse<unknown[]>> {
-    return this.client.get<unknown[]>(apiPath`/api/guilds/${guildId}/applications`);
+    return this.client.get<unknown[]>(
+      apiPath`/api/guilds/${guildId}/applications`,
+    );
   }
 
   /** Matches `CreateGuildApplicationDto`; the guild is the route and the applicant is the signed actor. */
@@ -314,25 +368,53 @@ export class GuildsEndpoint {
       experience?: string;
       portfolio?: string;
       availability?: string;
-    }
+    },
   ): Promise<ApiResponse<unknown>> {
     return this.client.post(apiPath`/api/guilds/${guildId}/applications`, data);
   }
 
-  getApplicationById(guildId: string, applicationId: string): Promise<ApiResponse<{ id: string; guildId: string; userId: string; [key: string]: unknown }>> {
-    return this.client.get(apiPath`/api/guilds/${guildId}/applications/${applicationId}`);
+  getApplicationById(
+    guildId: string,
+    applicationId: string,
+  ): Promise<
+    ApiResponse<{
+      id: string;
+      guildId: string;
+      userId: string;
+      [key: string]: unknown;
+    }>
+  > {
+    return this.client.get(
+      apiPath`/api/guilds/${guildId}/applications/${applicationId}`,
+    );
   }
 
-  acceptApplication(guildId: string, applicationId: string, data?: { reviewMessage?: string }): Promise<ApiResponse<unknown>> {
-    return this.client.post(apiPath`/api/guilds/${guildId}/applications/${applicationId}/accept`, data ?? {});
+  acceptApplication(
+    guildId: string,
+    applicationId: string,
+    data?: { reviewMessage?: string },
+  ): Promise<ApiResponse<unknown>> {
+    return this.client.post(
+      apiPath`/api/guilds/${guildId}/applications/${applicationId}/accept`,
+      data ?? {},
+    );
   }
 
-  rejectApplication(guildId: string, applicationId: string, data?: { reviewMessage?: string }): Promise<ApiResponse<unknown>> {
-    return this.client.post(apiPath`/api/guilds/${guildId}/applications/${applicationId}/reject`, data ?? {});
+  rejectApplication(
+    guildId: string,
+    applicationId: string,
+    data?: { reviewMessage?: string },
+  ): Promise<ApiResponse<unknown>> {
+    return this.client.post(
+      apiPath`/api/guilds/${guildId}/applications/${applicationId}/reject`,
+      data ?? {},
+    );
   }
 
   getInvitations(guildId: string): Promise<ApiResponse<GuildInvitation[]>> {
-    return this.client.get<GuildInvitation[]>(apiPath`/api/guilds/${guildId}/invitations`);
+    return this.client.get<GuildInvitation[]>(
+      apiPath`/api/guilds/${guildId}/invitations`,
+    );
   }
 
   /** The signed actor's own invitations that can still be answered. */
@@ -348,20 +430,35 @@ export class GuildsEndpoint {
       invitedEmail?: string;
       role: string;
       message?: string;
-    }
+    },
   ): Promise<ApiResponse<GuildInvitation>> {
-    return this.client.post<GuildInvitation>(apiPath`/api/guilds/${guildId}/invitations`, data);
+    return this.client.post<GuildInvitation>(
+      apiPath`/api/guilds/${guildId}/invitations`,
+      data,
+    );
   }
 
   /** The backend accepts or declines only for the bound invitee. */
-  respondToInvitation(guildId: string, invitationId: string, data: { accept: boolean }): Promise<ApiResponse<GuildInvitation>> {
+  respondToInvitation(
+    guildId: string,
+    invitationId: string,
+    data: { accept: boolean },
+  ): Promise<ApiResponse<GuildInvitation>> {
     return data.accept
-      ? this.client.post<GuildInvitation>(apiPath`/api/guilds/${guildId}/invitations/${invitationId}/accept`, {})
-      : this.client.post<GuildInvitation>(apiPath`/api/guilds/${guildId}/invitations/${invitationId}/reject`, {});
+      ? this.client.post<GuildInvitation>(
+          apiPath`/api/guilds/${guildId}/invitations/${invitationId}/accept`,
+          {},
+        )
+      : this.client.post<GuildInvitation>(
+          apiPath`/api/guilds/${guildId}/invitations/${invitationId}/reject`,
+          {},
+        );
   }
 
   getFollowers(guildId: string): Promise<ApiResponse<unknown[]>> {
-    return this.client.get<unknown[]>(apiPath`/api/guilds/${guildId}/followers`);
+    return this.client.get<unknown[]>(
+      apiPath`/api/guilds/${guildId}/followers`,
+    );
   }
 
   /** `POST api/guilds/{guildId}/follow`; the follower is the signed actor. */
@@ -381,7 +478,7 @@ export class GuildsEndpoint {
   /** `GET api/guilds/{guildId}/follow/check?userId=` */
   isFollowing(guildId: string, userId: string): Promise<ApiResponse<boolean>> {
     return this.client.get<boolean>(
-      apiPath`/api/guilds/${guildId}/follow/check?userId=${userId}`
+      apiPath`/api/guilds/${guildId}/follow/check?userId=${userId}`,
     );
   }
 }

@@ -146,7 +146,8 @@ export default function ProfilePage() {
       await utils.azoaCustodialAccount.getStatus.invalidate();
       toast.success("Your secure Azoa account status is up to date.");
     },
-    onError: (error) => toast.error(describeMutationError(error, "set up your account")),
+    onError: (error) =>
+      toast.error(describeMutationError(error, "set up your account")),
   });
 
   const acceptMutation = api.project.acceptInvitation.useMutation({
@@ -254,7 +255,8 @@ export default function ProfilePage() {
                 </div>
                 <p className="text-muted-foreground mb-2">{user?.email}</p>
                 <p className="text-muted-foreground mb-4 whitespace-pre-line">
-                  {meProfile?.bio || "Add a bio so collaborators know what you work on."}
+                  {meProfile?.bio ||
+                    "Add a bio so collaborators know what you work on."}
                 </p>
                 <div className="flex flex-wrap gap-6 text-sm">
                   <div className="flex items-center gap-2">

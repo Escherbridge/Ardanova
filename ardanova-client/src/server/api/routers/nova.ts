@@ -19,7 +19,10 @@ const refineInput = z.object({
 });
 
 /** Maps the .NET Nova status (and its error code) to a tRPC code; member-facing copy lives in the component. */
-export function novaErrorCode(status: number, error?: string): TRPCError["code"] {
+export function novaErrorCode(
+  status: number,
+  error?: string,
+): TRPCError["code"] {
   if (status === 400) return "BAD_REQUEST";
   if (status === 401) return "UNAUTHORIZED";
   if (status === 404) return "NOT_FOUND";

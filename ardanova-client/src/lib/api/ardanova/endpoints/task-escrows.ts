@@ -30,9 +30,7 @@ export class TaskEscrowsEndpoint {
   constructor(private client: BaseApiClient) {}
 
   getById(id: string): Promise<ApiResponse<TaskEscrow>> {
-    return this.client.get<TaskEscrow>(
-      apiPath`/api/taskescrows/${id}`,
-    );
+    return this.client.get<TaskEscrow>(apiPath`/api/taskescrows/${id}`);
   }
 
   getByTaskId(taskId: string): Promise<ApiResponse<TaskEscrow>> {

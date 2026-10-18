@@ -1,5 +1,9 @@
 import { apiPath } from "../../path";
-import { type BaseApiClient, type ApiResponse, type PagedResult } from "../../base-client";
+import {
+  type BaseApiClient,
+  type ApiResponse,
+  type PagedResult,
+} from "../../base-client";
 
 export interface Proposal {
   id: string;
@@ -111,10 +115,14 @@ export class GovernanceEndpoint {
   }
 
   getByCreatorId(creatorId: string): Promise<ApiResponse<Proposal[]>> {
-    return this.client.get<Proposal[]>(apiPath`/api/governance/proposals/proposer/${creatorId}`);
+    return this.client.get<Proposal[]>(
+      apiPath`/api/governance/proposals/proposer/${creatorId}`,
+    );
   }
 
-  search(params: SearchProposalsParams = {}): Promise<ApiResponse<PagedResult<Proposal>>> {
+  search(
+    params: SearchProposalsParams = {},
+  ): Promise<ApiResponse<PagedResult<Proposal>>> {
     const sp = new URLSearchParams();
     if (params.searchTerm) sp.set("searchTerm", params.searchTerm);
     if (params.type) sp.set("type", params.type);
@@ -122,7 +130,9 @@ export class GovernanceEndpoint {
     if (params.projectId) sp.set("projectId", params.projectId ?? "");
     sp.set("page", String(params.page ?? 1));
     sp.set("pageSize", String(params.pageSize ?? 10));
-    return this.client.get<PagedResult<Proposal>>(apiPath`/api/governance/proposals/search?${sp}`);
+    return this.client.get<PagedResult<Proposal>>(
+      apiPath`/api/governance/proposals/search?${sp}`,
+    );
   }
 
   create(data: CreateProposalDto): Promise<ApiResponse<Proposal>> {
@@ -130,7 +140,10 @@ export class GovernanceEndpoint {
   }
 
   update(id: string, data: UpdateProposalDto): Promise<ApiResponse<Proposal>> {
-    return this.client.put<Proposal>(apiPath`/api/governance/proposals/${id}`, data);
+    return this.client.put<Proposal>(
+      apiPath`/api/governance/proposals/${id}`,
+      data,
+    );
   }
 
   delete(id: string): Promise<ApiResponse<void>> {
@@ -138,30 +151,53 @@ export class GovernanceEndpoint {
   }
 
   vote(proposalId: string, dto: CastVoteDto): Promise<ApiResponse<Vote>> {
-    return this.client.post<Vote>(apiPath`/api/governance/proposals/${proposalId}/vote`, dto);
+    return this.client.post<Vote>(
+      apiPath`/api/governance/proposals/${proposalId}/vote`,
+      dto,
+    );
   }
 
-  getMyVote(proposalId: string, userId: string): Promise<ApiResponse<Vote | null>> {
-    return this.client.get<Vote | null>(apiPath`/api/governance/proposals/${proposalId}/my-vote?userId=${userId}`);
+  getMyVote(
+    proposalId: string,
+    userId: string,
+  ): Promise<ApiResponse<Vote | null>> {
+    return this.client.get<Vote | null>(
+      apiPath`/api/governance/proposals/${proposalId}/my-vote?userId=${userId}`,
+    );
   }
 
   getVotes(proposalId: string): Promise<ApiResponse<Vote[]>> {
-    return this.client.get<Vote[]>(apiPath`/api/governance/proposals/${proposalId}/votes`);
+    return this.client.get<Vote[]>(
+      apiPath`/api/governance/proposals/${proposalId}/votes`,
+    );
   }
 
-  getVoteSummary(proposalId: string): Promise<ApiResponse<ProposalVoteSummary>> {
-    return this.client.get<ProposalVoteSummary>(apiPath`/api/governance/proposals/${proposalId}/summary`);
+  getVoteSummary(
+    proposalId: string,
+  ): Promise<ApiResponse<ProposalVoteSummary>> {
+    return this.client.get<ProposalVoteSummary>(
+      apiPath`/api/governance/proposals/${proposalId}/summary`,
+    );
   }
 
   execute(id: string): Promise<ApiResponse<Proposal>> {
-    return this.client.patch<Proposal>(apiPath`/api/governance/proposals/${id}/execute`, {});
+    return this.client.patch<Proposal>(
+      apiPath`/api/governance/proposals/${id}/execute`,
+      {},
+    );
   }
 
   cancel(id: string): Promise<ApiResponse<Proposal>> {
-    return this.client.patch<Proposal>(apiPath`/api/governance/proposals/${id}/cancel`, {});
+    return this.client.patch<Proposal>(
+      apiPath`/api/governance/proposals/${id}/cancel`,
+      {},
+    );
   }
 
   publishProposal(id: string): Promise<ApiResponse<Proposal>> {
-    return this.client.patch<Proposal>(apiPath`/api/governance/proposals/${id}/publish`, {});
+    return this.client.patch<Proposal>(
+      apiPath`/api/governance/proposals/${id}/publish`,
+      {},
+    );
   }
 }

@@ -101,9 +101,7 @@ export class LeaderboardsEndpoint {
     return this.client.delete(apiPath`/api/leaderboards/entries/${entryId}`);
   }
 
-  getUserRankings(
-    userId: string,
-  ): Promise<ApiResponse<LeaderboardEntryDto[]>> {
+  getUserRankings(userId: string): Promise<ApiResponse<LeaderboardEntryDto[]>> {
     return this.client.get<LeaderboardEntryDto[]>(
       apiPath`/api/leaderboards/user/${userId}/rankings`,
     );

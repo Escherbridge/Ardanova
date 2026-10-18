@@ -42,7 +42,9 @@ export class FeaturesEndpoint {
   constructor(private client: BaseApiClient) {}
 
   getBySprintId(sprintId: string): Promise<ApiResponse<Feature[]>> {
-    return this.client.get<Feature[]>(apiPath`/api/sprints/${sprintId}/features`);
+    return this.client.get<Feature[]>(
+      apiPath`/api/sprints/${sprintId}/features`,
+    );
   }
 
   getById(id: string): Promise<ApiResponse<Feature>> {
@@ -62,14 +64,18 @@ export class FeaturesEndpoint {
   }
 
   assign(id: string, userId: string | null): Promise<ApiResponse<Feature>> {
-    return this.client.put<Feature>(apiPath`/api/features/${id}/assign`, { userId });
+    return this.client.put<Feature>(apiPath`/api/features/${id}/assign`, {
+      userId,
+    });
   }
 
   updateStatus(
     id: string,
     status: FeatureStatus,
   ): Promise<ApiResponse<Feature>> {
-    return this.client.put<Feature>(apiPath`/api/features/${id}/status`, { status });
+    return this.client.put<Feature>(apiPath`/api/features/${id}/status`, {
+      status,
+    });
   }
 
   updatePriority(

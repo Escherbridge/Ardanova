@@ -7,7 +7,10 @@ import {
   REFINE_STORAGE_KEY,
   writeRefineConversation,
 } from "./nova-refine-storage";
-import { NOVA_STATE_MAX_CHARS, OGAI_STATE_MAX_CHARS } from "~/lib/nova-state-limits";
+import {
+  NOVA_STATE_MAX_CHARS,
+  OGAI_STATE_MAX_CHARS,
+} from "~/lib/nova-state-limits";
 
 /** sessionStorage stand-in; `blocked` throws like a private window or a full quota. */
 class TabStorage implements Storage {
@@ -36,7 +39,9 @@ class TabStorage implements Storage {
 
 const midRefinement: NovaRefineConversation = {
   idea: "A tool library run by a neighbourhood guild, lending power tools.",
-  turns: [{ question: "Who has this problem?", answer: "Renters on our street." }],
+  turns: [
+    { question: "Who has this problem?", answer: "Renters on our street." },
+  ],
   reply: {
     type: "question",
     assistant: "Nova AI",
@@ -65,7 +70,10 @@ describe("Nova refinement survives a reload in the same tab", () => {
     const tab = new TabStorage();
     const fullTicket = `nv1.1792000000.${"A".repeat(64)}.${"s".repeat(OGAI_STATE_MAX_CHARS)}`;
     expect(fullTicket).toHaveLength(NOVA_STATE_MAX_CHARS);
-    const conversation = { ...midRefinement, reply: { ...midRefinement.reply!, state: fullTicket } };
+    const conversation = {
+      ...midRefinement,
+      reply: { ...midRefinement.reply!, state: fullTicket },
+    };
 
     writeRefineConversation(tab, conversation);
 
@@ -78,11 +86,18 @@ describe("Nova refinement survives a reload in the same tab", () => {
     expect(readRefineConversation(tab)).toBeNull();
 
     writeRefineConversation(tab, midRefinement);
-    writeRefineConversation(tab, { idea: "", turns: [], reply: null, answer: "" });
+    writeRefineConversation(tab, {
+      idea: "",
+      turns: [],
+      reply: null,
+      answer: "",
+    });
     expect(tab.getItem(REFINE_STORAGE_KEY)).toBeNull();
   });
 
   it("reports blocked storage so the sheet can warn before a reload loses the conversation", () => {
-    expect(writeRefineConversation(new TabStorage(true), midRefinement)).toBe(false);
+    expect(writeRefineConversation(new TabStorage(true), midRefinement)).toBe(
+      false,
+    );
   });
 });

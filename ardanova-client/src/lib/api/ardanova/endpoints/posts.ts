@@ -119,9 +119,7 @@ export class PostsEndpoint {
   }
 
   getByUserId(userId: string): Promise<ApiResponse<Post[]>> {
-    return this.client.get<Post[]>(
-      apiPath`/api/posts/user/${userId}`,
-    );
+    return this.client.get<Post[]>(apiPath`/api/posts/user/${userId}`);
   }
 
   create(data: CreatePostDto): Promise<ApiResponse<Post>> {
@@ -137,10 +135,7 @@ export class PostsEndpoint {
   }
 
   like(id: string): Promise<ApiResponse<Post>> {
-    return this.client.post<Post>(
-      apiPath`/api/posts/${id}/like`,
-      {},
-    );
+    return this.client.post<Post>(apiPath`/api/posts/${id}/like`, {});
   }
 
   unlike(id: string): Promise<ApiResponse<Post>> {
@@ -148,17 +143,11 @@ export class PostsEndpoint {
   }
 
   share(id: string, data?: CreatePostShareDto): Promise<ApiResponse<Post>> {
-    return this.client.post<Post>(
-      apiPath`/api/posts/${id}/share`,
-      data ?? {},
-    );
+    return this.client.post<Post>(apiPath`/api/posts/${id}/share`, data ?? {});
   }
 
   bookmark(id: string): Promise<ApiResponse<boolean>> {
-    return this.client.post<boolean>(
-      apiPath`/api/posts/${id}/bookmark`,
-      {},
-    );
+    return this.client.post<boolean>(apiPath`/api/posts/${id}/bookmark`, {});
   }
 
   unbookmark(id: string): Promise<ApiResponse<boolean>> {
@@ -166,9 +155,7 @@ export class PostsEndpoint {
   }
 
   getComments(id: string): Promise<ApiResponse<PostComment[]>> {
-    return this.client.get<PostComment[]>(
-      apiPath`/api/posts/${id}/comments`,
-    );
+    return this.client.get<PostComment[]>(apiPath`/api/posts/${id}/comments`);
   }
 
   addComment(
@@ -181,12 +168,7 @@ export class PostsEndpoint {
     );
   }
 
-  deleteComment(
-    id: string,
-    commentId: string,
-  ): Promise<ApiResponse<void>> {
-    return this.client.delete(
-      apiPath`/api/posts/${id}/comments/${commentId}`,
-    );
+  deleteComment(id: string, commentId: string): Promise<ApiResponse<void>> {
+    return this.client.delete(apiPath`/api/posts/${id}/comments/${commentId}`);
   }
 }

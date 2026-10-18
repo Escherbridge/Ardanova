@@ -556,7 +556,10 @@ export default function CreateTaskPage() {
                       }
                       disabled={!formData.projectId || membersLoading}
                     >
-                      <SelectTrigger id="task-assignee" className="border-border">
+                      <SelectTrigger
+                        id="task-assignee"
+                        className="border-border"
+                      >
                         <SelectValue
                           placeholder={
                             formData.projectId
@@ -569,7 +572,9 @@ export default function CreateTaskPage() {
                         <SelectItem value={UNASSIGNED}>Unassigned</SelectItem>
                         {(projectMembers ?? []).map((member) => (
                           <SelectItem key={member.userId} value={member.userId}>
-                            {member.user?.name ?? member.user?.email ?? member.userId}
+                            {member.user?.name ??
+                              member.user?.email ??
+                              member.userId}
                           </SelectItem>
                         ))}
                       </SelectContent>

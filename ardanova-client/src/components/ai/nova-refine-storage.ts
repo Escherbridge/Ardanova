@@ -28,7 +28,9 @@ const replySchema = z.object({
       strengths: list,
       risks: list,
       nextStep: text(1_000),
-      sources: z.array(z.object({ title: text(1_000), url: text(2_000) })).max(10),
+      sources: z
+        .array(z.object({ title: text(1_000), url: text(2_000) }))
+        .max(10),
     })
     .nullish(),
   vertical: text(40).nullish(),
@@ -50,20 +52,22 @@ const replySchema = z.object({
 const conversationSchema = z.object({
   version: z.literal(1),
   idea: text(2_000),
-  turns: z
-    .array(z.object({ question: text(400), answer: text(1_500) }))
-    .max(8),
+  turns: z.array(z.object({ question: text(400), answer: text(1_500) })).max(8),
   reply: replySchema.nullable(),
   answer: text(1_500),
 });
 
 /** True once a refinement has started and has not reached its verdict: the state a reload would lose. */
-export function isRefinementInProgress(conversation: NovaRefineConversation): boolean {
+export function isRefinementInProgress(
+  conversation: NovaRefineConversation,
+): boolean {
   return conversation.reply !== null && conversation.reply.type !== "verdict";
 }
 
 /** The conversation saved in this tab, or null when there is none, it is unreadable, or storage is blocked. */
-export function readRefineConversation(storage: Storage): NovaRefineConversation | null {
+export function readRefineConversation(
+  storage: Storage,
+): NovaRefineConversation | null {
   try {
     const raw = storage.getItem(REFINE_STORAGE_KEY);
     if (!raw || raw.length > MAX_STORED_CHARS) return null;

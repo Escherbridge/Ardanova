@@ -61,9 +61,7 @@ export class WalletsEndpoint {
   }
 
   getByAddress(address: string): Promise<ApiResponse<Wallet>> {
-    return this.client.get<Wallet>(
-      apiPath`/api/wallets/address/${address}`,
-    );
+    return this.client.get<Wallet>(apiPath`/api/wallets/address/${address}`);
   }
 
   getMyPrimary(): Promise<ApiResponse<Wallet>> {
@@ -75,10 +73,7 @@ export class WalletsEndpoint {
   }
 
   update(id: string, data: UpdateWalletDto): Promise<ApiResponse<Wallet>> {
-    return this.client.put<Wallet>(
-      apiPath`/api/wallets/${id}`,
-      data,
-    );
+    return this.client.put<Wallet>(apiPath`/api/wallets/${id}`, data);
   }
 
   issueVerificationChallenge(

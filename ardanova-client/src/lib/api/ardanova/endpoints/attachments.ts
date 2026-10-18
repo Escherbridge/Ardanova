@@ -1,5 +1,9 @@
 import { apiPath, query } from "../../path";
-import { type BaseApiClient, type ApiResponse, type PagedResult } from "../../base-client";
+import {
+  type BaseApiClient,
+  type ApiResponse,
+  type PagedResult,
+} from "../../base-client";
 
 export interface Attachment {
   id: string;
@@ -64,9 +68,17 @@ function userHeader(userId: string): Record<string, string> {
 export class AttachmentsEndpoint {
   constructor(private client: BaseApiClient) {}
 
-  getPaged(page = 1, pageSize = 10): Promise<ApiResponse<PagedResult<Attachment>>> {
-    const q = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
-    return this.client.get<PagedResult<Attachment>>(apiPath`/api/attachments?${q}`);
+  getPaged(
+    page = 1,
+    pageSize = 10,
+  ): Promise<ApiResponse<PagedResult<Attachment>>> {
+    const q = new URLSearchParams({
+      page: String(page),
+      pageSize: String(pageSize),
+    });
+    return this.client.get<PagedResult<Attachment>>(
+      apiPath`/api/attachments?${q}`,
+    );
   }
 
   getById(id: string): Promise<ApiResponse<Attachment>> {
@@ -74,34 +86,49 @@ export class AttachmentsEndpoint {
   }
 
   getByUserId(userId: string): Promise<ApiResponse<Attachment[]>> {
-    return this.client.get<Attachment[]>(apiPath`/api/attachments/user/${userId}`);
+    return this.client.get<Attachment[]>(
+      apiPath`/api/attachments/user/${userId}`,
+    );
   }
 
-  getUploadUrl(userId: string, request: UploadRequestDto): Promise<ApiResponse<UploadResponseDto>> {
+  getUploadUrl(
+    userId: string,
+    request: UploadRequestDto,
+  ): Promise<ApiResponse<UploadResponseDto>> {
     return this.client.post<UploadResponseDto>(
       "/api/attachments/upload-url",
       request,
-      userHeader(userId)
+      userHeader(userId),
     );
   }
 
-  getUploadUrls(userId: string, request: BulkUploadRequestDto): Promise<ApiResponse<BulkUploadResponseDto>> {
+  getUploadUrls(
+    userId: string,
+    request: BulkUploadRequestDto,
+  ): Promise<ApiResponse<BulkUploadResponseDto>> {
     return this.client.post<BulkUploadResponseDto>(
       "/api/attachments/upload-urls",
       request,
-      userHeader(userId)
+      userHeader(userId),
     );
   }
 
-  getDownloadUrl(id: string, expirationMinutes = 60): Promise<ApiResponse<DownloadResponseDto>> {
-    const q = new URLSearchParams({ expirationMinutes: String(expirationMinutes) });
+  getDownloadUrl(
+    id: string,
+    expirationMinutes = 60,
+  ): Promise<ApiResponse<DownloadResponseDto>> {
+    const q = new URLSearchParams({
+      expirationMinutes: String(expirationMinutes),
+    });
     return this.client.get<DownloadResponseDto>(
-      apiPath`/api/attachments/${id}/download-url?${q}`
+      apiPath`/api/attachments/${id}/download-url?${q}`,
     );
   }
 
   getPublicUrl(id: string): Promise<ApiResponse<{ url: string }>> {
-    return this.client.get<{ url: string }>(apiPath`/api/attachments/${id}/public-url`);
+    return this.client.get<{ url: string }>(
+      apiPath`/api/attachments/${id}/public-url`,
+    );
   }
 
   create(data: CreateAttachmentDto): Promise<ApiResponse<Attachment>> {
@@ -112,12 +139,16 @@ export class AttachmentsEndpoint {
     userId: string,
     file: Blob,
     fileName: string,
-    options?: { folder?: string }
+    options?: { folder?: string },
   ): Promise<ApiResponse<Attachment>> {
     const form = new FormData();
     form.append("file", file, fileName);
     const q = query({ folder: options?.folder || undefined });
-    return this.client.postFormData<Attachment>(apiPath`/api/attachments/upload${q}`, form, userHeader(userId));
+    return this.client.postFormData<Attachment>(
+      apiPath`/api/attachments/upload${q}`,
+      form,
+      userHeader(userId),
+    );
   }
 
   delete(id: string): Promise<ApiResponse<void>> {

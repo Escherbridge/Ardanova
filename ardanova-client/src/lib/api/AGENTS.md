@@ -25,6 +25,7 @@ regexes (`recordIdSchema` in `server/api/routers/user.ts`) stay as defence in de
 is safe even when a router forgets one.
 
 Rules:
+
 - Never write a raw `` `/api/...${x}` `` template or call `encodeURIComponent` in an endpoint file —
   `path.test.ts` fails the build on either (it would double-encode inside `apiPath`).
 - Plain string literals without values (`"/api/TokenBalance/me/arda"`) need no tag.

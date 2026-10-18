@@ -1,5 +1,9 @@
 import { apiPath } from "../../path";
-import { type BaseApiClient, type ApiResponse, type PagedResult } from "../../base-client";
+import {
+  type BaseApiClient,
+  type ApiResponse,
+  type PagedResult,
+} from "../../base-client";
 
 export interface Activity {
   id: string;
@@ -36,21 +40,37 @@ export class ActivitiesEndpoint {
     return this.client.get<Activity[]>(apiPath`/api/activities/user/${userId}`);
   }
 
-  getByUserIdPaged(userId: string, page = 1, pageSize = 10): Promise<ApiResponse<PagedResult<Activity>>> {
-    const q = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+  getByUserIdPaged(
+    userId: string,
+    page = 1,
+    pageSize = 10,
+  ): Promise<ApiResponse<PagedResult<Activity>>> {
+    const q = new URLSearchParams({
+      page: String(page),
+      pageSize: String(pageSize),
+    });
     return this.client.get<PagedResult<Activity>>(
-      apiPath`/api/activities/user/${userId}/paged?${q}`
+      apiPath`/api/activities/user/${userId}/paged?${q}`,
     );
   }
 
   getByProjectId(projectId: string): Promise<ApiResponse<Activity[]>> {
-    return this.client.get<Activity[]>(apiPath`/api/activities/project/${projectId}`);
+    return this.client.get<Activity[]>(
+      apiPath`/api/activities/project/${projectId}`,
+    );
   }
 
-  getByProjectIdPaged(projectId: string, page = 1, pageSize = 10): Promise<ApiResponse<PagedResult<Activity>>> {
-    const q = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+  getByProjectIdPaged(
+    projectId: string,
+    page = 1,
+    pageSize = 10,
+  ): Promise<ApiResponse<PagedResult<Activity>>> {
+    const q = new URLSearchParams({
+      page: String(page),
+      pageSize: String(pageSize),
+    });
     return this.client.get<PagedResult<Activity>>(
-      apiPath`/api/activities/project/${projectId}/paged?${q}`
+      apiPath`/api/activities/project/${projectId}/paged?${q}`,
     );
   }
 

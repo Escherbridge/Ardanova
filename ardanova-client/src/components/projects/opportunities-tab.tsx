@@ -1046,7 +1046,8 @@ function MilestoneNode({
       void utils.project.getMilestones.invalidate({ projectId });
       toast.success("Milestone deleted");
     },
-    onError: (e) => toast.error(describeMutationError(e, "delete the milestone")),
+    onError: (e) =>
+      toast.error(describeMutationError(e, "delete the milestone")),
   });
 
   return (

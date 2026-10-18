@@ -14,14 +14,20 @@ vi.mock("~/server/auth", () => ({
   authForPage: async () => sessions.page,
 }));
 
-const { createTRPCContext, createTRPCRouter, protectedProcedure, publicProcedure } =
-  await import("./trpc");
+const {
+  createTRPCContext,
+  createTRPCRouter,
+  protectedProcedure,
+  publicProcedure,
+} = await import("./trpc");
 const { isActorAssertionActive } = await import("~/server/actor-assertion");
 const { apiPath } = await import("~/lib/api/path");
 
 const router = createTRPCRouter({
   whoAmI: protectedProcedure.query(({ ctx }) => ({ id: ctx.session.user.id })),
-  publicRead: publicProcedure.query(() => ({ signedAsActor: isActorAssertionActive() })),
+  publicRead: publicProcedure.query(() => ({
+    signedAsActor: isActorAssertionActive(),
+  })),
   traversalId: publicProcedure.query(() => apiPath`/api/users/${".."}/skills`),
 });
 

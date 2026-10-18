@@ -74,10 +74,9 @@ export default function OverviewTab({
 
   // Labels are the proposal's own options; counts are the API tally per choice number.
   const votesByChoice = Object.fromEntries(
-    Object.entries(voteSummary?.optionSummaries ?? {}).map(([choice, entry]) => [
-      choice,
-      entry.voteCount,
-    ]),
+    Object.entries(voteSummary?.optionSummaries ?? {}).map(
+      ([choice, entry]) => [choice, entry.voteCount],
+    ),
   );
   const votingOptions = readProposalOptions(proposal.options, votesByChoice);
 

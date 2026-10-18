@@ -139,9 +139,7 @@ export class TasksEndpoint {
   }
 
   getCommerce(id: string): Promise<ApiResponse<TaskCommerceView>> {
-    return this.client.get<TaskCommerceView>(
-      apiPath`/api/task-commerce/${id}`,
-    );
+    return this.client.get<TaskCommerceView>(apiPath`/api/task-commerce/${id}`);
   }
 
   getMine(): Promise<ApiResponse<Task[]>> {
@@ -159,9 +157,7 @@ export class TasksEndpoint {
     if (params.projectId) sp.set("projectId", params.projectId);
     sp.set("page", String(params.page ?? 1));
     sp.set("pageSize", String(params.pageSize ?? 10));
-    return this.client.get<PagedResult<Task>>(
-      apiPath`/api/tasks/search?${sp}`,
-    );
+    return this.client.get<PagedResult<Task>>(apiPath`/api/tasks/search?${sp}`);
   }
 
   create(data: CreateTaskDto): Promise<ApiResponse<Task>> {
@@ -173,7 +169,9 @@ export class TasksEndpoint {
   }
 
   updateStatus(id: string, status: TaskStatus): Promise<ApiResponse<Task>> {
-    return this.client.patch<Task>(apiPath`/api/tasks/${id}/status`, { status });
+    return this.client.patch<Task>(apiPath`/api/tasks/${id}/status`, {
+      status,
+    });
   }
 
   /** The only assignment boundary: a member's user id assigns, null unassigns. */

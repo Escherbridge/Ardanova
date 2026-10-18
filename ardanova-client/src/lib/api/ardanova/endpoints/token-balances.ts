@@ -49,7 +49,9 @@ export class TokenBalancesEndpoint {
     holderClass: TokenHolderClass,
   ): Promise<ApiResponse<TokenBalanceDto>> {
     const q = query({ projectTokenConfigId, holderClass });
-    return this.client.get<TokenBalanceDto>(apiPath`/api/TokenBalance/me/balance${q}`);
+    return this.client.get<TokenBalanceDto>(
+      apiPath`/api/TokenBalance/me/balance${q}`,
+    );
   }
 
   getArdaBalance(): Promise<ApiResponse<TokenBalanceDto>> {
@@ -65,7 +67,9 @@ export class TokenBalancesEndpoint {
     holderClass: TokenHolderClass,
   ): Promise<ApiResponse<boolean>> {
     const q = query({ projectTokenConfigId, holderClass });
-    return this.client.get<boolean>(apiPath`/api/TokenBalance/me/liquidity${q}`);
+    return this.client.get<boolean>(
+      apiPath`/api/TokenBalance/me/liquidity${q}`,
+    );
   }
 
   getProjectTokenValue(configId: string): Promise<ApiResponse<number>> {

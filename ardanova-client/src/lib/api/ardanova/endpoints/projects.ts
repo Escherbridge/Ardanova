@@ -335,9 +335,7 @@ export class ProjectsEndpoint {
   }
 
   getBySlug(slug: string): Promise<ApiResponse<Project>> {
-    return this.client.get<Project>(
-      apiPath`/api/projects/slug/${slug}`,
-    );
+    return this.client.get<Project>(apiPath`/api/projects/slug/${slug}`);
   }
 
   getAll(): Promise<ApiResponse<Project[]>> {
@@ -374,9 +372,7 @@ export class ProjectsEndpoint {
   }
 
   getByStatus(status: ProjectStatus): Promise<ApiResponse<Project[]>> {
-    return this.client.get<Project[]>(
-      apiPath`/api/projects/status/${status}`,
-    );
+    return this.client.get<Project[]>(apiPath`/api/projects/status/${status}`);
   }
 
   getByCategory(category: string): Promise<ApiResponse<Project[]>> {
@@ -547,7 +543,9 @@ export class ProjectsEndpoint {
     projectId: string,
     memberId: string,
   ): Promise<ApiResponse<void>> {
-    return this.client.delete(apiPath`/api/projects/${projectId}/members/${memberId}`);
+    return this.client.delete(
+      apiPath`/api/projects/${projectId}/members/${memberId}`,
+    );
   }
 
   getMembers(projectId: string): Promise<ApiResponse<ProjectMember[]>> {
@@ -776,7 +774,9 @@ export class ProjectsEndpoint {
     projectId: string,
     updateId: string,
   ): Promise<ApiResponse<void>> {
-    return this.client.delete(apiPath`/api/projects/${projectId}/updates/${updateId}`);
+    return this.client.delete(
+      apiPath`/api/projects/${projectId}/updates/${updateId}`,
+    );
   }
 
   getUpdateById(

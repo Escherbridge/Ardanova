@@ -118,7 +118,11 @@ const timingMiddleware = t.middleware(async ({ next, path }) => {
 const invalidApiPathMiddleware = t.middleware(async ({ next }) => {
   const result = await next();
   if (!result.ok && result.error.cause instanceof InvalidApiPathError) {
-    throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid id", cause: result.error.cause });
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "Invalid id",
+      cause: result.error.cause,
+    });
   }
   return result;
 });
@@ -137,7 +141,9 @@ export const publicProcedure = t.procedure
     // A signed-in caller is still identified on public reads, so .NET can return their own private fields.
     const user = ctx.session?.user;
     return user?.id
-      ? runWithActorAssertion({ subject: user.id, role: user.role }, () => next())
+      ? runWithActorAssertion({ subject: user.id, role: user.role }, () =>
+          next(),
+        )
       : next();
   });
 

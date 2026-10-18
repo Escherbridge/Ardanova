@@ -57,16 +57,29 @@ export class XPEventsEndpoint {
     limit?: number,
     offset?: number,
   ): Promise<ApiResponse<XPEventDto[]>> {
-    const queryString = query({ eventType: eventType || undefined, limit, offset });
-    return this.client.get<XPEventDto[]>(apiPath`/api/xpevents/user/${userId}/history${queryString}`);
+    const queryString = query({
+      eventType: eventType || undefined,
+      limit,
+      offset,
+    });
+    return this.client.get<XPEventDto[]>(
+      apiPath`/api/xpevents/user/${userId}/history${queryString}`,
+    );
   }
 
-  getXPByEventType(userId: string, eventType: string): Promise<ApiResponse<number>> {
-    return this.client.get<number>(apiPath`/api/xpevents/user/${userId}/by-type/${eventType}`);
+  getXPByEventType(
+    userId: string,
+    eventType: string,
+  ): Promise<ApiResponse<number>> {
+    return this.client.get<number>(
+      apiPath`/api/xpevents/user/${userId}/by-type/${eventType}`,
+    );
   }
 
   getSummary(userId: string): Promise<ApiResponse<XPSummaryDto>> {
-    return this.client.get<XPSummaryDto>(apiPath`/api/xpevents/user/${userId}/summary`);
+    return this.client.get<XPSummaryDto>(
+      apiPath`/api/xpevents/user/${userId}/summary`,
+    );
   }
 
   getRewardsConfig(): Promise<ApiResponse<XPRewardsConfigDto>> {
@@ -74,7 +87,9 @@ export class XPEventsEndpoint {
   }
 
   getLevelInfo(level: number): Promise<ApiResponse<LevelInfoDto>> {
-    return this.client.get<LevelInfoDto>(apiPath`/api/xpevents/level-info/${level}`);
+    return this.client.get<LevelInfoDto>(
+      apiPath`/api/xpevents/level-info/${level}`,
+    );
   }
 
   award(data: AwardXPDto): Promise<ApiResponse<XPEventDto>> {

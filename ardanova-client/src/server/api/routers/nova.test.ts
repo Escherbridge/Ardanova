@@ -61,10 +61,18 @@ describe("nova router", () => {
   ])(
     "a continuation state of %i characters (ticket envelope + upstream max is the cap) reaches .NET: %s",
     async (length, forwarded) => {
-      nova.refineProject.mockResolvedValue({ status: 200, data: { type: "question" } });
+      nova.refineProject.mockResolvedValue({
+        status: 200,
+        data: { type: "question" },
+      });
       const continuation = {
         ...start,
-        turns: [{ question: "Who has this problem?", answer: "Renters on our street." }],
+        turns: [
+          {
+            question: "Who has this problem?",
+            answer: "Renters on our street.",
+          },
+        ],
         state: `nv1.1792000000.${"A".repeat(64)}.`.padEnd(length, "s"),
         sessionId: "session-1",
       };

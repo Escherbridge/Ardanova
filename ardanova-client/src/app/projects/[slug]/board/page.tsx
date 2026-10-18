@@ -258,9 +258,7 @@ function TaskCard({
               </DropdownMenuItem>
             ))}
             {task.assignedToId && (
-              <DropdownMenuItem
-                onClick={() => onAssign(String(task.id), null)}
-              >
+              <DropdownMenuItem onClick={() => onAssign(String(task.id), null)}>
                 Unassign
               </DropdownMenuItem>
             )}
@@ -460,7 +458,8 @@ export default function ProjectBoardPage() {
       void refetch();
       toast.success("Task updated");
     },
-    onError: (e) => toast.error(describeMutationError(e, "update the task status")),
+    onError: (e) =>
+      toast.error(describeMutationError(e, "update the task status")),
   });
 
   const { data: members } = api.project.getMembers.useQuery(

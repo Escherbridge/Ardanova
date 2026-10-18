@@ -44,30 +44,51 @@ export interface CredentialChainDataResponse {
 export class CredentialUtilityEndpoint {
   constructor(private client: BaseApiClient) {}
 
-  grantAndMint(dto: GrantMembershipCredentialDto): Promise<ApiResponse<MembershipCredential>> {
-    return this.client.post<MembershipCredential>("/api/CredentialUtility/grant-and-mint", dto);
+  grantAndMint(
+    dto: GrantMembershipCredentialDto,
+  ): Promise<ApiResponse<MembershipCredential>> {
+    return this.client.post<MembershipCredential>(
+      "/api/CredentialUtility/grant-and-mint",
+      dto,
+    );
   }
 
   revokeAndBurn(id: string): Promise<ApiResponse<MembershipCredential>> {
-    return this.client.post<MembershipCredential>(apiPath`/api/CredentialUtility/${id}/revoke-and-burn`, {});
+    return this.client.post<MembershipCredential>(
+      apiPath`/api/CredentialUtility/${id}/revoke-and-burn`,
+      {},
+    );
   }
 
-  upgradeTier(id: string, body: UpdateTierDto): Promise<ApiResponse<MembershipCredential>> {
+  upgradeTier(
+    id: string,
+    body: UpdateTierDto,
+  ): Promise<ApiResponse<MembershipCredential>> {
     return this.client.patch<MembershipCredential>(
       apiPath`/api/CredentialUtility/${id}/upgrade-tier`,
       body,
     );
   }
 
-  checkAutoGrant(dto: CheckAutoGrantRequest): Promise<ApiResponse<MembershipCredential | null>> {
-    return this.client.post<MembershipCredential | null>("/api/CredentialUtility/check-auto-grant", dto);
+  checkAutoGrant(
+    dto: CheckAutoGrantRequest,
+  ): Promise<ApiResponse<MembershipCredential | null>> {
+    return this.client.post<MembershipCredential | null>(
+      "/api/CredentialUtility/check-auto-grant",
+      dto,
+    );
   }
 
   retryMint(id: string): Promise<ApiResponse<MembershipCredential>> {
-    return this.client.post<MembershipCredential>(apiPath`/api/CredentialUtility/${id}/retry-mint`, {});
+    return this.client.post<MembershipCredential>(
+      apiPath`/api/CredentialUtility/${id}/retry-mint`,
+      {},
+    );
   }
 
   getChainData(id: string): Promise<ApiResponse<CredentialChainDataResponse>> {
-    return this.client.get<CredentialChainDataResponse>(apiPath`/api/CredentialUtility/${id}/chain-data`);
+    return this.client.get<CredentialChainDataResponse>(
+      apiPath`/api/CredentialUtility/${id}/chain-data`,
+    );
   }
 }

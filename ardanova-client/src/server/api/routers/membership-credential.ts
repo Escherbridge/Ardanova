@@ -34,7 +34,11 @@ const guildScope = z.object({
   userId: z.string().min(1),
 });
 
-function scopePath(base: string, scope: { projectId: string } | { guildId: string }, userId: string) {
+function scopePath(
+  base: string,
+  scope: { projectId: string } | { guildId: string },
+  userId: string,
+) {
   const scoped =
     "projectId" in scope
       ? `project/${segment(scope.projectId)}`
@@ -212,7 +216,11 @@ export const membershipCredentialRouter = createTRPCRouter({
     )
     .mutation(async ({ input }) => {
       const response = await apiClient.post<MembershipCredential>(
-        scopePath(CREDENTIALS_BASE, { projectId: input.projectId }, input.userId),
+        scopePath(
+          CREDENTIALS_BASE,
+          { projectId: input.projectId },
+          input.userId,
+        ),
         {},
       );
       return unwrap(response, "The credential could not be issued.");
@@ -234,32 +242,32 @@ export const membershipCredentialRouter = createTRPCRouter({
     .input(projectScope)
     .mutation(async ({ input }) => {
       const response = await apiClient.delete<MembershipCredential>(
-        scopePath(CREDENTIALS_BASE, { projectId: input.projectId }, input.userId),
+        scopePath(
+          CREDENTIALS_BASE,
+          { projectId: input.projectId },
+          input.userId,
+        ),
       );
       return unwrap(response, "The credential could not be withdrawn.");
     }),
 
   /** Pauses a member's project credential without withdrawing it. */
-  pause: protectedProcedure
-    .input(projectScope)
-    .mutation(async ({ input }) => {
-      const response = await apiClient.post<MembershipCredential>(
-        `${scopePath(CREDENTIALS_BASE, { projectId: input.projectId }, input.userId)}/pause`,
-        {},
-      );
-      return unwrap(response, "The credential could not be paused.");
-    }),
+  pause: protectedProcedure.input(projectScope).mutation(async ({ input }) => {
+    const response = await apiClient.post<MembershipCredential>(
+      `${scopePath(CREDENTIALS_BASE, { projectId: input.projectId }, input.userId)}/pause`,
+      {},
+    );
+    return unwrap(response, "The credential could not be paused.");
+  }),
 
   /** Restores a paused project credential. */
-  resume: protectedProcedure
-    .input(projectScope)
-    .mutation(async ({ input }) => {
-      const response = await apiClient.post<MembershipCredential>(
-        `${scopePath(CREDENTIALS_BASE, { projectId: input.projectId }, input.userId)}/resume`,
-        {},
-      );
-      return unwrap(response, "The credential could not be restored.");
-    }),
+  resume: protectedProcedure.input(projectScope).mutation(async ({ input }) => {
+    const response = await apiClient.post<MembershipCredential>(
+      `${scopePath(CREDENTIALS_BASE, { projectId: input.projectId }, input.userId)}/resume`,
+      {},
+    );
+    return unwrap(response, "The credential could not be restored.");
+  }),
 
   /** Re-submits a verification-pending credential for issuance. */
   reissue: protectedProcedure
@@ -269,7 +277,10 @@ export const membershipCredentialRouter = createTRPCRouter({
         `${scopePath(UTILITY_BASE, { projectId: input.projectId }, input.userId)}/reissue`,
         {},
       );
-      return unwrap(response, "Verification could not be completed. Try again shortly.");
+      return unwrap(
+        response,
+        "Verification could not be completed. Try again shortly.",
+      );
     }),
 
   /**

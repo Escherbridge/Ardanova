@@ -403,7 +403,10 @@ function WithdrawPageInner() {
                   </Button>
                   {beginSetup.error && (
                     <p className="text-destructive text-xs" role="alert">
-                      {describeMutationError(beginSetup.error, "start payout setup")}
+                      {describeMutationError(
+                        beginSetup.error,
+                        "start payout setup",
+                      )}
                     </p>
                   )}
                 </>

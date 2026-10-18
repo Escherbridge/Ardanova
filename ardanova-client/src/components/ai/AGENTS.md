@@ -50,7 +50,7 @@ different state limit, change both twins together. Boundary tests: `server/api/r
 
 Present is built from an accepted Draft, Rehearse from an accepted Present. Each snapshot records
 the `{mode, contentVersion}` it was built from, and `hasCurrentUpstream` compares that pointer with
-the *currently* accepted upstream version, not a "was ever accepted" flag. That is what flips an
+the _currently_ accepted upstream version, not a "was ever accepted" flag. That is what flips an
 accepted Present to "stale" (Accept disabled) once a newer Draft is accepted.
 
 The comparison is only sound if a content version is never reused for different content. Undo used

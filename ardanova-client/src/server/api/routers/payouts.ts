@@ -133,7 +133,11 @@ export type Withdrawal = z.infer<typeof withdrawalSchema>;
  * is meant to be read; 503 is "this deployment cannot do it at all". Flattening
  * both to BAD_REQUEST tells a person they typed something wrong when they did not.
  */
-function refusal(status: number, message: string | undefined, fallback: string) {
+function refusal(
+  status: number,
+  message: string | undefined,
+  fallback: string,
+) {
   const code =
     status === 401
       ? "UNAUTHORIZED"

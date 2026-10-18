@@ -9,12 +9,7 @@ import { Loader2, Plus, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "~/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "~/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Badge } from "~/components/ui/badge";
 import {
   Select,
@@ -175,10 +170,7 @@ function ProjectEditFormFields({
   const utils = api.useUtils();
 
   const [formData, setFormData] = useState<ProjectEditFormData>(() =>
-    buildEditFormData(
-      project,
-      new Set(categories.map((option) => option.id)),
-    ),
+    buildEditFormData(project, new Set(categories.map((option) => option.id))),
   );
   const [newTag, setNewTag] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -234,8 +226,7 @@ function ProjectEditFormFields({
     if (formData.problemStatement.length < 10)
       newErrors.problemStatement = "Min 10 characters";
     if (!formData.solution.trim()) newErrors.solution = "Required";
-    if (formData.solution.length < 10)
-      newErrors.solution = "Min 10 characters";
+    if (formData.solution.length < 10) newErrors.solution = "Min 10 characters";
     if (formData.categories.length === 0)
       newErrors.categories = "Select at least one category";
     if (
@@ -348,9 +339,7 @@ function ProjectEditFormFields({
                 errors.problemStatement ? "project-problem-error" : undefined
               }
               value={formData.problemStatement}
-              onChange={(e) =>
-                handleChange("problemStatement", e.target.value)
-              }
+              onChange={(e) => handleChange("problemStatement", e.target.value)}
               placeholder="Describe the problem you're solving. What is the issue? Who does it affect?"
               rows={4}
               className={cn(
@@ -695,7 +684,11 @@ function ProjectEditFormFields({
           {formData.tags.length > 0 && (
             <div className="flex flex-wrap gap-2">
               {formData.tags.map((tag) => (
-                <Badge key={tag} variant="secondary" className="gap-1 pr-0 pl-3">
+                <Badge
+                  key={tag}
+                  variant="secondary"
+                  className="gap-1 pr-0 pl-3"
+                >
                   {tag}
                   <button
                     type="button"

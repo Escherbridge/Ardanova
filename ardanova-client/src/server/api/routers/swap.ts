@@ -144,15 +144,13 @@ export const swapRouter = createTRPCRouter({
       );
     }),
 
-  executeSwap: protectedProcedure
-    .input(executeSwapInputSchema)
-    .mutation(() => {
-      throw new TRPCError({
-        code: "SERVICE_UNAVAILABLE",
-        message:
-          "Project share exchange is temporarily unavailable while secure settlement is being completed.",
-      });
-    }),
+  executeSwap: protectedProcedure.input(executeSwapInputSchema).mutation(() => {
+    throw new TRPCError({
+      code: "SERVICE_UNAVAILABLE",
+      message:
+        "Project share exchange is temporarily unavailable while secure settlement is being completed.",
+    });
+  }),
 
   getHistory: protectedProcedure.query(async () => {
     const response = await apiClient.get<unknown>("/api/Swaps/history");

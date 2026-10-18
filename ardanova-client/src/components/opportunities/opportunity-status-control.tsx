@@ -33,7 +33,8 @@ export function OpportunityStatusControl({
       void utils.opportunity.getById.invalidate({ id: opportunityId });
       router.refresh();
     },
-    onError: (error: { message: string }) => toast.error(describeMutationError(error, "update the opportunity")),
+    onError: (error: { message: string }) =>
+      toast.error(describeMutationError(error, "update the opportunity")),
   };
   const update = api.opportunity.update.useMutation(refreshOnChange);
   const close = api.opportunity.close.useMutation(refreshOnChange);
@@ -53,7 +54,9 @@ export function OpportunityStatusControl({
             <Button
               size="sm"
               disabled={isPending}
-              onClick={() => update.mutate({ id: opportunityId, status: "OPEN" })}
+              onClick={() =>
+                update.mutate({ id: opportunityId, status: "OPEN" })
+              }
             >
               {update.isPending ? <Loader2 className="animate-spin" /> : null}
               Open for applications

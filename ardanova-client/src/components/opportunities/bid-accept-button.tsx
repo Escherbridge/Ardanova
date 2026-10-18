@@ -23,13 +23,10 @@ export function BidAcceptButton({
   requiresAccountSetup,
 }: BidAcceptButtonProps) {
   const router = useRouter();
-  const accountStatus = api.azoaCustodialAccount.getStatus.useQuery(
-    undefined,
-    {
-      enabled: requiresAccountSetup,
-      retry: false,
-    },
-  );
+  const accountStatus = api.azoaCustodialAccount.getStatus.useQuery(undefined, {
+    enabled: requiresAccountSetup,
+    retry: false,
+  });
   // Three-way, never a boolean: somebody held for review has finished every step, so telling
   // them to "complete account setup" is an instruction they cannot act on (OI-10).
   const accountEvaluation = evaluateValueActionAccount(accountStatus.data, {
@@ -51,7 +48,8 @@ export function BidAcceptButton({
         );
       }
     },
-    onError: (error) => toast.error(describeMutationError(error, "accept the proposal")),
+    onError: (error) =>
+      toast.error(describeMutationError(error, "accept the proposal")),
   });
 
   return (

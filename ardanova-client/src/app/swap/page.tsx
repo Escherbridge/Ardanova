@@ -185,7 +185,9 @@ export default function SellUnitsPage() {
             <CheckCircle2 className="text-primary mt-0.5 size-5 shrink-0" />
             <div>
               <p className="font-mono text-sm font-bold uppercase">Sold</p>
-              <p className="text-muted-foreground mt-1 text-sm">{soldMessage}</p>
+              <p className="text-muted-foreground mt-1 text-sm">
+                {soldMessage}
+              </p>
               <Button asChild variant="outline" size="sm" className="mt-3">
                 <Link href="/portfolio/withdraw">
                   Send it to your bank
@@ -232,7 +234,10 @@ export default function SellUnitsPage() {
           </div>
 
           {holdings.isLoading ? (
-            <div className="flex items-center justify-center py-8" role="status">
+            <div
+              className="flex items-center justify-center py-8"
+              role="status"
+            >
               <Loader2 className="text-primary size-6 animate-spin" />
             </div>
           ) : holdings.error ? (
@@ -329,7 +334,8 @@ export default function SellUnitsPage() {
                               className="text-muted-foreground text-xs"
                             >
                               You can sell up to{" "}
-                              {formatUnits(holding.sellableUnitCount)} right now.
+                              {formatUnits(holding.sellableUnitCount)} right
+                              now.
                             </p>
                           </div>
 

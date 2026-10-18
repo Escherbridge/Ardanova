@@ -53,7 +53,10 @@ export class TreasuryEndpoint {
     projectId?: string,
   ): Promise<ApiResponse<unknown>> {
     const q = query({ usdAmount, projectId: projectId || undefined });
-    return this.client.post<unknown>(apiPath`/api/Treasury/funding-inflow${q}`, {});
+    return this.client.post<unknown>(
+      apiPath`/api/Treasury/funding-inflow${q}`,
+      {},
+    );
   }
 
   applyIndexReturn(): Promise<ApiResponse<unknown>> {

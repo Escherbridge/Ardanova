@@ -74,16 +74,26 @@ export class AchievementsEndpoint {
     return this.client.post<AchievementDto>("/api/achievements", data);
   }
 
-  update(id: string, data: UpdateAchievementDto): Promise<ApiResponse<AchievementDto>> {
-    return this.client.put<AchievementDto>(apiPath`/api/achievements/${id}`, data);
+  update(
+    id: string,
+    data: UpdateAchievementDto,
+  ): Promise<ApiResponse<AchievementDto>> {
+    return this.client.put<AchievementDto>(
+      apiPath`/api/achievements/${id}`,
+      data,
+    );
   }
 
   delete(id: string): Promise<ApiResponse<boolean>> {
     return this.client.delete<boolean>(apiPath`/api/achievements/${id}`);
   }
 
-  getUserAchievements(userId: string): Promise<ApiResponse<UserAchievementDto[]>> {
-    return this.client.get<UserAchievementDto[]>(apiPath`/api/achievements/user/${userId}`);
+  getUserAchievements(
+    userId: string,
+  ): Promise<ApiResponse<UserAchievementDto[]>> {
+    return this.client.get<UserAchievementDto[]>(
+      apiPath`/api/achievements/user/${userId}`,
+    );
   }
 
   updateProgress(

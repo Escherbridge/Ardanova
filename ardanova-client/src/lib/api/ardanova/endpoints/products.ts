@@ -40,7 +40,9 @@ export class ProductsEndpoint {
   }
 
   getByProjectId(projectId: string): Promise<ApiResponse<Product[]>> {
-    return this.client.get<Product[]>(apiPath`/api/products/project/${projectId}`);
+    return this.client.get<Product[]>(
+      apiPath`/api/products/project/${projectId}`,
+    );
   }
 
   create(data: CreateProduct): Promise<ApiResponse<Product>> {
@@ -56,6 +58,9 @@ export class ProductsEndpoint {
   }
 
   toggleActive(id: string): Promise<ApiResponse<Product>> {
-    return this.client.post<Product>(apiPath`/api/products/${id}/toggle-active`, {});
+    return this.client.post<Product>(
+      apiPath`/api/products/${id}/toggle-active`,
+      {},
+    );
   }
 }

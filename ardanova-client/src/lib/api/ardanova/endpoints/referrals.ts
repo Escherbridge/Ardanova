@@ -50,9 +50,7 @@ export class ReferralsEndpoint {
   }
 
   getByCode(code: string): Promise<ApiResponse<Referral>> {
-    return this.client.get<Referral>(
-      apiPath`/api/referrals/code/${code}`,
-    );
+    return this.client.get<Referral>(apiPath`/api/referrals/code/${code}`);
   }
 
   create(data: CreateReferralDto): Promise<ApiResponse<Referral>> {
@@ -60,14 +58,20 @@ export class ReferralsEndpoint {
   }
 
   complete(id: string): Promise<ApiResponse<Referral>> {
-    return this.client.post<Referral>(apiPath`/api/referrals/${id}/complete`, {});
+    return this.client.post<Referral>(
+      apiPath`/api/referrals/${id}/complete`,
+      {},
+    );
   }
 
   claimReward(
     id: string,
     data: ClaimReferralRewardDto,
   ): Promise<ApiResponse<Referral>> {
-    return this.client.post<Referral>(apiPath`/api/referrals/${id}/claim`, data);
+    return this.client.post<Referral>(
+      apiPath`/api/referrals/${id}/claim`,
+      data,
+    );
   }
 
   expire(id: string): Promise<ApiResponse<Referral>> {

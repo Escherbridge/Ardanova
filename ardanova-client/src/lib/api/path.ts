@@ -21,13 +21,22 @@ export function segment(value: string | number | boolean): string {
 
 /** Builds a `URLSearchParams`, dropping `undefined`/`null`; arrays repeat the key. */
 export function query(
-  params: Record<string, string | number | boolean | null | undefined | ReadonlyArray<string | number | boolean>>,
+  params: Record<
+    string,
+    | string
+    | number
+    | boolean
+    | null
+    | undefined
+    | ReadonlyArray<string | number | boolean>
+  >,
 ): URLSearchParams {
   const search = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {
     if (value === undefined || value === null) continue;
     if (Array.isArray(value)) {
-      for (const item of value as ReadonlyArray<string | number | boolean>) search.append(key, String(item));
+      for (const item of value as ReadonlyArray<string | number | boolean>)
+        search.append(key, String(item));
     } else {
       search.append(key, String(value as string | number | boolean));
     }
@@ -39,7 +48,10 @@ export function query(
  * Tagged template for API paths: values before `?` become encoded segments, values after `?` become
  * encoded query values, and a `URLSearchParams` value is spliced in as a whole query string.
  */
-export function apiPath(strings: TemplateStringsArray, ...values: PathValue[]): string {
+export function apiPath(
+  strings: TemplateStringsArray,
+  ...values: PathValue[]
+): string {
   let out = strings[0] ?? "";
   values.forEach((value, index) => {
     const inQuery = out.includes("?");

@@ -14,7 +14,10 @@ import { runWithActorAssertion } from "~/server/actor-assertion";
 type Reader = { id?: string | null; role?: string } | null | undefined;
 
 /** Runs a read with the reader attached as the actor, or anonymously when signed out. */
-async function readAsViewer<T>(reader: Reader, call: () => Promise<T>): Promise<T> {
+async function readAsViewer<T>(
+  reader: Reader,
+  call: () => Promise<T>,
+): Promise<T> {
   if (!reader?.id) return call();
   return runWithActorAssertion({ subject: reader.id, role: reader.role }, call);
 }
@@ -298,8 +301,7 @@ export const governanceRouter = createTRPCRouter({
   vote: protectedProcedure
     .input(castVoteSchema)
     .mutation(async ({ input, ctx }) => {
-      const choice =
-        input.choice ?? voteTypeToChoice[input.vote ?? "abstain"];
+      const choice = input.choice ?? voteTypeToChoice[input.vote ?? "abstain"];
 
       // `voterId` satisfies the request contract; the backend replaces it with the authenticated actor.
       const response = await apiClient.governance.vote(input.proposalId, {

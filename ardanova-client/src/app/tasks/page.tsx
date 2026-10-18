@@ -463,7 +463,8 @@ export default function TasksPage() {
       void utils.task.getMyTasks.invalidate();
       toast.success("Task updated");
     },
-    onError: (e) => toast.error(describeMutationError(e, "update the task status")),
+    onError: (e) =>
+      toast.error(describeMutationError(e, "update the task status")),
   });
 
   const updatePbiStatus = api.backlog.updatePbiStatus.useMutation({
@@ -471,7 +472,8 @@ export default function TasksPage() {
       setPbiFetchKey((k) => k + 1); // re-trigger PBI fetch
       toast.success("PBI updated");
     },
-    onError: (e) => toast.error(describeMutationError(e, "update the PBI status")),
+    onError: (e) =>
+      toast.error(describeMutationError(e, "update the PBI status")),
   });
 
   const taskRows = useMemo(

@@ -47,7 +47,9 @@ export class EpicsEndpoint {
   constructor(private client: BaseApiClient) {}
 
   getByMilestoneId(milestoneId: string): Promise<ApiResponse<Epic[]>> {
-    return this.client.get<Epic[]>(apiPath`/api/milestones/${milestoneId}/epics`);
+    return this.client.get<Epic[]>(
+      apiPath`/api/milestones/${milestoneId}/epics`,
+    );
   }
 
   getByProjectId(projectId: string): Promise<ApiResponse<Epic[]>> {
@@ -78,7 +80,9 @@ export class EpicsEndpoint {
     id: string,
     priority: EpicPriority,
   ): Promise<ApiResponse<Epic>> {
-    return this.client.put<Epic>(apiPath`/api/epics/${id}/priority`, { priority });
+    return this.client.put<Epic>(apiPath`/api/epics/${id}/priority`, {
+      priority,
+    });
   }
 
   delete(id: string): Promise<ApiResponse<void>> {

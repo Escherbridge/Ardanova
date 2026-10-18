@@ -121,11 +121,17 @@ export class ChatEndpoint {
     );
   }
 
-  getConversation(conversationId: string): Promise<ApiResponse<ChatConversation>> {
-    return this.client.get<ChatConversation>(apiPath`/api/chat/conversations/${conversationId}`);
+  getConversation(
+    conversationId: string,
+  ): Promise<ApiResponse<ChatConversation>> {
+    return this.client.get<ChatConversation>(
+      apiPath`/api/chat/conversations/${conversationId}`,
+    );
   }
 
-  getOrCreateDirect(dto: GetOrCreateDirectDto): Promise<ApiResponse<ChatConversation>> {
+  getOrCreateDirect(
+    dto: GetOrCreateDirectDto,
+  ): Promise<ApiResponse<ChatConversation>> {
     return this.client.post<ChatConversation>(
       "/api/chat/conversations/direct",
       dto,
@@ -168,7 +174,9 @@ export class ChatEndpoint {
     );
   }
 
-  leaveConversation(conversationId: string): Promise<ApiResponse<{ success: boolean }>> {
+  leaveConversation(
+    conversationId: string,
+  ): Promise<ApiResponse<{ success: boolean }>> {
     return this.client.post<{ success: boolean }>(
       apiPath`/api/chat/conversations/${conversationId}/leave`,
       {},
@@ -192,10 +200,7 @@ export class ChatEndpoint {
   }
 
   sendMessage(dto: SendMessageDto): Promise<ApiResponse<ChatMessage>> {
-    return this.client.post<ChatMessage>(
-      "/api/chat/messages",
-      dto,
-    );
+    return this.client.post<ChatMessage>("/api/chat/messages", dto);
   }
 
   updateMessage(
@@ -219,10 +224,9 @@ export class ChatEndpoint {
     );
   }
 
-  sendTypingIndicator(dto: TypingIndicatorDto): Promise<ApiResponse<{ success: boolean }>> {
-    return this.client.post<{ success: boolean }>(
-      "/api/chat/typing",
-      dto,
-    );
+  sendTypingIndicator(
+    dto: TypingIndicatorDto,
+  ): Promise<ApiResponse<{ success: boolean }>> {
+    return this.client.post<{ success: boolean }>("/api/chat/typing", dto);
   }
 }

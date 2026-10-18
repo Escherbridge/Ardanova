@@ -29,7 +29,9 @@ export class StreaksEndpoint {
   }
 
   getByUserId(userId: string): Promise<ApiResponse<UserStreak>> {
-    return this.client.get<UserStreak>(apiPath`/api/userstreaks/user/${userId}`);
+    return this.client.get<UserStreak>(
+      apiPath`/api/userstreaks/user/${userId}`,
+    );
   }
 
   create(data: CreateUserStreakDto): Promise<ApiResponse<UserStreak>> {
