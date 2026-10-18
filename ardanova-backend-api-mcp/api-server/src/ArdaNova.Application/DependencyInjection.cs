@@ -169,6 +169,10 @@ public static class DependencyInjection
         services.AddScoped<IAzoaQuestSignalService, AzoaQuestSignalService>(); // azoa-quest-authoring
         services.AddScoped<IAzoaAllocationService, AzoaAllocationService>();   // treasury-reward-to-azoa-allocation
 
+        // Nova AI (project refinement over the partner validator; IOgaiClient is registered by Infrastructure).
+        services.AddSingleton(sp => new NovaSessionAllowance(sp.GetService<TimeProvider>() ?? TimeProvider.System));
+        services.AddScoped<INovaOrchestrationService, NovaOrchestrationService>();
+
         // Enum lookup (singleton - enum types are static)
         services.AddSingleton<IEnumLookupService, EnumLookupService>();
 

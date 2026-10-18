@@ -37,6 +37,7 @@ import { AddFundsEndpoint } from "./endpoints/add-funds";
 import { TaskEscrowsEndpoint } from "./endpoints/task-escrows";
 import { AzoaCustodialAccountEndpoint } from "./endpoints/azoa-custodial-account";
 import { FundingIntentsEndpoint } from "./endpoints/funding-intents";
+import { NovaEndpoint } from "./endpoints/nova";
 
 // Re-export types from endpoints
 export type {
@@ -307,6 +308,12 @@ export type {
   FundingCheckout,
   FundingIntentStatus,
 } from "./endpoints/funding-intents";
+export type {
+  NovaRefineRequest,
+  NovaRefineResponse,
+  NovaVerdict,
+  NovaBrief,
+} from "./endpoints/nova";
 
 // Re-export schemas for validation
 export {
@@ -363,6 +370,7 @@ export class ArdaNovaApiClient extends BaseApiClient {
   readonly azoaCustodialAccount: AzoaCustodialAccountEndpoint;
   readonly fundingIntents: FundingIntentsEndpoint;
   readonly addFunds: AddFundsEndpoint;
+  readonly nova: NovaEndpoint;
 
   constructor(config: BaseApiClientConfig) {
     super(config);
@@ -403,6 +411,7 @@ export class ArdaNovaApiClient extends BaseApiClient {
     this.azoaCustodialAccount = new AzoaCustodialAccountEndpoint(this);
     this.fundingIntents = new FundingIntentsEndpoint(this);
     this.addFunds = new AddFundsEndpoint(this);
+    this.nova = new NovaEndpoint(this);
   }
 
   health() {

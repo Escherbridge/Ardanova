@@ -10,6 +10,7 @@ using ArdaNova.Domain.Models.Enums;
 using ArdaNova.Infrastructure.Algorand;
 using ArdaNova.Infrastructure.Azoa;
 using ArdaNova.Infrastructure.Data;
+using ArdaNova.Infrastructure.Ogai;
 using ArdaNova.Infrastructure.Outbox;
 using ArdaNova.Infrastructure.Repositories;
 using ArdaNova.Infrastructure.Security;
@@ -190,6 +191,9 @@ public static class DependencyInjection
         // unless its own flag is explicitly "false".
         services.AddSettlementPendingPromoter(configuration);
         services.AddParkedPayoutReconciler(configuration);
+
+        // Nova AI upstream (OVERSEASGENAI partner API); see Ogai/AGENTS.md.
+        services.AddOgai(configuration, isProduction);
 
         var outboxOptions = CreateOutboxOptions(azoaSettings);
         services.AddSingleton(outboxOptions);

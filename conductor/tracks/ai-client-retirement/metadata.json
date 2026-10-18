@@ -1,0 +1,9 @@
+{
+  "id": "ai-client-retirement",
+  "title": "Retire ardanova-ai-client",
+  "type": "chore",
+  "status": "proposed",
+  "created": "2026-10-17",
+  "supersededBy": "nova-ai-ogai-partner",
+  "partitions": { "confidence": "none" }
+}
