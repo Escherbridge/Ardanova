@@ -102,3 +102,4 @@ in-flight security-hardening pass.
 - [ ] [Nova AI powered by OVERSEASGENAI](tracks/nova-ai-ogai-partner/spec.md) - White-label project refinement via the OGAI partner validate API; .NET-only caller. **Loop 1 built; rollout owner-gated.**
 - [ ] [Retire ardanova-ai-client](tracks/ai-client-retirement/spec.md) - Dormant FastAPI/CrewAI service superseded by Nova AI; routes now key-guarded. **Proposal; owner decides deletion.**
 - [ ] [Backend Authorization Hardening](tracks/backend-authz-hardening_20261017/spec.md) - User PII projection, actor gating for 12 service-key-only controllers, ownership checks moved into .NET services. **P0 security; from loop-1 backend QA.**
+- [ ] [Design-System Debt Burn-down](tracks/design-debt-burndown_20261017/spec.md) - Move ~70 raw `error.message` sites, 156 raw palette classes and 34 shared titles onto the loop-2 seams; ratchet in `design-gate.test.ts`. **P1; from loop-2 design QA.**
