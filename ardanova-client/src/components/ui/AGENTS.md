@@ -58,6 +58,24 @@ Rendering `{mutation.error.message}` is how `/tasks/create` showed users
   client-side navigation `catch`, whose `Error` is authored locally, not a tRPC
   failure. The gate's notifier ratchet (`RAW_ERROR_NOTIFIER_CEILING`) counts
   `toast(...)`/`alert(...)` calls whose arguments contain any `x.message`.
+- Operator wording is never prose for users. A backend `Conflict("AZOA
+  tenant-bound custodial account onboarding is not configured.")` passed the
+  length/JSON filter and reached `/dashboard/profile` verbatim. `OPERATOR_MESSAGE`
+  (config, tenant, custodial, vendor and key vocabulary) now short-circuits
+  `describeMutationError` to "this is not switched on for this deployment yet",
+  which reuses the withdraw page's voice. `isOperatorMessage(error)` is
+  exported for callers that render query errors themselves. This is still a
+  blocklist; the durable fix is a backend reason code mapped to copy here.
+
+## layout-primitives
+
+- `Card` carries `min-w-0`. Cards are usually grid items, and a grid track
+  `1fr` is `minmax(auto, 1fr)`: without `min-w-0` one unbreakable string
+  (a long profile URL, even inside a `truncate` link, because `overflow`
+  does not reduce an item's min-content contribution) widened the track past
+  the viewport. That was the 484px-wide `/dashboard/profile` at 390px.
+- `TabsList` carries `max-w-full overflow-x-auto`, so a tab strip that is
+  wider than its column scrolls inside itself instead of widening the page.
 
 ## status-page
 
