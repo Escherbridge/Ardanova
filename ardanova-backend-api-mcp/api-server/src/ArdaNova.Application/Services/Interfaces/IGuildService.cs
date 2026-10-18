@@ -54,6 +54,8 @@ public interface IGuildApplicationService
     /// <summary>Readable by the guild's managers only.</summary>
     Task<Result<IReadOnlyList<GuildApplicationDto>>> GetByGuildIdAsync(string guildId, GuildActor actor, CancellationToken ct = default);
     Task<Result<IReadOnlyList<GuildApplicationDto>>> GetByUserIdAsync(string userId, CancellationToken ct = default);
+    /// <summary>The signed actor's own applications to this guild, newest first.</summary>
+    Task<Result<IReadOnlyList<GuildApplicationDto>>> GetMineAsync(string guildId, GuildActor actor, CancellationToken ct = default);
     Task<Result<GuildApplicationDto>> CreateAsync(string guildId, GuildActor actor, CreateGuildApplicationDto dto, CancellationToken ct = default);
     Task<Result<GuildApplicationDto>> AcceptAsync(string guildId, string id, GuildActor actor, string? reviewMessage, CancellationToken ct = default);
     Task<Result<GuildApplicationDto>> RejectAsync(string guildId, string id, GuildActor actor, string? reviewMessage, CancellationToken ct = default);

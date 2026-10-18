@@ -368,17 +368,16 @@ public class GuildMemberService : IGuildMemberService
         return Result<IReadOnlyList<GuildMemberDto>>.Success(members.Select(m => ToDto(m, null)).ToList());
     }
 
+    /// <summary>Platform-operator repair path only: everyone else joins by accepting an invitation or an approved application, so nobody is listed in a guild without consenting.</summary>
     public async Task<Result<GuildMemberDto>> CreateAsync(string guildId, GuildActor actor, CreateGuildMemberDto dto, CancellationToken ct = default)
     {
         var guild = await _guildRepository.GetByIdAsync(guildId, ct);
         if (guild is null)
             return Result<GuildMemberDto>.NotFound($"Guild with id {guildId} not found");
-        if (!await GuildAuthority.CanManageAsync(guild, actor, _repository, ct))
-            return Result<GuildMemberDto>.Forbidden("Only the guild's owner or admins can add members");
+        if (!actor.IsPlatformAdmin)
+            return Result<GuildMemberDto>.Forbidden("People join a guild by accepting an invitation or through an approved application");
         if (dto.Role == GuildMemberRole.OWNER || !Enum.IsDefined(dto.Role))
             return Result<GuildMemberDto>.ValidationError(GuildAuthority.GrantableRolesMessage);
-        if (dto.Role == GuildMemberRole.ADMIN && !await GuildAuthority.IsOwnerAsync(guild, actor, _repository, ct))
-            return Result<GuildMemberDto>.Forbidden("Only the guild owner can appoint admins");
 
         var user = await _userRepository.GetByIdAsync(dto.UserId, ct);
         if (user is null)
@@ -737,17 +736,20 @@ public class GuildApplicationService : IGuildApplicationService
     private readonly IRepository<GuildMember> _memberRepository;
     private readonly IRepository<Guild> _guildRepository;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IRepository<User>? _userRepository;
 
     public GuildApplicationService(
         IRepository<GuildApplication> repository,
         IRepository<GuildMember> memberRepository,
         IRepository<Guild> guildRepository,
-        IUnitOfWork unitOfWork)
+        IUnitOfWork unitOfWork,
+        IRepository<User>? userRepository = null)
     {
         _repository = repository;
         _memberRepository = memberRepository;
         _guildRepository = guildRepository;
         _unitOfWork = unitOfWork;
+        _userRepository = userRepository;
     }
 
     private static GuildApplicationDto ToDto(GuildApplication application) => new()
@@ -796,13 +798,37 @@ public class GuildApplicationService : IGuildApplicationService
             return Result<IReadOnlyList<GuildApplicationDto>>.Forbidden("Only the guild's owner or admins can read applications");
 
         var applications = await _repository.FindAsync(a => a.guildId == guildId, ct);
-        return Result<IReadOnlyList<GuildApplicationDto>>.Success(applications.OrderByDescending(a => a.appliedAt).Select(ToDto).ToList());
+        var applicantIds = applications.Select(a => a.userId).Distinct().ToList();
+        var applicants = _userRepository is null || applicantIds.Count == 0
+            ? new Dictionary<string, User>()
+            : (await _userRepository.FindAsync(u => applicantIds.Contains(u.id), ct)).ToDictionary(u => u.id);
+
+        return Result<IReadOnlyList<GuildApplicationDto>>.Success(applications
+            .OrderByDescending(a => a.appliedAt)
+            .Select(a => ToDto(a) with
+            {
+                Applicant = applicants.TryGetValue(a.userId, out var user)
+                    ? new GuildMemberUserDto { Id = user.id, Name = user.name, Image = user.image }
+                    : null
+            })
+            .ToList());
     }
 
     public async Task<Result<IReadOnlyList<GuildApplicationDto>>> GetByUserIdAsync(string userId, CancellationToken ct = default)
     {
         var applications = await _repository.FindAsync(a => a.userId == userId, ct);
         return Result<IReadOnlyList<GuildApplicationDto>>.Success(applications.Select(ToDto).ToList());
+    }
+
+    public async Task<Result<IReadOnlyList<GuildApplicationDto>>> GetMineAsync(string guildId, GuildActor actor, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(actor.Id))
+            return Result<IReadOnlyList<GuildApplicationDto>>.Success(Array.Empty<GuildApplicationDto>());
+
+        var applicantId = actor.Id;
+        var applications = await _repository.FindAsync(a => a.guildId == guildId && a.userId == applicantId, ct);
+        return Result<IReadOnlyList<GuildApplicationDto>>.Success(
+            applications.OrderByDescending(a => a.appliedAt).Select(ToDto).ToList());
     }
 
     public async Task<Result<GuildApplicationDto>> CreateAsync(string guildId, GuildActor actor, CreateGuildApplicationDto dto, CancellationToken ct = default)
@@ -965,6 +991,7 @@ public class GuildInvitationService : IGuildInvitationService
         _unitOfWork = unitOfWork;
     }
 
+    /// <summary>The invitee's view. Managers get <see cref="ToManagerDto"/>.</summary>
     private static GuildInvitationDto ToDto(GuildInvitation invitation, Guild? guild) => new()
     {
         Id = invitation.id,
@@ -981,6 +1008,13 @@ public class GuildInvitationService : IGuildInvitationService
         ExpiresAt = invitation.expiresAt,
         RespondedAt = invitation.respondedAt
     };
+
+    /// <summary>A manager's view: an email invitation never says which account (if any) the email resolved to. See Services/AGENTS.md §Email invitations.</summary>
+    private static GuildInvitationDto ToManagerDto(GuildInvitation invitation, Guild? guild)
+    {
+        var dto = ToDto(invitation, guild);
+        return invitation.invitedEmail is null ? dto : dto with { InvitedUserId = null };
+    }
 
     private static bool IsAnswerable(GuildInvitation invitation) =>
         invitation.status == InvitationStatus.PENDING &&
@@ -1003,7 +1037,7 @@ public class GuildInvitationService : IGuildInvitationService
         var isInvitee = invitation.invitedUserId is not null && invitation.invitedUserId == actor.Id;
         if (!isInvitee && !await GuildAuthority.CanManageAsync(guild, actor, _memberRepository, ct))
             return Result<GuildInvitationDto>.Forbidden("Only the invitee or the guild's managers can read this invitation");
-        return Result<GuildInvitationDto>.Success(ToDto(invitation, guild));
+        return Result<GuildInvitationDto>.Success(isInvitee ? ToDto(invitation, guild) : ToManagerDto(invitation, guild));
     }
 
     public async Task<Result<IReadOnlyList<GuildInvitationDto>>> GetByGuildIdAsync(string guildId, GuildActor actor, CancellationToken ct = default)
@@ -1016,7 +1050,7 @@ public class GuildInvitationService : IGuildInvitationService
 
         var invitations = await _repository.FindAsync(i => i.guildId == guildId, ct);
         return Result<IReadOnlyList<GuildInvitationDto>>.Success(
-            invitations.OrderByDescending(i => i.createdAt).Select(i => ToDto(i, guild)).ToList());
+            invitations.OrderByDescending(i => i.createdAt).Select(i => ToManagerDto(i, guild)).ToList());
     }
 
     public async Task<Result<IReadOnlyList<GuildInvitationDto>>> GetPendingForUserAsync(string userId, CancellationToken ct = default)
@@ -1039,7 +1073,7 @@ public class GuildInvitationService : IGuildInvitationService
             .ToList());
     }
 
-    /// <summary>Binds the invitation to a real account at creation, so accept can require that exact actor.</summary>
+    /// <summary>By account id: bound to that account. By email: always answers the same way, whether or not an account uses the email (Services/AGENTS.md §Email invitations).</summary>
     public async Task<Result<GuildInvitationDto>> CreateAsync(string guildId, GuildActor actor, CreateGuildInvitationDto dto, CancellationToken ct = default)
     {
         var guild = await _guildRepository.GetByIdAsync(guildId, ct);
@@ -1052,35 +1086,45 @@ public class GuildInvitationService : IGuildInvitationService
         if (role == GuildMemberRole.ADMIN && !await GuildAuthority.IsOwnerAsync(guild, actor, _memberRepository, ct))
             return Result<GuildInvitationDto>.Forbidden("Only the guild owner can invite an admin");
 
-        User? invitee = null;
+        string? inviteeId;
         string? invitedEmail = null;
         if (!string.IsNullOrWhiteSpace(dto.InvitedUserId))
         {
-            invitee = await _userRepository.GetByIdAsync(dto.InvitedUserId, ct);
+            // Account ids come from public member and profile lists, so naming one reveals nothing new.
+            var invitee = await _userRepository.GetByIdAsync(dto.InvitedUserId, ct);
+            if (invitee is null)
+                return Result<GuildInvitationDto>.NotFound("That user does not exist");
+
+            inviteeId = invitee.id;
+            if (await GuildAuthority.IsMemberAsync(guild, inviteeId, _memberRepository, ct))
+                return Result<GuildInvitationDto>.Conflict("That person is already a member of this guild");
+            if (await HasAnswerableInvitationAsync(guildId, inviteeId, ct))
+                return Result<GuildInvitationDto>.Conflict("That person already has an invitation waiting");
         }
         else if (!string.IsNullOrWhiteSpace(dto.InvitedEmail))
         {
             invitedEmail = dto.InvitedEmail.Trim().ToLowerInvariant();
             var email = invitedEmail;
-            invitee = await _userRepository.FindOneAsync(u => u.email.ToLower() == email, ct);
+
+            // Only the inviter's own earlier email invitations decide a conflict here, never anything about the account.
+            var sameEmail = await _repository.FindAsync(
+                i => i.guildId == guildId && i.invitedEmail == email && i.status == InvitationStatus.PENDING, ct);
+            if (sameEmail.Any(IsAnswerable))
+                return Result<GuildInvitationDto>.Conflict("An invitation to that email is already waiting");
+
+            // Bind only when an account owns the email, is not yet a member, and has nothing waiting; otherwise store an
+            // unbound row that nobody can accept. Either way the inviter sees the same answer.
+            var owner = await _userRepository.FindOneAsync(u => u.email.ToLower() == email, ct);
+            inviteeId = owner is not null &&
+                        !await GuildAuthority.IsMemberAsync(guild, owner.id, _memberRepository, ct) &&
+                        !await HasAnswerableInvitationAsync(guildId, owner.id, ct)
+                ? owner.id
+                : null;
         }
         else
         {
             return Result<GuildInvitationDto>.ValidationError("Name the person to invite by their account email");
         }
-
-        // An invitation nobody can be proven to own is one nobody can accept; refuse it now rather than store it.
-        if (invitee is null)
-            return Result<GuildInvitationDto>.ValidationError("No ArdaNova account uses that email yet. Ask them to sign up, then invite them again.");
-
-        var inviteeId = invitee.id;
-        if (await GuildAuthority.IsMemberAsync(guild, inviteeId, _memberRepository, ct))
-            return Result<GuildInvitationDto>.Conflict("That person is already a member of this guild");
-
-        var open = await _repository.FindAsync(
-            i => i.guildId == guildId && i.invitedUserId == inviteeId && i.status == InvitationStatus.PENDING, ct);
-        if (open.Any(IsAnswerable))
-            return Result<GuildInvitationDto>.Conflict("That person already has an invitation waiting");
 
         var invitation = new GuildInvitation
         {
@@ -1099,7 +1143,14 @@ public class GuildInvitationService : IGuildInvitationService
 
         await _repository.AddAsync(invitation, ct);
         await _unitOfWork.SaveChangesAsync(ct);
-        return Result<GuildInvitationDto>.Success(ToDto(invitation, guild));
+        return Result<GuildInvitationDto>.Success(ToManagerDto(invitation, guild));
+    }
+
+    private async Task<bool> HasAnswerableInvitationAsync(string guildId, string userId, CancellationToken ct)
+    {
+        var open = await _repository.FindAsync(
+            i => i.guildId == guildId && i.invitedUserId == userId && i.status == InvitationStatus.PENDING, ct);
+        return open.Any(IsAnswerable);
     }
 
     /// <summary>Only the bound invitee may accept, once, while the invitation is still pending and unexpired.</summary>

@@ -103,6 +103,7 @@ public class GuildsController : ControllerBase
     public async Task<IActionResult> GetMemberById(string guildId, string memberId, CancellationToken ct)
         => ToActionResult(await _memberService.GetByIdAsync(guildId, memberId, ct));
 
+    /// <summary>Platform-operator repair only; people otherwise join through an invitation or an application they made.</summary>
     [HttpPost("{guildId}/members")]
     [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
     public async Task<IActionResult> AddMember(string guildId, [FromBody] CreateGuildMemberDto dto, CancellationToken ct)
@@ -190,6 +191,12 @@ public class GuildsController : ControllerBase
     [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
     public async Task<IActionResult> GetApplications(string guildId, CancellationToken ct)
         => ToActionResult(await _applicationService.GetByGuildIdAsync(guildId, Actor, ct));
+
+    /// <summary>The signed actor's own applications to this guild, so a visitor can see what they already asked for.</summary>
+    [HttpGet("{guildId}/applications/mine")]
+    [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
+    public async Task<IActionResult> GetMyApplications(string guildId, CancellationToken ct)
+        => ToActionResult(await _applicationService.GetMineAsync(guildId, Actor, ct));
 
     [HttpGet("{guildId}/applications/{applicationId}")]
     [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]

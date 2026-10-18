@@ -32,6 +32,7 @@ public class GuildAuthorityFlowTests
     private static readonly GuildActor Bob = new("bob");
     private static readonly GuildActor Carol = new("carol");
     private static readonly GuildActor Mallory = new("mallory");
+    private static readonly GuildActor PlatformOperator = new("ops", IsPlatformAdmin: true);
 
     public GuildAuthorityFlowTests()
     {
@@ -39,7 +40,7 @@ public class GuildAuthorityFlowTests
         _guildService = new GuildService(_guilds, _members, _tasks, _unitOfWork, mapper);
         _memberService = new GuildMemberService(_members, _guilds, _users, _unitOfWork);
         _invitationService = new GuildInvitationService(_invitations, _members, _guilds, _users, _unitOfWork);
-        _applicationService = new GuildApplicationService(_applications, _members, _guilds, _unitOfWork);
+        _applicationService = new GuildApplicationService(_applications, _members, _guilds, _unitOfWork, _users);
         _reviewService = new GuildReviewService(_reviews, _guilds, _members, _unitOfWork);
 
         foreach (var id in new[] { "alice", "bob", "carol", "mallory" })
@@ -164,7 +165,6 @@ public class GuildAuthorityFlowTests
     }
 
     [Theory]
-    [InlineData("nobody@example.test", "MEMBER", ResultType.ValidationError)]
     [InlineData("carol@example.test", "OWNER", ResultType.ValidationError)]
     [InlineData("carol@example.test", "NOT_A_ROLE", ResultType.ValidationError)]
     public async Task Invitations_that_could_never_be_honoured_are_refused_and_not_stored(string email, string role, ResultType expected)
@@ -230,13 +230,15 @@ public class GuildAuthorityFlowTests
         var selfInviteByEmail = await _invitationService.CreateAsync(guild.id, Alice, new CreateGuildInvitationDto { InvitedEmail = "alice@example.test", Role = "MEMBER" });
         var adminInvitesOwner = await _invitationService.CreateAsync(guild.id, Bob, new CreateGuildInvitationDto { InvitedUserId = "alice", Role = "MEMBER" });
         var ownerApplies = await _applicationService.CreateAsync(guild.id, Alice, new CreateGuildApplicationDto { RequestedRole = "MEMBER", Message = "Let me in" });
-        var ownerAdded = await _memberService.CreateAsync(guild.id, Alice, new CreateGuildMemberDto { UserId = "alice", Role = GuildMemberRole.MEMBER });
+        var ownerAdded = await _memberService.CreateAsync(guild.id, PlatformOperator, new CreateGuildMemberDto { UserId = "alice", Role = GuildMemberRole.MEMBER });
 
-        selfInviteByEmail.Type.Should().Be(ResultType.Conflict);
+        // By email the answer cannot differ by account, so the owner's own email yields an unbound row nobody can accept.
+        selfInviteByEmail.IsSuccess.Should().BeTrue(selfInviteByEmail.Error);
+        _invitations.Rows.Should().ContainSingle().Which.invitedUserId.Should().BeNull();
+        (await _invitationService.GetPendingForUserAsync("alice")).Value.Should().BeEmpty();
         adminInvitesOwner.Type.Should().Be(ResultType.Conflict);
         ownerApplies.Type.Should().Be(ResultType.Conflict);
         ownerAdded.Type.Should().Be(ResultType.Conflict);
-        _invitations.Rows.Should().BeEmpty();
         _applications.Rows.Should().BeEmpty();
         _members.Rows.Should().NotContain(m => m.userId == "alice", "the owner must not gain a second, lesser membership");
     }
@@ -327,10 +329,74 @@ public class GuildAuthorityFlowTests
         _reviews.Rows.Should().ContainSingle().Which.projectId.Should().Be("carols-roof");
     }
 
+    [Fact]
+    public async Task An_email_invitation_answers_the_same_whether_or_not_an_account_uses_the_email()
+    {
+        var guild = await Found(Mallory, "Probe guild");
+        await AddMember(guild.Id, Mallory, "bob", GuildMemberRole.MEMBER);
+
+        var unknown = await _invitationService.CreateAsync(guild.Id, Mallory, new CreateGuildInvitationDto { InvitedEmail = "nobody@example.test", Role = "MEMBER" });
+        var existingMember = await _invitationService.CreateAsync(guild.Id, Mallory, new CreateGuildInvitationDto { InvitedEmail = "bob@example.test", Role = "MEMBER" });
+        var realAccount = await _invitationService.CreateAsync(guild.Id, Mallory, new CreateGuildInvitationDto { InvitedEmail = "carol@example.test", Role = "MEMBER" });
+        var managerView = await _invitationService.GetByGuildIdAsync(guild.Id, Mallory);
+
+        foreach (var answer in new[] { unknown, existingMember, realAccount })
+        {
+            answer.IsSuccess.Should().BeTrue(answer.Error);
+            answer.Value!.InvitedUserId.Should().BeNull("which account an email resolved to is never shown to the inviter");
+            answer.Value.Status.Should().Be("PENDING");
+        }
+        managerView.Value!.Where(i => i.InvitedEmail != null).Should().HaveCount(3)
+            .And.OnlyContain(i => i.InvitedUserId == null);
+
+        // Only the account that is not yet a member actually receives it.
+        (await _invitationService.GetPendingForUserAsync("carol")).Value.Should().ContainSingle();
+        (await _invitationService.GetPendingForUserAsync("bob")).Value.Should().BeEmpty();
+        _invitations.Rows.Count(i => i.invitedUserId == null).Should().Be(2);
+
+        var again = await _invitationService.CreateAsync(guild.Id, Mallory, new CreateGuildInvitationDto { InvitedEmail = "NOBODY@example.test", Role = "MEMBER" });
+        again.Type.Should().Be(ResultType.Conflict, "a repeat of the inviter's own pending email invite is the only email conflict");
+    }
+
+    [Fact]
+    public async Task A_guild_manager_cannot_put_someone_in_the_guild_without_their_consent()
+    {
+        var guild = await Found(Alice, "Roofers");
+
+        var forced = await _memberService.CreateAsync(guild.Id, Alice, new CreateGuildMemberDto { UserId = "carol", Role = GuildMemberRole.MEMBER });
+        var repaired = await _memberService.CreateAsync(guild.Id, PlatformOperator, new CreateGuildMemberDto { UserId = "bob", Role = GuildMemberRole.MEMBER });
+
+        forced.Type.Should().Be(ResultType.Forbidden);
+        _members.Rows.Should().NotContain(m => m.userId == "carol");
+        repaired.IsSuccess.Should().BeTrue(repaired.Error);
+    }
+
+    [Fact]
+    public async Task A_visitor_sees_and_can_withdraw_their_own_pending_application_and_managers_see_who_applied()
+    {
+        var guild = await Found(Alice, "Roofers");
+        var applied = await _applicationService.CreateAsync(guild.Id, Carol, new CreateGuildApplicationDto { RequestedRole = "APPRENTICE", Message = "I want to learn roofing from you all." });
+
+        var mine = await _applicationService.GetMineAsync(guild.Id, Carol);
+        var someoneElses = await _applicationService.GetMineAsync(guild.Id, Bob);
+        var managerList = await _applicationService.GetByGuildIdAsync(guild.Id, Alice);
+        var withdrawn = await _applicationService.WithdrawAsync(guild.Id, applied.Value!.Id, Carol);
+        var reapplied = await _applicationService.CreateAsync(guild.Id, Carol, new CreateGuildApplicationDto { RequestedRole = "MEMBER", Message = "Trying again as a full member." });
+
+        mine.Value!.Should().ContainSingle().Which.Status.Should().Be("PENDING");
+        someoneElses.Value.Should().BeEmpty();
+        managerList.Value!.Single().Applicant!.Name.Should().Be("Carol");
+        withdrawn.Value!.Status.Should().Be("WITHDRAWN");
+        reapplied.IsSuccess.Should().BeTrue("a withdrawn application no longer blocks a new one");
+    }
+
+    /// <summary>Joins someone the way the product does: the manager invites by account id and the person accepts.</summary>
     private async Task<GuildMemberDto> AddMember(string guildId, GuildActor by, string userId, GuildMemberRole role)
     {
-        var result = await _memberService.CreateAsync(guildId, by, new CreateGuildMemberDto { UserId = userId, Role = role });
-        result.IsSuccess.Should().BeTrue(result.Error);
-        return result.Value!;
+        var invite = await _invitationService.CreateAsync(guildId, by, new CreateGuildInvitationDto { InvitedUserId = userId, Role = role.ToString() });
+        invite.IsSuccess.Should().BeTrue(invite.Error);
+        var accepted = await _invitationService.AcceptAsync(guildId, invite.Value!.Id, new GuildActor(userId));
+        accepted.IsSuccess.Should().BeTrue(accepted.Error);
+        return (await _memberService.GetByGuildIdAsync(guildId)).Value!.Single(m => m.UserId == userId);
     }
 }
