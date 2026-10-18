@@ -80,6 +80,22 @@ public static class ProjectMemberRolePolicy
         return Rank(targetRole) < actorRank ? null : OutranksActor;
     }
 
+    /// <summary>The role an accepted applicant is seated with: the role offered, CONTRIBUTOR when none (never FOUNDER).</summary>
+    public static ProjectRole SeatedRole(ProjectRole? offeredRole)
+        => offeredRole is { } role && role != ProjectRole.FOUNDER ? role : ProjectRole.CONTRIBUTOR;
+
+    /// <summary>Hiring is a second way to grant a role: posting or accepting one obeys the same "below your own" rule.</summary>
+    public static string? RefuseRoleOffer(bool actorIsAdmin, ProjectRole? actorRole, ProjectRole? offeredRole)
+    {
+        if (offeredRole == ProjectRole.FOUNDER)
+            return FounderIsNotGrantable;
+        if (actorIsAdmin)
+            return null;
+
+        var actorRank = actorRole is { } role ? Rank(role) : -1;
+        return Rank(SeatedRole(offeredRole)) < actorRank ? null : OutranksActor;
+    }
+
     /// <summary>Deleting the project is the founder's (or an admin's) call, not every manager's.</summary>
     public static string? RefuseProjectDelete(bool actorIsAdmin, ProjectRole? actorRole)
         => actorIsAdmin || actorRole == ProjectRole.FOUNDER ? null : FounderOnlyDelete;

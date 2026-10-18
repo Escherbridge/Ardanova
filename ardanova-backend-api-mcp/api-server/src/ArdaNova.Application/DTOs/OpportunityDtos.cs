@@ -207,3 +207,6 @@ public record CreateOpportunityCommentDto
     public required string Content { get; init; }
     public string? ParentId { get; init; }
 }
+
+/// <summary>Whether the signed viewer may manage an opportunity (post, open, review applicants).</summary>
+public sealed record OpportunityViewerManagementDto(bool CanManage);

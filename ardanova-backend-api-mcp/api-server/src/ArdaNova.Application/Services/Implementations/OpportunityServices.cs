@@ -74,12 +74,32 @@ public class OpportunityService : IOpportunityService
             id = Guid.NewGuid().ToString(),
             projectId = projectId,
             userId = application.applicantId,
-            role = opportunity.projectRole is { } role && role != ProjectRole.FOUNDER ? role : ProjectRole.CONTRIBUTOR,
+            role = ProjectMemberRolePolicy.SeatedRole(opportunity.projectRole),
             shareBalance = 0,
             votingPower = 0,
             joinedAt = DateTime.UtcNow,
             invitedById = opportunity.posterId
         }, ct);
+    }
+
+    public async Task<string?> RefuseRoleOfferAsync(
+        ProjectViewer actor,
+        string projectId,
+        ProjectRole? offeredRole,
+        CancellationToken ct = default)
+    {
+        if (actor.IsAdmin || string.IsNullOrEmpty(actor.UserId))
+            return ProjectMemberRolePolicy.RefuseRoleOffer(actor.IsAdmin, null, offeredRole);
+
+        var project = await _projectRepository.GetByIdAsync(projectId, ct);
+        if (project is null)
+            return ProjectMemberRolePolicy.RefuseRoleOffer(false, null, offeredRole);
+
+        var actorId = actor.UserId;
+        var membership = await _memberRepository.FindOneAsync(
+            member => member.projectId == projectId && member.userId == actorId, ct);
+        var standing = ProjectMemberRolePolicy.EffectiveRole(actorId, project.createdById, membership?.role);
+        return ProjectMemberRolePolicy.RefuseRoleOffer(false, standing, offeredRole);
     }
 
     /// <summary>Opportunities this viewer may see; see Services/Implementations/AGENTS.md section Opportunity visibility.</summary>
@@ -246,13 +266,14 @@ public class OpportunityService : IOpportunityService
         if (dto.EquityPercent is < 0 or > 100)
             return Result<OpportunityDto>.ValidationError("Equity percent must be between 0 and 100.");
 
+        var isTeamPosition = !string.IsNullOrEmpty(dto.ProjectId) && dto.Origin == OpportunityOrigin.TEAM_POSITION;
         var opportunity = new Opportunity
         {
             id = Guid.NewGuid().ToString(),
             title = dto.Title,
             slug = GenerateSlug(dto.Title),
             description = dto.Description,
-            type = dto.Type,
+            type = isTeamPosition && dto.Type == OpportunityType.GUILD_POSITION ? OpportunityType.PROJECT_ROLE : dto.Type,
             status = dto.IsOpenForApplications ? OpportunityStatus.OPEN : OpportunityStatus.DRAFT,
             experienceLevel = dto.ExperienceLevel,
             requirements = dto.Requirements,
@@ -271,7 +292,8 @@ public class OpportunityService : IOpportunityService
             projectId = dto.ProjectId,
             taskId = dto.TaskId,
             origin = dto.Origin,
-            projectRole = dto.ProjectRole,
+            // A team position always names the seat it fills; unnamed means the CONTRIBUTOR seat it would get anyway.
+            projectRole = isTeamPosition ? ProjectMemberRolePolicy.SeatedRole(dto.ProjectRole) : dto.ProjectRole,
             createdAt = DateTime.UtcNow,
             updatedAt = DateTime.UtcNow
         };

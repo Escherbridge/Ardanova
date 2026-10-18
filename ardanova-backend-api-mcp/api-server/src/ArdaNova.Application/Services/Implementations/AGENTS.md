@@ -183,3 +183,27 @@ founder's project, seat anyone as FOUNDER, or raise their own role, so:
 `ProjectMemberService.DeleteAsync` unassigns the removed person's unfinished tasks in that project in
 the same save, so a former member cannot keep moving work they no longer belong to; completed tasks
 keep their assignee as history.
+
+Hiring and invitations are two more ways to give someone a role, so both follow the same rule,
+through `ProjectMemberRolePolicy.RefuseRoleOffer`: FOUNDER is never offered, and an actor offers
+only roles below their own rank. Before this rule, a CORE_CONTRIBUTOR could post a LEADER role,
+accept an application from a sock-puppet account, and then be demoted by the LEADER they had just
+seated. `OpportunitiesController` calls `IOpportunityService.RefuseRoleOfferAsync` in three places:
+on create, on a role change, and again on ACCEPT. The ACCEPT check uses the *reviewer's* rank, so a
+role the founder posted cannot be granted by a lower-ranked co-manager who happens to review it.
+`ProjectsController.CreateInvitation` applies the same policy to the invited role. An unknown role
+string now returns 400; before, `Enum.Parse` crashed.
+
+A project TEAM_POSITION always records the seat it fills. A position posted without a role is stored
+as CONTRIBUTOR, the seat `SeatedRole` would assign anyway. A GUILD_POSITION type on a project is
+stored as PROJECT_ROLE. Without these defaults, positions posted from the project's Team Positions
+tab had `projectRole = null`, so the tab never showed them.
+
+# Hierarchy read visibility
+
+Reads of epics, sprints, features and product backlog items (by id, by project and by parent) all
+call `ProjectVisibilityExtensions.IsVisibleAsync` before returning anything. This is the same
+"404 before 403" rule as in `TasksController`: if the viewer cannot see the project, the item (or its
+parent) returns the same 404 body as a missing item. An empty 200 list would also reveal that the
+hidden project exists. The tRPC `publicProcedure` attaches the signed-in actor, so a draft project's
+own team can still read its backlog.

@@ -8,6 +8,7 @@ using ArdaNova.Application.Services.Implementations;
 using ArdaNova.Application.Services.Interfaces;
 using ArdaNova.Domain.Models.Enums;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
 [ApiController]
@@ -126,6 +127,8 @@ public class OpportunitiesController : ControllerBase
             ct);
         if (readinessFailure is not null)
             return readinessFailure;
+        if (hasProject && await RoleOfferRefusedAsync(dto.ProjectId!, dto.ProjectRole, ct) is { } refused)
+            return refused;
 
         var result = await _opportunityService.CreateAsync(dto with { PosterId = ActorId }, ct);
         return result.IsSuccess
@@ -142,6 +145,11 @@ public class OpportunitiesController : ControllerBase
             return ToActionResult(opportunity);
 
         var currentOpportunity = opportunity.Value!;
+        if (dto.ProjectRole.HasValue &&
+            !string.IsNullOrWhiteSpace(currentOpportunity.ProjectId) &&
+            await RoleOfferRefusedAsync(currentOpportunity.ProjectId, dto.ProjectRole, ct) is { } refused)
+            return refused;
+
         var readinessFailure = await RequireValueListingAccountSetupAsync(
             dto.Compensation ?? currentOpportunity.Compensation,
             currentOpportunity.EquityPercent,
@@ -209,6 +217,19 @@ public class OpportunitiesController : ControllerBase
         return ToActionResult(result);
     }
 
+    /// <summary>Whether the signed viewer manages this opportunity (any project manager, not only its poster); 404 when hidden.</summary>
+    [HttpGet("{id}/management")]
+    [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
+    public async Task<IActionResult> GetViewerManagement(string id, CancellationToken ct)
+    {
+        var visible = await _opportunityService.GetVisibleByIdAsync(Viewer, id, ct);
+        if (!visible.IsSuccess)
+            return ToActionResult(visible);
+
+        var managed = await GetManagedOpportunityAsync(id, ct);
+        return Ok(new OpportunityViewerManagementDto(managed.IsSuccess));
+    }
+
     [HttpPatch("applications/{applicationId}/status")]
     [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
     public async Task<IActionResult> UpdateApplicationStatus(string applicationId, [FromBody] UpdateApplicationStatusDto dto, CancellationToken ct)
@@ -220,6 +241,11 @@ public class OpportunitiesController : ControllerBase
         var opportunity = await GetManagedOpportunityAsync(application.Value!.OpportunityId, ct);
         if (!opportunity.IsSuccess)
             return ToActionResult(opportunity);
+        // Accepting seats the role, so the reviewer must outrank it even when a higher-ranked member posted it.
+        if (dto.Status == ApplicationStatus.ACCEPTED &&
+            !string.IsNullOrWhiteSpace(opportunity.Value!.ProjectId) &&
+            await RoleOfferRefusedAsync(opportunity.Value.ProjectId, opportunity.Value.ProjectRole, ct) is { } refused)
+            return refused;
 
         var result = await _opportunityService.UpdateApplicationStatusAsync(applicationId, dto, ct);
         return ToActionResult(result);
@@ -330,6 +356,14 @@ public class OpportunitiesController : ControllerBase
     private ProjectViewer Viewer => ActorAssertionMiddleware.TryGetActorId(User, out var actorId)
         ? new ProjectViewer(actorId, IsAdmin)
         : ProjectViewer.Anonymous;
+
+    /// <summary>An explicit 403 when the actor may not offer this team role; see ProjectMemberRolePolicy.RefuseRoleOffer.</summary>
+    private async Task<IActionResult?> RoleOfferRefusedAsync(string projectId, ProjectRole? offeredRole, CancellationToken ct)
+    {
+        // Same identity the manager gate uses (these routes all require an actor assertion).
+        var refusal = await _opportunityService.RefuseRoleOfferAsync(new ProjectViewer(ActorId, IsAdmin), projectId, offeredRole, ct);
+        return refusal is null ? null : StatusCode(StatusCodes.Status403Forbidden, new { error = refusal });
+    }
 
     private Task<bool> CanManageProjectAsync(string projectId, CancellationToken ct)
         => IsAdmin
