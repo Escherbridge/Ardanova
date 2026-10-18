@@ -13,10 +13,13 @@
   Error copy is keyed by tRPC code: `TOO_MANY_REQUESTS` is the member's own daily limit (Start stays
   disabled after it), `CONFLICT` is a turn of theirs still running (one at a time, see the .NET Ogai notes),
   `SERVICE_UNAVAILABLE` is Nova AI's platform-wide capacity ("not your own limit"), `NOT_FOUND` is an
-  expired or foreign session ("start again"), `TIMEOUT` is a slow turn, `BAD_REQUEST` is input, else
-  unavailable. A go/adjust brief has "Copy brief" (plain text, `briefAsText`) and a link to
+  expired or foreign session ("start again"), `PRECONDITION_FAILED` is a continuation .NET could not show
+  (`nova_reply_unusable`; the partner replays it, so the copy says "Start over", never "try again"),
+  `TIMEOUT` is a slow turn, `BAD_REQUEST` is input, else unavailable. Verdict source links render only for
+  absolute http(s) URLs (`linkableSourceUrl`); anything else is plain text. A go/adjust brief has "Copy brief" (plain text, `briefAsText`) and a link to
   `/projects/create`; the copy says plainly that nothing is filled in for you. It can also become a
-  private draft project (§Brief to draft). The only OVERSEASGENAI mention is the footer credit.
+  private draft project (§Brief to draft). The only OVERSEASGENAI mention is the footer credit, shown only
+  when refinement is live (§Mode-honest copy).
   When live, the sheet shows "N of 10 refinements left today" from `nova.status` (refetched after each
   first turn). While a turn is pending, a status line says most answers take seconds and a slow one up to
   `NOVA_TURN_TIMEOUT_MS` (100 s), derived from the constant so the copy cannot drift from the real budget
@@ -28,6 +31,16 @@
 
 Per-route trust copy comes from `~/lib/nova-context.ts` (`contextByArea`); extend that map for new
 surfaces rather than falling back to `fallbackContext`.
+
+## Mode-honest copy (`nova-refine-copy.ts`)
+
+The sheet header, its description and the footer credit used to say "idea and answers go to Nova AI" and
+"powered by OVERSEASGENAI" in every mode, directly above a local-preview verdict that said nothing was sent.
+`refineDisclosure(availability, replyMode, savedInTab)` now picks all three from what the deployment really
+does: `local-preview` and `off` say nothing is sent and show no provider credit; `live` names the provider; an
+unknown status (API unreachable) keeps the live wording but shows no credit it cannot vouch for. A reply's own
+`mode` outranks a status that has not loaded. The live panel copy also says Nova AI uses third-party AI models
+and public web search, so members leave out anything confidential. Tests: `nova-refine-copy.test.ts`.
 
 ## Brief to draft (`nova-brief-draft.ts`)
 
@@ -44,7 +57,10 @@ onto funding or timeline fields without inventing numbers. Tests: `nova-brief-dr
 
 A reload used to drop the whole refinement silently. The conversation (idea, answered turns, last
 reply including its signed `state` and `sessionId`, and the half-typed answer) is now saved under one
-tab-scoped key, `ardanova:nova:refine:v1`, not per route like the preview tools, because a refinement
+tab-scoped key, `ardanova:nova:refine:v2`, stamped with the signed-in member's id (`useSession`). A copy whose
+owner is not the current member (sign-out then sign-in in the same tab) is erased unread, and the unowned v1
+key is removed on sight. The sheet writes only after restoring for the current owner (`refineRestoredFor`), so
+the previous member's in-memory conversation is never re-saved under the next member's id. The key is not per route like the preview tools, because a refinement
 is one conversation that follows the member around. It is schema-checked on read (a tampered or old
 copy starts clean), and Start over (empty idea, no reply) removes it. sessionStorage is per tab, so
 nothing outlives the tab, and the state it holds is useless to anyone else: .NET binds it to the actor

@@ -17,6 +17,7 @@ import {
 } from "~/lib/api/ardanova/endpoints/nova";
 import { api } from "~/trpc/react";
 import { briefAsProjectDraft } from "./nova-brief-draft";
+import { linkableSourceUrl } from "./nova-refine-copy";
 
 /** One project-refinement conversation, held by NovaAssistant so it survives the sheet closing. */
 export interface NovaRefineConversation {
@@ -64,6 +65,8 @@ export function describeError(code: string | undefined): string {
   if (code === "UNAUTHORIZED") return "Sign in again to use Nova AI.";
   if (code === "NOT_FOUND")
     return "This refinement has expired. Start again from your idea.";
+  if (code === "PRECONDITION_FAILED")
+    return "Nova AI could not continue this refinement, and trying again would give the same answer. Choose Start over to begin again; your idea is still here.";
   return "Nova AI is unavailable right now. Your idea and answers are still here; try again in a moment.";
 }
 
@@ -230,7 +233,7 @@ export function NovaRefinePanel({
       <p className="text-muted-foreground mb-4 text-xs leading-relaxed">
         {isPreview
           ? "Nova AI is not connected in this environment. These are fixed practice questions and nothing you write is analysed."
-          : "Nova AI asks a few hard questions about your idea, then gives a feasibility verdict: go, adjust first, or not yet. Your idea and answers go through ArdaNova's server to the Nova AI service for this conversation only; nothing is saved to ArdaNova records."}
+          : "Nova AI asks a few hard questions about your idea, then gives a feasibility verdict: go, adjust first, or not yet. Your idea and answers go through ArdaNova's server to the Nova AI service for this conversation only; nothing is saved to ArdaNova records. To answer, Nova AI uses third-party AI models and public web search, so leave out anything confidential."}
       </p>
 
       <label
@@ -369,18 +372,27 @@ export function NovaRefinePanel({
                 date)
               </p>
               <ul className="list-square list-inside space-y-1">
-                {reply.verdict.sources.map((source) => (
-                  <li key={source.url}>
-                    <a
-                      href={source.url}
-                      target="_blank"
-                      rel="noopener noreferrer nofollow"
-                      className="[overflow-wrap:anywhere] underline"
-                    >
-                      {source.title}
-                    </a>
-                  </li>
-                ))}
+                {reply.verdict.sources.map((source, index) => {
+                  const href = linkableSourceUrl(source.url);
+                  return (
+                    <li key={`${index}-${source.url}`}>
+                      {href ? (
+                        <a
+                          href={href}
+                          target="_blank"
+                          rel="noopener noreferrer nofollow"
+                          className="[overflow-wrap:anywhere] underline"
+                        >
+                          {source.title}
+                        </a>
+                      ) : (
+                        <span className="[overflow-wrap:anywhere]">
+                          {source.title}
+                        </span>
+                      )}
+                    </li>
+                  );
+                })}
               </ul>
             </div>
           )}

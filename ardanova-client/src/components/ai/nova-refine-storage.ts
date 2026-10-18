@@ -4,7 +4,10 @@ import { NOVA_STATE_MAX_CHARS } from "~/lib/nova-state-limits";
 import type { NovaRefineConversation } from "./nova-refine-panel";
 
 /** One key per tab: the refinement follows the member across routes. See AGENTS.md §Refinement persistence. */
-export const REFINE_STORAGE_KEY = "ardanova:nova:refine:v1";
+export const REFINE_STORAGE_KEY = "ardanova:nova:refine:v2";
+
+/** The unowned v1 copy; removed on sight so a previous member's idea never outlives their sign-out. */
+const LEGACY_REFINE_STORAGE_KEY = "ardanova:nova:refine:v1";
 
 const MAX_STORED_CHARS = 200_000;
 
@@ -50,7 +53,8 @@ const replySchema = z.object({
 });
 
 const conversationSchema = z.object({
-  version: z.literal(1),
+  version: z.literal(2),
+  owner: text(200).min(1),
   idea: text(2_000),
   turns: z.array(z.object({ question: text(400), answer: text(1_500) })).max(8),
   reply: replySchema.nullable(),
@@ -64,15 +68,24 @@ export function isRefinementInProgress(
   return conversation.reply !== null && conversation.reply.type !== "verdict";
 }
 
-/** The conversation saved in this tab, or null when there is none, it is unreadable, or storage is blocked. */
+/** This member's conversation saved in this tab; null when there is none, it is another member's or unreadable, or storage is blocked. */
 export function readRefineConversation(
   storage: Storage,
+  owner: string,
 ): NovaRefineConversation | null {
   try {
+    storage.removeItem(LEGACY_REFINE_STORAGE_KEY);
     const raw = storage.getItem(REFINE_STORAGE_KEY);
-    if (!raw || raw.length > MAX_STORED_CHARS) return null;
-    const parsed = conversationSchema.safeParse(JSON.parse(raw));
-    if (!parsed.success) return null;
+    if (!raw) return null;
+    const parsed =
+      raw.length > MAX_STORED_CHARS
+        ? null
+        : conversationSchema.safeParse(JSON.parse(raw));
+    if (!parsed?.success || parsed.data.owner !== owner) {
+      // Another member's (sign-out then sign-in in this tab) or unreadable: drop it, never show it.
+      storage.removeItem(REFINE_STORAGE_KEY);
+      return null;
+    }
     const { idea, turns, reply, answer } = parsed.data;
     return { idea, turns, reply, answer };
   } catch {
@@ -80,17 +93,18 @@ export function readRefineConversation(
   }
 }
 
-/** Saves the conversation in this tab (an empty one clears it); false when storage is blocked or full. */
+/** Saves the member's conversation in this tab (an empty one clears it); false when storage is blocked or full. */
 export function writeRefineConversation(
   storage: Storage,
   conversation: NovaRefineConversation,
+  owner: string,
 ): boolean {
   try {
     if (!conversation.idea && conversation.reply === null) {
       storage.removeItem(REFINE_STORAGE_KEY);
       return true;
     }
-    const payload = { version: 1 as const, ...conversation };
+    const payload = { version: 2 as const, owner, ...conversation };
     if (!conversationSchema.safeParse(payload).success) return false;
     storage.setItem(REFINE_STORAGE_KEY, JSON.stringify(payload));
     return true;
