@@ -1148,6 +1148,10 @@ Table GuildReview {
   rating int [not null]
   comment text
   createdAt datetime [not null, default: `now()`]
+
+  indexes {
+    (guildId, userId) [unique]
+  }
 }
 Ref: GuildReview.guildId > Guild.id
 Ref: GuildReview.userId > User.id
