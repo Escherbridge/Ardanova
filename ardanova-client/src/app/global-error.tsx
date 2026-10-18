@@ -29,8 +29,9 @@ export default function GlobalError({
           body={
             <>
               <p>
-                The application failed before it could load. Your records are
-                stored on the server and are not affected.
+                The application stopped before this page could load. If you
+                were saving something, it was only saved if you saw a
+                confirmation; check before trying again.
               </p>
               {error.digest ? (
                 <p className="mt-4 font-mono text-sm">
