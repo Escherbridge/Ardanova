@@ -27,6 +27,7 @@ import { cn } from "~/lib/utils";
 import { handleTabListKeyDown } from "~/lib/accessibility";
 import { api } from "~/trpc/react";
 import { FeedLayout } from "~/components/layouts/feed-layout";
+import { MyGuildInvitations } from "~/components/guilds/my-guild-invitations";
 
 // Feed tabs for guilds
 const guildTabs: { id: string; label: string }[] = [
@@ -261,6 +262,7 @@ export default function GuildsPage() {
     <FeedLayout
       sidebar={
         <>
+          <MyGuildInvitations />
           {/* Stats */}
           <Card>
             <CardHeader className="pb-3">

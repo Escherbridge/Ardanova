@@ -1,6 +1,8 @@
 import { z } from "zod";
 import { type BaseApiClient, type ApiResponse, type PagedResult } from "../../base-client";
 
+/** Request bodies here match the .NET DTOs exactly; identity (owner, reviewer, inviter) always comes from the signed actor. See endpoints/AGENTS.md §Guilds. */
+
 export interface Guild {
   id: string;
   name: string;
@@ -31,29 +33,49 @@ export interface GuildMember {
   userId: string;
   role?: string | null;
   joinedAt: string;
-  user?: { id: string; name?: string; email: string; image?: string };
+  /** Public profile only; the API never returns a member's email. */
+  user?: { id: string; name?: string | null; image?: string | null } | null;
 }
 
+/** Matches `GuildReviewDto`: the reviewer is `userId`, the text is `comment`. */
 export interface GuildReview {
   id: string;
   guildId: string;
-  reviewerId: string;
+  userId: string;
+  projectId?: string | null;
   rating: number;
-  title?: string | null;
-  content?: string | null;
+  comment?: string | null;
   createdAt: string;
 }
 
+/** Matches `GuildInvitationDto`. */
+export interface GuildInvitation {
+  id: string;
+  guildId: string;
+  guildName?: string | null;
+  guildSlug?: string | null;
+  invitedById: string;
+  invitedUserId?: string | null;
+  invitedEmail?: string | null;
+  role: string;
+  message?: string | null;
+  status: string;
+  createdAt: string;
+  expiresAt?: string | null;
+  respondedAt?: string | null;
+}
+
+/** Matches `CreateGuildDto`; the owner is the signed actor, so no owner id is sent. */
 export interface CreateGuildDto {
   name: string;
-  slug?: string;
-  description?: string;
-  logoUrl?: string;
-  website?: string;
-  /** Required by `POST /api/guilds` (see `CreateGuildDto` in backend). */
+  description: string;
   email: string;
+  website?: string;
   phone?: string;
-  ownerId: string;
+  address?: string;
+  logo?: string;
+  portfolio?: string;
+  specialties?: string;
 }
 
 export interface UpdateGuildDto {
@@ -70,28 +92,26 @@ export interface UpdateGuildDto {
   specialties?: string | null;
 }
 
+/** Matches `CreateGuildMemberDto`; the guild is the route. */
 export interface CreateGuildMemberDto {
-  guildId?: string;
   userId: string;
-  role?: string;
+  role: string;
 }
 
 export interface UpdateGuildMemberDto {
   role?: string;
 }
 
+/** Matches `CreateGuildReviewDto`; the reviewer is the signed actor. */
 export interface CreateGuildReviewDto {
-  guildId?: string;
-  reviewerId: string;
   rating: number;
-  title?: string;
-  content?: string;
+  comment?: string;
+  projectId?: string;
 }
 
 export interface UpdateGuildReviewDto {
   rating?: number;
-  title?: string;
-  content?: string;
+  comment?: string;
 }
 
 export interface GuildUpdate {
@@ -100,8 +120,17 @@ export interface GuildUpdate {
   title: string;
   content: string;
   createdAt: string;
+  createdById?: string;
   updatedAt?: string;
 }
+
+/** Roles a guild can hand out; OWNER is never grantable through members, invitations or applications. */
+export const GrantableGuildRoleSchema = z.enum([
+  "ADMIN",
+  "MANAGER",
+  "MEMBER",
+  "APPRENTICE",
+]);
 
 // Zod schemas for validation (re-exported from index)
 export const GuildApiSchema = z.object({
@@ -119,11 +148,13 @@ export const GuildApiSchema = z.object({
 
 export const CreateGuildSchema = z.object({
   name: z.string().min(1),
-  slug: z.string().optional(),
   description: z.string().min(1),
   email: z.string().min(1).email(),
   phone: z.string().optional(),
-  logoUrl: z.string().url().optional(),
+  address: z.string().optional(),
+  logo: z.string().optional(),
+  portfolio: z.string().optional(),
+  specialties: z.string().optional(),
   // Backend accepts optional URL; form may omit or send a full URL (not `z.string().url()` on empty)
   website: z
     .string()
@@ -134,7 +165,6 @@ export const CreateGuildSchema = z.object({
     .refine((s) => s === undefined || /^https?:\/\/.+/.test(s), {
       message: "Website must start with http:// or https://",
     }),
-  ownerId: z.string().min(1),
 });
 
 export const UpdateGuildSchema = z.object({
@@ -161,34 +191,31 @@ export const GuildMemberApiSchema = z.object({
 
 export const CreateGuildMemberSchema = z.object({
   userId: z.string().min(1),
-  role: z.string().optional(),
+  role: GrantableGuildRoleSchema,
 });
 
 export const UpdateGuildMemberSchema = z.object({
-  role: z.string().optional(),
+  role: GrantableGuildRoleSchema.optional(),
 });
 
 export const GuildReviewApiSchema = z.object({
   id: z.string(),
   guildId: z.string(),
-  reviewerId: z.string(),
+  userId: z.string(),
   rating: z.number(),
-  title: z.string().nullable().optional(),
-  content: z.string().nullable().optional(),
+  comment: z.string().nullable().optional(),
   createdAt: z.string(),
 });
 
 export const CreateGuildReviewSchema = z.object({
-  reviewerId: z.string().min(1),
-  rating: z.number().min(1).max(5),
-  title: z.string().optional(),
-  content: z.string().optional(),
+  rating: z.number().int().min(1).max(5),
+  comment: z.string().optional(),
+  projectId: z.string().optional(),
 });
 
 export const UpdateGuildReviewSchema = z.object({
-  rating: z.number().min(1).max(5).optional(),
-  title: z.string().optional(),
-  content: z.string().optional(),
+  rating: z.number().int().min(1).max(5).optional(),
+  comment: z.string().optional(),
 });
 
 export class GuildsEndpoint {
@@ -222,6 +249,7 @@ export class GuildsEndpoint {
     return this.client.put<Guild>(`/api/guilds/${id}`, data);
   }
 
+  /** The backend derives the requester from the signed actor; no query parameter is sent. */
   delete(id: string): Promise<ApiResponse<void>> {
     return this.client.delete(`/api/guilds/${id}`);
   }
@@ -230,9 +258,8 @@ export class GuildsEndpoint {
     return this.client.get<GuildMember[]>(`/api/guilds/${guildId}/members`);
   }
 
-  addMember(input: { guildId: string; userId: string; role?: string }): Promise<ApiResponse<GuildMember>> {
-    const { guildId, ...dto } = input;
-    return this.client.post<GuildMember>(`/api/guilds/${guildId}/members`, dto);
+  addMember(guildId: string, data: CreateGuildMemberDto): Promise<ApiResponse<GuildMember>> {
+    return this.client.post<GuildMember>(`/api/guilds/${guildId}/members`, data);
   }
 
   updateMember(guildId: string, memberId: string, data: UpdateGuildMemberDto): Promise<ApiResponse<GuildMember>> {
@@ -247,9 +274,8 @@ export class GuildsEndpoint {
     return this.client.get<GuildReview[]>(`/api/guilds/${guildId}/reviews`);
   }
 
-  createReview(input: { guildId: string; reviewerId: string; rating: number; title?: string; content?: string }): Promise<ApiResponse<GuildReview>> {
-    const { guildId, ...dto } = input;
-    return this.client.post<GuildReview>(`/api/guilds/${guildId}/reviews`, dto);
+  createReview(guildId: string, data: CreateGuildReviewDto): Promise<ApiResponse<GuildReview>> {
+    return this.client.post<GuildReview>(`/api/guilds/${guildId}/reviews`, data);
   }
 
   updateReview(guildId: string, reviewId: string, data: UpdateGuildReviewDto): Promise<ApiResponse<GuildReview>> {
@@ -264,7 +290,8 @@ export class GuildsEndpoint {
     return this.client.get<GuildUpdate[]>(`/api/guilds/${guildId}/updates`);
   }
 
-  createUpdate(guildId: string, data: { title: string; content: string }): Promise<ApiResponse<GuildUpdate>> {
+  /** Matches `CreateGuildUpdateDto`; the author is the signed actor. */
+  createUpdate(guildId: string, data: { title: string; content: string; images?: string }): Promise<ApiResponse<GuildUpdate>> {
     return this.client.post<GuildUpdate>(`/api/guilds/${guildId}/updates`, data);
   }
 
@@ -276,11 +303,10 @@ export class GuildsEndpoint {
     return this.client.get<unknown[]>(`/api/guilds/${guildId}/applications`);
   }
 
-  /** Matches `CreateGuildApplicationDto` — `guildId` is set on the server from the route; include it for compatibility. */
+  /** Matches `CreateGuildApplicationDto`; the guild is the route and the applicant is the signed actor. */
   submitApplication(
     guildId: string,
     data: {
-      userId: string;
       requestedRole: string;
       message: string;
       skills?: string;
@@ -289,7 +315,7 @@ export class GuildsEndpoint {
       availability?: string;
     }
   ): Promise<ApiResponse<unknown>> {
-    return this.client.post(`/api/guilds/${guildId}/applications`, { guildId, ...data });
+    return this.client.post(`/api/guilds/${guildId}/applications`, data);
   }
 
   getApplicationById(guildId: string, applicationId: string): Promise<ApiResponse<{ id: string; guildId: string; userId: string; [key: string]: unknown }>> {
@@ -304,54 +330,51 @@ export class GuildsEndpoint {
     return this.client.post(`/api/guilds/${guildId}/applications/${applicationId}/reject`, data ?? {});
   }
 
-  getInvitations(guildId: string): Promise<ApiResponse<unknown[]>> {
-    return this.client.get<unknown[]>(`/api/guilds/${guildId}/invitations`);
+  getInvitations(guildId: string): Promise<ApiResponse<GuildInvitation[]>> {
+    return this.client.get<GuildInvitation[]>(`/api/guilds/${guildId}/invitations`);
   }
 
-  getInvitationById(guildId: string, invitationId: string): Promise<ApiResponse<{ id: string; invitedUserId: string; [key: string]: unknown }>> {
-    return this.client.get(`/api/guilds/${guildId}/invitations/${invitationId}`);
+  /** The signed actor's own invitations that can still be answered. */
+  getMyInvitations(): Promise<ApiResponse<GuildInvitation[]>> {
+    return this.client.get<GuildInvitation[]>("/api/guilds/invitations/mine");
   }
 
-  /** Matches `CreateGuildInvitationDto` */
+  /** Matches `CreateGuildInvitationDto`; the inviter is the signed actor and the invitee must already have an account. */
   createInvitation(
     guildId: string,
     data: {
-      invitedById: string;
       invitedUserId?: string;
       invitedEmail?: string;
       role: string;
       message?: string;
     }
-  ): Promise<ApiResponse<unknown>> {
-    return this.client.post(`/api/guilds/${guildId}/invitations`, { guildId, ...data });
+  ): Promise<ApiResponse<GuildInvitation>> {
+    return this.client.post<GuildInvitation>(`/api/guilds/${guildId}/invitations`, data);
   }
 
-  respondToInvitation(guildId: string, invitationId: string, data: { accept: boolean }): Promise<ApiResponse<unknown>> {
+  /** The backend accepts or declines only for the bound invitee. */
+  respondToInvitation(guildId: string, invitationId: string, data: { accept: boolean }): Promise<ApiResponse<GuildInvitation>> {
     return data.accept
-      ? this.client.post(`/api/guilds/${guildId}/invitations/${invitationId}/accept`, {})
-      : this.client.post(`/api/guilds/${guildId}/invitations/${invitationId}/reject`, {});
+      ? this.client.post<GuildInvitation>(`/api/guilds/${guildId}/invitations/${invitationId}/accept`, {})
+      : this.client.post<GuildInvitation>(`/api/guilds/${guildId}/invitations/${invitationId}/reject`, {});
   }
 
   getFollowers(guildId: string): Promise<ApiResponse<unknown[]>> {
     return this.client.get<unknown[]>(`/api/guilds/${guildId}/followers`);
   }
 
-  /** `POST api/guilds/{guildId}/follow` — body matches `CreateGuildFollowDto`. */
-  followGuild(guildId: string, userId: string): Promise<ApiResponse<unknown>> {
+  /** `POST api/guilds/{guildId}/follow`; the follower is the signed actor. */
+  followGuild(guildId: string): Promise<ApiResponse<unknown>> {
     return this.client.post(`/api/guilds/${guildId}/follow`, {
-      guildId,
-      userId,
       notifyUpdates: true,
       notifyEvents: true,
       notifyProjects: true,
     });
   }
 
-  /** `DELETE api/guilds/{guildId}/follow?userId=` */
-  unfollowGuild(guildId: string, userId: string): Promise<ApiResponse<void>> {
-    return this.client.delete(
-      `/api/guilds/${guildId}/follow?userId=${encodeURIComponent(userId)}`
-    );
+  /** `DELETE api/guilds/{guildId}/follow` for the signed actor. */
+  unfollowGuild(guildId: string): Promise<ApiResponse<void>> {
+    return this.client.delete(`/api/guilds/${guildId}/follow`);
   }
 
   /** `GET api/guilds/{guildId}/follow/check?userId=` */

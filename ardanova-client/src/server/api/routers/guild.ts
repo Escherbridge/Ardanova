@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import {
   createTRPCRouter,
   protectedProcedure,
@@ -9,12 +10,47 @@ import {
   CreateGuildSchema,
   UpdateGuildSchema,
   CreateGuildReviewSchema,
+  type ApiResponse,
   type Guild,
 } from "~/lib/api";
+import { GrantableGuildRoleSchema } from "~/lib/api/ardanova/endpoints/guilds";
+
+/** Thin proxy: who may act on a guild is decided by the .NET guild services from the signed actor (Services/AGENTS.md §Guild authority). */
 
 function normalizeGuilds(value: Guild | Guild[] | null | undefined): Guild[] {
   if (!value) return [];
   return Array.isArray(value) ? value : [value];
+}
+
+/** Turns a backend refusal into the tRPC error that carries its plain-language reason to the reader. */
+function apiError(response: ApiResponse<unknown>, fallback: string): TRPCError {
+  const code =
+    response.status === 401
+      ? "UNAUTHORIZED"
+      : response.status === 403
+        ? "FORBIDDEN"
+        : response.status === 404
+          ? "NOT_FOUND"
+          : response.status === 409
+            ? "CONFLICT"
+            : response.status === 400
+              ? "BAD_REQUEST"
+              : "INTERNAL_SERVER_ERROR";
+  return new TRPCError({ code, message: response.error ?? fallback });
+}
+
+/** Returns the payload of a successful call, or throws the backend's refusal. */
+function unwrap<T>(response: ApiResponse<T>, fallback: string): T {
+  if (response.error || response.data === undefined || response.data === null) {
+    throw apiError(response, fallback);
+  }
+  return response.data;
+}
+
+/** For calls that answer 204 No Content. */
+function ensureOk(response: ApiResponse<unknown>, fallback: string): { success: true } {
+  if (response.error) throw apiError(response, fallback);
+  return { success: true };
 }
 
 export const guildRouter = createTRPCRouter({
@@ -30,20 +66,14 @@ export const guildRouter = createTRPCRouter({
     .query(async ({ input }) => {
       const { limit, page, verified } = input;
 
-      // If filtering by verified, use dedicated endpoint
       if (verified) {
         const response = await apiClient.guilds.getVerified();
-        if (response.error) {
-          throw new Error(response.error);
-        }
+        if (response.error) throw apiError(response, "Failed to load guilds");
         return { items: response.data ?? [], nextCursor: undefined };
       }
 
-      // Default: get paged results
       const response = await apiClient.guilds.getPaged(page, limit);
-      if (response.error) {
-        throw new Error(response.error);
-      }
+      if (response.error) throw apiError(response, "Failed to load guilds");
 
       return {
         items: response.data?.items ?? [],
@@ -57,33 +87,18 @@ export const guildRouter = createTRPCRouter({
   getById: publicProcedure
     .input(z.object({ id: z.string() }))
     .query(async ({ input }) => {
-      // Try by ID first
       let response = await apiClient.guilds.getById(input.id);
-
-      // If not found by ID, try by slug
       if (response.status === 404) {
         response = await apiClient.guilds.getBySlug(input.id);
       }
-
-      if (response.error || !response.data) {
-        throw new Error(response.error ?? "Guild not found");
-      }
-
-      return response.data;
+      return unwrap(response, "Guild not found");
     }),
 
-  // Get guild by slug
   getBySlug: publicProcedure
     .input(z.object({ slug: z.string() }))
-    .query(async ({ input }) => {
-      const response = await apiClient.guilds.getBySlug(input.slug);
-
-      if (response.error || !response.data) {
-        throw new Error(response.error ?? "Guild not found");
-      }
-
-      return response.data;
-    }),
+    .query(async ({ input }) =>
+      unwrap(await apiClient.guilds.getBySlug(input.slug), "Guild not found"),
+    ),
 
   /** Guilds owned by a user (for public profiles). API may return one guild or an array. */
   getGuildsForOwner: publicProcedure
@@ -98,334 +113,139 @@ export const guildRouter = createTRPCRouter({
 
   // Get user's guild (as owner)
   getMyGuild: protectedProcedure.query(async ({ ctx }) => {
-    const userId = ctx.session.user.id;
-
-    const response = await apiClient.guilds.getByOwnerId(userId);
-
-    if (response.status === 404) {
-      return null; // User doesn't own a guild
-    }
-
-    if (response.error) {
-      throw new Error(response.error);
-    }
-
+    const response = await apiClient.guilds.getByOwnerId(ctx.session.user.id);
+    if (response.status === 404) return null;
+    if (response.error) throw apiError(response, "Failed to load your guild");
     return normalizeGuilds(response.data)[0] ?? null;
   }),
 
-  // Get user's guilds (as owner or with ADMIN/RECRUITER role)
+  // Get user's guilds (as owner)
   getMyGuilds: protectedProcedure.query(async ({ ctx }) => {
-    const userId = ctx.session.user.id;
-    const guilds: Guild[] = [];
-
-    // Get guild where user is owner
-    const ownedGuildResponse = await apiClient.guilds.getByOwnerId(userId);
-    guilds.push(...normalizeGuilds(ownedGuildResponse.data));
-
-    // Note: Currently no backend endpoint to efficiently get guilds by member role.
-    // If needed in the future, add an API endpoint like:
-    // GET /api/guilds/member/{userId}?roles=ADMIN,RECRUITER
-    // For now, this returns guilds where user is owner.
-
-    return guilds;
+    const ownedGuildResponse = await apiClient.guilds.getByOwnerId(
+      ctx.session.user.id,
+    );
+    return normalizeGuilds(ownedGuildResponse.data);
   }),
 
-  // Get verified guilds
   getVerified: publicProcedure.query(async () => {
     const response = await apiClient.guilds.getVerified();
-
-    if (response.error) {
-      throw new Error(response.error);
-    }
-
+    if (response.error) throw apiError(response, "Failed to load guilds");
     return response.data ?? [];
   }),
 
-  // Create a new guild
+  /** The backend makes the signed actor the owner and refuses a second guild for the same owner. */
   create: protectedProcedure
-    .input(CreateGuildSchema.omit({ ownerId: true }))
-    .mutation(async ({ input, ctx }) => {
-      const userId = ctx.session.user.id;
+    .input(CreateGuildSchema)
+    .mutation(async ({ input }) =>
+      unwrap(await apiClient.guilds.create(input), "Failed to create guild"),
+    ),
 
-      // Check if user already owns a guild
-      const existing = await apiClient.guilds.getByOwnerId(userId);
-      if (normalizeGuilds(existing.data).length > 0) {
-        throw new Error("You already own a guild");
-      }
-
-      const response = await apiClient.guilds.create({
-        name: input.name,
-        description: input.description,
-        email: input.email,
-        phone: input.phone,
-        logoUrl: input.logoUrl,
-        website: input.website,
-        slug: input.slug,
-        ownerId: userId,
-      });
-
-      if (response.error || !response.data) {
-        throw new Error(response.error ?? "Failed to create guild");
-      }
-
-      return response.data;
-    }),
-
-  // Update guild
   update: protectedProcedure
-    .input(
-      z.object({
-        id: z.string(),
-        data: UpdateGuildSchema,
-      }),
-    )
-    .mutation(async ({ input, ctx }) => {
-      const { id, data } = input;
-      const userId = ctx.session.user.id;
+    .input(z.object({ id: z.string(), data: UpdateGuildSchema }))
+    .mutation(async ({ input }) =>
+      unwrap(
+        await apiClient.guilds.update(input.id, input.data),
+        "Failed to update guild",
+      ),
+    ),
 
-      // Verify ownership
-      const existing = await apiClient.guilds.getById(id);
-      if (existing.error || !existing.data) {
-        throw new Error("Guild not found");
-      }
-
-      if (existing.data.ownerId !== userId) {
-        throw new Error("Access denied");
-      }
-
-      const response = await apiClient.guilds.update(id, data);
-
-      if (response.error || !response.data) {
-        throw new Error(response.error ?? "Failed to update guild");
-      }
-
-      return response.data;
-    }),
-
-  // Delete guild
   delete: protectedProcedure
     .input(z.object({ id: z.string() }))
-    .mutation(async ({ input, ctx }) => {
-      const { id } = input;
-      const userId = ctx.session.user.id;
+    .mutation(async ({ input }) =>
+      ensureOk(await apiClient.guilds.delete(input.id), "Failed to delete guild"),
+    ),
 
-      // Verify ownership
-      const existing = await apiClient.guilds.getById(id);
-      if (existing.error || !existing.data) {
-        throw new Error("Guild not found");
-      }
-
-      if (existing.data.ownerId !== userId) {
-        throw new Error("Access denied");
-      }
-
-      const response = await apiClient.guilds.delete(id);
-
-      if (response.error) {
-        throw new Error(response.error ?? "Failed to delete guild");
-      }
-
-      return { success: true };
-    }),
-
-  // Get guild members
   getMembers: publicProcedure
     .input(z.object({ guildId: z.string() }))
     .query(async ({ input }) => {
       const response = await apiClient.guilds.getMembers(input.guildId);
-
-      if (response.error) {
-        throw new Error(response.error);
-      }
-
+      if (response.error) throw apiError(response, "Failed to load members");
       return response.data ?? [];
     }),
 
-  // Add member to guild
   addMember: protectedProcedure
     .input(
       z.object({
         guildId: z.string(),
         userId: z.string(),
-        role: z.string(),
+        role: GrantableGuildRoleSchema,
       }),
     )
-    .mutation(async ({ input, ctx }) => {
-      const sessionUserId = ctx.session.user.id;
-
-      // Verify ownership
-      const guild = await apiClient.guilds.getById(input.guildId);
-      if (guild.error || !guild.data) {
-        throw new Error("Guild not found");
-      }
-
-      if (guild.data.ownerId !== sessionUserId) {
-        throw new Error("Only the guild owner can add members");
-      }
-
-      const response = await apiClient.guilds.addMember({
-        guildId: input.guildId,
-        userId: input.userId,
-        role: input.role,
-      });
-
-      if (response.error || !response.data) {
-        throw new Error(response.error ?? "Failed to add member");
-      }
-
-      return response.data;
-    }),
+    .mutation(async ({ input }) =>
+      unwrap(
+        await apiClient.guilds.addMember(input.guildId, {
+          userId: input.userId,
+          role: input.role,
+        }),
+        "Failed to add member",
+      ),
+    ),
 
   updateMember: protectedProcedure
     .input(
       z.object({
         guildId: z.string(),
         memberId: z.string(),
-        role: z.string().optional(),
+        role: GrantableGuildRoleSchema.optional(),
       }),
     )
-    .mutation(async ({ input, ctx }) => {
-      const sessionUserId = ctx.session.user.id;
-      const guild = await apiClient.guilds.getById(input.guildId);
-      if (guild.error || !guild.data) {
-        throw new Error("Guild not found");
-      }
-      if (guild.data.ownerId !== sessionUserId) {
-        throw new Error("Only the guild owner can update members");
-      }
-      const response = await apiClient.guilds.updateMember(
-        input.guildId,
-        input.memberId,
-        {
+    .mutation(async ({ input }) =>
+      unwrap(
+        await apiClient.guilds.updateMember(input.guildId, input.memberId, {
           role: input.role,
-        },
-      );
-      if (response.error || !response.data) {
-        throw new Error(response.error ?? "Failed to update member");
-      }
-      return response.data;
-    }),
+        }),
+        "Failed to update member",
+      ),
+    ),
 
-  // Remove member from guild
   removeMember: protectedProcedure
-    .input(
-      z.object({
-        guildId: z.string(),
-        memberId: z.string(),
-      }),
-    )
-    .mutation(async ({ input, ctx }) => {
-      const { guildId, memberId } = input;
-      const sessionUserId = ctx.session.user.id;
+    .input(z.object({ guildId: z.string(), memberId: z.string() }))
+    .mutation(async ({ input }) =>
+      ensureOk(
+        await apiClient.guilds.removeMember(input.guildId, input.memberId),
+        "Failed to remove member",
+      ),
+    ),
 
-      // Verify ownership
-      const guild = await apiClient.guilds.getById(guildId);
-      if (guild.error || !guild.data) {
-        throw new Error("Guild not found");
-      }
-
-      if (guild.data.ownerId !== sessionUserId) {
-        throw new Error("Only the guild owner can remove members");
-      }
-
-      const response = await apiClient.guilds.removeMember(guildId, memberId);
-
-      if (response.error) {
-        throw new Error(response.error ?? "Failed to remove member");
-      }
-
-      return { success: true };
-    }),
-
-  // Get guild reviews
   getReviews: publicProcedure
     .input(z.object({ guildId: z.string() }))
     .query(async ({ input }) => {
       const response = await apiClient.guilds.getReviews(input.guildId);
-
-      if (response.error) {
-        throw new Error(response.error);
-      }
-
+      if (response.error) throw apiError(response, "Failed to load reviews");
       return response.data ?? [];
     }),
 
-  // Create a review for a guild
   createReview: protectedProcedure
-    .input(
-      CreateGuildReviewSchema.omit({ reviewerId: true }).extend({
-        guildId: z.string(),
-      }),
-    )
-    .mutation(async ({ input, ctx }) => {
-      const userId = ctx.session.user.id;
-
-      const response = await apiClient.guilds.createReview({
-        guildId: input.guildId,
-        reviewerId: userId,
-        rating: input.rating,
-        title: input.title,
-        content: input.content,
-      });
-
-      if (response.error || !response.data) {
-        throw new Error(response.error ?? "Failed to create review");
-      }
-
-      return response.data;
+    .input(CreateGuildReviewSchema.extend({ guildId: z.string() }))
+    .mutation(async ({ input }) => {
+      const { guildId, ...review } = input;
+      return unwrap(
+        await apiClient.guilds.createReview(guildId, review),
+        "Failed to create review",
+      );
     }),
 
-  // Delete a review
   deleteReview: protectedProcedure
-    .input(
-      z.object({
-        guildId: z.string(),
-        reviewId: z.string(),
-      }),
-    )
-    .mutation(async ({ input, ctx }) => {
-      const { guildId, reviewId } = input;
-      const userId = ctx.session.user.id;
-
-      // Get review to verify ownership
-      const reviews = await apiClient.guilds.getReviews(guildId);
-      const review = reviews.data?.find((r) => r.id === reviewId);
-
-      if (!review) {
-        throw new Error("Review not found");
-      }
-
-      if (review.reviewerId !== userId) {
-        throw new Error("Access denied");
-      }
-
-      const response = await apiClient.guilds.deleteReview(guildId, reviewId);
-
-      if (response.error) {
-        throw new Error(response.error ?? "Failed to delete review");
-      }
-
-      return { success: true };
-    }),
+    .input(z.object({ guildId: z.string(), reviewId: z.string() }))
+    .mutation(async ({ input }) =>
+      ensureOk(
+        await apiClient.guilds.deleteReview(input.guildId, input.reviewId),
+        "Failed to delete review",
+      ),
+    ),
 
   // ========================================
   // GUILD UPDATES
   // ========================================
 
-  // Get updates for a guild
   getUpdates: publicProcedure
     .input(z.object({ guildId: z.string() }))
     .query(async ({ input }) => {
       const response = await apiClient.guilds.getUpdates(input.guildId);
-
-      if (response.error) {
-        throw new Error(response.error);
-      }
-
+      if (response.error) throw apiError(response, "Failed to load updates");
       return response.data ?? [];
     }),
 
-  // Create an update (owner only)
   createUpdate: protectedProcedure
     .input(
       z.object({
@@ -434,94 +254,42 @@ export const guildRouter = createTRPCRouter({
         content: z.string().min(10),
       }),
     )
-    .mutation(async ({ input, ctx }) => {
-      const userId = ctx.session.user.id;
+    .mutation(async ({ input }) =>
+      unwrap(
+        await apiClient.guilds.createUpdate(input.guildId, {
+          title: input.title,
+          content: input.content,
+        }),
+        "Failed to create update",
+      ),
+    ),
 
-      // Verify ownership
-      const guild = await apiClient.guilds.getById(input.guildId);
-      if (guild.error || !guild.data) {
-        throw new Error("Guild not found");
-      }
-
-      if (guild.data.ownerId !== userId) {
-        throw new Error("Only the guild owner can create updates");
-      }
-
-      const response = await apiClient.guilds.createUpdate(input.guildId, {
-        title: input.title,
-        content: input.content,
-      });
-
-      if (response.error || !response.data) {
-        throw new Error(response.error ?? "Failed to create update");
-      }
-
-      return response.data;
-    }),
-
-  // Delete an update
   deleteUpdate: protectedProcedure
     .input(z.object({ guildId: z.string(), updateId: z.string() }))
-    .mutation(async ({ input, ctx }) => {
-      const userId = ctx.session.user.id;
-
-      // Verify ownership
-      const guild = await apiClient.guilds.getById(input.guildId);
-      if (guild.error || !guild.data) {
-        throw new Error("Guild not found");
-      }
-
-      if (guild.data.ownerId !== userId) {
-        throw new Error("Only the guild owner can delete updates");
-      }
-
-      const response = await apiClient.guilds.deleteUpdate(
-        input.guildId,
-        input.updateId,
-      );
-
-      if (response.error) {
-        throw new Error(response.error ?? "Failed to delete update");
-      }
-
-      return { success: true };
-    }),
+    .mutation(async ({ input }) =>
+      ensureOk(
+        await apiClient.guilds.deleteUpdate(input.guildId, input.updateId),
+        "Failed to delete update",
+      ),
+    ),
 
   // ========================================
   // GUILD APPLICATIONS
   // ========================================
 
-  // Get applications (owner only)
   getApplications: protectedProcedure
     .input(z.object({ guildId: z.string() }))
-    .query(async ({ input, ctx }) => {
-      const userId = ctx.session.user.id;
-
-      // Verify ownership
-      const guild = await apiClient.guilds.getById(input.guildId);
-      if (guild.error || !guild.data) {
-        throw new Error("Guild not found");
-      }
-
-      if (guild.data.ownerId !== userId) {
-        throw new Error("Only the guild owner can view applications");
-      }
-
+    .query(async ({ input }) => {
       const response = await apiClient.guilds.getApplications(input.guildId);
-
-      if (response.error) {
-        throw new Error(response.error);
-      }
-
+      if (response.error) throw apiError(response, "Failed to load applications");
       return response.data ?? [];
     }),
 
-  // Submit application
   submitApplication: protectedProcedure
     .input(
       z.object({
         guildId: z.string(),
-        requestedRole: z.string().min(1),
+        requestedRole: GrantableGuildRoleSchema,
         message: z.string().min(20),
         skills: z.string().optional(),
         experience: z.string().optional(),
@@ -529,27 +297,14 @@ export const guildRouter = createTRPCRouter({
         availability: z.string().optional(),
       }),
     )
-    .mutation(async ({ input, ctx }) => {
-      const userId = ctx.session.user.id;
-
-      const response = await apiClient.guilds.submitApplication(input.guildId, {
-        userId: userId,
-        requestedRole: input.requestedRole,
-        message: input.message,
-        skills: input.skills,
-        experience: input.experience,
-        portfolio: input.portfolio,
-        availability: input.availability,
-      });
-
-      if (response.error || !response.data) {
-        throw new Error(response.error ?? "Failed to submit application");
-      }
-
-      return response.data;
+    .mutation(async ({ input }) => {
+      const { guildId, ...application } = input;
+      return unwrap(
+        await apiClient.guilds.submitApplication(guildId, application),
+        "Failed to submit application",
+      );
     }),
 
-  // Accept/reject application (owner only)
   reviewApplication: protectedProcedure
     .input(
       z.object({
@@ -559,29 +314,7 @@ export const guildRouter = createTRPCRouter({
         reviewMessage: z.string().optional(),
       }),
     )
-    .mutation(async ({ input, ctx }) => {
-      const userId = ctx.session.user.id;
-
-      // Get application to verify ownership
-      const application = await apiClient.guilds.getApplicationById(
-        input.guildId,
-        input.applicationId,
-      );
-      if (application.error || !application.data) {
-        throw new Error("Application not found");
-      }
-
-      // Verify guild ownership
-      const guild = await apiClient.guilds.getById(application.data.guildId);
-      if (guild.error || !guild.data) {
-        throw new Error("Guild not found");
-      }
-
-      if (guild.data.ownerId !== userId) {
-        throw new Error("Only the guild owner can review applications");
-      }
-
-      // Call the appropriate endpoint based on status
+    .mutation(async ({ input }) => {
       const reviewData = { reviewMessage: input.reviewMessage };
       const response =
         input.status === "APPROVED"
@@ -595,83 +328,51 @@ export const guildRouter = createTRPCRouter({
               input.applicationId,
               reviewData,
             );
-
-      if (response.error || !response.data) {
-        throw new Error(response.error ?? "Failed to review application");
-      }
-
-      return response.data;
+      return unwrap(response, "Failed to review application");
     }),
 
   // ========================================
   // GUILD INVITATIONS
   // ========================================
 
-  // Get invitations sent by guild (owner only)
   getInvitations: protectedProcedure
     .input(z.object({ guildId: z.string() }))
-    .query(async ({ input, ctx }) => {
-      const userId = ctx.session.user.id;
-
-      // Verify ownership
-      const guild = await apiClient.guilds.getById(input.guildId);
-      if (guild.error || !guild.data) {
-        throw new Error("Guild not found");
-      }
-
-      if (guild.data.ownerId !== userId) {
-        throw new Error("Only the guild owner can view invitations");
-      }
-
+    .query(async ({ input }) => {
       const response = await apiClient.guilds.getInvitations(input.guildId);
-
-      if (response.error) {
-        throw new Error(response.error);
-      }
-
+      if (response.error) throw apiError(response, "Failed to load invitations");
       return response.data ?? [];
     }),
 
-  // Create invitation (owner only)
+  /** Invitations addressed to the signed-in member that can still be answered. */
+  getMyInvitations: protectedProcedure.query(async () => {
+    const response = await apiClient.guilds.getMyInvitations();
+    if (response.error) throw apiError(response, "Failed to load your invitations");
+    return response.data ?? [];
+  }),
+
   createInvitation: protectedProcedure
     .input(
-      z.object({
-        guildId: z.string(),
-        invitedUserId: z.string().optional(),
-        invitedEmail: z.string().email().optional(),
-        role: z.string(),
-        message: z.string().optional(),
-      }),
+      z
+        .object({
+          guildId: z.string(),
+          invitedUserId: z.string().optional(),
+          invitedEmail: z.string().email().optional(),
+          role: GrantableGuildRoleSchema,
+          message: z.string().optional(),
+        })
+        .refine((v) => v.invitedUserId ?? v.invitedEmail, {
+          message: "Name the person to invite by their account email",
+          path: ["invitedEmail"],
+        }),
     )
-    .mutation(async ({ input, ctx }) => {
-      const sessionUserId = ctx.session.user.id;
-
-      // Verify ownership
-      const guild = await apiClient.guilds.getById(input.guildId);
-      if (guild.error || !guild.data) {
-        throw new Error("Guild not found");
-      }
-
-      if (guild.data.ownerId !== sessionUserId) {
-        throw new Error("Only the guild owner can create invitations");
-      }
-
-      const response = await apiClient.guilds.createInvitation(input.guildId, {
-        invitedById: sessionUserId,
-        invitedUserId: input.invitedUserId,
-        invitedEmail: input.invitedEmail,
-        role: input.role,
-        message: input.message,
-      });
-
-      if (response.error || !response.data) {
-        throw new Error(response.error ?? "Failed to create invitation");
-      }
-
-      return response.data;
+    .mutation(async ({ input }) => {
+      const { guildId, ...invitation } = input;
+      return unwrap(
+        await apiClient.guilds.createInvitation(guildId, invitation),
+        "Failed to create invitation",
+      );
     }),
 
-  // Accept/reject invitation (invited user)
   respondToInvitation: protectedProcedure
     .input(
       z.object({
@@ -680,105 +381,55 @@ export const guildRouter = createTRPCRouter({
         accept: z.boolean(),
       }),
     )
-    .mutation(async ({ input, ctx }) => {
-      const userId = ctx.session.user.id;
-
-      // Get invitation to verify recipient
-      const invitation = await apiClient.guilds.getInvitationById(
-        input.guildId,
-        input.invitationId,
-      );
-      if (invitation.error || !invitation.data) {
-        throw new Error("Invitation not found");
-      }
-
-      if (invitation.data.invitedUserId !== userId) {
-        throw new Error("Access denied");
-      }
-
-      const response = await apiClient.guilds.respondToInvitation(
-        input.guildId,
-        input.invitationId,
-        {
-          accept: input.accept,
-        },
-      );
-
-      if (response.error || !response.data) {
-        throw new Error(response.error ?? "Failed to respond to invitation");
-      }
-
-      return response.data;
-    }),
+    .mutation(async ({ input }) =>
+      unwrap(
+        await apiClient.guilds.respondToInvitation(
+          input.guildId,
+          input.invitationId,
+          { accept: input.accept },
+        ),
+        "Failed to respond to invitation",
+      ),
+    ),
 
   // ========================================
   // GUILD FOLLOWS
   // ========================================
 
-  // Get followers
   getFollowers: publicProcedure
     .input(z.object({ guildId: z.string() }))
     .query(async ({ input }) => {
       const response = await apiClient.guilds.getFollowers(input.guildId);
-
-      if (response.error) {
-        throw new Error(response.error);
-      }
-
+      if (response.error) throw apiError(response, "Failed to load followers");
       return response.data ?? [];
     }),
 
-  // Follow guild
   followGuild: protectedProcedure
     .input(z.object({ guildId: z.string() }))
-    .mutation(async ({ input, ctx }) => {
-      const userId = ctx.session.user.id;
+    .mutation(async ({ input }) =>
+      unwrap(
+        await apiClient.guilds.followGuild(input.guildId),
+        "Failed to follow guild",
+      ),
+    ),
 
-      const response = await apiClient.guilds.followGuild(
-        input.guildId,
-        userId,
-      );
-
-      if (response.error || !response.data) {
-        throw new Error(response.error ?? "Failed to follow guild");
-      }
-
-      return response.data;
-    }),
-
-  // Unfollow guild
   unfollowGuild: protectedProcedure
     .input(z.object({ guildId: z.string() }))
-    .mutation(async ({ input, ctx }) => {
-      const userId = ctx.session.user.id;
+    .mutation(async ({ input }) =>
+      ensureOk(
+        await apiClient.guilds.unfollowGuild(input.guildId),
+        "Failed to unfollow guild",
+      ),
+    ),
 
-      const response = await apiClient.guilds.unfollowGuild(
-        input.guildId,
-        userId,
-      );
-
-      if (response.error) {
-        throw new Error(response.error ?? "Failed to unfollow guild");
-      }
-
-      return { success: true };
-    }),
-
-  // Check if user follows guild
   isFollowing: protectedProcedure
     .input(z.object({ guildId: z.string() }))
     .query(async ({ input, ctx }) => {
-      const userId = ctx.session.user.id;
-
       const response = await apiClient.guilds.isFollowing(
         input.guildId,
-        userId,
+        ctx.session.user.id,
       );
-
-      if (response.error) {
-        throw new Error(response.error);
-      }
-
+      if (response.error) throw apiError(response, "Failed to read follow state");
       return response.data ?? false;
     }),
 });

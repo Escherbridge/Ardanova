@@ -29,7 +29,6 @@ import {
 } from "~/components/ui/select";
 import { CredentialBadge } from "~/components/credentials/credential-badge";
 import { Loader2, Users, UserMinus, Mail } from "lucide-react";
-import type { GuildMember } from "~/lib/api/ardanova/endpoints/guilds";
 
 interface MembersTabProps {
   guildId: string;
@@ -76,49 +75,21 @@ export function MembersTab({ guildId, isOwner }: MembersTabProps) {
     (guildCredentials ?? []).map((c) => [c.userId, c]),
   );
 
-  // Mutation for sending invitation
+  // Pending invitations are shown apart from members: an invitee is not a member until they accept.
+  const { data: invitations } = api.guild.getInvitations.useQuery(
+    { guildId },
+    { enabled: isOwner },
+  );
+  const pendingInvitations = (invitations ?? []).filter(
+    (invitation) => invitation.status === "PENDING",
+  );
+
   const inviteMemberMutation = api.guild.createInvitation.useMutation({
-    onMutate: async (variables) => {
-      if (!variables) return;
-      const { invitedEmail, role } = variables;
-      await utils.guild.getMembers.cancel({ guildId });
-      const previous = utils.guild.getMembers.getData({ guildId });
-
-      // Optimistically add a placeholder member (invitation pending)
-      const optimisticMember: GuildMember = {
-        id: `temp-${Date.now()}`,
-        userId: `pending-${Date.now()}`,
-        guildId: guildId,
-        role,
-        joinedAt: new Date().toISOString(),
-        user: {
-          id: `pending-${Date.now()}`,
-          name: undefined,
-          email: invitedEmail ?? "",
-          image: undefined,
-        },
-      };
-
-      utils.guild.getMembers.setData({ guildId }, (old) =>
-        old ? [...old, optimisticMember] : [optimisticMember],
-      );
-
-      return { previous };
-    },
     onSuccess: () => {
       setShowInviteDialog(false);
       setEmail("");
       setRole("MEMBER");
-      void utils.guild.getMembers.invalidate({ guildId });
-    },
-    onError: (err, _vars, context) => {
-      if (context?.previous) {
-        utils.guild.getMembers.setData({ guildId }, context.previous);
-      }
-      console.error("Failed to send invitation:", err.message);
-    },
-    onSettled: () => {
-      void utils.guild.getMembers.invalidate({ guildId });
+      void utils.guild.getInvitations.invalidate({ guildId });
     },
   });
 
@@ -149,9 +120,7 @@ export function MembersTab({ guildId, isOwner }: MembersTabProps) {
     e.preventDefault();
     if (!email.trim()) return;
 
-    // Note: This assumes we have a way to get userId from email
-    // In a real scenario, you'd need to implement a user search/lookup endpoint
-    // For now, we're using email as a temporary placeholder for userId
+    // The API binds the invitation to the account that owns this email, or refuses it.
     inviteMemberMutation.mutate({
       guildId,
       invitedEmail: email.trim(),
@@ -223,7 +192,6 @@ export function MembersTab({ guildId, isOwner }: MembersTabProps) {
                       <div className="space-y-1">
                         <div className="font-medium">
                           {member.user?.name ??
-                            member.user?.email ??
                             "Unknown User"}
                         </div>
                         <div className="flex items-center justify-center gap-1.5">
@@ -258,7 +226,6 @@ export function MembersTab({ guildId, isOwner }: MembersTabProps) {
                               id: member.id,
                               name:
                                 member.user?.name ??
-                                member.user?.email ??
                                 "this member",
                             })
                           }
@@ -284,6 +251,35 @@ export function MembersTab({ guildId, isOwner }: MembersTabProps) {
           )}
         </CardContent>
       </Card>
+
+      {isOwner && pendingInvitations.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Mail className="size-5" />
+              Pending Invitations
+            </CardTitle>
+            <CardDescription>
+              Sent, but not yet accepted. These people are not members yet.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ul className="space-y-2">
+              {pendingInvitations.map((invitation) => (
+                <li
+                  key={invitation.id}
+                  className="border-border flex items-center justify-between rounded border p-3 text-sm"
+                >
+                  <span>{invitation.invitedEmail ?? "Invited member"}</span>
+                  <Badge variant={getRoleBadgeVariant(invitation.role)}>
+                    {invitation.role}
+                  </Badge>
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Invite Member Dialog */}
       <Dialog open={showInviteDialog} onOpenChange={setShowInviteDialog}>
@@ -353,12 +349,18 @@ export function MembersTab({ guildId, isOwner }: MembersTabProps) {
                   </SelectContent>
                 </Select>
               </div>
+              {inviteMemberMutation.error && (
+                <p role="alert" className="text-destructive text-sm">
+                  {inviteMemberMutation.error.message}
+                </p>
+              )}
             </div>
             <DialogFooter>
               <Button
                 type="button"
                 variant="outline"
                 onClick={() => {
+                  inviteMemberMutation.reset();
                   setShowInviteDialog(false);
                   setEmail("");
                   setRole("MEMBER");
