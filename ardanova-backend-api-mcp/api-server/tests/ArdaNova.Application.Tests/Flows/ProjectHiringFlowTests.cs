@@ -216,6 +216,86 @@ public class ProjectHiringFlowTests
         _opportunityApplications.Items.Should().ContainSingle(application => application.applicantId == Applicant);
     }
 
+    /// <summary>Hiring is a second way to grant a role, so it obeys "below your own": no sock-puppet LEADER from a CORE_CONTRIBUTOR.</summary>
+    [Fact]
+    public async Task RoleOffers_FollowTheRankRule_ForPostersAndReviewersAlike()
+    {
+        const string Core = "core-1";
+        _members.Add(new ProjectMember
+        {
+            id = "core-row",
+            projectId = PublishedProjectId,
+            userId = Core,
+            role = ProjectRole.CORE_CONTRIBUTOR,
+            joinedAt = DateTime.UtcNow
+        });
+        var core = new ProjectViewer(Core, false);
+        var founder = new ProjectViewer(Founder, false);
+
+        var refusals = new Dictionary<string, string?>
+        {
+            ["core offers LEADER"] = await _opportunityService.RefuseRoleOfferAsync(core, PublishedProjectId, ProjectRole.LEADER),
+            ["core offers CORE_CONTRIBUTOR"] = await _opportunityService.RefuseRoleOfferAsync(core, PublishedProjectId, ProjectRole.CORE_CONTRIBUTOR),
+            ["core offers CONTRIBUTOR"] = await _opportunityService.RefuseRoleOfferAsync(core, PublishedProjectId, ProjectRole.CONTRIBUTOR),
+            ["core offers the default seat"] = await _opportunityService.RefuseRoleOfferAsync(core, PublishedProjectId, null),
+            ["founder offers LEADER"] = await _opportunityService.RefuseRoleOfferAsync(founder, PublishedProjectId, ProjectRole.LEADER),
+            ["founder offers FOUNDER"] = await _opportunityService.RefuseRoleOfferAsync(founder, PublishedProjectId, ProjectRole.FOUNDER),
+            ["stranger offers CONTRIBUTOR"] = await _opportunityService.RefuseRoleOfferAsync(new ProjectViewer(Stranger, false), PublishedProjectId, ProjectRole.CONTRIBUTOR),
+            ["admin offers LEADER"] = await _opportunityService.RefuseRoleOfferAsync(new ProjectViewer("admin-1", true), PublishedProjectId, ProjectRole.LEADER),
+        };
+
+        refusals.Should().Equal(new Dictionary<string, string?>
+        {
+            ["core offers LEADER"] = ProjectMemberRolePolicy.OutranksActor,
+            ["core offers CORE_CONTRIBUTOR"] = ProjectMemberRolePolicy.OutranksActor,
+            ["core offers CONTRIBUTOR"] = null,
+            ["core offers the default seat"] = null,
+            ["founder offers LEADER"] = null,
+            ["founder offers FOUNDER"] = ProjectMemberRolePolicy.FounderIsNotGrantable,
+            ["stranger offers CONTRIBUTOR"] = ProjectMemberRolePolicy.OutranksActor,
+            ["admin offers LEADER"] = null,
+        });
+    }
+
+    [Fact]
+    public async Task ATeamPositionPostedWithoutARole_IsListedAsTheContributorSeat_AndSeatsOneOnAccept()
+    {
+        var created = await _opportunityService.CreateAsync(new CreateOpportunityDto
+        {
+            PosterId = Founder,
+            ProjectId = PublishedProjectId,
+            Title = "Street tree surveyor",
+            Description = "Count the shade.",
+            Type = OpportunityType.GUILD_POSITION,
+            ExperienceLevel = ExperienceLevel.JUNIOR,
+            IsOpenForApplications = true,
+        });
+        var applied = await _opportunityService.ApplyAsync(created.Value!.Id, new ApplyToOpportunityDto
+        {
+            ApplicantId = Applicant,
+            CoverLetter = "I have surveyed trees before."
+        });
+        await _opportunityService.UpdateApplicationStatusAsync(
+            applied.Value!.Id, new UpdateApplicationStatusDto { Status = ApplicationStatus.ACCEPTED });
+
+        created.Value.ProjectRole.Should().Be(ProjectRole.CONTRIBUTOR);
+        created.Value.Type.Should().Be(OpportunityType.PROJECT_ROLE);
+        created.Value.Origin.Should().Be(OpportunityOrigin.TEAM_POSITION);
+        _members.Items.Should().ContainSingle(member =>
+            member.userId == Applicant && member.role == ProjectRole.CONTRIBUTOR);
+    }
+
+    [Fact]
+    public async Task ABlankTaskTitle_IsRefused_OnCreateAndOnRename()
+    {
+        var created = await _taskService.CreateAsync(new CreateTaskDto { ProjectId = PublishedProjectId, Title = "   " });
+        var renamed = await _taskService.UpdateAsync("task-public", new UpdateTaskDto { Title = "" });
+
+        created.Error.Should().Be(TaskService.TaskTitleRequired);
+        renamed.Error.Should().Be(TaskService.TaskTitleRequired);
+        _tasks.Items.Select(task => task.title).Should().BeEquivalentTo(new[] { "secret draft plan", "public plan" });
+    }
+
     [Fact]
     public async Task RemovingAMember_ReturnsTheirUnfinishedTasksToThePool()
     {

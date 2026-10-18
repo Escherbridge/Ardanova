@@ -36,6 +36,8 @@ public interface IOpportunityService
     Task<Result<IReadOnlyList<OpportunityApplicationDto>>> GetApplicationsAsync(string opportunityId, CancellationToken ct = default);
     /// <summary>A reviewer's decision on a PENDING application; ACCEPTED on a project role also seats the applicant on the team.</summary>
     Task<Result<OpportunityApplicationDto>> UpdateApplicationStatusAsync(string applicationId, UpdateApplicationStatusDto dto, CancellationToken ct = default);
+    /// <summary>Why this actor may not offer (post or accept) this team role on the project, or null when they may.</summary>
+    Task<string?> RefuseRoleOfferAsync(ProjectViewer actor, string projectId, ProjectRole? offeredRole, CancellationToken ct = default);
 
     // Updates
     Task<Result<OpportunityUpdateDto>> GetUpdateByIdAsync(string updateId, CancellationToken ct = default);

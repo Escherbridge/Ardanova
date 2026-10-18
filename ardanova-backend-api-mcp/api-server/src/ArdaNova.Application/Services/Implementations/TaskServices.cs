@@ -24,6 +24,9 @@ public class TaskService : ITaskService
     public const string WorkerBelongsToTheAgreement =
         "This task's worker was agreed through an accepted bid, so it can no longer be reassigned here.";
 
+    /// <summary>Why a task was refused: a blank title leaves an unlabeled card on the board.</summary>
+    public const string TaskTitleRequired = "A task needs a title.";
+
     private readonly IRepository<ProjectTask> _repository;
     private readonly IRepository<User> _userRepository;
     private readonly IRepository<Project> _projectRepository;
@@ -142,6 +145,9 @@ public class TaskService : ITaskService
 
     public async Task<Result<TaskDto>> CreateAsync(CreateTaskDto dto, CancellationToken ct = default)
     {
+        if (string.IsNullOrWhiteSpace(dto.Title))
+            return Result<TaskDto>.ValidationError(TaskTitleRequired);
+
         var project = await _projectRepository.GetByIdAsync(dto.ProjectId, ct);
         if (project is null)
             return Result<TaskDto>.NotFound($"Project with id {dto.ProjectId} not found");
@@ -150,7 +156,7 @@ public class TaskService : ITaskService
         {
             id = Guid.NewGuid().ToString(),
             projectId = dto.ProjectId,
-            title = dto.Title,
+            title = dto.Title.Trim(),
             description = dto.Description,
             status = TaskStatus.TODO,
             priority = dto.Priority,
@@ -182,6 +188,8 @@ public class TaskService : ITaskService
         var task = await _repository.GetByIdAsync(id, ct);
         if (task is null)
             return Result<TaskDto>.NotFound($"Task with id {id} not found");
+        if (dto.Title is not null && string.IsNullOrWhiteSpace(dto.Title))
+            return Result<TaskDto>.ValidationError(TaskTitleRequired);
 
         // The award collapse: one award figure of record per task. Once a bid has been
         // accepted the agreement owns it and the units behind it are already set aside on the
@@ -195,7 +203,7 @@ public class TaskService : ITaskService
             task.equityReward = dto.EquityReward;
         }
 
-        if (dto.Title is not null) task.title = dto.Title;
+        if (dto.Title is not null) task.title = dto.Title.Trim();
         if (dto.Description is not null) task.description = dto.Description;
         if (dto.Status.HasValue) task.status = dto.Status.Value;
         if (dto.Priority.HasValue) task.priority = dto.Priority.Value;

@@ -1143,8 +1143,18 @@ public class ProjectsController : ControllerBase
     {
         if (!await CanManageProjectAsync(projectId, ct))
             return Forbid();
+        if (!Enum.TryParse<ProjectRole>(dto.Role, ignoreCase: false, out var invitedRole) ||
+            !Enum.IsDefined(invitedRole))
+            return BadRequest(new { error = $"'{dto.Role}' is not a project role." });
 
-        var dtoWithProject = dto with { ProjectId = projectId, InvitedById = ActorId };
+        var project = await _projectService.GetByIdAsync(projectId, ct);
+        if (!project.IsSuccess)
+            return ToActionResult(project);
+        var standing = await ActorStandingAsync(project.Value!, ct);
+        if (ProjectMemberRolePolicy.RefuseRoleOffer(IsAdmin, standing, invitedRole) is { } refusal)
+            return MemberAuthorityRefused(refusal);
+
+        var dtoWithProject = dto with { ProjectId = projectId, InvitedById = ActorId, Role = invitedRole.ToString() };
         var result = await _invitationService.CreateAsync(dtoWithProject, ct);
         return result.IsSuccess
             ? CreatedAtAction(nameof(GetInvitationById), new { projectId, invitationId = result.Value!.Id }, result.Value)

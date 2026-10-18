@@ -1872,11 +1872,12 @@ function TeamPositionsView({
   } = api.opportunity.getByProjectId.useQuery({
     projectId,
   });
+  // A position posted without a team role still seats its hire as CONTRIBUTOR, so it is listed too.
   const positions = teamPositions.filter(
     (opportunity) =>
-      opportunity.origin === "TEAM_POSITION" &&
-      Boolean(opportunity.projectRole),
+      opportunity.origin === "TEAM_POSITION" && Boolean(opportunity.projectId),
   );
+  const createPositionHref = `/opportunities/create?projectId=${encodeURIComponent(projectId)}&projectSlug=${encodeURIComponent(projectSlug)}&projectRole=CONTRIBUTOR`;
 
   if (isLoading) {
     return <LoadingState label="team positions" className="py-8" />;
@@ -1900,14 +1901,12 @@ function TeamPositionsView({
           <h3 className="mb-1 text-base font-medium">No team positions</h3>
           <p className="text-muted-foreground mb-3 text-sm">
             {canManage
-              ? "Create team position opportunities from the Opportunities page."
+              ? "Post a role and the person you accept joins the team in it."
               : "No team positions have been posted yet."}
           </p>
           {canManage && (
             <Button asChild variant="outline" size="sm" className="min-h-11">
-              <Link
-                href={`/opportunities/create?projectId=${encodeURIComponent(projectId)}&projectSlug=${encodeURIComponent(projectSlug)}`}
-              >
+              <Link href={createPositionHref}>
                 <Plus className="mr-1.5 h-3.5 w-3.5" />
                 Create Position
               </Link>
@@ -1920,6 +1919,16 @@ function TeamPositionsView({
 
   return (
     <div className="space-y-3">
+      {canManage && (
+        <div className="flex justify-end">
+          <Button asChild variant="outline" size="sm" className="min-h-11">
+            <Link href={createPositionHref}>
+              <Plus className="mr-1.5 h-3.5 w-3.5" />
+              Create Position
+            </Link>
+          </Button>
+        </div>
+      )}
       {positions.map((opp) => (
         <Card key={opp.id}>
           <CardContent className="py-4">
@@ -1934,14 +1943,16 @@ function TeamPositionsView({
                 </Link>
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                {opp.projectRole && (
-                  <Badge
-                    variant={getRoleBadgeVariant(opp.projectRole)}
-                    size="sm"
-                  >
-                    {formatProjectRoleName(opp.projectRole)}
-                  </Badge>
-                )}
+                <Badge
+                  variant={getRoleBadgeVariant(
+                    opp.projectRole ?? "CONTRIBUTOR",
+                  )}
+                  size="sm"
+                >
+                  {opp.projectRole
+                    ? formatProjectRoleName(opp.projectRole)
+                    : "Contributor (default)"}
+                </Badge>
                 {opp.type && (
                   <Badge variant="neon-purple" size="sm">
                     {opp.type}

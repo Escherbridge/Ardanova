@@ -57,10 +57,13 @@ import {
   Pencil,
   AlertCircle,
   RefreshCw,
+  UserMinus,
+  LogOut,
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { cn } from "~/lib/utils";
+import { canGrantRole, memberExitAction } from "./member-authority";
 
 interface TeamTabProps {
   projectId: string;
@@ -457,6 +460,88 @@ function InviteMemberDialog({
   );
 }
 
+/** Leave (own row) or Remove (a lower-ranked member), behind a confirmation; the API enforces the rank rule. */
+function MemberExitButton({
+  projectId,
+  memberId,
+  memberName,
+  action,
+}: {
+  projectId: string;
+  memberId: string;
+  memberName: string;
+  action: "leave" | "remove";
+}) {
+  const [open, setOpen] = useState(false);
+  const utils = api.useUtils();
+  const removeMemberMutation = api.project.removeMember.useMutation({
+    onSuccess: () => {
+      toast.success(
+        action === "leave" ? "You left the project" : `${memberName} removed`,
+      );
+      setOpen(false);
+      void utils.project.getMembers.invalidate({ projectId });
+      void utils.task.invalidate();
+    },
+    onError: (error) => {
+      toast.error(
+        describeMutationError(
+          error,
+          action === "leave" ? "leave the project" : "remove the member",
+        ),
+      );
+    },
+  });
+  const isLeave = action === "leave";
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="text-muted-foreground hover:text-destructive min-h-11 px-2 text-xs"
+          aria-label={isLeave ? "Leave project" : `Remove ${memberName}`}
+        >
+          {isLeave ? (
+            <LogOut className="mr-1 size-3.5" aria-hidden="true" />
+          ) : (
+            <UserMinus className="mr-1 size-3.5" aria-hidden="true" />
+          )}
+          {isLeave ? "Leave" : "Remove"}
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>
+            {isLeave ? "Leave this project?" : `Remove ${memberName}?`}
+          </DialogTitle>
+          <DialogDescription>
+            {isLeave
+              ? "Your unfinished tasks go back to the pool. To rejoin you will need a new invitation or an accepted application."
+              : `${memberName}'s unfinished tasks go back to the pool. They will need a new invitation or an accepted application to rejoin.`}
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setOpen(false)}>
+            Cancel
+          </Button>
+          <Button
+            variant="destructive"
+            disabled={removeMemberMutation.isPending}
+            onClick={() => removeMemberMutation.mutate({ projectId, memberId })}
+          >
+            {removeMemberMutation.isPending && (
+              <Loader2 className="mr-2 size-4 animate-spin" />
+            )}
+            {isLeave ? "Leave project" : "Remove member"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function TeamTab({
   projectId,
   projectSlug,
@@ -663,6 +748,10 @@ export default function TeamTab({
   const isCurrentUserMember = currentUserId
     ? existingMemberIds.includes(currentUserId)
     : false;
+  // The creator always ranks as founder, with or without a membership row.
+  const viewerRole = isOwner
+    ? "FOUNDER"
+    : members?.find((member) => member.userId === currentUserId)?.role;
 
   return (
     <div className="space-y-6">
@@ -792,7 +881,9 @@ export default function TeamTab({
                                           <SelectValue />
                                         </SelectTrigger>
                                         <SelectContent>
-                                          {DEFAULT_ROLES.map((r) => (
+                                          {DEFAULT_ROLES.filter((r) =>
+                                            canGrantRole(viewerRole, r.id),
+                                          ).map((r) => (
                                             <SelectItem key={r.id} value={r.id}>
                                               {r.name}
                                             </SelectItem>
@@ -800,6 +891,26 @@ export default function TeamTab({
                                         </SelectContent>
                                       </Select>
                                     )}
+                                  {(() => {
+                                    const exitAction = memberExitAction({
+                                      viewerId: currentUserId,
+                                      viewerRole,
+                                      memberUserId: member.userId,
+                                      memberRole: member.role,
+                                    });
+                                    return exitAction ? (
+                                      <MemberExitButton
+                                        projectId={projectId}
+                                        memberId={member.id}
+                                        memberName={
+                                          member.user?.name ??
+                                          member.user?.email ??
+                                          "this member"
+                                        }
+                                        action={exitAction}
+                                      />
+                                    ) : null;
+                                  })()}
                                   {hasCredential && (
                                     <>
                                       <CredentialBadge

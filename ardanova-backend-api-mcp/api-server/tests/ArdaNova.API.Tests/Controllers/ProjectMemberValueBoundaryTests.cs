@@ -127,7 +127,18 @@ public sealed class ProjectMemberValueBoundaryTests
         var seatStranger = await controller.AddMember(
             "project-1", new CreateProjectMemberDto { UserId = "stranger-1", Role = ProjectRole.CONTRIBUTOR }, CancellationToken.None);
         var deleteProject = await controller.Delete("project-1", CancellationToken.None);
+        // Invitations are another way to seat a role; the strict invitation mock throws if one is created.
+        var inviteLeader = await controller.CreateInvitation(
+            "project-1",
+            new CreateProjectInvitationDto { ProjectId = "", InvitedById = "", Role = "LEADER", InvitedUserId = "sock-puppet" },
+            CancellationToken.None);
+        var inviteFounder = await controller.CreateInvitation(
+            "project-1",
+            new CreateProjectInvitationDto { ProjectId = "", InvitedById = "", Role = "FOUNDER", InvitedUserId = "sock-puppet" },
+            CancellationToken.None);
 
+        RefusalOf(inviteLeader).Should().Be(ProjectMemberRolePolicy.OutranksActor);
+        RefusalOf(inviteFounder).Should().Be(ProjectMemberRolePolicy.FounderIsNotGrantable);
         RefusalOf(raiseSelf).Should().Be(ProjectMemberRolePolicy.CannotChangeOwnRole);
         RefusalOf(crownPeer).Should().Be(ProjectMemberRolePolicy.FounderIsNotGrantable);
         RefusalOf(promotePeerToOwnRank).Should().Be(ProjectMemberRolePolicy.OutranksActor);

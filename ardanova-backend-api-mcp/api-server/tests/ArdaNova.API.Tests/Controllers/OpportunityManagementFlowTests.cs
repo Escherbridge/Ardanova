@@ -5,6 +5,7 @@ using ArdaNova.API.Controllers;
 using ArdaNova.API.Middleware;
 using ArdaNova.Application.Common.Results;
 using ArdaNova.Application.DTOs;
+using ArdaNova.Application.Services.Implementations;
 using ArdaNova.Application.Services.Interfaces;
 using ArdaNova.Domain.Models.Enums;
 using Microsoft.AspNetCore.Http;
@@ -85,6 +86,66 @@ public class OpportunityManagementFlowTests
         result.Should().BeOfType<ForbidResult>();
     }
 
+    /// <summary>A co-manager who does not outrank the role cannot seat it: posting, re-roling or accepting are all refused before any write.</summary>
+    [Theory]
+    [InlineData("create")]
+    [InlineData("update")]
+    [InlineData("accept")]
+    public async Task ACoManagerOutrankedByTheRole_CannotOfferIt(string action)
+    {
+        var opportunities = ReadableOpportunity(commentAuthor: "someone-else", offeredRole: ProjectRole.LEADER);
+        opportunities.Setup(s => s.RefuseRoleOfferAsync(
+                It.Is<ProjectViewer>(viewer => viewer.UserId == Actor), ManagedProject, ProjectRole.LEADER, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ProjectMemberRolePolicy.OutranksActor);
+        var controller = Controller(opportunities.Object, actorManagesProject: true);
+
+        var result = action switch
+        {
+            "create" => await controller.Create(new CreateOpportunityDto
+            {
+                ProjectId = ManagedProject,
+                Title = "Lead",
+                Description = "Run the project.",
+                Type = OpportunityType.PROJECT_ROLE,
+                ExperienceLevel = ExperienceLevel.SENIOR,
+                ProjectRole = ProjectRole.LEADER,
+            }, CancellationToken.None),
+            "update" => await controller.Update(
+                "opportunity-1",
+                new UpdateOpportunityDto { ProjectRole = ProjectRole.LEADER },
+                CancellationToken.None),
+            _ => await controller.UpdateApplicationStatus(
+                "application-1",
+                new UpdateApplicationStatusDto { Status = ApplicationStatus.ACCEPTED },
+                CancellationToken.None),
+        };
+
+        // Strict mock: CreateAsync / UpdateAsync / UpdateApplicationStatusAsync would throw if reached.
+        var refusal = result.Should().BeOfType<ObjectResult>().Subject;
+        refusal.StatusCode.Should().Be(StatusCodes.Status403Forbidden);
+        refusal.Value.Should().BeEquivalentTo(new { error = ProjectMemberRolePolicy.OutranksActor });
+    }
+
+    [Fact]
+    public async Task RejectingAnApplication_DoesNotSeatAnyone_SoNeedsNoRankCheck()
+    {
+        var opportunities = ReadableOpportunity(commentAuthor: "someone-else", offeredRole: ProjectRole.LEADER);
+        opportunities.Setup(s => s.RefuseRoleOfferAsync(
+                It.IsAny<ProjectViewer>(), ManagedProject, ProjectRole.LEADER, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ProjectMemberRolePolicy.OutranksActor);
+        opportunities.Setup(s => s.UpdateApplicationStatusAsync(
+                "application-1", It.Is<UpdateApplicationStatusDto>(dto => dto.Status == ApplicationStatus.REJECTED), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<OpportunityApplicationDto>.Success(Application()));
+        var controller = Controller(opportunities.Object, actorManagesProject: true);
+
+        var result = await controller.UpdateApplicationStatus(
+            "application-1",
+            new UpdateApplicationStatusDto { Status = ApplicationStatus.REJECTED },
+            CancellationToken.None);
+
+        result.Should().BeOfType<OkObjectResult>();
+    }
+
     private static Task<IActionResult> Invoke(OpportunitiesController controller, string action) => action switch
     {
         nameof(OpportunitiesController.Close) => controller.Close("opportunity-1", CancellationToken.None),
@@ -99,11 +160,14 @@ public class OpportunityManagementFlowTests
     };
 
     /// <summary>Strict mock that answers only the reads an authorization check needs.</summary>
-    private static Mock<IOpportunityService> ReadableOpportunity(string commentAuthor)
+    private static Mock<IOpportunityService> ReadableOpportunity(string commentAuthor, ProjectRole? offeredRole = null)
     {
         var opportunities = new Mock<IOpportunityService>(MockBehavior.Strict);
         opportunities.Setup(s => s.GetByIdAsync("opportunity-1", It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Result<OpportunityDto>.Success(Opportunity()));
+            .ReturnsAsync(Result<OpportunityDto>.Success(Opportunity() with { ProjectRole = offeredRole }));
+        opportunities.Setup(s => s.RefuseRoleOfferAsync(
+                It.IsAny<ProjectViewer>(), It.IsAny<string>(), It.IsAny<ProjectRole?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((string?)null);
         opportunities.Setup(s => s.GetApplicationByIdAsync("application-1", It.IsAny<CancellationToken>()))
             .ReturnsAsync(Result<OpportunityApplicationDto>.Success(Application()));
         opportunities.Setup(s => s.GetCommentByIdAsync("comment-1", It.IsAny<CancellationToken>()))

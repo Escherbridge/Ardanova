@@ -20,8 +20,9 @@ export default async function OpportunityDetailPage({
 
   // Read as the signed-in viewer: a DRAFT role is visible only to its team, so an anonymous read 404s it.
   const response = viewer?.id
-    ? await runWithActorAssertion({ subject: viewer.id, role: viewer.role }, () =>
-        apiClient.opportunities.getBySlug(slug),
+    ? await runWithActorAssertion(
+        { subject: viewer.id, role: viewer.role },
+        () => apiClient.opportunities.getBySlug(slug),
       )
     : await apiClient.opportunities.getBySlug(slug);
   if (response.error || !response.data) {
@@ -29,7 +30,16 @@ export default async function OpportunityDetailPage({
   }
   const opportunity = toOpportunityPageData(response.data);
 
-  const isOwner = viewer?.id === opportunity.posterId;
+  // Co-managers (any project manager) get the owner's hiring panel too; the API answers who manages.
+  const management =
+    viewer?.id && viewer.id !== opportunity.posterId
+      ? await runWithActorAssertion(
+          { subject: viewer.id, role: viewer.role },
+          () => apiClient.opportunities.getViewerManagement(opportunity.id),
+        )
+      : null;
+  const isOwner =
+    viewer?.id === opportunity.posterId || management?.data?.canManage === true;
 
   return <OpportunityDetailView opportunity={opportunity} isOwner={isOwner} />;
 }

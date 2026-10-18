@@ -133,6 +133,16 @@ only claim an unassigned task for themselves or release their own.
 `PUT /api/tasks/{id}`, `PATCH /api/tasks/{id}/status` and `DELETE /api/tasks/{id}` follow the same
 404-first rule through `GetVisibleTaskAsync`; only a visible task can then be refused with 403.
 
+The epic, sprint, feature and backlog-item controllers apply the same 404-first check to every read.
+That includes the by-parent lists (`/milestones/{id}/epics`, `/epics/{id}/sprints`,
+`/sprints/{id}/features`, `/features/{id}/product-backlog-items`), whose 404 names the parent. See
+`ArdaNova.Application/Services/Implementations/AGENTS.md` §Hierarchy read visibility.
+
+`GET /api/opportunities/{id}/management` returns `{ canManage }` for the signed-in viewer, using the
+same check as every management action. Visibility comes first: a hidden role returns 404, not
+`false`. The opportunity detail and edit pages call this endpoint, so co-managers get the hiring
+panel too, not only the poster.
+
 ## Profile ownership
 
 Skill and experience writes (`UserSkillsController`, `UserExperienceController`) require

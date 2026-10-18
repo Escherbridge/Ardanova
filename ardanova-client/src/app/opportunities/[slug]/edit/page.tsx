@@ -32,9 +32,15 @@ export default async function EditOpportunityPage({
   }
   const opportunity = toOpportunityPageData(response.data);
 
-  // Check ownership
+  // The poster or any co-manager may edit; the API answers who manages.
   if (opportunity.posterId !== session.user.id) {
-    redirect(`/opportunities/${slug}`);
+    const management = await runWithActorAssertion(
+      { subject: session.user.id, role: session.user.role },
+      () => apiClient.opportunities.getViewerManagement(opportunity.id),
+    );
+    if (management.data?.canManage !== true) {
+      redirect(`/opportunities/${slug}`);
+    }
   }
 
   return <OpportunityForm mode="edit" opportunity={opportunity} />;

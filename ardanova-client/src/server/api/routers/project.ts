@@ -907,27 +907,8 @@ export const projectRouter = createTRPCRouter({
   // Remove member from project
   removeMember: protectedProcedure
     .input(z.object({ projectId: z.string(), memberId: z.string() }))
-    .mutation(async ({ input, ctx }) => {
-      const userId = ctx.session.user.id;
-
-      // Get member to verify ownership
-      const member = await apiClient.projects.getMemberById(
-        input.projectId,
-        input.memberId,
-      );
-      if (member.error || !member.data) {
-        throw new Error("Member not found");
-      }
-
-      if (member.data.projectId !== input.projectId) {
-        throw new Error("Member does not belong to this project");
-      }
-      await hierarchyAuthorization.requireProjectManager({
-        userId,
-        projectId: member.data.projectId,
-        isAdmin: ctx.session.user.role === "ADMIN",
-      });
-
+    .mutation(async ({ input }) => {
+      // The API alone decides: a member may leave; a manager removes only members ranked below them.
       const response = await apiClient.projects.removeMember(
         input.projectId,
         input.memberId,
