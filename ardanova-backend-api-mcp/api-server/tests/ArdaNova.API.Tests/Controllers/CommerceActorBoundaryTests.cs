@@ -335,7 +335,7 @@ public class CommerceActorBoundaryTests
             new OpportunityBidsController(
                 bids.Object,
                 new Mock<IOpportunityService>(MockBehavior.Strict).Object,
-                new Mock<IProjectService>(MockBehavior.Strict).Object,
+                new Mock<IHierarchyAuthorizationService>(MockBehavior.Strict).Object,
                 new Mock<ITaskCommerceService>(MockBehavior.Strict).Object),
             "actor-1");
 
@@ -363,7 +363,7 @@ public class CommerceActorBoundaryTests
             new OpportunityBidsController(
                 new Mock<IOpportunityBidService>(MockBehavior.Strict).Object,
                 new Mock<IOpportunityService>(MockBehavior.Strict).Object,
-                new Mock<IProjectService>(MockBehavior.Strict).Object,
+                new Mock<IHierarchyAuthorizationService>(MockBehavior.Strict).Object,
                 commerce.Object),
             "owner-1");
 
@@ -383,7 +383,7 @@ public class CommerceActorBoundaryTests
             new OpportunityBidsController(
                 new Mock<IOpportunityBidService>(MockBehavior.Strict).Object,
                 new Mock<IOpportunityService>(MockBehavior.Strict).Object,
-                new Mock<IProjectService>(MockBehavior.Strict).Object,
+                new Mock<IHierarchyAuthorizationService>(MockBehavior.Strict).Object,
                 commerce.Object),
             "owner-1");
 
@@ -404,7 +404,7 @@ public class CommerceActorBoundaryTests
             new OpportunityBidsController(
                 new Mock<IOpportunityBidService>(MockBehavior.Strict).Object,
                 new Mock<IOpportunityService>(MockBehavior.Strict).Object,
-                new Mock<IProjectService>(MockBehavior.Strict).Object,
+                new Mock<IHierarchyAuthorizationService>(MockBehavior.Strict).Object,
                 commerce.Object),
             "owner-1");
 

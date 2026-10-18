@@ -321,7 +321,8 @@ public class OpportunityBidService : IOpportunityBidService
 
         var bidder = await _userRepository.GetByIdAsync(bid.bidderId, ct);
         if (bidder is not null)
-            dto = dto with { Bidder = _mapper.Map<OpportunityBidBidderDto>(bidder) };
+            // A bid never carries the bidder's email; see Controllers/AGENTS.md §Bid privacy.
+            dto = dto with { Bidder = _mapper.Map<OpportunityBidBidderDto>(bidder) with { Email = null } };
 
         if (!string.IsNullOrWhiteSpace(bid.guildId))
         {

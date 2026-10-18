@@ -1,9 +1,5 @@
 import { z } from "zod";
-import {
-  createTRPCRouter,
-  publicProcedure,
-  protectedProcedure,
-} from "~/server/api/trpc";
+import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
 import { apiClient } from "~/lib/api";
 
 export const OpportunityBidStatus = z.enum([
@@ -44,7 +40,7 @@ const updateOpportunityBidSchema = z.object({
 });
 
 export const opportunityBidRouter = createTRPCRouter({
-  getByOpportunityId: publicProcedure
+  getByOpportunityId: protectedProcedure
     .input(z.object({ opportunityId: z.string() }))
     .query(async ({ input }) => {
       const response = await apiClient.opportunityBids.getByOpportunityId(
@@ -58,7 +54,7 @@ export const opportunityBidRouter = createTRPCRouter({
       return response.data ?? [];
     }),
 
-  getById: publicProcedure
+  getById: protectedProcedure
     .input(z.object({ id: z.string() }))
     .query(async ({ input }) => {
       const response = await apiClient.opportunityBids.getById(input.id);
@@ -80,7 +76,7 @@ export const opportunityBidRouter = createTRPCRouter({
     return response.data ?? [];
   }),
 
-  getByGuildId: publicProcedure
+  getByGuildId: protectedProcedure
     .input(z.object({ guildId: z.string() }))
     .query(async ({ input }) => {
       const response = await apiClient.opportunityBids.getByGuildId(
@@ -183,43 +179,8 @@ export const opportunityBidRouter = createTRPCRouter({
 
   accept: protectedProcedure
     .input(z.object({ id: z.string() }))
-    .mutation(async ({ input, ctx }) => {
-      const userId = ctx.session.user.id;
-
-      // Get opportunity bid
-      const bid = await apiClient.opportunityBids.getById(input.id);
-      if (bid.error || !bid.data) {
-        throw new Error("Opportunity bid not found");
-      }
-
-      // Get opportunity to verify authorization
-      const opportunity = await apiClient.opportunities.getById(
-        bid.data.opportunityId,
-      );
-      if (opportunity.error || !opportunity.data) {
-        throw new Error("Opportunity not found");
-      }
-
-      // If opportunity has projectId, check project ownership
-      if (opportunity.data.projectId) {
-        const project = await apiClient.projects.getById(
-          opportunity.data.projectId,
-        );
-        if (project.error || !project.data) {
-          throw new Error("Project not found");
-        }
-
-        const isProjectOwner = project.data.createdById === userId;
-        if (!isProjectOwner) {
-          throw new Error("Only project owner can accept bids");
-        }
-      } else {
-        // For non-project opportunities, check if user is the poster
-        if (opportunity.data.posterId !== userId) {
-          throw new Error("Only opportunity poster can accept bids");
-        }
-      }
-
+    .mutation(async ({ input }) => {
+      // Who may accept is decided by the API (the opportunity's managers), not here.
       const response = await apiClient.opportunityBids.accept(input.id);
 
       if (response.error || !response.data) {
@@ -231,43 +192,8 @@ export const opportunityBidRouter = createTRPCRouter({
 
   reject: protectedProcedure
     .input(z.object({ id: z.string() }))
-    .mutation(async ({ input, ctx }) => {
-      const userId = ctx.session.user.id;
-
-      // Get opportunity bid
-      const bid = await apiClient.opportunityBids.getById(input.id);
-      if (bid.error || !bid.data) {
-        throw new Error("Opportunity bid not found");
-      }
-
-      // Get opportunity to verify authorization
-      const opportunity = await apiClient.opportunities.getById(
-        bid.data.opportunityId,
-      );
-      if (opportunity.error || !opportunity.data) {
-        throw new Error("Opportunity not found");
-      }
-
-      // If opportunity has projectId, check project ownership
-      if (opportunity.data.projectId) {
-        const project = await apiClient.projects.getById(
-          opportunity.data.projectId,
-        );
-        if (project.error || !project.data) {
-          throw new Error("Project not found");
-        }
-
-        const isProjectOwner = project.data.createdById === userId;
-        if (!isProjectOwner) {
-          throw new Error("Only project owner can reject bids");
-        }
-      } else {
-        // For non-project opportunities, check if user is the poster
-        if (opportunity.data.posterId !== userId) {
-          throw new Error("Only opportunity poster can reject bids");
-        }
-      }
-
+    .mutation(async ({ input }) => {
+      // Who may reject is decided by the API (the opportunity's managers), not here.
       const response = await apiClient.opportunityBids.reject(input.id);
 
       if (response.error || !response.data) {
@@ -314,48 +240,8 @@ export const opportunityBidRouter = createTRPCRouter({
 
   complete: protectedProcedure
     .input(z.object({ id: z.string() }))
-    .mutation(async ({ input, ctx }) => {
-      const userId = ctx.session.user.id;
-
-      // Get opportunity bid
-      const bid = await apiClient.opportunityBids.getById(input.id);
-      if (bid.error || !bid.data) {
-        throw new Error("Opportunity bid not found");
-      }
-
-      // Get opportunity to verify authorization
-      const opportunity = await apiClient.opportunities.getById(
-        bid.data.opportunityId,
-      );
-      if (opportunity.error || !opportunity.data) {
-        throw new Error("Opportunity not found");
-      }
-
-      // If opportunity has projectId, check project ownership
-      if (opportunity.data.projectId) {
-        const project = await apiClient.projects.getById(
-          opportunity.data.projectId,
-        );
-        if (project.error || !project.data) {
-          throw new Error("Project not found");
-        }
-
-        const isProjectOwner = project.data.createdById === userId;
-        if (!isProjectOwner) {
-          throw new Error("Only project owner can complete bids");
-        }
-      } else {
-        // For non-project opportunities, check if user is the poster
-        if (opportunity.data.posterId !== userId) {
-          throw new Error("Only opportunity poster can complete bids");
-        }
-      }
-
-      // Can only complete ACCEPTED bids
-      if (bid.data.status !== "ACCEPTED") {
-        throw new Error("Can only complete bids that have been accepted");
-      }
-
+    .mutation(async ({ input }) => {
+      // Who may complete is decided by the API (the opportunity's managers), not here.
       const response = await apiClient.opportunityBids.complete(input.id);
 
       if (response.error || !response.data) {
