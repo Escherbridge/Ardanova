@@ -97,6 +97,13 @@ export { EconomicSettlementScalarFieldEnumSchema } from './EconomicSettlementSca
 export { EconomicOutboxScalarFieldEnumSchema } from './EconomicOutboxScalarFieldEnumSchema';
 export { FundingIntentScalarFieldEnumSchema } from './FundingIntentScalarFieldEnumSchema';
 export { TaskCommerceAgreementScalarFieldEnumSchema } from './TaskCommerceAgreementScalarFieldEnumSchema';
+export { AssetDefinitionScalarFieldEnumSchema } from './AssetDefinitionScalarFieldEnumSchema';
+export { ProjectTokenPolicyScalarFieldEnumSchema } from './ProjectTokenPolicyScalarFieldEnumSchema';
+export { EquityOrRedemptionRightPolicyScalarFieldEnumSchema } from './EquityOrRedemptionRightPolicyScalarFieldEnumSchema';
+export { EligibilityDecisionScalarFieldEnumSchema } from './EligibilityDecisionScalarFieldEnumSchema';
+export { EconomicSettlementLegScalarFieldEnumSchema } from './EconomicSettlementLegScalarFieldEnumSchema';
+export { SwapQuoteScalarFieldEnumSchema } from './SwapQuoteScalarFieldEnumSchema';
+export { SwapOrderScalarFieldEnumSchema } from './SwapOrderScalarFieldEnumSchema';
 export { SortOrderSchema } from './SortOrderSchema';
 export { NullableJsonNullValueInputSchema } from './NullableJsonNullValueInputSchema';
 export { JsonNullValueInputSchema } from './JsonNullValueInputSchema';
@@ -181,6 +188,11 @@ export { EconomicSettlementStatusSchema } from './EconomicSettlementStatusSchema
 export { EconomicOutboxStatusSchema } from './EconomicOutboxStatusSchema';
 export { FundingIntentStatusSchema } from './FundingIntentStatusSchema';
 export { TaskCommerceAgreementStatusSchema } from './TaskCommerceAgreementStatusSchema';
+export { AssetDefinitionKindSchema } from './AssetDefinitionKindSchema';
+export { EquityOrRedemptionRightKindSchema } from './EquityOrRedemptionRightKindSchema';
+export { EligibilityDecisionStatusSchema } from './EligibilityDecisionStatusSchema';
+export { EconomicSettlementLegKindSchema } from './EconomicSettlementLegKindSchema';
+export { SwapOrderStatusSchema } from './SwapOrderStatusSchema';
 export { InputJsonValueSchema } from './InputJsonValueSchema';
 export { JsonValueSchema } from './JsonValueSchema';
 export { DecimalJsLikeSchema } from './DecimalJsLikeSchema';

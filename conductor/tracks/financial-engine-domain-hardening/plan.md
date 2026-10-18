@@ -6,6 +6,14 @@ type: plan
 > Depends on [Gated Commerce and AZOA Settlement](../gated-commerce-and-azoa-settlement/spec.md).
 > This is an ArdaNova-owned domain track. It does not authorize value movement.
 
+## Resumption handoff (2026-07-18)
+
+Work is paused at an inert persistence-contract checkpoint. The bounded path to
+an integration-ready ArdaNova stopping point is recorded in
+[PASSOFF.md](./PASSOFF.md). This track remains active: no financial migration,
+writer, provider dispatch, AZOA allocation, task award, payout, or swap execution
+is approved by the checkpoint.
+
 ## 1. Contract and model inventory [P0]
 
 - [x] Map every current project token, equity, investment, funding, task award,
@@ -26,11 +34,41 @@ type: plan
     or explicitly use the separate rights path.
   - `EconomicSettlement` has only `assetCode`, amount, and scale. It needs the
     immutable asset/policy references that explain the already-decided amount.
-- [ ] Specify DBML-first `AssetDefinition`, `ProjectTokenPolicy`,
+- [x] Specify DBML-first `AssetDefinition`, `ProjectTokenPolicy`,
   `EquityOrRedemptionRightPolicy`, and `EligibilityDecision` with immutable ids,
   versioning/effective windows, actor/audit fields, and foreign-key/index plan.
+  - Generated Prisma, Zod, and EF models now preserve immutable canonical asset
+    identity, separate utility and rights policies, and auditable eligibility
+    decisions. Existing value paths carry nullable compatibility links only;
+    no migration, backfill, dispatch, or settlement activation is included.
+- [x] Extend the persistence contract for dual-asset funding, ordered settlement
+  legs, and the only supported exchange shape: project utility -> ARDA -> project
+  utility. Rights are structurally excluded from quotes and orders.
+  - `FundingIntent` now distinguishes payment asset from award asset and stores
+    award atoms. `EconomicSettlementLeg` prevents a payment amount and award
+    amount from being collapsed into one legacy settlement field. `SwapQuote`
+    and `SwapOrder` pin both utility policies, three assets, three atom amounts,
+    gate/liquidity snapshots, expiry, and immutable terms. No writer is wired.
 - [ ] Document which current `ProjectTokenConfig`, `ProjectEquity`, and funding
   fields become compatibility projections, and the deletion criteria for each.
+
+### Persistence-slice review constraints (2026-07-18)
+
+The DBML-generated vocabulary is intentionally inert until the following P0
+controls are delivered with its writer and reviewed migration: the migration
+must add `CHECK (scale BETWEEN 0 AND 18)`, and every creation/backfill path must
+invoke the canonical scale validator. The authorization writer must atomically
+prove project consistency, utility-policy-to-utility-asset-kind consistency,
+rights-policy-to-decision consistency, and approved/unexpired decision ownership
+by the funding/task/settlement beneficiary. Independent foreign keys alone do
+not establish those cross-row facts. Asset and policy updates must be append-only
+or reject mutation; version and effective-window ordering require explicit tests.
+The migration must also enforce non-negative settlement-leg positions and
+canonical positive atom strings, while the writer validates each leg against its
+asset scale. One `SwapOrder` may reference one quote and at most one settlement;
+one settlement may serve at most one exchange order. Quote acceptance must prove
+the order actor is the quote actor. Generated Prisma/Zod model schemas are not
+authorization command schemas and must not be used as such.
 
 ## 2. Fixed-scale migration [P0]
 

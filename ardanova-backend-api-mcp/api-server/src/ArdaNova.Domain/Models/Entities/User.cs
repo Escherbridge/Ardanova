@@ -206,6 +206,10 @@ public class User
 
     public virtual ICollection<TaskCommerceAgreement> TaskCommerceAgreements { get; set; } = new List<TaskCommerceAgreement>();
 
+    public virtual ICollection<SwapQuote> SwapQuotes { get; set; } = new List<SwapQuote>();
+
+    public virtual ICollection<SwapOrder> SwapOrders { get; set; } = new List<SwapOrder>();
+
     public virtual ICollection<Referral> ReferralsAsReferrer { get; set; } = new List<Referral>();
 
     public virtual ICollection<Referral> ReferralsAsReferred { get; set; } = new List<Referral>();
@@ -249,5 +253,9 @@ public class User
     public virtual ICollection<EconomicSettlement> EconomicSettlementsAsBeneficiaryUser { get; set; } = new List<EconomicSettlement>();
 
     public virtual ICollection<EconomicSettlement> EconomicSettlementsAsAuthorizedByUser { get; set; } = new List<EconomicSettlement>();
+
+    public virtual ICollection<EligibilityDecision> EligibilityDecisionsAsUser { get; set; } = new List<EligibilityDecision>();
+
+    public virtual ICollection<EligibilityDecision> EligibilityDecisionsAsDecidedByUser { get; set; } = new List<EligibilityDecision>();
 
 }

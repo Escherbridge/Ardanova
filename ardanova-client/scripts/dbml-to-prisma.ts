@@ -119,7 +119,8 @@ const parseTypeArgs = (field: Field): string => {
     return `@db.Decimal(${DEFAULT_DECIMAL_PRECISION[0]}, ${DEFAULT_DECIMAL_PRECISION[1]})`;
   }
   if (typeName === "varchar" && args && args.length >= 1) {
-    return `@db.VarChar(${args[0]})`;
+    const length = typeof args === "string" ? args.trim() : args[0];
+    return `@db.VarChar(${length})`;
   }
   if (typeName === "text") {
     return "@db.Text";
@@ -227,7 +228,7 @@ datasource db {
         const defType = field.dbdefault.type;
 
         // Check if field type is an enum (not in TYPE_MAP means it's likely an enum or model)
-        const isEnumType = !TYPE_MAP[field.type.type_name.toLowerCase()];
+        const isEnumType = !TYPE_MAP[field.type.type_name.toLowerCase().split("(")[0]];
 
         if (defType === "expression") {
           // Handle expressions like now(), cuid(), uuid()
@@ -289,7 +290,11 @@ datasource db {
 
       // Create a unique relation name for Prisma disambiguation
       // Use format: ModelName_FieldName to ensure uniqueness
-      const relationDbName = `${table.name}_${fkField}`;
+      const localFieldDef = table.fields.find((field) => field.name === fkField);
+      const relationDbName =
+        localEp.relation === "1" && remoteEp.relation === "1" && localFieldDef?.pk
+          ? `${remoteModel}_${remoteEp.fieldNames[0]}`
+          : `${table.name}_${fkField}`;
 
       // Handle onDelete - map DBML values to Prisma PascalCase
       const onDeleteMap: Record<string, string> = {
@@ -337,7 +342,7 @@ datasource db {
         output += `  ${listName} ${remoteEp.tableName}[] @relation("${remoteRefKey}")\n`;
       } else if (localEp.relation === "1" && remoteEp.relation === "1") {
         // One-to-One
-        const hasFk = table.fields.some((f) => f.name === fkField);
+        const hasFk = localFieldDef !== undefined && !localFieldDef.pk;
         relationFieldName = getUniqueRelationName(
           table.name,
           relationFieldName,

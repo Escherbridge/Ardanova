@@ -42,6 +42,14 @@ public class EconomicSettlement
     [Required]
     public string assetCode { get; set; } = string.Empty;
 
+    public string? assetDefinitionId { get; set; }
+
+    public string? projectTokenPolicyId { get; set; }
+
+    public string? equityOrRedemptionRightPolicyId { get; set; }
+
+    public string? eligibilityDecisionId { get; set; }
+
     [Required]
     [Precision(38, 18)]
     public decimal amount { get; set; }
@@ -109,5 +117,21 @@ public class EconomicSettlement
     public virtual ICollection<FundingIntent> FundingIntents { get; set; } = new List<FundingIntent>();
 
     public virtual ICollection<TaskCommerceAgreement> TaskCommerceAgreements { get; set; } = new List<TaskCommerceAgreement>();
+
+    public virtual ICollection<EconomicSettlementLeg> EconomicSettlementLegs { get; set; } = new List<EconomicSettlementLeg>();
+
+    public virtual SwapOrder? SwapOrder { get; set; }
+
+    [ForeignKey("assetDefinitionId")]
+    public virtual AssetDefinition? AssetDefinition { get; set; }
+
+    [ForeignKey("projectTokenPolicyId")]
+    public virtual ProjectTokenPolicy? ProjectTokenPolicy { get; set; }
+
+    [ForeignKey("equityOrRedemptionRightPolicyId")]
+    public virtual EquityOrRedemptionRightPolicy? EquityOrRedemptionRightPolicy { get; set; }
+
+    [ForeignKey("eligibilityDecisionId")]
+    public virtual EligibilityDecision? EligibilityDecision { get; set; }
 
 }

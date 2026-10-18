@@ -20,6 +20,7 @@ export const MembershipCredentialSchema = z.object({
   grantedByProposalId: z.string().nullable(),
   metadataUri: z.string().nullable(),
   mintTxHash: z.string().nullable(),
+  issuedThroughNodeAt: z.coerce.date().nullable(),
   revokeTxHash: z.string().nullable(),
   mintedAt: z.coerce.date().nullable(),
   revokedAt: z.coerce.date().nullable(),
