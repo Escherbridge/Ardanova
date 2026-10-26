@@ -64,9 +64,9 @@ status: draft-for-owner
 | id | item | source | state | DECISION | size |
 |---|---|---|---|---|---|
 | P3-01 | Add funds: real Stripe test checkout → webhook → ARDA issued (F19/F21; closes LR L2.3, L1.4) | MVP-P §Step-3 milestone, F19, F21 | done-live | DO-NOW: close L2.3/L1.4 on LR with evidence | S |
-| P3-02 | ARDA peg: in-code `UnitsPerUsdMinorUnit="100"` ($0.01) contradicts PROD and the add-funds copy ($1); dev overrides to 1 | MVP-P F22; LR preamble ("1 ARDA = $0.01"), L6.2 | gated | OWNER-CALL #1 | S |
+| P3-02 | ARDA peg: in-code `UnitsPerUsdMinorUnit="100"` ($0.01) contradicts PROD and the add-funds copy ($1); dev overrides to 1 | MVP-P F22; LR preamble ("1 ARDA = $0.01"), L6.2 | gated | DO-NOW — DECIDED 2026-10-26: keep $0.01/ARDA in code; fix PROD + add-funds copy and drop the dev "1" override | S |
 | P3-03 | First sponsorship priced (offering price at `fundingRaised==0`; `<=0` guard); exchange SETTLED with op id | MVP-P F24, STEP 3 SETTLED; LR L2.5 | done-live | DO-NOW: close L2.5 with evidence; re-drive on a fresh DB in the C3 sweep | S |
-| P3-04 | 404 exchange receipt parks forever as ATTENTION instead of proving no-effect | MVP-P F29 | built-untested | OWNER-CALL #4 | M |
+| P3-04 | 404 exchange receipt parks forever as ATTENTION instead of proving no-effect | MVP-P F29 | built-untested | DO-NOW — DECIDED 2026-10-26: 404 = proof-of-no-effect, redispatch same key; ATTENTION stays for 5xx/ambiguous | M |
 | P3-05 | F21 residuals: recipient-prep failures lack the no-effect marker; a Stuck lot needs two resumes; pre-existing AllocationManager Transfer-test failure | MVP-P F21 | missing | DO-NOW | S |
 | P3-06 | Rotate/revoke dev tenant keys and Stripe test keys exposed in agent output (rotation leaves old keys valid until expiry) | MVP-P F21, F26, F19 D8 | missing | DO-NOW (operator step + runbook line) | S |
 | P3-07 | Intent status lacks `releaseNotBefore`/`holdingReasonDetail` (hard-coded 30 days); no hosted SETTLEMENT_PENDING promoter; backer-name choice | LR L2.6 | missing† | DO-NOW | M |
@@ -87,7 +87,7 @@ status: draft-for-owner
 | P4-02 | Bids on non-OPEN opportunities blocked client-side only | LR L2.12 (OI-67) | missing† | DO-NOW | S |
 | P4-03 | Guild bid award split | LR L2.12 (OI-68) | missing | CUT-FOR-MVP (solo worker path tests the idea) | — |
 | P4-04 | Paying a matured window out needs a release MANDATE (opened with `AutoRelease:false`); first window matures 2027-01-23; hold sweep must pay first-time custodial beneficiaries | MVP-P F20 ("step-5 boundary"), §C2 Step 5; LR L1.4 (OI-25) | missing | DEFER(hard date: build by 2026-12-23, 30 days before first maturity). The only time-triggered deferral | M |
-| P4-05 | Escrow lifecycle has no entry to FUNDED; components mounted nowhere; honest banner deleted | LR L2.10 | missing† | OWNER-CALL #5 | L |
+| P4-05 | Escrow lifecycle has no entry to FUNDED; components mounted nowhere; honest banner deleted | LR L2.10 | missing† | CUT-FOR-MVP — DECIDED 2026-10-26: hold rail is the MVP escrow; P8-10 banner becomes DO-NOW | L |
 | P4-06 | Escrow dispute adjudication (funder self-refund of DISPUTED, contributor path) | TR "Guild Review Integrity…", "Guild Joining and Vote-of-Record Integrity" | missing | CUT-FOR-MVP (unreachable while P4-05 is cut) | — |
 | P4-07 | Hiring user-blockers: applicant can track/withdraw an application, applicant notifications, single pending application DB-enforced | TR "Projects Hiring Completion", "…Follow-ups (loop 3)" | missing | DO-NOW (this subset only) | M |
 | P4-08 | Hiring/board extras: headcount, guild seating, co-manager parity, task edit, due-date sanity, accept-applications toggle | TR "Projects Hiring Follow-ups (loop 2)", "Task Board Workflow… (loop 4)" | missing | CUT-FOR-MVP | — |
@@ -98,8 +98,8 @@ status: draft-for-owner
 | id | item | source | state | DECISION | size |
 |---|---|---|---|---|---|
 | P5-01 | No custodial balance read in the BFF (holdings reads are fail-closed stubs; W5.3 read model unbuilt); Money tab renders engineering prose; insufficient-ARDA UX depends on it | MVP-P F27 tail ("there is NO custodial balance read"); LR L2.14 | missing | DO-NOW (blocks UX gold-see-balance and the invest UX) | L |
-| P5-02 | Withdraw ARDA → bank (PayoutService; Stripe Connect KYB at first cash-out) | MVP-S D6; PROD §How value moves 4, §KYC; UX gold-withdraw | built-untested | OWNER-CALL #3 | M |
-| P5-03 | Sell project units back to ARDA (`/swap`; buy-back disabled by default; queue promise unkept) | LR L1.9, L0.5; UX gold-sell-units | gated | OWNER-CALL #3 | L |
+| P5-02 | Withdraw ARDA → bank (PayoutService; Stripe Connect KYB at first cash-out) | MVP-S D6; PROD §How value moves 4, §KYC; UX gold-withdraw | built-untested | DO-NOW — DECIDED 2026-10-26: IN | M |
+| P5-03 | Sell project units back to ARDA (`/swap`; buy-back disabled by default; queue promise unkept) | LR L1.9, L0.5; UX gold-sell-units | gated | DO-NOW — DECIDED 2026-10-26: sell-units IN for MVP (owner overrode the cut recommendation) | L |
 | P5-04 | Raw chain address reachable from one sponsor API call | LR L3.5 | missing† | DO-NOW | S |
 | P5-05 | Portfolio jargon: "Source configuration" GUID, "Tokens" column, "tokenomics API", Wallet icons; "the node" on the sponsorship flow | LR L3.3 | missing† | DO-NOW | M |
 | P5-06 | UX study pass `01-cash-out-edges` on the released env (adapter skeleton, guard unproven) | UXRB §Study setup; UX §Session adapter | gated | DO-NOW after P7-01 | M |
