@@ -316,7 +316,9 @@ FiatPayoutLedger.cs:112, TenantPayoutLedger.cs:114/138).
     Webhooks__Enabled). Two boot crashes fixed on the way: DataProtection__KeyRingPath
     required outside Development (set from appsettings.Production.json).
   * Provisioned the ArdaNova tenant + ARDA platform-unit genesis on the released
-    node (scratchpad/provision-released-azoa.ps1, mirrors dev-node-up §5 +
+    node (.omc/scripts/provision-released-azoa.ps1 — idempotent, re-runnable;
+    .omc/scripts/get-released-dburl.ps1 sets DATABASE_URL without echoing it;
+    both gitignored. Mirrors dev-node-up §5 +
     ensurePlatformUnit): tenant 3820397b-be9c-47a8-8cc1-d6342633155b, two-key
     contract minted, ARDA asset 5589412360996711624 activated on Simulated/Devnet
     (supply 2,000,000,000; on-ramp partition budget 1e9). State in
