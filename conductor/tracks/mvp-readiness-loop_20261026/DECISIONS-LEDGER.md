@@ -232,3 +232,8 @@ pass (or open one), and close with a verdict like any other row.
   |---|---|---|---|
   | P7-15 | OWNER (TRUE BLOCKER for creator/invest on the released env): run the gated commerce migration runbook on the released Postgres (fingerprinted preflight, reviewed additive migration, assetScale contract). Until then S-04 stands and /projects/[slug], create, invest all 500 | OWNER-CALL — the single highest-leverage operator action | M |
   | P8-13 | S-05: signed-out home has no money framing or entry point (highest-friction route, 339) — product copy/IA decision feeding the next scenario (project discovery) | DO-NOW plane 8 after owner sees it | M |
+- P6-18 CLOSED (2026-10-26, commit 170ca668): five stacked causes — test login violated "token holders are registered users" (no user row, no exp), a WIP checkpoint had downgraded publish's fan-out refusal to a warning (product regression, restored), missing Idempotency-Key, execute went durable (tests now settle runs via the job queue), graph-bundle contract drift. Action family 63/64; unit ~Action 855/855. P6-20 CLOSED the strong way: exact event count from RecordExpiryAsync, not a longer wait.
+  | id | item | decision | size |
+  |---|---|---|---|
+  | P6-21 | Simulated NFT module (the one remaining Action red: Grant node = NFT mint; NftLifecycleService refuses "This chain does not offer a verified NFT lifecycle" on Simulated) | DO-NOW — next azoa iteration (same sim-first-class pattern as fungible/exchange modules) | M |
+  | P6-22 | Remaining non-Action CI reds: DappSeries generate/deploy 415s (same contract-drift shape), Holon Mint/Exchange 400s, SurrealActionAdmissionSafety, SurrealWalletAuthentication, Ethereum protocol classes | DO-NOW — triage from CI run 4's honest remainder | M |
