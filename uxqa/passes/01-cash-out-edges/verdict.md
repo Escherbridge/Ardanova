@@ -5,181 +5,252 @@ scenario: cash-out-edges
 status: CHANGES_REQUESTED
 ---
 
-# Pass 01 verdict: cash-out and the money's edges
+# Pass 01 verdict: cash-out and the money's edges (post-fix re-run)
+
+This verdict covers the real, session-seeded run recorded in `ux-report.json`
+(generated 2026-10-25T22:38Z — 44 runs: 36 UX + 8 probe) and the synthesis
+built from it in `synthesis.md` (generated 2026-10-25, title "re-run with
+sessions"). It supersedes the prior `verdict.md` content, which judged an
+earlier **void** run (all 11 UI runs died at the sign-in wall because of the
+`personas.json` seed-shape bug fixed in commit `927d5c6`'s line of work). Four
+fix commits (`c347787`, `29d65bb`, `1a5fe14`, `5fc7d30`) landed *after* this
+synthesis was generated, so this verdict's job is to lay out what exists and
+what still needs a coordinator re-run — not to declare the pass done.
 
 ## 1. Exit checks
 
-Source: `uxqa/passes/01-cash-out-edges/ux-report.json` → `exitChecks`, cross-read against `synthesis.md` §3, §6, §7 (no `ledger.json` exists in this pass directory — see note below the table).
+Source: `uxqa/passes/01-cash-out-edges/ux-report.json` → `exitChecks`, cross-read
+against `synthesis.md` §3, §6, §7. As before, **no `ledger.json` exists**
+anywhere under `uxqa/` — this is the same gap the prior verdict flagged, still
+unresolved. The "new HIGH" row below substitutes `synthesis.md` §6's own
+`Ledger` column (HIGH/MEDIUM/LOW/RESEARCH_QUESTION), the closest equivalent on
+disk.
 
 | Check | Target | Observed | Result |
 |---|---|---|---|
-| Gold success rate | ≥ 0.8 | 0 of 4 gold tasks ran: `gold-see-balance`, `gold-add-funds`, `gold-withdraw`, `gold-sell-units` all missing (empty run dirs) | `ok: false` |
-| Friction per journey vs previous pass | within 10% tolerance of previous pass | previous (`00-setup`) = 1, current (`01-cash-out-edges`) = 15 | `ok: false` — `synthesis.md` §3 flags this as a blocker artifact: all 165 friction points sit on two routes (`/`, `/auth/signin`) hit by all 11 signed-out runs, not a real regression against `00-setup`; the two passes are not comparable this way |
-| New HIGH-severity findings | 0 | `ux-report.json`'s own `exitChecks.newHigh` is uncomputed (`count: null`, `ok: null`). `ledger.json` was not found at `uxqa/passes/01-cash-out-edges/ledger.json` or anywhere under `uxqa/`. The closest available record is `synthesis.md` §6's severity table, which bands 4 findings critical this pass, 3 of them explicitly tagged HIGH (F1 score 27, F2 score 18, F3 score 18); F3 has since been promoted to FIX (commit `ca1be70`), leaving **F1 and F2 open as HIGH-band** | not computed by the harness; 2 HIGH-band findings remain open per the synthesis ledger |
-| Route coverage | not set | 2 of 53 page routes visited (ratio 0.0377); 1 of 12 declared APIs hit (`GET /api/auth/session` only) | ratio reported, `ok: null` (no target configured) |
+| Gold success rate | ≥ 0.8 | 1 of 4 gold tasks met target: `gold-see-balance` (1.00, median 4s/0 clicks/friction 6). Below target: `gold-add-funds` (0.00 — Continue never enabled, median friction 20), `gold-withdraw` (0.00 — amount field `<input disabled>`, 3× 30s timeouts, median friction 30), `gold-sell-units` (0.00 — "What you hold" read failed 3× in 3s, median friction 25) | `ok: false` |
+| Friction per journey vs previous pass | within 10% tolerance | previous (`00-setup`) = 1, current (`01-cash-out-edges`) = 28.11 | `ok: false`. Unlike the earlier void run (where a "friction=15" reading was an artefact of 11 identical sign-in-wall bounces), this is a real measurement: totals are 1012 friction points, 82 failed attempts, 12 workarounds, 283 console errors, 30 axe violations, 0 rage/dead clicks across 36 UI runs. `00-setup` is a setup pass with near-zero activity by construction, so the comparison is still not apples-to-apples, but this time the numerator is genuine product friction, not harness noise |
+| New HIGH-severity findings | 0 | `ux-report.json`'s own `exitChecks.newHigh` is uncomputed (`count: null`, `ok: null`) — there is no prior-pass S-ID baseline to diff against either, since `00-setup` predates this taxonomy. `synthesis.md` §6 currently carries **7 HIGH-band findings**: S-01, S-02, S-03, S-04, S-05, S-06, S-13. Of those, the 4 fix commits below plausibly touch S-01, S-02, S-03 (partially — see §3), S-06 and S-13; **S-04** (project-service 500 for every role, flagged `HIGH (BLOCKER: no workaround)`) and **S-05** (signed-out home has no money entry point, `HIGH`) are untouched by any commit in this window | not harness-computed; 2 of 7 HIGH-band findings (S-04, S-05) have no code change addressing them yet, and the other 5 are unverified claims pending re-run |
+| Route coverage | not set | 14 of 53 page routes visited (ratio 0.2641509433962264); 2 of 12 declared REST API routes hit (`GET /api/auth/session`, `GET /api/health`) — the bulk of real traffic was tRPC procedures (`tokenBalances.getArdaBalance` ×46, `payouts.getPayoutsByUser` ×44, `project.getAll` ×38, etc.), which aren't in the declared-API list at all | ratio reported, `ok: null` (no target configured) |
 | Review verdict | — | **APPROVE** | APPROVE |
-| Coordinator re-run | — | 2026-10-26: `npx vitest run` -> `Tests  590 passed (590)`; `npx tsc --noEmit` -> clean (exit 0); `npm run build` -> exit 0. Matches the integrator's claims verbatim. | **GREEN** |
+| Coordinator re-run | — | 2026-10-26: full `npx vitest run` exit 0, `npx tsc --noEmit` exit 0, `npm run build` exit 0 on the tree containing all four fix commits — the integrator's 659/659 figures reproduced at exit-code level. | **GREEN** |
 
-**Coordinator ruling:** status CHANGES_REQUESTED — the three fixes are verified
-and released, but the pass itself is structurally void (adapter seed read the
-personas file as a bare array while the plugin writes `{personas:[...]}`; fixed
-at adapter.mjs seed + a session preflight added to the plugin's uxSession so a
-missing seed can never again leak one browser per lane). All 12 personas now
-seed (`SEEDED 12`). The pass re-runs under the same scenario; this run does not
-count toward exit criteria.
-
-**Note on `ledger.json`:** the task that produced this verdict asked for "new HIGH from `ledger.json`," but no such file exists under `uxqa/passes/01-cash-out-edges/` or elsewhere in `uxqa/`. This verdict substitutes `synthesis.md` §6 ("Findings ranked by severity") and §10 ("Triage outcomes") as the closest equivalent — that table already carries a "Band / ledger" column and FIX/RESEARCH_QUESTION decisions. If a dedicated `ledger.json` is expected to exist going forward, that is itself a gap for the coordinator to close, separate from the re-run.
+**Coordinator ruling:** CHANGES_REQUESTED — engineering claims verified, but
+the five targeted HIGHs await UX-harness re-observation, S-04 is root-caused
+to the un-run owner-gated commerce migration (Postgres 42703: column
+f.awardAmountAtoms does not exist on the released DB; ledger P7-15), and S-05
+needs a product decision (P8-13). Next: re-run this scenario against the fixed
+build; the creator/invest lane stays blocked until the owner runs the
+migration runbook.
 
 ## 2. Claims to re-run
 
-Every test/typecheck/build command the fix lanes, the integrator, and the fix-review lane reported, verbatim, so the coordinator can re-run each one and confirm the claimed output still holds.
+Every test/typecheck/build command the fix lanes and the integrator reported,
+verbatim, grouped by the commit each lane's diff matches in `git log` (matched
+by file names mentioned in the command output, e.g. `query-error-copy.test.ts`
+→ `c347787`, `on-ramp-status.test.ts` → `29d65bb`, `money-route-titles.test.ts`
+→ `1a5fe14`, `account-setup-copy.test.ts` + `app-topbar.test.tsx` →
+`5fc7d30`). The coordinator should run each block and confirm the same output.
 
-### Fix lane A — wordmark `role="img"` + mobile primary nav (commit `0a79d90`)
+### Fix lane — plain-language errors and honest cash-out copy (commit `c347787`)
 
-```
-1) cd ardanova-client && npx vitest run src/components/marketing/home-primary-nav.test.ts
-   -> FAIL ... Error: Failed to parse source for import analysis because the content contains invalid JS syntax. If you use tsconfig.json, make sure to not set jsx to preserve.
-   -> Test Files  1 failed (1)
-   (harness limit; the file was removed from the tree so `npm test` stays green)
-
-2) cd ardanova-client && npx tsc --noEmit 2>&1 | grep -E "wordmark|src/app/page\.tsx|home-primary-nav"
-   -> no output; whole project shows `total errors: 0`
-
-3) cd ardanova-client && npx eslint src/components/brand/wordmark.tsx src/app/page.tsx src/components/marketing/home-primary-nav.tsx
-   -> eslint exit 0
-
-4) node <scratchpad>/home-a11y.cjs
-   (Playwright from .omc/qa-harness + axe-core 4.10.3 from client node_modules, against local dev server at http://localhost:3000 serving this working tree;
-    curl confirmed `>Menu<` and `role="img" aria-label="ArdaNova"` x2 in the HTML)
-   -> at 390px: axe violations: none; PASS no aria-prohibited-attr; PASS toggle collapsed;
-      PASS toggle >=44px (80.859375x44); PASS expanded after click;
-      PASS links reachable: Method|Rights|Nova|Projects; axe (menu open): none;
-      PASS Escape closes; PASS focus returned to toggle;
-      PASS link activation closes + scrolls to #rights (top=88)
-   -> same results at 683px (1366 at 200% zoom)
-   -> at 1280px: axe violations: none; PASS desktop nav visible, menu button hidden
-   -> final line: ALL PASS
-   (an earlier run failed the link-activation check only because Next updates the URL hash
-    asynchronously; a 2.5s wait for the smooth scroll fixed it; the menu was closed in both runs)
-```
-
-### Fix lane B — sign-in destination label (commit `ca1be70`)
+Touches `query-error-copy.ts`/`.test.ts`, `design-gate.test.ts`,
+`withdraw/page.tsx`, `swap/page.tsx`, `portfolio/page.tsx`, `projects/page.tsx`
+— the S-01/S-02/S-06/S-13/S-19 cluster.
 
 ```
-cd ardanova-client && npx vitest run src/app/auth/signin
-   -> Test Files  1 passed (1) / Tests  14 passed (14)
-
-cd ardanova-client && npx tsc --noEmit 2>&1 | grep -E "src/app/auth/signin"
-   -> no output (no errors on my paths)
-
-cd ardanova-client && npx tsc --noEmit 2>&1 | grep -c "error TS"
-   -> 0 (no errors anywhere in the repo)
+cd ardanova-client && npx tsc --noEmit 2>&1 | grep -E "<owned paths>"  -> no matches; total "error TS" count across the repo = 0
+cd ardanova-client && npx vitest run src/components/ui/query-error-copy.test.ts src/styles/design-gate.test.ts -> "Test Files  2 passed (2)" / "Tests  50 passed (50)"
+cd ardanova-client && npx eslint <6 owned ts/tsx files> -> no output, exit 0
+cd ardanova-client && npx prettier --write <6 owned ts/tsx files> -> formatted. Prettier changed the files after the first run, so I ran vitest, tsc (filtered count 0) and eslint (exit 0) once more. Same results: "Tests  50 passed (50)".
 ```
 
-### Integrator
+### Fix lane — add-funds readiness states and amount-format errors (commit `29d65bb`)
+
+Touches `on-ramp-status.ts`/`.test.ts`, `portfolio/add-funds/page.tsx` — the
+S-01 (add-funds half) / S-16 cluster.
 
 ```
-1) cd ardanova-client && npx vitest run
-   -> Test Files  62 passed (62) / Tests  590 passed (590)
-      (full suite: all pre-existing tests plus the new destination-label.test.ts)
-
-2) cd ardanova-client && npx tsc --noEmit
-   -> no output (clean, exit 0)
-
-3) cd ardanova-client && npm run build
-   -> ✓ Compiled successfully in 33.3s ... ✓ Generating static pages (48/48)
-      (full Next.js production build, no errors)
-
-4) Pre/post-build `git status --porcelain=v1` diff -> identical
-   (build/typecheck/test runs did not mutate the tree)
-
-5) `git diff --stat` before staging -> exactly: wordmark.tsx +1, page.tsx +2, signin/page.tsx +12
-   (matches both lane reports' claimed line ranges, no stray edits)
+cd ardanova-client && npx vitest run src/lib/commerce/on-ramp-status.test.ts -> first run: "Tests 1 failed | 30 passed (31)". The failure was my own test fixture: the ready account had no avatarId/walletId/walletAddress, and evaluateValueActionAccount requires all three. After fixing the fixture: "Test Files 1 passed (1) / Tests 31 passed (31)".
+cd ardanova-client && npx tsc --noEmit 2>&1 | grep -E "add-funds/page|on-ramp-status" -> no output, grep exit=1 (no type errors in the owned paths).
+cd ardanova-client && npx eslint src/app/portfolio/add-funds/page.tsx src/lib/commerce/on-ramp-status.ts src/lib/commerce/on-ramp-status.test.ts -> no output, eslint-exit=0.
 ```
 
-### Fix-review lane
+Note: the fix lane's own test fixture had a bug (missing `avatarId`/`walletId`/
+`walletAddress` on a "ready" account) that it caught and corrected before
+reporting green — worth the coordinator spot-checking that the corrected
+fixture is what actually landed, not the broken one.
+
+### Fix lane — payout setup gating, drawer focus, verification copy, route titles, backend error mapping (commit `1a5fe14`)
+
+Touches `custodial-account-card.tsx`, `account-setup-copy.ts`,
+`app-topbar.tsx`, `settings/verification/page.tsx`, `payouts.ts` /
+`token-balances.ts` / `swap.ts` routers, 7 `layout.tsx` metadata-title files —
+the S-07/S-08 cluster plus the data-quality flag about mis-mapped backend
+status codes.
 
 ```
-Server under test: `npx next dev --turbo -p 3107` in ardanova-client (own server; port 3000 was
-already held by another PID returning 500, left alone). Stopped afterwards via taskkill on its
-PID and child PID; port 3107 confirmed free.
-
-1) UXQA_CHECK_BASE=http://localhost:3107 node --test uxqa/checks/01-cash-out-edges.check.mjs
-   (final run, source clean):
-   ✔ sign-in names the money destination the visitor came from
-   ✔ sign-in names no destination for an off-site callbackUrl
-   ✔ home menu below 768px opens, lists the four destinations, and Escape returns focus to the toggle
-   ✔ axe scan of / reports no aria-prohibited-attr (F9)
-   tests 4 / pass 4 / fail 0
-
-2) Mutation run (signin label nulled, role="img" removed, focus() removed):
-   ✖ destination, ✔ off-site (expected — checks absence), ✔ menu (false pass — focus already on
-     toggle; test was then fixed to focus a panel link first), ✖ axe. pass 2 / fail 2.
-   Re-run with only focus() removed: ✖ menu, ✖ axe. pass 2 / fail 2.
-   (the axe failure here is unexplained since the wordmark had already been restored — suspected
-    stale hot-reload, not confirmed)
-   All three files restored from scratchpad backups; `git status` showed no tracked changes before
-   the final green run.
-
-3) npx vitest run src/app/auth/signin/destination-label.test.ts (in ardanova-client)
-   -> Test Files 1 passed (1), Tests 14 passed (14)
+cd ardanova-client && npx vitest run src/server/api/routers/money-read-errors.test.ts src/components/azoa/account-setup-copy.test.ts src/app/money-route-titles.test.ts src/components/ui/query-error-copy.test.ts
+  -> Test Files  4 passed (4) / Tests  70 passed (70)   (also re-run after prettier: same result)
+cd ardanova-client && npx vitest run
+  -> Test Files  65 passed (65) / Tests  658 passed (658)
+cd ardanova-client && npx tsc --noEmit > scratchpad/tsc.log
+  -> exit 0; 'error TS' count 0 (nothing to filter for owned paths)
+cd ardanova-client && npx eslint <17 touched files>
+  -> ✖ 1 problem (0 errors, 1 warning): pre-existing react-hooks/exhaustive-deps at settings/verification/page.tsx:102; eslint exit 0
+cd ardanova-client && npx prettier --write <17 touched files>
+  -> reformatted 5 files (whitespace only, including two existing long lines in custodial-account-card.tsx)
 ```
+
+Note: this lane's own full-suite run already reports 65/658 — the same
+numbers the integrator reports below, which is a useful cross-check that no
+lane's local sweep disagreed with the integrated one.
+
+### Integrator (full repo, after all three fix lanes merged)
+
+```
+cd ardanova-client && npx vitest run -> "Test Files  65 passed (65)" / "Tests  658 passed (658)" (5.87s)
+cd ardanova-client && npx tsc --noEmit -> no output, exit clean (0 "error TS" across the whole client)
+cd ardanova-client && npm run build -> "✓ Compiled successfully in 19.8s" / "✓ Generating static pages (48/48)" -- full production build succeeded, including all touched routes (/portfolio, /portfolio/add-funds, /portfolio/withdraw, /swap, /projects, /settings/payouts, /settings/verification)
+```
+
+### Fix-review lane (commit `5fc7d30`, review findings)
+
+Touches `dashboard/profile/page.tsx`, `app-topbar.test.tsx`,
+`account-setup-copy.test.ts`, `custodial-account-card.test.tsx`,
+`vitest.config.ts` — extends the S-08 fix to `/dashboard/profile` and replaces
+source-grep assertions with real jsdom/RTL behaviour tests.
+
+```
+cd ardanova-client && npx vitest run src/components/azoa/account-setup-copy.test.ts src/components/azoa/custodial-account-card.test.tsx src/components/app-topbar.test.tsx
+  -> Test Files  3 passed (3) / Tests  15 passed (15)
+Mutation checks (source restored afterwards; git diff on both files is empty):
+  in app-topbar.tsx, replaced `event.preventDefault();` with `return;` -> npx vitest run src/components/app-topbar.test.tsx -> Tests  1 failed (1)
+  in custodial-account-card.tsx, changed `offerSetup = needsProvisioning && notice.setupOpen` to `offerSetup = needsProvisioning` -> npx vitest run src/components/azoa/custodial-account-card.test.tsx -> Tests  1 failed | 3 passed (4)
+Full sweep: npx vitest run -> Test Files  67 passed (67) / Tests  659 passed (659)
+npx tsc --noEmit -p . -> no output (clean)
+```
+
+Note: the mutation checks (deliberately breaking `offerSetup`'s gating
+condition and the drawer's `preventDefault`) are a genuine falsifiability test
+on the two highest-stakes lines in this review pass — if the coordinator only
+has budget to spot-check one thing, re-running those two mutations and
+confirming they still go red is the highest-signal single check available.
+
+**What the coordinator still needs to establish beyond these commands:** all
+of the above is engineering-suite evidence (vitest/tsc/eslint/build). None of
+it is a UX-harness re-run against the fixed code — the S-01/S-02/S-06/S-07/
+S-08/S-13 findings these commits target have not been re-observed by an actual
+`uxSession()` run yet. That re-run, not just the test sweep, is what the
+`PENDING_COORDINATOR_RERUN` status is waiting on.
 
 ## 3. Ledger summary
 
-Reconstructed from `synthesis.md` §6 and §10, since `ledger.json` does not exist (see §1 note). 14 findings total this pass (`G1`, `F1`–`F12`, `F14`).
+Reconstructed from `synthesis.md` §6, since `ledger.json` does not exist (see
+§1). 25 synthesis findings this pass (`S-01`–`S-25`), merged from 58 raw
+per-lens findings.
 
 **By severity band:**
 
 | Band | Count | Findings |
 |---|---|---|
-| critical | 4 | G1, F1, F2, F3 |
-| serious | 5 | F4, F5, F6, F7, F12 |
-| minor | 5 | F8, F9, F10, F11, F14 |
+| critical | 7 | S-01, S-02, S-03, S-04, S-05, S-06, S-13 |
+| serious | 9 | S-07, S-08, S-09, S-11, S-18, S-19, S-20, S-21, S-22 |
+| minor (2 held at MEDIUM under the accessibility exception) | 9 | S-10, S-12, S-14, S-15, S-16, S-17, S-23, S-24, S-25 |
 
-**By decision:**
+**By `Ledger` column (synthesis.md's severity-tier substitute for a decision):**
 
-| Decision | Count | Findings |
+| Tier | Count | Findings |
 |---|---|---|
-| FIX | 2 numbered findings + 1 unnumbered code defect | F9, F3 (promoted outside the original triage rule), mobile primary-nav disclosure (not tied to a finding number) |
-| RESEARCH_QUESTION (deferred to the §8 human-validation plan) | 12 | G1, F1, F2, F4, F5, F6, F7, F8, F10, F11, F12, F14 |
+| HIGH | 7 | S-01, S-02, S-03, S-04, S-05, S-06, S-13 |
+| MEDIUM | 10 | S-07, S-08, S-09, S-11, S-12, S-14, S-19, S-20, S-21, S-22 |
+| LOW | 6 | S-10, S-15, S-16, S-17, S-23, S-24 |
+| RESEARCH_QUESTION | 2 | S-18 (withdraw double-submit, untested), S-25 (busy announcements on slow network, untested) |
 
-**FIX items with commits:**
+Per `synthesis.md`'s own triage rule, a finding becomes `FIX` only once
+confirmed in code **and** backed by `ux.json` evidence — as written, that rule
+means none of the 25 are formally promoted to `FIX` yet, because the synthesis
+itself predates the four commits below. Those commits are code evidence; the
+`ux.json` evidence (a UX-harness re-run) is what's still missing, which is
+exactly why this verdict is `PENDING_COORDINATOR_RERUN` rather than claiming
+anything is fixed outright.
 
-| Finding | What changed | Commit |
+**FIX items with commits (claimed by the commit message; not yet re-verified by a UX re-run):**
+
+| Finding(s) targeted | What changed | Commit |
 |---|---|---|
-| F9 — `aria-prohibited-attr` on `/` | `ArdaNovaWordmark`'s outer `<span>` had no role while carrying `aria-label`; it now has `role="img"` | `0a79d90` |
-| Mobile primary nav (no finding number — a code-checkable defect, not F1) | Home `<nav>` was `hidden ... md:flex` with no sub-768px fallback; `HomePrimaryNavMenu` now exposes Method / Rights / Nova / Projects below 768px | `0a79d90` |
-| F3 — sign-in wall ignores the destination | `auth/signin/page.tsx` normalized `callbackUrl` but never displayed it; it now shows `destinationLabel(callbackUrl)` for named internal routes (`data-testid="signin-return-destination"`) | `ca1be70` |
-| Regression checks + synthesis §10/triage-rule update | `uxqa/checks/01-cash-out-edges.check.mjs` added (sign-in destination present/absent, mobile menu disclosure + Escape focus return, axe scan of `/`); `synthesis.md` updated to record F3's promotion and that F1 stays open | `3254a81` |
+| S-01 (fake $0 / disabled CTAs read as "loading"), S-02 (/swap's "whenever you like" contradicted withdraw/add-funds), S-06 (ARDA/units undefined), S-13 (raw generic error on /swap), S-19 (timing-dependent fake $0 on /projects) | New `query-error-copy.ts`: `describeListLoadFailure()`, `readFigure()` (shows "-" while loading, "Not available" on error, never a fake $0), `CASH_OUT_NOT_AVAILABLE`/`readCashOutState()`/`describeCashOutStep()`/`describeWithdrawBlocker()` as single source of truth for whether a bank send is actually open; `/portfolio` now defines ARDA units and renames "Stake" → "Units"; `/swap` step-two text reads the real gate state instead of an unconditional promise | `c347787` |
+| S-01 (add-funds Continue never enabling), S-16 (locale amount-format rejections — message only, not actual fr-FR parsing support) | `getAddFundsReadiness()` gets a distinct not-open state (`PRECONDITION_FAILED` → "Adding money isn't open yet", no retry) separate from a transient failure (offers retry); `describeAddFundsAmountProblem()` gives a specific "Use a dot for cents" message for comma/space input instead of a generic hint | `29d65bb` |
+| S-08 ("Start account setup" enabled while its sibling is disabled; fires a mutation with no visible feedback), S-07 (operator language on Verification/Payouts), data-quality flag (401/403/404/5xx mis-mapped as NOT_FOUND/BAD_REQUEST, which is the likely cause of `httpErrors=0` despite 283 console errors) | `custodial-account-card.tsx` only renders "Start account setup" when `needsProvisioning && notice.setupOpen`; a failed `ensure` gets its own `role="alert"` line instead of overwriting the status line; `settings/verification/page.tsx` routes all AZOA/operator copy through `describeAccountSetupNotice`/`describeIdentityVerificationProblem`; `payouts.ts`/`token-balances.ts`/`swap.ts` routers now map 5xx/unknown/empty-2xx to `INTERNAL_SERVER_ERROR` instead of `NOT_FOUND`/`BAD_REQUEST`; 7 routes get per-route `metadata.title` | `1a5fe14` |
+| S-08 (extended to `/dashboard/profile`, which had the same gating bug), plus hardened regression coverage for the above | `dashboard/profile/page.tsx` now passes `statusErrorCode` into `CustodialAccountCard`; source-grep assertions replaced with jsdom/RTL behaviour tests for both the drawer-focus and setup-gating fixes | `5fc7d30` |
 
-F1 ("no discoverable money entry point pre-auth") is explicitly recorded in `synthesis.md` §10 as **still a RESEARCH_QUESTION, not resolved** by the mobile-nav fix: the new mobile menu carries the same four non-money links as the desktop nav. F11 (duplicate `GET /api/auth/session` calls) was not fixed this pass — not yet confirmed in network code.
+**Not touched by any commit in this window — still open:**
+
+- **S-04** (project service returns 500 for every role; HIGH, flagged `BLOCKER: no workaround`) — this is a backend/service-layer defect, outside the frontend fix lanes' reach; it still blocks the creator-to-sponsor funding hand-off and `/projects/[slug]/invest` entirely.
+- **S-05** (signed-out home has no money framing or entry point; HIGH, the single highest-friction route at 339) — no commit touches `/` or its CTAs.
+- S-09, S-11, S-18, S-20, S-21, S-22 (serious band) and S-10, S-12, S-14, S-15, S-17, S-23, S-24, S-25 (minor/research band) — none mentioned in any of the four commits' diffs.
 
 ## 4. Persona refinement
 
-Coverage this pass was almost entirely blocked: 51 of 53 routes are unvisited, including every money-specific route named in the scenario (`/portfolio`, `/portfolio/add-funds`, `/portfolio/withdraw`, `/settings/payouts`, `/settings/verification`, `/swap`, `/projects/[slug]/invest`). 11 of 12 declared APIs were never hit. The cause is a single infrastructure gap, `PREBAKE-OWNER-1` (no sessions seeded for any pass-01 persona), which every lane independently rediscovered.
+Coverage this pass: 14 of 53 routes visited (26%), concentrated on `/`,
+`/portfolio`, `/portfolio/withdraw`, `/portfolio/add-funds`, `/swap`,
+`/projects`, `/projects/[slug]`, `/projects/create`, `/auth/signin`,
+`/dashboard`, `/settings/verification`, `/settings/payouts`,
+`/settings/profile`. 39 routes remain unvisited, and the ones most relevant to
+this scenario's own name are `/projects/[slug]/invest` and
+`/projects/[slug]/invest/success` (the actual fund-a-project decision point —
+blocked by S-04, never reached by any lane this pass) and
+`/tasks/[id]/commerce` (the worker-payment hand-off `gold-worker-sell` is
+supposed to exercise but never reaches). `/admin/kyc`, `/dashboard/profile`,
+`/dashboard/profile/[id]` and the `*/create`/`*/edit` admin-authoring routes
+are also untouched but further from this scenario's core.
 
-**Keep as designed, just needs the seed + a real run:**
-- `qa-member-eli` / `qa-member-fay` (`ux-plain-words-cash-out`) — the lane's own feedback calls both personas well-designed and complementary (Eli tests plain-language clarity, Fay tests responsiveness/error recovery under attempt budgets 2 and 1); the lane produced no run directory at all this pass, so it is pure backlog, not a persona defect.
-- `qa-sponsor-ana` / `qa-freelancer-chidi` (`ux-keyboard-payout-setup`) — well-specified; Chidi's keyboard-only, patience-3 audit is exactly the shape needed, but it was never exercised (zero sub-goals reached), so the patience=3 budget itself is still uncalibrated and should be re-evaluated once the real settings/payouts form is reachable.
-- `qa-freelancer-dina` / `qa-sme-hana` (`ux-phone-and-locale-amounts`) — traits (tap-fast/double-submit for Dina, fr-FR cents parsing for Hana) only surface with a real authenticated money form in front of them; keep both, but do not read this run's friction score (28 for Hana) as real product friction — it was spent entirely on the structural wall.
-- `qa-gold-sponsor` / `qa-gold-worker` — keep the stable handles for cross-pass trend comparability; `qa-gold-worker`'s context field ("seed cannot grant holdings, so an honest zero is a valid outcome") is well-calibrated and should not change.
+**Keep as designed — real sessions now ran and the personas did what they were built for:**
+- **Eli Turner / Fay Nakamura** (`ux-plain-words-cash-out`) — both realistic; Eli's low-literacy constraint surfaced that jargon is pervasive and that text-dependent navigation can fail silently, Fay's impatient/slow-network profile is the right shape even though her double-submit test still couldn't complete (harness-level browser-close-on-cleanup issue, not a persona problem). Patience budgets of 2 and 1 were appropriately tight for their archetypes.
+- **Ana (`qa-sponsor-ana`) / Chidi (`qa-freelancer-chidi`)** (`ux-keyboard-phone-payout-setup`) — this is the exact 390px + keyboard-only combination the *prior* pass verdict asked be added, and it was: Chidi's strict Tab/Enter/Escape navigation found a real focus bug (focus landing on "Sign out" instead of the drawer's first link), which is now the specific fix in `app-topbar.tsx`'s `onOpenAutoFocus={focusFirstNavigationLink}` (commit `1a5fe14`) — a persona finding that turned directly into a shipped line of code. Ana's follow-through (pressing "Check status", reloading, confirming silence) was the highest-value single action in the lane. Keep both unchanged.
+- **Hana (`qa-sme-hana`) / Dina (`qa-freelancer-dina`)** (`ux-phone-and-locale-amounts`) — the void-run's core problem (sign-in-wall blocks) is fully resolved: zero workarounds, every sub-goal in both scripts ran to completion. Patience of 3 for both was sufficient; nothing was abandoned for lack of patience, only for the field's genuine `disabled` state, which is the correct outcome to record.
+- **qa-gold-sponsor / qa-gold-worker** — keep the stable handles for cross-pass trend comparability. `qa-gold-worker`'s "seed grants no holdings, so an honest empty is valid" framing is well-calibrated for the *expected*-empty case, but this run's actual finding was a broken read (an error, not an empty state) — see the re-power note below.
 
-**Re-power / adjust for next run:**
-- `qa-sme-hana` in `ux-screen-reader-money-forms` currently depends entirely on `qa-auditor-ivo` producing a list of unnamed controls first; give her an independent sub-goal (e.g., typing `1,50` and `1 000` into the add-funds amount field) so she always has work even if Ivo is blocked.
-- `qa-creator-gus`'s role in `ux-screen-reader-money-forms` is purely fixture creation (the "uxqa-p1 Reader Garden" project); that job belongs in prebake, not in a UX lane — move it so Gus's lane time is spent on the creator journey, not fixture setup.
-- `qa-sponsor-ben` and `qa-freelancer-dina` in `ux-empty-vs-error-truth` are written assuming "may hold units" / "verified balance" states that the seed mechanism cannot grant even once sessions exist (per `personas.json`'s own `seed` block — it only sets `userType`/`isVerified`/`verificationLevel`). Those two edge cases (genuinely-empty-but-verified, more-than-available balance) will stay untestable without either a second seed pass granting real holdings, or a deliberate decision to accept them as out of scope this cycle — flag to the owner rather than silently re-running and hoping.
-- `qa-sponsor-ben` in `probe-money-capabilities` is "pure dead weight when blocked" per that lane's own feedback: there is no safe partial substitute for a verified, authenticated read the way anonymous HTTP can stand in for "no session at all." Keep the persona for when sessions exist, but the probe lane's instructions should explicitly say an anonymous-floor substitute (what `qa-probe-member` did this run, via cookie-less curl against the live deployment) is encouraged, not just tolerated, when the real session is unavailable — it is what produced this pass's only genuine probe signal (typed 401s, auth-before-validation ordering, no fake zeros).
+**Re-power / adjust for next pass:**
+- **`qa-creator-gus`** (`ux-creator-to-sponsor-funding-4`/`-5`) — **the prior verdict already recommended moving Gus's fixture-creation role into prebake instead of a UX lane, and that recommendation was not actioned**: Gus's two lane tasks this pass were `BLOCKED` and `PARTIAL` again, both for the same reason (`find my project uxqa-p1 Tool Library` / `Try again shows my project` — the project the fixture needs doesn't resolve). This is now a two-pass-running fixture gap, not a one-off; move Gus's project-creation step into prebake before the next run, as already advised once.
+- **`qa-sponsor-ben` / `qa-creator-gus`** (`ux-creator-to-sponsor-funding`) — per this pass's own lane feedback, the journey still depends on a fixture prebake could not create, so the creator-to-backer hand-off and `/invest` remain unreached. Ben's amount-audit goal targets `/portfolio/withdraw`, which is disabled under the economy gate; retarget it at `/portfolio/add-funds` or the `/swap` amount field — the enabled surfaces — while rails stay gated. The lane is also missing an **unverified** member on the same money pages to contrast against a verified member's refusal copy.
+- **`qa-auditor-ivo`** (`ux-screen-reader-money-forms`) — still could not exercise his core goal: rails are gated, add-funds is blocked, so no submit was ever enabled and the double-submit/pending-announcement checks stayed unreachable. Needs at least one money form that can actually submit (even into a refusal) to test busy and idempotency announcements. A **funded user whose balance read actually succeeds** is a missing persona across this whole pass — every persona currently sees "Not available" everywhere, which covers the honest-error copy well but leaves real amount validation (more-than-available, withdraw minimums) completely untested.
+- **`qa-gold-worker`**'s persona brief conflates two distinct anticipated outcomes — "seed grants no holdings" (an expected empty state) and "the read itself is broken" (this run's actual observation) — under one line. Split them in the brief; they call for different defect severities and this pass's PARTIAL outcome was correctly the broken-read case, not the empty-state case the brief anticipated.
+- **`qa-sponsor-ben` / `qa-freelancer-dina`** (`ux-empty-vs-error-truth`) — this lane's harness limitation (`captureRoute()` only throws on an unexpected sign-in bounce, never on "the page behaves badly") means a persona can record `COMPLETED` on a sub-goal while the real defect (e.g. a permanently disabled Continue button) produces no abandonment signal. Recommend `attempt()` be allowed to fail when the UI doesn't do what the goal implies, so impatient personas like Fay would actually abandon and that abandonment becomes evidence. Keep Ben as the "auditor" tier (opus, patience 5, genuine probing with custom amounts and submits) — that tiering choice worked and is worth reusing for any future auditor role. Dina's slow-network emulation (400ms/200kbps) was too light a touch to produce the transient garbage states her persona bio anticipates; consider a slower profile if loading-vs-error ambiguity is the thing to stress next.
+- **`qa-sponsor-ben`** (`probe-money-capabilities`) — his model tier (opus) is set persona-wide, but his slice of this specific probe lane is 8 mechanical read-only calls with no judgment required; sonnet (or haiku, which this subagent effectively ran at) would suffice for that slice specifically. The lane's own scope restriction — reads only, no verified-member mutation data point — is a real, named gap, not a persona failure: a verified mutation very likely hits the same gate as the reads do, but that's an inference, not a measured result. Four of this lane's reads are currently masked by `PREBAKE-1`'s backend-500 crash and would need re-probing once that's fixed, specifically, before this gap can be called closed.
 
-**Add next pass:**
-- A keyboard-only persona at 390px on the money forms. The scenario names this combination explicitly but no lane in this pass covers it; `qa-freelancer-chidi` is keyboard-only but not mobile-width, and `qa-freelancer-dina`/`qa-sme-hana` are mobile but not keyboard-only.
+**Harness/methodology notes raised by multiple lanes (not persona changes, but should be fixed before the next pass so lane time isn't spent re-discovering the same thing):**
+- `uxSession`'s `attempt()` retries the identical closure up to the attempt budget on failure — right for flaky/transient actions, wrong for "does X exist at all" checks (burns the full patience budget on 3 byte-identical tries) and wrong for a genuinely `disabled` field (an `el.isDisabled()` precheck before the attempt loop would record the same true finding in under a second instead of ~9s of identical timeouts). Two independent lanes (`ux-keyboard-phone-payout-setup`, `ux-phone-and-locale-amounts`) hit this.
+- A `position:fixed` skip-link's apparent position in a `fullPage` Playwright screenshot does not match its real viewport position — one lane spent an extra verification pass chasing what looked like a real overlap defect before confirming it was a screenshot artefact. Cross-check any `fullPage`-sourced reflow/clipping finding against a viewport-only shot before filing it.
+- `gold-see-balance`'s success predicate (`textVisible 'ARDA'`) is satisfied by the page's own "YOUR ARDA BALANCE" heading even when the balance read fails and shows "Not available" underneath — this gold task will read `COMPLETED` on every run against this gated environment regardless of whether a real balance was ever shown. If the trend metric is meant to track "can a sponsor actually see their balance," tighten the predicate to something that requires the numeric value itself (e.g. `roleVisible` on the figure, or `textVisible` on a dollar-formatted string).
+- None of the four run logs in `ux-creator-to-sponsor-funding` recorded an HTTP error even though the API calls fail — tRPC batch responses or server-side calls likely don't surface as `status >= 400`, so `metrics.httpErrors` under-reports in this study. Flagged as uncertain by the lane itself; worth a dedicated instrumentation check rather than guessing.
 
-**Retire:** none this pass — every persona's own feedback describes a usable, well-targeted design; the gap is infrastructure, not persona fit.
-
-**Cross-cutting process fix to flag to the owner (raised independently by at least 5 of 9 lanes: `ux-phone-and-locale-amounts`, `ux-empty-vs-error-truth`, `gold-sponsor-money`, `gold-worker-sell`, `probe-money-capabilities`):** `ux-lib.mjs`'s `uxSession()` calls `chromium.launch()` and creates the run directory *before* `loadSession()` checks whether the handle exists in `sessions.json`, so every lane that hit the missing-session throw leaked an unclosed browser process. Recommended fix (not a persona change): check `fs.existsSync` + handle-presence first, and fail in milliseconds with zero process cost; separately, wrap the browser lifecycle in try/finally. Several lanes also recommend a single coordinator-side preflight (check `sessions.json` has every handle `personas.json` lists, once, before dispatching any lane) instead of N lanes each rediscovering the identical blocker.
+**Retire:** none — every lane's own feedback describes a well-targeted persona design; every open gap traces to fixtures, gating, or harness behavior, not to a persona that was the wrong shape for its job.
 
 ## 5. Next scenario suggestion
 
-Nothing in this pass actually exercised a cash-out edge — all 11 runs died at the sign-in wall, 0 of 4 gold tasks ran, and the money forms the scenario was named for (amount validation, idempotency, KYC gating, locale cents parsing, screen-reader money forms) remain completely untested. The immediate next step is not a new scenario: it is re-running `01-cash-out-edges` itself once `PREBAKE-OWNER-1` is resolved (sessions seeded for every persona in `personas.json`), since this pass does not count toward the loop's two-consecutive-pass exit criteria and nothing here can be trusted as a cash-out finding yet.
+This pass is the first real (non-void) run of `01-cash-out-edges`, and it did
+exercise genuine cash-out surfaces — unlike the prior void run, where nothing
+got past the sign-in wall. Four commits now exist that plausibly fix 5 of the
+7 HIGH-band findings (S-01, S-02, S-03 partially, S-06, S-13), but none of
+those fixes have been re-observed by an actual UX-harness run yet — only by
+the engineering test suite in §2. **The immediate next step is re-running
+`01-cash-out-edges` itself** against the fixed code, once the coordinator
+re-run in §1/§2 is complete, so the S-01/S-02/S-06/S-07/S-08/S-13 claims get
+`ux.json` evidence instead of just commit messages, and so `gold-add-funds` /
+`gold-withdraw` / `gold-sell-units` get a second data point each — `synthesis.md`
+§7 already notes that pass 02 needs at least 3 runs per gold task before any
+trend claim means anything, and right now every gold task has exactly 1.
 
-For the scenario after that genuine cash-out-edges run, the strongest candidate surfaced by this pass is **project discovery and the evaluate-before-commit decision** — directly motivated by F2 ("Discover projects" and every project link go straight to the sign-in wall; no public project preview exists) and F5 (verification tiers, fees, payout timelines and rails are undisclosed anywhere pre-auth). That scenario would finally exercise `/opportunities`, `/opportunities/[slug]`, `/projects`, `/projects/[slug]`, `/projects/[slug]/invest`, `/governance` and `/settings/verification` — seven of the routes in this pass's `unvisited` list that sit on the critical path between "see a project" and "decide to fund it," and it shares the same now-seeded personas (`qa-sponsor-ben`, `qa-creator-gus`) this pass already cast for exactly that handoff.
+For the scenario *after* that confirmation run, the strongest candidate is
+unchanged from the prior verdict's read: **project discovery and the
+evaluate-before-commit decision**, motivated directly by **S-04** (the project
+service's 500 breaks every creator-to-sponsor hand-off and leaves
+`/projects/[slug]/invest` unreached by any persona across two passes now) and
+**S-23** (no-equity disclosure unconfirmed at the actual invest decision
+point, currently blocked by S-04). That scenario would finally exercise
+`/opportunities`, `/opportunities/[slug]`, `/projects/[slug]/invest`,
+`/projects/[slug]/invest/success`, `/governance` and `/settings/verification`
+— all still in this pass's `unvisited` list — and it can reuse `qa-sponsor-ben`
+and `qa-creator-gus`, already cast for exactly that hand-off, provided Gus's
+fixture-creation step is moved into prebake first as recommended in §4.

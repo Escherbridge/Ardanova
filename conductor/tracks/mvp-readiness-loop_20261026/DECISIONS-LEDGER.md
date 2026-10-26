@@ -227,3 +227,8 @@ pass (or open one), and close with a verdict like any other row.
   | P6-18 | 22 Action/workflow-family integration reds, main's own deferred tenant-AI-workflow QA ("The signing user is unavailable" 400s across ActionArdanovaFlow/GraphBundle/Lifecycle/Semantics) | DO-NOW — next azoa loop iteration | L |
   | P6-19 | E2E journeys job (Playwright, azoa-e2e stack, fake vendors) red — pre-existing, cause not yet triaged | DO-NOW — same iteration | M |
   | P6-20 | Consent expiry/revoke race test flaky on CI runners only; widen the expiry-notification wait | DO-NOW — trivial, same iteration | S |
+- UX pass 01 (genuine run, 44 runs): gold 1/4; 25 synthesis findings (7 HIGH); four fix commits landed for 5 HIGHs (fake-$0/readiness/jargon/error-mapping/drawer-focus), pending UX-harness re-verification. S-04 ROOT-CAUSED: released BFF throws Postgres 42703 "column f.awardAmountAtoms does not exist" — the human-gated commerce migration (documentation/GATED_COMMERCE_MIGRATION_RUNBOOK.md) has never run on the released DB, so every project read/create 500s regardless of role.
+  | id | item | decision | size |
+  |---|---|---|---|
+  | P7-15 | OWNER (TRUE BLOCKER for creator/invest on the released env): run the gated commerce migration runbook on the released Postgres (fingerprinted preflight, reviewed additive migration, assetScale contract). Until then S-04 stands and /projects/[slug], create, invest all 500 | OWNER-CALL — the single highest-leverage operator action | M |
+  | P8-13 | S-05: signed-out home has no money framing or entry point (highest-friction route, 339) — product copy/IA decision feeding the next scenario (project discovery) | DO-NOW plane 8 after owner sees it | M |

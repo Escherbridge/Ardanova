@@ -2,25 +2,58 @@
  "pass": "01-cash-out-edges",
  "marker": "uxqa-p1",
  "status": "BLOCKED",
- "checkedAt": "2026-10-25T21:26:00-06:00",
- "guard": { "url": "https://ardanova-client-production.up.railway.app/api/health", "status": 200, "deploymentKey": "qa-ardanova-a876ca12", "ok": true, "servedCommit": "927d5c68f952bfa55b36bc3da4bd81a177091c0e", "expectedCommit": "d5031cd8c17d2be8837b436b6696c03d5c915378", "economyFlag": "not exposed by client /api/health (fields: status,timestamp,service,uptimeSeconds,environment,commit,deploymentKey)" },
+ "checkedAt": "2026-10-26T04:20:00Z",
+ "supersedes": "prior void-run prebake (PREBAKE-OWNER-1, no sessions) - resolved: all 12 handles now load signed in",
+ "guard": { "url": "https://ardanova-client-production.up.railway.app/api/health", "status": 200, "deploymentKey": "qa-ardanova-a876ca12", "ok": true, "servedCommit": "3423b5d7b1008f055070e3f6671ea013a65f0509", "expectedCommit": "3423b5d7b1", "commitMatches": true, "economyFlag": "not exposed by client /api/health" },
+ "sessions": { "handlesPresent": 12, "verifiedLoading": { "qa-creator-gus": "signed in (INNOVATOR, VERIFIED)", "qa-sponsor-ben": "signed in" } },
  "created": [],
- "blockers": [
+ "fixtures": [
+  { "name": "uxqa-p1 Tool Library", "owner": "qa-creator-gus", "usedBy": ["ux-creator-to-sponsor-funding", "ux-empty-vs-error-truth"], "id": null, "slug": null, "url": null, "investUrl": null, "state": "NOT CREATED - project.create -> HTTP 500" },
+  { "name": "uxqa-p1 Reader Garden", "owner": "qa-creator-gus", "usedBy": ["ux-screen-reader-money-forms"], "id": null, "slug": null, "url": null, "investUrl": null, "state": "NOT CREATED - project.create -> HTTP 500" }
+ ],
+ "defects": [
   {
-   "id": "PREBAKE-OWNER-1",
-   "kind": "OWNER",
+   "id": "PREBAKE-1",
+   "kind": "PRODUCT_OR_OWNER",
    "severity": "BLOCKER",
-   "summary": "Pass-01 personas have no sessions: uxqa/.secrets/sessions.json holds only the retired setup persona qa-uxqa-smoke (1 record, last written 21:08, before personas.json at 21:18).",
-   "steps": "Count handles in uxqa/.secrets/sessions.json (handles only, no secrets printed) -> 1: qa-uxqa-smoke.",
-   "observed": "No session for qa-creator-gus or any other pass-01 persona; uxSession would run anonymous and project.create is a protectedProcedure.",
-   "expected": "Coordinator runs `node uxqa/adapter/adapter.mjs seed uxqa/passes/01-cash-out-edges/personas.json uxqa/.secrets/sessions.json` before prebake.",
-   "whyNotWorkedAround": "Seeding goes through `railway ssh` (an infra CLI) and mints sessions; the prebaker's rules forbid both. Reported instead."
+   "summary": "Every project read and write on the .NET API returns an unhandled 500 for every caller (anonymous, verified creator, verified sponsor), so no project, funding tab or invest page can be created or opened.",
+   "url": "https://ardanova-client-production.up.railway.app/api/trpc/project.create (and project.getAll, project.getById, project.getMyProjects)",
+   "persona": "qa-creator-gus (also qa-sponsor-ben, and anonymous cookie-less)",
+   "steps": "1) Load Gus's session (/api/auth/session 200, signed in). 2) POST /api/trpc/project.create {json:{title:'uxqa-p1 Tool Library', categories:['SOCIAL_IMPACT'], fundingGoal:500, ...}} exactly as the create wizard sends it. 3) GET project.getAll {limit:5,page:1}, project.getById {id:'solar-micro-grid-commons'} (read only), project.getMyProjects. 4) Repeat reads as Ben and cookie-less.",
+   "observed": "project.create 500 INTERNAL_SERVER_ERROR 'An error occurred processing your request.' (the .NET ExceptionHandlingMiddleware generic message, i.e. an unhandled backend exception). project.getAll / getById / getMyProjects 500 for Gus, Ben and anonymous. Control: profile.getMyProfile 200 for Gus and Ben, so sessions and the BFF->API actor path work; the failure is specific to the projects service.",
+   "expected": "Public project list/detail readable by anyone; a verified innovator can create a draft project (201) and publish it.",
+   "evidence": ["uxqa/passes/01-cash-out-edges/flows/prebake/result.json", "uxqa/passes/01-cash-out-edges/runs/qa-creator-gus--prebake-1/ux.json", "uxqa/passes/01-cash-out-edges/runs/qa-creator-gus--prebake-2-diagnose/ux.json", "uxqa/passes/01-cash-out-edges/runs/qa-sponsor-ben--prebake-2-diagnose/ux.json", "uxqa/passes/01-cash-out-edges/runs/anon--prebake-2-diagnose/ux.json"],
+   "likelyCause": "Unsure. Fails anonymously too, so not the seeded user ids (qa-* users have id == handle). Consistent with a projects-table schema/migration drift or a projects-service dependency failing at the deployed commit; needs API logs, which the prebaker may not read (infra CLI).",
+   "impact": "ux-creator-to-sponsor-funding (Gus's whole journey, Ben's invest step), ux-screen-reader-money-forms (Ivo's invest page), ux-empty-vs-error-truth (invest page) cannot reach their project fixtures. Lanes should still record what the project and invest pages show under this failure rather than create anything."
+  },
+  {
+   "id": "PREBAKE-2",
+   "kind": "PRODUCT",
+   "severity": "HIGH",
+   "summary": "When the project API fails, /projects and /projects/<slug> show 'Loading project records...' indefinitely and the side panel reports 'Funding recorded $0' and '0 projects' - a fake zero and a spinner instead of an error with a next step.",
+   "url": "https://ardanova-client-production.up.railway.app/projects ; https://ardanova-client-production.up.railway.app/projects/solar-micro-grid-commons",
+   "persona": "qa-creator-gus",
+   "steps": "Signed in as Gus, open /projects, wait for network idle + 2.5s; open /projects/solar-micro-grid-commons (view only).",
+   "observed": "List: spinner 'Loading project records...' while 'Current page' card shows Projects 0, Funded 0, Funding recorded $0, Supporters 0. Detail: only 'Loading project record...'. No error, no retry, no next step.",
+   "expected": "A read failure is stated as such ('couldn't load projects - retry'), and totals show 'unavailable' not $0 (the /portfolio page already does this correctly: 'Not available ... This is not a zero').",
+   "evidence": ["uxqa/passes/01-cash-out-edges/runs/qa-creator-gus--prebake-3-evidence/gus-projects.png", "uxqa/passes/01-cash-out-edges/runs/qa-creator-gus--prebake-3-evidence/gus-projects-solar-micro-grid-commons.png", "uxqa/passes/01-cash-out-edges/runs/qa-creator-gus--prebake-3-evidence/ux.json"],
+   "confidence": "Medium: captured ~3s after network idle; react-query retries might still have been pending, so lanes should confirm the spinner persists past ~15s before filing as final."
+  },
+  {
+   "id": "PREBAKE-3",
+   "kind": "HARNESS",
+   "severity": "MEDIUM",
+   "summary": "uxSession().trpc() builds '/api/trpcproject.create' (404) because study.md config api.trpcPrefix is '/api/trpc' with no trailing slash; probe lanes using s.trpc() get false 404s.",
+   "url": "n/a (harness: ux-lib.mjs trpc helper + uxqa/study.md uxqa-config api.trpcPrefix)",
+   "persona": "qa-creator-gus (prebake-1, first run)",
+   "observed": "project.getMyProjects / project.create -> 404 via s.trpc(); same calls via s.request('POST','/api/trpc/project.create') reach the server.",
+   "expected": "trpc() joins prefix and procedure with '/'.",
+   "workaround": "Prebake flows call s.request with '/api/trpc/<proc>' and the {json: input} superjson envelope. Not edited in study.md or the plugin (outside prebake remit). probe-money-capabilities lane should do the same.",
+   "evidence": "uxqa/passes/01-cash-out-edges/flows/prebake/prebake-projects.mjs (local trpc helper)"
   }
  ],
- "planned": [
-  { "fixture": "project", "name": "uxqa-p1 Tool Library", "owner": "qa-creator-gus", "lane": "ux-creator-to-sponsor-funding", "how": "lane creates it through the UI (persona plan says created by the persona in-lane); prebake would only pre-create if the lane wants a mid-flow state", "endpoint": "POST /api/trpc/project.create (protectedProcedure, ardanova-client/src/server/api/routers/project.ts:326 -> apiClient.projects.create)" },
-  { "fixture": "project", "name": "uxqa-p1 Reader Garden", "owner": "qa-creator-gus", "lane": "ux-screen-reader-money-forms", "how": "same as above; lane may 'create or reuse by name'", "endpoint": "POST /api/trpc/project.create" }
- ],
- "notCreatableBySeed": "Adapter seeds only userType/isVerified/verificationLevel; holdings, balances and memberships cannot be prebaked with the economy gated, so held-units and non-zero-balance states stay unavailable to lanes (dina, gold-worker record honest empty states).",
- "resume": "After seeding, re-run prebake: as qa-creator-gus (mode probe, task prebake-1/prebake-2) call project.create for the two marker projects, record id/slug/URL here."
+ "notCreatableBySeed": "Holdings, non-zero balances and project memberships cannot be seeded; with the project API down, memberships cannot even be created through the API. Verified-with-funds and held-units states stay out of reach.",
+ "observedInPassing": "/portfolio as Gus renders 'Portfolio records could not be loaded. No balance or valuation claims are shown.' and 'YOUR ARDA BALANCE Not available ... This is not a zero' (honest read-failure state; tokenBalances.getPortfolio returned 404 NOT_FOUND for Gus and Ben). Evidence: runs/qa-creator-gus--prebake-3-evidence/gus-portfolio.png.",
+ "flows": ["uxqa/passes/01-cash-out-edges/flows/prebake/prebake-projects.mjs", "uxqa/passes/01-cash-out-edges/flows/prebake/prebake-diagnose.mjs", "uxqa/passes/01-cash-out-edges/flows/prebake/prebake-evidence.mjs"],
+ "resume": "Idempotent: once the project API answers, re-run `MSYS_NO_PATHCONV=1 node uxqa/passes/01-cash-out-edges/flows/prebake/prebake-projects.mjs` from the repo root; it reuses any existing uxqa-p1 project by title, creates the rest, adds Gus as FOUNDER (as the wizard does), publishes, and writes id/slug/investUrl to flows/prebake/result.json."
 }

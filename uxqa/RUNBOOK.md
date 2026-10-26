@@ -8,6 +8,36 @@ description: Rolling state of the study - newest block first; one block per pass
 
 Newest block first. Each pass appends one block; nothing here is deleted.
 
+## Pass 01-cash-out-edges (genuine re-run) - 2026-10-26 - CHANGES_REQUESTED
+
+- **Deployed commit:** 3423b5d (client); 44 runs (36 UX + 8 probe), 14/53
+  routes, real tRPC traffic (tokenBalances.getArdaBalance x46 etc.).
+- **Exit checks:** gold 1/4 (see-balance 1.00 — predicate too loose, see
+  harness notes; add-funds/withdraw/sell-units 0.00 under the economy gate),
+  friction/journey 28.11 (first real baseline: 1012 points, 283 console
+  errors, 30 axe violations), 7 HIGH of 25 findings (S-01..S-25), review
+  APPROVE, coordinator re-run GREEN (vitest/tsc/build all exit 0).
+- **Fixes shipped (4 commits, engineering-verified, UX re-observation
+  pending):** c347787 fake-$0 killed ("-" loading / "Not available" error via
+  readFigure), honest cash-out gate copy; 29d65bb add-funds not-open vs
+  transient-failure states + "Use a dot for cents"; 1a5fe14 setup-gating,
+  drawer focus (onOpenAutoFocus=focusFirstNavigationLink — straight from the
+  keyboard persona), operator-jargon purge, 5xx no longer mapped NOT_FOUND,
+  route titles; 5fc7d30 same gating on /dashboard/profile + behaviour tests
+  with mutation checks.
+- **Open HIGH:** S-04 ROOT-CAUSED = owner-gated commerce migration never run
+  on released Postgres (42703 column f.awardAmountAtoms missing) — ledger
+  P7-15, blocks all project routes; S-05 signed-out home has no money entry
+  (P8-13).
+- **Persona refinement:** cast validated by a real run; Gus's fixture STILL
+  belongs in prebake (two passes running); Ben's amount audit retargets to
+  enabled surfaces; gold-see-balance predicate must require the numeric
+  figure; attempt() needs an isDisabled precheck; a funded persona is missing
+  study-wide (seed cannot grant balances).
+- **Next:** re-run this scenario against the fixed build (gold predicate
+  tightened first); creator/invest lane blocked on P7-15; then project
+  discovery / evaluate-before-commit.
+
 ## Pass 01-cash-out-edges - 2026-10-26 - CHANGES_REQUESTED
 
 - **Deployed commit:** d5031cd (client), BFF Staging, azoa-api main@500ce8fb
