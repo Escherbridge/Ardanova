@@ -52,7 +52,7 @@ balances, add-funds, invest and settlement surfaces, hunting edge cases.
 
 | id | persona | goal (user words) | success |
 |---|---|---|---|
-| gold-see-balance | qa-gold-sponsor | Find how much money you have available | textVisible "ARDA" on /portfolio |
+| gold-see-balance | qa-gold-sponsor | Find how much money you have available | textVisible ".00" on /portfolio (a rendered amount, not the heading; honest-fail while rails are gated) |
 | gold-add-funds | qa-gold-sponsor | Add $5 to your balance with your card | urlMatches checkout.stripe.com |
 | gold-withdraw | qa-gold-sponsor | Send $1 from your balance to your own bank | textVisible "On its way" on /portfolio/withdraw |
 | gold-sell-units | qa-gold-worker | Sell some of your project units | textVisible "going through" via /swap |
@@ -97,7 +97,7 @@ it wins when they disagree.
  "attemptBudget": 3,
  "lenses": [],
  "goldTasks": [
-  { "id": "gold-see-balance", "persona": "qa-gold-sponsor", "start": "/portfolio", "goal": "Find how much money you have available", "success": { "textVisible": "ARDA" }, "maxSeconds": 240 },
+  { "id": "gold-see-balance", "persona": "qa-gold-sponsor", "start": "/portfolio", "goal": "Find how much money you have available", "success": { "textVisible": ".00" }, "maxSeconds": 240 },
   { "id": "gold-add-funds", "persona": "qa-gold-sponsor", "start": "/portfolio/add-funds", "goal": "Add $5 to your balance with your card", "success": { "urlMatches": "checkout\\.stripe\\.com" }, "maxSeconds": 300 },
   { "id": "gold-withdraw", "persona": "qa-gold-sponsor", "start": "/portfolio/withdraw", "goal": "Send $1 from your balance to your own bank", "success": { "textVisible": "On its way" }, "maxSeconds": 300 },
   { "id": "gold-sell-units", "persona": "qa-gold-worker", "start": "/swap", "goal": "Sell some of your project units", "success": { "textVisible": "going through" }, "maxSeconds": 300 }
