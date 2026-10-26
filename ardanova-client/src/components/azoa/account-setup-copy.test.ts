@@ -1,6 +1,3 @@
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
-
 import { describe, expect, it } from "vitest";
 
 import {
@@ -25,7 +22,7 @@ describe("account setup notice", () => {
       { statusError: "Setup refused.", statusErrorCode: "PRECONDITION_FAILED" },
     ],
     [
-      "operator wording only (dashboard caller passes no code)",
+      "operator wording only (no code attached)",
       { statusError: NOT_CONFIGURED },
     ],
   ])(
@@ -101,39 +98,3 @@ describe("identity verification problem copy", () => {
   });
 });
 
-describe("verification surfaces wire the plain copy", () => {
-  const srcRoot = join(__dirname, "..", "..");
-  const source = (relative: string) =>
-    readFileSync(join(srcRoot, relative), "utf8");
-
-  it("the card gates Start account setup on the notice and never renders raw errors", () => {
-    const card = source("components/azoa/custodial-account-card.tsx");
-
-    expect(card).toMatch(
-      /offerSetup\s*=\s*needsProvisioning && notice\.setupOpen/,
-    );
-    expect(card).toMatch(/\{offerSetup && \(/);
-    expect(card).not.toMatch(/\bensureError \?\?|\bstatusError \?\?/);
-  });
-
-  it("each step-state span carries role=img so its aria-label is permitted", () => {
-    expect(source("components/azoa/custodial-account-card.tsx")).toMatch(
-      /role="img"\s+aria-label=\{step\.complete \? "Complete" : "Not complete"\}/,
-    );
-  });
-
-  it("the verification page passes the status code and drops the infrastructure jargon", () => {
-    const page = source("app/settings/verification/page.tsx");
-
-    expect(page).toContain("statusErrorCode={custodyStatus.error?.data?.code}");
-    expect(page).not.toMatch(
-      /Azoa manages|via Azoa|Provider selected by node operator|on this Azoa node|Azoa approved|\{(?:beginKyc|capabilities)\.error\?\.message/,
-    );
-  });
-
-  it("the mobile drawer opens on the first nav link, not Sign out", () => {
-    expect(source("components/app-topbar.tsx")).toMatch(
-      /onOpenAutoFocus=\{focusFirstNavigationLink\}/,
-    );
-  });
-});

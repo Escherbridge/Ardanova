@@ -337,6 +337,7 @@ export default function ProfilePage() {
             isLoading={custodyStatus.isLoading}
             isEnsuring={ensureCustody.isPending}
             statusError={custodyStatus.error?.message}
+            statusErrorCode={custodyStatus.error?.data?.code}
             ensureError={ensureCustody.error?.message}
             onEnsure={() => ensureCustody.mutate()}
           />
