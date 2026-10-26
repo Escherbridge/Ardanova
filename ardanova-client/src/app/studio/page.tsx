@@ -481,7 +481,7 @@ export default function StudioPage() {
         contentVersion: draftState.contentVersion + 1,
         decision: "pending",
         sourceLabel: draftState.sourceLabel + " · revised by you",
-        changeLabel: "Human edit finished",
+        changeLabel: "Your edit saved",
       });
     }
     setIsEditing(false);
@@ -534,7 +534,7 @@ export default function StudioPage() {
               Interface preview
             </Badge>
             <span className="text-muted-foreground font-mono text-xs tracking-[0.12em] uppercase">
-              Local drafts · no AI service connected ·{" "}
+              Local drafts · nothing is sent ·{" "}
               {isEditing
                 ? sessionSaveState === "unavailable"
                   ? "artifact not saved · edit recovery unavailable"
@@ -568,10 +568,10 @@ export default function StudioPage() {
               "01 / Scope",
               "Nova uses only the brief and accepted drafts in this session.",
             ],
-            ["02 / Evidence", "Claims stay marked for human verification."],
+            ["02 / Evidence", "Claims stay marked until you check them."],
             [
               "03 / Agency",
-              "Publishing, funding, rights, and approvals stay human.",
+              "Only you can publish, fund, change rights, or approve.",
             ],
           ].map(([label, copy], index) => (
             <div
@@ -795,7 +795,7 @@ export default function StudioPage() {
                         ? "Accepted inside this browser preview only. This exact content version may now be used by the next Studio mode."
                         : draftState.decision === "rejected"
                           ? "Rejected locally. No project record or downstream artifact was changed."
-                          : "Awaiting human review. No project record or downstream artifact has changed."))}
+                          : "Waiting for your review. No project record or downstream artifact has changed."))}
                 </p>
 
                 <div className="mt-4 border-t-2 pt-4">
@@ -952,7 +952,7 @@ export default function StudioPage() {
 
             <div className="mt-6">
               <p className="mb-2 font-mono text-[0.65rem] font-bold tracking-[0.14em] uppercase">
-                Always human
+                Only you can
               </p>
               <ul className="list-square list-inside space-y-2 text-xs leading-relaxed">
                 <li>Accept, reject, edit, publish, or send</li>

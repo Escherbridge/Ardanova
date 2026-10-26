@@ -201,7 +201,7 @@ const fallbackContext: NovaContextDefinition = {
   title: "Turn visible context into a reviewable next step",
   scope: "The current page and text you choose to provide.",
   sources: ["Visible workspace context", "Your prompt"],
-  assumptions: ["Generated content requires human review"],
+  assumptions: ["Drafts need your review before you use them"],
   uncertainty:
     "Nova may not have the records needed to verify claims or current status.",
 };

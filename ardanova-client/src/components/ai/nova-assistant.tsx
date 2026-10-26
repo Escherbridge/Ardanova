@@ -129,7 +129,7 @@ function createPreviewDraft(
     return [
       contextLabel,
       "LOCAL PREVIEW READ",
-      "Based only on your prompt and the route-level label above, start by clarifying purpose, evidence, and the next human decision.",
+      "Based only on your prompt and the route-level label above, start by clarifying purpose, evidence, and the next decision you need to make.",
       "",
       "QUESTION TO RESOLVE",
       intent,
@@ -551,7 +551,7 @@ export function NovaAssistant({ pathname }: { pathname: string }) {
         contentVersion: nextContentVersion(history),
         decision: "pending",
         sourceLabel: draftState.sourceLabel + " · revised by you",
-        changeLabel: "Human edit finished",
+        changeLabel: "Your edit saved",
       });
     }
     setIsEditing(false);
@@ -585,7 +585,7 @@ export function NovaAssistant({ pathname }: { pathname: string }) {
       <SheetTrigger asChild>
         <Button size="sm" className="min-h-11 border-2 px-3 sm:px-4">
           <Sparkles className="size-4" aria-hidden="true" />
-          <span className="hidden sm:inline">Nova AI</span>
+          <span className="hidden sm:inline">Nova</span>
           <span className="sm:hidden">Nova</span>
         </Button>
       </SheetTrigger>
@@ -596,7 +596,7 @@ export function NovaAssistant({ pathname }: { pathname: string }) {
         <SheetHeader className="border-b-2 p-5 pr-14 text-left">
           <div className="mb-2 flex flex-wrap items-center gap-2">
             <Badge variant="outline" className="font-mono uppercase">
-              {surface === "refine" ? "Nova AI" : "Interface preview"}
+              {surface === "refine" ? "Nova" : "Interface preview"}
             </Badge>
             <span className="text-muted-foreground font-mono text-[0.65rem] tracking-[0.12em] uppercase">
               {surface === "refine" ? (
@@ -625,7 +625,7 @@ export function NovaAssistant({ pathname }: { pathname: string }) {
           <SheetDescription id="nova-description" className="max-w-md text-sm">
             {surface === "refine"
               ? refineCopy.description
-              : "This local preview uses your prompt and the route label, not the page records. You review every draft and retain every consequential decision."}
+              : "This local preview uses your prompt and the route label, not the page records. A draft becomes yours to use only when you accept it."}
           </SheetDescription>
           <div
             className="mt-3 grid grid-cols-2 border-t-2 border-l-2"
@@ -760,8 +760,8 @@ export function NovaAssistant({ pathname }: { pathname: string }) {
                 <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
                   <p className="text-muted-foreground max-w-xs text-xs leading-relaxed">
                     These preview tools create local interface copy. They do not
-                    call Nova AI or write to ArdaNova records; only Refine idea
-                    is answered by Nova AI.
+                    call Nova or write to ArdaNova records; only Refine idea
+                    sends anything to Nova.
                   </p>
                   <Button
                     onClick={generateDraft}
@@ -1037,7 +1037,7 @@ export function NovaAssistant({ pathname }: { pathname: string }) {
           </p>
           {refineCopy.showsProviderCredit && (
             <p className="mt-3 font-mono text-[0.6rem] tracking-[0.12em] uppercase opacity-70">
-              Nova AI project refinement is powered by OVERSEASGENAI
+              Nova project refinement is powered by OVERSEASGENAI
             </p>
           )}
         </div>

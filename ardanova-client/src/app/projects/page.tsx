@@ -480,7 +480,7 @@ export default function ProjectsPage() {
               <p className="text-muted-foreground mt-2 text-sm">
                 {hasFilters
                   ? "Change or clear the filters to search a wider set of projects."
-                  : "The platform has no projects yet. Define one to start a problem-solving loop."}
+                  : "No one has posted a project yet. If you have seen a problem worth solving, define it here so others can help fund and build it."}
               </p>
             </div>
             {hasFilters ? (

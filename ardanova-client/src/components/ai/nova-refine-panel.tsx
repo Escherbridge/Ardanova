@@ -53,21 +53,21 @@ const outcomeLabel: Record<string, string> = {
 /** Member-facing copy for a failed turn, keyed by the tRPC code the nova router maps. */
 export function describeError(code: string | undefined): string {
   if (code === "TOO_MANY_REQUESTS")
-    return "You have used all of your Nova AI refinements for today. Your idea is still here; try again tomorrow.";
+    return "You have used all of your Nova refinements for today. Your idea is still here; try again tomorrow.";
   if (code === "CONFLICT")
-    return "Nova AI is still answering your last question, here or in another tab. Wait for that answer, then try again. Your idea and answers are still here.";
+    return "Nova is still answering your last question, here or in another tab. Wait for that answer, then try again. Your idea and answers are still here.";
   if (code === "SERVICE_UNAVAILABLE")
-    return "Nova AI is at capacity for today across ArdaNova. This is not your own limit. Your idea and answers are still here; try again tomorrow.";
+    return "Nova is at capacity for today across ArdaNova. This is not your own limit. Your idea and answers are still here; try again tomorrow.";
   if (code === "TIMEOUT")
-    return "Nova AI took too long to answer. Your idea and answers are still here; try again.";
+    return "Nova took too long to answer. Your idea and answers are still here; try again.";
   if (code === "BAD_REQUEST")
-    return "Nova AI could not use that input. Check the idea and your answers, then try again.";
-  if (code === "UNAUTHORIZED") return "Sign in again to use Nova AI.";
+    return "Nova could not use that input. Check the idea and your answers, then try again.";
+  if (code === "UNAUTHORIZED") return "Sign in again to use Nova.";
   if (code === "NOT_FOUND")
     return "This refinement has expired. Start again from your idea.";
   if (code === "PRECONDITION_FAILED")
-    return "Nova AI could not continue this refinement, and trying again would give the same answer. Choose Start over to begin again; your idea is still here.";
-  return "Nova AI is unavailable right now. Your idea and answers are still here; try again in a moment.";
+    return "Nova could not continue this refinement, and trying again would give the same answer. Choose Start over to begin again; your idea is still here.";
+  return "Nova is unavailable right now. Your idea and answers are still here; try again in a moment.";
 }
 
 /** Plain-text brief for the clipboard, so a member can paste it into a new project. */
@@ -122,7 +122,7 @@ export function NovaRefinePanel({
   const isPreview =
     reply?.mode === "local-preview" ||
     (reply === null && availability === "local-preview");
-  const pendingLabel = "Asking Nova AI…";
+  const pendingLabel = "Asking Nova…";
   const outOfRefinements =
     limitReached || (!isPreview && allowance?.remainingToday === 0);
 
@@ -158,7 +158,7 @@ export function NovaRefinePanel({
           className="bg-muted border-l-4 p-3 text-xs leading-relaxed"
           role="status"
         >
-          Nova AI project refinement is not available on this deployment.
+          Nova project refinement is not available on this deployment.
           Nothing you type here would be sent. The preview tools still work
           locally.
         </p>
@@ -182,8 +182,8 @@ export function NovaRefinePanel({
       moveFocus.current = true;
       setAnnouncement(
         next.type === "question"
-          ? `Nova AI asked question ${next.number ?? nextTurns.length + 1}: ${next.question ?? ""}`
-          : `Nova AI gave its verdict: ${outcomeLabel[next.verdict?.outcome ?? ""] ?? next.verdict?.outcome ?? ""}.`,
+          ? `Nova asked question ${next.number ?? nextTurns.length + 1}: ${next.question ?? ""}`
+          : `Nova gave its verdict: ${outcomeLabel[next.verdict?.outcome ?? ""] ?? next.verdict?.outcome ?? ""}.`,
       );
       if (nextTurns.length === 0) void utils.nova.status.invalidate();
       onChange({ idea, turns: nextTurns, reply: next, answer: "" });
@@ -227,13 +227,13 @@ export function NovaRefinePanel({
           variant={isPreview ? "outline" : "secondary"}
           className="font-mono uppercase"
         >
-          {isPreview ? "Local preview" : "Nova AI"}
+          {isPreview ? "Local preview" : "Nova"}
         </Badge>
       </div>
       <p className="text-muted-foreground mb-4 text-xs leading-relaxed">
         {isPreview
-          ? "Nova AI is not connected in this environment. These are fixed practice questions and nothing you write is analysed."
-          : "Nova AI asks a few hard questions about your idea, then gives a feasibility verdict: go, adjust first, or not yet. Your idea and answers go through ArdaNova's server to the Nova AI service for this conversation only; nothing is saved to ArdaNova records. To answer, Nova AI uses third-party AI models and public web search, so leave out anything confidential."}
+          ? "Nova is not connected in this environment. These are fixed practice questions and nothing you write is analysed."
+          : "Nova asks a few hard questions about your idea, then gives a feasibility verdict: go, adjust first, or not yet. Your idea and answers go through ArdaNova's server to the Nova service for this conversation only; nothing is saved to ArdaNova records. To answer, Nova uses third-party AI models and public web search, so leave out anything confidential."}
       </p>
 
       <label
@@ -422,7 +422,7 @@ export function NovaRefinePanel({
                 items={reply.brief.metrics}
               />
               <p className="text-muted-foreground mt-2">
-                This brief is a starting point for you to review. Nova AI has
+                This brief is a starting point for you to review. Nova has
                 not created or changed any project; a draft is made only when
                 you choose to create one, and stays private until you publish
                 it.
@@ -531,7 +531,7 @@ export function NovaRefinePanel({
       {started && !isPreview && (
         <p className="text-muted-foreground mt-1 text-xs">
           Starting over begins a new refinement, which counts toward your daily
-          Nova AI limit.
+          Nova limit.
         </p>
       )}
     </section>

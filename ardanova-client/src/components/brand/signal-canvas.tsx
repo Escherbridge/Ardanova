@@ -71,7 +71,7 @@ export function SignalCanvas({ className }: SignalCanvasProps) {
         </text>
       </svg>
       <figcaption className="absolute right-0 bottom-0 border-t border-l border-[#f2e8e4] bg-[#131313] px-3 py-2 font-mono text-[10px] tracking-[0.16em] text-[#f2e8e4] uppercase">
-        Human review is the threshold
+        Find it. Fund it. Build it.
       </figcaption>
     </figure>
   );

@@ -104,7 +104,7 @@ export function AppTopbar({
               {user?.name ?? "ArdaNova member"}
             </p>
             <p className="text-muted-foreground font-mono text-[0.62rem] tracking-[0.1em] uppercase">
-              Human review required
+              Member
             </p>
           </div>
           <NovaAssistant pathname={pathname} />

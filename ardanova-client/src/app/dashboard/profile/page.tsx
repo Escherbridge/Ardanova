@@ -543,7 +543,7 @@ export default function ProfilePage() {
               emptyMessage={
                 credentialsError
                   ? "Credentials could not be loaded."
-                  : "You don't have any credentials yet. Join a project or guild to earn one!"
+                  : "You have no credentials yet. They are earned through work in a project or guild."
               }
             />
           </TabsContent>

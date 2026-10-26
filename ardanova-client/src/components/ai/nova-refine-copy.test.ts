@@ -4,13 +4,13 @@ import { linkableSourceUrl, refineDisclosure } from "./nova-refine-copy";
 
 describe("Refine header and footer say what this deployment does with the idea", () => {
   it.each([
-    ["live", undefined, true, "go to Nova AI", true],
+    ["live", undefined, true, "go to Nova", true],
     ["local-preview", undefined, true, "nothing is sent", false],
     ["off", undefined, true, "not available", false],
     // A preview reply outranks a status that has not loaded yet.
     [undefined, "local-preview", true, "nothing is sent", false],
     // Unknown status (API unreachable) keeps the live wording but names no provider it cannot vouch for.
-    [null, undefined, true, "go to Nova AI", false],
+    [null, undefined, true, "go to Nova", false],
   ] as const)(
     "status %s, reply %s: subtitle says %s; provider credit %s",
     (availability, replyMode, saved, phrase, credit) => {
@@ -25,7 +25,7 @@ describe("Refine header and footer say what this deployment does with the idea",
     for (const mode of ["local-preview", "off"] as const) {
       const { subtitle, description } = refineDisclosure(mode, undefined, true);
       expect(`${subtitle} ${description}`).not.toMatch(
-        /go to Nova AI|go through/,
+        /go to Nova|go through/,
       );
     }
   });

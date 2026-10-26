@@ -25,20 +25,20 @@ export function refineDisclosure(
     return {
       subtitle: `Project refinement · local preview, nothing is sent · ${storage}`,
       description:
-        "Nova AI is not connected here. Practise with fixed questions; nothing you write is analysed, and you retain every consequential decision.",
+        "Nova is not connected here. Practise with fixed questions; nothing you write is analysed or sent.",
       showsProviderCredit: false,
     };
   if (mode === "off")
     return {
       subtitle: "Project refinement · not available on this deployment",
       description:
-        "Nova AI project refinement is not available on this deployment, so nothing you type here is sent.",
+        "Nova project refinement is not available on this deployment, so nothing you type here is sent.",
       showsProviderCredit: false,
     };
   return {
-    subtitle: `Project refinement · idea and answers go to Nova AI · ${storage}`,
+    subtitle: `Project refinement · idea and answers go to Nova · ${storage}`,
     description:
-      "Nova AI tests a project idea with hard questions and a feasibility verdict. It reads only what you type, not the page records, and you retain every consequential decision.",
+      "Nova tests a project idea with hard questions and a feasibility verdict. It reads only what you type, not the page records, and nothing is created unless you choose to.",
     showsProviderCredit: mode === "live",
   };
 }

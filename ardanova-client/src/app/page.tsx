@@ -125,7 +125,7 @@ export default async function Home() {
                 className="hover:text-primary inline-flex min-h-11 min-w-11 items-center justify-center"
                 href="#nova"
               >
-                Nova AI
+                Nova
               </Link>
               <Link
                 className="hover:text-primary inline-flex min-h-11 min-w-11 items-center justify-center"
@@ -158,7 +158,7 @@ export default async function Home() {
                 <div className="flex items-center justify-between gap-4 border-t border-black/70 pt-3 font-mono text-[10px] font-semibold tracking-[0.16em] uppercase">
                   <span>Social layer for doing</span>
                   <span className="text-brand-signal-deep">
-                    Human review / always
+                    Build together / govern together
                   </span>
                 </div>
 
@@ -175,9 +175,9 @@ export default async function Home() {
 
                 <div className="grid gap-8 border-t border-black/70 pt-6 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
                   <p className="max-w-2xl text-lg leading-relaxed md:text-xl">
-                    Not an endless feed. ArdaNova is a shared workspace where
-                    people discover a problem, define a solution, and
-                    iterate—with decisions, contributions, and documented rights
+                    Not an endless feed. ArdaNova is where people who find a
+                    problem fund it, build it, and share in what it
+                    becomes—with decisions, contributions, and agreed terms
                     visible for review.
                   </p>
                   <div className="flex flex-wrap gap-3">
@@ -227,7 +227,7 @@ export default async function Home() {
                     01 / The solutionary loop
                   </p>
                   <h2 className="max-w-3xl text-4xl leading-[0.92] font-black tracking-[-0.055em] break-words uppercase sm:text-5xl md:text-7xl">
-                    Solutionary is revolutionary.
+                    Start where the problem is.
                   </h2>
                 </div>
                 <p className="text-muted-foreground max-w-xl text-lg leading-relaxed md:justify-self-end">
@@ -337,23 +337,22 @@ export default async function Home() {
                 <div>
                   <div className="text-brand-cyan mb-8 flex items-center gap-3 font-mono text-xs font-semibold tracking-[0.16em] uppercase">
                     <Bot aria-hidden="true" className="size-5" />
-                    Nova / optional assistive layer
+                    Nova / optional drafting help
                   </div>
                   <h2 className="max-w-3xl text-4xl leading-[0.9] font-black tracking-[-0.06em] break-words uppercase sm:text-5xl md:text-7xl">
-                    An assistant that returns work to people.
+                    From rough notes to a brief people can act on.
                   </h2>
                 </div>
 
                 <div className="max-w-xl">
                   <p className="text-brand-stone-light mb-8 text-lg leading-relaxed">
-                    Nova is designed to help shape project briefs, compare
-                    proposals, prepare presentations, and surface reconciliation
-                    questions. It can accelerate the draft—not become the
-                    authority.
+                    Nova asks hard questions about a project idea and drafts a
+                    brief from your answers. You decide what stays, what
+                    changes, and whether it becomes a project.
                   </p>
                   <div className="border-brand-signal border-l-4 pl-5 text-xl leading-snug font-bold">
-                    Nothing publishes, signs, or settles without deliberate
-                    human review.
+                    A draft stays private until you publish it. Nova cannot
+                    fund, pay, or vote.
                   </div>
                 </div>
               </div>
@@ -368,7 +367,7 @@ export default async function Home() {
                   <div className="space-y-4 p-4 md:p-6">
                     <div className="border-brand-paper/35 bg-brand-ink-raised border p-4">
                       <p className="text-brand-stone mb-2 font-mono text-[10px] tracking-[0.14em] uppercase">
-                        Human request
+                        Your request
                       </p>
                       <p className="leading-relaxed">
                         Turn our working notes into a project brief and a
@@ -380,7 +379,7 @@ export default async function Home() {
                     <div className="border-brand-cyan bg-brand-cyan-deep border p-4 md:p-5">
                       <div className="mb-5 flex items-center justify-between gap-4">
                         <p className="text-brand-cyan font-mono text-[10px] tracking-[0.14em] uppercase">
-                          Nova prepared 3 artifacts
+                          3 drafts ready for you
                         </p>
                         <Badge
                           className="border-brand-signal text-brand-signal-soft"
@@ -495,9 +494,9 @@ export default async function Home() {
             <div>
               <ArdaNovaWordmark className="mb-4 text-lg" />
               <p className="text-brand-stone-mid max-w-lg text-sm leading-relaxed">
-                A social layer for discovering problems, defining solutions, and
-                iterating together—with explicit rights and people in control of
-                every consequential action.
+                A place for people who find a problem to fund it, build it, and
+                share in what it becomes. Build together, govern together,
+                prosper together.
               </p>
             </div>
             <nav
@@ -532,7 +531,7 @@ export default async function Home() {
                 className="hover:text-brand-cyan inline-flex min-h-11 items-center"
                 href="#nova"
               >
-                Nova AI
+                Nova
               </Link>
               <Link
                 className="hover:text-brand-cyan inline-flex min-h-11 items-center"

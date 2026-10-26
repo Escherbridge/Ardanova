@@ -786,7 +786,7 @@ export default function OpportunitiesPage() {
             <p className="text-muted-foreground mt-1">
               {allOpportunities.length > 0
                 ? "No opportunities match the current view."
-                : "No opportunity records were returned."}
+                : "No one has posted an opportunity yet. Post the work your project needs so the people who can do it can find it."}
             </p>
             {allOpportunities.length > 0 ? (
               <Button variant="outline" className="mt-4" onClick={clearFilters}>

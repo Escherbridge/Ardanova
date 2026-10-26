@@ -21,7 +21,7 @@ export const metadata: Metadata = {
     "contributor rights",
     "governance",
     "reconciliation",
-    "human review",
+    "problem solving",
   ],
   authors: [{ name: "ArdaNova Team" }],
   creator: "ArdaNova",
@@ -32,7 +32,7 @@ export const metadata: Metadata = {
     locale: "en_US",
     title: "ArdaNova — Shared project workspace",
     description:
-      "Plan shared work, record decisions, and reconcile contributor rights with human review at every threshold.",
+      "Where people who find a problem fund it, build it, and share in what it becomes.",
     siteName: "ArdaNova",
   },
   twitter: {

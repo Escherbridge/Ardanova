@@ -266,8 +266,8 @@ export default function DashboardPage() {
           </h1>
           <p className="mt-7 max-w-2xl text-lg leading-relaxed sm:text-xl">
             Discover a problem. Define a solution with the people affected.
-            Iterate from evidence. The solutionary approach is the revolutionary
-            one.
+            Iterate from evidence. Share in what you build, on terms everyone
+            can read.
           </p>
         </div>
 
@@ -411,7 +411,7 @@ export default function DashboardPage() {
               ) : myProjectsQuery.error ? (
                 <ErrorRecord label="Your project records are unavailable right now." />
               ) : myProjects.length === 0 ? (
-                <EmptyRecord>You do not have a project record yet.</EmptyRecord>
+                <EmptyRecord>You have not started a project yet. Begin with a problem you have seen.</EmptyRecord>
               ) : (
                 <ul>
                   {myProjects.map((project) => (

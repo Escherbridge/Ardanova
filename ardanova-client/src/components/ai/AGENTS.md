@@ -1,10 +1,10 @@
 # Nova AI components
 
-`nova-assistant.tsx` is the topbar sheet (CTA "Nova AI"). It has two surfaces:
+`nova-assistant.tsx` is the topbar sheet (CTA "Nova"). It has two surfaces:
 
 - **Refine idea** (`nova-refine-panel.tsx`): live. Calls tRPC `nova.refineProject` → .NET
   `POST /api/nova/project-refinement` → OVERSEASGENAI's partner validate API, white-labelled as
-  Nova AI (see `ardanova-backend-api-mcp/api-server/src/ArdaNova.Infrastructure/Ogai/AGENTS.md`).
+  Nova (see `ardanova-backend-api-mcp/api-server/src/ArdaNova.Infrastructure/Ogai/AGENTS.md`).
   The conversation lives in `NovaAssistant` state so it survives closing the sheet and route changes,
   and is saved to this tab's sessionStorage (see §Refinement persistence). Before the first turn the
   sheet reads `nova.status` (.NET `GET /api/nova/status`): `off` replaces the form with a plain "not
@@ -41,6 +41,11 @@ does: `local-preview` and `off` say nothing is sent and show no provider credit;
 unknown status (API unreachable) keeps the live wording but shows no credit it cannot vouch for. A reply's own
 `mode` outranks a status that has not loaded. The live panel copy also says Nova AI uses third-party AI models
 and public web search, so members leave out anything confidential. Tests: `nova-refine-copy.test.ts`.
+
+Brand voice (SR-01, 2026-10-25): displayed copy says "Nova", never "Nova AI" — the AI is not the story, the
+member's outcome is. The one place the word AI stays is the live disclosure that answers come from third-party
+AI models: that is a data-flow fact members need, not marketing. "You retain every consequential decision"
+reassurances were replaced with what actually happens ("nothing is created unless you choose to").
 
 ## Brief to draft (`nova-brief-draft.ts`)
 
