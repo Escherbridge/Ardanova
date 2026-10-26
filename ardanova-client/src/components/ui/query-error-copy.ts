@@ -1,4 +1,4 @@
-/** User-facing copy and retry policy for failed tRPC queries. See `src/components/ui/AGENTS.md` §query-error-state. */
+/** User-facing copy and retry policy for failed tRPC queries, plus the cash-out gate copy. See `src/components/ui/AGENTS.md` §query-error-state. */
 
 /** tRPC error codes that a retry cannot fix: the answer will be the same until the user acts. */
 const TERMINAL_CODES = new Set([
@@ -176,6 +176,105 @@ export function describeMutationError(error: unknown, action: string): string {
     default:
       return `${lead}: this is a connection or service error, not a problem with what you entered. ${NOTHING_SAVED} Try again.`;
   }
+}
+
+/** Plain sentence for a list that failed to load, never the server's text. See `src/components/ui/AGENTS.md` §list-load-failure. */
+export function describeListLoadFailure(
+  error: unknown,
+  subject: string,
+  emptyClaim: string,
+): { sentence: string; retryable: boolean } {
+  const copy = describeQueryError(error);
+  if (copy.kind === "signed-out") {
+    return {
+      sentence: `Your session has ended. Sign in again to see ${subject}.`,
+      retryable: false,
+    };
+  }
+  return {
+    sentence: `We couldn't load ${subject} just now. This does not mean ${emptyClaim}, and nothing has changed.`,
+    retryable: copy.retryable,
+  };
+}
+
+/** A figure that must never read as zero while its source is loading or failed. */
+export function readFigure(
+  query: { isLoading: boolean; error: unknown },
+  format: () => string,
+): string {
+  if (query.isLoading) return "—";
+  if (query.error) return "Not available";
+  return format();
+}
+
+/** The one cash-out sentence, shared with add-funds ("You cannot cash out yet"). See `src/components/ui/AGENTS.md` §cash-out-gate. */
+export const CASH_OUT_NOT_AVAILABLE =
+  "Sending money to your bank isn't available on ArdaNova yet.";
+
+export type CashOutState = "checking" | "unavailable" | "available" | "unknown";
+
+interface CashOutRead {
+  isLoading: boolean;
+  error: unknown;
+  /** The read's own `available` flag, when it answered. */
+  available: boolean | undefined;
+}
+
+/** True when a cash-out read failed because this deployment has no way to send money to a bank. */
+export function isCashOutGateError(error: unknown): boolean {
+  if (readErrorCode(error) === "SERVICE_UNAVAILABLE") return true;
+  if (isOperatorMessage(error)) return true;
+  const message = (error as { message?: unknown } | null)?.message;
+  return typeof message === "string" && /not switched on/i.test(message);
+}
+
+/** Folds the withdraw availability (and optionally destination) reads into one cash-out state. */
+export function readCashOutState(
+  availability: CashOutRead,
+  destination?: CashOutRead,
+): CashOutState {
+  const reads = destination ? [availability, destination] : [availability];
+  if (reads.some((read) => isCashOutGateError(read.error)))
+    return "unavailable";
+  if (reads.some((read) => read.available === false)) return "unavailable";
+  if (reads.some((read) => read.isLoading)) return "checking";
+  if (availability.error) return "unknown";
+  return availability.available === true ? "available" : "unknown";
+}
+
+/** How the money pages describe the bank step; never promises a send the read has not confirmed. */
+export function describeCashOutStep(state: CashOutState): string {
+  switch (state) {
+    case "unavailable":
+      return `${CASH_OUT_NOT_AVAILABLE} Until it is, money in your balance stays here for backing projects.`;
+    case "available":
+      return "Money in your balance can be sent to your own bank account. You only set up where it goes once.";
+    case "checking":
+      return "Checking whether you can send money to your bank yet…";
+    case "unknown":
+      return "We couldn't check whether sending money to your bank is available yet. The withdraw page shows the latest.";
+  }
+}
+
+/** The withdraw amount hint: names the real blocker instead of a setup step that cannot be taken. */
+export function describeWithdrawBlocker(
+  state: CashOutState,
+  destination: { unreadable: boolean; ready: boolean },
+): string {
+  if (state === "unavailable") {
+    return "Sending isn't available yet, so there is nothing to enter.";
+  }
+  if (state === "checking") return "Checking whether you can send money…";
+  if (state === "unknown") {
+    return "We couldn't check what you can send, so sending is paused for now.";
+  }
+  if (destination.unreadable) {
+    return "We couldn't read your bank details, so sending is paused. Try again above.";
+  }
+  if (!destination.ready) {
+    return "Tell us where to send your money first, using the button above.";
+  }
+  return "Enter an amount up to what is ready to send.";
 }
 
 /** React Query `retry` predicate: retry transient failures only, never auth/permission/validation ones. */

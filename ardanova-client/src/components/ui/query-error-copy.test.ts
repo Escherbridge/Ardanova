@@ -1,9 +1,18 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
 import {
+  CASH_OUT_NOT_AVAILABLE,
+  describeCashOutStep,
+  describeListLoadFailure,
   describeMutationError,
   describeQueryError,
+  describeWithdrawBlocker,
+  readCashOutState,
+  readFigure,
   shouldRetryQuery,
 } from "./query-error-copy";
 
@@ -111,6 +120,156 @@ describe("describeQueryError", () => {
       );
     }
   });
+});
+
+/** The exact body the BFF passes through from `ExceptionHandlingMiddleware` on a backend 500. */
+const backend500 = {
+  message: "An error occurred processing your request.",
+  data: { code: "INTERNAL_SERVER_ERROR" },
+};
+/** `PayoutsController` 503 when this deployment has no bank off-ramp. */
+const cashOutGate = {
+  message:
+    "Sending money to a bank account is not switched on for this deployment.",
+  data: { code: "SERVICE_UNAVAILABLE" },
+};
+const settled = { isLoading: false, error: null };
+
+describe("describeListLoadFailure", () => {
+  it("replaces the raw 500 on withdraw 'Sales still going through' with plain, retryable copy", () => {
+    const failure = describeListLoadFailure(
+      backend500,
+      "your pending sales",
+      "there are none",
+    );
+    expect(failure).toEqual({
+      sentence:
+        "We couldn't load your pending sales just now. This does not mean there are none, and nothing has changed.",
+      retryable: true,
+    });
+  });
+
+  it("sends a signed-out reader to sign in rather than offering a retry that fails again", () => {
+    const failure = describeListLoadFailure(
+      { message: "UNAUTHORIZED", data: { code: "UNAUTHORIZED" } },
+      "what you hold",
+      "you hold nothing",
+    );
+    expect(failure.retryable).toBe(false);
+    expect(failure.sentence).toContain("Sign in again");
+  });
+});
+
+describe("readCashOutState", () => {
+  it.each([
+    [
+      "the availability read refuses with the 503 gate",
+      { ...settled, error: cashOutGate, available: undefined },
+      undefined,
+      "unavailable",
+    ],
+    [
+      "availability answers available: false",
+      { ...settled, available: false },
+      undefined,
+      "unavailable",
+    ],
+    [
+      "destination answers available: false",
+      { ...settled, available: true },
+      { ...settled, available: false },
+      "unavailable",
+    ],
+    [
+      "the gate wins over a still-loading destination",
+      { ...settled, error: cashOutGate, available: undefined },
+      { isLoading: true, error: null, available: undefined },
+      "unavailable",
+    ],
+    [
+      "a read is still loading",
+      { isLoading: true, error: null, available: undefined },
+      undefined,
+      "checking",
+    ],
+    [
+      "availability fails for another reason",
+      { ...settled, error: backend500, available: undefined },
+      undefined,
+      "unknown",
+    ],
+    [
+      "both reads say available",
+      { ...settled, available: true },
+      { ...settled, available: true },
+      "available",
+    ],
+  ] as const)("%s -> %s", (_label, availability, destination, expected) => {
+    expect(readCashOutState(availability, destination)).toBe(expected);
+  });
+});
+
+describe("cash-out copy", () => {
+  it("never promises a bank send unless the availability read said yes", () => {
+    for (const state of ["unavailable", "checking", "unknown"] as const) {
+      expect(describeCashOutStep(state)).not.toMatch(
+        /can be sent|whenever you like/i,
+      );
+    }
+    expect(describeCashOutStep("unavailable")).toContain(
+      CASH_OUT_NOT_AVAILABLE,
+    );
+    expect(describeCashOutStep("available")).toMatch(/can be sent/);
+  });
+
+  it("names the real blocker in the withdraw amount hint", () => {
+    const notReady = { unreadable: false, ready: false };
+    expect(describeWithdrawBlocker("unavailable", notReady)).toMatch(
+      /isn't available yet/,
+    );
+    expect(
+      describeWithdrawBlocker("available", { unreadable: true, ready: false }),
+    ).toMatch(/couldn't read your bank details/);
+    expect(describeWithdrawBlocker("available", notReady)).toMatch(
+      /Tell us where to send your money/,
+    );
+    expect(
+      describeWithdrawBlocker("available", { unreadable: false, ready: true }),
+    ).toMatch(/Enter an amount/);
+  });
+});
+
+describe("readFigure", () => {
+  it.each([
+    [{ isLoading: true, error: null }, "—"],
+    [{ isLoading: false, error: backend500 }, "Not available"],
+    [{ isLoading: false, error: null }, "$0.00"],
+  ])("a figure read as %o shows %s, never a fake zero", (query, expected) => {
+    expect(readFigure(query, () => "$0.00")).toBe(expected);
+  });
+});
+
+describe("money pages wire the honest copy", () => {
+  const appRoot = join(__dirname, "..", "..", "app");
+  const source = (relative: string) =>
+    readFileSync(join(appRoot, relative), "utf8");
+
+  it.each([
+    [
+      "portfolio/withdraw/page.tsx",
+      /\{(?:sales|withdrawals|destination|availability)\.error\.message\}/,
+    ],
+    ["swap/page.tsx", /\{holdings\.error\.message\}|whenever you\s+like/],
+    [
+      "projects/page.tsx",
+      /value=\{(?:String\(currentViewStats|formatUSD\(currentViewStats)/,
+    ],
+  ])(
+    "%s no longer renders the raw message, false promise or bare zero",
+    (file, leak) => {
+      expect(source(file)).not.toMatch(leak);
+    },
+  );
 });
 
 describe("shouldRetryQuery", () => {

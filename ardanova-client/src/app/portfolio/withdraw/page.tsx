@@ -1,6 +1,14 @@
 "use client";
 
-import { describeMutationError } from "~/components/ui/query-error-copy";
+import {
+  CASH_OUT_NOT_AVAILABLE,
+  describeCashOutStep,
+  describeListLoadFailure,
+  describeMutationError,
+  describeWithdrawBlocker,
+  isCashOutGateError,
+  readCashOutState,
+} from "~/components/ui/query-error-copy";
 
 import { Suspense, useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
@@ -192,6 +200,33 @@ function WithdrawPageInner() {
   const quote = availability.data ?? null;
   const bank = destination.data ?? null;
   const bankReady = bank?.readyToReceive ?? false;
+  const cashOut = readCashOutState(
+    {
+      isLoading: availability.isLoading,
+      error: availability.error,
+      available: quote?.available,
+    },
+    {
+      isLoading: destination.isLoading,
+      error: destination.error,
+      available: bank?.available,
+    },
+  );
+  const gated = cashOut === "unavailable";
+  const salesFailure = sales.error
+    ? describeListLoadFailure(
+        sales.error,
+        "your pending sales",
+        "there are none",
+      )
+    : null;
+  const withdrawalsFailure = withdrawals.error
+    ? describeListLoadFailure(
+        withdrawals.error,
+        "the money you have sent",
+        "nothing was sent",
+      )
+    : null;
 
   const belowMinimum =
     quote !== null &&
@@ -260,10 +295,28 @@ function WithdrawPageInner() {
             Withdraw money
           </h1>
           <p className="text-muted-foreground mt-3 max-w-2xl text-sm">
-            Send money from your balance to your own bank account. You only set
-            up where it goes once, the first time you withdraw.
+            {gated
+              ? "This is where money in your balance goes to your own bank account."
+              : describeCashOutStep(cashOut)}
           </p>
         </header>
+
+        {gated && (
+          <div className="border-foreground bg-secondary flex flex-col gap-3 border-2 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div role="status">
+              <p className="font-mono text-sm font-bold uppercase">
+                Not available yet
+              </p>
+              <p className="text-muted-foreground mt-1 text-sm">
+                {CASH_OUT_NOT_AVAILABLE} Nothing has been taken from your
+                balance, and you can still call off a sale below.
+              </p>
+            </div>
+            <Button asChild variant="outline" className="shrink-0 rounded-none">
+              <Link href="/portfolio">Back to your portfolio</Link>
+            </Button>
+          </div>
+        )}
 
         {sentMessage && (
           <div
@@ -319,10 +372,13 @@ function WithdrawPageInner() {
                   : "Not available"
             }
             detail={
-              availability.error
-                ? availability.error.message
-                : (quote?.statusMessage ??
-                  "We could not read this just now. This is not a zero balance.")
+              availability.isLoading
+                ? "Checking…"
+                : gated
+                  ? "Nothing can be sent yet."
+                  : availability.error || !quote
+                    ? "We could not read this just now. This is not a zero balance."
+                    : quote.statusMessage
             }
           />
           <Figure
@@ -362,11 +418,29 @@ function WithdrawPageInner() {
           {destination.isLoading ? (
             <div className="flex py-3" role="status">
               <Loader2 className="text-primary h-5 w-5 animate-spin" />
+              <span className="sr-only">Checking your bank details…</span>
             </div>
-          ) : destination.error ? (
-            <p className="text-destructive text-sm" role="alert">
-              {destination.error.message}
+          ) : gated ? (
+            <p className="text-muted-foreground text-sm">
+              You can add your bank details once sending is available.
             </p>
+          ) : destination.error ? (
+            <div className="space-y-3">
+              <p className="text-muted-foreground text-sm">
+                We couldn&apos;t read your bank details just now. Nothing has
+                changed.
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => void destination.refetch()}
+                disabled={destination.isFetching}
+                aria-busy={destination.isFetching}
+              >
+                {destination.isFetching ? "Checking…" : "Try again"}
+              </Button>
+            </div>
           ) : (
             <>
               <p className="text-muted-foreground text-sm">
@@ -448,9 +522,10 @@ function WithdrawPageInner() {
               className="text-muted-foreground text-xs"
             >
               {amountProblem ??
-                (bankReady
-                  ? "Enter an amount up to what is ready to send."
-                  : "Set up where your money goes first.")}
+                describeWithdrawBlocker(cashOut, {
+                  unreadable: Boolean(destination.error),
+                  ready: bankReady,
+                })}
             </p>
           </div>
 
@@ -490,10 +565,27 @@ function WithdrawPageInner() {
             <div className="flex justify-center py-8" role="status">
               <Loader2 className="text-primary h-6 w-6 animate-spin" />
             </div>
-          ) : withdrawals.error ? (
-            <p className="text-destructive text-sm" role="alert">
-              {withdrawals.error.message}
-            </p>
+          ) : withdrawalsFailure ? (
+            <div className="space-y-3">
+              <p className="text-muted-foreground text-sm" role="status">
+                {gated && isCashOutGateError(withdrawals.error)
+                  ? "There is nothing to show here until sending is available."
+                  : withdrawalsFailure.sentence}
+              </p>
+              {withdrawalsFailure.retryable &&
+                !isCashOutGateError(withdrawals.error) && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => void withdrawals.refetch()}
+                    disabled={withdrawals.isFetching}
+                    aria-busy={withdrawals.isFetching}
+                  >
+                    {withdrawals.isFetching ? "Checking…" : "Try again"}
+                  </Button>
+                )}
+            </div>
           ) : (withdrawals.data ?? []).length === 0 ? (
             <div className="border-border border-2 border-dashed p-7 text-center">
               <p className="text-muted-foreground font-mono text-sm">
@@ -530,7 +622,7 @@ function WithdrawPageInner() {
         <section aria-labelledby="sales-heading" className="space-y-4">
           <div className="border-border border-b pb-3">
             <p className="text-primary font-mono text-[10px] tracking-[0.2em] uppercase">
-              Step one
+              From step one: selling units
             </p>
             <h2
               id="sales-heading"
@@ -557,10 +649,24 @@ function WithdrawPageInner() {
             <div className="flex justify-center py-8" role="status">
               <Loader2 className="text-primary h-6 w-6 animate-spin" />
             </div>
-          ) : sales.error ? (
-            <p className="text-destructive text-sm" role="alert">
-              {sales.error.message}
-            </p>
+          ) : salesFailure ? (
+            <div className="border-border space-y-3 border-2 p-4">
+              <p className="text-foreground text-sm" role="status">
+                {salesFailure.sentence}
+              </p>
+              {salesFailure.retryable && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void sales.refetch()}
+                  disabled={sales.isFetching}
+                  aria-busy={sales.isFetching}
+                >
+                  {sales.isFetching ? "Checking…" : "Try again"}
+                </Button>
+              )}
+            </div>
           ) : cancellableSales.length === 0 ? (
             <div className="border-border border-2 border-dashed p-7 text-center">
               <p className="text-muted-foreground font-mono text-sm">

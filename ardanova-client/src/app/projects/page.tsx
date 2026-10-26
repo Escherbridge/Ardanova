@@ -23,6 +23,7 @@ import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { FeedLayout } from "~/components/layouts/feed-layout";
+import { readFigure } from "~/components/ui/query-error-copy";
 import { Progress } from "~/components/ui/progress";
 import { useEnumOptions } from "~/hooks/use-enum";
 import type { Project } from "~/lib/api/ardanova/endpoints/projects";
@@ -238,24 +239,34 @@ export default function ProjectsPage() {
             <CardContent className="space-y-3 p-4">
               <Stat
                 label="Projects on this page"
-                value={String(currentViewStats.loaded)}
+                value={readFigure(projectsQuery, () =>
+                  String(currentViewStats.loaded),
+                )}
               />
               <Stat
                 label="Funded or complete"
-                value={String(currentViewStats.funded)}
+                value={readFigure(projectsQuery, () =>
+                  String(currentViewStats.funded),
+                )}
               />
               <Stat
                 label="Funding recorded"
-                value={formatUSD(currentViewStats.recordedFunding)}
+                value={readFigure(projectsQuery, () =>
+                  formatUSD(currentViewStats.recordedFunding),
+                )}
               />
               <Stat
                 label="Supporters recorded"
-                value={String(currentViewStats.supporters)}
+                value={readFigure(projectsQuery, () =>
+                  String(currentViewStats.supporters),
+                )}
               />
               <p className="border-border text-muted-foreground border-t pt-3 text-xs">
-                {totalCount > 0
-                  ? `These totals summarize page ${page} of ${totalPages} — ${totalCount} projects match the current filters.`
-                  : "These totals summarize this page only."}
+                {projectsQuery.error
+                  ? "Totals are not shown because this page of projects could not be loaded."
+                  : totalCount > 0
+                    ? `These totals summarize page ${page} of ${totalPages} — ${totalCount} projects match the current filters.`
+                    : "These totals summarize this page only."}
               </p>
             </CardContent>
           </Card>
@@ -270,7 +281,11 @@ export default function ProjectsPage() {
             <CardContent className="divide-border divide-y p-0">
               {recentlyUpdatedInView.length === 0 ? (
                 <p className="text-muted-foreground p-4 text-sm">
-                  No loaded records.
+                  {projectsQuery.isLoading
+                    ? "Loading…"
+                    : projectsQuery.error
+                      ? "Not available while projects can't be loaded."
+                      : "No loaded records."}
                 </p>
               ) : (
                 recentlyUpdatedInView.map((project) => (
@@ -475,7 +490,9 @@ export default function ProjectsPage() {
             />
             <div>
               <h2 className="text-2xl font-bold">
-                {hasFilters ? "No matches for these filters" : "No projects returned"}
+                {hasFilters
+                  ? "No matches for these filters"
+                  : "No projects returned"}
               </h2>
               <p className="text-muted-foreground mt-2 text-sm">
                 {hasFilters
@@ -514,7 +531,9 @@ export default function ProjectsPage() {
                 {viewProjects.length === projects.length
                   ? `Showing ${projects.length} on this page`
                   : `Showing ${viewProjects.length} of ${projects.length} on this page`}
-                {totalCount > 0 ? ` · ${totalCount} total match these filters` : ""}
+                {totalCount > 0
+                  ? ` · ${totalCount} total match these filters`
+                  : ""}
               </span>
               <div className="flex items-center gap-2">
                 <Button

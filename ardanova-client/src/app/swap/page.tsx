@@ -1,6 +1,11 @@
 "use client";
 
-import { describeMutationError } from "~/components/ui/query-error-copy";
+import {
+  describeCashOutStep,
+  describeListLoadFailure,
+  describeMutationError,
+  readCashOutState,
+} from "~/components/ui/query-error-copy";
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -65,6 +70,10 @@ export default function SellUnitsPage() {
     enabled: signedIn,
     retry: false,
   });
+  const withdrawAvailability = api.payouts.getWithdrawAvailability.useQuery(
+    undefined,
+    { enabled: signedIn, retry: false },
+  );
 
   const selected = useMemo(
     () =>
@@ -133,6 +142,18 @@ export default function SellUnitsPage() {
   const available = holdings.data ?? [];
   const sellable = available.filter((holding) => holding.canSell);
   const waiting = available.filter((holding) => !holding.canSell);
+  const cashOut = readCashOutState({
+    isLoading: withdrawAvailability.isLoading,
+    error: withdrawAvailability.error,
+    available: withdrawAvailability.data?.available,
+  });
+  const holdingsFailure = holdings.error
+    ? describeListLoadFailure(
+        holdings.error,
+        "what you hold",
+        "you hold nothing",
+      )
+    : null;
 
   function choose(holding: SellableUnits) {
     setSelectedKey(holdingKey(holding));
@@ -172,8 +193,8 @@ export default function SellUnitsPage() {
           </div>
           <p className="text-muted-foreground mt-4 max-w-2xl text-sm leading-relaxed">
             Sell the units you earned or backed a project with, and the funds go
-            straight into your balance. When you want that money in your bank,
-            withdraw it from your portfolio.
+            straight into your balance. Step two below says whether that money
+            can go on to your bank yet.
           </p>
         </header>
 
@@ -190,7 +211,9 @@ export default function SellUnitsPage() {
               </p>
               <Button asChild variant="outline" size="sm" className="mt-3">
                 <Link href="/portfolio/withdraw">
-                  Send it to your bank
+                  {cashOut === "available"
+                    ? "Send it to your bank"
+                    : "See what you can withdraw"}
                   <ArrowUpRight className="ml-2 size-4" />
                 </Link>
               </Button>
@@ -240,23 +263,24 @@ export default function SellUnitsPage() {
             >
               <Loader2 className="text-primary size-6 animate-spin" />
             </div>
-          ) : holdings.error ? (
+          ) : holdingsFailure ? (
             <Card className="border-destructive">
               <CardContent className="space-y-3 p-4">
-                <p className="text-destructive text-sm" role="alert">
-                  {holdings.error.message}
+                <p className="text-foreground text-sm" role="status">
+                  {holdingsFailure.sentence}
                 </p>
-                <p className="text-muted-foreground text-xs">
-                  This does not mean you hold nothing.
-                </p>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => void holdings.refetch()}
-                >
-                  Try again
-                </Button>
+                {holdingsFailure.retryable && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => void holdings.refetch()}
+                    disabled={holdings.isFetching}
+                    aria-busy={holdings.isFetching}
+                  >
+                    {holdings.isFetching ? "Checking…" : "Try again"}
+                  </Button>
+                )}
               </CardContent>
             </Card>
           ) : available.length === 0 ? (
@@ -453,9 +477,8 @@ export default function SellUnitsPage() {
           <h2 className="font-mono text-sm font-bold tracking-widest uppercase">
             Step two
           </h2>
-          <p className="text-muted-foreground text-sm">
-            Money you have in your balance can be sent to your bank whenever you
-            like. You only need to set up where it goes once.
+          <p className="text-muted-foreground text-sm" aria-live="polite">
+            {describeCashOutStep(cashOut)}
           </p>
           <Button asChild variant="outline" className="rounded-none">
             <Link href="/portfolio/withdraw">

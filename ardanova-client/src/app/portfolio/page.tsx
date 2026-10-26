@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
@@ -77,12 +77,14 @@ export default function PortfolioPage() {
   const {
     data: ardaBalance,
     isLoading: ardaLoading,
+    isFetching: ardaFetching,
     error: ardaError,
     refetch: refetchArdaBalance,
   } = api.tokenBalances.getArdaBalance.useQuery(undefined, {
     enabled: queryEnabled,
     retry: false,
   });
+  const [balanceRetried, setBalanceRetried] = useState(false);
   const {
     data: payouts,
     isLoading: payoutsLoading,
@@ -129,8 +131,10 @@ export default function PortfolioPage() {
               Portfolio
             </h1>
             <p className="text-muted-foreground mt-3 max-w-2xl text-sm">
-              Inspect the balances and payout records ArdaNova holds for you. A
-              balance is not proof of equity, ownership, or governance rights.
+              Your money and units on ArdaNova, in one place. Units are what a
+              project gives you for working on it or backing it; you can sell
+              them for money in your balance. Holding units is not a share,
+              ownership, or a vote in the project.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -178,7 +182,7 @@ export default function PortfolioPage() {
 
           {portfolioError ? (
             <div
-              role="alert"
+              role="status"
               className="border-destructive bg-destructive/10 border-2 p-5"
             >
               <p className="text-destructive text-sm">
@@ -233,12 +237,11 @@ export default function PortfolioPage() {
                 ? "border-destructive bg-destructive/10"
                 : "border-border bg-muted/20"
             }`}
-            role={ardaError ? "alert" : undefined}
           >
             <div className="flex flex-wrap items-end justify-between gap-4">
               <div>
                 <p className="text-muted-foreground font-mono text-[10px] tracking-[0.2em] uppercase">
-                  Your ARDA balance
+                  Your balance
                 </p>
                 <p className="text-foreground mt-2 font-mono text-2xl font-bold">
                   {ardaLoading
@@ -246,15 +249,28 @@ export default function PortfolioPage() {
                     : ardaError
                       ? "Not available"
                       : ardaBalance
-                        ? `${formatInteger(ardaBalance.availableBalance)} ready to use`
+                        ? `${formatInteger(ardaBalance.availableBalance)} ARDA ready to use`
                         : "Not available"}
+                </p>
+                <p className="text-muted-foreground mt-1 text-xs">
+                  ARDA is the unit ArdaNova keeps your balance in: $1 adds 100
+                  ARDA.
                 </p>
                 <p className="text-muted-foreground mt-1 text-xs">
                   {ardaError
                     ? "We couldn’t read your balance just now. This is not a zero balance — nothing has changed."
                     : ardaBalance
-                      ? `${formatInteger(ardaBalance.balance)} in total, including anything still held after a recent backing.`
+                      ? `${formatInteger(ardaBalance.balance)} ARDA in total, including anything still held after a recent backing.`
                       : "Nothing to show yet. Add funds to start backing projects."}
+                </p>
+                <p role="status" className="text-muted-foreground mt-1 text-xs">
+                  {!balanceRetried
+                    ? ""
+                    : ardaFetching
+                      ? "Checking your balance…"
+                      : ardaError
+                        ? "Still couldn’t read your balance. Nothing has changed."
+                        : "Your balance is up to date."}
                 </p>
               </div>
               <div className="flex gap-2">
@@ -263,9 +279,14 @@ export default function PortfolioPage() {
                     type="button"
                     variant="outline"
                     size="sm"
-                    onClick={() => void refetchArdaBalance()}
+                    disabled={ardaFetching}
+                    aria-busy={ardaFetching}
+                    onClick={() => {
+                      setBalanceRetried(true);
+                      void refetchArdaBalance();
+                    }}
                   >
-                    Try again
+                    {ardaFetching ? "Checking…" : "Try again"}
                   </Button>
                 )}
                 <Button asChild size="sm" className="rounded-none">
@@ -319,29 +340,29 @@ export default function PortfolioPage() {
         <section aria-labelledby="payout-records-heading" className="space-y-4">
           <div className="border-border border-b pb-3">
             <p className="text-primary font-mono text-[10px] tracking-[0.2em] uppercase">
-              Submitted ≠ confirmed ≠ reconciled
+              Started is not the same as finished
             </p>
             <h2
               id="payout-records-heading"
               className="mt-1 text-xl font-black uppercase"
             >
-              Payout records
+              Sales of your units
             </h2>
           </div>
 
           {!payoutsLoading && !payoutsError && (
             <div className="grid gap-3 sm:grid-cols-2">
               <SummaryCard
-                label="Submitted / processing USD"
+                label="Still going through (USD)"
                 value={formatUsd(payoutSummary.submittedUsd)}
                 icon={<PauseCircle className="h-4 w-4" />}
-                detail={`${payoutSummary.pendingCount} pending record${payoutSummary.pendingCount === 1 ? "" : "s"}; this is not confirmed settlement.`}
+                detail={`${payoutSummary.pendingCount} sale${payoutSummary.pendingCount === 1 ? " has" : "s have"} not finished yet. Don't count this money as yours until it has.`}
               />
               <SummaryCard
-                label="Completed-record USD"
+                label="Marked finished (USD)"
                 value={formatUsd(payoutSummary.completedRecordUsd)}
                 icon={<CircleDollarSign className="h-4 w-4" />}
-                detail="There is no durable reconciliation status yet, so this is not labeled reconciled."
+                detail="Our record says these sales finished. We don't yet double-check each one against the money that arrived, so treat this as our record, not a bank statement."
               />
             </div>
           )}
@@ -352,42 +373,40 @@ export default function PortfolioPage() {
             </div>
           ) : payoutsError ? (
             <div
-              role="alert"
+              role="status"
               className="border-destructive bg-destructive/10 border-2 p-5"
             >
               <p className="text-destructive text-sm">
-                Payout records could not be loaded. No settlement totals are
-                shown.
+                We couldn&apos;t load your sales just now, so no totals are
+                shown. This does not mean there are none, and nothing has
+                changed.
               </p>
             </div>
           ) : !payouts?.length ? (
             <div className="border-border border-2 border-dashed p-8 text-center">
               <p className="text-muted-foreground font-mono text-sm">
-                No payout records were returned.
+                You have not sold any units yet.
               </p>
             </div>
           ) : (
             <div className="border-border overflow-x-auto border-2">
               <table className="w-full min-w-[46rem] border-collapse">
                 <caption className="sr-only">
-                  Payout requests and their recorded status
+                  Sales of your units and where each one is
                 </caption>
                 <thead className="border-border bg-muted/30 border-b">
                   <tr>
-                    {[
-                      "Requested",
-                      "Stake",
-                      "Recorded USD",
-                      "Status",
-                    ].map((column) => (
-                      <th
-                        key={column}
-                        scope="col"
-                        className="text-muted-foreground px-4 py-3 text-left font-mono text-[10px] font-normal tracking-widest uppercase"
-                      >
-                        {column}
-                      </th>
-                    ))}
+                    {["Started", "Units", "Recorded USD", "Status"].map(
+                      (column) => (
+                        <th
+                          key={column}
+                          scope="col"
+                          className="text-muted-foreground px-4 py-3 text-left font-mono text-[10px] font-normal tracking-widest uppercase"
+                        >
+                          {column}
+                        </th>
+                      ),
+                    )}
                   </tr>
                 </thead>
                 <tbody>

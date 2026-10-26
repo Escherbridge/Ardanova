@@ -67,6 +67,44 @@ Rendering `{mutation.error.message}` is how `/tasks/create` showed users
   exported for callers that render query errors themselves. This is still a
   blocklist; the durable fix is a backend reason code mapped to copy here.
 
+## list-load-failure
+
+`describeListLoadFailure(error, subject, emptyClaim)` is for a list that
+failed to load on a page that renders its own failure (withdraw "Sales still
+going through", `/swap` "What you hold"). A backend 500 reaches the client as
+`ExceptionHandlingMiddleware`'s "An error occurred processing your request.",
+which the BFF passes through. Rendered verbatim, it told sponsors nothing and
+offered no way forward. The sentence is always "We couldn't load {subject}
+just now. This does not mean {emptyClaim}, and nothing has changed." Pair it
+with a Try again button that calls `refetch`, is disabled while `isFetching`,
+and reads "Checking…" while it runs. Page-load read failures use
+`role="status"`, never `role="alert"`, and buttons sit outside the live
+element.
+
+`readFigure(query, format)` returns "—" while loading and "Not available" on
+error. It exists so a stat tile computed from `data ?? []` never shows `$0` or
+`0` next to an error banner (`/projects` "Current page").
+
+## cash-out-gate
+
+Money pages must tell one cash-out story. `CASH_OUT_NOT_AVAILABLE` matches
+add-funds' "You cannot cash out yet" bullet. `readCashOutState` folds the
+withdraw availability (and on `/portfolio/withdraw`, destination) reads into
+`checking | unavailable | available | unknown`. A 503 `SERVICE_UNAVAILABLE`,
+operator wording, "not switched on", or a read answering `available: false`
+all mean `unavailable`, and the gate wins over a read that is still loading.
+
+- `describeCashOutStep` promises a bank send only for `available`. `/swap`
+  step two used to say "can be sent to your bank whenever you like" whatever
+  the deployment could actually do.
+- On withdraw, `unavailable` renders ONE status notice with a link back to
+  Portfolio. The figures, bank-details section and history then use short
+  lines and do not repeat the backend gate sentence (it used to appear three
+  times).
+- `describeWithdrawBlocker` is the amount hint. It names the real blocker
+  instead of "Set up where your money goes first", which pointed at a setup
+  button that was disabled.
+
 ## layout-primitives
 
 - `Card` carries `min-w-0`. Cards are usually grid items, and a grid track
