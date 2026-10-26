@@ -21,6 +21,19 @@ import {
 } from "~/components/ui/sheet";
 import { getNovaContext } from "~/lib/nova-context";
 
+/** Radix skips links when auto-focusing, which lands on Sign out; start on the first primary nav link instead. */
+function focusFirstNavigationLink(event: Event) {
+  const container = event.currentTarget;
+  if (!(container instanceof HTMLElement)) return;
+  const target =
+    container.querySelector<HTMLElement>(
+      'nav[aria-label="Primary workspace navigation"] a[href]',
+    ) ?? container.querySelector<HTMLElement>("nav a[href]");
+  if (!target) return;
+  event.preventDefault();
+  target.focus({ preventScroll: true });
+}
+
 export function AppTopbar({
   user,
   authPreview = false,
@@ -59,6 +72,7 @@ export function AppTopbar({
           </SheetTrigger>
           <SheetContent
             side="left"
+            onOpenAutoFocus={focusFirstNavigationLink}
             className="bg-sidebar text-sidebar-foreground w-[min(90vw,20rem)] gap-0 border-r-2 p-0 shadow-none sm:max-w-none"
           >
             <SheetHeader className="border-sidebar-border min-h-16 justify-center border-b-2 px-5 py-3 text-left">

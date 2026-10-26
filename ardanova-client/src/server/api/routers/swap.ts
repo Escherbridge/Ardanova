@@ -114,6 +114,20 @@ function parseSwapResponse<T>(
   return parsed.data;
 }
 
+/** Backend status -> tRPC code for a failed read: 404 stays "not found", other 4xx stay rejections, 5xx / unknown are server faults; an empty 2xx keeps the read's own code. */
+function readFailureCode(
+  status: number | undefined,
+  whenEmpty: "NOT_FOUND" | "BAD_REQUEST",
+) {
+  if (status !== undefined && status >= 200 && status < 300) return whenEmpty;
+  if (status === 401) return "UNAUTHORIZED" as const;
+  if (status === 403) return "FORBIDDEN" as const;
+  if (status === 404) return "NOT_FOUND" as const;
+  if (status !== undefined && status >= 400 && status < 500)
+    return "BAD_REQUEST" as const;
+  return "INTERNAL_SERVER_ERROR" as const;
+}
+
 // ---------------------------------------------------------------------------
 // Router — thin proxy to .NET API via apiClient
 // ---------------------------------------------------------------------------
@@ -133,7 +147,7 @@ export const swapRouter = createTRPCRouter({
 
       if (response.error || response.data === undefined) {
         throw new TRPCError({
-          code: "BAD_REQUEST",
+          code: readFailureCode(response.status, "BAD_REQUEST"),
           message: response.error ?? "Failed to get swap preview",
         });
       }
@@ -157,7 +171,7 @@ export const swapRouter = createTRPCRouter({
 
     if (response.error || response.data === undefined) {
       throw new TRPCError({
-        code: "BAD_REQUEST",
+        code: readFailureCode(response.status, "BAD_REQUEST"),
         message: response.error ?? "Failed to get swap history",
       });
     }

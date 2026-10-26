@@ -134,7 +134,7 @@ export type Withdrawal = z.infer<typeof withdrawalSchema>;
  * both to BAD_REQUEST tells a person they typed something wrong when they did not.
  */
 function refusal(
-  status: number,
+  status: number | undefined,
   message: string | undefined,
   fallback: string,
 ) {
@@ -149,7 +149,9 @@ function refusal(
             ? "CONFLICT"
             : status === 503
               ? "SERVICE_UNAVAILABLE"
-              : "BAD_REQUEST";
+              : status !== undefined && status >= 400 && status < 500
+                ? "BAD_REQUEST"
+                : "INTERNAL_SERVER_ERROR";
 
   return new TRPCError({ code, message: message ?? fallback });
 }

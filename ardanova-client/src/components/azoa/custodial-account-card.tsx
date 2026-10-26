@@ -15,6 +15,7 @@ import {
 
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
+import { describeAccountSetupNotice } from "./account-setup-copy";
 import type { AzoaCustodialAccountStatusDto } from "~/lib/api/ardanova";
 import { evaluateValueActionAccount } from "~/lib/contracts/project-create-contract";
 import { cn } from "~/lib/utils";
@@ -32,7 +33,8 @@ type AccountStepIcon = "account" | "identity" | "wallet";
  * code and resolves to the narrowest outcome: no route is offered, and no copy claims one.
  */
 export function reviewContactHref(): string | null {
-  const configuredAddress = process.env.NEXT_PUBLIC_REVIEW_CONTACT_EMAIL?.trim();
+  const configuredAddress =
+    process.env.NEXT_PUBLIC_REVIEW_CONTACT_EMAIL?.trim();
   if (!configuredAddress) return null;
   const subject = encodeURIComponent("Account review - request for an update");
   return `mailto:${configuredAddress}?subject=${subject}`;
@@ -44,7 +46,9 @@ export function reviewContactHref(): string | null {
  * "UnderReview" in front of a sponsor who never asked to read an enum. Exported because
  * the project wizard shows the same row and must not re-derive it.
  */
-export function describeIdentityStep(kycStatus: string | null | undefined): string {
+export function describeIdentityStep(
+  kycStatus: string | null | undefined,
+): string {
   switch (kycStatus) {
     case "Approved":
       return "Complete";
@@ -71,6 +75,8 @@ interface CustodialAccountCardProps {
   isLoading?: boolean;
   isEnsuring?: boolean;
   statusError?: string | null;
+  /** tRPC code of the failed status read; PRECONDITION_FAILED means setup is not open. */
+  statusErrorCode?: string | null;
   ensureError?: string | null;
   verificationHref?: string | null;
   onEnsure: () => void;
@@ -81,10 +87,16 @@ export function CustodialAccountCard({
   isLoading = false,
   isEnsuring = false,
   statusError,
+  statusErrorCode,
   ensureError,
   verificationHref = "/settings/verification",
   onEnsure,
 }: CustodialAccountCardProps) {
+  const notice = describeAccountSetupNotice({
+    statusError,
+    statusErrorCode,
+    ensureError,
+  });
   // One classification for the whole card, from the shared contract. Rendering
   // `status.kycStatus` or `status.unavailableReason` directly is what put a machine
   // token and a provider diagnostic on a sponsor's own account screen.
@@ -104,15 +116,17 @@ export function CustodialAccountCard({
         !status?.walletAddress?.trim()));
   const stateLabel = isLoading
     ? "Checking"
-    : accountSetupComplete
-      ? "Account setup complete"
-      : underReview
-        ? "Final review in progress"
-        : status?.identityReady && status.walletReady
-          ? "Identity check needed"
-          : status?.identityReady
-            ? "Account completion pending"
-            : "Setup required";
+    : !notice.setupOpen
+      ? "Not open yet"
+      : accountSetupComplete
+        ? "Account setup complete"
+        : underReview
+          ? "Final review in progress"
+          : status?.identityReady && status.walletReady
+            ? "Identity check needed"
+            : status?.identityReady
+              ? "Account completion pending"
+              : "Setup required";
   const steps: AccountStep[] = [
     {
       label: "Account setup",
@@ -137,9 +151,9 @@ export function CustodialAccountCard({
   // own words: "service-unavailable" is the contract's classification of a blank read OR
   // an unavailableReason, and the copy that goes with it says nothing about this person.
   const unavailable =
-    ensureError ??
-    statusError ??
+    notice.statusMessage ??
     (evaluation.state === "service-unavailable" ? evaluation.message : null);
+  const offerSetup = needsProvisioning && notice.setupOpen;
 
   return (
     <section
@@ -164,9 +178,9 @@ export function CustodialAccountCard({
           </h2>
           <p className="text-muted-foreground mt-3 max-w-2xl text-sm leading-relaxed">
             ArdaNova coordinates the setup. A trusted verification partner
-            checks identity and manages the protected account used for
-            funding and rewards. ArdaNova keeps only account references and
-            readiness status.
+            checks identity and manages the protected account used for funding
+            and rewards. ArdaNova keeps only account references and readiness
+            status.
           </p>
         </div>
         <Badge
@@ -199,6 +213,7 @@ export function CustodialAccountCard({
                       ? "bg-primary text-primary-foreground"
                       : "bg-muted",
                   )}
+                  role="img"
                   aria-label={step.complete ? "Complete" : "Not complete"}
                 >
                   {step.complete ? (
@@ -222,7 +237,7 @@ export function CustodialAccountCard({
 
       <div className="grid gap-4 p-5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:p-6">
         <div className="flex items-start gap-3">
-          {unavailable ? (
+          {unavailable || notice.ensureMessage ? (
             <TriangleAlert
               className="text-destructive mt-0.5 size-5 shrink-0"
               aria-hidden="true"
@@ -233,22 +248,32 @@ export function CustodialAccountCard({
               aria-hidden="true"
             />
           )}
-          <p
-            className="text-sm leading-relaxed"
-            role="status"
-            aria-live="polite"
-          >
-            {unavailable
-              ? unavailable
-              : underReview
-                ? evaluation.message
-                : accountSetupComplete
-                  ? "Account setup is complete. Funding, paid work, and payouts still require their own server-side project checks."
-                  : "Creating this account does not move money or approve a payment. You can create projects and collaborate while setup is pending; funding, paid work, and rewards stay unavailable."}
-          </p>
+          <div className="space-y-2">
+            <p
+              className="text-sm leading-relaxed"
+              role="status"
+              aria-live="polite"
+            >
+              {unavailable
+                ? unavailable
+                : underReview
+                  ? evaluation.message
+                  : accountSetupComplete
+                    ? "Account setup is complete. Funding, paid work, and payouts still require their own server-side project checks."
+                    : "Creating this account does not move money or approve a payment. You can create projects and collaborate while setup is pending; funding, paid work, and rewards stay unavailable."}
+            </p>
+            {notice.ensureMessage && (
+              <p
+                className="text-destructive text-sm leading-relaxed font-semibold"
+                role="alert"
+              >
+                {notice.ensureMessage}
+              </p>
+            )}
+          </div>
         </div>
         <div className="flex flex-col gap-2 sm:min-w-52">
-          {needsProvisioning && (
+          {offerSetup && (
             <Button
               className="min-h-11 w-full"
               onClick={onEnsure}

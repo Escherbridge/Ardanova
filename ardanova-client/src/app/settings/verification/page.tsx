@@ -14,6 +14,7 @@ import {
   TriangleAlert,
 } from "lucide-react";
 
+import { describeIdentityVerificationProblem } from "~/components/azoa/account-setup-copy";
 import {
   CustodialAccountCard,
   describeIdentityStep,
@@ -125,6 +126,14 @@ export default function VerificationPage() {
         capabilities.data.developmentSimulation),
   );
 
+  const verificationProblem = capabilities.isLoading
+    ? null
+    : describeIdentityVerificationProblem({
+        beginKycError: beginKyc.error,
+        capabilitiesError: capabilities.error,
+        kycReady: capabilities.data?.kycReady,
+      });
+
   return (
     <div className="mx-auto w-full max-w-5xl space-y-6 px-4 py-6 sm:px-6 sm:py-8">
       <header className="border-foreground grid gap-5 border-b-2 pb-6 md:grid-cols-[1fr_auto] md:items-end">
@@ -136,9 +145,9 @@ export default function VerificationPage() {
             Set up once. Work with clarity.
           </h1>
           <p className="text-muted-foreground mt-3 max-w-2xl text-sm leading-relaxed sm:text-base">
-            Azoa manages identity checks and protected account setup. ArdaNova
-            starts the flow and reads the outcome, but never stores identity
-            documents or account secrets.
+            A trusted verification partner runs identity checks and protected
+            account setup. ArdaNova starts the flow and reads the outcome, but
+            never stores identity documents or account secrets.
           </p>
         </div>
         <Button
@@ -167,6 +176,7 @@ export default function VerificationPage() {
         isLoading={custodyStatus.isLoading}
         isEnsuring={ensureCustody.isPending}
         statusError={custodyStatus.error?.message}
+        statusErrorCode={custodyStatus.error?.data?.code}
         ensureError={ensureCustody.error?.message}
         verificationHref={null}
         onEnsure={() => ensureCustody.mutate()}
@@ -189,7 +199,7 @@ export default function VerificationPage() {
             </h2>
             <p className="mt-1 max-w-2xl text-sm leading-relaxed opacity-90">
               {developmentSimulation
-                ? "Your development-only Azoa simulation and managed payment account are ready for local testing. This is not production identity proof."
+                ? "Your development-only simulation and managed payment account are ready for local testing. This is not production identity proof."
                 : "Your account setup, identity check, and managed payment account are ready. Return to the work that asked for verification."}
             </p>
           </div>
@@ -218,8 +228,8 @@ export default function VerificationPage() {
               )}
               <span className="text-muted-foreground font-mono text-xs uppercase">
                 {capabilities.data?.kycProvider
-                  ? `${capabilities.data.kycProvider} via Azoa`
-                  : "Provider selected by node operator"}
+                  ? `Checked by ${capabilities.data.kycProvider}`
+                  : "Verification partner not chosen yet"}
               </span>
             </div>
             <h2
@@ -278,20 +288,18 @@ export default function VerificationPage() {
               <h3 className="font-mono text-lg font-black uppercase">
                 {developmentSimulation
                   ? "Development simulation approved"
-                  : "Azoa approved"}
+                  : "Identity verified"}
               </h3>
               <p className="text-muted-foreground mt-1 text-sm leading-relaxed">
                 {developmentSimulation
                   ? "This approval exists only to exercise the local review loop. It is not KYC, identity evidence, or permission for a Production value action."
-                  : "Sensitive platform gates confirm this status with Azoa again; a cached ArdaNova badge is never sufficient authority."}
+                  : "Before any money moves, ArdaNova confirms this status with the verification partner again; a saved badge is never enough on its own."}
               </p>
             </div>
           </div>
         ) : (
           <div className="space-y-5 p-5 sm:p-6">
-            {(!capabilities.data?.kycReady ||
-              capabilities.error ||
-              beginKyc.error) && (
+            {verificationProblem && (
               <div
                 className="border-destructive flex items-start gap-3 border-2 p-4"
                 role="status"
@@ -300,11 +308,7 @@ export default function VerificationPage() {
                   className="text-destructive mt-0.5 size-5 shrink-0"
                   aria-hidden="true"
                 />
-                <p className="text-sm leading-relaxed">
-                  {beginKyc.error?.message ??
-                    capabilities.error?.message ??
-                    "Identity verification is not configured on this Azoa node yet."}
-                </p>
+                <p className="text-sm leading-relaxed">{verificationProblem}</p>
               </div>
             )}
 
@@ -324,10 +328,10 @@ export default function VerificationPage() {
                         Development review simulation
                       </h3>
                       <p className="text-muted-foreground mt-1 text-sm leading-relaxed">
-                        This Azoa node is explicitly offering a development-only
-                        manual review loop. It collects no document URL and
-                        proves no identity. Production nodes never expose this
-                        option.
+                        This environment is explicitly offering a
+                        development-only manual review loop. It collects no
+                        document URL and proves no identity. Production nodes
+                        never expose this option.
                       </p>
                     </div>
                   </div>
@@ -347,7 +351,7 @@ export default function VerificationPage() {
                         : "Use the provider",
                       developmentSimulation
                         ? "Start a clearly labeled development attempt without submitting identity material."
-                        : "The node operator configures a reviewed hosted or private-upload provider.",
+                        : "A reviewed verification partner checks your identity on its own secure page.",
                     ],
                     [
                       "03",
@@ -383,14 +387,13 @@ export default function VerificationPage() {
                       />
                       <div>
                         <h3 className="font-mono text-sm font-black uppercase">
-                          Operator upload required
+                          Identity verification isn&apos;t open yet
                         </h3>
                         <p className="text-muted-foreground mt-1 text-sm leading-relaxed">
-                          This node currently uses a private-reference workflow.
-                          ArdaNova will not create a dead-end attempt or ask for
-                          a public document URL. Ask the node operator to enable
-                          a reviewed hosted flow or an Azoa-owned private
-                          upload.
+                          This verification method needs a private upload step
+                          that isn&apos;t available here yet. ArdaNova will not
+                          start an attempt that cannot finish, and will never
+                          ask you for a public link to an identity document.
                         </p>
                       </div>
                     </div>
@@ -497,11 +500,10 @@ export default function VerificationPage() {
                           Private upload required
                         </h3>
                         <p className="text-muted-foreground mt-1 text-sm leading-relaxed">
-                          This provider expects operator-managed document
-                          references. ArdaNova will not ask you to paste public
-                          identity-document URLs. The node operator must add a
-                          private, scoped upload flow before this method can be
-                          used here.
+                          This verification partner needs a private upload step
+                          that isn&apos;t available here yet. ArdaNova will
+                          never ask you to paste a public link to an identity
+                          document.
                         </p>
                       </div>
                     </div>
