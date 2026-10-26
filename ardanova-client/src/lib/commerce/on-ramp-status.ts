@@ -160,6 +160,7 @@ export type AddFundsReadinessState =
   | "needs-setup"
   | "under-review"
   | "checking"
+  | "not-open"
   | "unavailable";
 
 export type AddFundsReadiness = {
@@ -172,7 +173,15 @@ export type AddFundsReadiness = {
   detail: string | null;
   /** The button to offer alongside the banner. Never offered to someone under review. */
   action: { label: string; href: string } | null;
+  /** Whether asking the server again could change the answer. Only a transient read failure. */
+  canRetry: boolean;
 };
+
+/**
+ * The tRPC code the account-status read refuses with when this deployment cannot open accounts
+ * at all (backend 409, mapped in `routers/azoa-custodial-account.ts`). Retrying cannot change it.
+ */
+const NOT_CONFIGURED_ERROR_CODE = "PRECONDITION_FAILED";
 
 /** Where somebody who genuinely has setup left to do is sent. */
 const ACCOUNT_SETUP_HREF =
@@ -193,7 +202,12 @@ const ACCOUNT_SETUP_HREF =
  */
 export function getAddFundsReadiness(
   status: ValueActionAccountStatus | null | undefined,
-  options: { pending?: boolean; loadFailed?: boolean } = {},
+  options: {
+    pending?: boolean;
+    loadFailed?: boolean;
+    /** The tRPC error code of the failed read, so a deterministic refusal is not called transient. */
+    loadErrorCode?: string | null;
+  } = {},
 ): AddFundsReadiness {
   if (options.pending === true && options.loadFailed !== true) {
     return {
@@ -202,6 +216,23 @@ export function getAddFundsReadiness(
       heading: null,
       detail: null,
       action: null,
+      canRetry: false,
+    };
+  }
+
+  // Not a blip: the site cannot open accounts yet, so "try again shortly" would be a false promise.
+  if (
+    options.loadFailed === true &&
+    options.loadErrorCode === NOT_CONFIGURED_ERROR_CODE
+  ) {
+    return {
+      state: "not-open",
+      canContinue: false,
+      heading: "Adding money isn't open yet",
+      detail:
+        "Adding money isn't open on ArdaNova yet. Nothing was charged, and there is nothing you need to do - this isn't a problem with your account.",
+      action: null,
+      canRetry: false,
     };
   }
 
@@ -217,6 +248,7 @@ export function getAddFundsReadiness(
         heading: null,
         detail: null,
         action: null,
+        canRetry: false,
       };
 
     case "under-review":
@@ -228,6 +260,7 @@ export function getAddFundsReadiness(
         heading: "We're finishing one last check",
         detail: describeValueActionUnderReview(status?.reviewDueAt),
         action: null,
+        canRetry: false,
       };
 
     case "service-unavailable":
@@ -238,8 +271,9 @@ export function getAddFundsReadiness(
         canContinue: false,
         heading: "We couldn't check your account",
         detail:
-          "We couldn't confirm your account just now, so we haven't started anything. This isn't a problem with your account - please try again shortly.",
+          "We couldn't confirm your account just now, so we haven't started anything. This isn't a problem with your account - please try again.",
         action: null,
+        canRetry: true,
       };
 
     default:
@@ -250,8 +284,59 @@ export function getAddFundsReadiness(
         detail:
           "Adding money needs your account set up and your identity confirmed. It takes a few minutes and you only do it once.",
         action: { label: "Set up my account", href: ACCOUNT_SETUP_HREF },
+        canRetry: false,
       };
   }
+}
+
+// ---------------------------------------------------------------------------
+// What a typed amount is allowed to be
+// ---------------------------------------------------------------------------
+
+export const ADD_FUNDS_MINIMUM_DOLLARS = 1;
+export const ADD_FUNDS_MAXIMUM_DOLLARS = 10_000;
+
+/**
+ * Reads a typed amount as whole cents. Deliberately strict and locale-free: "1,50" is refused,
+ * never read as 150 or 1.50, so a stray character can never become a different charge.
+ */
+export function parseDollarsToMinorUnits(raw: string): number | null {
+  const trimmed = raw.trim().replace(/^\$/u, "");
+  if (!/^\d{1,7}(\.\d{1,2})?$/u.test(trimmed)) return null;
+  const cents = Math.round(Number(trimmed) * 100);
+  return Number.isSafeInteger(cents) ? cents : null;
+}
+
+function formatWholeOrCents(dollars: number): string {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: dollars % 1 === 0 ? 0 : 2,
+    maximumFractionDigits: 2,
+  }).format(dollars);
+}
+
+/** Why a typed amount cannot be used, in words that say how to fix it; null when it can. */
+export function describeAddFundsAmountProblem(raw: string): string | null {
+  const trimmed = raw.trim();
+  if (trimmed.length === 0) return "Choose an amount, or type your own.";
+
+  const cents = parseDollarsToMinorUnits(trimmed);
+  if (cents === null) {
+    const unsigned = trimmed.replace(/^\$/u, "");
+    if (/[,\s]/u.test(unsigned)) {
+      return "Use a dot for cents, like 40.50, with no spaces or commas.";
+    }
+    if (/^\d+\.\d{3,}$/u.test(unsigned)) {
+      return "Amounts can only go down to whole cents - use at most two digits after the dot, like 40.50.";
+    }
+    return "Enter an amount in dollars, like 40 or 40.50.";
+  }
+  if (cents < ADD_FUNDS_MINIMUM_DOLLARS * 100)
+    return `The smallest amount you can add is ${formatWholeOrCents(ADD_FUNDS_MINIMUM_DOLLARS)}.`;
+  if (cents > ADD_FUNDS_MAXIMUM_DOLLARS * 100)
+    return `The most you can add in one go is ${formatWholeOrCents(ADD_FUNDS_MAXIMUM_DOLLARS)}.`;
+  return null;
 }
 
 // ---------------------------------------------------------------------------

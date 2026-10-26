@@ -1,11 +1,120 @@
 import { describe, expect, it } from "vitest";
 
+import type { ValueActionAccountStatus } from "~/lib/contracts/project-create-contract";
+
 import {
   ADD_FUNDS_UNAVAILABLE_MESSAGE,
+  describeAddFundsAmountProblem,
+  getAddFundsReadiness,
   getOnRampPresentation,
   isOnRampSettled,
+  parseDollarsToMinorUnits,
   type OnRampReport,
 } from "./on-ramp-status";
+
+const readyAccount: ValueActionAccountStatus = {
+  avatarId: "avatar-1",
+  walletId: "wallet-1",
+  walletAddress: "addr-1",
+  kycStatus: "Approved",
+  identityReady: true,
+  kycReady: true,
+  walletReady: true,
+  ready: true,
+};
+
+describe("getAddFundsReadiness when the account read fails or resolves", () => {
+  it.each([
+    {
+      name: "the site cannot open accounts yet (409 -> PRECONDITION_FAILED)",
+      status: undefined,
+      options: { loadFailed: true, loadErrorCode: "PRECONDITION_FAILED" },
+      state: "not-open",
+      canRetry: false,
+    },
+    {
+      name: "a transient server failure",
+      status: undefined,
+      options: { loadFailed: true, loadErrorCode: "INTERNAL_SERVER_ERROR" },
+      state: "unavailable",
+      canRetry: true,
+    },
+    {
+      name: "a failure with no code (network)",
+      status: undefined,
+      options: { loadFailed: true, loadErrorCode: null },
+      state: "unavailable",
+      canRetry: true,
+    },
+    {
+      name: "still loading",
+      status: undefined,
+      options: { pending: true },
+      state: "checking",
+      canRetry: false,
+    },
+    {
+      name: "a ready account",
+      status: readyAccount,
+      options: {},
+      state: "ready",
+      canRetry: false,
+    },
+    {
+      name: "an account held for review",
+      status: { ...readyAccount, ready: false, kycStatus: "UnderReview" },
+      options: {},
+      state: "under-review",
+      canRetry: false,
+    },
+  ])("$name -> $state", ({ status, options, state, canRetry }) => {
+    const readiness = getAddFundsReadiness(status, options);
+
+    expect(readiness.state).toBe(state);
+    expect(readiness.canRetry).toBe(canRetry);
+    expect(readiness.canContinue).toBe(state === "ready");
+  });
+
+  it("never promises a retry will help when the site is not open, and says nothing was charged", () => {
+    const readiness = getAddFundsReadiness(undefined, {
+      loadFailed: true,
+      loadErrorCode: "PRECONDITION_FAILED",
+    });
+    const copy = `${readiness.heading} ${readiness.detail}`.toLowerCase();
+
+    expect(copy).not.toContain("try again");
+    expect(copy).toContain("nothing was charged");
+    expect(readiness.action).toBeNull();
+  });
+});
+
+describe("describeAddFundsAmountProblem", () => {
+  it.each([
+    ["", "Choose an amount"],
+    ["1,50", "Use a dot for cents"],
+    ["1 000", "Use a dot for cents"],
+    ["1.000,00", "Use a dot for cents"],
+    ["40.505", "whole cents"],
+    ["abc", "like 40 or 40.50"],
+    ["0.50", "smallest amount"],
+    ["10000.01", "most you can add"],
+  ])("%j -> mentions %j", (raw, expected) => {
+    expect(describeAddFundsAmountProblem(raw)).toContain(expected);
+  });
+
+  it.each(["40", "40.50", "$25", " 1 ", "10000"])(
+    "%j is a usable amount",
+    (raw) => {
+      expect(describeAddFundsAmountProblem(raw)).toBeNull();
+    },
+  );
+
+  it("stays strict: a locale-formatted amount is refused, never re-read as another charge", () => {
+    expect(parseDollarsToMinorUnits("1,50")).toBeNull();
+    expect(parseDollarsToMinorUnits("1 000")).toBeNull();
+    expect(parseDollarsToMinorUnits("40.50")).toBe(4050);
+  });
+});
 
 /**
  * These are the product rules for the add-funds return page, pinned as assertions rather than

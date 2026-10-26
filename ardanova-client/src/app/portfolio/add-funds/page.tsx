@@ -16,7 +16,11 @@ import {
 
 import { buildSignInHref } from "~/lib/auth-navigation";
 import {
+  ADD_FUNDS_MAXIMUM_DOLLARS,
+  ADD_FUNDS_MINIMUM_DOLLARS,
+  describeAddFundsAmountProblem,
   getAddFundsReadiness,
+  parseDollarsToMinorUnits,
   getOnRampConfirmingPresentation,
   getOnRampPresentation,
   isOnRampSettled,
@@ -33,8 +37,11 @@ import { Label } from "~/components/ui/label";
 /** The amounts most people pick, so most people never type. */
 const PRESET_DOLLAR_AMOUNTS = [10, 25, 50, 100, 250] as const;
 
-const MINIMUM_DOLLARS = 1;
-const MAXIMUM_DOLLARS = 10_000;
+const MINIMUM_DOLLARS = ADD_FUNDS_MINIMUM_DOLLARS;
+const MAXIMUM_DOLLARS = ADD_FUNDS_MAXIMUM_DOLLARS;
+
+const AMOUNT_ERROR_ID = "custom-amount-error";
+const READINESS_DETAIL_ID = "add-funds-readiness-detail";
 
 function formatDollars(value: number): string {
   return new Intl.NumberFormat("en-US", {
@@ -49,17 +56,6 @@ function formatUnits(value: number): string {
   return new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(
     value,
   );
-}
-
-/**
- * Reads a typed amount as whole cents. Anything that is not a plain amount of money is refused
- * rather than coerced, so a stray character can never become a different charge.
- */
-function parseDollarsToMinorUnits(raw: string): number | null {
-  const trimmed = raw.trim().replace(/^\$/u, "");
-  if (!/^\d{1,7}(\.\d{1,2})?$/u.test(trimmed)) return null;
-  const cents = Math.round(Number(trimmed) * 100);
-  return Number.isSafeInteger(cents) ? cents : null;
 }
 
 export default function AddFundsPage() {
@@ -129,18 +125,16 @@ function AddFundsFlow() {
     return parseDollarsToMinorUnits(customAmount);
   }, [customAmount, selectedDollars]);
 
-  const amountProblem = useMemo(() => {
-    if (amountMinorUnits === null) {
-      return customAmount.trim().length === 0
-        ? "Choose an amount, or type your own."
-        : "Enter an amount of money, like 40 or 40.50.";
-    }
-    if (amountMinorUnits < MINIMUM_DOLLARS * 100)
-      return `The smallest amount you can add is ${formatDollars(MINIMUM_DOLLARS)}.`;
-    if (amountMinorUnits > MAXIMUM_DOLLARS * 100)
-      return `The most you can add in one go is ${formatDollars(MAXIMUM_DOLLARS)}.`;
-    return null;
-  }, [amountMinorUnits, customAmount]);
+  // Presets are always within bounds; only a typed amount can be wrong.
+  const amountProblem = useMemo(
+    () =>
+      selectedDollars !== null
+        ? null
+        : describeAddFundsAmountProblem(customAmount),
+    [customAmount, selectedDollars],
+  );
+  const showAmountError =
+    amountProblem !== null && customAmount.trim().length > 0;
 
   if (sessionStatus === "loading") {
     return (
@@ -155,6 +149,7 @@ function AddFundsFlow() {
   const readiness = getAddFundsReadiness(accountStatus.data, {
     pending: accountStatus.isLoading,
     loadFailed: Boolean(accountStatus.error),
+    loadErrorCode: accountStatus.error?.data?.code ?? null,
   });
 
   // Never inferred from the redirect: until the record itself is read back, the return reads as
@@ -177,6 +172,17 @@ function AddFundsFlow() {
   }
 
   const notice = submitError;
+
+  // A disabled Continue must say why: point it at whichever reason is on screen.
+  const continueDescribedBy =
+    [
+      readiness.heading !== null && readiness.detail
+        ? READINESS_DETAIL_ID
+        : null,
+      showAmountError ? AMOUNT_ERROR_ID : null,
+    ]
+      .filter(Boolean)
+      .join(" ") || undefined;
 
   return (
     <div className="bg-background min-h-screen">
@@ -247,7 +253,10 @@ function AddFundsFlow() {
                   {readiness.heading}
                 </h2>
                 {readiness.detail && (
-                  <p className="text-muted-foreground mt-1 text-sm">
+                  <p
+                    id={READINESS_DETAIL_ID}
+                    className="text-muted-foreground mt-1 text-sm"
+                  >
                     {readiness.detail}
                   </p>
                 )}
@@ -258,6 +267,17 @@ function AddFundsFlow() {
             {readiness.action && (
               <Button asChild className="shrink-0">
                 <Link href={readiness.action.href}>{readiness.action.label}</Link>
+              </Button>
+            )}
+            {readiness.canRetry && (
+              <Button
+                type="button"
+                variant="outline"
+                className="shrink-0"
+                disabled={accountStatus.isFetching}
+                onClick={() => void accountStatus.refetch()}
+              >
+                {accountStatus.isFetching ? "Checking…" : "Try again"}
               </Button>
             )}
           </section>
@@ -298,7 +318,17 @@ function AddFundsFlow() {
               autoComplete="off"
               placeholder="40.00"
               value={customAmount}
-              aria-describedby="custom-amount-help"
+              aria-invalid={showAmountError || undefined}
+              aria-describedby={
+                showAmountError
+                  ? `custom-amount-help ${AMOUNT_ERROR_ID}`
+                  : "custom-amount-help"
+              }
+              className={
+                showAmountError
+                  ? "border-destructive focus-visible:ring-destructive"
+                  : undefined
+              }
               onChange={(event) => {
                 setCustomAmount(event.target.value);
                 setSelectedDollars(null);
@@ -315,8 +345,12 @@ function AddFundsFlow() {
             </p>
           </div>
 
-          {amountProblem && customAmount.trim().length > 0 && (
-            <p className="text-destructive text-sm" role="alert">
+          {showAmountError && (
+            <p
+              id={AMOUNT_ERROR_ID}
+              className="text-destructive text-sm"
+              role="alert"
+            >
               {amountProblem}
             </p>
           )}
@@ -369,6 +403,7 @@ function AddFundsFlow() {
             type="button"
             size="lg"
             className="min-h-12 w-full rounded-none"
+            aria-describedby={continueDescribedBy}
             disabled={
               !readiness.canContinue ||
               amountProblem !== null ||
