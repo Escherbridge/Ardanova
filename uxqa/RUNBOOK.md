@@ -16,12 +16,14 @@ Newest block first. Each pass appends one block; nothing here is deleted.
   client deploy RED - `npm error notarget azoa-sdk@^0.4.0` (publish of
   azoa-sdk 0.5.0 from oasis-sleek/sdk/azoa-wallet requires `npm login`);
   the serving client is still the July build without /api/health identity.
-- Guard proven: PENDING - `node <plugin>/lib/guard.mjs` requires the deployed
-  client to serve /api/health with deploymentKey=qa-ardanova-a876ca12
-  (variable already set on the service; endpoint committed in `dcdb0f6`).
-- Adapter smoke: PENDING - adapter.mjs is a skeleton; finish the Auth.js JWE
-  mint over `railway ssh` once the client deploys.
-- ux-lib smoke: PENDING (after the two gates above).
-- NEXT: publish azoa-sdk -> bump ardanova-client dep + lockfile -> push ->
-  client deploys -> finish adapter -> run the three setup gates -> first pass
-  `01-cash-out-edges` (research-only until fix-committing is re-authorized).
+- Guard proven 2026-10-26: `OK https://ardanova-client-production.up.railway.app
+  deploymentKey=qa-ardanova-a876ca12` (client deployed e54e9c9 after the
+  azoa-sdk publish + builder-platform lockfile regen; adapter guard also OK,
+  reporting the served commit).
+- Adapter smoke: PENDING - adapter.mjs seed is a skeleton; finish the Auth.js
+  JWE mint over `railway ssh` (sessions minted in-container, secrets never
+  leave it).
+- ux-lib smoke: PENDING (after seed).
+- NEXT: finish adapter seed -> SEEDED smoke -> ux-lib smoke + ux-report ->
+  first pass `01-cash-out-edges` (fix-committing allowed again now that both
+  repos are released; hooks: afterFix=git push, waitDeploy=wait-deploy.mjs).

@@ -142,7 +142,7 @@ status: draft-for-owner
 | P7-06 | Merge `feat/platform-stub-closeout` → `main`, deploy azoa-api from main | CTX; OS-RB §7 (2026-10-17 steps 1-2) | gated | DO-NOW after P7-03 | M |
 | P7-07 | Re-enable Railway "Wait for CI" on every AZOA service | R4D §Release blockers row 1 | missing | DO-NOW (owner does it, right after P7-06) | S |
 | P7-08 | Released-env value flags: Stripe keys + webhook, `Azoa__EnableFundingCheckout`, custody/outbox flags, `SelectedSettlementNodeId`, attestation expiry, `OnRamp__Enabled` | CTX; MVP-P §B1, F19; MVP-S §Verified state Leg 2 | gated | DO-NOW (operator; follows OWNER-CALL #2) | S |
-| P7-09 | Confirm the node runs Simulated + custody outside `Development` (sim reserve seed lives in `appsettings.Development.json`) or pick the chain | MVP-P F14 (pinned seed in appsettings.Development.json), A5 (`CustodyMode=DevelopmentOnly`) | built-untested | DO-NOW (spike; feeds OWNER-CALL #2) | S |
+| P7-09 | Confirm the node runs Simulated + custody outside `Development` (sim reserve seed lives in `appsettings.Development.json`) or pick the chain | MVP-P F14 (pinned seed in appsettings.Development.json), A5 (`CustodyMode=DevelopmentOnly`) | done-spike | VERDICT 2026-10-26: NO, not config-only — sim custody requires literal ASPNETCORE_ENVIRONMENT=Development (CustodyModeResolver.cs:90; PlatformManaged refuses Simulated :128-133) and the node boot-guards Simulated in Production (BlockchainProviderFactory.cs:162-173); Railway hosts also need AZOA__Activation__DeployedHostAcknowledged=true or pins silently no-op (ChainModuleActivation.cs:30-32). QA cohort therefore runs on a Development-labeled QA-scoped node (full env-var list in the spike report); Development relaxations (rate limits, verbose errors, Swagger) go live on that host — scope it to the cohort. KYC remains the independent value blocker (KycManager.cs:634,708; tenant KYB same, F10) until Identomat lifts the trial. | S |
 | P7-10 | ArdaNova prod DB migration (human-gated; rehearse on a clone first) | CTX; LR L0.1 (enum + column migrations) | gated | DO-NOW (owner runs it; agent prepares the rehearsal) | M |
 | P7-11 | Financial-engine-domain migration (inert vocabulary) | LR §OI ids not placed; TR "Financial Engine Domain Hardening" ("does not activate value movement") | gated | CUT-FOR-MVP | — |
 | P7-12 | Railway template `Kyc__Provider=unavailable` throws at Production boot | LR L6.1 | missing† | DO-NOW | S |
@@ -193,3 +193,28 @@ Each pass runs: adversarial review (separate context, refute-first) → implemen
 3. **Cash-out scope (P5-02/P5-03):** recommend withdraw ARDA→bank IN (Connect KYB at first cash-out, per PROD). Sell-units CUT until the first liquidity window (2027-01-23); before then no stake is liquid anyway.
 4. **F29 404-receipt self-heal (P3-04):** recommend adopting it. A 404 from the node's durable exchange journal counts as proof of no effect; redispatch under the SAME idempotency key, and keep ATTENTION for any 5xx/ambiguous answer (mirrors the node's F21 no-effect marker).
 5. **L2.10 escrow entry (P4-05):** recommend CUT-FOR-MVP. The hold rail (F20, PAID with a window) is the MVP's escrow. Hide the unmounted escrow components and restore the honest banner (P8-10).
+
+## Slotted requests (intake)
+
+Owner requests arriving mid-loop land here with an SR id, join the active plane's
+pass (or open one), and close with a verdict like any other row.
+
+| id | request (owner's intent) | arrived | decision | size |
+|---|---|---|---|---|
+| SR-01 | Brand copy pass: all user-facing copy written for humans in the ArdaNova voice — serious, inspiring, mission "aiding those who find problems and solve them" (Arda-Nova.pdf manifesto: fair share, earned membership, one member one vote, transparency, dignity; NOT crypto-hype). Strip AI-forward framing and "humans are always included" disclaimers — AI features are not the story. Copy must stay truthful to the shipping platform (no Holochain or other unimplemented-tech claims from the deck). Optional: Higgsfield media, only within the minimalist brutalist editorial aesthetic. | 2026-10-26 | DO-NOW (plane 8, runs alongside the active pass) | M |
+| SR-02 | Documentation overhaul: update the repo docs to describe what the system BECAME — the four-tier architecture with AZOA slotted in as the settlement/custody node (client -> tRPC thin proxies -> .NET BFF as the only Azoa credential holder -> AZOA node; per-project tokens, consent lifecycle, holds/ReleaseIntoHold, settlement outbox, economy modes fail-closed, Identomat KYC), the released Railway topology, the local tandem dev stack, and the ArdaNova–AZOA integration contract extended with the exchange/hold/consent state machines (both repos' copies). | 2026-10-26 | DO-NOW (plane 7/8; starts when the F29 + copy lanes release their partitions) | L |
+
+## Loop iteration 1 — outcomes (2026-10-26, in-flight log)
+
+- CLOSED P3-02 (peg): dev override + AllowPriceUpdate removed from local-stack.ps1; add-funds copy now says $1 adds 100 ARDA; project-create contract already correct (ARDA_GENESIS_USD_RATE=0.01).
+- CLOSED P3-04 (F29): typed-404-only proof-of-no-effect; reopen refunds its attempt inside the same guarded update (EconomicOutboxLeaseStore.cs:191); 5-reopen ceiling then ATTENTION; quiet window from first ambiguity. Root causes found in code: reconcile reads burned attempts, and untyped 404s were trusted.
+- CLOSED P4-05/P8-10: escrow UI confirmed unreachable (import != reachable), parked note in src/AGENTS.md; honest hold-rail banner on tasks/[id]/commerce.
+- CLOSED SR-01: 47 strings, 15 files, manifesto voice; disclosure copy (where ideas are sent) deliberately kept; icons left for the media task.
+- CLOSED P7-07-ish (client release): azoa-sdk 0.5.0 published (owner) + builder-platform lockfile regen; client live at HEAD with /api/health identity; uxqa guards proven OK.
+- NEW ROWS from the lanes:
+  | id | item | decision | size |
+  |---|---|---|---|
+  | P3-15 | Real `noEffectReopenCount` column (DBML + entity) replacing the failureDetail note; note is fragile if failureDetail is ever rewritten | DO-NOW next DBML change batch | S |
+  | P5-06 | PayoutService now treats untyped 404 as unknown (units stay PROCESSING instead of unlocking) — verify desired in the cash-out plane pass | DO-NOW (plane 5 pass) | S |
+  | P8-11 | Topbar badge says "Member"; decide whether to show actual role/verification level (small logic change) | OWNER-CALL (cosmetic) | S |
+  | P8-12 | Nova Sparkles/Bot icons remain the last AI-forward cue; swap in the media task within the brutalist aesthetic | DO-NOW with SR-01 media follow-up | S |
