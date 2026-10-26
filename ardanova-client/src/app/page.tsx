@@ -12,6 +12,7 @@ import Link from "next/link";
 
 import { ArdaNovaWordmark } from "~/components/brand/wordmark";
 import { SignalCanvas } from "~/components/brand/signal-canvas";
+import { HomePrimaryNavMenu } from "~/components/marketing/home-primary-nav";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent } from "~/components/ui/card";
@@ -136,6 +137,7 @@ export default async function Home() {
             </nav>
 
             <div className="flex items-center gap-2">
+              <HomePrimaryNavMenu projectsHref={projectsHref} />
               {!session && (
                 <Button asChild className="hidden sm:inline-flex" size="sm">
                   <Link href={signupHref}>Create account</Link>

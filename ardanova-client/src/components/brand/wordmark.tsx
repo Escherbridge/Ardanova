@@ -11,6 +11,7 @@ export function ArdaNovaWordmark({
 }: WordmarkProps) {
   return (
     <span
+      role="img"
       aria-label="ArdaNova"
       className={cn(
         "inline-flex items-center gap-2 text-sm leading-none font-black tracking-[-0.04em] uppercase",
