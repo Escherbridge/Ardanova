@@ -390,3 +390,157 @@ with read-only planning passes (current data model, taxonomy surfaces, azoa-sdk
 export surface, client money routes) before any schema or route change. Plans +
 file partitions land here; execution follows as partitioned lanes with the usual
 phase-boundary review.
+
+### SR-05 plan (planner, 2026-10-26) — money UI from azoa-sdk, privileged calls stay in the BFF
+
+- **Auth decision: option (b), injected transport.** The SDK owns UI, state
+  machines and view types; each component takes a host-supplied
+  `AzoaMoneyTransport`. ArdaNova implements it over tRPC, so every privileged
+  action stays browser → tRPC → BFF (actor assertion, src/server/actor-assertion.ts
+  :88-110) → node. **No AZOA bearer of any kind reaches the browser.**
+  Rejected: (d) node child JWTs — feature off in production, no fiat endpoint
+  accepts them, and FiatCheckoutController.cs:179-194 treats a child JWT as a
+  FIRST-PARTY login: it skips the units:issue consent probe and namespaces the
+  admission key `self`, so the same requestKey via BFF and via browser would NOT
+  dedupe (double-charge vector). (a) BFF-minted embed token adds a second bearer
+  for nothing (all provider steps are already hosted redirects). (c) server
+  components can't serve both hosts (React 18.3/Next 16 vs React 19/Next 15).
+- **The SDK has NO UI layer today** (no React dep, tsconfig has no DOM, no .tsx).
+  It grows two subpaths: `azoa-sdk/money` (headless: transport interface,
+  MoneyResult/MoneyRefusal codes, narrowed views that drop admissionKey and
+  subject/tenant ids, lifted persisted-request-key logic,
+  `runMoneyTransportContract`) and `azoa-sdk/react` (unstyled slot-based
+  components + hooks; React optional peer; `"use client"` banner). Ships as
+  **0.6.0** (CHANGELOG already holds a pending breaking change).
+- **Phases** (disjoint file partitions; old routes stay default behind
+  src/lib/azoa-money/flags.ts; no big-bang): P0 headless core → P1 react layer
+  (SDK, oasis-sleek) → **PUBLISH GATE A (owner: `npm publish azoa-sdk@0.6.0`)** →
+  P2 AZOA dogfood ∥ P3a BFF stable refusal codes ∥ P3b ArdaNova tRPC transport +
+  Origin check + bump → P4 add-funds, P5 account/KYC/consent, P6 withdraw, P7
+  sell-units, P8 balance (parallel once P3b lands) → P9 per-surface cleanup
+  after soak. PN (node) runs alongside to unblock F1.
+- **Stays OUT of the SDK:** key selection, actor assertions, return-URL building,
+  readiness/eligibility policy; the project-token domain (invest/funding-intent,
+  disclosures, sell-units PRICING); operator money (processPayout, reversals,
+  payout float); KYB (tenant-level, needs the tenant key).
+
+| id | item | decision | size |
+|---|---|---|---|
+| P5-07 | **Money-safety bug (verified):** request keys live in a React `useRef` and the server mints a fresh one when absent. add-funds (page.tsx:170, router add-funds.ts:69) and invest (page.tsx:301, router funding-intent.ts:26). A lost response + reload admits a SECOND payment instead of resuming. Invest is the worse case: it debits ARDA balance through the outbox, so it is a duplicate debit. Invest is NOT moving to the SDK, so SR-05 alone would never fix it | DO-NOW — lane running: persisted, subject-scoped request keys + server keys REQUIRED | S |
+| P5-08 | **F1 blocker for withdraw (owner decision: withdraw is IN):** the BFF starts payout-destination setup with the tenant custody key, but the node's F-H8 rule refuses EVERY tenant principal there (oasis-sleek FiatPayoutController.cs:112-117). Nothing in ArdaNova accounts for this, so withdraw cannot finish for any custodial user through any tenant-mediated design. Needs a node-side account-holder handoff: an AZOA-hosted step where the person proves presence before the node mints the Stripe Connect link. Security-sensitive identity design on a money exit | OWNER-CALL (how a custodial user proves they are the account holder) → then PN lane | M |
+| P5-09 | `/api/trpc` route has no Origin / Sec-Fetch-Site check (CSRF defence in depth for money mutations) | DO-NOW in SR-05 P3b | S |
+
+LANES RUNNING (2026-10-26): SR-05 P0+P1 (SDK, oasis-sleek branch
+feat/sdk-money-react, no push, no publish) · P5-07 idempotency fix (ArdaNova
+client, uncommitted) · SR-05 P3a refusal codes (ArdaNova BFF, uncommitted).
+Payment-path diffs get an independent review before commit.
+
+### SR-03 plan (planner, 2026-10-26) — one polymorphic feed
+
+- **Storage: every feed item is an ENVELOPE ROW in the existing `Post` table**
+  (type = PostType; provenance `(sourceType, sourceId)` UNIQUE; nullable target
+  FKs projectId/guildId + new opportunityId/eventId). Chosen over a separate
+  FeedItem table (would need parallel like/comment/share tables) and a read-time
+  UNION (~10 sources each with its own visibility join; nothing indexable).
+  Envelopes reuse PostLike/Comment/Share/Bookmark, the counters, PostVisibilityPolicy
+  and OnAVisibleProject (PostService.cs:474).
+- **Written by a PULL projector, not an EF interceptor and not by editing each
+  service.** `FeedProjectorCycle` (Application) + `FeedProjectorHostedService`
+  (Infrastructure), mirroring the EconomicOutbox worker split; ~5s cycle scans
+  committed source rows; hourly 48h sweep removes envelopes whose source is
+  gone; backfill = same code, unbounded window; Postgres advisory lock for a
+  single runner. Rejected the interceptor because the Application layer has 7
+  BeginTransactionAsync call sites: an interceptor would project a funding change
+  that later ROLLS BACK (a phantom feed item), and a unique-index race inside it
+  would abort the domain write itself.
+- **Taxonomy:** a `TaxonomyTerm` lookup table (SECTOR / SKILL / PROJECT_TYPE).
+  The 10 legacy category codes are seeded AS sector slugs, so existing rows
+  resolve with no backfill; text columns stay text (a vocabulary, not a
+  constraint). ProjectType gains ADDITIVE enum values only (SERVICE,
+  PHYSICAL_BUILD, VENUE, PROGRAM, RESEARCH, COOPERATIVE).
+- **Ranking (.NET):** a stored, viewer-independent quality score
+  (Post.trendingScore, an existing column, so far never computed) × per-viewer
+  recency decay × affinity × novelty boost for new projects. Diversified (≤2 per
+  subject, ≤3 per author per page of 20; every 5th slot is a subject you don't
+  follow). Each card shows its Reasons[]. Replies are capped by approval so
+  flame threads can't climb. No views, dwell time or negative reactions as
+  signals. Funding items are aggregate % only (no backer names, no amounts).
+- **DEPLOY ORDER (non-negotiable):** client tolerance (Lane D) → migrations →
+  backend → the rest of the client. Migrations are additive, so they are safe
+  under the old running code; the backend must not deploy before them or S-04
+  repeats (42703 on a missing column).
+- Phases: P0 schema (Lane S) + client tolerance (Lane D) → P1 projector (A),
+  taxonomy backend (C), client taxonomy plumbing (D2) → P2 ranker + feed API (B),
+  client plumbing (E), card renderer (F) → P3 Home feed (G), scoped feeds on
+  detail pages (H), taxonomy facets + UGC-led cards (I). Flow test at P3: persona A
+  follows a construction project; B posts; within one cycle A's Home shows B's own
+  words as the card body with a "Because you follow…" reason.
+- Correction recorded: the DBML→Prisma step is `npm run generate:dbml`, NOT
+  `generate:prisma`; `generate:prisma:push` does a `db push` and must never run
+  against shared data.
+
+| id | item | decision | size |
+|---|---|---|---|
+| P8-14 | **Post-type forgery (existing bug):** PostService.cs:185 lets any caller create a post typed MILESTONE or TASK_COMPLETED — system-only kinds | DO-NOW in SR-03 Lane A (user-authored type allowlist) | S |
+| P8-15 | **Category filter substring collision (existing bug):** ProjectServices.cs:151/:438 use `categories.Contains(x)`, so BUSINESS matches SMALL_BUSINESS; gets worse with a broad vocabulary | DO-NOW in SR-03 Lane C (whole-value match) | S |
+| P8-16 | **Opportunity type filter matches nothing (existing bug):** app/opportunities/page.tsx:70-77 offers "Bounty"/"Freelance"/…, which never equal the OpportunityType enum values (DBML:1936), so the filter at :217 always returns empty | DO-NOW in SR-03 Lane I | S |
+| P8-17 | Live copy contradicts the owner decision: app/page.tsx:180 "Not an endless feed", app/dashboard/page.tsx:280 "No engagement score. No infinite feed.", server/api/routers/post.ts:11 "there is no global feed" | DO-NOW with SR-03 Lane G (brand-voice aligned, SR-01) | S |
+
+LANE RUNNING: SR-03 Phase 0 (Lane S + Lane D) in an isolated worktree (own
+branch; scratch-DB proof on local PG 5432; no push; released DB untouched).
+
+## Owner question loop — round 2 answers (2026-10-26)
+
+- **P5-08 (withdraw blocked by F-H8): "Trust Stripe's identity match."** The
+  tenant (ArdaNova) may START payout-destination setup; the node releases payouts
+  to that destination ONLY once the identity Stripe verified on the connected
+  account matches the person's AZOA KYC record. The safeguard moves from "who may
+  start setup" to "who may RECEIVE money". Residual risk accepted by the owner: a
+  tenant holding a person's real identity documents could pass Stripe's checks
+  as that person. → PN lane (oasis-sleek worktree feat/payout-identity-match);
+  security review mandatory before merge.
+- **SR-03 feed ending: "Infinite ranked scroll."** No "You're caught up" stop:
+  ranking continues, mixing in discovery items from subjects the viewer doesn't
+  follow. The constructive safeguards stay: no views, dwell time or negative
+  reactions as signals; Reasons[] on every card; diversity caps; aggregate-only
+  funding. Changes Lane B (ranker paging past the candidate pool), F (stream
+  renderer) and G (Home).
+
+## Loop iteration 3 — lane results (2026-10-26)
+
+- **P5-07 idempotency fix: DONE (uncommitted, under review).**
+  src/lib/commerce/persisted-request-key.ts claims and persists the key before
+  the request leaves; the saved value carries an owner fingerprint, so another
+  person's saved key is dropped on sight; a changed amount returns `pending`
+  rather than silently replacing. Router keys are now REQUIRED. Invest dedupe
+  verified in the BFF: FundingIntentService.cs:185-189 finds (funderUserId,
+  idempotencyKey) BEFORE creating anything and replays. 19 tests; tsc clean.
+- **SR-05 P3a refusal codes: DONE (uncommitted, under review).** MoneyRefusal.cs
+  is the single mapping authority. KEY FINDING: AzoaNodeClient.MapError
+  (AzoaNodeClient.cs:193) collapses every node 403 except KYC_FORBIDDEN into one
+  generic "AZOA node denied the request.", and Result<T> has no Code field. So the
+  code is inferred from the CALL SITE (each route family has one documented 403
+  cause), with prefix checks that start working once codes are re-threaded. 11
+  controller-level tests.
+- **SR-05 P0+P1 SDK: DONE** — oasis-sleek branch feat/sdk-money-react @74d0c7e5
+  (sibling worktree oasis-sleek-sdk-money-react), 362/362 tests, `"use client"`
+  on the react entries only (a post-build plugin; tsup's banner is stripped by
+  treeshake and would also mark server-safe subpaths client-only). Under
+  security review; **publish gate A waits on that verdict.**
+- **SR-03 Phase 0: DONE** — branch worktree-agent-a4577bc643a9e0eeb @c85ed74.
+  Four guarded migrations; scratch-DB proof: deploy ×2 (second applies nothing),
+  migrate diff --exit-code 0, all four files re-run directly as no-ops, and the
+  destructive dedupe exercised on seeded duplicates. BFF 552 + 1317 green, client
+  674 green. Tolerant reader on ProjectType reads (`ProjectTypeCode =
+  ProjectType | (string & {})`). Under review before the released-DB migration.
+- NEW ROWS:
+  | id | item | decision | size |
+  |---|---|---|---|
+  | P3-17 | Re-thread node error codes through the BFF: add a Code to Result<T> / the AzoaResultEnvelope pass-through so MoneyRefusal stops inferring from the call site (its prefix checks are dead code until then) | DO-NOW after SR-05 P3b | S |
+  | P3-18 | PayoutService sale-restriction refusals (hold windows, trading restrictions, PayoutService.cs:990) fall back to `setup_required`, which undersells "these units are held until March". Needs a refusal code (or a retryAfter/heldUntil) | DO-NOW with SR-05 P7 sell-units | S |
+  | P8-18 | PostService.LikeAsync/BookmarkAsync check-then-insert: with the new UNIQUE (postId,userId) a double-tap now surfaces 23505 as a 500 (previously a silent double count). Treat a unique violation as already-liked, as the vote/guild-review services do | DO-NOW in SR-03 Lane A (owns PostService.cs) | S |
+  | P7-18 | `generate:csharp` strips hand-written comments from 14 committed entity/enum files on every run (restored by hand in Phase 0). Move those notes into the directory AGENTS.md or teach the generator to preserve them | DO-NOW (next DBML batch) | S |
+  | P7-19 | Local env fact: PG16 (password 526152) is on **5433**; 5432 is PG17 with a different password. The user's global CLAUDE.md still says 5432 — owner to update | OWNER (doc) | S |
+
+REVIEWS RUNNING: ArdaNova money diffs · SDK security (publish gate) · SR-03
+Phase 0 migrations (migrate gate). BUILD RUNNING: PN payout identity match.
