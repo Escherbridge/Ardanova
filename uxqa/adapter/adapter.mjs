@@ -252,8 +252,10 @@ async function seed(personasPath, outPath) {
 		],
 	}));
 
-	fs.mkdirSync(path.dirname(outPath), { recursive: true });
-	fs.writeFileSync(outPath, JSON.stringify(sessionsOut, null, 2));
+	// Sessions are live credentials: owner-only dir and file (no-op on NTFS, real on POSIX).
+	fs.mkdirSync(path.dirname(outPath), { recursive: true, mode: 0o700 });
+	fs.writeFileSync(outPath, JSON.stringify(sessionsOut, null, 2), { mode: 0o600 });
+	try { fs.chmodSync(outPath, 0o600); } catch { /* pre-existing looser file on exotic fs */ }
 	console.log(`SEEDED ${sessionsOut.length}`);
 }
 
