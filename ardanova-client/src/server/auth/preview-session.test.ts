@@ -4,10 +4,21 @@ import type { NextRequest } from "next/server";
 
 vi.mock("server-only", () => ({}));
 
-const { providerSession, findPreviewUser, providerGet } = vi.hoisted(() => ({
-  providerSession: vi.fn<() => Promise<unknown>>(),
-  findPreviewUser: vi.fn<() => Promise<unknown>>(),
-  providerGet: vi.fn<() => Promise<Response>>(),
+const { providerSession, findPreviewUser, providerGet, requestCookie } =
+  vi.hoisted(() => ({
+    providerSession: vi.fn<() => Promise<unknown>>(),
+    findPreviewUser: vi.fn<() => Promise<unknown>>(),
+    providerGet: vi.fn<() => Promise<Response>>(),
+    requestCookie: vi.fn<() => string | undefined>(),
+  }));
+
+vi.mock("next/headers", () => ({
+  cookies: async () => ({
+    get: (name: string) =>
+      name === "ardanova-dev-persona" && requestCookie() !== undefined
+        ? { name, value: requestCookie()! }
+        : undefined,
+  }),
 }));
 
 vi.mock("next-auth", () => ({
@@ -69,6 +80,7 @@ describe("development preview identity", () => {
     providerSession.mockResolvedValue(null);
     findPreviewUser.mockResolvedValue(seededPreviewRow);
     providerGet.mockResolvedValue(Response.json(null));
+    requestCookie.mockReturnValue(undefined);
   });
 
   afterEach(() => {
@@ -107,8 +119,39 @@ describe("development preview identity", () => {
     await expect(caller.whoAmI()).resolves.toMatchObject({ id: "google-user" });
   });
 
+  it("acts as a seeded demo persona when the persona cookie selects one", async () => {
+    requestCookie.mockReturnValue("demo-sponsor");
+    findPreviewUser.mockResolvedValue({
+      ...seededPreviewRow,
+      id: "demo-sponsor",
+      email: "demo-sponsor@local.ardanova.test",
+      name: "Demo Sponsor",
+    });
+    const { caller } = await loadWorkspace();
+
+    await expect(caller.whoAmI()).resolves.toMatchObject({
+      id: "demo-sponsor",
+      name: "Demo Sponsor",
+    });
+  });
+
   it.each([
     ["the database has no seeded preview row", () => findPreviewUser.mockResolvedValue(null)],
+    [
+      "the persona cookie names a row outside the seed email namespace",
+      () => {
+        requestCookie.mockReturnValue("some-real-user");
+        findPreviewUser.mockResolvedValue({
+          ...seededPreviewRow,
+          id: "some-real-user",
+          email: "person@gmail.com",
+        });
+      },
+    ],
+    [
+      "the persona cookie is malformed",
+      () => requestCookie.mockReturnValue("nope nope/../etc"),
+    ],
     [
       "the preview id belongs to a different email",
       () =>

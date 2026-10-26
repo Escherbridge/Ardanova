@@ -27,7 +27,25 @@ export const isDevelopmentAuthPreviewEnabled =
 /** Fixed identity written by `scripts/seed-local-demo.ts`; see `AGENTS.md` §Development preview. */
 export const DEVELOPMENT_PREVIEW_USER_ID = "local-preview-user";
 const DEVELOPMENT_PREVIEW_USER_EMAIL = "preview@local.ardanova.test";
+/** Persona override for the preview; see `AGENTS.md` §Development preview — persona switching. */
+export const DEVELOPMENT_PREVIEW_PERSONA_COOKIE = "ardanova-dev-persona";
+const DEVELOPMENT_PREVIEW_EMAIL_SUFFIX = "@local.ardanova.test";
+const PREVIEW_PERSONA_ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
 const PREVIEW_SESSION_LIFETIME_MS = 60 * 60 * 1000;
+
+/** Cookie-selected preview persona id; absent → fixed id, malformed → null (refuse). */
+async function previewPersonaId(): Promise<string | null> {
+  try {
+    const { cookies } = await import("next/headers");
+    const value = (await cookies())
+      .get(DEVELOPMENT_PREVIEW_PERSONA_COOKIE)
+      ?.value.trim();
+    if (!value) return DEVELOPMENT_PREVIEW_USER_ID;
+    return PREVIEW_PERSONA_ID_PATTERN.test(value) ? value : null;
+  } catch {
+    return DEVELOPMENT_PREVIEW_USER_ID;
+  }
+}
 
 function previewExpiry(): string {
   return new Date(Date.now() + PREVIEW_SESSION_LIFETIME_MS).toISOString();
@@ -53,8 +71,11 @@ function createUnseededPreviewSession(): Session {
 /** Claims for the seeded preview row, read from the database like a JWT refresh. */
 const loadSeededPreviewSession = cache(async (): Promise<Session | null> => {
   try {
+    const personaId = await previewPersonaId();
+    if (!personaId) return null;
+
     const user = await db.user.findUnique({
-      where: { id: DEVELOPMENT_PREVIEW_USER_ID },
+      where: { id: personaId },
       select: {
         id: true,
         email: true,
@@ -66,7 +87,12 @@ const loadSeededPreviewSession = cache(async (): Promise<Session | null> => {
         verificationLevel: true,
       },
     });
-    if (user?.email !== DEVELOPMENT_PREVIEW_USER_EMAIL) return null;
+    // A persona only ever resolves inside the seed-owned email namespace.
+    const emailAllowed =
+      personaId === DEVELOPMENT_PREVIEW_USER_ID
+        ? user?.email === DEVELOPMENT_PREVIEW_USER_EMAIL
+        : (user?.email?.endsWith(DEVELOPMENT_PREVIEW_EMAIL_SUFFIX) ?? false);
+    if (!user || !emailAllowed) return null;
 
     return {
       expires: previewExpiry(),

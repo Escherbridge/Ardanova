@@ -6,6 +6,65 @@ const DAY = 24 * 60 * 60 * 1000;
 const now = new Date();
 const PREVIEW_USER_ID = "local-preview-user";
 const PREVIEW_USER_EMAIL = "preview@local.ardanova.test";
+
+/**
+ * Tandem-demo personas (conductor/tracks/mvp-tandem-demo_20261024). Each is a stable,
+ * independent identity -- NOT the DEV_AUTH_BYPASS preview row above -- so the creator's
+ * project, the sponsor's funding action and the freelancer's bid/application all have a
+ * real, distinct `createdById`/`applicantId`/`bidderId` to point at.
+ *
+ * KNOWN LIMITATION (read before wiring Playwright/API-driven acts to one of these):
+ * `DEV_AUTH_BYPASS` resolves to exactly ONE hard-coded identity --
+ * `DEVELOPMENT_PREVIEW_USER_ID = "local-preview-user"` in
+ * `ardanova-client/src/server/auth/index.ts:28` -- and `auth()`'s ownership/membership
+ * checks compare against that literal id. None of these three personas can be "acted as"
+ * through the browser bypass today: there is no env var or request header that repoints
+ * `DEVELOPMENT_PREVIEW_USER_ID`, so `project.createdById === session.user.id` (see
+ * `src/app/projects/[slug]/page.tsx`'s `isOwner`) will never be true for `demo-creator`
+ * while signed in through the bypass. Driving the demo as each persona needs ONE of:
+ *   (a) a small, additive change to `src/server/auth/index.ts` making
+ *       `DEVELOPMENT_PREVIEW_USER_ID`/`DEVELOPMENT_PREVIEW_USER_EMAIL` read from an env var
+ *       (default unchanged, so nothing existing breaks) that the Playwright/API harness
+ *       sets per persona before each act -- this file is outside WS-B's partition;
+ *   (b) real Google sign-in per persona; or
+ *   (c) driving the paid/funding steps directly against the .NET API with a signed actor
+ *       assertion for the chosen persona's id, bypassing the Next.js session entirely for
+ *       the API-driven parts of the flow.
+ * Flagged for WS-C, whose job is exactly "fix bring-up breaks" ahead of the golden-path
+ * drive.
+ */
+const DEMO_PERSONAS = {
+  creator: {
+    id: "demo-creator",
+    email: "demo-creator@local.ardanova.test",
+    name: "Demo Creator",
+    bio: "Publishes the tandem-demo project and runs its funding wizard live.",
+    role: "INDIVIDUAL",
+    userType: "INNOVATOR",
+  },
+  sponsor: {
+    id: "demo-sponsor",
+    email: "demo-sponsor@local.ardanova.test",
+    name: "Demo Sponsor",
+    bio: "Adds funds and sponsors the tandem-demo project live.",
+    role: "INDIVIDUAL",
+    userType: "SUPPORTER",
+  },
+  freelancer: {
+    id: "demo-freelancer",
+    email: "demo-freelancer@local.ardanova.test",
+    name: "Demo Freelancer",
+    bio: "Applies to and bids on the tandem-demo project's paid role live.",
+    role: "INDIVIDUAL",
+    userType: "FREELANCER",
+  },
+} as const satisfies Record<
+  "creator" | "sponsor" | "freelancer",
+  Pick<
+    Prisma.UserUncheckedCreateInput,
+    "id" | "email" | "name" | "bio" | "role" | "userType"
+  >
+>;
 const HEAT_HIERARCHY_IDS = {
   milestone: "local-qa-milestone-heat-evidence",
   epic: "local-qa-epic-heat-evidence",
@@ -338,6 +397,97 @@ async function seedLocalDemo(prisma: PrismaClient) {
     });
   }
 
+  // Tandem-demo personas: see DEMO_PERSONAS above for the DEV_AUTH_BYPASS limitation.
+  const personas = new Map<keyof typeof DEMO_PERSONAS, string>();
+  for (const [key, persona] of Object.entries(DEMO_PERSONAS)) {
+    const data = {
+      id: persona.id,
+      email: persona.email,
+      name: persona.name,
+      bio: persona.bio,
+      location: "Local QA workspace",
+      role: persona.role,
+      userType: persona.userType,
+      isVerified: true,
+      verificationLevel: "VERIFIED",
+    } satisfies Prisma.UserUncheckedCreateInput;
+    const user = await prisma.user.upsert({
+      where: { email: persona.email },
+      create: data,
+      update: data,
+    });
+    if (user.id !== persona.id) {
+      throw new Error(
+        `The ${key} demo persona email already belongs to ${user.id}; use a fresh dedicated demo database so it can use ${persona.id}.`,
+      );
+    }
+    personas.set(key as keyof typeof DEMO_PERSONAS, user.id);
+  }
+  const creatorId = personas.get("creator")!;
+
+  // Deliberately WITHOUT a ProjectTokenConfig, custodial account, or KYC state: the demo
+  // drives funding provisioning live through the project's Funding tab
+  // (provisionFundingMutation, see `src/app/projects/create/page.tsx:1062-1112`), the real
+  // custodial-account APIs, and the real AZOA KYC flow -- never seeded.
+  const fundableProjectData = {
+    title: "Solar Micro-Grid Commons",
+    slug: "solar-micro-grid-commons",
+    description:
+      "A resident-owned micro-grid pilot that needs sponsor funding and a paid contributor to finish wiring documentation before install.",
+    problemStatement:
+      "Two blocks lose power every summer peak, and nobody has funded the wiring survey the utility co-op needs before it will approve a shared micro-grid.",
+    solution:
+      "Fund the wiring survey and interconnection paperwork, then hire a contributor to turn the survey into an install-ready packet.",
+    categories: "ENVIRONMENT,TECHNOLOGY",
+    tags: "energy,resilience,micro-grid",
+    projectType: "COMMUNITY",
+    status: "PUBLISHED",
+    duration: "ONE_THREE_MONTHS",
+    expectedImpact:
+      "A funded wiring survey and an install-ready interconnection packet.",
+    targetAudience: "Residents, the utility co-op, and electrical contributors",
+    createdById: creatorId,
+    publishedAt: now,
+    // FundingIntentService refuses checkout on a project whose owner has not switched
+    // commerce on; the demo project exists to take sponsorship, so the owner's choice
+    // is part of the fixture (mvp-tandem-demo F25).
+    commerceEnabled: true,
+  } satisfies Prisma.ProjectUncheckedCreateInput;
+  const fundableProject = await prisma.project.upsert({
+    where: { slug: fundableProjectData.slug },
+    create: fundableProjectData,
+    update: fundableProjectData,
+  });
+
+  // Paid role: OPEN and accepting applications/bids, shaped per `model Opportunity` /
+  // `OpportunityApplication` / `OpportunityBid` in prisma/schema.prisma. No application or
+  // bid row is pre-seeded -- the freelancer applies and bids live during the demo (spec step 4).
+  const paidOpportunityData = {
+    title: "Turn the wiring survey into an install-ready packet",
+    slug: "solar-micro-grid-wiring-packet",
+    description:
+      "Take the raw wiring survey notes and produce the interconnection packet the utility co-op requires before install.",
+    type: "FREELANCE",
+    origin: "TEAM_POSITION",
+    status: "OPEN",
+    experienceLevel: "MID",
+    requirements:
+      "Comfortable reading electrical survey notes and utility interconnection requirements.",
+    skills: "electrical,technical-writing,permitting",
+    benefits: "Paid role; held units on acceptance per the task-commerce award flow.",
+    location: "Remote",
+    isRemote: true,
+    compensation: 1500,
+    compensationDetails: "1,500 ARDA on completion, held from the project's contributor allowance.",
+    posterId: creatorId,
+    projectId: fundableProject.id,
+  } satisfies Prisma.OpportunityUncheckedCreateInput;
+  await prisma.opportunity.upsert({
+    where: { slug: paidOpportunityData.slug },
+    create: paidOpportunityData,
+    update: paidOpportunityData,
+  });
+
   const guildData = {
     name: "Neighborhood Infrastructure Guild",
     slug: "neighborhood-infrastructure-guild",
@@ -402,7 +552,7 @@ async function seedLocalDemo(prisma: PrismaClient) {
   }
 
   console.info(
-    "Seeded local demo: preview owner, 3 projects, a 5-level Heat Commons hierarchy, 4 tasks, 1 project membership, 1 project comment, 1 guild, and 2 events.",
+    "Seeded local demo: preview owner, 3 projects, a 5-level Heat Commons hierarchy, 4 tasks, 1 project membership, 1 project comment, 1 guild, 2 events, 3 tandem-demo personas (creator/sponsor/freelancer), 1 fundable project with no funding config, and 1 OPEN paid opportunity.",
   );
 }
 
