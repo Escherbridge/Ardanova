@@ -1,0 +1,11 @@
+[
+  {
+    "handle": "qa-uxqa-smoke",
+    "name": "QA Smoke",
+    "seed": {
+      "userType": "SUPPORTER",
+      "isVerified": false,
+      "verificationLevel": "ANONYMOUS"
+    }
+  }
+]

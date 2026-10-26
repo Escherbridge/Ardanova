@@ -278,7 +278,8 @@ once ARDA has been issued. A treasury with circulating supply below zero, or a r
 less, refuses by name. A treasury that has issued nothing (`== 0`, the genesis state after a reset)
 has no ratio to take, so it quotes the on-ramp's declared genesis seed through `IArdaGenesisPrice`.
 Infrastructure's `OnRampArdaGenesisPrice` reads the same `ArdaOnRampOptions.UnitsPerUsdMinorUnit` the
-price-schedule registrar declares to the node (1 base unit per cent = $1.00 per ARDA at 2dp), and is
+price-schedule registrar declares to the node (default "100": 100 base units per cent, i.e. 1 ARDA =
+$0.01 at 2dp — DECIDED 2026-10-26, mvp-readiness ledger P3-02), and is
 only bound when the on-ramp is enabled with an asset. With no declared seed, a genesis treasury
 refuses with "Cannot calculate ARDA value: circulating supply is zero" rather than dividing.
 

@@ -22,9 +22,14 @@ auth/session, and no Azoa credentials. It is the first of ArdaNova's four tiers.
 - **No value writes:** this app never mints, transfers, swaps, releases escrow, or otherwise
   moves value. Those operations happen in the .NET API against Azoa, the external
   financial-workflow node ArdaNova leverages (see the backend README for that boundary).
-- **Nova AI:** the platform assistant is a separate Python FastAPI service,
-  [`ardanova-ai-client`](../ardanova-ai-client/), which is meant to call the .NET API's MCP
-  tools. This client does not call the AI service directly — that integration is not yet wired.
+- **Value path:** this app is tier 1 of four — client → .NET BFF (the only AZOA credential
+  holder) → AZOA node (custody, KYC, consent, exchange, holds, receipts) → chain. Every money
+  screen shows what the BFF read back from the node (draft, pending, settled), never a value it
+  computed. Architecture: [`documentation/ARCHITECTURE.md`](../documentation/ARCHITECTURE.md#architecture-at-a-glance-as-built-2026-10-26).
+- **Nova AI:** the live surface is the topbar sheet's Refine idea mode — tRPC `nova.refineProject`
+  → .NET `POST /api/nova/project-refinement` → OVERSEASGENAI partner API, white-labelled
+  (`src/components/ai/AGENTS.md`). It is a drafting side feature, never on the value path. The
+  Python [`ardanova-ai-client`](../ardanova-ai-client/) is not on this path and is not wired.
 
 ## Run locally
 
@@ -41,6 +46,14 @@ npm run dev
 The default development origin is `http://localhost:3000`. The repository's full-stack setup and backend port guidance are in the [local smoke runbook](../documentation/LOCAL_DEVELOPMENT_SMOKE.md).
 
 For data-backed browser QA, use a loopback PostgreSQL database named `ardanova_local_demo` (or `ardanova_local_demo_<suffix>`) and run `npm run seed:local-demo` with the per-run `ALLOW_LOCAL_DEMO_SEED=true` opt-in after synchronizing the Prisma schema. The seed is repeatable and uses synthetic identities. See the smoke runbook for the complete sequence.
+
+For value flows against a real local AZOA node, run the tandem stack from the repo root
+(`.omc/scripts/local-stack.ps1 -Action up -WithAzoa`, local-only) and switch identity with the
+`ardanova-dev-persona` cookie (`demo-creator`, `demo-sponsor`, `demo-freelancer`). The cookie
+is honoured only with `DEV_AUTH_BYPASS` in development and only for rows in the seed-owned
+`@local.ardanova.test` namespace; a foreign or malformed value yields no session
+(`src/server/auth/index.ts:29-32`, `src/server/auth/AGENTS.md`). Runbook:
+[`DEMO-RUNBOOK.md`](../conductor/tracks/mvp-tandem-demo_20261024/DEMO-RUNBOOK.md).
 
 ### Interface preview without Google OAuth
 
@@ -139,7 +152,9 @@ Use `npm run format:check` only for deliberate repository-wide formatting cleanu
 
 ## Production and Railway
 
-Production is built from [`Dockerfile`](./Dockerfile) using the standalone Next.js output and deployed to Railway as a digest-pinned `ghcr.io` image, not via a Railway build step. The repository-root [`railway.toml`](../railway.toml) is a commented deployment guide (service setup, shared variables, private networking) rather than active build/deploy config. `/api/health` is process liveness only; `/api/ready` additionally checks required runtime configuration and the backend through a bounded request.
+Production is built from [`Dockerfile`](./Dockerfile) using the standalone Next.js output and deployed to Railway as a digest-pinned `ghcr.io` image, not via a Railway build step. The repository-root [`railway.toml`](../railway.toml) is a commented deployment guide (service setup, shared variables, private networking) rather than active build/deploy config. `/api/health` is process liveness plus deployment identity — `environment` (`RAILWAY_ENVIRONMENT_NAME`), `commit` (`RAILWAY_GIT_COMMIT_SHA`) and an opt-in `deploymentKey` that only a test-designated deployment sets (`src/app/api/health/route.ts`), so a QA harness can prove which build it is driving; `/api/ready` additionally checks required runtime configuration and the backend through a bounded request.
+
+The image builder (`node:20-alpine`) upgrades to npm 11 before `npm ci`. A lockfile written on Windows can miss Linux-only optional entries (`EUSAGE Missing @emnapi/*`); regenerate it on the builder's platform when that happens: `podman run --rm -v <client>:/app -w /app node:20-alpine sh -c "npm i -g npm@^11 && npm install --package-lock-only"` (commit `e54e9c9`). `azoa-sdk` resolves from npm at `^0.5.0`.
 
 The image accepts `DEPENDENCY_INSTALL_CACHE_KEY`; Git CI supplies a unique
 run/attempt value so the `npm ci` dependency layer is fresh for every release

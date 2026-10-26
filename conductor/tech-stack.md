@@ -5,15 +5,42 @@ type: tech-stack
 # ArdaNova Tech Stack
 
 ## Overview
-Four tiers. UX, API/MCP, and AI orchestration are ArdaNova's own code; financial workflows run
-on Azoa, an external node ArdaNova is a tenant of.
+Four tiers on the value path (as-built 2026-10-26; the golden path ran end to end on
+2026-10-25 — `conductor/tracks/mvp-tandem-demo_20261024/plan.md` §C2). ArdaNova owns tiers 1–2;
+AZOA (repo `oasis-sleek`) is the settlement and custody node ArdaNova is a tenant of; chains sit
+under AZOA. Nova AI is an optional drafting feature beside the value path, never on it.
 
 | Tier | Framework | Owns |
 |------|-----------|------|
-| 1. `ardanova-client/` | Next.js 15.2.3, React 19, TypeScript 5.8 | User experience |
-| 2. `ardanova-backend-api-mcp/` | .NET 10 (net10.0), EF Core 10, SignalR | HTTP API (BFF) + MCP server, business logic, Azoa credentials |
-| 3. Azoa (external repo) | — | Financial workflows: custody, minting, exchange, cash-out |
-| 4. `ardanova-ai-client/` | FastAPI (Python 3.11), Anthropic, CrewAI, LangGraph | Nova AI orchestration — **built, not yet wired** |
+| 1. `ardanova-client/` | Next.js 15.2.3, React 19, TypeScript 5.8, tRPC 11 | User experience only; tRPC routers are thin proxies |
+| 2. `ardanova-backend-api-mcp/` | .NET 10 (net10.0), EF Core 10 on PostgreSQL, SignalR | BFF + MCP: business logic, records of truth, settlement outbox, the ONLY AZOA credentials |
+| 3. AZOA node (`oasis-sleek`) | .NET 10 WebAPI on SurrealDB 3.x | Custody, KYC (Identomat), consent, token genesis, reserve partitions, exchange, holds, receipts, fiat on/off-ramp (Stripe) |
+| 4. Chains (under AZOA) | `Simulated` (first-class), Algorand, Solana, Ethereum | Asset truth. Only `Simulated` has run the golden path; real chains are activation-gated |
+| — Nova AI (side feature) | client sheet → .NET `NovaController` → OVERSEASGENAI partner API | Project-idea refinement; cannot fund, publish, approve, or move value |
+| — `ardanova-ai-client/` | FastAPI (Python 3.11), CrewAI, LangGraph | Dormant: built, **not wired**, not on the Nova path |
+
+### Value-path doctrine (the rules every tier obeys)
+- **AZOA commits before ArdaNova does.** Any failure after a node call re-reads node state and
+  replays the node's bytes (`ProjectTokenService.ResolveWorkerWindowAsync`,
+  `ArdaNova.Application/Services/Implementations/ProjectTokenService.cs:1407`). Full machines:
+  `conductor/ARDANOVA-AZOA-INTEGRATION-CONTRACT.md` §12.
+- **Idempotency key + intent hash.** Every node command is keyed; the node hashes the whole
+  intent, so time fields are decided once and stored at the precision Postgres keeps (whole
+  seconds into `timestamp(3)`; `Services/Implementations/AGENTS.md` §award-window-instant).
+- **Fail-closed economy.** `EconomyModeResolution` (`ArdaNova.Infrastructure/Azoa/AzoaSettings.cs:211`)
+  derives `disabled | simulated | live`; `ThrowIfNotLiveInProduction` (`:327`, called at
+  `ArdaNova.API/Program.cs:35` and `:123`) refuses to BOOT a Production host whose economy is
+  anything but `live`. The released BFF runs under the Staging label with `economy=disabled`
+  (`uxqa/RUNBOOK.md` "Study setup") — a Production label would refuse to boot it — and its value
+  seams answer with fail-closed stand-ins (`DisabledAzoaSettlementGateway`,
+  `DisabledFiatRailGateway`; `ArdaNova.Infrastructure/Azoa/AGENTS.md`) instead of pretending.
+  Rationale: `ArdaNova.API/HealthChecks/AGENTS.md`.
+- **KYC value gates never accept a manual approval** (round-4 decision A-4): value eligibility
+  reads the node's Identomat-backed `kycStatus`, never ArdaNova's local `ManualKycProviderService`
+  (`AzoaValueEligibilityService`, `Services/Implementations/AGENTS.md` "Value-action readiness";
+  `mvp-tandem-demo_20261024/spec.md` "The one hard gate").
+- **Absence is proof only in the node's typed shape.** A receipt 404 counts as "nothing
+  happened" only with the node's `NOT_FOUND` envelope (`ArdaNova.Infrastructure/Azoa/AzoaNodeClient.cs:140-147`).
 
 ## Architecture
 
@@ -24,7 +51,8 @@ on Azoa, an external node ArdaNova is a tenant of.
 - **API Client**: `src/lib/api/` — typed HTTP client for the .NET backend
 - **Auth**: NextAuth.js 5.0.0-beta.31 with Google OAuth (JWT strategy); Prisma 6.19.3 is used
   here ONLY for auth/session persistence — no other Prisma writes in this tier
-- **Azoa read layer**: `src/lib/azoa-sdk/client.ts` wraps the published npm `azoa-sdk` (^0.4.0) —
+- **Azoa read layer**: `src/lib/azoa-sdk/client.ts` wraps the published npm `azoa-sdk` (^0.5.0,
+  published 2026-10-26 from `oasis-sleek/sdk/azoa-wallet`; `ardanova-client/package.json:63`) —
   a browser-safe, **read-only** singleton (no API key, configured from
   `NEXT_PUBLIC_AZOA_BASE_URL`) that reads wallets/portfolios/holons/action run-state into React
   Query. Its write methods (`mintNft`, `fungibleMint`, `transferNft`, `executeSwap`,
@@ -52,12 +80,19 @@ on Azoa, an external node ArdaNova is a tenant of.
   referral reward-claim tools were removed for exactly this reason.
 - **Tests**: `tests/ArdaNova.Application.Tests/` and `tests/ArdaNova.API.Tests/`
 
-### Tier 3 — Azoa (external financial-workflow node)
+### Tier 3 — AZOA (settlement and custody node, repo `oasis-sleek`)
 - **What it is**: a generic, self-hostable blockchain-operations node, maintained in a
-  **separate repo**. ArdaNova is a tenant on it, never its operator.
-- **What it executes**: identity/KYC, custodial accounts & managed wallets, NFT/fungible
-  minting, allocations, reserve partitions, project tokens, credential issuance, cash-out, and
-  its DAG action engine for multi-step value workflows.
+  **separate repo** (.NET 10 WebAPI, SurrealDB 3.x as sole store). ArdaNova is a tenant on it,
+  never its operator; ArdaNova's users are tenant-custodial child users (contract §11.2).
+- **What it executes**: identity/KYC (Identomat hosted session), custodial accounts & managed
+  wallets, consent grants, ARDA genesis (operator route) and per-project token genesis (consent
+  lifecycle), reserve partitions (`on-ramp`, `investor`, `contributor`), project treasuries, the
+  atomic two-leg reserve exchange, hold commands (`Open` / `ReleaseIntoHold` / `Refund`),
+  receipts, the `Fiat.USD` rail (Stripe checkout + webhook in, Stripe Connect payouts out),
+  credential issuance, and its DAG action engine.
+- **Node-side rationale** (read-only from here): `oasis-sleek/Services/Hold/AGENTS.md`,
+  `Services/Reserve/AGENTS.md`, `Services/Consent/AGENTS.md`, `Core/AGENTS.md`
+  §consent-scope-coverage, `Providers/Blockchain/AGENTS.md`, `Services/Fiat/OnRamp/AGENTS.md`.
 - **Called from**: server-side only, from `ArdaNova.Infrastructure/Azoa/` (Tier 2), via scoped
   typed clients — custody, value, issuance, and quest keys are separate secrets, enforced in
   Production. Never called from the browser for writes.
@@ -66,7 +101,29 @@ on Azoa, an external node ArdaNova is a tenant of.
 - **Custody and chain inspection**: custody follows the node operator; chain state is inspected
   through Azoa operator tooling — ArdaNova hosts no explorer. User-facing copy never says "Azoa".
 
-### Tier 4 — `ardanova-ai-client/` (Nova AI orchestration)
+### Tier 4 — Chains (under AZOA)
+- **`Simulated` is a first-class chain** on a `Blockchain:Mode=Simulated` node: wallets, keys,
+  reserve, project treasuries, fungible creation, recipient preparation and the atomic exchange
+  all have Simulated modules (F13, F14, F16, F28; `oasis-sleek/Providers/Blockchain/AGENTS.md`
+  §simulated-fungible-creation, §simulated-exchange). The node boot-guards Simulated out of
+  Production, and Simulated custody needs literal `ASPNETCORE_ENVIRONMENT=Development`
+  (ledger P7-09 verdict), so a QA cohort runs on a Development-labelled, cohort-scoped node.
+- **Real chains are activation-gated.** DEX and exchange modules are advertised only where
+  `{Dex|Exchange}:Activation:{Chain}:{Network}=true`, and a Railway host ignores every pin unless
+  `AZOA:Activation:DeployedHostAcknowledged=true` (`Providers/Blockchain/AGENTS.md` §module
+  activation). Algorand also needs a platform mnemonic for genesis and treasury keys.
+- **ArdaNova never calls a chain.** `Algorand:Provider=Azoa` routes `IAlgorandService` through
+  the node; the minted chain is whatever the node reports and is persisted to `config.assetChain`.
+
+### Side feature — Nova AI
+- **Live path**: topbar sheet (`ardanova-client/src/components/ai/nova-assistant.tsx`) → tRPC
+  `nova.refineProject` → .NET `POST /api/nova/project-refinement` (`NovaController`) →
+  `NovaOrchestrationService` → `IOgaiClient` → OVERSEASGENAI partner validate API, white-labelled
+  as Nova (`ArdaNova.Infrastructure/Ogai/AGENTS.md`). `GET /api/nova/status` reports
+  `off | local-preview | live`. Rollout is owner/lease-gated (ledger P2-11, CUT-FOR-MVP).
+- Nova drafts only; it is not on the value path and holds no AZOA credential.
+
+### Dormant — `ardanova-ai-client/` (Python orchestration, not wired)
 - **Framework**: FastAPI (uvicorn, port 8081), Python 3.11 (`python:3.11-slim` in the Dockerfile)
 - **Role**: operates Nova AI, the platform assistant — orchestrates Claude-backed agents via
   CrewAI and LangGraph workflows to turn a prompt into structured project data, optionally
@@ -95,10 +152,51 @@ on Azoa, an external node ArdaNova is a tenant of.
   graph_builder, state, tools/), crews, mcp, orchestrator, workflows}`
 
 ### Request flow
-Browser → `ardanova-client` (Tier 1, UX) → tRPC → .NET API (Tier 2, BFF) → PostgreSQL / Azoa
-(Tier 3, financial workflows). Nova AI (Tier 4) is designed to call .NET MCP tools from the
-client path, but is implemented-but-dormant today — see Tier 4, above, for the three verified
-gaps (dev stack doesn't start it, client doesn't call it, its own MCP client is a stub).
+Browser → `ardanova-client` (Tier 1, UX) → tRPC → .NET API (Tier 2, BFF) → PostgreSQL / AZOA
+(Tier 3) → chain (Tier 4). Nova AI branches off at Tier 2 to the OGAI partner API; the Python
+`ardanova-ai-client` is not on any request path (three verified gaps above).
+
+### The money loop (as shipped 2026-10-25)
+1. **Fiat in** — sponsor pays a Stripe hosted checkout at the node; the node's webhook issues
+   ARDA from the platform unit's `on-ramp` partition (`AzoaFiatRailGateway`; genesis price
+   `Azoa:OnRamp:UnitsPerUsdMinorUnit="100"` = 1 ARDA per $0.01, kept by owner decision P3-02).
+2. **Project genesis** — creator's funding setup: `fungible-mint` → consent lifecycle
+   (quote → accept-quote → continue → refresh) → treasury resolve → `investor` + `contributor`
+   partitions (`ProjectTokenService.cs:29-32`).
+3. **Sponsorship** — atomic two-leg reserve exchange (ARDA → treasury, project units → sponsor),
+   settled through the settlement outbox (`PENDING_DISPATCH → LEASED → SUBMITTED/CONFIRMED`, or
+   `AWAITING_RECONCILIATION` → receipt reconcile; a typed receipt 404 reopens under the same key
+   with an attempt refund and a 5-reopen ceiling — `ArdaNova.Infrastructure/Outbox/AGENTS.md`).
+   First sponsorship is priced at the opening offer (`ExchangeService`, L2.5).
+4. **Work for stake** — bid accept opens an award hold on the `contributor` partition; approve
+   runs `ReleaseIntoHold` into the worker's window (`Services/Implementations/AGENTS.md` "Worker awards").
+5. **Out** — withdraw ARDA → bank via node-side Stripe Connect payouts (IN for MVP, built-untested,
+   P5-02); sell units back to ARDA (IN for MVP by owner override, gated, P5-03). Paying a matured
+   window to the worker's wallet needs a release mandate — not built (P4-04, due 2026-12-23).
+
+### Released topology (Railway project `a876ca12`)
+| Service | Source | Notes |
+|---|---|---|
+| Ardanova-Client | `ardanova-client/` (this repo, `main`) | `/api/health` reports `environment`, `commit`, `deploymentKey` (`ardanova-client/src/app/api/health/route.ts`) |
+| Ardanova-BFF | `ardanova-backend-api-mcp/` (this repo, `main`) | Staging label, `economy=disabled` until the value flags land (ledger P7-08) |
+| ardanova-postgress | Railway Postgres | `DATABASE_URL` reference variable |
+| azoa-api, azoa-schema, SurrealDB, azoa-frontend | `oasis-sleek` | `azoa-schema` is the one-shot schema/runtime-user job run before `azoa-api` (`oasis-sleek/deploy/railway/DEPLOY.md`). Deploying azoa-api from `oasis-sleek` `main` waits on ledger P7-06 |
+
+Client image build: `ardanova-client/Dockerfile` (`node:20-alpine`) upgrades the builder to npm 11
+before `npm ci`. A lockfile written on Windows can miss Linux-only optional entries; regenerate it
+on the builder's platform when it drifts (commit `e54e9c9`):
+`podman run --rm -v <client>:/app -w /app node:20-alpine sh -c "npm i -g npm@^11 && npm install --package-lock-only"`.
+
+### Local tandem stack
+- `.omc/scripts/local-stack.ps1 -Action up -WithAzoa` (local-only, git-ignored) runs
+  `oasis-sleek/tools/dev-node/dev-node-up.ps1`: SurrealDB :8020 → dev KYC vendor sidecar
+  (`tools/dev-kyc-vendor`, :8031/:8032) → AZOA WebAPI :5000 → tenant + split keys → tenant KYB +
+  KYC → ARDA genesis → `on-ramp` partition, then maps `.omc/state/dev-node-env.json` onto the BFF's
+  `Azoa__*` env. BFF :5147 must answer `/health` with `"economy":"simulated"`; client :3000.
+- Personas: cookie `ardanova-dev-persona` = `demo-creator | demo-sponsor | demo-freelancer`,
+  honoured only under `DEV_AUTH_BYPASS` and only for the seed-owned `@local.ardanova.test`
+  namespace (`ardanova-client/src/server/auth/index.ts:29-32`, `src/server/auth/AGENTS.md`).
+- Runbook: `conductor/tracks/mvp-tandem-demo_20261024/DEMO-RUNBOOK.md`.
 
 ## Key Architecture Decisions
 
@@ -114,8 +212,8 @@ gaps (dev stack doesn't start it, client doesn't call it, its own MCP client is 
 - **tRPC → .NET**: HTTP via `apiClient` (tRPC routers proxy to .NET API)
 - **Real-time**: SignalR (`@microsoft/signalr` ^8.0.7 on the client) for WebSocket connections
   (notifications, chat, live updates)
-- **AI-Agent**: MCP Protocol for communication between AI agents (Tier 4) and the .NET MCP tools
-  (Tier 2) — see "Request flow," above, for current wiring status
+- **AI-Agent**: MCP Protocol between the dormant `ardanova-ai-client` and the .NET MCP tools
+  (Tier 2, discovery-only) — not wired; see "Request flow," above
 
 ### Authentication
 - **Auth**: NextAuth.js (5.0.0-beta.31) with Google Provider
@@ -123,11 +221,19 @@ gaps (dev stack doesn't start it, client doesn't call it, its own MCP client is 
 - **Auth is the ONE exception** where Next.js uses Prisma directly (for user creation on sign-in)
 
 ### KYC & Identity Verification
-- **Provider Abstraction**: `IKycProviderService` interface (Strategy pattern)
-- **Default Provider**: `ManualKycProviderService` — document upload + admin review
-- **Planned Provider**: Veriff SDK (`VeriffKycProviderService`) — behind `KYC_PROVIDER=veriff` feature flag
-- **Gate Service**: `IKycGateService` — reusable PRO verification check injected into ProjectService, MembershipCredentialService
-- **Level Gating**: ANONYMOUS → VERIFIED (email) → PRO (KYC) → EXPERT (future)
+- **Value-bearing KYC lives on the AZOA node** (as-built 2026-10-25): Identomat hosted session,
+  policy set by the node operator (contract §1.1). ArdaNova provisions the tenant-custodial
+  account, hands the person to the hosted session, and reads back `kycStatus`.
+  `AzoaValueEligibilityService` is the single value gate; it fails closed and has three
+  outcomes — `Forbidden` (person has steps left), `Conflict` (readiness unconfirmable; node
+  down), allowed (`Services/Implementations/AGENTS.md` "Value-action readiness").
+- **Manual approval never opens a value door** (decision A-4). The local
+  `ManualKycProviderService` / `IKycProviderService` strategy and the
+  ANONYMOUS → VERIFIED → PRO → EXPERT levels remain for non-value gating only;
+  `KYC_PROVIDER=veriff` throws at boot (`ArdaNova.API/Program.cs:39-44`).
+- **Live-vendor blocker**: Identomat's trial company cannot create configs, so no released-env
+  user can pass KYC until the vendor lifts it (ledger P1-02). Local dev uses the dev vendor
+  sidecar; the provider is still `identomat`.
 
 ## Blockchain (Algorand, executed via Azoa)
 
@@ -173,9 +279,13 @@ All of these ultimately execute financial operations on Azoa (Tier 3) when
 | `ICredentialUtilityService` | `ArdaNova.Application/Services/` | Orchestrates grant-and-mint, revoke-and-burn | via `IAlgorandService` above |
 | `IMembershipCredentialService` | `ArdaNova.Application/Services/` | Off-chain credential CRUD | off-chain only |
 | `IProjectTokenService` | `ArdaNova.Application/Services/` | Project equity token management | via `ArdaNova.Infrastructure/Azoa/AzoaProjectTokenNodeGateway` |
-| `ITokenBalanceService` | `ArdaNova.Application/Services/` | Token balance tracking | reads Azoa wallet/portfolio state |
-| `IExchangeService` | `ArdaNova.Application/Services/` | Deterministic exchange rate calculation | via `ArdaNova.Infrastructure/Azoa/AzoaExchangeClient` |
-| `IPayoutService` | `ArdaNova.Application/Services/` | Token → USD payout processing | via `ArdaNova.Infrastructure/Azoa/AzoaCashOutClient` |
+| `ITokenBalanceService` | `ArdaNova.Application/Services/` | Local holding mirror | no custodial balance read from the node yet — holdings reads are fail-closed stubs (`AzoaExchangeClient.cs:27-34`; ledger P5-01) |
+| `IExchangeService` | `ArdaNova.Application/Services/` | Declares ARDA per project unit (opening offer while a raise is open) | via `ArdaNova.Infrastructure/Azoa/AzoaExchangeClient` |
+| `IPayoutService` | `ArdaNova.Application/Services/` | Sell units (node exchange) + withdraw (node cash-out, read back) | via `AzoaExchangeClient` / `AzoaCashOutClient` |
+| `IFundingIntentService` | `ArdaNova.Application/Services/` | Sponsorship intent → settlement → outbox | `AzoaSettlementGateway` (exchange + receipt) |
+| `EconomicOutboxDispatchService` | `ArdaNova.Application/Services/Implementations/` | Lease, dispatch, reconcile, no-effect reopen | `ArdaNova.Infrastructure/Outbox/` (`EconomicOutboxLeaseStore`) |
+| award holds | `ProjectTokenService` (`:1091` open, `:1333` release-into-hold) | Open, `ReleaseIntoHold`, refund | `ArdaNova.Infrastructure/Azoa/AzoaHoldClient` (`api/hold-commands`) |
+| on-ramp | `ArdaNova.Infrastructure/Azoa/AzoaFiatRailGateway.cs` | Add funds; genesis price registration | node `Fiat.USD` rail |
 
 ## Frontend Design System
 

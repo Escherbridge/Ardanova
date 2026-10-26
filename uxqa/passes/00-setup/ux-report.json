@@ -1,0 +1,187 @@
+{
+ "pass": "00-setup",
+ "frictionVersion": 1,
+ "generatedAt": "2026-10-26T03:10:32.239Z",
+ "runs": 1,
+ "uxRuns": 1,
+ "probeRuns": 0,
+ "coverage": {
+  "framework": "next-app",
+  "pageRoutes": 53,
+  "visited": 1,
+  "unvisited": [
+   "/projects/[slug]/invest/success",
+   "/settings/verification",
+   "/opportunities/create",
+   "/portfolio/add-funds",
+   "/portfolio/withdraw",
+   "/dashboard/profile",
+   "/governance/create",
+   "/dashboard/create",
+   "/settings/payouts",
+   "/settings/profile",
+   "/dashboard/tasks",
+   "/projects/create",
+   "/admin/disputes",
+   "/admin/treasury",
+   "/events/create",
+   "/guilds/create",
+   "/tasks/create",
+   "/auth/signin",
+   "/auth/signup",
+   "/auth/error",
+   "/admin/kyc",
+   "/opportunities/[slug]/edit",
+   "/dashboard/profile/[id]",
+   "/projects/[slug]/invest",
+   "/projects/[slug]/board",
+   "/projects/[slug]/edit",
+   "/tasks/[id]/commerce",
+   "/guilds/[slug]/edit",
+   "/opportunities",
+   "/governance",
+   "/dashboard",
+   "/portfolio",
+   "/projects",
+   "/settings",
+   "/privacy",
+   "/sign-up",
+   "/events",
+   "/guilds",
+   "/people",
+   "/signup",
+   "/studio",
+   "/chats",
+   "/login",
+   "/tasks",
+   "/terms",
+   "/swap",
+   "/opportunities/[slug]",
+   "/credentials/[id]",
+   "/governance/[id]",
+   "/projects/[slug]",
+   "/guilds/[slug]",
+   "/tasks/[id]"
+  ],
+  "unmatchedPaths": [],
+  "api": {
+   "declared": 12,
+   "hit": 1,
+   "unhit": [
+    "/api/sdk/me/credentials/check",
+    "/api/sdk/me/token-balances",
+    "/api/sdk/me/credentials",
+    "/api/sdk/auth/session",
+    "/api/sdk/me/token-balances/[projectId]",
+    "/api/sdk/actions",
+    "/api/sdk/me",
+    "/api/realtime",
+    "/api/health",
+    "/api/ready",
+    "/api/trpc/[trpc]"
+   ],
+   "observedOps": {
+    "GET /api/auth/session": 2
+   }
+  }
+ },
+ "outcomes": {
+  "COMPLETED": 1
+ },
+ "totals": {
+  "clicks": 0,
+  "deadClicks": 0,
+  "rageClicks": 0,
+  "workarounds": 0,
+  "httpErrors": 0,
+  "consoleErrors": 0,
+  "failedAttempts": 0,
+  "axeViolations": 1,
+  "friction": 1
+ },
+ "frictionPerJourney": 1,
+ "heatmap": [
+  {
+   "route": "/",
+   "abandons": 0,
+   "workarounds": 0,
+   "rageClicks": 0,
+   "errors": 0,
+   "deadClicks": 0,
+   "axe": 1,
+   "revisits": 1,
+   "friction": 1
+  }
+ ],
+ "tasks": [
+  {
+   "persona": "qa-uxqa-smoke",
+   "task": "setup-smoke",
+   "mode": "ui-only",
+   "constraints": [],
+   "runDir": "passes\\00-setup\\runs\\qa-uxqa-smoke--setup-smoke",
+   "outcome": "COMPLETED",
+   "seconds": 6,
+   "clicks": 0,
+   "deadClicks": 0,
+   "rageClicks": 0,
+   "inputs": 0,
+   "validationErrors": 0,
+   "pageViews": 2,
+   "distinctPages": 1,
+   "revisits": 1,
+   "httpErrors": 0,
+   "consoleErrors": 0,
+   "failedAttempts": 0,
+   "workarounds": 0,
+   "abandoned": null,
+   "axeViolations": 1,
+   "apiCalls": 2,
+   "friction": 1
+  }
+ ],
+ "axeRules": [
+  {
+   "id": "aria-prohibited-attr",
+   "impact": "serious",
+   "help": "Elements must only use permitted ARIA attributes",
+   "pages": [
+    "/"
+   ]
+  }
+ ],
+ "goldTrend": {},
+ "frictionByPass": {
+  "00-setup": 1
+ },
+ "exitChecks": {
+  "goldSuccess": {
+   "target": 0.8,
+   "missing": [
+    "gold-see-balance",
+    "gold-add-funds",
+    "gold-withdraw",
+    "gold-sell-units"
+   ],
+   "below": [],
+   "ok": false
+  },
+  "frictionTrend": {
+   "previousPass": null,
+   "previous": null,
+   "current": 1,
+   "tolerance": 0.1,
+   "ok": null
+  },
+  "newHigh": {
+   "target": 0,
+   "count": null,
+   "ok": null
+  },
+  "routeCoverage": {
+   "target": null,
+   "ratio": 0.018867924528301886,
+   "ok": null
+  }
+ }
+}

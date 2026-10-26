@@ -91,12 +91,14 @@ Status describes implementation presence in this repository, not automatic avail
 | **Guild System**           | Professional guilds, membership, bidding, and reviews                                      | Complete          |
 | **Shop System**            | Shop management, products, inventory, analytics                                            | Complete          |
 | **Value Tracking**         | Project-token, credential, and ownership data kept distinct; Azoa-backed reconciliation work continues | In Progress       |
-| **Task Escrow**            | Status reads and dispute filing are live; funding, release, and refund return `501`/`503` pending a HOLD-backed settlement path on the Azoa node | Fail-closed seam  |
+| **Work-for-stake holds**   | Accepting a bid opens a node hold; approving work releases it into the worker's window (driven live 2026-10-25). Paying a matured window out needs a release mandate, not built | Live (Simulated)  |
+| **Task Escrow**            | The escrow components are cut for the MVP; the hold rail above is the MVP's escrow (ledger P4-05) | Cut for MVP       |
+| **Sponsorship settlement** | Stripe test checkout → ARDA → atomic exchange through the settlement outbox, with receipt reconcile and typed-404 self-heal | Live (Simulated)  |
 | **Nova Studio**            | Human-controlled drafting, review, presentation, and rehearsal interaction model           | Interface Preview |
 | **.NET Backend API**       | Clean Architecture API with 6 projects, 40+ MCP tools                                      | Complete          |
 | **Membership Credentials** | Read-only checkpoint while Azoa-backed issuance and lifecycle authorization are hardened    | In Progress       |
 | **Credential Utility**     | Read-only checkpoint for Algorand minting and credential-tier operations                   | In Progress       |
-| **Azoa Identity & Custody** | Tenant-bound account orchestration and fresh Azoa KYC gates; production custody/provider required | Fail-closed seam  |
+| **Azoa Identity & Custody** | Tenant-custodial account, Identomat KYC and managed wallet reach Ready for every persona (driven live locally); released env waits on Identomat lifting its trial (ledger P1-02) | Live locally; vendor-gated  |
 | **Event Bus**              | In-memory domain event publishing and handling                                             | Complete          |
 | **SignalR WebSocket**      | Real-time updates for activities, notifications, projects                                  | Complete          |
 | **S3/Local Storage**       | File attachments with S3 or local filesystem support                                       | Complete          |
@@ -124,42 +126,55 @@ See the full [Roadmap](./documentation/ROADMAP.md) for detailed plans.
 
 ## Architecture
 
-ArdaNova is four tiers, each with one job. Only the .NET backend holds Azoa
-credentials; only Azoa touches a chain; the AI service is built but not yet
-wired into the product.
+ArdaNova is four tiers on the value path, each with one job, and AZOA is slotted in as the
+settlement and custody node (as-built 2026-10-26; the creator → sponsor → worker loop ran end
+to end on 2026-10-25 — `conductor/tracks/mvp-tandem-demo_20261024/DEMO-RUNBOOK.md`). Only the
+.NET backend holds AZOA credentials; only AZOA touches a chain; Nova AI is a drafting side
+feature, never on the value path.
 
 ```
    Browser
      │
      ▼
-┌──────────────────────┐  tRPC/apiClient   ┌──────────────────────────┐
-│   ardanova-client     │ ─────────────────▶│  ardanova-backend-api-   │
-│   Next.js 15 (UX)     │                   │  mcp (.NET BFF + MCP)    │
-│   + read-only azoa-sdk│◀─ ─ ─ ─ ─ ─ ─ ─ ─ ─│  owns business logic,   │
-└───────────┬───────────┘  wallet/portfolio  │  auth, EF Core           │
-            │              reads only        └──────────┬───────────────┘
-            │ NextAuth (session only,                    │ scoped typed clients
-            │ no business logic)                         │ (custody/value/issuance/quest keys)
-            ▼                                            ▼
-     ┌─────────────┐                           ┌───────────────────────┐
-     │ PostgreSQL  │                           │          Azoa          │
-     │ (Prisma +   │                           │  external repo, self-  │
-     │  EF Core)   │                           │  hostable node. Owns    │
-     └─────────────┘                           │  financial workflows:   │
-                                                 │  custody, minting,      │
-                                                 │  allocations, cash-out, │
-                                                 │  quests, DAG actions.   │
-                                                 │  Algorand sits          │
-                                                 │  underneath it.         │
-                                                 └───────────────────────┘
-
-┌───────────────────────┐  MCP tool calls, discovery-only  ┌──────────────────────────┐
-│  ardanova-ai-client     │ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─▶│  ardanova-backend-api-   │
-│  Python FastAPI         │   not yet called by the client  │  mcp (ArdaNova.MCP)      │
-│  (Nova AI orchestration │                                  └──────────────────────────┘
-│  — built, not wired)    │
-└───────────────────────┘
+┌──────────────────────┐ tRPC thin proxies → apiClient ┌──────────────────────────┐
+│ 1 ardanova-client     │ ─────────────────────────────▶│ 2 ardanova-backend-api-  │──▶ PostgreSQL
+│   Next.js 15 (UX only)│                               │   mcp (.NET 10 BFF)      │    (EF Core)
+│   read-only azoa-sdk  │                               │   business logic, records│
+└───────────────────────┘                               │   of truth, settlement   │──▶ Nova AI
+                                                         │   outbox, ONLY AZOA creds│    (OGAI partner,
+                                                         └────────────┬─────────────┘     side feature)
+                                     scoped typed clients (custody / value / issuance / quest)
+                                                                      ▼
+                                                         ┌──────────────────────────┐
+                                                         │ 3 AZOA node (oasis-sleek)│──▶ SurrealDB
+                                                         │   custody, KYC, consent, │◀── Stripe
+                                                         │   genesis, exchange,     │
+                                                         │   holds, receipts        │
+                                                         └────────────┬─────────────┘
+                                                                      ▼
+                                                         ┌──────────────────────────┐
+                                                         │ 4 chains: Simulated      │
+                                                         │   (first-class), Algorand│
+                                                         │   and others gated       │
+                                                         └──────────────────────────┘
 ```
+
+**How value moves (as shipped):** sponsor pays a Stripe checkout at the node → ARDA issued from
+the `on-ramp` partition (1 ARDA = $0.01) → creator's project token is created through the node's
+consent lifecycle with `investor` and `contributor` partitions → sponsorship settles as an atomic
+two-leg exchange through ArdaNova's settlement outbox → accepting a bid opens an award hold →
+approving the work releases it into the worker's window. Withdraw and sell-units are in MVP
+scope but not yet driven live. State machines both sides agree on:
+[`conductor/ARDANOVA-AZOA-INTEGRATION-CONTRACT.md`](./conductor/ARDANOVA-AZOA-INTEGRATION-CONTRACT.md) §12.
+
+**Failure doctrine:** the node commits before ArdaNova does, so any local failure after a node
+call re-reads the node and replays its bytes; every node command carries an idempotency key and
+the node hashes the whole intent; a Production host refuses to boot unless the economy is `live`;
+KYC value gates never accept a manual approval. Details:
+[ARCHITECTURE.md](./documentation/ARCHITECTURE.md#architecture-at-a-glance-as-built-2026-10-26).
+
+The Python `ardanova-ai-client` (CrewAI/LangGraph) is built but dormant: nothing calls it, and
+its MCP client is a stub. The .NET MCP host is discovery-only.
 
 ### Project Structure
 
@@ -202,7 +217,7 @@ ardanova/
         └── mcp/client.py               # MCP client → the .NET MCP tools above
 ```
 
-Azoa itself lives in a separate repository and is not vendored here; see
+Azoa itself lives in a separate repository (`oasis-sleek`) and is not vendored here; see
 [`conductor/ARDANOVA-AZOA-INTEGRATION-CONTRACT.md`](./conductor/ARDANOVA-AZOA-INTEGRATION-CONTRACT.md)
 for the canonical contract and `ArdaNova.Infrastructure/Azoa/AGENTS.md` for the transport rules.
 
@@ -217,9 +232,10 @@ for the canonical contract and `ArdaNova.Infrastructure/Azoa/AGENTS.md` for the 
 | **Events**                | In-Memory Event Bus                                 | Domain event publishing                                                                                                |
 | **Auth**                  | NextAuth JWT sessions + Prisma user synchronization | Google authentication and server-side authorization claims                                                            |
 | **Storage**               | S3 / Local filesystem                               | File attachments                                                                                                       |
-| **Financial workflows**   | Azoa (external node)                                | Custody, minting, allocations, cash-out, quests — reached only from the .NET backend, which is the only tier with Azoa credentials |
-| **Blockchain**            | Algorand (dotnet-algorand-sdk)                      | Underlying chain for soulbound credential ASAs; value rails route through Azoa, never called directly from the client |
-| **AI orchestration**      | Python FastAPI (CrewAI + LangGraph)                 | Nova AI pitch/analysis workflows via the .NET MCP tools — built, not yet wired into the product                       |
+| **Settlement & custody**  | AZOA node (`oasis-sleek`, SurrealDB)                | Custody, KYC, consent, token genesis, exchange, holds, receipts, Stripe fiat rail — reached only from the .NET backend, which is the only tier with AZOA credentials |
+| **Blockchain**            | Chains under AZOA                                   | `Simulated` first-class (the golden path ran on it); Algorand and others activation-gated node-side; never called from the client |
+| **Nova AI**               | .NET `NovaController` → OVERSEASGENAI partner API   | Project-idea refinement only; owner/lease-gated rollout                                                               |
+| **AI orchestration**      | Python FastAPI (CrewAI + LangGraph)                 | `ardanova-ai-client` — built, dormant, not on the Nova path                                                           |
 | **Database**              | PostgreSQL                                          | Persistent storage                                                                                                     |
 
 See [ARCHITECTURE.md](./documentation/ARCHITECTURE.md) for detailed technical documentation.
@@ -239,7 +255,7 @@ See [ARCHITECTURE.md](./documentation/ARCHITECTURE.md) for detailed technical do
 | **Schema**     | DBML → Prisma (migrations) + EF Core (C# entities via generator) |
 | **Auth**       | NextAuth 5 JWT sessions + custom Prisma user synchronization     |
 | **State**      | TanStack Query 5                                                 |
-| **Deployment** | Railway (frontend, API, database; the AI orchestration service deploys separately and is not yet wired into the product) |
+| **Deployment** | One Railway project: client, BFF (Staging label, `economy=disabled` until value flags land), Postgres, and the AZOA node's services (azoa-api, azoa-schema, SurrealDB, azoa-frontend); the AI orchestration service is dormant |
 
 ### Secure Ledger Stack (Azoa + Algorand)
 
@@ -251,12 +267,13 @@ underneath it. The frontend never calls either directly — only
 | ------------------------- | -------------------------------------------------------------------------------------------------------------------- |
 | **Financial workflows**   | Azoa — external, self-hostable blockchain-operations node (identity/KYC, custodial accounts, managed wallets, NFT/fungible minting, allocations, reserve partitions, project tokens, credential issuance, cash-out, quests, DAG action engine) |
 | **Azoa access**           | Scoped typed clients in `ArdaNova.Infrastructure/Azoa/` using separate custody, value, issuance, and quest API keys |
-| **Ledger**                | Algorand (10,000+ TPS, 2.85s finality) — reached through Azoa or the legacy/simulated provider, never directly       |
+| **Settlement contract**   | `conductor/ARDANOVA-AZOA-INTEGRATION-CONTRACT.md` §12 — exchange settlement, hold-command door, consent lifecycle (byte-identical copy in `oasis-sleek`) |
+| **Ledger**                | AZOA's `Simulated` chain today (first-class on a Simulated node); Algorand is the target real chain, activation-gated node-side — reached only through Azoa |
 | **Shares/Equity**         | Standard Assets (ASAs)                                                                                                |
 | **Credential SDK**        | dotnet-algorand-sdk (C# native)                                                                                       |
 | **Soulbound Credentials** | Frozen ASAs with ARC-19 metadata                                                                                      |
 | **Automated Agreements**  | AVM / TEAL                                                                                                            |
-| **Digital Wallets**       | Pera Wallet, Defly, MyAlgo                                                                                            |
+| **Digital Wallets**       | AZOA-managed custodial accounts only; no external wallet connect on the ArdaNova path                                 |
 | **Indexer**               | Algorand Indexer API                                                                                                  |
 | **Node**                  | AlgoNode / Self-hosted                                                                                                |
 
@@ -435,9 +452,19 @@ version history, and human accept/edit/reject/undo controls. External LLM, MCP,
 and Gamma presentation execution is not yet connected end to end, so the UI
 must not claim that a deck was generated, published, or shared.
 
-### Nova AI orchestration service (`ardanova-ai-client`)
+### Nova AI refinement (the live path)
 
-Nova AI — the agent behind Nova Studio — is operated by a separate Python
+The topbar Nova sheet's **Refine idea** mode is the one live Nova surface: tRPC
+`nova.refineProject` → .NET `POST /api/nova/project-refinement` (`NovaController`) →
+OVERSEASGENAI's partner validate API, white-labelled as Nova
+(`ardanova-backend-api-mcp/api-server/src/ArdaNova.Infrastructure/Ogai/AGENTS.md`;
+`ardanova-client/src/components/ai/AGENTS.md`). `GET /api/nova/status` reports
+`off | local-preview | live`, and the copy follows it. The partner key lives only in .NET.
+Nova is a drafting side feature: it never touches AZOA or the value path.
+
+### Nova AI orchestration service (`ardanova-ai-client`, dormant)
+
+The original Nova design is operated by a separate Python
 **FastAPI** service (`ardanova-ai-client/`, uvicorn, port 8081), not by the
 Next.js frontend or the .NET backend directly. It builds CrewAI agents and
 crews (`src/crews/`: pitch, project analysis) through `AgentBuilder`/`CrewBuilder`
@@ -508,7 +535,9 @@ authorization policy instead of duplicating it.
 - npm 10+
 - PostgreSQL 14+
 - .NET 10 SDK
-- Algorand wallet (Pera, Defly, or MyAlgo)
+- For value flows locally: a checkout of the AZOA node repo (`oasis-sleek`) and podman or
+  docker for its SurrealDB. No personal wallet is needed — AZOA provisions a managed
+  account per person; there is no self-managed address surface.
 
 ### Installation
 
@@ -536,6 +565,22 @@ npm run dev
 cd ardanova-backend-api-mcp
 dotnet run --project api-server/src/ArdaNova.API
 ```
+
+### Local tandem stack (ArdaNova + AZOA, value flows on)
+
+```powershell
+# from the ardanova repo root; the launcher lives under .omc/ (local-only, git-ignored)
+.omc\scripts\local-stack.ps1 -Action reset-db       # optional: fresh demo data
+.omc\scripts\local-stack.ps1 -Action up -WithAzoa   # SurrealDB, KYC sidecar, AZOA node, BFF, client
+```
+
+`-WithAzoa` runs `oasis-sleek/tools/dev-node/dev-node-up.ps1` (SurrealDB :8020, dev KYC vendor
+sidecar :8031/:8032, AZOA :5000, tenant + keys, tenant KYB/KYC, ARDA genesis, `on-ramp`
+partition) and maps its `.omc/state/dev-node-env.json` onto the BFF's `Azoa__*` env. Success:
+`curl http://127.0.0.1:5147/health` reports `"economy":"simulated"`. Switch personas with the
+`ardanova-dev-persona` cookie (`demo-creator`, `demo-sponsor`, `demo-freelancer`). Full runbook,
+Stripe test leg and the five-step golden path:
+[`DEMO-RUNBOOK.md`](./conductor/tracks/mvp-tandem-demo_20261024/DEMO-RUNBOOK.md).
 
 For frontend-only interface work without Google OAuth, the development server supports a visibly marked preview session with `DEV_AUTH_BYPASS=true`. The flag is accepted only in development, does not bypass backend authorization, and must never be configured in production. See the [frontend README](./ardanova-client/README.md).
 

@@ -111,6 +111,35 @@ reachable PostgreSQL `DATABASE_URL`. The launchers load the shared root `.env`,
 preserve explicit process overrides, refuse hosted databases in routine local
 mode, and keep the API/client secrets aligned without printing them.
 
+`dev-up` runs ArdaNova alone and sets no `Azoa__*` switch itself; with none set in `.env`
+either, `EconomyModeResolution` resolves `disabled` and every value seam answers with its
+fail-closed stand-in.
+
+### Tandem stack (ArdaNova + a real local AZOA node)
+
+For value flows (KYC, funding setup, sponsorship, work-for-stake) use the tandem launcher
+instead. It lives under `.omc/scripts/` (local-only, git-ignored) and needs an `oasis-sleek`
+checkout beside this repo:
+
+```powershell
+.omc\scripts\local-stack.ps1 -Action reset-db       # optional: fresh demo database
+.omc\scripts\local-stack.ps1 -Action up -WithAzoa
+.omc\scripts\local-stack.ps1 -Action down           # oasis-sleek: tools/dev-node/dev-node-down.ps1
+```
+
+| Piece | Port | From |
+| --- | --- | --- |
+| SurrealDB | 8020 | `oasis-sleek/tools/dev-node/dev-node-up.ps1` |
+| Dev KYC vendor sidecar (provider stays `identomat`) | 8031 / 8032 | `oasis-sleek/tools/dev-kyc-vendor/` |
+| AZOA node (`Blockchain:Mode=Simulated`) | 5000 | same script |
+| .NET API (BFF) | 5147 | this launcher, env mapped from `oasis-sleek/.omc/state/dev-node-env.json` |
+| Next.js client | 3000 | this launcher |
+
+Success check: `curl http://127.0.0.1:5147/health` → `"economy":"simulated"` (not `disabled`).
+Never wait on `dev-node-up.ps1`'s stdout — its servers hold the pipe open; redirect to a file and
+poll health. Personas, the Stripe test leg and the five-step golden path:
+[`DEMO-RUNBOOK.md`](../conductor/tracks/mvp-tandem-demo_20261024/DEMO-RUNBOOK.md).
+
 ---
 
 ## Manual run (two terminals)
