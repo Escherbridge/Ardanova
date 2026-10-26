@@ -9,10 +9,11 @@ using Microsoft.EntityFrameworkCore;
 /// IMPORTANT: Prisma (in ardanova-client) owns the database schema and migrations.
 /// This DbContext is read/write only - it does NOT run migrations.
 ///
-/// When Prisma schema changes:
-/// 1. Update prisma/schema.prisma in ardanova-client
-/// 2. Run: npx prisma migrate dev or npx prisma db push
-/// 3. Update corresponding .NET entities in ArdaNova.Domain to match
+/// When the schema changes:
+/// 1. Edit ardanova-client/prisma/database-architecture.dbml (never schema.prisma directly)
+/// 2. Run in ardanova-client: npm run generate:dbml, then npm run generate:csharp
+/// 3. Add a timestamped directory under prisma/migrations; databases apply it with
+///    npx prisma migrate deploy (never migrate dev or db push against shared data)
 /// </summary>
 public class ArdaNovaDbContext : DbContext
 {
@@ -154,6 +155,8 @@ public class ArdaNovaDbContext : DbContext
     public DbSet<EconomicSettlementLeg> EconomicSettlementLegs => Set<EconomicSettlementLeg>();
     public DbSet<SwapQuote> SwapQuotes => Set<SwapQuote>();
     public DbSet<SwapOrder> SwapOrders => Set<SwapOrder>();
+    public DbSet<TaxonomyTerm> TaxonomyTerms => Set<TaxonomyTerm>();
+
 
 
 

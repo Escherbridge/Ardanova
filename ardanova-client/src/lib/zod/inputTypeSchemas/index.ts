@@ -104,6 +104,7 @@ export { EligibilityDecisionScalarFieldEnumSchema } from './EligibilityDecisionS
 export { EconomicSettlementLegScalarFieldEnumSchema } from './EconomicSettlementLegScalarFieldEnumSchema';
 export { SwapQuoteScalarFieldEnumSchema } from './SwapQuoteScalarFieldEnumSchema';
 export { SwapOrderScalarFieldEnumSchema } from './SwapOrderScalarFieldEnumSchema';
+export { TaxonomyTermScalarFieldEnumSchema } from './TaxonomyTermScalarFieldEnumSchema';
 export { SortOrderSchema } from './SortOrderSchema';
 export { NullableJsonNullValueInputSchema } from './NullableJsonNullValueInputSchema';
 export { JsonNullValueInputSchema } from './JsonNullValueInputSchema';
@@ -162,6 +163,7 @@ export { SwapStatusSchema } from './SwapStatusSchema';
 export { MembershipCredentialStatusSchema } from './MembershipCredentialStatusSchema';
 export { MembershipGrantTypeSchema } from './MembershipGrantTypeSchema';
 export { PostTypeSchema } from './PostTypeSchema';
+export { FeedSourceTypeSchema } from './FeedSourceTypeSchema';
 export { PostVisibilitySchema } from './PostVisibilitySchema';
 export { MessageStatusSchema } from './MessageStatusSchema';
 export { ConversationTypeSchema } from './ConversationTypeSchema';
@@ -193,6 +195,7 @@ export { EquityOrRedemptionRightKindSchema } from './EquityOrRedemptionRightKind
 export { EligibilityDecisionStatusSchema } from './EligibilityDecisionStatusSchema';
 export { EconomicSettlementLegKindSchema } from './EconomicSettlementLegKindSchema';
 export { SwapOrderStatusSchema } from './SwapOrderStatusSchema';
+export { TaxonomyKindSchema } from './TaxonomyKindSchema';
 export { InputJsonValueSchema } from './InputJsonValueSchema';
 export { JsonValueSchema } from './JsonValueSchema';
 export { DecimalJsLikeSchema } from './DecimalJsLikeSchema';

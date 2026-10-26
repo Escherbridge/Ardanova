@@ -49,8 +49,8 @@ import { ProjectFieldNotes } from "~/components/feed";
 import type {
   ProjectDuration,
   ProjectStatus,
-  ProjectType,
 } from "~/lib/contracts/project-contract";
+import { categoryLabel, projectTypeLabel } from "~/lib/taxonomy/labels";
 import { handleTabListKeyDown } from "~/lib/accessibility";
 import { cn } from "~/lib/utils";
 
@@ -86,16 +86,6 @@ const statusVariants: Record<
   IN_PROGRESS: "neon-purple",
   COMPLETED: "neon-green",
   CANCELLED: "destructive",
-};
-
-const projectTypeLabels: Record<ProjectType, string> = {
-  TEMPORARY: "Temporary",
-  LONG_TERM: "Long term",
-  FOUNDATION: "Foundation",
-  BUSINESS: "Business",
-  PRODUCT: "Product",
-  OPEN_SOURCE: "Open source",
-  COMMUNITY: "Community",
 };
 
 const durationLabels: Record<ProjectDuration, string> = {
@@ -233,7 +223,7 @@ export default function ProjectDetailPage() {
                   {humanize(project.status)}
                 </Badge>
                 <Badge variant="secondary">
-                  {projectTypeLabels[project.projectType]}
+                  {projectTypeLabel(project.projectType)}
                 </Badge>
                 {project.duration && (
                   <Badge variant="secondary">
@@ -242,7 +232,7 @@ export default function ProjectDetailPage() {
                 )}
                 {project.categories.map((category) => (
                   <Badge key={category} variant="secondary">
-                    {humanize(category)}
+                    {categoryLabel(category)}
                   </Badge>
                 ))}
               </div>

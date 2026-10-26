@@ -10,6 +10,7 @@ export const PROJECT_STATUSES = [
   "CANCELLED",
 ] as const;
 
+/** ProjectType values this client knows; the API may add more (see `projectTypeCodeSchema`). */
 export const PROJECT_TYPES = [
   "TEMPORARY",
   "LONG_TERM",
@@ -18,6 +19,12 @@ export const PROJECT_TYPES = [
   "PRODUCT",
   "OPEN_SOURCE",
   "COMMUNITY",
+  "SERVICE",
+  "PHYSICAL_BUILD",
+  "VENUE",
+  "PROGRAM",
+  "RESEARCH",
+  "COOPERATIVE",
 ] as const;
 
 export const PROJECT_DURATIONS = [
@@ -57,6 +64,12 @@ const dotNetDateTimeSchema = z.string().datetime({ offset: true, local: true });
 
 export type ProjectStatus = z.infer<typeof projectStatusSchema>;
 export type ProjectType = z.infer<typeof projectTypeSchema>;
+/** A ProjectType as read from the API: a known value, or one a newer API added since. */
+export type ProjectTypeCode = ProjectType | (string & {});
+/** Read-side ProjectType: any non-empty code. See src/lib/AGENTS.md §Tolerant enum reads. */
+export const projectTypeCodeSchema: z.ZodType<ProjectTypeCode> = z
+  .string()
+  .min(1);
 export type ProjectDuration = z.infer<typeof projectDurationSchema>;
 export type ProjectRole = z.infer<typeof projectRoleSchema>;
 export type MilestoneStatus = z.infer<typeof milestoneStatusSchema>;
@@ -96,7 +109,7 @@ export const projectDtoSchema = z.object({
   targetAudience: z.string().nullable(),
   expectedImpact: z.string().nullable(),
   timeline: z.string().nullable(),
-  projectType: projectTypeSchema,
+  projectType: projectTypeCodeSchema,
   duration: projectDurationSchema.nullable(),
   createdAt: z.string(),
   updatedAt: z.string(),

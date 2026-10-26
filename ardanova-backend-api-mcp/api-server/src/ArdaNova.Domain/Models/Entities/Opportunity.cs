@@ -90,6 +90,8 @@ public class Opportunity
 
     public virtual ICollection<ProjectTask> ProjectTasks { get; set; } = new List<ProjectTask>();
 
+    public virtual ICollection<Post> Posts { get; set; } = new List<Post>();
+
     [ForeignKey("posterId")]
     public virtual User? Poster { get; set; }
 
