@@ -559,6 +559,61 @@ public class EconomicOutboxDispatchServiceTests
         finalization.AvailableAt.Should().BeAfter(DateTime.UtcNow.AddSeconds(-1));
     }
 
+    // --- No-effect reopen (F29) -------------------------------------------------------------
+    //
+    // The DB-backed walk lives in Flows/SettlementNoEffectReopenFlowTests; this table pins the
+    // decision itself so it is covered even where no test database is configured.
+
+    public static TheoryData<int, int, int, EconomicOutboxRecordedOutcome, string> NoEffectReceiptDecisions() => new()
+    {
+        // reopens so far, minutes since the row turned ambiguous, attempts incl. this claim
+        { 0, 10, 2, EconomicOutboxRecordedOutcome.Retry, EconomicSettlementFailureCodes.ExchangeNeverLanded },
+        { 4, 10, 6, EconomicOutboxRecordedOutcome.Retry, EconomicSettlementFailureCodes.ExchangeNeverLanded },
+        { 0, 1, 2, EconomicOutboxRecordedOutcome.Retry, EconomicSettlementFailureCodes.ExchangeAbsenceUnsettled },
+        { 5, 10, 7, EconomicOutboxRecordedOutcome.Unknown, EconomicSettlementFailureCodes.ReconciliationAttentionRequired },
+        { 0, 10, 11, EconomicOutboxRecordedOutcome.Unknown, EconomicSettlementFailureCodes.ReconciliationAttentionRequired },
+    };
+
+    [Theory]
+    [MemberData(nameof(NoEffectReceiptDecisions))]
+    public async Task ReconcileOneAsync_NodeReceiptNotFound_ReopensDefersOrParks(
+        int reopensSoFar,
+        int minutesSinceAmbiguous,
+        int attemptCount,
+        EconomicOutboxRecordedOutcome expectedOutcome,
+        string expectedCode)
+    {
+        var claim = Claim(EconomicOutboxClaimKind.Reconciliation, EconomicSettlementStatus.AWAITING_RECONCILIATION) with
+        {
+            AttemptCount = attemptCount,
+            NoEffectReopenCount = reopensSoFar,
+            ReconciliationRequiredAt = DateTime.UtcNow.AddMinutes(-minutesSinceAmbiguous),
+        };
+        EconomicOutboxFinalization? finalization = null;
+        var alerts = new Mock<IOperatorAlertService>();
+        _store.Setup(store => store.TryClaimAsync(
+                EconomicOutboxClaimKind.Reconciliation, It.IsAny<DateTime>(), It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(claim);
+        _store.Setup(store => store.FinalizeAsync(
+                It.IsAny<EconomicOutboxLease>(), It.IsAny<EconomicOutboxFinalization>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .Callback<EconomicOutboxLease, EconomicOutboxFinalization, DateTime, CancellationToken>((_, item, _, _) => finalization = item)
+            .ReturnsAsync(true);
+        _gateway.Setup(gateway => gateway.ReconcileAsync(It.IsAny<AzoaSettlementRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(AzoaSettlementGatewayResult.Retry(EconomicSettlementFailureCodes.ExchangeNeverLanded));
+
+        await NewServiceWithAlerts(alerts).ReconcileOneAsync();
+
+        finalization!.Outcome.Should().Be(expectedOutcome);
+        finalization.FailureCode.Should().Be(expectedCode);
+        if (expectedCode == EconomicSettlementFailureCodes.ExchangeAbsenceUnsettled)
+            finalization.AvailableAt.Should().Be(claim.ReconciliationRequiredAt!.Value.Add(EconomicOutboxDispatchService.NoEffectQuietWindow));
+        if (expectedOutcome == EconomicOutboxRecordedOutcome.Unknown)
+            finalization.AvailableAt.Should().BeAfter(DateTime.UtcNow.AddMinutes(30));
+        alerts.Verify(
+            channel => channel.RaiseAsync(It.IsAny<EconomicOperatorAlert>(), It.IsAny<CancellationToken>()),
+            expectedOutcome == EconomicOutboxRecordedOutcome.Unknown ? Times.Once() : Times.Never());
+    }
+
     // --- Readiness holding (gotcha 29) ------------------------------------------------------
     //
     // A readiness refusal is NOT a failing dispatch: nothing was submitted and the reservation

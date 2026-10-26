@@ -190,6 +190,12 @@ received, and the difference is the fee the node kept. A receipt that lands MORE
 ArdaNova authorised is not a bonus — it is unreconciled, and dispatch stops rather than
 accepting it.
 
+Only the node's own not-found envelope (`{"isError":true,"code":"NOT_FOUND"}`, HTTP 404) maps a
+receipt read to `NotFound`. Any other 404 - a proxy page, an unrouted path on an older node - is
+an ambiguous failure (`AzoaNodeClient.SendAsync(..., notFoundNeedsNodeCode: true)`), because the
+settlement outbox redispatches on `NotFound` and the payout path unlocks a seller's units on it.
+See `Outbox/AGENTS.md`, "No-effect reopen".
+
 `DisabledAzoaSettlementGateway` is what is registered when no node is selected to settle:
 every capability answer (`CanDispatch`, `CanReconcile`, `HasCurrentOperatorAttestation`,
 `SupportsCanonicalFundingSettlement`) is `false`, and it still implements

@@ -83,7 +83,9 @@ public sealed class EconomicOutboxLeaseStore : IEconomicOutboxLeaseStore
             // needs its owner resolved, or the owner-readiness gate has nothing to check.
             EconomicSettlementKindRules.RequiresProjectOwnerReadiness(settlement.kind)
                 ? settlement.Project?.createdById
-                : null);
+                : null,
+            EconomicOutboxReopenLedger.Read(outbox.failureDetail),
+            outbox.reconciliationRequiredAt);
     }
 
     /// <inheritdoc/>
@@ -134,6 +136,15 @@ public sealed class EconomicOutboxLeaseStore : IEconomicOutboxLeaseStore
         var isRedispatchable = finalization.Outcome == EconomicOutboxRecordedOutcome.Retry
             && lease.ClaimKind == EconomicOutboxClaimKind.Reconciliation
             && finalization.FailureCode == EconomicSettlementFailureCodes.ExchangeNeverLanded;
+        // A receipt read that proved (or is waiting to prove) no effect is bookkeeping, not a
+        // dispatch, so it hands back the attempt its own claim took (see AGENTS.md, "No-effect reopen").
+        var refundsAttempt = finalization.Outcome == EconomicOutboxRecordedOutcome.Retry
+            && lease.ClaimKind == EconomicOutboxClaimKind.Reconciliation
+            && EconomicSettlementFailureCodes.IsNoEffectBookkeeping(finalization.FailureCode);
+        var attemptRefund = refundsAttempt ? 1 : 0;
+        var outboxFailureDetail = EconomicOutboxReopenLedger.Stamp(
+            finalization.FailureDetail,
+            lease.NoEffectReopenCount + (isRedispatchable ? 1 : 0));
 
         var outboxStatus = finalization.Outcome switch
         {
@@ -153,6 +164,10 @@ public sealed class EconomicOutboxLeaseStore : IEconomicOutboxLeaseStore
             _ when isDispatchCeiling || isRedispatchable => null,
             _ => lease.ClaimKind == EconomicOutboxClaimKind.Reconciliation ? now : null,
         };
+        // While a row stays in reconciliation the FIRST ambiguous instant is kept: it is what the
+        // no-effect quiet window is measured from, and a poll that rewrote it would defer forever.
+        var keepsFirstReconciliationTime = lease.ClaimKind == EconomicOutboxClaimKind.Reconciliation
+            && reconciliationAt is not null;
         var outboxUpdated = await _context.EconomicOutboxes
             .Where(item => item.id == lease.OutboxId
                 && item.status == EconomicOutboxStatus.LEASED
@@ -168,9 +183,14 @@ public sealed class EconomicOutboxLeaseStore : IEconomicOutboxLeaseStore
                 .SetProperty(item => item.leaseToken, (string?)null)
                 .SetProperty(item => item.leaseExpiresAt, (DateTime?)null)
                 .SetProperty(item => item.dispatchedAt, item => finalization.Outcome == EconomicOutboxRecordedOutcome.Accepted ? now : item.dispatchedAt)
-                .SetProperty(item => item.reconciliationRequiredAt, reconciliationAt)
+                .SetProperty(
+                    item => item.reconciliationRequiredAt,
+                    item => keepsFirstReconciliationTime
+                        ? item.reconciliationRequiredAt ?? reconciliationAt
+                        : reconciliationAt)
+                .SetProperty(item => item.attemptCount, item => item.attemptCount - attemptRefund)
                 .SetProperty(item => item.failureCode, finalization.FailureCode)
-                .SetProperty(item => item.failureDetail, finalization.FailureDetail)
+                .SetProperty(item => item.failureDetail, outboxFailureDetail)
                 .SetProperty(item => item.updatedAt, now), ct);
         if (outboxUpdated != 1)
         {

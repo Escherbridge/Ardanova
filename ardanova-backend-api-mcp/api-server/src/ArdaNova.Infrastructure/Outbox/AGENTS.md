@@ -62,3 +62,44 @@ readiness refusal must never be spent against this transport ceiling. All three 
 dispatch, reconciliation, and readiness — alert through the same
 `EconomicOperatorAlertCodes` / `OperatorAlertService` seam rather than a bespoke channel
 per ceiling, so an operator has one place to watch, not three.
+
+# No-effect reopen
+
+Owner decision F29 (ledger row P3-04, 2026-10-26). AZOA commits before ArdaNova does, and its
+exchange receipt store answers by idempotency key, so a receipt **404 carrying the node's own
+`NOT_FOUND` envelope** is durable proof that nothing was committed. A reconciliation that reads
+one reopens the row for dispatch under the SAME idempotency key, replaying the settlement's
+stored terms snapshot unchanged (the request is rebuilt from the row on every claim; nothing is
+recomputed, so the node's intent-hash replay check sees the same bytes). A 404 without that
+envelope (a proxy page, an unrouted path) is NOT proof: `AzoaExchangeClient.GetReceiptAsync`
+maps it to an ambiguous failure, which stays on the reconciliation path like any 5xx or timeout.
+
+`EconomicOutboxDispatchService.NoEffectReceipt` decides, in order:
+
+1. **Quiet window.** A 404 is only believed once `reconciliationRequiredAt + NoEffectQuietWindow`
+   (= the 5-minute lease) has passed. Every dispatch call runs inside a lease renewed just before
+   it, so past that instant the dispatch that sent the request is dead and cannot still be
+   landing. Earlier, the row stays in reconciliation with `AZOA_EXCHANGE_ABSENCE_UNSETTLED` and
+   is read again at the window's end. To make this measurable, `FinalizeAsync` now KEEPS the
+   first `reconciliationRequiredAt` while a row stays in reconciliation instead of restamping it
+   on every poll, which would push the window out forever.
+2. **Reopen ceiling.** After `MaximumNoEffectReopens` (5) reopens, a further 404 parks the row
+   with `AZOA_SETTLEMENT_RECONCILIATION_ATTENTION` and a Critical alert, exactly like the
+   reconciliation ceiling: never `FAILED`, re-read hourly, alerted every cycle.
+3. **Dispatch ceiling.** If the dispatch attempts already spent reach `_maximumAttempts`, the row
+   parks through `ReconciliationCeiling` rather than being dispatched past the ceiling.
+4. Otherwise: `Retry` + `AZOA_EXCHANGE_NEVER_LANDED`, which the store turns into outbox
+   `PENDING` / settlement `PENDING_DISPATCH`, with the lease's reconciliation stamp cleared.
+
+**Attempt accounting.** `attemptCount` is incremented by every claim. A reopen or a quiet-window
+deferral is bookkeeping, not a dispatch, so `FinalizeAsync` refunds that reconciliation claim's
+increment (`IsNoEffectBookkeeping`). Ordinary reconciliation polls (5xx, timeout, awaiting node)
+still count, as before. Net effect: a settlement that keeps 404ing spends one attempt per real
+dispatch, and the reopen ceiling (5) binds before the attempt ceiling (10).
+
+**Reopen count storage.** There is no column for it yet. `EconomicOutboxReopenLedger` carries
+it as a `[noEffectReopens=N]` trailer on the OUTBOX row's `failureDetail` (operator-only text;
+the settlement's consumer-facing detail is never stamped). The claim reads it into
+`EconomicOutboxLease.NoEffectReopenCount` and every finalization re-stamps it, so it survives
+each dispatch/reconcile cycle and remains on the row after settlement as an audit note. A
+dedicated `noEffectReopenCount` column (DBML first) is owed; when it lands, delete the ledger.

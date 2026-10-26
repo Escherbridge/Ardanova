@@ -35,6 +35,10 @@ public sealed record AzoaSettlementRequest(
     string? TermsSnapshot);
 
 /// <summary>One CAS lease plus the immutable settlement request it protects.</summary>
+/// <remarks>
+/// <see cref="NoEffectReopenCount"/> counts receipt-404 reopens so far; <see cref="ReconciliationRequiredAt"/>
+/// is when the row first became ambiguous. See <c>Infrastructure/Outbox/AGENTS.md</c>, "No-effect reopen".
+/// </remarks>
 public sealed record EconomicOutboxLease(
     string OutboxId,
     string SettlementId,
@@ -46,7 +50,9 @@ public sealed record EconomicOutboxLease(
     EconomicOutboxClaimKind ClaimKind,
     AzoaSettlementRequest Request,
     EconomicSettlementKind SettlementKind = EconomicSettlementKind.TASK_REWARD,
-    string? ProjectOwnerUserId = null);
+    string? ProjectOwnerUserId = null,
+    int NoEffectReopenCount = 0,
+    DateTime? ReconciliationRequiredAt = null);
 
 /// <summary>Typed response that distinguishes accepted, ambiguous, and safely retryable gateway outcomes.</summary>
 public sealed record AzoaSettlementGatewayResult(

@@ -25,6 +25,13 @@ public static class EconomicSettlementFailureCodes
 
     /// <summary>The node holds no operation under this key, so the settlement may be dispatched again.</summary>
     public const string ExchangeNeverLanded = "AZOA_EXCHANGE_NEVER_LANDED";
+
+    /// <summary>The node reported no operation before the last dispatch's lease could have died; read again later.</summary>
+    public const string ExchangeAbsenceUnsettled = "AZOA_EXCHANGE_ABSENCE_UNSETTLED";
+
+    /// <summary>True for the bookkeeping-only reconciliation outcomes that must not spend a dispatch attempt.</summary>
+    public static bool IsNoEffectBookkeeping(string? code)
+        => code is ExchangeNeverLanded or ExchangeAbsenceUnsettled;
 }
 
 /// <summary>The refusals that mean a person's account readiness lapsed, so nothing was ever dispatched.</summary>
@@ -140,6 +147,13 @@ public sealed class EconomicOutboxDispatchService : IEconomicOutboxDispatchServi
 
     /// <summary>Backoff applied once reconciliation has passed its ceiling; slow, but never terminal.</summary>
     private static readonly TimeSpan CeilingBackoff = TimeSpan.FromHours(1);
+
+    /// <summary>Receipt-404 reopens one settlement may take before it parks for an operator instead.</summary>
+    public const int MaximumNoEffectReopens = 5;
+
+    /// <summary>How long after a row turned ambiguous a 404 is believed: past it, the dispatch lease is dead.</summary>
+    /// <remarks>Equal to the lease, which bounds every dispatch call; see <c>Infrastructure/Outbox/AGENTS.md</c>, "No-effect reopen".</remarks>
+    public static TimeSpan NoEffectQuietWindow => LeaseDuration;
 
     private readonly IEconomicOutboxLeaseStore _store;
     private readonly IAzoaSettlementGateway _gateway;
@@ -438,6 +452,12 @@ public sealed class EconomicOutboxDispatchService : IEconomicOutboxDispatchServi
                 null);
         }
 
+        if (lease.ClaimKind == EconomicOutboxClaimKind.Reconciliation
+            && result.Code == EconomicSettlementFailureCodes.ExchangeNeverLanded)
+        {
+            return NoEffectReceipt(lease, now, result);
+        }
+
         // A readiness lapse is not a failing dispatch. Nothing was submitted, the reservation is
         // still standing at the node, and only a person can clear it - so it must not be spent
         // against the transport ceiling, which would mark a reward FAILED minutes after accept
@@ -468,6 +488,89 @@ public sealed class EconomicOutboxDispatchService : IEconomicOutboxDispatchServi
                 result.Code ?? "AZOA_RETRY",
                 result.Detail),
             null);
+    }
+
+    /// <summary>Turns a node receipt 404 into a reopen, a deferral, or a parked row; never a spent dispatch attempt.</summary>
+    /// <remarks>Owner decision F29; see <c>Infrastructure/Outbox/AGENTS.md</c>, "No-effect reopen".</remarks>
+    private EconomicOutboxDecision NoEffectReceipt(
+        EconomicOutboxLease lease,
+        DateTime now,
+        AzoaSettlementGatewayResult result)
+    {
+        var believableAt = (lease.ReconciliationRequiredAt ?? now).Add(NoEffectQuietWindow);
+        if (now < believableAt)
+        {
+            return new EconomicOutboxDecision(
+                new EconomicOutboxFinalization(
+                    EconomicOutboxRecordedOutcome.Retry,
+                    believableAt,
+                    null,
+                    null,
+                    null,
+                    EconomicSettlementFailureCodes.ExchangeAbsenceUnsettled,
+                    "The node holds no operation for this settlement yet, but the last dispatch may still have been "
+                    + "in flight. It will be read again before anything is sent."),
+                null);
+        }
+
+        if (lease.NoEffectReopenCount >= MaximumNoEffectReopens)
+            return NoEffectReopenCeiling(lease, now, result);
+
+        // The store refunds this reconcile claim's increment on reopen, so this is dispatches already spent.
+        if (lease.AttemptCount - 1 >= _maximumAttempts)
+            return ReconciliationCeiling(lease, now, result);
+
+        _logger?.LogWarning(
+            "Economic settlement {SettlementId} (outbox {OutboxId}) has no operation on the node under its "
+            + "idempotency key; reopening it for dispatch under the same key (no-effect reopen {ReopenNumber} of {MaximumReopens}).",
+            lease.SettlementId,
+            lease.OutboxId,
+            lease.NoEffectReopenCount + 1,
+            MaximumNoEffectReopens);
+
+        return new EconomicOutboxDecision(
+            new EconomicOutboxFinalization(
+                EconomicOutboxRecordedOutcome.Retry,
+                now,
+                null,
+                null,
+                null,
+                EconomicSettlementFailureCodes.ExchangeNeverLanded,
+                result.Detail ?? "The node holds no operation for this settlement, so it may be dispatched again."),
+            null);
+    }
+
+    /// <summary>Parks a settlement whose receipt kept reading 404 across every allowed reopen.</summary>
+    private EconomicOutboxDecision NoEffectReopenCeiling(
+        EconomicOutboxLease lease,
+        DateTime now,
+        AzoaSettlementGatewayResult result)
+    {
+        _logger?.LogCritical(
+            "Economic settlement {SettlementId} (outbox {OutboxId}) was reopened {ReopenCount} times on a node "
+            + "receipt 404 and the node still holds no operation for it. It was NOT failed and will not be "
+            + "redispatched again until an operator looks.",
+            lease.SettlementId,
+            lease.OutboxId,
+            lease.NoEffectReopenCount);
+
+        return new EconomicOutboxDecision(
+            new EconomicOutboxFinalization(
+                EconomicOutboxRecordedOutcome.Unknown,
+                now.Add(CeilingBackoff),
+                null,
+                null,
+                null,
+                EconomicSettlementFailureCodes.ReconciliationAttentionRequired,
+                $"Dispatched and found absent on the node {lease.NoEffectReopenCount} times. This settlement stays "
+                + "open on purpose and needs an operator to find out why the node never keeps it."),
+            Alert(
+                lease,
+                EconomicOperatorAlertCodes.ReconciliationAttentionRequired,
+                OperatorAlertSeverity.Critical,
+                result.Code ?? EconomicSettlementFailureCodes.ExchangeNeverLanded,
+                $"Reopened {lease.NoEffectReopenCount} times because the node had no record of it, and it still has none.",
+                "Find out why the node never keeps this exchange before reopening it again; nothing indicates value moved."));
     }
 
     /// <summary>Parks a settlement on somebody's unfinished setup: slow cadence, alerts, definite end.</summary>

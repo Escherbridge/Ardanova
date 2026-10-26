@@ -101,6 +101,7 @@ public sealed class AzoaExchangeClient
     }
 
     /// <inheritdoc />
+    /// <remarks>NotFound only for the node's own NOT_FOUND envelope; any other 404 is an ambiguous failure.</remarks>
     public Task<Result<ArdaNovaExchangeReceipt>> GetReceiptAsync(
         string idempotencyKey,
         CancellationToken ct = default)
@@ -112,7 +113,7 @@ public sealed class AzoaExchangeClient
         var path = ReceiptPrefix + idempotencyKey.Trim();
         var message = new HttpRequestMessage(HttpMethod.Get, path);
 
-        return SendAsync(message, IsReceiptPath(path), ct);
+        return SendAsync(message, IsReceiptPath(path), ct, notFoundNeedsNodeCode: true);
     }
 
     /// <inheritdoc />
@@ -159,7 +160,8 @@ public sealed class AzoaExchangeClient
     private async Task<Result<ArdaNovaExchangeReceipt>> SendAsync(
         HttpRequestMessage message,
         bool pathAllowed,
-        CancellationToken ct)
+        CancellationToken ct,
+        bool notFoundNeedsNodeCode = false)
     {
         if (!pathAllowed)
         {
@@ -168,7 +170,7 @@ public sealed class AzoaExchangeClient
                 "The AZOA value credential is restricted to exchange endpoints.");
         }
 
-        var wire = await AzoaNodeClient.SendAsync<AzoaExchangeWireReceipt>(_http, _logger, message, ct);
+        var wire = await AzoaNodeClient.SendAsync<AzoaExchangeWireReceipt>(_http, _logger, message, ct, notFoundNeedsNodeCode);
         if (wire.IsFailure)
             return MapFailure(wire);
 

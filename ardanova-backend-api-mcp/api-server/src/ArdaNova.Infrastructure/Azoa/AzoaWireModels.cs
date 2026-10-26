@@ -17,6 +17,10 @@ internal sealed class AzoaResultEnvelope<T>
 
     [JsonPropertyName("result")]
     public T? Result { get; set; }
+
+    /// <summary>The node's stable failure discriminator (for example <c>NOT_FOUND</c>), when it sent one.</summary>
+    [JsonPropertyName("code")]
+    public string? Code { get; set; }
 }
 
 // ── Allocation door (§6) ──────────────────────────────────────────────────────

@@ -18,6 +18,9 @@ public sealed class AzoaNodeClient : IAzoaNodeClient
     private const string KycForbiddenPrefix = "KYC_FORBIDDEN:";
     private const string KycForbiddenMessage = "KYC_FORBIDDEN: AZOA approval is required.";
 
+    /// <summary>The node's own not-found discriminator (<c>AzoaErrorCodes.NotFound</c>).</summary>
+    internal const string NodeNotFoundCode = "NOT_FOUND";
+
     private static readonly JsonSerializerOptions JsonOpts = new()
     {
         PropertyNameCaseInsensitive = true,
@@ -116,7 +119,8 @@ public sealed class AzoaNodeClient : IAzoaNodeClient
         HttpClient http,
         ILogger logger,
         HttpRequestMessage msg,
-        CancellationToken ct)
+        CancellationToken ct,
+        bool notFoundNeedsNodeCode = false)
     {
         try
         {
@@ -138,6 +142,16 @@ public sealed class AzoaNodeClient : IAzoaNodeClient
                     msg.Method,
                     msg.RequestUri,
                     (int)response.StatusCode);
+
+                // A proxy page or an unrouted path also answers 404; only the node's own envelope
+                // is an absence the caller may act on (see AGENTS.md, "Settlement gateway").
+                if (notFoundNeedsNodeCode
+                    && response.StatusCode == HttpStatusCode.NotFound
+                    && !string.Equals(envelope?.Code, NodeNotFoundCode, StringComparison.Ordinal))
+                {
+                    return Result<T>.Failure("AZOA answered 404 without its not-found envelope; the outcome is unknown.");
+                }
+
                 return MapError<T>(response.StatusCode, envelope?.Message);
             }
 
