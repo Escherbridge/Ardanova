@@ -365,10 +365,13 @@ public class ProjectTokenService : IProjectTokenService, IProjectTokenProvisioni
 
         if (string.IsNullOrWhiteSpace(config.assetId))
         {
+            // Keyed on the row, not the attempt: every retry of this declaration replays the
+            // node's one creation, and a new config row is a new stake (W5.2 stable key).
             var created = await _assets.CreateFungibleASAAsync(
                 config.assetName,
                 config.unitName,
                 totalBaseUnits.Value,
+                GenesisIdempotencyKey(config.id),
                 ct);
 
             if (created.IsFailure || created.Value is null)
@@ -378,7 +381,8 @@ public class ProjectTokenService : IProjectTokenService, IProjectTokenProvisioni
             }
 
             config.assetId = created.Value.AssetId;
-            config.assetChain = _chainType;
+            // The chain the node reports it minted on (a Simulated node redirects Algorand), else configured.
+            config.assetChain = string.IsNullOrWhiteSpace(created.Value.ChainType) ? _chainType : created.Value.ChainType;
             config.mintTxHash = string.IsNullOrWhiteSpace(created.Value.TxHash) ? null : created.Value.TxHash;
             config.assetScale = PlatformAssetScale;
             config.provisioningFailureReason = null;
@@ -389,10 +393,13 @@ public class ProjectTokenService : IProjectTokenService, IProjectTokenProvisioni
             await _unitOfWork.SaveChangesAsync(ct);
         }
 
+        // Treasury and partitions live on the chain the stake was minted on, never re-read from config.
+        var assetChain = string.IsNullOrWhiteSpace(config.assetChain) ? _chainType : config.assetChain!;
+
         if (string.IsNullOrWhiteSpace(config.treasuryAddress))
         {
             var treasury = await _nodeGateway.ResolveTreasuryAsync(
-                new AzoaProjectTreasuryRequest(_chainType, project.id), ct);
+                new AzoaProjectTreasuryRequest(assetChain, project.id), ct);
 
             if (treasury.IsFailure || treasury.Value is null)
             {
@@ -422,7 +429,7 @@ public class ProjectTokenService : IProjectTokenService, IProjectTokenProvisioni
             };
 
             var partitions = await _nodeGateway.DeclareReservePartitionsAsync(
-                new AzoaReservePartitionRequest(_chainType, config.assetId!, declaredByPartition), ct);
+                new AzoaReservePartitionRequest(assetChain, config.assetId!, declaredByPartition), ct);
 
             if (partitions.IsFailure)
             {
@@ -507,6 +514,9 @@ public class ProjectTokenService : IProjectTokenService, IProjectTokenProvisioni
         config.successCriteria = declaration.SuccessCriteria ?? config.successCriteria;
         config.updatedAt = DateTime.UtcNow;
     }
+
+    /// <summary>The one request key a config row's stake is ever created under.</summary>
+    private static string GenesisIdempotencyKey(string configId) => $"project-token-genesis:{configId}";
 
     /// <summary>Creates the declared, still-unprovisioned config row. Never marks anything fundable.</summary>
     private async Task<ProjectTokenConfig> CreateDeclaredConfigAsync(
@@ -1313,7 +1323,9 @@ public class ProjectTokenService : IProjectTokenService, IProjectTokenProvisioni
         var chain = string.IsNullOrWhiteSpace(leg.holdChain) ? _chainType : leg.holdChain!;
         var reference = new AzoaHoldReference(chain, leg.holdId!);
         var workerHoldId = ProjectAwardHold.WorkerWindowIdFor(leg.holdId!);
-        var releasesAt = DateTimeOffset.UtcNow.AddDays(_awardWindowDays);
+        // F31: the node keys the continuation on the WHOLE intent, so every retry must send the
+        // same instant. See Services/Implementations/AGENTS.md §award-window-instant.
+        var releasesAt = await ResolveWorkerWindowAsync(leg, chain, workerHoldId, ct);
 
         // A plain release cannot express "yours, and restricted until the window elapses", so
         // the escrow hold is CONTINUED into the recipient's own hold. Nothing leaves the node's
@@ -1324,7 +1336,9 @@ public class ProjectTokenService : IProjectTokenService, IProjectTokenProvisioni
                 workerHoldId,
                 recipientAvatar.Value,
                 ReleaseNotBefore: releasesAt,
-                AutoRelease: true,
+                // The node's direct hold door refuses auto-release without a release mandate
+                // (see Infrastructure/Azoa/AGENTS.md §Hold commands); the window is enforced here.
+                AutoRelease: false,
                 Purpose: ProjectAwardHold.WorkerWindowPurpose),
             ct);
 
@@ -1384,6 +1398,39 @@ public class ProjectTokenService : IProjectTokenService, IProjectTokenProvisioni
             leg.id, actorUserId, leg.recipientUserId, releasesAt);
 
         return null;
+    }
+
+    /// <summary>
+    /// The worker window's release instant: the one the node already committed for this window,
+    /// else the leg's pinned instant, deciding and SAVING it (whole seconds) before first use.
+    /// </summary>
+    private async Task<DateTimeOffset> ResolveWorkerWindowAsync(
+        TokenAllocation leg,
+        string chain,
+        string workerHoldId,
+        CancellationToken ct)
+    {
+        // The node is the authority once it has continued the hold: a local rollback after its
+        // commit (or a lost response) must replay ITS instant, to the tick, or be refused.
+        var committed = await _holds!.GetAsync(new AzoaHoldReference(chain, workerHoldId), ct);
+        if (committed is { IsSuccess: true, Value: { ReleaseNotBefore: { } adopted } window }
+            && string.Equals(window.HoldId, workerHoldId, StringComparison.Ordinal))
+        {
+            return adopted;
+        }
+
+        if (leg.workerHoldReleasesAt is null)
+        {
+            // Whole seconds: the column keeps milliseconds, so a finer instant would come back
+            // from the database different from the one first sent.
+            var decided = DateTime.UtcNow.AddDays(_awardWindowDays);
+            leg.workerHoldReleasesAt = new DateTime(
+                decided.Ticks - decided.Ticks % TimeSpan.TicksPerSecond, DateTimeKind.Utc);
+            await _allocationRepo.UpdateAsync(leg, ct);
+            await _unitOfWork.SaveChangesAsync(ct);
+        }
+
+        return new DateTimeOffset(DateTime.SpecifyKind(leg.workerHoldReleasesAt.Value, DateTimeKind.Utc));
     }
 
     /// <summary>The node's live state for one hold, or null when it could not be read.</summary>

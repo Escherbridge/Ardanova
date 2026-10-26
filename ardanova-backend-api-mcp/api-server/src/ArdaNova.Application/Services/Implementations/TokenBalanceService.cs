@@ -286,6 +286,7 @@ public class TokenBalanceService : ITokenBalanceService
             tb.holderClass == holderClass;
 
         var balance = await _tokenBalanceRepository.FindOneAsync(predicate, ct);
+        var isNew = balance == null;
 
         if (balance == null)
         {
@@ -327,7 +328,10 @@ public class TokenBalanceService : ITokenBalanceService
             balance.isLiquid = liquidResult.Value;
         }
 
-        await _tokenBalanceRepository.UpdateAsync(balance, ct);
+        // Update() on a just-Added row re-marks it Modified, so the first credit became an
+        // UPDATE of a row that did not exist (0 rows -> DbUpdateConcurrencyException).
+        if (!isNew)
+            await _tokenBalanceRepository.UpdateAsync(balance, ct);
         await _unitOfWork.SaveChangesAsync(ct);
 
         var dto = _mapper.Map<TokenBalanceDto>(balance);

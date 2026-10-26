@@ -25,11 +25,15 @@ public interface IAzoaNodeClient
         CancellationToken ct = default);
 
     /// <summary>
-    /// Post to an allocation, fungible-mint or reserve-partition route; all other paths are
+    /// Post to a fungible-mint, fungible-creation step or reserve-partition route; all other paths are
     /// rejected before network I/O. The implementation states the exact allowance.
     /// </summary>
     Task<Result<T>> PostAsync<T>(
         string path, object? body, CancellationToken ct = default);
+
+    /// <summary>Same allowance as <see cref="PostAsync{T}(string, object?, CancellationToken)"/>, carrying an <c>Idempotency-Key</c>.</summary>
+    Task<Result<T>> PostAsync<T>(
+        string path, object? body, string idempotencyKey, CancellationToken ct = default);
 }
 
 /// <summary>Transport restricted to tenant custodial-account endpoints.</summary>

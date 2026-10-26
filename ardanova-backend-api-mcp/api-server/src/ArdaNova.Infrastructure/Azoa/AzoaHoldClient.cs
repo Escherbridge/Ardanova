@@ -1,6 +1,8 @@
 namespace ArdaNova.Infrastructure.Azoa;
 
 using System.Net.Http.Json;
+using System.Security.Cryptography;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using ArdaNova.Application.Common.Results;
 using ArdaNova.Application.Services.Implementations;
@@ -10,30 +12,22 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 /// <summary>
-/// The ONE adapter every ArdaNova caller uses for the node's HOLD surface (D14 / W3.4).
+/// The ONE adapter every ArdaNova caller uses for the node's HOLD surface (D14 / W3.4),
+/// speaking the node's keyed command door <c>/api/hold-commands</c>.
 /// </summary>
 /// <remarks>
-/// A hold is how "these units are yours" stops being a promise in ArdaNova's database and
-/// becomes a commitment the node's reserve ledger has actually drawn. Opening a hold is the
-/// point at which the node — not this database — decides whether a named partition can still
-/// afford the award, which is why every worker award goes through here rather than through a
-/// local supply counter.
-/// <para>
-/// It carries the scoped value credential to <c>/api/holds</c> only, the same route-family
-/// restriction the other typed clients apply (see this directory's AGENTS.md), and it never
-/// lets a node message reach a caller verbatim — <see cref="AzoaNodeClient.SendAsync"/> maps
-/// status codes to stable public text first.
-/// </para>
-/// <para>
-/// Amounts are opaque whole base-unit strings. ArdaNova has already decided them at the
-/// asset's scale; the node derives no economics of its own (AZOA contract sections 1 and 3).
-/// </para>
+/// Every award hold is reserve-funded, so each command is a LOCAL node transition that
+/// completes synchronously. Route shapes, the derived hold-record id and the auto-release
+/// limit: see this directory's AGENTS.md §Hold commands.
 /// </remarks>
 public sealed class AzoaHoldClient : IAzoaHoldGateway
 {
-    private const string HoldsPath = "/api/holds";
-    private const string HoldsPrefix = HoldsPath + "/";
+    private const string CommandsPath = "/api/hold-commands";
+    private const string ReserveAssetsPath = CommandsPath + "/reserve-assets";
+    private const string LiabilitiesPrefix = CommandsPath + "/liabilities/";
     private const int MaximumHoldIdLength = 128;
+    private const int HoldRecordIdLength = 64;
+    private const string ReserveFunding = "Reserve";
 
     private readonly HttpClient _http;
     private readonly ILogger<AzoaHoldClient> _logger;
@@ -50,7 +44,7 @@ public sealed class AzoaHoldClient : IAzoaHoldGateway
     }
 
     /// <inheritdoc />
-    public Task<Result<AzoaHold>> OpenAsync(
+    public async Task<Result<AzoaHold>> OpenAsync(
         AzoaHoldOpenRequest request,
         CancellationToken ct = default)
     {
@@ -72,31 +66,63 @@ public sealed class AzoaHoldClient : IAzoaHoldGateway
         if (request.BeneficiaryAvatarId == Guid.Empty)
             return Refused("A hold needs the person the units are held for.");
 
+        if (request.AutoRelease)
+            return Refused(AutoReleaseRefusal);
+
         var chain = ResolveChain(request.Reference.ChainType);
         if (!IsUsableSegment(chain))
             return Refused("A hold must name a rail this deployment can address.");
 
-        var message = new HttpRequestMessage(HttpMethod.Post, HoldsPath)
+        if (ResolveTenantUser() is not { } tenantUser)
+            return Result<AzoaHold>.Failure(TenantUnsetError);
+
+        var assets = await ListReserveAssetsAsync(ct);
+        if (assets.IsFailure)
+            return Rewrap<List<AzoaHoldReserveAssetWire>>(assets);
+
+        var asset = assets.Value!
+            .Select(candidate => candidate.Asset)
+            .FirstOrDefault(candidate => candidate is not null
+                && string.Equals(candidate.ChainType, chain, StringComparison.Ordinal)
+                && string.Equals(candidate.AssetId, request.AssetId.Trim(), StringComparison.Ordinal));
+        if (asset is null)
         {
-            Content = JsonContent.Create(new AzoaHoldOpenWire
+            return Result<AzoaHold>.NotFound(
+                "This stake is not registered with the shared node's reserve under this platform's account, "
+                + "so nothing was set aside.");
+        }
+
+        var holdId = request.Reference.HoldId.Trim();
+        var intent = new AzoaHoldIntentWire
+        {
+            RequestKey = "open:" + holdId,
+            Kind = AzoaHoldCommandKinds.Open,
+            HoldId = holdId,
+            ActorUserId = tenantUser,
+            OwnerUserId = tenantUser,
+            Asset = asset,
+            Definition = new AzoaHoldDefinitionWire
             {
-                Chain = chain,
-                HoldId = request.Reference.HoldId,
-                AssetId = request.AssetId,
-                Amount = request.AmountBaseUnits,
-                ReservePartition = request.ReservePartition,
+                Asset = asset,
+                QuantityBaseUnits = request.AmountBaseUnits.Trim(),
+                FundingSource = ReserveFunding,
                 BeneficiaryUserId = request.BeneficiaryAvatarId,
+                ReservePartition = request.ReservePartition.Trim(),
                 ReleaseNotBefore = request.ReleaseNotBefore,
-                AutoRelease = request.AutoRelease,
+                AutoRelease = false,
                 Purpose = request.Purpose,
-            }),
+            },
         };
 
-        return SendAsync(message, IsHoldCollectionPath(HoldsPath), ct);
+        var view = await StartAsync(intent, ct);
+        if (view.IsFailure)
+            return Rewrap<AzoaHoldCommandViewWire>(view);
+
+        return FromCommand(view.Value!, request.ReservePartition.Trim(), request.ReleaseNotBefore, null);
     }
 
     /// <inheritdoc />
-    public Task<Result<AzoaHold>> ReleaseIntoHoldAsync(
+    public async Task<Result<AzoaHold>> ReleaseIntoHoldAsync(
         AzoaHoldChainRequest request,
         CancellationToken ct = default)
     {
@@ -112,27 +138,43 @@ public sealed class AzoaHoldClient : IAzoaHoldGateway
         if (request.NextBeneficiaryAvatarId == Guid.Empty)
             return Refused("Continuing a hold needs the person the units are held for next.");
 
+        if (request.AutoRelease)
+            return Refused(AutoReleaseRefusal);
+
         if (DescribeUnusableChain(request.Reference) is { } badChain)
             return Refused(badChain);
 
-        var path = ActionPath(request.Reference, "release-into-hold");
-        var message = new HttpRequestMessage(HttpMethod.Post, path)
+        var held = await FindLiabilityAsync(request.Reference, ct);
+        if (held.IsFailure)
+            return Rewrap<AzoaHoldLiabilityWire>(held);
+
+        var liability = held.Value!;
+        var holdId = request.Reference.HoldId.Trim();
+        var nextHoldId = request.NextHoldId.Trim();
+        var intent = new AzoaHoldIntentWire
         {
-            Content = JsonContent.Create(new AzoaHoldChainWire
-            {
-                NextHoldId = request.NextHoldId,
-                NextBeneficiaryUserId = request.NextBeneficiaryAvatarId,
-                ReleaseNotBefore = request.ReleaseNotBefore,
-                AutoRelease = request.AutoRelease,
-                Purpose = request.Purpose,
-            }),
+            RequestKey = "release-into-hold:" + holdId + ":" + nextHoldId,
+            Kind = AzoaHoldCommandKinds.ReleaseIntoHold,
+            HoldId = holdId,
+            ActorUserId = liability.OwnerUserId,
+            OwnerUserId = liability.OwnerUserId,
+            Asset = liability.Asset,
+            NextHoldId = nextHoldId,
+            NextBeneficiaryUserId = request.NextBeneficiaryAvatarId,
+            NextReleaseNotBefore = request.ReleaseNotBefore,
+            NextAutoRelease = false,
+            Reason = request.Purpose,
         };
 
-        return SendAsync(message, IsHoldActionPath(path), ct);
+        var view = await StartAsync(intent, ct);
+        if (view.IsFailure)
+            return Rewrap<AzoaHoldCommandViewWire>(view);
+
+        return FromCommand(view.Value!, liability.ReservePartition ?? string.Empty, liability.ReleaseNotBefore, nextHoldId);
     }
 
     /// <inheritdoc />
-    public Task<Result<AzoaHold>> RefundAsync(
+    public async Task<Result<AzoaHold>> RefundAsync(
         AzoaHoldReference reference,
         string? reason,
         CancellationToken ct = default)
@@ -143,17 +185,32 @@ public sealed class AzoaHoldClient : IAzoaHoldGateway
         if (DescribeUnusableChain(reference) is { } badChain)
             return Refused(badChain);
 
-        var path = ActionPath(reference, "refund");
-        var message = new HttpRequestMessage(HttpMethod.Post, path)
+        var held = await FindLiabilityAsync(reference, ct);
+        if (held.IsFailure)
+            return Rewrap<AzoaHoldLiabilityWire>(held);
+
+        var liability = held.Value!;
+        var holdId = reference.HoldId.Trim();
+        var intent = new AzoaHoldIntentWire
         {
-            Content = JsonContent.Create(new AzoaHoldSettlementWire { Reason = reason }),
+            RequestKey = "refund:" + holdId,
+            Kind = AzoaHoldCommandKinds.Refund,
+            HoldId = holdId,
+            ActorUserId = liability.OwnerUserId,
+            OwnerUserId = liability.OwnerUserId,
+            Asset = liability.Asset,
+            Reason = reason,
         };
 
-        return SendAsync(message, IsHoldActionPath(path), ct);
+        var view = await StartAsync(intent, ct);
+        if (view.IsFailure)
+            return Rewrap<AzoaHoldCommandViewWire>(view);
+
+        return FromCommand(view.Value!, liability.ReservePartition ?? string.Empty, liability.ReleaseNotBefore, null);
     }
 
     /// <inheritdoc />
-    public Task<Result<AzoaHold>> GetAsync(
+    public async Task<Result<AzoaHold>> GetAsync(
         AzoaHoldReference reference,
         CancellationToken ct = default)
     {
@@ -163,43 +220,100 @@ public sealed class AzoaHoldClient : IAzoaHoldGateway
         if (DescribeUnusableChain(reference) is { } badChain)
             return Refused(badChain);
 
-        var path = HoldsPrefix + ResolveChain(reference.ChainType) + "/" + reference.HoldId.Trim();
-        var message = new HttpRequestMessage(HttpMethod.Get, path);
-
-        return SendAsync(message, IsHoldReadPath(path), ct);
+        var held = await FindLiabilityAsync(reference, ct);
+        return held.IsFailure
+            ? Rewrap<AzoaHoldLiabilityWire>(held)
+            : Result<AzoaHold>.Success(FromLiability(held.Value!));
     }
 
-    /// <summary>Sends a hold call, refusing any path outside the hold route family.</summary>
-    private async Task<Result<AzoaHold>> SendAsync(
-        HttpRequestMessage message,
-        bool pathAllowed,
+    /// <summary>
+    /// The live liability a reference names. The node addresses a hold by a record id derived
+    /// from its custody identity, so each network this tenant's reserve exposes on the rail is
+    /// one candidate address.
+    /// </summary>
+    private async Task<Result<AzoaHoldLiabilityWire>> FindLiabilityAsync(
+        AzoaHoldReference reference,
         CancellationToken ct)
+    {
+        if (ResolveTenantUser() is not { } tenantUser)
+            return Result<AzoaHoldLiabilityWire>.Failure(TenantUnsetError);
+
+        var assets = await ListReserveAssetsAsync(ct);
+        if (assets.IsFailure)
+            return Rewrap<List<AzoaHoldReserveAssetWire>, AzoaHoldLiabilityWire>(assets);
+
+        var chain = ResolveChain(reference.ChainType);
+        var custodies = assets.Value!
+            .Select(candidate => candidate.Asset)
+            .Where(candidate => candidate is not null
+                && string.Equals(candidate.ChainType, chain, StringComparison.Ordinal)
+                && !string.IsNullOrWhiteSpace(candidate.ProtocolIdentity))
+            .Select(candidate => (candidate!.Network, candidate.ProtocolIdentity))
+            .Distinct()
+            .ToList();
+
+        foreach (var (network, protocolIdentity) in custodies)
+        {
+            var recordId = AzoaHoldRecordIdentity.For(
+                chain, network, protocolIdentity, custodyTenantId: null, tenantUser, reference.HoldId.Trim());
+            if (recordId is null)
+                continue;
+
+            var path = LiabilitiesPrefix + recordId;
+            var read = await SendAsync<AzoaHoldLiabilityWire>(
+                new HttpRequestMessage(HttpMethod.Get, path), IsLiabilityReadPath(path), ct);
+            if (read.IsSuccess && read.Value!.Asset is not null)
+                return read;
+
+            if (read.IsFailure && read.Type != ResultType.NotFound)
+                return read;
+        }
+
+        return Result<AzoaHoldLiabilityWire>.NotFound("The shared node holds nothing under this reference.");
+    }
+
+    private Task<Result<List<AzoaHoldReserveAssetWire>>> ListReserveAssetsAsync(CancellationToken ct)
+        => SendAsync<List<AzoaHoldReserveAssetWire>>(
+            new HttpRequestMessage(HttpMethod.Get, ReserveAssetsPath), IsReserveAssetsPath(ReserveAssetsPath), ct);
+
+    private Task<Result<AzoaHoldCommandViewWire>> StartAsync(AzoaHoldIntentWire intent, CancellationToken ct)
+        => SendAsync<AzoaHoldCommandViewWire>(
+            new HttpRequestMessage(HttpMethod.Post, CommandsPath)
+            {
+                Content = JsonContent.Create(new AzoaHoldStartWire { Intent = intent }),
+            },
+            IsCommandStartPath(CommandsPath),
+            ct);
+
+    /// <summary>Sends a hold call, refusing any path outside the hold route family.</summary>
+    private async Task<Result<T>> SendAsync<T>(HttpRequestMessage message, bool pathAllowed, CancellationToken ct)
     {
         if (!pathAllowed)
         {
             message.Dispose();
-            return Result<AzoaHold>.Forbidden(
-                "The AZOA value credential is restricted to hold endpoints.");
+            return Result<T>.Forbidden("The AZOA value credential is restricted to hold endpoints.");
         }
 
-        var wire = await AzoaNodeClient.SendAsync<AzoaHoldWire>(_http, _logger, message, ct);
-        if (wire.IsFailure)
-            return MapFailure(wire);
-
-        return Result<AzoaHold>.Success(FromWire(wire.Value!));
+        return await AzoaNodeClient.SendAsync<T>(_http, _logger, message, ct);
     }
+
+    private Guid? ResolveTenantUser()
+        => Guid.TryParse(_settings.TenantId, out var tenant) && tenant != Guid.Empty ? tenant : null;
 
     private string ResolveChain(string? chainType)
         => string.IsNullOrWhiteSpace(chainType) ? _settings.ChainType : chainType.Trim();
-
-    private string ActionPath(AzoaHoldReference reference, string action)
-        => HoldsPrefix + ResolveChain(reference.ChainType) + "/" + reference.HoldId.Trim() + "/" + action;
 
     /// <summary>Null when the reference's rail is a usable path segment; the refusal otherwise.</summary>
     private string? DescribeUnusableChain(AzoaHoldReference reference)
         => IsUsableSegment(ResolveChain(reference.ChainType))
             ? null
             : "A hold must name a rail this deployment can address.";
+
+    private const string TenantUnsetError =
+        "The shared node's hold surface needs this platform's tenant account (Azoa:TenantId), which is not configured.";
+
+    private const string AutoReleaseRefusal =
+        "The shared node cannot release a hold on its own without a release mandate, so this hold must ask to be released.";
 
     /// <summary>Null when the reference can address a hold; the person-facing refusal otherwise.</summary>
     private static string? DescribeUnusableReference(AzoaHoldReference? reference)
@@ -214,14 +328,10 @@ public sealed class AzoaHoldClient : IAzoaHoldGateway
                 + " letters, digits, dots, dashes or underscores.";
     }
 
-    /// <summary>The id alphabet, applied before an id can reach a URL segment.</summary>
+    /// <summary>The id alphabet, applied before an id can reach a request key or record id.</summary>
     private static bool IsUsableHoldId(string? holdId) => IsUsableSegment(holdId);
 
-    /// <summary>
-    /// One path segment, unescaped. Escaping would satisfy the transport's own safety check
-    /// while still handing the node a different id than the one this database recorded, so a
-    /// value that is not already a clean segment is refused instead of encoded.
-    /// </summary>
+    /// <summary>One clean segment: a value outside the alphabet is refused, never encoded.</summary>
     private static bool IsUsableSegment(string? value)
     {
         if (string.IsNullOrWhiteSpace(value))
@@ -249,106 +359,291 @@ public sealed class AzoaHoldClient : IAzoaHoldGateway
         return trimmed.All(char.IsAsciiDigit) && trimmed.Any(character => character != '0');
     }
 
-    /// <summary>POST target: the hold collection itself.</summary>
-    private static bool IsHoldCollectionPath(string? path)
-        => AzoaNodePathPolicy.IsSafeApiPath(path)
-            && string.Equals(path, HoldsPath, StringComparison.Ordinal);
+    /// <summary>POST target: the keyed command door itself.</summary>
+    private static bool IsCommandStartPath(string? path)
+        => AzoaNodePathPolicy.IsSafeApiPath(path) && string.Equals(path, CommandsPath, StringComparison.Ordinal);
 
-    /// <summary>POST target: exactly one hold's release, refund or continuation.</summary>
-    private static bool IsHoldActionPath(string? path)
-        => AzoaNodePathPolicy.IsSafeApiPath(path)
-            && path!.StartsWith(HoldsPrefix, StringComparison.Ordinal)
-            && path.Split('/') is { Length: 6 } segments
-            && segments[^1] is "release" or "refund" or "release-into-hold";
+    /// <summary>GET target: the reserve assets this tenant may open holds against.</summary>
+    private static bool IsReserveAssetsPath(string? path)
+        => AzoaNodePathPolicy.IsSafeApiPath(path) && string.Equals(path, ReserveAssetsPath, StringComparison.Ordinal);
 
-    /// <summary>GET target: exactly one hold.</summary>
-    private static bool IsHoldReadPath(string? path)
+    /// <summary>GET target: exactly one liability, addressed by its lowercase-hex record id.</summary>
+    private static bool IsLiabilityReadPath(string? path)
         => AzoaNodePathPolicy.IsSafeApiPath(path)
-            && path!.StartsWith(HoldsPrefix, StringComparison.Ordinal)
-            && path.Split('/').Length == 5;
+            && path!.StartsWith(LiabilitiesPrefix, StringComparison.Ordinal)
+            && path[LiabilitiesPrefix.Length..] is { Length: HoldRecordIdLength } recordId
+            && recordId.All(character => char.IsAsciiDigit(character) || character is >= 'a' and <= 'f');
 
-    /// <summary>Projects the node's hold view onto the Application-owned shape.</summary>
-    private static AzoaHold FromWire(AzoaHoldWire wire)
+    /// <summary>Projects a completed command's view onto the Application-owned hold shape.</summary>
+    private static Result<AzoaHold> FromCommand(
+        AzoaHoldCommandViewWire view,
+        string reservePartition,
+        DateTimeOffset? releaseNotBefore,
+        string? childHoldId)
+    {
+        if (view.State is AzoaHoldCommandStates.Cancelled or AzoaHoldCommandStates.FailedNoEffect)
+            return Result<AzoaHold>.BadRequest("AZOA node declined the request; nothing was moved.");
+
+        var holdState = view.State == AzoaHoldCommandStates.Completed
+            ? view.Kind switch
+            {
+                AzoaHoldCommandKinds.Open => AzoaHoldStates.Held,
+                AzoaHoldCommandKinds.Refund => AzoaHoldStates.Refunded,
+                AzoaHoldCommandKinds.ReleaseIntoHold => AzoaHoldStates.ReleasedIntoHold,
+                _ => AzoaHoldStates.Unknown,
+            }
+            : AzoaHoldStates.Pending;
+
+        return Result<AzoaHold>.Success(new AzoaHold(
+            HoldId: view.HoldId ?? string.Empty,
+            ChainType: view.Asset?.ChainType ?? string.Empty,
+            AssetId: view.Asset?.AssetId ?? string.Empty,
+            AmountBaseUnits: view.QuantityBaseUnits ?? string.Empty,
+            ReservePartition: reservePartition,
+            BeneficiaryReference: view.BeneficiaryUserId?.ToString(),
+            State: holdState,
+            ReleaseNotBefore: releaseNotBefore,
+            AutoRelease: false,
+            ParentHoldId: null,
+            ChildHoldId: holdState == AzoaHoldStates.ReleasedIntoHold ? childHoldId : null));
+    }
+
+    /// <summary>Projects the node's liability view onto the Application-owned hold shape.</summary>
+    private static AzoaHold FromLiability(AzoaHoldLiabilityWire wire)
         => new(
             HoldId: wire.HoldId ?? string.Empty,
-            ChainType: wire.Chain ?? string.Empty,
-            AssetId: wire.AssetId ?? string.Empty,
-            AmountBaseUnits: wire.Amount ?? string.Empty,
+            ChainType: wire.Asset?.ChainType ?? string.Empty,
+            AssetId: wire.Asset?.AssetId ?? string.Empty,
+            AmountBaseUnits: wire.QuantityBaseUnits ?? string.Empty,
             ReservePartition: wire.ReservePartition ?? string.Empty,
-            BeneficiaryReference: wire.BeneficiaryUserId,
-            State: wire.State ?? AzoaHoldStates.Unknown,
+            BeneficiaryReference: wire.BeneficiaryUserId?.ToString(),
+            State: string.IsNullOrWhiteSpace(wire.State) ? AzoaHoldStates.Unknown : wire.State,
             ReleaseNotBefore: wire.ReleaseNotBefore,
             AutoRelease: wire.AutoRelease,
-            ParentHoldId: wire.ParentHoldId,
-            ChildHoldId: wire.ChildHoldId);
+            ParentHoldId: null,
+            ChildHoldId: null);
+
+    private static Result<AzoaHold> Rewrap<TSource>(Result<TSource> source)
+        => Rewrap<TSource, AzoaHold>(source);
 
     /// <summary>Re-wraps a transport failure, keeping the result type (including KYC_FORBIDDEN).</summary>
-    private static Result<AzoaHold> MapFailure(Result<AzoaHoldWire> source)
+    private static Result<TOut> Rewrap<TSource, TOut>(Result<TSource> source)
     {
         var error = source.Error ?? "The AZOA hold call failed.";
         return source.Type switch
         {
-            ResultType.NotFound => Result<AzoaHold>.NotFound(error),
-            ResultType.Forbidden => Result<AzoaHold>.Forbidden(error),
-            ResultType.Unauthorized => Result<AzoaHold>.Unauthorized(error),
-            ResultType.Conflict => Result<AzoaHold>.Conflict(error),
-            ResultType.ValidationError => Result<AzoaHold>.ValidationError(error),
-            ResultType.BadRequest => Result<AzoaHold>.BadRequest(error),
-            _ => Result<AzoaHold>.Failure(error),
+            ResultType.NotFound => Result<TOut>.NotFound(error),
+            ResultType.Forbidden => Result<TOut>.Forbidden(error),
+            ResultType.Unauthorized => Result<TOut>.Unauthorized(error),
+            ResultType.Conflict => Result<TOut>.Conflict(error),
+            ResultType.ValidationError => Result<TOut>.ValidationError(error),
+            ResultType.BadRequest => Result<TOut>.BadRequest(error),
+            _ => Result<TOut>.Failure(error),
         };
     }
 
-    private static Task<Result<AzoaHold>> Refused(string reason)
-        => Task.FromResult(Result<AzoaHold>.ValidationError(reason));
+    private static Result<AzoaHold> Refused(string reason) => Result<AzoaHold>.ValidationError(reason);
 }
 
-/// <summary>Wire body of an open call. The acting tenant is the credential's, never a field.</summary>
-internal sealed class AzoaHoldOpenWire
+/// <summary>Command kinds the hold door admits for reserve-funded holds.</summary>
+internal static class AzoaHoldCommandKinds
 {
-    [JsonPropertyName("chain")] public string Chain { get; set; } = string.Empty;
+    public const string Open = "Open";
+    public const string Refund = "Refund";
+    public const string ReleaseIntoHold = "ReleaseIntoHold";
+}
+
+/// <summary>Command (not hold) states the door reports; 200 for the last three, 202 otherwise.</summary>
+internal static class AzoaHoldCommandStates
+{
+    public const string Completed = "Completed";
+    public const string Cancelled = "Cancelled";
+    public const string FailedNoEffect = "FailedNoEffect";
+}
+
+/// <summary>
+/// The node's hold-record id: SHA-256 over canonical JSON of the custody identity, mirroring
+/// <c>HoldCommandIdentity.Hold</c> (domain <c>hold-custody-v1</c>). See AGENTS.md §Hold commands.
+/// </summary>
+internal static class AzoaHoldRecordIdentity
+{
+    private const string Domain = "hold-custody-v1";
+
+    /// <summary>The record id, or null when the network word is not one the node defines.</summary>
+    public static string? For(
+        string chainType,
+        string? network,
+        string protocolIdentity,
+        Guid? custodyTenantId,
+        Guid ownerUserId,
+        string holdId)
+    {
+        // The node hashes ChainNetwork with default serializer options, i.e. as its ordinal.
+        int? ordinal = network switch
+        {
+            "Devnet" => 0,
+            "Testnet" => 1,
+            "Mainnet" => 2,
+            _ => null,
+        };
+        if (ordinal is null)
+            return null;
+
+        var element = JsonSerializer.SerializeToElement(new
+        {
+            Domain,
+            ChainType = chainType,
+            Network = ordinal.Value,
+            ProtocolIdentity = protocolIdentity,
+            CustodyTenantId = custodyTenantId,
+            OwnerUserId = ownerUserId,
+            HoldId = holdId,
+        });
+
+        using var stream = new MemoryStream();
+        using (var writer = new Utf8JsonWriter(stream))
+            WriteCanonical(writer, element);
+
+        return Convert.ToHexStringLower(SHA256.HashData(stream.ToArray()));
+    }
+
+    /// <summary>Ordinal key sort, array order and raw number tokens preserved (node CanonicalJson).</summary>
+    private static void WriteCanonical(Utf8JsonWriter writer, JsonElement value)
+    {
+        switch (value.ValueKind)
+        {
+            case JsonValueKind.Object:
+                writer.WriteStartObject();
+                foreach (var property in value.EnumerateObject().OrderBy(item => item.Name, StringComparer.Ordinal))
+                {
+                    writer.WritePropertyName(property.Name);
+                    WriteCanonical(writer, property.Value);
+                }
+                writer.WriteEndObject();
+                break;
+            case JsonValueKind.Array:
+                writer.WriteStartArray();
+                foreach (var item in value.EnumerateArray())
+                    WriteCanonical(writer, item);
+                writer.WriteEndArray();
+                break;
+            case JsonValueKind.Number:
+                writer.WriteRawValue(value.GetRawText());
+                break;
+            case JsonValueKind.String:
+                writer.WriteStringValue(value.GetString());
+                break;
+            case JsonValueKind.True:
+                writer.WriteBooleanValue(true);
+                break;
+            case JsonValueKind.False:
+                writer.WriteBooleanValue(false);
+                break;
+            default:
+                writer.WriteNullValue();
+                break;
+        }
+    }
+}
+
+/// <summary>Body of <c>POST /api/hold-commands</c> (node <c>HoldStartRequest</c>). Reserve holds name no wallet.</summary>
+internal sealed class AzoaHoldStartWire
+{
+    [JsonPropertyName("intent")] public AzoaHoldIntentWire Intent { get; set; } = new();
+    [JsonPropertyName("senderWalletId")] public Guid? SenderWalletId { get; set; }
+    [JsonPropertyName("recipientWalletId")] public Guid? RecipientWalletId { get; set; }
+}
+
+/// <summary>
+/// Node <c>HoldCommandIntent</c>. Tenant and custody tenant stay null: a plain tenant key carries
+/// no acting-tenant claim, and the node requires the intent to match the captured credential.
+/// </summary>
+internal sealed class AzoaHoldIntentWire
+{
+    [JsonPropertyName("version")] public int Version { get; set; } = 1;
+    [JsonPropertyName("requestKey")] public string RequestKey { get; set; } = string.Empty;
+    [JsonPropertyName("kind")] public string Kind { get; set; } = string.Empty;
     [JsonPropertyName("holdId")] public string HoldId { get; set; } = string.Empty;
-    [JsonPropertyName("assetId")] public string AssetId { get; set; } = string.Empty;
-
-    /// <summary>Base units of the held asset, as a whole decimal string.</summary>
-    [JsonPropertyName("amount")] public string Amount { get; set; } = string.Empty;
-
-    [JsonPropertyName("reservePartition")] public string ReservePartition { get; set; } = string.Empty;
-    [JsonPropertyName("beneficiaryUserId")] public Guid BeneficiaryUserId { get; set; }
-    [JsonPropertyName("releaseNotBefore")] public DateTimeOffset? ReleaseNotBefore { get; set; }
-    [JsonPropertyName("autoRelease")] public bool AutoRelease { get; set; }
-    [JsonPropertyName("purpose")] public string? Purpose { get; set; }
-}
-
-/// <summary>Wire body of a release-into-hold call.</summary>
-internal sealed class AzoaHoldChainWire
-{
-    [JsonPropertyName("nextHoldId")] public string NextHoldId { get; set; } = string.Empty;
-    [JsonPropertyName("nextBeneficiaryUserId")] public Guid NextBeneficiaryUserId { get; set; }
-    [JsonPropertyName("releaseNotBefore")] public DateTimeOffset? ReleaseNotBefore { get; set; }
-    [JsonPropertyName("autoRelease")] public bool AutoRelease { get; set; }
-    [JsonPropertyName("purpose")] public string? Purpose { get; set; }
-}
-
-/// <summary>Wire body of a release or refund call.</summary>
-internal sealed class AzoaHoldSettlementWire
-{
+    [JsonPropertyName("actorUserId")] public Guid ActorUserId { get; set; }
+    [JsonPropertyName("ownerUserId")] public Guid OwnerUserId { get; set; }
+    [JsonPropertyName("tenantId")] public Guid? TenantId { get; set; }
+    [JsonPropertyName("custodyTenantId")] public Guid? CustodyTenantId { get; set; }
+    [JsonPropertyName("asset")] public AzoaHoldAssetWire? Asset { get; set; }
+    [JsonPropertyName("definition")] public AzoaHoldDefinitionWire? Definition { get; set; }
+    [JsonPropertyName("nextHoldId")] public string? NextHoldId { get; set; }
+    [JsonPropertyName("nextBeneficiaryUserId")] public Guid? NextBeneficiaryUserId { get; set; }
+    [JsonPropertyName("nextReleaseNotBefore")] public DateTimeOffset? NextReleaseNotBefore { get; set; }
+    [JsonPropertyName("nextAutoRelease")] public bool NextAutoRelease { get; set; }
     [JsonPropertyName("reason")] public string? Reason { get; set; }
 }
 
-/// <summary>Wire shape of one hold as the node reports it. No address, no rail reference.</summary>
-internal sealed class AzoaHoldWire
+/// <summary>Node <c>HoldAssetIdentity</c>, echoed verbatim from the node's own reads.</summary>
+internal sealed record AzoaHoldAssetWire
 {
-    [JsonPropertyName("holdId")] public string? HoldId { get; set; }
-    [JsonPropertyName("chain")] public string? Chain { get; set; }
-    [JsonPropertyName("assetId")] public string? AssetId { get; set; }
-    [JsonPropertyName("amount")] public string? Amount { get; set; }
+    [JsonPropertyName("chainType")] public string ChainType { get; init; } = string.Empty;
+
+    /// <summary><c>ChainNetwork</c> as the node's string-enum converter writes it.</summary>
+    [JsonPropertyName("network")] public string Network { get; init; } = string.Empty;
+
+    [JsonPropertyName("protocolIdentity")] public string ProtocolIdentity { get; init; } = string.Empty;
+    [JsonPropertyName("assetId")] public string AssetId { get; init; } = string.Empty;
+    [JsonPropertyName("holdingAddress")] public string HoldingAddress { get; init; } = string.Empty;
+}
+
+/// <summary>Node <c>HoldDefinition</c> for a reserve-funded opening.</summary>
+internal sealed class AzoaHoldDefinitionWire
+{
+    [JsonPropertyName("asset")] public AzoaHoldAssetWire? Asset { get; set; }
+
+    /// <summary>Base units of the held asset, as a whole decimal string.</summary>
+    [JsonPropertyName("quantityBaseUnits")] public string QuantityBaseUnits { get; set; } = string.Empty;
+
+    [JsonPropertyName("fundingSource")] public string FundingSource { get; set; } = string.Empty;
+    [JsonPropertyName("beneficiaryUserId")] public Guid BeneficiaryUserId { get; set; }
+    [JsonPropertyName("funderUserId")] public Guid? FunderUserId { get; set; }
     [JsonPropertyName("reservePartition")] public string? ReservePartition { get; set; }
-    [JsonPropertyName("beneficiaryUserId")] public string? BeneficiaryUserId { get; set; }
-    [JsonPropertyName("state")] public string? State { get; set; }
     [JsonPropertyName("releaseNotBefore")] public DateTimeOffset? ReleaseNotBefore { get; set; }
     [JsonPropertyName("autoRelease")] public bool AutoRelease { get; set; }
-    [JsonPropertyName("parentHoldId")] public string? ParentHoldId { get; set; }
-    [JsonPropertyName("childHoldId")] public string? ChildHoldId { get; set; }
+    [JsonPropertyName("purpose")] public string? Purpose { get; set; }
+}
+
+/// <summary>Node <c>HoldCommandView</c>: command progress plus the resulting hold identity.</summary>
+internal sealed class AzoaHoldCommandViewWire
+{
+    [JsonPropertyName("operationId")] public string? OperationId { get; set; }
+    [JsonPropertyName("kind")] public string? Kind { get; set; }
+    [JsonPropertyName("state")] public string? State { get; set; }
+    [JsonPropertyName("holdRecordId")] public string? HoldRecordId { get; set; }
+    [JsonPropertyName("holdId")] public string? HoldId { get; set; }
+    [JsonPropertyName("asset")] public AzoaHoldAssetWire? Asset { get; set; }
+    [JsonPropertyName("quantityBaseUnits")] public string? QuantityBaseUnits { get; set; }
+    [JsonPropertyName("beneficiaryUserId")] public Guid? BeneficiaryUserId { get; set; }
+    [JsonPropertyName("nextHoldRecordId")] public string? NextHoldRecordId { get; set; }
+}
+
+/// <summary>Node <c>HoldLiabilityView</c>: one hold as the node currently records it.</summary>
+internal sealed class AzoaHoldLiabilityWire
+{
+    [JsonPropertyName("holdRecordId")] public string? HoldRecordId { get; set; }
+    [JsonPropertyName("holdId")] public string? HoldId { get; set; }
+    [JsonPropertyName("asset")] public AzoaHoldAssetWire? Asset { get; set; }
+    [JsonPropertyName("quantityBaseUnits")] public string? QuantityBaseUnits { get; set; }
+    [JsonPropertyName("state")] public string? State { get; set; }
+    [JsonPropertyName("ownerUserId")] public Guid OwnerUserId { get; set; }
+    [JsonPropertyName("beneficiaryUserId")] public Guid? BeneficiaryUserId { get; set; }
+    [JsonPropertyName("custodyTenantId")] public Guid? CustodyTenantId { get; set; }
+    [JsonPropertyName("fundingSource")] public string? FundingSource { get; set; }
+    [JsonPropertyName("reservePartition")] public string? ReservePartition { get; set; }
+    [JsonPropertyName("releaseNotBefore")] public DateTimeOffset? ReleaseNotBefore { get; set; }
+    [JsonPropertyName("autoRelease")] public bool AutoRelease { get; set; }
+}
+
+/// <summary>Node <c>HoldReserveAssetView</c>: an asset this caller's draw authority admits.</summary>
+internal sealed class AzoaHoldReserveAssetWire
+{
+    [JsonPropertyName("asset")] public AzoaHoldAssetWire? Asset { get; set; }
+    [JsonPropertyName("unitName")] public string? UnitName { get; set; }
+    [JsonPropertyName("decimals")] public int Decimals { get; set; }
 }
 
 /// <summary>

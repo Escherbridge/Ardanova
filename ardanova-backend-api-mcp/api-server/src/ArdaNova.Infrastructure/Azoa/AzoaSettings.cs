@@ -100,6 +100,9 @@ public class AzoaSettings
     /// </summary>
     public bool EnableCustodialAccounts { get; set; }
 
+    /// <summary>Dev-only: accept an http loopback hosted-verification URL (refused at boot in Production).</summary>
+    public bool AllowInsecureDevVerificationUrl { get; set; }
+
     /// <summary>
     /// GUID minted by AZOA when the ArdaNova tenant is provisioned (see the AZOA repo's
     /// docs/NODE-HOST.md, section 8.6). Required, and validated as a GUID, whenever

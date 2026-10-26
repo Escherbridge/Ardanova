@@ -112,6 +112,21 @@ namespace ArdaNova.Application.Services.Interfaces
             CancellationToken ct = default);
     }
 
+    /// <summary>The ARDA/USD price this deployment's on-ramp declares to the node at genesis, if any.</summary>
+    /// <remarks>See <c>Services/Implementations/AGENTS.md</c> section exchange-pricing.</remarks>
+    public interface IArdaGenesisPrice
+    {
+        /// <summary>Exact USD per whole ARDA, or null when this deployment declares no on-ramp price.</summary>
+        decimal? UsdPerWholeArda { get; }
+    }
+
+    /// <summary>The default: no on-ramp price declared, so a genesis treasury has no rate.</summary>
+    public sealed class NoArdaGenesisPrice : IArdaGenesisPrice
+    {
+        /// <inheritdoc />
+        public decimal? UsdPerWholeArda => null;
+    }
+
     /// <summary>What the node reports one avatar holds in one asset.</summary>
     public sealed record AvatarHolding(
         string AssetId,
@@ -246,15 +261,18 @@ namespace ArdaNova.Application.Services.Implementations
         private readonly IRepository<ProjectTokenConfig> _projectTokenConfigRepository;
         private readonly IRepository<PlatformTreasury> _treasuryRepository;
         private readonly IMapper _mapper;
+        private readonly IArdaGenesisPrice _genesisPrice;
 
         public ExchangeService(
             IRepository<ProjectTokenConfig> projectTokenConfigRepository,
             IRepository<PlatformTreasury> treasuryRepository,
-            IMapper mapper)
+            IMapper mapper,
+            IArdaGenesisPrice? genesisPrice = null)
         {
             _projectTokenConfigRepository = projectTokenConfigRepository;
             _treasuryRepository = treasuryRepository;
             _mapper = mapper;
+            _genesisPrice = genesisPrice ?? new NoArdaGenesisPrice();
         }
 
         public async Task<Result<double>> GetProjectTokenValueAsync(string projectTokenConfigId, CancellationToken ct = default)
@@ -484,7 +502,9 @@ namespace ArdaNova.Application.Services.Implementations
         /// and a genesis treasury - three bucket balances still at 0 - divides out to zero, which
         /// made an unhandled <c>DivideByZeroException</c> on a value path (OI-34). The guard lives
         /// here, at the one place the rate is produced, rather than at each division site.
-        /// <c>SwapService</c> refuses the identical computation in the same words.
+        /// <c>SwapService</c> refuses the identical computation in the same words. A treasury
+        /// that has issued NOTHING yet is priced at the on-ramp's declared genesis seed when the
+        /// deployment declares one - see <c>AGENTS.md</c> section exchange-pricing.
         /// </remarks>
         private async Task<Result<decimal>> GetArdaValueExactAsync(CancellationToken ct)
         {
@@ -496,8 +516,21 @@ namespace ArdaNova.Application.Services.Implementations
                 return Result<decimal>.Failure("Platform treasury not found");
             }
 
+            if (treasury.ardaCirculatingSupply < 0)
+            {
+                return Result<decimal>.Failure(
+                    "The treasury's circulating ARDA is below zero, so no rate can be quoted");
+            }
+
             if (treasury.ardaCirculatingSupply == 0)
             {
+                // Genesis: nothing issued, so there is no backing ratio to take. The seed the
+                // on-ramp declares to the node IS the rate until backing exists (OI-34).
+                if (_genesisPrice.UsdPerWholeArda is decimal seed && seed > 0)
+                {
+                    return Result<decimal>.Success(seed);
+                }
+
                 return Result<decimal>.Failure("Cannot calculate ARDA value: circulating supply is zero");
             }
 

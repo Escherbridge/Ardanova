@@ -52,8 +52,10 @@ public class ProjectFundingDeclarationTests
             _projectRepo.Object,
             _assets.Object,
             new Mock<IAzoaCustodialAccountService>().Object,
-            [new Mock<IAzoaProjectTokenNodeGateway>().Object]);
+            [_nodeGateway.Object]);
     }
+
+    private readonly Mock<IAzoaProjectTokenNodeGateway> _nodeGateway = new();
 
     private static ProjectTokenDeclaration Declaration(
         int totalSupply = 1_000,
@@ -249,7 +251,7 @@ public class ProjectFundingDeclarationTests
         // the leg after it needs a node nothing here is standing up.
         _assets
             .Setup(assets => assets.CreateFungibleASAAsync(
-                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<ulong>(), It.IsAny<CancellationToken>()))
+                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<ulong>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(Result<FungibleAsaCreateResult>.Failure("the stake rail is not wired in this test"));
 
         var result = await _sut.ProvisionAsync(
@@ -264,6 +266,101 @@ public class ProjectFundingDeclarationTests
         result.Error.Should().NotContain("at least")
             .And.NotContain("cannot be more than")
             .And.NotContain("finer than a cent");
+    }
+
+    [Fact]
+    public async Task ProvisionAsync_ARetriedDeclarationAsksUnderTheSameKey_AndANewConfigUnderANewOne()
+    {
+        // The node replays a creation by its request key. A retry after a failed or timed-out
+        // stake leg must present the SAME key (or a second asset strands the first), and a
+        // different config row must present a different one (or it replays someone else's).
+        ArrangeOwnedProject();
+
+        ProjectTokenConfig? stored = null;
+        _configRepo
+            .Setup(repository => repository.AddAsync(It.IsAny<ProjectTokenConfig>(), It.IsAny<CancellationToken>()))
+            .Returns((ProjectTokenConfig config, CancellationToken _) =>
+            {
+                stored = config;
+                return Task.FromResult(config);
+            });
+        _configRepo
+            .Setup(repository => repository.FindOneAsync(
+                It.IsAny<System.Linq.Expressions.Expression<System.Func<ProjectTokenConfig, bool>>>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(() => stored);
+
+        var keys = new List<string>();
+        _assets
+            .Setup(assets => assets.CreateFungibleASAAsync(
+                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<ulong>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Callback<string, string, ulong, string, CancellationToken>((_, _, _, key, _) => keys.Add(key))
+            .ReturnsAsync(Result<FungibleAsaCreateResult>.Failure("still being created on the node"));
+
+        await _sut.ProvisionAsync("proj-1", Declaration(), "owner-1");
+        var firstConfigId = stored!.id;
+        await _sut.ProvisionAsync("proj-1", Declaration(), "owner-1");
+        stored = null;
+        await _sut.ProvisionAsync("proj-1", Declaration(), "owner-1");
+
+        keys.Should().HaveCount(3);
+        keys[0].Should().Contain(firstConfigId, "the key is the config row's, not the attempt's");
+        keys[1].Should().Be(keys[0]);
+        keys[2].Should().NotBe(keys[0]);
+    }
+
+    [Theory]
+    [InlineData("Simulated", "Simulated")] // a Simulated node redirected the configured Algorand mint
+    [InlineData(null, "Algorand")]         // an issuer that reports no chain keeps the configured one
+    public async Task ProvisionAsync_RecordsTheChainTheStakeWasMintedOn_AndAsksTreasuryAndPartitionsThere(
+        string? reportedChain, string expectedChain)
+    {
+        // The treasury and the allowances must live where the asset does. Asking for them on the
+        // configured chain after a Simulated node minted elsewhere stopped every demo at treasury.
+        ArrangeOwnedProject();
+
+        ProjectTokenConfig? stored = null;
+        _configRepo
+            .Setup(repository => repository.AddAsync(It.IsAny<ProjectTokenConfig>(), It.IsAny<CancellationToken>()))
+            .Returns((ProjectTokenConfig config, CancellationToken _) =>
+            {
+                stored = config;
+                return Task.FromResult(config);
+            });
+        _configRepo
+            .Setup(repository => repository.FindOneAsync(
+                It.IsAny<System.Linq.Expressions.Expression<System.Func<ProjectTokenConfig, bool>>>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(() => stored);
+        _assets
+            .Setup(assets => assets.CreateFungibleASAAsync(
+                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<ulong>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<FungibleAsaCreateResult>.Success(
+                new FungibleAsaCreateResult { AssetId = "sim-asset-1", TxHash = "tx-1", ChainType = reportedChain }));
+
+        AzoaProjectTreasuryRequest? treasuryAsked = null;
+        _nodeGateway
+            .Setup(gateway => gateway.ResolveTreasuryAsync(It.IsAny<AzoaProjectTreasuryRequest>(), It.IsAny<CancellationToken>()))
+            .Callback<AzoaProjectTreasuryRequest, CancellationToken>((request, _) => treasuryAsked = request)
+            .ReturnsAsync((AzoaProjectTreasuryRequest request, CancellationToken _) =>
+                Result<AzoaProjectTreasury>.Success(
+                    new AzoaProjectTreasury(request.ChainType, request.ProjectReference, "sim:simulated:abc", "Open")));
+
+        AzoaReservePartitionRequest? partitionsAsked = null;
+        _nodeGateway
+            .Setup(gateway => gateway.DeclareReservePartitionsAsync(It.IsAny<AzoaReservePartitionRequest>(), It.IsAny<CancellationToken>()))
+            .Callback<AzoaReservePartitionRequest, CancellationToken>((request, _) => partitionsAsked = request)
+            .ReturnsAsync((AzoaReservePartitionRequest request, CancellationToken _) =>
+                Result<AzoaReservePartitions>.Success(
+                    new AzoaReservePartitions(request.AssetId, request.DeclaredBaseUnitsByPartition)));
+
+        var result = await _sut.ProvisionAsync("proj-1", Declaration(), "owner-1");
+
+        result.IsSuccess.Should().BeTrue(result.Error);
+        stored!.assetChain.Should().Be(expectedChain);
+        stored.treasuryChain.Should().Be(expectedChain);
+        treasuryAsked!.ChainType.Should().Be(expectedChain);
+        partitionsAsked!.ChainType.Should().Be(expectedChain);
     }
 }
 

@@ -307,6 +307,7 @@ public class AlgorandService : IAlgorandService
         string name,
         string unitName,
         ulong totalSupply,
+        string idempotencyKey, // Unused: the legacy signer posts straight to algod, which has no request-key ledger.
         CancellationToken ct = default)
     {
         try

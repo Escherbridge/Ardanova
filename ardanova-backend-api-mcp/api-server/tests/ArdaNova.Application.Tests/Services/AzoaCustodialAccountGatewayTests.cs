@@ -214,7 +214,7 @@ public sealed class AzoaCustodialAccountGatewayTests
             body: null);
 
         result.Type.Should().Be(ResultType.Forbidden);
-        result.Error.Should().Contain("allocation, fungible-mint and reserve-partition endpoints");
+        result.Error.Should().Contain("allocation, fungible-mint, fungible-creation and reserve-partition endpoints");
     }
 
     [Fact]

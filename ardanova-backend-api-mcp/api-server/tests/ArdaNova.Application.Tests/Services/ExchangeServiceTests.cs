@@ -431,6 +431,79 @@ public class ExchangeServiceTests
         result.Error.Should().Be("ARDA has no backing, so no rate can be quoted");
     }
 
+    // -- A fresh deployment prices its opening move: offering price x the on-ramp's genesis seed --
+
+    [Fact]
+    public async Task FirstSponsorshipOnAFreshDeployment_PricesTheOfferAtTheOnRampSeed()
+    {
+        // The demo project: $15,000 asked over 60,000 sponsor units of a 100,000 supply, nothing
+        // raised, and a treasury that has issued nothing. The on-ramp declares $1 per ARDA.
+        var sut = SutWithGenesisPrice(1.00m);
+        ArrangeRate(
+            fundingRaised: 0,
+            totalSupply: 100_000,
+            backing: 0,
+            circulating: 0,
+            fundingGoal: 15_000,
+            unitsOnOffer: 60_000);
+
+        var unitValue = await sut.GetProjectTokenValueAsync("ptc1", CancellationToken.None);
+        var ardaValue = await sut.GetArdaValueAsync(CancellationToken.None);
+        var rate = await sut.GetDeclaredRateAsync("ptc1", CancellationToken.None);
+        var preview = await sut.CalculateConversionAsync("ptc1", 100, CancellationToken.None);
+
+        // The same $0.25 the funding tab names (ask over SPONSOR units), never $0.15.
+        unitValue.Value.Should().Be(0.25);
+        ardaValue.Value.Should().Be(1.0);
+        rate.IsSuccess.Should().BeTrue();
+        rate.Value!.ArdaPerWholeProjectUnit.Should().Be("0.25");
+        rate.Value.Source.Should().Be(ExchangeService.OfferingRateSource);
+        // $25 of ARDA buys exactly 100 units - what the invest page's estimate shows.
+        preview.Value!.ArdaAmountExact.Should().Be(25m);
+        preview.Value.RateSource.Should().Be(ExchangeService.OfferingRateSource);
+    }
+
+    [Theory]
+    [InlineData(0L, "Cannot calculate ARDA value: circulating supply is zero")]
+    [InlineData(-1L, "The treasury's circulating ARDA is below zero, so no rate can be quoted")]
+    public async Task GetDeclaredRateAsync_TreasuryWithNothingIssuedAndNoOnRampPrice_RefusesByName(
+        long circulating, string refusal)
+    {
+        // No on-ramp price declared (the default), so a genesis treasury has no rate to offer.
+        // A NEGATIVE supply is a broken figure and refuses even when a seed is declared.
+        ArrangeRate(fundingRaised: 0, totalSupply: 1_000, backing: 0, circulating: circulating, fundingGoal: 1_000);
+        var withSeed = SutWithGenesisPrice(1.00m);
+
+        var result = await _sut.GetDeclaredRateAsync("ptc1", CancellationToken.None);
+
+        result.IsSuccess.Should().BeFalse();
+        result.Error.Should().Be(refusal);
+        if (circulating < 0)
+        {
+            (await withSeed.GetDeclaredRateAsync("ptc1", CancellationToken.None)).Error.Should().Be(refusal);
+        }
+    }
+
+    [Fact]
+    public async Task GetArdaValueAsync_OnceArdaIsIssued_TheBackingRatioWinsOverTheSeed()
+    {
+        // The seed only stands in while nothing is issued; after that the rate is backing-derived.
+        var sut = SutWithGenesisPrice(1.00m);
+        ArrangeTreasury(backing: 10_000, circulating: 5_000);
+
+        var result = await sut.GetArdaValueAsync(CancellationToken.None);
+
+        result.Value.Should().Be(2.0);
+    }
+
+    private ExchangeService SutWithGenesisPrice(decimal usdPerWholeArda)
+    {
+        var genesisPrice = new Mock<IArdaGenesisPrice>();
+        genesisPrice.SetupGet(p => p.UsdPerWholeArda).Returns(usdPerWholeArda);
+        return new ExchangeService(
+            _projectTokenConfigRepo.Object, _treasuryRepo.Object, _mapper.Object, genesisPrice.Object);
+    }
+
     // -- The unit the ask is denominated in, and the price that must not collapse (OI-89b) --
 
     [Fact]
@@ -647,6 +720,32 @@ public class ExchangeServiceTests
     {
         ArrangeProject(fundingRaised, fundingGoal, totalSupply, unitsOnOffer);
         ArrangeTreasury(backing, circulating);
+    }
+}
+
+/// <summary>The genesis seed a fresh treasury quotes at is the price the on-ramp registrar declares.</summary>
+public class OnRampArdaGenesisPriceTests
+{
+    [Theory]
+    [InlineData(true, "ARDA-1", "1", "1")]       // the honest peg: 1 base unit per cent, $1 an ARDA
+    [InlineData(true, "ARDA-1", "100", "0.01")]  // the in-code default: $0.01 an ARDA
+    [InlineData(false, "ARDA-1", "1", null)]     // on-ramp off: nothing is declared
+    [InlineData(true, "", "1", null)]            // no asset: the registrar registers nothing
+    [InlineData(true, "ARDA-1", "0", null)]
+    [InlineData(true, "ARDA-1", "1.5", null)]
+    public void UsdPerWholeArda_IsWhatTheRegistrarDeclares(
+        bool enabled, string assetId, string unitsPerCent, string? expected)
+    {
+        var price = new ArdaNova.Infrastructure.Azoa.OnRampArdaGenesisPrice(
+            new ArdaNova.Infrastructure.Azoa.ArdaOnRampOptions
+            {
+                Enabled = enabled,
+                AssetId = assetId,
+                UnitsPerUsdMinorUnit = unitsPerCent,
+            });
+
+        price.UsdPerWholeArda.Should().Be(
+            expected is null ? null : decimal.Parse(expected, System.Globalization.CultureInfo.InvariantCulture));
     }
 }
 

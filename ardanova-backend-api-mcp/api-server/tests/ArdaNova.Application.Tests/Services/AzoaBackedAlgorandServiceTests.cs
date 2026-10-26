@@ -52,81 +52,9 @@ public class AzoaBackedAlgorandServiceTests
 
     // ========================================================================
     // CreateFungibleASAAsync — CLEAN MAP (routes to fungible-mint)
+    // The consent-lifecycle flows run over a real AzoaNodeClient in
+    // Azoa/FungibleMintContractTests; only the failure-type mapping lives here.
     // ========================================================================
-
-    [Fact]
-    public async Task CreateFungibleASAAsync_RoutesToFungibleMintCall_AndMapsResult()
-    {
-        // Arrange
-        AzoaFungibleMintRequest? captured = null;
-        _nodeMock
-            .Setup(n => n.PostAsync<AzoaFungibleMintResult>(
-                FungibleMintPath,
-                It.IsAny<object>(),
-                It.IsAny<CancellationToken>()))
-            .Callback<string, object?, CancellationToken>((_, body, _) =>
-                captured = body as AzoaFungibleMintRequest)
-            .ReturnsAsync(Result<AzoaFungibleMintResult>.Success(new AzoaFungibleMintResult
-            {
-                AssetId = "67890",
-            }));
-
-        // Act
-        var result = await _sut.CreateFungibleASAAsync("ARDA Token", "ARDA", 1_000_000_000);
-
-        // Assert — routed to the fungible-mint endpoint exactly once.
-        _nodeMock.Verify(n => n.PostAsync<AzoaFungibleMintResult>(
-            FungibleMintPath,
-            It.IsAny<object>(),
-            It.IsAny<CancellationToken>()), Times.Once);
-
-        // Request shape: name/unit pass through; supply is a real ulong plus the asset
-        // scale, NOT an opaque string -- a JSON string deserializes to 0 on AZOA's side
-        // and fails the mint with "zero total".
-        captured.Should().NotBeNull();
-        captured!.Name.Should().Be("ARDA Token");
-        captured.UnitName.Should().Be("ARDA");
-        captured.Total.Should().Be(1_000_000_000UL);
-        captured.Decimals.Should().Be(6);
-        captured.ChainType.Should().Be("Algorand");
-
-        // Result projected onto the legacy FungibleAsaCreateResult shape.
-        result.IsSuccess.Should().BeTrue();
-        result.Value.Should().NotBeNull();
-        result.Value!.AssetId.Should().Be("67890");
-        // AZOA's fungible-mint response carries NO transaction hash: the platform reserve
-        // signs the ASA-create, so the node hands back no chain reference and the adapter
-        // must not fabricate one.
-        result.Value!.TxHash.Should().BeEmpty();
-    }
-
-    [Fact]
-    public async Task CreateFungibleASAAsync_NeverFabricatesATransactionHash()
-    {
-        // Arrange — the node's fungible-mint response has neither a tx hash nor an
-        // operation id (the reserve signs the ASA-create), so there is nothing to fall
-        // back to. The old fallback-to-operation-id behaviour is gone with the fields.
-        _nodeMock
-            .Setup(n => n.PostAsync<AzoaFungibleMintResult>(
-                FungibleMintPath,
-                It.IsAny<object>(),
-                It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Result<AzoaFungibleMintResult>.Success(new AzoaFungibleMintResult
-            {
-                AssetId = "sim:42",
-                WalletAddress = "RESERVEADDRESS",
-                WalletProvisioned = true,
-            }));
-
-        // Act
-        var result = await _sut.CreateFungibleASAAsync("Proj Token", "PROJ", 1000);
-
-        // Assert — the asset id maps; the tx hash stays empty rather than being derived
-        // from the asset id or the wallet address.
-        result.IsSuccess.Should().BeTrue();
-        result.Value!.AssetId.Should().Be("sim:42");
-        result.Value!.TxHash.Should().BeEmpty();
-    }
 
     [Fact]
     public async Task CreateFungibleASAAsync_WhenNodeForbids_PreservesForbiddenType()
@@ -136,38 +64,17 @@ public class AzoaBackedAlgorandServiceTests
             .Setup(n => n.PostAsync<AzoaFungibleMintResult>(
                 FungibleMintPath,
                 It.IsAny<object>(),
+                It.IsAny<string>(),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(Result<AzoaFungibleMintResult>.Forbidden("KYC_FORBIDDEN: not approved"));
 
         // Act
-        var result = await _sut.CreateFungibleASAAsync("ARDA Token", "ARDA", 1000);
+        var result = await _sut.CreateFungibleASAAsync("ARDA Token", "ARDA", 1000, "project-token-genesis:cfg-1");
 
         // Assert
         result.IsSuccess.Should().BeFalse();
         result.Type.Should().Be(ResultType.Forbidden);
         result.Error.Should().Contain("KYC_FORBIDDEN");
-    }
-
-    [Fact]
-    public async Task CreateFungibleASAAsync_WhenNodeReturnsEmptyAssetId_ReturnsFailure()
-    {
-        // Arrange
-        _nodeMock
-            .Setup(n => n.PostAsync<AzoaFungibleMintResult>(
-                FungibleMintPath,
-                It.IsAny<object>(),
-                It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Result<AzoaFungibleMintResult>.Success(new AzoaFungibleMintResult
-            {
-                AssetId = "",
-            }));
-
-        // Act
-        var result = await _sut.CreateFungibleASAAsync("ARDA Token", "ARDA", 1000);
-
-        // Assert
-        result.IsSuccess.Should().BeFalse();
-        result.Type.Should().Be(ResultType.Failure);
     }
 
     // ========================================================================

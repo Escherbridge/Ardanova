@@ -72,15 +72,18 @@ public sealed class AzoaBackedAlgorandService : IAlgorandService
     private readonly IAzoaNodeClient _node;
     private readonly AzoaSettings _settings;
     private readonly ILogger<AzoaBackedAlgorandService> _logger;
+    private readonly AzoaFungibleCreationBudget _creationBudget;
 
     public AzoaBackedAlgorandService(
         IAzoaNodeClient node,
         IOptions<AzoaSettings> settings,
-        ILogger<AzoaBackedAlgorandService> logger)
+        ILogger<AzoaBackedAlgorandService> logger,
+        AzoaFungibleCreationBudget? creationBudget = null)
     {
         _node = node;
         _settings = settings.Value;
         _logger = logger;
+        _creationBudget = creationBudget ?? AzoaFungibleCreationBudget.Default;
     }
 
     // ========================================================================
@@ -149,8 +152,9 @@ public sealed class AzoaBackedAlgorandService : IAlgorandService
     // This is the one value-move that maps cleanly without an avatar: the tenant
     // mints a new fungible asset. We post the already-decided supply as a real
     // Total/Decimals pair (the node derives no economics from it, but it IS a
-    // typed number, not an opaque string) and surface the node's asset id back
-    // through the legacy FungibleAsaCreateResult shape.
+    // typed number, not an opaque string), drive the node's consent lifecycle to
+    // a terminal view, and surface that view's asset id back through the legacy
+    // FungibleAsaCreateResult shape. See AGENTS.md §Fungible-mint consent lifecycle.
     // ========================================================================
 
     /// <inheritdoc/>
@@ -158,8 +162,13 @@ public sealed class AzoaBackedAlgorandService : IAlgorandService
         string name,
         string unitName,
         ulong totalSupply,
+        string idempotencyKey,
         CancellationToken ct = default)
     {
+        if (string.IsNullOrWhiteSpace(idempotencyKey))
+            return Result<FungibleAsaCreateResult>.ValidationError(
+                "A stable idempotency key is required to create a fungible asset.");
+
         _logger.LogInformation(
             "AZOA fungible-mint: {Name} ({UnitName}), supply {TotalSupply}",
             name, unitName, totalSupply);
@@ -178,7 +187,7 @@ public sealed class AzoaBackedAlgorandService : IAlgorandService
             Decimals = FungibleMintAssetScale,
         };
 
-        var result = await _node.PostAsync<AzoaFungibleMintResult>(FungibleMintPath, request, ct);
+        var result = await _node.PostAsync<AzoaFungibleMintResult>(FungibleMintPath, request, idempotencyKey, ct);
         if (result.IsFailure)
         {
             // Preserve the node's failure type (Forbidden/NotFound/etc.) verbatim
@@ -186,20 +195,103 @@ public sealed class AzoaBackedAlgorandService : IAlgorandService
             return MapFailure<AzoaFungibleMintResult, FungibleAsaCreateResult>(result);
         }
 
-        var payload = result.Value!;
-        if (string.IsNullOrWhiteSpace(payload.AssetId))
-            return Result<FungibleAsaCreateResult>.Failure("AZOA fungible-mint returned no asset id.");
+        if (result.Value!.Operation is not { } admitted)
+            return Result<FungibleAsaCreateResult>.Failure("AZOA fungible-mint returned no creation operation.");
+
+        var completed = await DriveCreationAsync(admitted, ct);
+        if (completed.IsFailure)
+            return MapFailure<AzoaFungibleCreationView, FungibleAsaCreateResult>(completed);
 
         return Result<FungibleAsaCreateResult>.Success(new FungibleAsaCreateResult
         {
-            AssetId = payload.AssetId,
-            // AZOA's fungible-mint response (FungibleTokenResult) carries no
-            // transaction hash: the platform reserve signs the ASA-create per node
-            // policy (Reserve:FungibleMintTarget), so the caller is never handed a
-            // chain reference for it. We do NOT fabricate one from AssetId/WalletId —
-            // same "no faking" rule as the DOCUMENTED GAP methods below.
-            TxHash = string.Empty,
+            AssetId = completed.Value!.AssetId!,
+            // The terminal view's own creation transaction, or empty when it names none —
+            // never derived from AssetId/WalletId (same "no faking" rule as the gaps below).
+            TxHash = completed.Value.TransactionId ?? string.Empty,
+            // The operation's own chain, not the one requested: a Simulated node redirects it.
+            ChainType = string.IsNullOrWhiteSpace(completed.Value.ChainType) ? null : completed.Value.ChainType.Trim(),
         });
+    }
+
+    /// <summary>
+    /// Walks one fungible creation from wherever the node says it stands to a terminal view:
+    /// quote → accept-quote → continue, then refresh until Completed, within the creation budget.
+    /// </summary>
+    private async Task<Result<AzoaFungibleCreationView>> DriveCreationAsync(
+        AzoaFungibleCreationView admitted, CancellationToken ct)
+    {
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        var view = admitted;
+        string? previousStep = null;
+
+        while (true)
+        {
+            if (view.State == AzoaFungibleCreationStates.Completed)
+            {
+                return string.IsNullOrWhiteSpace(view.AssetId)
+                    ? Result<AzoaFungibleCreationView>.Failure("AZOA fungible creation completed without an asset id.")
+                    : Result<AzoaFungibleCreationView>.Success(view);
+            }
+
+            if (view.State is AzoaFungibleCreationStates.Cancelled or AzoaFungibleCreationStates.FailedNoEffect)
+            {
+                return Result<AzoaFungibleCreationView>.Failure(
+                    $"The AZOA node ended this stake's creation as {view.State}; no asset was created.");
+            }
+
+            if (clock.Elapsed >= _creationBudget.Total)
+            {
+                _logger.LogWarning(
+                    "AZOA fungible creation {OperationId} still {State} (v{Version}) after {Budget}",
+                    view.OperationId, view.State, view.Version, _creationBudget.Total);
+                return Result<AzoaFungibleCreationView>.Failure(
+                    $"The stake is still being created on the AZOA node (last state: {view.State}). "
+                    + "Retrying setup resumes the same creation; it will not create a second stake.");
+            }
+
+            var (step, body) = NextCreationStep(view);
+            // Back off whenever the node did not move us on, so a stalled step polls rather than spins.
+            if (step == AzoaFungibleCreationSteps.Refresh || step == previousStep)
+                await Task.Delay(_creationBudget.PollDelay, ct);
+            previousStep = step;
+
+            var path = AzoaNodeRoutePolicy.FungibleCreationStepPath(view.OperationId, step);
+            if (path is null)
+                return Result<AzoaFungibleCreationView>.Failure("AZOA fungible-mint returned an unaddressable operation id.");
+
+            var next = await _node.PostAsync<AzoaFungibleCreationView>(path, body, ct);
+            if (next.IsFailure)
+                return next;
+
+            view = next.Value!;
+        }
+    }
+
+    /// <summary>The lifecycle step a view in this state is waiting on, and its body.</summary>
+    private static (string Step, object? Body) NextCreationStep(AzoaFungibleCreationView view)
+        => view.State switch
+        {
+            AzoaFungibleCreationStates.AwaitingConsent when view.Quote is null
+                => (AzoaFungibleCreationSteps.Quote, null),
+            AzoaFungibleCreationStates.AwaitingConsent
+                => (AzoaFungibleCreationSteps.AcceptQuote,
+                    new AzoaFungibleQuoteAcceptance { Version = view.Version, QuoteId = view.Quote!.QuoteId }),
+            AzoaFungibleCreationStates.Admitted or AzoaFungibleCreationStates.Preparing or AzoaFungibleCreationStates.Prepared
+                => (AzoaFungibleCreationSteps.Continue,
+                    new AzoaFungibleContinuationRequest
+                    {
+                        RequestId = ContinuationRequestId(view.OperationId, view.Version),
+                        Version = view.Version,
+                    }),
+            _ => (AzoaFungibleCreationSteps.Refresh, null),
+        };
+
+    /// <summary>Same operation + version → same continuation id, so a retried continue is one authorization.</summary>
+    private static Guid ContinuationRequestId(string operationId, long version)
+    {
+        var digest = System.Security.Cryptography.SHA256.HashData(
+            System.Text.Encoding.UTF8.GetBytes($"ardanova-fungible-continue:{operationId}:{version}"));
+        return new Guid(digest.AsSpan(0, 16));
     }
 
     // ========================================================================
@@ -384,12 +476,15 @@ public sealed class AzoaFungibleMintRequest
 
 /// <summary>
 /// Result payload from <c>POST /api/nft/fungible-mint</c>, mirroring AZOA's
-/// <c>FungibleTokenResult</c> exactly. Note there is no transaction hash or
-/// operation id field: the platform reserve signs the ASA-create, so the node
-/// never hands the caller a chain reference for this call.
+/// <c>FungibleTokenResult</c> exactly. The chain references live on <see cref="Operation"/>,
+/// the durable creation the node admitted; the top-level <see cref="AssetId"/> stays empty
+/// until that creation is confirmed.
 /// </summary>
 public sealed class AzoaFungibleMintResult
 {
+    /// <summary>The admitted creation (AZOA <c>FungibleCreationView</c>); null only from a node predating the lifecycle.</summary>
+    [JsonPropertyName("operation")] public AzoaFungibleCreationView? Operation { get; set; }
+
     [JsonPropertyName("userId")] public Guid UserId { get; set; }
     [JsonPropertyName("walletId")] public Guid WalletId { get; set; }
     [JsonPropertyName("walletAddress")] public string WalletAddress { get; set; } = string.Empty;
@@ -398,4 +493,73 @@ public sealed class AzoaFungibleMintResult
 
     /// <summary>True when the idempotency key replayed an existing mint — no second asset was created.</summary>
     [JsonPropertyName("replayed")] public bool Replayed { get; set; }
+}
+
+// ── Fungible-creation lifecycle wire models ───────────────────────────────────
+// Mirror AZOA's Models/Blockchain/FungibleCreationCommand.cs (FungibleCreationView),
+// FungibleCreation.cs (FungibleCreationQuote), FungibleQuoteAcceptance.cs and
+// FungibleContinuationRequest.cs. Only the fields this adapter reads are bound.
+
+/// <summary>AZOA <c>FungibleCreationView</c>: one durable creation's state, as every lifecycle step answers it.</summary>
+public sealed class AzoaFungibleCreationView
+{
+    [JsonPropertyName("operationId")] public string OperationId { get; set; } = string.Empty;
+    [JsonPropertyName("version")] public long Version { get; set; }
+    [JsonPropertyName("state")] public string State { get; set; } = string.Empty;
+
+    /// <summary>The chain the node actually created on (Blockchain:Mode=Simulated stamps "Simulated").</summary>
+    [JsonPropertyName("chainType")] public string? ChainType { get; set; }
+
+    /// <summary>Set by the node only once the state is Completed or AttachmentPending.</summary>
+    [JsonPropertyName("assetId")] public string? AssetId { get; set; }
+    [JsonPropertyName("transactionId")] public string? TransactionId { get; set; }
+    [JsonPropertyName("quote")] public AzoaFungibleCreationQuote? Quote { get; set; }
+}
+
+/// <summary>AZOA <c>FungibleCreationQuote</c>, reduced to the id acceptance must echo.</summary>
+public sealed class AzoaFungibleCreationQuote
+{
+    [JsonPropertyName("quoteId")] public string QuoteId { get; set; } = string.Empty;
+}
+
+/// <summary>Body of <c>POST /api/fungible-creation/{id}/accept-quote</c> (AZOA <c>FungibleQuoteAcceptance</c>).</summary>
+public sealed class AzoaFungibleQuoteAcceptance
+{
+    [JsonPropertyName("version")] public long Version { get; set; }
+    [JsonPropertyName("quoteId")] public string QuoteId { get; set; } = string.Empty;
+}
+
+/// <summary>Body of <c>POST /api/fungible-creation/{id}/continue</c> (AZOA <c>FungibleContinuationRequest</c>).</summary>
+public sealed class AzoaFungibleContinuationRequest
+{
+    [JsonPropertyName("requestId")] public Guid RequestId { get; set; }
+    [JsonPropertyName("version")] public long Version { get; set; }
+}
+
+/// <summary>The <c>FungibleCreationView.State</c> values the adapter branches on.</summary>
+public static class AzoaFungibleCreationStates
+{
+    public const string AwaitingConsent = "AwaitingConsent";
+    public const string Admitted = "Admitted";
+    public const string Preparing = "Preparing";
+    public const string Prepared = "Prepared";
+    public const string Submitted = "Submitted";
+    public const string Completed = "Completed";
+    public const string Cancelled = "Cancelled";
+    public const string FailedNoEffect = "FailedNoEffect";
+}
+
+/// <summary>The lifecycle step segments of <c>FungibleCreationController</c> the adapter drives.</summary>
+internal static class AzoaFungibleCreationSteps
+{
+    public const string Quote = "quote";
+    public const string AcceptQuote = "accept-quote";
+    public const string Continue = "continue";
+    public const string Refresh = "refresh";
+}
+
+/// <summary>How long one provisioning call may wait for a creation to finish, and how often it polls.</summary>
+public sealed record AzoaFungibleCreationBudget(TimeSpan Total, TimeSpan PollDelay)
+{
+    public static AzoaFungibleCreationBudget Default { get; } = new(TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(1));
 }

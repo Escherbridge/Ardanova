@@ -61,6 +61,21 @@ than opening a second one. The unique index on `holdId` is what makes that true 
 concurrency; without it two simultaneous acceptances of one bid could each write their
 own allocation row against a single node commitment.
 
+## §award-window-instant (F31)
+
+The node keys the approve's `ReleaseIntoHold` on the request key AND the hash of the whole
+intent, `nextReleaseNotBefore` included, to the 100 ns tick; the same key with a different
+instant is refused. `ProjectTokenService.ResolveWorkerWindowAsync` therefore (1) adopts the
+instant the node already committed when the worker window exists - a local failure AFTER the
+node's commit (found live: the first-credit `CreditAsync` bug below) or a lost response must
+replay the node's bytes - else (2) decides the instant once, truncated to whole seconds
+because `workerHoldReleasesAt` is `timestamp(3)`, and saves it before the call. The node's
+hash check, not this service, is what proves an adopted window is this award's.
+
+`TokenBalanceService.CreditAsync` must not call `UpdateAsync` on a balance it just added:
+`DbSet.Update` re-marks it Modified and the first credit becomes a 0-row UPDATE
+(`DbUpdateConcurrencyException`). Pinned in `TokenBalanceServiceTrackingTests`.
+
 A guild bid cannot enter commerce yet (`TaskCommerceService.GuildSplitUnsupported`): a
 hold has exactly one beneficiary and a guild bid records no split, so accepting one
 would hold the whole award for whichever member happened to submit it. This is a
@@ -247,3 +262,32 @@ check runs. `ProjectsController` applies the same rule through `HiddenOrRefusedA
 project update, publish and delete, adding, changing and removing members, and resource writes. A
 refusal on a hidden project becomes the missing project's 404, so a 403 only ever confirms a project
 the caller can already see.
+
+# Exchange pricing
+
+`ExchangeService` declares ARDA per project unit as `usdPerUnit / usdPerArda` (L2.5, OI-89b +
+OI-34). While a project's raise is open its unit price is the OPENING OFFER, `fundingGoal /
+investorPartitionSupply`, marked `ardanova:offering-price` (`OfferingRateSource`) so the funding
+intent's `declaredRateSource` and terms snapshot say which price the sponsor got. L2.5's text says
+`/ totalSupply`; the code divides by the sponsor partition instead because that is what the funding
+tab's `describeOfferPerUnit` shows ($15,000 / 60,000 = $0.25) and the only stake the sponsorship
+path will sell, so the full offer raises exactly the ask.
+
+`usdPerArda` is the backing ratio `(indexFund + liquidReserve + operations) / ardaCirculatingSupply`
+once ARDA has been issued. A treasury with circulating supply below zero, or a ratio of zero or
+less, refuses by name. A treasury that has issued nothing (`== 0`, the genesis state after a reset)
+has no ratio to take, so it quotes the on-ramp's declared genesis seed through `IArdaGenesisPrice`.
+Infrastructure's `OnRampArdaGenesisPrice` reads the same `ArdaOnRampOptions.UnitsPerUsdMinorUnit` the
+price-schedule registrar declares to the node (1 base unit per cent = $1.00 per ARDA at 2dp), and is
+only bound when the on-ramp is enabled with an asset. With no declared seed, a genesis treasury
+refuses with "Cannot calculate ARDA value: circulating supply is zero" rather than dividing.
+
+**Untrustworthy backing figures (recorded, not fixed here).** The three bucket balances and
+`ardaCirculatingSupply` are database doubles and longs on the `PlatformTreasury` singleton. Nothing
+in this repo keeps them in step with the node: an on-ramp purchase issues ARDA node-side and leaves
+this row at genesis. Wave 5 nulls these same figures out of the treasury status as too
+untrustworthy to SHOW, yet they price every rate ArdaNova declares to the node. The genesis-seed
+fallback is honest only while the row truly reflects "nothing issued"; once something writes a
+non-zero supply against stale balances, the ratio prices sponsorships off figures nobody
+reconciles. The control that catches the result is the node-side rate consistency band, OI-79
+(launch-readiness L4.6). The real fix is a node-read backing figure, not a better guard here.

@@ -93,6 +93,7 @@ public sealed class SimulatedAlgorandService : IAlgorandService
         string name,
         string unitName,
         ulong totalSupply,
+        string idempotencyKey, // Unused: the simulated id is already deterministic in its inputs, so a retry replays.
         CancellationToken ct = default)
     {
         var assetId = SimulatedId("fungible-asset", name, unitName, totalSupply.ToString());

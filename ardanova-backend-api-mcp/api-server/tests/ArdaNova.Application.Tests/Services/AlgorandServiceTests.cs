@@ -434,7 +434,7 @@ public class AlgorandServiceTests
         SetupPendingTransactionResponse("FUNGIBLE_TX", assetIndex: 67890);
 
         // Act
-        var result = await _sut.CreateFungibleASAAsync("ARDA Token", "ARDA", 1_000_000_000);
+        var result = await _sut.CreateFungibleASAAsync("ARDA Token", "ARDA", 1_000_000_000, "project-token-genesis:cfg-1");
 
         // Assert
         result.IsSuccess.Should().BeTrue();
@@ -456,7 +456,7 @@ public class AlgorandServiceTests
             .ThrowsAsync(new HttpRequestException("Timeout"));
 
         // Act
-        var result = await _sut.CreateFungibleASAAsync("ARDA Token", "ARDA", 1_000_000_000);
+        var result = await _sut.CreateFungibleASAAsync("ARDA Token", "ARDA", 1_000_000_000, "project-token-genesis:cfg-1");
 
         // Assert
         result.IsSuccess.Should().BeFalse();

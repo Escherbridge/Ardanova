@@ -129,6 +129,8 @@ public static class DependencyInjection
         // routes depend on it explicitly rather than casting - the IProjectVisibility pattern.
         services.AddScoped<IProjectTokenProvisioning>(sp => (IProjectTokenProvisioning)sp.GetRequiredService<IProjectTokenService>());
         services.AddScoped<ITokenBalanceService, TokenBalanceService>();
+        // No on-ramp price by default; AddAzoaFiatRail replaces this when the on-ramp is live.
+        services.AddSingleton<IArdaGenesisPrice, NoArdaGenesisPrice>();
         services.AddScoped<IExchangeService, ExchangeService>();
         // The declared-rate source is the same scoped instance under its own interface, so a
         // caller that only needs the rate does not take a dependency on the whole exchange.

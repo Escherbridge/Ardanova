@@ -17,6 +17,7 @@ public sealed class AzoaCustodialAccountService : IAzoaCustodialAccountService
     private readonly IUnitOfWork _unitOfWork;
     private readonly IAzoaCustodialAccountGateway _gateway;
     private readonly string _tenantId;
+    private readonly bool _allowInsecureDevVerificationUrl;
 
     public AzoaCustodialAccountService(
         IRepository<User> users,
@@ -28,6 +29,11 @@ public sealed class AzoaCustodialAccountService : IAzoaCustodialAccountService
         _unitOfWork = unitOfWork;
         _gateway = gateway;
         _tenantId = configuration["Azoa:TenantId"] ?? string.Empty;
+        // Dev-only seam; boot validation refuses this flag in Production (DependencyInjection).
+        _allowInsecureDevVerificationUrl = string.Equals(
+            configuration["Azoa:AllowInsecureDevVerificationUrl"],
+            "true",
+            StringComparison.OrdinalIgnoreCase);
     }
 
     public async Task<Result<AzoaCustodialAccountCapabilitiesDto>> GetCapabilitiesAsync(
@@ -281,10 +287,14 @@ public sealed class AzoaCustodialAccountService : IAzoaCustodialAccountService
                 ? $"AZOA returned a different {label} for an existing custodial account binding."
                 : null;
 
-    private static bool IsSafeHostedVerificationUrl(string value)
+    private bool IsSafeHostedVerificationUrl(string value)
         => Uri.TryCreate(value, UriKind.Absolute, out var uri)
-            && uri.Scheme == Uri.UriSchemeHttps
-            && string.IsNullOrEmpty(uri.UserInfo);
+            && string.IsNullOrEmpty(uri.UserInfo)
+            && (uri.Scheme == Uri.UriSchemeHttps
+                // Dev-only: the local KYC vendor sidecar serves plain http on loopback.
+                || (_allowInsecureDevVerificationUrl
+                    && uri.Scheme == Uri.UriSchemeHttp
+                    && uri.IsLoopback));
 
     private static Result<TOut> MapFailure<TIn, TOut>(Result<TIn> source)
     {

@@ -383,6 +383,14 @@ public static class DependencyInjection
         string custodyApiKey,
         bool isProduction)
     {
+        // Checked before the enablement early-return: a mis-promoted dev flag must be loud
+        // even on a deploy that has custody off (mirrors AZOA's KycRuntimeSafety stance).
+        if (settings.AllowInsecureDevVerificationUrl && isProduction)
+        {
+            throw new InvalidOperationException(
+                "Azoa:AllowInsecureDevVerificationUrl is a development-only flag and must not be set in Production.");
+        }
+
         if (!settings.EnableCustodialAccounts)
             return;
 

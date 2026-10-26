@@ -101,6 +101,11 @@ public record FungibleAsaCreateResult
     /// The transaction hash of the ASA creation transaction
     /// </summary>
     public required string TxHash { get; init; }
+
+    /// <summary>
+    /// The chain the asset was actually created on, when the issuer reports one (null = the configured chain).
+    /// </summary>
+    public string? ChainType { get; init; }
 }
 
 /// <summary>

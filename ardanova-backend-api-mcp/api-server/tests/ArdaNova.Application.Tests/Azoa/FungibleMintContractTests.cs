@@ -1,12 +1,13 @@
 namespace ArdaNova.Application.Tests.Azoa;
 
+using System.Net;
+using System.Text;
 using System.Text.Json;
 using ArdaNova.Application.Common.Results;
 using ArdaNova.Infrastructure.Azoa;
 using FluentAssertions;
-using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
-using Moq;
 
 /// <summary>
 /// Pins the wire shape of <c>POST /api/nft/fungible-mint</c> against AZOA's real
@@ -137,17 +138,17 @@ public class FungibleMintContractTests
     public void AzoaFungibleMintResult_DeserializesAzoaFungibleTokenResultShape()
     {
         // Arrange — literal transcription of AZOA's FungibleTokenResult wire
-        // shape (Models/Responses/FungibleTokenResult.cs): userId, walletId,
-        // walletAddress, walletProvisioned, assetId, replayed. No txHash, no
-        // operationId — the platform reserve signs the ASA-create, so the node
-        // never hands the caller a chain reference for this call.
-        const string azoaResponseJson = """
+        // shape (Models/Responses/FungibleTokenResult.cs): operation (the admitted
+        // FungibleCreationView), userId, walletId, walletAddress, walletProvisioned,
+        // assetId (empty until confirmed), replayed.
+        var azoaResponseJson = $$"""
             {
+              "operation": {{View("AwaitingConsent", 0)}},
               "userId": "11111111-1111-1111-1111-111111111111",
               "walletId": "22222222-2222-2222-2222-222222222222",
               "walletAddress": "PLATFORMRESERVEADDR",
               "walletProvisioned": true,
-              "assetId": "67890",
+              "assetId": "",
               "replayed": false
             }
             """;
@@ -161,8 +162,11 @@ public class FungibleMintContractTests
         result.WalletId.Should().Be(Guid.Parse("22222222-2222-2222-2222-222222222222"));
         result.WalletAddress.Should().Be("PLATFORMRESERVEADDR");
         result.WalletProvisioned.Should().BeTrue();
-        result.AssetId.Should().Be("67890");
+        result.AssetId.Should().BeEmpty();
         result.Replayed.Should().BeFalse();
+        result.Operation.Should().NotBeNull();
+        result.Operation!.OperationId.Should().Be(OperationId);
+        result.Operation.State.Should().Be("AwaitingConsent");
     }
 
     [Fact]
@@ -180,78 +184,179 @@ public class FungibleMintContractTests
     // End-to-end — the adapter method, wired against the pinned request/response
     // ========================================================================
 
+    // Flows below drive the real AzoaNodeClient (route policy, header, envelope) over a scripted
+    // HTTP edge that answers like the node did in the 2026-10-25 live drive:
+    // mint 202 AwaitingConsent → quote 202 v1 → accept 202 Admitted v2 → continue 202 Submitted v7
+    // → refresh 200 Completed v9.
+
+    private const string OperationId = "9f2c4e6a8b0d1f3a5c7e9b1d3f5a7c9e";
+    private const string GenesisKey = "project-token-genesis:cfg-1";
+    private const string ChainAssetId = "6260732372893272157";
+    private const string StepPrefix = "/api/fungible-creation/" + OperationId;
+
     [Fact]
-    public async Task CreateFungibleASAAsync_SendsRealTotalAndAssetScale_ToTheAzoaNode()
+    public async Task CreateFungibleASAAsync_WalksTheNodesConsentLifecycle_ToTheCompletedViewsAssetId()
     {
-        // Arrange
-        var nodeMock = new Mock<IAzoaNodeClient>(MockBehavior.Strict);
-        var settings = new AzoaSettings
+        var node = new ScriptedNode()
+            .On("/api/nft/fungible-mint", HttpStatusCode.Accepted, MintJson(View("AwaitingConsent", 0)))
+            .On($"{StepPrefix}/quote", HttpStatusCode.Accepted, View("AwaitingConsent", 1, quoteId: "q-1"))
+            .On($"{StepPrefix}/accept-quote", HttpStatusCode.Accepted, View("Admitted", 2, quoteId: "q-1"))
+            .On($"{StepPrefix}/continue", HttpStatusCode.Accepted, View("Submitted", 7, quoteId: "q-1", transactionId: "TXCREATE"))
+            .On($"{StepPrefix}/refresh", HttpStatusCode.Accepted, View("Submitted", 8, quoteId: "q-1", transactionId: "TXCREATE"))
+            .On($"{StepPrefix}/refresh", HttpStatusCode.OK,
+                View("Completed", 9, quoteId: "q-1", transactionId: "TXCREATE", assetId: ChainAssetId));
+
+        var result = await NewAdapter(node).CreateFungibleASAAsync("ARDA Token", "ARDA", 1_000_000_000, GenesisKey);
+
+        // The stake exists, named by the TERMINAL view's asset id and creation transaction.
+        result.IsSuccess.Should().BeTrue(result.Error);
+        result.Value!.AssetId.Should().Be(ChainAssetId);
+        result.Value.TxHash.Should().Be("TXCREATE");
+        result.Value.ChainType.Should().Be("Algorand");
+
+        // The mint carried the declaration's key (a blank one is a 400 on the node) and a real
+        // numeric supply at the shared asset scale.
+        var mint = node.Sent.First(request => request.Path == "/api/nft/fungible-mint");
+        mint.IdempotencyKey.Should().Be(GenesisKey);
+        using (var mintBody = JsonDocument.Parse(mint.Body))
         {
-            BaseUrl = "https://azoa.test",
-            ValueApiKey = "test-value-key",
-            Mode = "Simulated",
-            ChainType = "Algorand",
-        };
-        var loggerMock = new Mock<ILogger<AzoaBackedAlgorandService>>();
-        var sut = new AzoaBackedAlgorandService(nodeMock.Object, Options.Create(settings), loggerMock.Object);
+            mintBody.RootElement.GetProperty("total").GetUInt64().Should().Be(1_000_000_000UL);
+            mintBody.RootElement.GetProperty("decimals").GetInt32().Should().Be(6);
+        }
 
-        AzoaFungibleMintRequest? captured = null;
-        nodeMock
-            .Setup(n => n.PostAsync<AzoaFungibleMintResult>(
-                "/api/nft/fungible-mint",
-                It.IsAny<object>(),
-                It.IsAny<CancellationToken>()))
-            .Callback<string, object?, CancellationToken>((_, body, _) => captured = body as AzoaFungibleMintRequest)
-            .ReturnsAsync(Result<AzoaFungibleMintResult>.Success(new AzoaFungibleMintResult
-            {
-                UserId = Guid.NewGuid(),
-                WalletId = Guid.NewGuid(),
-                WalletAddress = "PLATFORMRESERVEADDR",
-                WalletProvisioned = false,
-                AssetId = "67890",
-                Replayed = false,
-            }));
+        // Acceptance echoes the quote and version the node offered, and continuation authorizes
+        // the exact version the acceptance produced - stale echoes are refused by the node.
+        using (var accept = JsonDocument.Parse(node.Sent.Single(request => request.Path.EndsWith("/accept-quote")).Body))
+        {
+            accept.RootElement.GetProperty("quoteId").GetString().Should().Be("q-1");
+            accept.RootElement.GetProperty("version").GetInt64().Should().Be(1);
+        }
 
-        // Act
-        var result = await sut.CreateFungibleASAAsync("ARDA Token", "ARDA", 1_000_000_000);
-
-        // Assert — the node received a real number, at the asset scale the
-        // legacy provider also uses (6 decimals), not an opaque string.
-        captured.Should().NotBeNull();
-        captured!.Total.Should().Be(1_000_000_000UL);
-        captured.Decimals.Should().Be(6);
-        captured.Name.Should().Be("ARDA Token");
-        captured.UnitName.Should().Be("ARDA");
-        captured.ChainType.Should().Be("Algorand");
-
-        // Assert — mapped onto the legacy FungibleAsaCreateResult shape; no
-        // fabricated transaction hash for a field AZOA's response never sends.
-        result.IsSuccess.Should().BeTrue();
-        result.Value!.AssetId.Should().Be("67890");
-        result.Value!.TxHash.Should().BeEmpty();
+        using (var proceed = JsonDocument.Parse(node.Sent.Single(request => request.Path.EndsWith("/continue")).Body))
+        {
+            proceed.RootElement.GetProperty("version").GetInt64().Should().Be(2);
+            proceed.RootElement.GetProperty("requestId").GetGuid().Should().NotBe(Guid.Empty);
+        }
     }
 
     [Fact]
-    public async Task CreateFungibleASAAsync_WhenNodeReturnsEmptyAssetId_ReturnsFailure()
+    public async Task CreateFungibleASAAsync_AReplayThatIsAlreadyCompleted_ReturnsItsAssetWithoutDrivingAnyStep()
     {
-        // Arrange
-        var nodeMock = new Mock<IAzoaNodeClient>(MockBehavior.Strict);
-        var settings = new AzoaSettings { BaseUrl = "https://azoa.test", ValueApiKey = "k", Mode = "Simulated" };
-        var loggerMock = new Mock<ILogger<AzoaBackedAlgorandService>>();
-        var sut = new AzoaBackedAlgorandService(nodeMock.Object, Options.Create(settings), loggerMock.Object);
+        // A retry of a finished declaration: the node replays the keyed admission as Completed.
+        var node = new ScriptedNode()
+            .On("/api/nft/fungible-mint", HttpStatusCode.OK,
+                MintJson(View("Completed", 9, quoteId: "q-1", assetId: ChainAssetId), replayed: true));
 
-        nodeMock
-            .Setup(n => n.PostAsync<AzoaFungibleMintResult>(
-                "/api/nft/fungible-mint",
-                It.IsAny<object>(),
-                It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Result<AzoaFungibleMintResult>.Success(new AzoaFungibleMintResult { AssetId = "" }));
+        var result = await NewAdapter(node).CreateFungibleASAAsync("ARDA Token", "ARDA", 1_000_000_000, GenesisKey);
 
-        // Act
-        var result = await sut.CreateFungibleASAAsync("ARDA Token", "ARDA", 1000);
+        result.IsSuccess.Should().BeTrue(result.Error);
+        result.Value!.AssetId.Should().Be(ChainAssetId);
+        node.Sent.Select(request => request.Path).Should().Equal(
+            ["/api/nft/fungible-mint"],
+            "a finished creation has no consent left to give; any step would be a stray value-key call");
+    }
 
-        // Assert
+    [Fact]
+    public async Task CreateFungibleASAAsync_ReportsTheChainTheNodeMintedOn_NotTheOneItAskedFor()
+    {
+        // The adapter asks for Algorand; a Blockchain:Mode=Simulated node redirects the creation and
+        // says so on the view. Treasury and partitions must follow the view, not the request.
+        var node = new ScriptedNode()
+            .On("/api/nft/fungible-mint", HttpStatusCode.OK,
+                MintJson(View("Completed", 9, quoteId: "q-1", assetId: ChainAssetId, chainType: "Simulated"), replayed: true));
+
+        var result = await NewAdapter(node).CreateFungibleASAAsync("ARDA Token", "ARDA", 1_000_000_000, GenesisKey);
+
+        result.IsSuccess.Should().BeTrue(result.Error);
+        result.Value!.ChainType.Should().Be("Simulated");
+    }
+
+    [Fact]
+    public async Task CreateFungibleASAAsync_ACreationThatNeverLeavesSubmitted_FailsHonestlyWhenTheBudgetRunsOut()
+    {
+        var node = new ScriptedNode()
+            .On("/api/nft/fungible-mint", HttpStatusCode.Accepted, MintJson(View("Submitted", 7, quoteId: "q-1")))
+            .On($"{StepPrefix}/refresh", HttpStatusCode.Accepted, View("Submitted", 8, quoteId: "q-1"));
+        var budget = new AzoaFungibleCreationBudget(TimeSpan.FromMilliseconds(150), TimeSpan.FromMilliseconds(10));
+
+        var result = await NewAdapter(node, budget).CreateFungibleASAAsync("ARDA Token", "ARDA", 1000, GenesisKey);
+
         result.IsSuccess.Should().BeFalse();
         result.Type.Should().Be(ResultType.Failure);
+        result.Error.Should().Contain("last state: Submitted")
+            .And.Contain("resumes the same creation");
+        node.Sent.Should().Contain(request => request.Path == $"{StepPrefix}/refresh",
+            "the budget is spent polling the node, not waiting blind");
     }
+
+    private static AzoaBackedAlgorandService NewAdapter(ScriptedNode node, AzoaFungibleCreationBudget? budget = null) =>
+        new(
+            new AzoaNodeClient(new HttpClient(node) { BaseAddress = new Uri("https://azoa.test") },
+                NullLogger<AzoaNodeClient>.Instance),
+            Options.Create(new AzoaSettings { BaseUrl = "https://azoa.test", ValueApiKey = "k", ChainType = "Algorand" }),
+            NullLogger<AzoaBackedAlgorandService>.Instance,
+            budget ?? new AzoaFungibleCreationBudget(TimeSpan.FromSeconds(5), TimeSpan.FromMilliseconds(1)));
+
+    /// <summary>Literal transcription of AZOA's <c>FungibleCreationView</c> as the node serializes it.</summary>
+    private static string View(
+        string state, long version, string? quoteId = null, string? transactionId = null, string? assetId = null,
+        string chainType = "Algorand")
+    {
+        var quote = quoteId is null
+            ? "null"
+            : $$"""{"quoteId":"{{quoteId}}","intentHash":"ih","protocolIdentity":"algorand:testnet","networkFeeBaseUnits":"1000","minimumBalanceBaseUnits":"100000","currency":"ALGO","decimals":6,"payerAddress":"RESERVE","expiresAt":"2026-10-25T12:00:00+00:00"}""";
+
+        return $$"""{"operationId":"{{OperationId}}","version":{{version}},"state":"{{state}}","chainType":"{{chainType}}","network":"TestNet","assetId":{{Json(assetId)}},"transactionId":{{Json(transactionId)}},"detail":null,"quote":{{quote}},"walletId":"22222222-2222-2222-2222-222222222222","walletAddress":"RESERVE","walletProvisioned":true,"requestedHolonId":null,"purpose":"Participant"}""";
+    }
+
+    private static string MintJson(string operationJson, bool replayed = false) =>
+        $$"""{"operation":{{operationJson}},"userId":"11111111-1111-1111-1111-111111111111","walletId":"22222222-2222-2222-2222-222222222222","walletAddress":"RESERVE","walletProvisioned":true,"assetId":"","replayed":{{(replayed ? "true" : "false")}}}""";
+
+    private static string Json(string? value) => value is null ? "null" : $"\"{value}\"";
+
+    /// <summary>
+    /// The HTTP edge: answers each path from its own script in order, repeating the last answer,
+    /// and records what left the process. An unscripted path is a 404, as on the node.
+    /// </summary>
+    private sealed class ScriptedNode : HttpMessageHandler
+    {
+        private readonly Dictionary<string, Queue<(HttpStatusCode Status, string Result)>> _scripts = new();
+        private readonly Dictionary<string, (HttpStatusCode Status, string Result)> _last = new();
+
+        public List<SentRequest> Sent { get; } = new();
+
+        public ScriptedNode On(string path, HttpStatusCode status, string resultJson)
+        {
+            if (!_scripts.TryGetValue(path, out var script))
+                _scripts[path] = script = new Queue<(HttpStatusCode, string)>();
+            script.Enqueue((status, resultJson));
+            return this;
+        }
+
+        protected override async Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var path = request.RequestUri!.AbsolutePath;
+            Sent.Add(new SentRequest(
+                path,
+                request.Content is null ? string.Empty : await request.Content.ReadAsStringAsync(cancellationToken),
+                request.Headers.TryGetValues("Idempotency-Key", out var keys) ? keys.FirstOrDefault() : null));
+
+            if (_scripts.TryGetValue(path, out var script) && script.Count > 0)
+                _last[path] = script.Dequeue();
+
+            if (!_last.TryGetValue(path, out var answer))
+                return new HttpResponseMessage(HttpStatusCode.NotFound);
+
+            return new HttpResponseMessage(answer.Status)
+            {
+                Content = new StringContent(
+                    """{"isError":false,"message":"Success","result":""" + answer.Result + "}",
+                    Encoding.UTF8,
+                    "application/json"),
+            };
+        }
+    }
+
+    private sealed record SentRequest(string Path, string Body, string? IdempotencyKey);
 }

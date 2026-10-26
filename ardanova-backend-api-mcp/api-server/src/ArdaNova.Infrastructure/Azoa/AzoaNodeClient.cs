@@ -61,19 +61,35 @@ public sealed class AzoaNodeClient : IAzoaNodeClient
 
     /// <summary>Posts to a value route; <see cref="AzoaNodeRoutePolicy.IsValueRoutePath"/> decides which.</summary>
     /// <remarks>
-    /// The allowed set is the fungible-mint door and the reserve-partition declaration door.
-    /// Both stand on the same authority - the value key's <c>token:create:sign</c> creates a
-    /// project's stake and then carves the named budgets that stake is issued out of - so a
-    /// caller that can create a stake can declare its allowances and nothing else. The
-    /// interface's own summary still says "fungible-mint" alone; the predicate below is what
-    /// actually refuses, and it is the one to read.
+    /// The allowed set is the fungible-mint door, that mint's consent lifecycle steps, and the
+    /// reserve-partition declaration door. All stand on the same authority - the value key's
+    /// <c>token:create:sign</c> creates a project's stake, sees that creation through, and then
+    /// carves the named budgets that stake is issued out of - so a caller that can create a
+    /// stake can finish it and declare its allowances and nothing else. The predicate below is
+    /// what actually refuses, and it is the one to read.
     /// </remarks>
     public Task<Result<T>> PostAsync<T>(string path, object? body, CancellationToken ct = default)
+        => PostValueAsync<T>(path, body, idempotencyKey: null, ct);
+
+    /// <inheritdoc/>
+    public Task<Result<T>> PostAsync<T>(string path, object? body, string idempotencyKey, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(idempotencyKey))
+            return Task.FromResult(Result<T>.ValidationError("A stable Idempotency-Key is required for a keyed value call."));
+
+        return PostValueAsync<T>(path, body, idempotencyKey, ct);
+    }
+
+    private Task<Result<T>> PostValueAsync<T>(string path, object? body, string? idempotencyKey, CancellationToken ct)
     {
         var msg = new HttpRequestMessage(HttpMethod.Post, path)
         {
             Content = body is null ? null : JsonContent.Create(body),
         };
+        // The header NftController.ReadIdempotencyKey reads; the node refuses a blank one on fungible-mint.
+        if (idempotencyKey is not null)
+            msg.Headers.Add("Idempotency-Key", idempotencyKey);
+
         return SendValueAsync<T>(
             msg,
             AzoaNodeRoutePolicy.IsValueRoutePath(msg.RequestUri?.OriginalString),
@@ -89,8 +105,8 @@ public sealed class AzoaNodeClient : IAzoaNodeClient
         {
             msg.Dispose();
             return Task.FromResult(Result<T>.Forbidden(
-                "The AZOA value credential is restricted to allocation, fungible-mint and "
-                + "reserve-partition endpoints."));
+                "The AZOA value credential is restricted to allocation, fungible-mint, "
+                + "fungible-creation and reserve-partition endpoints."));
         }
 
         return SendAsync<T>(_http, _logger, msg, ct);
@@ -218,16 +234,56 @@ internal static class AzoaNodeRoutePolicy
     private const string ReservePrefix = "/api/reserve/";
     private const string PartitionsSuffix = "/partitions";
     private const string CredentialIssuePrefix = "/api/credential/issue/";
+    private const string FungibleCreationPrefix = "/api/fungible-creation/";
+
+    /// <summary>The consent-lifecycle steps of FungibleCreationController a fungible-mint needs; replace/cancel/attachment stay out.</summary>
+    private static readonly string[] FungibleCreationSteps =
+    [
+        AzoaFungibleCreationSteps.Quote,
+        AzoaFungibleCreationSteps.AcceptQuote,
+        AzoaFungibleCreationSteps.Continue,
+        AzoaFungibleCreationSteps.Refresh,
+    ];
 
     /// <summary>Longest addressable id this policy will carry in a path segment.</summary>
     private const int MaximumSegmentLength = 128;
 
     /// <summary>
-    /// Everything the VALUE credential may post: create a stake, then declare the named
-    /// budgets that stake is issued out of. Nothing else.
+    /// Everything the VALUE credential may post: create a stake, see that creation through its
+    /// consent lifecycle, then declare the named budgets that stake is issued out of. Nothing else.
     /// </summary>
     public static bool IsValueRoutePath(string? path)
-        => AzoaNodePathPolicy.IsFungibleMintPath(path) || IsReservePartitionsPath(path);
+        => AzoaNodePathPolicy.IsFungibleMintPath(path)
+            || IsFungibleCreationStepPath(path)
+            || IsReservePartitionsPath(path);
+
+    /// <summary>Exactly <c>POST /api/fungible-creation/{operationId}/{quote|accept-quote|continue|refresh}</c>.</summary>
+    public static bool IsFungibleCreationStepPath(string? path)
+    {
+        if (!AzoaNodePathPolicy.IsSafeApiPath(path)
+            || !path!.StartsWith(FungibleCreationPrefix, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        var segments = path[FungibleCreationPrefix.Length..].Split('/');
+        return segments.Length == 2
+            && IsAddressableSegment(segments[0])
+            && FungibleCreationSteps.Contains(segments[1], StringComparer.Ordinal);
+    }
+
+    /// <summary>
+    /// Builds a lifecycle step path for a node-issued operation id, or null when the id is not one
+    /// addressable segment. Refused rather than escaped: an id needing escaping is not the node's.
+    /// </summary>
+    public static string? FungibleCreationStepPath(string? operationId, string step)
+    {
+        if (!IsAddressableSegment(operationId))
+            return null;
+
+        var path = $"{FungibleCreationPrefix}{operationId}/{step}";
+        return IsFungibleCreationStepPath(path) ? path : null;
+    }
 
     /// <summary>Exactly <c>POST /api/projects/treasury/resolve</c>.</summary>
     public static bool IsTreasuryResolvePath(string? path)

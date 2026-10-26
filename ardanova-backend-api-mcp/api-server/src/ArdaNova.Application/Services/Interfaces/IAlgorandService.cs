@@ -76,12 +76,14 @@ public interface IAlgorandService
     /// <param name="name">The display name of the asset</param>
     /// <param name="unitName">Short unit name (e.g., "ARDA", "PROJ")</param>
     /// <param name="totalSupply">Total supply of the asset (in base units)</param>
+    /// <param name="idempotencyKey">Stable per declaration: a retry with the same key replays, never creates a second asset.</param>
     /// <param name="ct">Cancellation token</param>
     /// <returns>Result containing the asset ID and creation transaction hash</returns>
     Task<Result<FungibleAsaCreateResult>> CreateFungibleASAAsync(
         string name,
         string unitName,
         ulong totalSupply,
+        string idempotencyKey,
         CancellationToken ct = default);
 
     /// <summary>

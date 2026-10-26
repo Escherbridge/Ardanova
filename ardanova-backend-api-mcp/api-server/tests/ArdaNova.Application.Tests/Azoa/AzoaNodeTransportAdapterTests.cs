@@ -68,6 +68,25 @@ public class AzoaNodeTransportAdapterTests
     }
 
     [Theory]
+    [InlineData("quote")]
+    [InlineData("accept-quote")]
+    [InlineData("continue")]
+    [InlineData("refresh")]
+    public async Task PostAsync_ReachesTheMintsOwnConsentLifecycleSteps(string step)
+    {
+        // The key that created a stake must be able to see that creation through.
+        var handler = RespondingWith(FungibleMintResultJson);
+        var client = new AzoaNodeClient(HttpFor(handler), NullLogger<AzoaNodeClient>.Instance);
+
+        var result = await client.PostAsync<AzoaFungibleMintResult>(
+            $"/api/fungible-creation/9f2c4e6a8b0d1f3a/{step}", null);
+
+        result.IsSuccess.Should().BeTrue();
+        handler.Sent.Should().ContainSingle()
+            .Which.Uri.AbsolutePath.Should().Be($"/api/fungible-creation/9f2c4e6a8b0d1f3a/{step}");
+    }
+
+    [Theory]
     // Another credential's route family: the value key must never reach tenant custody.
     [InlineData("/api/tenant/custodial-accounts")]
     // The consent door L2.7 uses; it is the CUSTODY key's, not this one's.
@@ -86,6 +105,17 @@ public class AzoaNodeTransportAdapterTests
     // Prefix and suffix both satisfied with no asset id between them.
     [InlineData("/api/reserve/partitions")]
     [InlineData("/api/reserve//partitions")]
+    // Fungible-creation doors that are NOT the mint's own lifecycle: undoing or re-pointing a
+    // creation is not authority the value key was handed.
+    [InlineData("/api/fungible-creation/op123/cancel")]
+    [InlineData("/api/fungible-creation/op123/replace")]
+    [InlineData("/api/fungible-creation/op123/attachment")]
+    // The participant listing, and a lifecycle step with no operation between prefix and step.
+    [InlineData("/api/fungible-creation")]
+    [InlineData("/api/fungible-creation//refresh")]
+    // An operation id that is really two segments, or a traversal out of the namespace.
+    [InlineData("/api/fungible-creation/op123/extra/refresh")]
+    [InlineData("/api/fungible-creation/../tenant/refresh")]
     public async Task PostAsync_RefusesAPathOutsideTheValueFamily_WithoutSendingAnything(string path)
     {
         var handler = RespondingWith(FungibleMintResultJson);

@@ -1919,7 +1919,7 @@ public class ProjectTokenServiceTests
                 && request.NextHoldId == EscrowHoldId + "-window"
                 && request.NextBeneficiaryAvatarId == WorkerAvatarId
                 && request.ReleaseNotBefore != null
-                && request.AutoRelease),
+                && !request.AutoRelease),
             It.IsAny<CancellationToken>()), Times.Once);
 
         allocation.status.Should().Be(AllocationStatus.DISTRIBUTED);
@@ -1931,6 +1931,78 @@ public class ProjectTokenServiceTests
         allocation.isLiquid.Should().BeFalse();
         agreement.status.Should().Be(TaskCommerceAgreementStatus.SETTLED);
         task.escrowStatus.Should().Be(EscrowStatus.RELEASED);
+    }
+
+    [Fact]
+    public async Task ApproveWorkCompletionAsync_ARetryCarriesTheSameWindowInstantTheFirstAttemptSaved()
+    {
+        // F31: the node keys the continuation on the whole intent. A retry that recomputed
+        // "now + window" is a different command under a completed key, and is refused.
+        var service = CreateAwardService();
+        var task = new ProjectTask { id = "task-1", projectId = "project-1", escrowStatus = EscrowStatus.FUNDED };
+        var firstAttempt = HeldAllocation();
+        ArrangeAwardLookups(firstAttempt, AwardAgreement(), task);
+        DateTime? saved = null;
+        _unitOfWorkMock.Setup(unitOfWork => unitOfWork.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .Callback(() => saved ??= firstAttempt.workerHoldReleasesAt)
+            .ReturnsAsync(1);
+        var sent = new List<DateTimeOffset?>();
+        _awardHoldsMock.Setup(holds => holds.GetAsync(It.IsAny<AzoaHoldReference>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<AzoaHold>.NotFound("The shared node holds nothing under this reference."));
+        _awardHoldsMock.Setup(holds => holds.ReleaseIntoHoldAsync(It.IsAny<AzoaHoldChainRequest>(), It.IsAny<CancellationToken>()))
+            .Callback<AzoaHoldChainRequest, CancellationToken>((request, _) => sent.Add(request.ReleaseNotBefore))
+            .ReturnsAsync(() => sent.Count == 1
+                ? Result<AzoaHold>.Failure("AZOA node is unreachable.")
+                : Result<AzoaHold>.Success(
+                    Hold(EscrowHoldId, AzoaHoldStates.ReleasedIntoHold, childHoldId: EscrowHoldId + "-window")));
+        _tokenBalanceServiceMock
+            .Setup(balances => balances.CreditAsync(
+                "worker-1", "config-1", 25, TokenHolderClass.CONTRIBUTOR, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<TokenBalanceDto>.Success(new TokenBalanceDto()));
+
+        (await service.ApproveWorkCompletionAsync("alloc-1", "owner-1")).IsSuccess.Should().BeFalse();
+        // The retry reads the row back as the database kept it: only what was saved survives.
+        var retried = HeldAllocation();
+        retried.workerHoldReleasesAt = saved;
+        ArrangeAwardLookups(retried, AwardAgreement(), task);
+        var result = await service.ApproveWorkCompletionAsync("alloc-1", "owner-1");
+
+        result.IsSuccess.Should().BeTrue(result.Error);
+        saved.Should().NotBeNull("the instant must be saved before the node is asked");
+        sent.Should().HaveCount(2).And.OnlyContain(instant => instant == sent[0]);
+        (sent[0]!.Value.Ticks % TimeSpan.TicksPerSecond).Should().Be(0,
+            "the column keeps milliseconds, so a finer instant would not survive the round-trip");
+        retried.status.Should().Be(AllocationStatus.DISTRIBUTED);
+    }
+
+    [Fact]
+    public async Task ApproveWorkCompletionAsync_AWindowTheNodeAlreadyCommittedIsReplayedWithItsOwnInstant()
+    {
+        // Found live: the node continued the hold, then the local save failed and rolled the
+        // pinned instant back. Only the node's own instant, to the tick, replays that command.
+        var service = CreateAwardService();
+        var allocation = HeldAllocation();
+        var task = new ProjectTask { id = "task-1", projectId = "project-1", escrowStatus = EscrowStatus.FUNDED };
+        ArrangeAwardLookups(allocation, AwardAgreement(), task);
+        var committed = new DateTimeOffset(2027, 1, 23, 21, 22, 55, TimeSpan.Zero).AddTicks(7575537);
+        _awardHoldsMock.Setup(holds => holds.GetAsync(It.IsAny<AzoaHoldReference>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<AzoaHold>.Success(
+                Hold(EscrowHoldId + "-window", AzoaHoldStates.Held) with { ReleaseNotBefore = committed }));
+        _awardHoldsMock.Setup(holds => holds.ReleaseIntoHoldAsync(It.IsAny<AzoaHoldChainRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<AzoaHold>.Success(
+                Hold(EscrowHoldId, AzoaHoldStates.ReleasedIntoHold, childHoldId: EscrowHoldId + "-window")));
+        _tokenBalanceServiceMock
+            .Setup(balances => balances.CreditAsync(
+                "worker-1", "config-1", 25, TokenHolderClass.CONTRIBUTOR, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<TokenBalanceDto>.Success(new TokenBalanceDto()));
+
+        var result = await service.ApproveWorkCompletionAsync("alloc-1", "owner-1");
+
+        result.IsSuccess.Should().BeTrue(result.Error);
+        _awardHoldsMock.Verify(holds => holds.ReleaseIntoHoldAsync(
+            It.Is<AzoaHoldChainRequest>(request => request.ReleaseNotBefore == committed),
+            It.IsAny<CancellationToken>()), Times.Once);
+        allocation.status.Should().Be(AllocationStatus.DISTRIBUTED);
     }
 
     // -- A declared guild share is a beneficiary, not a stranded hold --

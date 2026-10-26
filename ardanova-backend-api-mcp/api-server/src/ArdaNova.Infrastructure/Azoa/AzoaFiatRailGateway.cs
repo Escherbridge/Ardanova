@@ -544,6 +544,29 @@ internal sealed class AzoaPriceScheduleWire
     [JsonPropertyName("registeredAt")] public DateTimeOffset RegisteredAt { get; set; }
 }
 
+/// <summary>The genesis ARDA/USD price the registrar declares, as exact USD per whole ARDA.</summary>
+/// <remarks>See <c>ArdaNova.Application/Services/Implementations/AGENTS.md</c> section exchange-pricing.</remarks>
+public sealed class OnRampArdaGenesisPrice : IArdaGenesisPrice
+{
+    private const decimal ArdaBaseUnitsPerWholeArda =
+        ArdaNova.Application.Services.Implementations.Money.MinorUnitsPerWholeUnit;
+    private const decimal DollarsPerCent = 0.01m;
+
+    /// <summary>Reads the same <see cref="ArdaOnRampOptions"/> the registrar declares to the node.</summary>
+    public OnRampArdaGenesisPrice(ArdaOnRampOptions options)
+    {
+        UsdPerWholeArda = options.Enabled
+            && !string.IsNullOrWhiteSpace(options.AssetId)
+            && long.TryParse(options.UnitsPerUsdMinorUnit, NumberStyles.None, CultureInfo.InvariantCulture, out var unitsPerCent)
+            && unitsPerCent > 0
+                ? ArdaBaseUnitsPerWholeArda / unitsPerCent * DollarsPerCent
+                : null;
+    }
+
+    /// <inheritdoc />
+    public decimal? UsdPerWholeArda { get; }
+}
+
 /// <summary>
 /// Registration for the on-ramp adapter, kept here so wiring it costs exactly one call in
 /// <c>Infrastructure.DependencyInjection</c> - the same arrangement the exchange adapter uses.
@@ -592,6 +615,8 @@ public static class AzoaFiatRailGatewayRegistration
 
         services.AddScoped<IFiatRailGateway>(provider => provider.GetRequiredService<AzoaFiatRailGateway>());
         services.AddHostedService<ArdaOnRampPriceScheduleRegistrar>();
+        // The price a genesis treasury quotes at is the one this registrar declares, never a second copy.
+        services.AddSingleton<IArdaGenesisPrice>(new OnRampArdaGenesisPrice(onRamp));
         return services;
     }
 }
