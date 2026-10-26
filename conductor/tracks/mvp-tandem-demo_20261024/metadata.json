@@ -1,0 +1,23 @@
+{
+  "id": "mvp-tandem-demo_20261024",
+  "title": "MVP Tandem Demo (ArdaNova + AZOA local golden path)",
+  "type": "feature",
+  "status": "in-progress",
+  "created": "2026-10-24",
+  "origin": "user: stand up an MVP for both repos — creator/investor/freelancer core flow",
+  "partitions": {
+    "confidence": "planned",
+    "computed_at_commit": "0822d72",
+    "slices": {
+      "WS-A": { "owns": ["<oasis-sleek repo>/**"], "notes": "entire sister repo; no ardanova files" },
+      "WS-B": {
+        "owns": [
+          ".omc/scripts/local-stack.ps1",
+          "ardanova-client/scripts/seed-local-demo.ts",
+          "ardanova-client/src/trpc/query-client.ts"
+        ]
+      },
+      "WS-C": { "owns": [], "notes": "integration drive; edits batched after A+B land" }
+    }
+  }
+}

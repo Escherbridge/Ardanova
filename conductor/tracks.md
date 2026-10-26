@@ -54,6 +54,7 @@ type: index
 > see the plan's dependency graph. Real-value allocation gates on ArdaNova's own production
 > trigger — NOT on AZOA-side P7, which is done (see the row below).
 
+- [ ] [MVP Tandem Demo](tracks/mvp-tandem-demo_20261024/spec.md) - One-command local stack for BOTH repos (ArdaNova + AZOA node, Simulated chain, dev KYC vendor sidecar) and a driven golden path: creator provisions funding → sponsor buys ARDA and sponsors → freelancer joins for stake/pay. Runtime reconciliation of the stale launch-readiness L1/L2 boards. **P0 — the MVP.**
 - [ ] [Gated Commerce and AZOA Settlement](tracks/gated-commerce-and-azoa-settlement/spec.md) - Durable bid, funding, task-award, project-token/ARDA exchange, wallet, and settlement flows. **P0 launch prerequisite.**
 - [ ] [Financial Engine Domain Hardening](tracks/financial-engine-domain-hardening/spec.md) - Immutable asset definitions, utility-token versus equity/redemption-right policies, eligibility decisions, and fixed-scale migration. **P0 prerequisite; does not activate value movement.**
 - [ ] [Guild & Governance Authority Follow-ups](tracks/guild-governance-authority-followups/spec.md) - Ownership transfer, two-party disputes, local-preview auth for tRPC, create-form fields, verified-email invites, draft voting duration, guild API contract tests. **P1; loop-1 follow-ups.**
