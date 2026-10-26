@@ -1,0 +1,229 @@
+{
+  "personas": [
+    {
+      "handle": "qa-sponsor-ana",
+      "name": "Ana Moreau",
+      "archetype": "newcomer sponsor (unverified)",
+      "segment": "unverified-sponsor",
+      "goal": "See what money I have, put a little in, and find out how I'd get it back to my bank if I change my mind.",
+      "context": "Invited by a friend, signed up yesterday, has not done identity checks. Comfortable with banking apps, never used a token or project-unit product. Will read banners but expects plain money language ($, bank, balance). Fresh account: a zero balance is the truth for her, so it must look like an honest zero, not an error or a fake.",
+      "patience": 3,
+      "constraints": {},
+      "modelTier": "sonnet",
+      "seed": { "userType": "SUPPORTER", "isVerified": false, "verificationLevel": "ANONYMOUS" }
+    },
+    {
+      "handle": "qa-sponsor-ben",
+      "name": "Ben Okafor",
+      "archetype": "verified sponsor, finance auditor (expert)",
+      "segment": "verified-sponsor",
+      "goal": "Check that every number and every refusal on the money pages is true: balance, add funds, withdraw limits, and what happens to a project I back.",
+      "context": "Accountant by trade, verified on the platform. Deliberately probes amount fields through the UI (0, 0.001, 1,50, $1.00, negative, more than available, very large), double-submits, and compares what the page says against what it later shows. Distrusts any $0.00 that might be a failed read. Knows what KYC, payouts and settlement mean, but judges copy for people who don't.",
+      "patience": 5,
+      "constraints": {},
+      "modelTier": "opus",
+      "seed": { "userType": "SUPPORTER", "isVerified": true, "verificationLevel": "VERIFIED" }
+    },
+    {
+      "handle": "qa-creator-gus",
+      "name": "Gus Lindqvist",
+      "archetype": "project creator / owner",
+      "segment": "creator",
+      "goal": "Set up my project so people can fund it, see what my funding page tells backers, and understand how project money would ever reach me.",
+      "context": "Verified innovator launching a small community project. Creates one project named with the marker (e.g. 'uxqa-p1 Tool Library') and shares its link with collaborators in the lane. Cares that backers see an honest 'funding not open yet' rather than a broken invest button. Never touches solar-micro-grid-commons or demo-* projects.",
+      "patience": 4,
+      "constraints": {},
+      "modelTier": "sonnet",
+      "seed": { "userType": "INNOVATOR", "isVerified": true, "verificationLevel": "VERIFIED" }
+    },
+    {
+      "handle": "qa-freelancer-chidi",
+      "name": "Chidi Eze",
+      "archetype": "freelancer cashing out earnings (keyboard-only)",
+      "segment": "unverified-worker",
+      "goal": "Set where my pay goes, then move my earnings out to my bank, using only my keyboard.",
+      "context": "Developer with a repetitive-strain injury; uses Tab, Shift+Tab, Enter, Space and arrows only, never a mouse. Not yet verified. Expects visible focus, a reachable submit, and errors that move focus or are announced. Any pointer-only control he needs is a workaround and a finding.",
+      "patience": 3,
+      "constraints": { "keyboardOnly": true },
+      "modelTier": "sonnet",
+      "seed": { "userType": "FREELANCER", "isVerified": false, "verificationLevel": "ANONYMOUS" }
+    },
+    {
+      "handle": "qa-freelancer-dina",
+      "name": "Dina Haddad",
+      "archetype": "verified worker selling units on a phone",
+      "segment": "verified-worker",
+      "goal": "From my phone on a bad connection, see the project units I've earned and sell some for money.",
+      "context": "Verified freelancer who earned stake in a project; does everything on a 390px phone over a patchy mobile connection. Taps fast when nothing seems to happen. Reveals missing loading states, double submits, clipped money forms and hidden navigation. May genuinely hold no units in this environment: an honest empty holdings state is the expected truth, a blank or spinner-forever is not.",
+      "patience": 3,
+      "constraints": { "width": 390, "slow": true },
+      "modelTier": "sonnet",
+      "seed": { "userType": "FREELANCER", "isVerified": true, "verificationLevel": "VERIFIED" }
+    },
+    {
+      "handle": "qa-member-eli",
+      "name": "Eli Turner",
+      "archetype": "low-literacy volunteer member",
+      "segment": "unverified-member",
+      "goal": "Get my money back to my bank.",
+      "context": "Volunteers locally, reads slowly, does not know words like ARDA, KYC, units, settlement, swap or rails. Perceives the page only through its visible text and acts only on words he can see; ignores icons without labels. If the page uses jargon or a dead end, he gives up rather than guessing.",
+      "patience": 2,
+      "constraints": { "lowLiteracy": true },
+      "modelTier": "haiku",
+      "seed": { "userType": "VOLUNTEER", "isVerified": false, "verificationLevel": "ANONYMOUS" }
+    },
+    {
+      "handle": "qa-member-fay",
+      "name": "Fay Nakamura",
+      "archetype": "impatient member on slow network",
+      "segment": "unverified-member",
+      "goal": "Take $1 out to my bank quickly and be sure it only happened once.",
+      "context": "Busy, on a slow connection, clicks submit twice when the button doesn't react within a second, and leaves if a flow takes more than a couple of tries. Not verified. Surfaces double-submit/idempotency affordances, disabled-while-pending buttons and refusal copy she can act on immediately.",
+      "patience": 1,
+      "constraints": { "slow": true },
+      "modelTier": "haiku",
+      "seed": { "userType": "SUPPORTER", "isVerified": false, "verificationLevel": "ANONYMOUS" }
+    },
+    {
+      "handle": "qa-sme-hana",
+      "name": "Hana Dubois",
+      "archetype": "small-business owner, French locale, 200% zoom",
+      "segment": "unverified-sme",
+      "goal": "Ajouter de l'argent pour soutenir un projet, puis comprendre comment le récupérer sur mon compte bancaire.",
+      "context": "Runs a bakery in Lyon; browser set to fr-FR and zoomed to 200% for eyesight. Types amounts the French way (1,50 and 1 000) and expects dates and currency in her format or at least clearly labelled. Not verified; will try the identity verification entry if the page tells her to. Reveals cents parsing in other locales, reflow and clipped dialogs.",
+      "patience": 3,
+      "constraints": { "locale": "fr-FR", "zoom": 2 },
+      "modelTier": "sonnet",
+      "seed": { "userType": "SME_OWNER", "isVerified": false, "verificationLevel": "ANONYMOUS" }
+    },
+    {
+      "handle": "qa-auditor-ivo",
+      "name": "Ivo Petrov",
+      "archetype": "accessibility auditor using a screen reader (expert)",
+      "segment": "verified-guild",
+      "goal": "Withdraw money, set payout details and sell units with a screen reader, and confirm every field, error and status is named and announced.",
+      "context": "Blind guild member with PRO verification and deep assistive-tech expertise. Perceives only the accessibility tree (outline) and acts only via roles and accessible names. Checks unlabelled amount fields, div buttons, error messages not tied to inputs, status/refusal banners without live regions, and money values that read ambiguously.",
+      "patience": 4,
+      "constraints": { "a11yTreeOnly": true },
+      "modelTier": "opus",
+      "seed": { "userType": "GUILD_MEMBER", "isVerified": true, "verificationLevel": "PRO" }
+    },
+    {
+      "handle": "qa-gold-sponsor",
+      "name": "Grace Sponsor",
+      "archetype": "gold-task sponsor (verified)",
+      "segment": "verified-sponsor",
+      "goal": "See my balance, add $5 with my card, and send $1 to my own bank.",
+      "context": "Typical verified backer used only for timed gold tasks; stable handle across passes so gold trends stay comparable. Stripe TEST card 4242 only, <= $25, always untick the Link save box. Under gated rails, reaching an honest refusal is recorded, not worked around.",
+      "patience": 3,
+      "constraints": {},
+      "modelTier": "sonnet",
+      "seed": { "userType": "SUPPORTER", "isVerified": true, "verificationLevel": "VERIFIED" }
+    },
+    {
+      "handle": "qa-gold-worker",
+      "name": "Gil Worker",
+      "archetype": "gold-task worker (verified)",
+      "segment": "verified-worker",
+      "goal": "Sell some of my project units.",
+      "context": "Typical verified freelancer used only for the timed sell-units gold task; stable handle across passes. Seed cannot grant holdings, so an honest 'you hold no units yet' with a next step is a valid observed state to record against the gold success text.",
+      "patience": 3,
+      "constraints": {},
+      "modelTier": "sonnet",
+      "seed": { "userType": "FREELANCER", "isVerified": true, "verificationLevel": "VERIFIED" }
+    },
+    {
+      "handle": "qa-probe-member",
+      "name": "Probe Member",
+      "archetype": "API capability probe (unverified)",
+      "segment": "probe",
+      "goal": "Confirm through the API a real client calls what the money surfaces can and cannot do for an unverified member while rails are gated.",
+      "context": "Not a UX persona; drives tRPC/REST calls the client makes, with its own session only. Compared against qa-sponsor-ben's read-only responses for the verified side. Never uses keys, never touches the database, only public health on azoa-api.",
+      "patience": 3,
+      "constraints": {},
+      "modelTier": "sonnet",
+      "seed": { "userType": "SUPPORTER", "isVerified": false, "verificationLevel": "ANONYMOUS" }
+    }
+  ],
+  "lanes": [
+    {
+      "name": "ux-plain-words-cash-out",
+      "kind": "ux",
+      "personas": ["qa-member-eli", "qa-member-fay"],
+      "journey": "Eli lands on /portfolio and, using only visible words, tries to get his money to his bank: finds (or fails to find) the withdraw path, reads what his balance means and what the refusal says. Hand-off: Eli's notes on which words he could and could not follow go to Fay, who takes the fastest route to /portfolio/withdraw on a slow connection, enters $1, and double-taps submit; she checks whether the button disables, whether a duplicate request is possible, and whether the gated/unverified refusal tells her exactly what is true and her next step (verify identity? wait for rails?). Both end by stating in their own words what happens to their money now. Never a dead end, fake zero or jargon.",
+      "modelTier": "haiku"
+    },
+    {
+      "name": "ux-creator-to-sponsor-funding",
+      "kind": "ux",
+      "personas": ["qa-creator-gus", "qa-sponsor-ben"],
+      "journey": "Gus creates a marker project 'uxqa-p1 Tool Library', opens its funding tab and invest page, and records what a backer will see while the economy is disabled. Hand-off: Gus passes the project link to Ben, who opens the invest page as a verified backer, then /portfolio/add-funds (reach the refusal or Stripe test checkout honestly; never pay beyond <= $25, card 4242, untick Link), then /portfolio balances and holdings, then /portfolio/withdraw where he audits amount validation (0, 0.001, 1,50, $1.00, -1, more than available, 1e9) and the sales call-off wording. Ben reports back to Gus what a backer would believe about the project's money; Gus checks whether the creator side ever explains how funds would reach him.",
+      "modelTier": "opus"
+    },
+    {
+      "name": "ux-keyboard-payout-setup",
+      "kind": "ux",
+      "personas": ["qa-sponsor-ana", "qa-freelancer-chidi"],
+      "journey": "Ana (fresh, unverified) opens /portfolio and judges whether her zero is an honest empty state, then follows the site's own prompts to settings/verification and records the KYC entry state and what it promises. Hand-off: Ana tells Chidi what verification requires; Chidi, keyboard only, goes to settings/payouts to set a payout destination, then /portfolio/withdraw to try moving earnings, then /swap. He records focus order, any trap, unreachable submit, error focus behaviour, and whether the unverified/gated refusal is reachable and readable without a pointer. Both compare whether the two surfaces (verification vs payouts) agree on what is blocking them.",
+      "modelTier": "sonnet"
+    },
+    {
+      "name": "ux-phone-and-locale-amounts",
+      "kind": "ux",
+      "personas": ["qa-freelancer-dina", "qa-sme-hana"],
+      "journey": "Dina on a 390px phone over a slow link checks her holdings on /portfolio, then tries to sell units on /swap: loading states, tap targets, whether a pending sell can be double-submitted, and whether 'no units yet' is honest. Hand-off: Dina shares the amount formats she saw; Hana (fr-FR, 200% zoom) tries /portfolio/add-funds with '5,00' and /portfolio/withdraw with '1,50' and '1 000', checking cents parsing, error messages, reflow and clipped dialogs. Together they record any place a locale-formatted amount is silently misread (e.g. 1,50 -> 150) or a money action hides off-screen.",
+      "modelTier": "sonnet"
+    },
+    {
+      "name": "ux-screen-reader-money-forms",
+      "kind": "ux",
+      "personas": ["qa-auditor-ivo", "qa-sme-hana", "qa-creator-gus"],
+      "journey": "Gus creates (or reuses by name) a marker project 'uxqa-p1 Reader Garden' and shares its invest page. Hand-off: Ivo, accessibility tree only, audits the invest page, /portfolio/add-funds, /portfolio/withdraw, settings/payouts and /swap: accessible names for amount fields and buttons, errors associated to inputs, refusal/status banners in live regions, and whether money values read unambiguously ('$0.00' vs 'unavailable'). Hand-off: Ivo lists the controls he could not name; Hana re-visits those same controls at 200% zoom in fr-FR to see if the visual and the announced labels agree and whether anything is lost in reflow.",
+      "modelTier": "opus"
+    },
+    {
+      "name": "ux-empty-vs-error-truth",
+      "kind": "ux",
+      "personas": ["qa-sponsor-ana", "qa-freelancer-dina", "qa-sponsor-ben"],
+      "journey": "Three accounts in three states compare the same money surfaces: Ana (fresh, unverified, nothing held), Dina (verified, slow network, may hold units) and Ben (verified sponsor). Each visits /portfolio, /portfolio/add-funds, /portfolio/withdraw, /swap, settings/payouts and a project invest page, capturing whether each value is a real zero, a pending state, a loading state or a read failure, and whether the page distinguishes them (an unreadable balance must never render as $0.00). Hand-off: Dina's slow-network observations of transient states are handed to Ben, who decides per surface whether a member would be misled, and Ana restates for each surface what she believes is true and what her next step is.",
+      "modelTier": "sonnet"
+    },
+    {
+      "name": "gold-sponsor-money",
+      "kind": "gold",
+      "personas": ["qa-gold-sponsor"],
+      "journey": "Timed gold tasks for the sponsor: see balance from /portfolio, add $5 from /portfolio/add-funds (Stripe test 4242, untick Link, stop at checkout), send $1 from /portfolio/withdraw. Under gated rails a refusal is recorded as the observed outcome with its honesty judged, not worked around.",
+      "modelTier": "sonnet",
+      "goldTasks": ["gold-see-balance", "gold-add-funds", "gold-withdraw"]
+    },
+    {
+      "name": "gold-worker-sell",
+      "kind": "gold",
+      "personas": ["qa-gold-worker"],
+      "journey": "Timed gold task for the worker: sell some project units from /swap. Seed grants no holdings, so record whether the page honestly says so and offers a next step.",
+      "modelTier": "sonnet",
+      "goldTasks": ["gold-sell-units"]
+    },
+    {
+      "name": "probe-money-capabilities",
+      "kind": "probe",
+      "personas": ["qa-probe-member", "qa-sponsor-ben"],
+      "journey": "Not counted as UX. Guard first (GET /api/health deploymentKey == qa-ardanova-a876ca12; record the economy flag). With qa-probe-member's own session, call the tRPC procedures the money pages call: balance/holdings reads (does a failed read return an error the client can distinguish from zero?), withdraw/payout/swap/add-funds mutations as an unverified member (expected typed refusal, not 500), server-side amount validation (0, negative, sub-cent, more than available, huge), and idempotency (same request key twice -> at most one effect). Compare read-only responses with qa-sponsor-ben for the verified side; Ben's session issues no mutations. azoa-api: public health only, no keys. Never print cookies or tokens.",
+      "modelTier": "sonnet"
+    }
+  ],
+  "seed": {
+    "adapter": "node uxqa/adapter/adapter.mjs seed uxqa/passes/01-cash-out-edges/personas.json <out>",
+    "seedFields": "Adapter seeds only userType, isVerified, verificationLevel per persona; no holdings, balances or project memberships can be seeded.",
+    "marker": "uxqa-p1",
+    "fixtures": {
+      "projects": [
+        { "name": "uxqa-p1 Tool Library", "createdBy": "qa-creator-gus", "createdIn": "ux-creator-to-sponsor-funding", "how": "created through the UI by the persona" },
+        { "name": "uxqa-p1 Reader Garden", "createdBy": "qa-creator-gus", "createdIn": "ux-screen-reader-money-forms", "how": "created through the UI by the persona" }
+      ]
+    },
+    "forbidden": ["demo-* personas", "solar-micro-grid-commons project", "real email invites"]
+  },
+  "retired": ["qa-uxqa-smoke"],
+  "rationale": "First real pass, shaped by the cash-out-edges scenario: the cast spans the real money roles (unverified and verified sponsors, a creator, verified and unverified workers, an SME, a guild member) so refusals can be compared across verification states, which is the main variable the gated rails expose. 6 of 12 personas are constrained (keyboard-only, 390px+slow, low-literacy, slow+impatient, fr-FR+200% zoom, a11y-tree-only) and they sit in five different segments. Tiers: haiku plays the low-literacy and impatient members (shared haiku lane), opus plays exactly two experts (finance auditor Ben, accessibility auditor Ivo), sonnet the rest. Each ux lane has a hand-off: creator -> backer via a uxqa-p1 project link, verification findings -> payout setup, phone amount formats -> French-locale cents parsing, screen-reader gaps -> zoom/locale re-check, slow-network transients -> auditor judgement. Gold personas keep stable handles for trend tracking; 4 gold tasks give 2 gold lanes. One probe lane checks server-side refusal types, empty-vs-error distinguishability, amount validation and idempotency through the client's own API. The seed cannot grant holdings, so units-held states are recorded as observed truth rather than re-powered; if a later pass needs a worker with real units, that is a seed change to request from the owner. qa-uxqa-smoke is retired (setup-only smoke account)."
+}

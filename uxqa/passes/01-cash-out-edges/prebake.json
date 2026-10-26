@@ -1,0 +1,26 @@
+{
+ "pass": "01-cash-out-edges",
+ "marker": "uxqa-p1",
+ "status": "BLOCKED",
+ "checkedAt": "2026-10-25T21:26:00-06:00",
+ "guard": { "url": "https://ardanova-client-production.up.railway.app/api/health", "status": 200, "deploymentKey": "qa-ardanova-a876ca12", "ok": true, "servedCommit": "927d5c68f952bfa55b36bc3da4bd81a177091c0e", "expectedCommit": "d5031cd8c17d2be8837b436b6696c03d5c915378", "economyFlag": "not exposed by client /api/health (fields: status,timestamp,service,uptimeSeconds,environment,commit,deploymentKey)" },
+ "created": [],
+ "blockers": [
+  {
+   "id": "PREBAKE-OWNER-1",
+   "kind": "OWNER",
+   "severity": "BLOCKER",
+   "summary": "Pass-01 personas have no sessions: uxqa/.secrets/sessions.json holds only the retired setup persona qa-uxqa-smoke (1 record, last written 21:08, before personas.json at 21:18).",
+   "steps": "Count handles in uxqa/.secrets/sessions.json (handles only, no secrets printed) -> 1: qa-uxqa-smoke.",
+   "observed": "No session for qa-creator-gus or any other pass-01 persona; uxSession would run anonymous and project.create is a protectedProcedure.",
+   "expected": "Coordinator runs `node uxqa/adapter/adapter.mjs seed uxqa/passes/01-cash-out-edges/personas.json uxqa/.secrets/sessions.json` before prebake.",
+   "whyNotWorkedAround": "Seeding goes through `railway ssh` (an infra CLI) and mints sessions; the prebaker's rules forbid both. Reported instead."
+  }
+ ],
+ "planned": [
+  { "fixture": "project", "name": "uxqa-p1 Tool Library", "owner": "qa-creator-gus", "lane": "ux-creator-to-sponsor-funding", "how": "lane creates it through the UI (persona plan says created by the persona in-lane); prebake would only pre-create if the lane wants a mid-flow state", "endpoint": "POST /api/trpc/project.create (protectedProcedure, ardanova-client/src/server/api/routers/project.ts:326 -> apiClient.projects.create)" },
+  { "fixture": "project", "name": "uxqa-p1 Reader Garden", "owner": "qa-creator-gus", "lane": "ux-screen-reader-money-forms", "how": "same as above; lane may 'create or reuse by name'", "endpoint": "POST /api/trpc/project.create" }
+ ],
+ "notCreatableBySeed": "Adapter seeds only userType/isVerified/verificationLevel; holdings, balances and memberships cannot be prebaked with the economy gated, so held-units and non-zero-balance states stay unavailable to lanes (dina, gold-worker record honest empty states).",
+ "resume": "After seeding, re-run prebake: as qa-creator-gus (mode probe, task prebake-1/prebake-2) call project.create for the two marker projects, record id/slug/URL here."
+}

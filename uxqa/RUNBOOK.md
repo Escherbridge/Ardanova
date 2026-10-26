@@ -8,6 +8,30 @@ description: Rolling state of the study - newest block first; one block per pass
 
 Newest block first. Each pass appends one block; nothing here is deleted.
 
+## Pass 01-cash-out-edges - 2026-10-26 - CHANGES_REQUESTED
+
+- **Deployed commit:** d5031cd (client), BFF Staging, azoa-api main@500ce8fb
+- **Exit checks:** gold 0/4 (no lane had a session), friction/journey 1 -> 15
+  (all friction sits on the sign-in wall, not comparable), new HIGH: 2 open
+  (F1 no pre-auth money entry, F2 no public project preview), coverage 2/53,
+  review APPROVE, coordinator re-run GREEN (590/590, tsc 0, build 0).
+- **Ledger:** FIX 3 shipped (commits 0a79d90 wordmark role=img + mobile
+  primary nav, ca1be70 sign-in names the return destination, 3254a81
+  regression checks); RESEARCH_QUESTION 12 (pre-auth findings carried).
+- **Structural blocker (fixed):** adapter seed read personas.json as a bare
+  array; the plugin writes {personas:[...]}. Fixed + plugin uxSession now
+  preflights the session before launching a browser (10 leaked chromium
+  processes reaped). All 12 personas seed: SEEDED 12.
+- **Top friction routes:** / and /auth/signin (the wall; everything else
+  unreached).
+- **Persona refinement:** cast kept as designed; Gus's fixture-creation moves
+  to prebake; Hana gets an independent sub-goal; add a keyboard-only 390px
+  persona; Ben/Dina's holdings-dependent cases flagged to the owner (seed
+  cannot grant holdings).
+- **Next:** RE-RUN 01-cash-out-edges with sessions (this run counts for
+  nothing); after a genuine run: project discovery / evaluate-before-commit
+  (F2, F5).
+
 ## Study setup - 2026-10-25 - PARTIAL (blocked on client deploy)
 
 - Scope requested: financial side - cash out / withdraw, wallet balances,

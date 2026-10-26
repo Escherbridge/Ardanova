@@ -185,7 +185,15 @@ async function seed(personasPath, outPath) {
 		return;
 	}
 
-	const personas = JSON.parse(fs.readFileSync(personasPath, 'utf8'));
+	// The plugin writes {personas:[...], lanes:[...]} (pass.generic.js, both template
+	// adapters); a bare array (hand-written smoke files) stays accepted.
+	const personasSpec = JSON.parse(fs.readFileSync(personasPath, 'utf8'));
+	const personas = Array.isArray(personasSpec) ? personasSpec : personasSpec.personas;
+	if (!Array.isArray(personas)) {
+		console.log('REFUSED personas file has no personas array');
+		process.exitCode = 2;
+		return;
+	}
 	const bad = personas.filter((p) => !HANDLE_RULE.test(p.handle));
 	if (bad.length) {
 		console.log(`REFUSED non-persona handles: ${bad.map((p) => p.handle).join(', ')}`);
