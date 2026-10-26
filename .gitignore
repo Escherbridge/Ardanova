@@ -91,3 +91,7 @@ CONTRIBUTOR_USD400_ROADMAP.md
 # Kenny's Task List
 TASKS-KENNY.md
 .mpg/
+
+# Agent/QA working state and UX capture artifacts (code commits stay clean)
+.omc/
+.playwright-mcp/
