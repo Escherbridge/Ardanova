@@ -203,6 +203,8 @@ pass (or open one), and close with a verdict like any other row.
 |---|---|---|---|---|
 | SR-01 | Brand copy pass: all user-facing copy written for humans in the ArdaNova voice — serious, inspiring, mission "aiding those who find problems and solve them" (Arda-Nova.pdf manifesto: fair share, earned membership, one member one vote, transparency, dignity; NOT crypto-hype). Strip AI-forward framing and "humans are always included" disclaimers — AI features are not the story. Copy must stay truthful to the shipping platform (no Holochain or other unimplemented-tech claims from the deck). Optional: Higgsfield media, only within the minimalist brutalist editorial aesthetic. | 2026-10-26 | DO-NOW (plane 8, runs alongside the active pass) | M |
 | SR-02 | Documentation overhaul: update the repo docs to describe what the system BECAME — the four-tier architecture with AZOA slotted in as the settlement/custody node (client -> tRPC thin proxies -> .NET BFF as the only Azoa credential holder -> AZOA node; per-project tokens, consent lifecycle, holds/ReleaseIntoHold, settlement outbox, economy modes fail-closed, Identomat KYC), the released Railway topology, the local tandem dev stack, and the ArdaNova–AZOA integration contract extended with the exchange/hold/consent state machines (both repos' copies). | 2026-10-26 | DO-NOW (plane 7/8; starts when the F29 + copy lanes release their partitions) | L |
+| SR-03 | Feed consolidation: ONE polymorphic feed where a guild, a project, an opportunity, a comment/update on any of them — anything feedable — is a postType rendered dynamically; project activity and collaboration ARE the feed. Broaden tags/taxonomies beyond tech-SaaS (any problem domain: construction to hospitality). User-generated content becomes the main copy on feed pages; the serving algorithm optimizes constructive engagement — visibility into developing, implementing and funding projects ("addictive but constructive"). | 2026-10-26 | INTAKE — architecture + taxonomy + algorithm decisions go through the owner question loop (batch 1); build rows follow the answers | L |
+| SR-04 | Released-env visibility: owner expected to SEE run data on the live deployment and reports "basically nothing on the backend works". Diagnosed 2026-10-26: run data WAS there (13 QA personas of 19 users, newest 04:09 that day) but ZERO money rows (project routes 500'd on S-04 pre-migration; value flags still off per P7-08) and near-zero content (1 project from Feb, 2 guilds, 2 opportunities, 0 posts) — broken routes + dark value rail + empty content stack into "nothing works". | 2026-10-26 | DIAGNOSED; P7-15 RUN same day (owner un-gated). Successors: P7-08 (value flags), P7-16 (content seeding decision, question loop) | M |
 
 ## MILESTONE 2026-10-26 — AZOA CI FULLY GREEN (run 40309480218, main 93e60167)
 
@@ -218,8 +220,8 @@ payer stays an UNCLAIMED tenant-custodial member because claiming revokes
 every live grant (contract §12.3.2). Railway "Wait for CI" is now actionable.
 
 TRUE BLOCKERS REMAINING (owner):
-1. P7-15 — run the gated commerce migration on the released Postgres (S-04:
-   every project route 500s; blocks creator/invest and the pass-3 UX re-run).
+1. P7-15 — DONE 2026-10-26 (owner un-gated it mid-loop; see Loop iteration 2).
+   S-04 cleared: 15 pending migrations applied, awardAmountAtoms present.
 2. P1-02 — Identomat trial account (vendor): real KYC on the released env.
 3. Flip Railway "Wait for CI" ON (now that the gate exists).
 4. Do NOT rotate the AZOA value key until P6-03/P3-16 land (double-settle
@@ -257,7 +259,7 @@ FiatPayoutLedger.cs:112, TenantPayoutLedger.cs:114/138).
 - UX pass 01 (genuine run, 44 runs): gold 1/4; 25 synthesis findings (7 HIGH); four fix commits landed for 5 HIGHs (fake-$0/readiness/jargon/error-mapping/drawer-focus), pending UX-harness re-verification. S-04 ROOT-CAUSED: released BFF throws Postgres 42703 "column f.awardAmountAtoms does not exist" — the human-gated commerce migration (documentation/GATED_COMMERCE_MIGRATION_RUNBOOK.md) has never run on the released DB, so every project read/create 500s regardless of role.
   | id | item | decision | size |
   |---|---|---|---|
-  | P7-15 | OWNER (TRUE BLOCKER for creator/invest on the released env): run the gated commerce migration runbook on the released Postgres (fingerprinted preflight, reviewed additive migration, assetScale contract). Until then S-04 stands and /projects/[slug], create, invest all 500 | OWNER-CALL — the single highest-leverage operator action | M |
+  | P7-15 | OWNER (TRUE BLOCKER for creator/invest on the released env): run the gated commerce migration runbook on the released Postgres (fingerprinted preflight, reviewed additive migration, assetScale contract). Until then S-04 stands and /projects/[slug], create, invest all 500 | CLOSED 2026-10-26 — owner un-gated it; executed via `prisma migrate deploy` (see Loop iteration 2 evidence) | M |
   | P8-13 | S-05: signed-out home has no money framing or entry point (highest-friction route, 339) — product copy/IA decision feeding the next scenario (project discovery) | DO-NOW plane 8 after owner sees it | M |
 - P6-18 CLOSED (2026-10-26, commit 170ca668): five stacked causes — test login violated "token holders are registered users" (no user row, no exp), a WIP checkpoint had downgraded publish's fan-out refusal to a warning (product regression, restored), missing Idempotency-Key, execute went durable (tests now settle runs via the job queue), graph-bundle contract drift. Action family 63/64; unit ~Action 855/855. P6-20 CLOSED the strong way: exact event count from RecordExpiryAsync, not a longer wait.
   | id | item | decision | size |
@@ -265,3 +267,124 @@ FiatPayoutLedger.cs:112, TenantPayoutLedger.cs:114/138).
   | P6-21 | Simulated NFT module | CLOSED 2026-10-26 (fbe4e892): in-memory ownership ledger, deterministic sim:tx, zero-fee, soulbound stays refused; 6 unit tests + conformance 83/83 | M |
   | P6-22 | Non-Action CI reds | CLOSED-minus-Ethereum (fbe4e892): DappSeries/Holon tests ported to real contracts (Mint/Exchange deliberately route to NFT lifecycle / reserve exchange per M9); TWO REAL product 500s under concurrency fixed with the house transient-conflict retry (action-workflow admission enqueue, wallet-auth challenge budget+CAS); user-delete race sweeps under the migration worker's lease; Nethereum key-zeroing fixture hazard fixed (zeroes a copy, not the provider's internal array — audit the nine SigningKeyMaterial usages, see lane note) | M |
   | P6-23 | Ethereum idempotent re-submit (REAL money-path gap, left red on purpose): after a mined tx, a second Submit re-broadcasts and Hardhat refuses "Nonce too low"; SubmitPreparationAsync folds it into requires-reconciliation (fail-safe, never pays twice, but not the idempotent re-submit the interface promises). Fix: on send error, read eth_getTransactionByHash for the exact stored hash and return quietly if known (or persist Confirmed at observe). ~4 lines ON the §broadcast-outcome value path — requires adversarial review before merge | DO-NOW — reviewed lane with P6-19 wiring | S |
+
+## Loop iteration 2 — outcomes (2026-10-26, in-flight log)
+
+- CLOSED P7-15 (commerce migration on released Postgres). Owner un-gated it
+  mid-loop ("the migration should not be human gated for now"). Executed state,
+  NOT the worst-case adoption path: the released DB already carried Prisma
+  history (baseline 20260718000000 + the four July release migrations, all
+  finished, none rolled back — the adoption documented in the runbook had
+  already happened on this database). What was missing: the 15 versioned
+  migrations 20260908000000..20261018120000. Procedure actually run:
+  1. Classification: `_prisma_migrations` inspected; destructive statements in
+     the pending set reviewed (all by-design retirements: float-money backfill
+     then drop, card-rail retirement incl. StripeWebhookEvent, FundingIntent
+     exchange reshape with in-flight rows marked FAILED, dedup DELETEs ahead of
+     unique constraints).
+  2. Backup (restore evidence): pg_dump -Fc, 305,888 bytes, SHA256
+     27532CB17703E3F28F9D45F6F7EFF565EE47F6282CCAD3D93F9598A49A8E0A99
+     (session scratchpad, ardanova-released-pre-migration-20261026.dump).
+  3. `npm run db:migrate` (= prisma migrate deploy): all 15 applied, exit 0;
+     `prisma migrate status` after: "Database schema is up to date!" (20/20).
+  4. Verified: FundingIntent.awardAmountAtoms exists (S-04's 42703 column).
+  5. Both services redeployed (Ardanova-BFF, Ardanova-Client) so no pooled
+     connection serves a stale prepared plan against altered tables.
+  Value-moving paths were already disabled on the env throughout (no Stripe
+  keys, Azoa__EnableFundingCheckout=false, economy reports disabled).
+- SR-04 DIAGNOSED (released-env data visibility): see intake row. Key numbers:
+  13/19 users are QA personas (data arrived), 0 money rows, 1 project/0 posts.
+- NEW ROW:
+  | id | item | decision | size |
+  |---|---|---|---|
+  | P7-16 | Released env is content-empty (1 project, 0 posts): decide seeding strategy — curated demo/seed content vs organic-only vs QA-persona-generated content as part of UX passes | OWNER-CALL (question loop) | M |
+- CLOSED S-04 the whole way (Playwright MCP, signed in as qa-sponsor-ana via the
+  7-day uxqa session cookie): `/projects` now renders HTTP 200 with the
+  manifesto-voice copy and an honest empty state; `/portfolio` and
+  `/portfolio/add-funds` render with the $1→100 ARDA peg copy and the honest
+  "you cannot cash out yet" gate. The project routes that 500'd before the
+  migration are live. (The lone Feb project stays hidden because it is
+  unpublished, not because of an error.)
+- WIRED the released value rail toward live-test (owner: "push up the keys …
+  seed the data while testing … ungating and unflagging as needed"):
+  * Stripe TEST: created webhook endpoint we_1UUnXB… → azoa-api
+    /api/fiat/webhook/stripe (enabled, all events); pushed Fiat__Environment=test
+    + the sk_test/whsec pair from oasis-sleek/.env (STRIPE_SECRET_API_KEY_DEV).
+  * azoa-api economy: ASPNETCORE_ENVIRONMENT=Staging + the full Simulated-economy
+    env matrix mirrored from docker-compose.e2e.yml (Blockchain__Mode=Simulated,
+    Devnet, CustodyMode=DevelopmentOnly, the reserve + Exchange activation flags,
+    Webhooks__Enabled). Two boot crashes fixed on the way: DataProtection__KeyRingPath
+    required outside Development (set from appsettings.Production.json).
+  * Provisioned the ArdaNova tenant + ARDA platform-unit genesis on the released
+    node (scratchpad/provision-released-azoa.ps1, mirrors dev-node-up §5 +
+    ensurePlatformUnit): tenant 3820397b-be9c-47a8-8cc1-d6342633155b, two-key
+    contract minted, ARDA asset 5589412360996711624 activated on Simulated/Devnet
+    (supply 2,000,000,000; on-ramp partition budget 1e9). State in
+    .omc/state/released-azoa-tenant.json.
+  * BFF: pushed the two tenant keys + Azoa__TenantId + EnableCustodialAccounts +
+    EnableFundingCheckout + OnRamp__Enabled + OnRamp__AssetId/ChainType + the
+    settlement attestation; /health now reports economy:"simulated".
+- BLOCKER found at the custody seam (P7-17, below). The money path stops at
+  custodial-account enrolment: azoaCustodialAccount.ensure → node PUT
+  /api/tenant/custodial-accounts/{subject} → **403, "KYB gate denied
+  CustodialAccess for tenant …"**. KybGate.RequireVerifiedTenantAsync
+  (Services/Kyb/KybGate.cs:48) fails closed unless the tenant holds an APPROVED,
+  unexpired kyb_verification row bound to the node's current Identomat authority
+  revision. On the local dev stack dev-node-up's Ensure-TenantKyb satisfies this
+  through the KYC sidecar's dev verdict seam; the released node has no sidecar and
+  KYC_PROVIDER/Identomat is the trial account that cannot create configs (P1-02).
+  So there is no legitimate path to a KYB-approved tenant on the released env
+  today. I deliberately did NOT hand-write an APPROVED kyb_verification row into
+  the node DB to force it — that fabricates a compliance record, and the gate
+  exists precisely to refuse exactly that. This is the real edge of "test-mode
+  but production-shaped": TEST money (Stripe 4242) is fine, but KYB is a live
+  compliance authority with no test backdoor on the released node.
+- NEW ROWS:
+  | id | item | decision | size |
+  |---|---|---|---|
+  | P7-17 | Released money path is KYB-gated at custodial enrolment (403 KYB gate denied CustodialAccess). No test seam to approve a tenant's KYB on the released node without Identomat configs (P1-02). Options for owner: (a) stand up the Identomat KYB config (vendor, unblocks P1-02 too); (b) add a Production-refused, non-Development-custody operator test seam in the node to stamp an APPROVED kyb_verification under an explicit test flag (code change + adversarial review — this is the legitimate version of what a hand-written DB row would fake); (c) keep the released env's money path dark and exercise it only on the local tandem stack / E2E where the dev sidecar exists | OWNER-CALL (blocks released-env money e2e) | M |
+  | SR-05 | Architecture intent (owner): AZOA owns payments end-to-end; even ArdaNova's front-end money components should be consumed via the azoa-sdk, possibly exposing provisioning UI hooks for micro-frontend-style gates and form steps (KYC/KYB steps, add-funds, cash-out) rather than ArdaNova re-implementing them. Reframes the BFF-thin-proxy money surfaces as SDK-driven embeds | INTAKE — architecture decision for the question loop; affects SR-03 feed work and the client money routes | L |
+- NEXT (owner-gated now): the released-env money e2e waits on P7-17 (KYB). The
+  UX pass-3 re-run of 01-cash-out-edges CAN run against the current released env
+  (the surfaces render; the cash-out path will truthfully show the honest gate).
+  P7-08 value flags are effectively DONE for the on-ramp except the KYB gate.
+
+## Owner question loop — answers (2026-10-26)
+
+Four highest-blast-radius ledger decisions, answered via AskUserQuestion:
+
+- **P7-17 (released money KYB gate): PURSUE IDENTOMAT (vendor).** No node test
+  seam, no fabricated KYB row. The released-env money e2e is therefore DEFERRED
+  behind P1-02 (Identomat lifts the trial / creates KYC+KYB configs). Money e2e
+  runs on the local tandem stack / E2E (dev KYC sidecar) until then. The released
+  on-ramp stays honestly gated end-to-end (correct "can't cash out yet" copy).
+- **SR-03 (polymorphic feed): FULL BUILD NOW.** One feedable postType union
+  (guild, project, opportunity, comment/update, …) rendered dynamically; broaden
+  taxonomies beyond tech-SaaS (construction→hospitality); UGC becomes the main
+  feed copy; constructive engagement/visibility ranking. DO-NOW (L). Plan-first
+  because blast radius spans DBML→Prisma/EF→API→tRPC→every feed surface.
+- **SR-05 (money via azoa-sdk): ADOPT NOW.** ArdaNova's money surfaces
+  (add-funds, withdraw, sell-units, KYC/KYB steps, custodial-account status)
+  become azoa-sdk-consumed micro-frontend hooks/embeds rather than
+  re-implemented client routes. DO-NOW (L). Plan-first; may require the SDK to
+  grow UI hooks it doesn't yet expose (two-repo change).
+- **P7-16/SR-04 (released content): QA-PERSONA ORGANIC.** No curated seed step;
+  the UX-pass personas generate content as they run journeys. Folds into the
+  UX loop; no separate content-seeding lane.
+
+Open OWNER-CALLs NOT asked this round (taken with their recommended defaults as
+stated assumptions; each blocks only its own row, trivially reversible):
+P8-11 topbar role badge (keep "Member"), P7-14 deploy-path doctrine (canonicalize
+on GitHub-main build — what actually ships), P4-09 governance reachability (hide
+governance entry points for MVP), P1-12 Terms/Privacy text (owner approves before
+first charge — already gated by P7-17), P6-12 plain sign-out (local sign-out as-is),
+P6-03 tenant-scoped receipt reads (authorize by tenant principal — still HELD
+behind the P3-16 key-rotation hazard). Any of these can be reopened on request.
+
+## Loop iteration 3 — SR-03 + SR-05 planning (2026-10-26, in-flight)
+
+Both owner-chosen builds are L and cross-cutting, so this iteration grounds them
+with read-only planning passes (current data model, taxonomy surfaces, azoa-sdk
+export surface, client money routes) before any schema or route change. Plans +
+file partitions land here; execution follows as partitioned lanes with the usual
+phase-boundary review.
