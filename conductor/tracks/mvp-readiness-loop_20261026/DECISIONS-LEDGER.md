@@ -1,0 +1,195 @@
+---
+type: decision-ledger
+track: mvp-readiness-loop_20261026
+created: 2026-10-26
+repos: [ardanova, oasis-sleek]
+status: draft-for-owner
+---
+
+# MVP Decisions Ledger — ArdaNova + AZOA
+
+1. **What this is:** every remaining item across both repos, grouped by the serving plane a user touches, each with one decision.
+2. **Goal:** get MVP-ready for real users testing the core loop (create → sponsor → work for stake → cash out). It is not a launch-complete checklist.
+3. **Decisions:** DO-NOW (build in this loop) · OWNER-CALL (the owner answers; a recommended answer is given) · CUT-FOR-MVP (not needed to test the business idea) · DEFER(trigger) (only when vendor-blocked or real-chain-only).
+4. **States:** done-live (driven live, local tandem stack 2026-10-25) · built-untested · gated (config, owner or vendor) · missing.
+5. **† = from a stale board.** These items come from the 2026-09-09 launch-readiness board (LR), which predates platform-stub-closeout and ArdaNova loops 1-4. Re-grep before building; if the code is already fixed, close the row with evidence.
+6. **How the loop uses this file:** each pass takes one plane. An adversarial review runs in a separate context, then all of that plane's DO-NOW rows are implemented, then one test sweep runs on both repos, then the golden path is re-driven.
+7. **Recording results:** every pass writes a one-line verdict per row (CLOSED+evidence / REOPENED / MOVED). Rows are never deleted.
+8. **OWNER-CALL rows:** they block only their own row. The rest of the plane proceeds with the recommended answer as a stated assumption.
+9. **Reviewer cites:** reviewers cite the row id (P3-07). New findings are appended as P<plane>-NN with a source.
+10. **Order:** see "Loop order" at the end; answer the five first-priority OWNER-CALLs before pass 1 closes.
+
+**Source keys.** AN = `ardanova/` · OS = `oasis-sleek/` · PROD = AN `conductor/product.md` · TR = AN `conductor/tracks.md` · MVP-P / MVP-S = AN `conductor/tracks/mvp-tandem-demo_20261024/plan.md` / `spec.md` · LR = OS `conductor/tracks/launch-readiness_20260909/plan.md` · R4D = OS `conductor/tracks/platform-stub-closeout_20261015/round4-post-qa-deferrals.md` · DEF = OS `.../platform-stub-closeout_20261015/deferred.md` · OS-RB = OS `conductor/RUNBOOK.md` · WTT = OS `tests/AZOA.WebAPI.IntegrationTests/Fixtures/Wtt/AGENTS.md` · UX / UXRB = AN `uxqa/study.md` / `uxqa/RUNBOOK.md` · CTX = orchestrator-verified state 2026-10-25/26 · MEM = project memory `mvp-golden-path-live.md`.
+
+---
+
+## 1 · Onboarding & identity (KYC/KYB, verification UI)
+
+| id | item | source | state | DECISION | size |
+|---|---|---|---|---|---|
+| P1-01 | Tenant-custodial account + KYC + managed wallet reach `Ready` for all three personas through the UI | MVP-P §C2 Step 1, F8 | done-live | DO-NOW: pin as the first step of a Playwright golden-path regression (LR L5.3) | M |
+| P1-02 | Live Identomat KYC/KYB: the trial company cannot create configs, so no released-env user (or tenant, F10) can pass KYC | R4D §Release blockers "Live Identomat drill"; DEF §IDENTOMAT-WORKFLOWS; CTX | gated | DEFER(Identomat lifts trial / creates KYC+KYB configs). See OWNER-CALL #2 | S |
+| P1-03 | Ambiguous `/begin` recovery: vendor has no idempotent create; operator attach path built | DEF §IDENTOMAT-RECOVERY | built-untested | DEFER(vendor ships idempotent create or lookup-by-attempt) | — |
+| P1-04 | F4 residuals: `_tenant` param also collides; `SurrealQuery.Combine` should throw on duplicate params with different values; no live/integration coverage of bind (F11 NULL-vs-NONE class too) | MVP-P F4 (a)(b)(c), F11 | missing | DO-NOW | S |
+| P1-05 | Verification page keeps the stale "could not confirm your account setup" banner after a Ready refetch | MVP-P F5 | missing | DO-NOW | S |
+| P1-06 | Node `UserLoginValidator` requires Email; `UserLoginModel` documents UserId-XOR-email login | MVP-P F6, §C1 | missing | DO-NOW (validator follows the model) | S |
+| P1-07 | `UnderReview`/`reviewDueAt` plumbed but read by no screen; users see "try again" copy | LR L2.4 | missing† | DO-NOW | M |
+| P1-08 | Consent revoke is prose plus a disabled button; the page promises the right to withdraw | LR L2.7 | missing† | DO-NOW (the page makes the promise) | M |
+| P1-09 | AML manual-review backend (`aml-reviews` routes) absent; flagged people stay `UnderReview` forever | LR L1.12 | missing† | DO-NOW (needed the day live Identomat AML runs) | M |
+| P1-10 | `TenantManager` email trim without case-fold → ambiguous login between two hashes; the other two single-seam gates | LR L1.10 | missing† | DO-NOW | S |
+| P1-11 | Terms/Privacy consent before workspace, verified linking on email collision, honest sign-in errors | TR "Auth Consent & Account Linking" | missing | DO-NOW | M |
+| P1-12 | Terms/Privacy text not approved (routes `app/terms`, `app/privacy` exist) | TR "Terms and Privacy Pages" | gated | OWNER-CALL: approve short-form text before the first card is charged; link it from sign-up and add-funds | S |
+| P1-13 | P0 security tracks: user-directory PII, actor gating on service-key controllers, path-segment safety (partly closed in loops 2-4) | TR "User Directory Privacy", "Backend Authorization Hardening", "API Path-Segment Safety" | built-untested | DO-NOW: review pass closes each with evidence or fixes the remainder | M |
+| P1-14 | `DELETE /api/users/{id}` is an unguarded hard delete (a holder could delete over live stake) | TR "Account Closure and Data Export" | missing | DO-NOW: blocker-checked refusal only; export + Settings>Account UI CUT | S |
+| P1-15 | First-time onboarding wizard (user-type selection, profile wizard) | TR "Onboarding & First-Time Experience" | missing | CUT-FOR-MVP (verification CTA + empty states, P8-06, cover it) | — |
+
+## 2 · Project creation & funding provisioning (creator)
+
+| id | item | source | state | DECISION | size |
+|---|---|---|---|---|---|
+| P2-01 | Funding setup via UI: genesis → consent lifecycle → treasury resolve → partitions (GATE STATUS: FUNDING) | MVP-P §C2 Step 2, F13-F17 | done-live | DO-NOW: close LR L1.1/L1.2 with this evidence; keep in golden-path E2E | S |
+| P2-02 | F17 reserve-ownership seam (`ReserveOwnerTenantId`) still needs its adversarial security review | MVP-P F17 ("REQUIRED before C3 close") | built-untested | DO-NOW | S |
+| P2-03 | Funding form: empty "Short label"/"Name of the stake" submits with no inline error | MVP-P F9 | missing | DO-NOW | S |
+| P2-04 | `commerceEnabled` must be flipped before checkout; the seed had to set it. Confirm creators can flip it in the UI | MVP-P F25 | built-untested | DO-NOW (review; add the toggle if absent) | S |
+| P2-05 | Ask entered in dollars, ARDA as the derived caption (RULED) | LR L3.1 | missing† | DO-NOW (after OWNER-CALL #1) | M |
+| P2-06 | Publish rule enforced at `PublishAsync` only, not `UpdateAsync` | LR L2.8 | missing† | DO-NOW | S |
+| P2-07 | Storage: Local default enforces no type/size; attachments take owner from a header | LR L2.13 | missing† | DO-NOW | M |
+| P2-08 | Treasury reconcile over an empty set stamps success | LR L2.11 | missing† | DO-NOW | S |
+| P2-09 | Genesis supply ceiling `int.MaxValue` (one-way door before real genesis) | LR L1.3 | missing† | DEFER(before any TestNet/MainNet ARDA or project genesis; real-chain only) | M |
+| P2-10 | Investor/founder direct allocations (501 stubs) | MVP-S §Verified state Leg 3, D6 | missing | CUT-FOR-MVP | — |
+| P2-11 | Nova AI project generation rollout (OGAI partner) | TR "Nova AI …" rows; PROD §Key Features | gated | CUT-FOR-MVP (core loop does not need it; owner/lease-gated) | — |
+
+## 3 · Sponsor funding (add-funds, invest, settlement)
+
+| id | item | source | state | DECISION | size |
+|---|---|---|---|---|---|
+| P3-01 | Add funds: real Stripe test checkout → webhook → ARDA issued (F19/F21; closes LR L2.3, L1.4) | MVP-P §Step-3 milestone, F19, F21 | done-live | DO-NOW: close L2.3/L1.4 on LR with evidence | S |
+| P3-02 | ARDA peg: in-code `UnitsPerUsdMinorUnit="100"` ($0.01) contradicts PROD and the add-funds copy ($1); dev overrides to 1 | MVP-P F22; LR preamble ("1 ARDA = $0.01"), L6.2 | gated | OWNER-CALL #1 | S |
+| P3-03 | First sponsorship priced (offering price at `fundingRaised==0`; `<=0` guard); exchange SETTLED with op id | MVP-P F24, STEP 3 SETTLED; LR L2.5 | done-live | DO-NOW: close L2.5 with evidence; re-drive on a fresh DB in the C3 sweep | S |
+| P3-04 | 404 exchange receipt parks forever as ATTENTION instead of proving no-effect | MVP-P F29 | built-untested | OWNER-CALL #4 | M |
+| P3-05 | F21 residuals: recipient-prep failures lack the no-effect marker; a Stuck lot needs two resumes; pre-existing AllocationManager Transfer-test failure | MVP-P F21 | missing | DO-NOW | S |
+| P3-06 | Rotate/revoke dev tenant keys and Stripe test keys exposed in agent output (rotation leaves old keys valid until expiry) | MVP-P F21, F26, F19 D8 | missing | DO-NOW (operator step + runbook line) | S |
+| P3-07 | Intent status lacks `releaseNotBefore`/`holdingReasonDetail` (hard-coded 30 days); no hosted SETTLEMENT_PENDING promoter; backer-name choice | LR L2.6 | missing† | DO-NOW | M |
+| P3-08 | Spend seams read gate-only `TokenBalance.isLiquid`, not the allocation window | LR L2.9 | missing† | DO-NOW | M |
+| P3-09 | Live-boot guard checks a handler type, not on-ramp partition + price schedule | LR L1.6 | missing† | DO-NOW | S |
+| P3-10 | No operator read for "charged and not credited" lots / `Received` fiat events | LR L1.8 | missing† | DO-NOW (before any card on the released env) | M |
+| P3-11 | Exchange idempotency key ignores amount; price stamp goes dark with a second tenant | LR L1.11 | missing† | DO-NOW | S |
+| P3-12 | Risk-hold (account pause) gate wired at one dispatch seam only | LR L1.7 | missing† | DO-NOW | M |
+| P3-13 | Remaining Stripe drill legs: refund, dispute → reversal → clawback, Connect transfer, payout success/failure, tenant-funded payout | R4D §Release blockers "Stripe test-mode drill" (checkout leg closed by MVP-P Step-3) | built-untested | DO-NOW | M |
+| P3-14 | Reversal rung 2 provenance (OI-59) + D-10 provenance on transfer + `on_ramp_lot.created_at` index | LR L1.13; R4D §Engineering D-10, RV-L3 R2-3 | missing | DO-NOW before Stripe live keys (ArdaNova's on-ramp is tenant-priced, so the D-10 trigger fires); not blocking a test-mode cohort | L |
+| P3-15 | Add-funds "IN PROGRESS — we'll email you": confirm a sender exists for that promise | MVP-P §Step-3 milestone | built-untested | DO-NOW (review; reword if no mail path, UX §Target "no mail paths") | S |
+
+## 4 · Work-for-stake (opportunities, bids, holds, approval, payout windows)
+
+| id | item | source | state | DECISION | size |
+|---|---|---|---|---|---|
+| P4-01 | Seat apply + paid proposal + accept (hold RESERVED) + approve → PAID with window; portfolio shows 4,000 SOLR | MVP-P §C2 Step 4/5 CLOSED, F20, F31 | done-live | DO-NOW: close LR L2.12/OI-66 with evidence; keep in E2E | S |
+| P4-02 | Bids on non-OPEN opportunities blocked client-side only | LR L2.12 (OI-67) | missing† | DO-NOW | S |
+| P4-03 | Guild bid award split | LR L2.12 (OI-68) | missing | CUT-FOR-MVP (solo worker path tests the idea) | — |
+| P4-04 | Paying a matured window out needs a release MANDATE (opened with `AutoRelease:false`); first window matures 2027-01-23; hold sweep must pay first-time custodial beneficiaries | MVP-P F20 ("step-5 boundary"), §C2 Step 5; LR L1.4 (OI-25) | missing | DEFER(hard date: build by 2026-12-23, 30 days before first maturity). The only time-triggered deferral | M |
+| P4-05 | Escrow lifecycle has no entry to FUNDED; components mounted nowhere; honest banner deleted | LR L2.10 | missing† | OWNER-CALL #5 | L |
+| P4-06 | Escrow dispute adjudication (funder self-refund of DISPUTED, contributor path) | TR "Guild Review Integrity…", "Guild Joining and Vote-of-Record Integrity" | missing | CUT-FOR-MVP (unreachable while P4-05 is cut) | — |
+| P4-07 | Hiring user-blockers: applicant can track/withdraw an application, applicant notifications, single pending application DB-enforced | TR "Projects Hiring Completion", "…Follow-ups (loop 3)" | missing | DO-NOW (this subset only) | M |
+| P4-08 | Hiring/board extras: headcount, guild seating, co-manager parity, task edit, due-date sanity, accept-applications toggle | TR "Projects Hiring Follow-ups (loop 2)", "Task Board Workflow… (loop 4)" | missing | CUT-FOR-MVP | — |
+| P4-09 | Governance: author can publish, vote and close → PASSED with one ballot; drafts leak; solo projects never reach quorum | LR L4.2; TR "Governance Reachability…" | missing | OWNER-CALL: recommend hiding governance entry points for the MVP; reopen with L4.2 | S |
+
+## 5 · Cash-out & balances (withdraw, payouts, swap, portfolio)
+
+| id | item | source | state | DECISION | size |
+|---|---|---|---|---|---|
+| P5-01 | No custodial balance read in the BFF (holdings reads are fail-closed stubs; W5.3 read model unbuilt); Money tab renders engineering prose; insufficient-ARDA UX depends on it | MVP-P F27 tail ("there is NO custodial balance read"); LR L2.14 | missing | DO-NOW (blocks UX gold-see-balance and the invest UX) | L |
+| P5-02 | Withdraw ARDA → bank (PayoutService; Stripe Connect KYB at first cash-out) | MVP-S D6; PROD §How value moves 4, §KYC; UX gold-withdraw | built-untested | OWNER-CALL #3 | M |
+| P5-03 | Sell project units back to ARDA (`/swap`; buy-back disabled by default; queue promise unkept) | LR L1.9, L0.5; UX gold-sell-units | gated | OWNER-CALL #3 | L |
+| P5-04 | Raw chain address reachable from one sponsor API call | LR L3.5 | missing† | DO-NOW | S |
+| P5-05 | Portfolio jargon: "Source configuration" GUID, "Tokens" column, "tokenomics API", Wallet icons; "the node" on the sponsorship flow | LR L3.3 | missing† | DO-NOW | M |
+| P5-06 | UX study pass `01-cash-out-edges` on the released env (adapter skeleton, guard unproven) | UXRB §Study setup; UX §Session adapter | gated | DO-NOW after P7-01 | M |
+
+## 6 · Node operator & tenant admin plane
+
+| id | item | source | state | DECISION | size |
+|---|---|---|---|---|---|
+| P6-01 | Operator bootstrap on the released node: ARDA genesis, `on-ramp` partition (D7 route), price schedule. Today only `dev-node-up` does it | MVP-P F19 resolution (D7), DEMO-RUNBOOK; LR L6.2 | built-untested | DO-NOW: script it as an operator runbook step for the released node | M |
+| P6-02 | Tenant provisioning on the released node: tenant user, tenant KYB + first-party KYC (F10), split keys, canonical `Azoa:TenantId` | MVP-P §Interface contract amendment, F10; MVP-S D3; CTX | gated | DO-NOW (operator); the KYC half waits on P1-02 | M |
+| P6-03 | Hold/receipt reads scoped to the issuing key and orphaned by key rotation | MEM (owner decisions) | built-untested | OWNER-CALL: recommend authorizing reads by tenant principal, not by issuing key | M |
+| P6-04 | `.worktrees/main-release` holds an uncommitted owner note (NodeAdmin public key + fingerprint); it causes 5 architecture-guard failures | MVP-P A1 | gated | OWNER-CALL: recommend committing the note (public material only), then removing the worktree | S |
+| P6-05 | node-admin RBAC release (`feat/node-admin-fix` partial, `feat/node-admin-release` aff895da) + owner live drill | OS-RB §7 RESUME 2026-10-18; MVP-S D1 | built-untested | OWNER-CALL: recommend keeping it out of the MVP release (D1); the operator console already works (R4D C1 FIXED-VERIFIED); ship after the first cohort | L |
+| P6-06 | Public self-registration open on the node (D-12); wallet sign-in honours policy (H-A) | R4D §Release blockers row 2, H-A, H-B | gated | OWNER-CALL: recommend closing it before real users; ArdaNova provisions tenant-custodial users (PROD §Blockchain operations) | S |
+| P6-07 | AZOA frontend shows the ADMIN sidebar group to ordinary users (NEW-1) | R4D NEW-1 | missing | DO-NOW | S |
+| P6-08 | Existence oracle: `DELETE /api/action/{other}` 403 vs GET 404 | R4D L6 (partial) | missing | DO-NOW | S |
+| P6-09 | Network label says Devnet/offers Mainnet while running testnet | R4D L7 | missing | DO-NOW | S |
+| P6-10 | `/login` while signed in wipes the session; expected-state calls answer 404/403/503 | R4D L5, L3 | missing | DO-NOW | S |
+| P6-11 | Fee schedule publish of an unchanged schedule stays "version 0" silently | R4D NEW-2 | missing | DO-NOW (show "nothing changed") | S |
+| P6-12 | Plain sign-out leaves the JWT valid server-side | R4D L4 | built-untested | OWNER-CALL: recommend keeping local sign-out as-is and labelling "Log out of all devices" as the revoke | S |
+| P6-13 | Action builder: no create confirmation, stale list, no validate control | R4D L8 | missing | CUT-FOR-MVP (not on the ArdaNova path) | — |
+| P6-14 | Search LOWs: facet total counts hidden users | R4D SEARCH | missing | DO-NOW | S |
+| P6-15 | Search LOWs: "already taken" probe, no operator user-search page, in-memory `SearchManager` | R4D SEARCH | missing | CUT-FOR-MVP (scale/ops nicety; revisit when users > 10k) | — |
+| P6-16 | WTT stage-key keyring DEGRADED | R4D NEW-3 | gated | DEFER(`Wtt:Enabled`; real-chain only) | — |
+| P6-17 | Carried-forward engineering: Ethereum stuck-nonce owner cancel (RV-L5 R1); WTT takeover plain reads (R2) | R4D §Engineering carried forward | missing | DEFER(Ethereum / WTT enabled; real-chain only) | M |
+| P6-18 | Carried-forward: caller-verified owner into `IHolonStore`/`IWalletStore.DeleteAsync`; wallet-ownership-proof + submit-signed UI; vocabulary ratchet +26 | R4D §Engineering carried forward | missing | CUT-FOR-MVP (defense-in-depth refactor; external wallets are not in ArdaNova's custodial path) | — |
+| P6-19 | Carried-forward: SDK unit tests (`resolvePayoutAccountSetup` etc.), real child-JWT + wallet-signature HTTP flows, NFT real-DB fixtures | R4D §Engineering carried forward | missing | DO-NOW (in the integrated sweep, batch 1) | M |
+| P6-20 | Operator facts with no code: mnemonic rotation moves every treasury address; `CustodyMode=Disabled` default | LR L6.3 | missing† | DO-NOW (docs) | S |
+| P6-21 | Governance on-chain review of the AZOA primitive (L4.1/L4.3) | LR L4.1, L4.3; PROD §Governance | missing | CUT-FOR-MVP (ArdaNova's vote of record is permanently off-chain) | — |
+
+## 7 · Platform / infra serving plane (deploys, CI, env provisioning, SDK)
+
+| id | item | source | state | DECISION | size |
+|---|---|---|---|---|---|
+| P7-01 | Publish `azoa-sdk` 0.5.0 (owner `npm login`) → bump client dep + lockfile → push → client deploy green | CTX; UXRB §Study setup; LR L0.7 (OI-01) | gated | DO-NOW (owner does it, first) | S |
+| P7-02 | Replace hand-rolled `FiatReversalView` with the SDK type | LR §OI ids not placed (OI-04) | gated | DO-NOW after P7-01 | S |
+| P7-03 | Integrated sweep run once + CI green on `main` (OS) | R4D §Release blockers rows 3-4; CTX (test-factory key fixed) | built-untested | DO-NOW | L |
+| P7-04 | Make the env-gated categories (Solana validator, Ethereum contracts, WTT six-route, chaos/perf) explicit CI filters so green means green | CTX; WTT §Status | built-untested | DO-NOW | S |
+| P7-05 | WTT six-route: SOLANA-REGISTRATION, EXEC, FIRST-RUN | WTT §Status; OS `round4-lane-verification-fixtures.md:70-74` | missing | DEFER(before `Wtt:Enabled` in production; real-chain only) | L |
+| P7-06 | Merge `feat/platform-stub-closeout` → `main`, deploy azoa-api from main | CTX; OS-RB §7 (2026-10-17 steps 1-2) | gated | DO-NOW after P7-03 | M |
+| P7-07 | Re-enable Railway "Wait for CI" on every AZOA service | R4D §Release blockers row 1 | missing | DO-NOW (owner does it, right after P7-06) | S |
+| P7-08 | Released-env value flags: Stripe keys + webhook, `Azoa__EnableFundingCheckout`, custody/outbox flags, `SelectedSettlementNodeId`, attestation expiry, `OnRamp__Enabled` | CTX; MVP-P §B1, F19; MVP-S §Verified state Leg 2 | gated | DO-NOW (operator; follows OWNER-CALL #2) | S |
+| P7-09 | Confirm the node runs Simulated + custody outside `Development` (sim reserve seed lives in `appsettings.Development.json`) or pick the chain | MVP-P F14 (pinned seed in appsettings.Development.json), A5 (`CustodyMode=DevelopmentOnly`) | built-untested | DO-NOW (spike; feeds OWNER-CALL #2) | S |
+| P7-10 | ArdaNova prod DB migration (human-gated; rehearse on a clone first) | CTX; LR L0.1 (enum + column migrations) | gated | DO-NOW (owner runs it; agent prepares the rehearsal) | M |
+| P7-11 | Financial-engine-domain migration (inert vocabulary) | LR §OI ids not placed; TR "Financial Engine Domain Hardening" ("does not activate value movement") | gated | CUT-FOR-MVP | — |
+| P7-12 | Railway template `Kyc__Provider=unavailable` throws at Production boot | LR L6.1 | missing† | DO-NOW | S |
+| P7-13 | Production activation pins (D-7 DEX/exchange per chain, webhooks, child creds, `DeployedHostAcknowledged`) | R4D §Release blockers row 7 | gated | DO-NOW for the chosen MVP chain's exchange only; others DEFER(per-chain real-value enablement) | S |
+| P7-14 | ArdaNova RUNBOOK still describes `azoa-sdk@0.4.0` unpublished / lockfile regen as open items | AN `conductor/RUNBOOK.md` §1-2 | missing | DO-NOW (update after P7-01) | S |
+
+## 8 · Cross-cutting UX polish (copy, empty states, errors)
+
+| id | item | source | state | DECISION | size |
+|---|---|---|---|---|---|
+| P8-01 | `shouldRetryQuery` wired (10.8 s 404 stall gone) | MVP-P §B3; TR "Design Loop-4 Follow-ups" | done-live | DO-NOW: close in the design-loop4 track | S |
+| P8-02 | Custody errors through the copy mapper + backend reason codes for operator messages | TR "Design Loop-4 Follow-ups" | missing | DO-NOW | M |
+| P8-03 | Neon button AA contrast | TR "Design Loop-4 Follow-ups" | missing | DO-NOW | S |
+| P8-04 | ~70 raw `error.message` sites | TR "Design-System Debt Burn-down" | missing | DO-NOW on planes 1-5 routes only; the rest is held by the `design-gate.test.ts` ratchet | M |
+| P8-05 | 156 raw palette classes, 48 untitled routes, 30 white-alpha borders, proposals tab off-system, task swatches, /people default tab | TR "Design-System Debt Burn-down", "Design Loop-3 Follow-ups", "Design Loop-4 Follow-ups" | missing | CUT-FOR-MVP (ratchet prevents growth) | — |
+| P8-06 | Honest "funding not set up" empty state | TR "Design Loop-3 Follow-ups" | missing | DO-NOW | S |
+| P8-07 | Thesis sweep: chain off credential surfaces, governance wire enum leak, delete unqualified tax advice | LR L3.2, L3.4 | missing† | DO-NOW | M |
+| P8-08 | Repo-wide vocabulary control test (thesis ratchet) | LR L3.8 | missing† | DO-NOW (cheap; protects the loop's own output) | S |
+| P8-09 | AZOA rail-vocabulary scrubber at all fifteen exits | LR L3.7 | missing† | DO-NOW (these strings reach ArdaNova users via BFF error mapping) | M |
+| P8-10 | Escrow "read-only contract" honest banner restored (if P4-05 is cut) | LR L2.10 | missing† | DO-NOW | S |
+| P8-11 | Dashboard/feed: anonymous visitor → discover → project page path | TR "Dashboard & Feed Integration" | built-untested | DO-NOW (review the discovery path only) | S |
+| P8-12 | Nova AI label/doc follow-ups; profile directory edit/search | TR "Nova AI loop-4 follow-ups", "Profile Entry Editing…" | missing | CUT-FOR-MVP | — |
+
+---
+
+## Tally
+
+103 rows: DO-NOW 71 · OWNER-CALL 12 · CUT-FOR-MVP 13 · DEFER 7. The DEFERs are P1-02, P1-03 (vendor); P2-09, P6-16, P6-17, P7-05 (real-chain only); and P4-04 (hard date). P7-13's non-MVP-chain half is a DEFER inside a DO-NOW row.
+
+## Loop order
+
+Each pass runs: adversarial review (separate context, refute-first) → implement the plane's DO-NOW rows → one sweep on both repos → re-drive the golden path (local tandem stack, plus the released env once P7 lands) → record verdicts in this file.
+
+0. **Owner hands (parallel, before pass 1):** P7-01 SDK publish · P7-07 Wait-for-CI · the five calls below · P1-02 Identomat escalation (contact on file: david@identomat.com).
+1. **P7 Platform/infra:** the released env is dark until the client deploys, the node deploys from main, and the value flags are set. Nothing user-facing can be tested before this.
+2. **P1 Onboarding & identity:** every user hits it first; also the security P0s (P1-13, P1-14).
+3. **P5-01 + P3 Sponsor funding:** the balance read is shared by sponsors and workers, then the money-in correctness rows.
+4. **P2 Creator provisioning:** P2-02 security review, dollars-first ask, storage/publish seams.
+5. **P4 Work-for-stake:** hiring user-blockers; P4-04 mandate scheduled by 2026-12-23.
+6. **P5 Cash-out:** withdraw drill per call #3, de-chained portfolio, first UX study pass (P5-06).
+7. **P6 Operator plane:** bootstrap script, AZOA-frontend LOWs, docs.
+8. **P8 Polish:** copy, empty states and vocabulary ratchets; then repeat UX study passes across planes 1-5 until gold ≥ 0.8 (UX §Machine config targets).
+
+## The five OWNER-CALLs to answer first
+
+1. **F22 ARDA peg (P3-02):** recommend $1 = 1.00 ARDA (1 base unit per cent). Change the in-code default to `"1"` and LR's "$0.01" text to match. PROD, the add-funds copy and L3.1's dollars-first ruling all assume it.
+2. **First-cohort value mode + KYC (P1-02, P7-08/09):** recommend an invite-only cohort on Stripe TEST mode with the chain the P7-09 spike proves (Simulated if the node allows it outside Development). Keep A-4 (no manual-KYC fallback) and escalate Identomat now. Non-value flows (create, browse, apply, seat-join) open before KYC unblocks. Real money only after P3-13/P3-14.
+3. **Cash-out scope (P5-02/P5-03):** recommend withdraw ARDA→bank IN (Connect KYB at first cash-out, per PROD). Sell-units CUT until the first liquidity window (2027-01-23); before then no stake is liquid anyway.
+4. **F29 404-receipt self-heal (P3-04):** recommend adopting it. A 404 from the node's durable exchange journal counts as proof of no effect; redispatch under the SAME idempotency key, and keep ATTENTION for any 5xx/ambiguous answer (mirrors the node's F21 no-effect marker).
+5. **L2.10 escrow entry (P4-05):** recommend CUT-FOR-MVP. The hold rail (F20, PAID with a window) is the MVP's escrow. Hide the unmounted escrow components and restore the honest banner (P8-10).
