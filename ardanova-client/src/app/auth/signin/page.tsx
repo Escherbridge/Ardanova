@@ -11,6 +11,8 @@ import {
 } from "~/lib/auth-navigation";
 import { providerAuth, signIn } from "~/server/auth";
 
+import { destinationLabel } from "./destination-label";
+
 export const metadata: Metadata = {
   title: "Sign in",
   description: "Sign in to your ArdaNova project workspace.",
@@ -28,6 +30,7 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
   const { mode, callbackUrl: requestedCallbackUrl } = await searchParams;
   const isSignUp = mode === "signup";
   const callbackUrl = normalizeInternalCallbackUrl(requestedCallbackUrl);
+  const returnDestination = destinationLabel(callbackUrl);
 
   if (session) {
     redirect(callbackUrl);
@@ -143,6 +146,15 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
               ? "Continue with Google to create your ArdaNova profile. You will review project and rights-changing actions separately inside the workspace."
               : "Continue with the Google account connected to your ArdaNova workspace."}
           </p>
+          {returnDestination ? (
+            <p
+              className="mt-4 max-w-sm leading-relaxed font-semibold text-[#f6f0eb]"
+              data-testid="signin-return-destination"
+            >
+              After you sign in, you’ll come straight back to{" "}
+              {returnDestination}.
+            </p>
+          ) : null}
 
           <form
             action={async () => {
