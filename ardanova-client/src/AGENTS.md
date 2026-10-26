@@ -41,6 +41,8 @@ must not loop back into the verification page.
 
 The dispute form, tRPC router, REST client, and .NET API carry the selected reason and trimmed 20–4000 character narrative together. The API derives the actor from its signed assertion and persists the context atomically with the status transition. Never add a client-only dispute field or accept a caller-supplied actor ID at the public HTTP boundary.
 
+`components/escrow/*` (the full escrow-lifecycle UI: detail card, timeline, release dialog, dispute form/detail, status badge) is parked post-MVP (DECIDED 2026-10-26, P4-05/P8-10) — it is mounted only by `app/tasks/[id]/page.tsx` and `app/admin/disputes/page.tsx`, and nothing in the app links to either route; the held-award flow in `app/tasks/[id]/commerce/page.tsx` is the MVP's escrow.
+
 Sensitive mutations currently paused in both the BFF and backend include token
 distribution, credential issuance and lifecycle changes, governance and vote
 delegation changes, and referral reward claims. Keep their read surfaces

@@ -198,8 +198,8 @@ function AddFundsFlow() {
             <p className="text-muted-foreground mt-3 max-w-2xl text-sm leading-relaxed">
               Add money to your ArdaNova balance so you can back the projects
               you believe in. Your balance is held in ARDA, the unit ArdaNova
-              uses across the site — {formatDollars(1)} of ARDA is worth{" "}
-              {formatDollars(1)} of backing.
+              uses across the site — {formatDollars(1)} adds 100 ARDA, backed
+              one-to-one.
             </p>
           </div>
         </header>

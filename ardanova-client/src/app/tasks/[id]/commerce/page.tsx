@@ -90,6 +90,11 @@ export default function TaskCommercePage() {
               the status below is the only record of whether units have
               actually been reserved, paid, or disputed.
             </p>
+            <p className="text-muted-foreground mt-1 text-sm">
+              Escrow automation is not active yet. This award moves only
+              through the hold set at acceptance and released at approval,
+              never an automated escrow contract.
+            </p>
           </div>
           <div className="border-border flex items-center justify-between gap-3 rounded-lg border p-4">
             <div>
