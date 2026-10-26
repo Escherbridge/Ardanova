@@ -9,9 +9,11 @@ COPY prisma ./prisma/
 # scripts/ holds patch-zod-prisma.mjs, invoked by the postinstall hook during npm ci
 COPY scripts ./scripts/
 
-# Install dependencies
+# Install dependencies. package-lock.json is written by npm 11 (dev machines);
+# node:20's bundled npm 10 rejects its optional-dep hoisting with EUSAGE
+# "Missing: @emnapi/* from lock file", so the builder upgrades npm first.
 ARG DEPENDENCY_INSTALL_CACHE_KEY=stable
-RUN echo "Dependency install cache key: ${DEPENDENCY_INSTALL_CACHE_KEY}" && npm ci
+RUN npm install -g npm@^11 --no-fund --no-audit && echo "Dependency install cache key: ${DEPENDENCY_INSTALL_CACHE_KEY}" && npm ci
 
 # Build stage
 FROM node:20-alpine AS builder
