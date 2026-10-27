@@ -544,3 +544,52 @@ branch; scratch-DB proof on local PG 5432; no push; released DB untouched).
 
 REVIEWS RUNNING: ArdaNova money diffs · SDK security (publish gate) · SR-03
 Phase 0 migrations (migrate gate). BUILD RUNNING: PN payout identity match.
+
+## Review gate verdicts (2026-10-27)
+
+| review | verdict | the finding that decides it |
+|---|---|---|
+| ArdaNova money diffs (P5-07 + P3a) | **CHANGES_REQUESTED** (1 critical, 3 high, 6 med, 1 low) | REGRESSION: invest clears the saved key on a 400 the BFF can send AFTER the node moved funds (ExceptionHandlingMiddleware maps ArgumentException / SQLSTATE 22xxx/23503/23514 → 400 post-commit) → Retry mints a new key → second debit. The old useRef key never cleared on error |
+| SDK 0.6.0 money/react | **BLOCK PUBLISH** (2 high, 3 med, 8 low) | H1: `releasesRequestKey` is a denylist, so ANY unrecognized code wipes the key; H2: status `complete` counted as settled while settlement is still `payment_received` (and `not_started` when a Stripe re-read fails) |
+| SR-03 Phase 0 migrations | **SAFE TO MIGRATE, with conditions** | Npgsql loads Postgres types once per data source: a new BFF that connected BEFORE the migration can't write posts until restarted, with /health green. The 002000 dedupe undercounts likesCount in the very race it cleans (EF writes `likesCount += 1` as an absolute value, so 2 racing rows bumped it once) |
+
+**Common root cause** (both money reviews): a saved key was released by HTTP
+status, but on these paths 400/403/409 each mean several things. **Rule adopted:
+release a saved key ONLY on an allowlisted, server-set money `code`; anything
+unknown, missing, transient or ambiguous KEEPS the key.**
+
+**Shared contract** — the node adds a machine `code` to its same-key 409s
+(HTTP status and message unchanged); the BFF and SDK map them identically:
+`INTENT_FINISHED`, `INTENT_EXPIRED`, `REQUEST_KEY_IN_USE` → `definite` (release
+the key); `INTENT_NEEDS_REVIEW` → `unconfirmed` (keep). A 409 without one of these
+stays `unconfirmed`. Payout release gains `PAYOUT_IDENTITY_UNMATCHED`.
+
+## Owner question loop — round 3 (2026-10-27)
+
+- **PN lane stopped by its own rule.** "Trust Stripe's identity match" can't be
+  built on Express accounts: after an Account Link exists Stripe returns only
+  first/last name, and AZOA's KYC person key is HMAC(document number, issuing
+  country) (KycPersonKeyDeriver.cs:84-119), which Stripe Connect never returns.
+  Design + evidence committed (oasis-sleek feat/payout-identity-match @82f67067,
+  Services/Fiat/OffRamp/AGENTS.md §payout-identity-match). F-H8 unchanged meanwhile.
+- **Owner chose Option C: platform-collected Stripe requirements.** AZOA collects
+  requirements, so the verified flag + date of birth are readable; payouts are
+  released only when Stripe's verified (name + DOB) matches a new keyed blind index
+  derived at KYC approval. The owner accepts the platform's Stripe compliance
+  liability AND the residual risk that a tenant holding a person's real identity
+  could enter its own bank account under it (shown that only option B — the link
+  goes only to the person — prevents that). Compensating control: the bank
+  holder name must match the verified name.
+
+## Loop iteration 4 — fix rounds running (2026-10-27)
+
+| lane | where | scope |
+|---|---|---|
+| F1 money fix round | ardanova worktree `../ardanova-money-fix`, branch wip/money-idempotency (@d4cd537 = the reviewed diffs) | all 12 review findings; P3-17 code re-threading through AzoaNodeClient/Result<T>; FundingIntentsController emits codes; replay lookup before readiness |
+| F2 SDK fix round | oasis-sleek-sdk-money-react, feat/sdk-money-react | H1/H2, M1-M3, L1-L8, emulator rebuilt from the node's real behaviour, missing component tests |
+| F3 node replay codes | oasis-sleek-fiat-codes, feat/fiat-replay-codes | the four 409 codes; a failed Stripe re-read FAILS instead of reporting a false `not_started` |
+| F4 Phase 0 fixes | ardanova worktree agent-a4577bc643a9e0eeb | race-correct recount + LOCK TABLE; CHECK on the half-filled source pair; lock_timeout; system post-type allowlist (PostService.CreateAsync); runbook = safe deploy order incl. restart-after-migrate |
+| PN-C payout setup | oasis-sleek-payout-identity, feat/payout-identity-match | Option C as above; fail-closed release check at RequireReadyAccountAsync (runs at request AND right before send) |
+
+Gates: SDK publish waits on F2 + a re-review. The released-DB feed migration
+waits on F4 (runs migrate-first, then pushes the code so the new BFF boots fresh).
