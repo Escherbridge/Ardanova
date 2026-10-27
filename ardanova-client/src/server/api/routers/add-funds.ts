@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 
@@ -36,9 +35,11 @@ const beginInput = z.object({
   amountMinorUnits: z.number().int().positive(),
   /**
    * Reuse the SAME key when retrying one attempt: the server resumes that person's open payment
-   * for a repeated key, so a fresh key per tap would open a second payment page.
+   * for a repeated key, so a fresh key per tap would open a second payment page. Required - a
+   * missing key is a client bug (the page failed to persist one before this call), and minting
+   * one here would hide a lost-ref reload behind a silent second admission.
    */
-  requestKey: requestKeySchema.optional(),
+  requestKey: requestKeySchema,
 });
 
 function toAddFundsError(status: number | undefined, message: string) {
@@ -66,7 +67,7 @@ export const addFundsRouter = createTRPCRouter({
   begin: protectedProcedure.input(beginInput).mutation(async ({ input }) => {
     const response = await addFunds.begin(
       { amountMinorUnits: input.amountMinorUnits },
-      input.requestKey ?? randomUUID(),
+      input.requestKey,
     );
 
     if (!response.data) {

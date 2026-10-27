@@ -49,10 +49,9 @@ public sealed class AzoaCustodialAccountController : ControllerBase
         // rather than reporting a withdrawal that never reached the node.
         if (_custody is not IAzoaConsentRevocationGateway revocation)
         {
-            return Conflict(new
-            {
-                error = "We could not reach the operator to hand your permission back. Nothing was changed.",
-            });
+            return Conflict(MoneyRefusal.ToErrorBody(MoneyRefusal.For(
+                MoneyRefusalCodes.PaymentsNotConfigured,
+                "We could not reach the operator to hand your permission back. Nothing was changed.")));
         }
 
         var result = await revocation.RevokeProvisionedConsentAsync(ActorId, ct);
@@ -63,16 +62,24 @@ public sealed class AzoaCustodialAccountController : ControllerBase
 
     private string ActorId => User.FindFirstValue(ClaimTypes.NameIdentifier)!;
 
+    // CustodialAccountLifecycle: every action here is gated by KybCapability.CustodialAccess, so a
+    // bare Forbidden defaults to kyb_required - see MoneyRefusal's remarks for why that is a
+    // call-site default rather than a literal re-read of the node's own code.
     private IActionResult ToActionResult<T>(Result<T> result)
-        => result.Type switch
+    {
+        if (result.Type == ResultType.Success)
+            return Ok(result.Value);
+
+        var body = MoneyRefusal.ToErrorBody(MoneyRefusal.From(result, MoneyRefusalContext.CustodialAccountLifecycle));
+        return result.Type switch
         {
-            ResultType.Success => Ok(result.Value),
-            ResultType.NotFound => NotFound(new { error = result.Error }),
-            ResultType.Unauthorized => Unauthorized(new { error = result.Error }),
-            ResultType.Forbidden => StatusCode(StatusCodes.Status403Forbidden, new { error = result.Error }),
-            ResultType.Conflict => Conflict(new { error = result.Error }),
-            _ => BadRequest(new { error = result.Error }),
+            ResultType.NotFound => NotFound(body),
+            ResultType.Unauthorized => Unauthorized(body),
+            ResultType.Forbidden => StatusCode(StatusCodes.Status403Forbidden, body),
+            ResultType.Conflict => Conflict(body),
+            _ => BadRequest(body),
         };
+    }
 }
 
 /// <summary>Wire shape the verification screen reads; mirrors AzoaConsentRevocationDto on the client.</summary>

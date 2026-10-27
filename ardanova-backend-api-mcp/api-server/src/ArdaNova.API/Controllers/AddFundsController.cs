@@ -122,14 +122,20 @@ public sealed class AddFundsController : ControllerBase
     public async Task<IActionResult> Begin([FromBody] AddFundsRequestDto request, CancellationToken ct)
     {
         if (request is null || request.AmountMinorUnits <= 0)
-            return BadRequest(new { error = AmountRequiredMessage });
+            return BadRequest(MoneyRefusal.ToErrorBody(MoneyRefusal.For(MoneyRefusalCodes.Definite, AmountRequiredMessage)));
 
         if (!Request.Headers.TryGetValue(IdempotencyHeader, out var suppliedKey) || suppliedKey.Count != 1)
-            return BadRequest(new { error = IdempotencyHeader + " is required" });
+        {
+            return BadRequest(MoneyRefusal.ToErrorBody(
+                MoneyRefusal.For(MoneyRefusalCodes.Definite, IdempotencyHeader + " is required")));
+        }
 
         var requestKey = suppliedKey[0]?.Trim();
         if (string.IsNullOrEmpty(requestKey))
-            return BadRequest(new { error = IdempotencyHeader + " is required" });
+        {
+            return BadRequest(MoneyRefusal.ToErrorBody(
+                MoneyRefusal.For(MoneyRefusalCodes.Definite, IdempotencyHeader + " is required")));
+        }
 
         // The gate has four outcomes, not two, and each one owns different words: ready, setup
         // genuinely unfinished, held for a human decision, and could-not-confirm. Propagating the
@@ -140,11 +146,14 @@ public sealed class AddFundsController : ControllerBase
         {
             return StatusCode(
                 ValueEligibilityFailure.StatusCode(readiness),
-                new { error = readiness.Error ?? SetUpFirstMessage });
+                MoneyRefusal.ToErrorBody(MoneyRefusal.From(readiness, fallbackMessage: SetUpFirstMessage)));
         }
 
         if (!Guid.TryParse(readiness.Value?.AvatarId, out var accountId) || accountId == Guid.Empty)
-            return Conflict(new { error = SetUpFirstMessage });
+        {
+            return Conflict(MoneyRefusal.ToErrorBody(
+                MoneyRefusal.For(MoneyRefusalCodes.SetupRequired, SetUpFirstMessage)));
+        }
 
         if (!TryResolveReturnAddress(out var returnAddress))
         {
@@ -153,7 +162,9 @@ public sealed class AddFundsController : ControllerBase
                 + "or the {EnvironmentKey} environment variable to this site's absolute address.",
                 ClientBaseUrlConfigurationKey,
                 ClientBaseUrlEnvironmentKey);
-            return StatusCode(StatusCodes.Status503ServiceUnavailable, new { error = NotSwitchedOnMessage });
+            return StatusCode(
+                StatusCodes.Status503ServiceUnavailable,
+                MoneyRefusal.ToErrorBody(MoneyRefusal.For(MoneyRefusalCodes.PaymentsNotConfigured, NotSwitchedOnMessage)));
         }
 
         var started = await _fiatRail.BeginAddFundsAsync(
@@ -173,17 +184,26 @@ public sealed class AddFundsController : ControllerBase
     public async Task<IActionResult> GetPayment(Guid paymentId, CancellationToken ct)
     {
         if (paymentId == Guid.Empty)
-            return BadRequest(new { error = CouldNotConfirmMessage });
+        {
+            return BadRequest(MoneyRefusal.ToErrorBody(
+                MoneyRefusal.For(MoneyRefusalCodes.Definite, CouldNotConfirmMessage)));
+        }
 
         // Deliberately NOT the full readiness gate. Somebody whose account went under review after
         // they paid still owns that payment and is still entitled to be told what happened to it;
         // refusing the read would leave them staring at money they cannot account for.
         var account = await _accounts.GetStatusAsync(ActorId, ct);
         if (!account.IsSuccess)
-            return Conflict(new { error = CouldNotConfirmMessage });
+        {
+            return Conflict(MoneyRefusal.ToErrorBody(
+                MoneyRefusal.For(MoneyRefusalCodes.Unconfirmed, CouldNotConfirmMessage)));
+        }
 
         if (!Guid.TryParse(account.Value?.AvatarId, out var accountId) || accountId == Guid.Empty)
-            return Conflict(new { error = SetUpFirstMessage });
+        {
+            return Conflict(MoneyRefusal.ToErrorBody(
+                MoneyRefusal.For(MoneyRefusalCodes.SetupRequired, SetUpFirstMessage)));
+        }
 
         // The account is the caller's own, so a guessed payment id reads nothing rather than
         // somebody else's payment.
@@ -239,16 +259,21 @@ public sealed class AddFundsController : ControllerBase
                 session.ExpiresAt));
         }
 
-        var error = result.Error ?? CouldNotConfirmMessage;
+        // TenantConsentProbe: every call here hits the checkout route family, which the node gates
+        // behind the units:issue consent probe (consent grant + KYB), so a bare Forbidden defaults
+        // to consent_revoked - see MoneyRefusal's remarks for why that is a call-site default
+        // rather than a literal re-read of the node's own code.
+        var body = MoneyRefusal.ToErrorBody(
+            MoneyRefusal.From(result, MoneyRefusalContext.TenantConsentProbe, CouldNotConfirmMessage));
         return result.Type switch
         {
-            ResultType.NotFound => NotFound(new { error }),
-            ResultType.Unauthorized => Unauthorized(new { error }),
-            ResultType.Forbidden => StatusCode(StatusCodes.Status403Forbidden, new { error }),
-            ResultType.Conflict => Conflict(new { error }),
-            ResultType.ValidationError => BadRequest(new { error }),
-            ResultType.BadRequest => BadRequest(new { error }),
-            _ => StatusCode(StatusCodes.Status503ServiceUnavailable, new { error }),
+            ResultType.NotFound => NotFound(body),
+            ResultType.Unauthorized => Unauthorized(body),
+            ResultType.Forbidden => StatusCode(StatusCodes.Status403Forbidden, body),
+            ResultType.Conflict => Conflict(body),
+            ResultType.ValidationError => BadRequest(body),
+            ResultType.BadRequest => BadRequest(body),
+            _ => StatusCode(StatusCodes.Status503ServiceUnavailable, body),
         };
     }
 }

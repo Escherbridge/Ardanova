@@ -78,7 +78,8 @@ public class PayoutsController : ControllerBase
             return ServiceUnavailable(CashOutUnavailableMessage);
 
         return ToActionResult(
-            await CashOut.QuoteSaleAsync(ActorId, projectTokenConfigId, holderClass, units, ct));
+            await CashOut.QuoteSaleAsync(ActorId, projectTokenConfigId, holderClass, units, ct),
+            MoneyRefusalContext.CashOutGeneral);
     }
 
     /// <summary>Everything this person holds, with what is sellable now and what is still held.</summary>
@@ -89,7 +90,7 @@ public class PayoutsController : ControllerBase
         if (CashOut is null)
             return ServiceUnavailable(CashOutUnavailableMessage);
 
-        return ToActionResult(await CashOut.GetSellableUnitsAsync(ActorId, ct));
+        return ToActionResult(await CashOut.GetSellableUnitsAsync(ActorId, ct), MoneyRefusalContext.CashOutGeneral);
     }
 
     /// <summary>
@@ -137,7 +138,7 @@ public class PayoutsController : ControllerBase
         if (CashOut is null)
             return ServiceUnavailable(CashOutUnavailableMessage);
 
-        return ToActionResult(await CashOut.GetAvailabilityAsync(ActorId, ct));
+        return ToActionResult(await CashOut.GetAvailabilityAsync(ActorId, ct), MoneyRefusalContext.CashOutGeneral);
     }
 
     /// <summary>Where this person's money goes, and whether it is ready to receive any.</summary>
@@ -148,7 +149,10 @@ public class PayoutsController : ControllerBase
         if (CashOut is null)
             return ServiceUnavailable(CashOutUnavailableMessage);
 
-        return ToActionResult(await CashOut.GetDestinationAsync(ActorId, ct));
+        // F-H8 (oasis-sleek FiatPayoutController ~112-117) is the node's only documented 403 on
+        // this route family: a tenant-driven principal cannot act for somebody else's bank
+        // destination.
+        return ToActionResult(await CashOut.GetDestinationAsync(ActorId, ct), MoneyRefusalContext.PayoutDestinationSetup);
     }
 
     /// <summary>Starts or resumes setting up where this person's money goes.</summary>
@@ -160,7 +164,8 @@ public class PayoutsController : ControllerBase
         if (CashOut is null)
             return ServiceUnavailable(CashOutUnavailableMessage);
 
-        return ToActionResult(await CashOut.BeginDestinationSetupAsync(ActorId, ct));
+        return ToActionResult(
+            await CashOut.BeginDestinationSetupAsync(ActorId, ct), MoneyRefusalContext.PayoutDestinationSetup);
     }
 
     /// <summary>Sends money to this person's own bank. Idempotent on the request key.</summary>
@@ -169,13 +174,17 @@ public class PayoutsController : ControllerBase
     public async Task<IActionResult> Withdraw([FromBody] WithdrawRequestDto dto, CancellationToken ct)
     {
         if (dto is null)
-            return BadRequest(new { error = "Enter how much you want to send." });
+        {
+            return BadRequest(MoneyRefusal.ToErrorBody(
+                MoneyRefusal.For(MoneyRefusalCodes.Definite, "Enter how much you want to send.")));
+        }
 
         if (CashOut is null)
             return ServiceUnavailable(CashOutUnavailableMessage);
 
         return ToActionResult(
-            await CashOut.WithdrawAsync(ActorId, dto.RequestKey, dto.AmountMinorUnits, ct));
+            await CashOut.WithdrawAsync(ActorId, dto.RequestKey, dto.AmountMinorUnits, ct),
+            MoneyRefusalContext.CashOutGeneral);
     }
 
     /// <summary>This person's own withdrawals, newest first, as the node records them.</summary>
@@ -186,7 +195,7 @@ public class PayoutsController : ControllerBase
         if (CashOut is null)
             return ServiceUnavailable(CashOutUnavailableMessage);
 
-        return ToActionResult(await CashOut.GetWithdrawalsAsync(ActorId, ct));
+        return ToActionResult(await CashOut.GetWithdrawalsAsync(ActorId, ct), MoneyRefusalContext.CashOutGeneral);
     }
 
     // -- Plumbing -------------------------------------------------------------
@@ -197,7 +206,9 @@ public class PayoutsController : ControllerBase
     private string ActorId => User.FindFirstValue(ClaimTypes.NameIdentifier)!;
 
     private IActionResult ServiceUnavailable(string message)
-        => StatusCode(StatusCodes.Status503ServiceUnavailable, new { error = message });
+        => StatusCode(
+            StatusCodes.Status503ServiceUnavailable,
+            MoneyRefusal.ToErrorBody(MoneyRefusal.For(MoneyRefusalCodes.PaymentsNotConfigured, message)));
 
     /// <summary>
     /// Carries a service answer to a status code WITH its wording.
@@ -205,21 +216,24 @@ public class PayoutsController : ControllerBase
     /// <remarks>
     /// A refusal a person can act on - "these units are held until March" - has to reach them, so
     /// Forbidden becomes a 403 carrying its message rather than <c>Forbid()</c>, which returns an
-    /// empty body and turns an explanation into a blank wall.
+    /// empty body and turns an explanation into a blank wall. <paramref name="context"/> defaults
+    /// to <see cref="MoneyRefusalContext.General"/> for the <c>IPayoutService</c>-routed actions
+    /// (sale-side refusals have no single dominant node cause the way the cash-out routes do).
     /// </remarks>
-    private IActionResult ToActionResult<T>(Result<T> result)
+    private IActionResult ToActionResult<T>(Result<T> result, MoneyRefusalContext context = MoneyRefusalContext.General)
     {
         if (result.IsSuccess)
             return Ok(result.Value);
 
+        var body = MoneyRefusal.ToErrorBody(MoneyRefusal.From(result, context));
         return result.Type switch
         {
-            ResultType.NotFound => NotFound(new { error = result.Error }),
-            ResultType.ValidationError => BadRequest(new { error = result.Error }),
-            ResultType.Unauthorized => Unauthorized(new { error = result.Error }),
-            ResultType.Forbidden => StatusCode(StatusCodes.Status403Forbidden, new { error = result.Error }),
-            ResultType.Conflict => Conflict(new { error = result.Error }),
-            _ => BadRequest(new { error = result.Error })
+            ResultType.NotFound => NotFound(body),
+            ResultType.ValidationError => BadRequest(body),
+            ResultType.Unauthorized => Unauthorized(body),
+            ResultType.Forbidden => StatusCode(StatusCodes.Status403Forbidden, body),
+            ResultType.Conflict => Conflict(body),
+            _ => BadRequest(body)
         };
     }
 }
