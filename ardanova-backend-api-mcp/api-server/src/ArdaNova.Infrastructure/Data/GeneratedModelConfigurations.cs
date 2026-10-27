@@ -25,6 +25,12 @@ public static class GeneratedModelConfigurations
         modelBuilder.Entity<WalletVerificationChallenge>().HasIndex(e => new { e.walletId, e.consumedAt });
         modelBuilder.Entity<WalletVerificationChallenge>().HasIndex(e => new { e.userId, e.expiresAt });
         modelBuilder.Entity<ActorAssertionReplay>().HasIndex(e => new { e.expiresAt, e.jti });
+        modelBuilder.Entity<Post>().HasIndex(e => new { e.projectId, e.createdAt });
+        modelBuilder.Entity<Post>().HasIndex(e => new { e.guildId, e.createdAt });
+        modelBuilder.Entity<Post>().HasIndex(e => new { e.authorId, e.createdAt });
+        modelBuilder.Entity<Post>().HasIndex(e => new { e.sourceType, e.sourceId }).IsUnique();
+        modelBuilder.Entity<PostLike>().HasIndex(e => new { e.postId, e.userId }).IsUnique();
+        modelBuilder.Entity<PostBookmark>().HasIndex(e => new { e.postId, e.userId }).IsUnique();
         modelBuilder.Entity<ConversationMember>().HasIndex(e => new { e.conversationId, e.userId }).IsUnique();
         modelBuilder.Entity<ChatMessage>().HasIndex(e => new { e.conversationId, e.sentAt });
         modelBuilder.Entity<EventAttendee>().HasIndex(e => new { e.eventId, e.userId }).IsUnique();
@@ -55,6 +61,7 @@ public static class GeneratedModelConfigurations
         modelBuilder.Entity<EconomicSettlementLeg>().HasIndex(e => new { e.economicSettlementId, e.position }).IsUnique();
         modelBuilder.Entity<SwapQuote>().HasIndex(e => new { e.actorUserId, e.expiresAt });
         modelBuilder.Entity<SwapOrder>().HasIndex(e => new { e.actorUserId, e.status });
+        modelBuilder.Entity<TaxonomyTerm>().HasIndex(e => new { e.kind, e.slug }).IsUnique();
 
         // Bidirectional FK disambiguation
         // ProjectTask.opportunityId -> Opportunity

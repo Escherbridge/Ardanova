@@ -46,6 +46,23 @@ namespace ArdaNova.Application.Services.Implementations
     {
         private const int MaximumPageSize = 100;
 
+        /// <summary>
+        /// PostType values a person may choose when authoring a post. Every other value -
+        /// MILESTONE, TASK_COMPLETED, and every feed-envelope kind added for SR-03 phase 0
+        /// (PROJECT_LAUNCHED onward in database-architecture.dbml) - is written only by a system
+        /// process (the feed projector, task/milestone completion), never by a person through
+        /// this endpoint. See database-architecture.dbml, Enum PostType, for the full list and the
+        /// additive-only ordering it is appended in.
+        /// </summary>
+        private static readonly HashSet<PostType> UserAuthorablePostTypes = new()
+        {
+            PostType.POST,
+            PostType.PROJECT_UPDATE,
+            PostType.GUILD_ACTIVITY,
+            PostType.PROPOSAL,
+            PostType.SHOP_ITEM
+        };
+
         private readonly IRepository<Post> _posts;
         private readonly IRepository<PostLike> _likes;
         private readonly IRepository<PostComment> _comments;
@@ -174,6 +191,9 @@ namespace ArdaNova.Application.Services.Implementations
             if (!PostVisibilityPolicy.HasCoherentAudience(dto.Visibility, dto.ProjectId, dto.GuildId))
                 return Result<PostDto>.ValidationError(
                     "A members-only note must belong to the project or group whose members may read it");
+            if (!UserAuthorablePostTypes.Contains(dto.Type))
+                return Result<PostDto>.ValidationError(
+                    $"{dto.Type} is written by the system, not chosen when a person creates a post");
 
             var now = DateTime.UtcNow;
             var post = new Post

@@ -371,6 +371,8 @@ Ref: Referral.referredId > User.id
 // 3. Project Management & Governance Module
 // =================================================================================================
 
+// Additive only: a value is never renamed or dropped (rows and older clients hold it). Labels and
+// descriptions live in TaxonomyTerm (kind PROJECT_TYPE, slug = the value).
 Enum ProjectType {
   TEMPORARY
   LONG_TERM
@@ -379,6 +381,12 @@ Enum ProjectType {
   PRODUCT
   OPEN_SOURCE
   COMMUNITY
+  SERVICE
+  PHYSICAL_BUILD
+  VENUE
+  PROGRAM
+  RESEARCH
+  COOPERATIVE
 }
 
 Enum ProjectDuration {
@@ -401,6 +409,8 @@ Enum ProjectStatus {
   CANCELLED
 }
 
+// Legacy; vocabulary from TaxonomyTerm. No column uses this enum: Project.categories is
+// comma-separated TEXT, and every value below is seeded as a TaxonomyTerm SECTOR slug.
 Enum ProjectCategory {
   TECHNOLOGY
   HEALTHCARE
@@ -1576,6 +1586,8 @@ Ref: LiquidityProvider.userId > User.id
 // 7. Engagement & Communication Module
 // =================================================================================================
 
+// Additive only, appended in order (PostgreSQL ADD VALUE appends). Values after SHOP_ITEM are
+// feed-envelope kinds written by the feed projector, never by a person.
 Enum PostType {
   POST
   PROJECT_UPDATE
@@ -1584,6 +1596,33 @@ Enum PostType {
   MILESTONE
   PROPOSAL
   SHOP_ITEM
+  PROJECT_LAUNCHED
+  FUNDING_PROGRESS
+  OPPORTUNITY_OPENED
+  OPPORTUNITY_UPDATE
+  GUILD_FOUNDED
+  GUILD_UPDATE
+  EVENT_SCHEDULED
+  DISCUSSION
+  MEMBER_JOINED
+}
+
+// The table a feed-envelope Post was projected from; (sourceType, sourceId) names that row.
+Enum FeedSourceType {
+  PROJECT
+  PROJECT_UPDATE
+  PROJECT_MILESTONE
+  PROJECT_TASK
+  PROJECT_TOKEN_CONFIG
+  PROJECT_MEMBER
+  PROJECT_COMMENT
+  GUILD
+  GUILD_UPDATE
+  GUILD_MEMBER
+  OPPORTUNITY
+  OPPORTUNITY_UPDATE
+  OPPORTUNITY_COMMENT
+  EVENT
 }
 
 Enum PostVisibility {
@@ -1614,10 +1653,27 @@ Table Post {
   trendingAt datetime
   createdAt datetime [not null, default: `now()`]
   updatedAt datetime [not null, note: 'Updated at']
+  sourceType FeedSourceType [note: 'Projected envelope: the source table. NULL for a post a person wrote']
+  sourceId varchar [note: 'Projected envelope: the source row id. NULL for a post a person wrote']
+  opportunityId varchar [note: 'Opportunity this post is about']
+  eventId varchar [note: 'Event this post is about']
+
+  indexes {
+    createdAt
+    trendingScore
+    (projectId, createdAt)
+    (guildId, createdAt)
+    (authorId, createdAt)
+    (sourceType, sourceId) [unique, note: 'One envelope per source row; NULL pairs (authored posts) never collide']
+    opportunityId
+    eventId
+  }
 }
 Ref: Post.authorId > User.id
 Ref: Post.projectId > Project.id
 Ref: Post.guildId > Guild.id
+Ref: Post.opportunityId > Opportunity.id
+Ref: Post.eventId > Event.id
 
 Table PostMedia {
   id varchar [not null, pk, default: `cuid()`]
@@ -1636,6 +1692,10 @@ Table PostLike {
   postId varchar [not null]
   userId varchar [not null]
   createdAt datetime [not null, default: `now()`]
+
+  indexes {
+    (postId, userId) [unique]
+  }
 }
 Ref: PostLike.postId > Post.id
 Ref: PostLike.userId > User.id
@@ -1659,6 +1719,10 @@ Table PostBookmark {
   postId varchar [not null]
   userId varchar [not null]
   createdAt datetime [not null, default: `now()`]
+
+  indexes {
+    (postId, userId) [unique]
+  }
 }
 Ref: PostBookmark.postId > Post.id
 Ref: PostBookmark.userId > User.id
@@ -2839,3 +2903,33 @@ Ref: TaskCommerceAgreement.assetDefinitionId > AssetDefinition.id
 Ref: TaskCommerceAgreement.projectTokenPolicyId > ProjectTokenPolicy.id
 Ref: TaskCommerceAgreement.equityOrRedemptionRightPolicyId > EquityOrRedemptionRightPolicy.id
 Ref: TaskCommerceAgreement.eligibilityDecisionId > EligibilityDecision.id
+
+// =================================================================================================
+// 19. Taxonomy Module
+// =================================================================================================
+
+// Domain-neutral vocabulary (construction to hospitality, not only tech). A record stores the
+// slug as a plain code (Project.categories, Project.projectType); this table owns its label.
+Enum TaxonomyKind {
+  SECTOR
+  SKILL
+  PROJECT_TYPE
+}
+
+Table TaxonomyTerm {
+  id varchar [not null, pk, default: `cuid()`]
+  kind TaxonomyKind [not null]
+  slug varchar [not null, note: 'Stable SCREAMING_SNAKE code; equals the stored category or ProjectType value']
+  label varchar [not null]
+  description text
+  parentId varchar [note: 'A SKILL points at the SECTOR it belongs to']
+  sortOrder int [not null, default: 0]
+  isActive boolean [not null, default: true]
+  createdAt datetime [not null, default: `now()`]
+  updatedAt datetime [not null, note: 'Updated at']
+
+  indexes {
+    (kind, slug) [unique]
+  }
+}
+Ref: TaxonomyTerm.parentId > TaxonomyTerm.id

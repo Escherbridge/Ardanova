@@ -1,0 +1,7 @@
+import { z } from 'zod';
+
+export const FeedSourceTypeSchema = z.enum(['PROJECT','PROJECT_UPDATE','PROJECT_MILESTONE','PROJECT_TASK','PROJECT_TOKEN_CONFIG','PROJECT_MEMBER','PROJECT_COMMENT','GUILD','GUILD_UPDATE','GUILD_MEMBER','OPPORTUNITY','OPPORTUNITY_UPDATE','OPPORTUNITY_COMMENT','EVENT']);
+
+export type FeedSourceTypeType = `${z.infer<typeof FeedSourceTypeSchema>}`
+
+export default FeedSourceTypeSchema;

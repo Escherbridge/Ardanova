@@ -184,6 +184,12 @@ enum ProjectType {
   PRODUCT
   OPEN_SOURCE
   COMMUNITY
+  SERVICE
+  PHYSICAL_BUILD
+  VENUE
+  PROGRAM
+  RESEARCH
+  COOPERATIVE
 }
 
 enum ProjectDuration {
@@ -496,6 +502,32 @@ enum PostType {
   MILESTONE
   PROPOSAL
   SHOP_ITEM
+  PROJECT_LAUNCHED
+  FUNDING_PROGRESS
+  OPPORTUNITY_OPENED
+  OPPORTUNITY_UPDATE
+  GUILD_FOUNDED
+  GUILD_UPDATE
+  EVENT_SCHEDULED
+  DISCUSSION
+  MEMBER_JOINED
+}
+
+enum FeedSourceType {
+  PROJECT
+  PROJECT_UPDATE
+  PROJECT_MILESTONE
+  PROJECT_TASK
+  PROJECT_TOKEN_CONFIG
+  PROJECT_MEMBER
+  PROJECT_COMMENT
+  GUILD
+  GUILD_UPDATE
+  GUILD_MEMBER
+  OPPORTUNITY
+  OPPORTUNITY_UPDATE
+  OPPORTUNITY_COMMENT
+  EVENT
 }
 
 enum PostVisibility {
@@ -754,6 +786,12 @@ enum SwapOrderStatus {
   REJECTED
   CANCELLED
   FAILED
+}
+
+enum TaxonomyKind {
+  SECTOR
+  SKILL
+  PROJECT_TYPE
 }
 
 model Account {
@@ -1980,34 +2018,49 @@ model LiquidityProvider {
 }
 
 model Post {
-  id            String         @id @default(cuid())
+  id            String          @id @default(cuid())
   authorId      String
   projectId     String?
   guildId       String?
-  type          PostType       @default(POST)
-  visibility    PostVisibility @default(PUBLIC)
+  type          PostType        @default(POST)
+  visibility    PostVisibility  @default(PUBLIC)
   title         String?
-  content       String         @db.Text
+  content       String          @db.Text
   metadata      Json?
-  likesCount    Int            @default(0)
-  commentsCount Int            @default(0)
-  sharesCount   Int            @default(0)
-  viewsCount    Int            @default(0)
-  isPinned      Boolean        @default(false)
-  isTrending    Boolean        @default(false)
-  trendingScore Decimal        @default(0) @db.Decimal(18, 8)
+  likesCount    Int             @default(0)
+  commentsCount Int             @default(0)
+  sharesCount   Int             @default(0)
+  viewsCount    Int             @default(0)
+  isPinned      Boolean         @default(false)
+  isTrending    Boolean         @default(false)
+  trendingScore Decimal         @default(0) @db.Decimal(18, 8)
   trendingRank  Int?
   trendingAt    DateTime?
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  author        User           @relation("Post_authorId", fields: [authorId], references: [id])
-  project       Project?       @relation("Post_projectId", fields: [projectId], references: [id])
-  guild         Guild?         @relation("Post_guildId", fields: [guildId], references: [id])
-  postMedias    PostMedia[]    @relation("PostMedia_postId")
-  postLikes     PostLike[]     @relation("PostLike_postId")
-  postComments  PostComment[]  @relation("PostComment_postId")
-  postBookmarks PostBookmark[] @relation("PostBookmark_postId")
-  postShares    PostShare[]    @relation("PostShare_postId")
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  sourceType    FeedSourceType?
+  sourceId      String?
+  opportunityId String?
+  eventId       String?
+  author        User            @relation("Post_authorId", fields: [authorId], references: [id])
+  project       Project?        @relation("Post_projectId", fields: [projectId], references: [id])
+  guild         Guild?          @relation("Post_guildId", fields: [guildId], references: [id])
+  opportunity   Opportunity?    @relation("Post_opportunityId", fields: [opportunityId], references: [id])
+  event         Event?          @relation("Post_eventId", fields: [eventId], references: [id])
+  postMedias    PostMedia[]     @relation("PostMedia_postId")
+  postLikes     PostLike[]      @relation("PostLike_postId")
+  postComments  PostComment[]   @relation("PostComment_postId")
+  postBookmarks PostBookmark[]  @relation("PostBookmark_postId")
+  postShares    PostShare[]     @relation("PostShare_postId")
+
+  @@unique([sourceType, sourceId])
+  @@index([createdAt])
+  @@index([trendingScore])
+  @@index([projectId, createdAt])
+  @@index([guildId, createdAt])
+  @@index([authorId, createdAt])
+  @@index([opportunityId])
+  @@index([eventId])
 }
 
 model PostMedia {
@@ -2029,6 +2082,8 @@ model PostLike {
   createdAt DateTime @default(now())
   post      Post     @relation("PostLike_postId", fields: [postId], references: [id])
   user      User     @relation("PostLike_userId", fields: [userId], references: [id])
+
+  @@unique([postId, userId])
 }
 
 model PostComment {
@@ -2053,6 +2108,8 @@ model PostBookmark {
   createdAt DateTime @default(now())
   post      Post     @relation("PostBookmark_postId", fields: [postId], references: [id])
   user      User     @relation("PostBookmark_userId", fields: [userId], references: [id])
+
+  @@unique([postId, userId])
 }
 
 model PostShare {
@@ -2158,6 +2215,7 @@ model Event {
   organizerId    String
   projectId      String?
   guildId        String?
+  posts          Post[]          @relation("Post_eventId")
   organizer      User            @relation("Event_organizerId", fields: [organizerId], references: [id])
   project        Project?        @relation("Event_projectId", fields: [projectId], references: [id])
   guild          Guild?          @relation("Event_guildId", fields: [guildId], references: [id])
@@ -2272,6 +2330,7 @@ model Opportunity {
   taskId                  String?
   projectRole             ProjectRole?
   projectTasks            ProjectTask[]            @relation("ProjectTask_opportunityId")
+  posts                   Post[]                   @relation("Post_opportunityId")
   poster                  User                     @relation("Opportunity_posterId", fields: [posterId], references: [id])
   guild                   Guild?                   @relation("Opportunity_guildId", fields: [guildId], references: [id])
   project                 Project?                 @relation("Opportunity_projectId", fields: [projectId], references: [id])
@@ -2900,4 +2959,21 @@ model SwapOrder {
   economicSettlement   EconomicSettlement? @relation("SwapOrder_economicSettlementId", fields: [economicSettlementId], references: [id])
 
   @@index([actorUserId, status])
+}
+
+model TaxonomyTerm {
+  id             String         @id @default(cuid())
+  kind           TaxonomyKind
+  slug           String
+  label          String
+  description    String?        @db.Text
+  parentId       String?
+  sortOrder      Int            @default(0)
+  isActive       Boolean        @default(true)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  parent         TaxonomyTerm?  @relation("TaxonomyTerm_parentId", fields: [parentId], references: [id])
+  parentChildren TaxonomyTerm[] @relation("TaxonomyTerm_parentId")
+
+  @@unique([kind, slug])
 }

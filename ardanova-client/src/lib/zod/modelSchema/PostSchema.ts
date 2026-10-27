@@ -3,6 +3,7 @@ import { JsonValueSchema } from '../inputTypeSchemas/JsonValueSchema'
 import { Prisma } from '@prisma/client'
 import { PostTypeSchema } from '../inputTypeSchemas/PostTypeSchema'
 import { PostVisibilitySchema } from '../inputTypeSchemas/PostVisibilitySchema'
+import { FeedSourceTypeSchema } from '../inputTypeSchemas/FeedSourceTypeSchema'
 
 /////////////////////////////////////////
 // POST SCHEMA
@@ -11,6 +12,7 @@ import { PostVisibilitySchema } from '../inputTypeSchemas/PostVisibilitySchema'
 export const PostSchema = z.object({
   type: PostTypeSchema,
   visibility: PostVisibilitySchema,
+  sourceType: FeedSourceTypeSchema.nullable(),
   id: z.string().cuid(),
   authorId: z.string(),
   projectId: z.string().nullable(),
@@ -29,6 +31,9 @@ export const PostSchema = z.object({
   trendingAt: z.coerce.date().nullable(),
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date(),
+  sourceId: z.string().nullable(),
+  opportunityId: z.string().nullable(),
+  eventId: z.string().nullable(),
 })
 
 export type Post = z.infer<typeof PostSchema>

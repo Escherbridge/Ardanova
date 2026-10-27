@@ -32,10 +32,10 @@ import {
   isProjectStatus,
   isProjectType,
   PROJECT_STATUSES,
-  PROJECT_TYPES,
   type ProjectStatus,
   type ProjectType,
 } from "~/lib/contracts/project-contract";
+import { categoryLabel, projectTypeLabel } from "~/lib/taxonomy/labels";
 import { cn } from "~/lib/utils";
 
 const projectTabs = [
@@ -62,16 +62,6 @@ const projectTabs = [
 ] as const;
 
 type ProjectTab = (typeof projectTabs)[number]["id"];
-
-const projectTypeLabels: Record<ProjectType, string> = {
-  TEMPORARY: "Temporary",
-  LONG_TERM: "Long term",
-  FOUNDATION: "Foundation",
-  BUSINESS: "Business",
-  PRODUCT: "Product",
-  OPEN_SOURCE: "Open source",
-  COMMUNITY: "Community",
-};
 
 function humanize(value: string) {
   return value
@@ -154,6 +144,12 @@ export default function ProjectsPage() {
   }, [debouncedSearch, selectedCategory, selectedProjectType, selectedStatus]);
 
   const categoryQuery = useEnumOptions("ProjectCategory");
+  // Offer only types the API reports, so a filter never names a value an older API rejects.
+  const projectTypeQuery = useEnumOptions("ProjectType");
+  const projectTypeOptions = projectTypeQuery.options
+    .map(({ id }) => id)
+    .filter(isProjectType)
+    .map((value) => ({ value, label: projectTypeLabel(value) }));
   const projectsQuery = api.project.getAll.useQuery({
     limit: PROJECTS_PAGE_SIZE,
     page,
@@ -362,7 +358,7 @@ export default function ProjectsPage() {
             onChange={setSelectedCategory}
             options={categories.map((value) => ({
               value,
-              label: humanize(value),
+              label: categoryLabel(value),
             }))}
           />
           <FilterSelect
@@ -373,10 +369,7 @@ export default function ProjectsPage() {
                 setSelectedProjectType(value);
               }
             }}
-            options={PROJECT_TYPES.map((value) => ({
-              value,
-              label: projectTypeLabels[value],
-            }))}
+            options={projectTypeOptions}
           />
           <FilterSelect
             label="Status"
@@ -600,7 +593,7 @@ function ProjectRecord({ project }: { project: Project }) {
         <div className="flex flex-wrap gap-2">
           <Badge variant="secondary">{humanize(project.status)}</Badge>
           <Badge variant="secondary">
-            {projectTypeLabels[project.projectType]}
+            {projectTypeLabel(project.projectType)}
           </Badge>
           {project.featured && <Badge variant="warning">Featured</Badge>}
         </div>
@@ -637,7 +630,7 @@ function ProjectRecord({ project }: { project: Project }) {
           <div className="mt-4 flex flex-wrap gap-2">
             {project.categories.map((category) => (
               <Badge key={category} variant="secondary">
-                {humanize(category)}
+                {categoryLabel(category)}
               </Badge>
             ))}
             {project.tags
