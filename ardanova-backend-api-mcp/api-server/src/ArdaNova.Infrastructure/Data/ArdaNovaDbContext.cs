@@ -14,6 +14,11 @@ using Microsoft.EntityFrameworkCore;
 /// 2. Run in ardanova-client: npm run generate:dbml, then npm run generate:csharp
 /// 3. Add a timestamped directory under prisma/migrations; databases apply it with
 ///    npx prisma migrate deploy (never migrate dev or db push against shared data)
+/// 4. generate:csharp fully rewrites every entity/enum file it owns - it strips hand-written
+///    doc-comments and any other hand-added code from the 14 Domain/Models/Entities and
+///    Domain/Models/Enums files that currently carry them (see Domain/Models/Entities/AGENTS.md).
+///    After step 2, restore those files, e.g. `git checkout -- &lt;those 14 files&gt;`, for any file
+///    whose generated output (columns/members) is otherwise unchanged from before the regen.
 /// </summary>
 public class ArdaNovaDbContext : DbContext
 {

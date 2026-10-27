@@ -17,7 +17,16 @@
 -- "Post" while it builds. The released database holds 0 posts, so the lock is momentary; on a
 -- populated copy, measure it before deploy.
 --
+-- A CHECK keeps ("sourceType", "sourceId") both-or-neither: without it, a half-filled pair such
+-- as ('PROJECT', NULL) or (NULL, 'proj-1') is a distinct value to the UNIQUE index below (NULL is
+-- never equal to NULL), so any number of half-filled rows can coexist and silently bypass the
+-- envelope idempotency the unique index exists to give. Post holds 0 rows on the released
+-- database as of 2026-10-26, so adding a CHECK here costs nothing; it would need a prior cleanup
+-- pass on a populated table.
+--
 -- Generated with `prisma migrate diff`, then guarded by hand so a partial re-run is harmless.
+
+SET LOCAL lock_timeout = '5s';
 
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'FeedSourceType') THEN
@@ -39,6 +48,13 @@ END $$;
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'Post_eventId_fkey') THEN
     ALTER TABLE "Post" ADD CONSTRAINT "Post_eventId_fkey" FOREIGN KEY ("eventId") REFERENCES "Event"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'Post_sourceType_sourceId_check') THEN
+    ALTER TABLE "Post" ADD CONSTRAINT "Post_sourceType_sourceId_check"
+      CHECK (("sourceType" IS NULL) = ("sourceId" IS NULL));
   END IF;
 END $$;
 
