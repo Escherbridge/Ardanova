@@ -292,3 +292,26 @@ fallback is honest only while the row truly reflects "nothing issued"; once some
 non-zero supply against stale balances, the ratio prices sponsorships off figures nobody
 reconciles. The control that catches the result is the node-side rate consistency band, OI-79
 (launch-readiness L4.6). The real fix is a node-read backing figure, not a better guard here.
+
+# Posts and feed envelopes
+
+`Post` holds two kinds of row: posts a person wrote (`sourceType` NULL) and feed envelopes the projector
+writes (`sourceType` set; see `Application/Feed/AGENTS.md`). An envelope names a person as `authorId`
+(the update's writer, the member who joined), so every by-author read would otherwise show system cards
+as if that person had written them. `PostService` therefore:
+
+- **Excludes envelopes from person-post reads** (`WrittenByAPerson`): project field notes, both by-author
+  reads (profiles) and the legacy viewer-less feed. Single-post reads and engagement (like, bookmark,
+  share, comment) still resolve envelopes - the feed reuses those tables - through the same
+  `LoadVisibleAsync` gate, so a draft project's cards stay as private as its notes.
+- **Refuses edit and delete of an envelope** (`MirroredActivityRefusal`, 403) even by its named author:
+  an edit could widen a PROJECT_MEMBERS card to PUBLIC, and a delete would be undone by the next cycle.
+- **Refuses a reply on a DISCUSSION envelope**: that card deep-links its native thread (metadata
+  `thread`), and a reply here would start a second one.
+- **Settles a double tap with the unique index (P8-18).** Like and bookmark are check-then-insert; the
+  `(postId, userId)` unique indexes (migration `20261027002000_post_engagement_uniqueness`) catch the race,
+  and a 23505 on save clears the tracked changes and answers success (the like re-read with the count the
+  winning request stored), the same shape as the ballot and guild-review guards. The losing save's counter
+  bump rolls back with its insert, so a double tap counts once. Known gap: two DIFFERENT people liking at
+  the same instant still write `likesCount` as an absolute `N+1` (both rows land, the counter moves once);
+  an atomic `likesCount = likesCount + 1` or a recount is the fix, not done here.

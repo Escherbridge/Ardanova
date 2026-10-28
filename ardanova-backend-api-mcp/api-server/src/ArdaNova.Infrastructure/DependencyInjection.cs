@@ -10,6 +10,7 @@ using ArdaNova.Domain.Models.Enums;
 using ArdaNova.Infrastructure.Algorand;
 using ArdaNova.Infrastructure.Azoa;
 using ArdaNova.Infrastructure.Data;
+using ArdaNova.Infrastructure.Feed;
 using ArdaNova.Infrastructure.Ogai;
 using ArdaNova.Infrastructure.Outbox;
 using ArdaNova.Infrastructure.Repositories;
@@ -192,6 +193,10 @@ public static class DependencyInjection
         // unless its own flag is explicitly "false".
         services.AddSettlementPendingPromoter(configuration);
         services.AddParkedPayoutReconciler(configuration);
+
+        // The feed projector writes the system cards of the one polymorphic feed (SR-03). Its timer runs by
+        // default in Development only; every other environment must set Feed:Projector:Enabled explicitly.
+        services.AddFeedProjector(configuration, environmentName);
 
         // Nova AI upstream (OVERSEASGENAI partner API); see Ogai/AGENTS.md.
         services.AddOgai(configuration, isProduction);
