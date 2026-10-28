@@ -102,6 +102,11 @@ jobs:
       - name: Verify the azoa-sdk pin matches the lockfile
         run: node scripts/verify-azoa-sdk-pin.mjs
 
+      # A lock regenerated on Windows drops the wasm32 bindings' nested exact
+      # pins and the Linux builder's npm ci refuses it (7 failed deploys, 5fc7d30).
+      - name: Verify the lockfile was written on the builder's platform
+        run: node scripts/verify-lockfile-platform.mjs
+
       - name: Install dependencies and generate Prisma artifacts
         run: npm ci
 

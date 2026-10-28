@@ -147,6 +147,12 @@ while the pin, the lockfile and the install disagree.
 
 ## 2. Open item — regenerate `package-lock.json` once 0.4.0 ships
 
+> **Superseded 2026-10-26:** `azoa-sdk@0.5.0` is published and pinned; this
+> section is history. The next SDK step is 0.6.0 (money/react subpaths), which is
+> **blocked on its security fix round** — see the decisions ledger
+> (`conductor/tracks/mvp-readiness-loop_20261026/DECISIONS-LEDGER.md`). For the
+> lockfile failure mode that is still live, see §2a.
+
 Ordered, and only in this order:
 
 1. Publish `azoa-sdk@0.4.0` from `oasis-sleek/sdk/azoa-wallet` (AZOA's lane).
@@ -186,6 +192,41 @@ between the two shapes (e.g. `statusReason?: string | null` locally vs. the SDK'
 `statusReason: string | null`) don't break callers, and this item's rules forbid running
 `tsc`. Track it alongside OI-01 because both are "finish the SDK v0.4.0 story," not because
 one is gating the other.
+
+---
+
+## 2a. Client lockfile platform drift (live failure mode)
+
+**Symptom:** Ardanova-Client builds fail on Railway with `npm ci` `EUSAGE` —
+`Missing: @emnapi/core@1.11.1 from lock file` — while Railway keeps serving the
+last good build, so the site looks fine and nothing alerts. This happened for
+**7 consecutive builds (2026-10-26 06:52 → 2026-10-27 17:38)**.
+
+**Cause:** npm on **Windows** never writes the nested, exact-pinned dependencies
+of the wasm32 optional bindings (`@rolldown/binding-wasm32-wasi`,
+`@tailwindcss/oxide-wasm32-wasi`, …). Any `npm install` on Windows that rewrites
+`package-lock.json` drops them; the Linux builder then resolves those bindings to
+the hoisted copy (e.g. `@emnapi/core@1.11.2` for a `1.11.1` pin) and refuses.
+
+**Guard:** `npm run verify:lockfile-platform`
+(`ardanova-client/scripts/verify-lockfile-platform.mjs`, tested by
+`src/lib/dependencies/lockfile-platform.test.ts`, and run by CI before `npm ci`).
+It names every binding dependency that would not resolve.
+
+**Fix — regenerate on the builder's platform, never on Windows:**
+
+```powershell
+podman run --rm -v "C:\Users\atooz\Documents\Escherbridge\ardanova\ardanova-client:/app" -w /app node:20-alpine `
+  sh -c "npm i -g npm@^11 && npm install --package-lock-only"
+# confirm with the builder's own npm, without writing Linux node_modules over the Windows ones:
+podman run --rm -v "C:\Users\atooz\Documents\Escherbridge\ardanova\ardanova-client:/app" -w /app node:20-alpine `
+  sh -c "npm i -g npm@^11 && npm ci --dry-run"
+```
+
+Then commit `package-lock.json` alone and confirm the deploy actually lands:
+`/api/health` on the client reports `commit`, and `railway deployment list
+--service Ardanova-Client --environment production` shows `SUCCESS`, not the
+previous build still serving.
 
 ---
 

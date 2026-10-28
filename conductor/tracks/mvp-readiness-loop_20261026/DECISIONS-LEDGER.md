@@ -593,3 +593,42 @@ stays `unconfirmed`. Payout release gains `PAYOUT_IDENTITY_UNMATCHED`.
 
 Gates: SDK publish waits on F2 + a re-review. The released-DB feed migration
 waits on F4 (runs migrate-first, then pushes the code so the new BFF boots fresh).
+
+## Loop iteration 4 — results so far (2026-10-27)
+
+- **F4 DONE** (176c09e): race-correct likesCount recount in a SEPARATE statement
+  scoped by a temp table captured BEFORE the delete (a sibling CTE would read the
+  pre-delete snapshot and repeat the bug), LOCK TABLE ahead of the delete, a CHECK
+  on the half-filled source pair, lock_timeout, the PostService.CreateAsync
+  user-authorable allowlist {POST, PROJECT_UPDATE, GUILD_ACTIVITY, PROPOSAL,
+  SHOP_ITEM}. Scratch proof on the race-shaped seed: p1 2 rows / count 2,
+  p2 1 row / count 1.
+- **SR-03 Phase 0 LIVE on the released env** (merge 69acd14), in the safe order:
+  preflight (20 migrations, 0 failed; 0 posts/likes/bookmarks; 0 idle-in-tx; no
+  stale feed types) → pg_dump (344,105 bytes, SHA256 3373CD0A…936FEC) → `migrate
+  deploy` with the OLD BFF serving → readback (24/24; TaxonomyTerm SECTOR 26 /
+  SKILL 54 with parents / PROJECT_TYPE 13; CHECK + unique index; 10 legacy
+  sectors resolvable; `migrate diff --from-url --exit-code` = "No difference
+  detected") → push → new BFF deployed SUCCESS as a fresh process.
+  **Live smoke (Playwright, real session): 10/10** — ProjectType enum 13 values;
+  post create/read; like ×2 → likesCount 1; unlike; delete; a forged MILESTONE
+  post → 400 "written by the system"; project list 200.
+- **F3 DONE** (oasis-sleek feat/fiat-replay-codes @769494f1): the four contract
+  codes on the same-key 409s (FiatRailProvider.cs:601/606/624/630/641;
+  REQUEST_KEY_IN_USE also on cash-out, OffRampService.cs:389); a failed Stripe
+  re-read now returns 503 DEPENDENCY_UNAVAILABLE instead of a 200 that says
+  not_started. Every consumer already treats a 5xx as "try again". Unit suite
+  5429/5429.
+- **INCIDENT FOUND + FIXED: the client had not deployed for ~1.5 days.** Every
+  Ardanova-Client build since 2026-10-26 06:52 FAILED (7 in a row) while Railway
+  kept serving 3423b5d7; the BFF kept deploying fine, so nothing alerted.
+  Cause: 5fc7d30 (a UX review-fix commit) rewrote package-lock.json on Windows,
+  dropping the wasm32 optional bindings' nested @emnapi/core@1.11.1 +
+  @emnapi/runtime@1.11.1 (31 → 26 entries) → builder `npm ci` EUSAGE. Fixed in
+  f281231 with the recorded e54e9c9 recipe inside node:20-alpine (npm 11.21.1);
+  `npm ci --dry-run` in the same image passes. So the pass-1 UX review fixes in
+  5fc7d30 and everything after were NOT live until this deploy.
+  | id | item | decision | size |
+  |---|---|---|---|
+  | P7-20 | Guard against lockfile platform drift | **CLOSED 2026-10-27**: `scripts/verify-lockfile-platform.mjs` resolves every `*-wasm32-wasi` binding dependency the way npm's node_modules lookup does and fails closed on missing, mismatched or unverifiable pins. Proven on the real broken lock (reproduces Railway's exact `@emnapi/core@1.11.1` vs hoisted `1.11.2`, exit 1) and on the fixed and last-good locks (exit 0). Runs in CI before `npm ci`; `npm run verify:lockfile-platform`; 6 tests; RUNBOOK §2a. **Client deploy confirmed: f2812310 SUCCESS** | S |
+  | P7-21 | Deploy-failure visibility: client builds failed 7× silently. Railway deploy-failure alerts (webhook/notification) or a post-push check that /api/health serves the pushed commit | DO-NOW (with the owner's "Wait for CI" flip) | S |
