@@ -31,18 +31,13 @@ public sealed class FeedProjectorCycle
         _clock = clock;
     }
 
-    /// <summary>One timed cycle: the look-back window, plus the bounded sweep when one is due.</summary>
+    /// <summary>One timed cycle: the look-back window, plus a full envelope reconciliation when a sweep is due.</summary>
     public Task<FeedProjectorRun> RunAsync(bool sweep, CancellationToken ct = default)
-    {
-        var now = Now();
-        return ExecuteAsync(
-            new Pass(Since: now - _options.LookBack, SweepSince: now - _options.SweepWindow, Sweep: sweep, DryRun: false),
-            ct);
-    }
+        => ExecuteAsync(new Pass(Since: Now() - _options.LookBack, Sweep: sweep, DryRun: false), ct);
 
     /// <summary>The same pass with no window: every source row ever written, and every envelope re-checked.</summary>
     public Task<FeedProjectorRun> BackfillAsync(bool dryRun, CancellationToken ct = default)
-        => ExecuteAsync(new Pass(Since: null, SweepSince: null, Sweep: true, DryRun: dryRun), ct);
+        => ExecuteAsync(new Pass(Since: null, Sweep: true, DryRun: dryRun), ct);
 
     private async Task<FeedProjectorRun> ExecuteAsync(Pass pass, CancellationToken ct)
     {
@@ -69,7 +64,7 @@ public sealed class FeedProjectorCycle
         plan.SourcesExamined = sources.Count;
         await PlanSourcesAsync(sources, plan, ct);
         if (pass.Sweep)
-            await PlanSweepAsync(pass.SweepSince, plan, ct);
+            await PlanSweepAsync(plan, ct);
         return plan;
     }
 
@@ -106,8 +101,15 @@ public sealed class FeedProjectorCycle
         }
     }
 
-    /// <summary>Envelopes whose source was deleted leave no row for the window to see, so they are found from the envelope side.</summary>
-    private async Task PlanSweepAsync(DateTime? since, Plan plan, CancellationToken ct)
+    /// <summary>
+    /// A deleted source leaves no row for the look-back window to see, so it is found from the envelope side -
+    /// and unlike <see cref="PlanSourcesAsync"/>'s 10-minute look-back, this walks EVERY envelope, whatever its
+    /// age: a security review found that a time-filtered sweep (the old "last 48 h" window) never reconsiders a
+    /// card whose source outlives that window and only later loses its target or its eligibility (a deleted
+    /// comment, an opportunity re-drafted, an event made INVITE_ONLY, long after projection). See Feed/AGENTS.md
+    /// §Sweep for the lock/batching trade-off this makes.
+    /// </summary>
+    private async Task PlanSweepAsync(Plan plan, CancellationToken ct)
     {
         var orphans = await _posts.Query()
             .Where(post => post.sourceType != null)
@@ -117,40 +119,53 @@ public sealed class FeedProjectorCycle
         foreach (var orphan in orphans)
             plan.Remove(orphan);
 
-        var recent = _posts.Query().Where(post => post.sourceType != null);
-        if (since is { } sweepSince)
-            recent = recent.Where(post => post.createdAt >= sweepSince);
-        var stored = (await recent
-                .Select(post => new
-                {
-                    post.id,
-                    post.sourceType,
-                    post.sourceId,
-                    post.visibility,
-                    post.projectId,
-                    post.guildId,
-                    post.opportunityId,
-                    post.eventId,
-                })
-                .ToListAsync(ct))
-            .Where(row => !plan.Removals.Contains(row.id))
-            .Select(row => new StoredFeedEnvelope(
-                row.id,
-                new FeedSourceKey(row.sourceType!.Value, row.sourceId!),
-                row.visibility,
-                new FeedEnvelopeTargets(row.projectId, row.guildId, row.opportunityId, row.eventId)))
-            .ToList();
+        // One id per envelope is cheap to hold for the whole table; batching it in memory (not via a SQL
+        // "WHERE id > cursor", which would need a translatable string ordering) keeps every wide read and
+        // every per-kind source lookup below bounded to SweepBatchSize rows.
+        var allIds = await _posts.Query()
+            .Where(post => post.sourceType != null)
+            .OrderBy(post => post.id)
+            .Select(post => post.id)
+            .ToListAsync(ct);
 
-        foreach (var kind in stored.GroupBy(envelope => envelope.Key.SourceType))
+        foreach (var batchIds in allIds.Chunk(Math.Max(1, _options.SweepBatchSize)))
         {
-            var rowIds = kind.Select(envelope => FeedProjectionRules.RowIdOf(envelope.Key)).Distinct().ToList();
-            var current = (await _sources.ReadByIdsAsync(kind.Key, rowIds, ct)).ToDictionary(source => source.Id);
-            foreach (var envelope in kind)
+            var pending = batchIds.Where(id => !plan.Removals.Contains(id)).ToArray();
+            if (pending.Length == 0)
+                continue;
+
+            var stored = (await _posts.Query()
+                    .Where(post => pending.Contains(post.id))
+                    .Select(post => new
+                    {
+                        post.id,
+                        post.sourceType,
+                        post.sourceId,
+                        post.visibility,
+                        post.projectId,
+                        post.guildId,
+                        post.opportunityId,
+                        post.eventId,
+                    })
+                    .ToListAsync(ct))
+                .Select(row => new StoredFeedEnvelope(
+                    row.id,
+                    new FeedSourceKey(row.sourceType!.Value, row.sourceId!),
+                    row.visibility,
+                    new FeedEnvelopeTargets(row.projectId, row.guildId, row.opportunityId, row.eventId)))
+                .ToList();
+
+            foreach (var kind in stored.GroupBy(envelope => envelope.Key.SourceType))
             {
-                if (current.TryGetValue(FeedProjectionRules.RowIdOf(envelope.Key), out var source))
-                    plan.Judge(envelope, FeedProjectionRules.Retain(source));
-                else
-                    plan.Remove(envelope.Id);
+                var rowIds = kind.Select(envelope => FeedProjectionRules.RowIdOf(envelope.Key)).Distinct().ToList();
+                var current = (await _sources.ReadByIdsAsync(kind.Key, rowIds, ct)).ToDictionary(source => source.Id);
+                foreach (var envelope in kind)
+                {
+                    if (current.TryGetValue(FeedProjectionRules.RowIdOf(envelope.Key), out var source))
+                        plan.Judge(envelope, FeedProjectionRules.Retain(source));
+                    else
+                        plan.Remove(envelope.Id);
+                }
             }
         }
     }
@@ -158,7 +173,11 @@ public sealed class FeedProjectorCycle
     private async Task<FeedProjectorRun> ApplyAsync(Pass pass, Plan plan, CancellationToken ct)
     {
         var now = Now();
-        var removed = await _envelopes.RemoveAsync(plan.Removals, ct);
+        // Deleted in the same bounded batches the plan was read in: one sweep's worth of removals never
+        // becomes a single unbounded DELETE/transaction, however many stale envelopes it found.
+        var removed = 0;
+        foreach (var batch in plan.Removals.Chunk(Math.Max(1, _options.SweepBatchSize)))
+            removed += await _envelopes.RemoveAsync(batch, ct);
 
         var resynced = 0;
         foreach (var (envelopeId, visibility) in plan.Resyncs)
@@ -223,7 +242,7 @@ public sealed class FeedProjectorCycle
 
     private DateTime Now() => _clock.GetUtcNow().UtcDateTime;
 
-    private sealed record Pass(DateTime? Since, DateTime? SweepSince, bool Sweep, bool DryRun);
+    private sealed record Pass(DateTime? Since, bool Sweep, bool DryRun);
 
     private sealed class Plan
     {

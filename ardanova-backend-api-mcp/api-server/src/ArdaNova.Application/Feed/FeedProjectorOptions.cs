@@ -19,8 +19,12 @@ public sealed class FeedProjectorOptions
 
     public TimeSpan SweepInterval { get; init; } = TimeSpan.FromHours(1);
 
-    /// <summary>How far back the sweep re-checks envelopes against their sources.</summary>
-    public TimeSpan SweepWindow { get; init; } = TimeSpan.FromHours(48);
+    /// <summary>
+    /// How many envelopes the sweep reads, judges and deletes per round trip. The sweep always reconciles
+    /// every envelope (see Feed/AGENTS.md §Sweep); this bounds each batch's query/transaction size, not how
+    /// much of the table gets covered.
+    /// </summary>
+    public int SweepBatchSize { get; init; } = 500;
 
     /// <summary>Reads the operator's settings; a malformed or out-of-range value is a startup failure.</summary>
     public static FeedProjectorOptions FromConfiguration(IConfiguration configuration, string? environmentName)
@@ -44,8 +48,8 @@ public sealed class FeedProjectorOptions
             LookBack = lookBack,
             SweepInterval = TimeSpan.FromMinutes(ReadInteger(
                 configuration, "SweepIntervalMinutes", (int)defaults.SweepInterval.TotalMinutes, 5, 1440)),
-            SweepWindow = TimeSpan.FromHours(ReadInteger(
-                configuration, "SweepWindowHours", (int)defaults.SweepWindow.TotalHours, 1, 720)),
+            SweepBatchSize = ReadInteger(
+                configuration, "SweepBatchSize", defaults.SweepBatchSize, 1, 10_000),
         };
     }
 

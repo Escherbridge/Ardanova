@@ -13,6 +13,7 @@ using ArdaNova.Infrastructure.Data;
 using ArdaNova.Infrastructure.Outbox;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Moq;
@@ -76,6 +77,10 @@ public sealed class SettlementNoEffectReopenFlowTests : IAsyncLifetime
                 foreach (var enumType in enumTypes)
                     npgsql.MapEnum(enumType, enumType.Name, "public", translator);
             })
+            // One throwaway database and one enum-mapped NpgsqlDataSource per test, by design (see
+            // FeedProjectorFlowTests, which does the same); EF's "many service providers" leak heuristic
+            // is a false positive once the assembly's real-Postgres flow tests pass twenty in one run.
+            .ConfigureWarnings(warnings => warnings.Ignore(CoreEventId.ManyServiceProvidersCreatedWarning))
             .Options;
 
         await using var context = NewContext();

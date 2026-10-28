@@ -78,11 +78,25 @@ OR the opportunity's `updatedAt` (opening or re-drafting it changes whether they
 - **Cycle (~5 s):** sources in the look-back -> insert missing envelopes; re-judge the envelope each source
   already has (`Retain`): delete it, or move it to the source's current audience. An event made
   INVITE_ONLY loses its card on the next cycle, not the next sweep.
-- **Sweep (hourly, 48 h):** a deleted source leaves no row to read, so the sweep starts from the envelope
-  side: envelopes created in the last 48 h whose source row is gone or no longer earns a card, plus ANY
-  envelope (any age) whose defining target FK is NULL (`HasLostItsTarget`; the FKs are SET NULL). Older
-  cards with a deleted, FK-less source (e.g. an update deleted a month later) are left for Phase 2
-  hydration to drop at read time, or for a backfill.
+- **Sweep (hourly, full table):** a deleted source leaves no row to read, so the sweep starts from the
+  envelope side and reconciles EVERY envelope, whatever its age, against its current source - a 48 h
+  "recent" filter used to gate this (a security review's finding: a source that outlived the window and
+  only later lost its target or its eligibility - a deleted comment, an opportunity re-drafted, an event
+  made INVITE_ONLY - never got reconsidered). The scan reads envelope ids in `Feed:Projector:SweepBatchSize`
+  batches (default 500, keyset-ordered by `id`, kept in memory so the batch boundary needs no translatable
+  SQL ordering on a string column); each batch's wide read, source lookup and eventual delete stays bounded
+  to that size, however large the table. Plus ANY envelope (any age) whose defining target FK is NULL
+  (`HasLostItsTarget`; the FKs are SET NULL) is still found in one pass, unbatched, same as before.
+  **Lock:** the single session advisory lock (`FeedEnvelopeStore.RunnerLockKey`) stays held for the whole
+  sweep, batches included, rather than being released and re-acquired between batches or capped to a few
+  batches per tick behind a persisted cursor. Advisory locks are cooperative - they block only another
+  caller of `pg_try_advisory_lock` on this exact key, never ordinary table reads or writes - and the only
+  other callers are the hosted service's own next tick (already serialized; it cannot race itself) and the
+  admin backfill endpoint, which already answers a losing `TryAcquireRunnerLockAsync` with 409. A
+  per-tick-capped cursor was rejected: `FeedProjectorCycle` is registered `Scoped` (a fresh instance per
+  tick, see `FeedProjectorRegistration`), so a cursor would need new persisted state, and capping the work
+  per tick would mean a given hourly sweep no longer fully reconciles the table - it would just move the
+  staleness window from "> 48 h" to "> table_size / batch_size hours", not close it.
 - **Backfill:** the same pass with no window (`BackfillAsync`), via `POST /api/admin/feed/backfill`.
   `dryRun` defaults to TRUE; the dry run plans without the lock and returns what it would write.
 - **Single runner:** a Postgres session advisory lock (`FeedEnvelopeStore.RunnerLockKey`). A pass that
@@ -95,13 +109,22 @@ OR the opportunity's `updatedAt` (opening or re-drafting it changes whether they
 
 `Feed:Projector:*` (env `Feed__Projector__Enabled`, ...), read by `FeedProjectorOptions.FromConfiguration`:
 `Enabled` blank -> ON in Development, OFF elsewhere (Staging/Production must set it); `IntervalSeconds`
-(5), `LookBackMinutes` (10), `SweepIntervalMinutes` (60), `SweepWindowHours` (48). A malformed value is a
-startup failure. The cycle and stores are registered regardless, so the admin backfill works with the
-timer off.
+(5), `LookBackMinutes` (10), `SweepIntervalMinutes` (60), `SweepBatchSize` (500, the sweep's full-table
+reconciliation batch; see §Cycle, sweep, backfill). A malformed value is a startup failure. The cycle and
+stores are registered regardless, so the admin backfill works with the timer off.
 
 ## Phase 2 handoff (not built here)
 
 Ranking (`trendingScore`, Reasons[], diversity caps), the feed read API, and HYDRATION: envelopes store a
 title snapshot and, for system kinds, a plain sentence (`FeedEnvelopeCopy`, vocabulary-checked in
 `FeedProjectionRulesTests`); user-written bodies (updates, comments) are stored as "" and must be read live
-from the source row, which is also where a card whose source has since vanished should be dropped.
+from the source row.
+
+**Defence in depth, required, not optional:** the sweep now reconciles the whole table every hour (see
+§Cycle, sweep, backfill), but it is still a background pass with an hour's cadence and a batch loop that
+can be mid-flight when a reader hits the card. Hydration MUST independently check that the source row it is
+about to read live still exists (and still earns the card - the same `Retain` question) and drop the card
+from the response, in-line, if it does not; it cannot assume the sweep already caught a since-deleted or
+since-ineligible source. This is the second of two checks on the same invariant, not a substitute for the
+first - it is what keeps a reader from ever seeing a stale or revoked card during the window between a
+source changing and the next sweep (or batch) reaching that envelope.

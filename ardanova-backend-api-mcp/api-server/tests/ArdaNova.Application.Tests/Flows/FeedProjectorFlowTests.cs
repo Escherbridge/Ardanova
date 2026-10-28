@@ -15,6 +15,7 @@ using ArdaNova.Infrastructure.Repositories;
 using AutoMapper;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Npgsql;
 using Npgsql.NameTranslation;
 using Xunit.Abstractions;
@@ -79,6 +80,11 @@ public sealed class FeedProjectorFlowTests : IAsyncLifetime
                 foreach (var enumType in enumTypes)
                     npgsql.MapEnum(enumType, enumType.Name, "public", translator);
             })
+            // Each test builds its own throwaway database and its own NpgsqlDataSource/enum-mapped options on
+            // purpose (one per test, run in parallel); EF's leak heuristic for "many service providers" does
+            // not apply here, and the assembly's growing number of real-Postgres flow tests would otherwise
+            // make this throw once the whole suite's cumulative count crosses twenty.
+            .ConfigureWarnings(warnings => warnings.Ignore(CoreEventId.ManyServiceProvidersCreatedWarning))
             .Options;
 
         await using var context = NewContext();
@@ -215,6 +221,134 @@ public sealed class FeedProjectorFlowTests : IAsyncLifetime
 
         (await RunCycleAsync(sweep: true)).Removed.Should().Be(1);
         (await EnvelopesAsync()).Should().NotContain(row => row.sourceId == doomedProjectId);
+    }
+
+    [Fact]
+    public async Task ACommentDeletedDaysAfterItsCardWasProjected_IsRemovedByTheFullSweep_WithItsLikes_AndNothingAPersonWrote()
+    {
+        if (Skipped())
+            return;
+
+        var commentId = await CommentAsync(Teammate, CommentTargetType.PROJECT, PublishedProjectId);
+        var noteId = await WriteFieldNoteAsync("A note the founder wrote herself, long before the comment went stale.");
+        await RunCycleAsync();
+        var card = (await EnvelopesAsync()).Single(row => row.sourceId == commentId);
+        await using (var context = NewContext())
+            Succeeded(await Posts(context).LikeAsync(card.id, Stranger));
+        await using (var context = NewContext())
+            Succeeded(await Posts(context).LikeAsync(noteId, Stranger));
+
+        // Advance the projector's clock, not the wall clock: the comment's own createdAt (what Post.createdAt
+        // mirrors) stays real-time, so it now reads as more than 48 h old to a time-filtered sweep.
+        _clock.Advance(TimeSpan.FromDays(3));
+        await using (var context = NewContext())
+            Succeeded(await Comments(context).DeleteAsync(commentId));
+
+        (await RunCycleAsync()).Removed.Should().Be(
+            0, "a deleted source leaves nothing for the look-back window to see");
+
+        (await RunCycleAsync(sweep: true)).Removed.Should().Be(
+            1, "the full sweep reconciles every envelope against its source, not only the ones a time filter would admit");
+
+        await using var check = NewContext();
+        (await check.Posts.AnyAsync(post => post.id == card.id)).Should().BeFalse();
+        (await check.PostLikes.AnyAsync(like => like.postId == card.id)).Should().BeFalse();
+        (await check.Posts.SingleAsync(post => post.id == noteId)).likesCount.Should().Be(1);
+        (await check.PostLikes.CountAsync(like => like.postId == noteId)).Should().Be(1);
+    }
+
+    [Fact]
+    public async Task AnOpportunityMovedBackToDraftDaysAfterItsCardWasProjected_IsRemovedByTheFullSweep()
+    {
+        if (Skipped())
+            return;
+
+        string opportunityId;
+        await using (var context = NewContext())
+        {
+            var created = await Opportunities(context).CreateAsync(new CreateOpportunityDto
+            {
+                PosterId = Founder,
+                Title = "Site carpenter",
+                Description = "Frame the south wall.",
+                Type = OpportunityType.PROJECT_ROLE,
+                ExperienceLevel = ExperienceLevel.MID,
+                ProjectId = PublishedProjectId,
+                IsOpenForApplications = false,
+            });
+            opportunityId = Succeeded(created).Id;
+            Succeeded(await Opportunities(context).UpdateAsync(
+                opportunityId, new UpdateOpportunityDto { Status = OpportunityStatus.OPEN }));
+        }
+        await RunCycleAsync();
+        (await EnvelopesAsync()).Should().ContainSingle(row => row.sourceId == opportunityId);
+
+        _clock.Advance(TimeSpan.FromDays(3));
+        await using (var context = NewContext())
+            Succeeded(await Opportunities(context).UpdateAsync(
+                opportunityId, new UpdateOpportunityDto { Status = OpportunityStatus.DRAFT }));
+
+        (await RunCycleAsync()).Removed.Should().Be(
+            0, "the status flip is outside both the look-back and the old time-filtered sweep");
+
+        (await RunCycleAsync(sweep: true)).Removed.Should().Be(1);
+        (await EnvelopesAsync()).Should().NotContain(row => row.sourceId == opportunityId);
+    }
+
+    [Fact]
+    public async Task AnEventMadeInviteOnlyDaysAfterItsCardWasProjected_IsRemovedByTheFullSweep()
+    {
+        if (Skipped())
+            return;
+
+        var eventId = await ScheduleEventAsync("Open day", EventVisibility.PUBLIC);
+        await RunCycleAsync();
+        (await EnvelopesAsync()).Should().ContainSingle(row => row.sourceId == eventId);
+
+        _clock.Advance(TimeSpan.FromDays(3));
+        await using (var context = NewContext())
+            Succeeded(await Events(context).UpdateAsync(eventId, new UpdateEventDto { Visibility = EventVisibility.INVITE_ONLY }));
+
+        (await RunCycleAsync()).Removed.Should().Be(
+            0, "the visibility flip is outside both the look-back and the old time-filtered sweep");
+
+        (await RunCycleAsync(sweep: true)).Removed.Should().Be(1);
+        (await EnvelopesAsync()).Should().NotContain(row => row.sourceId == eventId);
+    }
+
+    [Fact]
+    public async Task MoreStaleEnvelopesThanOneSweepBatch_AreAllReconciledInOnePass_AndAPersonsPostIsUntouched()
+    {
+        if (Skipped())
+            return;
+
+        var options = new FeedProjectorOptions { SweepBatchSize = 2 };
+        var commentIds = new List<string>();
+        for (var i = 0; i < 5; i++)
+            commentIds.Add(await CommentAsync(Teammate, CommentTargetType.PROJECT, PublishedProjectId));
+        var noteId = await WriteFieldNoteAsync("Mixed into the same id range; must survive every batch.");
+
+        await RunCycleAsync(options: options);
+        (await EnvelopesAsync()).Count(row => commentIds.Contains(row.sourceId)).Should().Be(5);
+
+        _clock.Advance(TimeSpan.FromDays(3));
+        await using (var context = NewContext())
+        {
+            var comments = Comments(context);
+            foreach (var commentId in commentIds)
+                Succeeded(await comments.DeleteAsync(commentId));
+        }
+
+        (await RunCycleAsync(options: options)).Removed.Should().Be(
+            0, "the deletions are outside the look-back window");
+
+        var swept = await RunCycleAsync(sweep: true, options: options);
+        swept.Removed.Should().Be(5, "every stale card must be reconciled in one sweep, however many batches of 2 it takes");
+
+        (await EnvelopesAsync()).Should().NotContain(row => commentIds.Contains(row.sourceId));
+        await using var check = NewContext();
+        (await check.Posts.AnyAsync(post => post.id == noteId)).Should().BeTrue(
+            "a person's own post must never be touched by the sweep, whichever batch its id falls into");
     }
 
     [Fact]
@@ -456,17 +590,17 @@ public sealed class FeedProjectorFlowTests : IAsyncLifetime
             .Should().BeEquivalentTo(expected);
     }
 
-    private async Task<FeedProjectorRun> RunCycleAsync(bool sweep = false)
+    private async Task<FeedProjectorRun> RunCycleAsync(bool sweep = false, FeedProjectorOptions? options = null)
     {
         await using var context = NewContext();
-        return await Cycle(context).RunAsync(sweep);
+        return await Cycle(context, options).RunAsync(sweep);
     }
 
-    private FeedProjectorCycle Cycle(ArdaNovaDbContext context) => new(
+    private FeedProjectorCycle Cycle(ArdaNovaDbContext context, FeedProjectorOptions? options = null) => new(
         new FeedSourceReader(context),
         new FeedEnvelopeStore(context),
         new Repository<Post>(context),
-        new FeedProjectorOptions(),
+        options ?? new FeedProjectorOptions(),
         _clock);
 
     private async Task<List<Post>> EnvelopesAsync()
