@@ -35,9 +35,26 @@ public class TaxonomySqlTranslationTests
         sql.Should().Contain(
             "','",
             "the whole-token match concatenates commas onto both the column and the needle before comparing them");
-        sql.Should().NotMatch(
-            "*LIKE '%' || @*categories*",
-            "a bare substring LIKE directly on the categories column is exactly the P8-15 bug this fix replaces");
+    }
+
+    /// <summary>
+    /// EF Core escapes `%` and `_` inside the <c>Contains</c> argument before building the LIKE
+    /// pattern, so a category value that happens to contain a LIKE wildcard character is matched
+    /// literally instead of acting as a wildcard. Confirmed live: `A%B_C` renders as the escaped
+    /// parameter value `'%,A\%B\_C,%'` in the generated SQL.
+    /// </summary>
+    [Fact]
+    public void HasCategory_EscapesLikeWildcardsInTheCategoryValue_SoTheyMatchLiterallyNotAsWildcards()
+    {
+        using var context = NewModelOnlyContext();
+
+        var sql = context.Projects
+            .Where(ProjectQueryFilters.HasCategory("A%B_C"))
+            .ToQueryString();
+
+        sql.Should().Contain(
+            "%,A\\%B\\_C,%",
+            "the % and _ a caller's category value happens to contain must be escaped before EF builds the LIKE pattern, or they would act as wildcards instead of literal characters");
     }
 
     /// <summary>A SKILL's parentSlug must come from a SQL join on the Parent navigation, never a separate per-row lookup.</summary>

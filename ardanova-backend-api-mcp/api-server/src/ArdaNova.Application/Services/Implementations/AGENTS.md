@@ -312,8 +312,16 @@ comma-delimited token can match; the concatenation is inlined into the predicate
 C#-side helper call) specifically so EF Core keeps translating it to SQL instead of pulling every
 row into memory to filter client-side.
 
-**Normalization.** `ProjectService.NormalizeCategory` (`Trim()`) is the one transform shared by
-`ValidateCategories` and both category-write sites (`CreateAsync`, `UpdateAsync`), so the string
-that passed validation is byte-for-byte the string the comma-joined column stores - which is in turn
-exactly what `HasCategory`'s comma-padding later searches for. Without this, a value validated with
-incidental whitespace could be stored with it and then never match its own filter.
+**Normalization.** `ProjectService.NormalizeCategory` delegates to
+`ProjectQueryFilters.CanonicalizeCategory` (`Trim()`, then rewrite to the matching
+`ProjectCategory` enum name when one matches case-insensitively) and is the one transform shared by
+`ValidateCategories`, both category-write sites (`CreateAsync`, `UpdateAsync`), `HasCategory` and
+every filter entry point (`ProjectQueryFilters.Build`, `GetVisibleByCategoryAsync`). Validation
+accepted a known code case-insensitively before this fix but storage only trimmed it, so `business`
+landed in the column as `business` and the whole-token `BUSINESS` filter — itself case-sensitive —
+never matched its own row (fixed alongside P8-15). Canonicalizing in one place means the string
+that passed validation, the string the comma-joined column stores, and the needle `HasCategory`
+later comma-pads are all byte-for-byte the same value regardless of the caller's casing. A custom
+value (not a known code) passes through trimmed only, as typed. `ValidateCategories` also refuses
+any single category value containing a comma - the column uses commas as its only delimiter, so an
+unrefused one (e.g. `"Solar, Wind"`) would silently become two stored categories.

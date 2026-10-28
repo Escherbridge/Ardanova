@@ -110,6 +110,22 @@ public static class ProjectQueryFilters
             || project.ProjectMembers.Any(member => member.userId == viewerId);
     }
 
+    /// <summary>Known category codes, compared case-insensitively so a caller's casing can never split one code into two stored spellings.</summary>
+    public static readonly HashSet<string> ValidCategories = Enum.GetNames<ProjectCategory>()
+        .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Trims, then — when the value matches a known code case-insensitively — rewrites it to that
+    /// code's canonical spelling; a custom value passes through trimmed and otherwise untouched.
+    /// Shared by validation, storage and filtering so "business" and "BUSINESS" are one value
+    /// everywhere, not two that happen to look related.
+    /// </summary>
+    public static string CanonicalizeCategory(string category)
+    {
+        var trimmed = category.Trim();
+        return ValidCategories.TryGetValue(trimmed, out var canonical) ? canonical : trimmed;
+    }
+
     /// <summary>
     /// Whole-token match on the comma-separated categories column: padding both sides with commas
     /// means BUSINESS can never match SMALL_BUSINESS or a sector that merely contains it as a
@@ -118,7 +134,7 @@ public static class ProjectQueryFilters
     /// </summary>
     public static Expression<Func<Project, bool>> HasCategory(string category)
     {
-        var needle = "," + category + ",";
+        var needle = "," + CanonicalizeCategory(category) + ",";
         return project => ("," + project.categories + ",").Contains(needle);
     }
 
@@ -159,7 +175,7 @@ public static class ProjectQueryFilters
 
         if (!string.IsNullOrWhiteSpace(category))
         {
-            predicate = predicate.And(HasCategory(category.Trim()));
+            predicate = predicate.And(HasCategory(category));
         }
 
         if (projectType.HasValue)
@@ -446,7 +462,7 @@ public class ProjectService : IProjectService, IProjectVisibility
         CancellationToken ct = default)
         => Result<IReadOnlyList<ProjectDto>>.Success(
             await ListVisibleAsync(
-                ProjectQueryFilters.VisibleTo(viewer).And(ProjectQueryFilters.HasCategory(category.Trim())),
+                ProjectQueryFilters.VisibleTo(viewer).And(ProjectQueryFilters.HasCategory(category)),
                 ct));
 
     public Task<Result<IReadOnlyList<ProjectDto>>> GetByProjectTypeAsync(ProjectType projectType, CancellationToken ct = default)
@@ -472,17 +488,15 @@ public class ProjectService : IProjectService, IProjectVisibility
                 ProjectQueryFilters.VisibleTo(viewer).And(project => project.featured),
                 ct));
 
-    private static readonly HashSet<string> ValidCategories = Enum.GetNames<ProjectCategory>()
-        .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
     /// <summary>
     /// The one transform between what a caller sends and what the comma-joined column stores, so
     /// the value <see cref="ValidateCategories"/> approves is byte-for-byte the value that lands in
     /// <c>categories</c> - and the value <see cref="ProjectQueryFilters.HasCategory"/> later
-    /// comma-pads to search for. A taxonomy slug (already upper-snake-case) and a custom value pass
-    /// through the same trim, so neither path can drift from the other.
+    /// comma-pads to search for. Delegates to <see cref="ProjectQueryFilters.CanonicalizeCategory"/>
+    /// so a known code submitted in any casing (e.g. "business") is stored and filtered as its
+    /// canonical spelling ("BUSINESS"); a custom value passes through trimmed, as typed.
     /// </summary>
-    private static string NormalizeCategory(string category) => category.Trim();
+    private static string NormalizeCategory(string category) => ProjectQueryFilters.CanonicalizeCategory(category);
 
     private static Result<ProjectDto>? ValidateCategories(IEnumerable<string> categories)
     {
@@ -491,7 +505,11 @@ public class ProjectService : IProjectService, IProjectVisibility
             var normalized = NormalizeCategory(category);
             if (normalized.Length == 0)
                 return Result<ProjectDto>.ValidationError("Category cannot be empty");
-            if (!ValidCategories.Contains(normalized) && normalized.Length > 50)
+            // The column delimits categories with commas, so one submitted value carrying a comma
+            // would silently split into two stored categories - refuse it instead of mis-splitting.
+            if (normalized.Contains(','))
+                return Result<ProjectDto>.ValidationError($"Category '{normalized}' cannot contain a comma");
+            if (!ProjectQueryFilters.ValidCategories.Contains(normalized) && normalized.Length > 50)
                 return Result<ProjectDto>.ValidationError($"Custom category '{normalized}' exceeds 50 characters");
         }
         return null;

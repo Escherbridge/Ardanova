@@ -80,6 +80,58 @@ public class ProjectCategoryFilterFlowTests
         matches.Value!.Select(p => p.Id).Should().Equal(techProject.Value!.Id);
     }
 
+    /// <summary>
+    /// Validation accepted a known code case-insensitively before this fix, but storage only
+    /// trimmed it and the whole-token filter was case-sensitive, so a lowercase submission was
+    /// accepted, stored verbatim, and then invisible to its own canonical filter forever after.
+    /// </summary>
+    [Fact]
+    public async Task ALowercaseSubmissionOfAKnownCategory_IsStoredCanonically_AndFoundByTheCanonicalFilter()
+    {
+        var created = await _service.CreateAsync(NewProjectDto(
+            "Neighborhood co-op storefront", new List<string> { "business" }));
+        created.IsSuccess.Should().BeTrue(created.Error);
+        created.Value!.Categories.Should().Equal("BUSINESS");
+        await _service.PublishAsync(created.Value!.Id);
+
+        var byCanonicalCode = await _service.GetByCategory("BUSINESS");
+        byCanonicalCode.IsSuccess.Should().BeTrue(byCanonicalCode.Error);
+        byCanonicalCode.Value!.Select(p => p.Id).Should().Equal(created.Value!.Id);
+
+        // The `?category=business` query-string path: lowercase all the way through the
+        // search filter, exercising ProjectQueryFilters.Build rather than GetByCategory.
+        var bySearchFilter = await _service.SearchVisibleAsync(
+            ProjectViewer.Anonymous, searchTerm: null, status: null, category: "business",
+            projectType: null, page: 1, pageSize: 10);
+        bySearchFilter.IsSuccess.Should().BeTrue(bySearchFilter.Error);
+        bySearchFilter.Value!.Items.Select(p => p.Id).Should().Equal(created.Value!.Id);
+    }
+
+    /// <summary>A value that is not a known code is a custom category and must round-trip exactly as typed.</summary>
+    [Fact]
+    public async Task ACustomCategory_IsStoredExactlyAsTyped_NotRewrittenToAnyKnownCode()
+    {
+        var created = await _service.CreateAsync(NewProjectDto(
+            "Hydroponic greens pilot", new List<string> { "Solar Farming" }));
+        created.IsSuccess.Should().BeTrue(created.Error);
+
+        created.Value!.Categories.Should().Equal("Solar Farming");
+    }
+
+    /// <summary>
+    /// The categories column has no escaping for its own delimiter, so a value containing a comma
+    /// would silently become two stored categories instead of the one the caller meant to submit.
+    /// </summary>
+    [Fact]
+    public async Task ACategoryContainingAComma_IsRefused_InsteadOfSilentlySplittingIntoTwoCategories()
+    {
+        var result = await _service.CreateAsync(NewProjectDto(
+            "Mixed renewables pilot", new List<string> { "Solar, Wind" }));
+
+        result.IsSuccess.Should().BeFalse("a single category value must never be allowed to smuggle in the column's own delimiter");
+        result.Error.Should().Contain("comma");
+    }
+
     private static CreateProjectDto NewProjectDto(string title, List<string> categories) => new()
     {
         CreatedById = "founder-1",
@@ -104,6 +156,10 @@ public class ProjectCategoryFilterFlowTests
             .Returns((Expression<Func<Project, bool>> predicate, CancellationToken ct) => rows.FindOneAsync(predicate, ct));
         repository.Setup(r => r.FindAsync(It.IsAny<Expression<Func<Project, bool>>>(), It.IsAny<CancellationToken>()))
             .Returns((Expression<Func<Project, bool>> predicate, CancellationToken ct) => rows.FindAsync(predicate, ct));
+        repository.Setup(r => r.GetPagedAsync(
+                It.IsAny<int>(), It.IsAny<int>(), It.IsAny<Expression<Func<Project, bool>>?>(), It.IsAny<CancellationToken>()))
+            .Returns((int page, int pageSize, Expression<Func<Project, bool>>? predicate, CancellationToken ct)
+                => rows.GetPagedAsync(page, pageSize, predicate, ct));
         return repository.Object;
     }
 }
