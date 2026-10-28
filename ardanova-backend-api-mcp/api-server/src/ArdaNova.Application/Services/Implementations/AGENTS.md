@@ -292,3 +292,28 @@ fallback is honest only while the row truly reflects "nothing issued"; once some
 non-zero supply against stale balances, the ratio prices sponsorships off figures nobody
 reconciles. The control that catches the result is the node-side rate consistency band, OI-79
 (launch-readiness L4.6). The real fix is a node-read backing figure, not a better guard here.
+
+# Taxonomy
+
+`TaxonomyService` (SR-03 Phase 1 Lane C) answers `GET /api/taxonomy` off the `TaxonomyTerm` table
+Phase 0 seeded: a shared vocabulary spanning every problem domain the platform hosts (construction
+to hospitality), not just tech. It is a suggestion list and filter facet, NOT a stored constraint -
+`Project.categories`, `Guild.specialties`, `Opportunity.skills` and `UserSkill.skill` keep storing
+plain comma-separated or scalar text, and a custom value under 50 characters still works beside any
+taxonomy slug. A `parentSlug` on a SKILL comes from the `Parent` navigation inside the `Select`
+projection, never an `Include` - EF Core still emits one LEFT JOIN, so a SKILL's sector arrives as a
+slug and never leaks the internal id.
+
+**P8-15 (fixed here).** `ProjectQueryFilters.HasCategory` replaces `categories.Contains(x)`, a
+SUBSTRING match that let a filter on `BUSINESS` return `SMALL_BUSINESS` too - worse once the
+vocabulary is 26 sectors deep instead of 10. The fix pads both the column and the needle with
+commas (`","+categories+","` vs `","+category+","`) before calling `.Contains`, so only a whole
+comma-delimited token can match; the concatenation is inlined into the predicate expression (not a
+C#-side helper call) specifically so EF Core keeps translating it to SQL instead of pulling every
+row into memory to filter client-side.
+
+**Normalization.** `ProjectService.NormalizeCategory` (`Trim()`) is the one transform shared by
+`ValidateCategories` and both category-write sites (`CreateAsync`, `UpdateAsync`), so the string
+that passed validation is byte-for-byte the string the comma-joined column stores - which is in turn
+exactly what `HasCategory`'s comma-padding later searches for. Without this, a value validated with
+incidental whitespace could be stored with it and then never match its own filter.

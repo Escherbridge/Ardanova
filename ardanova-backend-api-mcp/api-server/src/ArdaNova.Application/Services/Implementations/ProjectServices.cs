@@ -110,6 +110,18 @@ public static class ProjectQueryFilters
             || project.ProjectMembers.Any(member => member.userId == viewerId);
     }
 
+    /// <summary>
+    /// Whole-token match on the comma-separated categories column: padding both sides with commas
+    /// means BUSINESS can never match SMALL_BUSINESS or a sector that merely contains it as a
+    /// substring. The concatenation (not a helper call) is what keeps this translated to SQL
+    /// instead of pulled into memory - see P8-15 in Services/Implementations/AGENTS.md §Taxonomy.
+    /// </summary>
+    public static Expression<Func<Project, bool>> HasCategory(string category)
+    {
+        var needle = "," + category + ",";
+        return project => ("," + project.categories + ",").Contains(needle);
+    }
+
     /// <summary>The searchable surface of a project: the problem and the solution, not just the title.</summary>
     public static Expression<Func<Project, bool>> MatchesSearchTerm(string searchTerm)
     {
@@ -147,8 +159,7 @@ public static class ProjectQueryFilters
 
         if (!string.IsNullOrWhiteSpace(category))
         {
-            var requestedCategory = category;
-            predicate = predicate.And(project => project.categories.Contains(requestedCategory));
+            predicate = predicate.And(HasCategory(category.Trim()));
         }
 
         if (projectType.HasValue)
@@ -435,7 +446,7 @@ public class ProjectService : IProjectService, IProjectVisibility
         CancellationToken ct = default)
         => Result<IReadOnlyList<ProjectDto>>.Success(
             await ListVisibleAsync(
-                ProjectQueryFilters.VisibleTo(viewer).And(project => project.categories.Contains(category)),
+                ProjectQueryFilters.VisibleTo(viewer).And(ProjectQueryFilters.HasCategory(category.Trim())),
                 ct));
 
     public Task<Result<IReadOnlyList<ProjectDto>>> GetByProjectTypeAsync(ProjectType projectType, CancellationToken ct = default)
@@ -464,14 +475,24 @@ public class ProjectService : IProjectService, IProjectVisibility
     private static readonly HashSet<string> ValidCategories = Enum.GetNames<ProjectCategory>()
         .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>
+    /// The one transform between what a caller sends and what the comma-joined column stores, so
+    /// the value <see cref="ValidateCategories"/> approves is byte-for-byte the value that lands in
+    /// <c>categories</c> - and the value <see cref="ProjectQueryFilters.HasCategory"/> later
+    /// comma-pads to search for. A taxonomy slug (already upper-snake-case) and a custom value pass
+    /// through the same trim, so neither path can drift from the other.
+    /// </summary>
+    private static string NormalizeCategory(string category) => category.Trim();
+
     private static Result<ProjectDto>? ValidateCategories(IEnumerable<string> categories)
     {
         foreach (var category in categories)
         {
-            if (string.IsNullOrWhiteSpace(category))
+            var normalized = NormalizeCategory(category);
+            if (normalized.Length == 0)
                 return Result<ProjectDto>.ValidationError("Category cannot be empty");
-            if (!ValidCategories.Contains(category) && category.Length > 50)
-                return Result<ProjectDto>.ValidationError($"Custom category '{category}' exceeds 50 characters");
+            if (!ValidCategories.Contains(normalized) && normalized.Length > 50)
+                return Result<ProjectDto>.ValidationError($"Custom category '{normalized}' exceeds 50 characters");
         }
         return null;
     }
@@ -509,7 +530,7 @@ public class ProjectService : IProjectService, IProjectVisibility
             summary = dto.Summary,
             problemStatement = dto.ProblemStatement,
             solution = dto.Solution,
-            categories = string.Join(",", dto.Categories),
+            categories = string.Join(",", dto.Categories.Select(NormalizeCategory)),
             status = ProjectStatus.DRAFT,
             fundingGoal = dto.FundingGoal,
             fundingGoalUnit = dto.FundingGoalUnit ?? ProjectFundingUnits.Ledger,
@@ -567,7 +588,7 @@ public class ProjectService : IProjectService, IProjectVisibility
         if (dto.Summary is not null) project.summary = dto.Summary;
         if (dto.ProblemStatement is not null) project.problemStatement = dto.ProblemStatement;
         if (dto.Solution is not null) project.solution = dto.Solution;
-        if (dto.Categories is not null) project.categories = string.Join(",", dto.Categories);
+        if (dto.Categories is not null) project.categories = string.Join(",", dto.Categories.Select(NormalizeCategory));
         if (dto.Tags is not null) project.tags = dto.Tags;
         if (dto.TargetAudience is not null) project.targetAudience = dto.TargetAudience;
         if (dto.ExpectedImpact is not null) project.expectedImpact = dto.ExpectedImpact;

@@ -178,6 +178,10 @@ public static class DependencyInjection
         // Enum lookup (singleton - enum types are static)
         services.AddSingleton<IEnumLookupService, EnumLookupService>();
 
+        // Taxonomy (the domain-neutral vocabulary surface: a suggestion list and filter facets,
+        // never a stored constraint; see Services/Implementations/AGENTS.md §Taxonomy).
+        services.AddScoped<ITaxonomyService, TaxonomyService>();
+
         // API pipeline: record-level authorization and request validators (backend lane).
         services.AddScoped<Common.Security.IResourceAuthority, Common.Security.ResourceAuthority>();
         Validators.RequestValidatorRegistration.AddRequestValidators(services);
