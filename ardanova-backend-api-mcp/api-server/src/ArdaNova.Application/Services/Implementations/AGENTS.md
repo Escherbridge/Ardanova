@@ -124,6 +124,26 @@ A holding with no recorded `holderClass` is LISTED but never sellable. Every sel
 rule is keyed on the class, and defaulting one would decide a sale on an invented fact;
 hiding the holding entirely would be worse than saying why it cannot be sold.
 
+# Sponsorship request keys
+
+`FundingIntentService.CreateCheckoutAsync` answers a repeated `X-Idempotency-Key` by REPLAYING
+the intent that key already admitted, and the replay lookup runs before the sponsor's readiness
+gate and the project's fundability check. An intent this key admitted must finish (or report its
+final state) even if the person went under review or the project's gate closed since the first
+call; checking readiness first would answer an admitted request's retry with "finish your setup".
+It also means every refusal after the lookup is pre-admission.
+
+Which 409s are final is now said in a machine code, not left to a status
+(`ArdaNova.API/Controllers/AGENTS.md` §Money refusal codes): `HoldAsync` (settlement and outbox
+CANCELLED, nothing taken), a HOLDING or closed replay, and a key reused for a different
+sponsorship carry `INTENT_FINISHED` / `REQUEST_KEY_IN_USE`. The attempt-ceiling 409 ("being
+completed; check back shortly") carries none, because that sponsorship may still settle.
+
+The key covers the request BYTES the caller first sent - `requestedPlatformBaseUnits`, the config
+id and the disclosure version - so a caller resending a recomputed amount after a rate move gets a
+permanent `REQUEST_KEY_IN_USE`. The Next.js invest page therefore persists the exact wire fields
+and resends them verbatim (`ardanova-client/src/lib/commerce/AGENTS.md` §Persisted request keys).
+
 # Project money
 
 The balance is the node's; the rows only explain it. `ProjectLedgerService` reports what the

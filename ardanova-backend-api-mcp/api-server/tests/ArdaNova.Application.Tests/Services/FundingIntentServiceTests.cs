@@ -361,6 +361,8 @@ public class FundingIntentServiceTests
 
         result.Type.Should().Be(ResultType.Conflict);
         result.Error.Should().EndWith("Nothing was taken.");
+        // Final for the key - and said in a code, so the caller may release it on this 409 alone.
+        result.Code.Should().Be(UpstreamFailureCodes.IntentFinished);
         captured.Intent!.status.Should().Be(FundingIntentStatus.HOLDING);
         captured.Intent.heldAt.Should().NotBeNull();
         captured.Intent.holdingReasonCode.Should().Be("AZOA_ACCOUNT_NOT_READY");
@@ -415,7 +417,56 @@ public class FundingIntentServiceTests
 
         result.Type.Should().Be(ResultType.Conflict);
         result.Error.Should().Be("That key was already used for a different sponsorship");
+        result.Code.Should().Be(UpstreamFailureCodes.RequestKeyInUse);
         VerifyNothingWasSettled();
+    }
+
+    [Fact]
+    public async Task CreateCheckoutAsync_RetryOfAnAdmittedSponsorshipReplaysEvenAfterTheSponsorWentUnderReview()
+    {
+        var fixture = ArrangeEligibleFunding();
+        var settled = SettledIntent(fixture, requestedBaseUnits: 900);
+        _intents
+            .Setup(repository => repository.FindOneAsync(
+                It.IsAny<Expression<Func<FundingIntent, bool>>>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(settled);
+        // Readiness moved on after the first call: a fresh sponsorship would now be refused.
+        _valueEligibility
+            .Setup(service => service.RequireReadyAsync(ActorId, "fund a project", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<AzoaCustodialAccountStatusDto>.Forbidden(
+                ValueEligibilityMessages.UnderReview(reviewDueAt: null)));
+
+        var result = await _sut.CreateCheckoutAsync(Request("9.00"), ActorId, IdempotencyKey);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value!.IntentId.Should().Be(settled.id);
+        _gateway.Verify(
+            gateway => gateway.DispatchAsync(It.IsAny<AzoaSettlementRequest>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task CreateCheckoutAsync_ASponsorshipStillBeingCompletedNamesNoFinalCode()
+    {
+        var fixture = ArrangeEligibleFunding();
+        var (draft, _, _) = PendingSponsorship(fixture);
+        draft.status = FundingIntentStatus.DRAFT;
+        draft.settlementAttemptCount = 5;
+        _intents
+            .Setup(repository => repository.FindOneAsync(
+                It.IsAny<Expression<Func<FundingIntent, bool>>>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(draft);
+
+        var result = await _sut.CreateCheckoutAsync(Request("9.00"), ActorId, IdempotencyKey);
+
+        // It may still settle, so this 409 must never let the caller drop the key.
+        result.Type.Should().Be(ResultType.Conflict);
+        result.Code.Should().BeNull();
+        _gateway.Verify(
+            gateway => gateway.DispatchAsync(It.IsAny<AzoaSettlementRequest>(), It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 
     [Fact]

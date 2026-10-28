@@ -170,6 +170,15 @@ public sealed class FundingIntentService : IFundingIntentService
         if (actor is null)
             return Result<FundingCheckoutDto>.NotFound("Sponsor not found");
 
+        // Replay is answered BEFORE the sponsor's readiness and the project's fundability are
+        // re-checked: an intent this key already admitted must replay even if either has moved on
+        // since. It also makes every refusal below a pre-admission one. See AGENTS.md §Sponsorship request keys.
+        var existing = await _intentRepository.FindOneAsync(
+            intent => intent.funderUserId == actorId && intent.idempotencyKey == idempotencyKey,
+            ct);
+        if (existing is not null)
+            return await ReplayAsync(existing, request, requestedBaseUnits, actorId, ct);
+
         var funderReadiness = await _valueEligibility.RequireReadyAsync(actorId, FundAction, ct);
         if (!funderReadiness.IsSuccess)
             return ValueEligibilityFailure.Propagate<AzoaCustodialAccountStatusDto, FundingCheckoutDto>(
@@ -179,14 +188,6 @@ public sealed class FundingIntentService : IFundingIntentService
         if (string.IsNullOrWhiteSpace(avatarId))
             return Result<FundingCheckoutDto>.Conflict(
                 "Your account has no node reference yet, so nothing was taken.");
-
-        // Replay is answered BEFORE fundability is re-checked. A project whose gate moved on since
-        // the first call must still be able to finish the sponsorship it already accepted.
-        var existing = await _intentRepository.FindOneAsync(
-            intent => intent.funderUserId == actorId && intent.idempotencyKey == idempotencyKey,
-            ct);
-        if (existing is not null)
-            return await ReplayAsync(existing, request, requestedBaseUnits, actorId, ct);
 
         var fundable = await LoadFundableAsync(request.ProjectTokenConfigId, ct);
         if (!fundable.IsSuccess)
@@ -738,7 +739,8 @@ public sealed class FundingIntentService : IFundingIntentService
         await _intentRepository.UpdateAsync(intent, ct);
         await _unitOfWork.SaveChangesAsync(ct);
 
-        return Result<FundingCheckoutDto>.Conflict(intent.holdingReasonDetail!);
+        // Final for this key: settlement and outbox are CANCELLED and nothing was taken.
+        return Finished(intent.holdingReasonDetail!);
     }
 
     // -- Finishing work a previous request started ---------------------------
@@ -866,7 +868,9 @@ public sealed class FundingIntentService : IFundingIntentService
             || intent.requestedPlatformBaseUnits != requestedBaseUnits
             || !string.Equals(intent.disclosureVersion, request.DisclosureVersion, StringComparison.Ordinal))
         {
-            return Result<FundingCheckoutDto>.Conflict("That key was already used for a different sponsorship");
+            // This request was never admitted under the key: a different sponsorship owns it.
+            return Result<FundingCheckoutDto>.Conflict("That key was already used for a different sponsorship")
+                .WithCode(UpstreamFailureCodes.RequestKeyInUse);
         }
 
         var project = await _projectRepository.GetByIdAsync(intent.projectId, ct);
@@ -881,21 +885,27 @@ public sealed class FundingIntentService : IFundingIntentService
             case FundingIntentStatus.SETTLEMENT_PENDING:
                 await AdvancePendingAsync(intent, ct);
                 return intent.status == FundingIntentStatus.HOLDING
-                    ? Result<FundingCheckoutDto>.Conflict(intent.holdingReasonDetail!)
+                    ? Finished(intent.holdingReasonDetail!)
                     : Result<FundingCheckoutDto>.Success(BuildCheckout(intent, project));
 
             case FundingIntentStatus.DRAFT:
                 return await ResumeDraftAsync(intent, project, ct);
 
             case FundingIntentStatus.HOLDING:
-                return Result<FundingCheckoutDto>.Conflict(
-                    intent.holdingReasonDetail ?? HoldingMessage(null));
+                return Finished(intent.holdingReasonDetail ?? HoldingMessage(null));
 
             default:
-                return Result<FundingCheckoutDto>.Conflict(
-                    intent.holdingReasonDetail ?? "This sponsorship is closed and nothing was taken.");
+                return Finished(intent.holdingReasonDetail ?? "This sponsorship is closed and nothing was taken.");
         }
     }
+
+    /// <summary>
+    /// A 409 for an intent that reached a state nothing will move it out of. Labelled with the
+    /// node's own <see cref="UpstreamFailureCodes.IntentFinished"/>, so the caller can release its key
+    /// here and ONLY here - an in-progress 409 carries no such code.
+    /// </summary>
+    private static Result<FundingCheckoutDto> Finished(string message)
+        => Result<FundingCheckoutDto>.Conflict(message).WithCode(UpstreamFailureCodes.IntentFinished);
 
     /// <summary>Finishes an intent that was committed but never reached the node.</summary>
     private async Task<Result<FundingCheckoutDto>> ResumeDraftAsync(
@@ -1173,7 +1183,7 @@ public sealed class FundingIntentService : IFundingIntentService
 
     /// <summary>Propagates a typed failure across result payload types without inventing a status.</summary>
     private static Result<TOut> Propagate<TIn, TOut>(Result<TIn> source)
-        => source.Type switch
+        => (source.Type switch
         {
             ResultType.NotFound => Result<TOut>.NotFound(source.Error!),
             ResultType.ValidationError => Result<TOut>.ValidationError(source.Error!),
@@ -1182,7 +1192,7 @@ public sealed class FundingIntentService : IFundingIntentService
             ResultType.Unauthorized => Result<TOut>.Unauthorized(source.Error!),
             ResultType.BadRequest => Result<TOut>.BadRequest(source.Error!),
             _ => Result<TOut>.Failure(source.Error ?? "The request could not be completed"),
-        };
+        }).WithCode(source.Code);
 
     /// <summary>Parses a person-facing amount of the platform unit into exact base units.</summary>
     private static bool TryParsePlatformAmount(string? value, out long baseUnits)

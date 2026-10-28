@@ -18,6 +18,10 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\ArdaNova.Application\ArdaNova.Application.csproj" />
+    <!-- The money-refusal tests drive the REAL node clients (AzoaNodeClient.MapError and the typed
+         gateways) over a faked HttpMessageHandler, so Infrastructure is referenced rather than
+         linked file by file. -->
+    <ProjectReference Include="..\..\src\ArdaNova.Infrastructure\ArdaNova.Infrastructure.csproj" />
   </ItemGroup>
 
   <!-- Link EventBus and WebSocket source files, excluding Extensions which have extra ASP.NET dependencies -->
@@ -27,6 +31,7 @@
     <Compile Include="..\..\src\ArdaNova.API\Controllers\PayoutsController.cs" Link="Controllers\PayoutsController.cs" />
     <Compile Include="..\..\src\ArdaNova.API\Controllers\AddFundsController.cs" Link="Controllers\AddFundsController.cs" />
     <Compile Include="..\..\src\ArdaNova.API\Controllers\MoneyRefusal.cs" Link="Controllers\MoneyRefusal.cs" />
+    <Compile Include="..\..\src\ArdaNova.API\Controllers\AzoaCustodialAccountController.cs" Link="Controllers\AzoaCustodialAccountController.cs" />
     <Compile Include="..\..\src\ArdaNova.API\Controllers\SwapsController.cs" Link="Controllers\SwapsController.cs" />
     <Compile Include="..\..\src\ArdaNova.API\Controllers\TokenBalanceController.cs" Link="Controllers\TokenBalanceController.cs" />
     <Compile Include="..\..\src\ArdaNova.API\Controllers\TaskEscrowsController.cs" Link="Controllers\TaskEscrowsController.cs" />
@@ -47,11 +52,7 @@
     <Compile Include="..\..\src\ArdaNova.API\Controllers\NotificationsController.cs" Link="Controllers\NotificationsController.cs" />
     <Compile Include="..\..\src\ArdaNova.API\Controllers\AdminAzoaBindingController.cs" Link="Controllers\AdminAzoaBindingController.cs" />
     <Compile Include="..\..\src\ArdaNova.API\Controllers\AttachmentsController.cs" Link="Controllers\AttachmentsController.cs" />
-    <Compile Include="..\..\src\ArdaNova.Infrastructure\Storage\StorageConfiguration.cs" Link="Storage\StorageConfiguration.cs" />
-    <Compile Include="..\..\src\ArdaNova.Infrastructure\Storage\LocalStorageService.cs" Link="Storage\LocalStorageService.cs" />
     <Compile Include="..\..\src\ArdaNova.API\Controllers\NovaController.cs" Link="Controllers\NovaController.cs" />
-    <Compile Include="..\..\src\ArdaNova.Infrastructure\Ogai\OgaiClient.cs" Link="Ogai\OgaiClient.cs" />
-    <Compile Include="..\..\src\ArdaNova.Infrastructure\Ogai\LocalNovaPreviewClient.cs" Link="Ogai\LocalNovaPreviewClient.cs" />
     <Compile Include="..\..\src\ArdaNova.API\Middleware\ApiKeyMiddleware.cs" Link="Middleware\ApiKeyMiddleware.cs" />
     <Compile Include="..\..\src\ArdaNova.API\Middleware\ActorAssertionMiddleware.cs" Link="Middleware\ActorAssertionMiddleware.cs" />
     <Compile Include="..\..\src\ArdaNova.API\Controllers\UsersController.cs" Link="Controllers\UsersController.cs" />

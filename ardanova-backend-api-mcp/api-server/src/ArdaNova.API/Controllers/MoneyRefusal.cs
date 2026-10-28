@@ -3,49 +3,10 @@ namespace ArdaNova.API.Controllers;
 using ArdaNova.Application.Common.Results;
 
 /// <summary>
-/// Stable, machine-readable refusal codes for money endpoints (SR-05 P3a). A host-injected SDK
-/// transport maps on <see cref="MoneyRefusalBody.Code"/> instead of parsing
-/// <see cref="MoneyRefusalBody.Message"/> prose.
+/// Stable, machine-readable refusal codes for money endpoints (SR-05 P3a). A caller classifies on
+/// <see cref="MoneyRefusalBody.Code"/>, never on the HTTP status or the prose. The mapping table and
+/// the key-release contract live in <c>Controllers/AGENTS.md</c> §Money refusal codes.
 /// </summary>
-/// <remarks>
-/// <para><b>Mapping table</b> (node/BFF signal -&gt; code -&gt; controller):</para>
-/// <list type="bullet">
-/// <item>KYB gate (oasis-sleek <c>KybGate.RequiredCode</c> = <c>KYB_REQUIRED</c>), reached through
-/// custodial-account/KYC lifecycle calls (<c>KybCapability.CustodialAccess</c>) -&gt;
-/// <see cref="MoneyRefusalCodes.KybRequired"/> -&gt; <c>AzoaCustodialAccountController</c>.</item>
-/// <item>Consent grant missing/revoked at the units:issue checkout probe (oasis-sleek
-/// <c>FiatCheckoutController.AuthoriseSubjectAsync</c>, <c>TenantConsentGate.EnsureAllowedAsync</c>)
-/// -&gt; <see cref="MoneyRefusalCodes.ConsentRevoked"/> -&gt; <c>AddFundsController</c>.</item>
-/// <item>F-H8 tenant principal refused at payout-account setup (oasis-sleek
-/// <c>FiatPayoutController.BeginAccountSetup</c> ~112-117, the node's only documented 403 on the
-/// <c>/payouts/{id}/account</c> route family) -&gt; <see cref="MoneyRefusalCodes.AccountHolderRequired"/>
-/// -&gt; <c>PayoutsController</c> withdraw/destination actions.</item>
-/// <item>AddFunds/PayoutService readiness gate (<c>IAzoaValueEligibilityService.RequireReadyAsync</c>):
-/// <see cref="ResultType.Conflict"/> -&gt; <see cref="MoneyRefusalCodes.Unconfirmed"/>;
-/// <see cref="ResultType.Forbidden"/> carrying <c>ValueEligibilityMessages.UnderReview</c> -&gt;
-/// <see cref="MoneyRefusalCodes.UnderReview"/>; any other <see cref="ResultType.Forbidden"/> -&gt;
-/// <see cref="MoneyRefusalCodes.SetupRequired"/>.</item>
-/// <item>Deployment switched off (<c>DisabledFiatRailGateway</c>, a null <c>ICashOutService</c>, or
-/// any "switched on" / "not configured" wording) -&gt; <see cref="MoneyRefusalCodes.PaymentsNotConfigured"/>.</item>
-/// <item>Node rate limit (429, <c>AzoaNodeClient</c> "rate limit exceeded") -&gt;
-/// <see cref="MoneyRefusalCodes.RailBusy"/>.</item>
-/// <item>Node definite decline (422 -&gt; <see cref="ResultType.BadRequest"/> "declined ... nothing was
-/// moved", or local client-input validation) -&gt; <see cref="MoneyRefusalCodes.Definite"/>.</item>
-/// <item>Ambiguous/unresolvable reads (<see cref="ResultType.NotFound"/>, or
-/// <see cref="ResultType.Conflict"/> outside the readiness gate) -&gt; <see cref="MoneyRefusalCodes.Unconfirmed"/>.</item>
-/// <item><see cref="ResultType.Unauthorized"/> -&gt; <see cref="MoneyRefusalCodes.Unauthenticated"/>.</item>
-/// </list>
-/// <para><b>Known gap.</b> <c>AzoaNodeClient.MapError</c> and <c>AzoaCashOutClient.Refused</c>
-/// (Infrastructure layer, out of this phase's scope) already collapse the node's own code/message
-/// for a generic 403 before a <see cref="Result{T}"/> reaches a controller - only the
-/// <c>"KYC_FORBIDDEN:"</c> prefix currently survives as a distinct message. So
-/// <see cref="MoneyRefusalCodes.ConsentRevoked"/>, <see cref="MoneyRefusalCodes.KybRequired"/> and
-/// <see cref="MoneyRefusalCodes.AccountHolderRequired"/> below are inferred from WHICH call site
-/// (<see cref="MoneyRefusalContext"/>) produced the Forbidden, not from re-reading the node's own
-/// code - each route family has exactly one documented node-side 403 cause today. A later phase
-/// widening <c>AzoaNodeClient</c> to preserve <c>envelope.Code</c> would let the message-prefix
-/// checks here fire directly, with the context defaults becoming a true fallback.</para>
-/// </remarks>
 public static class MoneyRefusalCodes
 {
     public const string SetupRequired = "setup_required";
@@ -55,20 +16,43 @@ public static class MoneyRefusalCodes
     public const string KybRequired = "kyb_required";
     public const string PaymentsNotConfigured = "payments_not_configured";
     public const string RailBusy = "rail_busy";
+
+    /// <summary>
+    /// The ONLY code a caller may release its saved request key on: nothing was, or ever will be,
+    /// admitted under that key for this request.
+    /// </summary>
     public const string Definite = "definite";
+
     public const string Unconfirmed = "unconfirmed";
     public const string Unauthenticated = "unauthenticated";
+}
+
+/// <summary>Why a refusal carries the code it does, when the code alone does not say.</summary>
+public static class MoneyRefusalReasons
+{
+    /// <summary>The intent behind the key reached a final state; nothing more will happen under it.</summary>
+    public const string Finished = "finished";
+
+    /// <summary>The intent behind the key expired unpaid.</summary>
+    public const string Expired = "expired";
+
+    /// <summary>The key covers a different request, so this one was never admitted under it.</summary>
+    public const string KeyInUse = "key_in_use";
+
+    /// <summary>The intent behind the key is held for a human decision; its outcome is still open.</summary>
+    public const string NeedsReview = "needs_review";
 }
 
 /// <summary>The error body every money endpoint carries, alongside whatever route-specific fields already exist.</summary>
 /// <param name="Code">One of <see cref="MoneyRefusalCodes"/>, stable across releases.</param>
 /// <param name="Message">The existing human-readable sentence; unchanged wording, now also machine-labelled.</param>
 /// <param name="RetryAfterSeconds">Set only when the BFF actually knows a wait is warranted (rail busy); null otherwise - never guessed.</param>
-public sealed record MoneyRefusalBody(string Code, string Message, int? RetryAfterSeconds = null);
+/// <param name="Reason">One of <see cref="MoneyRefusalReasons"/> when an upstream code named the outcome; null otherwise.</param>
+public sealed record MoneyRefusalBody(string Code, string Message, int? RetryAfterSeconds = null, string? Reason = null);
 
 /// <summary>
 /// Narrows which of several plausible node-side refusals a generic <see cref="ResultType.Forbidden"/>
-/// maps to, by call site. See the mapping table on <see cref="MoneyRefusalCodes"/>.
+/// maps to, by call site - the fallback used only when no upstream code named it.
 /// </summary>
 public enum MoneyRefusalContext
 {
@@ -81,10 +65,10 @@ public enum MoneyRefusalContext
     /// <summary>Custodial account / KYC lifecycle calls, gated by KybCapability.CustodialAccess.</summary>
     CustodialAccountLifecycle,
 
-    /// <summary>The payout destination ("where your money goes") route family; F-H8 is its only documented 403 cause.</summary>
+    /// <summary>Payout destination SETUP (POST /payouts/{id}/account), where F-H8 is the only documented 403 cause.</summary>
     PayoutDestinationSetup,
 
-    /// <summary>Any other cash-out call (quote, sellable units, withdraw, history) whose canned refusal text is generic.</summary>
+    /// <summary>Any other cash-out call (quote, sellable units, withdraw, destination read, history) whose canned refusal text is generic.</summary>
     CashOutGeneral,
 }
 
@@ -106,8 +90,9 @@ public static class MoneyRefusal
         Result<T> result, MoneyRefusalContext context = MoneyRefusalContext.General, string? fallbackMessage = null)
     {
         var message = result.Error ?? fallbackMessage ?? "The request could not be completed.";
-        var code = ResolveCode(result.Type, message, context);
-        return new MoneyRefusalBody(code, message, RetryAfterFor(code));
+        var (code, reason) = FromUpstreamCode(result.Code)
+            ?? (ResolveByType(result.Type, result.Code, message, context), (string?)null);
+        return new MoneyRefusalBody(code, message, RetryAfterFor(code), reason);
     }
 
     /// <summary>Builds a refusal body directly for a local branch that never produced a <see cref="Result{T}"/>.</summary>
@@ -115,8 +100,8 @@ public static class MoneyRefusal
 
     /// <summary>
     /// The wire shape every money-endpoint error carries: the pre-existing <c>error</c> field
-    /// (so <c>readApiError</c> in the Next.js client keeps working unmodified) plus the new
-    /// <c>code</c>/<c>message</c>/<c>retryAfterSeconds</c> fields the SDK transport reads.
+    /// (so <c>readApiError</c> in the Next.js client keeps working unmodified) plus the
+    /// <c>code</c>/<c>message</c>/<c>retryAfterSeconds</c>/<c>reason</c> fields callers classify on.
     /// </summary>
     public static object ToErrorBody(MoneyRefusalBody refusal) => new
     {
@@ -124,49 +109,71 @@ public static class MoneyRefusal
         code = refusal.Code,
         message = refusal.Message,
         retryAfterSeconds = refusal.RetryAfterSeconds,
+        reason = refusal.Reason,
     };
 
     private static int? RetryAfterFor(string code) =>
         code == MoneyRefusalCodes.RailBusy ? RailBusyRetryAfterSeconds : null;
 
-    private static string ResolveCode(ResultType type, string message, MoneyRefusalContext context) => type switch
+    /// <summary>A real upstream code outranks every inference below; null when it names nothing this table knows.</summary>
+    private static (string Code, string? Reason)? FromUpstreamCode(string? upstreamCode) => upstreamCode switch
     {
-        ResultType.Unauthorized => MoneyRefusalCodes.Unauthenticated,
-        ResultType.NotFound => MoneyRefusalCodes.Unconfirmed,
-        ResultType.Conflict => MoneyRefusalCodes.Unconfirmed,
-        ResultType.ValidationError => MoneyRefusalCodes.Definite,
-        ResultType.BadRequest => MoneyRefusalCodes.Definite,
-        ResultType.Forbidden => ResolveForbidden(message, context),
-        ResultType.Failure => ResolveFailure(message),
-        _ => MoneyRefusalCodes.Definite,
+        UpstreamFailureCodes.KybRequired => (MoneyRefusalCodes.KybRequired, null),
+        UpstreamFailureCodes.IntentFinished => (MoneyRefusalCodes.Definite, MoneyRefusalReasons.Finished),
+        UpstreamFailureCodes.IntentExpired => (MoneyRefusalCodes.Definite, MoneyRefusalReasons.Expired),
+        UpstreamFailureCodes.RequestKeyInUse => (MoneyRefusalCodes.Definite, MoneyRefusalReasons.KeyInUse),
+        UpstreamFailureCodes.IntentNeedsReview => (MoneyRefusalCodes.Unconfirmed, MoneyRefusalReasons.NeedsReview),
+        UpstreamFailureCodes.PaymentsNotConfigured
+            or UpstreamFailureCodes.RouteNotAllowed
+            or UpstreamFailureCodes.TransportNotConfigured => (MoneyRefusalCodes.PaymentsNotConfigured, null),
+        UpstreamFailureCodes.UpstreamRateLimited => (MoneyRefusalCodes.RailBusy, null),
+        _ => null,
     };
 
-    private static string ResolveForbidden(string message, MoneyRefusalContext context)
+    private static string ResolveByType(ResultType type, string? upstreamCode, string message, MoneyRefusalContext context)
+        => type switch
+        {
+            ResultType.Unauthorized => MoneyRefusalCodes.Unauthenticated,
+            // Absence is not an answer: an unread payment or intent may still exist.
+            ResultType.NotFound => MoneyRefusalCodes.Unconfirmed,
+            ResultType.Conflict => MoneyRefusalCodes.Unconfirmed,
+            ResultType.ValidationError => MoneyRefusalCodes.Definite,
+            ResultType.BadRequest => MoneyRefusalCodes.Definite,
+            ResultType.Forbidden => ResolveForbidden(upstreamCode, message, context),
+            ResultType.Failure => ResolveFailure(message),
+            _ => MoneyRefusalCodes.Unconfirmed,
+        };
+
+    private static string ResolveForbidden(string? upstreamCode, string message, MoneyRefusalContext context)
     {
-        // These two prefixes are the only node-provided markers that currently survive
-        // AzoaNodeClient.MapError's collapse of a generic 403 (see class remarks). When they are
-        // present, trust them over the call-site default.
         if (message.Contains(KybRequiredPrefix, StringComparison.Ordinal))
             return MoneyRefusalCodes.KybRequired;
 
-        if (message.Contains(KycForbiddenPrefix, StringComparison.Ordinal)
-            || message.Contains(ReviewTeamMarker, StringComparison.Ordinal))
-        {
+        // Finished KYC waiting on a reviewer is the only "under review"; KYC_FORBIDDEN also fires for
+        // KYC that was never finished, so it is setup the person still has to do.
+        if (message.Contains(ReviewTeamMarker, StringComparison.Ordinal))
             return MoneyRefusalCodes.UnderReview;
-        }
+
+        if (message.Contains(KycForbiddenPrefix, StringComparison.Ordinal))
+            return MoneyRefusalCodes.SetupRequired;
 
         return context switch
         {
             MoneyRefusalContext.TenantConsentProbe => MoneyRefusalCodes.ConsentRevoked,
-            MoneyRefusalContext.CustodialAccountLifecycle => MoneyRefusalCodes.KybRequired,
+            // The node codes its custodial KYB gate (KYB_REQUIRED, handled above), so a coded 403
+            // that is NOT it is the tenant's own authorization - operator configuration. Only an
+            // uncoded 403 (an older node, a proxy) still falls back to the KYB inference.
+            MoneyRefusalContext.CustodialAccountLifecycle => upstreamCode is null
+                ? MoneyRefusalCodes.KybRequired
+                : MoneyRefusalCodes.PaymentsNotConfigured,
             MoneyRefusalContext.PayoutDestinationSetup => MoneyRefusalCodes.AccountHolderRequired,
-            MoneyRefusalContext.CashOutGeneral => MoneyRefusalCodes.SetupRequired,
             _ => MoneyRefusalCodes.SetupRequired,
         };
     }
 
     private static string ResolveFailure(string message)
     {
+        // Fallbacks for a Failure that reached here without its code; the code table above wins.
         if (message.Contains(RateLimitMarker, StringComparison.OrdinalIgnoreCase))
             return MoneyRefusalCodes.RailBusy;
 
@@ -176,7 +183,8 @@ public static class MoneyRefusal
             return MoneyRefusalCodes.PaymentsNotConfigured;
         }
 
-        // Timeouts, unparseable responses, generic node failures: all transient/retryable.
-        return MoneyRefusalCodes.RailBusy;
+        // Timeouts, an empty/unparseable/no-payload 2xx, a dropped connection: the request may
+        // have been admitted, so this is never "busy" and never final.
+        return MoneyRefusalCodes.Unconfirmed;
     }
 }

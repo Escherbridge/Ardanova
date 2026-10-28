@@ -109,7 +109,8 @@ public sealed class AzoaNodeClient : IAzoaNodeClient
             msg.Dispose();
             return Task.FromResult(Result<T>.Forbidden(
                 "The AZOA value credential is restricted to allocation, fungible-mint, "
-                + "fungible-creation and reserve-partition endpoints."));
+                + "fungible-creation and reserve-partition endpoints.")
+                .WithCode(UpstreamFailureCodes.RouteNotAllowed));
         }
 
         return SendAsync<T>(_http, _logger, msg, ct);
@@ -152,7 +153,7 @@ public sealed class AzoaNodeClient : IAzoaNodeClient
                     return Result<T>.Failure("AZOA answered 404 without its not-found envelope; the outcome is unknown.");
                 }
 
-                return MapError<T>(response.StatusCode, envelope?.Message);
+                return MapError<T>(response.StatusCode, envelope?.Message, envelope?.Code);
             }
 
             if (envelope is null)
@@ -182,7 +183,8 @@ public sealed class AzoaNodeClient : IAzoaNodeClient
         catch (InvalidOperationException ex)
         {
             logger.LogError(ex, "AZOA node transport is not configured: {Method} {Path}", msg.Method, msg.RequestUri);
-            return Result<T>.Failure("AZOA node transport is not configured.");
+            return Result<T>.Failure("AZOA node transport is not configured.")
+                .WithCode(UpstreamFailureCodes.TransportNotConfigured);
         }
         finally
         {
@@ -190,7 +192,20 @@ public sealed class AzoaNodeClient : IAzoaNodeClient
         }
     }
 
-    private static Result<T> MapError<T>(HttpStatusCode status, string? providerMessage)
+    /// <summary>
+    /// Collapses the node's prose (provider detail stays behind this boundary) but keeps its machine
+    /// <paramref name="nodeCode"/>, which is what MoneyRefusal reads first. A 429 is labelled by its
+    /// status, because only a real rate limit may be called busy. See Azoa/AGENTS.md §Failure codes.
+    /// </summary>
+    private static Result<T> MapError<T>(HttpStatusCode status, string? providerMessage, string? nodeCode)
+    {
+        var code = status == (HttpStatusCode)429
+            ? UpstreamFailureCodes.UpstreamRateLimited
+            : string.IsNullOrWhiteSpace(nodeCode) ? null : nodeCode.Trim();
+        return CollapseError<T>(status, providerMessage).WithCode(code);
+    }
+
+    private static Result<T> CollapseError<T>(HttpStatusCode status, string? providerMessage)
     {
         // Preserve only the public KYC signal, never the provider detail.
         if (status == HttpStatusCode.Forbidden

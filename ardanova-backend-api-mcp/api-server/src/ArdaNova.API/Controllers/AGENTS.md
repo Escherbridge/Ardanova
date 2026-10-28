@@ -120,6 +120,54 @@ happened to their money.
 
 Retries reuse ONE request key per attempt. The server resumes that person's open payment for a
 repeated key, so a fresh key per tap would open a second payment page for one intent.
+
+# Money refusal codes
+
+`MoneyRefusal.cs` gives every refusal on the money routes (`AddFundsController`,
+`AzoaCustodialAccountController`, `PayoutsController`, `FundingIntentsController`) a body of
+`{ error, code, message, retryAfterSeconds, reason }`. `code` is one of `MoneyRefusalCodes`.
+
+**The key-release contract.** A caller holding a saved request key may drop it on `definite` and
+on nothing else. The HTTP status is NOT the signal: on these routes 400/403/409 each mean several
+things, and `ExceptionHandlingMiddleware` turns an `ArgumentException` or a SQLSTATE 22xxx/23503/
+23514 into a 400 that can arrive AFTER the node already moved funds
+(`FundingIntentService.CompleteAsync` rolls back and rethrows). That 400 is an `ApiErrorEnvelope`
+with no `code`, so a caller that classifies on `code` keeps its key and its retry replays instead
+of debiting twice. So `definite` is emitted only when nothing was, or ever will be, admitted under
+the key for this request:
+
+- `ValidationError`/`BadRequest` - local input checks, the sponsorship quote/fundability/supply
+  refusals (all before the intent is persisted), and the node's 422/400 decline.
+- An upstream code of `INTENT_FINISHED` (reason `finished`), `INTENT_EXPIRED` (`expired`) or
+  `REQUEST_KEY_IN_USE` (`key_in_use`). `FundingIntentService` labels its own final-state 409s with
+  the same node codes: a HOLDING/closed replay, a dispatch that lapsed into HOLDING (settlement and
+  outbox CANCELLED), and a key reused for a different sponsorship. In-progress 409s (attempt
+  ceiling, readiness could-not-confirm) carry no code and stay `unconfirmed`.
+
+**Resolution order** (`MoneyRefusal.From`): the upstream `Result<T>.Code` first, then the
+`ResultType`, then message markers, then the call-site context as a last fallback.
+
+| Signal | Code |
+| --- | --- |
+| `KYB_REQUIRED` (node) | `kyb_required` |
+| `INTENT_FINISHED` / `INTENT_EXPIRED` / `REQUEST_KEY_IN_USE` | `definite` |
+| `INTENT_NEEDS_REVIEW` | `unconfirmed` (reason `needs_review`) |
+| `PAYMENTS_NOT_CONFIGURED`, BFF route-guard / unconfigured transport | `payments_not_configured` |
+| BFF `ARDANOVA_UPSTREAM_RATE_LIMITED` (a real node 429) | `rail_busy`, `retryAfterSeconds` 30 |
+| `Unauthorized` | `unauthenticated` |
+| `NotFound`, `Conflict` | `unconfirmed` |
+| `ValidationError`, `BadRequest` | `definite` |
+| `Failure` (timeout, empty/unparseable/no-payload 2xx, dropped connection) | `unconfirmed`, HTTP 503 |
+| `Forbidden` + "review team is finishing one last check" | `under_review` |
+| `Forbidden` + `KYC_FORBIDDEN:` (also never-finished KYC) | `setup_required` |
+| `Forbidden`, add-funds checkout (units:issue consent probe) | `consent_revoked` |
+| `Forbidden`, custodial lifecycle, UNCODED | `kyb_required`; coded non-KYB → `payments_not_configured` |
+| `Forbidden`, payout destination SETUP (F-H8, POST only) | `account_holder_required` |
+| `Forbidden`, any other cash-out call (incl. withdraw, destination read) | `setup_required` |
+
+`rail_busy` is ONLY a real 429; nothing that might have been admitted is ever called busy. A
+`Failure` is the platform's fault, never the caller's request, so every money controller answers
+it with 503 (the error-envelope filter passes 503 bodies through unchanged).
 ## Task visibility
 
 Task and opportunity reads are anonymous-readable, so they open with the same project-visibility

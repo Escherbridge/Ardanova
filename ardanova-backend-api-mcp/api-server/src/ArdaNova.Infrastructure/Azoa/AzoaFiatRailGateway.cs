@@ -201,7 +201,8 @@ public sealed class AzoaFiatRailGateway : IFiatRailGateway
         {
             message.Dispose();
             return Result<FiatCheckoutSession>.Forbidden(
-                "The AZOA tenant credential is restricted to the fiat checkout endpoints.");
+                "The AZOA tenant credential is restricted to the fiat checkout endpoints.")
+                .WithCode(UpstreamFailureCodes.RouteNotAllowed);
         }
 
         var wire = await AzoaNodeClient.SendAsync<AzoaFiatCheckoutIntentWire>(_http, _logger, message, ct);
@@ -342,7 +343,7 @@ public sealed class AzoaFiatRailGateway : IFiatRailGateway
     private static Result<TOut> MapFailure<TIn, TOut>(Result<TIn> source)
     {
         var error = source.Error ?? "The AZOA fiat rail refused the request.";
-        return source.Type switch
+        Result<TOut> mapped = source.Type switch
         {
             ResultType.NotFound => Result<TOut>.NotFound(error),
             ResultType.Forbidden => Result<TOut>.Forbidden(error),
@@ -352,6 +353,8 @@ public sealed class AzoaFiatRailGateway : IFiatRailGateway
             ResultType.BadRequest => Result<TOut>.BadRequest(error),
             _ => Result<TOut>.Failure(error),
         };
+        // The node's machine code (INTENT_FINISHED, KYB_REQUIRED, ...) is what MoneyRefusal reads first.
+        return mapped.WithCode(source.Code);
     }
 }
 

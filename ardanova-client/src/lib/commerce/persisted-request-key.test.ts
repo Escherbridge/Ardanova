@@ -1,152 +1,202 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  ADD_FUNDS_REQUEST_FLOW,
+  canSetAsideSavedPayment,
+  endsSavedPayment,
+} from "./add-funds-request";
+import {
   claimRequestKey,
   clearSavedRequest,
-  isDefiniteRefusal,
+  clearSavedRequestsForSubject,
   readSavedRequest,
+  recordAdmittedId,
+  settleSavedRequestAfterFailure,
 } from "./persisted-request-key";
-
-/** Storage stand-in matching `nova-refine-storage.test.ts`'s `TabStorage`; `blocked` throws on
- * every call, like a private window or a full quota. */
-class TabStorage implements Storage {
-  private readonly items = new Map<string, string>();
-  constructor(private readonly blocked = false) {}
-  get length() {
-    return this.items.size;
-  }
-  clear() {
-    this.guard();
-    this.items.clear();
-  }
-  getItem(key: string) {
-    this.guard();
-    return this.items.get(key) ?? null;
-  }
-  key(index: number) {
-    this.guard();
-    return [...this.items.keys()][index] ?? null;
-  }
-  removeItem(key: string) {
-    this.guard();
-    this.items.delete(key);
-  }
-  setItem(key: string, value: string) {
-    this.guard();
-    this.items.set(key, value);
-  }
-  private guard() {
-    if (this.blocked) throw new DOMException("blocked", "QuotaExceededError");
-  }
-}
+import {
+  draftSponsorshipRequest,
+  sponsorshipRequestFlow,
+} from "./sponsorship-request";
+import { TabStorage } from "./testing/tab-storage";
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+const addFunds = ADD_FUNDS_REQUEST_FLOW;
+
+function claimAddFunds(tab: Storage, subject: string, cents: number) {
+  return claimRequestKey(tab, addFunds, subject, { amountMinorUnits: cents }, cents);
+}
+
+function readyRequest(claim: ReturnType<typeof claimAddFunds>) {
+  if (claim.kind !== "ready") throw new Error("expected a ready claim");
+  return claim.request;
+}
+
 describe("claimRequestKey persistence", () => {
-  it("persists a freshly minted key BEFORE returning it", () => {
+  it("persists a freshly minted key and its exact bytes BEFORE returning it", () => {
     const tab = new TabStorage();
-    const claim = claimRequestKey(tab, "add-funds", "user-1", 2_500);
+    const request = readyRequest(claimAddFunds(tab, "user-1", 2_500));
 
-    expect(claim.kind).toBe("ready");
     // Read back independently of the function under test, proving the write already landed.
-    expect(readSavedRequest(tab, "add-funds", "user-1")).toEqual(
-      claim.kind === "ready" ? claim.request : null,
-    );
+    expect(readSavedRequest(tab, addFunds, "user-1")).toEqual(request);
+    expect(request.wire).toEqual({ amountMinorUnits: 2_500 });
   });
 
-  it("returns the same key across a remount over the same storage (the reload the ref lost)", () => {
+  it("returns the same key across a remount over the same storage (the reload a ref lost)", () => {
     const tab = new TabStorage();
-    const first = claimRequestKey(tab, "add-funds", "user-1", 2_500);
-    // A "remount" is just a second call against the same backing store — a `useRef` would have
-    // reset to null here, which is the exact bug this module exists to fix.
-    const second = claimRequestKey(tab, "add-funds", "user-1", 2_500);
+    const first = readyRequest(claimAddFunds(tab, "user-1", 2_500));
+    const second = readyRequest(claimAddFunds(tab, "user-1", 2_500));
 
-    expect(first.kind).toBe("ready");
-    expect(second.kind).toBe("ready");
-    expect(second.kind === "ready" && second.request.requestKey).toBe(
-      first.kind === "ready" && first.request.requestKey,
-    );
+    expect(second.requestKey).toBe(first.requestKey);
   });
 
-  it("never reuses another signed-in subject's key, and erases it on sight", () => {
+  it("keeps two people's saved requests side by side on one device, and never hands one to the other", () => {
     const tab = new TabStorage();
-    const ownerClaim = claimRequestKey(tab, "add-funds", "user-1", 2_500);
-    const otherClaim = claimRequestKey(tab, "add-funds", "user-2", 2_500);
+    const first = readyRequest(claimAddFunds(tab, "user-1", 2_500));
+    const second = readyRequest(claimAddFunds(tab, "user-2", 2_500));
 
-    expect(ownerClaim.kind).toBe("ready");
-    expect(otherClaim.kind).toBe("ready");
-    expect(otherClaim.kind === "ready" && otherClaim.request.requestKey).not.toBe(
-      ownerClaim.kind === "ready" && ownerClaim.request.requestKey,
-    );
-    // The first subject's entry does not linger once a different subject has read this scope.
-    expect(readSavedRequest(tab, "add-funds", "user-1")).toBeNull();
+    expect(second.requestKey).not.toBe(first.requestKey);
+    // Reading user-2's slot erased nothing: user-1 still resumes their own key.
+    expect(readSavedRequest(tab, addFunds, "user-1")?.requestKey).toBe(first.requestKey);
   });
 
-  it("returns pending for a changed amount, and leaves the saved key untouched", () => {
+  it("signing out erases only the signing-out person's saved requests", () => {
     const tab = new TabStorage();
-    const first = claimRequestKey(tab, "invest:config-1", "user-1", 10_000);
-    const second = claimRequestKey(tab, "invest:config-1", "user-1", 25_000);
-
-    expect(first.kind).toBe("ready");
-    expect(second).toEqual({
-      kind: "pending",
-      pending: first.kind === "ready" ? first.request : undefined,
-    });
-    // Querying again proves the differing amount never overwrote the original entry.
-    expect(readSavedRequest(tab, "invest:config-1", "user-1")).toEqual(
-      first.kind === "ready" ? first.request : null,
+    readyRequest(claimAddFunds(tab, "user-1", 2_500));
+    claimRequestKey(
+      tab,
+      sponsorshipRequestFlow("config-1"),
+      "user-1",
+      { projectTokenConfigId: "config-1", amount: "100.00", disclosureVersion: "d1", displayNameConsent: false },
+      100,
     );
+    const other = readyRequest(claimAddFunds(tab, "user-2", 2_500));
+    tab.setItem("unrelated", "kept");
+
+    clearSavedRequestsForSubject(tab, "user-1");
+
+    expect(readSavedRequest(tab, addFunds, "user-1")).toBeNull();
+    expect(readSavedRequest(tab, sponsorshipRequestFlow("config-1"), "user-1")).toBeNull();
+    expect(readSavedRequest(tab, addFunds, "user-2")?.requestKey).toBe(other.requestKey);
+    expect(tab.getItem("unrelated")).toBe("kept");
   });
 
-  it("mints a new key once a finished outcome clears the saved one", () => {
+  it("returns pending for a different request, and leaves the saved key untouched", () => {
     const tab = new TabStorage();
-    const before = claimRequestKey(tab, "add-funds", "user-1", 2_500);
-    clearSavedRequest(tab, "add-funds");
-    expect(readSavedRequest(tab, "add-funds", "user-1")).toBeNull();
+    const first = readyRequest(claimAddFunds(tab, "user-1", 10_000));
+    const second = claimAddFunds(tab, "user-1", 25_000);
 
-    const after = claimRequestKey(tab, "add-funds", "user-1", 2_500);
-    expect(after.kind).toBe("ready");
-    expect(after.kind === "ready" && after.request.requestKey).not.toBe(
-      before.kind === "ready" && before.request.requestKey,
-    );
+    expect(second).toEqual({ kind: "pending", pending: first });
+    expect(readSavedRequest(tab, addFunds, "user-1")).toEqual(first);
+  });
+
+  it("a late answer for an OLD key never erases the key saved since", () => {
+    const tab = new TabStorage();
+    const old = readyRequest(claimAddFunds(tab, "user-1", 2_500));
+    clearSavedRequest(tab, addFunds, "user-1", old.requestKey);
+    const fresh = readyRequest(claimAddFunds(tab, "user-1", 2_500));
+
+    clearSavedRequest(tab, addFunds, "user-1", old.requestKey);
+
+    expect(fresh.requestKey).not.toBe(old.requestKey);
+    expect(readSavedRequest(tab, addFunds, "user-1")?.requestKey).toBe(fresh.requestKey);
   });
 
   it("degrades to a usable, unpersisted key when storage throws on every call", () => {
     const blocked = new TabStorage(true);
 
-    const claim = claimRequestKey(blocked, "add-funds", "user-1", 2_500);
-    expect(claim.kind).toBe("ready");
-    expect(claim.kind === "ready" && UUID_PATTERN.test(claim.request.requestKey)).toBe(
-      true,
-    );
-    expect(() => readSavedRequest(blocked, "add-funds", "user-1")).not.toThrow();
-    expect(() => clearSavedRequest(blocked, "add-funds")).not.toThrow();
-  });
-
-  it("drops a saved entry that is not valid JSON instead of throwing", () => {
-    const tab = new TabStorage();
-    tab.setItem("ardanova:commerce:request:v1:add-funds", "{not json");
-
-    expect(readSavedRequest(tab, "add-funds", "user-1")).toBeNull();
+    const request = readyRequest(claimAddFunds(blocked, "user-1", 2_500));
+    expect(UUID_PATTERN.test(request.requestKey)).toBe(true);
+    expect(() => readSavedRequest(blocked, addFunds, "user-1")).not.toThrow();
+    expect(() => clearSavedRequestsForSubject(blocked, "user-1")).not.toThrow();
   });
 });
 
-describe("isDefiniteRefusal", () => {
+describe("settleSavedRequestAfterFailure keeps the key unless the server said definite", () => {
   it.each([
-    ["BAD_REQUEST", true],
-    ["FORBIDDEN", true],
-    ["NOT_FOUND", true],
-    ["UNPROCESSABLE_CONTENT", true],
-    ["UNAUTHORIZED", false],
-    ["CONFLICT", false],
-    ["PRECONDITION_FAILED", false],
-    ["TOO_MANY_REQUESTS", false],
-    ["INTERNAL_SERVER_ERROR", false],
-    ["BAD_GATEWAY", false],
-    [undefined, false],
-    [null, false],
-  ] as const)("treats %s as a definite refusal: %s", (code, expected) => {
-    expect(isDefiniteRefusal(code)).toBe(expected);
+    ["definite", "released"],
+    ["unconfirmed", "kept"],
+    // The old bug: a tRPC status code read as if it were the server's verdict.
+    ["BAD_REQUEST", "kept"],
+    [null, "kept"],
+  ] as const)("money code %s -> %s", (moneyCode, expected) => {
+    const tab = new TabStorage();
+    const request = readyRequest(claimAddFunds(tab, "user-1", 2_500));
+
+    const outcome = settleSavedRequestAfterFailure(
+      tab,
+      addFunds,
+      "user-1",
+      request.requestKey,
+      moneyCode,
+    );
+
+    expect(outcome).toBe(expected);
+    expect(readSavedRequest(tab, addFunds, "user-1") !== null).toBe(expected === "kept");
+  });
+});
+
+describe("sponsorship keys survive a rate move", () => {
+  it("resends the identical saved amount after ARDA re-prices, and never the re-priced one under that key", () => {
+    const tab = new TabStorage();
+    const flow = sponsorshipRequestFlow("config-1");
+    const draftAt = (usdPerArda: number) =>
+      draftSponsorshipRequest({
+        projectTokenConfigId: "config-1",
+        dollars: 100,
+        usdPerArda,
+        displayNameConsent: false,
+      })!;
+
+    const sent = claimRequestKey(tab, flow, "user-1", draftAt(0.01), 10_000);
+    if (sent.kind !== "ready") throw new Error("expected a ready claim");
+    expect(sent.request.wire.amount).toBe("10000.00");
+
+    // The answer is lost and the rate moves before the person presses Retry.
+    const repriced = draftAt(0.0125);
+    expect(repriced.amount).toBe("8000.00");
+
+    // Retry / Resume read the saved request: the same key with the SAME amount string.
+    expect(readSavedRequest(tab, flow, "user-1")).toEqual(sent.request);
+    // Supporting again at the new rate is a different request, so it never borrows the key.
+    expect(claimRequestKey(tab, flow, "user-1", repriced, 10_000)).toEqual({
+      kind: "pending",
+      pending: sent.request,
+    });
+  });
+});
+
+describe("add funds clears a saved key only on its own payment's final answer", () => {
+  const savedWithPayment = (tab: Storage) => {
+    const request = readyRequest(claimAddFunds(tab, "user-1", 2_500));
+    return recordAdmittedId(
+      tab,
+      addFunds,
+      "user-1",
+      request.requestKey,
+      "0f8fad5bd9cb469fa16570867728950e",
+    )!;
+  };
+
+  it.each([
+    ["its own payment, funds applied", true, "0f8fad5b-d9cb-469f-a165-70867728950e", { settlementState: "funds_applied" }],
+    ["its own payment, failed", true, "0f8fad5bd9cb469fa16570867728950e", { status: "failed" }],
+    ["its own payment, expired unpaid", true, "0f8fad5bd9cb469fa16570867728950e", { status: "expired" }],
+    ["its own payment, still open", false, "0f8fad5bd9cb469fa16570867728950e", { status: "awaiting_payment" }],
+    ["its own payment, paid but not applied yet", false, "0f8fad5bd9cb469fa16570867728950e", { status: "complete" }],
+    ["its own payment, a word nobody recognises", false, "0f8fad5bd9cb469fa16570867728950e", { status: "mystery" }],
+    ["a DIFFERENT returning payment, funds applied", false, "7c9e6679742540de944be07fc1f90ae7", { settlementState: "funds_applied" }],
+  ] as const)("%s -> clears: %s", (_label, clears, paymentId, report) => {
+    const tab = new TabStorage();
+    const saved = savedWithPayment(tab);
+
+    expect(endsSavedPayment(saved, { paymentId, ...report })).toBe(clears);
+  });
+
+  it("lets an explicit 'start a new payment' set aside anything the node stated, but not an unconfirmed read", () => {
+    expect(canSetAsideSavedPayment({ status: "awaiting_payment" })).toBe(true);
+    expect(canSetAsideSavedPayment({ settlementState: "funds_applied" })).toBe(true);
+    expect(canSetAsideSavedPayment({ status: "mystery" })).toBe(false);
   });
 });

@@ -6,6 +6,7 @@ import {
   ADD_FUNDS_UNAVAILABLE_MESSAGE,
   toSponsorSafeMessage,
 } from "~/lib/commerce/on-ramp-status";
+import { moneyRefusalError } from "~/server/api/money-refusal-error";
 import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
 
 /** Reached through the shared client, so these routes inherit its actor signing. */
@@ -42,7 +43,12 @@ const beginInput = z.object({
   requestKey: requestKeySchema,
 });
 
-function toAddFundsError(status: number | undefined, message: string) {
+/** The tRPC class by status (presentation), carrying the BFF's money code (the key's fate). */
+function toAddFundsError(
+  response: { status: number; code?: string },
+  message: string,
+) {
+  const status = response.status;
   const code =
     status === 403
       ? "FORBIDDEN"
@@ -53,7 +59,7 @@ function toAddFundsError(status: number | undefined, message: string) {
           : status === 409
             ? "PRECONDITION_FAILED"
             : "INTERNAL_SERVER_ERROR";
-  return new TRPCError({ code, message });
+  return moneyRefusalError(response, message, code);
 }
 
 /**
@@ -72,13 +78,19 @@ export const addFundsRouter = createTRPCRouter({
 
     if (!response.data) {
       throw toAddFundsError(
-        response.status,
+        response,
         toSponsorSafeMessage(response.error, ADD_FUNDS_UNAVAILABLE_MESSAGE),
       );
     }
 
-    // A payment with nowhere to send the person is not a started payment. Refusing here stops the
-    // page rendering a Continue that goes nowhere and calling it progress.
+    // A RESUMED payment with no page left is one already paid or closed under this key: returned
+    // as-is so the page reads its real state instead of looping on a refusal for money that moved.
+    if (!response.data.paymentUrl?.trim() && response.data.resumed) {
+      return response.data;
+    }
+
+    // A NEW payment with nowhere to send the person is not a started payment. Refusing here stops
+    // the page rendering a Continue that goes nowhere and calling it progress.
     if (!response.data.paymentUrl?.trim()) {
       throw new TRPCError({
         code: "INTERNAL_SERVER_ERROR",
@@ -97,7 +109,7 @@ export const addFundsRouter = createTRPCRouter({
 
       if (!response.data) {
         throw toAddFundsError(
-          response.status,
+          response,
           toSponsorSafeMessage(
             response.error,
             "We couldn't confirm this payment just now, so we won't say either way.",

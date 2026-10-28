@@ -149,10 +149,8 @@ public class PayoutsController : ControllerBase
         if (CashOut is null)
             return ServiceUnavailable(CashOutUnavailableMessage);
 
-        // F-H8 (oasis-sleek FiatPayoutController ~112-117) is the node's only documented 403 on
-        // this route family: a tenant-driven principal cannot act for somebody else's bank
-        // destination.
-        return ToActionResult(await CashOut.GetDestinationAsync(ActorId, ct), MoneyRefusalContext.PayoutDestinationSetup);
+        // A READ: F-H8 guards only the setup POST below, so a 403 here is the generic cash-out gate.
+        return ToActionResult(await CashOut.GetDestinationAsync(ActorId, ct), MoneyRefusalContext.CashOutGeneral);
     }
 
     /// <summary>Starts or resumes setting up where this person's money goes.</summary>
@@ -164,6 +162,8 @@ public class PayoutsController : ControllerBase
         if (CashOut is null)
             return ServiceUnavailable(CashOutUnavailableMessage);
 
+        // F-H8 (oasis-sleek FiatPayoutController.BeginAccountSetup) is the node's only documented
+        // 403 on this POST: a tenant-driven principal cannot open somebody else's bank destination.
         return ToActionResult(
             await CashOut.BeginDestinationSetupAsync(ActorId, ct), MoneyRefusalContext.PayoutDestinationSetup);
     }
@@ -229,11 +229,12 @@ public class PayoutsController : ControllerBase
         return result.Type switch
         {
             ResultType.NotFound => NotFound(body),
-            ResultType.ValidationError => BadRequest(body),
+            ResultType.ValidationError or ResultType.BadRequest => BadRequest(body),
             ResultType.Unauthorized => Unauthorized(body),
             ResultType.Forbidden => StatusCode(StatusCodes.Status403Forbidden, body),
             ResultType.Conflict => Conflict(body),
-            _ => BadRequest(body)
+            // A transport failure is the platform's, never the caller's request: 503, not 400.
+            _ => StatusCode(StatusCodes.Status503ServiceUnavailable, body),
         };
     }
 }

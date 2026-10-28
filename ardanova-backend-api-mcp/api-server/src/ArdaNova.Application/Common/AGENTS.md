@@ -1,5 +1,24 @@
 # Application common
 
+## Failure codes
+
+`Result<T>.Code` is an optional machine discriminator on a FAILURE, added so a node's own code
+survives the layers between the transport and a controller (P3-17). Before it,
+`AzoaNodeClient.MapError` collapsed every 403 to "AZOA node denied the request." and the money
+controllers had to guess the cause from which call site they were in.
+
+- **Who sets it.** `AzoaNodeClient.SendAsync` copies the node envelope's `code` onto every error
+  result; a 429 is labelled `UpstreamFailureCodes.UpstreamRateLimited` by status instead. The
+  typed clients' route guards set `RouteNotAllowed`, an unconfigured transport sets
+  `TransportNotConfigured`, and `DisabledFiatRailGateway` sets `PaymentsNotConfigured`.
+  `FundingIntentService` sets `IntentFinished` / `RequestKeyInUse` on its own final-state 409s.
+- **Who must carry it.** Every helper that re-types a failure (`MapFailure`, `Propagate`,
+  `ValueEligibilityFailure.Propagate`, `AzoaCashOutClient.Refused`) ends with
+  `.WithCode(source.Code)`. Dropping it silently turns a real `KYB_REQUIRED` back into a guess.
+- **Who reads it.** Only `ArdaNova.API/Controllers/MoneyRefusal.cs` (see that directory's
+  AGENTS.md §Money refusal codes). The prose in `Error` is still collapsed as before; the code is
+  additive and never shown to a person.
+
 ## Resource authority
 
 `Security/ResourceAuthority.cs` answers record-level questions for the API

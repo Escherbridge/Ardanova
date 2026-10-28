@@ -53,6 +53,18 @@ status codes to stable public messages and logs only request metadata. The
 `KYC_FORBIDDEN` signal remains part of the public contract, but its provider
 detail is replaced with a fixed message.
 
+## Failure codes
+
+The node's prose is collapsed; its machine `code` is not. `AzoaNodeClient.MapError` copies the
+envelope's `code` onto the result (`Result<T>.Code`, see `ArdaNova.Application/Common/AGENTS.md`
+§Failure codes), so `KYB_REQUIRED` and the same-key outcomes (`INTENT_FINISHED`,
+`INTENT_EXPIRED`, `REQUEST_KEY_IN_USE`, `INTENT_NEEDS_REVIEW`) reach `MoneyRefusal` as facts
+rather than call-site guesses. Two labels are the transport's own: a 429 is always
+`ARDANOVA_UPSTREAM_RATE_LIMITED` (the only failure anyone may call "busy"), and a route guard
+refusing to send is `ARDANOVA_ROUTE_NOT_ALLOWED` - a configuration fault, never a person's KYB.
+An empty, unparseable or payload-less 2xx, a timeout and a dropped connection carry NO code: the
+request may have been admitted, so they surface as `unconfirmed`, never as busy or final.
+
 Production accepts AZOA as intentionally disabled only when no capability or
 scoped credential is configured. Any partial capability configuration requires
 an HTTPS base origin. Base URLs are origins, not arbitrary URIs: credentials,

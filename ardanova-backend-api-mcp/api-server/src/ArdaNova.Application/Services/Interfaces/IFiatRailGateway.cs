@@ -47,10 +47,10 @@ public sealed class DisabledFiatRailGateway : IFiatRailGateway
     /// <inheritdoc />
     public Task<Result<FiatCheckoutSession>> BeginAddFundsAsync(
         FiatCheckoutStart request, CancellationToken ct = default)
-        => Task.FromResult(Result<FiatCheckoutSession>.Failure(Refusal));
+        => Task.FromResult(Result<FiatCheckoutSession>.Failure(Refusal).WithCode(UpstreamFailureCodes.PaymentsNotConfigured));
 
     /// <inheritdoc />
     public Task<Result<FiatCheckoutSession>> GetSessionAsync(
         Guid accountId, Guid intentId, CancellationToken ct = default)
-        => Task.FromResult(Result<FiatCheckoutSession>.Failure(Refusal));
+        => Task.FromResult(Result<FiatCheckoutSession>.Failure(Refusal).WithCode(UpstreamFailureCodes.PaymentsNotConfigured));
 }

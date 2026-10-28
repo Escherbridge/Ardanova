@@ -76,6 +76,42 @@ public class FundingIntentsControllerTests
         response.StatusCode.Should().Be(403);
     }
 
+    public static TheoryData<Result<FundingCheckoutDto>, int, string, string?> CheckoutRefusals => new()
+    {
+        // Pre-persist refusals and final states release the caller's key; in-progress ones never do.
+        { Result<FundingCheckoutDto>.ValidationError("Sponsorship is not open for this project"), 400, MoneyRefusalCodes.Definite, null },
+        { Result<FundingCheckoutDto>.Conflict("On hold. Nothing was taken.").WithCode(UpstreamFailureCodes.IntentFinished), 409, MoneyRefusalCodes.Definite, MoneyRefusalReasons.Finished },
+        { Result<FundingCheckoutDto>.Conflict("That key was already used for a different sponsorship").WithCode(UpstreamFailureCodes.RequestKeyInUse), 409, MoneyRefusalCodes.Definite, MoneyRefusalReasons.KeyInUse },
+        { Result<FundingCheckoutDto>.Conflict("This sponsorship is being completed; check back shortly."), 409, MoneyRefusalCodes.Unconfirmed, null },
+        { Result<FundingCheckoutDto>.Failure("The request could not be completed"), 503, MoneyRefusalCodes.Unconfirmed, null },
+    };
+
+    [Theory]
+    [MemberData(nameof(CheckoutRefusals))]
+    public async Task CreateCheckout_RefusalCarriesTheCodeTheCallerReleasesItsKeyOn(
+        Result<FundingCheckoutDto> refusal, int status, string moneyCode, string? reason)
+    {
+        var service = new Mock<IFundingIntentService>();
+        service.Setup(item => item.CreateCheckoutAsync(
+                It.IsAny<CreateFundingIntentDto>(), "user-1", It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(refusal);
+        var controller = CreateController(service.Object, "user-1");
+        controller.Request.Headers["X-Idempotency-Key"] = "9e68f25a-589c-472a-ab2d-0b4161c5ab89";
+
+        var result = await controller.CreateCheckout(new CreateFundingIntentDto
+        {
+            ProjectTokenConfigId = "config-1",
+            Amount = "12.34",
+            DisclosureVersion = "funding-disclosure-v1",
+        }, CancellationToken.None);
+
+        var response = result.Should().BeAssignableTo<ObjectResult>().Subject;
+        response.StatusCode.Should().Be(status);
+        var body = response.Value!;
+        body.GetType().GetProperty("code")!.GetValue(body).Should().Be(moneyCode);
+        body.GetType().GetProperty("reason")!.GetValue(body).Should().Be(reason);
+    }
+
     private static FundingIntentsController CreateController(IFundingIntentService service, string userId)
     {
         var httpContext = new DefaultHttpContext

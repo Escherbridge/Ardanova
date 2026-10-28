@@ -64,13 +64,14 @@ public static class ValueEligibilityFailure
     public static Result<TOut> Propagate<TIn, TOut>(Result<TIn> readiness, string? forbiddenOverride = null)
     {
         var error = readiness.Error ?? ValueEligibilityMessages.ServiceUnavailable;
-        return readiness.Type switch
+        Result<TOut> mapped = readiness.Type switch
         {
             ResultType.Conflict => Result<TOut>.Conflict(error),
             ResultType.NotFound => Result<TOut>.NotFound(error),
             ResultType.Unauthorized => Result<TOut>.Unauthorized(error),
             _ => Result<TOut>.Forbidden(forbiddenOverride ?? error),
         };
+        return mapped.WithCode(readiness.Code);
     }
 
     /// <summary>HTTP status for a readiness refusal: 409 when the platform could not answer, else 403.</summary>

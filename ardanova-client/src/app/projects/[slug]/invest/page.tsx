@@ -23,11 +23,12 @@ import { Checkbox } from "~/components/ui/checkbox";
 import { Input } from "~/components/ui/input";
 import { ConversionChain } from "~/components/equity/conversion-chain";
 import { describeFundingError } from "~/lib/commerce/funding-intent-status";
+import { moneyCodeOf } from "~/lib/commerce/money-refusal";
 import {
   claimRequestKey,
   clearSavedRequest,
-  isDefiniteRefusal,
   readSavedRequest,
+  settleSavedRequestAfterFailure,
   type SavedRequest,
 } from "~/lib/commerce/persisted-request-key";
 import { fundingProjectTokenConfigSchema } from "~/lib/commerce/investment-preview-contract";
@@ -37,8 +38,12 @@ import {
   formatSponsorDollars,
   parseSponsorDollars,
   platformUnitsToDollars,
-  toPlatformUnitApiAmount,
 } from "~/lib/commerce/sponsor-amount-contract";
+import {
+  draftSponsorshipRequest,
+  sponsorshipRequestFlow,
+  type SponsorshipWire,
+} from "~/lib/commerce/sponsorship-request";
 import { reviewContactHref } from "~/components/azoa/custodial-account-card";
 import { evaluateValueActionAccount } from "~/lib/contracts/project-create-contract";
 import { cn } from "~/lib/utils";
@@ -52,12 +57,16 @@ function intentStorageKey(slug: string) {
   return `ardanova:funding-intent:${slug}`;
 }
 
-/** This project's slot in `persisted-request-key` storage. One sponsorship attempt at a time per
- * project per person — a different `projectTokenConfigId` is a different sponsorship, never a
- * retry of this one. */
-function investRequestScope(projectTokenConfigId: string): string {
-  return `invest:${projectTokenConfigId}`;
-}
+/** The review-step quote a send was made from; null when the bytes sent are a resumed request. */
+type SentQuote = {
+  quantity: number;
+  unitName: string;
+  supplySharePercent: number | null;
+  dollarAmount: number | null;
+} | null;
+
+/** One send in flight: the exact saved request, and the quote it matches (if any). */
+type ActiveSend = { request: SavedRequest<SponsorshipWire>; quote: SentQuote };
 
 /** What this page persists for the success page to show as "as quoted", never as confirmed. */
 interface QuotedIntent {
@@ -138,7 +147,7 @@ export default function InvestPage() {
   const params = useParams();
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { data: session } = useSession();
+  const { data: session, status: sessionStatus } = useSession();
   const subjectId = session?.user?.id ?? null;
   const slug = params.slug as string;
   // Dollars. The project page hands this over already in dollars (equity-preview.tsx).
@@ -153,36 +162,44 @@ export default function InvestPage() {
   const [checkLocked, setCheckLocked] = useState(false);
   const [checkTrust, setCheckTrust] = useState(false);
   const [showName, setShowName] = useState(false);
-  // Load-bearing: persisted to storage BEFORE a request leaves, so a reload keeps the "Retry uses
-  // the same idempotency key" promise true, and the BFF's own `FundingIntentService` replays the
-  // existing intent for a repeated key instead of debiting the sponsor's ARDA balance twice.
-  const [savedRequest, setSavedRequest] = useState<SavedRequest | null>(null);
-  // Mirrors `config?.id` for the mutation callbacks below: those run after the response the key
-  // covered comes back, by which point a `const` declared further down this render would be out
-  // of scope for them to close over safely, so a ref kept in step by effect stands in instead.
-  const configIdRef = useRef<string | null>(null);
+  // Load-bearing: the key AND the exact bytes it covers, persisted BEFORE a request leaves, so a
+  // reload or Retry resends the SAME request and `FundingIntentService` replays the intent it
+  // already admitted instead of debiting twice. Rules: ~/lib/commerce/AGENTS.md §Persisted request keys.
+  const [savedRequest, setSavedRequest] =
+    useState<SavedRequest<SponsorshipWire> | null>(null);
+  // The send in flight: state for the step-3 render, a ref for the callbacks that outlive it.
+  const [activeSend, setActiveSend] = useState<ActiveSend | null>(null);
+  const activeSendRef = useRef<ActiveSend | null>(null);
 
   const checkout = api.fundingIntent.createCheckout.useMutation({
     onSuccess: ({ intentId, checkoutUrl }, variables) => {
-      // This specific create-or-replay request now has a definite, successful answer, so the key
-      // that covered it is done; a later sponsorship of this same project is a NEW attempt.
-      if (configIdRef.current) {
-        clearSavedRequest(window.localStorage, investRequestScope(configIdRef.current));
+      // This create-or-replay now has a definite, successful answer, so the key that covered it
+      // is done; a later sponsorship of this same project is a NEW attempt.
+      if (subjectId) {
+        clearSavedRequest(
+          window.localStorage,
+          sponsorshipRequestFlow(variables.projectTokenConfigId),
+          subjectId,
+          variables.idempotencyKey,
+        );
       }
       setSavedRequest(null);
 
-      // amount was sent in ARDA; recompute the display quote from the same review-step numbers
-      // so the success page can show "as quoted" without a new field on the status DTO.
+      // The success page shows "as quoted" only for a send that matched the review-step quote;
+      // a resumed request's bytes predate this screen, so it carries no quote of its own.
+      const sent = activeSendRef.current;
       try {
         window.sessionStorage.setItem(
           intentStorageKey(slug),
           JSON.stringify({
             intentId,
-            dollarAmount: lastQuoteRef.current?.dollarAmount ?? null,
+            dollarAmount:
+              sent?.quote?.dollarAmount ??
+              (sent ? sent.request.displayMinorUnits / 100 : null),
             ardaAmount: Number(variables.amount),
-            quantity: lastQuoteRef.current?.quantity ?? 0,
-            unitName: lastQuoteRef.current?.unitName ?? "",
-            supplySharePercent: lastQuoteRef.current?.supplySharePercent ?? null,
+            quantity: sent?.quote?.quantity ?? 0,
+            unitName: sent?.quote?.unitName ?? "",
+            supplySharePercent: sent?.quote?.supplySharePercent ?? null,
           } satisfies QuotedIntent),
         );
       } catch {
@@ -196,15 +213,26 @@ export default function InvestPage() {
         ),
       );
     },
-    onError: (error) => {
-      // A DEFINITE refusal (400/403/404/422-shaped) is a final answer for this key: keeping it
-      // would block a later, different sponsorship attempt for no reason. Everything else —
-      // network drops, 401, 409 in progress, 429, 5xx — keeps the key, because the request may
-      // still have been admitted upstream; that is what makes "Retry" below safe to repeat.
-      if (configIdRef.current && isDefiniteRefusal(error.data?.code)) {
-        clearSavedRequest(window.localStorage, investRequestScope(configIdRef.current));
-        setSavedRequest(null);
-      }
+    onError: (error, variables) => {
+      if (!subjectId) return;
+      // Released ONLY on the BFF's `definite`, which it emits solely for refusals raised before
+      // the intent was persisted (or for a final state). A post-commit 400 from the BFF's
+      // exception middleware carries no code, so the key - and Retry's replay - survive it.
+      const flow = sponsorshipRequestFlow(variables.projectTokenConfigId);
+      const settled = settleSavedRequestAfterFailure(
+        window.localStorage,
+        flow,
+        subjectId,
+        variables.idempotencyKey,
+        moneyCodeOf(error),
+      );
+      setSavedRequest(
+        settled === "released"
+          ? null
+          : (readSavedRequest(window.localStorage, flow, subjectId) ??
+              activeSendRef.current?.request ??
+              null),
+      );
     },
   });
 
@@ -235,17 +263,13 @@ export default function InvestPage() {
   const configContractInvalid =
     configQuery.data !== undefined && !configResult.success;
 
-  useEffect(() => {
-    configIdRef.current = config?.id ?? null;
-  }, [config?.id]);
-
   // Surfaces an unfinished sponsorship from BEFORE a reload (or a closed tab), so the "Retry
   // uses the same idempotency key" promise at step 3 holds even after one, and a changed amount
   // is never silently admitted as a second sponsorship of the same project.
   useEffect(() => {
     if (!config?.id || !subjectId) return;
     setSavedRequest(
-      readSavedRequest(window.localStorage, investRequestScope(config.id), subjectId),
+      readSavedRequest(window.localStorage, sponsorshipRequestFlow(config.id), subjectId),
     );
   }, [config?.id, subjectId]);
 
@@ -351,42 +375,74 @@ export default function InvestPage() {
     setDebouncedInput(next);
   }, []);
 
+  // What a FRESH sponsorship of the typed dollars would send at today's rate. Only ever used to
+  // mint a key or to recognise the saved request; a saved request is never rebuilt from it.
+  const currentDraft =
+    config && currentDollars
+      ? draftSponsorshipRequest({
+          projectTokenConfigId: config.id,
+          dollars: currentDollars.value,
+          usdPerArda,
+          displayNameConsent: showName,
+        })
+      : null;
+  const sessionReady = sessionStatus !== "loading" && subjectId !== null;
+
+  /** Sends EXACTLY the saved bytes under their key. */
+  const sendSponsorship = (request: SavedRequest<SponsorshipWire>) => {
+    const send: ActiveSend = {
+      request,
+      quote:
+        currentDraft?.amount === request.wire.amount ? lastQuoteRef.current : null,
+    };
+    activeSendRef.current = send;
+    setActiveSend(send);
+    setStep(3);
+    checkout.mutate({ ...request.wire, idempotencyKey: request.requestKey });
+  };
+
   const beginCheckout = () => {
     if (
       !config ||
-      !currentArda ||
+      !currentDraft ||
       !hasQuote ||
       !previewMatchesInput ||
       !currentDollars ||
+      !sessionReady ||
       !subjectId
     ) {
       return;
     }
 
-    const amountMinorUnits = Math.round(currentDollars.value * 100);
     const claim = claimRequestKey(
       window.localStorage,
-      investRequestScope(config.id),
+      sponsorshipRequestFlow(config.id),
       subjectId,
-      amountMinorUnits,
+      currentDraft,
+      Math.round(currentDollars.value * 100),
     );
     if (claim.kind === "pending") {
-      // Never silently replaced: an unresolved key for a DIFFERENT amount must be resumed or
-      // explicitly discarded first, or one lost sponsorship becomes two debits.
+      // Never silently replaced: an unresolved key for a DIFFERENT request must be resumed
+      // first, or one lost sponsorship becomes two debits.
       setSavedRequest(claim.pending);
       setStep(1);
       return;
     }
 
-    setStep(3);
-    checkout.mutate({
-      projectTokenConfigId: config.id,
-      // The route settles in platform units; the person never typed one.
-      amount: toPlatformUnitApiAmount(currentArda),
-      disclosureVersion: "funding-disclosure-v1",
-      displayNameConsent: showName,
-      idempotencyKey: claim.request.requestKey,
-    });
+    sendSponsorship(claim.request);
+  };
+
+  /**
+   * Retry, and the banner's way out, both REPLAY the saved request - its own amount string,
+   * never one recomputed at today's rate (which the server would refuse as a different
+   * sponsorship). The key is dropped only on a final answer.
+   */
+  const resumeSavedSponsorship = () => {
+    if (!config || !sessionReady || !subjectId) return;
+    const saved =
+      readSavedRequest(window.localStorage, sponsorshipRequestFlow(config.id), subjectId) ??
+      savedRequest;
+    if (saved) sendSponsorship(saved);
   };
 
   const handleNext = () => {
@@ -579,21 +635,23 @@ export default function InvestPage() {
                 Resuming an unfinished sponsorship
               </h2>
               <p className="text-muted-foreground mt-1 text-sm">
-                {currentDollars &&
-                Math.round(currentDollars.value * 100) ===
-                  savedRequest.amountMinorUnits ? (
+                {currentDraft?.amount === savedRequest.wire.amount ? (
                   <>
                     You started sponsoring this project with{" "}
-                    {formatSponsorDollars(savedRequest.amountMinorUnits / 100)}{" "}
+                    {formatSponsorDollars(savedRequest.displayMinorUnits / 100)}{" "}
                     and never saw it finish. Supporting below picks up that
                     same sponsorship — nothing is debited twice.
                   </>
                 ) : (
                   <>
                     You have an unfinished sponsorship of this project for{" "}
-                    {formatSponsorDollars(savedRequest.amountMinorUnits / 100)}
-                    , which does not match the amount entered now. Finish
-                    that one, or discard it to continue with this amount.
+                    {formatSponsorDollars(savedRequest.displayMinorUnits / 100)}
+                    , which does not match the amount entered now. It may
+                    already be on its way, so it can&apos;t simply be dropped:
+                    resuming sends exactly the same request again. If it
+                    already went through, nothing is debited twice; if it was
+                    refused or closed, it is cleared and you can continue with
+                    this amount.
                   </>
                 )}
               </p>
@@ -603,13 +661,10 @@ export default function InvestPage() {
             type="button"
             variant="outline"
             className="shrink-0"
-            onClick={() => {
-              if (!config) return;
-              clearSavedRequest(window.localStorage, investRequestScope(config.id));
-              setSavedRequest(null);
-            }}
+            disabled={!sessionReady || checkout.isPending}
+            onClick={resumeSavedSponsorship}
           >
-            Discard it
+            Resume it
           </Button>
         </section>
       )}
@@ -930,10 +985,14 @@ export default function InvestPage() {
           <Button
             type="button"
             className="h-12 w-full font-mono font-bold tracking-wide uppercase"
-            disabled={!checkLocked || !checkTrust || checkout.isPending}
+            // Until the session resolves there is no subject to save a key under, and a press
+            // that silently does nothing reads as a broken button.
+            disabled={
+              !checkLocked || !checkTrust || checkout.isPending || !sessionReady
+            }
             onClick={handleNext}
           >
-            Support this project
+            {sessionReady ? "Support this project" : "Checking your session…"}
             <ArrowRight className="size-4" />
           </Button>
         </section>
@@ -991,28 +1050,46 @@ export default function InvestPage() {
                     Amount spent
                   </span>
                   <span className="font-mono font-bold">
-                    {chargedDollars !== null
-                      ? formatSponsorDollars(chargedDollars)
-                      : currentDollars
-                        ? formatSponsorDollars(currentDollars.value)
+                    {activeSend?.quote?.dollarAmount != null
+                      ? formatSponsorDollars(activeSend.quote.dollarAmount)
+                      : activeSend
+                        ? formatSponsorDollars(activeSend.request.displayMinorUnits / 100)
                         : "Unavailable"}
                   </span>
                 </div>
               </div>
 
-              {checkout.error && (
+              {checkout.error && savedRequest && (
                 <div className="w-full space-y-3">
                   <p className="text-muted-foreground text-xs leading-relaxed">
-                    Retry uses the same idempotency key, so the server can
-                    safely replay this sponsorship rather than create a
-                    second one.
+                    Retry sends exactly the same request under the same
+                    idempotency key, so the server can safely replay this
+                    sponsorship rather than create a second one.
                   </p>
                   <Button
                     type="button"
-                    onClick={beginCheckout}
+                    onClick={resumeSavedSponsorship}
+                    disabled={!sessionReady}
                     className="w-full"
                   >
                     Retry sponsorship
+                  </Button>
+                </div>
+              )}
+
+              {checkout.error && !savedRequest && (
+                <div className="w-full space-y-3">
+                  <p className="text-muted-foreground text-xs leading-relaxed">
+                    The server gave a final answer for that sponsorship, so it
+                    is closed. You can start a new one.
+                  </p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setStep(1)}
+                    className="w-full"
+                  >
+                    Change the amount
                   </Button>
                 </div>
               )}

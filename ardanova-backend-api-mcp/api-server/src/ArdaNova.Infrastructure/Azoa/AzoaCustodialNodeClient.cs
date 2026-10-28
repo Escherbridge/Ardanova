@@ -63,7 +63,8 @@ public sealed class AzoaCustodialNodeClient : IAzoaCustodialNodeClient
         {
             message.Dispose();
             return Task.FromResult(Result<T>.Forbidden(
-                "The AZOA custody credential is restricted to custodial-account endpoints."));
+                "The AZOA custody credential is restricted to custodial-account endpoints.")
+                .WithCode(UpstreamFailureCodes.RouteNotAllowed));
         }
 
         return AzoaNodeClient.SendAsync<T>(_http, _logger, message, ct);

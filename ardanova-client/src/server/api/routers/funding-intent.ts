@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { apiClient } from "~/lib/api";
+import { moneyRefusalError } from "~/server/api/money-refusal-error";
 import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
 
 const createCheckoutInput = z.object({
@@ -31,7 +32,11 @@ export const fundingIntentRouter = createTRPCRouter({
       );
 
       if (response.error || !response.data) {
-        throw new Error(response.error ?? "Unable to create funding checkout");
+        // The BFF's money code travels with the error; the page decides the key's fate on it.
+        throw moneyRefusalError(
+          response,
+          response.error ?? "Unable to create funding checkout",
+        );
       }
 
       return response.data;

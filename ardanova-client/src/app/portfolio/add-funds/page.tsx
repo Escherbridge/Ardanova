@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
@@ -16,6 +16,13 @@ import {
 
 import { buildSignInHref } from "~/lib/auth-navigation";
 import {
+  ADD_FUNDS_REQUEST_FLOW,
+  canSetAsideSavedPayment,
+  endsSavedPayment,
+  type AddFundsWire,
+} from "~/lib/commerce/add-funds-request";
+import { moneyCodeOf } from "~/lib/commerce/money-refusal";
+import {
   ADD_FUNDS_MAXIMUM_DOLLARS,
   ADD_FUNDS_MINIMUM_DOLLARS,
   describeAddFundsAmountProblem,
@@ -30,8 +37,9 @@ import {
 import {
   claimRequestKey,
   clearSavedRequest,
-  isDefiniteRefusal,
   readSavedRequest,
+  recordAdmittedId,
+  settleSavedRequestAfterFailure,
   type SavedRequest,
 } from "~/lib/commerce/persisted-request-key";
 import { api } from "~/trpc/react";
@@ -50,8 +58,8 @@ const MAXIMUM_DOLLARS = ADD_FUNDS_MAXIMUM_DOLLARS;
 const AMOUNT_ERROR_ID = "custom-amount-error";
 const READINESS_DETAIL_ID = "add-funds-readiness-detail";
 
-/** This flow's slot in `persisted-request-key` storage. One add-funds attempt at a time per person. */
-const ADD_FUNDS_REQUEST_SCOPE = "add-funds";
+const SAVED_PAYMENT_UNCONFIRMED_MESSAGE =
+  "We couldn't confirm what happened to that earlier payment, so it stays saved. Nothing new was started - try again in a moment.";
 
 function formatDollars(value: number): string {
   return new Intl.NumberFormat("en-US", {
@@ -91,13 +99,21 @@ function AddFundsFlow() {
   const [selectedDollars, setSelectedDollars] = useState<number | null>(25);
   const [customAmount, setCustomAmount] = useState("");
   const [submitError, setSubmitError] = useState<string | null>(null);
-  // Load-bearing: persisted to storage BEFORE a request leaves, so a reload (or a second tap
-  // after a `useRef` would have gone back to null) resumes the SAME admission instead of the
-  // node opening a second payment page for one intent.
-  const [savedRequest, setSavedRequest] = useState<SavedRequest | null>(null);
+  // Load-bearing: persisted to storage BEFORE a request leaves, so a reload resumes the SAME
+  // admission instead of the node opening a second payment page for one intent. Rules:
+  // ~/lib/commerce/AGENTS.md §Persisted request keys.
+  const [savedRequest, setSavedRequest] =
+    useState<SavedRequest<AddFundsWire> | null>(null);
+  // What became of a saved payment this page resolved without a return (shown once it is cleared).
+  const [resolvedSavedPayment, setResolvedSavedPayment] =
+    useState<OnRampPresentation | null>(null);
+  const [settingAside, setSettingAside] = useState(false);
+  // The request in flight, for the callbacks; `savedRequest` only reflects what is on screen.
+  const activeRequestRef = useRef<SavedRequest<AddFundsWire> | null>(null);
 
   const subjectId = session?.user?.id ?? null;
   const queryEnabled = Boolean(session?.user?.id);
+  const utils = api.useUtils();
   const accountStatus = api.azoaCustodialAccount.getStatus.useQuery(undefined, {
     enabled: queryEnabled,
     retry: false,
@@ -106,35 +122,67 @@ function AddFundsFlow() {
     enabled: queryEnabled,
     retry: false,
   });
-  // The server is the only thing allowed to say what happened to a payment, so a return polls the
-  // real record and stops the moment that record is settled.
-  const returningPayment = api.addFunds.getPayment.useQuery(
-    { paymentId: returningIntentId ?? "" },
+  // The server is the only thing allowed to say what happened to a payment. A return polls the
+  // payment it came back for; with no return, the saved key's own payment is read once on mount,
+  // so an abandoned or paid-but-never-returned checkout resolves instead of looping on a 409.
+  const trackedPaymentId = returningIntentId ?? savedRequest?.admittedId ?? null;
+  const trackedPayment = api.addFunds.getPayment.useQuery(
+    { paymentId: trackedPaymentId ?? "" },
     {
-      enabled: queryEnabled && Boolean(returningIntentId),
+      enabled: queryEnabled && Boolean(trackedPaymentId),
       retry: false,
       refetchInterval: (query) =>
-        query.state.data && isOnRampSettled(query.state.data as OnRampReport)
+        !returningIntentId ||
+        (query.state.data && isOnRampSettled(query.state.data as OnRampReport))
           ? false
           : 5000,
     },
   );
   const begin = api.addFunds.begin.useMutation({
-    onSuccess: (payment) => {
-      if (payment.paymentUrl) window.location.assign(payment.paymentUrl);
-    },
-    onError: (error) => {
-      setSubmitError(error.message);
-      // A DEFINITE refusal (400/403/404/422-shaped) is a final answer for this key: the begin
-      // call never admitted a payment, so keeping it would only block a later, different amount
-      // for no reason. Everything else - network drops, 401, a readiness conflict, 429, 5xx -
-      // keeps the key, because the call may still have reached the node.
-      if (isDefiniteRefusal(error.data?.code)) {
-        clearSavedRequest(window.localStorage, ADD_FUNDS_REQUEST_SCOPE);
-        setSavedRequest(null);
+    onSuccess: (payment, variables) => {
+      // Saved BEFORE leaving: the payment id is how a later visit asks the server what became of
+      // this key, whether or not the person ever comes back from the payment page.
+      const recorded =
+        subjectId &&
+        recordAdmittedId(
+          window.localStorage,
+          ADD_FUNDS_REQUEST_FLOW,
+          subjectId,
+          variables.requestKey,
+          payment.paymentId,
+        );
+      if (payment.paymentUrl) {
+        window.location.assign(payment.paymentUrl);
+        return;
       }
+      // A resumed payment with no page left is already paid or closed: read its real state.
+      if (recorded) setSavedRequest(recorded);
+      router.replace(
+        `/portfolio/add-funds?intent=${encodeURIComponent(payment.paymentId)}`,
+      );
+    },
+    onError: (error, variables) => {
+      setSubmitError(error.message);
+      if (!subjectId) return;
+      // Released ONLY on the server's `definite`; a missing code, a 4xx with no code, a network
+      // drop all keep the key - the call may still have reached the node.
+      const settled = settleSavedRequestAfterFailure(
+        window.localStorage,
+        ADD_FUNDS_REQUEST_FLOW,
+        subjectId,
+        variables.requestKey,
+        moneyCodeOf(error),
+      );
+      setSavedRequest(
+        settled === "released"
+          ? null
+          : (readSavedRequest(window.localStorage, ADD_FUNDS_REQUEST_FLOW, subjectId) ??
+              activeRequestRef.current),
+      );
     },
   });
+  // A second instance so replaying the saved key to learn its fate never redirects anywhere.
+  const replaySaved = api.addFunds.begin.useMutation();
 
   useEffect(() => {
     if (sessionStatus === "unauthenticated") {
@@ -149,13 +197,13 @@ function AddFundsFlow() {
     if (!subjectId) return;
     const saved = readSavedRequest(
       window.localStorage,
-      ADD_FUNDS_REQUEST_SCOPE,
+      ADD_FUNDS_REQUEST_FLOW,
       subjectId,
     );
     setSavedRequest(saved);
     if (!saved) return;
 
-    const savedDollars = saved.amountMinorUnits / 100;
+    const savedDollars = saved.wire.amountMinorUnits / 100;
     if ((PRESET_DOLLAR_AMOUNTS as readonly number[]).includes(savedDollars)) {
       setSelectedDollars(savedDollars);
     } else {
@@ -164,15 +212,23 @@ function AddFundsFlow() {
     }
   }, [subjectId]);
 
-  // The server is the only thing allowed to say a payment is finished; once it has, the saved
-  // key has had its definite answer and must not resume a FUTURE, unrelated payment.
+  // Ends the saved key only when the server reports THAT key's own payment finished either way.
+  // An unconfirmed read, an unfinished page, or a return for some other payment keeps it.
   useEffect(() => {
-    if (!subjectId) return;
-    if (returningPayment.data && isOnRampSettled(returningPayment.data as OnRampReport)) {
-      clearSavedRequest(window.localStorage, ADD_FUNDS_REQUEST_SCOPE);
-      setSavedRequest(null);
+    if (!subjectId || !savedRequest || !trackedPayment.data) return;
+    if (!endsSavedPayment(savedRequest, trackedPayment.data)) return;
+
+    clearSavedRequest(
+      window.localStorage,
+      ADD_FUNDS_REQUEST_FLOW,
+      subjectId,
+      savedRequest.requestKey,
+    );
+    setSavedRequest(null);
+    if (!returningIntentId) {
+      setResolvedSavedPayment(getOnRampPresentation(trackedPayment.data));
     }
-  }, [returningPayment.data, subjectId]);
+  }, [trackedPayment.data, savedRequest, subjectId, returningIntentId]);
 
   const amountMinorUnits = useMemo(() => {
     if (selectedDollars !== null) return selectedDollars * 100;
@@ -209,9 +265,9 @@ function AddFundsFlow() {
   // Never inferred from the redirect: until the record itself is read back, the return reads as
   // "we're confirming this" rather than either outcome.
   const returnPresentation: OnRampPresentation | null = !returningIntentId
-    ? null
-    : returningPayment.data
-      ? getOnRampPresentation(returningPayment.data as OnRampReport)
+    ? resolvedSavedPayment
+    : trackedPayment.data
+      ? getOnRampPresentation(trackedPayment.data as OnRampReport)
       : getOnRampConfirmingPresentation();
 
   function startAddFunds() {
@@ -223,36 +279,97 @@ function AddFundsFlow() {
 
     const claim = claimRequestKey(
       window.localStorage,
-      ADD_FUNDS_REQUEST_SCOPE,
+      ADD_FUNDS_REQUEST_FLOW,
       subjectId,
+      { amountMinorUnits },
       amountMinorUnits,
     );
     if (claim.kind === "pending") {
       // Never silently replaced: an unresolved key for a DIFFERENT amount must be resumed or
-      // explicitly discarded first, or one lost payment page becomes two.
+      // explicitly set aside first, or one lost payment page becomes two.
       setSavedRequest(claim.pending);
       setSubmitError(
-        `You have an unfinished payment for ${formatDollars(claim.pending.amountMinorUnits / 100)}. Finish that one, or clear it below, before starting a different amount.`,
+        `You have an unfinished payment for ${formatDollars(claim.pending.displayMinorUnits / 100)}. Finish that one, or start a new payment instead below, before starting a different amount.`,
       );
       return;
     }
 
-    // Not re-shown here: the "resuming" banner is for what a RELOAD finds already saved, and
-    // this submit is about to redirect away on success or explain itself via `submitError` on
-    // failure, so updating `savedRequest` here would flash it for a brand-new first attempt too.
+    // Not re-shown here: the "resuming" banner is for what a RELOAD (or a kept-key failure)
+    // finds saved; a brand-new first attempt redirects away on success.
+    activeRequestRef.current = claim.request;
     setSubmitError(null);
-    begin.mutate({ amountMinorUnits, requestKey: claim.request.requestKey });
+    begin.mutate({
+      amountMinorUnits: claim.request.wire.amountMinorUnits,
+      requestKey: claim.request.requestKey,
+    });
   }
 
-  function discardSavedRequest() {
-    clearSavedRequest(window.localStorage, ADD_FUNDS_REQUEST_SCOPE);
-    setSavedRequest(null);
+  /**
+   * "Start a new payment instead" asks the server first: it reads the saved key's payment (or,
+   * when the answer that named it was lost, replays the saved key without redirecting) and lets
+   * the key go only on an outcome the node actually stated.
+   */
+  async function setAsideSavedRequest() {
+    const saved = savedRequest;
+    if (!saved || !subjectId || settingAside) return;
+    setSettingAside(true);
     setSubmitError(null);
+
+    try {
+      const payment = saved.admittedId
+        ? await utils.addFunds.getPayment.fetch(
+            { paymentId: saved.admittedId },
+            { staleTime: 0 },
+          )
+        : await replaySaved.mutateAsync({
+            amountMinorUnits: saved.wire.amountMinorUnits,
+            requestKey: saved.requestKey,
+          });
+
+      if (!canSetAsideSavedPayment(payment)) {
+        setSavedRequest(
+          recordAdmittedId(
+            window.localStorage,
+            ADD_FUNDS_REQUEST_FLOW,
+            subjectId,
+            saved.requestKey,
+            payment.paymentId,
+          ) ?? saved,
+        );
+        setSubmitError(SAVED_PAYMENT_UNCONFIRMED_MESSAGE);
+        return;
+      }
+
+      clearSavedRequest(
+        window.localStorage,
+        ADD_FUNDS_REQUEST_FLOW,
+        subjectId,
+        saved.requestKey,
+      );
+      setSavedRequest(null);
+      setResolvedSavedPayment(getOnRampPresentation(payment));
+    } catch (error) {
+      const settled = settleSavedRequestAfterFailure(
+        window.localStorage,
+        ADD_FUNDS_REQUEST_FLOW,
+        subjectId,
+        saved.requestKey,
+        moneyCodeOf(error),
+      );
+      if (settled === "released") {
+        setSavedRequest(null);
+      } else {
+        setSubmitError(SAVED_PAYMENT_UNCONFIRMED_MESSAGE);
+      }
+    } finally {
+      setSettingAside(false);
+    }
   }
 
   const notice = submitError;
-  // Shown only until the person acts on it; a return in progress already has its own banner.
-  const showResumeNotice = savedRequest !== null && !returningIntentId;
+  // Rendered whenever a key is saved - including on a `?intent=` return, where Stripe's success
+  // AND cancel both land - so the way out is always on screen.
+  const showResumeNotice = savedRequest !== null;
 
   // A disabled Continue must say why: point it at whichever reason is on screen.
   const continueDescribedBy =
@@ -308,9 +425,10 @@ function AddFundsFlow() {
                 </h2>
                 <p className="text-muted-foreground mt-1 text-sm">
                   You started adding{" "}
-                  {formatDollars(savedRequest.amountMinorUnits / 100)} and
+                  {formatDollars(savedRequest.displayMinorUnits / 100)} and
                   never saw it finish. Continue below to pick up that same
-                  payment — nothing is charged twice.
+                  payment — nothing is charged twice. Starting a new one first
+                  checks what became of this one.
                 </p>
               </div>
             </div>
@@ -318,9 +436,10 @@ function AddFundsFlow() {
               type="button"
               variant="outline"
               className="shrink-0"
-              onClick={discardSavedRequest}
+              disabled={settingAside || begin.isPending}
+              onClick={() => void setAsideSavedRequest()}
             >
-              Start a new payment instead
+              {settingAside ? "Checking…" : "Start a new payment instead"}
             </Button>
           </section>
         )}
@@ -518,7 +637,8 @@ function AddFundsFlow() {
             disabled={
               !readiness.canContinue ||
               amountProblem !== null ||
-              begin.isPending
+              begin.isPending ||
+              settingAside
             }
             onClick={startAddFunds}
           >

@@ -62,9 +62,8 @@ public sealed class AzoaCustodialAccountController : ControllerBase
 
     private string ActorId => User.FindFirstValue(ClaimTypes.NameIdentifier)!;
 
-    // CustodialAccountLifecycle: every action here is gated by KybCapability.CustodialAccess, so a
-    // bare Forbidden defaults to kyb_required - see MoneyRefusal's remarks for why that is a
-    // call-site default rather than a literal re-read of the node's own code.
+    // CustodialAccountLifecycle: the node's KYB_REQUIRED code wins; only an UNCODED Forbidden falls
+    // back to kyb_required. See Controllers/AGENTS.md §Money refusal codes.
     private IActionResult ToActionResult<T>(Result<T> result)
     {
         if (result.Type == ResultType.Success)
@@ -77,7 +76,9 @@ public sealed class AzoaCustodialAccountController : ControllerBase
             ResultType.Unauthorized => Unauthorized(body),
             ResultType.Forbidden => StatusCode(StatusCodes.Status403Forbidden, body),
             ResultType.Conflict => Conflict(body),
-            _ => BadRequest(body),
+            ResultType.ValidationError or ResultType.BadRequest => BadRequest(body),
+            // A transport failure is the platform's, never the caller's request: 503, not 400.
+            _ => StatusCode(StatusCodes.Status503ServiceUnavailable, body),
         };
     }
 }

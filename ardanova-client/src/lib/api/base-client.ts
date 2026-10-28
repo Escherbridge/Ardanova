@@ -14,6 +14,8 @@ export interface ApiResponse<T> {
   data?: T;
   error?: string;
   status: number;
+  /** The machine `code` field of a non-2xx body, verbatim; absent when the body had none. */
+  code?: string;
 }
 
 export interface PagedResult<T> {
@@ -162,7 +164,22 @@ function materializeActorRequestBody(
 function failed<T>(status: number, errorText: string): ApiResponse<T> {
   const error = readApiError(errorText, status);
   recordApiFailure({ status, message: error });
-  return { error, status };
+  const code = readApiErrorCode(errorText);
+  return code === undefined ? { error, status } : { error, status, code };
+}
+
+/** The `code` string a JSON error body carries (money routes' `MoneyRefusal`), if any. */
+function readApiErrorCode(errorText: string): string | undefined {
+  try {
+    const parsed: unknown = JSON.parse(errorText);
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      const code = (parsed as Record<string, unknown>).code;
+      if (typeof code === "string" && code.trim()) return code.trim();
+    }
+  } catch {
+    // A plain-text body has no machine code.
+  }
+  return undefined;
 }
 
 /** Extracts safe server action messages from JSON error envelopes and problem details. */
