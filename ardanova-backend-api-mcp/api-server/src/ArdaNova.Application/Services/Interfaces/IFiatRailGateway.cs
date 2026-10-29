@@ -21,6 +21,19 @@ public sealed record FiatCheckoutSession(
     string? CurrencyCode,
     DateTimeOffset? ExpiresAt);
 
+/// <summary>The two answers a request-key void can give. Wire values; never rename.</summary>
+public static class FiatCheckoutVoidOutcomes
+{
+    /// <summary>Nothing was or can be paid under the key; the caller may discard it.</summary>
+    public const string Voided = "voided";
+
+    /// <summary>A payment may exist under the key; the caller keeps it and follows <see cref="FiatCheckoutVoid.Payment"/>.</summary>
+    public const string Revealed = "revealed";
+}
+
+/// <summary>What a void of one request key decided. <see cref="Payment"/> is set exactly when <see cref="Outcome"/> is revealed.</summary>
+public sealed record FiatCheckoutVoid(string Outcome, Guid? IntentId, FiatCheckoutSession? Payment);
+
 /// <summary>Starts and reads an add-funds payment on the node's fiat rail.</summary>
 /// <remarks>See <c>src/ArdaNova.Infrastructure/Azoa/AGENTS.md</c> section on-ramp.</remarks>
 public interface IFiatRailGateway
@@ -32,6 +45,10 @@ public interface IFiatRailGateway
     /// <summary>Reads one payment for the account that owns it; a guessed id reads nothing.</summary>
     Task<Result<FiatCheckoutSession>> GetSessionAsync(
         Guid accountId, Guid intentId, CancellationToken ct = default);
+
+    /// <summary>Voids <paramref name="requestKey"/> so nothing can be paid under it, or reveals what already was.</summary>
+    Task<Result<FiatCheckoutVoid>> VoidRequestAsync(
+        Guid accountId, string requestKey, CancellationToken ct = default);
 }
 
 /// <summary>
@@ -53,4 +70,10 @@ public sealed class DisabledFiatRailGateway : IFiatRailGateway
     public Task<Result<FiatCheckoutSession>> GetSessionAsync(
         Guid accountId, Guid intentId, CancellationToken ct = default)
         => Task.FromResult(Result<FiatCheckoutSession>.Failure(Refusal).WithCode(UpstreamFailureCodes.PaymentsNotConfigured));
+
+    /// <inheritdoc />
+    /// <remarks>Never "voided": with no rail to ask, nothing here can prove a key is safe to drop.</remarks>
+    public Task<Result<FiatCheckoutVoid>> VoidRequestAsync(
+        Guid accountId, string requestKey, CancellationToken ct = default)
+        => Task.FromResult(Result<FiatCheckoutVoid>.Failure(Refusal).WithCode(UpstreamFailureCodes.PaymentsNotConfigured));
 }

@@ -1,12 +1,17 @@
 import { z } from "zod";
 
+import { looksFinal, type MoneyRefusalCode } from "~/lib/commerce/money-refusal";
 import {
   getOnRampPresentation,
   type OnRampReport,
 } from "~/lib/commerce/on-ramp-status";
-import type {
-  RequestFlow,
-  SavedRequest,
+import {
+  readSavedRequest,
+  recordAdmittedId,
+  voidSavedRequest,
+  type RequestFlow,
+  type SavedRequest,
+  type VoidAnswer,
 } from "~/lib/commerce/persisted-request-key";
 
 /** `addFunds.begin`'s body minus the key. */
@@ -52,11 +57,115 @@ export function endsSavedPayment(
   return outcome === "added" || outcome === "went-wrong";
 }
 
+/** A payment as the server returns it: the id is always present. */
+export type AddFundsPaymentRead = OnRampReport & { paymentId: string };
+
+/** `addFunds.voidRequest`'s answer, as the router validated it. */
+export type AddFundsVoidAnswer =
+  | { outcome: "voided" }
+  | { outcome: "revealed"; payment: AddFundsPaymentRead };
+
+/** The two server calls the add-funds key lifecycle needs; the page passes its tRPC calls. */
+export interface AddFundsServer {
+  readPayment: (paymentId: string) => Promise<AddFundsPaymentRead>;
+  voidRequest: (requestKey: string) => Promise<AddFundsVoidAnswer>;
+}
+
+/** What the page shows after a key was settled. */
+export type AddFundsKeySettlement =
+  /** The server voided the key: nothing was or can be paid under it. */
+  | { kind: "released" }
+  /** The key stays, following this payment (or one not read yet). */
+  | {
+      kind: "tracking";
+      saved: SavedRequest<AddFundsWire> | null;
+      payment: AddFundsPaymentRead | null;
+    }
+  /** The key stays and nothing more is known; `error` is the failed server call, if any. */
+  | { kind: "kept"; saved: SavedRequest<AddFundsWire> | null; error: unknown };
+
+function asVoidAnswer(answer: AddFundsVoidAnswer): VoidAnswer<AddFundsPaymentRead> {
+  return answer.outcome === "voided"
+    ? { outcome: "voided" }
+    : { outcome: "revealed", revealed: answer.payment };
+}
+
+/** Asks the server to void the saved key; on a reveal, the payment it names becomes the tracked one. */
+async function voidOrReveal(
+  storage: Storage,
+  subjectId: string,
+  requestKey: string,
+  server: AddFundsServer,
+): Promise<AddFundsKeySettlement> {
+  const settled = await voidSavedRequest(
+    storage,
+    ADD_FUNDS_REQUEST_FLOW,
+    subjectId,
+    requestKey,
+    async (key) => asVoidAnswer(await server.voidRequest(key)),
+  );
+  if (settled.kind !== "revealed") return settled;
+
+  const payment = settled.revealed;
+  const saved =
+    recordAdmittedId(storage, ADD_FUNDS_REQUEST_FLOW, subjectId, requestKey, payment.paymentId) ??
+    settled.saved;
+  return { kind: "tracking", saved, payment };
+}
+
 /**
- * Whether a person's explicit "start a new payment instead" may set the saved payment aside: any
- * outcome the node actually stated. An open, unpaid page charged nothing and is safe to leave;
- * a paid one is already accounted for. Only "unconfirmed" keeps the key.
+ * After Continue (or any resend) failed. Once the key names a payment, a code never decides it:
+ * that payment is READ and the page follows its state (C-1). Without one, a final-looking code is
+ * settled by void-or-reveal; anything else keeps the key. See `./AGENTS.md` §Persisted request keys.
  */
-export function canSetAsideSavedPayment(payment: AddFundsPaymentReport): boolean {
-  return getOnRampPresentation(payment).outcome !== "unconfirmed";
+export async function settleAddFundsFailure(input: {
+  storage: Storage;
+  subjectId: string;
+  requestKey: string;
+  moneyCode: MoneyRefusalCode | null;
+  server: AddFundsServer;
+}): Promise<AddFundsKeySettlement> {
+  const { storage, subjectId, requestKey, moneyCode, server } = input;
+  const saved = readSavedRequest(storage, ADD_FUNDS_REQUEST_FLOW, subjectId);
+  if (saved && saved.requestKey !== requestKey)
+    return { kind: "kept", saved, error: null };
+
+  if (saved?.admittedId) {
+    try {
+      return { kind: "tracking", saved, payment: await server.readPayment(saved.admittedId) };
+    } catch {
+      return { kind: "tracking", saved, payment: null };
+    }
+  }
+
+  if (!looksFinal(moneyCode)) return { kind: "kept", saved, error: null };
+  return voidOrReveal(storage, subjectId, requestKey, server);
+}
+
+/**
+ * "Start a new payment instead" (M-1). Re-reads storage, then lets the server decide: `voided`
+ * (an open page is expired first) releases the key; `revealed` keeps it and shows that payment.
+ */
+export async function setAsideSavedPayment(input: {
+  storage: Storage;
+  subjectId: string;
+  server: AddFundsServer;
+}): Promise<AddFundsKeySettlement | { kind: "none" }> {
+  const saved = readSavedRequest(input.storage, ADD_FUNDS_REQUEST_FLOW, input.subjectId);
+  if (!saved) return { kind: "none" };
+  return voidOrReveal(input.storage, input.subjectId, saved.requestKey, input.server);
+}
+
+/**
+ * Continue stays LOCKED while the saved key names a payment this page has no settled view of: not
+ * read yet, unreadable, unconfirmed, or paid and still landing. An unfinished page is the one
+ * exception - Continue resumes that same page under the same key.
+ */
+export function savedPaymentLocksContinue(
+  saved: SavedRequest<AddFundsWire> | null,
+  tracked: AddFundsPaymentReport | null | undefined,
+): boolean {
+  if (!saved?.admittedId) return false;
+  if (!tracked || !isSamePaymentId(saved.admittedId, tracked.paymentId)) return true;
+  return getOnRampPresentation(tracked).outcome !== "unfinished";
 }

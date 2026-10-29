@@ -893,6 +893,7 @@ model User {
   economicSettlements          EconomicSettlement[]          @relation("EconomicSettlement_beneficiaryUserId")
   economicSettlements1         EconomicSettlement[]          @relation("EconomicSettlement_authorizedByUserId")
   fundingIntents               FundingIntent[]               @relation("FundingIntent_funderUserId")
+  fundingIntentVoids           FundingIntentVoid[]           @relation("FundingIntentVoid_funderUserId")
   taskCommerceAgreements       TaskCommerceAgreement[]       @relation("TaskCommerceAgreement_contributorUserId")
   eligibilityDecisions         EligibilityDecision[]         @relation("EligibilityDecision_userId")
   eligibilityDecisions1        EligibilityDecision[]         @relation("EligibilityDecision_decidedByUserId")
@@ -2704,6 +2705,16 @@ model FundingIntent {
   @@index([funderUserId, status])
   @@index([projectId, status])
   @@index([projectTokenConfigId, status])
+}
+
+model FundingIntentVoid {
+  id             String   @id @default(cuid())
+  funderUserId   String
+  idempotencyKey String
+  createdAt      DateTime @default(now())
+  funderUser     User     @relation("FundingIntentVoid_funderUserId", fields: [funderUserId], references: [id])
+
+  @@unique([funderUserId, idempotencyKey])
 }
 
 model TaskCommerceAgreement {

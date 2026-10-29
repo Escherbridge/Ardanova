@@ -2,8 +2,9 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 
 import { apiClient } from "~/lib/api";
+import { parseMoneyRefusalCode } from "~/lib/commerce/money-refusal";
 import {
-  ADD_FUNDS_UNAVAILABLE_MESSAGE,
+  addFundsFallbackMessage,
   toSponsorSafeMessage,
 } from "~/lib/commerce/on-ramp-status";
 import { moneyRefusalError } from "~/server/api/money-refusal-error";
@@ -43,6 +44,31 @@ const beginInput = z.object({
   requestKey: requestKeySchema,
 });
 
+/** A payment as the BFF returns it; anything else in a 200 is not an answer this page can act on. */
+const paymentSchema = z
+  .object({
+    paymentId: z.string().min(1),
+    status: z.string(),
+    settlementState: z.string(),
+    paymentUrl: z.string().nullish(),
+    resumed: z.boolean(),
+    amountPaidMinorUnits: z.number().nullish(),
+    currencyCode: z.string().nullish(),
+    expiresAt: z.string().nullish(),
+  })
+  .passthrough();
+
+/** The void route's two 200 answers. An outcome word this app does not know is never "voided". */
+const voidAnswerSchema = z.discriminatedUnion("outcome", [
+  z.object({ outcome: z.literal("voided") }),
+  z.object({ outcome: z.literal("revealed"), payment: paymentSchema }),
+]);
+
+/** The fallback sentence for a failed call, picked by the BFF's money code - never by the status. */
+function fallbackFor(response: { code?: string }) {
+  return addFundsFallbackMessage(parseMoneyRefusalCode(response.code));
+}
+
 /** The tRPC class by status (presentation), carrying the BFF's money code (the key's fate). */
 function toAddFundsError(
   response: { status: number; code?: string },
@@ -79,7 +105,7 @@ export const addFundsRouter = createTRPCRouter({
     if (!response.data) {
       throw toAddFundsError(
         response,
-        toSponsorSafeMessage(response.error, ADD_FUNDS_UNAVAILABLE_MESSAGE),
+        toSponsorSafeMessage(response.error, fallbackFor(response)),
       );
     }
 
@@ -118,5 +144,33 @@ export const addFundsRouter = createTRPCRouter({
       }
 
       return response.data;
+    }),
+
+  /**
+   * Void-or-reveal for a saved request key: the ONLY answer that lets the page drop a key it holds
+   * without a server id (`voided`), and the way it learns the payment behind one (`revealed`).
+   */
+  voidRequest: protectedProcedure
+    .input(z.object({ requestKey: requestKeySchema }))
+    .mutation(async ({ input }) => {
+      const response = await addFunds.voidRequest(input.requestKey);
+
+      if (!response.data) {
+        throw toAddFundsError(
+          response,
+          toSponsorSafeMessage(response.error, fallbackFor(response)),
+        );
+      }
+
+      const answer = voidAnswerSchema.safeParse(response.data);
+      if (!answer.success) {
+        // No money code: an answer nobody can read keeps the key.
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: addFundsFallbackMessage(null),
+        });
+      }
+
+      return answer.data;
     }),
 });

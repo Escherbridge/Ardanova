@@ -7,6 +7,7 @@ import {
   protectedProcedure,
 } from "~/server/api/trpc";
 import { apiClient } from "~/lib/api";
+import { moneyRefusalError } from "~/server/api/money-refusal-error";
 import { getAdminApiClient } from "~/server/admin-api-client";
 
 // ---------------------------------------------------------------------------
@@ -127,17 +128,15 @@ export type Withdrawal = z.infer<typeof withdrawalSchema>;
 // ---------------------------------------------------------------------------
 
 /**
- * Maps a backend refusal onto a tRPC code, keeping the backend's own wording.
- *
- * The status is the whole point: 403 is "these units, not now" and the message
- * is meant to be read; 503 is "this deployment cannot do it at all". Flattening
- * both to BAD_REQUEST tells a person they typed something wrong when they did not.
+ * Maps a backend refusal onto a tRPC code, keeping the backend's own wording AND its money code
+ * (`error.data.moneyCode`). The status is presentation only: a 503 is "unconfirmed" as often as it
+ * is "cash-out isn't switched on", and only the money code `payments_not_configured` says the latter.
  */
 function refusal(
-  status: number | undefined,
-  message: string | undefined,
+  response: { status?: number; error?: string; code?: string },
   fallback: string,
 ) {
+  const { status } = response;
   const code =
     status === 401
       ? "UNAUTHORIZED"
@@ -153,7 +152,11 @@ function refusal(
                 ? "BAD_REQUEST"
                 : "INTERNAL_SERVER_ERROR";
 
-  return new TRPCError({ code, message: message ?? fallback });
+  return moneyRefusalError(
+    { status: status ?? 500, code: response.code },
+    response.error ?? fallback,
+    code,
+  );
 }
 
 function parsed<T>(schema: z.ZodType<T>, payload: unknown, label: string): T {
@@ -186,8 +189,7 @@ export const payoutsRouter = createTRPCRouter({
 
       if (response.error || !response.data) {
         throw refusal(
-          response.status,
-          response.error,
+          response,
           "That sale could not be completed, so nothing was moved.",
         );
       }
@@ -210,8 +212,7 @@ export const payoutsRouter = createTRPCRouter({
 
       if (response.error || response.data === undefined) {
         throw refusal(
-          response.status,
-          response.error,
+          response,
           "We could not work out what that sale would pay.",
         );
       }
@@ -225,8 +226,7 @@ export const payoutsRouter = createTRPCRouter({
 
     if (response.error || response.data === undefined) {
       throw refusal(
-        response.status,
-        response.error,
+        response,
         "Your units could not be loaded.",
       );
     }
@@ -248,8 +248,7 @@ export const payoutsRouter = createTRPCRouter({
 
       if (response.error || !response.data) {
         throw refusal(
-          response.status,
-          response.error,
+          response,
           "That sale could not be reconciled.",
         );
       }
@@ -267,8 +266,7 @@ export const payoutsRouter = createTRPCRouter({
 
       if (response.error || !response.data) {
         throw refusal(
-          response.status,
-          response.error,
+          response,
           "That sale could not be called off.",
         );
       }
@@ -283,8 +281,7 @@ export const payoutsRouter = createTRPCRouter({
 
     if (response.error || !response.data) {
       throw refusal(
-        response.status,
-        response.error,
+        response,
         "Your sales could not be loaded.",
       );
     }
@@ -297,8 +294,7 @@ export const payoutsRouter = createTRPCRouter({
 
     if (response.error || !response.data) {
       throw refusal(
-        response.status,
-        response.error,
+        response,
         "Outstanding sales could not be loaded.",
       );
     }
@@ -316,8 +312,7 @@ export const payoutsRouter = createTRPCRouter({
 
     if (response.error || response.data === undefined) {
       throw refusal(
-        response.status,
-        response.error,
+        response,
         "We could not check what you can send right now.",
       );
     }
@@ -337,8 +332,7 @@ export const payoutsRouter = createTRPCRouter({
 
     if (response.error || response.data === undefined) {
       throw refusal(
-        response.status,
-        response.error,
+        response,
         "We could not check where your money would go.",
       );
     }
@@ -359,8 +353,7 @@ export const payoutsRouter = createTRPCRouter({
 
     if (response.error || response.data === undefined) {
       throw refusal(
-        response.status,
-        response.error,
+        response,
         "We could not start setting up where your money goes.",
       );
     }
@@ -383,8 +376,7 @@ export const payoutsRouter = createTRPCRouter({
 
       if (response.error || response.data === undefined) {
         throw refusal(
-          response.status,
-          response.error,
+          response,
           "That withdrawal could not be started, so nothing was sent.",
         );
       }
@@ -398,8 +390,7 @@ export const payoutsRouter = createTRPCRouter({
 
     if (response.error || response.data === undefined) {
       throw refusal(
-        response.status,
-        response.error,
+        response,
         "Your withdrawals could not be loaded.",
       );
     }

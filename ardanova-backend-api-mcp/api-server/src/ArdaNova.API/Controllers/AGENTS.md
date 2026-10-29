@@ -127,22 +127,39 @@ repeated key, so a fresh key per tap would open a second payment page for one in
 `AzoaCustodialAccountController`, `PayoutsController`, `FundingIntentsController`) a body of
 `{ error, code, message, retryAfterSeconds, reason }`. `code` is one of `MoneyRefusalCodes`.
 
-**The key-release contract.** A caller holding a saved request key may drop it on `definite` and
-on nothing else. The HTTP status is NOT the signal: on these routes 400/403/409 each mean several
-things, and `ExceptionHandlingMiddleware` turns an `ArgumentException` or a SQLSTATE 22xxx/23503/
-23514 into a 400 that can arrive AFTER the node already moved funds
-(`FundingIntentService.CompleteAsync` rolls back and rethrows). That 400 is an `ApiErrorEnvelope`
-with no `code`, so a caller that classifies on `code` keeps its key and its retry replays instead
-of debiting twice. So `definite` is emitted only when nothing was, or ever will be, admitted under
-the key for this request:
+**The key-release contract** (memory: money-key-doctrine). A key may be dropped only where its
+emitter PROVED nothing was or can be paid under it. The HTTP status is NOT the signal: on these
+routes 400/403/409 each mean several things, and `ExceptionHandlingMiddleware` turns an
+`ArgumentException` or a SQLSTATE 22xxx/23503/23514 into a code-less 400 that can arrive AFTER the
+node already moved funds. `definite` is emitted only for:
 
 - `ValidationError`/`BadRequest` - local input checks, the sponsorship quote/fundability/supply
-  refusals (all before the intent is persisted), and the node's 422/400 decline.
-- An upstream code of `INTENT_FINISHED` (reason `finished`), `INTENT_EXPIRED` (`expired`) or
-  `REQUEST_KEY_IN_USE` (`key_in_use`). `FundingIntentService` labels its own final-state 409s with
-  the same node codes: a HOLDING/closed replay, a dispatch that lapsed into HOLDING (settlement and
-  outbox CANCELLED), and a key reused for a different sponsorship. In-progress 409s (attempt
-  ceiling, readiness could-not-confirm) carry no code and stay `unconfirmed`.
+  refusals (all before the intent is persisted), the node's 422 decline, and its uncoded or
+  INVALID_REQUEST 400s (raised before its claim).
+- The node's `REQUEST_VOIDED` (reason `voided`: the key was voided) and `INTENT_EXPIRED`
+  (`expired`: sent only after a fresh Stripe read proves nothing was paid, oasis-sleek cee103bd).
+  `FundingIntentService` labels a voided sponsorship key with the same `REQUEST_VOIDED`.
+
+`finished` (new in round 3, C-1) is NOT a release: `INTENT_FINISHED` (reason `finished`) is sent
+for terminal intents INCLUDING paid ones, and `REQUEST_KEY_IN_USE` (`key_in_use`) names a request
+that may itself have been paid. The caller reads the admitted record, or asks the void route
+below. The node's `RAIL_REFUSED` is a 400 raised AFTER it claimed the key, so it is `unconfirmed`
+(reason `rail_refused`, L-5). In-progress 409s carry no code and stay `unconfirmed`. The browser
+treats even `definite` as "ask the void route" when it holds no server id (client
+`lib/commerce/AGENTS.md` §Persisted request keys).
+
+## Request-key void
+
+`POST /api/add-funds/requests/{requestKey}/void` (`AddFundsController.VoidRequest`) and
+`POST /api/funding-intents/requests/{requestKey}/void` (`FundingIntentsController.VoidRequest`)
+are the only answers a caller may discard a key on: 200 `voided` (nothing was or can be paid under
+it) or 200 `revealed` (keep the key, follow the named payment / sponsorship). Both are actor-scoped
+- the account comes from the signed actor, never the request. Add funds proxies the node's own
+void (oasis-sleek `FiatCheckoutController.VoidRequest`; it expires an open Stripe page first) and
+deliberately skips the readiness gate, like `GetPayment`. A FAILED void proved nothing:
+`MoneyRefusal.ForFailedVoid` turns a final-looking code into `unconfirmed`, so 503
+DEPENDENCY_UNAVAILABLE / RAIL_BUSY, 409 INTENT_NEEDS_REVIEW / REQUEST_KEY_IN_USE, a 400, and a 200
+with an unknown outcome word all keep the key.
 
 **Resolution order** (`MoneyRefusal.From`): the upstream `Result<T>.Code` first, then the
 `ResultType`, then message markers, then the call-site context as a last fallback.
@@ -150,7 +167,9 @@ the key for this request:
 | Signal | Code |
 | --- | --- |
 | `KYB_REQUIRED` (node) | `kyb_required` |
-| `INTENT_FINISHED` / `INTENT_EXPIRED` / `REQUEST_KEY_IN_USE` | `definite` |
+| `REQUEST_VOIDED` / `INTENT_EXPIRED` | `definite` (reason `voided` / `expired`) |
+| `INTENT_FINISHED` / `REQUEST_KEY_IN_USE` | `finished` (reason `finished` / `key_in_use`) |
+| `RAIL_REFUSED` (node 400 after its claim) | `unconfirmed` (reason `rail_refused`) |
 | `INTENT_NEEDS_REVIEW` | `unconfirmed` (reason `needs_review`) |
 | `PAYMENTS_NOT_CONFIGURED`, BFF route-guard / unconfigured transport | `payments_not_configured` |
 | BFF `ARDANOVA_UPSTREAM_RATE_LIMITED` (a real node 429) | `rail_busy`, `retryAfterSeconds` 30 |
@@ -159,7 +178,7 @@ the key for this request:
 | `ValidationError`, `BadRequest` | `definite` |
 | `Failure` (timeout, empty/unparseable/no-payload 2xx, dropped connection) | `unconfirmed`, HTTP 503 |
 | `Forbidden` + "review team is finishing one last check" | `under_review` |
-| `Forbidden` + `KYC_FORBIDDEN:` (also never-finished KYC) | `setup_required` |
+| `Forbidden` + `KYC_FORBIDDEN:` (also never-finished KYC, and the node checkout's "has to finish identity verification", L-4) | `setup_required` |
 | `Forbidden`, add-funds checkout (units:issue consent probe) | `consent_revoked` |
 | `Forbidden`, custodial lifecycle, UNCODED | `kyb_required`; coded non-KYB → `payments_not_configured` |
 | `Forbidden`, payout destination SETUP (F-H8, POST only) | `account_holder_required` |

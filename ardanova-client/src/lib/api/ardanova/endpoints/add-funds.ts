@@ -52,4 +52,19 @@ export class AddFundsEndpoint {
       apiPath`/api/add-funds/${paymentId}`,
     );
   }
+
+  /**
+   * Asks the server to void a saved request key: `voided` means nothing was or can be paid under
+   * it; `revealed` names the payment that may have been. No body - the key is the whole request.
+   */
+  voidRequest(requestKey: string): Promise<ApiResponse<AddFundsVoid>> {
+    return this.client.post<AddFundsVoid>(
+      apiPath`/api/add-funds/requests/${requestKey}/void`,
+    );
+  }
 }
+
+/** The BFF's answer to a void: the key may go only on `voided`. */
+export type AddFundsVoid =
+  | { outcome: "voided" }
+  | { outcome: "revealed"; payment: AddFundsPayment };

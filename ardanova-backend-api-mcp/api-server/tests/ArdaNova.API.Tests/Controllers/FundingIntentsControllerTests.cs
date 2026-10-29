@@ -78,10 +78,12 @@ public class FundingIntentsControllerTests
 
     public static TheoryData<Result<FundingCheckoutDto>, int, string, string?> CheckoutRefusals => new()
     {
-        // Pre-persist refusals and final states release the caller's key; in-progress ones never do.
+        // Pre-persist refusals and a voided key release the caller's key; a final state is resolved
+        // through the void route (it may or may not have taken anything); in-progress ones never do.
         { Result<FundingCheckoutDto>.ValidationError("Sponsorship is not open for this project"), 400, MoneyRefusalCodes.Definite, null },
-        { Result<FundingCheckoutDto>.Conflict("On hold. Nothing was taken.").WithCode(UpstreamFailureCodes.IntentFinished), 409, MoneyRefusalCodes.Definite, MoneyRefusalReasons.Finished },
-        { Result<FundingCheckoutDto>.Conflict("That key was already used for a different sponsorship").WithCode(UpstreamFailureCodes.RequestKeyInUse), 409, MoneyRefusalCodes.Definite, MoneyRefusalReasons.KeyInUse },
+        { Result<FundingCheckoutDto>.Conflict("This sponsorship request was cancelled.").WithCode(UpstreamFailureCodes.RequestVoided), 409, MoneyRefusalCodes.Definite, MoneyRefusalReasons.Voided },
+        { Result<FundingCheckoutDto>.Conflict("On hold. Nothing was taken.").WithCode(UpstreamFailureCodes.IntentFinished), 409, MoneyRefusalCodes.Finished, MoneyRefusalReasons.Finished },
+        { Result<FundingCheckoutDto>.Conflict("That key was already used for a different sponsorship").WithCode(UpstreamFailureCodes.RequestKeyInUse), 409, MoneyRefusalCodes.Finished, MoneyRefusalReasons.KeyInUse },
         { Result<FundingCheckoutDto>.Conflict("This sponsorship is being completed; check back shortly."), 409, MoneyRefusalCodes.Unconfirmed, null },
         { Result<FundingCheckoutDto>.Failure("The request could not be completed"), 503, MoneyRefusalCodes.Unconfirmed, null },
     };
@@ -110,6 +112,28 @@ public class FundingIntentsControllerTests
         var body = response.Value!;
         body.GetType().GetProperty("code")!.GetValue(body).Should().Be(moneyCode);
         body.GetType().GetProperty("reason")!.GetValue(body).Should().Be(reason);
+    }
+
+    public static TheoryData<Result<FundingIntentVoidDto>, int> FailedVoids => new()
+    {
+        { Result<FundingIntentVoidDto>.ValidationError("A canonical idempotency key is required"), 400 },
+        { Result<FundingIntentVoidDto>.Conflict("This sponsorship is being completed; check back shortly."), 409 },
+        { Result<FundingIntentVoidDto>.Failure("The request could not be completed"), 503 },
+    };
+
+    [Theory]
+    [MemberData(nameof(FailedVoids))]
+    public async Task VoidRequest_AFailedVoidNeverCarriesAReleasingCode(Result<FundingIntentVoidDto> refusal, int status)
+    {
+        var service = new Mock<IFundingIntentService>();
+        service.Setup(item => item.VoidRequestAsync("user-1", "key-1", It.IsAny<CancellationToken>())).ReturnsAsync(refusal);
+        var controller = CreateController(service.Object, "user-1");
+
+        var result = await controller.VoidRequest("key-1", CancellationToken.None);
+
+        var response = result.Should().BeAssignableTo<ObjectResult>().Subject;
+        response.StatusCode.Should().Be(status);
+        response.Value!.GetType().GetProperty("code")!.GetValue(response.Value).Should().Be(MoneyRefusalCodes.Unconfirmed);
     }
 
     private static FundingIntentsController CreateController(IFundingIntentService service, string userId)

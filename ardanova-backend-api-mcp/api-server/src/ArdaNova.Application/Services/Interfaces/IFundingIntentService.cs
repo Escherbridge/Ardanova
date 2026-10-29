@@ -25,4 +25,13 @@ public interface IFundingIntentService
         string intentId,
         string actorId,
         CancellationToken ct = default);
+
+    /// <summary>
+    /// Voids the actor's request key so nothing can ever be taken under it, or reveals the sponsorship
+    /// that may. Only <c>voided</c> lets a caller discard the key; see Implementations/AGENTS.md §Sponsorship void.
+    /// </summary>
+    Task<Result<FundingIntentVoidDto>> VoidRequestAsync(
+        string actorId,
+        string idempotencyKey,
+        CancellationToken ct = default);
 }

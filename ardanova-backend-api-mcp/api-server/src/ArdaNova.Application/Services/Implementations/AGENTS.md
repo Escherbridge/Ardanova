@@ -133,11 +133,54 @@ final state) even if the person went under review or the project's gate closed s
 call; checking readiness first would answer an admitted request's retry with "finish your setup".
 It also means every refusal after the lookup is pre-admission.
 
-Which 409s are final is now said in a machine code, not left to a status
-(`ArdaNova.API/Controllers/AGENTS.md` §Money refusal codes): `HoldAsync` (settlement and outbox
+Which 409s are final is said in a machine code, not left to a status
+(`ArdaNova.API/Controllers/AGENTS.md` §Money refusal codes): a hold (settlement and outbox
 CANCELLED, nothing taken), a HOLDING or closed replay, and a key reused for a different
-sponsorship carry `INTENT_FINISHED` / `REQUEST_KEY_IN_USE`. The attempt-ceiling 409 ("being
+sponsorship carry `INTENT_FINISHED` / `REQUEST_KEY_IN_USE` - which the BFF maps to `finished`, a
+code no caller releases on; a voided key carries `REQUEST_VOIDED`. The attempt-ceiling 409 ("being
 completed; check back shortly") carries none, because that sponsorship may still settle.
+
+# Sponsorship void
+
+`FundingIntentService.VoidRequestAsync` (`POST /api/funding-intents/requests/{key}/void`) is the
+only server answer a sponsor's browser may drop its saved key on. It voids only what it can prove
+dead and reveals everything else:
+
+| Under (funderUserId, key) | Void does | Answer |
+| --- | --- | --- |
+| no intent | writes a `FundingIntentVoid` tombstone, then re-reads | `voided` (no id) - or decides the intent a racing create committed |
+| CANCELLED (a void's own) | nothing | `voided` |
+| DRAFT, settlement AUTHORIZED | CAS AUTHORIZED -> CANCELLED (outbox PENDING+unleased -> CANCELLED), intent CANCELLED | `voided`; a lost CAS re-reads and decides again |
+| DRAFT, settlement released | nothing - the request that released it may be asking the node now | `revealed` |
+| HOLDING / FAILED / REJECTED, settlement closed and no node operation | nothing | `voided` |
+| SETTLEMENT_PENDING (after the read-only advance a poll makes), SETTLED, anything else | nothing | `revealed` |
+
+**AUTHORIZED is the void's window.** A sponsorship's settlement is created AUTHORIZED, which the
+outbox worker never takes (it leases PENDING_DISPATCH only), and only `ReleaseAndDispatchAsync`
+moves it to PENDING_DISPATCH - by compare-and-set (`IEconomicOutboxLeaseStore.TryReleaseForDispatchAsync`),
+immediately before the request's own node call. So "nothing has been or can be dispatched" is a
+row state, and the void's cancel and the release are one compare-and-set race with one winner. This
+is also the transition `EconomicSettlementStateMachine` allows (AUTHORIZED -> CANCELLED, never
+PENDING_DISPATCH -> CANCELLED). Consequence: a request that dies after its commit and before its
+release leaves a dormant DRAFT that nothing dispatches until its sponsor tries again (a replay
+releases it the same way) or cancels it.
+
+**The tombstone handshake.** A tombstone lives in its own table, so no unique index serialises it
+with an intent. Instead each side writes its own marker and only then reads the other's: the void
+commits the tombstone and then reads for an intent; the create commits its intent and then
+(`ReleaseAndDispatchAsync`) reads for a tombstone. Under READ COMMITTED at least one of the two sees
+the other, so a void can never answer `voided` while that create dispatches. A create that sees the
+tombstone cancels its own still-AUTHORIZED settlement and answers `REQUEST_VOIDED`; a later create
+with the key is refused before readiness. Proven on real Postgres by
+`ArdaNova.API.Tests/Flows/SponsorshipVoidFlowTests`.
+
+**Never under a lease (M-5).** `TryHoldAsync` cancels a lapsed settlement through
+`TryCancelUnleasedAsync`: PENDING_DISPATCH at the expected version AND its outbox PENDING with no
+lease, outbox row first (`FinalizeAsync`'s lock order). A worker holding the lease may be mid-dispatch,
+so the hold does not land: a request-path lapse leaves the intent SETTLEMENT_PENDING following that
+worker, and a poll's lapse falls through to the ordinary pending checks. Every compare-and-set the
+service makes is mirrored onto the tracked rows, so a later `SaveChanges` repeats it instead of
+writing the old values back.
 
 The key covers the request BYTES the caller first sent - `requestedPlatformBaseUnits`, the config
 id and the disclosure version - so a caller resending a recomputed amount after a rate move gets a

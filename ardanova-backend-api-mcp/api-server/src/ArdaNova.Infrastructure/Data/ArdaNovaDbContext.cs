@@ -146,6 +146,7 @@ public class ArdaNovaDbContext : DbContext
     public DbSet<EconomicSettlement> EconomicSettlements => Set<EconomicSettlement>();
     public DbSet<EconomicOutbox> EconomicOutboxes => Set<EconomicOutbox>();
     public DbSet<FundingIntent> FundingIntents => Set<FundingIntent>();
+    public DbSet<FundingIntentVoid> FundingIntentVoids => Set<FundingIntentVoid>();
     public DbSet<TaskCommerceAgreement> TaskCommerceAgreements => Set<TaskCommerceAgreement>();
     public DbSet<AssetDefinition> AssetDefinitions => Set<AssetDefinition>();
     public DbSet<ProjectTokenPolicy> ProjectTokenPolicies => Set<ProjectTokenPolicy>();

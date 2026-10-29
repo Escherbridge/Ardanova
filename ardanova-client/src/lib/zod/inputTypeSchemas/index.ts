@@ -96,6 +96,7 @@ export { ProjectInvestmentScalarFieldEnumSchema } from './ProjectInvestmentScala
 export { EconomicSettlementScalarFieldEnumSchema } from './EconomicSettlementScalarFieldEnumSchema';
 export { EconomicOutboxScalarFieldEnumSchema } from './EconomicOutboxScalarFieldEnumSchema';
 export { FundingIntentScalarFieldEnumSchema } from './FundingIntentScalarFieldEnumSchema';
+export { FundingIntentVoidScalarFieldEnumSchema } from './FundingIntentVoidScalarFieldEnumSchema';
 export { TaskCommerceAgreementScalarFieldEnumSchema } from './TaskCommerceAgreementScalarFieldEnumSchema';
 export { AssetDefinitionScalarFieldEnumSchema } from './AssetDefinitionScalarFieldEnumSchema';
 export { ProjectTokenPolicyScalarFieldEnumSchema } from './ProjectTokenPolicyScalarFieldEnumSchema';

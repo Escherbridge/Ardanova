@@ -12,11 +12,18 @@ export const MONEY_REFUSAL_CODES = [
   "payments_not_configured",
   "rail_busy",
   "definite",
+  /** A final state that may include a payment: never releases, the page asks the void route. */
+  "finished",
   "unconfirmed",
   "unauthenticated",
 ] as const;
 
 export type MoneyRefusalCode = (typeof MONEY_REFUSAL_CODES)[number];
+
+/** Codes that LOOK final. Without a server id to read, the page settles them through void-or-reveal. */
+export function looksFinal(code: MoneyRefusalCode | null): boolean {
+  return code === "definite" || code === "finished";
+}
 
 const KNOWN_CODES: ReadonlySet<string> = new Set(MONEY_REFUSAL_CODES);
 

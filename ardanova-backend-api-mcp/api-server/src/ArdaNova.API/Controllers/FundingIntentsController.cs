@@ -45,6 +45,24 @@ public sealed class FundingIntentsController : ControllerBase
             : RefusalResult(result.Type, body);
     }
 
+    /// <summary>
+    /// Voids the actor's own request key, or reveals the sponsorship under it. Only a 200
+    /// <c>voided</c> lets a caller drop its key; see Controllers/AGENTS.md §Request-key void.
+    /// </summary>
+    [HttpPost("requests/{requestKey}/void")]
+    public async Task<IActionResult> VoidRequest(string requestKey, CancellationToken ct)
+    {
+        var actorId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
+        var result = await _fundingIntentService.VoidRequestAsync(actorId, requestKey, ct);
+        if (result.IsSuccess)
+            return Ok(result.Value);
+
+        var body = MoneyRefusal.ToErrorBody(MoneyRefusal.ForFailedVoid(result));
+        return result.Type == ResultType.Forbidden
+            ? StatusCode(StatusCodes.Status403Forbidden, body)
+            : RefusalResult(result.Type, body);
+    }
+
     /// <summary>Reads only the durable funding state owned by the authenticated actor.</summary>
     [HttpGet("{intentId}")]
     public async Task<IActionResult> GetStatus(string intentId, CancellationToken ct)

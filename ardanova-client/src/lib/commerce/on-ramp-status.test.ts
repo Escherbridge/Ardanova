@@ -4,6 +4,7 @@ import type { ValueActionAccountStatus } from "~/lib/contracts/project-create-co
 
 import {
   ADD_FUNDS_UNAVAILABLE_MESSAGE,
+  addFundsFallbackMessage,
   describeAddFundsAmountProblem,
   getAddFundsReadiness,
   getOnRampPresentation,
@@ -237,5 +238,23 @@ describe("the words a non-crypto sponsor is shown", () => {
       expect(copy).not.toContain(word);
     }
     expect(copy).toContain("charge");
+  });
+
+  // M-4: only a code that proves nothing could charge may say so.
+  it.each([
+    ["payments_not_configured", true],
+    ["definite", true],
+    ["finished", false],
+    ["unconfirmed", false],
+    ["rail_busy", false],
+    ["consent_revoked", false],
+    [null, false],
+  ] as const)("the fallback for %s promises nothing was charged: %s", (code, promises) => {
+    const copy = addFundsFallbackMessage(code).toLowerCase();
+
+    expect(/can charge you|nothing was charged/u.test(copy)).toBe(promises);
+    for (const word of forbidden) {
+      expect(copy).not.toContain(word);
+    }
   });
 });

@@ -150,8 +150,9 @@ export function recordAdmittedId<TWire>(
 }
 
 /**
- * Forgets `requestKey` once the server has given a final answer for it. Keyed, so an answer that
- * arrives late for an OLD key can never erase a newer one saved since.
+ * Forgets `requestKey` once the server has proved it dead (a `voided` answer) or its own record
+ * reached a final state. Keyed, so an answer that arrives late for an OLD key can never erase a
+ * newer one saved since.
  */
 export function clearSavedRequest<TWire>(
   storage: Storage,
@@ -168,42 +169,84 @@ export function clearSavedRequest<TWire>(
   }
 }
 
-/** Erases every saved money request belonging to `subjectId` on this device. Run at sign-out. */
-export function clearSavedRequestsForSubject(
+/**
+ * Sign-out: drops only `subjectId`'s RESOLVED entries - the unreadable ones, which protect nothing.
+ * A readable entry is unresolved by construction (every final answer clears it), so it stays: it is
+ * stored under this subject's fingerprint and the server binds the key to this person, so the next
+ * person on the device can neither see nor use it, and dropping it would forget a payment that may
+ * still clear. See `./AGENTS.md` §Persisted request keys.
+ */
+export function clearResolvedRequestsForSubject(
   storage: Storage,
   subjectId: string,
 ): void {
   try {
     const prefix = subjectPrefix(subjectId);
-    const owned: string[] = [];
+    const resolved: string[] = [];
     for (let index = 0; index < storage.length; index += 1) {
       const key = storage.key(index);
-      if (key?.startsWith(prefix)) owned.push(key);
+      if (key?.startsWith(prefix) && !isReadableEnvelope(storage.getItem(key)))
+        resolved.push(key);
     }
-    for (const key of owned) storage.removeItem(key);
+    for (const key of resolved) storage.removeItem(key);
   } catch {
     // Blocked storage never held anything to erase.
   }
 }
 
-/**
- * The ONLY answer that ends a saved key: the BFF's `definite` money code, set by the server and
- * only where nothing was, or ever will be, admitted under the key. Anything else - a missing or
- * unknown code, a network drop, a 4xx with no code - keeps it.
- */
-export function releasesSavedRequest(moneyCode: unknown): boolean {
-  return moneyCode === "definite";
+function isReadableEnvelope(raw: string | null): boolean {
+  if (!raw) return false;
+  try {
+    return savedEnvelopeSchema.safeParse(JSON.parse(raw)).success;
+  } catch {
+    return false;
+  }
 }
 
-/** After a failed send: forgets the key on `definite`, keeps it on anything else. */
-export function settleSavedRequestAfterFailure<TWire>(
+/**
+ * The one way a page learns whether a saved key may go: the server's void-or-reveal answer.
+ * `voided` - nothing was or can be paid under the key; `revealed` - something may have been.
+ */
+export type VoidAnswer<TRevealed> =
+  | { outcome: "voided" }
+  | { outcome: "revealed"; revealed: TRevealed };
+
+/** What became of a saved key after asking the server to void it. */
+export type VoidSettlement<TWire, TRevealed> =
+  | { kind: "released" }
+  | { kind: "revealed"; revealed: TRevealed; saved: SavedRequest<TWire> | null }
+  | { kind: "kept"; saved: SavedRequest<TWire> | null; error: unknown };
+
+/**
+ * Asks the server to void `requestKey` and settles storage on its answer - the ONLY path that
+ * releases a key. Re-reads storage first: a key another tab has since replaced is left alone. Any
+ * failure (network, 503, needs review, an unreadable answer) keeps the key.
+ */
+export async function voidSavedRequest<TWire, TRevealed>(
   storage: Storage,
   flow: RequestFlow<TWire>,
   subjectId: string,
   requestKey: string,
-  moneyCode: unknown,
-): "released" | "kept" {
-  if (!releasesSavedRequest(moneyCode)) return "kept";
-  clearSavedRequest(storage, flow, subjectId, requestKey);
-  return "released";
+  voidRequest: (requestKey: string) => Promise<VoidAnswer<TRevealed>>,
+): Promise<VoidSettlement<TWire, TRevealed>> {
+  const current = readSavedRequest(storage, flow, subjectId);
+  if (current && current.requestKey !== requestKey)
+    return { kind: "kept", saved: current, error: null };
+
+  let answer: VoidAnswer<TRevealed>;
+  try {
+    answer = await voidRequest(requestKey);
+  } catch (error) {
+    return { kind: "kept", saved: readSavedRequest(storage, flow, subjectId), error };
+  }
+
+  if (answer.outcome === "voided") {
+    clearSavedRequest(storage, flow, subjectId, requestKey);
+    return { kind: "released" };
+  }
+  return {
+    kind: "revealed",
+    revealed: answer.revealed,
+    saved: readSavedRequest(storage, flow, subjectId),
+  };
 }

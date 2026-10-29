@@ -58,8 +58,11 @@ detail is replaced with a fixed message.
 The node's prose is collapsed; its machine `code` is not. `AzoaNodeClient.MapError` copies the
 envelope's `code` onto the result (`Result<T>.Code`, see `ArdaNova.Application/Common/AGENTS.md`
 §Failure codes), so `KYB_REQUIRED` and the same-key outcomes (`INTENT_FINISHED`,
-`INTENT_EXPIRED`, `REQUEST_KEY_IN_USE`, `INTENT_NEEDS_REVIEW`) reach `MoneyRefusal` as facts
-rather than call-site guesses. Two labels are the transport's own: a 429 is always
+`INTENT_EXPIRED`, `REQUEST_KEY_IN_USE`, `INTENT_NEEDS_REVIEW`, `REQUEST_VOIDED`, `RAIL_REFUSED`)
+reach `MoneyRefusal` as facts rather than call-site guesses. One prose signal is kept on purpose:
+the node checkout's KYC refusal shares the consent refusal's `FORBIDDEN` code, so a 403 whose
+sentence says the account "has to finish identity verification" collapses to the public
+`KYC_FORBIDDEN:` message (`CheckoutKycMarker`) and reads as `setup_required`, not `consent_revoked`. Two labels are the transport's own: a 429 is always
 `ARDANOVA_UPSTREAM_RATE_LIMITED` (the only failure anyone may call "busy"), and a route guard
 refusing to send is `ARDANOVA_ROUTE_NOT_ALLOWED` - a configuration fault, never a person's KYB.
 An empty, unparseable or payload-less 2xx, a timeout and a dropped connection carry NO code: the
@@ -176,6 +179,12 @@ per-tick rate, because the live rate is backing-derived from that seed (users th
 dollars; ARDA is at most a derived caption, never the unit a sponsor is asked to reason
 in); `MinimumAmountMinorUnits`/`MaximumAmountMinorUnits` bound one payment ($1–$10,000 by
 default).
+
+`VoidRequestAsync` is the request-key void (oasis-sleek f2cb4fe8): `POST
+/api/fiat/checkout/{account}/requests/{key}/void`, no body, the key ONE escaped segment of the
+node's own alphabet (`IsCheckoutVoidPath` refuses anything else, and a dot-only key never leaves).
+It returns `voided` or `revealed` (with the same projection a read returns); an outcome word it does
+not know, or a reveal it cannot describe, is a `Conflict` - never read as "voided".
 
 `ArdaOnRampPriceScheduleRegistrar` declares that price to the node exactly once, after
 boot. It never blocks startup and never throws: an unregistered price makes the on-ramp

@@ -40,10 +40,21 @@ public class FundingIntentServiceTests
     private readonly Mock<IFundingSettlementReadiness> _settlementReadiness = new();
     private readonly Mock<IAzoaValueEligibilityService> _valueEligibility = new();
     private readonly Mock<IUnitOfWork> _unitOfWork = new();
+    private readonly Mock<IRepository<FundingIntentVoid>> _voids = new();
+    private readonly Mock<IEconomicOutboxLeaseStore> _leases = new();
     private readonly FundingIntentService _sut;
 
     public FundingIntentServiceTests()
     {
+        // The outbox compare-and-sets land unless a test says a worker or a void got there first.
+        _leases.Setup(store => store.TryReleaseForDispatchAsync(It.IsAny<string>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+        _leases.Setup(store => store.TryCancelUnleasedAsync(
+                It.IsAny<string>(), It.IsAny<int>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+        _leases.Setup(store => store.TryCancelUndispatchedAsync(
+                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
         _settlementReadiness.SetupGet(readiness => readiness.IsReady).Returns(true);
         _settlementReadiness.SetupGet(readiness => readiness.UnavailableReason).Returns(string.Empty);
         _valueEligibility
@@ -74,7 +85,9 @@ public class FundingIntentServiceTests
             _projectGate.Object,
             _settlementReadiness.Object,
             _valueEligibility.Object,
-            _unitOfWork.Object);
+            _unitOfWork.Object,
+            _voids.Object,
+            _leases.Object);
     }
 
     [Fact]
@@ -361,7 +374,7 @@ public class FundingIntentServiceTests
 
         result.Type.Should().Be(ResultType.Conflict);
         result.Error.Should().EndWith("Nothing was taken.");
-        // Final for the key - and said in a code, so the caller may release it on this 409 alone.
+        // Final for the key, said in a code - which the caller resolves through the void route, never by releasing on it.
         result.Code.Should().Be(UpstreamFailureCodes.IntentFinished);
         captured.Intent!.status.Should().Be(FundingIntentStatus.HOLDING);
         captured.Intent.heldAt.Should().NotBeNull();
@@ -546,6 +559,27 @@ public class FundingIntentServiceTests
         _gateway.Verify(
             gateway => gateway.DispatchAsync(It.IsAny<AzoaSettlementRequest>(), It.IsAny<CancellationToken>()),
             Times.Never);
+    }
+
+    [Fact]
+    public async Task GetStatusAsync_ALapseWhoseOutboxAWorkerHoldsIsNotHeldAndCancelsNothing()
+    {
+        var fixture = ArrangeEligibleFunding();
+        var (intent, settlement, outbox) = PendingSponsorship(fixture);
+        settlement.status = EconomicSettlementStatus.PENDING_DISPATCH;
+        settlement.failureCode = "AZOA_PROJECT_OWNER_NOT_READY";
+        outbox.status = EconomicOutboxStatus.LEASED;
+        // The store's compare-and-set loses to the worker's lease: that worker may be mid-dispatch.
+        _leases.Setup(store => store.TryCancelUnleasedAsync(
+                settlement.id, It.IsAny<int>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(false);
+
+        var result = await _sut.GetStatusAsync(intent.id, ActorId);
+
+        result.Value!.Status.Should().Be(nameof(FundingIntentStatus.SETTLEMENT_PENDING));
+        settlement.status.Should().Be(EconomicSettlementStatus.PENDING_DISPATCH);
+        outbox.status.Should().Be(EconomicOutboxStatus.LEASED);
+        intent.heldAt.Should().BeNull();
     }
 
     [Fact]

@@ -90,9 +90,11 @@ error. It exists so a stat tile computed from `data ?? []` never shows `$0` or
 Money pages must tell one cash-out story. `CASH_OUT_NOT_AVAILABLE` matches
 add-funds' "You cannot cash out yet" bullet. `readCashOutState` folds the
 withdraw availability (and on `/portfolio/withdraw`, destination) reads into
-`checking | unavailable | available | unknown`. A 503 `SERVICE_UNAVAILABLE`,
-operator wording, "not switched on", or a read answering `available: false`
-all mean `unavailable`, and the gate wins over a read that is still loading.
+`checking | unavailable | available | unknown`. Only the BFF money code
+`payments_not_configured` (carried by `routers/payouts.ts` as `error.data.moneyCode`)
+or a read answering `available: false` mean `unavailable`, and the gate wins over
+a read that is still loading. A bare 503 is NOT the gate (round-3 M-3): every money
+route answers a transient failure with 503 `unconfirmed`, which reads as `unknown`.
 
 - `describeCashOutStep` promises a bank send only for `available`. `/swap`
   step two used to say "can be sent to your bank whenever you like" whatever

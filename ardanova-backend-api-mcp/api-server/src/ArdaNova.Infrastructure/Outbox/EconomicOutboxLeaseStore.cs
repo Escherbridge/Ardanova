@@ -247,6 +247,124 @@ public sealed class EconomicOutboxLeaseStore : IEconomicOutboxLeaseStore
         return true;
     }
 
+    /// <inheritdoc/>
+    public async Task<bool> TryReleaseForDispatchAsync(string settlementId, DateTime now, CancellationToken ct = default)
+    {
+        var released = await _context.EconomicSettlements
+            .Where(item => item.id == settlementId && item.status == EconomicSettlementStatus.AUTHORIZED)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(item => item.status, EconomicSettlementStatus.PENDING_DISPATCH)
+                .SetProperty(item => item.updatedAt, now)
+                .SetProperty(item => item.version, item => item.version + 1), ct);
+        return released == 1;
+    }
+
+    /// <inheritdoc/>
+    public async Task<EconomicSettlementStatus?> ReadSettlementStatusAsync(string settlementId, CancellationToken ct = default)
+        => await _context.EconomicSettlements
+            .AsNoTracking()
+            .Where(item => item.id == settlementId)
+            .Select(item => (EconomicSettlementStatus?)item.status)
+            .FirstOrDefaultAsync(ct);
+
+    /// <inheritdoc/>
+    public Task<bool> TryCancelUndispatchedAsync(
+        string settlementId,
+        string failureCode,
+        string? failureDetail,
+        DateTime now,
+        CancellationToken ct = default)
+        => CancelBothAsync(
+            settlementId,
+            settlement => settlement.status == EconomicSettlementStatus.AUTHORIZED,
+            failureCode,
+            failureDetail,
+            now,
+            ct);
+
+    /// <inheritdoc/>
+    public Task<bool> TryCancelUnleasedAsync(
+        string settlementId,
+        int expectedSettlementVersion,
+        string? failureCode,
+        string? failureDetail,
+        DateTime now,
+        CancellationToken ct = default)
+        => CancelBothAsync(
+            settlementId,
+            settlement => settlement.status == EconomicSettlementStatus.PENDING_DISPATCH
+                && settlement.version == expectedSettlementVersion,
+            failureCode,
+            failureDetail,
+            now,
+            ct);
+
+    /// <summary>
+    /// Compare-and-set cancel of one outbox and its settlement, outbox row first - the lock order
+    /// <see cref="FinalizeAsync"/> takes - so it can neither deadlock with nor overwrite a lease holder.
+    /// </summary>
+    private async Task<bool> CancelBothAsync(
+        string settlementId,
+        System.Linq.Expressions.Expression<Func<ArdaNova.Domain.Models.Entities.EconomicSettlement, bool>> settlementIsCancellable,
+        string? failureCode,
+        string? failureDetail,
+        DateTime now,
+        CancellationToken ct)
+    {
+        // Its own transaction, or a savepoint inside the caller's, so a half-landed cancel never survives.
+        const string Savepoint = "economic_outbox_cancel";
+        var ambient = _context.Database.CurrentTransaction;
+        var owned = ambient is null ? await _context.Database.BeginTransactionAsync(ct) : null;
+        if (ambient is not null)
+            await ambient.CreateSavepointAsync(Savepoint, ct);
+
+        try
+        {
+            var cancellableSettlement = _context.EconomicSettlements
+                .Where(item => item.id == settlementId)
+                .Where(settlementIsCancellable);
+
+            var outboxCancelled = await _context.EconomicOutboxes
+                .Where(item => item.settlementId == settlementId
+                    && item.status == EconomicOutboxStatus.PENDING
+                    && item.leaseToken == null
+                    && cancellableSettlement.Any())
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(item => item.status, EconomicOutboxStatus.CANCELLED)
+                    .SetProperty(item => item.failureCode, failureCode)
+                    .SetProperty(item => item.failureDetail, failureDetail)
+                    .SetProperty(item => item.updatedAt, now), ct);
+
+            var settlementCancelled = outboxCancelled == 1
+                ? await cancellableSettlement
+                    .ExecuteUpdateAsync(setters => setters
+                        .SetProperty(item => item.status, EconomicSettlementStatus.CANCELLED)
+                        .SetProperty(item => item.failureCode, failureCode)
+                        .SetProperty(item => item.failureDetail, failureDetail)
+                        .SetProperty(item => item.updatedAt, now)
+                        .SetProperty(item => item.version, item => item.version + 1), ct)
+                : 0;
+
+            if (settlementCancelled != 1)
+            {
+                if (owned is not null)
+                    await owned.RollbackAsync(CancellationToken.None);
+                else
+                    await ambient!.RollbackToSavepointAsync(Savepoint, CancellationToken.None);
+                return false;
+            }
+
+            if (owned is not null)
+                await owned.CommitAsync(ct);
+            return true;
+        }
+        finally
+        {
+            if (owned is not null)
+                await owned.DisposeAsync();
+        }
+    }
+
     private IQueryable<ArdaNova.Domain.Models.Entities.EconomicOutbox> EligibleOutboxes(
         EconomicOutboxClaimKind kind,
         DateTime now)

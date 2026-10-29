@@ -2580,6 +2580,22 @@ Table FundingIntent {
 Ref: FundingIntent.funderUserId > User.id
 Ref: FundingIntent.projectId > Project.id
 Ref: FundingIntent.projectTokenConfigId > ProjectTokenConfig.id
+
+// A sponsorship request key its sponsor voided before any FundingIntent was admitted under it.
+// The row is the tombstone: a create that later arrives with the same (funderUserId,
+// idempotencyKey) is refused as REQUEST_VOIDED instead of admitted. An intent admitted and then
+// voided is not recorded here; it becomes FundingIntent.status CANCELLED.
+Table FundingIntentVoid {
+  id varchar [not null, pk, default: `cuid()`]
+  funderUserId varchar [not null]
+  idempotencyKey varchar [not null, note: 'The voided caller replay key; no sponsorship is ever admitted under it']
+  createdAt datetime [not null, default: `now()`]
+
+  indexes {
+    (funderUserId, idempotencyKey) [unique]
+  }
+}
+Ref: FundingIntentVoid.funderUserId > User.id
 // The unique settlementId establishes a one-intent/one-economic-decision link.
 // EconomicOutbox remains reachable through EconomicSettlement to avoid a
 // duplicate dispatch relationship.

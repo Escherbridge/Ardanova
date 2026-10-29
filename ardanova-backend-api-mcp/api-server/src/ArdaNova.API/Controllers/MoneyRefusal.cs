@@ -23,6 +23,12 @@ public static class MoneyRefusalCodes
     /// </summary>
     public const string Definite = "definite";
 
+    /// <summary>
+    /// The request behind the key reached a final state that MAY include a payment. Never releases a
+    /// key: the caller reads the admitted record, or asks the void route, and decides by state.
+    /// </summary>
+    public const string Finished = "finished";
+
     public const string Unconfirmed = "unconfirmed";
     public const string Unauthenticated = "unauthenticated";
 }
@@ -30,17 +36,23 @@ public static class MoneyRefusalCodes
 /// <summary>Why a refusal carries the code it does, when the code alone does not say.</summary>
 public static class MoneyRefusalReasons
 {
-    /// <summary>The intent behind the key reached a final state; nothing more will happen under it.</summary>
+    /// <summary>The intent behind the key reached a terminal state, paid or not.</summary>
     public const string Finished = "finished";
 
-    /// <summary>The intent behind the key expired unpaid.</summary>
+    /// <summary>The intent behind the key expired, and a fresh provider read proved it unpaid.</summary>
     public const string Expired = "expired";
 
-    /// <summary>The key covers a different request, so this one was never admitted under it.</summary>
+    /// <summary>The key covers a different request, which may itself have been paid.</summary>
     public const string KeyInUse = "key_in_use";
 
     /// <summary>The intent behind the key is held for a human decision; its outcome is still open.</summary>
     public const string NeedsReview = "needs_review";
+
+    /// <summary>The key was voided; nothing was or can be paid under it.</summary>
+    public const string Voided = "voided";
+
+    /// <summary>The rail refused after the key was claimed; the claim stands and may still be replayed.</summary>
+    public const string RailRefused = "rail_refused";
 }
 
 /// <summary>The error body every money endpoint carries, alongside whatever route-specific fields already exist.</summary>
@@ -99,6 +111,19 @@ public static class MoneyRefusal
     public static MoneyRefusalBody For(string code, string message) => new(code, message, RetryAfterFor(code));
 
     /// <summary>
+    /// A failed VOID: it proved nothing, so a final-looking code becomes <c>unconfirmed</c>. Only a
+    /// 200 <c>voided</c> outcome may release a key; see Controllers/AGENTS.md §Request-key void.
+    /// </summary>
+    public static MoneyRefusalBody ForFailedVoid<T>(
+        Result<T> result, MoneyRefusalContext context = MoneyRefusalContext.General, string? fallbackMessage = null)
+    {
+        var refusal = From(result, context, fallbackMessage);
+        return refusal.Code is MoneyRefusalCodes.Definite or MoneyRefusalCodes.Finished
+            ? refusal with { Code = MoneyRefusalCodes.Unconfirmed }
+            : refusal;
+    }
+
+    /// <summary>
     /// The wire shape every money-endpoint error carries: the pre-existing <c>error</c> field
     /// (so <c>readApiError</c> in the Next.js client keeps working unmodified) plus the
     /// <c>code</c>/<c>message</c>/<c>retryAfterSeconds</c>/<c>reason</c> fields callers classify on.
@@ -116,12 +141,20 @@ public static class MoneyRefusal
         code == MoneyRefusalCodes.RailBusy ? RailBusyRetryAfterSeconds : null;
 
     /// <summary>A real upstream code outranks every inference below; null when it names nothing this table knows.</summary>
+    /// <remarks>
+    /// Only an emitter that PROVED nothing was or can be paid earns <c>definite</c>: the node's
+    /// REQUEST_VOIDED (a voided key) and INTENT_EXPIRED (sent only after a fresh Stripe read). A
+    /// terminal intent (INTENT_FINISHED - paid ones included) and a key bound to another request are
+    /// <c>finished</c>; a post-claim rail refusal is <c>unconfirmed</c>. See AGENTS.md §Money refusal codes.
+    /// </remarks>
     private static (string Code, string? Reason)? FromUpstreamCode(string? upstreamCode) => upstreamCode switch
     {
         UpstreamFailureCodes.KybRequired => (MoneyRefusalCodes.KybRequired, null),
-        UpstreamFailureCodes.IntentFinished => (MoneyRefusalCodes.Definite, MoneyRefusalReasons.Finished),
+        UpstreamFailureCodes.RequestVoided => (MoneyRefusalCodes.Definite, MoneyRefusalReasons.Voided),
         UpstreamFailureCodes.IntentExpired => (MoneyRefusalCodes.Definite, MoneyRefusalReasons.Expired),
-        UpstreamFailureCodes.RequestKeyInUse => (MoneyRefusalCodes.Definite, MoneyRefusalReasons.KeyInUse),
+        UpstreamFailureCodes.IntentFinished => (MoneyRefusalCodes.Finished, MoneyRefusalReasons.Finished),
+        UpstreamFailureCodes.RequestKeyInUse => (MoneyRefusalCodes.Finished, MoneyRefusalReasons.KeyInUse),
+        UpstreamFailureCodes.RailRefused => (MoneyRefusalCodes.Unconfirmed, MoneyRefusalReasons.RailRefused),
         UpstreamFailureCodes.IntentNeedsReview => (MoneyRefusalCodes.Unconfirmed, MoneyRefusalReasons.NeedsReview),
         UpstreamFailureCodes.PaymentsNotConfigured
             or UpstreamFailureCodes.RouteNotAllowed

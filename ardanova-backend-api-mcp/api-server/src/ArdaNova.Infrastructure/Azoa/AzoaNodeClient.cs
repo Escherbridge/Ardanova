@@ -18,6 +18,9 @@ public sealed class AzoaNodeClient : IAzoaNodeClient
     private const string KycForbiddenPrefix = "KYC_FORBIDDEN:";
     private const string KycForbiddenMessage = "KYC_FORBIDDEN: AZOA approval is required.";
 
+    /// <summary>The node checkout's own unfinished-KYC sentence (oasis-sleek <c>FiatRailProvider.BeginCheckoutAsync</c>), coded only FORBIDDEN.</summary>
+    private const string CheckoutKycMarker = "has to finish identity verification";
+
     /// <summary>The node's own not-found discriminator (<c>AzoaErrorCodes.NotFound</c>).</summary>
     internal const string NodeNotFoundCode = "NOT_FOUND";
 
@@ -207,9 +210,11 @@ public sealed class AzoaNodeClient : IAzoaNodeClient
 
     private static Result<T> CollapseError<T>(HttpStatusCode status, string? providerMessage)
     {
-        // Preserve only the public KYC signal, never the provider detail.
+        // Preserve only the public KYC signal, never the provider detail. The checkout's KYC refusal
+        // shares the consent refusal's FORBIDDEN code, so its sentence is the only thing telling them apart.
         if (status == HttpStatusCode.Forbidden
-            && providerMessage?.StartsWith(KycForbiddenPrefix, StringComparison.Ordinal) == true)
+            && (providerMessage?.StartsWith(KycForbiddenPrefix, StringComparison.Ordinal) == true
+                || providerMessage?.Contains(CheckoutKycMarker, StringComparison.Ordinal) == true))
         {
             return Result<T>.Forbidden(KycForbiddenMessage);
         }

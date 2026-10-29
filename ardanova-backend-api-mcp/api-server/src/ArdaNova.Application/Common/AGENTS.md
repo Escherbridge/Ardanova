@@ -11,7 +11,9 @@ controllers had to guess the cause from which call site they were in.
   result; a 429 is labelled `UpstreamFailureCodes.UpstreamRateLimited` by status instead. The
   typed clients' route guards set `RouteNotAllowed`, an unconfigured transport sets
   `TransportNotConfigured`, and `DisabledFiatRailGateway` sets `PaymentsNotConfigured`.
-  `FundingIntentService` sets `IntentFinished` / `RequestKeyInUse` on its own final-state 409s.
+  `FundingIntentService` sets `IntentFinished` / `RequestKeyInUse` on its own final-state 409s,
+  and `RequestVoided` on a voided key. `IntentFinished` never means "nothing was paid" - the node
+  sends it for paid intents too; only `RequestVoided` / `IntentExpired` carry that proof.
 - **Who must carry it.** Every helper that re-types a failure (`MapFailure`, `Propagate`,
   `ValueEligibilityFailure.Propagate`, `AzoaCashOutClient.Refused`) ends with
   `.WithCode(source.Code)`. Dropping it silently turns a real `KYB_REQUIRED` back into a guess.

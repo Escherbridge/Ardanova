@@ -1,7 +1,24 @@
+import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { apiClient } from "~/lib/api";
 import { moneyRefusalError } from "~/server/api/money-refusal-error";
 import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
+
+/** The sponsorship void's two 200 answers. An outcome word this app does not know is never "voided". */
+const voidAnswerSchema = z.discriminatedUnion("outcome", [
+  z.object({ outcome: z.literal("voided"), intentId: z.string().nullish() }),
+  z.object({
+    outcome: z.literal("revealed"),
+    intentId: z.string().min(1),
+    intent: z
+      .object({
+        intentId: z.string().min(1),
+        status: z.string().min(1),
+        holdingReasonDetail: z.string().nullish(),
+      })
+      .passthrough(),
+  }),
+]);
 
 const createCheckoutInput = z.object({
   projectTokenConfigId: z.string().min(1),
@@ -40,6 +57,33 @@ export const fundingIntentRouter = createTRPCRouter({
       }
 
       return response.data;
+    }),
+
+  /**
+   * Void-or-reveal for a saved sponsorship key: `voided` is the ONLY answer that lets the invest
+   * page drop the key; `revealed` names the sponsorship it must follow instead.
+   */
+  voidRequest: protectedProcedure
+    .input(z.object({ idempotencyKey: z.string().uuid() }))
+    .mutation(async ({ input }) => {
+      const response = await apiClient.fundingIntents.voidRequest(input.idempotencyKey);
+      if (response.error || !response.data) {
+        throw moneyRefusalError(
+          response,
+          response.error ?? "We couldn't check that sponsorship just now, so it stays saved.",
+        );
+      }
+
+      const answer = voidAnswerSchema.safeParse(response.data);
+      if (!answer.success) {
+        // No money code: an answer nobody can read keeps the key.
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "We couldn't check that sponsorship just now, so it stays saved.",
+        });
+      }
+
+      return answer.data;
     }),
 
   getStatus: protectedProcedure

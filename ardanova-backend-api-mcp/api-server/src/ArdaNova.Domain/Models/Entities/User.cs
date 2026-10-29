@@ -204,6 +204,8 @@ public class User
 
     public virtual ICollection<FundingIntent> FundingIntents { get; set; } = new List<FundingIntent>();
 
+    public virtual ICollection<FundingIntentVoid> FundingIntentVoids { get; set; } = new List<FundingIntentVoid>();
+
     public virtual ICollection<TaskCommerceAgreement> TaskCommerceAgreements { get; set; } = new List<TaskCommerceAgreement>();
 
     public virtual ICollection<SwapQuote> SwapQuotes { get; set; } = new List<SwapQuote>();
