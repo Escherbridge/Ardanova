@@ -194,9 +194,10 @@ public static class DependencyInjection
         services.AddSettlementPendingPromoter(configuration);
         services.AddParkedPayoutReconciler(configuration);
 
-        // The feed projector writes the system cards of the one polymorphic feed (SR-03). Its timer runs by
-        // default in Development only; every other environment must set Feed:Projector:Enabled explicitly.
-        services.AddFeedProjector(configuration, environmentName);
+        // The feed projector writes the system cards of the one polymorphic feed (SR-03). Its timer is OFF in
+        // every environment unless Feed:Projector:Enabled=true: a Development API can point at a shared
+        // database (the dev compose's .env does), and the projector's first cycle deletes. See Feed/AGENTS.md.
+        services.AddFeedProjector(configuration);
 
         // Nova AI upstream (OVERSEASGENAI partner API); see Ogai/AGENTS.md.
         services.AddOgai(configuration, isProduction);

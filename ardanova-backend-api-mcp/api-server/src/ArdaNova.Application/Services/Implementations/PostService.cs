@@ -351,7 +351,20 @@ namespace ArdaNova.Application.Services.Implementations
             post.likesCount = Math.Max(0, post.likesCount - 1);
             post.updatedAt = DateTime.UtcNow;
             await _posts.UpdateAsync(post, ct);
-            await _unitOfWork.SaveChangesAsync(ct);
+            try
+            {
+                await _unitOfWork.SaveChangesAsync(ct);
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                // A double tap: the other request deleted this like first (and decremented with it); this save
+                // rolled back whole, so the counter is not decremented twice.
+                _unitOfWork.ClearTrackedChanges();
+                var current = await LoadVisibleAsync(postId, userId, ct);
+                return current is null
+                    ? Result<PostDto>.NotFound($"Post {postId} not found")
+                    : Result<PostDto>.Success(_mapper.Map<PostDto>(current));
+            }
 
             return Result<PostDto>.Success(_mapper.Map<PostDto>(post));
         }
@@ -421,7 +434,16 @@ namespace ArdaNova.Application.Services.Implementations
                 return Result<bool>.Success(true);
 
             await _bookmarks.DeleteAsync(existing, ct);
-            await _unitOfWork.SaveChangesAsync(ct);
+            try
+            {
+                await _unitOfWork.SaveChangesAsync(ct);
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                // A double tap: the other request removed this bookmark first, which is the state asked for.
+                _unitOfWork.ClearTrackedChanges();
+            }
+
             return Result<bool>.Success(true);
         }
 

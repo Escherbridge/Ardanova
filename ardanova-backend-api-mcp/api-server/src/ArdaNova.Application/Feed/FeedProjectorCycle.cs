@@ -4,6 +4,8 @@ using ArdaNova.Application.Common.Interfaces;
 using ArdaNova.Domain.Models.Entities;
 using ArdaNova.Domain.Models.Enums;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 /// <summary>
 /// Pull projector: reads committed source rows and makes the feed envelopes match them. Plan, then apply,
@@ -16,51 +18,88 @@ public sealed class FeedProjectorCycle
     private readonly IRepository<Post> _posts;
     private readonly FeedProjectorOptions _options;
     private readonly TimeProvider _clock;
+    private readonly ILogger<FeedProjectorCycle> _logger;
 
     public FeedProjectorCycle(
         IFeedSourceReader sources,
         IFeedEnvelopeStore envelopes,
         IRepository<Post> posts,
         FeedProjectorOptions options,
-        TimeProvider clock)
+        TimeProvider clock,
+        ILogger<FeedProjectorCycle>? logger = null)
     {
         _sources = sources;
         _envelopes = envelopes;
         _posts = posts;
         _options = options;
         _clock = clock;
+        _logger = logger ?? NullLogger<FeedProjectorCycle>.Instance;
     }
 
-    /// <summary>One timed cycle: the look-back window, plus a full envelope reconciliation when a sweep is due.</summary>
-    public Task<FeedProjectorRun> RunAsync(bool sweep, CancellationToken ct = default)
-        => ExecuteAsync(new Pass(Since: Now() - _options.LookBack, Sweep: sweep, DryRun: false), ct);
+    /// <summary>
+    /// One timed cycle: each kind read from its <paramref name="watermark"/> (stretched back over any stall), plus
+    /// a full envelope reconciliation when a sweep is due. The watermark advances only for kinds read and applied.
+    /// </summary>
+    public Task<FeedProjectorRun> RunAsync(bool sweep, FeedProjectorWatermark watermark, CancellationToken ct = default)
+        => ExecuteAsync(new Pass(Sweep: sweep, DryRun: false, Watermark: watermark), ct);
 
     /// <summary>The same pass with no window: every source row ever written, and every envelope re-checked.</summary>
     public Task<FeedProjectorRun> BackfillAsync(bool dryRun, CancellationToken ct = default)
-        => ExecuteAsync(new Pass(Since: null, Sweep: true, DryRun: dryRun), ct);
+        => ExecuteAsync(new Pass(Sweep: true, DryRun: dryRun, Watermark: null), ct);
 
     private async Task<FeedProjectorRun> ExecuteAsync(Pass pass, CancellationToken ct)
     {
         if (pass.DryRun)
         {
-            var preview = await PlanAsync(pass, ct);
+            var preview = await PlanAsync(pass, Now(), ct);
             return new FeedProjectorRun(
                 FeedProjectorOutcome.Completed, true, pass.Sweep, preview.SourcesExamined, preview.Inserts.Count,
-                preview.AlreadyProjected, 0, preview.Removals.Count, preview.Resyncs.Count, preview.Inserts);
+                preview.AlreadyProjected, 0, preview.Removals.Count, preview.Resyncs.Count, preview.Inserts,
+                preview.SourceReadsFailed, preview.CardsFailed);
         }
 
         await using var runnerLock = await _envelopes.TryAcquireRunnerLockAsync(ct);
         if (runnerLock is null)
             return FeedProjectorRun.RunnerBusy;
 
-        var plan = await PlanAsync(pass, ct);
-        return await ApplyAsync(pass, plan, ct);
+        var startedAt = Now();
+        var plan = await PlanAsync(pass, startedAt, ct);
+        var run = await ApplyAsync(pass, plan, ct);
+
+        // Only after the apply: a cycle that throws part-way leaves the mark where it was, so it is re-read.
+        if (pass.Watermark is { } watermark)
+        {
+            foreach (var kind in plan.KindsRead)
+                watermark.Advance(kind, startedAt);
+        }
+
+        return run;
     }
 
-    private async Task<Plan> PlanAsync(Pass pass, CancellationToken ct)
+    private async Task<Plan> PlanAsync(Pass pass, DateTime startedAt, CancellationToken ct)
     {
         var plan = new Plan();
-        var sources = await _sources.ReadChangedSinceAsync(pass.Since, ct);
+        var sources = new List<FeedSource>();
+        foreach (var kind in Enum.GetValues<FeedSourceType>())
+        {
+            DateTime? since = pass.Watermark is { } watermark
+                ? watermark.SinceFor(kind, startedAt, _options.LookBack)
+                : null;
+            try
+            {
+                sources.AddRange(await _sources.ReadChangedSinceAsync(kind, since, ct));
+                plan.KindsRead.Add(kind);
+            }
+            catch (Exception failure) when (!ct.IsCancellationRequested)
+            {
+                plan.SourceReadsFailed++;
+                _logger.LogError(
+                    failure,
+                    "Feed projector: reading {SourceKind} failed; its rows wait for a later cycle, every other kind went ahead.",
+                    kind);
+            }
+        }
+
         plan.SourcesExamined = sources.Count;
         await PlanSourcesAsync(sources, plan, ct);
         if (pass.Sweep)
@@ -71,7 +110,19 @@ public sealed class FeedProjectorCycle
     /// <summary>Every source the window saw: insert its missing envelope, and re-judge the one it already has.</summary>
     private async Task PlanSourcesAsync(IReadOnlyList<FeedSource> sources, Plan plan, CancellationToken ct)
     {
-        var wanted = sources.Select(source => (Source: source, Envelope: FeedProjectionRules.Enter(source))).ToList();
+        var wanted = new List<(FeedSource Source, FeedEnvelope? Envelope)>(sources.Count);
+        foreach (var source in sources)
+        {
+            try
+            {
+                wanted.Add((source, FeedProjectionRules.Enter(source)));
+            }
+            catch (Exception failure)
+            {
+                CardFailed(plan, failure, "judging", source.Kind, source.Id);
+            }
+        }
+
         var keys = new HashSet<FeedSourceKey>();
         foreach (var (source, envelope) in wanted)
         {
@@ -84,30 +135,36 @@ public sealed class FeedProjectorCycle
         var existing = await FindStoredAsync(keys, ct);
         foreach (var (source, envelope) in wanted)
         {
-            if (envelope is not null)
+            try
             {
+                // A funding mark, once reached, stays reached; every other source can lose or move its envelope.
+                if (source.Kind != FeedSourceType.PROJECT_TOKEN_CONFIG
+                    && existing.TryGetValue(new FeedSourceKey(source.Kind, source.Id), out var stored))
+                {
+                    if (plan.Judge(stored, source) && envelope is not null)
+                        plan.AlreadyProjected++;
+                    continue;
+                }
+
+                if (envelope is null)
+                    continue;
                 if (existing.ContainsKey(envelope.Key))
                     plan.AlreadyProjected++;
                 else
-                    plan.Inserts.Add(envelope);
+                    plan.Insert(envelope);
             }
-
-            // A funding mark, once reached, stays reached; every other source can lose its envelope.
-            if (source.Kind != FeedSourceType.PROJECT_TOKEN_CONFIG
-                && existing.TryGetValue(new FeedSourceKey(source.Kind, source.Id), out var stored))
+            catch (Exception failure)
             {
-                plan.Judge(stored, FeedProjectionRules.Retain(source));
+                CardFailed(plan, failure, "judging", source.Kind, source.Id);
             }
         }
     }
 
     /// <summary>
-    /// A deleted source leaves no row for the look-back window to see, so it is found from the envelope side -
-    /// and unlike <see cref="PlanSourcesAsync"/>'s 10-minute look-back, this walks EVERY envelope, whatever its
-    /// age: a security review found that a time-filtered sweep (the old "last 48 h" window) never reconsiders a
-    /// card whose source outlives that window and only later loses its target or its eligibility (a deleted
-    /// comment, an opportunity re-drafted, an event made INVITE_ONLY, long after projection). See Feed/AGENTS.md
-    /// §Sweep for the lock/batching trade-off this makes.
+    /// A deleted source leaves no row for the window to see, so it is found from the envelope side - and unlike
+    /// <see cref="PlanSourcesAsync"/>'s window, this walks EVERY envelope, whatever its age: a time-filtered sweep
+    /// never reconsiders a card whose source outlives the filter and only later loses its target or eligibility.
+    /// See Feed/AGENTS.md §Sweep for the lock/batching trade-off.
     /// </summary>
     private async Task PlanSweepAsync(Plan plan, CancellationToken ct)
     {
@@ -134,42 +191,46 @@ public sealed class FeedProjectorCycle
             if (pending.Length == 0)
                 continue;
 
-            var stored = (await _posts.Query()
-                    .Where(post => pending.Contains(post.id))
-                    .Select(post => new
-                    {
-                        post.id,
-                        post.sourceType,
-                        post.sourceId,
-                        post.visibility,
-                        post.projectId,
-                        post.guildId,
-                        post.opportunityId,
-                        post.eventId,
-                    })
-                    .ToListAsync(ct))
-                .Select(row => new StoredFeedEnvelope(
-                    row.id,
-                    new FeedSourceKey(row.sourceType!.Value, row.sourceId!),
-                    row.visibility,
-                    new FeedEnvelopeTargets(row.projectId, row.guildId, row.opportunityId, row.eventId)))
-                .ToList();
-
+            var stored = await ReadStoredAsync(_posts.Query().Where(post => pending.Contains(post.id)), ct);
             foreach (var kind in stored.GroupBy(envelope => envelope.Key.SourceType))
             {
                 var rowIds = kind.Select(envelope => FeedProjectionRules.RowIdOf(envelope.Key)).Distinct().ToList();
-                var current = (await _sources.ReadByIdsAsync(kind.Key, rowIds, ct)).ToDictionary(source => source.Id);
+                Dictionary<string, FeedSource> current;
+                try
+                {
+                    current = (await _sources.ReadByIdsAsync(kind.Key, rowIds, ct)).ToDictionary(source => source.Id);
+                }
+                catch (Exception failure) when (!ct.IsCancellationRequested)
+                {
+                    // An unreadable source is not a deleted one: these cards stay until a sweep can read it.
+                    plan.SourceReadsFailed++;
+                    _logger.LogError(
+                        failure,
+                        "Feed projector sweep: reading {SourceKind} failed; its {Count} cards were left as they are.",
+                        kind.Key,
+                        kind.Count());
+                    continue;
+                }
+
                 foreach (var envelope in kind)
                 {
-                    if (current.TryGetValue(FeedProjectionRules.RowIdOf(envelope.Key), out var source))
-                        plan.Judge(envelope, FeedProjectionRules.Retain(source));
-                    else
-                        plan.Remove(envelope.Id);
+                    try
+                    {
+                        if (current.TryGetValue(FeedProjectionRules.RowIdOf(envelope.Key), out var source))
+                            plan.Judge(envelope, source);
+                        else
+                            plan.Remove(envelope.Id);
+                    }
+                    catch (Exception failure)
+                    {
+                        CardFailed(plan, failure, "judging", envelope.Key.SourceType, envelope.Key.SourceId);
+                    }
                 }
             }
         }
     }
 
+    /// <summary>Removals first, so a card replaced for having moved never collides with its own replacement.</summary>
     private async Task<FeedProjectorRun> ApplyAsync(Pass pass, Plan plan, CancellationToken ct)
     {
         var now = Now();
@@ -177,80 +238,146 @@ public sealed class FeedProjectorCycle
         // becomes a single unbounded DELETE/transaction, however many stale envelopes it found.
         var removed = 0;
         foreach (var batch in plan.Removals.Chunk(Math.Max(1, _options.SweepBatchSize)))
-            removed += await _envelopes.RemoveAsync(batch, ct);
+        {
+            try
+            {
+                removed += await _envelopes.RemoveAsync(batch, ct);
+            }
+            catch (Exception failure) when (!ct.IsCancellationRequested)
+            {
+                // One bad envelope must not keep the rest of its batch on the feed: retry them one at a time.
+                _logger.LogWarning(failure, "Feed projector: removing a batch of {Count} cards failed; retrying one by one.", batch.Length);
+                foreach (var envelopeId in batch)
+                {
+                    try
+                    {
+                        removed += await _envelopes.RemoveAsync([envelopeId], ct);
+                    }
+                    catch (Exception single) when (!ct.IsCancellationRequested)
+                    {
+                        CardFailed(plan, single, "removing", null, envelopeId);
+                    }
+                }
+            }
+        }
 
         var resynced = 0;
         foreach (var (envelopeId, visibility) in plan.Resyncs)
-            resynced += await _envelopes.SetVisibilityAsync(envelopeId, visibility, now, ct);
+        {
+            try
+            {
+                resynced += await _envelopes.SetVisibilityAsync(envelopeId, visibility, now, ct);
+            }
+            catch (Exception failure) when (!ct.IsCancellationRequested)
+            {
+                CardFailed(plan, failure, "re-audiencing", null, envelopeId);
+            }
+        }
 
         var projected = 0;
         var alreadyProjected = plan.AlreadyProjected;
         var targetsGone = 0;
         foreach (var envelope in plan.Inserts)
         {
-            switch (await _envelopes.InsertAsync(envelope, now, ct))
+            try
             {
-                case FeedInsertOutcome.Inserted:
-                    projected++;
-                    break;
-                case FeedInsertOutcome.AlreadyProjected:
-                    alreadyProjected++;
-                    break;
-                case FeedInsertOutcome.TargetGone:
-                    targetsGone++;
-                    break;
+                switch (await _envelopes.InsertAsync(envelope, now, ct))
+                {
+                    case FeedInsertOutcome.Inserted:
+                        projected++;
+                        break;
+                    case FeedInsertOutcome.AlreadyProjected:
+                        alreadyProjected++;
+                        break;
+                    case FeedInsertOutcome.TargetGone:
+                        targetsGone++;
+                        break;
+                }
+            }
+            catch (Exception failure) when (!ct.IsCancellationRequested)
+            {
+                CardFailed(plan, failure, "inserting", envelope.Key.SourceType, envelope.Key.SourceId);
             }
         }
 
         return new FeedProjectorRun(
             FeedProjectorOutcome.Completed, false, pass.Sweep, plan.SourcesExamined, projected, alreadyProjected,
-            targetsGone, removed, resynced, []);
+            targetsGone, removed, resynced, [], plan.SourceReadsFailed, plan.CardsFailed);
     }
 
+    /// <summary>The stored envelopes for these keys, one query per kind so each is a seek on (sourceType, sourceId).</summary>
     private async Task<Dictionary<FeedSourceKey, StoredFeedEnvelope>> FindStoredAsync(
         IReadOnlyCollection<FeedSourceKey> keys,
         CancellationToken ct)
     {
-        if (keys.Count == 0)
-            return new Dictionary<FeedSourceKey, StoredFeedEnvelope>();
+        var stored = new Dictionary<FeedSourceKey, StoredFeedEnvelope>();
+        foreach (var kind in keys.GroupBy(key => key.SourceType))
+        {
+            var sourceIds = kind.Select(key => key.SourceId).Distinct().ToArray();
+            var rows = await ReadStoredAsync(
+                _posts.Query().Where(FeedProjectionRules.IsEnvelopeOf(kind.Key, sourceIds)), ct);
+            foreach (var envelope in rows)
+                stored[envelope.Key] = envelope;
+        }
 
-        var sourceIds = keys.Select(key => key.SourceId).Distinct().ToArray();
-        var rows = await _posts.Query()
-            .Where(post => post.sourceType != null && sourceIds.Contains(post.sourceId!))
-            .Select(post => new
-            {
-                post.id,
-                post.sourceType,
-                post.sourceId,
-                post.visibility,
-                post.projectId,
-                post.guildId,
-                post.opportunityId,
-                post.eventId,
-            })
-            .ToListAsync(ct);
+        return stored;
+    }
 
-        return rows
+    private static async Task<List<StoredFeedEnvelope>> ReadStoredAsync(IQueryable<Post> envelopes, CancellationToken ct)
+        => (await envelopes
+                .Select(post => new
+                {
+                    post.id,
+                    post.sourceType,
+                    post.sourceId,
+                    post.visibility,
+                    post.projectId,
+                    post.guildId,
+                    post.opportunityId,
+                    post.eventId,
+                })
+                .ToListAsync(ct))
             .Select(row => new StoredFeedEnvelope(
                 row.id,
                 new FeedSourceKey(row.sourceType!.Value, row.sourceId!),
                 row.visibility,
                 new FeedEnvelopeTargets(row.projectId, row.guildId, row.opportunityId, row.eventId)))
-            .Where(envelope => keys.Contains(envelope.Key))
-            .ToDictionary(envelope => envelope.Key);
+            .ToList();
+
+    private void CardFailed(Plan plan, Exception failure, string step, FeedSourceType? kind, string id)
+    {
+        plan.CardsFailed++;
+        _logger.LogError(
+            failure,
+            "Feed projector: {Step} the card for {SourceKind} {Id} failed; skipped, the rest of the pass went ahead.",
+            step,
+            kind?.ToString() ?? "envelope",
+            id);
     }
 
     private DateTime Now() => _clock.GetUtcNow().UtcDateTime;
 
-    private sealed record Pass(DateTime? Since, bool Sweep, bool DryRun);
+    /// <summary>A null watermark is the backfill: no window at all.</summary>
+    private sealed record Pass(bool Sweep, bool DryRun, FeedProjectorWatermark? Watermark);
 
     private sealed class Plan
     {
+        private readonly HashSet<FeedSourceKey> _insertKeys = new();
+
         public int SourcesExamined { get; set; }
         public int AlreadyProjected { get; set; }
+        public int SourceReadsFailed { get; set; }
+        public int CardsFailed { get; set; }
+        public HashSet<FeedSourceType> KindsRead { get; } = new();
         public List<FeedEnvelope> Inserts { get; } = [];
         public HashSet<string> Removals { get; } = new(StringComparer.Ordinal);
         public Dictionary<string, PostVisibility> Resyncs { get; } = new(StringComparer.Ordinal);
+
+        public void Insert(FeedEnvelope envelope)
+        {
+            if (_insertKeys.Add(envelope.Key))
+                Inserts.Add(envelope);
+        }
 
         public void Remove(string envelopeId)
         {
@@ -258,13 +385,34 @@ public sealed class FeedProjectorCycle
             Resyncs.Remove(envelopeId);
         }
 
-        /// <summary>Null means the source no longer earns an envelope; a different audience means it moved.</summary>
-        public void Judge(StoredFeedEnvelope stored, PostVisibility? retained)
+        /// <summary>
+        /// Re-judges a stored card against its source as it is now. True when the card stays (possibly moved to a
+        /// new audience); false when it goes, or is replaced because the rows it points at have changed.
+        /// </summary>
+        public bool Judge(StoredFeedEnvelope stored, FeedSource source)
         {
+            var retained = FeedProjectionRules.Retain(source);
+            var targets = FeedProjectionRules.TargetsOf(source);
             if (retained is not { } visibility)
+            {
                 Remove(stored.Id);
-            else if (visibility != stored.Visibility && !Removals.Contains(stored.Id))
+                return false;
+            }
+
+            if (stored.Targets != targets)
+            {
+                // The targets gate who may see the card (a draft project hides its cards), so a card pointing at
+                // the old rows is wrong about its audience: replace it, unless the source no longer earns entry.
+                var replacement = FeedProjectionRules.Enter(source);
+                Remove(stored.Id);
+                if (replacement is not null && replacement.Key == stored.Key)
+                    Insert(replacement);
+                return false;
+            }
+
+            if (visibility != stored.Visibility && !Removals.Contains(stored.Id))
                 Resyncs[stored.Id] = visibility;
+            return true;
         }
     }
 }

@@ -315,3 +315,8 @@ as if that person had written them. `PostService` therefore:
   bump rolls back with its insert, so a double tap counts once. Known gap: two DIFFERENT people liking at
   the same instant still write `likesCount` as an absolute `N+1` (both rows land, the counter moves once);
   an atomic `likesCount = likesCount + 1` or a recount is the fix, not done here.
+- **Settles a double UNtap too.** Unlike and unbookmark are check-then-delete; when both taps found the row,
+  the second DELETE hits zero rows and EF throws `DbUpdateConcurrencyException`. That is the state asked for,
+  so it clears the tracked changes and answers success (unlike re-reads the post); the losing save's counter
+  decrement rolled back with its delete, so the count drops once. Pinned by
+  `FeedProjectorFlowTests.ARacingDoubleUntap_Succeeds_AndLeavesNothingBehind` on real Postgres.

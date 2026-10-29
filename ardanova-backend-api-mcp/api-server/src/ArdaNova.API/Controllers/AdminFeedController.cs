@@ -37,12 +37,14 @@ public sealed class AdminFeedController : ControllerBase
         if (!run.DryRun)
         {
             _logger.LogWarning(
-                "Feed backfill run by operator {OperatorActorId}: {Projected} projected, {Removed} removed, {Resynced} re-audienced from {Examined} source rows.",
+                "Feed backfill run by operator {OperatorActorId}: {Projected} projected, {Removed} removed, {Resynced} re-audienced from {Examined} source rows; {SourceReadsFailed} source reads and {CardsFailed} cards failed.",
                 ActorId,
                 run.Projected,
                 run.Removed,
                 run.Resynced,
-                run.SourcesExamined);
+                run.SourcesExamined,
+                run.SourceReadsFailed,
+                run.CardsFailed);
         }
 
         return Ok(FeedBackfillResponse.From(run, PreviewLimit));
@@ -52,6 +54,7 @@ public sealed class AdminFeedController : ControllerBase
 }
 
 /// <summary>A backfill result. For a dry run the counts say what WOULD change and Preview lists the first envelopes.</summary>
+/// <remarks>Non-zero SourceReadsFailed / CardsFailed means the pass skipped part of the work; the logs name what.</remarks>
 public sealed record FeedBackfillResponse(
     bool DryRun,
     int SourcesExamined,
@@ -60,6 +63,8 @@ public sealed record FeedBackfillResponse(
     int TargetsGone,
     int Removed,
     int Resynced,
+    int SourceReadsFailed,
+    int CardsFailed,
     IReadOnlyDictionary<string, int> ProjectedByType,
     IReadOnlyList<FeedEnvelopePreview> Preview)
 {
@@ -71,6 +76,8 @@ public sealed record FeedBackfillResponse(
         run.TargetsGone,
         run.Removed,
         run.Resynced,
+        run.SourceReadsFailed,
+        run.CardsFailed,
         run.PendingEnvelopes
             .GroupBy(envelope => envelope.Type.ToString())
             .ToDictionary(group => group.Key, group => group.Count()),

@@ -9,7 +9,7 @@ public sealed class FeedProjectorOptions
     /// <summary>Configuration section this binds from (env: Feed__Projector__Enabled, ...).</summary>
     public const string SectionName = "Feed:Projector";
 
-    /// <summary>Whether the timed projector runs. Blank resolves to ON in Development and OFF everywhere else.</summary>
+    /// <summary>Whether the timed projector runs. OFF unless the operator sets it true, in every environment.</summary>
     public bool Enabled { get; init; }
 
     public TimeSpan Interval { get; init; } = TimeSpan.FromSeconds(5);
@@ -26,11 +26,10 @@ public sealed class FeedProjectorOptions
     /// </summary>
     public int SweepBatchSize { get; init; } = 500;
 
-    /// <summary>Reads the operator's settings; a malformed or out-of-range value is a startup failure.</summary>
-    public static FeedProjectorOptions FromConfiguration(IConfiguration configuration, string? environmentName)
+    /// <summary>Reads the operator's settings; a malformed or out-of-range value throws.</summary>
+    public static FeedProjectorOptions FromConfiguration(IConfiguration configuration)
     {
         var defaults = new FeedProjectorOptions();
-        var isDevelopment = string.Equals(environmentName, "Development", StringComparison.OrdinalIgnoreCase);
 
         var interval = TimeSpan.FromSeconds(ReadInteger(
             configuration, "IntervalSeconds", (int)defaults.Interval.TotalSeconds, 1, 300));
@@ -43,7 +42,7 @@ public sealed class FeedProjectorOptions
 
         return new FeedProjectorOptions
         {
-            Enabled = ReadBoolean(configuration, "Enabled", isDevelopment),
+            Enabled = ReadBoolean(configuration, "Enabled", false),
             Interval = interval,
             LookBack = lookBack,
             SweepInterval = TimeSpan.FromMinutes(ReadInteger(
@@ -51,6 +50,29 @@ public sealed class FeedProjectorOptions
             SweepBatchSize = ReadInteger(
                 configuration, "SweepBatchSize", defaults.SweepBatchSize, 1, 10_000),
         };
+    }
+
+    /// <summary>
+    /// Reads the settings without throwing: a malformed value yields defaults with the projector OFF and the
+    /// reason in <paramref name="problem"/>, so a feed typo never stops the API (payments, sign-in) starting.
+    /// </summary>
+    public static bool TryFromConfiguration(
+        IConfiguration configuration,
+        out FeedProjectorOptions options,
+        out string? problem)
+    {
+        try
+        {
+            options = FromConfiguration(configuration);
+            problem = null;
+            return true;
+        }
+        catch (InvalidOperationException malformed)
+        {
+            options = new FeedProjectorOptions { Enabled = false };
+            problem = malformed.Message;
+            return false;
+        }
     }
 
     private static bool ReadBoolean(IConfiguration configuration, string key, bool fallback)

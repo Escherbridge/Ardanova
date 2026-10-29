@@ -4,6 +4,8 @@ using ArdaNova.Application.Feed;
 using ArdaNova.Domain.Models.Enums;
 using ArdaNova.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
 
 /// <inheritdoc/>
@@ -13,10 +15,12 @@ public sealed class FeedEnvelopeStore : IFeedEnvelopeStore
     public const long RunnerLockKey = 0x4152_444E_4645_4544;
 
     private readonly ArdaNovaDbContext _context;
+    private readonly ILogger<FeedEnvelopeStore> _logger;
 
-    public FeedEnvelopeStore(ArdaNovaDbContext context)
+    public FeedEnvelopeStore(ArdaNovaDbContext context, ILogger<FeedEnvelopeStore>? logger = null)
     {
         _context = context;
+        _logger = logger ?? NullLogger<FeedEnvelopeStore>.Instance;
     }
 
     /// <inheritdoc/>
@@ -33,7 +37,7 @@ public sealed class FeedEnvelopeStore : IFeedEnvelopeStore
                 .SqlQuery<bool>($"SELECT pg_try_advisory_lock({RunnerLockKey}) AS \"Value\"")
                 .SingleAsync(ct);
             if (acquired)
-                return new RunnerLock(_context);
+                return new RunnerLock(_context, _logger);
         }
         catch
         {
@@ -112,25 +116,40 @@ public sealed class FeedEnvelopeStore : IFeedEnvelopeStore
     private static bool HasSqlState(DbUpdateException failure, string sqlState)
         => failure.InnerException is PostgresException postgres && postgres.SqlState == sqlState;
 
-    /// <summary>Releases the advisory lock, then the connection it lives on.</summary>
+    /// <summary>Releases the advisory lock, then the connection it lives on; never throws (see Feed/AGENTS.md).</summary>
     private sealed class RunnerLock : IAsyncDisposable
     {
         private readonly ArdaNovaDbContext _context;
+        private readonly ILogger _logger;
 
-        public RunnerLock(ArdaNovaDbContext context)
+        public RunnerLock(ArdaNovaDbContext context, ILogger logger)
         {
             _context = context;
+            _logger = logger;
         }
 
         public async ValueTask DisposeAsync()
         {
+            // Disposal runs while an exception (often the shutdown's cancellation) may be unwinding; a throw here
+            // would replace it. A session lock dies with its connection, so a failed unlock only needs a log line.
             try
             {
                 await _context.Database.ExecuteSqlAsync($"SELECT pg_advisory_unlock({RunnerLockKey})");
             }
-            finally
+            catch (Exception failure)
+            {
+                _logger.LogWarning(
+                    failure,
+                    "Feed projector: releasing the runner lock failed; the server frees it when this connection closes.");
+            }
+
+            try
             {
                 await _context.Database.CloseConnectionAsync();
+            }
+            catch (Exception failure)
+            {
+                _logger.LogWarning(failure, "Feed projector: closing the runner lock's connection failed.");
             }
         }
     }

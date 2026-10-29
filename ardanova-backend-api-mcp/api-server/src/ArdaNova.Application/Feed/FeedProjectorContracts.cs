@@ -5,8 +5,14 @@ using ArdaNova.Domain.Models.Enums;
 /// <summary>Reads COMMITTED feedable source rows; the rules, not the reader, decide what qualifies.</summary>
 public interface IFeedSourceReader
 {
-    /// <summary>Every source row with a relevant timestamp at or after <paramref name="since"/>; null reads every row.</summary>
-    Task<IReadOnlyList<FeedSource>> ReadChangedSinceAsync(DateTime? since, CancellationToken ct = default);
+    /// <summary>
+    /// The rows of one kind with a relevant timestamp at or after <paramref name="since"/>; null reads every row.
+    /// One kind per call so the cycle can isolate a kind whose read fails.
+    /// </summary>
+    Task<IReadOnlyList<FeedSource>> ReadChangedSinceAsync(
+        FeedSourceType kind,
+        DateTime? since,
+        CancellationToken ct = default);
 
     /// <summary>The current state of the named rows of one kind; a row that no longer exists is absent.</summary>
     Task<IReadOnlyList<FeedSource>> ReadByIdsAsync(
@@ -56,6 +62,8 @@ public enum FeedProjectorOutcome
 }
 
 /// <summary>What one projector pass did (or, for a dry run, would do).</summary>
+/// <param name="SourceReadsFailed">Reads of one source kind that threw; those rows were skipped, never treated as deleted.</param>
+/// <param name="CardsFailed">Single envelopes whose rule, insert, removal or re-audience threw; the rest went ahead.</param>
 public sealed record FeedProjectorRun(
     FeedProjectorOutcome Outcome,
     bool DryRun,
@@ -66,11 +74,16 @@ public sealed record FeedProjectorRun(
     int TargetsGone,
     int Removed,
     int Resynced,
-    IReadOnlyList<FeedEnvelope> PendingEnvelopes)
+    IReadOnlyList<FeedEnvelope> PendingEnvelopes,
+    int SourceReadsFailed = 0,
+    int CardsFailed = 0)
 {
     public static FeedProjectorRun RunnerBusy { get; } = new(
         FeedProjectorOutcome.RunnerBusy, false, false, 0, 0, 0, 0, 0, 0, []);
 
     /// <summary>True when the pass changed any row.</summary>
     public bool ChangedAnything => !DryRun && (Projected > 0 || Removed > 0 || Resynced > 0);
+
+    /// <summary>True when part of the pass was skipped because something threw.</summary>
+    public bool HadFailures => SourceReadsFailed > 0 || CardsFailed > 0;
 }

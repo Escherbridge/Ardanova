@@ -18,13 +18,11 @@ public sealed class FeedSourceReader : IFeedSourceReader
     }
 
     /// <inheritdoc/>
-    public async Task<IReadOnlyList<FeedSource>> ReadChangedSinceAsync(DateTime? since, CancellationToken ct = default)
-    {
-        var sources = new List<FeedSource>();
-        foreach (var kind in Enum.GetValues<FeedSourceType>())
-            sources.AddRange(await ReadAsync(kind, new Scope(since, null), ct));
-        return sources;
-    }
+    public async Task<IReadOnlyList<FeedSource>> ReadChangedSinceAsync(
+        FeedSourceType kind,
+        DateTime? since,
+        CancellationToken ct = default)
+        => await ReadAsync(kind, new Scope(since, null), ct);
 
     /// <inheritdoc/>
     public async Task<IReadOnlyList<FeedSource>> ReadByIdsAsync(
@@ -51,12 +49,14 @@ public sealed class FeedSourceReader : IFeedSourceReader
             FeedSourceType.PROJECT_MILESTONE => Read(
                 Within(_context.ProjectMilestones, scope, m => ids.Contains(m.id),
                     m => m.completedAt >= since || m.updatedAt >= since),
-                m => new ProjectMilestoneSource(m.id, m.projectId, m.Project!.createdById, m.title, m.completedAt), ct),
+                m => new ProjectMilestoneSource(m.id, m.projectId, m.Project!.createdById, m.title, m.completedAt,
+                    m.assigneeId), ct),
 
             FeedSourceType.PROJECT_TASK => Read(
                 Within(_context.ProjectTasks, scope, t => ids.Contains(t.id),
                     t => t.completedAt >= since || t.updatedAt >= since),
-                t => new ProjectTaskSource(t.id, t.projectId, t.Project!.createdById, t.title, t.completedAt), ct),
+                t => new ProjectTaskSource(t.id, t.projectId, t.Project!.createdById, t.title, t.completedAt,
+                    t.assignedToId), ct),
 
             FeedSourceType.PROJECT_TOKEN_CONFIG => Read(
                 Within(_context.ProjectTokenConfigs, scope, c => ids.Contains(c.id), c => c.updatedAt >= since),

@@ -111,6 +111,19 @@ public class FeedProjectionRulesTests
     public void AStoredCard_StaysOnlyWhileItsSourceStillEarnsIt(string because, FeedSource source, PostVisibility? expected)
         => FeedProjectionRules.Retain(source).Should().Be(expected, because);
 
+    public static TheoryData<string, FeedSource, string> CreditRows() => new()
+    {
+        { "an assigned task credits whoever did it", new ProjectTaskSource("t", "p", "founder", "t", At, "worker"), "worker" },
+        { "an unassigned task credits the founder", new ProjectTaskSource("t", "p", "founder", "t", At), "founder" },
+        { "an assigned milestone credits whoever did it", new ProjectMilestoneSource("m", "p", "founder", "t", At, "worker"), "worker" },
+        { "an unassigned milestone credits the founder", new ProjectMilestoneSource("m", "p", "founder", "t", At), "founder" },
+    };
+
+    [Theory]
+    [MemberData(nameof(CreditRows))]
+    public void FinishedWork_IsCreditedToTheAssignee_ElseTheFounder(string because, FeedSource source, string expected)
+        => FeedProjectionRules.Enter(source)!.AuthorId.Should().Be(expected, because);
+
     [Theory]
     [InlineData(1000, 0, null)]
     [InlineData(1000, 249.99, null)]

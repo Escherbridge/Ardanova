@@ -27,8 +27,8 @@ for whom). Retain is never narrower than Enter, and never wider on privacy.
 |---|---|---|---|---|---|
 | Project (PROJECT) | PROJECT_LAUNCHED | PUBLIC | creator | `publishedAt` set | project deleted |
 | ProjectUpdate | PROJECT_UPDATE | PUBLIC | writer | created | deleted |
-| ProjectMilestone | MILESTONE | PUBLIC | project creator | `completedAt` set | deleted / `completedAt` cleared |
-| ProjectTask | TASK_COMPLETED | PUBLIC | project creator | `completedAt` set | deleted / reopened |
+| ProjectMilestone | MILESTONE | PUBLIC | `assigneeId`, else project creator | `completedAt` set | deleted / `completedAt` cleared |
+| ProjectTask | TASK_COMPLETED | PUBLIC | `assignedToId`, else project creator | `completedAt` set | deleted / reopened |
 | ProjectTokenConfig | FUNDING_PROGRESS, sourceId `{cfgId}:{25,50,75,100}` | PUBLIC | project creator | highest mark reached (only that one) | config deleted |
 | ProjectMember | MEMBER_JOINED | PUBLIC | the member | joined, unless they created the project | removed |
 | ProjectComment (root only) | DISCUSSION | PROJECT/MILESTONE target: PUBLIC; EPIC/SPRINT/FEATURE/PBI/TASK: PROJECT_MEMBERS | writer | created | deleted |
@@ -62,8 +62,11 @@ Choices the data model forced (reported to the lane owner):
   `CompleteAsync` stamps it, so only that path produces a MILESTONE card.
 - **Founder / guild owner are not "joined" news**: `ProjectMember.userId == Project.createdById` and
   `GuildMember.userId == Guild.ownerId` are skipped (guild creation already writes the owner's row).
-- **TASK_COMPLETED is attributed to the project creator**, not the assignee, so the feed does not publish
-  who was assigned a task. Revisit with the card renderer if credit to the worker is wanted.
+- **TASK_COMPLETED / MILESTONE credit the person who did the work** (owner decision, review round 1):
+  `assignedToId` (task) / `assigneeId` (milestone), else the project creator. The assignee is already public on
+  task reads (`TaskDto.AssignedToId`/`AssignedTo`), so the card publishes nothing new. The credit is fixed at
+  projection: re-assigning a finished task does not re-author its card. No milestone endpoint sets `assigneeId`
+  yet, so milestone cards credit the founder until one does.
 
 ## Windows (`Infrastructure/Feed/FeedSourceReader`)
 
@@ -73,11 +76,55 @@ Project `publishedAt|updatedAt`; milestone/task `completedAt|updatedAt` (Complet
 OR the opportunity's `updatedAt` (opening or re-drafting it changes whether they may show); the rest
 `createdAt`/`joinedAt`. The look-back (10 min) must cover at least two cycles so a slow commit is seen.
 
+**High-water mark, not a fixed window.** `FeedProjectorWatermark` records, PER KIND, when the last cycle that
+read and applied that kind began. A cycle reads each kind from `min(lastReadAt - margin, now - LookBack)`, the
+margin being `LookBack` itself (a row stamped just before the last read began but committed after it is as late
+as anything a normal cycle tolerates). In steady state that is the old `now - LookBack`; after a stall (database
+unreachable, lock held elsewhere, host paused) longer than `LookBack`, the window stretches back to the last good
+read, so rows committed during the stall are projected instead of silently skipped. The mark advances only after
+the apply finishes, and only for the kinds whose read succeeded, so a kind that keeps failing keeps its own
+window open and catches up the cycle it reads again (per kind, not one global mark, or a broken kind would be
+skipped past while the others advanced).
+
+**Restart behaviour.** The mark lives in memory on `FeedProjectorHostedService` (the cycle is Scoped, so it
+cannot hold it). A fresh process has no mark and reads `now - LookBack`: rows committed while the projector was
+DOWN for longer than `LookBack` are not projected by the timer. That is the same gap the fixed window always
+had at startup; a normal redeploy overlaps or restarts within `LookBack` and loses nothing. The safety nets:
+the first cycle after start is a full sweep (removals are always caught), and after any outage longer than
+`LookBack` - or when the projector is first enabled on a database - run `POST /api/admin/feed/backfill`
+(dry run first). Persisting the mark would close the gap; it needs a table and was not worth one for MVP.
+A second instance keeps its own mark; it only ever reads MORE (its mark is older), never less.
+
+**Failure isolation.** A read is one kind at a time (`IFeedSourceReader.ReadChangedSinceAsync(kind, ...)`); a kind
+whose read throws is logged at Error, counted (`FeedProjectorRun.SourceReadsFailed`) and skipped while every other
+kind goes ahead. In the sweep, an unreadable kind's cards are LEFT ALONE - a failed read is never evidence of a
+deletion. Each card's rule evaluation, insert, re-audience and removal is likewise isolated (`CardsFailed`); a
+removal batch that throws is retried one envelope at a time. A card that fails on its own does not hold its
+kind's mark back (a poison row would otherwise widen that kind's window forever): it is retried every cycle while
+its source is inside `now - LookBack`, then only by a backfill, and every failure is logged with its key.
+Cancellation is never swallowed.
+
+**Stored-card lookup.** `FindStoredAsync` issues one query per kind with `sourceType = <kind> AND sourceId = ANY(...)`
+(`FeedProjectionRules.IsEnvelopeOf`): an equality on the leading column is what lets Postgres seek the
+`(sourceType, sourceId)` unique index; `sourceType IS NOT NULL AND sourceId IN (...)` could not.
+
+**Later, additive migration (not in Phase 1):** the window predicates above are timestamp ranges on the
+SOURCE tables (`ProjectUpdate.createdAt`, `ProjectTask.completedAt|updatedAt`, `Opportunity.updatedAt`, ...), none
+of which is indexed, so every cycle scans those tables. Fine at MVP sizes; add per-table timestamp indexes
+(DBML first, additive, `CREATE INDEX CONCURRENTLY` on prod) when a cycle's read time shows up in the logs.
+
 ## Cycle, sweep, backfill
 
-- **Cycle (~5 s):** sources in the look-back -> insert missing envelopes; re-judge the envelope each source
+- **Cycle (~5 s):** sources in the window -> insert missing envelopes; re-judge the envelope each source
   already has (`Retain`): delete it, or move it to the source's current audience. An event made
   INVITE_ONLY loses its card on the next cycle, not the next sweep.
+- **Moved targets:** the judge also compares the stored card's targets with `FeedProjectionRules.TargetsOf(source)`
+  (the one function `Enter` builds targets from, so they cannot disagree). Targets decide who may see a card - a
+  DRAFT project hides its cards - so a card still pointing at the old rows is wrong about its audience: it is
+  removed and re-inserted pointing at the new ones, in one pass (removals apply before inserts, so the
+  replacement never collides with the card it replaces). If the source no longer earns entry (`Enter` is null,
+  e.g. a closed opportunity that moved), the card is only removed - privacy over history. No service moves an
+  event or opportunity today; this guards operator repairs and any later "move" feature.
 - **Sweep (hourly, full table):** a deleted source leaves no row to read, so the sweep starts from the
   envelope side and reconciles EVERY envelope, whatever its age, against its current source - a 48 h
   "recent" filter used to gate this (a security review's finding: a source that outlived the window and
@@ -108,12 +155,28 @@ OR the opportunity's `updatedAt` (opening or re-drafting it changes whether they
 ## Configuration
 
 `Feed:Projector:*` (env `Feed__Projector__Enabled`, ...), read by `FeedProjectorOptions.FromConfiguration`:
-`Enabled` blank -> ON in Development, OFF elsewhere (Staging/Production must set it); `IntervalSeconds`
-(5), `LookBackMinutes` (10), `SweepIntervalMinutes` (60), `SweepBatchSize` (500, the sweep's full-table
-reconciliation batch; see §Cycle, sweep, backfill). A malformed value is a startup failure. The cycle and
+`Enabled` is OFF unless set `true`, in EVERY environment including Development (review H1: the dev compose runs
+`ASPNETCORE_ENVIRONMENT=Development` with `env_file: .env`, whose `DATABASE_URL` points at the shared Railway
+database, so a Development default turned any laptop into the shared database's feed writer - and the first
+cycle sweeps, i.e. hard-deletes). The local stack (`.omc/scripts/local-stack.ps1`, local DB on 5433) sets it
+explicitly. `IntervalSeconds` (5), `LookBackMinutes` (10), `SweepIntervalMinutes` (60), `SweepBatchSize` (500,
+the sweep's full-table reconciliation batch; see §Cycle, sweep, backfill).
+
+**A malformed value never stops the API** (owner decision, review M5): `AddFeedProjector` uses
+`TryFromConfiguration`; on a bad value the projector stays OFF (whatever `Enabled` says - a half-read
+configuration is not one to run) and `FeedProjectorMisconfiguredAlarm` logs the reason at Critical when the host
+starts. Payments and sign-in live in the same process, so a feed typo must not take them down. The cycle and
 stores are registered regardless, so the admin backfill works with the timer off.
 
 ## Phase 2 handoff (not built here)
+
+**PRECONDITION for Phase 2 (review M2, deferred from Phase 1):** retraction is currently a HARD delete. An
+opportunity sent back to DRAFT, or an event moved to DRAFT / CANCELLED / INVITE_ONLY, makes `Retain` return null and
+`FeedEnvelopeStore.RemoveAsync` deletes the card WITH other people's replies, likes, bookmarks and shares; re-opening
+it later projects a FRESH card (new id, zero engagement, new `updatedAt`) that ranking would treat as new and bump.
+Before the read API ships, retraction must become a state, not a delete: an additive nullable column on `Post`
+(e.g. `retractedAt`, DBML first) that the projector sets instead of deleting and clears on re-entry, restoring the
+SAME row; every feed/hydration read filters it out. Deletion stays only for a source that is actually gone.
 
 Ranking (`trendingScore`, Reasons[], diversity caps), the feed read API, and HYDRATION: envelopes store a
 title snapshot and, for system kinds, a plain sentence (`FeedEnvelopeCopy`, vocabulary-checked in

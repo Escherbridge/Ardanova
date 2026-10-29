@@ -53,15 +53,17 @@ public sealed record ProjectUpdateSource(string Id, string ProjectId, string Aut
     public override FeedSourceType Kind => FeedSourceType.PROJECT_UPDATE;
 }
 
+/// <summary>A milestone; <paramref name="AssigneeId"/> is who the card credits when set.</summary>
 public sealed record ProjectMilestoneSource(
-    string Id, string ProjectId, string ProjectOwnerId, string Title, DateTime? CompletedAt)
+    string Id, string ProjectId, string ProjectOwnerId, string Title, DateTime? CompletedAt, string? AssigneeId = null)
     : FeedSource(Id)
 {
     public override FeedSourceType Kind => FeedSourceType.PROJECT_MILESTONE;
 }
 
+/// <summary>A task; <paramref name="AssigneeId"/> is who the card credits when set.</summary>
 public sealed record ProjectTaskSource(
-    string Id, string ProjectId, string ProjectOwnerId, string Title, DateTime? CompletedAt)
+    string Id, string ProjectId, string ProjectOwnerId, string Title, DateTime? CompletedAt, string? AssigneeId = null)
     : FeedSource(Id)
 {
     public override FeedSourceType Kind => FeedSourceType.PROJECT_TASK;
@@ -205,21 +207,22 @@ public static class FeedProjectionRules
     {
         ProjectLaunchSource project => project.PublishedAt is { } publishedAt
             ? Envelope(PostType.PROJECT_LAUNCHED, project, PostVisibility.PUBLIC, project.OwnerId, publishedAt,
-                project.Title, FeedEnvelopeCopy.ProjectLaunched, null, new(ProjectId: project.Id))
+                project.Title, FeedEnvelopeCopy.ProjectLaunched, null)
             : null,
 
         ProjectUpdateSource update => Envelope(PostType.PROJECT_UPDATE, update, PostVisibility.PUBLIC,
-            update.AuthorId, update.CreatedAt, update.Title, FeedEnvelopeCopy.HydratedFromSource, null,
-            new(ProjectId: update.ProjectId)),
+            update.AuthorId, update.CreatedAt, update.Title, FeedEnvelopeCopy.HydratedFromSource, null),
 
         ProjectMilestoneSource milestone => milestone.CompletedAt is { } reachedAt
-            ? Envelope(PostType.MILESTONE, milestone, PostVisibility.PUBLIC, milestone.ProjectOwnerId, reachedAt,
-                milestone.Title, FeedEnvelopeCopy.MilestoneReached, null, new(ProjectId: milestone.ProjectId))
+            ? Envelope(PostType.MILESTONE, milestone, PostVisibility.PUBLIC,
+                CreditFor(milestone.AssigneeId, milestone.ProjectOwnerId), reachedAt,
+                milestone.Title, FeedEnvelopeCopy.MilestoneReached, null)
             : null,
 
         ProjectTaskSource task => task.CompletedAt is { } finishedAt
-            ? Envelope(PostType.TASK_COMPLETED, task, PostVisibility.PUBLIC, task.ProjectOwnerId, finishedAt,
-                task.Title, FeedEnvelopeCopy.TaskCompleted, null, new(ProjectId: task.ProjectId))
+            ? Envelope(PostType.TASK_COMPLETED, task, PostVisibility.PUBLIC,
+                CreditFor(task.AssigneeId, task.ProjectOwnerId), finishedAt,
+                task.Title, FeedEnvelopeCopy.TaskCompleted, null)
             : null,
 
         ProjectFundingSource funding => HighestFundingThreshold(funding.Goal, funding.Raised) is { } percent
@@ -232,13 +235,13 @@ public static class FeedProjectionRules
                 funding.ProjectTitle,
                 FeedEnvelopeCopy.FundingProgress(percent),
                 JsonSerializer.Serialize(new { percent }),
-                new(ProjectId: funding.ProjectId))
+                TargetsOf(funding))
             : null,
 
         ProjectMemberSource member => member.UserId == member.ProjectOwnerId
             ? null
             : Envelope(PostType.MEMBER_JOINED, member, PostVisibility.PUBLIC, member.UserId, member.JoinedAt,
-                member.ProjectTitle, FeedEnvelopeCopy.JoinedProject, null, new(ProjectId: member.ProjectId)),
+                member.ProjectTitle, FeedEnvelopeCopy.JoinedProject, null),
 
         ProjectCommentSource comment => comment.ParentId is not null
             ? null
@@ -253,31 +256,28 @@ public static class FeedProjectionRules
                         targetId = comment.TargetId,
                         commentId = comment.Id,
                     },
-                }),
-                new(ProjectId: comment.ProjectId)),
+                })),
 
         GuildFoundedSource guild => Envelope(PostType.GUILD_FOUNDED, guild, PostVisibility.PUBLIC, guild.OwnerId,
-            guild.CreatedAt, guild.Name, FeedEnvelopeCopy.GuildFounded, null, new(GuildId: guild.Id)),
+            guild.CreatedAt, guild.Name, FeedEnvelopeCopy.GuildFounded, null),
 
         GuildUpdateSource update => Envelope(PostType.GUILD_UPDATE, update, PostVisibility.PUBLIC, update.AuthorId,
-            update.CreatedAt, update.Title, FeedEnvelopeCopy.HydratedFromSource, null, new(GuildId: update.GuildId)),
+            update.CreatedAt, update.Title, FeedEnvelopeCopy.HydratedFromSource, null),
 
         GuildMemberSource member => member.UserId == member.GuildOwnerId
             ? null
             : Envelope(PostType.MEMBER_JOINED, member, PostVisibility.PUBLIC, member.UserId, member.JoinedAt,
-                member.GuildName, FeedEnvelopeCopy.JoinedGuild, null, new(GuildId: member.GuildId)),
+                member.GuildName, FeedEnvelopeCopy.JoinedGuild, null),
 
         OpportunitySource opportunity => opportunity.Status == OpportunityStatus.OPEN
             ? Envelope(PostType.OPPORTUNITY_OPENED, opportunity, PostVisibility.PUBLIC, opportunity.PosterId,
-                opportunity.UpdatedAt, opportunity.Title, FeedEnvelopeCopy.OpportunityOpened, null,
-                new(opportunity.ProjectId, opportunity.GuildId, OpportunityId: opportunity.Id))
+                opportunity.UpdatedAt, opportunity.Title, FeedEnvelopeCopy.OpportunityOpened, null)
             : null,
 
         OpportunityUpdateSource update => update.OpportunityStatus == OpportunityStatus.DRAFT
             ? null
             : Envelope(PostType.OPPORTUNITY_UPDATE, update, PostVisibility.PUBLIC, update.AuthorId, update.CreatedAt,
-                update.Title, FeedEnvelopeCopy.HydratedFromSource, null,
-                new(update.ProjectId, update.GuildId, OpportunityId: update.OpportunityId)),
+                update.Title, FeedEnvelopeCopy.HydratedFromSource, null),
 
         OpportunityCommentSource comment => comment.ParentId is not null
             || comment.OpportunityStatus == OpportunityStatus.DRAFT
@@ -292,19 +292,47 @@ public static class FeedProjectionRules
                         opportunityId = comment.OpportunityId,
                         commentId = comment.Id,
                     },
-                }),
-                new(comment.ProjectId, comment.GuildId, OpportunityId: comment.OpportunityId)),
+                })),
 
         EventSource evt => evt.Status is EventStatus.SCHEDULED or EventStatus.LIVE
             && EventAudience(evt) is { } audience
             ? Envelope(PostType.EVENT_SCHEDULED, evt, audience, evt.OrganizerId, evt.UpdatedAt, evt.Title,
                 FeedEnvelopeCopy.EventScheduled,
-                JsonSerializer.Serialize(new { startsAt = evt.StartDate }),
-                new(evt.ProjectId, evt.GuildId, EventId: evt.Id))
+                JsonSerializer.Serialize(new { startsAt = evt.StartDate }))
             : null,
 
         _ => throw new ArgumentOutOfRangeException(nameof(source), source.Kind, "No feed rule for this source."),
     };
+
+    /// <summary>
+    /// The rows a source's card points at NOW, whether or not it still earns a card. The one place targets are
+    /// derived, so <see cref="Enter"/> and the cycle's "has this card moved?" check can never disagree.
+    /// </summary>
+    public static FeedEnvelopeTargets TargetsOf(FeedSource source) => source switch
+    {
+        ProjectLaunchSource project => new(ProjectId: project.Id),
+        ProjectUpdateSource update => new(ProjectId: update.ProjectId),
+        ProjectMilestoneSource milestone => new(ProjectId: milestone.ProjectId),
+        ProjectTaskSource task => new(ProjectId: task.ProjectId),
+        ProjectFundingSource funding => new(ProjectId: funding.ProjectId),
+        ProjectMemberSource member => new(ProjectId: member.ProjectId),
+        ProjectCommentSource comment => new(ProjectId: comment.ProjectId),
+        GuildFoundedSource guild => new(GuildId: guild.Id),
+        GuildUpdateSource update => new(GuildId: update.GuildId),
+        GuildMemberSource member => new(GuildId: member.GuildId),
+        OpportunitySource opportunity => new(opportunity.ProjectId, opportunity.GuildId, OpportunityId: opportunity.Id),
+        OpportunityUpdateSource update => new(update.ProjectId, update.GuildId, OpportunityId: update.OpportunityId),
+        OpportunityCommentSource comment => new(comment.ProjectId, comment.GuildId, OpportunityId: comment.OpportunityId),
+        EventSource evt => new(evt.ProjectId, evt.GuildId, EventId: evt.Id),
+        _ => throw new ArgumentOutOfRangeException(nameof(source), source.Kind, "No feed targets for this source."),
+    };
+
+    /// <summary>
+    /// The stored envelopes of one kind among <paramref name="sourceIds"/>. An equality on sourceType (never
+    /// "IS NOT NULL") so Postgres can seek the (sourceType, sourceId) unique index; see Feed/AGENTS.md §Windows.
+    /// </summary>
+    public static Expression<Func<Post, bool>> IsEnvelopeOf(FeedSourceType kind, string[] sourceIds)
+        => post => post.sourceType == kind && sourceIds.Contains(post.sourceId!);
 
     /// <summary>The audience an existing envelope should have now, or null when it must be removed.</summary>
     /// <remarks>Wider than <see cref="Enter"/> on purpose: an opportunity that has closed or an event that has
@@ -417,6 +445,10 @@ public static class FeedProjectionRules
         _ => null,
     };
 
+    /// <summary>Finished work is credited to whoever was assigned it; unassigned work to the project's founder.</summary>
+    private static string CreditFor(string? assigneeId, string projectOwnerId)
+        => string.IsNullOrWhiteSpace(assigneeId) ? projectOwnerId : assigneeId;
+
     private static FeedEnvelope Envelope(
         PostType type,
         FeedSource source,
@@ -425,8 +457,7 @@ public static class FeedProjectionRules
         DateTime occurredAt,
         string? title,
         string content,
-        string? metadata,
-        FeedEnvelopeTargets targets)
+        string? metadata)
         => new(type, new FeedSourceKey(source.Kind, source.Id), visibility, authorId, occurredAt, title, content,
-            metadata, targets);
+            metadata, TargetsOf(source));
 }
