@@ -17,9 +17,12 @@ controllers had to guess the cause from which call site they were in.
 - **Who must carry it.** Every helper that re-types a failure (`MapFailure`, `Propagate`,
   `ValueEligibilityFailure.Propagate`, `AzoaCashOutClient.Refused`) ends with
   `.WithCode(source.Code)`. Dropping it silently turns a real `KYB_REQUIRED` back into a guess.
-- **Who reads it.** Only `ArdaNova.API/Controllers/MoneyRefusal.cs` (see that directory's
-  AGENTS.md §Money refusal codes). The prose in `Error` is still collapsed as before; the code is
-  additive and never shown to a person.
+  `AzoaExchangeClient.MapFailure` did not, and round 5 found it: the exchange route's 409
+  `ADMISSION_DEADLINE_PASSED` reached the settlement gateway as a bare (ambiguous) Conflict.
+- **Who reads it.** `ArdaNova.API/Controllers/MoneyRefusal.cs` (see that directory's AGENTS.md
+  §Money refusal codes), and `AzoaSettlementGateway`, which maps `AdmissionDeadlinePassed` to "this
+  attempt admitted nothing" (`Services/Implementations/AGENTS.md` §Node proof). The prose in `Error`
+  is still collapsed as before; the code is additive and never shown to a person.
 - **`Reference`** (round 4 #3) is the code's companion: the upstream's own id for the record a
   failure is about, when its error envelope's `result` named one. Today only the fiat rail sets it
   (`AzoaNodeClient.SendAsync(failureReference:)`, the intent a 409 INTENT_NEEDS_REVIEW holds), and

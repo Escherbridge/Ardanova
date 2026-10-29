@@ -158,19 +158,24 @@ export function recordAdmittedId<TWire>(
 
 /**
  * Notes that the server holds `requestKey`'s payment for a manual check (`needs_review`), naming it as
- * the key's admitted id. Kept until a read of that payment or a void settles it; never resent meanwhile.
+ * the key's admitted id when the answer named one. Kept until a read of that payment or a void settles
+ * it; never resent meanwhile - with or without an id, since the same key only meets the same hold.
  */
 export function recordHeldForReview<TWire>(
   storage: Storage,
   flow: RequestFlow<TWire>,
   subjectId: string,
   requestKey: string,
-  heldId: string,
+  heldId: string | null,
 ): SavedRequest<TWire> | null {
   const saved = readSavedRequest(storage, flow, subjectId);
   if (saved?.requestKey !== requestKey) return null;
 
-  const updated: SavedRequest<TWire> = { ...saved, admittedId: heldId, heldForReview: true };
+  const updated: SavedRequest<TWire> = {
+    ...saved,
+    ...(heldId ? { admittedId: heldId } : {}),
+    heldForReview: true,
+  };
   writeSavedRequest(storage, flow, subjectId, updated);
   return updated;
 }

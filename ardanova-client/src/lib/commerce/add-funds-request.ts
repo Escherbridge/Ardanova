@@ -97,8 +97,9 @@ function asVoidAnswer(answer: AddFundsVoidAnswer): VoidAnswer<AddFundsPaymentRea
 }
 
 /**
- * Records a `needs_review` hold on the saved key: the held payment becomes the key's own, and Continue
- * stays locked on it (round-4 #3). Null when the answer was not a hold that named its payment.
+ * Records a `needs_review` hold on the saved key and locks Continue on it (round-4 #3) - even when the
+ * answer named no payment (round 5 L2): resending would only meet the same hold. The held payment, when
+ * named, becomes the key's own. Null when the answer was not a hold.
  */
 function holdForReview(
   storage: Storage,
@@ -107,7 +108,7 @@ function holdForReview(
   moneyCode: MoneyRefusalCode | null,
   heldId: string | null,
 ): SavedRequest<AddFundsWire> | null {
-  if (moneyCode !== "needs_review" || !heldId) return null;
+  if (moneyCode !== "needs_review") return null;
   return recordHeldForReview(storage, ADD_FUNDS_REQUEST_FLOW, subjectId, requestKey, heldId);
 }
 
@@ -134,7 +135,11 @@ async function voidOrReveal(
       moneyCodeOf(settled.error),
       moneyIntentIdOf(settled.error),
     );
-    return held ? { kind: "tracking", saved: held, payment: null } : settled;
+    if (!held) return settled;
+    // Nothing to track without an id: still held, still locked, nothing read.
+    return held.admittedId
+      ? { kind: "tracking", saved: held, payment: null }
+      : { kind: "kept", saved: held, error: settled.error };
   }
   if (settled.kind !== "revealed") return settled;
 

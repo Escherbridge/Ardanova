@@ -26,18 +26,26 @@ public enum EconomicOutboxRecordedOutcome
 }
 
 /// <summary>Immutable local settlement data delivered at the AZOA boundary.</summary>
+/// <remarks>
+/// <see cref="AdmitBefore"/> is set per SEND (never stored): the send's durable start stamp plus W_admit,
+/// carried as the <c>Admit-Before</c> header. See <c>Services/Implementations/AGENTS.md</c> §Node proof.
+/// </remarks>
 public sealed record AzoaSettlementRequest(
     string SettlementId,
     string IdempotencyKey,
     string BeneficiaryUserId,
     string AssetCode,
     FixedScaleAmount Amount,
-    string? TermsSnapshot);
+    string? TermsSnapshot,
+    DateTimeOffset? AdmitBefore = null);
 
 /// <summary>One CAS lease plus the immutable settlement request it protects.</summary>
 /// <remarks>
 /// <see cref="NoEffectReopenCount"/> counts receipt-404 reopens so far; <see cref="ReconciliationRequiredAt"/>
 /// is when the row first became ambiguous. See <c>Infrastructure/Outbox/AGENTS.md</c>, "No-effect reopen".
+/// <see cref="SubmittedAt"/> is the settlement's latest stamp of a send whose answer was never recorded
+/// (the request path's release, or a dispatch lease that expired mid-attempt); <see cref="LastAttemptAt"/>
+/// is THIS claim's stamp, which the worker's <c>Admit-Before</c> is measured from.
 /// </remarks>
 public sealed record EconomicOutboxLease(
     string OutboxId,
@@ -52,7 +60,9 @@ public sealed record EconomicOutboxLease(
     EconomicSettlementKind SettlementKind = EconomicSettlementKind.TASK_REWARD,
     string? ProjectOwnerUserId = null,
     int NoEffectReopenCount = 0,
-    DateTime? ReconciliationRequiredAt = null);
+    DateTime? ReconciliationRequiredAt = null,
+    DateTime? SubmittedAt = null,
+    DateTime? LastAttemptAt = null);
 
 /// <summary>Typed response that distinguishes accepted, ambiguous, and safely retryable gateway outcomes.</summary>
 public sealed record AzoaSettlementGatewayResult(

@@ -217,6 +217,16 @@ an ambiguous failure (`AzoaNodeClient.SendAsync(..., notFoundNeedsNodeCode: true
 settlement outbox redispatches on `NotFound` and the payout path unlocks a seller's units on it.
 See `Outbox/AGENTS.md`, "No-effect reopen".
 
+**Admission deadline (round 5 H2).** A dispatch whose `AzoaSettlementRequest.AdmitBefore` is set
+sends it as the `Admit-Before` header (`AzoaExchangeClient`; strict UTC, whole seconds; never in the
+hashed body), and is not sent at all once that instant has passed on this host's clock. The node's 409
+`ADMISSION_DEADLINE_PASSED` maps by its CODE to a Retry (`AZOA_ADMISSION_DEADLINE_PASSED`, "this attempt
+admitted nothing"); every other 409 on the route stays ambiguous. That is why `AzoaExchangeClient.MapFailure`
+now keeps the node's code (it used to drop it). The windows come from `Azoa:Exchange:*`
+(`AzoaExchangeAdmissionSettings`), validated at boot (W > W_admit + skew); the same registration
+(`AddAzoaExchangeProof`) runs the P6-03 value-key boot check. Rationale and the clock assumption:
+`Application/Services/Implementations/AGENTS.md` §Node proof.
+
 `DisabledAzoaSettlementGateway` is what is registered when no node is selected to settle:
 every capability answer (`CanDispatch`, `CanReconcile`, `HasCurrentOperatorAttestation`,
 `SupportsCanonicalFundingSettlement`) is `false`, and it still implements

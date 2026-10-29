@@ -17,6 +17,7 @@ using ArdaNova.Infrastructure.Outbox;
 using ArdaNova.Infrastructure.Repositories;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Npgsql;
@@ -36,7 +37,7 @@ using Npgsql.NameTranslation;
 /// (before the create commits), the release compare-and-set, the node call, the hold compare-and-set.
 /// </remarks>
 [Trait("Category", "Database")]
-public sealed class SponsorshipVoidFlowTests : IAsyncLifetime
+public sealed partial class SponsorshipVoidFlowTests : IAsyncLifetime
 {
     private const string SponsorId = "sponsor-void";
     private const string OwnerId = "owner-void";
@@ -48,6 +49,7 @@ public sealed class SponsorshipVoidFlowTests : IAsyncLifetime
     private static readonly string ExchangePath = "/api/exchange/" + AvatarId.ToString("D");
 
     private readonly FakeNode _node = new();
+    private readonly RecordingAlerts _alerts = new();
     private readonly Dictionary<(string User, string Action), Result<AzoaCustodialAccountStatusDto>> _readiness = new();
     private DbContextOptions<ArdaNovaDbContext>? _options;
     private NpgsqlDataSource? _dataSource;
@@ -76,6 +78,9 @@ public sealed class SponsorshipVoidFlowTests : IAsyncLifetime
                 foreach (var enumType in enumTypes)
                     npgsql.MapEnum(enumType, enumType.Name, "public", translator);
             })
+            // One throwaway database and data source per test, by design (as SettlementNoEffectReopenFlowTests);
+            // EF's "many service providers" heuristic is a false positive past twenty tests in one class.
+            .ConfigureWarnings(warnings => warnings.Ignore(CoreEventId.ManyServiceProvidersCreatedWarning))
             .Options;
 
         await using (var context = NewContext())
@@ -546,13 +551,37 @@ public sealed class SponsorshipVoidFlowTests : IAsyncLifetime
     }
 
     /// <summary>One pass of the real outbox worker, with the same readiness answers and node edge.</summary>
-    private async Task<EconomicOutboxRecordedOutcome> RunOutboxWorkerOnceAsync()
+    private async Task<EconomicOutboxRecordedOutcome> RunOutboxWorkerOnceAsync(
+        int? maximumAttempts = null,
+        TimeSpan? readinessHoldingWindow = null)
     {
         await using var context = NewContext();
-        var readiness = Readiness();
-        var worker = new EconomicOutboxDispatchService(
-            new EconomicOutboxLeaseStore(context), NewGateway(readiness), readiness);
-        return (await worker.DispatchOneAsync()).Outcome;
+        return (await NewWorker(context, maximumAttempts, readinessHoldingWindow).DispatchOneAsync()).Outcome;
+    }
+
+    /// <summary>One pass of the real reconciliation worker.</summary>
+    private async Task<EconomicOutboxRecordedOutcome> RunReconciliationWorkerOnceAsync()
+    {
+        await using var context = NewContext();
+        return (await NewWorker(context, null, null).ReconcileOneAsync()).Outcome;
+    }
+
+    private EconomicOutboxDispatchService NewWorker(
+        ArdaNovaDbContext context,
+        int? maximumAttempts,
+        TimeSpan? readinessHoldingWindow)
+        => NewWorker(context, maximumAttempts, readinessHoldingWindow, ExchangeAdmissionPolicy.Default);
+
+    /// <summary>One cycle of the real pending-sponsorship promoter over the real service (the closed-tab path).</summary>
+    private async Task<SettlementPendingPromotionRun> RunPromoterOnceAsync()
+    {
+        await using var context = NewContext();
+        var promoter = new SettlementPendingPromoter(
+            new Repository<FundingIntent>(context),
+            NewService(context, leases: null),
+            new SettlementPendingPromoterOptions(),
+            NullLogger<SettlementPendingPromoter>.Instance);
+        return await promoter.PromoteOnceAsync();
     }
 
     private IAzoaValueEligibilityService Readiness()
@@ -585,6 +614,18 @@ public sealed class SponsorshipVoidFlowTests : IAsyncLifetime
             NullLogger<AzoaSettlementGateway>.Instance);
 
     private FundingIntentsController NewController(ArdaNovaDbContext context, HookedLeaseStore? leases)
+        => new(NewService(context, leases))
+        {
+            ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext
+                {
+                    User = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, SponsorId)], "test")),
+                },
+            },
+        };
+
+    private FundingIntentService NewService(ArdaNovaDbContext context, HookedLeaseStore? leases)
     {
         var readiness = Readiness();
         var store = new EconomicOutboxLeaseStore(context);
@@ -607,7 +648,7 @@ public sealed class SponsorshipVoidFlowTests : IAsyncLifetime
         var settlementReadiness = new Mock<IFundingSettlementReadiness>();
         settlementReadiness.SetupGet(item => item.IsReady).Returns(true);
 
-        var service = new FundingIntentService(
+        return new FundingIntentService(
             new Repository<User>(context),
             new Repository<Project>(context),
             new Repository<ProjectTokenConfig>(context),
@@ -625,17 +666,6 @@ public sealed class SponsorshipVoidFlowTests : IAsyncLifetime
             new ArdaNova.Infrastructure.UnitOfWork.UnitOfWork(context),
             new Repository<FundingIntentVoid>(context),
             outboxLeases);
-
-        return new FundingIntentsController(service)
-        {
-            ControllerContext = new ControllerContext
-            {
-                HttpContext = new DefaultHttpContext
-                {
-                    User = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, SponsorId)], "test")),
-                },
-            },
-        };
     }
 
     private static Result<AzoaCustodialAccountStatusDto> Ready() => Result<AzoaCustodialAccountStatusDto>.Success(new()
@@ -773,6 +803,10 @@ public sealed class SponsorshipVoidFlowTests : IAsyncLifetime
         await context.SaveChangesAsync();
     }
 
+    /// <summary>The worker comes round: the outbox is due now, and no other instant moves.</summary>
+    private async Task MakeOutboxDueAsync(string key)
+        => await SeedAsync(key, (_, _, outbox) => outbox.availableAt = DateTime.UtcNow.AddSeconds(-1));
+
     /// <summary>Writes rows straight to the database: a state an older build (or an operator) left behind.</summary>
     private async Task SeedAsync(string key, Action<FundingIntent, EconomicSettlement, EconomicOutbox> change)
     {
@@ -833,6 +867,9 @@ public sealed class SponsorshipVoidFlowTests : IAsyncLifetime
 
         public int ReceiptCalls { get; private set; }
 
+        /// <summary>Each exchange call's <c>Admit-Before</c> header, in order (null when absent).</summary>
+        public List<string?> AdmitBefore { get; } = new();
+
         public void OnExchange(Func<Task<(HttpStatusCode, string)>> answer) => _exchange = _ => answer();
 
         /// <summary>An exchange answer that sees the call's own cancellation, so a test can abort mid-call.</summary>
@@ -854,6 +891,9 @@ public sealed class SponsorshipVoidFlowTests : IAsyncLifetime
             {
                 path.Should().Be(ExchangePath);
                 ExchangeCalls++;
+                AdmitBefore.Add(request.Headers.TryGetValues(ExchangeAdmissionPolicy.AdmitBeforeHeader, out var values)
+                    ? values.Single()
+                    : null);
                 answer = await _exchange(ct);
             }
 
@@ -861,6 +901,17 @@ public sealed class SponsorshipVoidFlowTests : IAsyncLifetime
             {
                 Content = new StringContent(answer.Body, Encoding.UTF8, "application/json"),
             };
+        }
+    }
+
+    private sealed class RecordingAlerts : IOperatorAlertService
+    {
+        public List<EconomicOperatorAlert> Raised { get; } = new();
+
+        public Task RaiseAsync(EconomicOperatorAlert alert, CancellationToken ct = default)
+        {
+            Raised.Add(alert);
+            return Task.CompletedTask;
         }
     }
 
@@ -876,6 +927,9 @@ public sealed class SponsorshipVoidFlowTests : IAsyncLifetime
 
         /// <summary>Runs right after the void's AUTHORIZED cancel landed, before its intent write.</summary>
         public Action? AfterCancelUndispatched { get; init; }
+
+        /// <summary>Runs inside CompleteAsync's transaction, right after its confirm compare-and-set took its locks.</summary>
+        public Func<Task>? AfterConfirmOpen { get; init; }
 
         public IEconomicOutboxLeaseStore Wrapping(IEconomicOutboxLeaseStore inner) => new Hooked(inner, this);
 
@@ -897,8 +951,25 @@ public sealed class SponsorshipVoidFlowTests : IAsyncLifetime
                 return await inner.TryReleaseForDispatchAsync(settlementId, now, ct);
             }
 
-            public Task<bool> TryConfirmOpenAsync(string settlementId, DateTime now, CancellationToken ct = default)
-                => inner.TryConfirmOpenAsync(settlementId, now, ct);
+            public async Task<bool> TryConfirmOpenAsync(string settlementId, DateTime now, CancellationToken ct = default)
+            {
+                var confirmed = await inner.TryConfirmOpenAsync(settlementId, now, ct);
+                if (hooks.AfterConfirmOpen is { } hook)
+                    await hook();
+                return confirmed;
+            }
+
+            public Task<bool> TryParkUnleasedForReconciliationAsync(
+                string settlementId, int expectedSettlementVersion, string? failureCode, string? failureDetail,
+                DateTime availableAt, DateTime now, CancellationToken ct = default)
+                => inner.TryParkUnleasedForReconciliationAsync(
+                    settlementId, expectedSettlementVersion, failureCode, failureDetail, availableAt, now, ct);
+
+            public Task<bool> TryLeaveUnleasedToWorkerAsync(
+                string settlementId, int expectedSettlementVersion, string? failureCode, string? failureDetail,
+                DateTime availableAt, DateTime now, CancellationToken ct = default)
+                => inner.TryLeaveUnleasedToWorkerAsync(
+                    settlementId, expectedSettlementVersion, failureCode, failureDetail, availableAt, now, ct);
 
             public Task<EconomicSettlementStatus?> ReadSettlementStatusAsync(string settlementId, CancellationToken ct = default)
                 => inner.ReadSettlementStatusAsync(settlementId, ct);

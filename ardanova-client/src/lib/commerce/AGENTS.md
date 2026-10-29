@@ -90,13 +90,19 @@ and its outcome is `added` or `went-wrong`.
 - Copy (M-4): router fallbacks come from `addFundsFallbackMessage(moneyCode)`; only
   `payments_not_configured` and `definite` may say nothing was or can be charged.
 - **Held for a manual check** (round 4 #3). A `needs_review` answer - from Continue or from the void -
-  is recorded by `recordHeldForReview`: the held payment becomes the key's `admittedId` and the entry
-  carries `heldForReview: true`, which survives a reload. `savedPaymentLocksContinue` is then locked
-  whatever that payment's page last said, and the banner says honestly "This payment is held for a
-  manual check - quote <id> if you contact us" instead of promising that Continue "picks up the same
-  payment" (it used to resend into the same 409 forever). "Start a new payment instead" still calls
-  the void: the node voids an UNATTACHED claimed row, and an attached one stays `needs_review` (keep).
-  A read of the held payment that ends it (`added`/`went-wrong`) clears the key as usual.
+  is recorded by `recordHeldForReview`: the entry carries `heldForReview: true`, which survives a
+  reload, and the held payment (when the answer names one) becomes the key's `admittedId`.
+  `savedPaymentLocksContinue` is then locked whatever that payment's page last said - and also when
+  the answer named NO id (round 5 L2: the copy says it "won't be sent again", so Continue must not
+  resend it; with no id there is nothing to read, so the lock copy does not promise a re-check). The
+  banner says honestly "This payment is held for a manual check - quote <id> if you contact us" instead
+  of promising that Continue "picks up the same payment" (it used to resend into the same 409 forever).
+  "Start a new payment instead" still calls the void, which decides by the node's row
+  (oasis-sleek `Providers/Fiat/AGENTS.md` §request-void): a row still `CLAIMED` with no page attached is
+  voided at any age (that is exactly the shape begin's `needs_review` comes from), an attached page is
+  settled at Stripe (`voided` / `revealed` / 503), and the void answers `needs_review` only for an
+  UNATTACHED row that is no longer `CLAIMED` (a shape no begin produces) - keep. A read of the held
+  payment that ends it (`added`/`went-wrong`) clears the key as usual.
 
 **Invest** (`sponsorship-request.ts`, H-1). The banner (and step 3 after a kept failure) offers two
 honest exits. "Cancel that request" (`cancelSavedSponsorship`) voids: a tombstone if nothing was

@@ -32,6 +32,12 @@ public static class UpstreamFailureCodes
     /// <summary>The deployment has no payment rail configured at all (oasis-sleek <c>FiatConsumerErrors.PaymentsNotConfiguredCode</c>).</summary>
     public const string PaymentsNotConfigured = "PAYMENTS_NOT_CONFIGURED";
 
+    /// <summary>
+    /// 409 on an exchange: this attempt arrived after its <c>Admit-Before</c>, so THIS attempt admitted nothing.
+    /// Not proof the key is unused while another attempt may be in flight (Implementations/AGENTS.md §Node proof).
+    /// </summary>
+    public const string AdmissionDeadlinePassed = "ADMISSION_DEADLINE_PASSED";
+
     // -- The BFF transport's own codes: these failures never reached a node ----------------------
 
     /// <summary>A typed client refused to send: the path is outside its credential's route family. A configuration fault.</summary>

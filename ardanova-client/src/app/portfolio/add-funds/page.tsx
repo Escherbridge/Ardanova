@@ -377,7 +377,12 @@ function AddFundsFlow() {
             ? SAVED_PAYMENT_HELD_MESSAGE
             : SAVED_PAYMENT_REVEALED_MESSAGE,
         );
-      if (settled.kind === "kept") setSubmitError(SAVED_PAYMENT_UNCONFIRMED_MESSAGE);
+      if (settled.kind === "kept")
+        setSubmitError(
+          settled.saved?.heldForReview
+            ? SAVED_PAYMENT_HELD_MESSAGE
+            : SAVED_PAYMENT_UNCONFIRMED_MESSAGE,
+        );
     } finally {
       setSettingAside(false);
     }
@@ -483,7 +488,9 @@ function AddFundsFlow() {
                     className="text-muted-foreground mt-2 text-xs"
                   >
                     {savedRequest.heldForReview
-                      ? "Continue is paused while that payment is checked by hand. This page checks it again on its own."
+                      ? savedRequest.admittedId
+                        ? "Continue is paused while that payment is checked by hand. This page checks it again on its own."
+                        : "Continue is paused while that payment is checked by hand."
                       : savedPayment
                         ? "Continue is paused until that payment settles. This page checks it again on its own."
                         : "Continue is paused while we confirm that earlier payment. This page checks it again on its own."}

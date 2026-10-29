@@ -154,6 +154,9 @@ public static class DependencyInjection
         else
             services.AddScoped<IAzoaSettlementGateway, AzoaSettlementGateway>();
         services.AddScoped<IFundingSettlementReadiness, AzoaFundingSettlementReadiness>();
+        // Every exchange send's Admit-Before and the NOT_FOUND proof window, validated here so a bad combination
+        // (W <= W_admit + skew) fails boot; plus the P6-03 value-key boot check. See Azoa/AGENTS.md §Settlement gateway.
+        services.AddAzoaExchangeProof(configuration, valueApiKey);
         // The exchange ports (node exchange, project-treasury and holdings read models). These
         // never fall back to the database, so without this registration TreasuryService.ReconcileAsync
         // and TokenBalanceService.GetArdaBalanceAsync refuse every call.

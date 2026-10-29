@@ -138,6 +138,9 @@ public sealed class InMemoryUnitOfWork : IUnitOfWork
     public Task CommitTransactionAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
     public Task RollbackTransactionAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
     public void ClearTrackedChanges() { }
+
+    /// <summary>In-memory rows have no change tracker: what a test mutated is already "persisted".</summary>
+    public void MarkPersisted(object entity) { }
     public void Dispose() { }
 
     private sealed class UniqueViolation : DbException

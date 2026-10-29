@@ -1119,6 +1119,8 @@ public sealed class FeedProjectorFlowTests : IAsyncLifetime
 
         public void ClearTrackedChanges() => inner.ClearTrackedChanges();
 
+        public void MarkPersisted(object entity) => inner.MarkPersisted(entity);
+
         public void Dispose() => inner.Dispose();
     }
 }

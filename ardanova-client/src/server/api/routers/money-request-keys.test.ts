@@ -402,7 +402,7 @@ describe("add funds: a payment held for a manual check is recorded, locked and n
     const tab = new TabStorage();
     const saved = claimAddFunds(tab);
 
-    // An attached held row: the node's void answers needs_review with that payment in `result`.
+    // An unattached row no longer CLAIMED: the node's void answers needs_review with that payment in `result`.
     bffAnswers(409, held);
     const kept = await setAsideSavedPayment({ storage: tab, subjectId: SUBJECT, server: addFundsServer });
 
@@ -413,12 +413,40 @@ describe("add funds: a payment held for a manual check is recorded, locked and n
       heldForReview: true,
     });
 
-    // Once the node can prove nothing was or can be paid (an unattached claim), the void releases.
+    // Once the node can prove nothing was or can be paid (an unattached row still CLAIMED), the void releases.
     bffAnswers(200, { outcome: "voided" });
     const released = await setAsideSavedPayment({ storage: tab, subjectId: SUBJECT, server: addFundsServer });
 
     expect(released.kind).toBe("released");
     expect(readSavedRequest(tab, ADD_FUNDS_REQUEST_FLOW, SUBJECT)).toBeNull();
+  });
+
+  it("Continue meets a needs_review that names NO payment -> still held and locked across a reload, nothing resent or read", async () => {
+    const tab = new TabStorage();
+    const saved = claimAddFunds(tab);
+    const { intentId: _named, ...heldWithoutId } = held;
+    const calls = bffAnswers(409, heldWithoutId);
+
+    const failure = await failureOf(
+      browser.addFunds.begin.mutate({ amountMinorUnits: 2_500, requestKey: saved.requestKey }),
+    );
+    const settled = await settleAddFundsFailure({
+      storage: tab,
+      subjectId: SUBJECT,
+      requestKey: saved.requestKey,
+      moneyCode: moneyCodeOf(failure),
+      heldPaymentId: moneyIntentIdOf(failure),
+      server: addFundsServer,
+    });
+
+    expect(moneyIntentIdOf(failure)).toBeNull();
+    expect(settled.kind).toBe("kept");
+    const reloaded = readSavedRequest(tab, ADD_FUNDS_REQUEST_FLOW, SUBJECT);
+    expect(reloaded).toMatchObject({ requestKey: saved.requestKey, heldForReview: true });
+    expect(reloaded?.admittedId).toBeUndefined();
+    // The copy says it "won't be sent again from here" - so Continue must not be able to send it.
+    expect(savedPaymentLocksContinue(reloaded, null)).toBe(true);
+    expect(calls.map((call) => `${call.method} ${call.path}`)).toEqual(["POST /api/add-funds"]);
   });
 
   it.each([

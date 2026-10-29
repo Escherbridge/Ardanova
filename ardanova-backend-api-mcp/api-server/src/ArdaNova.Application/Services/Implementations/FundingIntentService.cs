@@ -108,6 +108,7 @@ public sealed class FundingIntentService : IFundingIntentService
     private readonly IUnitOfWork _unitOfWork;
     private readonly IRepository<FundingIntentVoid> _voidRepository;
     private readonly IEconomicOutboxLeaseStore _outboxLeases;
+    private readonly ExchangeAdmissionPolicy _admission;
     private readonly ILogger<FundingIntentService> _logger;
 
     /// <summary>The failure code a sponsor's own void stamps on the settlement and outbox it cancelled.</summary>
@@ -142,9 +143,11 @@ public sealed class FundingIntentService : IFundingIntentService
         IUnitOfWork unitOfWork,
         IRepository<FundingIntentVoid> voidRepository,
         IEconomicOutboxLeaseStore outboxLeases,
-        ILogger<FundingIntentService>? logger = null)
+        ILogger<FundingIntentService>? logger = null,
+        ExchangeAdmissionPolicy? admission = null)
     {
         _logger = logger ?? NullLogger<FundingIntentService>.Instance;
+        _admission = admission ?? ExchangeAdmissionPolicy.Default;
         _voidRepository = voidRepository;
         _outboxLeases = outboxLeases;
         _userRepository = userRepository;
@@ -355,6 +358,8 @@ public sealed class FundingIntentService : IFundingIntentService
 
         if (intent.status == FundingIntentStatus.SETTLEMENT_PENDING)
             await AdvancePendingAsync(intent, ct);
+        else if (intent.status == FundingIntentStatus.DRAFT)
+            await FollowDormantReleaseAsync(intent, ct);
 
         return Result<FundingIntentStatusDto>.Success(ToStatus(intent));
     }
@@ -598,13 +603,15 @@ public sealed class FundingIntentService : IFundingIntentService
         if (!await _outboxLeases.TryReleaseForDispatchAsync(settlement.id, now, ct))
             return await AnswerUnreleasableAsync(settlement.id, ct);
 
-        // Mirrors the compare-and-set onto the tracked row, so a later save cannot write it back.
+        // Mirrors the compare-and-set onto the tracked row AS PERSISTED: a later save must neither write it
+        // back nor repeat it over a worker that moves the row from here on (M2).
         settlement.status = EconomicSettlementStatus.PENDING_DISPATCH;
         settlement.submittedAt = now;
         settlement.updatedAt = now;
         settlement.version += 1;
+        _unitOfWork.MarkPersisted(settlement);
 
-        return await DispatchJustReleasedAsync(intent, settlement, outbox, config, project, ct);
+        return await DispatchJustReleasedAsync(intent, settlement, outbox, config, project, releasedAt: now, ct);
     }
 
     /// <summary>
@@ -627,10 +634,13 @@ public sealed class FundingIntentService : IFundingIntentService
         EconomicOutbox outbox,
         ProjectTokenConfig config,
         Project project,
+        DateTime releasedAt,
         CancellationToken ct)
     {
         intent.settlementAttemptCount += 1;
-        var outcome = await _settlementGateway.DispatchAsync(BuildSettlementRequest(intent), ct);
+        // Admit-Before = the release CAS's durable submittedAt + W_admit (AGENTS.md §Node proof).
+        var request = BuildSettlementRequest(intent) with { AdmitBefore = _admission.AdmitBefore(releasedAt) };
+        var outcome = await _settlementGateway.DispatchAsync(request, ct);
         return outcome.Outcome switch
         {
             AzoaSettlementGatewayOutcome.Accepted => await CompleteAsync(
@@ -640,28 +650,38 @@ public sealed class FundingIntentService : IFundingIntentService
             _ when IsReadinessLapse(outcome.Code) => await TryHoldAsync(
                     intent, settlement, outbox, outcome.Code, outcome.Detail, nothingWasSubmitted: true, ct)
                 ? Finished(intent.holdingReasonDetail!)
-                : await FollowPendingAsync(intent, project, outcome, ct),
+                : await FollowPendingAsync(intent, project, outcome.Code, ct),
             _ => await LeaveToOutboxAsync(intent, settlement, outbox, project, outcome, ct),
         };
     }
 
+    /// <summary>What a sponsor reads while their sponsorship follows the worker; never gateway or node wording.</summary>
+    private const string PendingMessage =
+        "This sponsorship is still being completed. Nothing more is needed from you, and nothing is taken twice.";
+
     /// <summary>
     /// The intent follows the outbox worker instead of claiming "nothing taken": a lapse whose hold lost
-    /// to a lease, or a released settlement the node could not (yet) account for.
+    /// to a lease, or a released settlement the node could not (yet) account for. The code is kept for
+    /// operators; the sponsor reads <see cref="PendingMessage"/>.
     /// </summary>
     private async Task<Result<FundingCheckoutDto>> FollowPendingAsync(
         FundingIntent intent,
         Project project,
-        AzoaSettlementGatewayResult outcome,
+        string? reasonCode,
         CancellationToken ct)
     {
-        intent.status = FundingIntentStatus.SETTLEMENT_PENDING;
-        intent.holdingReasonCode = outcome.Code;
-        intent.holdingReasonDetail = outcome.Detail;
-        intent.updatedAt = DateTime.UtcNow;
+        MarkPending(intent, reasonCode, DateTime.UtcNow);
         await _intentRepository.UpdateAsync(intent, ct);
         await _unitOfWork.SaveChangesAsync(ct);
         return Result<FundingCheckoutDto>.Success(BuildCheckout(intent, project));
+    }
+
+    private static void MarkPending(FundingIntent intent, string? reasonCode, DateTime now)
+    {
+        intent.status = FundingIntentStatus.SETTLEMENT_PENDING;
+        intent.holdingReasonCode = reasonCode;
+        intent.holdingReasonDetail = PendingMessage;
+        intent.updatedAt = now;
     }
 
     /// <summary>
@@ -788,7 +808,10 @@ public sealed class FundingIntentService : IFundingIntentService
         return Result<FundingCheckoutDto>.Success(BuildCheckout(intent, project));
     }
 
-    /// <summary>The node did not finish: keep the row and hand the work to the reconciliation loop.</summary>
+    /// <summary>
+    /// The node did not finish: park the row for the reconciliation loop - by compare-and-set, never a
+    /// full-row write, so a worker that took the lease (or SUBMITTED it) meanwhile is never overwritten (M2).
+    /// </summary>
     private async Task<Result<FundingCheckoutDto>> ParkForReconciliationAsync(
         FundingIntent intent,
         EconomicSettlement settlement,
@@ -798,33 +821,43 @@ public sealed class FundingIntentService : IFundingIntentService
         CancellationToken ct)
     {
         var now = DateTime.UtcNow;
-        settlement.status = EconomicSettlementStatus.AWAITING_RECONCILIATION;
-        settlement.failureCode = outcome.Code;
-        settlement.failureDetail = outcome.Detail;
-        settlement.submittedAt ??= now;
-        settlement.updatedAt = now;
-        settlement.version += 1;
-        await _settlementRepository.UpdateAsync(settlement, ct);
+        var availableAt = now.Add(OutboxHandoverDelay);
+        var parked = await CompareAndSetInOneTransactionAsync(
+            () => _outboxLeases.TryParkUnleasedForReconciliationAsync(
+                settlement.id, settlement.version, outcome.Code, outcome.Detail, availableAt, now, ct),
+            settlement,
+            outbox,
+            () =>
+            {
+                settlement.status = EconomicSettlementStatus.AWAITING_RECONCILIATION;
+                settlement.failureCode = outcome.Code;
+                settlement.failureDetail = outcome.Detail;
+                settlement.submittedAt ??= now;
+                settlement.updatedAt = now;
+                settlement.version += 1;
 
-        outbox.status = EconomicOutboxStatus.AWAITING_RECONCILIATION;
-        outbox.reconciliationRequiredAt = now;
-        outbox.availableAt = now.Add(OutboxHandoverDelay);
-        outbox.failureCode = outcome.Code;
-        outbox.failureDetail = outcome.Detail;
-        outbox.updatedAt = now;
-        await _outboxRepository.UpdateAsync(outbox, ct);
+                outbox.status = EconomicOutboxStatus.AWAITING_RECONCILIATION;
+                outbox.reconciliationRequiredAt = now;
+                outbox.availableAt = availableAt;
+                outbox.failureCode = outcome.Code;
+                outbox.failureDetail = outcome.Detail;
+                outbox.updatedAt = now;
 
-        intent.status = FundingIntentStatus.SETTLEMENT_PENDING;
-        intent.holdingReasonCode = outcome.Code;
-        intent.holdingReasonDetail = outcome.Detail;
-        intent.updatedAt = now;
-        await _intentRepository.UpdateAsync(intent, ct);
-        await _unitOfWork.SaveChangesAsync(ct);
+                MarkPending(intent, outcome.Code, now);
+            },
+            intent,
+            ct);
 
-        return Result<FundingCheckoutDto>.Success(BuildCheckout(intent, project));
+        // Lost to a worker: it owns the row and its outcome; the sponsorship follows it.
+        return parked
+            ? Result<FundingCheckoutDto>.Success(BuildCheckout(intent, project))
+            : await FollowPendingAsync(intent, project, outcome.Code, ct);
     }
 
-    /// <summary>A refusal the gateway calls safely retryable: leave it queued, bounded by the worker's ceiling.</summary>
+    /// <summary>
+    /// A refusal the gateway calls safely retryable: leave it queued, bounded by the worker's ceiling - by the
+    /// same compare-and-set as the park, so a worker's lease or SUBMITTED is never written over (M2).
+    /// </summary>
     private async Task<Result<FundingCheckoutDto>> LeaveToOutboxAsync(
         FundingIntent intent,
         EconomicSettlement settlement,
@@ -834,25 +867,32 @@ public sealed class FundingIntentService : IFundingIntentService
         CancellationToken ct)
     {
         var now = DateTime.UtcNow;
-        settlement.failureCode = outcome.Code;
-        settlement.failureDetail = outcome.Detail;
-        settlement.updatedAt = now;
-        await _settlementRepository.UpdateAsync(settlement, ct);
+        var availableAt = now.Add(OutboxHandoverDelay);
+        var left = await CompareAndSetInOneTransactionAsync(
+            () => _outboxLeases.TryLeaveUnleasedToWorkerAsync(
+                settlement.id, settlement.version, outcome.Code, outcome.Detail, availableAt, now, ct),
+            settlement,
+            outbox,
+            () =>
+            {
+                settlement.failureCode = outcome.Code;
+                settlement.failureDetail = outcome.Detail;
+                settlement.updatedAt = now;
+                settlement.version += 1;
 
-        outbox.availableAt = now.Add(OutboxHandoverDelay);
-        outbox.failureCode = outcome.Code;
-        outbox.failureDetail = outcome.Detail;
-        outbox.updatedAt = now;
-        await _outboxRepository.UpdateAsync(outbox, ct);
+                outbox.availableAt = availableAt;
+                outbox.failureCode = outcome.Code;
+                outbox.failureDetail = outcome.Detail;
+                outbox.updatedAt = now;
 
-        intent.status = FundingIntentStatus.SETTLEMENT_PENDING;
-        intent.holdingReasonCode = outcome.Code;
-        intent.holdingReasonDetail = outcome.Detail;
-        intent.updatedAt = now;
-        await _intentRepository.UpdateAsync(intent, ct);
-        await _unitOfWork.SaveChangesAsync(ct);
+                MarkPending(intent, outcome.Code, now);
+            },
+            intent,
+            ct);
 
-        return Result<FundingCheckoutDto>.Success(BuildCheckout(intent, project));
+        return left
+            ? Result<FundingCheckoutDto>.Success(BuildCheckout(intent, project))
+            : await FollowPendingAsync(intent, project, outcome.Code, ct);
     }
 
     /// <summary>
@@ -870,9 +910,11 @@ public sealed class FundingIntentService : IFundingIntentService
         CancellationToken ct)
     {
         var now = DateTime.UtcNow;
-        return await CancelInOneTransactionAsync(
+        return await CompareAndSetInOneTransactionAsync(
             () => _outboxLeases.TryCancelUnleasedAsync(
                 settlement.id, settlement.version, reasonCode, reasonDetail, nothingWasSubmitted, now, ct),
+            settlement,
+            outbox,
             () =>
             {
                 MirrorCancelled(settlement, outbox, reasonCode, reasonDetail, now);
@@ -881,7 +923,8 @@ public sealed class FundingIntentService : IFundingIntentService
 
                 intent.status = FundingIntentStatus.HOLDING;
                 intent.holdingReasonCode = reasonCode;
-                intent.holdingReasonDetail = HoldingMessage(reasonDetail);
+                // From the CODE, never the worker's or gateway's sentence ("remains pending" is false once CANCELLED).
+                intent.holdingReasonDetail = HoldingMessage(reasonCode);
                 intent.heldAt = now;
                 intent.updatedAt = now;
             },
@@ -900,9 +943,11 @@ public sealed class FundingIntentService : IFundingIntentService
         EconomicOutbox? outbox,
         DateTime now,
         CancellationToken ct)
-        => await CancelInOneTransactionAsync(
+        => await CompareAndSetInOneTransactionAsync(
             () => _outboxLeases.TryCancelUndispatchedAsync(
                 settlement.id, VoidedBySponsorCode, VoidedBeforeDispatchDetail, now, ct),
+            settlement,
+            outbox,
             () =>
             {
                 MirrorCancelled(settlement, outbox, VoidedBySponsorCode, VoidedBeforeDispatchDetail, now);
@@ -912,11 +957,14 @@ public sealed class FundingIntentService : IFundingIntentService
             ct);
 
     /// <summary>
-    /// A compare-and-set cancel and the intent write that names it, committed together or not at all,
+    /// A store compare-and-set and the intent write that names it, committed together or not at all,
     /// so an abort between them (<paramref name="ct"/> is the request's) cannot leave DRAFT + CANCELLED.
+    /// The CAS's values are mirrored onto the tracked rows AS PERSISTED, so no later save writes them again.
     /// </summary>
-    private async Task<bool> CancelInOneTransactionAsync(
-        Func<Task<bool>> compareAndSetCancel,
+    private async Task<bool> CompareAndSetInOneTransactionAsync(
+        Func<Task<bool>> compareAndSet,
+        EconomicSettlement settlement,
+        EconomicOutbox? outbox,
         Action mirrorOntoTrackedRows,
         FundingIntent intent,
         CancellationToken ct)
@@ -924,14 +972,17 @@ public sealed class FundingIntentService : IFundingIntentService
         await _unitOfWork.BeginTransactionAsync(ct);
         try
         {
-            // The store sees the ambient transaction and cancels inside a savepoint of it.
-            if (!await compareAndSetCancel())
+            // The store sees the ambient transaction and writes inside a savepoint of it.
+            if (!await compareAndSet())
             {
                 await _unitOfWork.RollbackTransactionAsync(CancellationToken.None);
                 return false;
             }
 
             mirrorOntoTrackedRows();
+            _unitOfWork.MarkPersisted(settlement);
+            if (outbox is not null)
+                _unitOfWork.MarkPersisted(outbox);
             await _intentRepository.UpdateAsync(intent, ct);
             await _unitOfWork.SaveChangesAsync(ct);
             await _unitOfWork.CommitTransactionAsync(ct);
@@ -1065,6 +1116,47 @@ public sealed class FundingIntentService : IFundingIntentService
         await CompleteAsync(intent, settlement, outbox, config, project, outcome, ct);
     }
 
+    /// <summary>
+    /// M3: a DRAFT whose request released its settlement and then lost the answer (the 30 s abort). The
+    /// worker may settle it, but nothing would record the stake until the sponsor resent - so the poll and
+    /// the promoter follow it here: read-only (never released, never sent), and only once the releasing
+    /// request has had the handover delay to finish.
+    /// </summary>
+    private async Task FollowDormantReleaseAsync(FundingIntent intent, CancellationToken ct)
+    {
+        var settlement = await LoadSettlementAsync(intent, ct);
+        if (settlement is null || settlement.status == EconomicSettlementStatus.AUTHORIZED)
+            return;
+        if (settlement.submittedAt is { } releasedAt && DateTime.UtcNow < releasedAt.Add(OutboxHandoverDelay))
+            return;
+
+        var outbox = await _outboxRepository.FindOneAsync(item => item.settlementId == settlement.id, ct);
+        var config = await _tokenConfigRepository.GetByIdAsync(intent.projectTokenConfigId, ct);
+        var project = await _projectRepository.GetByIdAsync(intent.projectId, ct);
+        if (outbox is null || config is null || project is null)
+            return;
+
+        if (IsCancelledBeforeRelease(settlement))
+        {
+            await RepairVoidedIntentAsync(intent, settlement, ct);
+            return;
+        }
+
+        if (IsNodeConfirmed(settlement))
+        {
+            await PromoteConfirmedAsync(intent, settlement, outbox, ct);
+            return;
+        }
+
+        if (intent.settlementAttemptCount >= MaximumIntentAttempts)
+        {
+            await FollowPendingAsync(intent, project, settlement.failureCode, ct);
+            return;
+        }
+
+        await FollowReleasedAsync(intent, settlement, outbox, config, project, ct);
+    }
+
     /// <summary>Completes an intent whose settlement someone else already confirmed at the node.</summary>
     private async Task PromoteConfirmedAsync(
         FundingIntent intent,
@@ -1133,11 +1225,12 @@ public sealed class FundingIntentService : IFundingIntentService
     }
 
     /// <summary>
-    /// Whether every send that could have reached the node has had the worker's no-effect quiet window
-    /// to land. A send only starts after a durable stamp - the release's <c>submittedAt</c> (request
-    /// path) or the claim's <c>lastAttemptAt</c> (worker) - so the later of the two bounds it.
+    /// Whether every send that could have reached the node is past the proof window. A send only starts
+    /// after a durable stamp - the release's <c>submittedAt</c> (request path) or the claim's
+    /// <c>lastAttemptAt</c> (worker) - and carries <c>Admit-Before</c> = that stamp + W_admit, so the later of
+    /// the two bounds every admission (<see cref="ExchangeAdmissionPolicy"/>).
     /// </summary>
-    private static bool NoSendCanStillLand(EconomicSettlement settlement, EconomicOutbox? outbox, DateTime now)
+    private bool NoSendCanStillLand(EconomicSettlement settlement, EconomicOutbox? outbox, DateTime now)
     {
         var lastSendStart = (settlement.submittedAt, outbox?.lastAttemptAt) switch
         {
@@ -1146,8 +1239,7 @@ public sealed class FundingIntentService : IFundingIntentService
             (null, { } claimed) => claimed,
             _ => (DateTime?)null,
         };
-        return lastSendStart is not { } started
-            || now >= started.Add(EconomicOutboxDispatchService.NoEffectQuietWindow);
+        return _admission.AbsenceIsBelievable(lastSendStart, now);
     }
 
     /// <summary>
@@ -1196,13 +1288,13 @@ public sealed class FundingIntentService : IFundingIntentService
         await _unitOfWork.SaveChangesAsync(ct);
     }
 
+    /// <summary>Fails a sponsorship the node proved untaken; the sponsor reads consumer copy, never the worker's operator text.</summary>
     private async Task FailAsync(FundingIntent intent, EconomicSettlement settlement, CancellationToken ct)
     {
         var now = DateTime.UtcNow;
         intent.status = FundingIntentStatus.FAILED;
         intent.holdingReasonCode = settlement.failureCode;
-        intent.holdingReasonDetail = settlement.failureDetail
-            ?? "This sponsorship could not be completed, and nothing was taken.";
+        intent.holdingReasonDetail = "This sponsorship could not be completed, and nothing was taken.";
         intent.updatedAt = now;
         await _intentRepository.UpdateAsync(intent, ct);
         await _unitOfWork.SaveChangesAsync(ct);
@@ -1329,7 +1421,7 @@ public sealed class FundingIntentService : IFundingIntentService
         var (verdict, receipt) = await ReadNodeReceiptAsync(intent, settlement, outbox, ct);
         return verdict == NodeReceipt.Landed
             ? await CompleteAsync(intent, settlement, outbox, config, project, receipt, ct)
-            : await FollowPendingAsync(intent, project, receipt, ct);
+            : await FollowPendingAsync(intent, project, receipt.Code, ct);
     }
 
     // -- Voiding a request key ------------------------------------------------
@@ -1718,10 +1810,23 @@ public sealed class FundingIntentService : IFundingIntentService
     private static bool IsReadinessLapse(string? code)
         => EconomicSettlementReadinessCodes.IsReadinessLapse(code);
 
-    private static string HoldingMessage(string? detail)
-        => string.IsNullOrWhiteSpace(detail)
-            ? "This sponsorship is on hold until account setup is complete. Nothing was taken."
-            : $"{detail} Nothing was taken.";
+    /// <summary>
+    /// What a sponsor reads once a hold CANCELLED the settlement: keyed on the readiness CODE, never built from
+    /// the worker's or gateway's sentence, which may say "remains pending" or "stays reserved" (L2).
+    /// </summary>
+    private static string HoldingMessage(string? reasonCode)
+        => reasonCode switch
+        {
+            EconomicSettlementReadinessCodes.BeneficiaryNotReady
+                => "This sponsorship was not completed because your account setup is unfinished. Nothing was taken.",
+            EconomicSettlementReadinessCodes.BeneficiaryUnconfirmed
+                => "This sponsorship was not completed because we could not confirm your account setup. Nothing was taken.",
+            EconomicSettlementReadinessCodes.ProjectOwnerNotReady
+                => "This sponsorship was not completed because the project owner has not finished account setup. Nothing was taken.",
+            EconomicSettlementReadinessCodes.ProjectOwnerUnavailable
+                => "This sponsorship was not completed because we could not verify the project owner. Nothing was taken.",
+            _ => "This sponsorship is on hold until account setup is complete. Nothing was taken.",
+        };
 
     /// <summary>Propagates a typed failure across result payload types without inventing a status.</summary>
     private static Result<TOut> Propagate<TIn, TOut>(Result<TIn> source)

@@ -2,6 +2,7 @@ namespace ArdaNova.Infrastructure.UnitOfWork;
 
 using ArdaNova.Application.Common.Interfaces;
 using ArdaNova.Infrastructure.Data;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 
 public class UnitOfWork : IUnitOfWork
@@ -47,6 +48,16 @@ public class UnitOfWork : IUnitOfWork
     public void ClearTrackedChanges()
     {
         _context.ChangeTracker.Clear();
+    }
+
+    public void MarkPersisted(object entity)
+    {
+        var entry = _context.Entry(entity);
+        if (entry.State is not (EntityState.Modified or EntityState.Unchanged))
+            return;
+
+        entry.OriginalValues.SetValues(entry.CurrentValues);
+        entry.State = EntityState.Unchanged;
     }
 
     public void Dispose()

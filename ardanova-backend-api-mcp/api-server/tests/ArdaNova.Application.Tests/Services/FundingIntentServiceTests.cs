@@ -57,6 +57,12 @@ public class FundingIntentServiceTests
             .ReturnsAsync(true);
         _leases.Setup(store => store.TryConfirmOpenAsync(It.IsAny<string>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(true);
+        _leases.Setup(store => store.TryParkUnleasedForReconciliationAsync(
+                It.IsAny<string>(), It.IsAny<int>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+        _leases.Setup(store => store.TryLeaveUnleasedToWorkerAsync(
+                It.IsAny<string>(), It.IsAny<int>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
         _settlementReadiness.SetupGet(readiness => readiness.IsReady).Returns(true);
         _settlementReadiness.SetupGet(readiness => readiness.UnavailableReason).Returns(string.Empty);
         _valueEligibility
@@ -726,7 +732,7 @@ public class FundingIntentServiceTests
     }
 
     [Fact]
-    public async Task GetStatusAsync_RepeatsTheServersOwnSentenceForASponsorshipOnHold()
+    public async Task GetStatusAsync_ExplainsAHoldFromItsReasonCode_NeverFromTheWorkersPendingSentence()
     {
         var fixture = ArrangeEligibleFunding();
         var (intent, settlement, _) = PendingSponsorship(fixture);
@@ -736,9 +742,9 @@ public class FundingIntentServiceTests
         var result = await _sut.GetStatusAsync(intent.id, ActorId);
 
         result.Value!.Status.Should().Be(nameof(FundingIntentStatus.HOLDING));
+        // From the readiness CODE: the worker's "remains pending" sentence is false once the hold CANCELLED it (L2).
         result.Value.HoldingReasonDetail.Should().Be(
-            "Funding settlement remains pending until the project owner completes account setup. "
-            + "Nothing was taken.");
+            "This sponsorship was not completed because the project owner has not finished account setup. Nothing was taken.");
     }
 
     // -- Fixtures -----------------------------------------------------------

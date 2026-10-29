@@ -37,8 +37,37 @@ public interface IEconomicOutboxLeaseStore
     /// Marks a settlement CONFIRMED by compare-and-set, only from an open status (PENDING_DISPATCH,
     /// SUBMITTED, AWAITING_RECONCILIATION, CONFIRMED). False when it is closed or absent, so a
     /// confirmation can never overwrite a CANCELLED that may already have been answered <c>voided</c>.
+    /// Locks the settlement's outbox row FIRST (the global outbox-then-settlement order); call it inside
+    /// the caller's transaction so both locks are held to its commit.
     /// </summary>
     Task<bool> TryConfirmOpenAsync(string settlementId, DateTime now, CancellationToken ct = default);
+
+    /// <summary>
+    /// The request path's lost answer: PENDING_DISPATCH at <paramref name="expectedSettlementVersion"/> with
+    /// an unleased PENDING outbox -> both AWAITING_RECONCILIATION, atomically. False - nothing written - when
+    /// a worker holds the lease or moved the row (it may have SUBMITTED it).
+    /// </summary>
+    Task<bool> TryParkUnleasedForReconciliationAsync(
+        string settlementId,
+        int expectedSettlementVersion,
+        string? failureCode,
+        string? failureDetail,
+        DateTime availableAt,
+        DateTime now,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// The request path's retryable refusal: records it and defers the unleased PENDING outbox to
+    /// <paramref name="availableAt"/>, by the same compare-and-set. False - nothing written - under a worker.
+    /// </summary>
+    Task<bool> TryLeaveUnleasedToWorkerAsync(
+        string settlementId,
+        int expectedSettlementVersion,
+        string? failureCode,
+        string? failureDetail,
+        DateTime availableAt,
+        DateTime now,
+        CancellationToken ct = default);
 
     /// <summary>The settlement's status as the database holds it now, bypassing any tracked copy; null when absent.</summary>
     Task<EconomicSettlementStatus?> ReadSettlementStatusAsync(string settlementId, CancellationToken ct = default);
