@@ -1,11 +1,15 @@
 namespace ArdaNova.Application.Tests.Policies;
 
-using System.Reflection;
 using ArdaNova.Application.Tests.Flows;
 using ArdaNova.Application.Tests.Support;
 using FluentAssertions;
 
-/// <summary>A real-Postgres test either runs or reports SKIPPED; it never early-returns into a green PASSED.</summary>
+/// <summary>
+/// A real-Postgres test either runs or reports SKIPPED; it never early-returns into a green PASSED.
+/// Scans only this assembly - <c>ArdaNova.API.Tests</c> carries its own twin of this class for its
+/// own real-Postgres flow tests (e.g. <c>SponsorshipVoidFlowTests</c>), since a policy test can only
+/// reflect over the assembly it is compiled into.
+/// </summary>
 public class RealPostgresTestGateTests
 {
     [Theory]
@@ -19,22 +23,11 @@ public class RealPostgresTestGateTests
     [Fact]
     public void EveryDatabaseCategoryTest_IsGatedByTheSkippingAttribute()
     {
-        var databaseClasses = typeof(RealPostgresTestGateTests).Assembly.GetTypes()
-            .Where(type => type.GetCustomAttributesData().Any(attribute =>
-                attribute.AttributeType == typeof(TraitAttribute)
-                && attribute.ConstructorArguments is [{ Value: "Category" }, { Value: "Database" }]))
-            .ToList();
+        var databaseClasses = RealPostgresTestGate.DatabaseCategoryClasses(typeof(RealPostgresTestGateTests).Assembly);
         databaseClasses.Should().Contain(new[] { typeof(FeedProjectorFlowTests), typeof(SettlementNoEffectReopenFlowTests) },
             "the policy is vacuous if the real-Postgres classes stop carrying the Database trait");
 
-        var ungated = databaseClasses
-            .SelectMany(type => type.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly))
-            .Where(method => method.GetCustomAttribute<FactAttribute>() is { } fact
-                && fact is not PostgresFactAttribute and not PostgresTheoryAttribute)
-            .Select(method => $"{method.DeclaringType!.Name}.{method.Name}")
-            .ToList();
-
-        ungated.Should().BeEmpty(
+        RealPostgresTestGate.UngatedMethods(databaseClasses).Should().BeEmpty(
             "a plain [Fact]/[Theory] here would have to early-return without a server and report PASSED");
     }
 }

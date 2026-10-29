@@ -8,6 +8,7 @@ using ArdaNova.Application.Common.Results;
 using ArdaNova.Application.DTOs;
 using ArdaNova.Application.Services.Implementations;
 using ArdaNova.Application.Services.Interfaces;
+using ArdaNova.Application.Tests.Support;
 using ArdaNova.Domain.Models.Entities;
 using ArdaNova.Domain.Models.Enums;
 using ArdaNova.Infrastructure.Azoa;
@@ -20,7 +21,6 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Npgsql;
 using Npgsql.NameTranslation;
-using Xunit.Abstractions;
 
 /// <summary>
 /// H-1 / L-1 / M-5: a sponsorship request key is discarded only through the void route, and the
@@ -30,14 +30,14 @@ using Xunit.Abstractions;
 /// </summary>
 /// <remarks>
 /// Needs <c>ARDANOVA_TEST_POSTGRES</c> (a server connection string without a database name); without
-/// it each test logs a skip and returns, the same gate <c>SettlementNoEffectReopenFlowTests</c> uses.
+/// it every test reports SKIPPED via <see cref="PostgresFactAttribute"/>, the same gate
+/// <c>SettlementNoEffectReopenFlowTests</c> uses.
 /// Interleavings are forced at the seams a concurrent request really crosses: the readiness read
 /// (before the create commits), the release compare-and-set, the node call, the hold compare-and-set.
 /// </remarks>
 [Trait("Category", "Database")]
 public sealed class SponsorshipVoidFlowTests : IAsyncLifetime
 {
-    private const string ConnectionEnv = "ARDANOVA_TEST_POSTGRES";
     private const string SponsorId = "sponsor-void";
     private const string OwnerId = "owner-void";
     private const string ProjectId = "project-void";
@@ -47,27 +47,18 @@ public sealed class SponsorshipVoidFlowTests : IAsyncLifetime
     private static readonly Guid AvatarId = Guid.Parse("4b3e1f0a-8c2d-4e6f-9a1b-2c3d4e5f6a7b");
     private static readonly string ExchangePath = "/api/exchange/" + AvatarId.ToString("D");
 
-    private readonly ITestOutputHelper _output;
     private readonly FakeNode _node = new();
     private readonly Dictionary<(string User, string Action), Result<AzoaCustodialAccountStatusDto>> _readiness = new();
-    private readonly string? _serverConnection = Environment.GetEnvironmentVariable(ConnectionEnv);
     private DbContextOptions<ArdaNovaDbContext>? _options;
     private NpgsqlDataSource? _dataSource;
 
     /// <summary>Runs once inside the sponsor's readiness read - after the create's key checks, before its commit.</summary>
     private Func<Task>? _duringReadiness;
 
-    public SponsorshipVoidFlowTests(ITestOutputHelper output)
-    {
-        _output = output;
-    }
-
     public async Task InitializeAsync()
     {
-        if (string.IsNullOrWhiteSpace(_serverConnection))
-            return;
-
-        var connection = new NpgsqlConnectionStringBuilder(_serverConnection)
+        // Only reached when PostgresFact did not skip, so the server is configured.
+        var connection = new NpgsqlConnectionStringBuilder(PostgresTestServer.ConnectionString!)
         {
             Database = "ardanova_void_" + Guid.NewGuid().ToString("N")[..12],
         };
@@ -105,12 +96,9 @@ public sealed class SponsorshipVoidFlowTests : IAsyncLifetime
 
     // -- H-1: the only way out of a refused-before-admission key ----------------------------------
 
-    [Fact]
+    [PostgresFact]
     public async Task RefusedBeforeAdmissionThenCancelled_TombstonesTheKeyAndALaterCreateIsRefusedAsVoided()
     {
-        if (Skipped())
-            return;
-
         var key = NewKey();
         SponsorIs(Result<AzoaCustodialAccountStatusDto>.Forbidden(ValueEligibilityMessages.SetupIncomplete("fund a project")));
 
@@ -137,12 +125,9 @@ public sealed class SponsorshipVoidFlowTests : IAsyncLifetime
 
     // -- L-1: the void racing an in-flight create ------------------------------------------------
 
-    [Fact]
+    [PostgresFact]
     public async Task VoidLandsWhileTheCreateIsBetweenItsKeyCheckAndItsCommit_TheCreateIsRefusedAndNothingIsSent()
     {
-        if (Skipped())
-            return;
-
         var key = NewKey();
         VoidAnswer? voidSeen = null;
         // The create already passed its tombstone check; the void finds no intent and tombstones.
@@ -161,12 +146,9 @@ public sealed class SponsorshipVoidFlowTests : IAsyncLifetime
         outbox.status.Should().Be(EconomicOutboxStatus.CANCELLED);
     }
 
-    [Fact]
+    [PostgresFact]
     public async Task VoidLandsAfterTheCreateCommittedButBeforeItReleased_CancelsItAndTheCreateNeverDispatches()
     {
-        if (Skipped())
-            return;
-
         var key = NewKey();
         VoidAnswer? voidSeen = null;
         var leases = new HookedLeaseStore { BeforeRelease = async () => voidSeen = (await VoidAsync(key)).Body };
@@ -186,12 +168,9 @@ public sealed class SponsorshipVoidFlowTests : IAsyncLifetime
         _node.ExchangeCalls.Should().Be(0);
     }
 
-    [Fact]
+    [PostgresFact]
     public async Task VoidLandsWhileTheCreatesNodeCallIsInFlight_RevealsItAndCancelsNothing()
     {
-        if (Skipped())
-            return;
-
         var key = NewKey();
         VoidAnswer? voidSeen = null;
         _node.OnExchange(async () =>
@@ -218,12 +197,9 @@ public sealed class SponsorshipVoidFlowTests : IAsyncLifetime
 
     // -- M-5: nothing cancels an outbox a worker holds --------------------------------------------
 
-    [Fact]
+    [PostgresFact]
     public async Task ALapseWhileAWorkerHoldsTheOutboxLease_IsNeitherHeldNorCancelled_AndAVoidOnlyRevealsIt()
     {
-        if (Skipped())
-            return;
-
         var key = NewKey();
         BeneficiaryIs(Result<AzoaCustodialAccountStatusDto>.Forbidden(ValueEligibilityMessages.SetupIncomplete("receive settled project value")));
         // A worker claims the outbox (as after the handover delay) just before the request's hold lands.
@@ -252,12 +228,9 @@ public sealed class SponsorshipVoidFlowTests : IAsyncLifetime
         (await RowsAsync(key)).Outbox.status.Should().Be(EconomicOutboxStatus.LEASED);
     }
 
-    [Fact]
+    [PostgresFact]
     public async Task ALapseOnAnUnleasedOutbox_HoldsAndCancelsBoth_AndTheVoidThenReleasesTheKey()
     {
-        if (Skipped())
-            return;
-
         var key = NewKey();
         BeneficiaryIs(Result<AzoaCustodialAccountStatusDto>.Forbidden(ValueEligibilityMessages.SetupIncomplete("receive settled project value")));
 
@@ -281,15 +254,6 @@ public sealed class SponsorshipVoidFlowTests : IAsyncLifetime
     private sealed record CreateAnswer(int Status, string? Code, string? Reason);
 
     private sealed record VoidAnswer(string Outcome, string? IntentId, FundingIntentStatusDto? Intent);
-
-    private bool Skipped()
-    {
-        if (_options is not null)
-            return false;
-
-        _output.WriteLine($"[DATABASE SKIPPED: set {ConnectionEnv} to a Postgres server connection string]");
-        return true;
-    }
 
     private ArdaNovaDbContext NewContext() => new(_options!);
 

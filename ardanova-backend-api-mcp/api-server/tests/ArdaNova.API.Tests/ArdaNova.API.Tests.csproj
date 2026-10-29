@@ -24,6 +24,13 @@
     <ProjectReference Include="..\..\src\ArdaNova.Infrastructure\ArdaNova.Infrastructure.csproj" />
   </ItemGroup>
 
+  <!-- The real-Postgres skip gate lives once in Application.Tests/Support and is linked here so both
+       test projects share the same PostgresFact/PostgresTheory + RealPostgresTestGate logic instead
+       of duplicating it. -->
+  <ItemGroup>
+    <Compile Include="..\ArdaNova.Application.Tests\Support\PostgresFactAttribute.cs" Link="Support\PostgresFactAttribute.cs" />
+  </ItemGroup>
+
   <!-- Link EventBus and WebSocket source files, excluding Extensions which have extra ASP.NET dependencies -->
   <ItemGroup>
     <Compile Include="..\..\src\ArdaNova.API\Controllers\FundingIntentsController.cs" Link="Controllers\FundingIntentsController.cs" />

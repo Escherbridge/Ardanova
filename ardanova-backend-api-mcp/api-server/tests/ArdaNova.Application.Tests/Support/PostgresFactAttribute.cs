@@ -1,5 +1,7 @@
 namespace ArdaNova.Application.Tests.Support;
 
+using System.Reflection;
+
 /// <summary>The real-Postgres gate: <c>ARDANOVA_TEST_POSTGRES</c>, a server connection string with no database name.</summary>
 public static class PostgresTestServer
 {
@@ -37,4 +39,33 @@ public sealed class PostgresTheoryAttribute : TheoryAttribute
     {
         Skip = PostgresTestServer.SkipReasonFor(PostgresTestServer.ConnectionString);
     }
+}
+
+/// <summary>
+/// The policy both <c>RealPostgresTestGateTests</c> classes (one per test assembly that carries
+/// real-Postgres flow tests) run: every <c>[Trait("Category", "Database")]</c> class's [Fact]/[Theory]
+/// methods must be gated by <see cref="PostgresFactAttribute"/> or <see cref="PostgresTheoryAttribute"/>,
+/// never a plain [Fact] that could early-return into a silent PASSED.
+/// </summary>
+public static class RealPostgresTestGate
+{
+    /// <summary>Types in <paramref name="assembly"/> carrying <c>[Trait("Category", "Database")]</c> on the class.</summary>
+    public static List<Type> DatabaseCategoryClasses(Assembly assembly)
+        => assembly.GetTypes()
+            .Where(type => type.GetCustomAttributesData().Any(attribute =>
+                attribute.AttributeType == typeof(TraitAttribute)
+                && attribute.ConstructorArguments is [{ Value: "Category" }, { Value: "Database" }]))
+            .ToList();
+
+    /// <summary>
+    /// Methods on <paramref name="databaseClasses"/> whose [Fact]/[Theory] is not one of the
+    /// skipping attributes above - i.e. a plain [Fact] that would report PASSED without a server.
+    /// </summary>
+    public static List<string> UngatedMethods(IEnumerable<Type> databaseClasses)
+        => databaseClasses
+            .SelectMany(type => type.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly))
+            .Where(method => method.GetCustomAttribute<FactAttribute>() is { } fact
+                && fact is not PostgresFactAttribute and not PostgresTheoryAttribute)
+            .Select(method => $"{method.DeclaringType!.Name}.{method.Name}")
+            .ToList();
 }
