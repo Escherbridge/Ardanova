@@ -36,6 +36,22 @@ jobs:
       run:
         working-directory: ardanova-backend-api-mcp
 
+    # The real-Postgres flow tests ([PostgresFact], Category=Database) create and drop throwaway databases
+    # on this server; without ARDANOVA_TEST_POSTGRES they report SKIPPED, so CI must set it.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -52,6 +68,8 @@ jobs:
         run: dotnet build ardanova.sln --configuration Release --no-restore
 
       - name: Test
+        env:
+          ARDANOVA_TEST_POSTGRES: "Host=localhost;Port=5432;Username=postgres;Password=postgres"
         run: dotnet test ardanova.sln --configuration Release --no-build
 
       # `dotnet list --vulnerable` always exits 0, so the gate reads its JSON and fails on high/critical

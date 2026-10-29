@@ -1,3 +1,4 @@
+using System.Data.Common;
 using System.Linq.Expressions;
 using ArdaNova.Application.Common.Interfaces;
 using ArdaNova.Application.Common.Results;
@@ -63,6 +64,15 @@ namespace ArdaNova.Application.Services.Implementations
             PostType.SHOP_ITEM
         };
 
+        /// <summary>A post a person wrote; feed envelopes (sourceType set) are system rows. See Implementations/AGENTS.md §Posts.</summary>
+        private static readonly Expression<Func<Post, bool>> WrittenByAPerson = p => p.sourceType == null;
+
+        private const string UniqueViolationSqlState = "23505";
+
+        /// <summary>Why a person cannot edit or delete a feed envelope that names them as its author.</summary>
+        public const string MirroredActivityRefusal =
+            "This card mirrors activity elsewhere on ArdaNova; change it where it happened";
+
         private readonly IRepository<Post> _posts;
         private readonly IRepository<PostLike> _likes;
         private readonly IRepository<PostComment> _comments;
@@ -94,6 +104,7 @@ namespace ArdaNova.Application.Services.Implementations
         {
             var (safePage, safePageSize) = ClampPaging(page, pageSize);
             var query = _posts.Query()
+                .Where(WrittenByAPerson)
                 .Where(PostVisibilityPolicy.VisibleTo(null))
                 .Where(OnAVisibleProject(null))
                 .OrderByDescending(p => p.createdAt);
@@ -120,6 +131,7 @@ namespace ArdaNova.Application.Services.Implementations
             var (safePage, safePageSize) = ClampPaging(page, pageSize);
             var query = _posts.Query()
                 .Where(p => p.projectId == projectId)
+                .Where(WrittenByAPerson)
                 .Where(PostVisibilityPolicy.VisibleTo(viewerId))
                 .Where(OnAVisibleProject(viewerId))
                 .OrderByDescending(p => p.isPinned)
@@ -161,7 +173,7 @@ namespace ArdaNova.Application.Services.Implementations
         public async Task<Result<IReadOnlyList<PostDto>>> GetByUserIdAsync(string userId, CancellationToken ct = default)
         {
             Expression<Func<Post, bool>> publicByAuthor =
-                p => p.authorId == userId && p.visibility == PostVisibility.PUBLIC;
+                p => p.authorId == userId && p.visibility == PostVisibility.PUBLIC && p.sourceType == null;
             var list = await _posts.FindAsync(publicByAuthor.And(OnAVisibleProject(null)), ct);
             var ordered = list.OrderByDescending(p => p.createdAt).ToList();
             return Result<IReadOnlyList<PostDto>>.Success(MapPosts(ordered));
@@ -174,6 +186,7 @@ namespace ArdaNova.Application.Services.Implementations
         {
             var items = await _posts.Query()
                 .Where(p => p.authorId == authorId)
+                .Where(WrittenByAPerson)
                 .Where(PostVisibilityPolicy.VisibleTo(viewerId))
                 .Where(OnAVisibleProject(viewerId))
                 .OrderByDescending(p => p.createdAt)
@@ -234,6 +247,8 @@ namespace ArdaNova.Application.Services.Implementations
                 return Result<PostDto>.NotFound($"Post {id} not found");
             if (!string.Equals(post.authorId, authorId, StringComparison.Ordinal))
                 return Result<PostDto>.Forbidden("Only the author can update this post");
+            if (post.sourceType is not null)
+                return Result<PostDto>.Forbidden(MirroredActivityRefusal);
 
             var nextVisibility = dto.Visibility ?? post.visibility;
             if (!PostVisibilityPolicy.HasCoherentAudience(nextVisibility, post.projectId, post.guildId))
@@ -265,6 +280,8 @@ namespace ArdaNova.Application.Services.Implementations
                 return Result<bool>.NotFound($"Post {id} not found");
             if (!string.Equals(post.authorId, authorId, StringComparison.Ordinal))
                 return Result<bool>.Forbidden("Only the author can delete this post");
+            if (post.sourceType is not null)
+                return Result<bool>.Forbidden(MirroredActivityRefusal);
 
             var likes = await _likes.FindAsync(l => l.postId == id, ct);
             foreach (var l in likes) await _likes.DeleteAsync(l, ct);
@@ -303,7 +320,19 @@ namespace ArdaNova.Application.Services.Implementations
             post.likesCount += 1;
             post.updatedAt = DateTime.UtcNow;
             await _posts.UpdateAsync(post, ct);
-            await _unitOfWork.SaveChangesAsync(ct);
+            try
+            {
+                await _unitOfWork.SaveChangesAsync(ct);
+            }
+            catch (DbUpdateException failure) when (IsUniqueViolation(failure))
+            {
+                // A double tap: the other request stored this person's like first, and its counter bump with it.
+                _unitOfWork.ClearTrackedChanges();
+                var current = await LoadVisibleAsync(postId, userId, ct);
+                return current is null
+                    ? Result<PostDto>.NotFound($"Post {postId} not found")
+                    : Result<PostDto>.Success(_mapper.Map<PostDto>(current));
+            }
 
             return Result<PostDto>.Success(_mapper.Map<PostDto>(post));
         }
@@ -322,7 +351,20 @@ namespace ArdaNova.Application.Services.Implementations
             post.likesCount = Math.Max(0, post.likesCount - 1);
             post.updatedAt = DateTime.UtcNow;
             await _posts.UpdateAsync(post, ct);
-            await _unitOfWork.SaveChangesAsync(ct);
+            try
+            {
+                await _unitOfWork.SaveChangesAsync(ct);
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                // A double tap: the other request deleted this like first (and decremented with it); this save
+                // rolled back whole, so the counter is not decremented twice.
+                _unitOfWork.ClearTrackedChanges();
+                var current = await LoadVisibleAsync(postId, userId, ct);
+                return current is null
+                    ? Result<PostDto>.NotFound($"Post {postId} not found")
+                    : Result<PostDto>.Success(_mapper.Map<PostDto>(current));
+            }
 
             return Result<PostDto>.Success(_mapper.Map<PostDto>(post));
         }
@@ -372,7 +414,16 @@ namespace ArdaNova.Application.Services.Implementations
                 userId = userId,
                 createdAt = DateTime.UtcNow
             }, ct);
-            await _unitOfWork.SaveChangesAsync(ct);
+            try
+            {
+                await _unitOfWork.SaveChangesAsync(ct);
+            }
+            catch (DbUpdateException failure) when (IsUniqueViolation(failure))
+            {
+                // A double tap: the other request saved this bookmark first, which is the state asked for.
+                _unitOfWork.ClearTrackedChanges();
+            }
+
             return Result<bool>.Success(true);
         }
 
@@ -383,7 +434,16 @@ namespace ArdaNova.Application.Services.Implementations
                 return Result<bool>.Success(true);
 
             await _bookmarks.DeleteAsync(existing, ct);
-            await _unitOfWork.SaveChangesAsync(ct);
+            try
+            {
+                await _unitOfWork.SaveChangesAsync(ct);
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                // A double tap: the other request removed this bookmark first, which is the state asked for.
+                _unitOfWork.ClearTrackedChanges();
+            }
+
             return Result<bool>.Success(true);
         }
 
@@ -421,6 +481,11 @@ namespace ArdaNova.Application.Services.Implementations
             var post = await LoadVisibleAsync(postId, dto.AuthorId, ct);
             if (post is null)
                 return Result<PostCommentDto>.NotFound($"Post {postId} not found");
+
+            // A discussion card points at a thread that already exists; a reply here would start a second one.
+            if (post.type == PostType.DISCUSSION && post.sourceType is not null)
+                return Result<PostCommentDto>.ValidationError(
+                    "This conversation lives in its original thread; reply there so everyone sees one discussion");
 
             if (dto.ParentId is not null)
             {
@@ -542,6 +607,10 @@ namespace ArdaNova.Application.Services.Implementations
             await _unitOfWork.SaveChangesAsync(ct);
             return _mapper.Map<PostDto>(post);
         }
+
+        /// <summary>The (postId, userId) unique index refused a second like or bookmark from the same person.</summary>
+        private static bool IsUniqueViolation(DbUpdateException failure)
+            => failure.InnerException is DbException { SqlState: UniqueViolationSqlState };
 
         private IReadOnlyList<PostDto> MapPosts(IEnumerable<Post> posts)
             => posts.Select(p => _mapper.Map<PostDto>(p)).ToList();
