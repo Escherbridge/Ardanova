@@ -355,3 +355,64 @@ fallback is honest only while the row truly reflects "nothing issued"; once some
 non-zero supply against stale balances, the ratio prices sponsorships off figures nobody
 reconciles. The control that catches the result is the node-side rate consistency band, OI-79
 (launch-readiness L4.6). The real fix is a node-read backing figure, not a better guard here.
+
+# Posts and feed envelopes
+
+`Post` holds two kinds of row: posts a person wrote (`sourceType` NULL) and feed envelopes the projector
+writes (`sourceType` set; see `Application/Feed/AGENTS.md`). An envelope names a person as `authorId`
+(the update's writer, the member who joined), so every by-author read would otherwise show system cards
+as if that person had written them. `PostService` therefore:
+
+- **Excludes envelopes from person-post reads** (`WrittenByAPerson`): project field notes, both by-author
+  reads (profiles) and the legacy viewer-less feed. Single-post reads and engagement (like, bookmark,
+  share, comment) still resolve envelopes - the feed reuses those tables - through the same
+  `LoadVisibleAsync` gate, so a draft project's cards stay as private as its notes.
+- **Refuses edit and delete of an envelope** (`MirroredActivityRefusal`, 403) even by its named author:
+  an edit could widen a PROJECT_MEMBERS card to PUBLIC, and a delete would be undone by the next cycle.
+- **Refuses a reply on a DISCUSSION envelope**: that card deep-links its native thread (metadata
+  `thread`), and a reply here would start a second one.
+- **Settles a double tap with the unique index (P8-18).** Like and bookmark are check-then-insert; the
+  `(postId, userId)` unique indexes (migration `20261027002000_post_engagement_uniqueness`) catch the race,
+  and a 23505 on save clears the tracked changes and answers success (the like re-read with the count the
+  winning request stored), the same shape as the ballot and guild-review guards. The losing save's counter
+  bump rolls back with its insert, so a double tap counts once. Known gap: two DIFFERENT people liking at
+  the same instant still write `likesCount` as an absolute `N+1` (both rows land, the counter moves once);
+  an atomic `likesCount = likesCount + 1` or a recount is the fix, not done here.
+- **Settles a double UNtap too.** Unlike and unbookmark are check-then-delete; when both taps found the row,
+  the second DELETE hits zero rows and EF throws `DbUpdateConcurrencyException`. That is the state asked for,
+  so it clears the tracked changes and answers success (unlike re-reads the post); the losing save's counter
+  decrement rolled back with its delete, so the count drops once. Pinned by
+  `FeedProjectorFlowTests.ARacingDoubleUntap_Succeeds_AndLeavesNothingBehind` on real Postgres.
+
+# Taxonomy
+
+`TaxonomyService` (SR-03 Phase 1 Lane C) answers `GET /api/taxonomy` off the `TaxonomyTerm` table
+Phase 0 seeded: a shared vocabulary spanning every problem domain the platform hosts (construction
+to hospitality), not just tech. It is a suggestion list and filter facet, NOT a stored constraint -
+`Project.categories`, `Guild.specialties`, `Opportunity.skills` and `UserSkill.skill` keep storing
+plain comma-separated or scalar text, and a custom value under 50 characters still works beside any
+taxonomy slug. A `parentSlug` on a SKILL comes from the `Parent` navigation inside the `Select`
+projection, never an `Include` - EF Core still emits one LEFT JOIN, so a SKILL's sector arrives as a
+slug and never leaks the internal id.
+
+**P8-15 (fixed here).** `ProjectQueryFilters.HasCategory` replaces `categories.Contains(x)`, a
+SUBSTRING match that let a filter on `BUSINESS` return `SMALL_BUSINESS` too - worse once the
+vocabulary is 26 sectors deep instead of 10. The fix pads both the column and the needle with
+commas (`","+categories+","` vs `","+category+","`) before calling `.Contains`, so only a whole
+comma-delimited token can match; the concatenation is inlined into the predicate expression (not a
+C#-side helper call) specifically so EF Core keeps translating it to SQL instead of pulling every
+row into memory to filter client-side.
+
+**Normalization.** `ProjectService.NormalizeCategory` delegates to
+`ProjectQueryFilters.CanonicalizeCategory` (`Trim()`, then rewrite to the matching
+`ProjectCategory` enum name when one matches case-insensitively) and is the one transform shared by
+`ValidateCategories`, both category-write sites (`CreateAsync`, `UpdateAsync`), `HasCategory` and
+every filter entry point (`ProjectQueryFilters.Build`, `GetVisibleByCategoryAsync`). Validation
+accepted a known code case-insensitively before this fix but storage only trimmed it, so `business`
+landed in the column as `business` and the whole-token `BUSINESS` filter — itself case-sensitive —
+never matched its own row (fixed alongside P8-15). Canonicalizing in one place means the string
+that passed validation, the string the comma-joined column stores, and the needle `HasCategory`
+later comma-pads are all byte-for-byte the same value regardless of the caller's casing. A custom
+value (not a known code) passes through trimmed only, as typed. `ValidateCategories` also refuses
+any single category value containing a comma - the column uses commas as its only delimiter, so an
+unrefused one (e.g. `"Solar, Wind"`) would silently become two stored categories.

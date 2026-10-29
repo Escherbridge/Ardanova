@@ -74,6 +74,7 @@ describe("project API contract", () => {
 
   it("narrows project enums without casting", () => {
     expect(isProjectType("OPEN_SOURCE")).toBe(true);
+    expect(isProjectType("PHYSICAL_BUILD")).toBe(true);
     expect(isProjectDuration("ONE_THREE_MONTHS")).toBe(true);
     expect(isProjectRole("CORE_CONTRIBUTOR")).toBe(true);
     expect(isProjectType("SIDE_HUSTLE")).toBe(false);

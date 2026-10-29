@@ -8,5 +8,11 @@ public enum ProjectType
     BUSINESS,
     PRODUCT,
     OPEN_SOURCE,
-    COMMUNITY
+    COMMUNITY,
+    SERVICE,
+    PHYSICAL_BUILD,
+    VENUE,
+    PROGRAM,
+    RESEARCH,
+    COOPERATIVE
 }

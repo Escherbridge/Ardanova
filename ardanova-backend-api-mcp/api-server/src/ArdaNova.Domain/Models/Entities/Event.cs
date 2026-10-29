@@ -72,6 +72,8 @@ public class Event
 
     public string? guildId { get; set; }
 
+    public virtual ICollection<Post> Posts { get; set; } = new List<Post>();
+
     [ForeignKey("organizerId")]
     public virtual User? Organizer { get; set; }
 

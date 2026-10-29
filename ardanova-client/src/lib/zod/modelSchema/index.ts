@@ -104,3 +104,4 @@ export * from './EligibilityDecisionSchema';
 export * from './EconomicSettlementLegSchema';
 export * from './SwapQuoteSchema';
 export * from './SwapOrderSchema';
+export * from './TaxonomyTermSchema';

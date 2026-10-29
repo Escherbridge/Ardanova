@@ -6,6 +6,7 @@ using ArdaNova.Application.Common.Results;
 using ArdaNova.Application.DTOs;
 using ArdaNova.Application.Services.Implementations;
 using ArdaNova.Application.Services.Interfaces;
+using ArdaNova.Application.Tests.Support;
 using ArdaNova.Domain.Models.Entities;
 using ArdaNova.Domain.Models.Enums;
 using ArdaNova.Infrastructure.Azoa;
@@ -13,12 +14,12 @@ using ArdaNova.Infrastructure.Data;
 using ArdaNova.Infrastructure.Outbox;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Moq;
 using Npgsql;
 using Npgsql.NameTranslation;
-using Xunit.Abstractions;
 
 /// <summary>
 /// Owner decision F29: a node receipt 404 is proof of no effect, so the settlement redispatches
@@ -26,13 +27,12 @@ using Xunit.Abstractions;
 /// client; only the node's HTTP edge and its account-readiness read are faked.
 /// </summary>
 /// <remarks>
-/// Needs <c>ARDANOVA_TEST_POSTGRES</c> (a connection string without a database name); without it each
-/// test logs a skip and returns, the same gate <c>AzoaGoldenPathE2ETests</c> uses.
+/// Needs <c>ARDANOVA_TEST_POSTGRES</c> (a connection string without a database name); without it every
+/// test reports SKIPPED via <see cref="PostgresFactAttribute"/>. CI's validate-api job sets it.
 /// </remarks>
 [Trait("Category", "Database")]
 public sealed class SettlementNoEffectReopenFlowTests : IAsyncLifetime
 {
-    private const string ConnectionEnv = "ARDANOVA_TEST_POSTGRES";
     private const string SettlementId = "settlement-f29";
     private const string OutboxId = "outbox-f29";
     private const string IdempotencyKey = "avatar-f29:funding-intent:intent-f29";
@@ -41,24 +41,15 @@ public sealed class SettlementNoEffectReopenFlowTests : IAsyncLifetime
     private static readonly Guid AvatarId = Guid.Parse("6f1d7c1e-2c55-4c2a-9a5e-0f6f2b1d3a11");
     private static readonly string ExchangePath = "/api/exchange/" + AvatarId.ToString("D");
 
-    private readonly ITestOutputHelper _output;
     private readonly FakeNode _node = new();
     private readonly RecordingAlerts _alerts = new();
-    private readonly string? _serverConnection = Environment.GetEnvironmentVariable(ConnectionEnv);
     private DbContextOptions<ArdaNovaDbContext>? _options;
     private NpgsqlDataSource? _dataSource;
 
-    public SettlementNoEffectReopenFlowTests(ITestOutputHelper output)
-    {
-        _output = output;
-    }
-
     public async Task InitializeAsync()
     {
-        if (string.IsNullOrWhiteSpace(_serverConnection))
-            return;
-
-        var connection = new NpgsqlConnectionStringBuilder(_serverConnection)
+        // Only reached when PostgresFact did not skip, so the server is configured.
+        var connection = new NpgsqlConnectionStringBuilder(PostgresTestServer.ConnectionString!)
         {
             Database = "ardanova_f29_" + Guid.NewGuid().ToString("N")[..12],
         };
@@ -76,6 +67,10 @@ public sealed class SettlementNoEffectReopenFlowTests : IAsyncLifetime
                 foreach (var enumType in enumTypes)
                     npgsql.MapEnum(enumType, enumType.Name, "public", translator);
             })
+            // One throwaway database and one enum-mapped NpgsqlDataSource per test, by design (see
+            // FeedProjectorFlowTests, which does the same); EF's "many service providers" leak heuristic
+            // is a false positive once the assembly's real-Postgres flow tests pass twenty in one run.
+            .ConfigureWarnings(warnings => warnings.Ignore(CoreEventId.ManyServiceProvidersCreatedWarning))
             .Options;
 
         await using var context = NewContext();
@@ -93,12 +88,9 @@ public sealed class SettlementNoEffectReopenFlowTests : IAsyncLifetime
             await _dataSource.DisposeAsync();
     }
 
-    [Fact]
+    [PostgresFact]
     public async Task DeadLeasedEntryWithNodeReceipt404_RedispatchesTheSameIntentUnderTheSameKeyAndSettles()
     {
-        if (Skipped())
-            return;
-
         await SeedPendingSettlementAsync();
         _node.OnExchange(HttpStatusCode.ServiceUnavailable, NodeFailure("RAIL_UNAVAILABLE"));
         (await DispatchOnceAsync()).Outcome.Should().Be(EconomicOutboxRecordedOutcome.Unknown);
@@ -139,12 +131,9 @@ public sealed class SettlementNoEffectReopenFlowTests : IAsyncLifetime
         dispatches[1].Body.Should().Be(dispatches[0].Body, "a redispatch replays the stored intent byte for byte");
     }
 
-    [Fact]
+    [PostgresFact]
     public async Task NodeReceipt404WhileTheDispatchLeaseCouldStillBeAlive_IsReadAgainLaterAndNotReopened()
     {
-        if (Skipped())
-            return;
-
         await SeedPendingSettlementAsync();
         _node.OnExchange(HttpStatusCode.GatewayTimeout, NodeFailure("TIMEOUT"));
         await DispatchOnceAsync();
@@ -163,12 +152,9 @@ public sealed class SettlementNoEffectReopenFlowTests : IAsyncLifetime
         (await SettlementAsync()).status.Should().Be(EconomicSettlementStatus.AWAITING_RECONCILIATION);
     }
 
-    [Fact]
+    [PostgresFact]
     public async Task SettlementThatKeepsReading404_ParksWithAttentionOnceItsReopensAreSpent()
     {
-        if (Skipped())
-            return;
-
         await SeedPendingSettlementAsync();
         _node.OnExchange(HttpStatusCode.ServiceUnavailable, NodeFailure("RAIL_UNAVAILABLE"));
         _node.OnReceipt(HttpStatusCode.NotFound, NodeFailure("NOT_FOUND"));
@@ -205,13 +191,10 @@ public sealed class SettlementNoEffectReopenFlowTests : IAsyncLifetime
         { HttpStatusCode.NotFound, string.Empty },
     };
 
-    [Theory]
+    [PostgresTheory]
     [MemberData(nameof(AmbiguousReceiptAnswers))]
     public async Task AmbiguousReceiptAnswer_StaysInReconciliationAndSpendsTheAttempt(HttpStatusCode status, string body)
     {
-        if (Skipped())
-            return;
-
         await SeedPendingSettlementAsync();
         _node.OnExchange(HttpStatusCode.ServiceUnavailable, NodeFailure("RAIL_UNAVAILABLE"));
         await DispatchOnceAsync();
@@ -231,15 +214,6 @@ public sealed class SettlementNoEffectReopenFlowTests : IAsyncLifetime
     }
 
     // --- Harness -----------------------------------------------------------------------------
-
-    private bool Skipped()
-    {
-        if (_options is not null)
-            return false;
-
-        _output.WriteLine($"[DATABASE SKIPPED: set {ConnectionEnv} to a Postgres server connection string]");
-        return true;
-    }
 
     private ArdaNovaDbContext NewContext() => new(_options!);
 

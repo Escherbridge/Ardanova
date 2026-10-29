@@ -81,18 +81,12 @@ import {
   type ProjectCreateRole as Role,
   type ProjectMediaItem,
 } from "~/lib/contracts/project-create-contract";
+import {
+  projectTypeDescription,
+  projectTypeLabel,
+} from "~/lib/taxonomy/labels";
 
 const OTHER_CATEGORY_MAX_LENGTH = 50;
-
-const projectTypeDescriptions: Record<ProjectType, string> = {
-  TEMPORARY: "Short-term project with a defined end date",
-  LONG_TERM: "Ongoing project without a strict end date",
-  FOUNDATION: "Non-profit organization or foundation",
-  BUSINESS: "Business venture or startup",
-  PRODUCT: "A product people can help develop",
-  OPEN_SOURCE: "Open source project or tool",
-  COMMUNITY: "Community-driven initiative",
-};
 
 const durationLabels: Record<ProjectDuration, string> = {
   ONE_TWO_WEEKS: "1-2 weeks",
@@ -222,10 +216,10 @@ export default function CreateProjectPage() {
   // API-driven enum options
   const { options: categories } = useEnumOptions("ProjectCategory");
   const { options: projectTypeOptions } = useEnumOptions("ProjectType");
-  const projectTypes = projectTypeOptions.filter(
-    (option): option is { id: ProjectType; label: string } =>
-      isProjectType(option.id),
-  );
+  const projectTypes: { id: ProjectType; label: string }[] = projectTypeOptions
+    .map(({ id }) => id)
+    .filter(isProjectType)
+    .map((id) => ({ id, label: projectTypeLabel(id) }));
   const { options: durationOptions } = useEnumOptions("ProjectDuration");
   const durations = durationOptions
     .filter((option): option is { id: ProjectDuration; label: string } =>
@@ -1586,7 +1580,7 @@ export default function CreateProjectPage() {
                               {pt.label}
                             </span>
                             <span className="text-muted-foreground mt-0.5 text-xs">
-                              {projectTypeDescriptions[pt.id] ?? ""}
+                              {projectTypeDescription(pt.id) ?? ""}
                             </span>
                           </button>
                         );

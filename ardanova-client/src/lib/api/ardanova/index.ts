@@ -17,6 +17,7 @@ import { CredentialUtilityEndpoint } from "./endpoints/credential-utility";
 import { ProductsEndpoint } from "./endpoints/products";
 import { ChatEndpoint } from "./endpoints/chat";
 import { EnumsEndpoint } from "./endpoints/enums";
+import { TaxonomyEndpoint } from "./endpoints/taxonomy";
 import { StreaksEndpoint } from "./endpoints/streaks";
 import { XPEventsEndpoint } from "./endpoints/xp-events";
 import { AchievementsEndpoint } from "./endpoints/achievements";
@@ -315,6 +316,11 @@ export type {
   NovaBrief,
   NovaStatus,
 } from "./endpoints/nova";
+export type {
+  TaxonomyTerm,
+  TaxonomyKind,
+  TaxonomyKindCode,
+} from "./endpoints/taxonomy";
 
 // Re-export schemas for validation
 export {
@@ -351,6 +357,7 @@ export class ArdaNovaApiClient extends BaseApiClient {
   readonly credentialUtility: CredentialUtilityEndpoint;
   readonly chat: ChatEndpoint;
   readonly enums: EnumsEndpoint;
+  readonly taxonomy: TaxonomyEndpoint;
   readonly streaks: StreaksEndpoint;
   readonly xpEvents: XPEventsEndpoint;
   readonly achievements: AchievementsEndpoint;
@@ -392,6 +399,7 @@ export class ArdaNovaApiClient extends BaseApiClient {
     this.credentialUtility = new CredentialUtilityEndpoint(this);
     this.chat = new ChatEndpoint(this);
     this.enums = new EnumsEndpoint(this);
+    this.taxonomy = new TaxonomyEndpoint(this);
     this.streaks = new StreaksEndpoint(this);
     this.xpEvents = new XPEventsEndpoint(this);
     this.achievements = new AchievementsEndpoint(this);

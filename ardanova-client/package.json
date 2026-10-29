@@ -31,6 +31,7 @@
     "preview": "next build && next start",
     "release:check": "node scripts/frontend-release-check.mjs",
     "verify:sdk-pin": "node scripts/verify-azoa-sdk-pin.mjs",
+    "verify:lockfile-platform": "node scripts/verify-lockfile-platform.mjs",
     "verify:vocabulary": "node scripts/verify-product-vocabulary.mjs",
     "start": "next start",
     "test": "vitest run",

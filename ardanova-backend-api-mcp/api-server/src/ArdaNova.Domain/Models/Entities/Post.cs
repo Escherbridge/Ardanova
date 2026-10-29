@@ -69,6 +69,14 @@ public class Post
     [Required]
     public DateTime updatedAt { get; set; }
 
+    public FeedSourceType? sourceType { get; set; }
+
+    public string? sourceId { get; set; }
+
+    public string? opportunityId { get; set; }
+
+    public string? eventId { get; set; }
+
     [ForeignKey("authorId")]
     public virtual User? Author { get; set; }
 
@@ -77,6 +85,12 @@ public class Post
 
     [ForeignKey("guildId")]
     public virtual Guild? Guild { get; set; }
+
+    [ForeignKey("opportunityId")]
+    public virtual Opportunity? Opportunity { get; set; }
+
+    [ForeignKey("eventId")]
+    public virtual Event? Event { get; set; }
 
     public virtual ICollection<PostMedia> PostMedias { get; set; } = new List<PostMedia>();
 

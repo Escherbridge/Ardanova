@@ -28,18 +28,12 @@ import {
   type ProjectDuration,
   type ProjectType,
 } from "~/lib/contracts/project-contract";
+import {
+  projectTypeDescription,
+  projectTypeLabel,
+} from "~/lib/taxonomy/labels";
 
 const OTHER_CATEGORY_MAX_LENGTH = 50;
-
-const projectTypeDescriptions: Record<ProjectType, string> = {
-  TEMPORARY: "Short-term project with a defined end date",
-  LONG_TERM: "Ongoing project without a strict end date",
-  FOUNDATION: "Non-profit organization or foundation",
-  BUSINESS: "Business venture or startup",
-  PRODUCT: "A product people can help develop",
-  OPEN_SOURCE: "Open source project or tool",
-  COMMUNITY: "Community-driven initiative",
-};
 
 const durationLabels: Record<ProjectDuration, string> = {
   ONE_TWO_WEEKS: "1-2 weeks",
@@ -95,7 +89,8 @@ function buildEditFormData(
     solution: project.solution,
     categories: unknown.length > 0 ? [...known, "OTHER"] : known,
     otherCategory: unknown.join(", ").slice(0, OTHER_CATEGORY_MAX_LENGTH),
-    projectType: project.projectType,
+    // A type this client does not know stays unselected and is not sent, so the API keeps it.
+    projectType: isProjectType(project.projectType) ? project.projectType : "",
     duration: project.duration ?? "",
     targetAudience: project.targetAudience ?? "",
     expectedImpact: project.expectedImpact ?? "",
@@ -133,10 +128,10 @@ export function ProjectEditForm({ project }: ProjectEditFormProps) {
     );
   }
 
-  const projectTypes = projectTypeOptions.filter(
-    (option): option is { id: ProjectType; label: string } =>
-      isProjectType(option.id),
-  );
+  const projectTypes: { id: ProjectType; label: string }[] = projectTypeOptions
+    .map(({ id }) => id)
+    .filter(isProjectType)
+    .map((id) => ({ id, label: projectTypeLabel(id) }));
   const durations = durationOptions
     .filter((option): option is { id: ProjectDuration; label: string } =>
       isProjectDuration(option.id),
@@ -476,7 +471,7 @@ function ProjectEditFormFields({
                       {pt.label}
                     </span>
                     <span className="text-muted-foreground mt-0.5 text-xs">
-                      {projectTypeDescriptions[pt.id] ?? ""}
+                      {projectTypeDescription(pt.id) ?? ""}
                     </span>
                   </button>
                 );

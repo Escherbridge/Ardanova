@@ -31,6 +31,9 @@ services:
       - DOTNET_WATCH_RESTART_ON_RUDE_EDIT=1
       # Database
       - DATABASE_URL=${DATABASE_URL}
+      # The feed projector writes (and its first cycle deletes) feed cards. .env's DATABASE_URL is the
+      # shared database, so this stack never runs it; environment beats env_file even if .env says true.
+      - Feed__Projector__Enabled=false
       # API Security
       - API_KEY=${API_KEY}
       - ADMIN_API_KEY=${ADMIN_API_KEY}
