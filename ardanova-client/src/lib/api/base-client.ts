@@ -16,6 +16,8 @@ export interface ApiResponse<T> {
   status: number;
   /** The machine `code` field of a non-2xx body, verbatim; absent when the body had none. */
   code?: string;
+  /** The `intentId` a money refusal names (a payment held for review), verbatim; absent otherwise. */
+  intentId?: string;
 }
 
 export interface PagedResult<T> {
@@ -164,20 +166,26 @@ function materializeActorRequestBody(
 function failed<T>(status: number, errorText: string): ApiResponse<T> {
   const error = readApiError(errorText, status);
   recordApiFailure({ status, message: error });
-  const code = readApiErrorCode(errorText);
-  return code === undefined ? { error, status } : { error, status, code };
+  const code = readApiErrorField(errorText, "code");
+  const intentId = readApiErrorField(errorText, "intentId");
+  return {
+    error,
+    status,
+    ...(code === undefined ? {} : { code }),
+    ...(intentId === undefined ? {} : { intentId }),
+  };
 }
 
-/** The `code` string a JSON error body carries (money routes' `MoneyRefusal`), if any. */
-function readApiErrorCode(errorText: string): string | undefined {
+/** A string field a JSON error body carries (money routes' `MoneyRefusal`: `code`, `intentId`), if any. */
+function readApiErrorField(errorText: string, field: "code" | "intentId"): string | undefined {
   try {
     const parsed: unknown = JSON.parse(errorText);
     if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-      const code = (parsed as Record<string, unknown>).code;
-      if (typeof code === "string" && code.trim()) return code.trim();
+      const value = (parsed as Record<string, unknown>)[field];
+      if (typeof value === "string" && value.trim()) return value.trim();
     }
   } catch {
-    // A plain-text body has no machine code.
+    // A plain-text body has no machine fields.
   }
   return undefined;
 }

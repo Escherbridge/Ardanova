@@ -29,6 +29,12 @@ public static class MoneyRefusalCodes
     /// </summary>
     public const string Finished = "finished";
 
+    /// <summary>
+    /// The payment behind the key is held for a manual check (node INTENT_NEEDS_REVIEW). Never releases
+    /// a key and never invites a resend: the body's <see cref="MoneyRefusalBody.IntentId"/> names it.
+    /// </summary>
+    public const string NeedsReview = "needs_review";
+
     public const string Unconfirmed = "unconfirmed";
     public const string Unauthenticated = "unauthenticated";
 }
@@ -60,7 +66,9 @@ public static class MoneyRefusalReasons
 /// <param name="Message">The existing human-readable sentence; unchanged wording, now also machine-labelled.</param>
 /// <param name="RetryAfterSeconds">Set only when the BFF actually knows a wait is warranted (rail busy); null otherwise - never guessed.</param>
 /// <param name="Reason">One of <see cref="MoneyRefusalReasons"/> when an upstream code named the outcome; null otherwise.</param>
-public sealed record MoneyRefusalBody(string Code, string Message, int? RetryAfterSeconds = null, string? Reason = null);
+/// <param name="IntentId">The held payment's id, set exactly when <paramref name="Code"/> is <c>needs_review</c> and the node named it.</param>
+public sealed record MoneyRefusalBody(
+    string Code, string Message, int? RetryAfterSeconds = null, string? Reason = null, string? IntentId = null);
 
 /// <summary>
 /// Narrows which of several plausible node-side refusals a generic <see cref="ResultType.Forbidden"/>
@@ -104,7 +112,8 @@ public static class MoneyRefusal
         var message = result.Error ?? fallbackMessage ?? "The request could not be completed.";
         var (code, reason) = FromUpstreamCode(result.Code)
             ?? (ResolveByType(result.Type, result.Code, message, context), (string?)null);
-        return new MoneyRefusalBody(code, message, RetryAfterFor(code), reason);
+        var intentId = code == MoneyRefusalCodes.NeedsReview ? result.Reference : null;
+        return new MoneyRefusalBody(code, message, RetryAfterFor(code), reason, intentId);
     }
 
     /// <summary>Builds a refusal body directly for a local branch that never produced a <see cref="Result{T}"/>.</summary>
@@ -135,6 +144,7 @@ public static class MoneyRefusal
         message = refusal.Message,
         retryAfterSeconds = refusal.RetryAfterSeconds,
         reason = refusal.Reason,
+        intentId = refusal.IntentId,
     };
 
     private static int? RetryAfterFor(string code) =>
@@ -145,7 +155,8 @@ public static class MoneyRefusal
     /// Only an emitter that PROVED nothing was or can be paid earns <c>definite</c>: the node's
     /// REQUEST_VOIDED (a voided key) and INTENT_EXPIRED (sent only after a fresh Stripe read). A
     /// terminal intent (INTENT_FINISHED - paid ones included) and a key bound to another request are
-    /// <c>finished</c>; a post-claim rail refusal is <c>unconfirmed</c>. See AGENTS.md §Money refusal codes.
+    /// <c>finished</c>; a post-claim rail refusal is <c>unconfirmed</c>; a payment held for a manual
+    /// check is <c>needs_review</c> (keep the key, stop resending). See AGENTS.md §Money refusal codes.
     /// </remarks>
     private static (string Code, string? Reason)? FromUpstreamCode(string? upstreamCode) => upstreamCode switch
     {
@@ -155,7 +166,7 @@ public static class MoneyRefusal
         UpstreamFailureCodes.IntentFinished => (MoneyRefusalCodes.Finished, MoneyRefusalReasons.Finished),
         UpstreamFailureCodes.RequestKeyInUse => (MoneyRefusalCodes.Finished, MoneyRefusalReasons.KeyInUse),
         UpstreamFailureCodes.RailRefused => (MoneyRefusalCodes.Unconfirmed, MoneyRefusalReasons.RailRefused),
-        UpstreamFailureCodes.IntentNeedsReview => (MoneyRefusalCodes.Unconfirmed, MoneyRefusalReasons.NeedsReview),
+        UpstreamFailureCodes.IntentNeedsReview => (MoneyRefusalCodes.NeedsReview, MoneyRefusalReasons.NeedsReview),
         UpstreamFailureCodes.PaymentsNotConfigured
             or UpstreamFailureCodes.RouteNotAllowed
             or UpstreamFailureCodes.TransportNotConfigured => (MoneyRefusalCodes.PaymentsNotConfigured, null),

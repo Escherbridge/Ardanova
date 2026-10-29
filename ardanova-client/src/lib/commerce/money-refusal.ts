@@ -14,6 +14,8 @@ export const MONEY_REFUSAL_CODES = [
   "definite",
   /** A final state that may include a payment: never releases, the page asks the void route. */
   "finished",
+  /** A payment held for a manual check: never releases, never resent; `error.data.moneyIntentId` names it. */
+  "needs_review",
   "unconfirmed",
   "unauthenticated",
 ] as const;
@@ -34,10 +36,29 @@ export function parseMoneyRefusalCode(value: unknown): MoneyRefusalCode | null {
     : null;
 }
 
-/** The money code on a thrown tRPC client error (`error.data.moneyCode`), or null for anything else. */
-export function moneyCodeOf(error: unknown): MoneyRefusalCode | null {
+/** A payment id as the server writes it: 32 hex characters, or a dashed UUID. */
+const PAYMENT_ID_PATTERN =
+  /^(?:[0-9a-fA-F]{32}|[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$/u;
+
+/** A server-named payment id, or null when it is missing or not shaped like one this app can read back. */
+export function parseMoneyIntentId(value: unknown): string | null {
+  return typeof value === "string" && PAYMENT_ID_PATTERN.test(value.trim())
+    ? value.trim()
+    : null;
+}
+
+function errorData(error: unknown): Record<string, unknown> | null {
   if (typeof error !== "object" || error === null) return null;
   const data = (error as { data?: unknown }).data;
-  if (typeof data !== "object" || data === null) return null;
-  return parseMoneyRefusalCode((data as { moneyCode?: unknown }).moneyCode);
+  return typeof data === "object" && data !== null ? (data as Record<string, unknown>) : null;
+}
+
+/** The money code on a thrown tRPC client error (`error.data.moneyCode`), or null for anything else. */
+export function moneyCodeOf(error: unknown): MoneyRefusalCode | null {
+  return parseMoneyRefusalCode(errorData(error)?.moneyCode);
+}
+
+/** The held payment a `needs_review` refusal names (`error.data.moneyIntentId`), or null. */
+export function moneyIntentIdOf(error: unknown): string | null {
+  return parseMoneyIntentId(errorData(error)?.moneyIntentId);
 }

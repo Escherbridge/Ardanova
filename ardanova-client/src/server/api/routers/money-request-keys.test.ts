@@ -41,7 +41,7 @@ const {
   setAsideSavedPayment,
   settleAddFundsFailure,
 } = await import("~/lib/commerce/add-funds-request");
-const { moneyCodeOf } = await import("~/lib/commerce/money-refusal");
+const { moneyCodeOf, moneyIntentIdOf } = await import("~/lib/commerce/money-refusal");
 const { claimRequestKey, readSavedRequest, recordAdmittedId } = await import(
   "~/lib/commerce/persisted-request-key"
 );
@@ -352,6 +352,89 @@ describe("add funds: 'start a new payment instead' asks the server to void first
       { method: "POST", path: `/api/add-funds/requests/${saved.requestKey}/void`, idempotencyKey: null, body: null },
     ]);
     expect(readSavedRequest(tab, ADD_FUNDS_REQUEST_FLOW, SUBJECT) === null).toBe(expected === "released");
+  });
+});
+
+describe("add funds: a payment held for a manual check is recorded, locked and never resent (round 4 #3)", () => {
+  const held = {
+    error: "This payment needs a manual check before it can continue.",
+    code: "needs_review",
+    reason: "needs_review",
+    intentId: PAYMENT_ID,
+  };
+
+  it("Continue meets needs_review -> the key names the held payment, and Continue stays locked across a reload", async () => {
+    const tab = new TabStorage();
+    const saved = claimAddFunds(tab);
+    // The held row's own page still reads as unfinished: on that alone Continue would unlock and resend.
+    const calls = bff((call) =>
+      call.method === "GET"
+        ? { status: 200, body: payment({ status: "starting", settlementState: "" }) }
+        : { status: 409, body: held },
+    );
+
+    const failure = await failureOf(
+      browser.addFunds.begin.mutate({ amountMinorUnits: 2_500, requestKey: saved.requestKey }),
+    );
+    const settled = await settleAddFundsFailure({
+      storage: tab,
+      subjectId: SUBJECT,
+      requestKey: saved.requestKey,
+      moneyCode: moneyCodeOf(failure),
+      heldPaymentId: moneyIntentIdOf(failure),
+      server: addFundsServer,
+    });
+
+    expect(moneyCodeOf(failure)).toBe("needs_review");
+    expect(settled.kind).toBe("tracking");
+    const reloaded = readSavedRequest(tab, ADD_FUNDS_REQUEST_FLOW, SUBJECT);
+    expect(reloaded).toMatchObject({ requestKey: saved.requestKey, admittedId: PAYMENT_ID, heldForReview: true });
+    const tracked = settled.kind === "tracking" ? settled.payment : null;
+    expect(savedPaymentLocksContinue(reloaded, tracked)).toBe(true);
+    // One send, one read of the held payment: no void asked for, nothing resent.
+    expect(calls.map((call) => `${call.method} ${call.path}`)).toEqual([
+      "POST /api/add-funds",
+      `GET /api/add-funds/${PAYMENT_ID}`,
+    ]);
+  });
+
+  it("'start a new payment instead' on a held payment keeps it held; the node's later voided releases it", async () => {
+    const tab = new TabStorage();
+    const saved = claimAddFunds(tab);
+
+    // An attached held row: the node's void answers needs_review with that payment in `result`.
+    bffAnswers(409, held);
+    const kept = await setAsideSavedPayment({ storage: tab, subjectId: SUBJECT, server: addFundsServer });
+
+    expect(kept.kind).toBe("tracking");
+    expect(readSavedRequest(tab, ADD_FUNDS_REQUEST_FLOW, SUBJECT)).toMatchObject({
+      requestKey: saved.requestKey,
+      admittedId: PAYMENT_ID,
+      heldForReview: true,
+    });
+
+    // Once the node can prove nothing was or can be paid (an unattached claim), the void releases.
+    bffAnswers(200, { outcome: "voided" });
+    const released = await setAsideSavedPayment({ storage: tab, subjectId: SUBJECT, server: addFundsServer });
+
+    expect(released.kind).toBe("released");
+    expect(readSavedRequest(tab, ADD_FUNDS_REQUEST_FLOW, SUBJECT)).toBeNull();
+  });
+
+  it.each([
+    ["needs_review naming its payment", { ...held }, PAYMENT_ID],
+    ["finished, whatever the body names", { ...held, code: "finished", reason: "finished" }, null],
+    ["needs_review naming something that is not a payment id", { ...held, intentId: "../admin" }, null],
+  ] as const)("the page learns a held payment's id only from %s", async (_label, body, expected) => {
+    const tab = new TabStorage();
+    const saved = claimAddFunds(tab);
+    bffAnswers(409, body);
+
+    const failure = await failureOf(
+      browser.addFunds.begin.mutate({ amountMinorUnits: 2_500, requestKey: saved.requestKey }),
+    );
+
+    expect(moneyIntentIdOf(failure)).toBe(expected);
   });
 });
 

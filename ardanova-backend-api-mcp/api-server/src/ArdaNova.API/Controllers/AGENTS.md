@@ -148,6 +148,13 @@ below. The node's `RAIL_REFUSED` is a 400 raised AFTER it claimed the key, so it
 treats even `definite` as "ask the void route" when it holds no server id (client
 `lib/commerce/AGENTS.md` §Persisted request keys).
 
+`needs_review` (round 4 #3) is the node's INTENT_NEEDS_REVIEW on begin AND void: a payment held for a
+manual check. It releases nothing, and unlike `unconfirmed` it must not invite a resend (the same key
+only meets the same hold). Its body carries `intentId` - the compact id of the held payment, kept from
+the node's 409 `result` (`AzoaNodeClient.SendAsync(failureReference:)` -> `Result<T>.Reference`) and
+set on no other code - so the page records it, locks Continue and tells the person which payment to
+quote. `ForFailedVoid` leaves it as is: it is neither final-looking nor a release.
+
 ## Request-key void
 
 `POST /api/add-funds/requests/{requestKey}/void` (`AddFundsController.VoidRequest`) and
@@ -170,7 +177,7 @@ with an unknown outcome word all keep the key.
 | `REQUEST_VOIDED` / `INTENT_EXPIRED` | `definite` (reason `voided` / `expired`) |
 | `INTENT_FINISHED` / `REQUEST_KEY_IN_USE` | `finished` (reason `finished` / `key_in_use`) |
 | `RAIL_REFUSED` (node 400 after its claim) | `unconfirmed` (reason `rail_refused`) |
-| `INTENT_NEEDS_REVIEW` | `unconfirmed` (reason `needs_review`) |
+| `INTENT_NEEDS_REVIEW` | `needs_review` (reason `needs_review`), body `intentId` = the held payment |
 | `PAYMENTS_NOT_CONFIGURED`, BFF route-guard / unconfigured transport | `payments_not_configured` |
 | BFF `ARDANOVA_UPSTREAM_RATE_LIMITED` (a real node 429) | `rail_busy`, `retryAfterSeconds` 30 |
 | `Unauthorized` | `unauthenticated` |

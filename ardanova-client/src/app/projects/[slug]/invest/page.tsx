@@ -262,6 +262,9 @@ export default function InvestPage() {
     useState<RevealedSponsorship | null>(null);
   const [keyNotice, setKeyNotice] = useState<string | null>(null);
   const [cancelling, setCancelling] = useState(false);
+  // True ONLY when the void route answered `voided` for the key this attempt used: the one fact that
+  // lets the page say "closed, nothing was or will be taken". An empty `savedRequest` is not that fact.
+  const [released, setReleased] = useState(false);
 
   const voidSponsorship = api.fundingIntent.voidRequest.useMutation();
   const voidCall = (idempotencyKey: string) =>
@@ -274,16 +277,19 @@ export default function InvestPage() {
     if (settled.kind === "released") {
       setSavedRequest(null);
       setRevealedSponsorship(null);
+      setReleased(true);
       return;
     }
+    setReleased(false);
     setSavedRequest(settled.saved ?? activeSendRef.current?.request ?? null);
     if (settled.kind === "revealed") setRevealedSponsorship(settled.revealed);
   };
 
   const checkout = api.fundingIntent.createCheckout.useMutation({
     onSuccess: ({ intentId, checkoutUrl }, variables) => {
-      // This create-or-replay now has a definite, successful answer, so the key that covered it
-      // is done; a later sponsorship of this same project is a NEW attempt.
+      // A 200 hands over the server's intent id - SETTLEMENT_PENDING included - so from here the
+      // success page decides by that intent's STATE and the key's job (one admission) is done. This
+      // is a release by state, not by a code; see ~/lib/commerce/AGENTS.md §Persisted request keys.
       if (subjectId) {
         clearSavedRequest(
           window.localStorage,
@@ -460,7 +466,8 @@ export default function InvestPage() {
     quantity > 0 &&
     chargedArda !== null;
 
-  // "Try again" prices the SAVED amount at today's rate - what a never-admitted request will cost.
+  // "Try again" estimates the SAVED amount at today's rate - what a never-admitted request will cost.
+  // An admitted dormant DRAFT keeps the quote locked when it was admitted, so the copy says both.
   const resumeArda = resumeRequest ? Number(resumeRequest.wire.amount) : null;
   const resumeQuantity =
     resumeArda !== null && Number.isFinite(resumeArda) && ardaPerUnit && ardaPerUnit > 0
@@ -514,6 +521,7 @@ export default function InvestPage() {
     };
     activeSendRef.current = send;
     setActiveSend(send);
+    setReleased(false);
     setStep(3);
     checkout.mutate({ ...request.wire, idempotencyKey: request.requestKey });
   };
@@ -594,6 +602,7 @@ export default function InvestPage() {
         setSavedRequest(null);
         setRevealedSponsorship(null);
         setResumeRequest(null);
+        setReleased(settled.kind === "released");
         if (settled.kind === "released") setKeyNotice(REQUEST_CANCELLED_NOTICE);
         checkout.reset();
         setStep(1);
@@ -1072,8 +1081,9 @@ export default function InvestPage() {
                 This sends exactly the request you started before, for{" "}
                 {formatSponsorDollars(resumeRequest.displayMinorUnits / 100)}.
                 If it already went through, you&apos;ll see its result and
-                nothing is taken twice. If it never did, it is sent now and
-                priced at today&apos;s rate
+                nothing is taken twice. If we recorded it but never sent it, it
+                completes at the price it was given when we recorded it. Only if
+                it never reached us is it priced now, at today&apos;s rate
                 {resumeQuantity !== null && resumeQuantity > 0
                   ? `: about ${formatUnits(resumeQuantity, config.unitName)}`
                   : ""}
@@ -1304,8 +1314,9 @@ export default function InvestPage() {
               {checkout.error && !savedRequest && (
                 <div className="w-full space-y-3">
                   <p className="text-muted-foreground text-xs leading-relaxed">
-                    The server confirmed that request is closed and nothing
-                    was or will be taken under it. You can start a new one.
+                    {released
+                      ? "The server confirmed that request is closed and nothing was or will be taken under it. You can start a new one."
+                      : "We couldn't confirm what happened to that request, so we won't say either way. Reload this page to check it again before starting a new one."}
                   </p>
                   <Button
                     type="button"

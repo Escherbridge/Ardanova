@@ -20,6 +20,12 @@ controllers had to guess the cause from which call site they were in.
 - **Who reads it.** Only `ArdaNova.API/Controllers/MoneyRefusal.cs` (see that directory's
   AGENTS.md §Money refusal codes). The prose in `Error` is still collapsed as before; the code is
   additive and never shown to a person.
+- **`Reference`** (round 4 #3) is the code's companion: the upstream's own id for the record a
+  failure is about, when its error envelope's `result` named one. Today only the fiat rail sets it
+  (`AzoaNodeClient.SendAsync(failureReference:)`, the intent a 409 INTENT_NEEDS_REVIEW holds), and
+  only `MoneyRefusal` reads it, for `needs_review`. `WithCode` keeps it, `WithReference` keeps the
+  code, and a re-typing helper that must carry it ends with `.WithReference(source.Reference)`. It is
+  never a success value - a failure still has no `Value`.
 
 ## Resource authority
 

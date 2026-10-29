@@ -161,6 +161,8 @@ export function addFundsFallbackMessage(moneyCode: MoneyRefusalCode | null): str
       return "This payment couldn't be started, so nothing was charged. You can try again.";
     case "finished":
       return "That earlier payment already reached a final answer. We're checking what it was before anything new can start.";
+    case "needs_review":
+      return "This payment is held for a manual check, so it won't be sent again from here. Nothing new was started.";
     case "rail_busy":
       return "The payment service is busy right now. Your payment stays saved - try again in a moment and it picks up the same one.";
     case "setup_required":

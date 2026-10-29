@@ -28,6 +28,11 @@ export interface SavedRequest<TWire> {
   displayMinorUnits: number;
   /** The server's id for what this key admitted, once it answered (an add-funds payment id). */
   admittedId?: string;
+  /**
+   * The server holds `admittedId` for a manual check (`needs_review`): nothing is resent under this
+   * key until a read of that payment, or a void, settles it.
+   */
+  heldForReview?: true;
 }
 
 /** `ready`: send `request.wire` under its key. `pending`: an unresolved key for a different request. */
@@ -41,6 +46,7 @@ const savedEnvelopeSchema = z.object({
   wire: z.unknown(),
   displayMinorUnits: z.number().int().nonnegative(),
   admittedId: z.string().min(1).max(128).optional(),
+  heldForReview: z.literal(true).optional(),
 });
 
 /** Non-cryptographic FNV-1a over the subject id: keeps a raw user id out of the storage key. */
@@ -82,6 +88,7 @@ export function readSavedRequest<TWire>(
       wire: wire.data,
       displayMinorUnits: envelope.data.displayMinorUnits,
       ...(envelope.data.admittedId ? { admittedId: envelope.data.admittedId } : {}),
+      ...(envelope.data.heldForReview ? { heldForReview: true as const } : {}),
     };
   } catch {
     return null;
@@ -145,6 +152,25 @@ export function recordAdmittedId<TWire>(
   if (saved?.requestKey !== requestKey) return null;
 
   const updated = { ...saved, admittedId };
+  writeSavedRequest(storage, flow, subjectId, updated);
+  return updated;
+}
+
+/**
+ * Notes that the server holds `requestKey`'s payment for a manual check (`needs_review`), naming it as
+ * the key's admitted id. Kept until a read of that payment or a void settles it; never resent meanwhile.
+ */
+export function recordHeldForReview<TWire>(
+  storage: Storage,
+  flow: RequestFlow<TWire>,
+  subjectId: string,
+  requestKey: string,
+  heldId: string,
+): SavedRequest<TWire> | null {
+  const saved = readSavedRequest(storage, flow, subjectId);
+  if (saved?.requestKey !== requestKey) return null;
+
+  const updated: SavedRequest<TWire> = { ...saved, admittedId: heldId, heldForReview: true };
   writeSavedRequest(storage, flow, subjectId, updated);
   return updated;
 }

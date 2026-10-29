@@ -132,7 +132,8 @@ public sealed class AzoaFiatRailGateway : IFiatRailGateway
         }
 
         var wire = await AzoaNodeClient.SendAsync<AzoaFiatCheckoutVoidWire>(
-            _http, _logger, new HttpRequestMessage(HttpMethod.Post, path), ct);
+            _http, _logger, new HttpRequestMessage(HttpMethod.Post, path), ct,
+            failureReference: answer => PaymentReference(answer.IntentId ?? answer.Intent?.IntentId));
         if (wire.IsFailure)
             return MapFailure<AzoaFiatCheckoutVoidWire, FiatCheckoutVoid>(wire);
 
@@ -255,7 +256,8 @@ public sealed class AzoaFiatRailGateway : IFiatRailGateway
                 .WithCode(UpstreamFailureCodes.RouteNotAllowed);
         }
 
-        var wire = await AzoaNodeClient.SendAsync<AzoaFiatCheckoutIntentWire>(_http, _logger, message, ct);
+        var wire = await AzoaNodeClient.SendAsync<AzoaFiatCheckoutIntentWire>(
+            _http, _logger, message, ct, failureReference: intent => PaymentReference(intent.IntentId));
         if (wire.IsFailure)
             return MapFailure<AzoaFiatCheckoutIntentWire, FiatCheckoutSession>(wire);
 
@@ -423,9 +425,14 @@ public sealed class AzoaFiatRailGateway : IFiatRailGateway
             ResultType.BadRequest => Result<TOut>.BadRequest(error),
             _ => Result<TOut>.Failure(error),
         };
-        // The node's machine code (INTENT_FINISHED, KYB_REQUIRED, ...) is what MoneyRefusal reads first.
-        return mapped.WithCode(source.Code);
+        // The node's machine code (INTENT_FINISHED, KYB_REQUIRED, ...) is what MoneyRefusal reads first;
+        // the payment it named (INTENT_NEEDS_REVIEW's held intent) travels with it.
+        return mapped.WithCode(source.Code).WithReference(source.Reference);
     }
+
+    /// <summary>A payment id in the compact form the page already carries (<c>?intent=</c>); null for none.</summary>
+    private static string? PaymentReference(Guid? intentId)
+        => intentId is { } id && id != Guid.Empty ? id.ToString("N") : null;
 }
 
 /// <summary>Deployment settings for the ARDA on-ramp. Section <c>Azoa:OnRamp</c>.</summary>

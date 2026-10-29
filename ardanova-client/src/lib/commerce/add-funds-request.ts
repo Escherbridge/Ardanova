@@ -1,6 +1,11 @@
 import { z } from "zod";
 
-import { looksFinal, type MoneyRefusalCode } from "~/lib/commerce/money-refusal";
+import {
+  looksFinal,
+  moneyCodeOf,
+  moneyIntentIdOf,
+  type MoneyRefusalCode,
+} from "~/lib/commerce/money-refusal";
 import {
   getOnRampPresentation,
   type OnRampReport,
@@ -8,6 +13,7 @@ import {
 import {
   readSavedRequest,
   recordAdmittedId,
+  recordHeldForReview,
   voidSavedRequest,
   type RequestFlow,
   type SavedRequest,
@@ -90,6 +96,21 @@ function asVoidAnswer(answer: AddFundsVoidAnswer): VoidAnswer<AddFundsPaymentRea
     : { outcome: "revealed", revealed: answer.payment };
 }
 
+/**
+ * Records a `needs_review` hold on the saved key: the held payment becomes the key's own, and Continue
+ * stays locked on it (round-4 #3). Null when the answer was not a hold that named its payment.
+ */
+function holdForReview(
+  storage: Storage,
+  subjectId: string,
+  requestKey: string,
+  moneyCode: MoneyRefusalCode | null,
+  heldId: string | null,
+): SavedRequest<AddFundsWire> | null {
+  if (moneyCode !== "needs_review" || !heldId) return null;
+  return recordHeldForReview(storage, ADD_FUNDS_REQUEST_FLOW, subjectId, requestKey, heldId);
+}
+
 /** Asks the server to void the saved key; on a reveal, the payment it names becomes the tracked one. */
 async function voidOrReveal(
   storage: Storage,
@@ -104,6 +125,17 @@ async function voidOrReveal(
     requestKey,
     async (key) => asVoidAnswer(await server.voidRequest(key)),
   );
+  // A void the node answered "held for a manual check" keeps the key AND names the held payment.
+  if (settled.kind === "kept") {
+    const held = holdForReview(
+      storage,
+      subjectId,
+      requestKey,
+      moneyCodeOf(settled.error),
+      moneyIntentIdOf(settled.error),
+    );
+    return held ? { kind: "tracking", saved: held, payment: null } : settled;
+  }
   if (settled.kind !== "revealed") return settled;
 
   const payment = settled.revealed;
@@ -123,12 +155,19 @@ export async function settleAddFundsFailure(input: {
   subjectId: string;
   requestKey: string;
   moneyCode: MoneyRefusalCode | null;
+  /** The held payment a `needs_review` refusal named (`moneyIntentIdOf`); ignored for every other code. */
+  heldPaymentId?: string | null;
   server: AddFundsServer;
 }): Promise<AddFundsKeySettlement> {
   const { storage, subjectId, requestKey, moneyCode, server } = input;
-  const saved = readSavedRequest(storage, ADD_FUNDS_REQUEST_FLOW, subjectId);
-  if (saved && saved.requestKey !== requestKey)
-    return { kind: "kept", saved, error: null };
+  const read = readSavedRequest(storage, ADD_FUNDS_REQUEST_FLOW, subjectId);
+  if (read && read.requestKey !== requestKey)
+    return { kind: "kept", saved: read, error: null };
+
+  // Held for a manual check: resending would only meet the same hold, so the key now names that
+  // payment and Continue stays locked on it until its own read (or a void) settles it.
+  const saved =
+    holdForReview(storage, subjectId, requestKey, moneyCode, input.heldPaymentId ?? null) ?? read;
 
   if (saved?.admittedId) {
     try {
@@ -165,6 +204,8 @@ export function savedPaymentLocksContinue(
   saved: SavedRequest<AddFundsWire> | null,
   tracked: AddFundsPaymentReport | null | undefined,
 ): boolean {
+  // A held payment is never resumable from here, whatever its page last said.
+  if (saved?.heldForReview) return true;
   if (!saved?.admittedId) return false;
   if (!tracked || !isSamePaymentId(saved.admittedId, tracked.paymentId)) return true;
   return getOnRampPresentation(tracked).outcome !== "unfinished";

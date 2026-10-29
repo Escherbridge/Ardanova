@@ -26,7 +26,7 @@ import {
   type AddFundsServer,
   type AddFundsWire,
 } from "~/lib/commerce/add-funds-request";
-import { moneyCodeOf } from "~/lib/commerce/money-refusal";
+import { moneyCodeOf, moneyIntentIdOf } from "~/lib/commerce/money-refusal";
 import {
   ADD_FUNDS_MAXIMUM_DOLLARS,
   ADD_FUNDS_MINIMUM_DOLLARS,
@@ -71,6 +71,16 @@ const SAVED_PAYMENT_CLOSED_MESSAGE =
 
 const SAVED_PAYMENT_REVEALED_MESSAGE =
   "That earlier payment may already have gone through, so it stays saved and nothing new was started. Its latest state is shown above.";
+
+const SAVED_PAYMENT_HELD_MESSAGE =
+  "That earlier payment is held for a manual check, so it can't be cancelled from here and nothing new was started.";
+
+/** Honest copy for a payment the server holds for a manual check: no resend, and the id to quote. */
+function describeHeldPayment(paymentId: string | undefined): string {
+  return paymentId
+    ? `This payment is held for a manual check - quote ${paymentId} if you contact us. It won't be sent again from here.`
+    : "This payment is held for a manual check. It won't be sent again from here.";
+}
 
 function formatDollars(value: number): string {
   return new Intl.NumberFormat("en-US", {
@@ -203,13 +213,15 @@ function AddFundsFlow() {
           activeRequestRef.current,
       );
       // A code never releases a key that names a payment - that payment is read instead (C-1).
-      // Without one, a final-looking code goes to the server's void-or-reveal; anything else keeps.
+      // Without one, a final-looking code goes to the server's void-or-reveal; a held payment is
+      // recorded by its id and locks Continue (round-4 #3); anything else keeps.
       const moneyCode = moneyCodeOf(error);
       void settleAddFundsFailure({
         storage: window.localStorage,
         subjectId,
         requestKey: variables.requestKey,
         moneyCode,
+        heldPaymentId: moneyIntentIdOf(error),
         server: keyServer,
       }).then((settled) =>
         // A `definite` refusal already explains itself; a `finished` one only now has its answer.
@@ -359,7 +371,12 @@ function AddFundsFlow() {
         return;
       }
       showSettlement(settled, SAVED_PAYMENT_CLOSED_MESSAGE);
-      if (settled.kind === "tracking") setSubmitError(SAVED_PAYMENT_REVEALED_MESSAGE);
+      if (settled.kind === "tracking")
+        setSubmitError(
+          settled.saved?.heldForReview
+            ? SAVED_PAYMENT_HELD_MESSAGE
+            : SAVED_PAYMENT_REVEALED_MESSAGE,
+        );
       if (settled.kind === "kept") setSubmitError(SAVED_PAYMENT_UNCONFIRMED_MESSAGE);
     } finally {
       setSettingAside(false);
@@ -438,15 +455,19 @@ function AddFundsFlow() {
               <Clock className="mt-0.5 h-5 w-5 shrink-0" />
               <div>
                 <h2 className="font-mono text-sm font-black uppercase">
-                  Resuming an unfinished payment
+                  {savedRequest.heldForReview
+                    ? "A payment held for a manual check"
+                    : "Resuming an unfinished payment"}
                 </h2>
                 <p className="text-muted-foreground mt-1 text-sm">
                   You started adding{" "}
                   {formatDollars(savedRequest.displayMinorUnits / 100)} and
                   never saw it finish.{" "}
-                  {continueLockedBySavedPayment
-                    ? "A new payment can't start until we know where that one stands."
-                    : "Continue below to pick up that same payment — nothing is charged twice."}{" "}
+                  {savedRequest.heldForReview
+                    ? describeHeldPayment(savedRequest.admittedId)
+                    : continueLockedBySavedPayment
+                      ? "A new payment can't start until we know where that one stands."
+                      : "Continue below to pick up that same payment — nothing is charged twice."}{" "}
                   Starting a new one asks us to cancel this one first, and it
                   is only cancelled if nothing was or can be paid on it.
                 </p>
@@ -461,9 +482,11 @@ function AddFundsFlow() {
                     id={SAVED_PAYMENT_LOCK_ID}
                     className="text-muted-foreground mt-2 text-xs"
                   >
-                    {savedPayment
-                      ? "Continue is paused until that payment settles. This page checks it again on its own."
-                      : "Continue is paused while we confirm that earlier payment. This page checks it again on its own."}
+                    {savedRequest.heldForReview
+                      ? "Continue is paused while that payment is checked by hand. This page checks it again on its own."
+                      : savedPayment
+                        ? "Continue is paused until that payment settles. This page checks it again on its own."
+                        : "Continue is paused while we confirm that earlier payment. This page checks it again on its own."}
                   </p>
                 )}
               </div>

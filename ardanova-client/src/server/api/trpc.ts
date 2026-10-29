@@ -13,7 +13,7 @@ import { ZodError } from "zod";
 
 import { auth } from "~/server/auth";
 import { runWithActorAssertion } from "~/server/actor-assertion";
-import { readMoneyCode } from "~/server/api/money-refusal-error";
+import { readMoneyCode, readMoneyIntentId } from "~/server/api/money-refusal-error";
 import { InvalidApiPathError } from "~/lib/api/path";
 import {
   findApiFailure,
@@ -71,6 +71,8 @@ const t = initTRPC.context<typeof createTRPCContext>().create({
         // The BFF's money code, set only by a money procedure; the browser releases a saved
         // request key on this and never on `code` (see ~/lib/commerce/AGENTS.md).
         moneyCode: readMoneyCode(error),
+        // Set only with `needs_review`: the held payment the page records and quotes, never resends.
+        moneyIntentId: readMoneyIntentId(error),
       },
     };
   },

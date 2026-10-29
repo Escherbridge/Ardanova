@@ -250,13 +250,31 @@ public sealed class EconomicOutboxLeaseStore : IEconomicOutboxLeaseStore
     /// <inheritdoc/>
     public async Task<bool> TryReleaseForDispatchAsync(string settlementId, DateTime now, CancellationToken ct = default)
     {
+        // submittedAt is the durable "a send may start now" stamp, written BEFORE the send exists, so a
+        // lost answer still leaves the instant a receipt 404 is measured from (Implementations/AGENTS.md §Node proof).
         var released = await _context.EconomicSettlements
             .Where(item => item.id == settlementId && item.status == EconomicSettlementStatus.AUTHORIZED)
             .ExecuteUpdateAsync(setters => setters
                 .SetProperty(item => item.status, EconomicSettlementStatus.PENDING_DISPATCH)
+                .SetProperty(item => item.submittedAt, now)
                 .SetProperty(item => item.updatedAt, now)
                 .SetProperty(item => item.version, item => item.version + 1), ct);
         return released == 1;
+    }
+
+    /// <inheritdoc/>
+    public async Task<bool> TryConfirmOpenAsync(string settlementId, DateTime now, CancellationToken ct = default)
+    {
+        var confirmed = await _context.EconomicSettlements
+            .Where(item => item.id == settlementId
+                && (item.status == EconomicSettlementStatus.PENDING_DISPATCH
+                    || item.status == EconomicSettlementStatus.SUBMITTED
+                    || item.status == EconomicSettlementStatus.AWAITING_RECONCILIATION
+                    || item.status == EconomicSettlementStatus.CONFIRMED))
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(item => item.status, EconomicSettlementStatus.CONFIRMED)
+                .SetProperty(item => item.updatedAt, now), ct);
+        return confirmed == 1;
     }
 
     /// <inheritdoc/>
@@ -279,6 +297,7 @@ public sealed class EconomicOutboxLeaseStore : IEconomicOutboxLeaseStore
             settlement => settlement.status == EconomicSettlementStatus.AUTHORIZED,
             failureCode,
             failureDetail,
+            clearSubmission: false,
             now,
             ct);
 
@@ -288,6 +307,7 @@ public sealed class EconomicOutboxLeaseStore : IEconomicOutboxLeaseStore
         int expectedSettlementVersion,
         string? failureCode,
         string? failureDetail,
+        bool nothingWasSubmitted,
         DateTime now,
         CancellationToken ct = default)
         => CancelBothAsync(
@@ -296,6 +316,7 @@ public sealed class EconomicOutboxLeaseStore : IEconomicOutboxLeaseStore
                 && settlement.version == expectedSettlementVersion,
             failureCode,
             failureDetail,
+            nothingWasSubmitted,
             now,
             ct);
 
@@ -308,6 +329,7 @@ public sealed class EconomicOutboxLeaseStore : IEconomicOutboxLeaseStore
         System.Linq.Expressions.Expression<Func<ArdaNova.Domain.Models.Entities.EconomicSettlement, bool>> settlementIsCancellable,
         string? failureCode,
         string? failureDetail,
+        bool clearSubmission,
         DateTime now,
         CancellationToken ct)
     {
@@ -341,6 +363,7 @@ public sealed class EconomicOutboxLeaseStore : IEconomicOutboxLeaseStore
                         .SetProperty(item => item.status, EconomicSettlementStatus.CANCELLED)
                         .SetProperty(item => item.failureCode, failureCode)
                         .SetProperty(item => item.failureDetail, failureDetail)
+                        .SetProperty(item => item.submittedAt, item => clearSubmission ? null : item.submittedAt)
                         .SetProperty(item => item.updatedAt, now)
                         .SetProperty(item => item.version, item => item.version + 1), ct)
                 : 0;

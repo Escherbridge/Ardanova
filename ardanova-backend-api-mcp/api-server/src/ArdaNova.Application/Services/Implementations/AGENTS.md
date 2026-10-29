@@ -150,10 +150,12 @@ dead and reveals everything else:
 | --- | --- | --- |
 | no intent | writes a `FundingIntentVoid` tombstone, then re-reads | `voided` (no id) - or decides the intent a racing create committed |
 | CANCELLED (a void's own) | nothing | `voided` |
-| DRAFT, settlement AUTHORIZED | CAS AUTHORIZED -> CANCELLED (outbox PENDING+unleased -> CANCELLED), intent CANCELLED | `voided`; a lost CAS re-reads and decides again |
+| DRAFT, settlement AUTHORIZED | CAS AUTHORIZED -> CANCELLED (outbox PENDING+unleased -> CANCELLED) AND intent CANCELLED, one transaction | `voided`; a lost CAS re-reads and decides again |
+| DRAFT, settlement CANCELLED by `VOIDED_BY_SPONSOR` (a pre-fix two-commit void that half-landed) | repairs the intent to CANCELLED | `voided` |
 | DRAFT, settlement released | nothing - the request that released it may be asking the node now | `revealed` |
-| HOLDING / FAILED / REJECTED, settlement closed and no node operation | nothing | `voided` |
-| SETTLEMENT_PENDING (after the read-only advance a poll makes), SETTLED, anything else | nothing | `revealed` |
+| HOLDING / FAILED / REJECTED, settlement closed, no node operation, never released (`VOIDED_BY_SPONSOR`) | nothing | `voided` |
+| HOLDING / FAILED / REJECTED, settlement closed, no node operation, released | reads the node's receipt by idempotency key (§Node proof) | `voided` only on a believable NOT_FOUND; else `revealed` (a Landed receipt also logs Critical) |
+| SETTLEMENT_PENDING (after the advance a poll makes), SETTLED, a recorded node operation, anything else | nothing | `revealed` |
 
 **AUTHORIZED is the void's window.** A sponsorship's settlement is created AUTHORIZED, which the
 outbox worker never takes (it leases PENDING_DISPATCH only), and only `ReleaseAndDispatchAsync`
@@ -180,7 +182,63 @@ lease, outbox row first (`FinalizeAsync`'s lock order). A worker holding the lea
 so the hold does not land: a request-path lapse leaves the intent SETTLEMENT_PENDING following that
 worker, and a poll's lapse falls through to the ordinary pending checks. Every compare-and-set the
 service makes is mirrored onto the tracked rows, so a later `SaveChanges` repeats it instead of
-writing the old values back.
+writing the old values back. A lease proves only that no WORKER is sending; it is blind to a
+request-path send, which never takes one - that is what §Node proof is for.
+
+**One transaction per cancel (round 4 #2).** Every cancel - the void's AUTHORIZED cancel and the
+hold - commits its compare-and-set and the intent write that names it together
+(`CancelInOneTransactionAsync`; the store cancels inside a savepoint of the ambient transaction).
+`ct` is the request's abort token, so with two commits an abort between them left DRAFT + CANCELLED:
+the void then answered `revealed intent=DRAFT` forever, and a same-key replay DISPATCHED the cancelled
+settlement while `CompleteAsync`'s full-row update rewrote CANCELLED as CONFIRMED. Now:
+`ResumeDraftAsync` releases ONLY an AUTHORIZED settlement (a `VOIDED_BY_SPONSOR` cancel is repaired and
+answered `REQUEST_VOIDED`); `DecideVoidAsync` voids that same half state; and `CompleteAsync` confirms
+through `TryConfirmOpenAsync` - a compare-and-set from PENDING_DISPATCH/SUBMITTED/AWAITING_RECONCILIATION/
+CONFIRMED only, the open states `EconomicSettlementStateMachine` lets reach CONFIRMED. A node acceptance
+for a closed settlement is logged Critical and answered with an uncoded 409 (the key stays).
+
+# Node proof
+
+A local label is not proof. "CANCELLED, `azoaOperationId` null" means nothing landed only if no send
+ever reached the node - but the operation id is written only AFTER the node answers, so a lost answer
+leaves the label and not the reality. Every "nothing was taken" on a settlement that was RELEASED
+(PENDING_DISPATCH or later) is therefore decided by THE AUTHORITY: the node's receipt, read by
+idempotency key through `IAzoaSettlementGateway.ReconcileAsync` (`ReadNodeReceiptAsync`):
+
+| Receipt | Verdict | Hold / fail / void | Resume of a lost send |
+| --- | --- | --- | --- |
+| Accepted with an operation id | `Landed` | complete the sponsorship (record the stake) - never hold or fail it | complete it |
+| the node's NOT_FOUND envelope, read after every send's quiet window | `Absent` | hold (a lapse), fail (a closed settlement), void | hand to the worker |
+| NOT_FOUND inside the window, 5xx, timeout, non-terminal, unconfigured | `Unproven` | follow it as SETTLEMENT_PENDING; never "nothing taken" | hand to the worker |
+
+**The quiet window is the worker's own** (`EconomicOutboxDispatchService.NoEffectQuietWindow`, the
+5-minute lease; `Infrastructure/Outbox/AGENTS.md` "No-effect reopen"). The node admits an exchange only
+at step 13 of `ReserveExchangeManager.ExchangeAsync` (oasis-sleek), after governance, rate, readiness
+and account reads, and its receipt answers NOT_FOUND until then - so a 404 read while an earlier send is
+still in flight is not proof. `NoSendCanStillLand` measures from the later of two durable stamps a send
+can only start after: `EconomicSettlement.submittedAt`, which the release CAS
+(`TryReleaseForDispatchAsync`) now writes BEFORE the request-path send, and `EconomicOutbox.lastAttemptAt`,
+which every worker claim writes. Both are read before the receipt; a send that starts later must take a
+lease or move the row, which the hold's version-and-unleased compare-and-set then loses to.
+
+**The one exemption: released-and-proven-unsent within THIS call.** `DispatchJustReleasedAsync` runs
+only right after this call's own release. The gateway raises a readiness refusal before it sends, no
+worker can have claimed in between (the hold's CAS checks the version and an unleased PENDING outbox),
+and the settlement was AUTHORIZED until this call - so that hold needs no node read, and its CAS also
+clears `submittedAt` (nothing was submitted), which lets a later void believe a NOT_FOUND at once.
+
+**Who asks.** `ResumeDraftAsync` ("Try again" on a DRAFT whose settlement an earlier request released)
+never re-sends without a lease: it reads the receipt, completes on `Landed`, and otherwise sets the
+intent SETTLEMENT_PENDING for the leased outbox worker, which re-sends under the same key (the node
+replays a landed one). `AdvancePendingAsync` (status poll, promoter, replay, void) sends a lapse or a
+closed settlement through `SettleOnNodeProofAsync`, which skips the read entirely inside the window (a
+404 there would prove nothing) and asks at most once per `NodeProofReadInterval` per intent. The void's
+HOLDING/FAILED/REJECTED branch (`DecideRecordedAsNothingTakenAsync`) reads it every time - it is
+user-initiated - and is pinned against its local guards too: a recorded `azoaOperationId` reveals
+without asking.
+
+**Known boundary.** A settlement released by a build older than this one carries no `submittedAt`, so a
+404 for it is believed at once. That matters only for a send still in flight across the deploy itself.
 
 The key covers the request BYTES the caller first sent - `requestedPlatformBaseUnits`, the config
 id and the disclosure version - so a caller resending a recomputed amount after a rate move gets a

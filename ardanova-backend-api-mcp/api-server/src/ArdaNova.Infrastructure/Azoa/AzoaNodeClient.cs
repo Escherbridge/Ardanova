@@ -119,12 +119,17 @@ public sealed class AzoaNodeClient : IAzoaNodeClient
         return SendAsync<T>(_http, _logger, msg, ct);
     }
 
+    /// <param name="failureReference">
+    /// Reads the id an error envelope's <c>result</c> names (e.g. the intent a 409 INTENT_NEEDS_REVIEW
+    /// holds) onto <see cref="Result{T}.Reference"/>; null leaves failures unreferenced.
+    /// </param>
     internal static async Task<Result<T>> SendAsync<T>(
         HttpClient http,
         ILogger logger,
         HttpRequestMessage msg,
         CancellationToken ct,
-        bool notFoundNeedsNodeCode = false)
+        bool notFoundNeedsNodeCode = false,
+        Func<T, string?>? failureReference = null)
     {
         try
         {
@@ -156,7 +161,10 @@ public sealed class AzoaNodeClient : IAzoaNodeClient
                     return Result<T>.Failure("AZOA answered 404 without its not-found envelope; the outcome is unknown.");
                 }
 
-                return MapError<T>(response.StatusCode, envelope?.Message, envelope?.Code);
+                var failure = MapError<T>(response.StatusCode, envelope?.Message, envelope?.Code);
+                return envelope is { Result: { } named } && failureReference is not null
+                    ? failure.WithReference(failureReference(named))
+                    : failure;
             }
 
             if (envelope is null)

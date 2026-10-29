@@ -44,7 +44,8 @@ public sealed class MoneyRefusalCodeTests
         // Only an emitter that proved nothing was or can be paid earns `definite`.
         { 409, "INTENT_EXPIRED", "This payment page has expired. Start a new payment.", 409, MoneyRefusalCodes.Definite, MoneyRefusalReasons.Expired },
         { 409, "REQUEST_VOIDED", "This payment request was cancelled and nothing can be paid under it.", 409, MoneyRefusalCodes.Definite, MoneyRefusalReasons.Voided },
-        { 409, "INTENT_NEEDS_REVIEW", "That payment is held for review.", 409, MoneyRefusalCodes.Unconfirmed, MoneyRefusalReasons.NeedsReview },
+        // A held payment is its own non-releasing code: unlike `unconfirmed`, a resend cannot help it.
+        { 409, "INTENT_NEEDS_REVIEW", "That payment is held for review.", 409, MoneyRefusalCodes.NeedsReview, MoneyRefusalReasons.NeedsReview },
         // The node's in-flight same-key 409 names no outcome, so the caller must keep its key.
         { 409, "CONFLICT", "This payment request is still being processed.", 409, MoneyRefusalCodes.Unconfirmed, null },
         // L-5: a 400 raised AFTER the node claimed the key - the claim stands and may be replayed.
@@ -205,7 +206,8 @@ public sealed class MoneyRefusalCodeTests
     {
         { 503, """{"isError":true,"code":"DEPENDENCY_UNAVAILABLE","message":"Your payment status could not be confirmed right now."}""", 503, MoneyRefusalCodes.Unconfirmed },
         { 503, """{"isError":true,"code":"RAIL_BUSY","message":"This request could not be checked right now."}""", 503, MoneyRefusalCodes.Unconfirmed },
-        { 409, """{"isError":true,"code":"INTENT_NEEDS_REVIEW","message":"This payment needs a manual check."}""", 409, MoneyRefusalCodes.Unconfirmed },
+        // Held for a manual check: never final-looking, and never `unconfirmed` (which invites a resend).
+        { 409, """{"isError":true,"code":"INTENT_NEEDS_REVIEW","message":"This payment needs a manual check."}""", 409, MoneyRefusalCodes.NeedsReview },
         { 409, """{"isError":true,"code":"REQUEST_KEY_IN_USE","message":"That request key is already in use."}""", 409, MoneyRefusalCodes.Unconfirmed },
         { 400, """{"isError":true,"code":"INVALID_REQUEST","message":"A request key is required."}""", 400, MoneyRefusalCodes.Unconfirmed },
         { 503, """{"isError":true,"code":"PAYMENTS_NOT_CONFIGURED","message":"Adding funds is not configured on this node."}""", 503, MoneyRefusalCodes.PaymentsNotConfigured },
@@ -226,6 +228,49 @@ public sealed class MoneyRefusalCodeTests
         response.Should().NotBeOfType<OkObjectResult>();
         response.StatusCode.Should().Be(bffStatus);
         AsBody(response).Code.Should().Be(moneyCode);
+    }
+
+    private const string HeldIntentDashed = "0f8fad5b-d9cb-469f-a165-70867728950e";
+    private const string HeldIntentCompact = "0f8fad5bd9cb469fa16570867728950e";
+
+    /// <summary>
+    /// Round-4 #3: the node's 409 INTENT_NEEDS_REVIEW carries the held intent in <c>result</c> (begin: the
+    /// projection; void: <c>{outcome, intentId, intent}</c>). The page can only lock Continue and quote
+    /// the payment if the BFF keeps that id; any other code's <c>result</c> is not surfaced.
+    /// </summary>
+    public static TheoryData<string, string, string?> HeldPaymentAnswers => new()
+    {
+        {
+            "begin",
+            $$$"""{"isError":true,"code":"INTENT_NEEDS_REVIEW","message":"This payment needs a manual check.","result":{"intentId":"{{{HeldIntentDashed}}}","status":"open","settlementState":"","resumed":true}}""",
+            HeldIntentCompact
+        },
+        {
+            "void",
+            $$$$"""{"isError":true,"code":"INTENT_NEEDS_REVIEW","message":"This payment needs a manual check.","result":{"outcome":"revealed","intentId":"{{{{HeldIntentDashed}}}}","intent":{"intentId":"{{{{HeldIntentDashed}}}}","status":"open"}}}""",
+            HeldIntentCompact
+        },
+        {
+            "begin",
+            $$$"""{"isError":true,"code":"INTENT_FINISHED","message":"This payment is already finished.","result":{"intentId":"{{{HeldIntentDashed}}}","status":"complete","settlementState":"settled","resumed":true}}""",
+            null
+        },
+    };
+
+    [Theory]
+    [MemberData(nameof(HeldPaymentAnswers))]
+    public async Task AHeldPayment_CarriesTheNodesIntentIdOnTheNeedsReviewCodeOnly(string call, string nodeBody, string? intentId)
+    {
+        var controller = CreateAddFundsController(
+            RealFiatRail(_ => Json(HttpStatusCode.Conflict, nodeBody)), accountAvatarId: AvatarId);
+
+        var response = call == "begin"
+            ? await Begin(controller)
+            : (await controller.VoidRequest("9e68f25a-589c-472a-ab2d-0b4161c5ab89", CancellationToken.None))
+                .Should().BeAssignableTo<ObjectResult>().Subject;
+
+        response.StatusCode.Should().Be(409);
+        AsBody(response).IntentId.Should().Be(intentId);
     }
 
     // -- Custodial account: through the controller, the real service, gateway and node client ----
@@ -344,7 +389,8 @@ public sealed class MoneyRefusalCodeTests
             (string)type.GetProperty("code")!.GetValue(value)!,
             (string)type.GetProperty("message")!.GetValue(value)!,
             (int?)type.GetProperty("retryAfterSeconds")!.GetValue(value),
-            (string?)type.GetProperty("reason")!.GetValue(value));
+            (string?)type.GetProperty("reason")!.GetValue(value),
+            (string?)type.GetProperty("intentId")!.GetValue(value));
     }
 
     private static HttpResponseMessage NodeError(int status, string code, string message)

@@ -82,7 +82,10 @@ maps it to an ambiguous failure, which stays on the reconciliation path like any
    landing. Earlier, the row stays in reconciliation with `AZOA_EXCHANGE_ABSENCE_UNSETTLED` and
    is read again at the window's end. To make this measurable, `FinalizeAsync` now KEEPS the
    first `reconciliationRequiredAt` while a row stays in reconciliation instead of restamping it
-   on every poll, which would push the window out forever.
+   on every poll, which would push the window out forever. The sponsorship request path believes
+   a 404 by the SAME window, measured from the release's `submittedAt` and the last claim's
+   `lastAttemptAt` (`TryReleaseForDispatchAsync` now stamps the former before the unleased send);
+   see `Application/Services/Implementations/AGENTS.md` §Node proof.
 2. **Reopen ceiling.** After `MaximumNoEffectReopens` (5) reopens, a further 404 parks the row
    with `AZOA_SETTLEMENT_RECONCILIATION_ATTENTION` and a Critical alert, exactly like the
    reconciliation ceiling: never `FAILED`, re-read hourly, alerted every cycle.
