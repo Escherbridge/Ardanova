@@ -110,6 +110,34 @@ public static class ProjectQueryFilters
             || project.ProjectMembers.Any(member => member.userId == viewerId);
     }
 
+    /// <summary>Known category codes, compared case-insensitively so a caller's casing can never split one code into two stored spellings.</summary>
+    public static readonly HashSet<string> ValidCategories = Enum.GetNames<ProjectCategory>()
+        .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Trims, then — when the value matches a known code case-insensitively — rewrites it to that
+    /// code's canonical spelling; a custom value passes through trimmed and otherwise untouched.
+    /// Shared by validation, storage and filtering so "business" and "BUSINESS" are one value
+    /// everywhere, not two that happen to look related.
+    /// </summary>
+    public static string CanonicalizeCategory(string category)
+    {
+        var trimmed = category.Trim();
+        return ValidCategories.TryGetValue(trimmed, out var canonical) ? canonical : trimmed;
+    }
+
+    /// <summary>
+    /// Whole-token match on the comma-separated categories column: padding both sides with commas
+    /// means BUSINESS can never match SMALL_BUSINESS or a sector that merely contains it as a
+    /// substring. The concatenation (not a helper call) is what keeps this translated to SQL
+    /// instead of pulled into memory - see P8-15 in Services/Implementations/AGENTS.md §Taxonomy.
+    /// </summary>
+    public static Expression<Func<Project, bool>> HasCategory(string category)
+    {
+        var needle = "," + CanonicalizeCategory(category) + ",";
+        return project => ("," + project.categories + ",").Contains(needle);
+    }
+
     /// <summary>The searchable surface of a project: the problem and the solution, not just the title.</summary>
     public static Expression<Func<Project, bool>> MatchesSearchTerm(string searchTerm)
     {
@@ -147,8 +175,7 @@ public static class ProjectQueryFilters
 
         if (!string.IsNullOrWhiteSpace(category))
         {
-            var requestedCategory = category;
-            predicate = predicate.And(project => project.categories.Contains(requestedCategory));
+            predicate = predicate.And(HasCategory(category));
         }
 
         if (projectType.HasValue)
@@ -435,7 +462,7 @@ public class ProjectService : IProjectService, IProjectVisibility
         CancellationToken ct = default)
         => Result<IReadOnlyList<ProjectDto>>.Success(
             await ListVisibleAsync(
-                ProjectQueryFilters.VisibleTo(viewer).And(project => project.categories.Contains(category)),
+                ProjectQueryFilters.VisibleTo(viewer).And(ProjectQueryFilters.HasCategory(category)),
                 ct));
 
     public Task<Result<IReadOnlyList<ProjectDto>>> GetByProjectTypeAsync(ProjectType projectType, CancellationToken ct = default)
@@ -461,17 +488,29 @@ public class ProjectService : IProjectService, IProjectVisibility
                 ProjectQueryFilters.VisibleTo(viewer).And(project => project.featured),
                 ct));
 
-    private static readonly HashSet<string> ValidCategories = Enum.GetNames<ProjectCategory>()
-        .ToHashSet(StringComparer.OrdinalIgnoreCase);
+    /// <summary>
+    /// The one transform between what a caller sends and what the comma-joined column stores, so
+    /// the value <see cref="ValidateCategories"/> approves is byte-for-byte the value that lands in
+    /// <c>categories</c> - and the value <see cref="ProjectQueryFilters.HasCategory"/> later
+    /// comma-pads to search for. Delegates to <see cref="ProjectQueryFilters.CanonicalizeCategory"/>
+    /// so a known code submitted in any casing (e.g. "business") is stored and filtered as its
+    /// canonical spelling ("BUSINESS"); a custom value passes through trimmed, as typed.
+    /// </summary>
+    private static string NormalizeCategory(string category) => ProjectQueryFilters.CanonicalizeCategory(category);
 
     private static Result<ProjectDto>? ValidateCategories(IEnumerable<string> categories)
     {
         foreach (var category in categories)
         {
-            if (string.IsNullOrWhiteSpace(category))
+            var normalized = NormalizeCategory(category);
+            if (normalized.Length == 0)
                 return Result<ProjectDto>.ValidationError("Category cannot be empty");
-            if (!ValidCategories.Contains(category) && category.Length > 50)
-                return Result<ProjectDto>.ValidationError($"Custom category '{category}' exceeds 50 characters");
+            // The column delimits categories with commas, so one submitted value carrying a comma
+            // would silently split into two stored categories - refuse it instead of mis-splitting.
+            if (normalized.Contains(','))
+                return Result<ProjectDto>.ValidationError($"Category '{normalized}' cannot contain a comma");
+            if (!ProjectQueryFilters.ValidCategories.Contains(normalized) && normalized.Length > 50)
+                return Result<ProjectDto>.ValidationError($"Custom category '{normalized}' exceeds 50 characters");
         }
         return null;
     }
@@ -509,7 +548,7 @@ public class ProjectService : IProjectService, IProjectVisibility
             summary = dto.Summary,
             problemStatement = dto.ProblemStatement,
             solution = dto.Solution,
-            categories = string.Join(",", dto.Categories),
+            categories = string.Join(",", dto.Categories.Select(NormalizeCategory)),
             status = ProjectStatus.DRAFT,
             fundingGoal = dto.FundingGoal,
             fundingGoalUnit = dto.FundingGoalUnit ?? ProjectFundingUnits.Ledger,
@@ -567,7 +606,7 @@ public class ProjectService : IProjectService, IProjectVisibility
         if (dto.Summary is not null) project.summary = dto.Summary;
         if (dto.ProblemStatement is not null) project.problemStatement = dto.ProblemStatement;
         if (dto.Solution is not null) project.solution = dto.Solution;
-        if (dto.Categories is not null) project.categories = string.Join(",", dto.Categories);
+        if (dto.Categories is not null) project.categories = string.Join(",", dto.Categories.Select(NormalizeCategory));
         if (dto.Tags is not null) project.tags = dto.Tags;
         if (dto.TargetAudience is not null) project.targetAudience = dto.TargetAudience;
         if (dto.ExpectedImpact is not null) project.expectedImpact = dto.ExpectedImpact;

@@ -320,3 +320,36 @@ as if that person had written them. `PostService` therefore:
   so it clears the tracked changes and answers success (unlike re-reads the post); the losing save's counter
   decrement rolled back with its delete, so the count drops once. Pinned by
   `FeedProjectorFlowTests.ARacingDoubleUntap_Succeeds_AndLeavesNothingBehind` on real Postgres.
+
+# Taxonomy
+
+`TaxonomyService` (SR-03 Phase 1 Lane C) answers `GET /api/taxonomy` off the `TaxonomyTerm` table
+Phase 0 seeded: a shared vocabulary spanning every problem domain the platform hosts (construction
+to hospitality), not just tech. It is a suggestion list and filter facet, NOT a stored constraint -
+`Project.categories`, `Guild.specialties`, `Opportunity.skills` and `UserSkill.skill` keep storing
+plain comma-separated or scalar text, and a custom value under 50 characters still works beside any
+taxonomy slug. A `parentSlug` on a SKILL comes from the `Parent` navigation inside the `Select`
+projection, never an `Include` - EF Core still emits one LEFT JOIN, so a SKILL's sector arrives as a
+slug and never leaks the internal id.
+
+**P8-15 (fixed here).** `ProjectQueryFilters.HasCategory` replaces `categories.Contains(x)`, a
+SUBSTRING match that let a filter on `BUSINESS` return `SMALL_BUSINESS` too - worse once the
+vocabulary is 26 sectors deep instead of 10. The fix pads both the column and the needle with
+commas (`","+categories+","` vs `","+category+","`) before calling `.Contains`, so only a whole
+comma-delimited token can match; the concatenation is inlined into the predicate expression (not a
+C#-side helper call) specifically so EF Core keeps translating it to SQL instead of pulling every
+row into memory to filter client-side.
+
+**Normalization.** `ProjectService.NormalizeCategory` delegates to
+`ProjectQueryFilters.CanonicalizeCategory` (`Trim()`, then rewrite to the matching
+`ProjectCategory` enum name when one matches case-insensitively) and is the one transform shared by
+`ValidateCategories`, both category-write sites (`CreateAsync`, `UpdateAsync`), `HasCategory` and
+every filter entry point (`ProjectQueryFilters.Build`, `GetVisibleByCategoryAsync`). Validation
+accepted a known code case-insensitively before this fix but storage only trimmed it, so `business`
+landed in the column as `business` and the whole-token `BUSINESS` filter — itself case-sensitive —
+never matched its own row (fixed alongside P8-15). Canonicalizing in one place means the string
+that passed validation, the string the comma-joined column stores, and the needle `HasCategory`
+later comma-pads are all byte-for-byte the same value regardless of the caller's casing. A custom
+value (not a known code) passes through trimmed only, as typed. `ValidateCategories` also refuses
+any single category value containing a comma - the column uses commas as its only delimiter, so an
+unrefused one (e.g. `"Solar, Wind"`) would silently become two stored categories.
