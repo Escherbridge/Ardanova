@@ -11,6 +11,7 @@ import { epicRouter } from "~/server/api/routers/epic";
 import { backlogRouter } from "~/server/api/routers/backlog";
 import { chatRouter } from "~/server/api/routers/chat";
 import { enumRouter } from "~/server/api/routers/enum";
+import { taxonomyRouter } from "~/server/api/routers/taxonomy";
 import { featureRouter } from "~/server/api/routers/feature";
 import { productRouter } from "~/server/api/routers/product";
 import { opportunityBidRouter } from "~/server/api/routers/opportunity-bid";
@@ -60,6 +61,7 @@ export const appRouter = createTRPCRouter({
   backlog: backlogRouter,
   chat: chatRouter,
   enum: enumRouter,
+  taxonomy: taxonomyRouter,
   feature: featureRouter,
   product: productRouter,
   opportunityBid: opportunityBidRouter,
