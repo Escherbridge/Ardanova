@@ -58,8 +58,33 @@ public sealed partial class SponsorshipVoidFlowTests
     }
 
     [PostgresFact]
-    public async Task ALostAnswerThenRefusalsToTheCeiling_ClosesAsUnpaidOnlyOnTheNodesNotFoundPastTheWindow()
+    public async Task ALostAnswerThenRefusalsToTheCeiling_UntilTheNodeIsAttested_StaysOpenWithAMayHaveMovedAlert_EvenOnANotFound()
     {
+        // The shipped default: Azoa:Exchange:NodeEnforcesAdmitBefore=false (or a node rolled back past 06abcd6c).
+        var key = NewKey();
+        await LoseTheAnswerToASentExchangeAsync(key);
+        BeneficiaryHasNoUsableAvatar();
+        await AgeAsync(key, PastTheProofWindow);
+
+        var outcomes = await RunWorkerToTheCeilingAsync(key);
+
+        outcomes[^1].Should().Be(EconomicOutboxRecordedOutcome.Unknown);
+        var (_, settlement, outbox) = await RowsAsync(key);
+        settlement.status.Should().Be(EconomicSettlementStatus.AWAITING_RECONCILIATION,
+            "a stalled send could still be admitted, so the NOT_FOUND proves nothing");
+        outbox.status.Should().Be(EconomicOutboxStatus.AWAITING_RECONCILIATION);
+        _node.ReceiptCalls.Should().Be(1);
+        var alert = _alerts.Raised.Should().ContainSingle().Subject;
+        alert.AlertCode.Should().Be(EconomicOperatorAlertCodes.ReconciliationAttentionRequired);
+        alert.Severity.Should().Be(OperatorAlertSeverity.Critical);
+        alert.Summary.Should().Contain("Value MAY have moved").And.Contain("not attested to refuse late admissions");
+        alert.RequiredAction.Should().Contain("Do NOT refund");
+    }
+
+    [PostgresFact]
+    public async Task ALostAnswerThenRefusalsToTheCeiling_OnAnEnforcingNode_ClosesAsUnpaidOnTheNotFoundPastTheWindow()
+    {
+        _admission = EnforcingNode;
         var key = NewKey();
         await LoseTheAnswerToASentExchangeAsync(key);
         BeneficiaryHasNoUsableAvatar();
@@ -74,13 +99,14 @@ public sealed partial class SponsorshipVoidFlowTests
         _node.ReceiptCalls.Should().Be(1, "closed only after the node's own NOT_FOUND");
         var alert = _alerts.Raised.Should().ContainSingle().Subject;
         alert.AlertCode.Should().Be(EconomicOperatorAlertCodes.DispatchAttemptCeiling);
-        alert.Summary.Should().Contain("The node held no exchange under this key");
+        alert.Summary.Should().Contain("The node holds no exchange under this key");
         alert.RequiredAction.Should().Contain("do NOT credit or return anything", "an exchange that never landed debited nobody");
     }
 
     [PostgresFact]
     public async Task ACeilingInsideTheProofWindow_DefersTheClose_ThenClosesOnceTheNotFoundIsProof()
     {
+        _admission = EnforcingNode;
         var key = NewKey();
         await LoseTheAnswerToASentExchangeAsync(key);
         BeneficiaryHasNoUsableAvatar();
@@ -101,6 +127,34 @@ public sealed partial class SponsorshipVoidFlowTests
         _alerts.Raised.Should().ContainSingle(alert => alert.AlertCode == EconomicOperatorAlertCodes.DispatchAttemptCeiling);
         _node.ReceiptCalls.Should().Be(2);
         _node.ExchangeCalls.Should().Be(1);
+    }
+
+    [PostgresFact]
+    public async Task AReceiptReadThatStartsInsideTheWindowButAnswersAfterIt_IsNoProof_AndTheCloseDefers()
+    {
+        _admission = EnforcingNode;
+        var key = NewKey();
+        await LoseTheAnswerToASentExchangeAsync(key);
+        BeneficiaryHasNoUsableAvatar();
+        await MakeOutboxDueAsync(key);
+        (await RunOutboxWorkerOnceAsync(SmallCeiling)).Should().Be(EconomicOutboxRecordedOutcome.Retry);
+
+        // The ceiling's read STARTS 4 s before the send's window ends and ANSWERS 6 s later - after it.
+        await SeedAsync(key, (_, settlement, outbox) =>
+        {
+            settlement.submittedAt = DateTime.UtcNow - EnforcingNode.QuietWindow + TimeSpan.FromSeconds(4);
+            outbox.availableAt = DateTime.UtcNow.AddSeconds(-1);
+        });
+        _node.ReceiptDelay = TimeSpan.FromSeconds(6);
+
+        (await RunOutboxWorkerOnceAsync(SmallCeiling)).Should().Be(EconomicOutboxRecordedOutcome.Retry);
+
+        var (_, settlement, outbox) = await RowsAsync(key);
+        settlement.status.Should().Be(EconomicSettlementStatus.PENDING_DISPATCH,
+            "a NOT_FOUND is only as late as the moment its read began");
+        outbox.status.Should().Be(EconomicOutboxStatus.PENDING);
+        _alerts.Raised.Should().BeEmpty();
+        _node.ReceiptCalls.Should().Be(1);
     }
 
     [PostgresFact]
@@ -363,8 +417,25 @@ public sealed partial class SponsorshipVoidFlowTests
     // -- L1: the two guards round 4 left unpinned ----------------------------------------------------
 
     [PostgresFact]
-    public async Task AVoidOfAnOlderBuildsHoldWhoseSendIsInsideTheWindow_RevealsUntilTheNotFoundIsProof()
+    public async Task AVoidOfAnOlderBuildsHold_UntilTheNodeIsAttested_NeverVoidsOnANotFound_TheKeyIsKept()
     {
+        var key = NewKey();
+        BeneficiaryIs(Result<AzoaCustodialAccountStatusDto>.Forbidden(ValueEligibilityMessages.SetupIncomplete("receive settled project value")));
+        (await CreateAsync(key)).Code.Should().Be(MoneyRefusalCodes.Finished);
+        await SeedAsync(key, (_, settlement, _) => settlement.submittedAt = DateTime.UtcNow.AddMinutes(-1));
+
+        await AgeAsync(key, PastTheProofWindow + TimeSpan.FromMinutes(10));
+        var answer = await VoidAsync(key);
+
+        answer.Body!.Outcome.Should().Be(FundingIntentVoidOutcomes.Revealed,
+            "without an attested admission deadline a NOT_FOUND never releases a key");
+        _node.ReceiptCalls.Should().Be(1, "the node was asked; its NOT_FOUND was simply not proof");
+    }
+
+    [PostgresFact]
+    public async Task AVoidOfAnOlderBuildsHoldWhoseSendIsInsideTheWindow_OnAnEnforcingNode_RevealsUntilTheNotFoundIsProof()
+    {
+        _admission = EnforcingNode;
         var key = NewKey();
         BeneficiaryIs(Result<AzoaCustodialAccountStatusDto>.Forbidden(ValueEligibilityMessages.SetupIncomplete("receive settled project value")));
         (await CreateAsync(key)).Code.Should().Be(MoneyRefusalCodes.Finished);

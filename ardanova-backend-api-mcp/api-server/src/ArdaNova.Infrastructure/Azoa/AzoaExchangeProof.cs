@@ -130,12 +130,12 @@ public sealed class AzoaExchangeProofBootCheck : BackgroundService
 
             _logger.LogInformation(
                 "AZOA value key fingerprint {Fingerprint}; {OpenSettlements} settlement(s) open. Never rotate the value "
-                + "key while any is open (P6-03). Exchange admission: Admit-Before = send stamp + {AdmitSeconds}s, NOT_FOUND "
-                + "believed {ProofSeconds}s after the latest send, node enforcement attested: {NodeEnforces}.",
+                + "key while any is open (P6-03). Exchange admission: Admit-Before = send stamp + {AdmitSeconds}s; a NOT_FOUND "
+                + "is proof {ProofSeconds}s after the latest send ONLY when node enforcement is attested: {NodeEnforces}.",
                 _fingerprint,
                 open,
                 _admission.AdmitWindow.TotalSeconds,
-                _admission.ProofWindow.TotalSeconds,
+                _admission.QuietWindow.TotalSeconds,
                 _admission.NodeEnforcesAdmitBefore);
 
             if (Mismatch(_fingerprint, _pinnedFingerprint, open) is { } problem)

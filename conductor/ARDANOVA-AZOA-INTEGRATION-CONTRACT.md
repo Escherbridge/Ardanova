@@ -542,14 +542,19 @@ only side allowed to make that transition; the other side observes it and never 
    default 4 min). The header is NOT part of the intent hash (each attempt re-stamps it). The
    node refuses a NEW admission past it with HTTP 409 and
    `{"isError":true,"code":"ADMISSION_DEADLINE_PASSED","result":null,...}` — nothing admitted
-   — deciding on its DATABASE clock inside the admitting transaction (oasis-sleek
-   `feat/exchange-admit-before`, `SurrealHoldCommandStore.Exchange.cs`); a replay of an
-   already-admitted key ignores the deadline and returns the original receipt. The header
-   must be strict UTC (`Z` or `+00:00`, ≤ 7 fraction digits) or the node answers 400
-   `INVALID_REQUEST` before any read. Consumers branch on the CODE: the same 409 status
-   otherwise means "may already have run". With W > W_admit + max BFF-vs-database skew, a
-   NOT_FOUND read W after the latest stamp is permanent proof (ArdaNova
-   `ExchangeAdmissionPolicy`; claimed only once `Azoa:Exchange:NodeEnforcesAdmitBefore=true`).
+   BY THIS ATTEMPT — deciding on its DATABASE clock inside the admitting transaction (oasis-sleek
+   `feat/exchange-admit-before` 06abcd6c, `SurrealHoldCommandStore.Exchange.cs`). It is a
+   per-attempt answer: the early refusal does not re-read a concurrent same-key admission that
+   has not committed, so it is never proof the key is unused. A replay of an already-admitted key
+   ignores the deadline and returns the original receipt. The header must be strict UTC (`Z` or
+   `+00:00`, ≤ 7 fraction digits) or the node answers 400 `INVALID_REQUEST` before any read.
+   Consumers branch on the CODE: the same 409 status otherwise means "may already have run".
+   With W ≥ W_admit + skew + 1 s — skew being the consumer's clock against the SurrealDB HOST
+   clock (`time::now()`), consumer replicas included — a NOT_FOUND from a read STARTED W after the
+   latest stamp is permanent proof. ArdaNova (`ExchangeAdmissionPolicy`) treats a NOT_FOUND after
+   an unanswered send as proof ONLY while `Azoa:Exchange:NodeEnforcesAdmitBefore=true`; with it
+   false nothing is closed, held or voided on a NOT_FOUND. **Rollback order:** before rolling
+   the node back past 06abcd6c, set that flag false and redeploy ArdaNova FIRST.
 
 ### 12.1 Exchange settlement (sponsorship)
 

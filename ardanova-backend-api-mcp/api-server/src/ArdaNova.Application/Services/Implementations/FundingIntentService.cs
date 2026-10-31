@@ -609,7 +609,7 @@ public sealed class FundingIntentService : IFundingIntentService
         settlement.submittedAt = now;
         settlement.updatedAt = now;
         settlement.version += 1;
-        _unitOfWork.MarkPersisted(settlement);
+        _unitOfWork.MarkPersisted(settlement, ReleasedSettlementColumns);
 
         return await DispatchJustReleasedAsync(intent, settlement, outbox, config, project, releasedAt: now, ct);
     }
@@ -654,6 +654,45 @@ public sealed class FundingIntentService : IFundingIntentService
             _ => await LeaveToOutboxAsync(intent, settlement, outbox, project, outcome, ct),
         };
     }
+
+    // The columns each store compare-and-set writes, named next to the mirrors that copy them onto tracked rows
+    // (IUnitOfWork.MarkPersisted accepts exactly these; any other pending change stays pending). Keep in step with
+    // EconomicOutboxLeaseStore's ExecuteUpdate setters.
+    private static readonly string[] ReleasedSettlementColumns =
+        [nameof(EconomicSettlement.status), nameof(EconomicSettlement.submittedAt), nameof(EconomicSettlement.updatedAt), nameof(EconomicSettlement.version)];
+
+    private static readonly string[] CancelledSettlementColumns =
+    [
+        nameof(EconomicSettlement.status), nameof(EconomicSettlement.failureCode), nameof(EconomicSettlement.failureDetail),
+        nameof(EconomicSettlement.submittedAt), nameof(EconomicSettlement.updatedAt), nameof(EconomicSettlement.version),
+    ];
+
+    private static readonly string[] CancelledOutboxColumns =
+        [nameof(EconomicOutbox.status), nameof(EconomicOutbox.failureCode), nameof(EconomicOutbox.failureDetail), nameof(EconomicOutbox.updatedAt)];
+
+    private static readonly string[] ParkedSettlementColumns =
+    [
+        nameof(EconomicSettlement.status), nameof(EconomicSettlement.failureCode), nameof(EconomicSettlement.failureDetail),
+        nameof(EconomicSettlement.submittedAt), nameof(EconomicSettlement.updatedAt), nameof(EconomicSettlement.version),
+    ];
+
+    private static readonly string[] ParkedOutboxColumns =
+    [
+        nameof(EconomicOutbox.status), nameof(EconomicOutbox.reconciliationRequiredAt), nameof(EconomicOutbox.availableAt),
+        nameof(EconomicOutbox.failureCode), nameof(EconomicOutbox.failureDetail), nameof(EconomicOutbox.updatedAt),
+    ];
+
+    private static readonly string[] LeftSettlementColumns =
+    [
+        nameof(EconomicSettlement.failureCode), nameof(EconomicSettlement.failureDetail),
+        nameof(EconomicSettlement.updatedAt), nameof(EconomicSettlement.version),
+    ];
+
+    private static readonly string[] LeftOutboxColumns =
+    [
+        nameof(EconomicOutbox.availableAt), nameof(EconomicOutbox.failureCode), nameof(EconomicOutbox.failureDetail),
+        nameof(EconomicOutbox.updatedAt),
+    ];
 
     /// <summary>What a sponsor reads while their sponsorship follows the worker; never gateway or node wording.</summary>
     private const string PendingMessage =
@@ -825,8 +864,8 @@ public sealed class FundingIntentService : IFundingIntentService
         var parked = await CompareAndSetInOneTransactionAsync(
             () => _outboxLeases.TryParkUnleasedForReconciliationAsync(
                 settlement.id, settlement.version, outcome.Code, outcome.Detail, availableAt, now, ct),
-            settlement,
-            outbox,
+            (settlement, ParkedSettlementColumns),
+            (outbox, ParkedOutboxColumns),
             () =>
             {
                 settlement.status = EconomicSettlementStatus.AWAITING_RECONCILIATION;
@@ -871,8 +910,8 @@ public sealed class FundingIntentService : IFundingIntentService
         var left = await CompareAndSetInOneTransactionAsync(
             () => _outboxLeases.TryLeaveUnleasedToWorkerAsync(
                 settlement.id, settlement.version, outcome.Code, outcome.Detail, availableAt, now, ct),
-            settlement,
-            outbox,
+            (settlement, LeftSettlementColumns),
+            (outbox, LeftOutboxColumns),
             () =>
             {
                 settlement.failureCode = outcome.Code;
@@ -913,8 +952,8 @@ public sealed class FundingIntentService : IFundingIntentService
         return await CompareAndSetInOneTransactionAsync(
             () => _outboxLeases.TryCancelUnleasedAsync(
                 settlement.id, settlement.version, reasonCode, reasonDetail, nothingWasSubmitted, now, ct),
-            settlement,
-            outbox,
+            (settlement, CancelledSettlementColumns),
+            (outbox, CancelledOutboxColumns),
             () =>
             {
                 MirrorCancelled(settlement, outbox, reasonCode, reasonDetail, now);
@@ -946,8 +985,8 @@ public sealed class FundingIntentService : IFundingIntentService
         => await CompareAndSetInOneTransactionAsync(
             () => _outboxLeases.TryCancelUndispatchedAsync(
                 settlement.id, VoidedBySponsorCode, VoidedBeforeDispatchDetail, now, ct),
-            settlement,
-            outbox,
+            (settlement, CancelledSettlementColumns),
+            (outbox, CancelledOutboxColumns),
             () =>
             {
                 MirrorCancelled(settlement, outbox, VoidedBySponsorCode, VoidedBeforeDispatchDetail, now);
@@ -963,8 +1002,8 @@ public sealed class FundingIntentService : IFundingIntentService
     /// </summary>
     private async Task<bool> CompareAndSetInOneTransactionAsync(
         Func<Task<bool>> compareAndSet,
-        EconomicSettlement settlement,
-        EconomicOutbox? outbox,
+        (EconomicSettlement Row, string[] Columns) settlement,
+        (EconomicOutbox? Row, string[] Columns) outbox,
         Action mirrorOntoTrackedRows,
         FundingIntent intent,
         CancellationToken ct)
@@ -980,9 +1019,9 @@ public sealed class FundingIntentService : IFundingIntentService
             }
 
             mirrorOntoTrackedRows();
-            _unitOfWork.MarkPersisted(settlement);
-            if (outbox is not null)
-                _unitOfWork.MarkPersisted(outbox);
+            _unitOfWork.MarkPersisted(settlement.Row, settlement.Columns);
+            if (outbox.Row is not null)
+                _unitOfWork.MarkPersisted(outbox.Row, outbox.Columns);
             await _intentRepository.UpdateAsync(intent, ct);
             await _unitOfWork.SaveChangesAsync(ct);
             await _unitOfWork.CommitTransactionAsync(ct);
@@ -1210,9 +1249,9 @@ public sealed class FundingIntentService : IFundingIntentService
         EconomicOutbox? outbox,
         CancellationToken ct)
     {
-        // Judged on the rows as read BEFORE the receipt: a send that starts later must take a lease or
-        // move the row, which the caller's compare-and-set then loses to.
-        var absenceIsBelievable = NoSendCanStillLand(settlement, outbox, DateTime.UtcNow);
+        // Judged on the rows as read BEFORE the receipt, at the instant the read STARTS: a send that starts
+        // later must take a lease or move the row, which the caller's compare-and-set then loses to.
+        var absenceIsBelievable = _admission.AbsenceIsBelievable(LatestSendStamp(settlement, outbox), DateTime.UtcNow);
         var receipt = await _settlementGateway.ReconcileAsync(BuildSettlementRequest(intent), ct);
 
         if (receipt.Outcome == AzoaSettlementGatewayOutcome.Accepted && !string.IsNullOrWhiteSpace(receipt.OperationId))
@@ -1225,22 +1264,18 @@ public sealed class FundingIntentService : IFundingIntentService
     }
 
     /// <summary>
-    /// Whether every send that could have reached the node is past the proof window. A send only starts
-    /// after a durable stamp - the release's <c>submittedAt</c> (request path) or the claim's
-    /// <c>lastAttemptAt</c> (worker) - and carries <c>Admit-Before</c> = that stamp + W_admit, so the later of
-    /// the two bounds every admission (<see cref="ExchangeAdmissionPolicy"/>).
+    /// The latest durable stamp a send to the node can have started after - the release's <c>submittedAt</c>
+    /// (request path) or the claim's <c>lastAttemptAt</c> (worker); each send's <c>Admit-Before</c> is that
+    /// stamp + W_admit, so the later of the two bounds every admission. Null when nothing was ever sent.
     /// </summary>
-    private bool NoSendCanStillLand(EconomicSettlement settlement, EconomicOutbox? outbox, DateTime now)
-    {
-        var lastSendStart = (settlement.submittedAt, outbox?.lastAttemptAt) switch
+    private static DateTime? LatestSendStamp(EconomicSettlement settlement, EconomicOutbox? outbox)
+        => (settlement.submittedAt, outbox?.lastAttemptAt) switch
         {
             ({ } submitted, { } claimed) => submitted > claimed ? submitted : claimed,
             ({ } submitted, null) => submitted,
             (null, { } claimed) => claimed,
-            _ => (DateTime?)null,
+            _ => null,
         };
-        return _admission.AbsenceIsBelievable(lastSendStart, now);
-    }
 
     /// <summary>
     /// Holds (a lapse) or fails (a closed settlement) a pending sponsorship only on the node's proof,
@@ -1254,9 +1289,13 @@ public sealed class FundingIntentService : IFundingIntentService
         CancellationToken ct)
     {
         var now = DateTime.UtcNow;
-        // Inside the quiet window a 404 proves nothing, so the read waits; repeated polls ask at most once an interval.
-        if (!NoSendCanStillLand(settlement, outbox, now) || now < intent.updatedAt.Add(NodeProofReadInterval))
+        // Read scheduling only: inside the window a read is not worth making; past it the read can still find
+        // an exchange that LANDED, while its NOT_FOUND counts only under the strict rule in ReadNodeReceiptAsync.
+        if (!_admission.ProofWindowHasPassed(LatestSendStamp(settlement, outbox), now)
+            || now < intent.updatedAt.Add(NodeProofReadInterval))
+        {
             return;
+        }
 
         var (verdict, receipt) = await ReadNodeReceiptAsync(intent, settlement, outbox, ct);
         if (verdict == NodeReceipt.Landed)

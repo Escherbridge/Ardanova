@@ -50,14 +50,22 @@ public class UnitOfWork : IUnitOfWork
         _context.ChangeTracker.Clear();
     }
 
-    public void MarkPersisted(object entity)
+    public void MarkPersisted(object entity, params string[] writtenProperties)
     {
+        if (writtenProperties.Length == 0)
+            throw new ArgumentException("Name the columns the compare-and-set wrote; a whole-row accept would drop other pending changes.", nameof(writtenProperties));
+
         var entry = _context.Entry(entity);
         if (entry.State is not (EntityState.Modified or EntityState.Unchanged))
             return;
 
-        entry.OriginalValues.SetValues(entry.CurrentValues);
-        entry.State = EntityState.Unchanged;
+        // Only the CAS's own columns: Property() throws for a name the row does not have.
+        foreach (var name in writtenProperties)
+        {
+            var property = entry.Property(name);
+            property.OriginalValue = property.CurrentValue;
+            property.IsModified = false;
+        }
     }
 
     public void Dispose()

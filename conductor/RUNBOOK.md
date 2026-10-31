@@ -351,3 +351,22 @@ governance therefore stays gated from ArdaNova's path permanently, not provision
   `azoa-action-authoring` in those comments when the source tree is next touched.
   Left untouched here deliberately: several of those files are mid-edit in the
   uncommitted security pass.
+
+## 8. Exchange admission deadline (`Admit-Before`) — the flag and the rollback order
+
+`Azoa:Exchange:NodeEnforcesAdmitBefore` (default `false`) is the ONLY thing that lets ArdaNova treat a node
+NOT_FOUND after an unanswered exchange send as "nothing was taken". While it is false, sponsorship holds,
+fails and voids and the outbox worker's terminal closes stay open (Critical "value MAY have moved" alerts)
+instead. Rationale: `ardanova-backend-api-mcp/api-server/src/ArdaNova.Application/Services/Implementations/AGENTS.md`
+§Node proof.
+
+- **Turning it on:** deploy the node that enforces the header (oasis-sleek 06abcd6c or later; a malformed
+  `Admit-Before` must answer 400), wait at least W (5 min) plus the node's shutdown timeout so every send
+  stamped before the deploy is past its deadline, then set the flag `true` and redeploy ArdaNova. The boot
+  log line `node enforcement attested: True` confirms it.
+- **Rolling the node back past 06abcd6c:** set the flag `false` and redeploy ArdaNova FIRST, then roll the
+  node back. In the other order, a BFF still trusting NOT_FOUND talks to a node that no longer refuses late
+  admissions.
+- **Value key:** never rotate it while P6-03 is open and any settlement is `PENDING_DISPATCH` or
+  `AWAITING_RECONCILIATION` (receipts are scoped to the admitting key). Pin `Azoa:ValueKeyFingerprint`; the
+  boot check logs Critical on a mismatch while settlements are open.

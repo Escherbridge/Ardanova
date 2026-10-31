@@ -184,6 +184,38 @@ public sealed class SettlementNoEffectReopenFlowTests : IAsyncLifetime
             && alert.SettlementId == SettlementId);
     }
 
+    /// <summary>
+    /// MED-1: a WORKER send whose answer was lost is an unanswered send too. A reward (no request path, so no
+    /// release stamp) that went Unknown, was reopened on a 404 and then refused to its ceiling used to close FAILED on
+    /// "no send ever went unanswered". The Unknown now stamps submittedAt, so the close reads the node - and with
+    /// enforcement not attested, a NOT_FOUND keeps it open.
+    /// </summary>
+    [PostgresFact]
+    public async Task AWorkerSendWhoseAnswerWasLost_StampsItsSend_SoTheLaterCeilingStaysOpenInsteadOfClaimingNeverSent()
+    {
+        const int Ceiling = 2;
+        await SeedPendingSettlementAsync();
+        _node.OnExchange(HttpStatusCode.ServiceUnavailable, NodeFailure("RAIL_UNAVAILABLE"));
+        (await DispatchOnceAsync(Ceiling)).Outcome.Should().Be(EconomicOutboxRecordedOutcome.Unknown);
+
+        var stamped = await SettlementAsync();
+        stamped.submittedAt.Should().Be((await OutboxAsync()).lastAttemptAt, "the lost send's claim stamp bounds when it can land");
+
+        await AgePastQuietWindowAsync(expireLease: false);
+        _node.OnReceipt(HttpStatusCode.NotFound, NodeFailure("NOT_FOUND"));
+        (await ReconcileOnceAsync(Ceiling)).Outcome.Should().Be(EconomicOutboxRecordedOutcome.Retry);
+        (await OutboxAsync()).status.Should().Be(EconomicOutboxStatus.PENDING, "reopened under the same key");
+
+        _node.OnExchange(HttpStatusCode.BadRequest, NodeFailure("INVALID_REQUEST"));
+        (await DispatchOnceAsync(Ceiling)).Outcome.Should().Be(EconomicOutboxRecordedOutcome.Unknown);
+
+        var settlement = await SettlementAsync();
+        settlement.status.Should().Be(EconomicSettlementStatus.AWAITING_RECONCILIATION, "never FAILED on a false 'never sent'");
+        _alerts.Raised.Should().ContainSingle(alert =>
+            alert.AlertCode == EconomicOperatorAlertCodes.ReconciliationAttentionRequired
+            && alert.Summary.Contains("Value MAY have moved"));
+    }
+
     public static TheoryData<HttpStatusCode, string> AmbiguousReceiptAnswers() => new()
     {
         { HttpStatusCode.ServiceUnavailable, NodeFailure("DEPENDENCY_UNAVAILABLE") },
@@ -217,19 +249,19 @@ public sealed class SettlementNoEffectReopenFlowTests : IAsyncLifetime
 
     private ArdaNovaDbContext NewContext() => new(_options!);
 
-    private async Task<EconomicOutboxDispatchRun> DispatchOnceAsync()
+    private async Task<EconomicOutboxDispatchRun> DispatchOnceAsync(int? maximumAttempts = null)
     {
         await using var context = NewContext();
-        return await NewDispatcher(context).DispatchOneAsync();
+        return await NewDispatcher(context, maximumAttempts).DispatchOneAsync();
     }
 
-    private async Task<EconomicOutboxDispatchRun> ReconcileOnceAsync()
+    private async Task<EconomicOutboxDispatchRun> ReconcileOnceAsync(int? maximumAttempts = null)
     {
         await using var context = NewContext();
-        return await NewDispatcher(context).ReconcileOneAsync();
+        return await NewDispatcher(context, maximumAttempts).ReconcileOneAsync();
     }
 
-    private EconomicOutboxDispatchService NewDispatcher(ArdaNovaDbContext context)
+    private EconomicOutboxDispatchService NewDispatcher(ArdaNovaDbContext context, int? maximumAttempts = null)
     {
         var readiness = new Mock<IAzoaValueEligibilityService>();
         readiness.Setup(service => service.RequireReadyAsync(
@@ -258,6 +290,7 @@ public sealed class SettlementNoEffectReopenFlowTests : IAsyncLifetime
             new EconomicOutboxLeaseStore(context),
             gateway,
             readiness.Object,
+            maximumAttempts: maximumAttempts,
             operatorAlerts: _alerts);
     }
 

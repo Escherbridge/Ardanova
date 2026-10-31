@@ -120,6 +120,10 @@ sentences that name the node, so both `PayoutService.DescribeRefusal` and
 `AzoaCashOutClient.Refused` re-word it from the refusal KIND. The node's text stays where
 operators read it - the transport log.
 
+**Open before cash-out (ledger P5-39a).** `PayoutService` (~:797) still unlocks a seller's units on a receipt
+`NotFound` with no window - the same "a NOT_FOUND is only absence at read time" flaw §Node proof closes for
+sponsorships. It must take the same rule before cash-out opens.
+
 A holding with no recorded `holderClass` is LISTED but never sellable. Every sellability
 rule is keyed on the class, and defaulting one would decide a sale on an invented fact;
 hiding the holding entirely would be worse than saying why it cannot be sold.
@@ -191,6 +195,9 @@ request released and an unleased PENDING outbox; a lost CAS means a worker took 
 SUBMITTED it), and the intent just follows it (`FollowPendingAsync`). Every CAS the service makes is
 mirrored onto the tracked rows AS PERSISTED (`IUnitOfWork.MarkPersisted`): the old "a later save repeats
 it" mirror re-wrote the release's PENDING_DISPATCH over a worker's SUBMITTED on the next intent save.
+`MarkPersisted` accepts exactly the columns that CAS wrote (`FundingIntentService`'s `*Columns` lists, kept in
+step with the store's `ExecuteUpdate` setters); any other pending change stays pending, and an empty or
+unknown column list throws (round 5b MED-2 - a whole-row accept silently dropped other pending changes).
 
 **One lock order, outbox first (round 5 M1).** `FinalizeAsync`, `CancelBothAsync` and the park/leave
 CASes update the outbox row before the settlement. `CompleteAsync` used to CAS the settlement first and
@@ -221,8 +228,8 @@ idempotency key through `IAzoaSettlementGateway.ReconcileAsync` (`ReadNodeReceip
 | Receipt | Verdict | Hold / fail / void | Resume of a lost send |
 | --- | --- | --- | --- |
 | Accepted with an operation id | `Landed` | complete the sponsorship (record the stake) - never hold or fail it | complete it |
-| the node's NOT_FOUND envelope, read after every send's quiet window | `Absent` | hold (a lapse), fail (a closed settlement), void | hand to the worker |
-| NOT_FOUND inside the window, 5xx, timeout, non-terminal, unconfigured | `Unproven` | follow it as SETTLEMENT_PENDING; never "nothing taken" | hand to the worker |
+| the node's NOT_FOUND envelope, from a read STARTED past every send's quiet window, on a node attested to enforce `Admit-Before` - or for a key nothing was ever sent under | `Absent` | hold (a lapse), fail (a closed settlement), void | hand to the worker |
+| any NOT_FOUND while enforcement is not attested, NOT_FOUND inside the window, 5xx, timeout, non-terminal, unconfigured | `Unproven` | follow it as SETTLEMENT_PENDING; never "nothing taken" | hand to the worker |
 
 **The quiet window and the admission deadline (round 5 H2).** The node admits an exchange only at step
 13 of `ReserveExchangeManager.ExchangeAsync` (oasis-sleek), after governance, rate, readiness and account
@@ -234,36 +241,51 @@ seconds, rounded down; `ExchangeAdmissionPolicy`). Exactly two callers send: `Di
 (request path) and `EconomicOutboxDispatchService` (worker, from its claim's `LastAttemptAt`). The node
 refuses to admit past it with 409 `ADMISSION_DEADLINE_PASSED` (nothing admitted), which the gateway maps
 by CODE - never by the 409, which on that route also means "may already have run" - to a Retry
-(`AZOA_ADMISSION_DEADLINE_PASSED`): THIS attempt admitted nothing, which is not proof the key is unused
-while another attempt may be in flight, so it follows the same window rule. The gateway also never sends
-a request whose deadline has already passed. A replay of an already-admitted key ignores the deadline
-and returns the original receipt. `NoSendCanStillLand` reads both stamps before the receipt; a send that
-starts later must take a lease or move the row, which the hold's version-and-unleased CAS then loses to.
+(`AZOA_ADMISSION_DEADLINE_PASSED`). It is a PER-ATTEMPT answer: the node's early refusal does not re-read a
+concurrent same-key admission that has not committed yet, so it is never proof the key is unused while
+another attempt may be in flight - it follows the same window rule. The gateway also never sends a request
+whose deadline has already passed. A replay of an already-admitted key ignores the deadline and returns the
+original receipt. `LatestSendStamp` reads both stamps before the receipt; a send that starts later must take
+a lease or move the row, which the hold's version-and-unleased CAS then loses to.
 
 | Setting (`Azoa:Exchange:*`) | Default | Meaning |
 | --- | --- | --- |
 | `AdmitWindowSeconds` | 240 | W_admit: how long after its stamp a send may be admitted |
-| `QuietWindowSeconds` | 300 | W: how long after the latest stamp a NOT_FOUND is believed |
-| `MaximumClockSkewSeconds` | 30 | the BFF-vs-database clock difference the proof tolerates |
+| `QuietWindowSeconds` | 300 | W: how long after the latest stamp a NOT_FOUND is proof (enforcing node only) |
+| `MaximumClockSkewSeconds` | 30 | the BFF-vs-SurrealDB-host clock difference (and BFF replica-to-replica) the proof tolerates |
 | `NodeEnforcesAdmitBefore` | false | operator attestation that the deployed node enforces the header |
 
 **The clock assumption.** The DECIDING clock is the node's DATABASE, not its process: the admission
 write carries `IF time::now() > $deadline THROW` inside the same transaction as its CREATE (oasis-sleek
 `SurrealHoldCommandStore.Exchange.cs`), so no admission can commit past the deadline and there is no
-check-then-commit gap; the node-process check is only an early refusal. The proof needs the BFF's clock
-(which stamps and later reads) within `MaximumClockSkewSeconds` of that database clock - both are
-NTP-synced on Railway, real skew is sub-second. Boot fails (`AzoaExchangeAdmissionSettings`) unless
-**W > W_admit + skew**: an admission can commit no later than stamp + W_admit + skew on the BFF clock, so
-a NOT_FOUND read at stamp + W follows every possible admission. The brief's "1 minute allowance" is the
-gap W - W_admit (300 - 240 s); it must strictly exceed the assumed skew, so the default skew is 30 s
-(with skew = 60 s the strict check fails at the defaults). A NEW attempt re-stamps (a new claim), so the
-latest stamp bounds them all.
+check-then-commit gap; the node-process check is only an early refusal. The skew budget is therefore the
+BFF clock against the SurrealDB HOST clock (`time::now()`), and since one BFF replica may stamp while another
+reads, BFF replica-to-replica skew counts too; all are NTP-synced on Railway and real skew is sub-second.
+Boot fails (`AzoaExchangeAdmissionSettings`) unless **W >= W_admit + skew + 1 s**: an admission can commit no
+later than stamp + W_admit + skew on the BFF clock, so a NOT_FOUND from a read STARTED at stamp + W follows
+every possible admission. The extra second (`MinimumMargin`) covers the request path computing its deadline
+from an unrounded clock while the stamp is stored as TIMESTAMP(3). The brief's "1 minute allowance" is the gap
+W - W_admit (300 - 240 s); it must exceed the assumed skew, so the default skew is 30 s. A NEW attempt
+re-stamps (a new claim), so the latest stamp bounds them all.
 
-**Permanent only once the node enforces it.** Until `NodeEnforcesAdmitBefore` is true the header is
-harmless (an older node ignores it) and the proof stays round 4's: the window never drops below the
-5-minute lease (`ExchangeAdmissionPolicy.ProofWindow`), and operator alerts that close a settlement say
-the read is not yet permanent and to re-read the receipt before acting. Set the flag only after the
-node build that enforces it is deployed (oasis-sleek `feat/exchange-admit-before`).
+**The read's START is the read's time (round 5b HIGH-2).** A receipt read may take most of the gateway's
+4.5-minute deadline - far more than the window's spare margin - so every NOT_FOUND is judged at the instant
+its read BEGAN (`DecideClosingAsync`'s `readStartedAt`; `ReadNodeReceiptAsync` judges before it reads; the
+outbox reopen judges at its reconcile claim), never at the instant the answer arrived.
+
+**No proof at all until the node enforces it (round 5b HIGH-1).** Without an enforced deadline a stalled
+send stamped at S can be admitted at S + 7 min, after a NOT_FOUND read at S + 5 min - so while
+`NodeEnforcesAdmitBefore` is false (the default, or a node rolled back) a NOT_FOUND after an unanswered send
+is NEVER "nothing was taken" (`ExchangeAdmissionPolicy.AbsenceIsBelievable`): the worker's close stays OPEN
+with the Critical "value MAY have moved - do NOT refund" alert, a hold/fail does not land, and the void
+answers `revealed` (the key is kept). A key nothing was ever sent under is still believed at once. Only two
+things still act on a NOT_FOUND past the 5-minute `ProofWindow` without the flag, because neither claims
+anything was untaken: the outbox's no-effect reopen (a same-key resend, which the node replays and so cannot
+double-pay) and the poll's decision to READ the receipt at all (a landed exchange still completes). The
+header is harmless before enforcement (an older node ignores it). Set the flag only after the node build that
+enforces it is deployed (oasis-sleek `feat/exchange-admit-before`, 06abcd6c) and every send stamped before it
+is past W. **Rollback order:** before rolling the node back past 06abcd6c, set
+`Azoa:Exchange:NodeEnforcesAdmitBefore=false` and redeploy the BFF FIRST (`conductor/RUNBOOK.md` §8).
 
 **The worker's terminal states read the node first (round 5 H1).** `DispatchCeiling` (~10 refused
 attempts) and `ReadinessRefundDue` (past the 14-day hold) used to close a settlement FAILED and tell an
@@ -271,13 +293,15 @@ operator "nothing was paid out, return the funds" on lease evidence alone - blin
 whose answer was lost (base-client 30 s abort -> DRAFT + PENDING_DISPATCH, every worker attempt refused
 before sending). Now `EconomicOutboxLease.SubmittedAt` (the latest stamp of a send whose answer was never
 recorded) gates both: with one, `DecideClosingAsync` reads the receipt by key - Accepted -> finalized
-Accepted (SUBMITTED; the promoter records the stake); NOT_FOUND past the proof window -> the terminal
-state as before; NOT_FOUND inside it -> stays dispatchable and decides again at the window's end;
-anything else -> a non-terminal ReconciliationCeiling (AWAITING_RECONCILIATION, stays in
-`TryConfirmOpenAsync`'s open set) with a Critical "value MAY have moved - reconcile, do not refund"
-alert. A dispatch lease that EXPIRED mid-attempt is the worker's own unrecorded send: the takeover claim
-stamps that attempt's `lastAttemptAt` into `submittedAt` (GREATEST, no version bump), so the close waits
-for it too. An exchange that never landed debited nobody, so its close alert says to refund NOTHING.
+Accepted (SUBMITTED; the promoter records the stake); on an enforcing node, NOT_FOUND from a read started past
+the window -> the terminal state as before, and inside it -> stays dispatchable and decides again at the
+window's end; anything else, including every NOT_FOUND while enforcement is not attested -> a non-terminal
+ReconciliationCeiling (AWAITING_RECONCILIATION, stays in `TryConfirmOpenAsync`'s open set) with a Critical
+"value MAY have moved - reconcile, do not refund" alert that names why. Two worker sends are unrecorded and
+stamp `submittedAt` (GREATEST, no version bump): a dispatch lease that EXPIRED mid-attempt (the takeover claim
+stamps that attempt's `lastAttemptAt`) and a dispatch that ended `Unknown` (`FinalizeAsync` stamps the lease's
+`LastAttemptAt`, round 5b MED-1) - so no close of a reward or refund that was ever sent can say "never sent".
+An exchange that never landed debited nobody, so its close alert says to refund NOTHING.
 
 **P6-03: never rotate the value key while a settlement is open.** Receipts are scoped to the calling API
 key (the node's `ForRequest(tenant, apiKeyId, key)`), so after a value-key rotation a receipt read is a

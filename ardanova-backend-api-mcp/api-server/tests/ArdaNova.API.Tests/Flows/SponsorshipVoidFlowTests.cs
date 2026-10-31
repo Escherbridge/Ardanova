@@ -50,6 +50,12 @@ public sealed partial class SponsorshipVoidFlowTests : IAsyncLifetime
 
     private readonly FakeNode _node = new();
     private readonly RecordingAlerts _alerts = new();
+
+    /// <summary>The node attested to refuse admission past <c>Admit-Before</c>: the only policy under which a late NOT_FOUND is proof.</summary>
+    private static readonly ExchangeAdmissionPolicy EnforcingNode = new() { NodeEnforcesAdmitBefore = true };
+
+    /// <summary>The admission policy every service and worker in a test runs with; the shipped default unless a test says otherwise.</summary>
+    private ExchangeAdmissionPolicy _admission = ExchangeAdmissionPolicy.Default;
     private readonly Dictionary<(string User, string Action), Result<AzoaCustodialAccountStatusDto>> _readiness = new();
     private DbContextOptions<ArdaNovaDbContext>? _options;
     private NpgsqlDataSource? _dataSource;
@@ -310,6 +316,7 @@ public sealed partial class SponsorshipVoidFlowTests : IAsyncLifetime
     [PostgresFact]
     public async Task OneWorkerReadinessRetryIsNotProof_TheHoldWaitsForTheNodesNotFoundAfterTheQuietWindow()
     {
+        _admission = EnforcingNode;
         var key = NewKey();
         await HandOverThenLapseOnceAtTheWorkerAsync(key);
         var intentId = (await RowsAsync(key)).Intent.id;
@@ -336,6 +343,24 @@ public sealed partial class SponsorshipVoidFlowTests : IAsyncLifetime
         voided.Body!.Outcome.Should().Be(FundingIntentVoidOutcomes.Voided);
         voided.Body.IntentId.Should().Be(intentId);
         _node.ExchangeCalls.Should().Be(1);
+    }
+
+    [PostgresFact]
+    public async Task UntilTheNodeIsAttestedToEnforceAdmitBefore_ALapsesLateNotFoundNeverHoldsIt_AndTheVoidKeepsTheKey()
+    {
+        var key = NewKey();
+        await HandOverThenLapseOnceAtTheWorkerAsync(key);
+        var intentId = (await RowsAsync(key)).Intent.id;
+
+        // Long past every window, the node holds nothing - but nothing stops a stalled send from landing yet.
+        await AgeAsync(key, EconomicOutboxDispatchService.NoEffectQuietWindow + TimeSpan.FromMinutes(10));
+        var readsBefore = _node.ReceiptCalls;
+        var polled = await PollAsync(intentId);
+
+        polled.Status.Should().Be(nameof(FundingIntentStatus.SETTLEMENT_PENDING), "a NOT_FOUND is no proof without enforcement");
+        (await RowsAsync(key)).Settlement.status.Should().Be(EconomicSettlementStatus.PENDING_DISPATCH);
+        _node.ReceiptCalls.Should().Be(readsBefore + 1, "past the window the node is still asked - a landed exchange would complete it");
+        (await VoidAsync(key)).Body!.Outcome.Should().Be(FundingIntentVoidOutcomes.Revealed, "the key is kept");
     }
 
     [PostgresFact]
@@ -570,7 +595,7 @@ public sealed partial class SponsorshipVoidFlowTests : IAsyncLifetime
         ArdaNovaDbContext context,
         int? maximumAttempts,
         TimeSpan? readinessHoldingWindow)
-        => NewWorker(context, maximumAttempts, readinessHoldingWindow, ExchangeAdmissionPolicy.Default);
+        => NewWorker(context, maximumAttempts, readinessHoldingWindow, _admission);
 
     /// <summary>One cycle of the real pending-sponsorship promoter over the real service (the closed-tab path).</summary>
     private async Task<SettlementPendingPromotionRun> RunPromoterOnceAsync()
@@ -665,7 +690,8 @@ public sealed partial class SponsorshipVoidFlowTests : IAsyncLifetime
             readiness,
             new ArdaNova.Infrastructure.UnitOfWork.UnitOfWork(context),
             new Repository<FundingIntentVoid>(context),
-            outboxLeases);
+            outboxLeases,
+            admission: _admission);
     }
 
     private static Result<AzoaCustodialAccountStatusDto> Ready() => Result<AzoaCustodialAccountStatusDto>.Success(new()
@@ -877,6 +903,9 @@ public sealed partial class SponsorshipVoidFlowTests : IAsyncLifetime
 
         public void OnReceipt(Func<(HttpStatusCode, string)> answer) => _receipt = answer;
 
+        /// <summary>How long a receipt read takes to answer: the read starts on time and its answer arrives late.</summary>
+        public TimeSpan ReceiptDelay { get; set; } = TimeSpan.Zero;
+
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
         {
             var path = request.RequestUri!.AbsolutePath;
@@ -885,6 +914,8 @@ public sealed partial class SponsorshipVoidFlowTests : IAsyncLifetime
             {
                 request.Method.Should().Be(HttpMethod.Get);
                 ReceiptCalls++;
+                if (ReceiptDelay > TimeSpan.Zero)
+                    await Task.Delay(ReceiptDelay, ct);
                 answer = _receipt();
             }
             else

@@ -72,6 +72,24 @@ public class ExchangeAdmissionTests
         policy.ProofWindow.Should().Be(TimeSpan.FromSeconds(expectedSeconds));
     }
 
+    [Theory]
+    [InlineData(false, false, 3600, false)] // not attested: an hour later a stalled send could still land
+    [InlineData(true, false, 299, false)] // attested, but the read STARTED inside the quiet window
+    [InlineData(true, false, 300, true)] // attested, read started at the window's end
+    [InlineData(false, true, 0, true)] // nothing was ever sent under the key: believed at once
+    public void AbsenceIsBelievable_OnlyAnAttestedNodesNotFoundFromAReadStartedPastTheWindowIsProof(
+        bool nodeEnforces,
+        bool neverSent,
+        int readStartedAfterSeconds,
+        bool believable)
+    {
+        var policy = new ExchangeAdmissionPolicy { NodeEnforcesAdmitBefore = nodeEnforces };
+        var stamp = new DateTime(2026, 10, 31, 12, 0, 0, DateTimeKind.Utc);
+
+        policy.AbsenceIsBelievable(neverSent ? null : stamp, stamp.AddSeconds(readStartedAfterSeconds))
+            .Should().Be(believable);
+    }
+
     // -- The gateway never sends past a send's own deadline ----------------------------------------
 
     [Fact]

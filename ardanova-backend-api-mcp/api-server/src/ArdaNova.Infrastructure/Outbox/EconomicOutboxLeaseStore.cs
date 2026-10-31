@@ -249,6 +249,12 @@ public sealed class EconomicOutboxLeaseStore : IEconomicOutboxLeaseStore
         var grossBaseUnits = receipt?.GrossBaseUnits;
         var feeBaseUnits = receipt?.FeeBaseUnits;
         var netBaseUnits = receipt?.NetBaseUnits;
+        // A dispatch whose answer was never read (Unknown) may still land: like an expired-lease takeover, its
+        // claim stamp becomes the settlement's unanswered-send stamp, so no later close can say "never sent".
+        var unansweredSendAt = finalization.Outcome == EconomicOutboxRecordedOutcome.Unknown
+            && lease.ClaimKind == EconomicOutboxClaimKind.Dispatch
+                ? lease.LastAttemptAt
+                : null;
 
         var settlementUpdated = await _context.EconomicSettlements
             .Where(item => item.id == lease.SettlementId
@@ -264,7 +270,13 @@ public sealed class EconomicOutboxLeaseStore : IEconomicOutboxLeaseStore
                 .SetProperty(item => item.azoaNetBaseUnits, netBaseUnits)
                 .SetProperty(item => item.failureCode, finalization.FailureCode)
                 .SetProperty(item => item.failureDetail, finalization.FailureDetail)
-                .SetProperty(item => item.submittedAt, item => finalization.Outcome == EconomicOutboxRecordedOutcome.Accepted ? now : item.submittedAt)
+                .SetProperty(
+                    item => item.submittedAt,
+                    item => finalization.Outcome == EconomicOutboxRecordedOutcome.Accepted
+                        ? now
+                        : unansweredSendAt != null && (item.submittedAt == null || item.submittedAt < unansweredSendAt)
+                            ? unansweredSendAt
+                            : item.submittedAt)
                 .SetProperty(item => item.updatedAt, now)
                 .SetProperty(item => item.version, item => item.version + 1), ct);
         if (settlementUpdated != 1)

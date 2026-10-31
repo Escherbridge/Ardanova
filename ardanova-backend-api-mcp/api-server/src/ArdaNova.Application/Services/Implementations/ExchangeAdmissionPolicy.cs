@@ -42,15 +42,16 @@ public sealed record ExchangeAdmissionPolicy
     public bool NodeEnforcesAdmitBefore { get; init; }
 
     /// <summary>
-    /// How long after the latest send stamp a NOT_FOUND is believed. Until the node enforces the deadline
-    /// this never drops below round 4's lease-bounded window, so lowering W cannot weaken today's proof.
+    /// How long after the latest send stamp a NOT_FOUND is worth ACTING ON WITHOUT claiming proof: a same-key
+    /// resend (the outbox's no-effect reopen) and when a receipt read is worth making. Never below round 4's
+    /// lease-bounded window until the node enforces the deadline. "Nothing was taken" uses <see cref="AbsenceIsBelievable"/>.
     /// </summary>
     public TimeSpan ProofWindow => NodeEnforcesAdmitBefore
         ? QuietWindow
         : QuietWindow > LegacyQuietWindow ? QuietWindow : LegacyQuietWindow;
 
-    /// <summary>True only when the node's refusal past the deadline makes a late NOT_FOUND permanent proof.</summary>
-    public bool AbsenceIsPermanent => NodeEnforcesAdmitBefore;
+    /// <summary>The smallest spare second W must keep beyond W_admit + skew (TIMESTAMP(3) stamps vs an unrounded request-path clock).</summary>
+    public static readonly TimeSpan MinimumMargin = TimeSpan.FromSeconds(1);
 
     /// <summary>The <c>Admit-Before</c> instant for a send whose durable start stamp is <paramref name="sendStamp"/>.</summary>
     /// <remarks>Rounded DOWN to whole seconds: an earlier deadline can only shrink the window a late admission fits in.</remarks>
@@ -61,22 +62,32 @@ public sealed record ExchangeAdmissionPolicy
     }
 
     /// <summary>
-    /// Whether a NOT_FOUND read at <paramref name="now"/> may be believed for a key whose latest send was
-    /// stamped at <paramref name="latestSendStamp"/>; a key nothing ever sent is believed at once.
+    /// PROOF that nothing was or can be taken: a NOT_FOUND from a read that STARTED at
+    /// <paramref name="readStartedAt"/>, for a key whose latest send was stamped at <paramref name="latestSendStamp"/>.
+    /// A key nothing ever sent is believed at once; otherwise only a node attested to refuse admission past
+    /// <c>Admit-Before</c> makes a late NOT_FOUND permanent - without it a stalled send can still land.
     /// </summary>
-    public bool AbsenceIsBelievable(DateTime? latestSendStamp, DateTime now)
+    public bool AbsenceIsBelievable(DateTime? latestSendStamp, DateTime readStartedAt)
+        => latestSendStamp is not { } stamp
+            || (NodeEnforcesAdmitBefore && readStartedAt >= stamp.Add(QuietWindow));
+
+    /// <summary>
+    /// Timing only, never proof: whether <see cref="ProofWindow"/> has passed since the latest send. Gates a same-key
+    /// resend (it cannot double-pay) and how soon a receipt read is worth making.
+    /// </summary>
+    public bool ProofWindowHasPassed(DateTime? latestSendStamp, DateTime now)
         => latestSendStamp is not { } stamp || now >= stamp.Add(ProofWindow);
 
-    /// <summary>The instant a NOT_FOUND for a send stamped at <paramref name="latestSendStamp"/> becomes believable.</summary>
-    public DateTime BelievableAt(DateTime latestSendStamp) => latestSendStamp.Add(ProofWindow);
+    /// <summary>The instant a NOT_FOUND for a send stamped at <paramref name="latestSendStamp"/> becomes proof (enforcing node only).</summary>
+    public DateTime BelievableAt(DateTime latestSendStamp) => latestSendStamp.Add(QuietWindow);
 
     /// <summary>The header value: RFC 3339, UTC, whole seconds.</summary>
     public static string FormatAdmitBefore(DateTimeOffset admitBefore)
         => admitBefore.UtcDateTime.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture);
 
     /// <summary>
-    /// The startup check: W must exceed W_admit plus the clock-skew allowance, or a NOT_FOUND read at the
-    /// end of the window could precede an admission the node still allows. Throws on a bad combination.
+    /// The startup check: W must be at least W_admit + the clock-skew allowance + <see cref="MinimumMargin"/>, or a
+    /// NOT_FOUND read at the end of the window could precede an admission the node still allows. Throws otherwise.
     /// </summary>
     public void Validate()
     {
@@ -88,13 +99,13 @@ public sealed record ExchangeAdmissionPolicy
         if (QuietWindow > MaximumQuietWindow)
             throw new InvalidOperationException(
                 $"{SectionName}:QuietWindowSeconds may be at most {MaximumQuietWindow.TotalSeconds:0}; got {QuietWindow.TotalSeconds:0}.");
-        if (QuietWindow <= AdmitWindow + MaximumClockSkew)
+        if (QuietWindow < AdmitWindow + MaximumClockSkew + MinimumMargin)
         {
             throw new InvalidOperationException(
-                $"{SectionName}:QuietWindowSeconds ({QuietWindow.TotalSeconds:0}) must exceed AdmitWindowSeconds "
-                + $"({AdmitWindow.TotalSeconds:0}) + MaximumClockSkewSeconds ({MaximumClockSkew.TotalSeconds:0}): a node "
-                + "NOT_FOUND read at the end of the quiet window is proof only if no send can still be admitted "
-                + "(Services/Implementations/AGENTS.md §Node proof).");
+                $"{SectionName}:QuietWindowSeconds ({QuietWindow.TotalSeconds:0}) must be at least AdmitWindowSeconds "
+                + $"({AdmitWindow.TotalSeconds:0}) + MaximumClockSkewSeconds ({MaximumClockSkew.TotalSeconds:0}) + "
+                + $"{MinimumMargin.TotalSeconds:0}s: a node NOT_FOUND read at the end of the quiet window is proof only if "
+                + "no send can still be admitted (Services/Implementations/AGENTS.md §Node proof).");
         }
     }
 }

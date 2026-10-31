@@ -6,6 +6,7 @@ using ArdaNova.Application.Common.Results;
 using ArdaNova.Application.DTOs;
 using ArdaNova.Application.Services.Implementations;
 using ArdaNova.Application.Services.Interfaces;
+using ArdaNova.Application.Tests.Support;
 using ArdaNova.Domain.Models.Entities;
 using ArdaNova.Domain.Models.Enums;
 using ArdaNova.Infrastructure.Outbox;
@@ -77,8 +78,19 @@ public class FundingIntentServiceTests
         _projectGate
             .Setup(service => service.EvaluateGate1Async(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(Result<GateTransitionResultDto>.Success(new GateTransitionResultDto()));
+        // The EF unit of work's precondition, so a mirror naming no column (or a column the row lacks) fails here too.
+        _unitOfWork.Setup(unitOfWork => unitOfWork.MarkPersisted(It.IsAny<object>(), It.IsAny<string[]>()))
+            .Callback<object, string[]>(InMemoryUnitOfWork.RequireWrittenProperties);
 
-        _sut = new FundingIntentService(
+        // These tests are about the node's word deciding, so the node is attested to enforce Admit-Before;
+        // what a NOT_FOUND may NOT do without that attestation is pinned separately below.
+        _sut = Service(EnforcingNode);
+    }
+
+    private static readonly ExchangeAdmissionPolicy EnforcingNode = new() { NodeEnforcesAdmitBefore = true };
+
+    private FundingIntentService Service(ExchangeAdmissionPolicy admission)
+        => new(
             _users.Object,
             _projects.Object,
             _configs.Object,
@@ -95,8 +107,8 @@ public class FundingIntentServiceTests
             _valueEligibility.Object,
             _unitOfWork.Object,
             _voids.Object,
-            _leases.Object);
-    }
+            _leases.Object,
+            admission: admission);
 
     [Fact]
     public async Task CreateCheckoutAsync_RefusesBeforeAnyRowWhenThisDeploymentCannotSettle()
@@ -577,6 +589,23 @@ public class FundingIntentServiceTests
         _gateway.Verify(
             gateway => gateway.DispatchAsync(It.IsAny<AzoaSettlementRequest>(), It.IsAny<CancellationToken>()),
             Times.Never);
+    }
+
+    [Fact]
+    public async Task GetStatusAsync_UntilTheNodeIsAttestedToEnforceAdmitBefore_ANotFoundNeverHoldsALapse()
+    {
+        var fixture = ArrangeEligibleFunding();
+        var (intent, settlement, outbox) = PendingSponsorship(fixture);
+        ArrangeLapseSettledLongAgo(intent, settlement);
+        ArrangeReceipt(NodeHasNoOperation());
+
+        var result = await Service(ExchangeAdmissionPolicy.Default).GetStatusAsync(intent.id, ActorId);
+
+        // Ten minutes after the send, the node holds nothing - but a stalled send could still be admitted.
+        result.Value!.Status.Should().Be(nameof(FundingIntentStatus.SETTLEMENT_PENDING));
+        settlement.status.Should().Be(EconomicSettlementStatus.PENDING_DISPATCH);
+        outbox.status.Should().NotBe(EconomicOutboxStatus.CANCELLED);
+        intent.heldAt.Should().BeNull();
     }
 
     [Fact]

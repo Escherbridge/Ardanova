@@ -139,8 +139,26 @@ public sealed class InMemoryUnitOfWork : IUnitOfWork
     public Task RollbackTransactionAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
     public void ClearTrackedChanges() { }
 
-    /// <summary>In-memory rows have no change tracker: what a test mutated is already "persisted".</summary>
-    public void MarkPersisted(object entity) { }
+    /// <summary>
+    /// In-memory rows have no change tracker, so what a test mutated is already "persisted" - but the same
+    /// precondition the EF unit of work enforces is enforced here, so a service under test cannot pass a bad list.
+    /// </summary>
+    public void MarkPersisted(object entity, params string[] writtenProperties)
+        => RequireWrittenProperties(entity, writtenProperties);
+
+    /// <summary>The <c>IUnitOfWork.MarkPersisted</c> precondition: at least one column, and only columns the row has.</summary>
+    public static void RequireWrittenProperties(object entity, string[] writtenProperties)
+    {
+        ArgumentNullException.ThrowIfNull(entity);
+        if (writtenProperties.Length == 0)
+            throw new ArgumentException("Name the columns the compare-and-set wrote.", nameof(writtenProperties));
+
+        foreach (var name in writtenProperties)
+        {
+            if (entity.GetType().GetProperty(name) is null)
+                throw new ArgumentException($"{entity.GetType().Name} has no column '{name}'.", nameof(writtenProperties));
+        }
+    }
     public void Dispose() { }
 
     private sealed class UniqueViolation : DbException

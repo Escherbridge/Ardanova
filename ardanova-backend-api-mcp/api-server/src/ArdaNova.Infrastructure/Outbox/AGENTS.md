@@ -48,11 +48,13 @@ refusal and an unreadable result are not the same fact:
   landed: when the settlement carries an unanswered send (`EconomicOutboxLease.SubmittedAt`
   — the request path's lost answer, or a dispatch lease that expired mid-attempt), the
   worker first reads the receipt by key (`DecideClosingAsync`, round 5 H1; same for
-  `ReadinessRefundDue`). Accepted -> recorded SUBMITTED; NOT_FOUND past the proof window ->
-  `FinalizeAsync`'s `isDispatchCeiling` drives outbox and settlement to `FAILED` and a
-  Critical alert says what to give back (for an EXCHANGE: nothing — it debited nobody);
-  NOT_FOUND inside the window -> stays PENDING until it is proof; unreadable -> a
-  non-terminal reconciliation ceiling with a "value MAY have moved" alert. See
+  `ReadinessRefundDue`). Accepted -> recorded SUBMITTED; on a node attested to enforce
+  `Admit-Before`, NOT_FOUND from a read started past the window -> `FinalizeAsync`'s
+  `isDispatchCeiling` drives outbox and settlement to `FAILED` and a Critical alert says what to
+  give back (for an EXCHANGE: nothing — it debited nobody), and inside the window -> stays
+  PENDING until it is proof; unreadable, or ANY NOT_FOUND while enforcement is not attested -> a
+  non-terminal reconciliation ceiling with a "value MAY have moved" alert. A dispatch that ends
+  `Unknown` stamps the settlement's `submittedAt` (round 5b MED-1). See
   `Application/Services/Implementations/AGENTS.md` §Node proof.
 - **`ReconciliationCeiling`** fires when the node's OUTCOME is still unreadable after
   every RECONCILIATION attempt. It does the opposite on purpose: the settlement stays
@@ -82,9 +84,10 @@ maps it to an ambiguous failure, which stays on the reconciliation path like any
 
 `EconomicOutboxDispatchService.NoEffectReceipt` decides, in order:
 
-1. **Quiet window.** A 404 is only believed once `reconciliationRequiredAt` + the admission
+1. **Quiet window.** A 404 is only acted on once `reconciliationRequiredAt` + the admission
    policy's `ProofWindow` (default 5 minutes, never below the lease until the node enforces
-   `Admit-Before`) has passed. Every dispatch call runs inside a lease renewed just before it and
+   `Admit-Before`) has passed at the reconcile CLAIM, before its read began. A reopen is a same-key
+   resend, never a "nothing was taken", so it needs no attested enforcement. Every dispatch call runs inside a lease renewed just before it and
    carries `Admit-Before` = its claim stamp + W_admit, so past that instant the dispatch that sent
    the request can no longer be admitted. Earlier, the row stays in reconciliation with `AZOA_EXCHANGE_ABSENCE_UNSETTLED` and
    is read again at the window's end. To make this measurable, `FinalizeAsync` now KEEPS the
