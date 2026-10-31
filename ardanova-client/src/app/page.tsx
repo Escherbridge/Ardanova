@@ -23,22 +23,19 @@ const operatingSteps = [
   {
     number: "01",
     title: "Discover a problem",
-    description:
-      "Begin with affected people, lived context, evidence, constraints, and open questions—not whatever happens to be trending.",
+    description: "Start with the people it affects.",
     icon: <FileText aria-hidden="true" className="size-8" strokeWidth={1.5} />,
   },
   {
     number: "02",
     title: "Define a solution",
-    description:
-      "Shape a reviewable proposal with visible assumptions, roles, milestones, terms, rights, and measures of progress.",
+    description: "Make a plan others can check.",
     icon: <Scale aria-hidden="true" className="size-8" strokeWidth={1.5} />,
   },
   {
     number: "03",
     title: "Iterate",
-    description:
-      "Contribute, test, compare what happened with what was intended, and revise—or stop—with the people affected.",
+    description: "Build, test, revise. Or stop.",
     icon: <Handshake aria-hidden="true" className="size-8" strokeWidth={1.5} />,
   },
 ];
@@ -46,8 +43,7 @@ const operatingSteps = [
 const trustCues = [
   {
     title: "Context stays scoped",
-    description:
-      "Show what information is being used, why it is needed, what is excluded, and who can act on it.",
+    description: "What is used, why, and who can act on it.",
   },
   {
     title: "Rights stay explicit",
@@ -55,9 +51,8 @@ const trustCues = [
       "Ownership and decision authority come from documented terms, never from activity, membership, or a balance alone.",
   },
   {
-    title: "Progress over engagement",
-    description:
-      "Surface open questions, contributions, decisions, and next moves—not popularity or time spent scrolling.",
+    title: "Decisions stay recorded",
+    description: "Proposals, votes, and outcomes stay on the record.",
   },
 ];
 
@@ -157,17 +152,7 @@ export default async function Home() {
           <section className="border-b border-black/70">
             <div className="mx-auto grid max-w-[1440px] lg:grid-cols-[minmax(0,1.25fr)_minmax(360px,0.75fr)]">
               <div className="flex flex-col justify-between gap-14 px-4 py-16 md:px-8 md:py-24 lg:min-h-[calc(100svh-4rem)] lg:border-r lg:border-black/70 lg:py-16">
-                <div className="flex items-center justify-between gap-4 border-t border-black/70 pt-3 font-mono text-[10px] font-semibold tracking-[0.16em] uppercase">
-                  <span>Social layer for doing</span>
-                  <span className="text-brand-signal-deep">
-                    Build together / govern together
-                  </span>
-                </div>
-
                 <div className="min-w-0">
-                  <Badge className="mb-7" variant="outline">
-                    Social media for doing—not doom-scrolling
-                  </Badge>
                   <h1 className="display-type max-w-5xl uppercase">
                     Turn attention.
                     <span className="text-brand-signal-hot block">Into</span>
@@ -177,10 +162,8 @@ export default async function Home() {
 
                 <div className="grid gap-8 border-t border-black/70 pt-6 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
                   <p className="max-w-2xl text-lg leading-relaxed md:text-xl">
-                    Not an endless feed. ArdaNova is where people who find a
-                    problem fund it, build it, and share in what it
-                    becomes—with decisions, contributions, and agreed terms
-                    visible for review.
+                    People who find a problem fund it, build it, and share in
+                    what it becomes.
                   </p>
                   <div className="flex flex-wrap gap-3">
                     <Button asChild size="lg">
@@ -223,21 +206,15 @@ export default async function Home() {
 
           <section className="border-b border-black/70" id="method">
             <div className="mx-auto max-w-[1440px] px-4 py-20 md:px-8 md:py-28">
-              <div className="mb-14 grid gap-8 md:grid-cols-2 md:items-end">
+              <div className="mb-14">
                 <div>
                   <p className="text-brand-signal-deep mb-4 font-mono text-xs font-semibold tracking-[0.16em] uppercase">
-                    01 / The solutionary loop
+                    01 / Method
                   </p>
                   <h2 className="max-w-3xl text-4xl leading-[0.92] font-black tracking-[-0.055em] break-words uppercase sm:text-5xl md:text-7xl">
                     Start where the problem is.
                   </h2>
                 </div>
-                <p className="text-muted-foreground max-w-xl text-lg leading-relaxed md:justify-self-end">
-                  Start with lived context, shape a proposal people can inspect,
-                  and keep learning with those affected. Every iteration can
-                  move forward, return to discovery, or end in a documented
-                  stop.
-                </p>
               </div>
 
               <div className="grid border-t border-l border-black/70 md:grid-cols-3">
@@ -278,10 +255,10 @@ export default async function Home() {
             <div className="mx-auto max-w-[1440px] px-4 py-20 md:px-8 md:py-28">
               <div className="mb-14 max-w-4xl">
                 <p className="text-brand-signal-deep mb-4 font-mono text-xs font-semibold tracking-[0.16em] uppercase">
-                  02 / Rights without hand-waving
+                  02 / Rights
                 </p>
                 <h2 className="text-4xl leading-[0.92] font-black tracking-[-0.055em] break-words uppercase sm:text-5xl md:text-7xl">
-                  Two records. One understandable agreement.
+                  Two records. One agreement.
                 </h2>
               </div>
 
@@ -339,18 +316,17 @@ export default async function Home() {
                 <div>
                   <div className="text-brand-cyan mb-8 flex items-center gap-3 font-mono text-xs font-semibold tracking-[0.16em] uppercase">
                     <Bot aria-hidden="true" className="size-5" />
-                    Nova / optional drafting help
+                    Nova
                   </div>
                   <h2 className="max-w-3xl text-4xl leading-[0.9] font-black tracking-[-0.06em] break-words uppercase sm:text-5xl md:text-7xl">
-                    From rough notes to a brief people can act on.
+                    From notes to a brief.
                   </h2>
                 </div>
 
                 <div className="max-w-xl">
                   <p className="text-brand-stone-light mb-8 text-lg leading-relaxed">
-                    Nova asks hard questions about a project idea and drafts a
-                    brief from your answers. You decide what stays, what
-                    changes, and whether it becomes a project.
+                    Nova asks the hard questions and drafts the brief. You
+                    decide what stays.
                   </p>
                   <div className="border-brand-signal border-l-4 pl-5 text-xl leading-snug font-bold">
                     A draft stays private until you publish it. Nova cannot
@@ -426,20 +402,15 @@ export default async function Home() {
 
           <section className="border-b border-black/70">
             <div className="mx-auto max-w-[1440px] px-4 py-20 md:px-8 md:py-28">
-              <div className="mb-12 grid gap-6 md:grid-cols-2 md:items-end">
+              <div className="mb-12">
                 <div>
                   <p className="text-brand-signal-deep mb-4 font-mono text-xs font-semibold tracking-[0.16em] uppercase">
-                    03 / Technology for ownership, not surveillance
+                    03 / Trust
                   </p>
                   <h2 className="text-4xl leading-[0.92] font-black tracking-[-0.055em] break-words uppercase sm:text-5xl md:text-7xl">
                     Make power legible.
                   </h2>
                 </div>
-                <p className="text-muted-foreground max-w-lg text-lg leading-relaxed md:justify-self-end">
-                  A humane system explains what it uses and who can act. It
-                  supports explicit, documented rights without treating human
-                  activity as raw material for attention extraction.
-                </p>
               </div>
 
               <div className="grid border-t border-l border-black/70 md:grid-cols-3">
@@ -469,14 +440,9 @@ export default async function Home() {
 
           <section className="bg-brand-signal text-brand-ink">
             <div className="mx-auto grid max-w-[1440px] gap-10 px-4 py-20 md:px-8 md:py-24 lg:grid-cols-[1fr_auto] lg:items-end">
-              <div>
-                <p className="mb-4 font-mono text-xs font-semibold tracking-[0.16em] uppercase">
-                  Discover. Define. Iterate.
-                </p>
-                <h2 className="max-w-5xl text-4xl leading-[0.88] font-black tracking-[-0.06em] break-words uppercase sm:text-5xl md:text-8xl">
-                  Give the next iteration a place to happen.
-                </h2>
-              </div>
+              <h2 className="max-w-5xl text-4xl leading-[0.88] font-black tracking-[-0.06em] break-words uppercase sm:text-5xl md:text-8xl">
+                Problems are not in short supply.
+              </h2>
               <Button
                 asChild
                 className="border-brand-ink bg-brand-ink text-brand-paper hover:bg-brand-ink-hover"
@@ -494,12 +460,7 @@ export default async function Home() {
         <footer className="bg-brand-ink text-brand-paper border-t border-black/70">
           <div className="mx-auto grid max-w-[1440px] gap-10 px-4 py-10 md:grid-cols-[1fr_auto] md:px-8">
             <div>
-              <ArdaNovaWordmark className="mb-4 text-lg" />
-              <p className="text-brand-stone-mid max-w-lg text-sm leading-relaxed">
-                A place for people who find a problem to fund it, build it, and
-                share in what it becomes. Build together, govern together,
-                prosper together.
-              </p>
+              <ArdaNovaWordmark className="text-lg" />
             </div>
             <nav
               aria-label="Footer navigation"
@@ -556,7 +517,7 @@ export default async function Home() {
             </nav>
           </div>
           <div className="border-brand-paper/25 text-brand-stone border-t px-4 py-4 text-center font-mono text-[10px] tracking-[0.14em] uppercase">
-            © {new Date().getFullYear()} ArdaNova / Discover · define · iterate
+            © {new Date().getFullYear()} ArdaNova
           </div>
         </footer>
       </div>

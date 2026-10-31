@@ -19,7 +19,6 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "~/components/ui/sheet";
-import { getNovaContext } from "~/lib/nova-context";
 
 /** Radix skips links when auto-focusing, which lands on Sign out; start on the first primary nav link instead. */
 function focusFirstNavigationLink(event: Event) {
@@ -42,7 +41,6 @@ export function AppTopbar({
   authPreview?: boolean;
 }) {
   const pathname = usePathname();
-  const context = getNovaContext(pathname);
   const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
@@ -105,22 +103,10 @@ export function AppTopbar({
           ARDA<span className="text-primary">NOVA</span>
         </Link>
 
-        <div className="hidden min-w-0 flex-1 sm:block">
-          <p className="text-muted-foreground font-mono text-[0.62rem] font-bold tracking-[0.14em] uppercase">
-            {context.artifact}
-          </p>
-          <p className="truncate text-sm font-semibold">{context.title}</p>
-        </div>
-
         <div className="ml-auto flex items-center gap-3">
-          <div className="hidden text-right xl:block">
-            <p className="text-sm font-semibold">
-              {user?.name ?? "ArdaNova member"}
-            </p>
-            <p className="text-muted-foreground font-mono text-[0.62rem] tracking-[0.1em] uppercase">
-              Member
-            </p>
-          </div>
+          <p className="hidden text-sm font-semibold xl:block">
+            {user?.name ?? "Member"}
+          </p>
           <NovaAssistant pathname={pathname} />
         </div>
       </div>

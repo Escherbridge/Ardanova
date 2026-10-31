@@ -20,13 +20,12 @@ export default function RouteError({
 
   return (
     <StatusPage
-      eyebrow="Error / Page failed to load"
-      title="This page could not be shown."
+      eyebrow="Error"
+      title="This page didn't load."
       body={
         <>
           <p>
-            Something went wrong while loading it. This is a service error, not
-            a sign that your records are missing.
+            This is a service error, not a sign that your records are missing.
           </p>
           {error.digest ? (
             <p className="mt-4 font-mono text-sm">
@@ -41,7 +40,7 @@ export default function RouteError({
             Try again
           </Button>
           <Button asChild variant="outline">
-            <Link href="/dashboard">Go to your dashboard</Link>
+            <Link href="/dashboard">Open dashboard</Link>
           </Button>
         </>
       }

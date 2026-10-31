@@ -10,7 +10,6 @@ export type NovaMode = (typeof NOVA_MODES)[number];
 
 export interface NovaArtifactContext {
   artifact: string;
-  title: string;
   scope: string;
   sources: string[];
   assumptions: string[];
@@ -44,7 +43,6 @@ const contextByArea: Array<{
     matches: (pathname) => pathname.startsWith("/studio"),
     context: {
       artifact: "Nova Studio",
-      title: "Draft and shape a project story",
       scope: "The project brief and presentation draft open in this studio.",
       sources: ["Fields entered in this session", "Accepted studio drafts"],
       assumptions: ["All generated material remains a working draft"],
@@ -62,7 +60,6 @@ const contextByArea: Array<{
     matches: (pathname) => pathname.startsWith("/projects/create"),
     context: {
       artifact: "New project",
-      title: "Turn an idea into a reviewable project brief",
       scope: "Only the unsaved project fields currently visible to you.",
       sources: ["Project form fields", "Your current draft"],
       assumptions: ["Proposed roles and rewards are not commitments"],
@@ -80,7 +77,6 @@ const contextByArea: Array<{
     matches: (pathname) => pathname.startsWith("/projects"),
     context: {
       artifact: "Project workspace",
-      title: "Make the project easier to understand and review",
       scope:
         "The current project page, its visible records, and your draft text.",
       sources: ["Visible project fields", "Visible activity and milestones"],
@@ -99,7 +95,6 @@ const contextByArea: Array<{
       pathname.startsWith("/tasks") || pathname.includes("/tasks"),
     context: {
       artifact: "Task workspace",
-      title: "Clarify the work and its evidence",
       scope:
         "The visible task, deliverables, discussion, and completion evidence.",
       sources: ["Task fields", "Visible deliverables and discussion"],
@@ -118,7 +113,6 @@ const contextByArea: Array<{
     matches: (pathname) => pathname.startsWith("/opportunities"),
     context: {
       artifact: "Opportunity",
-      title: "Make expectations and fit legible",
       scope: "The visible opportunity, requirements, and application draft.",
       sources: ["Opportunity fields", "Your current application draft"],
       assumptions: ["Drafted claims require your verification"],
@@ -139,7 +133,6 @@ const contextByArea: Array<{
       pathname.startsWith("/events"),
     context: {
       artifact: "Community workspace",
-      title: "Support a fair, traceable community decision",
       scope: "Visible community records, proposals, and your unsent draft.",
       sources: ["Visible community records", "Your draft"],
       assumptions: ["Participation does not imply consent or approval"],
@@ -158,7 +151,6 @@ const contextByArea: Array<{
       pathname.startsWith("/portfolio") || pathname.startsWith("/swap"),
     context: {
       artifact: "Portfolio",
-      title: "Explain records without overstating value or rights",
       scope: "The visible portfolio and transaction-status records.",
       sources: [
         "Visible holdings",
@@ -180,7 +172,6 @@ const contextByArea: Array<{
     matches: (pathname) => pathname.startsWith("/chats"),
     context: {
       artifact: "Conversation",
-      title: "Prepare a message without speaking for you",
       scope: "Visible conversation context and your unsent message draft.",
       sources: ["Visible messages", "Your unsent draft"],
       assumptions: ["Tone and intent remain yours to verify"],
@@ -198,7 +189,6 @@ const contextByArea: Array<{
 
 const fallbackContext: NovaContextDefinition = {
   artifact: "Workspace",
-  title: "Turn visible context into a reviewable next step",
   scope: "The current page and text you choose to provide.",
   sources: ["Visible workspace context", "Your prompt"],
   assumptions: ["Drafts need your review before you use them"],

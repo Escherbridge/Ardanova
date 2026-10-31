@@ -10,11 +10,10 @@ import { isDevelopmentAuthPreviewEnabled } from "~/server/auth";
 
 export const metadata: Metadata = {
   title: {
-    default: "ArdaNova — Shared project workspace",
+    default: "ArdaNova",
     template: "%s — ArdaNova",
   },
-  description:
-    "Plan shared work, record decisions, and reconcile contributor rights in one reviewable project workspace.",
+  description: "Find a problem. Fund it. Build it. Share in what it becomes.",
   keywords: [
     "shared projects",
     "project coordination",
@@ -30,17 +29,15 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     locale: "en_US",
-    title: "ArdaNova — Shared project workspace",
-    description:
-      "Where people who find a problem fund it, build it, and share in what it becomes.",
+    title: "ArdaNova",
+    description: "Find a problem. Fund it. Build it. Share in what it becomes.",
     siteName: "ArdaNova",
   },
   twitter: {
     // No share image ships yet; "summary_large_image" without one renders a broken card.
     card: "summary",
-    title: "ArdaNova — Shared project workspace",
-    description:
-      "A reviewable workspace for shared work, decisions, and contributor rights.",
+    title: "ArdaNova",
+    description: "Find a problem. Fund it. Build it. Share in what it becomes.",
   },
 };
 

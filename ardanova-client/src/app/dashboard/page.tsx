@@ -5,8 +5,6 @@ import { useSession } from "next-auth/react";
 import {
   ArrowUpRight,
   CalendarDays,
-  CheckSquare2,
-  CircleDot,
   FileText,
   Lightbulb,
   RefreshCw,
@@ -15,7 +13,6 @@ import {
 } from "lucide-react";
 
 import { SetupPrompt } from "~/components/onboarding/setup-prompt";
-import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import { api } from "~/trpc/react";
 
@@ -255,31 +252,17 @@ export default function DashboardPage() {
         aria-labelledby="dashboard-title"
       >
         <div className="bg-accent text-accent-foreground p-6 sm:p-9 lg:p-12">
-          <p className="mb-6 font-mono text-xs font-semibold tracking-[0.14em] uppercase">
-            Workspace{firstName ? ` / ${firstName}` : ""}
-          </p>
           <h1
             id="dashboard-title"
             className="max-w-4xl text-5xl leading-[0.9] sm:text-6xl lg:text-7xl"
           >
-            Social software for doing.
+            {firstName ? `Hello, ${firstName}.` : "Hello."}
           </h1>
-          <p className="mt-7 max-w-2xl text-lg leading-relaxed sm:text-xl">
-            Discover a problem. Define a solution with the people affected.
-            Iterate from evidence. Share in what you build, on terms everyone
-            can read.
-          </p>
         </div>
 
         <div className="bg-foreground text-background flex flex-col justify-between gap-10 p-6 sm:p-9">
           <div>
-            <p className="text-background/65 font-mono text-xs font-semibold tracking-[0.14em] uppercase">
-              Agency, not attention
-            </p>
-            <p className="mt-4 text-2xl leading-tight font-semibold">
-              No engagement score. No infinite feed. No manufactured urgency.
-            </p>
-            <p className="text-background/70 mt-4 text-sm leading-relaxed">
+            <p className="text-background/70 text-sm leading-relaxed">
               Participation is not proof of ownership. Governance credentials,
               project utility, and economic rights remain separate, reviewable
               records.
@@ -299,7 +282,7 @@ export default function DashboardPage() {
               className="border-background/45 text-background hover:border-background hover:bg-background hover:text-foreground w-full justify-between bg-transparent"
             >
               <Link href="/projects/create">
-                Start a project record
+                Start a project
                 <ArrowUpRight aria-hidden="true" />
               </Link>
             </Button>
@@ -311,18 +294,9 @@ export default function DashboardPage() {
 
       <section aria-labelledby="core-loop-title">
         <div className="border-foreground mb-5 flex flex-col justify-between gap-3 border-b pb-5 sm:flex-row sm:items-end">
-          <div>
-            <p className="text-muted-foreground font-mono text-xs font-semibold tracking-[0.14em] uppercase">
-              Core loop
-            </p>
-            <h2 id="core-loop-title" className="mt-2 text-3xl sm:text-4xl">
-              Move one useful thing forward.
-            </h2>
-          </div>
-          <p className="text-muted-foreground max-w-md text-sm leading-relaxed">
-            Each list is intentionally short. Choose a record, take an action,
-            then return when the work changes.
-          </p>
+          <h2 id="core-loop-title" className="text-3xl sm:text-4xl">
+            Move one thing forward.
+          </h2>
         </div>
 
         <ol className="border-foreground grid border-x border-b lg:grid-cols-3">
@@ -339,23 +313,17 @@ export default function DashboardPage() {
                 aria-hidden="true"
               />
             </div>
-            <p className="text-muted-foreground mt-3 min-h-16 text-sm leading-relaxed">
-              Start with lived experience and evidence. Inspect what is already
-              being tried before proposing another answer.
-            </p>
 
             <div className="mt-6 flex-1">
               <p className="text-muted-foreground mb-2 font-mono text-[0.68rem] font-semibold tracking-[0.12em] uppercase">
-                Featured project records
+                Featured projects
               </p>
               {featuredProjectsQuery.isLoading ? (
-                <LoadingRecord label="Loading projects to inspect…" />
+                <LoadingRecord label="Loading projects…" />
               ) : featuredProjectsQuery.error ? (
-                <ErrorRecord label="Project records are unavailable right now." />
+                <ErrorRecord label="Projects are unavailable right now." />
               ) : featuredProjects.length === 0 ? (
-                <EmptyRecord>
-                  No featured project records are available.
-                </EmptyRecord>
+                <EmptyRecord>No featured projects yet.</EmptyRecord>
               ) : (
                 <ul>
                   {featuredProjects.map((project) => (
@@ -397,21 +365,17 @@ export default function DashboardPage() {
                 aria-hidden="true"
               />
             </div>
-            <p className="text-muted-foreground mt-3 min-h-16 text-sm leading-relaxed">
-              Name the people, evidence, scope, and next decision. Keep
-              assumptions visible so collaborators can challenge them.
-            </p>
 
             <div className="mt-6 flex-1">
               <p className="text-muted-foreground mb-2 font-mono text-[0.68rem] font-semibold tracking-[0.12em] uppercase">
-                Your project records
+                Your projects
               </p>
               {myProjectsQuery.isLoading ? (
-                <LoadingRecord label="Loading your project records…" />
+                <LoadingRecord label="Loading your projects…" />
               ) : myProjectsQuery.error ? (
-                <ErrorRecord label="Your project records are unavailable right now." />
+                <ErrorRecord label="Your projects are unavailable right now." />
               ) : myProjects.length === 0 ? (
-                <EmptyRecord>You have not started a project yet. Begin with a problem you have seen.</EmptyRecord>
+                <EmptyRecord>No projects yet.</EmptyRecord>
               ) : (
                 <ul>
                   {myProjects.map((project) => (
@@ -447,14 +411,13 @@ export default function DashboardPage() {
               </div>
               <RefreshCw className="size-6 shrink-0" aria-hidden="true" />
             </div>
-            <p className="text-primary-foreground mt-3 min-h-16 text-sm leading-relaxed">
-              Complete a bounded task, review the evidence, and change the plan.
+            <p className="text-primary-foreground mt-3 text-sm leading-relaxed">
               A task state does not imply an award has been reconciled.
             </p>
 
             <div className="mt-6 flex-1">
               <p className="text-primary-foreground mb-2 font-mono text-[0.68rem] font-semibold tracking-[0.12em] uppercase">
-                Work assigned to you
+                Assigned to you
               </p>
               {myTasksQuery.isLoading ? (
                 <p
@@ -473,7 +436,7 @@ export default function DashboardPage() {
                 </p>
               ) : myTasks.length === 0 ? (
                 <p className="border-primary-foreground text-primary-foreground border-t py-4 text-sm">
-                  No task records are currently assigned to you.
+                  Nothing assigned to you.
                 </p>
               ) : (
                 <ul>
@@ -497,7 +460,7 @@ export default function DashboardPage() {
                 variant="outline"
                 className="border-primary-foreground text-primary-foreground hover:border-primary-foreground hover:bg-primary-foreground hover:text-primary focus-visible:outline-primary-foreground w-full bg-transparent"
               >
-                <Link href="/tasks">Open assigned work</Link>
+                <Link href="/tasks">View your tasks</Link>
               </Button>
             </div>
           </li>
@@ -506,29 +469,15 @@ export default function DashboardPage() {
 
       <section aria-labelledby="coordinate-title">
         <div className="border-foreground mb-5 flex flex-col justify-between gap-3 border-b pb-5 sm:flex-row sm:items-end">
-          <div>
-            <p className="text-muted-foreground font-mono text-xs font-semibold tracking-[0.14em] uppercase">
-              Coordinate
-            </p>
-            <h2 id="coordinate-title" className="mt-2 text-3xl sm:text-4xl">
-              Review windows, not attention traps.
-            </h2>
-          </div>
-          <p className="text-muted-foreground max-w-md text-sm leading-relaxed">
-            Proposals remain proposals until the recorded process resolves them.
-            Events are shown as scheduled, not as attendance or consent.
-          </p>
+          <h2 id="coordinate-title" className="text-3xl sm:text-4xl">
+            Coming up
+          </h2>
         </div>
 
         <div className="border-foreground grid border lg:grid-cols-2">
           <article className="lg:border-foreground p-5 sm:p-7 lg:border-r">
             <div className="flex items-center justify-between gap-4">
-              <div>
-                <p className="text-muted-foreground font-mono text-xs font-semibold tracking-[0.14em] uppercase">
-                  Governance
-                </p>
-                <h3 className="mt-2 text-2xl">Active proposals</h3>
-              </div>
+              <h3 className="text-2xl">Active proposals</h3>
               <FileText className="text-accent size-6" aria-hidden="true" />
             </div>
 
@@ -538,7 +487,7 @@ export default function DashboardPage() {
               ) : activeProposalsQuery.error ? (
                 <ErrorRecord label="Active proposals are unavailable right now." />
               ) : activeProposals.length === 0 ? (
-                <EmptyRecord>No active proposals are recorded.</EmptyRecord>
+                <EmptyRecord>No active proposals.</EmptyRecord>
               ) : (
                 <ul>
                   {activeProposals.map((proposal) => {
@@ -574,12 +523,7 @@ export default function DashboardPage() {
 
           <article className="border-foreground border-t p-5 sm:p-7 lg:border-t-0">
             <div className="flex items-center justify-between gap-4">
-              <div>
-                <p className="text-muted-foreground font-mono text-xs font-semibold tracking-[0.14em] uppercase">
-                  Working sessions
-                </p>
-                <h3 className="mt-2 text-2xl">Upcoming events</h3>
-              </div>
+              <h3 className="text-2xl">Upcoming events</h3>
               <CalendarDays
                 className="text-primary size-6"
                 aria-hidden="true"
@@ -592,7 +536,7 @@ export default function DashboardPage() {
               ) : upcomingEventsQuery.error ? (
                 <ErrorRecord label="Upcoming events are unavailable right now." />
               ) : upcomingEvents.length === 0 ? (
-                <EmptyRecord>No upcoming events are scheduled.</EmptyRecord>
+                <EmptyRecord>No upcoming events.</EmptyRecord>
               ) : (
                 <ul>
                   {upcomingEvents.map((event) => {
@@ -626,7 +570,7 @@ export default function DashboardPage() {
               className="mt-5 w-full justify-between"
             >
               <Link href="/events">
-                Open event calendar
+                Open calendar
                 <ArrowUpRight aria-hidden="true" />
               </Link>
             </Button>
@@ -634,27 +578,6 @@ export default function DashboardPage() {
         </div>
       </section>
 
-      <aside
-        className="border-foreground bg-card grid border sm:grid-cols-[auto_1fr_auto] sm:items-center"
-        aria-label="End of workspace snapshot"
-      >
-        <div className="border-foreground border-b p-5 sm:border-r sm:border-b-0">
-          <CircleDot className="text-primary size-6" aria-hidden="true" />
-        </div>
-        <div className="p-5">
-          <p className="font-semibold">That is the whole snapshot.</p>
-          <p className="text-muted-foreground mt-1 text-sm">
-            Finite by design. Choose one useful action, or close the tab and
-            return to the work when something changes.
-          </p>
-        </div>
-        <div className="border-foreground border-t p-5 sm:border-t-0 sm:border-l">
-          <Badge variant="outline" className="gap-2">
-            <CheckSquare2 aria-hidden="true" />
-            End of list
-          </Badge>
-        </div>
-      </aside>
     </div>
   );
 }

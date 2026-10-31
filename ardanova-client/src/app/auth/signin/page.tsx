@@ -15,7 +15,7 @@ import { destinationLabel } from "./destination-label";
 
 export const metadata: Metadata = {
   title: "Sign in",
-  description: "Sign in to your ArdaNova project workspace.",
+  description: "Sign in to ArdaNova.",
 };
 
 interface SignInPageProps {
@@ -68,16 +68,9 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
         </Link>
 
         <div className="max-w-3xl">
-          <p className="mb-6 font-mono text-xs font-semibold tracking-[0.18em] text-[#70d7e2] uppercase">
-            Your shared operating view
-          </p>
           <h1 className="text-7xl leading-[0.84] font-black tracking-[-0.07em] uppercase xl:text-8xl">
-            Bring the project back into focus.
+            Back to the work.
           </h1>
-          <p className="mt-8 max-w-xl text-lg leading-relaxed text-[#c9c3bd]">
-            Return to the plans, decisions, contributions, and review states
-            that keep shared work understandable.
-          </p>
         </div>
 
         <div className="grid grid-cols-4 border border-[#f6f0eb]/35 font-mono text-[10px] font-semibold tracking-[0.12em] uppercase">
@@ -135,16 +128,13 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
             </Link>
           </nav>
 
-          <p className="mb-4 font-mono text-xs font-semibold tracking-[0.18em] text-[#70d7e2] uppercase">
-            {isSignUp ? "New member entry" : "Secure workspace entry"}
-          </p>
           <h2 className="text-5xl leading-[0.9] font-black tracking-[-0.055em] uppercase sm:text-6xl">
-            {isSignUp ? "Start your workspace." : "Welcome back."}
+            {isSignUp ? "Welcome." : "Welcome back."}
           </h2>
           <p className="mt-5 max-w-sm leading-relaxed text-[#bdb8b1]">
             {isSignUp
-              ? "Continue with Google to create your ArdaNova profile. You will review project and rights-changing actions separately inside the workspace."
-              : "Continue with the Google account connected to your ArdaNova workspace."}
+              ? "You will review project and rights-changing actions separately inside the workspace."
+              : "Use the Google account you joined with."}
           </p>
           {returnDestination ? (
             <p
@@ -196,11 +186,6 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
             </Button>
           </form>
           <p className="mt-3 text-xs leading-relaxed text-[#aaa59f]">
-            You’ll continue to Google in a new authentication step, then return
-            to this ArdaNova workspace. Creating an account and signing in use
-            the same secure provider flow.
-          </p>
-          <p className="mt-3 text-xs leading-relaxed text-[#aaa59f]">
             {isSignUp ? "By creating an account" : "By continuing"} you agree to
             the{" "}
             <Link
@@ -238,7 +223,7 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
             href="/"
           >
             <ArrowLeft aria-hidden="true" className="size-4" />
-            Return to the public site
+            Home page
           </Link>
         </div>
       </section>
