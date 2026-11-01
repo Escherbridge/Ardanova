@@ -22,7 +22,8 @@ export function reasonFragment(
   scope?: FeedScope,
 ): string | null {
   const relevant = card.reasons.filter(
-    (reason) => !restatesScope(reason, scope),
+    (reason) =>
+      !restatesScope(reason, scope) && !noveltyOnSubjectPage(reason, scope),
   );
   for (const reason of relevant) {
     if (!isKnownReasonKind(reason.kind)) continue;
@@ -74,6 +75,13 @@ function knownFragment(
     default:
       return unreachable(kind);
   }
+}
+
+/** Novelty ("New in Construction", "New project") on a project or guild page repeats on every card, a member's own post included. */
+function noveltyOnSubjectPage(reason: FeedReason, scope?: FeedScope): boolean {
+  if (reason.kind !== "NewInSector" && reason.kind !== "NewProject")
+    return false;
+  return Boolean(scope?.startsWith("project:") || scope?.startsWith("guild:"));
 }
 
 /** On a project, guild or tag page, a reason naming that same subject says what the page already says. */

@@ -57,7 +57,10 @@ kinds are the only place the server's `text` is shown.
 One fragment per card, rendered from `kind` + `aboutId` with names taken from the card itself ("Following Barn
 raising", "You're on P", "New in Construction", "#carpentry"). "Your activity" renders nothing: the name on the card
 already says it. On a project/guild/tag stream a reason naming that same subject is dropped; a sector match on a
-tag page stays, because it explains why an untagged card is there.
+tag page stays, because it explains why an untagged card is there. Novelty (`NewInSector`, `NewProject`) is dropped
+on project and guild pages (walkthrough W-L2, plan §5 "a reason must add information"): the server emits it in every
+scope, so on a project's own page it read "New in Construction" on every card, a member's own post included. It stays
+on Home and tag pages, where it is news.
 
 ## Hashtags
 

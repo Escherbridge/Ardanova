@@ -78,6 +78,40 @@ const ROWS: {
     expected: "In Construction",
   },
   {
+    // Walkthrough W-L2: the server emits novelty in every scope; on a subject's own page it adds nothing.
+    row: "on a project page, novelty is dropped and the next reason speaks",
+    reasons: [
+      reason("NewInSector", "SECTOR", "CONSTRUCTION"),
+      reason("TagInterest", "TAG", "carpentry"),
+    ],
+    scope: "project:project-p",
+    expected: "#carpentry",
+  },
+  {
+    row: "on a project page, a card with only novelty shows no fragment",
+    reasons: [reason("NewProject", "PROJECT", "project-other")],
+    scope: "project:project-p",
+    expected: null,
+  },
+  {
+    row: "on a guild page, novelty is dropped",
+    reasons: [reason("NewInSector", "SECTOR", "CONSTRUCTION")],
+    scope: "guild:guild-g",
+    expected: null,
+  },
+  {
+    row: "on a tag page, novelty still says something",
+    reasons: [reason("NewInSector", "SECTOR", "CONSTRUCTION")],
+    scope: "tag:carpentry",
+    expected: "New in Construction",
+  },
+  {
+    row: "on Home, a new project is still news",
+    reasons: [reason("NewProject", "PROJECT", "project-p")],
+    scope: "home",
+    expected: "New project",
+  },
+  {
     row: "a tag reason restating the tag page is dropped, whatever its case",
     reasons: [reason("InScope", "TAG", "carpentry")],
     scope: "tag:Carpentry",
