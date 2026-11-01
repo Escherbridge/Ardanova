@@ -2,10 +2,10 @@
 
 import { describeMutationError } from "~/components/ui/query-error-copy";
 
-import { useState } from "react";
+import { useState, type KeyboardEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Loader2, Plus, X } from "lucide-react";
+import { Loader2, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "~/components/ui/button";
@@ -20,20 +20,18 @@ import {
 } from "~/components/ui/select";
 import { cn } from "~/lib/utils";
 import { api } from "~/trpc/react";
-import { useEnumOptions, type EnumOption } from "~/hooks/use-enum";
+import { useEnumOptions } from "~/hooks/use-enum";
+import { useTaxonomy } from "~/hooks/use-taxonomy";
+import {
+  canonicalHashtag,
+  hashtagsIn,
+  MAX_HASHTAGS_PER_POST,
+} from "~/components/hashtags/hashtag-tokens";
 import {
   isProjectDuration,
-  isProjectType,
   type ProjectDto,
   type ProjectDuration,
-  type ProjectType,
 } from "~/lib/contracts/project-contract";
-import {
-  projectTypeDescription,
-  projectTypeLabel,
-} from "~/lib/taxonomy/labels";
-
-const OTHER_CATEGORY_MAX_LENGTH = 50;
 
 const durationLabels: Record<ProjectDuration, string> = {
   ONE_TWO_WEEKS: "1-2 weeks",
@@ -51,56 +49,29 @@ const durationLabels: Record<ProjectDuration, string> = {
  * published project. Deliberately excludes resources/roles/milestones and the
  * sessionStorage-draft machinery - those belong to the create-only wizard.
  */
-interface ProjectEditFormData {
+export interface ProjectEditFormData {
   title: string;
   problemStatement: string;
   solution: string;
-  categories: string[];
-  otherCategory: string;
-  projectType: ProjectType | "";
+  // Discovery hashtags (SR-03 Phase 3 §3): a FULL REPLACEMENT of categories/projectType/tags,
+  // resolved server-side. Prefilled from ProjectDto.Hashtags below.
+  hashtags: string[];
   duration: ProjectDuration | "";
   targetAudience: string;
   expectedImpact: string;
   timeline: string;
-  tags: string[];
 }
 
-/**
- * Reverses the wizard's OTHER-category resolution performed on create
- * (handleSubmit in create/page.tsx maps a selected "OTHER" category to its
- * free-text value before the array reaches the API, so a stored project never
- * contains a literal "OTHER" entry). Any stored category that isn't a known
- * enum id is treated as that free text again here.
- */
-function buildEditFormData(
-  project: ProjectDto,
-  knownCategoryIds: ReadonlySet<string>,
-): ProjectEditFormData {
-  const known = project.categories.filter((category) =>
-    knownCategoryIds.has(category),
-  );
-  const unknown = project.categories.filter(
-    (category) => !knownCategoryIds.has(category),
-  );
-
+export function buildEditFormData(project: ProjectDto): ProjectEditFormData {
   return {
     title: project.title,
     problemStatement: project.problemStatement,
     solution: project.solution,
-    categories: unknown.length > 0 ? [...known, "OTHER"] : known,
-    otherCategory: unknown.join(", ").slice(0, OTHER_CATEGORY_MAX_LENGTH),
-    // A type this client does not know stays unselected and is not sent, so the API keeps it.
-    projectType: isProjectType(project.projectType) ? project.projectType : "",
+    hashtags: project.hashtags ?? [],
     duration: project.duration ?? "",
     targetAudience: project.targetAudience ?? "",
     expectedImpact: project.expectedImpact ?? "",
     timeline: project.timeline ?? "",
-    tags: project.tags
-      ? project.tags
-          .split(",")
-          .map((tag) => tag.trim())
-          .filter(Boolean)
-      : [],
   };
 }
 
@@ -110,14 +81,10 @@ interface ProjectEditFormProps {
 
 /** Loads the enum option lists the fields below need, then renders once they're ready. */
 export function ProjectEditForm({ project }: ProjectEditFormProps) {
-  const { options: categoryOptions, isLoading: categoriesLoading } =
-    useEnumOptions("ProjectCategory");
-  const { options: projectTypeOptions, isLoading: projectTypesLoading } =
-    useEnumOptions("ProjectType");
   const { options: durationOptions, isLoading: durationsLoading } =
     useEnumOptions("ProjectDuration");
 
-  if (categoriesLoading || projectTypesLoading || durationsLoading) {
+  if (durationsLoading) {
     return (
       <div className="flex min-h-[40vh] items-center justify-center p-6">
         <div className="flex items-center gap-3" role="status">
@@ -128,46 +95,31 @@ export function ProjectEditForm({ project }: ProjectEditFormProps) {
     );
   }
 
-  const projectTypes: { id: ProjectType; label: string }[] = projectTypeOptions
-    .map(({ id }) => id)
-    .filter(isProjectType)
-    .map((id) => ({ id, label: projectTypeLabel(id) }));
   const durations = durationOptions
     .filter((option): option is { id: ProjectDuration; label: string } =>
       isProjectDuration(option.id),
     )
     .map((option) => ({ ...option, label: durationLabels[option.id] }));
 
-  return (
-    <ProjectEditFormFields
-      project={project}
-      categories={categoryOptions}
-      projectTypes={projectTypes}
-      durations={durations}
-    />
-  );
+  return <ProjectEditFormFields project={project} durations={durations} />;
 }
 
 interface ProjectEditFormFieldsProps {
   project: ProjectDto;
-  categories: EnumOption[];
-  projectTypes: { id: ProjectType; label: string }[];
   durations: { id: ProjectDuration; label: string }[];
 }
 
 function ProjectEditFormFields({
   project,
-  categories,
-  projectTypes,
   durations,
 }: ProjectEditFormFieldsProps) {
   const router = useRouter();
   const utils = api.useUtils();
 
   const [formData, setFormData] = useState<ProjectEditFormData>(() =>
-    buildEditFormData(project, new Set(categories.map((option) => option.id))),
+    buildEditFormData(project),
   );
-  const [newTag, setNewTag] = useState("");
+  const [hashtagInput, setHashtagInput] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const updateMutation = api.project.update.useMutation({
@@ -195,21 +147,75 @@ function ProjectEditFormFields({
     }
   };
 
-  const addTag = () => {
-    if (newTag.trim() && !formData.tags.includes(newTag.trim())) {
-      setFormData((prev) => ({
-        ...prev,
-        tags: [...prev.tags, newTag.trim()],
-      }));
-      setNewTag("");
-    }
+  // Discovery hashtags (SR-03 Phase 3 §3): the one field that replaces the old
+  // category checkboxes, "Other" category and project-type picker. Parsing
+  // reuses the composer's own tag primitive (components/hashtags/hashtag-tokens.ts)
+  // so "#carpentry" here means exactly what it means in a feed post.
+  const { terms: taxonomyTerms } = useTaxonomy();
+  const hashtagSuggestions = (() => {
+    const query = hashtagInput.trim().replace(/^#/, "").toLowerCase();
+    if (!query) return [];
+    return taxonomyTerms
+      .filter((term) => term.kind === "SECTOR" || term.kind === "PROJECT_TYPE")
+      .filter((term) => !formData.hashtags.includes(term.slug))
+      .filter(
+        (term) =>
+          term.slug.toLowerCase().includes(query) ||
+          term.label.toLowerCase().includes(query),
+      )
+      .slice(0, 6);
+  })();
+
+  const addHashtagTag = (tag: string) => {
+    const canonical = canonicalHashtag(tag);
+    if (!canonical) return;
+    setFormData((prev) =>
+      prev.hashtags.includes(canonical) ||
+      prev.hashtags.length >= MAX_HASHTAGS_PER_POST
+        ? prev
+        : { ...prev, hashtags: [...prev.hashtags, canonical] },
+    );
+    setHashtagInput("");
   };
 
-  const removeTag = (tag: string) => {
+  const removeHashtag = (tag: string) => {
     setFormData((prev) => ({
       ...prev,
-      tags: prev.tags.filter((t) => t !== tag),
+      hashtags: prev.hashtags.filter((t) => t !== tag),
     }));
+  };
+
+  /** Commits every complete #tag in the box at once, so pasting "#a #b" adds both. */
+  const commitHashtagInput = () => {
+    const raw = hashtagInput.trim();
+    if (!raw) return;
+    const extracted = [...hashtagsIn(raw)];
+    if (extracted.length === 0) {
+      const tag = canonicalHashtag(raw);
+      if (tag) extracted.push(tag);
+    }
+    if (extracted.length === 0) {
+      setHashtagInput("");
+      return;
+    }
+    setFormData((prev) => {
+      const next = [...prev.hashtags];
+      for (const tag of extracted) {
+        if (next.length >= MAX_HASHTAGS_PER_POST) break;
+        if (!next.includes(tag)) next.push(tag);
+      }
+      return { ...prev, hashtags: next };
+    });
+    setHashtagInput("");
+  };
+
+  const handleHashtagInputKeyDown = (
+    event: KeyboardEvent<HTMLInputElement>,
+  ) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      commitHashtagInput();
+    }
   };
 
   const validate = (): boolean => {
@@ -222,17 +228,6 @@ function ProjectEditFormFields({
       newErrors.problemStatement = "Min 10 characters";
     if (!formData.solution.trim()) newErrors.solution = "Required";
     if (formData.solution.length < 10) newErrors.solution = "Min 10 characters";
-    if (formData.categories.length === 0)
-      newErrors.categories = "Select at least one category";
-    if (
-      formData.categories.includes("OTHER") &&
-      !formData.otherCategory.trim()
-    ) {
-      newErrors.otherCategory = "Please specify your category";
-    }
-    if (formData.otherCategory.length > OTHER_CATEGORY_MAX_LENGTH) {
-      newErrors.otherCategory = `Max ${OTHER_CATEGORY_MAX_LENGTH} characters`;
-    }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -242,18 +237,15 @@ function ProjectEditFormFields({
     event.preventDefault();
     if (!validate()) return;
 
-    const resolvedCategories = formData.categories.map((category) =>
-      category === "OTHER" ? formData.otherCategory.trim() : category,
-    );
-
     updateMutation.mutate({
       id: project.id,
       title: formData.title,
       description: formData.solution,
       problemStatement: formData.problemStatement,
       solution: formData.solution,
-      categories: resolvedCategories,
-      projectType: formData.projectType || undefined,
+      // Full replacement of categories/projectType/tags (SR-03 Phase 3 §3) -
+      // see Services/Implementations/AGENTS.md §Project hashtags.
+      hashtags: formData.hashtags,
       duration: formData.duration || undefined,
       targetAudience: formData.targetAudience || undefined,
       expectedImpact: formData.expectedImpact || undefined,
@@ -262,7 +254,6 @@ function ProjectEditFormFields({
             ?.label ??
           (formData.timeline.trim() || undefined))
         : formData.timeline.trim() || undefined,
-      tags: formData.tags.join(", ") || undefined,
     });
   };
 
@@ -284,6 +275,7 @@ function ProjectEditFormFields({
               type="text"
               id="project-title"
               required
+              maxLength={200}
               aria-invalid={Boolean(errors.title)}
               aria-describedby={
                 errors.title ? "project-title-error" : undefined
@@ -329,6 +321,7 @@ function ProjectEditFormFields({
             <textarea
               id="project-problem"
               required
+              maxLength={20_000}
               aria-invalid={Boolean(errors.problemStatement)}
               aria-describedby={
                 errors.problemStatement ? "project-problem-error" : undefined
@@ -365,6 +358,7 @@ function ProjectEditFormFields({
             <input
               type="text"
               id="project-audience"
+              maxLength={20_000}
               value={formData.targetAudience}
               onChange={(e) => handleChange("targetAudience", e.target.value)}
               placeholder="Who benefits?"
@@ -381,6 +375,7 @@ function ProjectEditFormFields({
             </label>
             <textarea
               id="project-impact"
+              maxLength={20_000}
               value={formData.expectedImpact}
               onChange={(e) => handleChange("expectedImpact", e.target.value)}
               placeholder="What changes if this works?"
@@ -411,6 +406,7 @@ function ProjectEditFormFields({
             <textarea
               id="project-solution"
               required
+              maxLength={20_000}
               aria-invalid={Boolean(errors.solution)}
               aria-describedby={
                 errors.solution ? "project-solution-error" : undefined
@@ -439,46 +435,9 @@ function ProjectEditFormFields({
 
       <Card className="bg-card border-border">
         <CardHeader className="pb-3">
-          <CardTitle className="text-lg">Type</CardTitle>
+          <CardTitle className="text-lg">Duration</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <fieldset>
-            <legend className="mb-2 block text-sm font-medium">
-              What kind of project is this?
-            </legend>
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              {projectTypes.map((pt) => {
-                const isSelected = formData.projectType === pt.id;
-                return (
-                  <button
-                    key={pt.id}
-                    type="button"
-                    onClick={() => handleChange("projectType", pt.id)}
-                    aria-pressed={isSelected}
-                    className={cn(
-                      "flex min-h-11 flex-col items-start rounded-lg border-2 p-3 text-left transition-colors",
-                      isSelected
-                        ? "border-system bg-system/10"
-                        : "border-border bg-muted/30 hover:border-system",
-                    )}
-                  >
-                    <span
-                      className={cn(
-                        "text-sm font-medium",
-                        isSelected ? "text-system" : "text-foreground",
-                      )}
-                    >
-                      {pt.label}
-                    </span>
-                    <span className="text-muted-foreground mt-0.5 text-xs">
-                      {projectTypeDescription(pt.id) ?? ""}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </fieldset>
-
           <div>
             <label
               htmlFor="project-duration"
@@ -511,184 +470,56 @@ function ProjectEditFormFields({
 
       <Card className="bg-card border-border">
         <CardHeader className="pb-3">
-          <CardTitle className="text-lg">Details</CardTitle>
+          <CardTitle className="text-lg">Hashtags</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <fieldset>
-            <legend className="mb-2 block text-sm font-medium">
-              Categories <span className="text-system">*</span>
-            </legend>
-            <div
-              aria-invalid={Boolean(errors.categories)}
-              aria-describedby={
-                errors.categories ? "project-categories-error" : undefined
-              }
-              className={cn(
-                "flex flex-wrap gap-2 rounded-lg border-2 p-3",
-                errors.categories ? "border-destructive" : "border-border",
-              )}
-            >
-              {categories.map((cat) => {
-                const isSelected = formData.categories.includes(cat.id);
-                return (
-                  <button
-                    key={cat.id}
-                    type="button"
-                    aria-pressed={isSelected}
-                    onClick={() => {
-                      setFormData((prev) => ({
-                        ...prev,
-                        categories: isSelected
-                          ? prev.categories.filter((c) => c !== cat.id)
-                          : [...prev.categories, cat.id],
-                        otherCategory:
-                          cat.id === "OTHER" && isSelected
-                            ? ""
-                            : prev.otherCategory,
-                      }));
-                      if (errors.categories) {
-                        setErrors((prev) => {
-                          const next = { ...prev };
-                          delete next.categories;
-                          return next;
-                        });
-                      }
-                    }}
-                    className={cn(
-                      "min-h-11 border px-3 py-1.5 text-sm font-medium transition-colors",
-                      isSelected
-                        ? "bg-system text-system-foreground border-system"
-                        : "bg-muted/50 text-muted-foreground border-border hover:border-system hover:text-foreground",
-                    )}
-                  >
-                    {cat.label}
-                  </button>
-                );
-              })}
-            </div>
-            {errors.categories && (
-              <p
-                id="project-categories-error"
-                role="alert"
-                className="text-destructive mt-1 text-sm"
-              >
-                {errors.categories}
-              </p>
-            )}
-            {formData.categories.includes("OTHER") && (
-              <div className="mt-3">
-                <label
-                  htmlFor="project-other-category"
-                  className="mb-1 block text-sm font-medium"
-                >
-                  Specify other category
-                </label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    id="project-other-category"
-                    required
-                    aria-invalid={Boolean(errors.otherCategory)}
-                    aria-describedby={
-                      errors.otherCategory
-                        ? "project-other-category-error"
-                        : "project-other-category-count"
-                    }
-                    value={formData.otherCategory}
-                    onChange={(e) => {
-                      const value = e.target.value.slice(
-                        0,
-                        OTHER_CATEGORY_MAX_LENGTH,
-                      );
-                      setFormData((prev) => ({
-                        ...prev,
-                        otherCategory: value,
-                      }));
-                      if (errors.otherCategory) {
-                        setErrors((prev) => {
-                          const next = { ...prev };
-                          delete next.otherCategory;
-                          return next;
-                        });
-                      }
-                    }}
-                    maxLength={OTHER_CATEGORY_MAX_LENGTH}
-                    placeholder="e.g., Renewable Energy"
-                    className={cn(
-                      "bg-muted/50 focus-visible:ring-ring/50 w-full rounded-lg border-2 px-4 py-2 focus:ring-2 focus:outline-none",
-                      errors.otherCategory
-                        ? "border-destructive"
-                        : "border-border",
-                    )}
-                  />
-                  <span
-                    id="project-other-category-count"
-                    className="text-muted-foreground absolute top-1/2 right-3 -translate-y-1/2 text-xs"
-                  >
-                    {formData.otherCategory.length}/{OTHER_CATEGORY_MAX_LENGTH}
-                  </span>
-                </div>
-                {errors.otherCategory && (
-                  <p
-                    id="project-other-category-error"
-                    role="alert"
-                    className="text-destructive mt-1 text-sm"
-                  >
-                    {errors.otherCategory}
-                  </p>
-                )}
-              </div>
-            )}
-          </fieldset>
-        </CardContent>
-      </Card>
-
-      <Card className="bg-card border-border">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-lg">Tags</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <label htmlFor="project-tag" className="sr-only">
-            Add a project tag
+        <CardContent className="space-y-3">
+          <label htmlFor="project-hashtags" className="sr-only">
+            Add hashtags
           </label>
-          <div className="flex gap-2">
+          <div className="relative">
             <input
               type="text"
-              id="project-tag"
-              value={newTag}
-              onChange={(e) => setNewTag(e.target.value)}
-              placeholder="Add a tag..."
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  addTag();
-                }
-              }}
-              className="bg-muted/50 border-border focus-visible:ring-ring/50 flex-1 rounded-lg border-2 px-4 py-3 focus:ring-2 focus:outline-none"
+              id="project-hashtags"
+              value={hashtagInput}
+              onChange={(e) => setHashtagInput(e.target.value)}
+              onKeyDown={handleHashtagInputKeyDown}
+              disabled={formData.hashtags.length >= MAX_HASHTAGS_PER_POST}
+              maxLength={200}
+              placeholder="#construction #barn-raising"
+              className="bg-muted/50 border-border focus-visible:ring-ring/50 w-full rounded-lg border-2 px-4 py-3 focus:ring-2 focus:outline-none"
             />
-            <Button
-              type="button"
-              variant="outline"
-              onClick={addTag}
-              className="min-h-11 min-w-11 px-4"
-              aria-label="Add tag"
-            >
-              <Plus className="size-4" />
-            </Button>
+            {hashtagSuggestions.length > 0 && (
+              <ul className="bg-card border-border absolute z-10 mt-1 w-full border-2 shadow-lg">
+                {hashtagSuggestions.map((term) => (
+                  <li key={term.slug}>
+                    <button
+                      type="button"
+                      onClick={() => addHashtagTag(term.slug)}
+                      className="hover:bg-muted/50 flex min-h-11 w-full items-center justify-between px-4 py-2 text-left text-sm"
+                    >
+                      <span className="font-medium">#{term.slug}</span>
+                      <span className="text-muted-foreground text-xs">
+                        {term.label}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
-          {formData.tags.length > 0 && (
+          {formData.hashtags.length > 0 && (
             <div className="flex flex-wrap gap-2">
-              {formData.tags.map((tag) => (
+              {formData.hashtags.map((tag) => (
                 <Badge
                   key={tag}
                   variant="secondary"
                   className="gap-1 pr-0 pl-3"
                 >
-                  {tag}
+                  #{tag}
                   <button
                     type="button"
-                    onClick={() => removeTag(tag)}
-                    aria-label={`Remove ${tag} tag`}
+                    onClick={() => removeHashtag(tag)}
+                    aria-label={`Remove #${tag} hashtag`}
                     className="focus-visible:ring-ring hover:bg-destructive/20 flex min-h-11 min-w-11 items-center justify-center focus-visible:ring-2 focus-visible:outline-none"
                   >
                     <X className="size-3" aria-hidden="true" />
@@ -697,6 +528,10 @@ function ProjectEditFormFields({
               ))}
             </div>
           )}
+          <p className="text-muted-foreground text-xs">
+            {formData.hashtags.length}/{MAX_HASHTAGS_PER_POST} · #construction
+            sorts by sector.
+          </p>
         </CardContent>
       </Card>
 

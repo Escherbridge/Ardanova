@@ -34,19 +34,31 @@ const opportunityTabs: { id: string; label: string }[] = [
   { id: "bounties", label: "Bounties" },
   { id: "tasks", label: "Task Bounties" },
   { id: "freelance", label: "Freelance" },
-  { id: "full-time", label: "Full-time" },
+  { id: "roles", label: "Roles" },
 ];
 
-// Type badge variants
+// OpportunityType enum values (database-architecture.dbml) -> human label.
+// Keep this in sync with OpportunityTypeSchema.ts.
+const typeLabels: Record<string, string> = {
+  GUILD_POSITION: "Guild Position",
+  PROJECT_ROLE: "Project Role",
+  TASK_BOUNTY: "Task Bounty",
+  FREELANCE: "Freelance",
+  MENTORSHIP: "Mentorship",
+  COLLABORATION: "Collaboration",
+};
+
+// Type badge variants, keyed by OpportunityType enum value.
 const typeVariants: Record<
   string,
   "neon" | "neon-pink" | "neon-green" | "neon-purple" | "warning" | "secondary"
 > = {
-  Bounty: "neon-green",
-  Freelance: "neon",
-  "Part-time": "neon-purple",
-  "Full-time": "neon-pink",
-  Contract: "warning",
+  TASK_BOUNTY: "neon-green",
+  FREELANCE: "neon",
+  GUILD_POSITION: "neon-purple",
+  PROJECT_ROLE: "neon-pink",
+  MENTORSHIP: "warning",
+  COLLABORATION: "secondary",
 };
 
 // Skill badge variants
@@ -66,14 +78,17 @@ const skillVariants: Record<
   Writing: "secondary",
 };
 
-// Filter options
+// Filter options. Values must equal OpportunityType enum values (P8-16):
+// the dropdown used to offer "Bounty"/"Freelance"/"Contract"/… which never
+// equal an enum member, so the filter always returned an empty list.
 const typeFilters = [
   { id: "all", label: "All Types" },
-  { id: "Bounty", label: "Bounty" },
-  { id: "Freelance", label: "Freelance" },
-  { id: "Contract", label: "Contract" },
-  { id: "Part-time", label: "Part-time" },
-  { id: "Full-time", label: "Full-time" },
+  { id: "TASK_BOUNTY", label: typeLabels.TASK_BOUNTY },
+  { id: "FREELANCE", label: typeLabels.FREELANCE },
+  { id: "GUILD_POSITION", label: typeLabels.GUILD_POSITION },
+  { id: "PROJECT_ROLE", label: typeLabels.PROJECT_ROLE },
+  { id: "MENTORSHIP", label: typeLabels.MENTORSHIP },
+  { id: "COLLABORATION", label: typeLabels.COLLABORATION },
 ];
 
 const skillFilters = [
@@ -183,19 +198,17 @@ export default function OpportunitiesPage() {
 
   // Filter opportunities based on all criteria
   const filteredOpportunities = allOpportunities.filter((opp) => {
-    // Tab filter
-    if (activeTab === "bounties" && opp.type !== "Bounty") return false;
+    // Tab filter — values match OpportunityType enum members (P8-16).
+    // "bounties" is the type (TASK_BOUNTY); "tasks" is the origin
+    // (TASK_GENERATED) — a bounty can be posted directly too, so these
+    // are two different, correct dimensions, not duplicates.
+    if (activeTab === "bounties" && opp.type !== "TASK_BOUNTY") return false;
     if (activeTab === "tasks" && opp.origin !== "TASK_GENERATED") return false;
+    if (activeTab === "freelance" && opp.type !== "FREELANCE") return false;
     if (
-      activeTab === "freelance" &&
-      opp.type !== "Freelance" &&
-      opp.type !== "Contract"
-    )
-      return false;
-    if (
-      activeTab === "full-time" &&
-      opp.type !== "Full-time" &&
-      opp.type !== "Part-time"
+      activeTab === "roles" &&
+      opp.type !== "GUILD_POSITION" &&
+      opp.type !== "PROJECT_ROLE"
     )
       return false;
 
@@ -288,7 +301,8 @@ export default function OpportunitiesPage() {
   // Stats for sidebar
   const stats = {
     total: filteredOpportunities.length,
-    bounties: filteredOpportunities.filter((o) => o.type === "Bounty").length,
+    bounties: filteredOpportunities.filter((o) => o.type === "TASK_BOUNTY")
+      .length,
     taskBounties: filteredOpportunities.filter(
       (o) => o.origin === "TASK_GENERATED",
     ).length,
@@ -325,9 +339,7 @@ export default function OpportunitiesPage() {
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-muted-foreground text-sm">
-                  Bounties
-                </span>
+                <span className="text-muted-foreground text-sm">Bounties</span>
                 <span className="text-success font-medium">
                   {opportunitiesError ? "—" : stats.bounties}
                 </span>
@@ -378,7 +390,7 @@ export default function OpportunitiesPage() {
                       }
                       size="sm"
                     >
-                      {opp.type ?? "Opportunity"}
+                      {(opp.type && typeLabels[opp.type]) ?? "Opportunity"}
                     </Badge>
                   </div>
                   <div className="text-muted-foreground flex items-center gap-2 text-xs">
@@ -851,7 +863,7 @@ export default function OpportunitiesPage() {
                         }
                         size="sm"
                       >
-                        {opp.type ?? "Opportunity"}
+                        {(opp.type && typeLabels[opp.type]) ?? "Opportunity"}
                       </Badge>
                     </div>
                   </div>

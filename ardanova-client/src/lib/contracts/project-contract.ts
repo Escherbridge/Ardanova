@@ -92,6 +92,10 @@ export const projectDtoSchema = z.object({
   problemStatement: z.string(),
   solution: z.string(),
   categories: z.array(z.string()),
+  // The derived SECTOR/PROJECT_TYPE fields as "#slug" chips (SR-03 Phase 3 §3), for the one
+  // hashtag field's edit-form round-trip. Optional/defaulted: a response from before this
+  // field existed has none.
+  hashtags: z.array(z.string()).optional().default([]),
   status: projectStatusSchema,
   fundingGoal: z.number().nullable(),
   fundingGoalUnit: z.string().optional(),
@@ -129,7 +133,13 @@ export const createProjectDtoSchema = z.object({
   summary: z.string().nullable().optional(),
   problemStatement: z.string().min(1),
   solution: z.string().min(1),
-  categories: z.array(z.string()).min(1),
+  // Left for callers not using hashtags yet; the one-hashtag-field form sends only
+  // `hashtags` below and omits this.
+  categories: z.array(z.string()).min(1).optional(),
+  // Discovery hashtags (SR-03 Phase 3 §3): a FULL REPLACEMENT of categories/projectType/tags,
+  // resolved server-side (ProjectService.ResolveHashtagsAsync). The 10/40 caps mirror post
+  // hashtags (Hashtags.MaxPerPost) and the tRPC DoS-fix bound style.
+  hashtags: z.array(z.string().max(40)).max(10).optional(),
   fundingGoal: z.number().nullable().optional(),
   mediaPaths: z.string().nullable().optional(),
   tags: z.string().nullable().optional(),

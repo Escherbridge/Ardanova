@@ -49,11 +49,14 @@ const createProjectSchema = z.object({
     .max(20_000),
   // Element cap of 50 mirrors ProjectServices.cs ValidateCategories, which refuses a custom
   // category over 50 characters; the array cap of 20 is a product default (10 known categories
-  // plus headroom for custom ones).
-  categories: z
-    .array(z.string().max(50))
-    .min(1, "At least one category is required")
-    .max(20),
+  // plus headroom for custom ones). Optional: the one-hashtag-field form (Lane I) sends only
+  // `hashtags` below and omits this; it still works for callers that send it directly (Nova
+  // draft creation).
+  categories: z.array(z.string().max(50)).min(1).max(20).optional(),
+  // Discovery hashtags (SR-03 Phase 3 §3): a FULL REPLACEMENT of categories/projectType/tags,
+  // resolved server-side (ProjectService.ResolveHashtagsAsync, Hashtags.MaxPerPost=10). The
+  // 40-char/10-tag bounds match the tRPC DoS-fix style (SECURITY-DEPENDENCIES.md).
+  hashtags: z.array(z.string().max(40)).max(10).optional(),
   projectType: ProjectType.optional(),
   duration: ProjectDuration.nullable().optional(),
   fundingGoal: z.number().nonnegative().nullable().optional(),
@@ -79,6 +82,8 @@ const updateProjectSchema = z.object({
   problemStatement: z.string().min(10).max(20_000).optional(),
   solution: z.string().min(10).max(20_000).optional(),
   categories: z.array(z.string().max(50)).min(1).max(20).optional(),
+  // See createProjectSchema's hashtags above — same full-replacement contract.
+  hashtags: z.array(z.string().max(40)).max(10).optional(),
   projectType: ProjectType.optional(),
   duration: ProjectDuration.nullable().optional(),
   status: ProjectStatus.optional(),
