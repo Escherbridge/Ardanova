@@ -16,31 +16,43 @@ import {
 type Reader = { id?: string | null; role?: string } | null | undefined;
 
 /** Runs a read with the reader attached as the actor, or anonymously when signed out. */
-async function readAsViewer<T>(reader: Reader, call: () => Promise<T>): Promise<T> {
+async function readAsViewer<T>(
+  reader: Reader,
+  call: () => Promise<T>,
+): Promise<T> {
   if (!reader?.id) return call();
   return runWithActorAssertion({ subject: reader.id, role: reader.role }, call);
 }
 
 // Enum values are API-driven from the backend enum service — validated server-side
 
+// Array/string bounds below stop an unbounded-array request from producing one zod issue per
+// element (DoS via issue-count amplification); see SECURITY-DEPENDENCIES.md "unbounded array" entry.
+
 // Opportunity creation input schema
 const createOpportunitySchema = z.object({
-  title: z.string().min(1, "Title is required"),
-  description: z.string().min(20, "Description must be at least 20 characters"),
-  type: z.string().min(1, "Type is required"),
-  skills: z.array(z.string()).min(1, "At least one skill is required"),
-  experienceLevel: z.string().optional(),
-  compensationModel: z.string().optional(),
+  title: z.string().min(1, "Title is required").max(200),
+  description: z
+    .string()
+    .min(20, "Description must be at least 20 characters")
+    .max(20_000),
+  type: z.string().min(1, "Type is required").max(200),
+  skills: z
+    .array(z.string().max(200))
+    .min(1, "At least one skill is required")
+    .max(20),
+  experienceLevel: z.string().max(200).optional(),
+  compensationModel: z.string().max(200).optional(),
   compensationAmount: z.number().positive().optional(),
   equityPercent: z.number().min(0).max(100).optional(),
   isOpenForApplications: z.boolean().optional(),
-  location: z.string().optional(),
+  location: z.string().max(200).optional(),
   isRemote: z.boolean().optional(),
-  deadline: z.string().optional(),
+  deadline: z.string().max(200).optional(),
   maxApplications: z.number().positive().optional(),
-  projectId: z.string().optional(),
-  guildId: z.string().optional(),
-  taskId: z.string().optional(),
+  projectId: z.string().max(100).optional(),
+  guildId: z.string().max(100).optional(),
+  taskId: z.string().max(100).optional(),
   projectRole: z
     .enum(["FOUNDER", "LEADER", "CORE_CONTRIBUTOR", "CONTRIBUTOR", "OBSERVER"])
     .optional(),
@@ -48,17 +60,17 @@ const createOpportunitySchema = z.object({
 
 // Opportunity update input schema
 const updateOpportunitySchema = z.object({
-  id: z.string(),
-  title: z.string().min(1).optional(),
-  description: z.string().min(20).optional(),
-  type: z.string().optional(),
-  skills: z.array(z.string()).optional(),
-  experienceLevel: z.string().optional(),
-  compensationModel: z.string().optional(),
+  id: z.string().max(100),
+  title: z.string().min(1).max(200).optional(),
+  description: z.string().min(20).max(20_000).optional(),
+  type: z.string().max(200).optional(),
+  skills: z.array(z.string().max(200)).max(20).optional(),
+  experienceLevel: z.string().max(200).optional(),
+  compensationModel: z.string().max(200).optional(),
   compensationAmount: z.number().positive().optional(),
-  location: z.string().optional(),
+  location: z.string().max(200).optional(),
   isRemote: z.boolean().optional(),
-  deadline: z.string().optional(),
+  deadline: z.string().max(200).optional(),
   maxApplications: z.number().positive().optional(),
   projectRole: z
     .enum(["FOUNDER", "LEADER", "CORE_CONTRIBUTOR", "CONTRIBUTOR", "OBSERVER"])
