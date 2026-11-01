@@ -55,6 +55,7 @@ type NavigationIconName =
   | "events"
   | "portfolio"
   | "chats"
+  | "studio"
   | "settings"
   | "kyc";
 
@@ -86,6 +87,8 @@ function NavigationIcon({
       return <Landmark className={className} aria-hidden="true" />;
     case "chats":
       return <MessageCircle className={className} aria-hidden="true" />;
+    case "studio":
+      return <Sparkles className={className} aria-hidden="true" />;
     case "settings":
       return <Settings className={className} aria-hidden="true" />;
     case "kyc":
@@ -98,44 +101,47 @@ interface NavigationGroup {
   items: NavigationItem[];
 }
 
+/** Home is the feed (SR-03 plan §1): first, and the one emphasised entry. */
+const homeItem: NavigationItem = {
+  href: "/dashboard",
+  label: "Home",
+  icon: "home",
+};
+
 const navigationGroups: NavigationGroup[] = [
-  {
-    label: "Workspace",
-    items: [
-      { href: "/dashboard", label: "Home", icon: "home" },
-      { href: "/projects", label: "Projects", icon: "projects" },
-    ],
-  },
   {
     label: "Work",
     items: [
       { href: "/tasks", label: "Tasks", icon: "tasks" },
+      { href: "/chats", label: "Chats", icon: "chats" },
+    ],
+  },
+  {
+    label: "Explore",
+    items: [
+      { href: "/projects", label: "Projects", icon: "projects" },
       {
         href: "/opportunities",
         label: "Opportunities",
         icon: "opportunities",
       },
-    ],
-  },
-  {
-    label: "Community",
-    items: [
       { href: "/guilds", label: "Guilds", icon: "guilds" },
       { href: "/people", label: "People", icon: "people" },
-      { href: "/governance", label: "Governance", icon: "governance" },
       { href: "/events", label: "Events", icon: "events" },
     ],
   },
   {
     label: "Records",
     items: [
+      { href: "/governance", label: "Governance", icon: "governance" },
       { href: "/portfolio", label: "Portfolio", icon: "portfolio" },
-      { href: "/chats", label: "Chats", icon: "chats" },
     ],
   },
 ];
 
+/** Studio is benched, not removed: it lives with the utilities. */
 const utilityItems: NavigationItem[] = [
+  { href: "/studio", label: "Studio", icon: "studio" },
   { href: "/settings", label: "Settings", icon: "settings" },
 ];
 
@@ -185,33 +191,32 @@ export function WorkspaceNavigation({
   authPreview?: boolean;
 }) {
   const pathname = usePathname();
+  const homeActive = isCurrentPath(pathname, homeItem.href);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="border-sidebar-border border-b-2 p-3">
-        <Link
-          href="/studio"
-          onClick={onNavigate}
-          aria-current={isCurrentPath(pathname, "/studio") ? "page" : undefined}
-          className={cn(
-            "border-sidebar-primary flex min-h-12 items-center justify-between gap-3 border-2 px-3 font-mono text-sm font-bold tracking-[0.08em] uppercase transition-colors",
-            isCurrentPath(pathname, "/studio")
-              ? "bg-sidebar-primary text-sidebar-primary-foreground"
-              : "bg-sidebar text-sidebar-primary hover:bg-sidebar-primary hover:text-sidebar-primary-foreground",
-          )}
-        >
-          <span className="flex items-center gap-2">
-            <Sparkles className="size-4" aria-hidden="true" />
-            Nova Studio
-          </span>
-          <span aria-hidden="true">↗</span>
-        </Link>
-      </div>
-
       <nav
         aria-label="Primary workspace navigation"
-        className="min-h-0 flex-1 overflow-y-auto py-2"
+        className="min-h-0 flex-1 overflow-y-auto pb-2"
       >
+        {/* Inside the nav, so the drawer's first focus lands on Home. */}
+        <div className="border-sidebar-border border-b-2 p-3">
+          <Link
+            href={homeItem.href}
+            onClick={onNavigate}
+            aria-current={homeActive ? "page" : undefined}
+            className={cn(
+              "border-sidebar-primary flex min-h-12 items-center gap-2 border-2 px-3 font-mono text-sm font-bold tracking-[0.08em] uppercase transition-colors",
+              homeActive
+                ? "bg-sidebar-primary text-sidebar-primary-foreground"
+                : "bg-sidebar text-sidebar-foreground hover:bg-sidebar-primary hover:text-sidebar-primary-foreground",
+            )}
+          >
+            <NavigationIcon name={homeItem.icon} className="size-4" />
+            {homeItem.label}
+          </Link>
+        </div>
+
         {navigationGroups.map((group) => (
           <div key={group.label} role="group" aria-label={group.label}>
             <p className="text-sidebar-muted px-4 pt-4 pb-1 font-mono text-[0.65rem] font-bold tracking-[0.16em] uppercase">
@@ -305,7 +310,8 @@ export function WorkspaceNavigation({
                 onNavigate?.();
                 // Unresolved keys stay: they are this person's, server-bound, and may still cover a
                 // payment in flight (M-6). Only resolved, unreadable leftovers are dropped.
-                if (user.id) clearResolvedRequestsForSubject(window.localStorage, user.id);
+                if (user.id)
+                  clearResolvedRequestsForSubject(window.localStorage, user.id);
                 void signOut({ callbackUrl: "/" });
               }}
               className="hover:bg-sidebar-accent inline-flex size-11 items-center justify-center border-2 border-transparent transition-colors"
