@@ -114,6 +114,7 @@ async function handlePost(req: NextRequest): Promise<Response> {
     // `combined.buffer` is sized to exactly `combined.byteLength` (freshly allocated in
     // readBodyWithinLimit), so handing over the raw ArrayBuffer is safe here.
     body: cappedBody.buffer as ArrayBuffer,
+    signal: req.signal,
   });
   return runTrpc(req, reconstructed);
 }
