@@ -17,6 +17,8 @@ import {
   readMoneyCode,
   readMoneyIntentId,
 } from "~/server/api/money-refusal-error";
+import { readHelpWantedExistingPostId } from "~/server/api/help-wanted-conflict-error";
+import { readTaskClaimCode } from "~/server/api/task-claim-conflict-error";
 import { InvalidApiPathError } from "~/lib/api/path";
 import {
   findApiFailure,
@@ -106,6 +108,10 @@ const t = initTRPC.context<typeof createTRPCContext>().create({
         moneyCode: readMoneyCode(error),
         // Set only with `needs_review`: the held payment the page records and quotes, never resends.
         moneyIntentId: readMoneyIntentId(error),
+        // Set only on a HELP_WANTED 409: the already-existing post, so the composer offers "Edit your ask".
+        helpWantedExistingPostId: readHelpWantedExistingPostId(error),
+        // Set only on a refused claim's 409: TASK_TAKEN / TASK_DONE / TASK_UNDER_AGREEMENT, so the card words each.
+        taskClaimCode: readTaskClaimCode(error),
       },
     };
   },

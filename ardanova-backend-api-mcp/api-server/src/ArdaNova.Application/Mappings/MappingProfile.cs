@@ -26,7 +26,13 @@ public class MappingProfile : Profile
             .ForMember(dest => dest.Categories, opt => opt.MapFrom(src =>
                 string.IsNullOrEmpty(src.categories)
                     ? new List<string>()
-                    : src.categories.Split(',', StringSplitOptions.RemoveEmptyEntries).ToList()));
+                    : src.categories.Split(',', StringSplitOptions.RemoveEmptyEntries).ToList()))
+            // Lane L (SR-03 Phase 3 §3): the edit form's round-trip view of the derived fields, each
+            // as a "#slug" chip via the same canonicalisation Hashtags.Extract uses for post copy.
+            // Fully-qualified rather than a new `using`, so this append stays a one-line diff next
+            // to K1's Post/Task blocks below (G0 §11: both lanes append to this file).
+            .ForMember(dest => dest.Hashtags, opt => opt.MapFrom(src =>
+                ArdaNova.Application.Services.Implementations.ProjectHashtagDisplay.From(src.categories, src.projectType)));
         CreateMap<ProjectTask, ProjectTaskDto>();
         CreateMap<ProjectTaskDependency, ProjectTaskDependencyDto>();
         CreateMap<ProjectResource, ProjectResourceDto>();
@@ -103,6 +109,7 @@ public class MappingProfile : Profile
             .ForMember(dest => dest.Content, opt => opt.MapFrom(src => src.content))
             .ForMember(dest => dest.Metadata, opt => opt.MapFrom(src => src.metadata))
             .ForMember(dest => dest.Hashtags, opt => opt.MapFrom(src => src.hashtags))
+            .ForMember(dest => dest.TaskId, opt => opt.MapFrom(src => src.taskId))
             .ForMember(dest => dest.LikesCount, opt => opt.MapFrom(src => src.likesCount))
             .ForMember(dest => dest.CommentsCount, opt => opt.MapFrom(src => src.commentsCount))
             .ForMember(dest => dest.SharesCount, opt => opt.MapFrom(src => src.sharesCount))
@@ -155,7 +162,9 @@ public class MappingProfile : Profile
             .ForMember(dest => dest.UpdatedAt, opt => opt.MapFrom(src => src.updatedAt))
             .ForMember(dest => dest.AssignedToId, opt => opt.MapFrom(src => src.assignedToId))
             .ForMember(dest => dest.AssignedTo, opt => opt.Ignore())
-            .ForMember(dest => dest.Project, opt => opt.Ignore());
+            .ForMember(dest => dest.Project, opt => opt.Ignore())
+            .ForMember(dest => dest.HasAgreement, opt => opt.Ignore())
+            .ForMember(dest => dest.HelpWanted, opt => opt.Ignore());
         CreateMap<User, TaskUserDto>()
             .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.id))
             .ForMember(dest => dest.Name, opt => opt.MapFrom(src => src.name))

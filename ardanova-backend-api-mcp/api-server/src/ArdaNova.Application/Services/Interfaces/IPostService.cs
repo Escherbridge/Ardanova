@@ -10,7 +10,8 @@ public interface IPostService
     Task<Result<IReadOnlyList<PostDto>>> GetByUserIdAsync(string userId, CancellationToken ct = default);
     Task<Result<PostDto>> CreateAsync(CreatePostDto dto, CancellationToken ct = default);
     Task<Result<PostDto>> UpdateAsync(string id, string authorId, UpdatePostDto dto, CancellationToken ct = default);
-    Task<Result<bool>> DeleteAsync(string id, string authorId, CancellationToken ct = default);
+    /// <summary>The author deletes their post; a manager of its project may also remove a HELP_WANTED ask.</summary>
+    Task<Result<bool>> DeleteAsync(string id, string actorId, CancellationToken ct = default);
     Task<Result<PostDto>> LikeAsync(string postId, string userId, CancellationToken ct = default);
     Task<Result<PostDto>> UnlikeAsync(string postId, string userId, CancellationToken ct = default);
     Task<Result<PostDto>> ShareAsync(string postId, string userId, CreatePostShareDto? dto, CancellationToken ct = default);

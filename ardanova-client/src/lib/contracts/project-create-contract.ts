@@ -160,7 +160,8 @@ function fileNameFromPath(path: string): string {
 }
 
 function kindFromPath(path: string): ProjectMediaKind {
-  const extension = fileNameFromPath(path).split(".").pop()?.toLowerCase() ?? "";
+  const extension =
+    fileNameFromPath(path).split(".").pop()?.toLowerCase() ?? "";
   if (IMAGE_EXTENSIONS.includes(extension)) return "image";
   if (VIDEO_EXTENSIONS.includes(extension)) return "video";
   return "document";
@@ -234,12 +235,21 @@ export const projectCreateFormDataSchema = z
     // Additive with a default so a draft saved before these fields existed still parses.
     summary: draftTextSchema.default(""),
     fundingGoal: z.string().max(64).default(""),
-    media: z.array(projectMediaItemSchema).max(PROJECT_MEDIA_MAX_FILES).default([]),
+    media: z
+      .array(projectMediaItemSchema)
+      .max(PROJECT_MEDIA_MAX_FILES)
+      .default([]),
     problemStatement: draftTextSchema,
     solution: draftTextSchema,
+    // Left for a draft saved before the one-hashtag-field form (SR-03 Phase 3 §3)
+    // replaced the category grid/"Other"/type picker; the current UI never writes these.
     categories: z.array(z.string().max(256)).max(50),
     otherCategory: z.string().max(50),
     projectType: z.union([projectTypeSchema, z.literal("")]),
+    // Discovery hashtags - a FULL REPLACEMENT of categories/projectType/tags, resolved
+    // server-side. Additive with a default so a draft saved before this field existed
+    // still parses.
+    hashtags: z.array(z.string().max(40)).max(10).default([]),
     duration: z.union([projectDurationSchema, z.literal("")]),
     targetAudience: draftTextSchema,
     expectedImpact: draftTextSchema,
@@ -309,6 +319,7 @@ export function createEmptyProjectFormData(): ProjectCreateFormData {
     categories: [],
     otherCategory: "",
     projectType: "",
+    hashtags: [],
     duration: "",
     targetAudience: "",
     expectedImpact: "",
@@ -618,7 +629,8 @@ export const ARDA_TICKER = "ARDA";
  * The caller decides what to say about a missing rate - this never invents one.
  */
 export function readArdaUsdRate(treasuryStatus: unknown): number | null {
-  if (typeof treasuryStatus !== "object" || treasuryStatus === null) return null;
+  if (typeof treasuryStatus !== "object" || treasuryStatus === null)
+    return null;
   const rate = (treasuryStatus as Record<string, unknown>).ardaValueUsd;
   if (typeof rate !== "number" || !Number.isFinite(rate) || rate <= 0) {
     return null;

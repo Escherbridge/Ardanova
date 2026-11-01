@@ -4,12 +4,19 @@ using ArdaNova.Application.Common.Interfaces;
 using ArdaNova.Application.Common.Results;
 using ArdaNova.Application.DTOs;
 using ArdaNova.Application.Services.Interfaces;
+using ArdaNova.Application.Tasks;
 using ArdaNova.Domain.Models.Entities;
 using ArdaNova.Domain.Models.Enums;
 using AutoMapper;
 
 public class TaskService : ITaskService
 {
+    /// <summary>Why a claim was refused: someone else holds the task (<see cref="TaskClaimCodes.Taken"/>).</summary>
+    public const string TaskAlreadyPickedUp = "Already picked up.";
+
+    /// <summary>Why a claim was refused: the task is COMPLETED (<see cref="TaskClaimCodes.Done"/>).</summary>
+    public const string TaskIsDone = "This task is done.";
+
     /// <summary>
     /// Why a task's own award figure stops being editable once a bid has been accepted on it.
     /// The accepted agreement is the award of record and the units behind it are already set
@@ -58,19 +65,28 @@ public class TaskService : ITaskService
     private readonly IRepository<TaskCommerceAgreement> _agreementRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IMapper _mapper;
+    private readonly IRepository<Post> _postRepository;
+    private readonly ITaskClaimStore _claims;
+    private readonly INotificationService _notifications;
 
     /// <param name="agreementRepository">
     /// Read-only lookup that decides whether this task's award is already an agreed one.
     /// Required rather than optional: a missing repository would silently skip the guard below,
     /// and a skipped guard lets a task's figure drift away from the award actually held.
     /// </param>
+    /// <param name="postRepository">Reads a task's HELP_WANTED ask for <see cref="TaskDto.HelpWanted"/>.</param>
+    /// <param name="claims">The self-claim's conditional write.</param>
+    /// <param name="notifications">Stages the asker's "picked up" inside the claim's transaction.</param>
     public TaskService(
         IRepository<ProjectTask> repository,
         IRepository<User> userRepository,
         IRepository<Project> projectRepository,
         IRepository<TaskCommerceAgreement> agreementRepository,
         IUnitOfWork unitOfWork,
-        IMapper mapper)
+        IMapper mapper,
+        IRepository<Post> postRepository,
+        ITaskClaimStore claims,
+        INotificationService notifications)
     {
         _repository = repository;
         _userRepository = userRepository;
@@ -78,6 +94,9 @@ public class TaskService : ITaskService
         _agreementRepository = agreementRepository;
         _unitOfWork = unitOfWork;
         _mapper = mapper;
+        _postRepository = postRepository;
+        _claims = claims;
+        _notifications = notifications;
     }
 
     public async Task<Result<TaskDto>> GetByIdAsync(string id, CancellationToken ct = default)
@@ -115,9 +134,14 @@ public class TaskService : ITaskService
         string? projectId,
         int page,
         int pageSize,
+        bool askableOnly = false,
         CancellationToken ct = default)
     {
         var query = VisibleTasks(viewer);
+
+        // Filtered before the page is cut, so open tasks behind 100 done ones still reach the ask picker.
+        if (askableOnly)
+            query = query.Where(t => t.assignedToId == null && t.status != TaskStatus.COMPLETED);
 
         if (!string.IsNullOrWhiteSpace(searchTerm))
         {
@@ -271,7 +295,7 @@ public class TaskService : ITaskService
 
         var agreement = await _agreementRepository.FindOneAsync(item => item.taskId == id, ct);
         if (agreement is not null || task.escrowStatus != EscrowStatus.NONE)
-            return Result<TaskDto>.Conflict(WorkerBelongsToTheAgreement);
+            return Result<TaskDto>.Conflict(WorkerBelongsToTheAgreement).WithCode(TaskClaimCodes.UnderAgreement);
 
         task.assignedToId = string.IsNullOrWhiteSpace(userId) ? null : userId;
         task.updatedAt = DateTime.UtcNow;
@@ -281,6 +305,63 @@ public class TaskService : ITaskService
 
         var resultDto = await EnrichTaskDtoAsync(task, ct);
         return Result<TaskDto>.Success(resultDto);
+    }
+
+    public async Task<Result<TaskDto>> ClaimAsync(string id, string userId, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(userId))
+            return Result<TaskDto>.Unauthorized("A signed-in member is required");
+
+        bool claimed;
+        await _unitOfWork.BeginTransactionAsync(ct);
+        try
+        {
+            claimed = await _claims.TryClaimAsync(id, userId, ct) == 1;
+            if (claimed)
+            {
+                // Inside the claim's transaction: the losing claim writes no notification, the winner exactly one.
+                await _notifications.StageAskPickedUpAsync(id, userId, ct);
+                await _unitOfWork.SaveChangesAsync(ct);
+                await _unitOfWork.CommitTransactionAsync(ct);
+            }
+            else
+            {
+                await _unitOfWork.RollbackTransactionAsync(ct);
+            }
+        }
+        catch
+        {
+            await _unitOfWork.RollbackTransactionAsync(CancellationToken.None);
+            _unitOfWork.ClearTrackedChanges();
+            throw;
+        }
+
+        // The UPDATE bypassed the change tracker; drop what this scope tracked so the read below sees the row.
+        _unitOfWork.ClearTrackedChanges();
+        var task = await _repository.GetByIdAsync(id, ct);
+        if (task is null)
+            return Result<TaskDto>.NotFound($"Task with id {id} not found");
+
+        // A double tap: the other request already made it theirs, which is the state asked for.
+        if (claimed || string.Equals(task.assignedToId, userId, StringComparison.Ordinal))
+            return Result<TaskDto>.Success(await EnrichTaskDtoAsync(task, ct));
+
+        return await RefuseClaimAsync(task, ct);
+    }
+
+    /// <summary>Names why the conditional write found nothing to claim, from the task's facts as they are now.</summary>
+    private async Task<Result<TaskDto>> RefuseClaimAsync(ProjectTask task, CancellationToken ct)
+    {
+        var hasAgreement = await _agreementRepository.ExistsAsync(item => item.taskId == task.id, ct);
+        var facts = new TaskClaimFacts(task.assignedToId, task.status, task.escrowStatus, hasAgreement, task.equityReward);
+        return TaskClaimRule.Evaluate(facts, viewerIsProjectMember: true) switch
+        {
+            TaskClaimVerdict.Completed => Result<TaskDto>.Conflict(TaskIsDone).WithCode(TaskClaimCodes.Done),
+            TaskClaimVerdict.UnderAgreement =>
+                Result<TaskDto>.Conflict(WorkerBelongsToTheAgreement).WithCode(TaskClaimCodes.UnderAgreement),
+            // AlreadyTaken, or open again by this read: either way the write lost to another claim.
+            _ => Result<TaskDto>.Conflict(TaskAlreadyPickedUp).WithCode(TaskClaimCodes.Taken),
+        };
     }
 
     public async Task<Result<bool>> DeleteAsync(string id, CancellationToken ct = default)
@@ -307,29 +388,62 @@ public class TaskService : ITaskService
     }
 
     private async Task<TaskDto> EnrichTaskDtoAsync(ProjectTask task, CancellationToken ct)
-    {
-        var dto = _mapper.Map<TaskDto>(task);
+        => (await EnrichTaskDtosAsync([task], ct))[0];
 
-        if (task.assignedToId is not null)
-        {
-            var user = await _userRepository.GetByIdAsync(task.assignedToId, ct);
-            if (user is not null)
-                dto = dto with { AssignedTo = _mapper.Map<TaskUserDto>(user) };
-        }
-
-        var project = await _projectRepository.GetByIdAsync(task.projectId, ct);
-        if (project is not null)
-            dto = dto with { Project = _mapper.Map<TaskProjectDto>(project) };
-
-        return dto;
-    }
-
+    /// <summary>Maps tasks with assignee, project, agreement and ask; agreements, asks and askers are one read each per page.</summary>
     private async Task<IReadOnlyList<TaskDto>> EnrichTaskDtosAsync(IEnumerable<ProjectTask> tasks, CancellationToken ct)
     {
-        var dtos = new List<TaskDto>();
-        foreach (var task in tasks)
+        var page = tasks.ToList();
+        if (page.Count == 0)
+            return [];
+
+        var taskIds = page.Select(task => task.id).ToList();
+        var agreed = (await _agreementRepository.FindAsync(agreement => taskIds.Contains(agreement.taskId), ct))
+            .Select(agreement => agreement.taskId)
+            .ToHashSet(StringComparer.Ordinal);
+        // Only an ask whose own audience is everyone: these reads carry no viewer. See Implementations/AGENTS.md §Help wanted.
+        var asks = (await _postRepository.FindAsync(
+                post => post.type == PostType.HELP_WANTED && post.taskId != null && taskIds.Contains(post.taskId),
+                ct))
+            .Where(PostVisibilityPolicy.IsPubliclyVisible)
+            .GroupBy(post => post.taskId!, StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
+        var askerIds = asks.Values.Select(post => post.authorId).Distinct().ToList();
+        var askers = askerIds.Count == 0
+            ? new Dictionary<string, User>(StringComparer.Ordinal)
+            : (await _userRepository.FindAsync(user => askerIds.Contains(user.id), ct))
+                .ToDictionary(user => user.id, StringComparer.Ordinal);
+
+        var dtos = new List<TaskDto>(page.Count);
+        foreach (var task in page)
         {
-            dtos.Add(await EnrichTaskDtoAsync(task, ct));
+            var dto = _mapper.Map<TaskDto>(task) with { HasAgreement = agreed.Contains(task.id) };
+
+            if (task.assignedToId is not null)
+            {
+                var user = await _userRepository.GetByIdAsync(task.assignedToId, ct);
+                if (user is not null)
+                    dto = dto with { AssignedTo = _mapper.Map<TaskUserDto>(user) };
+            }
+
+            var project = await _projectRepository.GetByIdAsync(task.projectId, ct);
+            if (project is not null)
+                dto = dto with { Project = _mapper.Map<TaskProjectDto>(project) };
+
+            if (asks.TryGetValue(task.id, out var ask))
+            {
+                dto = dto with
+                {
+                    HelpWanted = new TaskHelpWantedDto
+                    {
+                        PostId = ask.id,
+                        AskerId = ask.authorId,
+                        AskerName = askers.GetValueOrDefault(ask.authorId)?.name,
+                    },
+                };
+            }
+
+            dtos.Add(dto);
         }
         return dtos;
     }

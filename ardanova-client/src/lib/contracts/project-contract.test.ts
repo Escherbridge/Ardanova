@@ -17,6 +17,7 @@ const projectDto = {
   problemStatement: "Useful tools are expensive and underused.",
   solution: "Build a member-run lending and repair library.",
   categories: ["COMMUNITY"],
+  hashtags: ["community"],
   status: "PUBLISHED",
   fundingGoal: null,
   currentFunding: 0,
@@ -70,6 +71,30 @@ describe("project API contract", () => {
         storefrontDescription: "Member-made goods",
       }).success,
     ).toBe(true);
+  });
+
+  it("accepts hashtags with no categories (SR-03 Phase 3 one-hashtag-field form)", () => {
+    expect(
+      createProjectDtoSchema.safeParse({
+        title: "A project",
+        description: "Project description",
+        problemStatement: "A defined problem",
+        solution: "A defined solution",
+        hashtags: ["construction", "barn-raising"],
+      }).success,
+    ).toBe(true);
+  });
+
+  it("rejects an 11th hashtag (DoS-fix style bound)", () => {
+    expect(
+      createProjectDtoSchema.safeParse({
+        title: "A project",
+        description: "Project description",
+        problemStatement: "A defined problem",
+        solution: "A defined solution",
+        hashtags: Array.from({ length: 11 }, (_, i) => `tag-${i}`),
+      }).success,
+    ).toBe(false);
   });
 
   it("narrows project enums without casting", () => {

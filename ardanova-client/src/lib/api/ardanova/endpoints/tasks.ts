@@ -42,6 +42,13 @@ export interface TaskProject {
   slug: string;
 }
 
+/** The HELP_WANTED asker a task card's "Message" action opens a draft chat with (plan §2). */
+export interface TaskHelpWanted {
+  postId: string;
+  askerId: string;
+  askerName?: string | null;
+}
+
 export interface Task {
   id: string;
   projectId: string;
@@ -68,6 +75,10 @@ export interface Task {
   assignedToId?: string | null;
   assignedTo?: TaskUser | null;
   project?: TaskProject | null;
+  /** An accepted bid's agreement decides the worker (.NET TaskDto.HasAgreement; a claim is refused). Absent from an older API. */
+  hasAgreement?: boolean;
+  /** Set only when a HELP_WANTED post names this task; absent otherwise or before K1/K2 ship it. */
+  helpWanted?: TaskHelpWanted | null;
 }
 
 export interface TaskCommerceView {
@@ -127,6 +138,8 @@ export interface SearchTasksParams {
   priority?: TaskPriority;
   taskType?: TaskType;
   projectId?: string;
+  /** Only tasks nobody holds that are not COMPLETED (the ones an ask may name), filtered before paging. */
+  askable?: boolean;
   page?: number;
   pageSize?: number;
 }
@@ -155,6 +168,7 @@ export class TasksEndpoint {
     if (params.priority) sp.set("priority", params.priority);
     if (params.taskType) sp.set("taskType", params.taskType);
     if (params.projectId) sp.set("projectId", params.projectId);
+    if (params.askable) sp.set("askable", "true");
     sp.set("page", String(params.page ?? 1));
     sp.set("pageSize", String(params.pageSize ?? 10));
     return this.client.get<PagedResult<Task>>(apiPath`/api/tasks/search?${sp}`);
@@ -178,6 +192,14 @@ export class TasksEndpoint {
   assign(id: string, userId: string | null): Promise<ApiResponse<Task>> {
     return this.client.put<Task>(apiPath`/api/tasks/${id}/assign`, {
       userId,
+    });
+  }
+
+  /** "Pick up task": the same route, flagged so the API takes it only while open - never over its holder, even for a manager. */
+  claim(id: string, userId: string): Promise<ApiResponse<Task>> {
+    return this.client.put<Task>(apiPath`/api/tasks/${id}/assign`, {
+      userId,
+      claim: true,
     });
   }
 

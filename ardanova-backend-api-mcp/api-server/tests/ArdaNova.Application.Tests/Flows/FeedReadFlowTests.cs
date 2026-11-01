@@ -27,7 +27,7 @@ using UnitOfWorkOverContext = ArdaNova.Infrastructure.UnitOfWork.UnitOfWork;
 /// <see cref="FeedProjectorFlowTests"/>: without <c>ARDANOVA_TEST_POSTGRES</c> every test reports SKIPPED.
 /// </summary>
 [Trait("Category", "Database")]
-public sealed class FeedReadFlowTests : IAsyncLifetime
+public sealed partial class FeedReadFlowTests : IAsyncLifetime
 {
     private const string Ada = "user-ada";
     private const string Bo = "user-bo";
@@ -79,6 +79,7 @@ public sealed class FeedReadFlowTests : IAsyncLifetime
               CHECK (("sourceType" IS NULL) = ("sourceId" IS NULL));
             CREATE INDEX "Post_hashtags_idx" ON "Post" USING GIN ("hashtags");
             """);
+        await MirrorHelpWantedMigrationAsync(context);
         await SeedAsync(context);
     }
 
@@ -686,14 +687,7 @@ public sealed class FeedReadFlowTests : IAsyncLifetime
         return result.Value!;
     }
 
-    private static PostService Posts(ArdaNovaDbContext context) => new(
-        new Repository<Post>(context),
-        new Repository<PostLike>(context),
-        new Repository<PostComment>(context),
-        new Repository<PostBookmark>(context),
-        new Repository<PostShare>(context),
-        new UnitOfWorkOverContext(context),
-        Mapper);
+    private static PostService Posts(ArdaNovaDbContext context) => RealServiceGraph.Posts(context, Mapper);
 
     private static ProjectUpdateService Updates(ArdaNovaDbContext context)
         => new(new Repository<ProjectUpdate>(context), new UnitOfWorkOverContext(context), Mapper);

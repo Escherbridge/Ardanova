@@ -61,6 +61,12 @@ public class GuildsController : ControllerBase
     public async Task<IActionResult> GetByOwnerId(string ownerId, CancellationToken ct)
         => ToActionResult(await _guildService.GetByOwnerIdAsync(ownerId, ct));
 
+    /// <summary>The signed actor's own guilds (owned or a member of); there is no route that takes another userId.</summary>
+    [HttpGet("mine")]
+    [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
+    public async Task<IActionResult> GetMine(CancellationToken ct)
+        => ToActionResult(await _guildService.GetMembershipsAsync(Actor.Id, ct));
+
     [HttpGet("verified")]
     public async Task<IActionResult> GetVerified(CancellationToken ct)
         => ToActionResult(await _guildService.GetVerifiedAsync(ct));

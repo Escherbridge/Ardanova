@@ -53,7 +53,17 @@ public class ProjectHiringFlowTests
         _tasks.Add(NewTask("task-draft", DraftProjectId, "secret draft plan"));
         _tasks.Add(NewTask("task-public", PublishedProjectId, "public plan"));
 
-        _taskService = new TaskService(_tasks, _users, _projects, _agreements, _unitOfWork, _mapper);
+        // Hiring hands work out through a manager's assign; the claim store and notifications must stay untouched.
+        _taskService = new TaskService(
+            _tasks,
+            _users,
+            _projects,
+            _agreements,
+            _unitOfWork,
+            _mapper,
+            new ListRepository<Post>(),
+            new Mock<ArdaNova.Application.Tasks.ITaskClaimStore>(MockBehavior.Strict).Object,
+            new Mock<ArdaNova.Application.Services.Interfaces.INotificationService>(MockBehavior.Strict).Object);
         _opportunityService = new OpportunityService(
             _opportunities,
             _opportunityApplications,
@@ -81,6 +91,36 @@ public class ProjectHiringFlowTests
         anonymous.Value.TotalCount.Should().Be(1);
         stranger.Value!.Items.Should().BeEmpty();
         founder.Value!.Items.Select(task => task.Id).Should().BeEquivalentTo(new[] { "task-draft", "task-public" });
+    }
+
+    /// <summary>The ask picker's read: open tasks behind a full page of finished or held ones still come back.</summary>
+    [Fact]
+    public async Task AskableTaskSearch_FiltersBeforeThePageIsCut_SoOpenTasksBehind100DoneOnesAppear()
+    {
+        var older = DateTime.UtcNow.AddDays(-1);
+        var open = NewTask("task-open", PublishedProjectId, "frame the east wall");
+        open.createdAt = older;
+        var blocked = NewTask("task-blocked", PublishedProjectId, "file the permit");
+        blocked.status = TaskStatus.BLOCKED;
+        blocked.createdAt = older;
+        var held = NewTask("task-held", PublishedProjectId, "order lumber");
+        held.assignedToId = Applicant;
+        _tasks.Add(open);
+        _tasks.Add(blocked);
+        _tasks.Add(held);
+        for (var index = 0; index < 120; index++)
+        {
+            var done = NewTask($"task-done-{index}", PublishedProjectId, "done");
+            done.status = TaskStatus.COMPLETED;
+            _tasks.Add(done);
+        }
+
+        var everything = await _taskService.SearchAsync(new ProjectViewer(Founder, false), null, null, null, null, PublishedProjectId, 1, 100);
+        var askable = await _taskService.SearchAsync(new ProjectViewer(Founder, false), null, null, null, null, PublishedProjectId, 1, 100, askableOnly: true);
+
+        everything.Value!.Items.Select(task => task.Id).Should().NotContain("task-open", "the newest 100 are all done - the bug the filter closes");
+        askable.Value!.Items.Select(task => task.Id).Should().BeEquivalentTo(new[] { "task-public", "task-open", "task-blocked" });
+        askable.Value.TotalCount.Should().Be(3);
     }
 
     [Fact]

@@ -22,7 +22,14 @@ public class NotificationServiceTests
         _repositoryMock = new Mock<IRepository<Notification>>();
         _unitOfWorkMock = new Mock<IUnitOfWork>();
         _mapperMock = new Mock<IMapper>();
-        _sut = new NotificationService(_repositoryMock.Object, _unitOfWorkMock.Object, _mapperMock.Object);
+        _sut = new NotificationService(
+            _repositoryMock.Object,
+            _unitOfWorkMock.Object,
+            _mapperMock.Object,
+            new Mock<IRepository<Post>>().Object,
+            new Mock<IRepository<ProjectTask>>().Object,
+            new Mock<IRepository<User>>().Object,
+            new Mock<IRepository<Project>>().Object);
     }
 
     [Fact]

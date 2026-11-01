@@ -1,5 +1,5 @@
 import { z } from 'zod';
 
-export const PostScalarFieldEnumSchema = z.enum(['id','authorId','projectId','guildId','type','visibility','title','content','metadata','likesCount','commentsCount','sharesCount','viewsCount','isPinned','isTrending','trendingScore','trendingRank','trendingAt','createdAt','updatedAt','sourceType','sourceId','opportunityId','eventId','retractedAt','hashtags']);
+export const PostScalarFieldEnumSchema = z.enum(['id','authorId','projectId','guildId','type','visibility','title','content','metadata','likesCount','commentsCount','sharesCount','viewsCount','isPinned','isTrending','trendingScore','trendingRank','trendingAt','createdAt','updatedAt','sourceType','sourceId','opportunityId','eventId','retractedAt','hashtags','taskId']);
 
 export default PostScalarFieldEnumSchema;

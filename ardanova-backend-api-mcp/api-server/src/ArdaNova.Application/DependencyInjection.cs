@@ -38,6 +38,8 @@ public static class DependencyInjection
         services.AddScoped<IProjectMemberService, ProjectMemberService>();
         services.AddScoped<IProjectInvitationService, ProjectInvitationService>();
         services.AddScoped<IHierarchyAuthorizationService, HierarchyAuthorizationService>();
+        // Project follow (SR-03 Phase 3 §8-6): depends on IProjectVisibility, registered above.
+        services.AddScoped<IProjectFollowService, ProjectFollowService>();
 
         // Guild services
         services.AddScoped<IGuildService, GuildService>();

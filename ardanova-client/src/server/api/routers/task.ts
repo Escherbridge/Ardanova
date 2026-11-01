@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import {
   createTRPCRouter,
   protectedProcedure,
@@ -6,6 +7,7 @@ import {
 } from "~/server/api/trpc";
 import { apiClient } from "~/lib/api";
 import { runWithActorAssertion } from "~/server/actor-assertion";
+import { taskClaimConflictError } from "~/server/api/task-claim-conflict-error";
 import {
   hierarchyAuthorization,
   type HierarchyParent,
@@ -15,7 +17,10 @@ import {
 type Reader = { id?: string | null; role?: string } | null | undefined;
 
 /** Runs a read with the reader attached as the actor, or anonymously when signed out. */
-async function readAsViewer<T>(reader: Reader, call: () => Promise<T>): Promise<T> {
+async function readAsViewer<T>(
+  reader: Reader,
+  call: () => Promise<T>,
+): Promise<T> {
   if (!reader?.id) return call();
   return runWithActorAssertion({ subject: reader.id, role: reader.role }, call);
 }
@@ -170,6 +175,8 @@ export const taskRouter = createTRPCRouter({
         priority: TaskPriority.optional(),
         type: TaskType.optional(),
         projectId: z.string().optional(),
+        /** Only unassigned, not-COMPLETED tasks (the ask picker), filtered by .NET before the page is cut. */
+        askable: z.boolean().optional(),
       }),
     )
     .query(async ({ input, ctx }) => {
@@ -180,6 +187,7 @@ export const taskRouter = createTRPCRouter({
           priority: input.priority,
           taskType: input.type,
           projectId: input.projectId,
+          askable: input.askable,
           page: input.page,
           pageSize: input.limit,
         }),
@@ -332,6 +340,44 @@ export const taskRouter = createTRPCRouter({
 
       if (response.error || !response.data) {
         throw new Error(response.error ?? "Failed to assign task");
+      }
+
+      return response.data;
+    }),
+
+  /**
+   * "Pick up task" (HELP_WANTED's primary action, plan §2): the signed-in user self-claims an open
+   * task on `PUT /api/tasks/{id}/assign` with `claim: true`, so the API's conditional write
+   * (`TaskClaimStore.TryClaimAsync`) decides it for a manager too - a stale card never takes a
+   * task someone claimed since it rendered. 0 rows updated is the 409 below.
+   */
+  claim: protectedProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      const response = await apiClient.tasks.claim(
+        input.id,
+        ctx.session.user.id,
+      );
+
+      if (response.error || !response.data) {
+        // The API's 409 body is `{ error, code }`; the code rides to the browser as `error.data.taskClaimCode`.
+        if (response.status === 409) {
+          throw taskClaimConflictError(
+            response.code,
+            response.error ?? "Already picked up",
+          );
+        }
+        throw new TRPCError({
+          code:
+            // A 400 here is membership/eligibility, not malformed input - the card should read
+            // it as "you can't do this", not "bad request".
+            response.status === 400
+              ? "FORBIDDEN"
+              : response.status === 404
+                ? "NOT_FOUND"
+                : "INTERNAL_SERVER_ERROR",
+          message: response.error ?? "Could not pick up this task",
+        });
       }
 
       return response.data;

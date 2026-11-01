@@ -32,7 +32,9 @@ The rules and the cycle live in `Application/Feed` (see its AGENTS.md). This dir
     (pinned by `FeedProjectorFlowTests.TheEnvelopeStore_StaysUsable_AfterAnInsertThatCollidesOnTheUniqueIndex`).
     Any other failure propagates to the cycle, which counts it as one failed card and carries on.
   - `RemoveAsync`: one transaction - null out reply parents, then delete the envelope's comments, likes,
-    bookmarks, shares and media (all RESTRICT FKs to Post), then the envelope. Every statement is scoped
+    bookmarks, shares and media (all RESTRICT FKs to Post) and its notifications (the migration cascades
+    `Notification.postId`, but EF models it client-set-null, so an EF-built database would refuse the delete), then
+    the envelope. Every statement is scoped
     by `sourceType IS NOT NULL`, so no id can make it delete a person's post. Since Phase 2 it runs only for an
     envelope whose source row is gone.
   - `RetractAsync` / `RestoreAsync` / `SetHashtagsAsync`: single `ExecuteUpdate` statements, each scoped by
@@ -43,9 +45,12 @@ The rules and the cycle live in `Application/Feed` (see its AGENTS.md). This dir
   card shows: update/comment content). Nullable columns are coalesced in the projection (`summary ?? ""`) because SQL
   `NULL || text` is NULL.
 - **`FeedReadStore`** (`IFeedReadStore`): the feed read side's non-post reads - the viewer's follows, memberships,
-  engaged tags, project sectors and skills; names for cards and reasons; active taxonomy terms; native-thread reply
-  counts; and the quality pass's signal batches. Data access only: every visibility rule is composed in
-  `Application/Feed/FeedService`.
+  engaged tags, project sectors and skills; names for cards and reasons (an opportunity's slug included); HELP_WANTED
+  task facts; active taxonomy terms; native-thread reply counts; and the quality pass's signal batches. Data access
+  only: every visibility rule is composed in `Application/Feed/FeedService`.
+  - Help-wanted tasks (`ReadHelpTasksAsync`): one query by task id - the row, the assignee's name through
+    `AssignedTo`, and `EXISTS(TaskCommerceAgreement WHERE taskId = task.id)` (any status, as `TaskService.AssignAsync`
+    reads it). It returns facts only; the claim verdict is `TaskClaimRule`'s and the visibility check is FeedService's.
   - Engaged tags: three index range reads - `Post(authorId, createdAt)`, `PostLike(userId, createdAt)`,
     `PostComment(authorId, createdAt)` (the last two come with migration `20261031000000`) - each the viewer's latest
     200 engagements, merged in memory by when they engaged, top 200, then one read of those posts' tags. The seeks

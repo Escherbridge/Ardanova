@@ -18,6 +18,7 @@ export const FEED_POST_TYPES = [
   "EVENT_SCHEDULED",
   "DISCUSSION",
   "MEMBER_JOINED",
+  "HELP_WANTED",
 ] as const;
 
 /** FeedReasonKind values this client knows; render unknown ones by their `text`. */
@@ -49,6 +50,26 @@ export type FeedReasonKindCode = FeedReasonKind | (string & {});
 export const feedReasonKindCodeSchema: z.ZodType<FeedReasonKindCode> = z
   .string()
   .min(1);
+
+/** A HELP_WANTED card's task states (.NET FeedTaskState); unknown ones read as neither open nor done. */
+export const FEED_TASK_STATES = ["OPEN", "PICKED_UP", "DONE"] as const;
+export type FeedTaskState = (typeof FEED_TASK_STATES)[number];
+export type FeedTaskStateCode = FeedTaskState | (string & {});
+export const feedTaskStateCodeSchema: z.ZodType<FeedTaskStateCode> = z
+  .string()
+  .min(1);
+
+/**
+ * The task a HELP_WANTED card asks for (.NET FeedTaskDto); the feed kit's `FeedTaskFacts` is this type.
+ * `assigneeName` and `paid` are optional on read so an older API's card still parses; the API always sends both.
+ */
+export const feedTaskSchema = z.object({
+  id: z.string().min(1),
+  state: feedTaskStateCodeSchema,
+  assigneeName: z.string().nullish(),
+  /** equityReward > 0: the task page makes the one readiness read, so `viewer.canClaim` is false. */
+  paid: z.boolean().optional(),
+});
 
 /** The feed scopes the API accepts; the tag is normalised server-side ("#Carpentry" -> "carpentry"). */
 export type FeedScope =
@@ -97,9 +118,16 @@ export const feedCardSchema = z.object({
   guild: z
     .object({ id: z.string(), name: z.string(), slug: z.string() })
     .nullable(),
-  opportunity: z.object({ id: z.string(), title: z.string() }).nullable(),
+  /** The opportunity page resolves by `slug`; optional on read so an older API's id-only link still parses. */
+  opportunity: z
+    .object({ id: z.string(), title: z.string(), slug: z.string().nullish() })
+    .nullable(),
   event: z
-    .object({ id: z.string(), title: z.string(), startsAt: dotNetDateTimeSchema })
+    .object({
+      id: z.string(),
+      title: z.string(),
+      startsAt: dotNetDateTimeSchema,
+    })
     .nullable(),
   /** Aggregate progress only: the API never sends an amount or a backer. */
   funding: z.object({ percent: z.number().int() }).nullable(),
@@ -117,7 +145,8 @@ export const feedCardSchema = z.object({
     replies: z.number().int(),
     shares: z.number().int(),
   }),
-  /** The reader's standing, computed server-side: pick the primary action from this, never from reason text. */
+  /** The reader's standing, computed server-side: pick the primary action from this, never from reason text.
+   * `canClaim`: a HELP_WANTED task this reader may pick up in one tap (.NET TaskClaimRule, the claim write's rule). */
   viewer: z.object({
     isMember: z.boolean(),
     isFollowing: z.boolean(),
@@ -125,6 +154,8 @@ export const feedCardSchema = z.object({
   }),
   isDiscovery: z.boolean(),
   reasons: z.array(feedReasonSchema),
+  /** HELP_WANTED cards only; null or absent on every other card. */
+  task: feedTaskSchema.nullish(),
 });
 
 export const feedPageSchema = z.object({
@@ -133,6 +164,7 @@ export const feedPageSchema = z.object({
 });
 
 export type FeedReason = z.infer<typeof feedReasonSchema>;
+export type FeedTask = z.infer<typeof feedTaskSchema>;
 export type FeedCard = z.infer<typeof feedCardSchema>;
 export type FeedPage = z.infer<typeof feedPageSchema>;
 

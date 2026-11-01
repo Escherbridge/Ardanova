@@ -7,9 +7,11 @@ import {
 } from "~/server/api/trpc";
 import { runWithActorAssertion } from "~/server/actor-assertion";
 import { apiClient } from "~/lib/api";
+import { helpWantedConflictError } from "~/server/api/help-wanted-conflict-error";
 
 /**
- * Field notes are project-scoped; the ranked cross-project feed is `feedRouter` (routers/feed.ts).
+ * Post writes and single-post reads; a project's posts are read through the ranked feed (`feedRouter`,
+ * routers/feed.ts, scope `project:<id>`).
  *
  * Writes are `protectedProcedure`, so the API takes the author from the signed actor
  * assertion and a caller can never post as someone else. Reads stay public, but attach
@@ -17,10 +19,7 @@ import { apiClient } from "~/lib/api";
  * shared with everyone; signed in, it adds the ones that reader is entitled to see.
  */
 
-type FieldNoteReader =
-  | { id?: string | null; role?: string }
-  | null
-  | undefined;
+type FieldNoteReader = { id?: string | null; role?: string } | null | undefined;
 
 /** Runs a read with the reader attached as the actor, or anonymously when signed out. */
 async function readAsViewer<T>(
@@ -39,7 +38,16 @@ const PostTypeSchema = z.enum([
   "MILESTONE",
   "PROPOSAL",
   "SHOP_ITEM",
+  "HELP_WANTED",
 ]);
+
+/** tRPC codes for a `create` refusal other than the 409; table-driven per plan §Add (posts). */
+const CREATE_STATUS_CODES: Partial<Record<number, TRPCError["code"]>> = {
+  400: "BAD_REQUEST",
+  403: "FORBIDDEN",
+  // An ask naming a missing task, or one on a draft the author cannot see.
+  404: "NOT_FOUND",
+};
 
 const PostVisibilitySchema = z.enum([
   "PUBLIC",
@@ -49,33 +57,6 @@ const PostVisibilitySchema = z.enum([
 ]);
 
 export const postRouter = createTRPCRouter({
-  getProjectFieldNotes: publicProcedure
-    .input(
-      z.object({
-        projectId: z.string().min(1),
-        page: z.number().min(1).default(1),
-        pageSize: z.number().min(1).max(100).default(20),
-      }),
-    )
-    .query(async ({ input, ctx }) => {
-      const response = await readAsViewer(ctx.session?.user, () =>
-        apiClient.posts.getProjectFieldNotes(
-          input.projectId,
-          input.page,
-          input.pageSize,
-        ),
-      );
-      if (response.error) {
-        // A project this reader may not see 404s at the API. Reporting that as a 500
-        // would tell the browser the node broke when in fact it answered correctly.
-        throw new TRPCError({
-          code: response.status === 404 ? "NOT_FOUND" : "INTERNAL_SERVER_ERROR",
-          message: response.error,
-        });
-      }
-      return response.data;
-    }),
-
   getById: publicProcedure
     .input(z.object({ id: z.string() }))
     .query(async ({ input, ctx }) => {
@@ -116,6 +97,8 @@ export const postRouter = createTRPCRouter({
         title: z.string().optional(),
         content: z.string().min(1),
         metadata: z.string().optional(),
+        // Required by the API when type is HELP_WANTED; refused on any other type (plan §2).
+        taskId: z.string().optional(),
       }),
     )
     .mutation(async ({ input }) => {
@@ -127,10 +110,20 @@ export const postRouter = createTRPCRouter({
         visibility: input.visibility,
         title: input.title,
         metadata: input.metadata,
+        taskId: input.taskId,
       });
       if (response.error || !response.data) {
+        // `Post.taskId [unique]` (S3): a second HELP_WANTED on the same task is a 23505 the API
+        // maps to 409 carrying the existing post's id as `conflictId`, so the composer can offer
+        // "Edit your ask" instead of a bare error.
+        if (response.status === 409) {
+          throw helpWantedConflictError(
+            response.conflictId,
+            response.error ?? "An ask for this task already exists",
+          );
+        }
         throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
+          code: CREATE_STATUS_CODES[response.status] ?? "INTERNAL_SERVER_ERROR",
           message: response.error ?? "Failed to post this field note",
         });
       }
@@ -160,13 +153,21 @@ export const postRouter = createTRPCRouter({
       return response.data;
     }),
 
+  // A HELP_WANTED post's author deletes their own post as before; a project manager may also
+  // remove a HELP_WANTED on their own project (so an ask whose author left doesn't block the
+  // task forever) - the API alone decides who may, same as `project.removeMember`.
   delete: protectedProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ input }) => {
       const response = await apiClient.posts.delete(input.id);
       if (response.error) {
         throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
+          code:
+            response.status === 403
+              ? "FORBIDDEN"
+              : response.status === 404
+                ? "NOT_FOUND"
+                : "INTERNAL_SERVER_ERROR",
           message: response.error,
         });
       }

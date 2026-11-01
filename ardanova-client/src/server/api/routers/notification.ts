@@ -9,20 +9,39 @@ export const notificationRouter = createTRPCRouter({
       z.object({
         page: z.number().min(1).default(1),
         pageSize: z.number().min(1).max(100).default(20),
-      })
+      }),
     )
     .query(async ({ input }) => {
-      const response = await apiClient.notifications.getPaged(input.page, input.pageSize);
+      const response = await apiClient.notifications.getPaged(
+        input.page,
+        input.pageSize,
+      );
       if (response.error) {
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: response.error });
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: response.error,
+        });
       }
-      return response.data ?? { items: [], page: input.page, pageSize: input.pageSize, totalCount: 0, totalPages: 0, hasNextPage: false, hasPreviousPage: false };
+      return (
+        response.data ?? {
+          items: [],
+          page: input.page,
+          pageSize: input.pageSize,
+          totalCount: 0,
+          totalPages: 0,
+          hasNextPage: false,
+          hasPreviousPage: false,
+        }
+      );
     }),
 
   getUnread: protectedProcedure.query(async () => {
     const response = await apiClient.notifications.getUnread();
     if (response.error) {
-      throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: response.error });
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: response.error,
+      });
     }
     return response.data ?? [];
   }),
@@ -30,7 +49,10 @@ export const notificationRouter = createTRPCRouter({
   getUnreadCount: protectedProcedure.query(async () => {
     const response = await apiClient.notifications.getSummary();
     if (response.error || !response.data) {
-      throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: response.error ?? "Failed to load summary" });
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: response.error ?? "Failed to load summary",
+      });
     }
     return response.data.unreadCount;
   }),
@@ -38,7 +60,10 @@ export const notificationRouter = createTRPCRouter({
   getSummary: protectedProcedure.query(async () => {
     const response = await apiClient.notifications.getSummary();
     if (response.error || !response.data) {
-      throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: response.error ?? "Failed to load summary" });
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: response.error ?? "Failed to load summary",
+      });
     }
     return response.data;
   }),
@@ -48,15 +73,42 @@ export const notificationRouter = createTRPCRouter({
     .mutation(async ({ input }) => {
       const response = await apiClient.notifications.markAsRead(input.id);
       if (response.error || !response.data) {
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: response.error ?? "Failed to mark read" });
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: response.error ?? "Failed to mark read",
+        });
       }
       return response.data;
+    }),
+
+  /** Marks exactly these rows read (the bell's "Mark all read"); .NET has no batch route, so one POST per id. */
+  markManyAsRead: protectedProcedure
+    .input(
+      z.object({ ids: z.array(z.string().min(1).max(128)).min(1).max(100) }),
+    )
+    .mutation(async ({ input }) => {
+      const responses = await Promise.all(
+        [...new Set(input.ids)].map((id) =>
+          apiClient.notifications.markAsRead(id),
+        ),
+      );
+      const failed = responses.find((response) => response.error);
+      if (failed) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: failed.error ?? "Failed to mark read",
+        });
+      }
+      return { marked: responses.length };
     }),
 
   markAllAsRead: protectedProcedure.mutation(async () => {
     const response = await apiClient.notifications.markAllAsRead();
     if (response.error) {
-      throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: response.error });
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: response.error,
+      });
     }
     return response.data ?? { success: true };
   }),
@@ -66,7 +118,10 @@ export const notificationRouter = createTRPCRouter({
     .mutation(async ({ input }) => {
       const response = await apiClient.notifications.delete(input.id);
       if (response.error) {
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: response.error });
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: response.error,
+        });
       }
       return { success: true };
     }),
@@ -74,7 +129,10 @@ export const notificationRouter = createTRPCRouter({
   deleteAll: protectedProcedure.mutation(async () => {
     const response = await apiClient.notifications.deleteAll();
     if (response.error) {
-      throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: response.error });
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: response.error,
+      });
     }
     return { success: true };
   }),

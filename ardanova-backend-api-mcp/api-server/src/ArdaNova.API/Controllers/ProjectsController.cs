@@ -32,6 +32,7 @@ public class ProjectsController : ControllerBase
     private readonly IProjectInvitationService _invitationService;
     private readonly IHierarchyAuthorizationService _hierarchyAuthorization;
     private readonly IMembershipCredentialService _membershipCredentialService;
+    private readonly IProjectFollowService _followService;
 
     public ProjectsController(
         IProjectService projectService,
@@ -47,7 +48,8 @@ public class ProjectsController : ControllerBase
         IProposalVoteClosing voteClosing,
         IProjectInvitationService invitationService,
         IHierarchyAuthorizationService hierarchyAuthorization,
-        IMembershipCredentialService membershipCredentialService)
+        IMembershipCredentialService membershipCredentialService,
+        IProjectFollowService followService)
     {
         _projectService = projectService;
         _projectVisibility = projectVisibility;
@@ -63,6 +65,7 @@ public class ProjectsController : ControllerBase
         _invitationService = invitationService;
         _hierarchyAuthorization = hierarchyAuthorization;
         _membershipCredentialService = membershipCredentialService;
+        _followService = followService;
     }
 
     [HttpGet]
@@ -125,6 +128,12 @@ public class ProjectsController : ControllerBase
         var result = await _projectVisibility.GetVisibleByUserIdAsync(Viewer, userId, ct);
         return ToActionResult(result);
     }
+
+    /// <summary>The signed actor's own projects (created or a member of); there is no route that takes another userId.</summary>
+    [HttpGet("mine")]
+    [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
+    public async Task<IActionResult> GetMine(CancellationToken ct)
+        => ToActionResult(await _projectVisibility.GetMembershipsAsync(Viewer, ct));
 
     [HttpGet("status/{status}")]
     public async Task<IActionResult> GetByStatus(ProjectStatus status, CancellationToken ct)
@@ -223,6 +232,36 @@ public class ProjectsController : ControllerBase
             return Forbid();
 
         var result = await _projectService.SetFeaturedAsync(id, featured, ct);
+        return ToActionResult(result);
+    }
+
+    // ===== PROJECT FOLLOW (SR-03 Phase 3 §8-6) =====
+    // Visibility (hidden/draft -> 404) and idempotency live in ProjectFollowService itself, not
+    // here, so the invariant holds for every caller of the service - not just this controller.
+
+    [HttpPost("{id}/follow")]
+    [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
+    public async Task<IActionResult> Follow(string id, CancellationToken ct)
+    {
+        var result = await _followService.FollowAsync(id, Viewer, ct);
+        return ToActionResult(result);
+    }
+
+    /// <summary>200, not 204: unfollowing a project the viewer never followed is still success, and the body says so.</summary>
+    [HttpDelete("{id}/follow")]
+    [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
+    public async Task<IActionResult> Unfollow(string id, CancellationToken ct)
+    {
+        var result = await _followService.UnfollowAsync(id, Viewer, ct);
+        return result.IsSuccess ? Ok(new ProjectFollowStatusDto { Following = false }) : ToActionResult(result);
+    }
+
+    /// <summary>The signed-in viewer's own state only; there is no route that takes another userId.</summary>
+    [HttpGet("{id}/follow")]
+    [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
+    public async Task<IActionResult> GetFollowStatus(string id, CancellationToken ct)
+    {
+        var result = await _followService.GetMyFollowStatusAsync(id, Viewer, ct);
         return ToActionResult(result);
     }
 

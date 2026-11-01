@@ -206,7 +206,8 @@ public sealed class ProjectMemberDisclosureFlowTests
             new Mock<IProposalVoteClosing>(MockBehavior.Strict).Object,
             new Mock<IProjectInvitationService>(MockBehavior.Strict).Object,
             hierarchy.Object,
-            new Mock<IMembershipCredentialService>(MockBehavior.Strict).Object);
+            new Mock<IMembershipCredentialService>(MockBehavior.Strict).Object,
+            new Mock<IProjectFollowService>(MockBehavior.Strict).Object);
         controller.ControllerContext = new ControllerContext
         {
             HttpContext = new DefaultHttpContext

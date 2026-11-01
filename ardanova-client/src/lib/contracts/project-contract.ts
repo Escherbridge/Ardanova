@@ -92,6 +92,8 @@ export const projectDtoSchema = z.object({
   problemStatement: z.string(),
   solution: z.string(),
   categories: z.array(z.string()),
+  /** The derived SECTOR/PROJECT_TYPE tags as "#slug" (.NET ProjectHashtagDisplay); optional on read for an older API - readers coalesce `?? []`. */
+  hashtags: z.array(z.string()).optional(),
   status: projectStatusSchema,
   fundingGoal: z.number().nullable(),
   fundingGoalUnit: z.string().optional(),
@@ -123,13 +125,29 @@ export const projectDtoSchema = z.object({
   assignedGuildId: z.string().nullable(),
 });
 
+/** .NET ProjectMembershipDto: one row of GET /api/projects/mine (the composer's attach picker), no long text. */
+export const projectMembershipDtoSchema = z.object({
+  id: z.string().min(1),
+  title: z.string(),
+  slug: z.string(),
+  summary: z.string().nullable(),
+  status: projectStatusSchema,
+  categories: z.array(z.string()),
+});
+
 export const createProjectDtoSchema = z.object({
   title: z.string().min(1),
   description: z.string().min(1),
   summary: z.string().nullable().optional(),
   problemStatement: z.string().min(1),
   solution: z.string().min(1),
-  categories: z.array(z.string()).min(1),
+  // Left for callers not using hashtags yet; the one-hashtag-field form sends only
+  // `hashtags` below and omits this.
+  categories: z.array(z.string()).min(1).optional(),
+  // Discovery hashtags (SR-03 Phase 3 §3): a FULL REPLACEMENT of categories/projectType/tags,
+  // resolved server-side (ProjectService.ResolveHashtagsAsync). The 10/40 caps mirror post
+  // hashtags (Hashtags.MaxPerPost) and the tRPC DoS-fix bound style.
+  hashtags: z.array(z.string().max(40)).max(10).optional(),
   fundingGoal: z.number().nullable().optional(),
   mediaPaths: z.string().nullable().optional(),
   tags: z.string().nullable().optional(),
@@ -190,6 +208,7 @@ export const updateProjectMilestoneDtoSchema =
 
 export type ProjectCreatorDto = z.infer<typeof projectCreatorDtoSchema>;
 export type ProjectDto = z.infer<typeof projectDtoSchema>;
+export type ProjectMembershipDto = z.infer<typeof projectMembershipDtoSchema>;
 export type CreateProjectDto = z.infer<typeof createProjectDtoSchema>;
 export type UpdateProjectDto = z.infer<typeof updateProjectDtoSchema>;
 export type PagedProjectsDto = z.infer<typeof pagedProjectsDtoSchema>;

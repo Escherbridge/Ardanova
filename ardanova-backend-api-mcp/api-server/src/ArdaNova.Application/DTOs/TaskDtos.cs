@@ -1,5 +1,6 @@
 namespace ArdaNova.Application.DTOs;
 
+using ArdaNova.Application.Tasks;
 using ArdaNova.Domain.Models.Enums;
 
 public record TaskDto
@@ -29,6 +30,23 @@ public record TaskDto
     public string? AssignedToId { get; init; }
     public TaskUserDto? AssignedTo { get; init; }
     public TaskProjectDto? Project { get; init; }
+
+    /// <summary>An accepted bid's agreement exists for this task; one of <see cref="TaskClaimFacts"/>.</summary>
+    public bool HasAgreement { get; init; }
+
+    /// <summary>The task's live HELP_WANTED ask when its audience is everyone; null otherwise. See Implementations/AGENTS.md §Help wanted.</summary>
+    public TaskHelpWantedDto? HelpWanted { get; init; }
+
+    /// <summary>The facts <see cref="TaskClaimRule.Evaluate"/> reads, straight off this task.</summary>
+    public TaskClaimFacts ToClaimFacts() => new(AssignedToId, Status, EscrowStatus, HasAgreement, EquityReward);
+}
+
+/// <summary>Who asked for help on a task, so the task page can offer "Message" without another route.</summary>
+public record TaskHelpWantedDto
+{
+    public string PostId { get; init; } = null!;
+    public string AskerId { get; init; } = null!;
+    public string? AskerName { get; init; }
 }
 
 public record TaskUserDto
@@ -86,4 +104,7 @@ public record UpdateTaskStatusDto
 public record AssignTaskDto
 {
     public string? UserId { get; init; }
+
+    /// <summary>The one-tap "Pick up": take this task only while it is open, never over its holder. See Implementations/AGENTS.md §Task assignment.</summary>
+    public bool Claim { get; init; }
 }

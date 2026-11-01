@@ -96,6 +96,8 @@ public sealed class FeedEnvelopeStore : IFeedEnvelopeStore
         await _context.PostBookmarks.Where(row => envelopes.Any(post => post.id == row.postId)).ExecuteDeleteAsync(ct);
         await _context.PostShares.Where(row => envelopes.Any(post => post.id == row.postId)).ExecuteDeleteAsync(ct);
         await _context.PostMedias.Where(row => envelopes.Any(post => post.id == row.postId)).ExecuteDeleteAsync(ct);
+        // The migration cascades Notification.postId; EF models it client-set-null, so an EF-built database would refuse.
+        await _context.Notifications.Where(row => envelopes.Any(post => post.id == row.postId)).ExecuteDeleteAsync(ct);
         var removed = await envelopes.ExecuteDeleteAsync(ct);
         await transaction.CommitAsync(ct);
         return removed;

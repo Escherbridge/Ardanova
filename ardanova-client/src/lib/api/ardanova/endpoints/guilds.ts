@@ -32,6 +32,13 @@ export interface Guild {
   updatedAt: string;
 }
 
+/** .NET GuildMembershipDto: one row of GET /api/guilds/mine (the composer's attach picker). */
+export interface GuildMembership {
+  id: string;
+  name: string;
+  slug: string;
+}
+
 export interface GuildMember {
   id: string;
   guildId: string;
@@ -268,6 +275,11 @@ export class GuildsEndpoint {
     return this.client.get<PagedResult<Guild>>(
       apiPath`/api/guilds/paged?page=${page}&pageSize=${limit}`,
     );
+  }
+
+  /** The signed actor's own guilds (owned or a member of), at most 200 slim rows; no userId, the actor is the member. */
+  getMine(): Promise<ApiResponse<GuildMembership[]>> {
+    return this.client.get<GuildMembership[]>("/api/guilds/mine");
   }
 
   getVerified(): Promise<ApiResponse<Guild[]>> {

@@ -18,5 +18,6 @@ public enum PostType
     GUILD_UPDATE,
     EVENT_SCHEDULED,
     DISCUSSION,
-    MEMBER_JOINED
+    MEMBER_JOINED,
+    HELP_WANTED
 }

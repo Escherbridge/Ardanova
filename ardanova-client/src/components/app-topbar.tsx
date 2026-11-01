@@ -10,6 +10,7 @@ import {
   type WorkspaceUser,
 } from "~/components/app-sidebar";
 import { NovaAssistant } from "~/components/ai/nova-assistant";
+import { NotificationBell } from "~/components/notifications";
 import { Button } from "~/components/ui/button";
 import {
   Sheet,
@@ -107,6 +108,7 @@ export function AppTopbar({
           <p className="hidden text-sm font-semibold xl:block">
             {user?.name ?? "Member"}
           </p>
+          {user ? <NotificationBell /> : null}
           <NovaAssistant pathname={pathname} />
         </div>
       </div>

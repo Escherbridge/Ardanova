@@ -3,6 +3,7 @@ namespace ArdaNova.Application.Services.Implementations;
 using ArdaNova.Application.Common.Interfaces;
 using ArdaNova.Application.Common.Results;
 using ArdaNova.Application.DTOs;
+using ArdaNova.Application.Feed;
 using ArdaNova.Application.Services.Interfaces;
 using ArdaNova.Domain.Models.Entities;
 using ArdaNova.Domain.Models.Enums;
@@ -56,5 +57,43 @@ public class TaxonomyService : ITaxonomyService
             .ToList();
 
         return Result<IReadOnlyList<TaxonomyTermDto>>.Success(ordered);
+    }
+
+    /// <inheritdoc/>
+    public async Task<ResolvedTaxonomyTags> ResolveTagsAsync(
+        IEnumerable<string> normalizedTags,
+        CancellationToken ct = default)
+    {
+        var active = await GetActiveTermsAsync(null, ct);
+        var canon = FeedTopicCanon.Build(
+            (active.Value ?? [])
+                .Select(term => new FeedTaxonomyTerm(term.Kind, term.Slug, term.Label, term.ParentSlug)));
+
+        var sectorSlugs = new List<string>();
+        var sectorSeen = new HashSet<string>(StringComparer.Ordinal);
+        string? projectTypeSlug = null;
+        var unresolved = new List<string>();
+
+        foreach (var tag in normalizedTags)
+        {
+            var term = canon.Resolve(tag);
+            if (term is { Kind: TaxonomyKind.SECTOR })
+            {
+                if (sectorSeen.Add(term.Slug))
+                    sectorSlugs.Add(term.Slug);
+            }
+            else if (term is { Kind: TaxonomyKind.PROJECT_TYPE })
+            {
+                projectTypeSlug ??= term.Slug;
+            }
+            else
+            {
+                // Neither SECTOR nor PROJECT_TYPE - including a SKILL hit, which has no
+                // project-level meaning here - so the caller keeps it as a free tag.
+                unresolved.Add(tag);
+            }
+        }
+
+        return new ResolvedTaxonomyTags(sectorSlugs, projectTypeSlug, unresolved);
     }
 }

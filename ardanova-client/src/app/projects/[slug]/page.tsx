@@ -8,8 +8,8 @@ import { useParams, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { toast } from "sonner";
 import {
+  Activity,
   ArrowLeft,
-  Bell,
   CheckSquare,
   Coins,
   DollarSign,
@@ -32,43 +32,58 @@ import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import { Progress } from "~/components/ui/progress";
+import { HashtagList } from "~/components/hashtags";
 import {
   CommentsTab,
+  DEFAULT_PROJECT_TAB,
   EquityTab,
   FundingTab,
   OpportunitiesTab,
   OverviewTab,
+  PROJECT_TABS,
+  ProjectFeedTab,
+  ProjectFollowButton,
   ProposalsTab,
   RoadmapTab,
   SprintsTab,
   TasksTab,
   TeamTab,
-  UpdatesTab,
+  projectLedeOf,
+  projectTabFrom,
+  projectTagsOf,
+  useProjectFollow,
+  type ProjectTab,
 } from "~/components/projects";
-import { ProjectFieldNotes } from "~/components/feed";
+import type { FeedCard } from "~/lib/contracts/feed-contract";
 import type {
   ProjectDuration,
   ProjectStatus,
 } from "~/lib/contracts/project-contract";
-import { categoryLabel, projectTypeLabel } from "~/lib/taxonomy/labels";
 import { handleTabListKeyDown } from "~/lib/accessibility";
 import { cn } from "~/lib/utils";
 
-const tabs = [
-  { id: "overview", label: "Overview", icon: <FileText /> },
-  { id: "updates", label: "Updates", icon: <Bell /> },
-  { id: "team", label: "Team", icon: <Users /> },
-  { id: "funding", label: "Funding", icon: <DollarSign /> },
-  { id: "equity", label: "Your stake", icon: <Coins /> },
-  { id: "proposals", label: "Proposals", icon: <Vote /> },
-  { id: "opportunities", label: "Work", icon: <Target /> },
-  { id: "tasks", label: "Tasks", icon: <CheckSquare /> },
-  { id: "roadmap", label: "Roadmap", icon: <Map /> },
-  { id: "sprints", label: "Sprints", icon: <Zap /> },
-  { id: "comments", label: "Comments", icon: <MessageCircle /> },
-] as const;
+const tabIcons: Record<ProjectTab, ReactNode> = {
+  feed: <Activity />,
+  overview: <FileText />,
+  team: <Users />,
+  funding: <DollarSign />,
+  equity: <Coins />,
+  proposals: <Vote />,
+  opportunities: <Target />,
+  tasks: <CheckSquare />,
+  roadmap: <Map />,
+  sprints: <Zap />,
+  comments: <MessageCircle />,
+};
 
-type ProjectTab = (typeof tabs)[number]["id"];
+const NO_CARDS: readonly FeedCard[] = [];
+
+/** Writes the open tab into `?tab=` without a navigation; Next syncs it into `useSearchParams`. */
+function replaceTabInUrl(tab: ProjectTab) {
+  const url = new URL(window.location.href);
+  url.searchParams.set("tab", tab);
+  window.history.replaceState(null, "", url);
+}
 
 const statusVariants: Record<
   ProjectStatus,
@@ -118,9 +133,25 @@ export default function ProjectDetailPage() {
   const searchParams = useSearchParams();
   const routeId = params.slug as string;
   const proposalId = searchParams.get("proposalId");
-  const [activeTab, setActiveTab] = useState<ProjectTab>(
-    proposalId ? "proposals" : "overview",
-  );
+  // A tab the reader picked holds only for the URL it was picked on, so a link to ?tab=comments still lands.
+  const search = searchParams.toString();
+  const [pickedTab, setPickedTab] = useState<{
+    tab: ProjectTab;
+    onSearch: string;
+  } | null>(null);
+  const activeTab =
+    pickedTab?.onSearch === search
+      ? pickedTab.tab
+      : (projectTabFrom(searchParams) ?? DEFAULT_PROJECT_TAB);
+  const selectTab = (tab: ProjectTab) => {
+    setPickedTab({ tab, onSearch: search });
+    replaceTabInUrl(tab);
+  };
+  // Held above the tabs, so a just-published post survives a tab switch; keyed by project for in-app navigation.
+  const [published, setPublished] = useState<{
+    projectId: string;
+    cards: readonly FeedCard[];
+  }>({ projectId: "", cards: NO_CARDS });
   const { data: session } = useSession();
   const utils = api.useUtils();
 
@@ -153,12 +184,25 @@ export default function ProjectDetailPage() {
     (member) => member.userId === currentUserId,
   );
   const isMember = isOwner || Boolean(userMember);
+  // Follow is for readers known to be off the team; until the member list answers, neither Follow nor its read.
+  const membershipKnown = isOwner || membersQuery.data !== undefined;
+  const follow = useProjectFollow(
+    project?.id ?? "",
+    Boolean(project && currentUserId && membershipKnown && !isMember),
+  );
   const canManageProject =
     isOwner ||
     userMember?.role === "FOUNDER" ||
     userMember?.role === "LEADER" ||
     userMember?.role === "CORE_CONTRIBUTOR";
   const canonicalRouteId = project?.slug || project?.id || routeId;
+  const author = session?.user?.id
+    ? {
+        id: session.user.id,
+        name: session.user.name ?? null,
+        image: session.user.image ?? null,
+      }
+    : null;
 
   if (projectQuery.isLoading) {
     return (
@@ -175,7 +219,9 @@ export default function ProjectDetailPage() {
     return (
       <div className="mx-auto flex min-h-[60vh] max-w-xl flex-col items-start justify-center gap-5 p-6">
         <h1 className="text-3xl font-black">
-          {projectQuery.error ? "This project didn't load." : "Project not found"}
+          {projectQuery.error
+            ? "This project didn't load."
+            : "Project not found"}
         </h1>
         <Button asChild variant="outline">
           <Link href="/projects">
@@ -195,6 +241,22 @@ export default function ProjectDetailPage() {
     fundingGoal && fundingGoal > 0
       ? Math.min((project.currentFunding / fundingGoal) * 100, 100)
       : null;
+  const lede = projectLedeOf(project);
+  const projectTags = projectTagsOf(project);
+  const leadingCards =
+    published.projectId === project.id ? published.cards : NO_CARDS;
+  const projectId = project.id;
+  // A saved ask comes back with the same id: it moves to the top rather than appearing twice.
+  const insertPublished = (card: FeedCard) =>
+    setPublished((current) => ({
+      projectId,
+      cards: [
+        card,
+        ...(current.projectId === projectId ? current.cards : []).filter(
+          (earlier) => earlier.id !== card.id,
+        ),
+      ],
+    }));
 
   return (
     <div className="bg-background min-h-screen">
@@ -213,24 +275,37 @@ export default function ProjectDetailPage() {
                 <Badge variant={statusVariants[project.status]}>
                   {humanize(project.status)}
                 </Badge>
-                <Badge variant="secondary">
-                  {projectTypeLabel(project.projectType)}
-                </Badge>
                 {project.duration && (
                   <Badge variant="secondary">
                     {durationLabels[project.duration]}
                   </Badge>
                 )}
-                {project.categories.map((category) => (
-                  <Badge key={category} variant="secondary">
-                    {categoryLabel(category)}
-                  </Badge>
-                ))}
               </div>
 
-              <h1 className="mt-5 max-w-4xl text-4xl font-black tracking-tight sm:text-6xl">
+              <h1 className="mt-4 max-w-4xl text-4xl font-black tracking-tight sm:text-5xl">
                 {project.title}
               </h1>
+
+              {lede && (
+                <p className="text-muted-foreground mt-3 max-w-2xl text-lg leading-relaxed">
+                  {lede}
+                </p>
+              )}
+
+              {(projectTags.linked.length > 0 ||
+                projectTags.plain.length > 0) && (
+                <div className="mt-4 flex flex-wrap items-center gap-1.5">
+                  <HashtagList tags={projectTags.linked} />
+                  {projectTags.plain.map((text) => (
+                    <span
+                      key={text}
+                      className="border-border text-muted-foreground inline-flex min-h-8 items-center border border-dashed px-2 text-xs"
+                    >
+                      {text}
+                    </span>
+                  ))}
+                </div>
+              )}
 
               <div className="mt-6 flex flex-wrap items-center gap-3">
                 <Link
@@ -278,6 +353,11 @@ export default function ProjectDetailPage() {
                     )}
                   </div>
                 )}
+
+                <ProjectFollowButton
+                  follow={follow}
+                  projectTitle={project.title}
+                />
               </div>
             </div>
 
@@ -353,7 +433,7 @@ export default function ProjectDetailPage() {
           aria-label="Project workspace"
           onKeyDown={handleTabListKeyDown}
         >
-          {tabs.map((tab) => {
+          {PROJECT_TABS.map((tab) => {
             const selected = activeTab === tab.id;
             return (
               <button
@@ -364,7 +444,7 @@ export default function ProjectDetailPage() {
                 aria-selected={selected}
                 aria-controls={`project-workspace-panel-${tab.id}`}
                 tabIndex={selected ? 0 : -1}
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => selectTab(tab.id)}
                 className={cn(
                   "border-border relative flex min-h-12 shrink-0 items-center gap-2 border-r px-4 text-sm font-semibold",
                   selected
@@ -373,7 +453,7 @@ export default function ProjectDetailPage() {
                 )}
               >
                 <span className="size-4 [&>svg]:size-4" aria-hidden="true">
-                  {tab.icon}
+                  {tabIcons[tab.id]}
                 </span>
                 {tab.label}
               </button>
@@ -388,22 +468,18 @@ export default function ProjectDetailPage() {
         id={`project-workspace-panel-${activeTab}`}
         aria-labelledby={`project-workspace-tab-${activeTab}`}
       >
-        {activeTab === "overview" && (
-          <div className="space-y-8">
-            <OverviewTab project={project} />
-            {/* Notes from the people doing the work. The server decides what this
-                reader may see; canPost only decides whether the composer is offered,
-                and the API still refuses a write from a non-member. */}
-            <ProjectFieldNotes
-              projectId={project.id}
-              canPost={isMember}
-              viewerId={currentUserId}
-            />
-          </div>
+        {activeTab === "feed" && (
+          <ProjectFeedTab
+            projectId={project.id}
+            projectStatus={project.status}
+            author={author}
+            canPost={isMember}
+            leadingCards={leadingCards}
+            onPublished={insertPublished}
+            follow={follow}
+          />
         )}
-        {activeTab === "updates" && (
-          <UpdatesTab projectId={project.id} isOwner={isOwner} />
-        )}
+        {activeTab === "overview" && <OverviewTab project={project} />}
         {activeTab === "team" && (
           <TeamTab
             projectId={project.id}

@@ -259,29 +259,11 @@ public class TaskActorBoundaryTests
         result.Should().BeOfType<NotFoundObjectResult>();
     }
 
-    [Fact]
-    public async Task Assign_AMemberMayClaimAnUnassignedTask()
-    {
-        var tasks = new Mock<ITaskService>();
-        tasks.Setup(service => service.GetByIdAsync("task-1", It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Result<TaskDto>.Success(new TaskDto { Id = "task-1", ProjectId = "project-1" }));
-        tasks.Setup(service => service.AssignAsync("task-1", "actor-1", It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Result<TaskDto>.Success(new TaskDto { Id = "task-1", ProjectId = "project-1", AssignedToId = "actor-1" }));
-        var controller = WithActor(
-            CreateController(tasks.Object, authorization: Membership(manager: false, member: true).Object),
-            "actor-1");
-
-        var result = await controller.Assign("task-1", new AssignTaskDto { UserId = "actor-1" }, CancellationToken.None);
-
-        result.Should().BeOfType<OkObjectResult>()
-            .Which.Value.Should().BeOfType<TaskDto>()
-            .Which.AssignedToId.Should().Be("actor-1");
-    }
-
+    /// <summary>A member's own claim (and taking over someone's task) is decided by the conditional write: see HelpWantedFlowTests.</summary>
     [Theory]
-    [InlineData("other-user", "actor-1")]
     [InlineData(null, "someone-else")]
-    public async Task Assign_ANonManagerCannotTakeOverOrHandOutWork(string? currentAssignee, string requestedAssignee)
+    [InlineData("other-user", "someone-else")]
+    public async Task Assign_ANonManagerCannotHandOutWork(string? currentAssignee, string requestedAssignee)
     {
         var tasks = new Mock<ITaskService>();
         tasks.Setup(service => service.GetByIdAsync("task-1", It.IsAny<CancellationToken>()))
@@ -294,6 +276,7 @@ public class TaskActorBoundaryTests
 
         result.Should().BeOfType<ForbidResult>();
         tasks.Verify(service => service.AssignAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()), Times.Never);
+        tasks.Verify(service => service.ClaimAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Theory]

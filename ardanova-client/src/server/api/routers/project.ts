@@ -8,10 +8,12 @@ import {
   publicProcedure,
 } from "~/server/api/trpc";
 import { apiClient } from "~/lib/api";
+import type { ProjectFollowState } from "~/lib/api/ardanova";
 import { runWithActorAssertion } from "~/server/actor-assertion";
 import {
   createProjectMilestoneDtoSchema,
   pagedProjectsDtoSchema,
+  projectMembershipDtoSchema,
   projectMilestoneDtoSchema,
   projectDtoSchema,
   projectDurationSchema,
@@ -48,11 +50,14 @@ const createProjectSchema = z.object({
     .max(20_000),
   // Element cap of 50 mirrors ProjectServices.cs ValidateCategories, which refuses a custom
   // category over 50 characters; the array cap of 20 is a product default (10 known categories
-  // plus headroom for custom ones).
-  categories: z
-    .array(z.string().max(50))
-    .min(1, "At least one category is required")
-    .max(20),
+  // plus headroom for custom ones). Optional: the one-hashtag-field form (Lane I) sends only
+  // `hashtags` below and omits this; it still works for callers that send it directly (Nova
+  // draft creation).
+  categories: z.array(z.string().max(50)).min(1).max(20).optional(),
+  // Discovery hashtags (SR-03 Phase 3 §3): a FULL REPLACEMENT of categories/projectType/tags,
+  // resolved server-side (ProjectService.ResolveHashtagsAsync, Hashtags.MaxPerPost=10). The
+  // 40-char/10-tag bounds match the tRPC DoS-fix style (SECURITY-DEPENDENCIES.md).
+  hashtags: z.array(z.string().max(40)).max(10).optional(),
   projectType: ProjectType.optional(),
   duration: ProjectDuration.nullable().optional(),
   fundingGoal: z.number().nonnegative().nullable().optional(),
@@ -78,6 +83,8 @@ const updateProjectSchema = z.object({
   problemStatement: z.string().min(10).max(20_000).optional(),
   solution: z.string().min(10).max(20_000).optional(),
   categories: z.array(z.string().max(50)).min(1).max(20).optional(),
+  // See createProjectSchema's hashtags above — same full-replacement contract.
+  hashtags: z.array(z.string().max(40)).max(10).optional(),
   projectType: ProjectType.optional(),
   duration: ProjectDuration.nullable().optional(),
   status: ProjectStatus.optional(),
@@ -315,14 +322,6 @@ function withElectorate(proposal: ProjectProposal, eligibleMembers: number) {
   };
 }
 
-// Update schemas
-const createUpdateSchema = z.object({
-  projectId: z.string(),
-  title: z.string().min(1),
-  content: z.string().min(10),
-  images: z.string().optional(),
-});
-
 // Comment schemas
 const addCommentSchema = z.object({
   projectId: z.string(),
@@ -459,6 +458,23 @@ export const projectRouter = createTRPCRouter({
 
       return { items, nextCursor: undefined };
     }),
+
+  /** Projects the session user created or is a member of (the composer's attach list); .NET reads the signed actor. */
+  getMyMemberships: protectedProcedure.query(async () => {
+    const response = await apiClient.projects.getMine();
+    if (response.error) {
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: response.error,
+      });
+    }
+    const memberships = z
+      .array(projectMembershipDtoSchema)
+      .safeParse(response.data ?? []);
+    if (!memberships.success)
+      throw invalidProjectContract("Member projects response");
+    return memberships.data;
+  }),
 
   /** Projects linked to a user (public profile) */
   getByUserId: publicProcedure
@@ -1501,103 +1517,6 @@ export const projectRouter = createTRPCRouter({
     }),
 
   // ========================================
-  // PROJECT UPDATES
-  // ========================================
-
-  // Create project update
-  createUpdate: protectedProcedure
-    .input(createUpdateSchema)
-    .mutation(async ({ input, ctx }) => {
-      const userId = ctx.session.user.id;
-
-      // Verify user is owner or member of the project
-      const project = await apiClient.projects.getById(input.projectId);
-      if (project.error || !project.data) {
-        throw new Error("Project not found");
-      }
-
-      const isOwner = project.data.createdById === userId;
-
-      if (!isOwner) {
-        const members = await apiClient.projects.getMembers(input.projectId);
-        if (members.error || !members.data) {
-          throw new Error("Failed to verify membership");
-        }
-
-        const isMember = members.data.some(
-          (member) => member.userId === userId,
-        );
-        if (!isMember) {
-          throw new Error("Only project owner or members can post updates");
-        }
-      }
-
-      const response = await apiClient.projects.createUpdate(input.projectId, {
-        createdById: userId,
-        title: input.title,
-        content: input.content,
-        images: input.images,
-      });
-
-      if (response.error || !response.data) {
-        throw new Error(response.error ?? "Failed to create update");
-      }
-
-      return response.data;
-    }),
-
-  // Get updates for project
-  getUpdates: publicProcedure
-    .input(z.object({ projectId: z.string() }))
-    .query(async ({ input, ctx }) => {
-      const response = await readAsViewer(ctx.session?.user, () =>
-        apiClient.projects.getUpdates(input.projectId),
-      );
-
-      if (response.error) {
-        throw new Error(response.error);
-      }
-
-      return response.data ?? [];
-    }),
-
-  // Delete update
-  deleteUpdate: protectedProcedure
-    .input(z.object({ projectId: z.string(), updateId: z.string() }))
-    .mutation(async ({ input, ctx }) => {
-      const userId = ctx.session.user.id;
-
-      // Get update to verify ownership
-      const update = await apiClient.projects.getUpdateById(
-        input.projectId,
-        input.updateId,
-      );
-      if (update.error || !update.data) {
-        throw new Error("Update not found");
-      }
-
-      if (update.data.projectId !== input.projectId) {
-        throw new Error("Update does not belong to this project");
-      }
-
-      // Verify update ownership
-      if (update.data.userId !== userId) {
-        throw new Error("Access denied");
-      }
-
-      const response = await apiClient.projects.deleteUpdate(
-        input.projectId,
-        input.updateId,
-      );
-
-      if (response.error) {
-        throw new Error(response.error ?? "Failed to delete update");
-      }
-
-      return { success: true };
-    }),
-
-  // ========================================
   // PROJECT COMMENTS
   // ========================================
 
@@ -1864,5 +1783,63 @@ export const projectRouter = createTRPCRouter({
       }
 
       return response.data;
+    }),
+
+  // ========================================
+  // PROJECT FOLLOW (SR-03 Phase 3 §2, §8-6)
+  // ========================================
+  // Viewer-only: the follower is the signed actor (`protectedProcedure` already runs inside
+  // `runWithActorAssertion`), never a request value. The API alone decides visibility (a hidden
+  // project 404s) and idempotency (following twice is still 200) - this stays a thin proxy. All three
+  // answer the same `ProjectFollowState`: POST's body is the follow row and GET/DELETE's is
+  // `{ following }`, so each maps its own .NET shape (endpoints/AGENTS.md §Project follow).
+
+  /** Follows a project. Idempotent: following an already-followed project still answers 200. */
+  followProject: protectedProcedure
+    .input(z.object({ projectId: z.string() }))
+    .mutation(async ({ input }): Promise<ProjectFollowState> => {
+      const response = await apiClient.projects.followProject(input.projectId);
+      if (response.error) {
+        throw new TRPCError({
+          code: response.status === 404 ? "NOT_FOUND" : "INTERNAL_SERVER_ERROR",
+          message: response.error,
+        });
+      }
+      return { projectId: input.projectId, isFollowing: true };
+    }),
+
+  /** Unfollows a project. Idempotent: unfollowing one never followed still answers 200. */
+  unfollowProject: protectedProcedure
+    .input(z.object({ projectId: z.string() }))
+    .mutation(async ({ input }): Promise<ProjectFollowState> => {
+      const response = await apiClient.projects.unfollowProject(
+        input.projectId,
+      );
+      if (response.error) {
+        throw new TRPCError({
+          code: response.status === 404 ? "NOT_FOUND" : "INTERNAL_SERVER_ERROR",
+          message: response.error,
+        });
+      }
+      return { projectId: input.projectId, isFollowing: false };
+    }),
+
+  /** The signed-in viewer's own follow state. There is no follower list/count route (plan §8-6). */
+  getMyFollowState: protectedProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(async ({ input }): Promise<ProjectFollowState> => {
+      const response = await apiClient.projects.getMyFollowState(
+        input.projectId,
+      );
+      if (response.error) {
+        throw new TRPCError({
+          code: response.status === 404 ? "NOT_FOUND" : "INTERNAL_SERVER_ERROR",
+          message: response.error,
+        });
+      }
+      return {
+        projectId: input.projectId,
+        isFollowing: response.data?.following === true,
+      };
     }),
 });

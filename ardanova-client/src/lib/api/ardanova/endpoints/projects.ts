@@ -10,6 +10,7 @@ import type {
   ProjectCreatorDto,
   ProjectDto,
   ProjectDuration,
+  ProjectMembershipDto,
   ProjectMilestoneDto,
   ProjectRole,
   ProjectStatus,
@@ -325,6 +326,29 @@ export interface CreateProjectInvitationDto {
   message?: string;
 }
 
+/** .NET `ProjectFollowDto`: the follow row `POST /api/projects/{id}/follow` answers with (idempotent). */
+export interface ProjectFollowDto {
+  id: string;
+  projectId: string;
+  userId: string;
+  createdAt: string;
+}
+
+/** .NET `ProjectFollowStatusDto`: what `GET` and `DELETE /api/projects/{id}/follow` answer with - the signed actor's own state. */
+export interface ProjectFollowStatusDto {
+  following: boolean;
+}
+
+/**
+ * The BFF's answer for every follow procedure: the signed-in viewer's follow state on one project. There is
+ * deliberately no follower list/count (plan §8-6: guild follow's public list and any-user check are flaws Project
+ * follow must not repeat) - `isFollowing` is the only state the card's Follow toggle needs.
+ */
+export interface ProjectFollowState {
+  projectId: string;
+  isFollowing: boolean;
+}
+
 // ============ Projects Endpoint ============
 
 export class ProjectsEndpoint {
@@ -369,6 +393,11 @@ export class ProjectsEndpoint {
 
   getByUserId(userId: string): Promise<ApiResponse<Project[]>> {
     return this.client.get<Project[]>(apiPath`/api/projects/user/${userId}`);
+  }
+
+  /** The signed actor's own projects (created or a member of), at most 200 slim rows; no userId, the actor is the member. */
+  getMine(): Promise<ApiResponse<ProjectMembershipDto[]>> {
+    return this.client.get<ProjectMembershipDto[]>(apiPath`/api/projects/mine`);
   }
 
   getByStatus(status: ProjectStatus): Promise<ApiResponse<Project[]>> {
@@ -917,6 +946,33 @@ export class ProjectsEndpoint {
   ): Promise<ApiResponse<ProjectInvitation>> {
     return this.client.post<ProjectInvitation>(
       apiPath`/api/projects/${projectId}/invitations/${invitationId}/reject`,
+    );
+  }
+
+  // ============ Follow Methods ============
+  // Lane L's ProjectsController follow routes (confirmed at the Phase 3 wave-1 join).
+  // No `userId`/`followerId` parameter: the follower is the signed actor, same as `posts.like`.
+
+  followProject(projectId: string): Promise<ApiResponse<ProjectFollowDto>> {
+    return this.client.post<ProjectFollowDto>(
+      apiPath`/api/projects/${projectId}/follow`,
+      {},
+    );
+  }
+
+  unfollowProject(
+    projectId: string,
+  ): Promise<ApiResponse<ProjectFollowStatusDto>> {
+    return this.client.delete<ProjectFollowStatusDto>(
+      apiPath`/api/projects/${projectId}/follow`,
+    );
+  }
+
+  getMyFollowState(
+    projectId: string,
+  ): Promise<ApiResponse<ProjectFollowStatusDto>> {
+    return this.client.get<ProjectFollowStatusDto>(
+      apiPath`/api/projects/${projectId}/follow`,
     );
   }
 }

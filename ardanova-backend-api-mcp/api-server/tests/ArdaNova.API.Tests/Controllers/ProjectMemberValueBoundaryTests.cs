@@ -210,7 +210,8 @@ public sealed class ProjectMemberValueBoundaryTests
             new Mock<IProposalVoteClosing>(MockBehavior.Strict).Object,
             new Mock<IProjectInvitationService>(MockBehavior.Strict).Object,
             hierarchy ?? new Mock<IHierarchyAuthorizationService>(MockBehavior.Strict).Object,
-            new Mock<IMembershipCredentialService>(MockBehavior.Strict).Object);
+            new Mock<IMembershipCredentialService>(MockBehavior.Strict).Object,
+            new Mock<IProjectFollowService>(MockBehavior.Strict).Object);
 
     /// <summary>project-1 is visible to everyone, so a refusal there stays a 403 rather than a hidden-project 404.</summary>
     private static IProjectVisibility PublishedProjectOne()

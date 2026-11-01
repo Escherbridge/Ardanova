@@ -24,11 +24,17 @@ controllers had to guess the cause from which call site they were in.
   attempt admitted nothing" (`Services/Implementations/AGENTS.md` §Node proof). The prose in `Error`
   is still collapsed as before; the code is additive and never shown to a person.
 - **`Reference`** (round 4 #3) is the code's companion: the upstream's own id for the record a
-  failure is about, when its error envelope's `result` named one. Today only the fiat rail sets it
-  (`AzoaNodeClient.SendAsync(failureReference:)`, the intent a 409 INTENT_NEEDS_REVIEW holds), and
-  only `MoneyRefusal` reads it, for `needs_review`. `WithCode` keeps it, `WithReference` keeps the
-  code, and a re-typing helper that must carry it ends with `.WithReference(source.Reference)`. It is
-  never a success value - a failure still has no `Value`.
+  failure is about, when its error envelope's `result` named one. Two writers set it: the fiat rail
+  (`AzoaNodeClient.SendAsync(failureReference:)`, the intent a 409 INTENT_NEEDS_REVIEW holds, read by
+  `MoneyRefusal` for `needs_review`), and `PostService` on a HELP_WANTED create's 409
+  `HELP_WANTED_EXISTS` (the id of the ask already holding the task, read by `PostsController` into
+  `PostConflictDto.conflictId` so the composer can offer "Edit your ask"; `Services/Implementations/AGENTS.md`
+  §Help wanted). `WithCode` keeps it, `WithReference` keeps the code, and a re-typing helper that must
+  carry it ends with `.WithReference(source.Reference)`. It is never a success value - a failure still
+  has no `Value`.
+- **Codes outside money.** `PostService` sets `HELP_WANTED_EXISTS`; `TaskService` sets the claim
+  refusals `TASK_TAKEN` / `TASK_DONE` / `TASK_UNDER_AGREEMENT` (`TaskClaimCodes` in `Tasks/ITaskClaimStore.cs`), which
+  `TasksController` writes as `{ error, code }`.
 
 ## Resource authority
 
