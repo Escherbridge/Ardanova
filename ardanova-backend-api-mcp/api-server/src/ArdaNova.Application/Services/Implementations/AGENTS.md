@@ -518,8 +518,19 @@ person who acted.
 
 # Hashtags and follow (Lane L)
 
-_Placeholder: Lane L's §Hashtags / §Follow notes (project hashtag resolution, project follow) are handed
-to K1 as text and land here at the wave-1 join._
+**§Project hashtags.** `ProjectService.ResolveHashtagsAsync` (ProjectServices.cs) normalizes/dedupes/caps submitted
+hashtags (`Hashtags.MaxPerPost`=10) then classifies them via `ITaxonomyService.ResolveTagsAsync`: SECTOR hits →
+`categories` (deduped, first-seen), the first PROJECT_TYPE hit → `projectType` (absent → `TEMPORARY`), everything
+else → free `tags`. This only runs when `CreateProjectDto.Hashtags`/`UpdateProjectDto.Hashtags` is non-null — a full
+replacement, never a merge with the legacy Categories/ProjectType/Tags fields, which still work unchanged when
+Hashtags is omitted. `ProjectHashtagDisplay.From` is the pure reverse for `ProjectDto.Hashtags` (edit-form
+round-trip); it does not re-expose free tags (those stay in `Tags` only).
+
+**§Project follow.** `ProjectFollowService` (new) is the only writer of `ProjectFollow`. Visibility
+(`IProjectVisibility`) is checked before every write — a hidden/draft project 404s the same as a missing one.
+`FollowAsync` has no exists-then-insert race: the pre-check is a shortcut only, and a genuine `23505` on save is
+caught and answered idempotently (proven under real concurrent calls). There is no follower-list route and no read
+of another user's follow state — `GET .../follow` only ever answers for the signed actor.
 
 # Project member authority
 
