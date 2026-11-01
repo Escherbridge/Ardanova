@@ -23,7 +23,8 @@ final join); the old project field-notes list and card were deleted at the final
 | `HashtagText`, `HashtagChip`, `HashtagList` | `../hashtags/`        | `#tag` → `/tag/[tag]` links; see §Hashtags                                                                      |
 
 Pure logic lives in `src/lib/feed/` (`primaryActionFor`, `FEED_CARD_REGISTRY`, `reasonFragment`, `feedRoutes`,
-`mergeFeedPages`, `sectorsSeen`) so pages can reuse it without React.
+`mergeFeedPages`, `sectorsSeen`, `feedSubjectKey`) so pages can reuse it without React. The one hook there,
+`use-subject-follow.ts` (the shared Follow dispatch), is imported by path and kept out of the React-free index.
 
 ## One action
 

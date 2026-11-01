@@ -94,7 +94,7 @@ public sealed class MembershipListFlowTests : IAsyncLifetime
         var anonymous = await Projects().GetMembershipsAsync(ProjectViewer.Anonymous);
 
         cys.Value!.Select(project => project.Title).Should().Equal("Barn raising", "Shed prototype", "Village kitchen");
-        dees.Value!.Should().BeEmpty("Dee is on no team");
+        dees.Value!.Should().BeEmpty("Dee is on no project team");
         anonymous.Value!.Should().BeEmpty();
     }
 
@@ -152,9 +152,10 @@ public sealed class MembershipListFlowTests : IAsyncLifetime
         context.ProjectMembers.Add(ProjectMember("project-barn", Ada, ProjectRole.CONTRIBUTOR, monthAgo));
         context.ProjectMembers.Add(ProjectMember("project-shed", Ada, ProjectRole.LEADER, monthAgo));
 
+        // One guild per owner (unique Guild.ownerId).
         context.Guilds.Add(NewGuild("guild-orchardists", "Orchardists", Ada, monthAgo));
         context.Guilds.Add(NewGuild("guild-framers", "Timber framers", Cy, monthAgo));
-        context.Guilds.Add(NewGuild("guild-cooks", "Village cooks", Cy, monthAgo));
+        context.Guilds.Add(NewGuild("guild-cooks", "Village cooks", Dee, monthAgo));
         context.GuildMembers.Add(new GuildMember
         {
             id = "guild-member-framers-ada",
