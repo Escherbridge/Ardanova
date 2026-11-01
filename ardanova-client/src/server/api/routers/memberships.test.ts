@@ -98,9 +98,9 @@ describe("membership reads for the composer's attach picker", () => {
 
     const projects = await browser.project.getMyMemberships.query();
 
-    expect(projects.map((project) => [project.id, project.createdById])).toEqual(
-      [["project-barn", "user-cy"]],
-    );
+    expect(
+      projects.map((project) => [project.id, project.createdById]),
+    ).toEqual([["project-barn", "user-cy"]]);
     expect(requests).toEqual([
       {
         method: "GET",

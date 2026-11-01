@@ -103,12 +103,12 @@ offers a subject the post would be refused on. Proof: `MembershipListFlowTests` 
 
 ## Reads
 
-| When                                                     | Reads                                        |
-| -------------------------------------------------------- | -------------------------------------------- |
+| When                                                     | Reads                                                |
+| -------------------------------------------------------- | ---------------------------------------------------- |
 | Mounted without a fixed attachment                       | `project.getMyMemberships`, `guild.getMyMemberships` |
-| "Who can help?" with a project                           | `task.getAll({ projectId, limit: 100 })`     |
-| First `#`                                                | `taxonomy.getAll`                            |
-| Publish with `onPublished`, subject not in a picker list | `project.getById` / `guild.getById`          |
+| "Who can help?" with a project                           | `task.getAll({ projectId, limit: 100 })`             |
+| First `#`                                                | `taxonomy.getAll`                                    |
+| Publish with `onPublished`, subject not in a picker list | `project.getById` / `guild.getById`                  |
 
 The project page (fixed `projectId`) makes none of the first three until "Who can help?" or `#`; its `onPublished`
 names the project with one `project.getById` per publish. Escape inside the work-item modal closes an open `#` list
