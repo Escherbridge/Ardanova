@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState, type ChangeEvent } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type KeyboardEvent,
+} from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
@@ -47,9 +53,7 @@ import { toast } from "sonner";
 import {
   isProjectDuration,
   isProjectRole,
-  isProjectType,
   type ProjectDuration,
-  type ProjectType,
 } from "~/lib/contracts/project-contract";
 import {
   PROJECT_CREATE_DRAFT_KEY,
@@ -81,12 +85,12 @@ import {
   type ProjectCreateRole as Role,
   type ProjectMediaItem,
 } from "~/lib/contracts/project-create-contract";
+import { useTaxonomy } from "~/hooks/use-taxonomy";
 import {
-  projectTypeDescription,
-  projectTypeLabel,
-} from "~/lib/taxonomy/labels";
-
-const OTHER_CATEGORY_MAX_LENGTH = 50;
+  canonicalHashtag,
+  hashtagsIn,
+  MAX_HASHTAGS_PER_POST,
+} from "~/components/hashtags/hashtag-tokens";
 
 const durationLabels: Record<ProjectDuration, string> = {
   ONE_TWO_WEEKS: "1-2 weeks",
@@ -214,12 +218,6 @@ export default function CreateProjectPage() {
   });
 
   // API-driven enum options
-  const { options: categories } = useEnumOptions("ProjectCategory");
-  const { options: projectTypeOptions } = useEnumOptions("ProjectType");
-  const projectTypes: { id: ProjectType; label: string }[] = projectTypeOptions
-    .map(({ id }) => id)
-    .filter(isProjectType)
-    .map((id) => ({ id, label: projectTypeLabel(id) }));
   const { options: durationOptions } = useEnumOptions("ProjectDuration");
   const durations = durationOptions
     .filter((option): option is { id: ProjectDuration; label: string } =>
@@ -246,6 +244,7 @@ export default function CreateProjectPage() {
     createEmptyProjectFormData,
   );
   const [newTag, setNewTag] = useState("");
+  const [hashtagInput, setHashtagInput] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [draftHydrated, setDraftHydrated] = useState(false);
@@ -533,6 +532,77 @@ export default function CreateProjectPage() {
     }));
   };
 
+  // Discovery hashtags (SR-03 Phase 3 §3): the one field that replaces the old
+  // category checkboxes, "Other" category and project-type picker. Parsing
+  // reuses the composer's own tag primitive (components/hashtags/hashtag-tokens.ts)
+  // so "#carpentry" here means exactly what it means in a feed post.
+  const { terms: taxonomyTerms } = useTaxonomy();
+  const hashtagSuggestions = (() => {
+    const query = hashtagInput.trim().replace(/^#/, "").toLowerCase();
+    if (!query) return [];
+    return taxonomyTerms
+      .filter((term) => term.kind === "SECTOR" || term.kind === "PROJECT_TYPE")
+      .filter((term) => !formData.hashtags.includes(term.slug))
+      .filter(
+        (term) =>
+          term.slug.toLowerCase().includes(query) ||
+          term.label.toLowerCase().includes(query),
+      )
+      .slice(0, 6);
+  })();
+
+  const addHashtagTag = (tag: string) => {
+    const canonical = canonicalHashtag(tag);
+    if (!canonical) return;
+    setFormData((prev) =>
+      prev.hashtags.includes(canonical) ||
+      prev.hashtags.length >= MAX_HASHTAGS_PER_POST
+        ? prev
+        : { ...prev, hashtags: [...prev.hashtags, canonical] },
+    );
+    setHashtagInput("");
+  };
+
+  const removeHashtag = (tag: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      hashtags: prev.hashtags.filter((t) => t !== tag),
+    }));
+  };
+
+  /** Commits every complete #tag in the box at once, so pasting "#a #b" adds both. */
+  const commitHashtagInput = () => {
+    const raw = hashtagInput.trim();
+    if (!raw) return;
+    const extracted = [...hashtagsIn(raw)];
+    if (extracted.length === 0) {
+      const tag = canonicalHashtag(raw);
+      if (tag) extracted.push(tag);
+    }
+    if (extracted.length === 0) {
+      setHashtagInput("");
+      return;
+    }
+    setFormData((prev) => {
+      const next = [...prev.hashtags];
+      for (const tag of extracted) {
+        if (next.length >= MAX_HASHTAGS_PER_POST) break;
+        if (!next.includes(tag)) next.push(tag);
+      }
+      return { ...prev, hashtags: next };
+    });
+    setHashtagInput("");
+  };
+
+  const handleHashtagInputKeyDown = (
+    event: KeyboardEvent<HTMLInputElement>,
+  ) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      commitHashtagInput();
+    }
+  };
+
   const validateStep = (step: number): boolean => {
     const newErrors: Record<string, string> = {};
 
@@ -545,18 +615,6 @@ export default function CreateProjectPage() {
       if (!formData.solution.trim()) newErrors.solution = "Required";
       if (formData.solution.length < 10)
         newErrors.solution = "Min 10 characters";
-      if (formData.categories.length === 0)
-        newErrors.categories = "Select at least one category";
-      if (
-        formData.categories.includes("OTHER") &&
-        !formData.otherCategory.trim()
-      ) {
-        newErrors.otherCategory = "Please specify your category";
-      }
-      if (formData.otherCategory.length > OTHER_CATEGORY_MAX_LENGTH) {
-        newErrors.otherCategory = `Max ${OTHER_CATEGORY_MAX_LENGTH} characters`;
-      }
-
       const summaryProblem = validateProjectSummary(formData.summary);
       if (summaryProblem) newErrors.summary = summaryProblem;
 
@@ -892,9 +950,6 @@ export default function CreateProjectPage() {
       if (recovery) {
         project = { id: recovery.projectId, slug: recovery.projectSlug };
       } else {
-        const resolvedCategories = formData.categories.map((category) =>
-          category === "OTHER" ? formData.otherCategory.trim() : category,
-        );
         const summary = formData.summary.trim();
         // Media is written twice on purpose. `mediaPaths` is the typed manifest every
         // new reader uses; the three comma-separated columns stay populated so readers
@@ -913,8 +968,9 @@ export default function CreateProjectPage() {
           summary: summary || undefined,
           problemStatement: formData.problemStatement,
           solution: formData.solution,
-          categories: resolvedCategories,
-          projectType: formData.projectType || undefined,
+          // Full replacement of categories/projectType/tags (SR-03 Phase 3 §3) -
+          // see Services/Implementations/AGENTS.md §Project hashtags.
+          hashtags: formData.hashtags,
           duration: formData.duration || undefined,
           fundingGoal: parseFundingGoalDollars(formData.fundingGoal),
           images: mediaLocations("image"),
@@ -1331,6 +1387,7 @@ export default function CreateProjectPage() {
                       type="text"
                       id="project-title"
                       required
+                      maxLength={200}
                       aria-invalid={Boolean(errors.title)}
                       aria-describedby={
                         errors.title ? "project-title-error" : undefined
@@ -1424,6 +1481,7 @@ export default function CreateProjectPage() {
                     <textarea
                       id="project-problem"
                       required
+                      maxLength={20_000}
                       aria-invalid={Boolean(errors.problemStatement)}
                       aria-describedby={
                         errors.problemStatement
@@ -1464,6 +1522,7 @@ export default function CreateProjectPage() {
                     <input
                       type="text"
                       id="project-audience"
+                      maxLength={20_000}
                       value={formData.targetAudience}
                       onChange={(e) =>
                         handleChange("targetAudience", e.target.value)
@@ -1482,6 +1541,7 @@ export default function CreateProjectPage() {
                     </label>
                     <textarea
                       id="project-impact"
+                      maxLength={20_000}
                       value={formData.expectedImpact}
                       onChange={(e) =>
                         handleChange("expectedImpact", e.target.value)
@@ -1514,6 +1574,7 @@ export default function CreateProjectPage() {
                     <textarea
                       id="project-solution"
                       required
+                      maxLength={20_000}
                       aria-invalid={Boolean(errors.solution)}
                       aria-describedby={
                         errors.solution ? "project-solution-error" : undefined
@@ -1544,46 +1605,9 @@ export default function CreateProjectPage() {
 
               <Card className="bg-card border-border">
                 <CardHeader className="pb-3">
-                  <CardTitle className="text-lg">Type</CardTitle>
+                  <CardTitle className="text-lg">Duration</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <fieldset>
-                    <legend className="mb-2 block text-sm font-medium">
-                      What kind of project is this?
-                    </legend>
-                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                      {projectTypes.map((pt) => {
-                        const isSelected = formData.projectType === pt.id;
-                        return (
-                          <button
-                            key={pt.id}
-                            type="button"
-                            onClick={() => handleChange("projectType", pt.id)}
-                            aria-pressed={isSelected}
-                            className={cn(
-                              "flex min-h-11 flex-col items-start rounded-lg border-2 p-3 text-left transition-colors",
-                              isSelected
-                                ? "border-system bg-system/10"
-                                : "border-border bg-muted/30 hover:border-system",
-                            )}
-                          >
-                            <span
-                              className={cn(
-                                "text-sm font-medium",
-                                isSelected ? "text-system" : "text-foreground",
-                              )}
-                            >
-                              {pt.label}
-                            </span>
-                            <span className="text-muted-foreground mt-0.5 text-xs">
-                              {projectTypeDescription(pt.id) ?? ""}
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </fieldset>
-
                   <div>
                     <label
                       htmlFor="project-duration"
@@ -1616,140 +1640,70 @@ export default function CreateProjectPage() {
 
               <Card className="bg-card border-border">
                 <CardHeader className="pb-3">
-                  <CardTitle className="text-lg">Details</CardTitle>
+                  <CardTitle className="text-lg">Hashtags</CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                  <fieldset>
-                    <legend className="mb-2 block text-sm font-medium">
-                      Categories <span className="text-system">*</span>
-                    </legend>
-                    <div
-                      aria-invalid={Boolean(errors.categories)}
-                      aria-describedby={
-                        errors.categories
-                          ? "project-categories-error"
-                          : undefined
+                <CardContent className="space-y-3">
+                  <label htmlFor="project-hashtags" className="sr-only">
+                    Add hashtags
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      id="project-hashtags"
+                      value={hashtagInput}
+                      onChange={(e) => setHashtagInput(e.target.value)}
+                      onKeyDown={handleHashtagInputKeyDown}
+                      disabled={
+                        formData.hashtags.length >= MAX_HASHTAGS_PER_POST
                       }
-                      className={cn(
-                        "flex flex-wrap gap-2 rounded-lg border-2 p-3",
-                        errors.categories
-                          ? "border-destructive"
-                          : "border-border",
-                      )}
-                    >
-                      {categories.map((cat) => {
-                        const isSelected = formData.categories.includes(cat.id);
-                        return (
-                          <button
-                            key={cat.id}
-                            type="button"
-                            aria-pressed={isSelected}
-                            onClick={() => {
-                              setFormData((prev) => ({
-                                ...prev,
-                                categories: isSelected
-                                  ? prev.categories.filter((c) => c !== cat.id)
-                                  : [...prev.categories, cat.id],
-                                otherCategory:
-                                  cat.id === "OTHER" && isSelected
-                                    ? ""
-                                    : prev.otherCategory,
-                              }));
-                              if (errors.categories) {
-                                setErrors((prev) => {
-                                  const newErrors = { ...prev };
-                                  delete newErrors.categories;
-                                  return newErrors;
-                                });
-                              }
-                            }}
-                            className={cn(
-                              "min-h-11 border px-3 py-1.5 text-sm font-medium transition-colors",
-                              isSelected
-                                ? "bg-system text-system-foreground border-system"
-                                : "bg-muted/50 text-muted-foreground border-border hover:border-system hover:text-foreground",
-                            )}
-                          >
-                            {cat.label}
-                          </button>
-                        );
-                      })}
-                    </div>
-                    {errors.categories && (
-                      <p
-                        id="project-categories-error"
-                        role="alert"
-                        className="text-destructive mt-1 text-sm"
-                      >
-                        {errors.categories}
-                      </p>
+                      maxLength={200}
+                      placeholder="#construction #barn-raising"
+                      className="bg-muted/50 border-border focus-visible:ring-ring/50 w-full rounded-lg border-2 px-4 py-3 focus:ring-2 focus:outline-none"
+                    />
+                    {hashtagSuggestions.length > 0 && (
+                      <ul className="bg-card border-border absolute z-10 mt-1 w-full border-2 shadow-lg">
+                        {hashtagSuggestions.map((term) => (
+                          <li key={term.slug}>
+                            <button
+                              type="button"
+                              onClick={() => addHashtagTag(term.slug)}
+                              className="hover:bg-muted/50 flex min-h-11 w-full items-center justify-between px-4 py-2 text-left text-sm"
+                            >
+                              <span className="font-medium">#{term.slug}</span>
+                              <span className="text-muted-foreground text-xs">
+                                {term.label}
+                              </span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
                     )}
-                    {formData.categories.includes("OTHER") && (
-                      <div className="mt-3">
-                        <label
-                          htmlFor="project-other-category"
-                          className="mb-1 block text-sm font-medium"
+                  </div>
+                  {formData.hashtags.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {formData.hashtags.map((tag) => (
+                        <Badge
+                          key={tag}
+                          variant="secondary"
+                          className="gap-1 pr-0 pl-3"
                         >
-                          Specify other category
-                        </label>
-                        <div className="relative">
-                          <input
-                            type="text"
-                            id="project-other-category"
-                            required
-                            aria-invalid={Boolean(errors.otherCategory)}
-                            aria-describedby={
-                              errors.otherCategory
-                                ? "project-other-category-error"
-                                : "project-other-category-count"
-                            }
-                            value={formData.otherCategory}
-                            onChange={(e) => {
-                              const value = e.target.value.slice(
-                                0,
-                                OTHER_CATEGORY_MAX_LENGTH,
-                              );
-                              setFormData((prev) => ({
-                                ...prev,
-                                otherCategory: value,
-                              }));
-                              if (errors.otherCategory) {
-                                setErrors((prev) => {
-                                  const newErrors = { ...prev };
-                                  delete newErrors.otherCategory;
-                                  return newErrors;
-                                });
-                              }
-                            }}
-                            maxLength={OTHER_CATEGORY_MAX_LENGTH}
-                            placeholder="e.g., Renewable Energy"
-                            className={cn(
-                              "bg-muted/50 focus-visible:ring-ring/50 w-full rounded-lg border-2 px-4 py-2 focus:ring-2 focus:outline-none",
-                              errors.otherCategory
-                                ? "border-destructive"
-                                : "border-border",
-                            )}
-                          />
-                          <span
-                            id="project-other-category-count"
-                            className="text-muted-foreground absolute top-1/2 right-3 -translate-y-1/2 text-xs"
+                          #{tag}
+                          <button
+                            type="button"
+                            onClick={() => removeHashtag(tag)}
+                            aria-label={`Remove #${tag} hashtag`}
+                            className="focus-visible:ring-ring hover:bg-destructive/20 flex min-h-11 min-w-11 items-center justify-center focus-visible:ring-2 focus-visible:outline-none"
                           >
-                            {formData.otherCategory.length}/
-                            {OTHER_CATEGORY_MAX_LENGTH}
-                          </span>
-                        </div>
-                        {errors.otherCategory && (
-                          <p
-                            id="project-other-category-error"
-                            role="alert"
-                            className="text-destructive mt-1 text-sm"
-                          >
-                            {errors.otherCategory}
-                          </p>
-                        )}
-                      </div>
-                    )}
-                  </fieldset>
+                            <X className="size-3" aria-hidden="true" />
+                          </button>
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+                  <p className="text-muted-foreground text-xs">
+                    {formData.hashtags.length}/{MAX_HASHTAGS_PER_POST} ·
+                    #construction sorts by sector.
+                  </p>
                 </CardContent>
               </Card>
 
@@ -3467,18 +3421,6 @@ export default function CreateProjectPage() {
                     </div>
                   )}
                   <div className="grid grid-cols-1 gap-4 pt-2 sm:grid-cols-2">
-                    {formData.projectType && (
-                      <div>
-                        <p className="text-muted-foreground text-sm font-medium">
-                          Project Type
-                        </p>
-                        <p className="mt-1 text-sm">
-                          {projectTypes.find(
-                            (pt) => pt.id === formData.projectType,
-                          )?.label || formData.projectType}
-                        </p>
-                      </div>
-                    )}
                     {formData.duration && (
                       <div>
                         <p className="text-muted-foreground text-sm font-medium">
@@ -3491,31 +3433,26 @@ export default function CreateProjectPage() {
                       </div>
                     )}
                   </div>
-                  <div className="grid grid-cols-1 gap-4 pt-2 sm:grid-cols-2">
-                    <div>
-                      <p className="text-muted-foreground text-sm font-medium">
-                        Categories
-                      </p>
-                      <div className="mt-1 flex flex-wrap gap-1.5">
-                        {formData.categories.map((catId) => {
-                          const label =
-                            catId === "OTHER"
-                              ? formData.otherCategory || "Other"
-                              : categories.find((c) => c.id === catId)?.label ||
-                                catId.replace("_", " ");
-                          return (
+                  {formData.hashtags.length > 0 && (
+                    <div className="grid grid-cols-1 gap-4 pt-2 sm:grid-cols-2">
+                      <div>
+                        <p className="text-muted-foreground text-sm font-medium">
+                          Hashtags
+                        </p>
+                        <div className="mt-1 flex flex-wrap gap-1.5">
+                          {formData.hashtags.map((tag) => (
                             <Badge
-                              key={catId}
+                              key={tag}
                               variant="secondary"
                               className="text-xs"
                             >
-                              {label}
+                              #{tag}
                             </Badge>
-                          );
-                        })}
+                          ))}
+                        </div>
                       </div>
                     </div>
-                  </div>
+                  )}
                   {formData.targetAudience && (
                     <div>
                       <p className="text-muted-foreground text-sm font-medium">
@@ -3913,9 +3850,7 @@ export default function CreateProjectPage() {
           <div className="bg-muted/30 border-border mt-6 flex items-start gap-3 rounded-lg border p-4">
             <Info className="text-system mt-0.5 size-5 flex-shrink-0" />
             <div className="text-muted-foreground text-sm">
-              <p>
-                Skip optional steps. Edit them later.
-              </p>
+              <p>Skip optional steps. Edit them later.</p>
             </div>
           </div>
         )}
