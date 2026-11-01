@@ -9,7 +9,7 @@ import { KycStatusSchema } from '../inputTypeSchemas/KycStatusSchema'
 export const KycSubmissionSchema = z.object({
   provider: KycProviderSchema,
   status: KycStatusSchema,
-  id: z.string().cuid(),
+  id: z.cuid(),
   userId: z.string(),
   reviewerId: z.string().nullable(),
   reviewNotes: z.string().nullable(),

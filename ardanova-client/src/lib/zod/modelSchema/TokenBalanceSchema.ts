@@ -7,7 +7,7 @@ import { TokenHolderClassSchema } from '../inputTypeSchemas/TokenHolderClassSche
 
 export const TokenBalanceSchema = z.object({
   holderClass: TokenHolderClassSchema.nullable(),
-  id: z.string().cuid(),
+  id: z.cuid(),
   userId: z.string(),
   projectTokenConfigId: z.string().nullable(),
   isPlatformToken: z.boolean(),

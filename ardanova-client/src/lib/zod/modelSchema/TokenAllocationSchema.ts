@@ -9,7 +9,7 @@ import { TokenHolderClassSchema } from '../inputTypeSchemas/TokenHolderClassSche
 export const TokenAllocationSchema = z.object({
   status: AllocationStatusSchema,
   holderClass: TokenHolderClassSchema,
-  id: z.string().cuid(),
+  id: z.cuid(),
   projectTokenConfigId: z.string(),
   pbiId: z.string().nullable(),
   recipientUserId: z.string().nullable(),

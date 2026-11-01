@@ -5,7 +5,7 @@ import { z } from 'zod';
 /////////////////////////////////////////
 
 export const PostLikeSchema = z.object({
-  id: z.string().cuid(),
+  id: z.cuid(),
   postId: z.string(),
   userId: z.string(),
   createdAt: z.coerce.date(),

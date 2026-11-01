@@ -5,7 +5,7 @@ import { z } from 'zod';
 /////////////////////////////////////////
 
 export const PostCommentSchema = z.object({
-  id: z.string().cuid(),
+  id: z.cuid(),
   postId: z.string(),
   authorId: z.string(),
   parentId: z.string().nullable(),

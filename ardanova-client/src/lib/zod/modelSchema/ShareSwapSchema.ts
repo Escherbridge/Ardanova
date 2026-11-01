@@ -8,7 +8,7 @@ import { SwapStatusSchema } from '../inputTypeSchemas/SwapStatusSchema'
 
 export const ShareSwapSchema = z.object({
   status: SwapStatusSchema,
-  id: z.string().cuid(),
+  id: z.cuid(),
   userId: z.string(),
   fromShareId: z.string(),
   toShareId: z.string(),

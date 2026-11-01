@@ -5,7 +5,7 @@ import { z } from 'zod';
 /////////////////////////////////////////
 
 export const EventReminderSchema = z.object({
-  id: z.string().cuid(),
+  id: z.cuid(),
   eventId: z.string(),
   userId: z.string(),
   remindAt: z.coerce.date(),

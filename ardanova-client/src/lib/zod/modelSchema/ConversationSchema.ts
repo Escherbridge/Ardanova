@@ -7,7 +7,7 @@ import { ConversationTypeSchema } from '../inputTypeSchemas/ConversationTypeSche
 
 export const ConversationSchema = z.object({
   type: ConversationTypeSchema,
-  id: z.string().cuid(),
+  id: z.cuid(),
   name: z.string().nullable(),
   avatarUrl: z.string().nullable(),
   createdById: z.string().nullable(),

@@ -7,7 +7,7 @@ import { TaxonomyKindSchema } from '../inputTypeSchemas/TaxonomyKindSchema'
 
 export const TaxonomyTermSchema = z.object({
   kind: TaxonomyKindSchema,
-  id: z.string().cuid(),
+  id: z.cuid(),
   slug: z.string(),
   label: z.string(),
   description: z.string().nullable(),

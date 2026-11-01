@@ -5,7 +5,7 @@ import { z } from 'zod';
 /////////////////////////////////////////
 
 export const FundingIntentVoidSchema = z.object({
-  id: z.string().cuid(),
+  id: z.cuid(),
   funderUserId: z.string(),
   idempotencyKey: z.string(),
   createdAt: z.coerce.date(),

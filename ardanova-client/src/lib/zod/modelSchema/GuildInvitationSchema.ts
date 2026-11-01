@@ -9,7 +9,7 @@ import { InvitationStatusSchema } from '../inputTypeSchemas/InvitationStatusSche
 export const GuildInvitationSchema = z.object({
   role: GuildMemberRoleSchema,
   status: InvitationStatusSchema,
-  id: z.string().cuid(),
+  id: z.cuid(),
   guildId: z.string(),
   invitedById: z.string(),
   invitedUserId: z.string().nullable(),

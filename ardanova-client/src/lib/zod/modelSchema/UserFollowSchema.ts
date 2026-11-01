@@ -5,7 +5,7 @@ import { z } from 'zod';
 /////////////////////////////////////////
 
 export const UserFollowSchema = z.object({
-  id: z.string().cuid(),
+  id: z.cuid(),
   followerId: z.string(),
   followingId: z.string(),
   createdAt: z.coerce.date(),

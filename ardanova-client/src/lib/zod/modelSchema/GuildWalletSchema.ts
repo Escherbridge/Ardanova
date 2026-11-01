@@ -8,7 +8,7 @@ import { WalletProviderSchema } from '../inputTypeSchemas/WalletProviderSchema'
 
 export const GuildWalletSchema = z.object({
   provider: WalletProviderSchema,
-  id: z.string().cuid(),
+  id: z.cuid(),
   guildId: z.string(),
   address: z.string().nullable(),
   label: z.string().nullable(),

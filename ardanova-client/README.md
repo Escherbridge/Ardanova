@@ -140,6 +140,8 @@ npm test
 npm run build
 ```
 
+Why each `package.json` override exists, and the per-advisory dependency decisions behind `audit:prod`, live in `SECURITY-DEPENDENCIES.md`.
+
 The project uses Next.js 15, React 19, TypeScript, Tailwind CSS 4, Radix primitives, tRPC, NextAuth, Prisma, and Vitest.
 
 Database changes use the immutable snapshot and versioned SQL under

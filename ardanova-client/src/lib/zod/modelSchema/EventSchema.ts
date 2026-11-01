@@ -11,7 +11,7 @@ export const EventSchema = z.object({
   type: EventTypeSchema,
   visibility: EventVisibilitySchema,
   status: EventStatusSchema,
-  id: z.string().cuid(),
+  id: z.cuid(),
   title: z.string(),
   slug: z.string(),
   description: z.string().nullable(),

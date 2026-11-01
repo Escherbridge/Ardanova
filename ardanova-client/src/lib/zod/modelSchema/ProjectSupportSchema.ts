@@ -8,7 +8,7 @@ import { SupportTypeSchema } from '../inputTypeSchemas/SupportTypeSchema'
 
 export const ProjectSupportSchema = z.object({
   supportType: SupportTypeSchema,
-  id: z.string().cuid(),
+  id: z.cuid(),
   projectId: z.string(),
   userId: z.string(),
   monthlyAmount: z.instanceof(Prisma.Decimal, { message: "Field 'monthlyAmount' must be a Decimal. Location: ['Models', 'ProjectSupport']"}).nullable(),

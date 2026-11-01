@@ -16,7 +16,7 @@ export const ProjectTaskSchema = z.object({
   taskType: TaskTypeSchema,
   effortEstimate: EffortEstimateSchema.nullable(),
   escrowStatus: EscrowStatusSchema,
-  id: z.string().cuid(),
+  id: z.cuid(),
   projectId: z.string(),
   pbiId: z.string().nullable(),
   featureId: z.string().nullable(),

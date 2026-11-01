@@ -7,7 +7,7 @@ import { SwapOrderStatusSchema } from '../inputTypeSchemas/SwapOrderStatusSchema
 
 export const SwapOrderSchema = z.object({
   status: SwapOrderStatusSchema,
-  id: z.string().cuid(),
+  id: z.cuid(),
   quoteId: z.string(),
   actorUserId: z.string(),
   economicSettlementId: z.string().nullable(),

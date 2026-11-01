@@ -8,7 +8,7 @@ import { ProjectRoleSchema } from '../inputTypeSchemas/ProjectRoleSchema'
 
 export const ProjectMemberSchema = z.object({
   role: ProjectRoleSchema,
-  id: z.string().cuid(),
+  id: z.cuid(),
   projectId: z.string(),
   userId: z.string(),
   shareBalance: z.instanceof(Prisma.Decimal, { message: "Field 'shareBalance' must be a Decimal. Location: ['Models', 'ProjectMember']"}),

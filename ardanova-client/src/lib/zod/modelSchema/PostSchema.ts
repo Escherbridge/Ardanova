@@ -13,7 +13,7 @@ export const PostSchema = z.object({
   type: PostTypeSchema,
   visibility: PostVisibilitySchema,
   sourceType: FeedSourceTypeSchema.nullable(),
-  id: z.string().cuid(),
+  id: z.cuid(),
   authorId: z.string(),
   projectId: z.string().nullable(),
   guildId: z.string().nullable(),

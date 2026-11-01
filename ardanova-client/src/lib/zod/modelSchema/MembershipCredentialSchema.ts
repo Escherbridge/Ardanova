@@ -11,7 +11,7 @@ export const MembershipCredentialSchema = z.object({
   status: MembershipCredentialStatusSchema,
   tier: UserTierSchema.nullable(),
   grantedVia: MembershipGrantTypeSchema,
-  id: z.string().cuid(),
+  id: z.cuid(),
   projectId: z.string().nullable(),
   guildId: z.string().nullable(),
   userId: z.string(),

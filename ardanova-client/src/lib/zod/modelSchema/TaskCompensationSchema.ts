@@ -8,7 +8,7 @@ import { CompensationModelSchema } from '../inputTypeSchemas/CompensationModelSc
 
 export const TaskCompensationSchema = z.object({
   compensationModel: CompensationModelSchema,
-  id: z.string().cuid(),
+  id: z.cuid(),
   taskId: z.string(),
   shareAmount: z.instanceof(Prisma.Decimal, { message: "Field 'shareAmount' must be a Decimal. Location: ['Models', 'TaskCompensation']"}).nullable(),
   hourlyRate: z.instanceof(Prisma.Decimal, { message: "Field 'hourlyRate' must be a Decimal. Location: ['Models', 'TaskCompensation']"}).nullable(),

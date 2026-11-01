@@ -5,7 +5,7 @@ import { z } from 'zod';
 /////////////////////////////////////////
 
 export const GuildReviewSchema = z.object({
-  id: z.string().cuid(),
+  id: z.cuid(),
   guildId: z.string(),
   projectId: z.string().nullable(),
   userId: z.string(),

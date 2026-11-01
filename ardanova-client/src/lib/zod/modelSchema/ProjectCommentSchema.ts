@@ -7,7 +7,7 @@ import { CommentTargetTypeSchema } from '../inputTypeSchemas/CommentTargetTypeSc
 
 export const ProjectCommentSchema = z.object({
   targetType: CommentTargetTypeSchema,
-  id: z.string().cuid(),
+  id: z.cuid(),
   projectId: z.string(),
   userId: z.string(),
   content: z.string(),

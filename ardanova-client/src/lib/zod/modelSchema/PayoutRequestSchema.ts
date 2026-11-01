@@ -11,7 +11,7 @@ export const PayoutRequestSchema = z.object({
   status: PayoutStatusSchema,
   holderClass: TokenHolderClassSchema,
   gateStatusAtRequest: ProjectGateStatusSchema,
-  id: z.string().cuid(),
+  id: z.cuid(),
   userId: z.string(),
   sourceProjectTokenConfigId: z.string().nullable(),
   sourceTokenAmount: z.number().int(),

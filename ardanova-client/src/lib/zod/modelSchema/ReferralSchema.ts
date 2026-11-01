@@ -8,7 +8,7 @@ import { ReferralStatusSchema } from '../inputTypeSchemas/ReferralStatusSchema'
 
 export const ReferralSchema = z.object({
   status: ReferralStatusSchema,
-  id: z.string().cuid(),
+  id: z.cuid(),
   referrerId: z.string(),
   referredId: z.string(),
   referralCode: z.string().nullable(),

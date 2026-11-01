@@ -14,7 +14,7 @@ export const UserSchema = z.object({
   userType: UserTypeSchema,
   tier: UserTierSchema,
   verificationLevel: VerificationLevelSchema,
-  id: z.string().cuid(),
+  id: z.cuid(),
   email: z.string(),
   emailVerified: z.coerce.date().nullable(),
   name: z.string().nullable(),

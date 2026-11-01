@@ -7,7 +7,7 @@ import { ApplicationStatusSchema } from '../inputTypeSchemas/ApplicationStatusSc
 
 export const OpportunityApplicationSchema = z.object({
   status: ApplicationStatusSchema,
-  id: z.string().cuid(),
+  id: z.cuid(),
   opportunityId: z.string(),
   applicantId: z.string(),
   coverLetter: z.string(),

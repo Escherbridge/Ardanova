@@ -10,7 +10,7 @@ import { PrioritySchema } from '../inputTypeSchemas/PrioritySchema'
 export const EpicSchema = z.object({
   status: EpicStatusSchema,
   priority: PrioritySchema,
-  id: z.string().cuid(),
+  id: z.cuid(),
   projectId: z.string(),
   milestoneId: z.string().nullable(),
   guildId: z.string().nullable(),

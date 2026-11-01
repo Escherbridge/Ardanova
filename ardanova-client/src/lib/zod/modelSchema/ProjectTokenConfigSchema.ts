@@ -9,7 +9,7 @@ import { ProjectGateStatusSchema } from '../inputTypeSchemas/ProjectGateStatusSc
 export const ProjectTokenConfigSchema = z.object({
   status: ProjectTokenStatusSchema,
   gateStatus: ProjectGateStatusSchema,
-  id: z.string().cuid(),
+  id: z.cuid(),
   projectId: z.string(),
   assetId: z.string().nullable(),
   assetDefinitionId: z.string().nullable(),

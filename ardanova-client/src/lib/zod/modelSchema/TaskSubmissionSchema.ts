@@ -7,7 +7,7 @@ import { SubmissionStatusSchema } from '../inputTypeSchemas/SubmissionStatusSche
 
 export const TaskSubmissionSchema = z.object({
   status: SubmissionStatusSchema,
-  id: z.string().cuid(),
+  id: z.cuid(),
   taskId: z.string(),
   submittedById: z.string(),
   content: z.string(),

@@ -10,7 +10,7 @@ import { PrioritySchema } from '../inputTypeSchemas/PrioritySchema'
 export const FeatureSchema = z.object({
   status: FeatureStatusSchema,
   priority: PrioritySchema,
-  id: z.string().cuid(),
+  id: z.cuid(),
   projectId: z.string(),
   sprintId: z.string().nullable(),
   epicId: z.string().nullable(),

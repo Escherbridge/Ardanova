@@ -8,7 +8,7 @@ import { MessageStatusSchema } from '../inputTypeSchemas/MessageStatusSchema'
 
 export const ChatMessageSchema = z.object({
   status: MessageStatusSchema,
-  id: z.string().cuid(),
+  id: z.cuid(),
   userToId: z.string(),
   userFromId: z.string(),
   message: z.string().nullable(),

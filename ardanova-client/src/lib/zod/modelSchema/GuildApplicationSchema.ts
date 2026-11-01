@@ -9,7 +9,7 @@ import { MembershipRequestStatusSchema } from '../inputTypeSchemas/MembershipReq
 export const GuildApplicationSchema = z.object({
   requestedRole: GuildMemberRoleSchema,
   status: MembershipRequestStatusSchema,
-  id: z.string().cuid(),
+  id: z.cuid(),
   guildId: z.string(),
   userId: z.string(),
   message: z.string(),

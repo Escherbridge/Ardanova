@@ -6,7 +6,7 @@ import { JsonValueSchema } from '../inputTypeSchemas/JsonValueSchema'
 /////////////////////////////////////////
 
 export const ProposalExecutionSchema = z.object({
-  id: z.string().cuid(),
+  id: z.cuid(),
   proposalId: z.string(),
   executedAt: z.coerce.date(),
   txHash: z.string().nullable(),

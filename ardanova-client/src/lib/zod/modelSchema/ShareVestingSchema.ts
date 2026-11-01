@@ -8,7 +8,7 @@ import { VestingFrequencySchema } from '../inputTypeSchemas/VestingFrequencySche
 
 export const ShareVestingSchema = z.object({
   releaseFrequency: VestingFrequencySchema,
-  id: z.string().cuid(),
+  id: z.cuid(),
   holderId: z.string(),
   totalAmount: z.instanceof(Prisma.Decimal, { message: "Field 'totalAmount' must be a Decimal. Location: ['Models', 'ShareVesting']"}),
   releasedAmount: z.instanceof(Prisma.Decimal, { message: "Field 'releasedAmount' must be a Decimal. Location: ['Models', 'ShareVesting']"}),

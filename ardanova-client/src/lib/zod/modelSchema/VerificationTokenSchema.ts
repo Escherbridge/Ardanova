@@ -5,7 +5,7 @@ import { z } from 'zod';
 /////////////////////////////////////////
 
 export const VerificationTokenSchema = z.object({
-  id: z.string().cuid(),
+  id: z.cuid(),
   identifier: z.string(),
   token: z.string(),
   expires: z.coerce.date(),

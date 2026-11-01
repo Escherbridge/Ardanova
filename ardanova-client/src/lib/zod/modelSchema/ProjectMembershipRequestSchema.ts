@@ -9,7 +9,7 @@ import { MembershipRequestStatusSchema } from '../inputTypeSchemas/MembershipReq
 export const ProjectMembershipRequestSchema = z.object({
   requestedRole: ProjectRoleSchema,
   status: MembershipRequestStatusSchema,
-  id: z.string().cuid(),
+  id: z.cuid(),
   projectId: z.string(),
   userId: z.string(),
   message: z.string(),

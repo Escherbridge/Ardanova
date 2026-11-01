@@ -5,7 +5,7 @@ import { z } from 'zod';
 /////////////////////////////////////////
 
 export const ProjectTaskDependencySchema = z.object({
-  id: z.string().cuid(),
+  id: z.cuid(),
   taskId: z.string(),
   dependsOnId: z.string(),
 })

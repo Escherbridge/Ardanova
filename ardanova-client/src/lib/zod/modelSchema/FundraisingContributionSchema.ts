@@ -8,7 +8,7 @@ import { ContributionStatusSchema } from '../inputTypeSchemas/ContributionStatus
 
 export const FundraisingContributionSchema = z.object({
   status: ContributionStatusSchema,
-  id: z.string().cuid(),
+  id: z.cuid(),
   fundraisingId: z.string(),
   userId: z.string(),
   amount: z.instanceof(Prisma.Decimal, { message: "Field 'amount' must be a Decimal. Location: ['Models', 'FundraisingContribution']"}),

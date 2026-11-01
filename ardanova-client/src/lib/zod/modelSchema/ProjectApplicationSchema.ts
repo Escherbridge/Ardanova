@@ -7,7 +7,7 @@ import { ApplicationStatusSchema } from '../inputTypeSchemas/ApplicationStatusSc
 
 export const ProjectApplicationSchema = z.object({
   status: ApplicationStatusSchema,
-  id: z.string().cuid(),
+  id: z.cuid(),
   projectId: z.string(),
   userId: z.string(),
   roleTitle: z.string(),
