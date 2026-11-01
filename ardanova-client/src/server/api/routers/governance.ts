@@ -94,22 +94,31 @@ const voteTypeToChoice: Record<z.infer<typeof VoteType>, number> = {
   abstain: 2,
 };
 
+// Array/string bounds below stop an unbounded-array request from producing one zod issue per
+// element (DoS via issue-count amplification); see SECURITY-DEPENDENCIES.md "unbounded array" entry.
 const createProposalSchema = z.object({
-  title: z.string().min(1, "Title is required"),
-  description: z.string().min(50, "Description must be at least 50 characters"),
+  title: z.string().min(1, "Title is required").max(200),
+  description: z
+    .string()
+    .min(50, "Description must be at least 50 characters")
+    .max(20_000),
   type: ProposalTypeName,
-  options: z.array(z.string().trim().min(1)).min(2).default(["Yes", "No"]),
+  options: z
+    .array(z.string().trim().min(1).max(200))
+    .min(2)
+    .max(20)
+    .default(["Yes", "No"]),
   votingDuration: z.number().min(1).max(30).default(7), // days
   quorum: z.number().int().min(1).max(100).default(25), // share of members who must vote
   threshold: z.number().int().min(1).max(100).default(51), // share of votes cast needed to pass
-  projectId: z.string().min(1, "Project ID is required"),
+  projectId: z.string().min(1, "Project ID is required").max(100),
 });
 
 const updateProposalSchema = z.object({
-  id: z.string(),
-  title: z.string().min(1).optional(),
-  description: z.string().min(50).optional(),
-  options: z.array(z.string().trim().min(1)).min(2).optional(),
+  id: z.string().max(100),
+  title: z.string().min(1).max(200).optional(),
+  description: z.string().min(50).max(20_000).optional(),
+  options: z.array(z.string().trim().min(1).max(200)).min(2).max(20).optional(),
   quorum: z.number().int().min(1).max(100).optional(),
   threshold: z.number().int().min(1).max(100).optional(),
 });
