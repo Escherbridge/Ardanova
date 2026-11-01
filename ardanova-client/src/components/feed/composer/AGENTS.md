@@ -87,8 +87,10 @@ the picked task's `equityReward` (omitted when unknown).
 ## Audience
 
 `audienceOptionsFor(context)` offers only audiences `PostVisibilityPolicy.HasCoherentAudience` accepts; an ask is never
-private. Inside a project the scope line is the existing `audienceDescription` verbatim (consent wording untouched);
-the new contexts (nothing attached, a guild) read "Anyone can read it." for PUBLIC.
+private. The scope line is `audienceDescription(visibility)`, one sentence per audience and true in every context: a
+post shows on Home and tag pages as well as its subject's page, so it says who can read it, never where ("Anyone can
+read it.", not the old "Anyone visiting this project can read it."). PRIVATE reads "Only you can read it." because no
+screen changes a post's audience after publishing. The guild audience says "guild", matching the attach picker and nav.
 
 ## Attach list
 

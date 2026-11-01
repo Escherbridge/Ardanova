@@ -34,7 +34,7 @@ import {
   useAttachableSubjects,
 } from "./composer/use-composer-subjects";
 import {
-  audienceDescriptionFor,
+  audienceDescription,
   audienceLabel,
   audienceOptionsFor,
   type AudienceContext,
@@ -385,7 +385,7 @@ export function FieldNoteComposer({
 
       {editing ? null : (
         <p className="text-muted-foreground px-4 pb-3 font-mono text-[11px]">
-          {audienceDescriptionFor(visibility, audienceContext)}
+          {audienceDescription(visibility)}
         </p>
       )}
 

@@ -9,15 +9,16 @@ export type FieldNoteAudience =
 const audienceLabels: Record<FieldNoteAudience, string> = {
   PUBLIC: "Everyone",
   PROJECT_MEMBERS: "Project team",
-  GUILD_MEMBERS: "Group members",
+  GUILD_MEMBERS: "Guild members",
   PRIVATE: "Only you",
 };
 
+// Who can read it, wherever it shows (Home, tag pages, the project or guild): never where it is written.
 const audienceDescriptions: Record<FieldNoteAudience, string> = {
-  PUBLIC: "Anyone visiting this project can read it.",
+  PUBLIC: "Anyone can read it.",
   PROJECT_MEMBERS: "Only people on the project team can read it.",
-  GUILD_MEMBERS: "Only members of the group can read it.",
-  PRIVATE: "Kept to yourself until you change it.",
+  GUILD_MEMBERS: "Only members of the guild can read it.",
+  PRIVATE: "Only you can read it.",
 };
 
 /** The audiences a note written inside a project may choose between. */
@@ -48,23 +49,11 @@ export function audienceOptionsFor(
   return audienceOptionsByContext[context ?? "none"];
 }
 
-/** Who can read a note, worded for where it is written. Inside a project this is `audienceDescription` verbatim. */
-export function audienceDescriptionFor(
-  audience: FieldNoteAudience,
-  context: AudienceContext,
-): string {
-  if (context === "project" || context === "ask") {
-    return audienceDescription(audience);
-  }
-  return audience === "PUBLIC"
-    ? "Anyone can read it."
-    : audienceDescription(audience);
-}
-
 export function audienceLabel(audience: string): string {
   return audienceLabels[audience as FieldNoteAudience] ?? "Everyone";
 }
 
+/** Who can read a note: one line per audience, true wherever the note is written. */
 export function audienceDescription(audience: string): string {
   return (
     audienceDescriptions[audience as FieldNoteAudience] ??

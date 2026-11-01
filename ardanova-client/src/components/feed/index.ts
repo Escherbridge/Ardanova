@@ -28,8 +28,4 @@ export {
   type PublishedPost,
 } from "./composer/published-card";
 export { useAttachableSubjects } from "./composer/use-composer-subjects";
-export {
-  audienceDescriptionFor,
-  audienceOptionsFor,
-  type AudienceContext,
-} from "./field-note-audience";
+export { audienceOptionsFor, type AudienceContext } from "./field-note-audience";

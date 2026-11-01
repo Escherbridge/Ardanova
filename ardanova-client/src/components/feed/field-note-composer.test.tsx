@@ -333,6 +333,7 @@ describe("FieldNoteComposer: each prompt writes its post type (plan §1-§2)", (
       prompt: "What moved?",
       attach: "",
       audience: "PUBLIC",
+      told: "Anyone can read it.",
       sent: { type: "POST", visibility: "PUBLIC" },
       subject: { project: null, guild: null },
     },
@@ -341,6 +342,7 @@ describe("FieldNoteComposer: each prompt writes its post type (plan §1-§2)", (
       prompt: "What's stuck?",
       attach: "project:project-p",
       audience: "PROJECT_MEMBERS",
+      told: "Only people on the project team can read it.",
       sent: {
         type: "PROJECT_UPDATE",
         visibility: "PROJECT_MEMBERS",
@@ -362,6 +364,7 @@ describe("FieldNoteComposer: each prompt writes its post type (plan §1-§2)", (
       prompt: "What moved?",
       attach: "guild:guild-g",
       audience: "PUBLIC",
+      told: "Anyone can read it.",
       sent: {
         type: "GUILD_ACTIVITY",
         visibility: "PUBLIC",
@@ -378,7 +381,7 @@ describe("FieldNoteComposer: each prompt writes its post type (plan §1-§2)", (
     },
   ])(
     "$flow; onPublished gets the created post as a leading card",
-    async ({ prompt, attach, audience, sent, subject }) => {
+    async ({ prompt, attach, audience, told, sent, subject }) => {
       const published = vi.fn<(card: FeedCard) => void>();
       renderSignedIn(
         <FieldNoteComposer author={author} onPublished={published} />,
@@ -388,6 +391,8 @@ describe("FieldNoteComposer: each prompt writes its post type (plan §1-§2)", (
       await screen.findByRole("option", { name: "Timber framers" });
       if (attach) pick("Attach", attach);
       pick("Who can read", audience);
+      // The scope line says who can read it wherever it shows (Home, tag pages), not just on the subject's page.
+      screen.getByText(told);
       write(textbox(prompt), "Walls are up on the east side.");
       fireEvent.click(button("Post update"));
 
@@ -457,6 +462,8 @@ describe("FieldNoteComposer: Who can help? (HELP_WANTED)", () => {
 
     await screen.findByRole("option", { name: "Barn raising" });
     pick("Project", "project:project-p");
+    // A public ask reaches Home and tag pages too, so the line no longer says "visiting this project".
+    screen.getByText("Anyone can read it.");
     await screen.findByLabelText("Task");
     expect(callsTo("GET", "/api/tasks/search")[0]?.query.get("projectId")).toBe(
       "project-p",
