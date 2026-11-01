@@ -92,10 +92,8 @@ export const projectDtoSchema = z.object({
   problemStatement: z.string(),
   solution: z.string(),
   categories: z.array(z.string()),
-  // The derived SECTOR/PROJECT_TYPE fields as "#slug" chips (SR-03 Phase 3 §3), for the one
-  // hashtag field's edit-form round-trip. Optional/defaulted: a response from before this
-  // field existed has none.
-  hashtags: z.array(z.string()).optional().default([]),
+  /** The derived SECTOR/PROJECT_TYPE tags as "#slug" (.NET ProjectHashtagDisplay); optional on read for an older API - readers coalesce `?? []`. */
+  hashtags: z.array(z.string()).optional(),
   status: projectStatusSchema,
   fundingGoal: z.number().nullable(),
   fundingGoalUnit: z.string().optional(),

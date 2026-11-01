@@ -10,28 +10,19 @@ import {
 } from "lucide-react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
-import { Badge } from "~/components/ui/badge";
 import {
   parseProjectMediaItems,
   type ProjectMediaItem,
 } from "~/lib/contracts/project-create-contract";
 
+/** The project brief. The lede and tags sit in the page header (see ./AGENTS.md §Project page). */
 interface OverviewTabProps {
   project: {
-    /**
-     * The one-line ask. It arrives once `projectDtoSchema` carries the field; until
-     * then the create wizard writes the same sentence to `description`, which is read
-     * as the fallback below. No other surface renders `description`, so the lede is
-     * shown exactly once either way.
-     */
-    summary?: string | null;
-    description?: string | null;
     problemStatement?: string | null;
     solution?: string | null;
     expectedImpact?: string | null;
     targetAudience?: string | null;
     timeline?: string | null;
-    tags?: string | null;
     /** JSON manifest; the canonical media column once the create contract carries it. */
     mediaPaths?: string | null;
     /** The comma-separated location columns the create contract writes today. */
@@ -108,19 +99,9 @@ export default function OverviewTab({ project }: OverviewTabProps) {
       new Map(merged.map((item) => [item.bucketPath, item])).values(),
     );
   })();
-  // Projects created before the wizard had a summary carry a copy of the solution in
-  // `description`; showing that as a lede would print the same paragraph twice.
-  const lede = project.summary?.trim() || project.description?.trim();
-  const summary = lede && lede !== project.solution?.trim() ? lede : undefined;
 
   return (
     <div className="space-y-6">
-      {summary && (
-        <p className="text-foreground border-system border-l-4 pl-4 text-lg leading-relaxed">
-          {summary}
-        </p>
-      )}
-
       {media.length > 0 && (
         <section aria-label="Project media">
           <ul className="flex list-none gap-3 overflow-x-auto pb-2">
@@ -133,50 +114,50 @@ export default function OverviewTab({ project }: OverviewTabProps) {
         </section>
       )}
 
-      <Card className="bg-card border-2 border-border">
+      <Card className="bg-card border-border border-2">
         <CardHeader>
-          <CardTitle className="text-lg flex items-center gap-2">
-            <div className="w-8 h-8 bg-neon-pink/20 rounded-lg flex items-center justify-center border border-neon-pink/30">
-              <Target className="size-4 text-neon-pink" />
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <div className="bg-neon-pink/20 border-neon-pink/30 flex h-8 w-8 items-center justify-center rounded-lg border">
+              <Target className="text-neon-pink size-4" />
             </div>
             Problem Statement
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-foreground whitespace-pre-wrap leading-relaxed">
+          <p className="text-foreground leading-relaxed whitespace-pre-wrap">
             {project.problemStatement || "No problem statement provided."}
           </p>
         </CardContent>
       </Card>
 
-      <Card className="bg-card border-2 border-border">
+      <Card className="bg-card border-border border-2">
         <CardHeader>
-          <CardTitle className="text-lg flex items-center gap-2">
-            <div className="w-8 h-8 bg-neon-green/20 rounded-lg flex items-center justify-center border border-neon-green/30">
-              <Lightbulb className="size-4 text-neon-green" />
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <div className="bg-neon-green/20 border-neon-green/30 flex h-8 w-8 items-center justify-center rounded-lg border">
+              <Lightbulb className="text-neon-green size-4" />
             </div>
             Proposed Solution
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-foreground whitespace-pre-wrap leading-relaxed">
+          <p className="text-foreground leading-relaxed whitespace-pre-wrap">
             {project.solution || "No solution provided."}
           </p>
         </CardContent>
       </Card>
 
       {project.expectedImpact && (
-        <Card className="bg-card border-2 border-border">
+        <Card className="bg-card border-border border-2">
           <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <div className="w-8 h-8 bg-primary/20 rounded-lg flex items-center justify-center border border-primary/30">
-                <TrendingUp className="size-4 text-primary" />
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <div className="bg-primary/20 border-primary/30 flex h-8 w-8 items-center justify-center rounded-lg border">
+                <TrendingUp className="text-primary size-4" />
               </div>
               Expected Impact
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-foreground whitespace-pre-wrap leading-relaxed">
+            <p className="text-foreground leading-relaxed whitespace-pre-wrap">
               {project.expectedImpact}
             </p>
           </CardContent>
@@ -184,17 +165,17 @@ export default function OverviewTab({ project }: OverviewTabProps) {
       )}
 
       {project.targetAudience && (
-        <Card className="bg-card border-2 border-border">
+        <Card className="bg-card border-border border-2">
           <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <div className="w-8 h-8 bg-neon-purple/20 rounded-lg flex items-center justify-center border border-neon-purple/30">
-                <Users className="size-4 text-neon-purple" />
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <div className="bg-neon-purple/20 border-neon-purple/30 flex h-8 w-8 items-center justify-center rounded-lg border">
+                <Users className="text-neon-purple size-4" />
               </div>
               Target Audience
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-foreground whitespace-pre-wrap leading-relaxed">
+            <p className="text-foreground leading-relaxed whitespace-pre-wrap">
               {project.targetAudience}
             </p>
           </CardContent>
@@ -202,36 +183,19 @@ export default function OverviewTab({ project }: OverviewTabProps) {
       )}
 
       {project.timeline && (
-        <Card className="bg-card border-2 border-border">
+        <Card className="bg-card border-border border-2">
           <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <div className="w-8 h-8 bg-warning/20 rounded-lg flex items-center justify-center border border-warning/30">
-                <Clock className="size-4 text-warning" />
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <div className="bg-warning/20 border-warning/30 flex h-8 w-8 items-center justify-center rounded-lg border">
+                <Clock className="text-warning size-4" />
               </div>
               Timeline
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-foreground whitespace-pre-wrap leading-relaxed">
+            <p className="text-foreground leading-relaxed whitespace-pre-wrap">
               {project.timeline}
             </p>
-          </CardContent>
-        </Card>
-      )}
-
-      {project.tags && (
-        <Card className="bg-card border-2 border-border">
-          <CardHeader>
-            <CardTitle className="text-lg">Tags & Skills</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-wrap gap-2">
-              {project.tags.split(",").map((tag: string, i: number) => (
-                <Badge key={i} variant="secondary">
-                  {tag.trim()}
-                </Badge>
-              ))}
-            </div>
           </CardContent>
         </Card>
       )}
