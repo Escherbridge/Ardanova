@@ -723,7 +723,7 @@ export default function EventsPage() {
             className="border-destructive bg-destructive/10 p-8 text-center"
           >
             <p className="text-destructive font-medium">
-              Events didn't load.
+              Events didn&apos;t load.
             </p>
           </div>
         ) : activeTab === "my-events" && registeredEventsError ? (
@@ -732,7 +732,7 @@ export default function EventsPage() {
             className="border-destructive bg-destructive/10 p-8 text-center"
           >
             <p className="text-destructive font-medium">
-              Your registrations didn't load.
+              Your registrations didn&apos;t load.
             </p>
           </div>
         ) : filteredEvents.length === 0 ? (

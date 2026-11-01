@@ -549,15 +549,8 @@ export default function StudioPage() {
             </span>
           </div>
           <h1 className="max-w-6xl font-mono text-[clamp(2.7rem,8vw,7rem)] leading-[0.84] font-black tracking-[-0.09em] uppercase">
-            Shape the work.
-            <br />
-            Keep the agency.
+            Nova Studio
           </h1>
-          <p className="mt-6 max-w-2xl text-base leading-relaxed sm:text-lg">
-            Nova Studio is a reviewable workspace for drafting a project,
-            shaping its presentation, and rehearsing the hard questions. You
-            remain the author and decision-maker.
-          </p>
         </div>
       </header>
 

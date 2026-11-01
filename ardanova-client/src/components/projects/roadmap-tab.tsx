@@ -114,7 +114,7 @@ export default function RoadmapTab({ projectId, isOwner }: RoadmapTabProps) {
         <AlertCircle className="text-destructive mt-0.5 size-5 shrink-0" />
         <div className="flex-1">
           <p className="text-destructive font-mono text-sm font-bold">
-            Roadmap didn't load.
+            Roadmap didn&apos;t load.
           </p>
           <p className="text-muted-foreground mt-1 text-xs">{error.message}</p>
         </div>
@@ -138,7 +138,7 @@ export default function RoadmapTab({ projectId, isOwner }: RoadmapTabProps) {
       {/* Header */}
       <div className="flex items-center justify-between">
         <h3 className="text-muted-foreground font-mono text-xs tracking-widest uppercase">
-          PROJECT ROADMAP
+          ROADMAP
         </h3>
         {isOwner && (
           <Button
@@ -360,7 +360,7 @@ function MilestoneNode({
             ) : epicsError ? (
               <div className="border-destructive/40 bg-destructive/5 flex flex-col items-start gap-3 border p-3 sm:flex-row sm:items-center sm:justify-between">
                 <p className="text-destructive text-xs">
-                  Epics didn't load: {epicsError.message}
+                  Epics didn&apos;t load: {epicsError.message}
                 </p>
                 <Button
                   type="button"
@@ -522,7 +522,7 @@ function EpicCard({ epic }: { epic: Epic }) {
           ) : sprintsError ? (
             <div className="border-destructive/40 bg-destructive/5 flex flex-col items-start gap-3 border p-3 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-destructive text-[10px]">
-                Sprints didn't load: {sprintsError.message}
+                Sprints didn&apos;t load: {sprintsError.message}
               </p>
               <Button
                 type="button"

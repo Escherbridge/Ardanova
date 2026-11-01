@@ -391,15 +391,10 @@ export default function ChatsPage() {
         >
           <header className="border-border shrink-0 border-b-2 p-4">
             <div className="mb-4 flex items-start justify-between gap-4">
-              <div>
-                <p className="text-primary text-[0.68rem] font-bold tracking-[0.18em] uppercase">
-                  Coordination, not distraction
-                </p>
-                <h1 className="text-foreground mt-1 flex items-center gap-2 text-2xl font-black tracking-tight">
-                  <MessageCircle className="size-5" aria-hidden="true" />
-                  Messages
-                </h1>
-              </div>
+              <h1 className="text-foreground flex items-center gap-2 text-2xl font-black tracking-tight">
+                <MessageCircle className="size-5" aria-hidden="true" />
+                Messages
+              </h1>
               <Button
                 type="button"
                 size="sm"
@@ -469,7 +464,7 @@ export default function ChatsPage() {
                 role="alert"
               >
                 <p className="text-foreground font-bold">
-                  Conversations didn't load.
+                  Conversations didn&apos;t load.
                 </p>
                 <Button
                   type="button"
@@ -658,7 +653,7 @@ export default function ChatsPage() {
                 role="alert"
               >
                 <h2 className="text-foreground font-black">
-                  Conversation didn't load.
+                  Conversation didn&apos;t load.
                 </h2>
                 <p className="text-muted-foreground mt-2 text-sm leading-6">
                   Access has not been inferred or changed.
@@ -765,7 +760,7 @@ export default function ChatsPage() {
                   role="alert"
                 >
                   <p className="text-destructive text-sm">
-                    Details didn't refresh and may be out of date.
+                    Details didn&apos;t refresh and may be out of date.
                   </p>
                   <Button
                     type="button"
@@ -842,7 +837,7 @@ export default function ChatsPage() {
                     role="alert"
                   >
                     <h3 className="text-foreground font-black">
-                      Messages didn't load.
+                      Messages didn&apos;t load.
                     </h3>
                     <Button
                       type="button"

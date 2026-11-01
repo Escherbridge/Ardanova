@@ -85,7 +85,7 @@ export default function SprintsTab({ projectId, canManage }: SprintsTabProps) {
         <AlertCircle className="text-destructive mt-0.5 size-5 shrink-0" />
         <div className="flex-1">
           <p className="text-destructive font-mono text-sm font-bold">
-            Sprints didn't load.
+            Sprints didn&apos;t load.
           </p>
           <p className="text-muted-foreground mt-1 text-xs">{error.message}</p>
         </div>
@@ -227,7 +227,7 @@ function MilestoneAccordion({
               role="alert"
             >
               <p className="text-destructive text-[10px]">
-                Epics didn't load: {epicsError.message}
+                Epics didn&apos;t load: {epicsError.message}
               </p>
               <Button
                 type="button"
@@ -312,7 +312,7 @@ function EpicAccordion({
               role="alert"
             >
               <p className="text-destructive text-[10px]">
-                Sprints didn't load: {sprintsError.message}
+                Sprints didn&apos;t load: {sprintsError.message}
               </p>
               <Button
                 type="button"
@@ -485,7 +485,7 @@ function SprintDetail({
           <AlertCircle className="text-destructive mt-0.5 size-5 shrink-0" />
           <div>
             <p className="text-destructive font-mono text-sm font-bold">
-              Sprint work didn't load.
+              Sprint work didn&apos;t load.
             </p>
             <p className="text-muted-foreground mt-1 text-xs">
               {workError?.message ?? "Unknown error"}

@@ -258,7 +258,7 @@ export default function UpdatesTab({ projectId, isOwner }: UpdatesTabProps) {
         <Card className="border-destructive">
           <CardContent className="pt-6">
             <p className="text-destructive text-sm">
-              Updates didn't load: {error.message}
+              Updates didn&apos;t load: {error.message}
             </p>
           </CardContent>
         </Card>

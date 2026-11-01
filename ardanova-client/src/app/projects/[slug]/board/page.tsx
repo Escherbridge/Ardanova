@@ -550,7 +550,7 @@ export default function ProjectBoardPage() {
             <AlertCircle className="text-destructive mt-0.5 size-5 shrink-0" />
             <div>
               <p className="text-destructive font-mono text-sm font-bold">
-                Board didn't load.
+                Board didn&apos;t load.
               </p>
               <p className="text-muted-foreground mt-1 text-xs">
                 {loadError?.message ?? "Unknown error"}

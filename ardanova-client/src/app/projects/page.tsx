@@ -445,7 +445,7 @@ export default function ProjectsPage() {
           </div>
         ) : projectsQuery.error ? (
           <div className="flex min-h-64 flex-col items-start justify-center gap-4 p-6">
-            <h2 className="text-2xl font-bold">Projects didn't load.</h2>
+            <h2 className="text-2xl font-bold">Projects didn&apos;t load.</h2>
             <Button
               type="button"
               variant="outline"

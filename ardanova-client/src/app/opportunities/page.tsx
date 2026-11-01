@@ -770,7 +770,7 @@ export default function OpportunitiesPage() {
             className="border-destructive bg-destructive/10 border-b-2 px-4 py-10 text-center"
           >
             <p className="text-destructive font-medium">
-              Opportunities didn't load.
+              Opportunities didn&apos;t load.
             </p>
           </div>
         ) : filteredOpportunities.length === 0 ? (

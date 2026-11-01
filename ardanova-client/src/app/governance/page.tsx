@@ -804,7 +804,7 @@ export default function GovernancePage() {
             className="border-destructive bg-destructive/10 border-b-2 px-4 py-10 text-center"
           >
             <p className="text-destructive font-medium">
-              Proposals didn't load.
+              Proposals didn&apos;t load.
             </p>
           </div>
         ) : filteredProposals.length === 0 ? (

@@ -600,7 +600,7 @@ export default function ProposalsTab({
   if (error) {
     return (
       <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-red-800">
-        Proposals didn't load: {error.message}
+        Proposals didn&apos;t load: {error.message}
       </div>
     );
   }

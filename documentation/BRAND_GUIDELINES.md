@@ -6,7 +6,7 @@ ArdaNova helps people turn ideas into accountable, community-supported work. The
 
 The visual direction is **flat neobrutalism with abstract-expressionist energy**: editorial scale, hard geometry, human texture, and precise operational detail. It combines the clarity of Swiss design, the directness of Neue Montréal, the expressive project storytelling in ArdaNova's Gamma deck, and the calm system legibility of Azoa.
 
-For implementation rules and interaction patterns, see [Frontend experience](./FRONTEND_EXPERIENCE.md). For the complete voice, vocabulary, CTA, activity, and machine-language system, see the [Linguistic guide](./LINGUISTIC_GUIDE.md).
+For implementation rules and interaction patterns, see [Frontend experience](./FRONTEND_EXPERIENCE.md). For interface copy, see [Linguistic guide § Just enough](./LINGUISTIC_GUIDE.md#just-enough).
 
 ---
 
@@ -18,20 +18,20 @@ ArdaNova is a place to shape a project, make its terms visible, find collaborato
 
 Two category lines frame the promise:
 
-- **Social media for doing, not doom-scrolling.** ArdaNova is social through shared inquiry, contribution, decisions, and iteration - not an endless attention feed.
+- **Social media for doing, not doom-scrolling.** ArdaNova is social through shared inquiry, contribution, decisions, and iteration.
 - **Technology for ownership, not surveillance.** The system should make power and explicitly documented rights legible, not make people observable for extraction.
 
 "Own what you build" remains an aspirational brand line, never a transactional claim. Product copy must name the specific instrument, terms, conditions, and reconciliation state behind any ownership language.
 
-### Voice principles
+### Voice: just enough
 
-- Lead with the human outcome, then explain the mechanism.
-- Use plain, concrete language and active verbs.
-- Orient attention toward the solutionary loop: **discover a problem -> define a solution -> iterate**.
-- Give contributors agency; do not portray the platform as acting on their behalf.
-- Name limits, prerequisites, and pending states early.
-- Distinguish an intent from a confirmed or reconciled result.
-- Avoid urgency, speculative-return language, and technological spectacle.
+The interface speaks through what it shows: Apple's restraint, with the subtlety of Žižek's ad copy. The full rules and examples are in [Linguistic guide § Just enough](./LINGUISTIC_GUIDE.md#just-enough). In short:
+
+- Never narrate what the screen already shows. Headings: four words or fewer. A supporting line is optional, eight words or fewer, and only adds what the UI doesn't show.
+- Buttons are verb + noun. Empty states get one line and one action.
+- No taglines, eyebrow stacks, or "we/our" on working surfaces. "ArdaNova" lives in the logo, titles, and legal text.
+- At most one quietly double-edged line per page. Most pages get none.
+- Money, verification, consent, and safety copy is exempt: name limits, prerequisites, and pending states, and distinguish an intent from a confirmed or reconciled result, however many words that takes.
 
 ---
 
@@ -111,9 +111,9 @@ The central product narrative is:
 2. **Define a solution** as a reviewable proposal with visible assumptions, roles, terms, and success measures.
 3. **Iterate** by testing, contributing, comparing results, reconciling exceptions, and revising or stopping.
 
-This is a loop rather than a funnel. The interface should privilege field notes, open questions, proposals, contributions, decisions, work updates, and next moves over popularity or time-on-platform metrics.
+This is a loop rather than a funnel. The interface should privilege field notes, open questions, proposals, contributions, decisions, work updates, and next moves. Popularity is never presented as proof.
 
-The [Linguistic guide](./LINGUISTIC_GUIDE.md) is canonical for detailed vocabulary, sentence patterns, CTA grammar, community activity language, anti-surveillance guardrails, and Nova voice.
+The [Linguistic guide](./LINGUISTIC_GUIDE.md) is canonical for interface copy (Just enough), loop vocabulary, community activity language, anti-surveillance guardrails, and Nova voice.
 
 ### Values-based terms
 
@@ -192,7 +192,9 @@ Emphasize terms, risk, use of funds, and current state. Never use FOMO, guarante
 
 ---
 
-## Example copy
+## Example copy (state and value)
+
+These examples follow the long-form exemption. For everyday interface copy, see [Just enough](./LINGUISTIC_GUIDE.md#just-enough).
 
 ### Good
 

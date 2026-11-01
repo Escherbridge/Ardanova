@@ -159,7 +159,7 @@ export default function CommentsTab({ projectId }: CommentsTabProps) {
           <AlertCircle className="text-destructive mt-0.5 size-5 shrink-0" />
           <div>
             <p className="text-destructive font-mono text-sm font-bold">
-              Comments didn't load.
+              Comments didn&apos;t load.
             </p>
             <p className="text-muted-foreground mt-1 text-xs">
               {commentsError.message}

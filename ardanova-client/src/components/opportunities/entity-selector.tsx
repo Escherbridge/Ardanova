@@ -167,12 +167,9 @@ export default function EntitySelector({ onSelect }: EntitySelectorProps) {
         >
           <ArrowLeft className="size-4" />
         </Button>
-        <div>
-          <h3 className="text-lg font-bold">Select {config.label}</h3>
-          <p className="text-muted-foreground text-sm">
-            Choose from your {config.label.toLowerCase()}s
-          </p>
-        </div>
+        <h3 className="text-lg font-bold">
+          Choose a {config.label.toLowerCase()}
+        </h3>
       </div>
 
       {isLoading ? (
@@ -187,7 +184,7 @@ export default function EntitySelector({ onSelect }: EntitySelectorProps) {
           role="alert"
         >
           <h4 className="text-destructive mb-2 text-lg font-semibold">
-            {config.label}s didn't load.
+            {config.label}s didn&apos;t load.
           </h4>
           <p className="text-muted-foreground text-sm">
             Try again before choosing an owner.
@@ -200,15 +197,13 @@ export default function EntitySelector({ onSelect }: EntitySelectorProps) {
           ) : (
             <FolderKanban className="text-muted-foreground mx-auto mb-4 size-12" />
           )}
-          <h4 className="mb-2 text-lg font-semibold">
-            No {config.label}s Found
+          <h4 className="mb-4 text-lg font-semibold">
+            No {config.label.toLowerCase()}s yet.
           </h4>
-          <p className="text-muted-foreground mb-4 text-sm">
-            You don&apos;t have any {config.label.toLowerCase()}s yet. Create
-            one to post opportunities.
-          </p>
           <Button variant="neon" asChild className="min-h-11">
-            <Link href={`/${selectedType}s/create`}>Create {config.label}</Link>
+            <Link href={`/${selectedType}s/create`}>
+              Create {config.label.toLowerCase()}
+            </Link>
           </Button>
         </Card>
       ) : (

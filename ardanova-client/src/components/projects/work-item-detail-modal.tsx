@@ -356,7 +356,7 @@ function CommentSection({
           role="alert"
         >
           <p className="text-destructive text-xs">
-            Comments didn't load.
+            Comments didn&apos;t load.
           </p>
           <Button
             type="button"

@@ -798,7 +798,7 @@ export default function DashboardTasksPage() {
             className="border-destructive bg-destructive/10 border-2 p-8 text-center"
           >
             <p className="text-destructive font-medium">
-              Tasks didn't load.
+              Tasks didn&apos;t load.
             </p>
             <Button
               type="button"

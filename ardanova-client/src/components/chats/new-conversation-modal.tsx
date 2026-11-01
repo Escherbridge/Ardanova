@@ -143,7 +143,7 @@ export function NewConversationModal({
               className="border-destructive bg-destructive/10 my-3 space-y-3 border-2 p-4"
               role="alert"
             >
-              <p className="text-foreground font-bold">People didn't load.</p>
+              <p className="text-foreground font-bold">People didn&apos;t load.</p>
               <button
                 type="button"
                 onClick={() => void refetchUsers()}

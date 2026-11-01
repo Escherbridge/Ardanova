@@ -690,7 +690,7 @@ export default function GuildsPage() {
             role="alert"
             className="border-destructive bg-destructive/10 border-b-2 px-4 py-10 text-center"
           >
-            <p className="text-destructive font-medium">Guilds didn't load.</p>
+            <p className="text-destructive font-medium">Guilds didn&apos;t load.</p>
           </div>
         ) : filteredGuilds.length === 0 ? (
           <div className="flex flex-col items-center justify-center px-4 py-20">

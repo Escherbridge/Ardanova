@@ -101,7 +101,7 @@ export default function TaskDetailPage() {
     return (
       <TaskShell title="Task unavailable">
         <p className="text-muted-foreground">
-          This task didn't load, or you no longer have access.
+          This task didn&apos;t load, or you no longer have access.
         </p>
       </TaskShell>
     );

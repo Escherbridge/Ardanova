@@ -167,7 +167,7 @@ export default function UserProfilePage() {
                   <p className="text-muted-foreground">Loading…</p>
                 ) : projectsError ? (
                   <p role="alert" className="text-destructive">
-                    Projects didn't load.
+                    Projects didn&apos;t load.
                   </p>
                 ) : (userProjects?.items?.length ?? 0) === 0 ? (
                   <p className="text-muted-foreground">No projects yet.</p>
@@ -199,7 +199,7 @@ export default function UserProfilePage() {
                   <p className="text-muted-foreground">Loading…</p>
                 ) : guildsError ? (
                   <p role="alert" className="text-destructive">
-                    Guilds didn't load.
+                    Guilds didn&apos;t load.
                   </p>
                 ) : !ownedGuilds?.length ? (
                   <p className="text-muted-foreground">No guilds listed.</p>

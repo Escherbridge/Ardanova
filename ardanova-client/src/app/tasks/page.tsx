@@ -741,7 +741,7 @@ export default function TasksPage() {
         </div>
       ) : error ? (
         <div role="alert" className="text-destructive p-4 text-sm">
-          Tasks didn't load. {error.message}{" "}
+          Tasks didn&apos;t load. {error.message}{" "}
           <button
             type="button"
             className="min-h-11 underline"

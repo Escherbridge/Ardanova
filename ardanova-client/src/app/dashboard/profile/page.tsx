@@ -380,7 +380,7 @@ export default function ProfilePage() {
                   <p className="text-muted-foreground">Loading projects…</p>
                 ) : projectsError ? (
                   <p role="alert" className="text-destructive">
-                    Projects didn't load.
+                    Projects didn&apos;t load.
                   </p>
                 ) : (myProjects?.items.length ?? 0) === 0 ? (
                   <p className="text-muted-foreground">
@@ -417,7 +417,7 @@ export default function ProfilePage() {
                   <p className="text-muted-foreground">Loading invitations…</p>
                 ) : invitationsError ? (
                   <p role="alert" className="text-destructive">
-                    Invitations didn't load.
+                    Invitations didn&apos;t load.
                   </p>
                 ) : pendingInvitations.length === 0 ? (
                   <p className="text-muted-foreground">
@@ -513,7 +513,7 @@ export default function ProfilePage() {
                   <p className="text-muted-foreground">Loading guilds…</p>
                 ) : guildsError ? (
                   <p role="alert" className="text-destructive">
-                    Guilds didn't load.
+                    Guilds didn&apos;t load.
                   </p>
                 ) : myGuildRows.length === 0 ? (
                   <p className="text-muted-foreground">
@@ -557,7 +557,7 @@ export default function ProfilePage() {
               <CardContent>
                 {tasksError || profileError ? (
                   <p role="alert" className="text-destructive">
-                    Contributions didn't load.
+                    Contributions didn&apos;t load.
                   </p>
                 ) : (
                   <>
