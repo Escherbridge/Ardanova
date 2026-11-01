@@ -36,6 +36,7 @@ export const PostSchema = z.object({
   eventId: z.string().nullable(),
   retractedAt: z.coerce.date().nullable(),
   hashtags: z.string().array(),
+  taskId: z.string().nullable(),
 })
 
 export type Post = z.infer<typeof PostSchema>

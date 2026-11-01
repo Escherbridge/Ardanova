@@ -106,6 +106,8 @@ public partial class ProjectTask
 
     public virtual ICollection<TaskEscrow> TaskEscrows { get; set; } = new List<TaskEscrow>();
 
+    public virtual ICollection<Post> Posts { get; set; } = new List<Post>();
+
     public virtual ICollection<Opportunity> Opportunities { get; set; } = new List<Opportunity>();
 
     public virtual ICollection<EconomicSettlement> EconomicSettlements { get; set; } = new List<EconomicSettlement>();

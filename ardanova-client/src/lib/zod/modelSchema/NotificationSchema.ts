@@ -17,6 +17,7 @@ export const NotificationSchema = z.object({
   readAt: z.coerce.date().nullable(),
   actionUrl: z.string().nullable(),
   createdAt: z.coerce.date(),
+  postId: z.string().nullable(),
 })
 
 export type Notification = z.infer<typeof NotificationSchema>

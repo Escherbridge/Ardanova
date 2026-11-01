@@ -42,7 +42,12 @@ public partial class Notification
     [Required]
     public DateTime createdAt { get; set; }
 
+    public string? postId { get; set; }
+
     [ForeignKey("userId")]
     public virtual User? User { get; set; }
+
+    [ForeignKey("postId")]
+    public virtual Post? Post { get; set; }
 
 }

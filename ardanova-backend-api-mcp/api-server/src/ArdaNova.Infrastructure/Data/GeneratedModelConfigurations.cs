@@ -13,6 +13,7 @@ public static class GeneratedModelConfigurations
     public static void ApplyGeneratedConfigurations(this ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Account>().HasIndex(e => new { e.provider, e.providerAccountId }).IsUnique();
+        modelBuilder.Entity<Notification>().HasIndex(e => new { e.userId, e.postId });
         modelBuilder.Entity<UserAchievement>().HasIndex(e => new { e.userId, e.achievementId }).IsUnique();
         modelBuilder.Entity<LeaderboardEntry>().HasIndex(e => new { e.leaderboardId, e.userId }).IsUnique();
         modelBuilder.Entity<ProjectComment>().HasIndex(e => new { e.targetType, e.targetId });
