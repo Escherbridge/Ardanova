@@ -524,7 +524,7 @@ public sealed class FeedService : IFeedService
             row.Type == PostType.FUNDING_PROGRESS ? FundingOf(row.Metadata) : null,
             row.Type == PostType.DISCUSSION ? ThreadOf(row.Metadata) : null,
             new FeedCountersDto(row.Likes, replies, row.Shares),
-            RelationOf(viewer, row.ProjectId, row.GuildId, task),
+            RelationOf(viewer, row.AuthorId, row.ProjectId, row.GuildId, task),
             placement.Card.IsDiscovery,
             placement.Card.Reasons
                 .Select(reason => new FeedReasonDto(
@@ -538,15 +538,22 @@ public sealed class FeedService : IFeedService
 
     /// <summary>
     /// The reader's standing toward the card's subject. CanClaim is the claim write's own rule (TaskClaimRule), with
-    /// membership of the TASK's project - never a guild - as the claim route checks it.
+    /// membership of the TASK's project - never a guild - as the claim route checks it, and never on the reader's own
+    /// ask (a card-level choice only: the claim route still lets an asker take their task; AGENTS.md §Help wanted).
     /// </summary>
-    private static FeedViewerRelationDto RelationOf(FeedViewer viewer, string? projectId, string? guildId, FeedHelpTask? task)
+    private static FeedViewerRelationDto RelationOf(
+        FeedViewer viewer,
+        string authorId,
+        string? projectId,
+        string? guildId,
+        FeedHelpTask? task)
         => new(
             IsMember: (projectId is not null && viewer.MemberProjects.Contains(projectId))
                 || (guildId is not null && viewer.MemberGuilds.Contains(guildId)),
             IsFollowing: (projectId is not null && viewer.FollowedProjects.Contains(projectId))
                 || (guildId is not null && viewer.FollowedGuilds.Contains(guildId)),
             CanClaim: task is not null
+                && !string.Equals(authorId, viewer.UserId, StringComparison.Ordinal)
                 && TaskClaimRule.CanClaimInPlace(task.ClaimFacts, viewerIsProjectMember: viewer.MemberProjects.Contains(task.ProjectId)));
 
     /// <summary>The funding mark from an envelope's {"percent":N} metadata - the only figure a funding card carries.</summary>

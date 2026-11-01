@@ -78,6 +78,30 @@ public sealed partial class FeedReadFlowTests
         (await PageAsync(Bo, limit: 50)).Items.Single(card => card.Id == teamOnlyAsk).Viewer.CanClaim.Should().BeTrue();
     }
 
+    /// <summary>
+    /// Walkthrough W-L1: the asker was offered "Pick up task" on their own ask. The card hides it for the author; the
+    /// claim route itself still lets an asker take their task from the task page (TaskClaimRule is unchanged).
+    /// </summary>
+    [PostgresFact]
+    public async Task TheAsker_IsNotOfferedThePickUpOnTheirOwnAsk_WhileATeammateStillIs()
+    {
+        var task = await SeedTaskAsync(BarnId, "Frame the east wall");
+        var ask = await SeedAskAsync(Fern, BarnId, task, "Framing the east wall Saturday, need two hands.");
+
+        foreach (var scope in new[] { "home", $"project:{BarnId}" })
+        {
+            var asker = Succeeded(await Feed().GetPageAsync(new FeedPageRequest(Fern, scope, Limit: 50))).Items
+                .Single(card => card.Id == ask);
+            var teammate = Succeeded(await Feed().GetPageAsync(new FeedPageRequest(Bo, scope, Limit: 50))).Items
+                .Single(card => card.Id == ask);
+
+            asker.Viewer.Should().Be(new FeedViewerRelationDto(IsMember: true, IsFollowing: false, CanClaim: false),
+                $"{scope}: Fern founded the barn, so only authorship can be what withholds the pick-up");
+            asker.Task.Should().Be(new FeedTaskDto(task, "OPEN", AssigneeName: null, Paid: false));
+            teammate.Viewer.CanClaim.Should().BeTrue($"{scope}: Bo is on the team and did not write the ask");
+        }
+    }
+
     [PostgresFact]
     public async Task ATeammateIsOfferedNoPickUp_OnAPaidAFundedAnAssignedOrACompletedTask_AndEachCardSaysWhichState()
     {

@@ -391,6 +391,12 @@ task page, whose readiness check runs before the claim. Reasons still tell a tea
 on the P team") from a follower (`FollowedProject`, "Because you follow P"); the client renders its own fragment
 from the kind.
 
+**Never on the reader's own ask** (walkthrough W-L1, a product default the owner may reverse): `canClaim` also
+requires `card author != viewer` (`FeedService.RelationOf`). This is a card-level choice only - `TaskClaimRule` is
+unchanged, so the claim route still lets an asker take their own task from the task page, and picking up your own
+ask already notifies nobody. Proof: `FeedReadFlowTests.TheAsker_IsNotOfferedThePickUpOnTheirOwnAsk_WhileATeammateStillIs`
+(real PG, home and project scope).
+
 ## Deferred (with the trigger to revisit)
 
 - **Project follow has no write path** (only guild and user follows have services). The feed reads `ProjectFollow`;
