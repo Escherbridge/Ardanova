@@ -1,3 +1,4 @@
+// Generated from database-architecture.dbml by generate:csharp - do not edit; hand-written members go in SwapOrder.Custom.cs
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
@@ -10,7 +11,7 @@ namespace ArdaNova.Domain.Models.Entities;
 [Index(nameof(quoteId), IsUnique = true)]
 [Index(nameof(economicSettlementId), IsUnique = true)]
 [Table("SwapOrder")]
-public class SwapOrder
+public partial class SwapOrder
 {
 
     [Key]

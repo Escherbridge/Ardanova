@@ -1,3 +1,4 @@
+// Generated from database-architecture.dbml by generate:csharp - do not edit; hand-written members go in EconomicSettlement.Custom.cs
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
@@ -10,7 +11,7 @@ namespace ArdaNova.Domain.Models.Entities;
 [Index(nameof(idempotencyKey), IsUnique = true)]
 [Index(nameof(externalEventId), IsUnique = true)]
 [Table("EconomicSettlement")]
-public class EconomicSettlement
+public partial class EconomicSettlement
 {
 
     [Key]
@@ -67,13 +68,10 @@ public class EconomicSettlement
 
     public bool? azoaReplayed { get; set; }
 
-    /// <summary>Base units the payer side gave up, as the node's receipt reported them.</summary>
     public string? azoaGrossBaseUnits { get; set; }
 
-    /// <summary>Base units the node kept between gross and net; a silently shaved fee is a defect, not a detail.</summary>
     public string? azoaFeeBaseUnits { get; set; }
 
-    /// <summary>Base units the beneficiary side actually received.</summary>
     public string? azoaNetBaseUnits { get; set; }
 
     public string? failureCode { get; set; }

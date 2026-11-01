@@ -1,3 +1,4 @@
+// Generated from database-architecture.dbml by generate:csharp - do not edit; hand-written members go in ProjectTask.Custom.cs
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
@@ -9,7 +10,7 @@ namespace ArdaNova.Domain.Models.Entities;
 
 [Index(nameof(opportunityId), IsUnique = true)]
 [Table("ProjectTask")]
-public class ProjectTask
+public partial class ProjectTask
 {
 
     [Key]

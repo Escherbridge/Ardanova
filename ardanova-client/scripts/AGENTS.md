@@ -19,3 +19,7 @@ Keep the script orchestration-only. Product-specific assertions belong in Vitest
 `link-google-account.ts` is an operator-only recovery tool for a user created before immutable provider links were recorded. It accepts only a persisted user ID and a separately verified Google `sub`; it never looks up or links by email. Before running it, an operator must verify the Google ID token signature, issuer, audience, expiry, and subject through an approved identity workflow and confirm the intended ArdaNova user out of band.
 
 The tool requires a per-run `ALLOW_LEGACY_GOOGLE_ACCOUNT_LINK=true` opt-in, refuses subject collisions and users that already have a Google link, and writes inside a serializable transaction. Clear the three linking variables immediately after the run. Do not turn this into an automatic startup migration or a public route.
+
+## C# contract generator
+
+`generate-csharp-models.ts` must stay a pure function of `prisma/database-architecture.dbml`: CI regenerates its output and fails on any diff. Entities are emitted `partial` so hand-written members live in `<Table>.Custom.cs`, and a column note ending in `csharp-default: <Member.Path>` sets a C# initializer. The full contract and the alternatives it rejected are in `ardanova-backend-api-mcp/api-server/src/ArdaNova.Domain/Models/AGENTS.md`, "Generated contract".

@@ -606,7 +606,7 @@ Table Project {
   duration ProjectDuration
   status ProjectStatus [not null, default: 'DRAFT']
   fundingGoal decimal(18,8)
-  fundingGoalUnit varchar(16) [not null, default: 'ARDA', note: 'Unit the goal is denominated in']
+  fundingGoalUnit varchar(16) [not null, default: 'ARDA', note: 'Unit the goal is denominated in. csharp-default: ProjectFundingUnits.Ledger']
   currentFunding decimal(18,8) [not null, default: 0.00]
   supportersCount int [not null, default: 0]
   votesCount int [not null, default: 0]
@@ -620,7 +620,7 @@ Table Project {
   images text
   videos text
   documents text
-  mediaPaths text [not null, default: '[]', note: 'JSON array of storage bucket paths with display metadata']
+  mediaPaths text [not null, default: '[]', note: 'JSON array of storage bucket paths with display metadata. csharp-default: ProjectMediaPaths.Empty']
   targetAudience text
   expectedImpact text
   timeline text

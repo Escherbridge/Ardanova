@@ -1,3 +1,4 @@
+// Generated from database-architecture.dbml by generate:csharp - do not edit; hand-written members go in Project.Custom.cs
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
@@ -7,37 +8,9 @@ using ArdaNova.Domain.Models.Enums;
 
 namespace ArdaNova.Domain.Models.Entities;
 
-/// <summary>Units a <see cref="Project.fundingGoal"/> may be denominated in.</summary>
-public static class ProjectFundingUnits
-{
-    /// <summary>The platform's own unit. It settles sponsorships; it never denominates an ask.</summary>
-    public const string Arda = "ARDA";
-
-    /// <summary>The unit a person types an ask in and reads a total in.</summary>
-    public const string Usd = "USD";
-
-    /// <summary>
-    /// The one unit both funding columns are kept in - <c>Project.fundingGoal</c>,
-    /// <c>ProjectTokenConfig.fundingGoal</c> and <c>ProjectTokenConfig.fundingRaised</c>.
-    /// Read through <c>ProjectFundingLedger</c>, never compared column to column by hand.
-    /// </summary>
-    public const string Ledger = Usd;
-
-    /// <summary>Whether a declared unit is the one this node keeps its funding figures in.</summary>
-    public static bool IsLedgerUnit(string? unit) =>
-        string.Equals(unit?.Trim(), Ledger, StringComparison.OrdinalIgnoreCase);
-}
-
-/// <summary>Canonical values for <see cref="Project.mediaPaths"/>.</summary>
-public static class ProjectMediaPaths
-{
-    /// <summary>A project with no uploaded media; the column is never null so readers never branch on it.</summary>
-    public const string Empty = "[]";
-}
-
 [Index(nameof(slug), IsUnique = true)]
 [Table("Project")]
-public class Project
+public partial class Project
 {
 
     [Key]
@@ -54,7 +27,6 @@ public class Project
     [Column(TypeName = "text")]
     public string description { get; set; } = string.Empty;
 
-    /// <summary>The one-line public ask, shown on cards and searched alongside the problem statement.</summary>
     [Column(TypeName = "text")]
     public string? summary { get; set; }
 
@@ -81,7 +53,6 @@ public class Project
     [Precision(18, 8)]
     public decimal? fundingGoal { get; set; }
 
-    /// <summary>Unit <see cref="fundingGoal"/> is denominated in; every ask on this node is in dollars.</summary>
     [Required]
     [MaxLength(16)]
     public string fundingGoalUnit { get; set; } = ProjectFundingUnits.Ledger;
@@ -125,7 +96,6 @@ public class Project
     [Column(TypeName = "text")]
     public string? documents { get; set; }
 
-    /// <summary>Uploaded media as a JSON array of storage bucket paths with display metadata; never null, "[]" when empty.</summary>
     [Required]
     [Column(TypeName = "text")]
     public string mediaPaths { get; set; } = ProjectMediaPaths.Empty;

@@ -1,3 +1,4 @@
+// Generated from database-architecture.dbml by generate:csharp - do not edit; member notes go in Enums/AGENTS.md
 namespace ArdaNova.Domain.Models.Enums;
 
 public enum EconomicSettlementKind
@@ -6,10 +7,6 @@ public enum EconomicSettlementKind
     FUNDING_ALLOCATION,
     ESCROW_REFUND,
     SWAP_SETTLEMENT,
-
-    /// <summary>A sponsor's ARDA exchanged for project units in one node operation.</summary>
     EXCHANGE,
-
-    /// <summary>Units already held on the node released to their beneficiary when the window elapses.</summary>
     HOLD_RELEASE
 }
