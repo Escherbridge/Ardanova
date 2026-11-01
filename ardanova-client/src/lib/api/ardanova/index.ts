@@ -85,6 +85,8 @@ export type {
   ProjectSupport,
   CreateSupportDto,
   ProjectFollowDto,
+  ProjectFollowStatusDto,
+  ProjectFollowState,
 } from "./endpoints/projects";
 export type {
   Guild,

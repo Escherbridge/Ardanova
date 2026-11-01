@@ -28,6 +28,14 @@ async function callerAs(userId: string) {
   );
 }
 
+/** The API's own shapes: .NET ProjectFollowDto on POST, ProjectFollowStatusDto on GET/DELETE. The router maps each. */
+const followRow = {
+  id: "follow-1",
+  projectId: "project-1",
+  userId: "user-ada",
+  createdAt: "2026-10-31T12:00:00Z",
+};
+
 describe("project follow (plan §2, §8-6)", () => {
   beforeEach(() => vi.clearAllMocks());
 
@@ -40,7 +48,7 @@ describe("project follow (plan §2, §8-6)", () => {
       signedSubject = payload
         ? (JSON.parse(Buffer.from(payload, "base64url").toString()) as { subject: string }).subject
         : undefined;
-      return { status: 200, data: { projectId: "project-1", isFollowing: true } };
+      return { status: 200, data: followRow };
     });
 
     const caller = await callerAs("user-ada");
@@ -50,10 +58,7 @@ describe("project follow (plan §2, §8-6)", () => {
   });
 
   it("following twice both succeed (idempotent, not a conflict)", async () => {
-    projects.followProject.mockResolvedValue({
-      status: 200,
-      data: { projectId: "project-1", isFollowing: true },
-    });
+    projects.followProject.mockResolvedValue({ status: 200, data: followRow });
 
     const caller = await callerAs("user-ada");
     const first = await caller.followProject({ projectId: "project-1" });
@@ -75,7 +80,7 @@ describe("project follow (plan §2, §8-6)", () => {
   it("unfollowing a project never followed still succeeds", async () => {
     projects.unfollowProject.mockResolvedValue({
       status: 200,
-      data: { projectId: "project-1", isFollowing: false },
+      data: { following: false },
     });
 
     const caller = await callerAs("user-ada");
@@ -88,7 +93,7 @@ describe("project follow (plan §2, §8-6)", () => {
   it("reads back the viewer's own follow state, no follower list involved", async () => {
     projects.getMyFollowState.mockResolvedValue({
       status: 200,
-      data: { projectId: "project-1", isFollowing: true },
+      data: { following: true },
     });
 
     const caller = await callerAs("user-ada");

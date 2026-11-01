@@ -52,9 +52,12 @@ Proven over real HTTP in `server/api/root.test.ts`.
 
 ## Project follow (SR-03 Phase 3 §2, §8-6)
 
-`projects.ts`'s `followProject`/`unfollowProject`/`getMyFollowState` assume
-`POST|DELETE|GET /api/projects/{id}/follow` from Lane L's `ProjectFollowService` (not yet merged at
-plan `computed_at_commit` 9a40e43) - confirm the route at the Phase 3 join. Like `posts.like`, there
+`projects.ts`'s `followProject`/`unfollowProject`/`getMyFollowState` call Lane L's
+`POST|DELETE|GET /api/projects/{id}/follow` (confirmed at the wave-1 join). The bodies differ by
+verb: POST answers the follow row (.NET `ProjectFollowDto`), GET and DELETE answer
+`ProjectFollowStatusDto` `{ following }`. The `project` router maps all three to one
+`ProjectFollowState` `{ projectId, isFollowing }`, so callers never see the .NET shapes (passing the
+raw body through is how `isFollowing` read `undefined` before the join). Like `posts.like`, there
 is no follower id in the request: the follower is the signed actor. By design there is **no**
 follower-list/count route, unlike `users.ts`'s legacy `getFollowers`/`getFollowCounts` - the plan's
 own pushback (§8-6) names guild follow's public follower list as a flaw to not repeat.

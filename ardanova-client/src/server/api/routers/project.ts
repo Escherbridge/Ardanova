@@ -8,6 +8,7 @@ import {
   publicProcedure,
 } from "~/server/api/trpc";
 import { apiClient } from "~/lib/api";
+import type { ProjectFollowState } from "~/lib/api/ardanova";
 import { runWithActorAssertion } from "~/server/actor-assertion";
 import {
   createProjectMilestoneDtoSchema,
@@ -1854,12 +1855,14 @@ export const projectRouter = createTRPCRouter({
   // ========================================
   // Viewer-only: the follower is the signed actor (`protectedProcedure` already runs inside
   // `runWithActorAssertion`), never a request value. The API alone decides visibility (a hidden
-  // project 404s) and idempotency (following twice is still 200) - this stays a thin proxy.
+  // project 404s) and idempotency (following twice is still 200) - this stays a thin proxy. All three
+  // answer the same `ProjectFollowState`: POST's body is the follow row and GET/DELETE's is
+  // `{ following }`, so each maps its own .NET shape (endpoints/AGENTS.md §Project follow).
 
   /** Follows a project. Idempotent: following an already-followed project still answers 200. */
   followProject: protectedProcedure
     .input(z.object({ projectId: z.string() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input }): Promise<ProjectFollowState> => {
       const response = await apiClient.projects.followProject(input.projectId);
       if (response.error) {
         throw new TRPCError({
@@ -1867,13 +1870,13 @@ export const projectRouter = createTRPCRouter({
           message: response.error,
         });
       }
-      return response.data ?? { projectId: input.projectId, isFollowing: true };
+      return { projectId: input.projectId, isFollowing: true };
     }),
 
   /** Unfollows a project. Idempotent: unfollowing one never followed still answers 200. */
   unfollowProject: protectedProcedure
     .input(z.object({ projectId: z.string() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input }): Promise<ProjectFollowState> => {
       const response = await apiClient.projects.unfollowProject(
         input.projectId,
       );
@@ -1883,13 +1886,13 @@ export const projectRouter = createTRPCRouter({
           message: response.error,
         });
       }
-      return response.data ?? { projectId: input.projectId, isFollowing: false };
+      return { projectId: input.projectId, isFollowing: false };
     }),
 
   /** The signed-in viewer's own follow state. There is no follower list/count route (plan §8-6). */
   getMyFollowState: protectedProcedure
     .input(z.object({ projectId: z.string() }))
-    .query(async ({ input }) => {
+    .query(async ({ input }): Promise<ProjectFollowState> => {
       const response = await apiClient.projects.getMyFollowState(
         input.projectId,
       );
@@ -1899,6 +1902,9 @@ export const projectRouter = createTRPCRouter({
           message: response.error,
         });
       }
-      return response.data ?? { projectId: input.projectId, isFollowing: false };
+      return {
+        projectId: input.projectId,
+        isFollowing: response.data?.following === true,
+      };
     }),
 });
