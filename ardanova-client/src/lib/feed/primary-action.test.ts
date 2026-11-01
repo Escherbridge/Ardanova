@@ -19,6 +19,9 @@ type Expected = {
 
 const guild = { id: "guild-g", name: "Timber framers", slug: "timber-framers" };
 const opportunity = { id: "opp-1", title: "Lead carpenter" };
+const task = { id: "task-t", state: "OPEN", assigneeName: null, paid: false };
+const member = { isMember: true, isFollowing: false, canClaim: true };
+const follower = { isMember: false, isFollowing: true, canClaim: false };
 
 /** Keyed by the contract's FeedPostType: a type added there without a row here fails `tsc`. */
 const EVERY_CONTRACT_TYPE: Record<
@@ -92,13 +95,14 @@ const EVERY_CONTRACT_TYPE: Record<
     facts: { bodyIsUserWritten: false, body: "Joined the project team." },
     expected: { label: "Reply", href: null },
   },
+  // The common case; every HELP_WANTED row is in HELP_WANTED_ROWS below.
+  HELP_WANTED: {
+    facts: { viewer: member, task },
+    expected: { label: "Pick up task", href: "/tasks/task-t" },
+  },
 };
 
-const task = { id: "task-t", state: "OPEN", assigneeName: null, paid: false };
-const member = { isMember: true, isFollowing: false, canClaim: true };
-const follower = { isMember: false, isFollowing: true, canClaim: false };
-
-/** Plan §2 HELP_WANTED rows, first match wins; plus the row the absent facts take today. */
+/** Plan §2 HELP_WANTED rows, first match wins; plus the row a card without task facts (an older API) takes. */
 const HELP_WANTED_ROWS: {
   row: string;
   facts: Partial<FeedKitCard>;
@@ -106,7 +110,7 @@ const HELP_WANTED_ROWS: {
   chip: string | null;
 }[] = [
   {
-    row: "no task facts yet (today's API), even with canClaim",
+    row: "no task facts (an older API), even with canClaim",
     facts: { viewer: member },
     expected: { label: "Reply", href: null },
     chip: null,

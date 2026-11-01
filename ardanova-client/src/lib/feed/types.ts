@@ -1,28 +1,22 @@
-import type { FeedCard, FeedPostType } from "~/lib/contracts/feed-contract";
+import type {
+  FeedCard,
+  FeedPostType,
+  FeedTask,
+} from "~/lib/contracts/feed-contract";
 
-/** PostType values the feed kit renders: the contract's list plus HELP_WANTED, which S3 adds. */
-export type KnownFeedPostType = FeedPostType | "HELP_WANTED";
+export type { FeedTaskStateCode } from "~/lib/contracts/feed-contract";
 
-/** Server-computed state of a HELP_WANTED card's task; unknown codes read as neither done nor picked up. */
-export type FeedTaskStateCode = "OPEN" | "PICKED_UP" | "DONE" | (string & {});
+/** PostType values the feed kit maps: exactly the contract's `FEED_POST_TYPES` (HELP_WANTED included). */
+export type KnownFeedPostType = FeedPostType;
 
-/** Task facts K2 adds to HELP_WANTED cards. Absent today, so every reader treats them as optional. */
-export interface FeedTaskFacts {
-  id: string;
-  state: FeedTaskStateCode;
-  assigneeName?: string | null;
-  /** equityReward > 0: the task page makes the one readiness read; the card never does. */
-  paid?: boolean;
-}
+/** A HELP_WANTED card's task facts: the contract's `feedTaskSchema`. Optional on every other card. */
+export type FeedTaskFacts = FeedTask;
 
 /**
- * A feed card as the kit reads it: the live contract plus the optional facts later lanes add.
- * Every `FeedCard` from `feed.getPage` is assignable as-is. See components/feed/AGENTS.md §Inputs.
+ * A feed card as the kit reads it: exactly a parsed `feed.getPage` card (task facts and opportunity slug included).
+ * See components/feed/AGENTS.md §Inputs.
  */
-export type FeedKitCard = Omit<FeedCard, "opportunity"> & {
-  opportunity: { id: string; title: string; slug?: string | null } | null;
-  task?: FeedTaskFacts | null;
-};
+export type FeedKitCard = FeedCard;
 
 /** The project or guild a card belongs to: what the subject chip names and Follow targets. */
 export interface FeedSubject {

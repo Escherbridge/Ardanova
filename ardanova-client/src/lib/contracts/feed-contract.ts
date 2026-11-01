@@ -18,6 +18,7 @@ export const FEED_POST_TYPES = [
   "EVENT_SCHEDULED",
   "DISCUSSION",
   "MEMBER_JOINED",
+  "HELP_WANTED",
 ] as const;
 
 /** FeedReasonKind values this client knows; render unknown ones by their `text`. */
@@ -59,8 +60,8 @@ export const feedTaskStateCodeSchema: z.ZodType<FeedTaskStateCode> = z
   .min(1);
 
 /**
- * The task a HELP_WANTED card asks for (.NET FeedTaskDto). `assigneeName` and `paid` are optional on read so the
- * feed kit's `FeedTaskFacts` stays assignable; the API always sends both.
+ * The task a HELP_WANTED card asks for (.NET FeedTaskDto); the feed kit's `FeedTaskFacts` is this type.
+ * `assigneeName` and `paid` are optional on read so an older API's card still parses; the API always sends both.
  */
 export const feedTaskSchema = z.object({
   id: z.string().min(1),

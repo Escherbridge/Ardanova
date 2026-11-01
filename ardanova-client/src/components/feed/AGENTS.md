@@ -91,9 +91,11 @@ never styled or ordered as a quality signal. Share counts are not shown: they ar
 - **G (Home), H (project page):** `<FeedStream scope viewerId onToggleFollow leadingCards renderEnd? />`.
   `onToggleFollow(subject, follow)` returns a promise; reject to revert. H passes the published post mapped to a
   card in `leadingCards`; a scoped stream ends silently unless `renderEnd` is given.
-- **K2 + P:** HELP_WANTED cards need `task: {id, state: "OPEN"|"PICKED_UP"|"DONE", assigneeName, paid}`; the
-  opportunity link needs `slug` (the page resolves by slug, so an id-only Apply 404s). `feedCardSchema` is a plain
-  `z.object`, which strips unknown keys: both fields must be added to the contract, not just the DTO.
+- **Contract (joined at wave 1):** `FeedKitCard` is exactly the contract's `FeedCard`, and `KnownFeedPostType` is
+  exactly `FeedPostType` (HELP_WANTED is in `FEED_POST_TYPES`). HELP_WANTED cards carry
+  `task: {id, state: "OPEN"|"PICKED_UP"|"DONE", assigneeName, paid}`; the opportunity link carries `slug` (the page
+  resolves by slug; an id-only Apply is the older-API fallback). `feedCardSchema` is a plain `z.object`, which strips
+  unknown keys: a new card field goes in the contract, not just the DTO.
 - **Router name:** the live procedure is `feed.getPage`.
 
 ## Deferred
