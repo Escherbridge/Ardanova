@@ -1,6 +1,8 @@
 namespace ArdaNova.Application.Feed;
 
+using ArdaNova.Application.Tasks;
 using ArdaNova.Domain.Models.Enums;
+using TaskStatus = ArdaNova.Domain.Models.Enums.TaskStatus;
 
 /// <summary>
 /// The feed's reads that are not the post rows themselves: the viewer's graph, names for cards and reasons, the
@@ -16,6 +18,11 @@ public interface IFeedReadStore
 
     /// <summary>Titles and names for the rows a page of cards points at; a missing row is simply absent.</summary>
     Task<FeedNames> ReadNamesAsync(FeedNameRequest request, CancellationToken ct = default);
+
+    /// <summary>The claim facts of the tasks HELP_WANTED cards ask for, by task id; a deleted task is simply absent.</summary>
+    Task<IReadOnlyDictionary<string, FeedHelpTask>> ReadHelpTasksAsync(
+        IReadOnlyCollection<string> taskIds,
+        CancellationToken ct = default);
 
     /// <summary>Replies under each root comment of a DISCUSSION card's native thread, by root comment id.</summary>
     Task<IReadOnlyDictionary<string, int>> ReadThreadReplyCountsAsync(
@@ -60,12 +67,43 @@ public sealed record FeedPersonName(string Id, string? Name, string? Image);
 
 public sealed record FeedEventName(string Id, string Title, DateTime StartsAt);
 
+public sealed record FeedOpportunityName(string Id, string Title, string Slug);
+
 public sealed record FeedNames(
     IReadOnlyDictionary<string, FeedProjectName> Projects,
     IReadOnlyDictionary<string, FeedGuildName> Guilds,
-    IReadOnlyDictionary<string, string> OpportunityTitles,
+    IReadOnlyDictionary<string, FeedOpportunityName> Opportunities,
     IReadOnlyDictionary<string, FeedEventName> Events,
     IReadOnlyDictionary<string, FeedPersonName> People);
+
+/// <summary>A HELP_WANTED card's task as the card and the claim rule read it; see Feed/AGENTS.md §Help wanted.</summary>
+/// <param name="HasAgreement">A TaskCommerceAgreement row exists for the task (any status), as TaskService.AssignAsync reads it.</param>
+public sealed record FeedHelpTask(
+    string Id,
+    string ProjectId,
+    string? AssigneeId,
+    string? AssigneeName,
+    TaskStatus Status,
+    EscrowStatus EscrowStatus,
+    bool HasAgreement,
+    decimal? EquityReward)
+{
+    /// <summary>OPEN while unassigned and not completed, PICKED_UP once assigned, DONE when COMPLETED.</summary>
+    public FeedTaskState State => Status == TaskStatus.COMPLETED ? FeedTaskState.DONE
+        : AssigneeId is not null ? FeedTaskState.PICKED_UP
+        : FeedTaskState.OPEN;
+
+    /// <summary>The facts <see cref="TaskClaimRule"/> judges - the same rule the claim write enforces.</summary>
+    public TaskClaimFacts ClaimFacts => new(AssigneeId, Status, EscrowStatus, HasAgreement, EquityReward);
+}
+
+/// <summary>The state chip a HELP_WANTED card shows: Open / Picked up by X / Done.</summary>
+public enum FeedTaskState
+{
+    OPEN,
+    PICKED_UP,
+    DONE,
+}
 
 /// <summary>One post's stored score and the signals it is recomputed from.</summary>
 public sealed record FeedQualityRow(string PostId, decimal StoredQuality, FeedQualitySignals Signals);

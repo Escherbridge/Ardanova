@@ -6,6 +6,7 @@ using ArdaNova.Application.Common.Interfaces;
 using ArdaNova.Application.Common.Results;
 using ArdaNova.Application.DTOs;
 using ArdaNova.Application.Services.Implementations;
+using ArdaNova.Application.Tasks;
 using ArdaNova.Domain.Models.Entities;
 using ArdaNova.Domain.Models.Enums;
 using Microsoft.EntityFrameworkCore;
@@ -164,11 +165,14 @@ public sealed class FeedService : IFeedService
             if (batch.Count == 0)
                 break;
 
-            var placements = batch
-                .Select(row => new FeedPlacement(
-                    FeedRanking.Rank(row.ToCandidate(), context.Viewer, context.AsOf, context.Canon, home: false, ScopeReasonFor(context, row)),
-                    InDiscoverySlot: false))
-                .ToList();
+            // The scope's own policy (PolicyFor: uncapped, no discovery) keeps every row, in recency order. A cap here
+            // would thin the page AND skip the thinned rows, since the keyset below moves past the whole batch.
+            var placements = FeedRanking.SelectPage(
+                batch
+                    .Select(row => FeedRanking.Rank(
+                        row.ToCandidate(), context.Viewer, context.AsOf, context.Canon, home: false, ScopeReasonFor(context, row)))
+                    .ToList(),
+                PolicyFor(context.Scope, batch.Count));
             var cards = await HydrateAsync(context, placements, ct);
             items.AddRange(placements
                 .Where(placement => cards.ContainsKey(placement.Card.Candidate.PostId))
@@ -345,12 +349,17 @@ public sealed class FeedService : IFeedService
                     Comments = post.commentsCount,
                     Shares = post.sharesCount,
                     CreatedAt = post.createdAt,
+                    TaskId = post.taskId,
                 })
                 .ToListAsync(ct))
             .ToDictionary(row => row.Id, StringComparer.Ordinal);
 
         var sources = await CurrentSourcesAsync(rows.Values, ct);
-        var live = rows.Values.Where(row => StillEarnsItsCard(row, SourceOf(row, sources))).ToList();
+        var helpTasks = await HelpTasksAsync(rows.Values, ct);
+        var live = rows.Values
+            .Where(row => StillEarnsItsCard(row, SourceOf(row, sources)))
+            .Where(row => row.Type != PostType.HELP_WANTED || HelpTaskOf(row, helpTasks) is not null)
+            .ToList();
         if (live.Count == 0)
             return cards;
         var liveIds = live.Select(row => row.Id).ToHashSet(StringComparer.Ordinal);
@@ -369,11 +378,49 @@ public sealed class FeedService : IFeedService
         {
             if (!rows.TryGetValue(placement.Card.Candidate.PostId, out var row) || !liveIds.Contains(row.Id))
                 continue;
-            cards[row.Id] = ToCard(row, SourceOf(row, sources), placement, names, threadReplies, sectorLabels, context.Viewer);
+            cards[row.Id] = ToCard(
+                row, SourceOf(row, sources), HelpTaskOf(row, helpTasks), placement, names, threadReplies, sectorLabels, context.Viewer);
         }
 
         return cards;
     }
+
+    /// <summary>The tasks this page's HELP_WANTED rows ask for, by task id; a failed read leaves those cards out.</summary>
+    private async Task<IReadOnlyDictionary<string, FeedHelpTask>> HelpTasksAsync(
+        IEnumerable<HydrationRow> rows,
+        CancellationToken ct)
+    {
+        var taskIds = rows
+            .Where(row => row.Type == PostType.HELP_WANTED && row.TaskId is not null)
+            .Select(row => row.TaskId!)
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+        if (taskIds.Count == 0)
+            return new Dictionary<string, FeedHelpTask>();
+
+        try
+        {
+            return await _reads.ReadHelpTasksAsync(taskIds, ct);
+        }
+        catch (Exception failure) when (!ct.IsCancellationRequested)
+        {
+            // Fail closed, like a source kind whose read throws: the asks are left out of this page only.
+            _logger.LogWarning(failure, "Feed: reading help-wanted tasks for hydration failed; their cards were left out.");
+            return new Dictionary<string, FeedHelpTask>();
+        }
+    }
+
+    /// <summary>
+    /// A HELP_WANTED card's task while it still earns the card: the task exists (its FK nulls taskId on delete) and sits
+    /// on the card's own project - the one the read gate just checked - so its facts reach only who may see that project.
+    /// </summary>
+    private static FeedHelpTask? HelpTaskOf(HydrationRow row, IReadOnlyDictionary<string, FeedHelpTask> tasks)
+        => row.Type == PostType.HELP_WANTED
+           && row.TaskId is { } taskId
+           && tasks.TryGetValue(taskId, out var task)
+           && task.ProjectId == row.ProjectId
+            ? task
+            : null;
 
     /// <summary>An envelope's current source row (a funding key "{config}:{mark}" names the config row).</summary>
     private static FeedSource? SourceOf(HydrationRow row, IReadOnlyDictionary<FeedSourceKey, FeedSource> sources)
@@ -436,6 +483,7 @@ public sealed class FeedService : IFeedService
     private static FeedCardDto ToCard(
         HydrationRow row,
         FeedSource? source,
+        FeedHelpTask? task,
         FeedPlacement placement,
         FeedNames names,
         IReadOnlyDictionary<string, int> threadReplies,
@@ -467,8 +515,8 @@ public sealed class FeedService : IFeedService
             row.GuildId is { } guildId && names.Guilds.TryGetValue(guildId, out var guild)
                 ? new FeedGuildSummaryDto(guild.Id, guild.Name, guild.Slug)
                 : null,
-            row.OpportunityId is { } opportunityId && names.OpportunityTitles.TryGetValue(opportunityId, out var opportunity)
-                ? new FeedLinkDto(opportunityId, opportunity)
+            row.OpportunityId is { } opportunityId && names.Opportunities.TryGetValue(opportunityId, out var opportunity)
+                ? new FeedLinkDto(opportunity.Id, opportunity.Title, opportunity.Slug)
                 : null,
             row.EventId is { } eventId && names.Events.TryGetValue(eventId, out var evt)
                 ? new FeedEventSummaryDto(evt.Id, evt.Title, evt.StartsAt)
@@ -476,7 +524,7 @@ public sealed class FeedService : IFeedService
             row.Type == PostType.FUNDING_PROGRESS ? FundingOf(row.Metadata) : null,
             row.Type == PostType.DISCUSSION ? ThreadOf(row.Metadata) : null,
             new FeedCountersDto(row.Likes, replies, row.Shares),
-            RelationOf(viewer, row.ProjectId, row.GuildId),
+            RelationOf(viewer, row.ProjectId, row.GuildId, task),
             placement.Card.IsDiscovery,
             placement.Card.Reasons
                 .Select(reason => new FeedReasonDto(
@@ -484,17 +532,22 @@ public sealed class FeedService : IFeedService
                     FeedReasonText.Render(reason, names, sectorLabels),
                     reason.About?.ToString().ToUpperInvariant(),
                     reason.AboutId))
-                .ToList());
+                .ToList(),
+            task is null ? null : new FeedTaskDto(task.Id, task.State.ToString(), task.AssigneeName, Paid: task.EquityReward is > 0m));
     }
 
-    /// <summary>The reader's standing toward the card's subject; CanClaim waits for claimable cards (Feed/AGENTS.md §Cards).</summary>
-    private static FeedViewerRelationDto RelationOf(FeedViewer viewer, string? projectId, string? guildId)
+    /// <summary>
+    /// The reader's standing toward the card's subject. CanClaim is the claim write's own rule (TaskClaimRule), with
+    /// membership of the TASK's project - never a guild - as the claim route checks it.
+    /// </summary>
+    private static FeedViewerRelationDto RelationOf(FeedViewer viewer, string? projectId, string? guildId, FeedHelpTask? task)
         => new(
             IsMember: (projectId is not null && viewer.MemberProjects.Contains(projectId))
                 || (guildId is not null && viewer.MemberGuilds.Contains(guildId)),
             IsFollowing: (projectId is not null && viewer.FollowedProjects.Contains(projectId))
                 || (guildId is not null && viewer.FollowedGuilds.Contains(guildId)),
-            CanClaim: false);
+            CanClaim: task is not null
+                && TaskClaimRule.CanClaimInPlace(task.ClaimFacts, viewerIsProjectMember: viewer.MemberProjects.Contains(task.ProjectId)));
 
     /// <summary>The funding mark from an envelope's {"percent":N} metadata - the only figure a funding card carries.</summary>
     private static FeedFundingDto? FundingOf(string? metadata)
@@ -539,10 +592,19 @@ public sealed class FeedService : IFeedService
     private static IEnumerable<string?> IdsAbout(IEnumerable<FeedReason> reasons, FeedReasonSubject subject)
         => reasons.Where(reason => reason.About == subject).Select(reason => reason.AboutId);
 
-    /// <summary>Home: the owner's caps and every-5th discovery. A tag cuts across subjects, so only the author cap.</summary>
-    private static FeedPagePolicy PolicyFor(FeedScope scope, int limit) => scope.Kind == FeedScopeKind.Home
-        ? new FeedPagePolicy(limit, FeedRanking.HomeSubjectCap, FeedRanking.HomeAuthorCap, FeedRanking.DiscoveryEvery, false)
-        : new FeedPagePolicy(limit, null, FeedRanking.HomeAuthorCap, null, false);
+    /// <summary>One page rule per scope kind, read by both paging modes (Feed/AGENTS.md §Paging, Q1).</summary>
+    private static FeedPagePolicy PolicyFor(FeedScope scope, int limit) => scope.Kind switch
+    {
+        FeedScopeKind.Home => new FeedPagePolicy(
+            limit, SubjectCap: FeedRanking.HomeSubjectCap, AuthorCap: FeedRanking.HomeAuthorCap, DiscoveryEvery: FeedRanking.DiscoveryEvery, RelaxCapsWhenShort: false),
+        // One subject read newest first: any cap would thin a one-writer project and reorder it.
+        FeedScopeKind.Project or FeedScopeKind.Guild => new FeedPagePolicy(
+            limit, SubjectCap: null, AuthorCap: null, DiscoveryEvery: null, RelaxCapsWhenShort: false),
+        // A tag cuts across subjects: only the per-author cap, so one prolific writer cannot own the tag.
+        FeedScopeKind.Tag => new FeedPagePolicy(
+            limit, SubjectCap: null, AuthorCap: FeedRanking.HomeAuthorCap, DiscoveryEvery: null, RelaxCapsWhenShort: false),
+        _ => throw new ArgumentOutOfRangeException(nameof(scope), scope.Kind, "Unknown feed scope kind"),
+    };
 
     /// <summary>Why a card is in a scoped feed when nothing more specific applies: its subject, its tag, or its sector.</summary>
     private static FeedReason? ScopeReasonFor(PageContext context, CandidateRow row) => context.Scope.Kind switch
@@ -699,6 +761,9 @@ public sealed class FeedService : IFeedService
         public int Comments { get; init; }
         public int Shares { get; init; }
         public DateTime CreatedAt { get; init; }
+
+        /// <summary>The task a HELP_WANTED post asks for; NULL once that task is deleted (FK ON DELETE SET NULL).</summary>
+        public string? TaskId { get; init; }
 
         public FeedSourceKey? SourceKey => SourceType is { } kind && SourceId is { } id ? new FeedSourceKey(kind, id) : null;
     }

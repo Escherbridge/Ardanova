@@ -116,7 +116,7 @@ public sealed class FeedReadStore : IFeedReadStore
             .ToListAsync(ct);
         var opportunities = opportunityIds.Length == 0 ? [] : await _context.Opportunities.AsNoTracking()
             .Where(opportunity => opportunityIds.Contains(opportunity.id))
-            .Select(opportunity => new { opportunity.id, opportunity.title })
+            .Select(opportunity => new FeedOpportunityName(opportunity.id, opportunity.title, opportunity.slug))
             .ToListAsync(ct);
         var events = eventIds.Length == 0 ? [] : await _context.Events.AsNoTracking()
             .Where(evt => eventIds.Contains(evt.id))
@@ -133,9 +133,34 @@ public sealed class FeedReadStore : IFeedReadStore
                 project => new FeedProjectName(project.id, project.title, project.slug, project.summary, SplitCategories(project.categories)),
                 StringComparer.Ordinal),
             guilds.ToDictionary(guild => guild.Id, StringComparer.Ordinal),
-            opportunities.ToDictionary(opportunity => opportunity.id, opportunity => opportunity.title, StringComparer.Ordinal),
+            opportunities.ToDictionary(opportunity => opportunity.Id, StringComparer.Ordinal),
             events.ToDictionary(evt => evt.Id, StringComparer.Ordinal),
             people.ToDictionary(person => person.Id, StringComparer.Ordinal));
+    }
+
+    /// <inheritdoc/>
+    public async Task<IReadOnlyDictionary<string, FeedHelpTask>> ReadHelpTasksAsync(
+        IReadOnlyCollection<string> taskIds,
+        CancellationToken ct = default)
+    {
+        var ids = taskIds.ToArray();
+        if (ids.Length == 0)
+            return new Dictionary<string, FeedHelpTask>(StringComparer.Ordinal);
+
+        // One read: the task row, its assignee's name and an EXISTS on TaskCommerceAgreement(taskId).
+        var tasks = await _context.ProjectTasks.AsNoTracking()
+            .Where(task => ids.Contains(task.id))
+            .Select(task => new FeedHelpTask(
+                task.id,
+                task.projectId,
+                task.assignedToId,
+                task.AssignedTo != null ? task.AssignedTo.name : null,
+                task.status,
+                task.escrowStatus,
+                _context.TaskCommerceAgreements.Any(agreement => agreement.taskId == task.id),
+                task.equityReward))
+            .ToListAsync(ct);
+        return tasks.ToDictionary(task => task.Id, StringComparer.Ordinal);
     }
 
     /// <inheritdoc/>
