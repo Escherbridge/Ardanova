@@ -458,6 +458,155 @@ public sealed class FeedReadFlowTests : IAsyncLifetime
         items.IndexOf(endorsed).Should().BeLessThan(items.IndexOf(flame), "the older endorsed note outranks the newer flame thread");
     }
 
+    [PostgresFact]
+    public async Task OneAccountPraisingItsOwnPost_StaysAtBaseline_WhileFiveDistinctLikersLiftAnother()
+    {
+        const string gus = "user-gus";
+        await using (var context = NewContext())
+        {
+            context.Users.Add(NewUser(gus));
+            await context.SaveChangesAsync();
+        }
+
+        var endorsed = await WriteNoteAsync(gus, BarnId, "Shared the barn plans with the village.");
+        var gamed = await WriteNoteAsync(Sol, "project-kitchen", "Best oven on the platform - share it everywhere!");
+        await using (var context = NewContext())
+        {
+            var posts = Posts(context);
+            for (var i = 0; i < 50; i++)
+                Succeeded(await posts.ShareAsync(gamed, Sol, null));
+            Succeeded(await posts.LikeAsync(gamed, Sol));
+            Succeeded(await posts.BookmarkAsync(gamed, Sol));
+            for (var i = 0; i < 10; i++)
+                Succeeded(await posts.AddCommentAsync(gamed, new CreatePostCommentDto { AuthorId = Sol, Content = $"Bump {i}" }));
+            foreach (var person in new[] { Ada, Bo, Fern, Sol, Tam })
+                Succeeded(await posts.LikeAsync(endorsed, person));
+        }
+
+        await using (var context = NewContext())
+            (await new FeedQualityPass(new FeedReadStore(context), new FeedEnvelopeStore(context), new FeedProjectorOptions(), _clock).RunAsync())
+                .Outcome.Should().Be(FeedProjectorOutcome.Completed);
+
+        await using (var check = NewContext())
+        {
+            var rows = await check.Posts.AsNoTracking().Where(post => post.id == endorsed || post.id == gamed)
+                .ToDictionaryAsync(post => post.id);
+            rows[gamed].sharesCount.Should().Be(50, "the raw counter really was inflated - the score must not read it");
+            rows[gamed].trendingScore.Should().Be((decimal)FeedQualityScore.Baseline,
+                "fifty self-shares, a self-like, a self-bookmark and ten self-replies are one account praising itself");
+            rows[endorsed].trendingScore.Should().BeGreaterThan(rows[gamed].trendingScore);
+        }
+
+        var signedOut = Succeeded(await Feed().GetPageAsync(new FeedPageRequest(null, Limit: 50))).Items.Select(card => card.Id).ToList();
+        signedOut.IndexOf(endorsed).Should().BeLessThan(signedOut.IndexOf(gamed), "the older post five people liked outranks it");
+    }
+
+    [PostgresFact]
+    public async Task ABusySubject_NeverBreaksTheCapsBeforeTheFeedIsExhausted_ThePageComesBackShortInstead()
+    {
+        var now = DateTime.UtcNow.AddMinutes(-1);
+        var busy = Enumerable.Range(0, 200).Select(index => ("project-busy", $"user-w{index % 60}", now.AddMinutes(-index)));
+        var older = Enumerable.Range(0, 20).Select(index => ($"project-quiet-{index}", $"user-q{index}", now.AddDays(-1).AddMinutes(-index)));
+        await SeedNotesAsync(busy.Concat(older).ToList());
+
+        var first = Succeeded(await Feed().GetPageAsync(new FeedPageRequest(Sol, Limit: 20)));
+
+        first.Items.Should().HaveCount(FeedRanking.HomeSubjectCap,
+            "the window is full of one subject and the feed is not exhausted: two cards, not twenty of the same project");
+        first.Items.Should().OnlyContain(card => card.Project!.Id == "project-busy");
+        first.NextCursor.Should().NotBeNull();
+        var second = Succeeded(await Feed().GetPageAsync(new FeedPageRequest(Sol, Cursor: first.NextCursor, Limit: 20)));
+        second.Items.Should().HaveCount(FeedRanking.HomeSubjectCap);
+        second.Items.Select(card => card.Id).Should().NotIntersectWith(first.Items.Select(card => card.Id));
+    }
+
+    [PostgresFact]
+    public async Task AWalkOverMoreCardsThanAWindowHolds_ServesEveryVisibleCardOnce_HoldsTheCaps_AndCrossesWindows()
+    {
+        var now = DateTime.UtcNow.AddMinutes(-1);
+        // 240 cards over 12 projects and 18 authors, plus a burst of 12 from one busy project among the newest, so
+        // the subject cap binds on the first pages; 5 notes on the draft project Sol may never see.
+        var spread = Enumerable.Range(1, 240).Select(index => ($"project-s{index % 12}", $"user-a{index % 18}", now.AddMinutes(-index)));
+        var burst = Enumerable.Range(1, 12).Select(index => ("project-burst", "user-burst", now.AddMinutes(-index - 0.5)));
+        var visible = await SeedNotesAsync(spread.Concat(burst).ToList());
+        var hidden = await SeedNotesAsync(Enumerable.Range(1, 5).Select(index => (DraftId, Fern, now.AddMinutes(-index * 7))).ToList());
+        visible.Should().HaveCountGreaterThan(FeedService.MaxWindow + FeedService.WindowChunk);
+
+        var pages = new List<FeedPageDto>();
+        var windowTops = new HashSet<string?>();
+        string? cursor = null;
+        do
+        {
+            var page = Succeeded(await Feed().GetPageAsync(new FeedPageRequest(Sol, Cursor: cursor, Limit: 20)));
+            pages.Add(page);
+            cursor = page.NextCursor;
+            if (cursor is not null && FeedCursor.TryDecode(cursor, out var decoded))
+                windowTops.Add(decoded!.Top?.Id);
+        }
+        while (cursor is not null && pages.Count < 40);
+
+        var served = pages.SelectMany(page => page.Items).Select(card => card.Id).ToList();
+        served.Should().OnlyHaveUniqueItems();
+        served.Should().BeEquivalentTo(visible, "every visible card is eventually served, and nothing else");
+        served.Should().NotIntersectWith(hidden);
+        windowTops.Count.Should().BeGreaterThan(2, "the scroll moved through several windows, not one");
+        foreach (var page in pages)
+        {
+            page.Items.GroupBy(card => card.Project!.Id).Should().OnlyContain(subject => subject.Count() <= FeedRanking.HomeSubjectCap);
+            page.Items.GroupBy(card => card.Author.Id).Should().OnlyContain(author => author.Count() <= FeedRanking.HomeAuthorCap);
+        }
+
+        pages[0].Items.Count(card => card.Project!.Id == "project-burst").Should().Be(
+            FeedRanking.HomeSubjectCap, "ten of the twenty newest cards are the burst; the cap defers the rest");
+
+        // A hand-made cursor carrying the most served fingerprints a cursor may hold, plus a whole-feed window.
+        var random = new Random(31);
+        var stuffed = new HashSet<ulong>(Enumerable.Range(0, FeedCursor.MaxServed).Select(_ => (ulong)random.NextInt64(1L << 48)));
+        var forged = new FeedCursor(DateTime.UtcNow, "home", null, new FeedKey(now.AddYears(-1), "0"), stuffed, false).Encode();
+        var after = Succeeded(await Feed().GetPageAsync(new FeedPageRequest(Sol, Cursor: forged, Limit: 20)));
+        after.Items.Should().NotBeEmpty();
+        FeedCursor.TryDecode(after.NextCursor, out var next).Should().BeTrue("the served set is cut back to the window, so the cursor stays decodable");
+        next!.Served.Count.Should().BeLessThanOrEqualTo(FeedService.MaxWindow + FeedService.WindowChunk);
+        Succeeded(await Feed().GetPageAsync(new FeedPageRequest(Sol, Cursor: after.NextCursor, Limit: 20))).Items
+            .Select(card => card.Id).Should().NotIntersectWith(after.Items.Select(card => card.Id));
+    }
+
+    /// <summary>
+    /// Writes person posts straight to Post, creating any missing author or (published) project; hundreds of
+    /// PostService round trips would only slow these paging tests, whose subject is the read path.
+    /// </summary>
+    private async Task<List<string>> SeedNotesAsync(IReadOnlyList<(string ProjectId, string AuthorId, DateTime At)> notes)
+    {
+        await using var context = NewContext();
+        var users = (await context.Users.Select(user => user.id).ToListAsync()).ToHashSet();
+        var projects = (await context.Projects.Select(project => project.id).ToListAsync()).ToHashSet();
+        var ids = new List<string>(notes.Count);
+        foreach (var (projectId, authorId, at) in notes)
+        {
+            if (users.Add(authorId))
+                context.Users.Add(NewUser(authorId));
+            if (projects.Add(projectId))
+                context.Projects.Add(NewProject(projectId, projectId, authorId, ProjectStatus.PUBLISHED, "MANUFACTURING"));
+
+            var id = Guid.NewGuid().ToString();
+            ids.Add(id);
+            context.Posts.Add(new Post
+            {
+                id = id,
+                authorId = authorId,
+                projectId = projectId,
+                type = PostType.POST,
+                visibility = PostVisibility.PUBLIC,
+                content = $"Note {ids.Count} on {projectId}.",
+                createdAt = at,
+                updatedAt = at,
+            });
+        }
+
+        await context.SaveChangesAsync();
+        return ids;
+    }
+
     private async Task<FeedPageDto> PageAsync(string viewerId, int limit = 20)
         => Succeeded(await Feed().GetPageAsync(new FeedPageRequest(viewerId, Limit: limit)));
 

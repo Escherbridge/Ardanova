@@ -12,6 +12,7 @@ vi.mock("~/server/auth", () => ({ auth: currentSession }));
 vi.mock("~/lib/api", () => ({ apiClient: { feed } }));
 
 import { createCallerFactory, createTRPCContext } from "~/server/api/trpc";
+import { getActorAssertion } from "~/server/actor-assertion";
 import { feedRouter } from "./feed";
 
 /** A .NET FeedCardDto as the API serializes it. */
@@ -92,6 +93,34 @@ describe("feed reads", () => {
       "PROJECT_UPDATE",
     ]);
     expect(page.nextCursor).toBe("opaque");
+  });
+
+  /**
+   * The API ranks and filters for whoever the assertion names, so the BFF must sign as the session user -
+   * never as nobody (PUBLIC only) and never as a value the caller supplied.
+   */
+  it("signs the API read as the signed-in session user", async () => {
+    process.env.ACTOR_ASSERTION_HMAC_KEY = "feed-test-signing-key-at-least-32-bytes";
+    let signedSubject: string | undefined;
+    feed.getPage.mockImplementation(async () => {
+      const assertion = getActorAssertion({ method: "GET", url: "/api/feed" });
+      const payload = assertion?.split(".")[0];
+      signedSubject = payload
+        ? (JSON.parse(Buffer.from(payload, "base64url").toString()) as { subject: string }).subject
+        : undefined;
+      return { status: 200, data: { items: [], nextCursor: null } };
+    });
+    currentSession.mockResolvedValue({
+      expires: "2099-01-01T00:00:00Z",
+      user: { id: "user-ada", role: "INDIVIDUAL" },
+    });
+    const caller = createCallerFactory(feedRouter)(
+      await createTRPCContext({ headers: new Headers() }),
+    );
+
+    await caller.getPage({ limit: 20 });
+
+    expect(signedSubject).toBe("user-ada");
   });
 
   it.each([

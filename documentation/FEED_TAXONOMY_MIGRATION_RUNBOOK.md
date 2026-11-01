@@ -111,9 +111,10 @@ npx prisma migrate diff --from-url "$DATABASE_URL" \
 
 ## Phase 2 addendum (2026-10-31): `20261031000000_feed_retraction_and_hashtags`
 
-One more additive migration, touching only `"Post"`: nullable `retractedAt TIMESTAMP(3)`, `hashtags TEXT[] NOT NULL
-DEFAULT ARRAY[]::TEXT[]` (catalog default, no rewrite) and the GIN index `Post_hashtags_idx`. It commutes with the
-money branch's `20261028000000_funding_intent_void` (different table). The file header is the source of truth.
+One more additive migration: nullable `Post.retractedAt TIMESTAMP(3)`, `Post.hashtags TEXT[] NOT NULL DEFAULT
+ARRAY[]::TEXT[]` (catalog default, no rewrite), the GIN index `Post_hashtags_idx`, and two lookup indexes
+`PostLike_userId_idx` / `PostComment_authorId_idx`. It commutes with the money branch's
+`20261028000000_funding_intent_void` (different tables). The file header is the source of truth.
 
 **Order:** `migrate deploy` -> restart the API (its EF model selects both columns on every Post read; an API on the
 new code against the old schema fails with 42703) -> BFF. No enum or type changed, so the Npgsql per-data-source type
@@ -121,18 +122,25 @@ cache does not force a BFF restart for this migration. Then, with `Feed:Projecto
 admin backfill (`POST /api/admin/feed/backfill`, dry run first): it re-tags existing envelopes from their sources'
 copy and re-scores every post.
 
-**Expected drift, not a fault:** Prisma cannot declare a scalar list NOT NULL, so `prisma migrate diff --from-url
-<db> --to-schema-datamodel prisma/schema.prisma --exit-code` now reports `hashtags` as drift (DROP NOT NULL). Do not
-"fix" it with `migrate dev` or `db push`; the owner asked for NOT NULL and the API always writes an array.
+**If `migrate deploy` fails on `lock_timeout` (5 s; a long transaction held `Post`, `PostLike` or `PostComment`):**
+Prisma records the migration as failed and refuses every later deploy with P3009. The migration runs in one
+transaction, so nothing was applied. Recover with
+```bash
+npx prisma migrate resolve --rolled-back 20261031000000_feed_retraction_and_hashtags
+npx prisma migrate deploy
+```
+at a quieter moment. The retry is safe even after a partial manual apply: every statement is `IF NOT EXISTS`.
 
 **Readback:**
 ```sql
 SELECT column_name, data_type, is_nullable, column_default FROM information_schema.columns
 WHERE table_name = 'Post' AND column_name IN ('retractedAt', 'hashtags');   -- 2 rows, hashtags NOT NULL
-SELECT indexdef FROM pg_indexes WHERE tablename = 'Post' AND indexname = 'Post_hashtags_idx';  -- USING gin
+SELECT indexname, indexdef FROM pg_indexes
+WHERE indexname IN ('Post_hashtags_idx', 'PostLike_userId_idx', 'PostComment_authorId_idx');  -- 3 rows, the first USING gin
 ```
 
 **Rehearsal (local PostgreSQL 16 on 5433, throwaway database, 2026-10-31):** all 25 migrations applied in order with
 `psql` (one transaction per file, except the one `CREATE INDEX CONCURRENTLY` file), the new migration re-applied as a
-no-op, readback as above, a row inserted without naming `hashtags` read `{}`; database dropped. No hosted database
-was touched.
+no-op, readback as above, a row inserted without naming `hashtags` read `{}`, and `prisma migrate diff --from-url
+<scratch> --to-schema-datamodel prisma/schema.prisma --exit-code` exited 0 (no drift); database dropped. No hosted
+database was touched.

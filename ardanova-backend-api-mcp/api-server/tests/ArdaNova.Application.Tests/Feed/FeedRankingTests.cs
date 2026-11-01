@@ -23,21 +23,30 @@ public class FeedRankingTests
         { new(2, 2, 0, 0), new(2, 1, 0, 0), "replies count while approvals vouch for them" },
         { new(0, 0, 1, 0), new(0, 0, 0, 1), "a share is a stronger endorsement than a bookmark" },
         { new(0, 0, 0, 1), new(0, 30, 0, 0), "a bookmark beats thirty unvouched replies" },
-        { new(0, 0, 0, 0, AsOf.AddDays(-1)), new(0, 0, 0, 0, AsOf.AddDays(-20)), "a project opened yesterday is new" },
     };
 
     [Theory]
     [MemberData(nameof(HigherQuality))]
     public void Quality_RanksAllowedSignals(FeedQualitySignals higher, FeedQualitySignals lower, string because)
-        => FeedQualityScore.Compute(higher, AsOf).Should().BeGreaterThan(FeedQualityScore.Compute(lower, AsOf), because);
+        => FeedQualityScore.Compute(higher).Should().BeGreaterThan(FeedQualityScore.Compute(lower), because);
 
     [Theory]
     [InlineData(2, 3)]
     [InlineData(2, 50)]
     [InlineData(0, 20)]
     public void Quality_CapsRepliesAtApprovals_SoAFlameThreadCannotClimbOnVolume(int approvals, int replies)
-        => FeedQualityScore.Compute(new(approvals, replies, 0, 0), AsOf)
-            .Should().Be(FeedQualityScore.Compute(new(approvals, approvals, 0, 0), AsOf));
+        => FeedQualityScore.Compute(new(approvals, replies, 0, 0))
+            .Should().Be(FeedQualityScore.Compute(new(approvals, approvals, 0, 0)));
+
+    [Fact]
+    public void Novelty_IsAppliedAtReadTime_SoANewProjectsCardOutranksAnOldOnesForAnyReader()
+    {
+        var fresh = Rank(Card("a", project: "p1", publishedAt: AsOf.AddDays(-1)), FeedViewer.Anonymous);
+        var old = Rank(Card("b", project: "p2", publishedAt: AsOf.AddDays(-20)), FeedViewer.Anonymous);
+
+        fresh.Score.Should().BeGreaterThan(old.Score);
+        fresh.Reasons.Should().Contain(reason => reason.Kind == FeedReasonKind.NewProject);
+    }
 
     [Fact]
     public void Affinity_PutsAFollowedProjectsCardAboveAStrangersOfEqualQualityAndAge()

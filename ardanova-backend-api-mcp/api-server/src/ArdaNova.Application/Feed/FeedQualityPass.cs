@@ -51,7 +51,7 @@ public sealed class FeedQualityPass
             foreach (var row in await _reads.ReadQualitySignalsAsync(batch, ct))
             {
                 examined++;
-                var quality = FeedQualityScore.Compute(row.Signals, now);
+                var quality = FeedQualityScore.Compute(row.Signals);
                 if (quality == row.StoredQuality)
                     continue;
                 try

@@ -2087,6 +2087,7 @@ model PostLike {
   user      User     @relation("PostLike_userId", fields: [userId], references: [id])
 
   @@unique([postId, userId])
+  @@index([userId])
 }
 
 model PostComment {
@@ -2102,6 +2103,8 @@ model PostComment {
   author         User          @relation("PostComment_authorId", fields: [authorId], references: [id])
   parent         PostComment?  @relation("PostComment_parentId", fields: [parentId], references: [id])
   parentChildren PostComment[] @relation("PostComment_parentId")
+
+  @@index([authorId])
 }
 
 model PostBookmark {

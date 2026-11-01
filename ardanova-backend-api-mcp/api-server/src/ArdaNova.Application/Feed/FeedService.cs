@@ -118,10 +118,15 @@ public sealed class FeedService : IFeedService
 
         foreach (var id in placements.Select(placement => placement.Card.Candidate.PostId).Concat(vanished))
             window.Served.Add(FeedCursor.Fingerprint(id));
+        // An issued cursor's served set holds only this window's rows (<= MaxWindow + WindowChunk = 210 < MaxServed);
+        // only a hand-made one can exceed it. Keeping the fingerprints of rows still in the window bounds it again
+        // without skipping anything this viewer has not been served.
+        if (window.Served.Count > FeedCursor.MaxServed)
+            window.Served.IntersectWith(windowRows.Select(row => row.Fingerprint));
         var unserved = windowRows.Count(row => !window.Served.Contains(row.Fingerprint));
-        if (unserved == 0 || window.Served.Count > FeedCursor.MaxServed)
+        if (unserved == 0)
         {
-            // The window is spent (or its served list would outgrow a cursor - its leftovers are skipped, never shown).
+            // The window is spent: move below it with an empty served set.
             window.Top = window.Floor ?? window.Top;
             window.Floor = null;
             window.Served.Clear();
@@ -199,7 +204,9 @@ public sealed class FeedService : IFeedService
                     row.ToCandidate(), context.Viewer, context.AsOf, context.Canon,
                     home: context.Scope.Kind == FeedScopeKind.Home, ScopeReasonFor(context, row)));
             var canGrow = !window.Exhausted && windowRows.Count < MaxWindow;
-            placements = FeedRanking.SelectPage(FeedRanking.Order(pool), policy with { RelaxCapsWhenShort = !canGrow });
+            // Caps relax only when nothing further exists to draw from; a full window that is not the end of the feed
+            // returns a short page instead (owner rule; see Feed/AGENTS.md §Ranking).
+            placements = FeedRanking.SelectPage(FeedRanking.Order(pool), policy with { RelaxCapsWhenShort = window.Exhausted });
 
             if (placements.Count < limit && canGrow)
             {

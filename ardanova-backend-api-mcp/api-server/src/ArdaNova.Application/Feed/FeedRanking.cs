@@ -105,8 +105,14 @@ public static class FeedRanking
     public const double SpecificInterestWeight = 0.75;
     public const double SectorInterestWeight = 0.5;
 
-    /// <summary>The most a new project in one of the viewer's sectors is multiplied by (fading with its age).</summary>
+    /// <summary>The lift every reader gives a card from a newly opened project (fading with the project's age).</summary>
+    public const double NewProjectBoost = 0.5;
+
+    /// <summary>The further lift when that new project is in one of the viewer's sectors.</summary>
     public const double SectorNoveltyBoost = 0.5;
+
+    /// <summary>How long a newly opened project's cards carry the novelty lift (fading linearly to none).</summary>
+    public static readonly TimeSpan NoveltyWindow = TimeSpan.FromDays(14);
 
     /// <summary>The home feed's per-page diversity rules (owner spec): 2 per subject, 3 per author, discovery every 5th.</summary>
     public const int HomeSubjectCap = 2;
@@ -118,6 +124,18 @@ public static class FeedRanking
     {
         var ageHours = Math.Max(0, (asOf - createdAt).TotalHours);
         return Math.Pow(0.5, ageHours / HalfLife.TotalHours);
+    }
+
+    /// <summary>1 the moment a project opens, fading linearly to 0 at the end of <see cref="NoveltyWindow"/>.</summary>
+    public static double Freshness(DateTime? publishedAt, DateTime asOf)
+    {
+        if (publishedAt is not { } opened)
+            return 0;
+
+        var age = asOf - opened;
+        if (age < TimeSpan.Zero)
+            return 1;
+        return age >= NoveltyWindow ? 0 : 1 - age / NoveltyWindow;
     }
 
     /// <summary>quality x recency decay x affinity x novelty, with the reasons that produced it.</summary>
@@ -178,10 +196,12 @@ public static class FeedRanking
             affinity += match.Weight;
         }
 
+        // Novelty is read-time only (it fades with time), so the stored quality changes only when engagement does.
         var novelty = 1.0;
-        var freshness = FeedQualityScore.Novelty(card.ProjectPublishedAt, asOf);
+        var freshness = Freshness(card.ProjectPublishedAt, asOf);
         if (freshness > 0)
         {
+            novelty += NewProjectBoost * freshness;
             var sectorOfYours = cardSectors.FirstOrDefault(sector => viewer.Interests.Contains(FeedTopic.Sector(sector)));
             if (sectorOfYours is not null)
                 novelty += SectorNoveltyBoost * freshness;

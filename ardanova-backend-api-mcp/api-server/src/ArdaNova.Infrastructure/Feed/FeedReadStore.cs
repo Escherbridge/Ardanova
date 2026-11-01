@@ -43,14 +43,34 @@ public sealed class FeedReadStore : IFeedReadStore
             .Select(project => project.categories)
             .ToListAsync(ct);
 
-        // The viewer's own words and the posts they endorsed or answered, newest first.
-        var engaged = await _context.Posts.AsNoTracking()
-            .Where(post => post.hashtags.Length > 0)
-            .Where(post => post.authorId == viewerId
-                || post.PostLikes.Any(like => like.userId == viewerId)
-                || post.PostComments.Any(reply => reply.authorId == viewerId))
+        // A union of three index seeks (Post(authorId, createdAt), PostLike(userId), PostComment(authorId)), each
+        // capped, merged by when the viewer engaged - never one OR/EXISTS scan over every post.
+        var authored = await _context.Posts.AsNoTracking()
+            .Where(post => post.authorId == viewerId && post.hashtags.Length > 0)
             .OrderByDescending(post => post.createdAt)
             .Take(EngagedPostWindow)
+            .Select(post => new Engagement(post.id, post.createdAt))
+            .ToListAsync(ct);
+        var liked = await _context.PostLikes.AsNoTracking()
+            .Where(like => like.userId == viewerId && like.Post!.hashtags.Length > 0)
+            .OrderByDescending(like => like.createdAt)
+            .Take(EngagedPostWindow)
+            .Select(like => new Engagement(like.postId, like.createdAt))
+            .ToListAsync(ct);
+        var replied = await _context.PostComments.AsNoTracking()
+            .Where(reply => reply.authorId == viewerId && reply.Post!.hashtags.Length > 0)
+            .OrderByDescending(reply => reply.createdAt)
+            .Take(EngagedPostWindow)
+            .Select(reply => new Engagement(reply.postId, reply.createdAt))
+            .ToListAsync(ct);
+        var engagedIds = authored.Concat(liked).Concat(replied)
+            .GroupBy(engagement => engagement.PostId, StringComparer.Ordinal)
+            .OrderByDescending(group => group.Max(engagement => engagement.At))
+            .Take(EngagedPostWindow)
+            .Select(group => group.Key)
+            .ToArray();
+        var engaged = engagedIds.Length == 0 ? [] : await _context.Posts.AsNoTracking()
+            .Where(post => engagedIds.Contains(post.id))
             .Select(post => post.hashtags)
             .ToListAsync(ct);
 
@@ -162,32 +182,45 @@ public sealed class FeedReadStore : IFeedReadStore
 
         var posts = await _context.Posts.AsNoTracking()
             .Where(post => ids.Contains(post.id))
-            .Select(post => new
-            {
-                post.id,
-                post.type,
-                post.sourceType,
-                post.sourceId,
-                post.likesCount,
-                post.commentsCount,
-                post.sharesCount,
-                post.trendingScore,
-                ProjectPublishedAt = post.Project != null ? post.Project.publishedAt : null,
-            })
+            .Select(post => new { post.id, post.authorId, post.type, post.sourceType, post.sourceId, post.trendingScore })
             .ToListAsync(ct);
-        var bookmarks = await _context.PostBookmarks.AsNoTracking()
-            .Where(bookmark => ids.Contains(bookmark.postId))
-            .GroupBy(bookmark => bookmark.postId)
-            .Select(group => new { PostId = group.Key, Count = group.Count() })
-            .ToDictionaryAsync(row => row.PostId, row => row.Count, ct);
 
-        var threadReplies = new Dictionary<string, int>(StringComparer.Ordinal);
+        // Distinct accounts other than the post's author, counted from the rows: a self-like, a repeated share or a
+        // counter that drifted cannot move the score (Feed/AGENTS.md §Quality score).
+        var likers = await CountOthersAsync(_context.PostLikes.AsNoTracking()
+            .Where(like => ids.Contains(like.postId) && like.userId != like.Post!.authorId)
+            .Select(like => new Engager { PostId = like.postId, UserId = like.userId }), ct);
+        var sharers = await CountOthersAsync(_context.PostShares.AsNoTracking()
+            .Where(share => ids.Contains(share.postId) && share.userId != share.Post!.authorId)
+            .Select(share => new Engager { PostId = share.postId, UserId = share.userId }), ct);
+        var bookmarkers = await CountOthersAsync(_context.PostBookmarks.AsNoTracking()
+            .Where(bookmark => ids.Contains(bookmark.postId) && bookmark.userId != bookmark.Post!.authorId)
+            .Select(bookmark => new Engager { PostId = bookmark.postId, UserId = bookmark.userId }), ct);
+
+        // Repliers: on the card, plus a DISCUSSION card's native thread; one person counts once across both.
+        var repliers = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
+        void AddReplier(string postId, string userId) =>
+            (repliers.TryGetValue(postId, out var people) ? people : repliers[postId] = new HashSet<string>(StringComparer.Ordinal))
+                .Add(userId);
+
+        foreach (var reply in await _context.PostComments.AsNoTracking()
+                     .Where(reply => ids.Contains(reply.postId) && reply.authorId != reply.Post!.authorId)
+                     .Select(reply => new { reply.postId, reply.authorId })
+                     .Distinct()
+                     .ToListAsync(ct))
+            AddReplier(reply.postId, reply.authorId);
+
         foreach (var kind in new[] { FeedSourceType.PROJECT_COMMENT, FeedSourceType.OPPORTUNITY_COMMENT })
         {
-            var roots = posts.Where(post => post.type == PostType.DISCUSSION && post.sourceType == kind && post.sourceId != null)
-                .Select(post => post.sourceId!).ToList();
-            foreach (var (root, count) in await ReadThreadReplyCountsAsync(kind, roots, ct))
-                threadReplies[root] = count;
+            var cardsByRoot = posts
+                .Where(post => post.type == PostType.DISCUSSION && post.sourceType == kind && post.sourceId != null)
+                .ToDictionary(post => post.sourceId!, StringComparer.Ordinal);
+            foreach (var (root, userId) in await ReadThreadRepliersAsync(kind, cardsByRoot.Keys.ToArray(), ct))
+            {
+                var card = cardsByRoot[root];
+                if (userId != card.authorId)
+                    AddReplier(card.id, userId);
+            }
         }
 
         return posts
@@ -195,13 +228,55 @@ public sealed class FeedReadStore : IFeedReadStore
                 post.id,
                 post.trendingScore,
                 new FeedQualitySignals(
-                    post.likesCount,
-                    post.commentsCount + (post.sourceId is { } root ? threadReplies.GetValueOrDefault(root) : 0),
-                    post.sharesCount,
-                    bookmarks.GetValueOrDefault(post.id),
-                    post.ProjectPublishedAt)))
+                    likers.GetValueOrDefault(post.id),
+                    repliers.TryGetValue(post.id, out var people) ? people.Count : 0,
+                    sharers.GetValueOrDefault(post.id),
+                    bookmarkers.GetValueOrDefault(post.id))))
             .ToList();
     }
+
+    /// <summary>COUNT(DISTINCT userId) per post, in SQL.</summary>
+    private static Task<Dictionary<string, int>> CountOthersAsync(IQueryable<Engager> engagers, CancellationToken ct)
+        => engagers
+            .GroupBy(engager => engager.PostId)
+            .Select(group => new { PostId = group.Key, People = group.Select(engager => engager.UserId).Distinct().Count() })
+            .ToDictionaryAsync(row => row.PostId, row => row.People, StringComparer.Ordinal, ct);
+
+    /// <summary>Distinct (root comment, replier) pairs under the given native-thread roots.</summary>
+    private async Task<List<(string Root, string UserId)>> ReadThreadRepliersAsync(
+        FeedSourceType kind,
+        string[] roots,
+        CancellationToken ct)
+    {
+        if (roots.Length == 0)
+            return [];
+
+        var pairs = kind switch
+        {
+            FeedSourceType.PROJECT_COMMENT => await _context.ProjectComments.AsNoTracking()
+                .Where(reply => reply.parentId != null && roots.Contains(reply.parentId))
+                .Select(reply => new { Root = reply.parentId!, reply.userId })
+                .Distinct()
+                .ToListAsync(ct),
+            FeedSourceType.OPPORTUNITY_COMMENT => await _context.OpportunityComments.AsNoTracking()
+                .Where(reply => reply.parentId != null && roots.Contains(reply.parentId))
+                .Select(reply => new { Root = reply.parentId!, reply.userId })
+                .Distinct()
+                .ToListAsync(ct),
+            _ => [],
+        };
+        return pairs.Select(pair => (pair.Root, pair.userId)).ToList();
+    }
+
+    /// <summary>One account's engagement with one post.</summary>
+    private sealed class Engager
+    {
+        public string PostId { get; init; } = string.Empty;
+        public string UserId { get; init; } = string.Empty;
+    }
+
+    /// <summary>When the viewer engaged with a post (wrote, liked or replied).</summary>
+    private sealed record Engagement(string PostId, DateTime At);
 
     /// <summary>Project.categories is comma-separated sector codes.</summary>
     private static IReadOnlyList<string> SplitCategories(string? categories)

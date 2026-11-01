@@ -210,6 +210,10 @@ can be. A run longer than 40 is not truncated into a tag - it is not a tag.
   parent SECTOR. Anything else stays a free-form topic (`tag:x`) and still matches itself. **No aliases table** -
   revisit when two spellings of one subject both trend (e.g. `#permaculture` and `#permaculture-design` each in the
   top tags of a week); then add `TaxonomyTerm` rows or an alias column, not code.
+- **Known follow-up, no change yet: confusable scripts.** NFKC does not fold look-alikes across scripts, so `#сafe`
+  with a Cyrillic `с` is a different tag from `#cafe`. Harmless for privacy (a tag scope still re-applies visibility)
+  but it can split or spoof a topic. Trigger: a spoofed tag reported, or a mixed-script tag in the weekly top tags;
+  then reject mixed-script tags (Unicode TR39 "single script" check) at extraction.
 
 ## Quality score
 
@@ -217,10 +221,18 @@ Stored in `Post.trendingScore` (`trendingAt` = when), viewer-independent, recomp
 `ScoreIntervalMinutes` under the projector's runner lock (same advisory-lock pattern; the hosted loop runs it after
 the cycle in its own scope) and after an executed backfill.
 
-**Capped-reply log-engagement score:** `Q = 1 + ln(1 + A + 0.5*min(R, A) + 2*S + 1.5*B) + 1.0*novelty`, where
-A = likes, R = replies (a DISCUSSION card's native-thread replies included), S = shares, B = bookmarks,
-novelty = 1 on the day the card's project opened, fading linearly to 0 over 14 days. Why each term:
+**Capped-reply log-engagement score:** `Q = 1 + ln(1 + A + 0.5*min(R, A) + 2*S + 1.5*B)`, where every signal
+counts **distinct accounts other than the post's author**, read from the rows (`FeedReadStore.ReadQualitySignalsAsync`):
+A = people who liked it, R = people who replied (on the card, or in a DISCUSSION card's native thread - one person
+counts once across both), S = people who shared it, B = people who bookmarked it. Why each term:
 
+- **Distinct non-author people, never counters** (review HIGH-1). `ShareAsync` adds a row and bumps `sharesCount` on
+  every call (no unique index), and an author can like, reply to and bookmark their own post. Counting rows or counters
+  would let one account share its own post fifty times and climb; counting distinct others means the most one person
+  can contribute to anyone's post is one of each signal, and nothing to their own. In particular the author's
+  self-like never unlocks `min(R, A)` for their own replies. A unique `(postId, userId)` on `PostShare` is NOT added:
+  sharing to two different projects is a legitimate second row, and live data may already hold duplicates (a cleanup
+  step this additive migration does not take); the distinct count makes it unnecessary for ranking.
 - **Replies capped by approvals.** Reply volume is what a flame war produces; approvals are what a good thread
   earns. `min(R, A)` means a reply only counts while someone has vouched for the post, and at half weight.
 - **Shares (2) > bookmarks (1.5) > likes (1).** Passing a card on and saving it for later are deliberate, costly
@@ -229,6 +241,10 @@ novelty = 1 on the day the card's project opened, fading linearly to 0 over 14 d
   engagement still ranks on recency and affinity (an unscored row - stored 0 - also ranks at 1).
 - **FORBIDDEN, by construction:** views, dwell time and negative reactions. `FeedQualitySignals` has no field for
   them, so no caller can feed them in (`viewsCount` is still counted by `PostService`; nothing ranks on it).
+
+- **Time-free** (review L2). Novelty fades with time, so it lives in the ranker (read time), not in Q: a stored
+  score with a time term would change for every recent post every pass, rewriting rows on an indexed column
+  (`trendingScore`), which defeats Postgres HOT updates. Q changes only when engagement does.
 
 The pass reads every live post id, then signals in `SweepBatchSize` batches, and writes only rows whose score moved.
 
@@ -240,16 +256,20 @@ The pass reads every live post id, then signals in `SweepBatchSize` batches, and
 - **affinity** = 1 + project link (team or follow, +2) + guild link (+1.5) + followed author (+1) + one interest
   match, only when there is no project/guild link: a specific tag topic (skill / project type / free tag, +0.75) >
   a sector reached through a tag (+0.5) > a sector reached through the card's project (+0.5). The viewer's
-  interests: tags on their 200 most recent posts written, liked or replied to; sectors of projects they follow,
-  created or work on; their `UserSkill` names - all through the canon. Own posts carry "Your activity", no boost.
-- **novelty** = 1 + 0.5 x freshness when the card's project is new AND in one of the viewer's sectors. (Q already
-  carries a viewer-independent new-project boost; this one is the "New in Construction" lift for people in
-  construction.)
+  interests: tags on their 200 most recent posts written, liked or replied to (three capped index seeks -
+  `Post(authorId, createdAt)`, `PostLike(userId)`, `PostComment(authorId)` - merged by when they engaged, review
+  MED-2); sectors of projects they follow, created or work on; their `UserSkill` names - all through the canon.
+  Own posts carry "Your activity", no boost.
+- **novelty** = 1 + 0.5 x freshness for every reader when the card's project is new, + 0.5 x freshness more when it
+  is in one of the viewer's sectors ("New in Construction" for people in construction); freshness = 1 the day the
+  project opened, fading linearly to 0 over 14 days (`FeedRanking.Freshness`).
 - **Diversity per page** (`SelectPage`, greedy in rank order): home <= 2 per subject (project, else guild,
   opportunity, event, else author) and <= 3 per author; every 5th slot prefers a **discovery** card - no follow,
   team or author link and no interest match (tag or sector). A discovery slot with no discovery card left is filled
-  by the next best card, never left empty. Caps relax only when nothing further can be drawn (window at its cap or
-  the platform exhausted) - a page is never shortened to save a round trip.
+  by the next best card, never left empty. **Caps relax only when the feed is exhausted** (nothing visible left below
+  the window, review MED-1). A window at its 150-card cap that still cannot fill a page under the caps - one very
+  busy subject - returns a SHORT page instead; the next page continues the same window, so the scroll still ends
+  only when everything visible has been served.
 
 ## Paging (`FeedService`, `FeedCursor`)
 
@@ -268,12 +288,29 @@ CONSTRUCTION project are `#construction`); visibility is re-applied identically 
 cursor pins `asOf` (so decay cannot reshuffle) and an open window `[Floor, Top)` in `(createdAt desc, id desc)`
 keyset order, plus 48-bit fingerprints of the window's cards already served. Each page re-reads the window under the
 viewer's visibility, ranks what is unserved, fills a page; a page that cannot fill under the caps opens the next
-60-card chunk (window cap 150) before caps relax. When a window is spent, `Top` drops to `Floor` and the served set
-empties, so the cursor stays ~1 KB however far the scroll goes. **No "caught up" end:** after the followed cards in a
+60-card chunk (window cap 150; a re-read takes at most 210 rows). When a window is spent, `Top` drops to `Floor` and
+the served set empties, so the cursor does not grow with scroll depth: at most ~2.5-3.4 KB, bounded by
+`FeedCursor.MaxServed` (256 six-byte fingerprints, base64 inside base64url JSON) and the 4096-character decode cap.
+An issued cursor holds at most 210 fingerprints; only a hand-made one can exceed 256, and then the served set is cut
+back to the fingerprints of rows still in the window (`IntersectWith`), so the next cursor is again decodable and
+nothing unserved is skipped (exercised by the forged-cursor case in `FeedReadFlowTests`). **No "caught up" end:** after the followed cards in a
 window come its discovery cards, then the next (older) window; `nextCursor` is null only when nothing visible is left.
 Trade-off: ranking is exact within a window; across windows recency wins, which a 48 h half-life makes close to
 the global order unless more than ~150 cards land per half-life (then a followed card older than the window waits for
 its window). Trigger to revisit: a materialised per-viewer candidate list once volume crosses that.
+
+**Two accepted skip cases** (review L1). A card is never shown twice and never shown to someone who may not see it;
+in exactly these two cases a visible card can be skipped for the rest of one scroll (a fresh scroll shows it):
+
+1. **More than 210 visible rows inside an open window.** The window's re-read is capped at 210 rows. Rows can join an
+   open window after it was sized - the viewer joins a busy project mid-scroll (its members-only cards become
+   visible), or the projector inserts envelopes dated inside the window (a backfill). Rows past the 210th are not
+   read, so when the window is spent they fall behind `Top` unserved.
+2. **A transient hydration failure.** A card whose source kind cannot be read for one page (`CurrentSourcesAsync`
+   logs and fails closed) is treated like a vanished card: fingerprinted as served so the page can refill and the
+   cursor move on. If the read recovers, that card is not offered again in this scroll.
+
+Both trade a rare skip for never stalling or repeating; neither can reveal anything.
 
 **A cursor can only skip, never reveal.** It is unsigned on purpose: every read composes `PostReadFilters.ReadableBy`
 (audience + draft project + retraction) and the scope filter; a forged window just selects a range of what the viewer
@@ -300,7 +337,10 @@ and the page refilled; the scroll does not end. A source kind whose read throws 
 
 - **Project follow has no write path** (only guild and user follows have services). The feed reads `ProjectFollow`;
   until an endpoint writes it, project affinity comes from team membership. Trigger: Phase 3 "Follow" button.
-- **Full-pass quality scoring** reads every live post each interval. Trigger: > ~50k posts or a pass > 10 s in the
-  logs - then score only posts touched since the last pass plus those in a novelty window.
+- **Full-pass quality scoring** reads every live post each interval (writes only scores that moved). Trigger:
+  > ~50k posts or a pass > 10 s in the logs - then score only posts with engagement rows since the last pass.
+- **Card counters are raw** (`likesCount`, `sharesCount` shown on the card). Ranking ignores them (distinct people
+  only), but a self-shared card still displays an inflated share count. Trigger: Phase 3 shows share counts; then
+  show distinct sharers or dedupe `ShareAsync` per (post, person, destination).
 - **Tag scope with a sector match** ORs a join condition with the GIN containment, so Postgres cannot use the index
   alone. Trigger: tag-scope latency in the logs; then denormalise the project's sectors onto envelopes' hashtags.

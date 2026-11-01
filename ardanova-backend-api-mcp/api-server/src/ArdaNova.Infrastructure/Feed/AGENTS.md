@@ -43,10 +43,15 @@ The rules and the cycle live in `Application/Feed` (see its AGENTS.md). This dir
   card shows: update/comment content). Nullable columns are coalesced in the projection (`summary ?? ""`) because SQL
   `NULL || text` is NULL.
 - **`FeedReadStore`** (`IFeedReadStore`): the feed read side's non-post reads - the viewer's follows, memberships,
-  engaged tags (200 most recent posts written/liked/replied to), project sectors and skills; names for cards and
-  reasons; active taxonomy terms; native-thread reply counts; and the quality pass's signal batches (bookmarks by
-  grouped count - there is no bookmark counter column). Data access only: every visibility rule is composed in
+  engaged tags, project sectors and skills; names for cards and reasons; active taxonomy terms; native-thread reply
+  counts; and the quality pass's signal batches. Data access only: every visibility rule is composed in
   `Application/Feed/FeedService`.
+  - Engaged tags: three capped seeks (`Post(authorId, createdAt)`, `PostLike(userId)`, `PostComment(authorId)` - the
+    last two indexes come with migration `20261031000000`), merged in memory by when the viewer engaged, top 200.
+    Never one `authorId = v OR EXISTS(like) OR EXISTS(reply)` query: that cannot seek and scans `Post` per page.
+  - Quality signals: `COUNT(DISTINCT userId)` per post over the like / share / bookmark ROWS, joined to `Post` to drop
+    the author's own; repliers as distinct (post, person) pairs across the card and a DISCUSSION card's native
+    thread, author excluded in memory. The raw counters are never read (Application/Feed/AGENTS.md §Quality score).
 - **`FeedProjectorHostedService`** runs one cycle per fresh scope on `Feed:Projector:IntervalSeconds`;
   the first cycle after start sweeps, then hourly. After the cycle, when `ScoreIntervalMinutes` has elapsed, it runs
   `FeedQualityPass` in its own scope (its own connection, so it takes the runner lock the cycle just released). It owns the in-memory `FeedProjectorWatermark` (the cycle is
