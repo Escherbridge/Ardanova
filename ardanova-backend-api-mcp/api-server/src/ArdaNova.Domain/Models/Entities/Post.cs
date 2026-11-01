@@ -8,6 +8,7 @@ using ArdaNova.Domain.Models.Enums;
 
 namespace ArdaNova.Domain.Models.Entities;
 
+[Index(nameof(taskId), IsUnique = true)]
 [Table("Post")]
 public partial class Post
 {
@@ -83,6 +84,10 @@ public partial class Post
     [Required]
     public string[] hashtags { get; set; } = System.Array.Empty<string>();
 
+    public string? taskId { get; set; }
+
+    public virtual ICollection<Notification> Notifications { get; set; } = new List<Notification>();
+
     [ForeignKey("authorId")]
     public virtual User? Author { get; set; }
 
@@ -97,6 +102,9 @@ public partial class Post
 
     [ForeignKey("eventId")]
     public virtual Event? Event { get; set; }
+
+    [ForeignKey("taskId")]
+    public virtual ProjectTask? Task { get; set; }
 
     public virtual ICollection<PostMedia> PostMedias { get; set; } = new List<PostMedia>();
 

@@ -127,8 +127,14 @@ Table Notification {
   readAt datetime
   actionUrl varchar
   createdAt datetime [not null, default: `now()`]
+  postId varchar [note: 'The Post a reply/claim notification is about, for per-post collapse in the UI. NULL for notifications with no post']
+
+  indexes {
+    (userId, postId) [note: 'per-post collapse: how many unread notifications about this post does this user have']
+  }
 }
 Ref: Notification.userId > User.id
+Ref: Notification.postId > Post.id [delete: cascade]
 
 Table Activity {
   id varchar [not null, pk, default: `cuid()`]
@@ -1605,6 +1611,7 @@ Enum PostType {
   EVENT_SCHEDULED
   DISCUSSION
   MEMBER_JOINED
+  HELP_WANTED
 }
 
 // The table a feed-envelope Post was projected from; (sourceType, sourceId) names that row.
@@ -1659,6 +1666,7 @@ Table Post {
   eventId varchar [note: 'Event this post is about']
   retractedAt datetime [note: 'Projected envelope withdrawn while its source still exists (opportunity re-drafted, event cancelled). NULL = live; re-entry clears it on the SAME row']
   hashtags "text[]" [not null, default: '{}', note: 'Lowercased NFKC #tags from the post copy (envelopes: the source copy), deduped, max 10, first-seen order']
+  taskId varchar [unique, note: 'The ProjectTask this HELP_WANTED ask is for. NULL on every other type. One HELP_WANTED per task: paired with a CHECK (taskId IS NULL OR type=HELP_WANTED) hand-written in migration 20261101000000_feed_help_wanted, not expressible in schema.prisma']
 
   indexes {
     createdAt
@@ -1677,6 +1685,7 @@ Ref: Post.projectId > Project.id
 Ref: Post.guildId > Guild.id
 Ref: Post.opportunityId > Opportunity.id
 Ref: Post.eventId > Event.id
+Ref: Post.taskId > ProjectTask.id [delete: set null]
 
 Table PostMedia {
   id varchar [not null, pk, default: `cuid()`]

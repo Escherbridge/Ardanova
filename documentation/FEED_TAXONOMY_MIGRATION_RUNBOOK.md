@@ -148,3 +148,65 @@ re-run by hand with `psql` was a no-op (every statement `IF NOT EXISTS`); readba
 naming `hashtags` read `{}`; and `prisma migrate diff --from-url <scratch> --to-schema-datamodel prisma/schema.prisma
 --exit-code` exited 0 (no drift); database dropped. The URL was passed explicitly to the local scratch database; no
 hosted database was touched.
+
+## Phase 3 addendum (2026-11-01): `20261101000000_feed_help_wanted` (SR-03 phase 3, lane S3)
+
+One more additive migration: the `HELP_WANTED` `PostType` label; nullable, unique `Post.taskId`
+(the `ProjectTask` a HELP_WANTED post asks for, `ON DELETE SET NULL`); a `CHECK` pairing them
+(`Post_taskId_help_wanted_only`: `"taskId" IS NULL OR "type"::text = 'HELP_WANTED'`) so "one
+HELP_WANTED per task" holds without a partial index (Prisma 6.19.3 has no partial-index model, so
+one would never clear `migrate diff --exit-code`); nullable `Notification.postId` (the post a
+reply/claim notification is about, `ON DELETE CASCADE`) and the `(userId, postId)` index that
+serves the UI's per-post notification collapse. The file header is the source of truth, including
+why the CHECK casts `"type"` to text (`"type"::text = 'HELP_WANTED'`) instead of comparing the
+enum directly: PostgreSQL will not let a transaction use an enum value an `ALTER TYPE ... ADD
+VALUE` added earlier IN THAT SAME TRANSACTION when the value is parsed AS the enum (`enum_in`);
+casting the *column* to text (`enum_out`) instead never resolves the literal as a `PostType`
+value, so the restriction never fires and the add-value and its first consumer can share one
+migration file (unlike `20261027000000_feed_enum_values` and
+`20260909000000_economic_settlement_kind_values`, which both had to defer use to a later file).
+
+**Order:** `migrate deploy` -> restart the API (Npgsql caches each Postgres enum's label set per
+data source at first use, `ArdaNova.Infrastructure/DependencyInjection.cs` `MapEnum`; an API
+process that connected before this migration cannot write or read a `HELP_WANTED` post until
+restarted) -> client. **Before rolling the API back past this migration**, run
+```sql
+UPDATE "Post" SET "type" = 'POST', "taskId" = NULL WHERE "type" = 'HELP_WANTED';
+```
+An old API build does not know the `HELP_WANTED` label and fails to read any row that carries it
+(22P02).
+
+**If `migrate deploy` fails on `lock_timeout` (5 s):** same recovery as the phase 2 addendum above
+-- the migration is one transaction, so a timeout applies nothing:
+```bash
+npx prisma migrate resolve --rolled-back 20261101000000_feed_help_wanted
+npx prisma migrate deploy
+```
+The retry is safe even after a partial manual apply: every statement is guarded (`IF NOT EXISTS`,
+or `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = ...) THEN ... END IF; END $$;`
+for the two foreign keys and the CHECK, which PostgreSQL has no `ADD CONSTRAINT IF NOT EXISTS` for).
+
+**Readback:**
+```sql
+SELECT conname, contype FROM pg_constraint
+WHERE conname IN ('Post_taskId_fkey', 'Post_taskId_help_wanted_only', 'Notification_postId_fkey');
+                                                      -- 3 rows: contype 'f', 'c', 'f'
+SELECT indexname FROM pg_indexes
+WHERE indexname IN ('Post_taskId_key', 'Notification_userId_postId_idx');  -- 2 rows
+SELECT enumlabel FROM pg_enum e JOIN pg_type t ON t.oid = e.enumtypid
+WHERE t.typname = 'PostType' AND enumlabel = 'HELP_WANTED';                -- 1 row
+```
+
+**Rehearsal (local PostgreSQL 16 on 5433, throwaway database `ardanova_s3_scratch`, 2026-11-01):**
+`prisma migrate deploy` applied all 27 migrations to an empty scratch database, including this one,
+in a single transaction (the enum-value-plus-CHECK trick above did not raise "unsafe use of new
+value"); a second `migrate deploy` reported no pending migrations; the migration file re-run
+directly with `prisma db execute --file` was a no-op (every statement guarded); `prisma migrate
+diff --from-url <scratch> --to-schema-datamodel prisma/schema.prisma --exit-code` exited 0 (the
+CHECK is invisible to Prisma's schema model and caused no drift). Seeded a user, project and two
+tasks: a `POST`-type row carrying a `taskId` was refused by `Post_taskId_help_wanted_only` (23514);
+a `HELP_WANTED` row on task one succeeded; a second `HELP_WANTED` on the SAME task was refused by
+`Post_taskId_key` (23505 / Prisma P2002); deleting task one set the surviving post's `taskId` to
+NULL (not an error, since the CHECK only constrains a non-null `taskId`); deleting that post
+cascade-deleted its notification row. Database dropped after verification. The URL was passed
+explicitly to the local scratch database; no hosted database was touched.

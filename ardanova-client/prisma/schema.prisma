@@ -511,6 +511,7 @@ enum PostType {
   EVENT_SCHEDULED
   DISCUSSION
   MEMBER_JOINED
+  HELP_WANTED
 }
 
 enum FeedSourceType {
@@ -978,7 +979,11 @@ model Notification {
   readAt    DateTime?
   actionUrl String?
   createdAt DateTime         @default(now())
+  postId    String?
   user      User             @relation("Notification_userId", fields: [userId], references: [id])
+  post      Post?            @relation("Notification_postId", fields: [postId], references: [id], onDelete: Cascade)
+
+  @@index([userId, postId])
 }
 
 model Activity {
@@ -1201,6 +1206,7 @@ model ProjectTask {
   taskCompensations        TaskCompensation[]      @relation("TaskCompensation_taskId")
   taskSubmissions          TaskSubmission[]        @relation("TaskSubmission_taskId")
   taskEscrows              TaskEscrow[]            @relation("TaskEscrow_taskId")
+  posts                    Post[]                  @relation("Post_taskId")
   opportunities            Opportunity[]           @relation("Opportunity_taskId")
   economicSettlements      EconomicSettlement[]    @relation("EconomicSettlement_taskId")
   taskCommerceAgreements   TaskCommerceAgreement[] @relation("TaskCommerceAgreement_taskId")
@@ -2045,11 +2051,14 @@ model Post {
   eventId       String?
   retractedAt   DateTime?
   hashtags      String[]        @default([])
+  taskId        String?         @unique
+  notifications Notification[]  @relation("Notification_postId")
   author        User            @relation("Post_authorId", fields: [authorId], references: [id])
   project       Project?        @relation("Post_projectId", fields: [projectId], references: [id])
   guild         Guild?          @relation("Post_guildId", fields: [guildId], references: [id])
   opportunity   Opportunity?    @relation("Post_opportunityId", fields: [opportunityId], references: [id])
   event         Event?          @relation("Post_eventId", fields: [eventId], references: [id])
+  task          ProjectTask?    @relation("Post_taskId", fields: [taskId], references: [id], onDelete: SetNull)
   postMedias    PostMedia[]     @relation("PostMedia_postId")
   postLikes     PostLike[]      @relation("PostLike_postId")
   postComments  PostComment[]   @relation("PostComment_postId")
