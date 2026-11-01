@@ -354,7 +354,10 @@ describe(
       expect(pickedUp).toHaveProperty("disabled", true);
       expect(screen.queryByRole("button", { name: "Pick up task" })).toBeNull();
       const claims = callsTo("PUT", "/api/tasks/task-1/assign");
-      expect(claims.map((claim) => claim.body)).toEqual([{ userId: "user-a" }]);
+      // `claim: true` makes it the conditional claim even for a manager (wave-1 review H1): never a silent takeover.
+      expect(claims.map((claim) => claim.body)).toEqual([
+        { userId: "user-a", claim: true },
+      ]);
       await screen.findByText("Ada Joiner");
       // Unpaid: the account is never read.
       expect(callsTo("GET", "/api/azoa/custodial-account/status")).toHaveLength(
