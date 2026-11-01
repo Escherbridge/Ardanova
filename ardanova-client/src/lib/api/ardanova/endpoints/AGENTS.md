@@ -42,6 +42,14 @@ with the caller's own id - there is no separate claim route. The API's `TaskClai
 conditional write; 0 rows updated is a 409, mapped to `CONFLICT`. A 400 here is a membership/
 eligibility refusal, not malformed input, so it maps to `FORBIDDEN` rather than `BAD_REQUEST`.
 
+The 409 body is `{ error, code }` with .NET `TaskClaimCodes`: `TASK_TAKEN`, `TASK_DONE`,
+`TASK_UNDER_AGREEMENT`. `base-client.ts` already extracts `code`; `task.claim` wraps it in
+`TaskClaimRefusalCause` (`server/api/task-claim-conflict-error.ts`) and `trpc.ts`'s `errorFormatter`
+exposes it as `error.data.taskClaimCode`. The browser reads it with `taskClaimRefusalOf`
+(`src/lib/tasks/claim-refusal.ts`) to word "already taken" apart from "done"; a code this client
+does not know reads as null, and the API's own message still arrives (`describeMutationError`).
+Proven over real HTTP in `server/api/root.test.ts`.
+
 ## Project follow (SR-03 Phase 3 §2, §8-6)
 
 `projects.ts`'s `followProject`/`unfollowProject`/`getMyFollowState` assume

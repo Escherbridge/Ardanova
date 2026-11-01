@@ -7,6 +7,7 @@ import {
 } from "~/server/api/trpc";
 import { apiClient } from "~/lib/api";
 import { runWithActorAssertion } from "~/server/actor-assertion";
+import { taskClaimConflictError } from "~/server/api/task-claim-conflict-error";
 import {
   hierarchyAuthorization,
   type HierarchyParent,
@@ -351,18 +352,23 @@ export const taskRouter = createTRPCRouter({
       const response = await apiClient.tasks.assign(input.id, ctx.session.user.id);
 
       if (response.error || !response.data) {
+        // The API's 409 body is `{ error, code }`; the code rides to the browser as `error.data.taskClaimCode`.
+        if (response.status === 409) {
+          throw taskClaimConflictError(
+            response.code,
+            response.error ?? "Already picked up",
+          );
+        }
         throw new TRPCError({
           code:
-            response.status === 409
-              ? "CONFLICT"
-              // A 400 here is membership/eligibility, not malformed input - the card should read
-              // it as "you can't do this", not "bad request".
-              : response.status === 400
-                ? "FORBIDDEN"
-                : response.status === 404
-                  ? "NOT_FOUND"
-                  : "INTERNAL_SERVER_ERROR",
-          message: response.error ?? "Already picked up",
+            // A 400 here is membership/eligibility, not malformed input - the card should read
+            // it as "you can't do this", not "bad request".
+            response.status === 400
+              ? "FORBIDDEN"
+              : response.status === 404
+                ? "NOT_FOUND"
+                : "INTERNAL_SERVER_ERROR",
+          message: response.error ?? "Could not pick up this task",
         });
       }
 
