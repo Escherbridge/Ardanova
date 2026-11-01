@@ -15,6 +15,8 @@ function gitLines(args) {
 }
 
 function toClientPath(repoPath) {
+  // conductor/ holds working ledgers; Prettier's table padding would double their size for no gain.
+  if (repoPath.startsWith("conductor/")) return null;
   const clientPath = repoPath.startsWith(clientPrefix)
     ? repoPath.slice(clientPrefix.length)
     : repoPath;
