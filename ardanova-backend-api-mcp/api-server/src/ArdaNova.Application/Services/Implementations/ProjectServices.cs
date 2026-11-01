@@ -4,6 +4,7 @@ using System.Linq.Expressions;
 using ArdaNova.Application.Common.Interfaces;
 using ArdaNova.Application.Common.Results;
 using ArdaNova.Application.DTOs;
+using ArdaNova.Application.Feed;
 using ArdaNova.Application.Services.Interfaces;
 using ArdaNova.Domain.Models.Entities;
 using ArdaNova.Domain.Models.Enums;
@@ -311,19 +312,24 @@ public class ProjectService : IProjectService, IProjectVisibility
     private readonly IProjectDeletionBlockers _deletionBlockers;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IMapper _mapper;
+    private readonly ITaxonomyService? _taxonomyService;
 
     public ProjectService(
         IProjectRepository repository,
         IRepository<User> userRepository,
         IProjectDeletionBlockers deletionBlockers,
         IUnitOfWork unitOfWork,
-        IMapper mapper)
+        IMapper mapper,
+        // Optional and trailing so every existing `new ProjectService(...)` test call keeps
+        // compiling; the container always supplies the real ITaxonomyService in production.
+        ITaxonomyService? taxonomyService = null)
     {
         _repository = repository;
         _userRepository = userRepository;
         _deletionBlockers = deletionBlockers;
         _unitOfWork = unitOfWork;
         _mapper = mapper;
+        _taxonomyService = taxonomyService;
     }
 
     /// <summary>Unscoped lookup by id. Authorization reads through this, so it must not hide drafts.</summary>
@@ -538,6 +544,20 @@ public class ProjectService : IProjectService, IProjectVisibility
         if (ProjectFundingLedger.DescribeUnusableGoalAmount(dto.FundingGoal) is { } createGoalRefusal)
             return Result<ProjectDto>.ValidationError(createGoalRefusal);
 
+        // Lane L (SR-03 Phase 3 §3): a submitted Hashtags list is a FULL REPLACEMENT of
+        // Categories/ProjectType/Tags, not a merge with them - the one-hashtag-field form no
+        // longer sends the legacy three. See Services/Implementations/AGENTS.md §Project hashtags.
+        var categories = string.Join(",", dto.Categories.Select(NormalizeCategory));
+        var projectType = dto.ProjectType;
+        var tags = dto.Tags;
+        if (dto.Hashtags is not null)
+        {
+            var resolved = await ResolveHashtagsAsync(dto.Hashtags, ct);
+            categories = resolved.Categories;
+            projectType = resolved.ProjectType;
+            tags = resolved.Tags;
+        }
+
         var project = new Project
         {
             id = Guid.NewGuid().ToString(),
@@ -548,7 +568,7 @@ public class ProjectService : IProjectService, IProjectVisibility
             summary = dto.Summary,
             problemStatement = dto.ProblemStatement,
             solution = dto.Solution,
-            categories = string.Join(",", dto.Categories.Select(NormalizeCategory)),
+            categories = categories,
             status = ProjectStatus.DRAFT,
             fundingGoal = dto.FundingGoal,
             fundingGoalUnit = dto.FundingGoalUnit ?? ProjectFundingUnits.Ledger,
@@ -557,11 +577,11 @@ public class ProjectService : IProjectService, IProjectVisibility
             votesCount = 0,
             viewsCount = 0,
             featured = false,
-            tags = dto.Tags,
+            tags = tags,
             targetAudience = dto.TargetAudience,
             expectedImpact = dto.ExpectedImpact,
             timeline = dto.Timeline,
-            projectType = dto.ProjectType,
+            projectType = projectType,
             duration = dto.Duration,
             images = dto.Images,
             videos = dto.Videos,
@@ -606,12 +626,26 @@ public class ProjectService : IProjectService, IProjectVisibility
         if (dto.Summary is not null) project.summary = dto.Summary;
         if (dto.ProblemStatement is not null) project.problemStatement = dto.ProblemStatement;
         if (dto.Solution is not null) project.solution = dto.Solution;
-        if (dto.Categories is not null) project.categories = string.Join(",", dto.Categories.Select(NormalizeCategory));
-        if (dto.Tags is not null) project.tags = dto.Tags;
+        // Lane L (SR-03 Phase 3 §3): Hashtags, when present, is a FULL REPLACEMENT of
+        // Categories/ProjectType/Tags - removing a tag clears what it derived, including
+        // ProjectType resetting to the enum default when no PROJECT_TYPE tag remains. Absent
+        // (null) leaves all three exactly as the legacy per-field branch below does today.
+        if (dto.Hashtags is not null)
+        {
+            var resolved = await ResolveHashtagsAsync(dto.Hashtags, ct);
+            project.categories = resolved.Categories;
+            project.projectType = resolved.ProjectType;
+            project.tags = resolved.Tags;
+        }
+        else
+        {
+            if (dto.Categories is not null) project.categories = string.Join(",", dto.Categories.Select(NormalizeCategory));
+            if (dto.Tags is not null) project.tags = dto.Tags;
+            if (dto.ProjectType.HasValue) project.projectType = dto.ProjectType.Value;
+        }
         if (dto.TargetAudience is not null) project.targetAudience = dto.TargetAudience;
         if (dto.ExpectedImpact is not null) project.expectedImpact = dto.ExpectedImpact;
         if (dto.Timeline is not null) project.timeline = dto.Timeline;
-        if (dto.ProjectType.HasValue) project.projectType = dto.ProjectType.Value;
         if (dto.Duration.HasValue) project.duration = dto.Duration;
         if (dto.Images is not null) project.images = dto.Images;
         if (dto.Videos is not null) project.videos = dto.Videos;
@@ -756,6 +790,73 @@ public class ProjectService : IProjectService, IProjectVisibility
             .Replace(" ", "-")
             .Replace("--", "-")
             + "-" + Guid.NewGuid().ToString("N")[..8];
+    }
+
+    /// <summary>
+    /// Normalizes and dedupes the submitted hashtags (the same cap and canonical form Phase 2
+    /// posts use - <see cref="Hashtags.Normalize"/>, <see cref="Hashtags.MaxPerPost"/>), then
+    /// classifies them against the active taxonomy via <see cref="_taxonomyService"/>: SECTOR
+    /// hits become <c>categories</c>, the first PROJECT_TYPE hit becomes <c>projectType</c>
+    /// (absent -> <see cref="ProjectType.TEMPORARY"/>, the same default <see cref="CreateProjectDto.ProjectType"/>
+    /// already carries), and anything resolving to neither - including a SKILL hit, which has no
+    /// project-level meaning - is kept verbatim as free <c>tags</c>.
+    /// </summary>
+    private async Task<(string Categories, ProjectType ProjectType, string? Tags)> ResolveHashtagsAsync(
+        IReadOnlyList<string> rawHashtags,
+        CancellationToken ct)
+    {
+        var normalized = new List<string>(Math.Min(rawHashtags.Count, Hashtags.MaxPerPost));
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var raw in rawHashtags)
+        {
+            if (Hashtags.Normalize(raw) is not { } tag || !seen.Add(tag))
+                continue;
+            normalized.Add(tag);
+            if (normalized.Count == Hashtags.MaxPerPost)
+                break;
+        }
+
+        var resolved = _taxonomyService is null
+            ? new ResolvedTaxonomyTags(Array.Empty<string>(), null, normalized)
+            : await _taxonomyService.ResolveTagsAsync(normalized, ct);
+
+        var projectType = resolved.ProjectTypeSlug is { } slug
+            && Enum.TryParse<ProjectType>(slug, ignoreCase: true, out var parsed)
+                ? parsed
+                : ProjectType.TEMPORARY;
+
+        return (
+            string.Join(",", resolved.SectorSlugs),
+            projectType,
+            resolved.UnresolvedTags.Count == 0 ? null : string.Join(",", resolved.UnresolvedTags));
+    }
+}
+
+/// <summary>
+/// The reverse of <see cref="ProjectService.ResolveHashtagsAsync"/>, for <see cref="ProjectDto.Hashtags"/>:
+/// a project's stored <c>categories</c> and <c>projectType</c> as "#slug" chips, so the edit form's one
+/// hashtag field round-trips what create/edit last resolved. A pure function of already-loaded fields -
+/// no taxonomy lookup - so MappingProfile can call it without an async seam. See
+/// Services/Implementations/AGENTS.md §Project hashtags.
+/// </summary>
+public static class ProjectHashtagDisplay
+{
+    public static List<string> From(string? categories, ProjectType projectType)
+    {
+        var tags = new List<string>();
+        if (!string.IsNullOrEmpty(categories))
+        {
+            foreach (var category in categories.Split(',', StringSplitOptions.RemoveEmptyEntries))
+            {
+                if (Hashtags.Normalize(category) is { } tag)
+                    tags.Add("#" + tag);
+            }
+        }
+
+        if (Hashtags.Normalize(projectType.ToString()) is { } typeTag)
+            tags.Add("#" + typeTag);
+
+        return tags;
     }
 }
 

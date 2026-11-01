@@ -26,7 +26,13 @@ public class MappingProfile : Profile
             .ForMember(dest => dest.Categories, opt => opt.MapFrom(src =>
                 string.IsNullOrEmpty(src.categories)
                     ? new List<string>()
-                    : src.categories.Split(',', StringSplitOptions.RemoveEmptyEntries).ToList()));
+                    : src.categories.Split(',', StringSplitOptions.RemoveEmptyEntries).ToList()))
+            // Lane L (SR-03 Phase 3 §3): the edit form's round-trip view of the derived fields, each
+            // as a "#slug" chip via the same canonicalisation Hashtags.Extract uses for post copy.
+            // Fully-qualified rather than a new `using`, so this append stays a one-line diff next
+            // to K1's Post/Task blocks below (G0 §11: both lanes append to this file).
+            .ForMember(dest => dest.Hashtags, opt => opt.MapFrom(src =>
+                ArdaNova.Application.Services.Implementations.ProjectHashtagDisplay.From(src.categories, src.projectType)));
         CreateMap<ProjectTask, ProjectTaskDto>();
         CreateMap<ProjectTaskDependency, ProjectTaskDependencyDto>();
         CreateMap<ProjectResource, ProjectResourceDto>();

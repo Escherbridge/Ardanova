@@ -22,6 +22,12 @@ public record ProjectDto
     public string ProblemStatement { get; init; } = null!;
     public string Solution { get; init; } = null!;
     public List<string> Categories { get; init; } = new();
+    /// <summary>
+    /// The derived SECTOR/PROJECT_TYPE fields as "#slug" chips (SR-03 Phase 3 §3), so the edit
+    /// form's one hashtag field round-trips what create/edit last resolved. A free tag kept in
+    /// <see cref="Tags"/> (one that named neither) is not repeated here.
+    /// </summary>
+    public List<string> Hashtags { get; init; } = new();
     public ProjectStatus Status { get; init; }
     public decimal? FundingGoal { get; init; }
     /// <summary>Unit <see cref="FundingGoal"/> is denominated in; dollars for every ask on this node.</summary>
@@ -64,7 +70,19 @@ public record CreateProjectDto
     public string? Summary { get; init; }
     public required string ProblemStatement { get; init; }
     public required string Solution { get; init; }
-    public required List<string> Categories { get; init; }
+    /// <summary>
+    /// Direct category codes. Left for callers not using <see cref="Hashtags"/> yet (the one-hashtag
+    /// form no longer sends this); ignored when <see cref="Hashtags"/> is provided.
+    /// </summary>
+    public List<string> Categories { get; init; } = new();
+    /// <summary>
+    /// Discovery hashtags (SR-03 Phase 3 §3). When provided (even empty), a FULL REPLACEMENT of
+    /// Categories, ProjectType and Tags - resolved server-side against the active taxonomy: a
+    /// SECTOR hit becomes a category, the first PROJECT_TYPE hit becomes ProjectType (absent ->
+    /// the enum default below), everything else is kept as a free tag. Omit to post through the
+    /// legacy Categories/ProjectType/Tags fields unchanged.
+    /// </summary>
+    public List<string>? Hashtags { get; init; }
     public decimal? FundingGoal { get; init; }
     /// <summary>Unit the goal is denominated in; omitted means dollars, the only unit accepted.</summary>
     public string? FundingGoalUnit { get; init; }
@@ -91,7 +109,15 @@ public record UpdateProjectDto
     public string? Summary { get; init; }
     public string? ProblemStatement { get; init; }
     public string? Solution { get; init; }
+    /// <summary>Direct category codes; null leaves it alone. Ignored when <see cref="Hashtags"/> is provided.</summary>
     public List<string>? Categories { get; init; }
+    /// <summary>
+    /// Discovery hashtags (SR-03 Phase 3 §3). When provided (even empty), a FULL REPLACEMENT of
+    /// Categories, ProjectType and Tags - removing a tag clears what it derived, including
+    /// ProjectType resetting to the enum default when no PROJECT_TYPE tag remains. Null (the
+    /// field omitted) leaves all three exactly as they were.
+    /// </summary>
+    public List<string>? Hashtags { get; init; }
     public ProjectStatus? Status { get; init; }
     public decimal? FundingGoal { get; init; }
     /// <summary>Unit the goal is denominated in; omitted leaves it alone, and only dollars are accepted.</summary>
@@ -359,6 +385,21 @@ public record UpdateProjectEquityDto
 {
     public decimal? SharePercent { get; init; }
     public decimal? InvestmentAmount { get; init; }
+}
+
+/// <summary>One project follow row (SR-03 Phase 3 §8-6). No follower-list DTO exists; there is no route that returns more than one.</summary>
+public record ProjectFollowDto
+{
+    public string Id { get; init; } = null!;
+    public string ProjectId { get; init; } = null!;
+    public string UserId { get; init; } = null!;
+    public DateTime CreatedAt { get; init; }
+}
+
+/// <summary>The signed-in viewer's own follow state on one project - never another user's; there is no route that takes an arbitrary userId.</summary>
+public record ProjectFollowStatusDto
+{
+    public bool Following { get; init; }
 }
 
 /// <summary>The 409 body for a refused project delete: the message and the entity kinds still referencing the project.</summary>
