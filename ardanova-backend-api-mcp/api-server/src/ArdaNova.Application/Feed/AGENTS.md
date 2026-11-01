@@ -256,9 +256,10 @@ The pass reads every live post id, then signals in `SweepBatchSize` batches, and
 - **affinity** = 1 + project link (team or follow, +2) + guild link (+1.5) + followed author (+1) + one interest
   match, only when there is no project/guild link: a specific tag topic (skill / project type / free tag, +0.75) >
   a sector reached through a tag (+0.5) > a sector reached through the card's project (+0.5). The viewer's
-  interests: tags on their 200 most recent posts written, liked or replied to (three capped index seeks -
-  `Post(authorId, createdAt)`, `PostLike(userId)`, `PostComment(authorId)` - merged by when they engaged, review
-  MED-2); sectors of projects they follow, created or work on; their `UserSkill` names - all through the canon.
+  interests: tags on the posts behind their latest 200 engagements - written, liked or replied to, tagged or not
+  (three index range reads on `Post(authorId, createdAt)`, `PostLike(userId, createdAt)`,
+  `PostComment(authorId, createdAt)`, merged by when they engaged; review MED-2/MED-B, see Infrastructure/Feed/AGENTS.md);
+  sectors of projects they follow, created or work on; their `UserSkill` names - all through the canon.
   Own posts carry "Your activity", no boost.
 - **novelty** = 1 + 0.5 x freshness for every reader when the card's project is new, + 0.5 x freshness more when it
   is in one of the viewer's sectors ("New in Construction" for people in construction); freshness = 1 the day the
@@ -270,6 +271,12 @@ The pass reads every live post id, then signals in `SweepBatchSize` batches, and
   the window, review MED-1). A window at its 150-card cap that still cannot fill a page under the caps - one very
   busy subject - returns a SHORT page instead; the next page continues the same window, so the scroll still ends
   only when everything visible has been served.
+  - **Client contract (accepted, review MED-C):** keep fetching while `nextCursor` is non-null, even when a page is
+    short - or holds 2 cards. A short page means "the caps held", never "the end"; only `nextCursor: null` ends the
+    scroll. One busy subject therefore yields short capped pages until its window is spent.
+  - **Revisit trigger:** a subject regularly posts more than ~150 cards per 48 h (one window's worth per half-life);
+    then add a diversity probe below `Floor` (read a few cards from older, other subjects to fill the short page)
+    rather than relaxing the caps.
 
 ## Paging (`FeedService`, `FeedCursor`)
 
@@ -331,6 +338,9 @@ and the page refilled; the scroll does not end. A source kind whose read throws 
   summary on a card carries no funding fields.
 - **Viewer** (`isMember`, `isFollowing`, `canClaim`): computed server-side; Phase 3 picks the primary action from
   it, never from reason text. `canClaim` is false until claimable (help-wanted / task-linked) cards exist.
+- **Counters** (`Counters.Likes/Replies/Shares`) are the RAW post counters, for display only. Ranking ignores them
+  (distinct non-author people, §Quality score), but a card its author shared 50 times DISPLAYS 50 shares. Phase 3
+  must not present them as a quality signal; see §Deferred for the fix trigger.
 - **Reasons**: stable `kind` + rendered `text` with live names (`FeedReasonText`).
 
 ## Deferred (with the trigger to revisit)

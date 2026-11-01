@@ -2087,7 +2087,7 @@ model PostLike {
   user      User     @relation("PostLike_userId", fields: [userId], references: [id])
 
   @@unique([postId, userId])
-  @@index([userId])
+  @@index([userId, createdAt])
 }
 
 model PostComment {
@@ -2104,7 +2104,8 @@ model PostComment {
   parent         PostComment?  @relation("PostComment_parentId", fields: [parentId], references: [id])
   parentChildren PostComment[] @relation("PostComment_parentId")
 
-  @@index([authorId])
+  @@index([postId])
+  @@index([authorId, createdAt])
 }
 
 model PostBookmark {
@@ -2130,6 +2131,8 @@ model PostShare {
   user              User     @relation("PostShare_userId", fields: [userId], references: [id])
   sharedToProject   Project? @relation("PostShare_sharedToProjectId", fields: [sharedToProjectId], references: [id])
   sharedToGuild     Guild?   @relation("PostShare_sharedToGuildId", fields: [sharedToGuildId], references: [id])
+
+  @@index([postId])
 }
 
 model Conversation {

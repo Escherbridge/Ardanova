@@ -1698,7 +1698,7 @@ Table PostLike {
 
   indexes {
     (postId, userId) [unique]
-    userId [note: 'The feed reads the recent likes of a viewer to learn their interests']
+    (userId, createdAt) [note: 'The feed reads the latest likes of a viewer to learn their interests']
   }
 }
 Ref: PostLike.postId > Post.id
@@ -1715,7 +1715,8 @@ Table PostComment {
   updatedAt datetime [not null, note: 'Updated at']
 
   indexes {
-    authorId [note: 'The feed reads the recent replies of a viewer to learn their interests']
+    postId [note: 'Replies per post: the feed quality pass and thread reads']
+    (authorId, createdAt) [note: 'The feed reads the latest replies of a viewer to learn their interests']
   }
 }
 Ref: PostComment.postId > Post.id
@@ -1743,6 +1744,10 @@ Table PostShare {
   sharedToGuildId varchar
   comment text
   createdAt datetime [not null, default: `now()`]
+
+  indexes {
+    postId [note: 'Shares per post: the feed quality pass']
+  }
 }
 Ref: PostShare.postId > Post.id
 Ref: PostShare.userId > User.id

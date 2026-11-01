@@ -43,22 +43,24 @@ public sealed class FeedReadStore : IFeedReadStore
             .Select(project => project.categories)
             .ToListAsync(ct);
 
-        // A union of three index seeks (Post(authorId, createdAt), PostLike(userId), PostComment(authorId)), each
-        // capped, merged by when the viewer engaged - never one OR/EXISTS scan over every post.
+        // Three index range reads - Post(authorId, createdAt), PostLike(userId, createdAt), PostComment(authorId,
+        // createdAt) - each the viewer's latest 200, newest first, so the cost is O(200) whatever their history.
+        // No hashtag filter here on purpose: joining Post to filter would make Postgres fetch and sort every like or
+        // reply before the LIMIT. Untagged posts are read below and simply contribute no tags.
         var authored = await _context.Posts.AsNoTracking()
-            .Where(post => post.authorId == viewerId && post.hashtags.Length > 0)
+            .Where(post => post.authorId == viewerId)
             .OrderByDescending(post => post.createdAt)
             .Take(EngagedPostWindow)
             .Select(post => new Engagement(post.id, post.createdAt))
             .ToListAsync(ct);
         var liked = await _context.PostLikes.AsNoTracking()
-            .Where(like => like.userId == viewerId && like.Post!.hashtags.Length > 0)
+            .Where(like => like.userId == viewerId)
             .OrderByDescending(like => like.createdAt)
             .Take(EngagedPostWindow)
             .Select(like => new Engagement(like.postId, like.createdAt))
             .ToListAsync(ct);
         var replied = await _context.PostComments.AsNoTracking()
-            .Where(reply => reply.authorId == viewerId && reply.Post!.hashtags.Length > 0)
+            .Where(reply => reply.authorId == viewerId)
             .OrderByDescending(reply => reply.createdAt)
             .Take(EngagedPostWindow)
             .Select(reply => new Engagement(reply.postId, reply.createdAt))
@@ -70,7 +72,7 @@ public sealed class FeedReadStore : IFeedReadStore
             .Select(group => group.Key)
             .ToArray();
         var engaged = engagedIds.Length == 0 ? [] : await _context.Posts.AsNoTracking()
-            .Where(post => engagedIds.Contains(post.id))
+            .Where(post => engagedIds.Contains(post.id) && post.hashtags.Length > 0)
             .Select(post => post.hashtags)
             .ToListAsync(ct);
 
