@@ -335,18 +335,13 @@ function membershipOf(
   return createdById === undefined || members === undefined ? undefined : false;
 }
 
-/** The API sends `hasAgreement` on every TaskDto; the client's Task type predates it. */
-function carriesAgreement(task: TaskDetail): boolean {
-  return (task as { hasAgreement?: unknown }).hasAgreement === true;
-}
-
 /** Unassigned, not done, and no agreement or escrow deciding the worker: the claim rule's task facts. */
 function isOpenForPickUp(task: TaskDetail): boolean {
   return (
     !task.assignedToId &&
     task.status !== "COMPLETED" &&
     task.escrowStatus === "NONE" &&
-    !carriesAgreement(task)
+    task.hasAgreement !== true
   );
 }
 

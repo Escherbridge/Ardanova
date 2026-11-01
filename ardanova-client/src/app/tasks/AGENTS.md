@@ -29,7 +29,7 @@ First matching row wins. Facts come from `task.getById` (TaskDto), membership fr
 - **The claim rule lives server-side** (K1's `TaskClaimRule`). The client pre-check only hides a button the API would
   certainly refuse; the 409's `taskClaimCode` (`taskClaimRefusalOf`) is the truth. An uncoded failure (a newer code, a
   readiness 403/409, a non-member's FORBIDDEN) falls back to `MutationErrorNotice`, which carries the API's message.
-- `hasAgreement` is on the .NET TaskDto but not on the client `Task` type yet; `carriesAgreement` reads it defensively.
+- `hasAgreement` (an accepted bid's agreement decides the worker) is on the client `Task` type (final join f).
 - Every claim settles with a `task.getById` refetch, so "Being done by" shows the real holder after a win or a 409.
 
 ## The ask (`[id]/page.tsx` → `HelpAsk`)
@@ -61,7 +61,5 @@ state the composer already publishes, so no prop or ref crosses the lane boundar
 
 ## Deferred
 
-- **`hasAgreement` on the client `Task` type** (`lib/api/ardanova/endpoints/tasks.ts`, Lane P). Trigger: next touch of
-  that file; then drop `carriesAgreement`'s cast.
 - **The modal reads membership itself** (`project.getById` + `getMembers`, shared cache keys with the project page's
   `getMembers`). Trigger: a second consumer → lift a `viewerIsMember` prop from the board.

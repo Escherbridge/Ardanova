@@ -75,6 +75,8 @@ export interface Task {
   assignedToId?: string | null;
   assignedTo?: TaskUser | null;
   project?: TaskProject | null;
+  /** An accepted bid's agreement decides the worker (.NET TaskDto.HasAgreement; a claim is refused). Absent from an older API. */
+  hasAgreement?: boolean;
   /** Set only when a HELP_WANTED post names this task; absent otherwise or before K1/K2 ship it. */
   helpWanted?: TaskHelpWanted | null;
 }
