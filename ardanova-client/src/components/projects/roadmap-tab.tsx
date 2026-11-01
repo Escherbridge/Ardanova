@@ -114,7 +114,7 @@ export default function RoadmapTab({ projectId, isOwner }: RoadmapTabProps) {
         <AlertCircle className="text-destructive mt-0.5 size-5 shrink-0" />
         <div className="flex-1">
           <p className="text-destructive font-mono text-sm font-bold">
-            FAILED TO LOAD ROADMAP
+            Roadmap didn&apos;t load.
           </p>
           <p className="text-muted-foreground mt-1 text-xs">{error.message}</p>
         </div>
@@ -138,7 +138,7 @@ export default function RoadmapTab({ projectId, isOwner }: RoadmapTabProps) {
       {/* Header */}
       <div className="flex items-center justify-between">
         <h3 className="text-muted-foreground font-mono text-xs tracking-widest uppercase">
-          PROJECT ROADMAP
+          ROADMAP
         </h3>
         {isOwner && (
           <Button
@@ -208,9 +208,6 @@ export default function RoadmapTab({ projectId, isOwner }: RoadmapTabProps) {
           <Target className="text-muted-foreground mx-auto mb-2 size-8" />
           <p className="text-muted-foreground font-mono text-sm">
             NO MILESTONES YET
-          </p>
-          <p className="text-muted-foreground mt-1 text-xs">
-            Add milestones to track your project roadmap.
           </p>
         </div>
       ) : (
@@ -363,7 +360,7 @@ function MilestoneNode({
             ) : epicsError ? (
               <div className="border-destructive/40 bg-destructive/5 flex flex-col items-start gap-3 border p-3 sm:flex-row sm:items-center sm:justify-between">
                 <p className="text-destructive text-xs">
-                  Epics could not be loaded: {epicsError.message}
+                  Epics didn&apos;t load: {epicsError.message}
                 </p>
                 <Button
                   type="button"
@@ -377,7 +374,7 @@ function MilestoneNode({
               </div>
             ) : epics?.length === 0 ? (
               <p className="text-muted-foreground py-4 text-center font-mono text-xs">
-                NO EPICS IN THIS MILESTONE
+                NO EPICS
               </p>
             ) : (
               epics?.map((epic) => <EpicCard key={epic.id} epic={epic} />)
@@ -525,7 +522,7 @@ function EpicCard({ epic }: { epic: Epic }) {
           ) : sprintsError ? (
             <div className="border-destructive/40 bg-destructive/5 flex flex-col items-start gap-3 border p-3 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-destructive text-[10px]">
-                Sprints could not be loaded: {sprintsError.message}
+                Sprints didn&apos;t load: {sprintsError.message}
               </p>
               <Button
                 type="button"

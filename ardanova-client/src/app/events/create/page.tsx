@@ -10,7 +10,6 @@ import {
   Loader2,
   Plus,
   X,
-  Info,
   Calendar,
   Clock,
   Users,
@@ -198,25 +197,22 @@ export default function CreateEventPage() {
           <Button variant="ghost" asChild className="mb-4 -ml-2">
             <Link href="/events">
               <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to Events
+              Back to events
             </Link>
           </Button>
           <h1 className="flex items-center gap-3 text-3xl font-bold">
             <div className="bg-system/20 flex h-10 w-10 items-center justify-center rounded-none">
               <Calendar className="text-system h-5 w-5" />
             </div>
-            Create Event
+            New event
           </h1>
-          <p className="text-muted-foreground mt-2">
-            Organize a community event for members to join
-          </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Event Info */}
           <Card className="bg-card border-border">
             <CardHeader className="pb-3">
-              <CardTitle className="text-lg">Event Details</CardTitle>
+              <CardTitle className="text-lg">Details</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
@@ -268,7 +264,7 @@ export default function CreateEventPage() {
                   }
                   value={formData.description}
                   onChange={(e) => handleChange("description", e.target.value)}
-                  placeholder="Describe the event, what attendees will learn or experience..."
+                  placeholder="What will people do or learn?"
                   rows={4}
                   className={`bg-muted/50 focus-visible:ring-ring/50 w-full resize-none rounded-none border-2 px-4 py-3 focus:ring-2 focus:outline-none ${
                     errors.description ? "border-destructive" : "border-border"
@@ -333,7 +329,7 @@ export default function CreateEventPage() {
           {/* Format */}
           <Card className="bg-card border-border">
             <CardHeader className="pb-3">
-              <CardTitle className="text-lg">Event Format</CardTitle>
+              <CardTitle className="text-lg">Format</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div
@@ -561,7 +557,7 @@ export default function CreateEventPage() {
                   aria-describedby="event-capacity-help"
                   value={formData.maxAttendees}
                   onChange={(e) => handleChange("maxAttendees", e.target.value)}
-                  placeholder="Leave empty for unlimited"
+                  placeholder="Unlimited"
                   min="1"
                   className="bg-muted/50 border-border focus-visible:ring-ring/50 w-full rounded-none border-2 px-4 py-3 focus:ring-2 focus:outline-none"
                 />
@@ -654,27 +650,15 @@ export default function CreateEventPage() {
               {isSubmitting ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Creating Event...
+                  Creating…
                 </>
               ) : (
-                "Create Event"
+                "Create event"
               )}
             </Button>
             <Button type="button" variant="outline" asChild className="py-6">
               <Link href="/events">Cancel</Link>
             </Button>
-          </div>
-
-          {/* Info Note */}
-          <div className="bg-muted/30 border-border flex items-start gap-3 rounded-none border p-4">
-            <Info className="text-system mt-0.5 h-5 w-5" />
-            <div className="text-muted-foreground text-sm">
-              <p>
-                After creating the event, community members can register to
-                attend. You&apos;ll be able to manage attendees and send
-                updates.
-              </p>
-            </div>
           </div>
         </form>
       </div>

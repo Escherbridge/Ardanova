@@ -1898,17 +1898,17 @@ function TeamPositionsView({
       <Card>
         <CardContent className="py-10 text-center">
           <Users className="text-muted-foreground/50 mx-auto mb-3 h-10 w-10" />
-          <h3 className="mb-1 text-base font-medium">No team positions</h3>
-          <p className="text-muted-foreground mb-3 text-sm">
-            {canManage
-              ? "Post a role and the person you accept joins the team in it."
-              : "No team positions have been posted yet."}
-          </p>
+          <h3 className="mb-1 text-base font-medium">No positions yet.</h3>
+          {canManage && (
+            <p className="text-muted-foreground mb-3 text-sm">
+              Whoever you accept joins the team.
+            </p>
+          )}
           {canManage && (
             <Button asChild variant="outline" size="sm" className="min-h-11">
               <Link href={createPositionHref}>
                 <Plus className="mr-1.5 h-3.5 w-3.5" />
-                Create Position
+                Create position
               </Link>
             </Button>
           )}
@@ -2345,13 +2345,13 @@ export default function OpportunitiesTab({
                 <CardContent className="py-10 text-center">
                   <Flag className="text-muted-foreground/50 mx-auto mb-3 h-10 w-10" />
                   <h3 className="mb-1 text-base font-medium">
-                    No work items yet
+                    No work items yet.
                   </h3>
-                  <p className="text-muted-foreground mb-3 text-sm">
-                    {canManage
-                      ? "Start by creating a milestone, or switch to 'All Tasks' for a flat list."
-                      : "No work items have been created for this project yet."}
-                  </p>
+                  {canManage && (
+                    <p className="text-muted-foreground mb-3 text-sm">
+                      Start with a milestone.
+                    </p>
+                  )}
                   {canManage && (
                     <div className="flex justify-center gap-2">
                       <Button

@@ -256,7 +256,7 @@ export default function ProfilePage() {
                 <p className="text-muted-foreground mb-2">{user?.email}</p>
                 <p className="text-muted-foreground mb-4 whitespace-pre-line">
                   {meProfile?.bio ||
-                    "Add a bio so collaborators know what you work on."}
+                    "Add a bio."}
                 </p>
                 <div className="flex flex-wrap gap-6 text-sm">
                   <div className="flex items-center gap-2">
@@ -373,18 +373,18 @@ export default function ProfilePage() {
           <TabsContent value="projects" className="mt-6">
             <Card>
               <CardHeader>
-                <CardTitle>Your Projects</CardTitle>
+                <CardTitle>Your projects</CardTitle>
               </CardHeader>
               <CardContent>
                 {projectsLoading ? (
                   <p className="text-muted-foreground">Loading projects…</p>
                 ) : projectsError ? (
                   <p role="alert" className="text-destructive">
-                    Projects could not be loaded.
+                    Projects didn&apos;t load.
                   </p>
                 ) : (myProjects?.items.length ?? 0) === 0 ? (
                   <p className="text-muted-foreground">
-                    You haven&apos;t joined any projects yet.
+                    No projects yet.
                   </p>
                 ) : (
                   <ul className="space-y-2">
@@ -409,7 +409,7 @@ export default function ProfilePage() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Mail className="size-5" />
-                  Project Invitations
+                  Invitations
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -417,7 +417,7 @@ export default function ProfilePage() {
                   <p className="text-muted-foreground">Loading invitations…</p>
                 ) : invitationsError ? (
                   <p role="alert" className="text-destructive">
-                    Invitations could not be loaded.
+                    Invitations didn&apos;t load.
                   </p>
                 ) : pendingInvitations.length === 0 ? (
                   <p className="text-muted-foreground">
@@ -506,18 +506,18 @@ export default function ProfilePage() {
           <TabsContent value="guilds" className="mt-6">
             <Card>
               <CardHeader>
-                <CardTitle>Your Guilds</CardTitle>
+                <CardTitle>Your guilds</CardTitle>
               </CardHeader>
               <CardContent>
                 {guildsLoading ? (
                   <p className="text-muted-foreground">Loading guilds…</p>
                 ) : guildsError ? (
                   <p role="alert" className="text-destructive">
-                    Guilds could not be loaded.
+                    Guilds didn&apos;t load.
                   </p>
                 ) : myGuildRows.length === 0 ? (
                   <p className="text-muted-foreground">
-                    You haven&apos;t joined any guilds yet.
+                    No guilds yet.
                   </p>
                 ) : (
                   <ul className="space-y-2">
@@ -543,8 +543,8 @@ export default function ProfilePage() {
               isLoading={credentialsLoading}
               emptyMessage={
                 credentialsError
-                  ? "Credentials could not be loaded."
-                  : "You have no credentials yet. They are earned through work in a project or guild."
+                  ? "Credentials didn't load."
+                  : "No credentials yet. They're earned through work."
               }
             />
           </TabsContent>
@@ -557,7 +557,7 @@ export default function ProfilePage() {
               <CardContent>
                 {tasksError || profileError ? (
                   <p role="alert" className="text-destructive">
-                    Contribution details could not be loaded.
+                    Contributions didn&apos;t load.
                   </p>
                 ) : (
                   <>

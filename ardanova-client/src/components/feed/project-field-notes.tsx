@@ -44,12 +44,7 @@ export function ProjectFieldNotes({
 
   return (
     <section className="space-y-4">
-      <header>
-        <h2 className="text-lg font-semibold">Field notes</h2>
-        <p className="text-sm text-muted-foreground">
-          Progress, setbacks and decisions, written down as the work happens.
-        </p>
-      </header>
+      <h2 className="text-lg font-semibold">Field notes</h2>
 
       {canPost ? (
         <FieldNoteComposer projectId={projectId} onPosted={refresh} />
@@ -68,7 +63,7 @@ export function ProjectFieldNotes({
 
       {!stream.isLoading && !stream.error && notes.length === 0 ? (
         <p className="border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-          No field notes yet. The first update tells supporters the work has started.
+          No field notes yet.
         </p>
       ) : null}
 

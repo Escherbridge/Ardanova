@@ -78,10 +78,7 @@ export default function VotesTab({ proposalId }: VotesTabProps) {
         <div className="bg-muted mb-4 inline-flex h-16 w-16 items-center justify-center rounded-none">
           <ThumbsUp className="text-muted-foreground size-8" />
         </div>
-        <h3 className="mb-2 text-lg font-semibold">No votes yet</h3>
-        <p className="text-muted-foreground text-sm">
-          Be the first to vote on this proposal
-        </p>
+        <h3 className="text-lg font-semibold">No votes yet.</h3>
       </div>
     );
   }

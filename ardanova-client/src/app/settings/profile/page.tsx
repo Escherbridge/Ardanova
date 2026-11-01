@@ -17,8 +17,8 @@ export default function ProfileSettingsPage() {
           </h1>
         </div>
         <p className="text-muted-foreground text-sm">
-          How other members see you: name, bio, links, skills and experience.
-          Identity verification is a separate step under Verification.
+          How other members see you. Identity verification is a separate step
+          under Verification.
         </p>
       </div>
       <ProfileEditor />

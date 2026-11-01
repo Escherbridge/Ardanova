@@ -328,10 +328,10 @@ export default function ChatsPage() {
     try {
       const result = await fetchMoreConversations();
       if (result.isError) {
-        setConversationPageError("More conversations could not be loaded.");
+        setConversationPageError("More conversations didn't load.");
       }
     } catch {
-      setConversationPageError("More conversations could not be loaded.");
+      setConversationPageError("More conversations didn't load.");
     }
   }
 
@@ -349,11 +349,11 @@ export default function ChatsPage() {
       const result = await fetchEarlierMessages();
       if (result.isError) {
         pendingScrollRestoreRef.current = null;
-        setMessagePageError("Earlier messages could not be loaded.");
+        setMessagePageError("Earlier messages didn't load.");
       }
     } catch {
       pendingScrollRestoreRef.current = null;
-      setMessagePageError("Earlier messages could not be loaded.");
+      setMessagePageError("Earlier messages didn't load.");
     } finally {
       if (scrollSnapshot) {
         window.requestAnimationFrame(() => {
@@ -391,15 +391,10 @@ export default function ChatsPage() {
         >
           <header className="border-border shrink-0 border-b-2 p-4">
             <div className="mb-4 flex items-start justify-between gap-4">
-              <div>
-                <p className="text-primary text-[0.68rem] font-bold tracking-[0.18em] uppercase">
-                  Coordination, not distraction
-                </p>
-                <h1 className="text-foreground mt-1 flex items-center gap-2 text-2xl font-black tracking-tight">
-                  <MessageCircle className="size-5" aria-hidden="true" />
-                  Messages
-                </h1>
-              </div>
+              <h1 className="text-foreground flex items-center gap-2 text-2xl font-black tracking-tight">
+                <MessageCircle className="size-5" aria-hidden="true" />
+                Messages
+              </h1>
               <Button
                 type="button"
                 size="sm"
@@ -469,18 +464,16 @@ export default function ChatsPage() {
                 role="alert"
               >
                 <p className="text-foreground font-bold">
-                  Conversations could not be loaded
-                </p>
-                <p className="text-muted-foreground text-sm leading-6">
-                  This is a connection or service error, not an empty inbox.
+                  Conversations didn&apos;t load.
                 </p>
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
                   onClick={() => void refetchConversations()}
+                  aria-label="Try again to load conversations"
                 >
-                  Retry conversations
+                  Try again
                 </Button>
               </div>
             ) : filteredConversations.length === 0 ? (
@@ -489,18 +482,11 @@ export default function ChatsPage() {
                   className="text-muted-foreground size-8"
                   aria-hidden="true"
                 />
-                <div>
-                  <p className="text-foreground font-bold">
-                    {normalizedSearch || activeFilter !== "all"
-                      ? "No matching conversations"
-                      : "No conversations available"}
-                  </p>
-                  <p className="text-muted-foreground mt-1 text-sm leading-6">
-                    {normalizedSearch || activeFilter !== "all"
-                      ? "Change the search or filter to widen the list."
-                      : "Start a direct conversation when you have something concrete to move forward."}
-                  </p>
-                </div>
+                <p className="text-foreground font-bold">
+                  {normalizedSearch || activeFilter !== "all"
+                    ? "No matches."
+                    : "No conversations yet."}
+                </p>
                 {!normalizedSearch && activeFilter === "all" && (
                   <Button
                     type="button"
@@ -637,16 +623,9 @@ export default function ChatsPage() {
           {!selectedChatId ? (
             <div className="flex h-full items-center justify-center p-8">
               <div className="border-border bg-card max-w-md border-2 p-8">
-                <p className="text-primary text-xs font-bold tracking-[0.18em] uppercase">
-                  A useful conversation starts with intent
-                </p>
-                <h2 className="text-foreground mt-3 text-2xl font-black">
+                <h2 className="text-foreground text-2xl font-black">
                   Choose a conversation
                 </h2>
-                <p className="text-muted-foreground mt-3 text-sm leading-6">
-                  Coordinate the next decision, share context, or invite someone
-                  into the work.
-                </p>
                 <Button
                   type="button"
                   className="mt-6"
@@ -675,18 +654,18 @@ export default function ChatsPage() {
                 role="alert"
               >
                 <h2 className="text-foreground font-black">
-                  Conversation could not be loaded
+                  Conversation didn&apos;t load.
                 </h2>
                 <p className="text-muted-foreground mt-2 text-sm leading-6">
-                  The conversation service returned an error. Access has not
-                  been inferred or changed.
+                  Access has not been inferred or changed.
                 </p>
                 <div className="mt-4 flex flex-wrap gap-2">
                   <Button
                     type="button"
                     onClick={() => void refetchConversation()}
+                    aria-label="Try again to load this conversation"
                   >
-                    Retry conversation
+                    Try again
                   </Button>
                   <Button
                     type="button"
@@ -694,7 +673,7 @@ export default function ChatsPage() {
                     onClick={() => setSelectedChatId(null)}
                   >
                     <ArrowLeft className="size-4" aria-hidden="true" />
-                    Back
+                    Back to chats
                   </Button>
                 </div>
               </div>
@@ -718,7 +697,7 @@ export default function ChatsPage() {
                   onClick={() => setSelectedChatId(null)}
                 >
                   <ArrowLeft className="size-4" aria-hidden="true" />
-                  Back to conversations
+                  Back to chats
                 </Button>
               </div>
             </div>
@@ -783,16 +762,16 @@ export default function ChatsPage() {
                   role="alert"
                 >
                   <p className="text-destructive text-sm">
-                    Current conversation details could not be refreshed. The
-                    list snapshot may be stale.
+                    Details didn&apos;t refresh and may be out of date.
                   </p>
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
                     onClick={() => void refetchConversation()}
+                    aria-label="Try again to refresh details"
                   >
-                    Retry details
+                    Try again
                   </Button>
                 </div>
               )}
@@ -861,19 +840,16 @@ export default function ChatsPage() {
                     role="alert"
                   >
                     <h3 className="text-foreground font-black">
-                      Messages could not be loaded
+                      Messages didn&apos;t load.
                     </h3>
-                    <p className="text-muted-foreground text-sm leading-6">
-                      This is a service error, not an empty conversation. No
-                      message history is shown until the request succeeds.
-                    </p>
                     <Button
                       type="button"
                       variant="outline"
                       size="sm"
                       onClick={() => void refetchMessages()}
+                      aria-label="Try again to load messages"
                     >
-                      Retry messages
+                      Try again
                     </Button>
                   </div>
                 ) : messages.length === 0 ? (
@@ -883,12 +859,8 @@ export default function ChatsPage() {
                       aria-hidden="true"
                     />
                     <h3 className="text-foreground mt-3 text-lg font-black">
-                      Start with the next useful thing
+                      No messages yet.
                     </h3>
-                    <p className="text-muted-foreground mt-2 text-sm leading-6">
-                      Share the problem, ask a precise question, or name the
-                      decision this conversation can move forward.
-                    </p>
                   </div>
                 ) : (
                   <div className="mx-auto flex w-full max-w-4xl flex-col gap-4">

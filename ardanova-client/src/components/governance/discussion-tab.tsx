@@ -32,13 +32,8 @@ export default function DiscussionTab({
             </div>
             <div className="space-y-2">
               <h3 className="text-foreground text-lg font-semibold">
-                Discussion Coming Soon
+                Discussion is coming soon.
               </h3>
-              <p className="text-muted-foreground mx-auto max-w-md">
-                This feature will allow proposal discussions and debates.
-                Community members will be able to share their thoughts, ask
-                questions, and engage in meaningful dialogue about proposals.
-              </p>
             </div>
           </div>
 
@@ -49,12 +44,12 @@ export default function DiscussionTab({
                 htmlFor="comment"
                 className="mb-1.5 block text-sm font-medium"
               >
-                Add Your Comment
+                Add a comment
               </label>
               <textarea
                 id="comment"
                 disabled
-                placeholder="Share your thoughts on this proposal..."
+                placeholder="What do you think?"
                 className="border-border bg-background text-foreground focus:ring-primary min-h-[100px] w-full resize-y rounded border px-3 py-2 focus:ring-2 focus:outline-none"
               />
             </div>

@@ -230,11 +230,11 @@ export default function ProjectsPage() {
         <div className="space-y-4">
           <Card className="border-foreground">
             <CardHeader className="border-border border-b pb-4">
-              <CardTitle className="text-base">Current page</CardTitle>
+              <CardTitle className="text-base">This page</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3 p-4">
               <Stat
-                label="Projects on this page"
+                label="Projects"
                 value={readFigure(projectsQuery, () =>
                   String(currentViewStats.loaded),
                 )}
@@ -261,8 +261,8 @@ export default function ProjectsPage() {
                 {projectsQuery.error
                   ? "Totals are not shown because this page of projects could not be loaded."
                   : totalCount > 0
-                    ? `These totals summarize page ${page} of ${totalPages} — ${totalCount} projects match the current filters.`
-                    : "These totals summarize this page only."}
+                    ? `Totals cover page ${page} of ${totalPages}. ${totalCount} projects match.`
+                    : "Totals cover this page only."}
               </p>
             </CardContent>
           </Card>
@@ -271,7 +271,7 @@ export default function ProjectsPage() {
             <CardHeader className="border-border border-b pb-4">
               <CardTitle className="flex items-center gap-2 text-base">
                 <RefreshCw className="text-primary size-4" />
-                Recently updated in this view
+                Recently updated
               </CardTitle>
             </CardHeader>
             <CardContent className="divide-border divide-y p-0">
@@ -280,8 +280,8 @@ export default function ProjectsPage() {
                   {projectsQuery.isLoading
                     ? "Loading…"
                     : projectsQuery.error
-                      ? "Not available while projects can't be loaded."
-                      : "No loaded records."}
+                      ? "Unavailable right now."
+                      : "None."}
                 </p>
               ) : (
                 recentlyUpdatedInView.map((project) => (
@@ -305,19 +305,8 @@ export default function ProjectsPage() {
       }
     >
       <header className="border-foreground bg-background border-b p-4 sm:p-6">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <p className="text-primary font-mono text-xs font-bold tracking-[0.2em] uppercase">
-              Discover a problem / define a solution / iterate
-            </p>
-            <h1 className="mt-2 text-3xl font-black sm:text-5xl">
-              Projects for doing
-            </h1>
-            <p className="text-muted-foreground mt-2 max-w-2xl text-sm sm:text-base">
-              Open a project to understand the problem, inspect the proposed
-              solution, and find the work that moves it forward.
-            </p>
-          </div>
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <h1 className="text-3xl font-black sm:text-5xl">Projects</h1>
           <Button asChild>
             <Link href="/projects/create">
               <Plus className="size-4" />
@@ -389,7 +378,7 @@ export default function ProjectsPage() {
         {hasFilters && (
           <div className="border-border mt-3 flex items-center justify-between border-t pt-3">
             <p className="text-muted-foreground text-xs">
-              Filters run against the full project catalog, not just this page.
+              Filters search every project, not just this page.
             </p>
             <Button
               type="button"
@@ -450,23 +439,13 @@ export default function ProjectsPage() {
             <div className="flex items-center gap-3">
               <span className="border-primary size-5 animate-spin border-2 border-t-transparent" />
               <span className="font-mono text-sm">
-                Loading project records...
+                Loading projects…
               </span>
             </div>
           </div>
         ) : projectsQuery.error ? (
           <div className="flex min-h-64 flex-col items-start justify-center gap-4 p-6">
-            <div>
-              <p className="text-destructive font-mono text-xs font-bold tracking-widest uppercase">
-                Project query failed
-              </p>
-              <h2 className="mt-2 text-2xl font-bold">
-                The current project page is unavailable
-              </h2>
-              <p className="text-muted-foreground mt-2 text-sm">
-                No sample records are substituted when the API fails.
-              </p>
-            </div>
+            <h2 className="text-2xl font-bold">Projects didn&apos;t load.</h2>
             <Button
               type="button"
               variant="outline"
@@ -481,18 +460,9 @@ export default function ProjectsPage() {
               className="text-muted-foreground size-10"
               aria-hidden="true"
             />
-            <div>
-              <h2 className="text-2xl font-bold">
-                {hasFilters
-                  ? "No matches for these filters"
-                  : "No projects returned"}
-              </h2>
-              <p className="text-muted-foreground mt-2 text-sm">
-                {hasFilters
-                  ? "Change or clear the filters to search a wider set of projects."
-                  : "No one has posted a project yet. If you have seen a problem worth solving, define it here so others can help fund and build it."}
-              </p>
-            </div>
+            <h2 className="text-2xl font-bold">
+              {hasFilters ? "No matches." : "No projects yet."}
+            </h2>
             {hasFilters ? (
               <Button type="button" variant="outline" onClick={clearFilters}>
                 Clear filters
@@ -507,10 +477,9 @@ export default function ProjectsPage() {
           <div>
             {viewProjects.length === 0 ? (
               <div className="text-muted-foreground p-6 text-sm">
-                None of the {projects.length} project
-                {projects.length === 1 ? "" : "s"} on this page are{" "}
-                {activeTab === "funded" ? "funded or complete" : "in this view"}
-                . Try another tab or page.
+                {activeTab === "funded"
+                  ? "Nothing on this page is funded or complete."
+                  : "Nothing on this page."}
               </div>
             ) : (
               <div className="divide-border divide-y">
@@ -522,11 +491,9 @@ export default function ProjectsPage() {
             <div className="border-border flex flex-wrap items-center justify-between gap-3 border-t p-4 text-xs">
               <span className="text-muted-foreground">
                 {viewProjects.length === projects.length
-                  ? `Showing ${projects.length} on this page`
-                  : `Showing ${viewProjects.length} of ${projects.length} on this page`}
-                {totalCount > 0
-                  ? ` · ${totalCount} total match these filters`
-                  : ""}
+                  ? `${projects.length} on this page`
+                  : `${viewProjects.length} of ${projects.length} on this page`}
+                {totalCount > 0 ? ` · ${totalCount} total` : ""}
               </span>
               <div className="flex items-center gap-2">
                 <Button
@@ -563,7 +530,7 @@ export default function ProjectsPage() {
 }
 
 function ProjectRecord({ project }: { project: Project }) {
-  const creatorName = project.createdBy?.name ?? "Creator name unavailable";
+  const creatorName = project.createdBy?.name ?? "Unknown creator";
   const creatorInitial =
     project.createdBy?.name?.charAt(0).toUpperCase() ?? "?";
   const routeId = project.slug || project.id;
@@ -586,7 +553,7 @@ function ProjectRecord({ project }: { project: Project }) {
           <span>
             <span className="block text-sm font-semibold">{creatorName}</span>
             <span className="text-muted-foreground block text-xs">
-              Project creator / {formatRelativeTime(project.createdAt)}
+              {formatRelativeTime(project.createdAt)}
             </span>
           </span>
         </Link>
@@ -620,7 +587,7 @@ function ProjectRecord({ project }: { project: Project }) {
             </div>
             <div className="border-primary border-l-4 pl-3">
               <p className="text-muted-foreground font-mono text-xs font-bold tracking-widest uppercase">
-                Proposed solution
+                Solution
               </p>
               <p className="mt-2 line-clamp-3 text-sm leading-relaxed">
                 {project.solution}
@@ -655,7 +622,7 @@ function ProjectRecord({ project }: { project: Project }) {
             />
             <CompactStat
               icon={<Vote className="size-3.5" aria-hidden="true" />}
-              label="Votes recorded"
+              label="Votes"
               value={project.votesCount}
             />
           </dl>

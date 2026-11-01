@@ -10,21 +10,18 @@ export const metadata: Metadata = { title: "Page not found" };
 export default function NotFound() {
   return (
     <StatusPage
-      eyebrow="404 / Not found"
-      title="There is no page at this address."
+      eyebrow="404"
+      title="Page not found."
       body={
-        <p>
-          The link may be mistyped, or the record it pointed to was moved or
-          removed. Nothing you have saved has changed.
-        </p>
+        <p>Nothing you have saved has changed.</p>
       }
       actions={
         <>
           <Button asChild>
-            <Link href="/dashboard">Go to your dashboard</Link>
+            <Link href="/dashboard">Open dashboard</Link>
           </Button>
           <Button asChild variant="outline">
-            <Link href="/">Back to the home page</Link>
+            <Link href="/">Go home</Link>
           </Button>
         </>
       }

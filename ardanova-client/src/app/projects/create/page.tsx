@@ -1200,13 +1200,10 @@ export default function CreateProjectPage() {
             <Button variant="ghost" asChild className="mb-4 -ml-2">
               <Link href="/projects">
                 <ArrowLeft className="mr-2 size-4" />
-                Back to Projects
+                Back to projects
               </Link>
             </Button>
-            <h1 className="text-3xl font-bold">Create New Project</h1>
-            <p className="text-muted-foreground mt-2">
-              Define a problem, shape a solution, then make the work actionable.
-            </p>
+            <h1 className="text-3xl font-bold">New project</h1>
           </div>
           <p
             role="status"
@@ -1320,7 +1317,7 @@ export default function CreateProjectPage() {
             <>
               <Card className="bg-card border-border">
                 <CardHeader className="pb-3">
-                  <CardTitle className="text-lg">Project Overview</CardTitle>
+                  <CardTitle className="text-lg">Overview</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div>
@@ -1362,7 +1359,7 @@ export default function CreateProjectPage() {
                       htmlFor="project-summary"
                       className="mb-2 block text-sm font-medium"
                     >
-                      One-line summary
+                      One-line summary (optional)
                     </label>
                     <input
                       type="text"
@@ -1376,7 +1373,7 @@ export default function CreateProjectPage() {
                       }
                       value={formData.summary}
                       onChange={(e) => handleChange("summary", e.target.value)}
-                      placeholder="The one sentence someone reads before deciding to care"
+                      placeholder="One sentence"
                       className={cn(
                         "bg-muted/50 focus-visible:ring-ring/50 w-full rounded-lg border-2 px-4 py-3 focus:ring-2 focus:outline-none",
                         errors.summary ? "border-destructive" : "border-border",
@@ -1396,8 +1393,7 @@ export default function CreateProjectPage() {
                           id="project-summary-help"
                           className="text-muted-foreground text-sm"
                         >
-                          Shown on cards and in search results. Optional, but it
-                          is the first thing anyone reads.
+                          Shown on cards and in search.
                         </p>
                       )}
                       <span className="text-muted-foreground shrink-0 text-xs">
@@ -1414,7 +1410,7 @@ export default function CreateProjectPage() {
                     <div className="bg-primary/10 flex h-8 w-8 items-center justify-center rounded-lg">
                       <span className="text-primary font-bold">?</span>
                     </div>
-                    Problem Definition
+                    Problem
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -1438,7 +1434,7 @@ export default function CreateProjectPage() {
                       onChange={(e) =>
                         handleChange("problemStatement", e.target.value)
                       }
-                      placeholder="Describe the problem you're solving. What is the issue? Who does it affect?"
+                      placeholder="What is wrong, and who does it affect?"
                       rows={4}
                       className={cn(
                         "bg-muted/50 focus-visible:ring-ring/50 w-full resize-none rounded-lg border-2 px-4 py-3 focus:ring-2 focus:outline-none",
@@ -1472,7 +1468,7 @@ export default function CreateProjectPage() {
                       onChange={(e) =>
                         handleChange("targetAudience", e.target.value)
                       }
-                      placeholder="Who are the primary beneficiaries?"
+                      placeholder="Who benefits?"
                       className="bg-muted/50 border-border focus-visible:ring-ring/50 w-full rounded-lg border-2 px-4 py-3 focus:ring-2 focus:outline-none"
                     />
                   </div>
@@ -1490,7 +1486,7 @@ export default function CreateProjectPage() {
                       onChange={(e) =>
                         handleChange("expectedImpact", e.target.value)
                       }
-                      placeholder="What impact do you expect to achieve?"
+                      placeholder="What changes if this works?"
                       rows={3}
                       className="bg-muted/50 border-border focus-visible:ring-ring/50 w-full resize-none rounded-lg border-2 px-4 py-3 focus:ring-2 focus:outline-none"
                     />
@@ -1504,7 +1500,7 @@ export default function CreateProjectPage() {
                     <div className="bg-success/10 flex h-8 w-8 items-center justify-center rounded-lg">
                       <span className="text-success font-bold">!</span>
                     </div>
-                    Solution Definition
+                    Solution
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -1524,7 +1520,7 @@ export default function CreateProjectPage() {
                       }
                       value={formData.solution}
                       onChange={(e) => handleChange("solution", e.target.value)}
-                      placeholder="Describe your proposed solution. How does it address the problem?"
+                      placeholder="How does this solve it?"
                       rows={4}
                       className={cn(
                         "bg-muted/50 focus-visible:ring-ring/50 w-full resize-none rounded-lg border-2 px-4 py-3 focus:ring-2 focus:outline-none",
@@ -1548,7 +1544,7 @@ export default function CreateProjectPage() {
 
               <Card className="bg-card border-border">
                 <CardHeader className="pb-3">
-                  <CardTitle className="text-lg">Project Type</CardTitle>
+                  <CardTitle className="text-lg">Type</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <fieldset>
@@ -1620,7 +1616,7 @@ export default function CreateProjectPage() {
 
               <Card className="bg-card border-border">
                 <CardHeader className="pb-3">
-                  <CardTitle className="text-lg">Project Details</CardTitle>
+                  <CardTitle className="text-lg">Details</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <fieldset>
@@ -2011,11 +2007,8 @@ export default function CreateProjectPage() {
                   <div>
                     <CardTitle className="flex items-center gap-2 text-lg">
                       <Target className="text-system size-5" />
-                      Project Resources
+                      Resources
                     </CardTitle>
-                    <p className="text-muted-foreground mt-1 text-sm">
-                      Define resources needed for your project
-                    </p>
                   </div>
                   {!isAddingResource && (
                     <Button
@@ -2368,11 +2361,7 @@ export default function CreateProjectPage() {
                 {formData.resources.length === 0 && !isAddingResource && (
                   <div className="text-muted-foreground py-8 text-center">
                     <Target className="mx-auto mb-2 size-12 opacity-50" />
-                    <p>No resources added yet</p>
-                    <p className="text-sm">
-                      Click &ldquo;Add Resource&rdquo; to define project
-                      resources
-                    </p>
+                    <p>No resources yet.</p>
                   </div>
                 )}
 
@@ -2591,11 +2580,8 @@ export default function CreateProjectPage() {
                     <div>
                       <CardTitle className="flex items-center gap-2 text-lg">
                         <Users className="text-system size-5" />
-                        Team Roles
+                        Team roles
                       </CardTitle>
-                      <p className="text-muted-foreground mt-1 text-sm">
-                        Define roles and compensation for your team
-                      </p>
                     </div>
                     {!isAddingRole && (
                       <Button
@@ -2747,8 +2733,7 @@ export default function CreateProjectPage() {
                             id="project-role-base-help"
                             className="text-muted-foreground mt-1 text-xs"
                           >
-                            The organizational role granted when this position
-                            is filled
+                            Granted when the position is filled.
                           </p>
                         </div>
                         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -2838,10 +2823,7 @@ export default function CreateProjectPage() {
                   {formData.roles.length === 0 && !isAddingRole && (
                     <div className="text-muted-foreground py-8 text-center">
                       <Users className="mx-auto mb-2 size-12 opacity-50" />
-                      <p>No roles defined yet</p>
-                      <p className="text-sm">
-                        Click &ldquo;Add Role&rdquo; to define team roles
-                      </p>
+                      <p>No roles yet.</p>
                     </div>
                   )}
 
@@ -2913,11 +2895,8 @@ export default function CreateProjectPage() {
                   <div>
                     <CardTitle className="flex items-center gap-2 text-lg">
                       <Flag className="text-system size-5" />
-                      Project Milestones
+                      Milestones
                     </CardTitle>
-                    <p className="text-muted-foreground mt-1 text-sm">
-                      Define key milestones for your project timeline
-                    </p>
                   </div>
                   {!isAddingMilestone && (
                     <Button
@@ -3048,11 +3027,7 @@ export default function CreateProjectPage() {
                 {formData.milestones.length === 0 && !isAddingMilestone && (
                   <div className="text-muted-foreground py-8 text-center">
                     <Flag className="mx-auto mb-2 size-12 opacity-50" />
-                    <p>No milestones defined yet</p>
-                    <p className="text-sm">
-                      Click &ldquo;Add Milestone&rdquo; to define project
-                      milestones
-                    </p>
+                    <p>No milestones yet.</p>
                   </div>
                 )}
 
@@ -3939,9 +3914,7 @@ export default function CreateProjectPage() {
             <Info className="text-system mt-0.5 size-5 flex-shrink-0" />
             <div className="text-muted-foreground text-sm">
               <p>
-                This wizard will guide you through creating a comprehensive
-                project. You can skip optional steps and come back to edit them
-                later.
+                Skip optional steps. Edit them later.
               </p>
             </div>
           </div>

@@ -28,7 +28,7 @@ export default function ProposalDetailPage() {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <Loader2 className="size-8 animate-spin text-primary" />
-        <p className="ml-3 text-muted-foreground">Redirecting to project page...</p>
+        <p className="ml-3 text-muted-foreground">Opening the project…</p>
       </div>
     );
   }
@@ -37,13 +37,10 @@ export default function ProposalDetailPage() {
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center">
         <h1 className="text-2xl font-bold text-foreground">Proposal not found</h1>
-        <p className="text-muted-foreground mt-2">
-          This proposal may have been deleted or does not exist.
-        </p>
         <Button asChild className="mt-4">
           <Link href="/governance">
             <ArrowLeft className="size-4 mr-2" />
-            Back to Governance
+            Back to governance
           </Link>
         </Button>
       </div>

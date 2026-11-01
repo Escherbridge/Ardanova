@@ -4,13 +4,7 @@ import { describeQueryError } from "~/components/ui/query-error-copy";
 
 import { useEffect } from "react";
 import { api } from "~/trpc/react";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "~/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
 import { Badge } from "~/components/ui/badge";
 import {
@@ -125,11 +119,8 @@ export function OpportunitiesTab({
             <div>
               <CardTitle className="flex items-center gap-2">
                 <Briefcase className="size-5" />
-                Guild Opportunities
+                Opportunities
               </CardTitle>
-              <CardDescription>
-                Open positions and opportunities posted by this guild
-              </CardDescription>
             </div>
             {canCreateOpportunity && (
               <Button asChild variant="default" size="sm">
@@ -137,7 +128,7 @@ export function OpportunitiesTab({
                   href={`/opportunities/create?entityType=guild&entityId=${guildId}&entitySlug=${guildSlug}`}
                 >
                   <Plus className="mr-2 size-4" />
-                  Post Opportunity
+                  Post opportunity
                 </Link>
               </Button>
             )}
@@ -147,14 +138,9 @@ export function OpportunitiesTab({
           {opportunities.length === 0 ? (
             <div className="py-12 text-center">
               <Briefcase className="text-muted-foreground mx-auto mb-4 size-12" />
-              <h3 className="mb-2 text-lg font-semibold">
-                No opportunities yet
+              <h3 className="mb-4 text-lg font-semibold">
+                No opportunities yet.
               </h3>
-              <p className="text-muted-foreground mb-4 text-sm">
-                {canCreateOpportunity
-                  ? "Post your first opportunity to attract talented developers."
-                  : "This guild hasn't posted any opportunities yet."}
-              </p>
               {canCreateOpportunity && (
                 <Button asChild variant="neon" size="sm">
                   <Link

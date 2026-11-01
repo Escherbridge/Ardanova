@@ -95,7 +95,7 @@ export function ApplyForm({ opportunityId, opportunityStatus }: ApplyFormProps) 
               id="application-cover-letter"
               value={coverLetter}
               onChange={(event) => setCoverLetter(event.target.value)}
-              placeholder="What you'd bring to the team and how you'd like to help."
+              placeholder="What would you bring?"
               rows={4}
               required
             />

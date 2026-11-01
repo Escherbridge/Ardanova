@@ -312,13 +312,13 @@ export default function OpportunitiesPage() {
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-base">
                 <Sparkles className="text-warning size-4" />
-                Visible results
+                This view
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="flex justify-between">
                 <span className="text-muted-foreground text-sm">
-                  Opportunities in this view
+                  Opportunities
                 </span>
                 <span className="text-foreground font-medium">
                   {opportunitiesError ? "—" : stats.total}
@@ -326,7 +326,7 @@ export default function OpportunitiesPage() {
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground text-sm">
-                  Bounties in this view
+                  Bounties
                 </span>
                 <span className="text-success font-medium">
                   {opportunitiesError ? "—" : stats.bounties}
@@ -334,7 +334,7 @@ export default function OpportunitiesPage() {
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground text-sm">
-                  Task-generated in view
+                  From tasks
                 </span>
                 <span className="text-system font-medium">
                   {opportunitiesError ? "—" : stats.taskBounties}
@@ -342,7 +342,7 @@ export default function OpportunitiesPage() {
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground text-sm">
-                  Applications in this view
+                  Applications
                 </span>
                 <span className="text-foreground font-medium">
                   {opportunitiesError ? "—" : stats.totalApplicants}
@@ -356,7 +356,7 @@ export default function OpportunitiesPage() {
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-base">
                 <TrendingUp className="text-primary size-4" />
-                Most active in this view
+                Most active
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -430,7 +430,6 @@ export default function OpportunitiesPage() {
           {/* Footer */}
           <div className="text-muted-foreground px-2 text-xs">
             <p>&copy; 2026 ArdaNova</p>
-            <p className="mt-1">Counts reflect the current filtered view.</p>
           </div>
         </>
       }
@@ -445,7 +444,7 @@ export default function OpportunitiesPage() {
           <Button variant="neon" size="sm" asChild>
             <Link href="/opportunities/create">
               <Plus className="mr-2 size-4" />
-              Post Job
+              Post opportunity
             </Link>
           </Button>
         </div>
@@ -771,22 +770,16 @@ export default function OpportunitiesPage() {
             className="border-destructive bg-destructive/10 border-b-2 px-4 py-10 text-center"
           >
             <p className="text-destructive font-medium">
-              Opportunities could not be loaded.
-            </p>
-            <p className="text-muted-foreground mt-1 text-sm">
-              No opportunity counts or results are shown.
+              Opportunities didn&apos;t load.
             </p>
           </div>
         ) : filteredOpportunities.length === 0 ? (
           <div className="flex flex-col items-center justify-center px-4 py-20">
             <Briefcase className="text-muted-foreground mb-4 size-12" />
             <p className="text-foreground text-lg font-medium">
-              No opportunities found
-            </p>
-            <p className="text-muted-foreground mt-1">
               {allOpportunities.length > 0
-                ? "No opportunities match the current view."
-                : "No one has posted an opportunity yet. Post the work your project needs so the people who can do it can find it."}
+                ? "No matches."
+                : "No opportunities yet."}
             </p>
             {allOpportunities.length > 0 ? (
               <Button variant="outline" className="mt-4" onClick={clearFilters}>
@@ -842,9 +835,6 @@ export default function OpportunitiesPage() {
                           {formatRelativeTime(opp.createdAt)}
                         </span>
                       </div>
-                      <p className="text-muted-foreground mt-0.5 text-sm">
-                        posted a new opportunity
-                      </p>
                     </div>
 
                     <div className="flex items-center gap-2">

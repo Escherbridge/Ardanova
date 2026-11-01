@@ -155,12 +155,9 @@ export function OverviewTab({ guild }: OverviewTabProps) {
                 <Target className="text-primary size-5" />
               </div>
               <div className="flex-1">
-                <h3 className="mb-2 text-lg font-semibold">Work With Us</h3>
-                <p className="text-muted-foreground mb-4">
-                  Looking for experienced professionals to bring your project to
-                  life? Use the guild&apos;s published contact channel to
-                  discuss the work.
-                </p>
+                <h3 className="mb-4 text-lg font-semibold">
+                  Work with this guild
+                </h3>
                 {guild.email ? (
                   <Button asChild variant="default">
                     <a href={`mailto:${guild.email}`}>Email the guild</a>
@@ -172,7 +169,7 @@ export function OverviewTab({ guild }: OverviewTabProps) {
                       rel="noopener noreferrer"
                       target="_blank"
                     >
-                      Visit the guild website
+                      Visit website
                     </a>
                   </Button>
                 ) : (

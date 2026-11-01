@@ -159,7 +159,7 @@ export default function CommentsTab({ projectId }: CommentsTabProps) {
           <AlertCircle className="text-destructive mt-0.5 size-5 shrink-0" />
           <div>
             <p className="text-destructive font-mono text-sm font-bold">
-              COMMENTS COULD NOT BE LOADED
+              Comments didn&apos;t load.
             </p>
             <p className="text-muted-foreground mt-1 text-xs">
               {commentsError.message}
@@ -231,10 +231,7 @@ export default function CommentsTab({ projectId }: CommentsTabProps) {
         <div className="rounded-lg border-2 border-dashed py-12 text-center">
           <MessageCircle className="text-muted-foreground/50 mx-auto h-12 w-12" />
           <p className="text-muted-foreground mt-4 text-lg font-medium">
-            No comments yet
-          </p>
-          <p className="text-muted-foreground mt-1 text-sm">
-            Be the first to share your thoughts on this project
+            No comments yet.
           </p>
         </div>
       ) : (

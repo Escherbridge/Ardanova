@@ -182,8 +182,7 @@ export function JoinGuildPanel({
           <DialogHeader>
             <DialogTitle>Apply to join {guildName}</DialogTitle>
             <DialogDescription>
-              The guild&apos;s owner or admins review applications. You become a
-              member only when one of them accepts.
+              You join only when an owner or admin accepts.
             </DialogDescription>
           </DialogHeader>
           <form

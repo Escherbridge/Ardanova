@@ -584,7 +584,7 @@ export default function TasksPage() {
             <div className="flex flex-wrap items-center gap-3 sm:gap-4">
               <h1 className="text-foreground flex items-center gap-2 text-xl font-bold">
                 <CheckSquare className="text-primary size-5" />
-                My Tasks
+                My tasks
               </h1>
               <div
                 className="border-border flex items-center gap-2 sm:border-l-2 sm:pl-4"
@@ -741,7 +741,7 @@ export default function TasksPage() {
         </div>
       ) : error ? (
         <div role="alert" className="text-destructive p-4 text-sm">
-          Tasks could not be loaded. {error.message}{" "}
+          Tasks didn&apos;t load. {error.message}{" "}
           <button
             type="button"
             className="min-h-11 underline"
@@ -752,7 +752,7 @@ export default function TasksPage() {
         </div>
       ) : filteredRows.length === 0 ? (
         <div className="text-muted-foreground p-8 text-center">
-          No tasks match the current view.
+          No tasks here.
         </div>
       ) : viewMode === "board" ? (
         <div className="p-4">

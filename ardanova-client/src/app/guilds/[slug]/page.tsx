@@ -99,10 +99,10 @@ export default function GuildDetailPage() {
     return (
       <div className="bg-background flex min-h-screen flex-col items-center justify-center">
         <h1 className="text-foreground text-2xl font-bold">
-          {guildError ? "Guild could not be loaded" : "Guild not found"}
+          {guildError ? "Guild didn't load." : "Guild not found"}
         </h1>
         <Button asChild className="mt-4">
-          <Link href="/guilds">Back to Guilds</Link>
+          <Link href="/guilds">Back to guilds</Link>
         </Button>
       </div>
     );
@@ -146,7 +146,7 @@ export default function GuildDetailPage() {
           <Button variant="ghost" asChild className="mb-4 -ml-2">
             <Link href="/guilds">
               <ArrowLeft className="mr-2 size-4" />
-              Back to Guilds
+              Back to guilds
             </Link>
           </Button>
 

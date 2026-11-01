@@ -242,7 +242,7 @@ export default function CommentsTab({ opportunityId }: CommentsTabProps) {
                 value={newComment}
                 onChange={(e) => setNewComment(e.target.value)}
                 className="border-input bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring min-h-24 w-full rounded-md border px-3 py-2 text-sm focus-visible:ring-2 focus-visible:outline-none"
-                placeholder="Share your thoughts about this opportunity..."
+                placeholder="Add a comment"
               />
             </div>
             <div className="flex justify-end">
@@ -255,7 +255,7 @@ export default function CommentsTab({ opportunityId }: CommentsTabProps) {
                 ) : (
                   <Send className="mr-2 h-4 w-4" />
                 )}
-                Post Comment
+                Post comment
               </Button>
             </div>
           </form>
@@ -267,10 +267,7 @@ export default function CommentsTab({ opportunityId }: CommentsTabProps) {
         <Card className="bg-card border-border border-2">
           <CardContent className="flex flex-col items-center justify-center py-12">
             <MessageCircle className="text-muted-foreground mb-4 h-12 w-12" />
-            <h3 className="mb-2 text-lg font-semibold">No comments yet</h3>
-            <p className="text-muted-foreground max-w-sm text-center text-sm">
-              Be the first to share your thoughts on this opportunity
-            </p>
+            <h3 className="text-lg font-semibold">No comments yet.</h3>
           </CardContent>
         </Card>
       ) : (

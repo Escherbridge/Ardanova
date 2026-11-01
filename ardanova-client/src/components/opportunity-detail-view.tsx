@@ -82,7 +82,7 @@ export function OpportunityDetailView({ opportunity, isOwner }: OpportunityDetai
           <Button variant="ghost" asChild className="mb-4 -ml-2">
             <Link href="/opportunities">
               <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to Opportunities
+              Back to opportunities
             </Link>
           </Button>
 

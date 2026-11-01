@@ -52,7 +52,7 @@ export function ApplicationsPanel({
           Applications
         </CardTitle>
         <CardDescription>
-          People asking to join. Accepting makes them a member straight away.
+          Accepting makes them a member straight away.
         </CardDescription>
       </CardHeader>
       <CardContent>

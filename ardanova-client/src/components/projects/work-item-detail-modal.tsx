@@ -356,7 +356,7 @@ function CommentSection({
           role="alert"
         >
           <p className="text-destructive text-xs">
-            Comments could not be loaded. The work item is still available.
+            Comments didn&apos;t load.
           </p>
           <Button
             type="button"
@@ -432,9 +432,6 @@ function CommentSection({
         </form>
       ) : (
         <div className="border-border flex flex-wrap items-center justify-between gap-3 border p-3">
-          <p className="text-muted-foreground text-xs">
-            Sign in to contribute to this discussion.
-          </p>
           <Button asChild size="sm" variant="outline" className="min-h-11">
             <Link href={signInHref}>Sign in to comment</Link>
           </Button>

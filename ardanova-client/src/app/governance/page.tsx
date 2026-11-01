@@ -397,13 +397,13 @@ export default function GovernancePage() {
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-base">
                 <Sparkles className="text-neon-yellow size-4" />
-                Visible results
+                This view
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="flex justify-between">
                 <span className="text-muted-foreground text-sm">
-                  Proposals in this view
+                  Proposals
                 </span>
                 <span className="text-foreground font-medium">
                   {proposalsError ? "—" : stats.total}
@@ -411,7 +411,7 @@ export default function GovernancePage() {
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground text-sm">
-                  Active in this view
+                  Active
                 </span>
                 <span className="text-neon font-medium">
                   {proposalsError ? "—" : stats.active}
@@ -419,7 +419,7 @@ export default function GovernancePage() {
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground text-sm">
-                  Passed in this view
+                  Passed
                 </span>
                 <span className="text-neon-green font-medium">
                   {proposalsError ? "—" : stats.passed}
@@ -427,7 +427,7 @@ export default function GovernancePage() {
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground text-sm">
-                  Votes recorded in this view
+                  Votes
                 </span>
                 <span className="text-foreground font-medium">
                   {proposalsError ? "—" : stats.totalVotes}
@@ -441,7 +441,7 @@ export default function GovernancePage() {
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-base">
                 <Timer className="text-warning size-4" />
-                Active in this view
+                Voting now
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -504,7 +504,6 @@ export default function GovernancePage() {
           {/* Footer */}
           <div className="text-muted-foreground px-2 text-xs">
             <p>&copy; 2026 ArdaNova</p>
-            <p className="mt-1">Counts reflect the current filtered view.</p>
           </div>
         </>
       }
@@ -517,7 +516,7 @@ export default function GovernancePage() {
             Governance
           </h1>
           <div className="text-muted-foreground text-sm">
-            Proposals are created within projects
+            Proposals start in projects.
           </div>
         </div>
 
@@ -805,22 +804,16 @@ export default function GovernancePage() {
             className="border-destructive bg-destructive/10 border-b-2 px-4 py-10 text-center"
           >
             <p className="text-destructive font-medium">
-              Governance proposals could not be loaded.
-            </p>
-            <p className="text-muted-foreground mt-1 text-sm">
-              No proposal or vote counts are shown.
+              Proposals didn&apos;t load.
             </p>
           </div>
         ) : filteredProposals.length === 0 ? (
           <div className="flex flex-col items-center justify-center px-4 py-20">
             <Vote className="text-muted-foreground mb-4 size-12" />
             <p className="text-foreground text-lg font-medium">
-              No proposals found
-            </p>
-            <p className="text-muted-foreground mt-1">
               {hasActiveFilters || activeTab !== "all"
-                ? "No proposals match the current view."
-                : "No proposal records were returned."}
+                ? "No matches."
+                : "No proposals yet."}
             </p>
             {hasActiveFilters || activeTab !== "all" ? (
               <Button variant="outline" className="mt-4" onClick={clearFilters}>

@@ -38,12 +38,12 @@ const entityConfig: Record<
   guild: {
     label: "Guild",
     variant: "neon-purple" as const,
-    description: "Post opportunity on behalf of your guild",
+    description: "On behalf of your guild",
   },
   project: {
     label: "Project",
     variant: "neon" as const,
-    description: "Post opportunity for your project",
+    description: "For your project",
   },
 };
 
@@ -84,12 +84,7 @@ export default function EntitySelector({ onSelect }: EntitySelectorProps) {
   if (!selectedType) {
     return (
       <div className="space-y-4">
-        <div>
-          <h3 className="mb-2 text-lg font-bold">Select Entity Type</h3>
-          <p className="text-muted-foreground text-sm">
-            Choose which entity will be posting this opportunity
-          </p>
-        </div>
+        <h3 className="text-lg font-bold">Post as</h3>
 
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           {(
@@ -172,12 +167,9 @@ export default function EntitySelector({ onSelect }: EntitySelectorProps) {
         >
           <ArrowLeft className="size-4" />
         </Button>
-        <div>
-          <h3 className="text-lg font-bold">Select {config.label}</h3>
-          <p className="text-muted-foreground text-sm">
-            Choose from your {config.label.toLowerCase()}s
-          </p>
-        </div>
+        <h3 className="text-lg font-bold">
+          Choose a {config.label.toLowerCase()}
+        </h3>
       </div>
 
       {isLoading ? (
@@ -192,10 +184,10 @@ export default function EntitySelector({ onSelect }: EntitySelectorProps) {
           role="alert"
         >
           <h4 className="text-destructive mb-2 text-lg font-semibold">
-            {config.label}s could not be loaded
+            {config.label}s didn&apos;t load.
           </h4>
           <p className="text-muted-foreground text-sm">
-            Try again before choosing who will own this opportunity.
+            Try again before choosing an owner.
           </p>
         </Card>
       ) : entities.length === 0 ? (
@@ -205,15 +197,13 @@ export default function EntitySelector({ onSelect }: EntitySelectorProps) {
           ) : (
             <FolderKanban className="text-muted-foreground mx-auto mb-4 size-12" />
           )}
-          <h4 className="mb-2 text-lg font-semibold">
-            No {config.label}s Found
+          <h4 className="mb-4 text-lg font-semibold">
+            No {config.label.toLowerCase()}s yet.
           </h4>
-          <p className="text-muted-foreground mb-4 text-sm">
-            You don&apos;t have any {config.label.toLowerCase()}s yet. Create
-            one to post opportunities.
-          </p>
           <Button variant="neon" asChild className="min-h-11">
-            <Link href={`/${selectedType}s/create`}>Create {config.label}</Link>
+            <Link href={`/${selectedType}s/create`}>
+              Create {config.label.toLowerCase()}
+            </Link>
           </Button>
         </Card>
       ) : (

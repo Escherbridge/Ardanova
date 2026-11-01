@@ -325,13 +325,13 @@ export default function PeoplePage() {
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-base">
                 <Sparkles className="text-neon-yellow size-4" />
-                Visible results
+                This view
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="flex justify-between">
                 <span className="text-muted-foreground text-sm">
-                  People in this view
+                  People
                 </span>
                 <span className="text-foreground font-medium">
                   {usersError ? "—" : userStats.total}
@@ -339,7 +339,7 @@ export default function PeoplePage() {
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground text-sm">
-                  Verified people in view
+                  Verified people
                 </span>
                 <span className="text-neon-green font-medium">
                   {usersError ? "—" : userStats.verified}
@@ -347,7 +347,7 @@ export default function PeoplePage() {
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground text-sm">
-                  Guilds in this view
+                  Guilds
                 </span>
                 <span className="text-foreground font-medium">
                   {guildsError ? "—" : guildStats.total}
@@ -355,7 +355,7 @@ export default function PeoplePage() {
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground text-sm">
-                  Verified guilds in view
+                  Verified guilds
                 </span>
                 <span className="text-neon-green font-medium">
                   {guildsError ? "—" : guildStats.verified}
@@ -369,7 +369,7 @@ export default function PeoplePage() {
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-base">
                 <Award className="text-neon-yellow size-4" />
-                Highest rated in this view
+                Highest rated
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -441,7 +441,6 @@ export default function PeoplePage() {
           {/* Footer */}
           <div className="text-muted-foreground px-2 text-xs">
             <p>&copy; 2026 ArdaNova</p>
-            <p className="mt-1">Counts reflect the current filtered view.</p>
           </div>
         </>
       }
@@ -457,7 +456,7 @@ export default function PeoplePage() {
             <Button variant="neon" size="sm" asChild>
               <Link href="/guilds/create">
                 <Plus className="mr-2 size-4" />
-                Create Guild
+                Create guild
               </Link>
             </Button>
           )}
@@ -667,22 +666,14 @@ export default function PeoplePage() {
               className="border-destructive bg-destructive/10 border-b-2 px-4 py-10 text-center"
             >
               <p className="text-destructive font-medium">
-                Guilds could not be loaded.
-              </p>
-              <p className="text-muted-foreground mt-1 text-sm">
-                No guild counts or results are shown.
+                Guilds didn&apos;t load.
               </p>
             </div>
           ) : sortedGuilds.length === 0 ? (
             <div className="flex flex-col items-center justify-center px-4 py-20">
               <Users className="text-muted-foreground mb-4 size-12" />
               <p className="text-foreground text-lg font-medium">
-                No guilds found
-              </p>
-              <p className="text-muted-foreground mt-1">
-                {guilds.length > 0
-                  ? "No guilds match the current view."
-                  : "No guild records were returned."}
+                {guilds.length > 0 ? "No matches." : "No guilds yet."}
               </p>
               {guilds.length > 0 ? (
                 <Button
@@ -696,7 +687,7 @@ export default function PeoplePage() {
                 <Button variant="neon" className="mt-4" asChild>
                   <Link href="/guilds/create">
                     <Plus className="mr-2 size-4" />
-                    Create Guild
+                    Create guild
                   </Link>
                 </Button>
               )}
@@ -819,22 +810,14 @@ export default function PeoplePage() {
             className="border-destructive bg-destructive/10 border-b-2 px-4 py-10 text-center"
           >
             <p className="text-destructive font-medium">
-              People could not be loaded.
-            </p>
-            <p className="text-muted-foreground mt-1 text-sm">
-              No people counts or profiles are shown.
+              People didn&apos;t load.
             </p>
           </div>
         ) : sortedUsers.length === 0 ? (
           <div className="flex flex-col items-center justify-center px-4 py-20">
             <UserIcon className="text-muted-foreground mb-4 size-12" />
             <p className="text-foreground text-lg font-medium">
-              No people found
-            </p>
-            <p className="text-muted-foreground mt-1">
-              {users.length > 0
-                ? "No people match the current view."
-                : "No people records were returned."}
+              {users.length > 0 ? "No matches." : "No people yet."}
             </p>
             {users.length > 0 && (
               <Button variant="outline" className="mt-4" onClick={clearFilters}>

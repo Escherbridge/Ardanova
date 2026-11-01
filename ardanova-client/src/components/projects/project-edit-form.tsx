@@ -270,7 +270,7 @@ function ProjectEditFormFields({
     <form onSubmit={handleSubmit} className="space-y-6">
       <Card className="bg-card border-border">
         <CardHeader className="pb-3">
-          <CardTitle className="text-lg">Project Overview</CardTitle>
+          <CardTitle className="text-lg">Overview</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div>
@@ -315,7 +315,7 @@ function ProjectEditFormFields({
             <div className="bg-primary/10 flex h-8 w-8 items-center justify-center rounded-lg">
               <span className="text-primary font-bold">?</span>
             </div>
-            Problem Definition
+            Problem
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -335,7 +335,7 @@ function ProjectEditFormFields({
               }
               value={formData.problemStatement}
               onChange={(e) => handleChange("problemStatement", e.target.value)}
-              placeholder="Describe the problem you're solving. What is the issue? Who does it affect?"
+              placeholder="What is wrong, and who does it affect?"
               rows={4}
               className={cn(
                 "bg-muted/50 focus-visible:ring-ring/50 w-full resize-none rounded-lg border-2 px-4 py-3 focus:ring-2 focus:outline-none",
@@ -367,7 +367,7 @@ function ProjectEditFormFields({
               id="project-audience"
               value={formData.targetAudience}
               onChange={(e) => handleChange("targetAudience", e.target.value)}
-              placeholder="Who are the primary beneficiaries?"
+              placeholder="Who benefits?"
               className="bg-muted/50 border-border focus-visible:ring-ring/50 w-full rounded-lg border-2 px-4 py-3 focus:ring-2 focus:outline-none"
             />
           </div>
@@ -383,7 +383,7 @@ function ProjectEditFormFields({
               id="project-impact"
               value={formData.expectedImpact}
               onChange={(e) => handleChange("expectedImpact", e.target.value)}
-              placeholder="What impact do you expect to achieve?"
+              placeholder="What changes if this works?"
               rows={3}
               className="bg-muted/50 border-border focus-visible:ring-ring/50 w-full resize-none rounded-lg border-2 px-4 py-3 focus:ring-2 focus:outline-none"
             />
@@ -397,7 +397,7 @@ function ProjectEditFormFields({
             <div className="bg-success/10 flex h-8 w-8 items-center justify-center rounded-lg">
               <span className="text-success font-bold">!</span>
             </div>
-            Solution Definition
+            Solution
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -417,7 +417,7 @@ function ProjectEditFormFields({
               }
               value={formData.solution}
               onChange={(e) => handleChange("solution", e.target.value)}
-              placeholder="Describe your proposed solution. How does it address the problem?"
+              placeholder="How does this solve it?"
               rows={4}
               className={cn(
                 "bg-muted/50 focus-visible:ring-ring/50 w-full resize-none rounded-lg border-2 px-4 py-3 focus:ring-2 focus:outline-none",
@@ -439,7 +439,7 @@ function ProjectEditFormFields({
 
       <Card className="bg-card border-border">
         <CardHeader className="pb-3">
-          <CardTitle className="text-lg">Project Type</CardTitle>
+          <CardTitle className="text-lg">Type</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <fieldset>
@@ -511,7 +511,7 @@ function ProjectEditFormFields({
 
       <Card className="bg-card border-border">
         <CardHeader className="pb-3">
-          <CardTitle className="text-lg">Project Details</CardTitle>
+          <CardTitle className="text-lg">Details</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <fieldset>

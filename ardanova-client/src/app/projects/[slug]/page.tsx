@@ -174,18 +174,9 @@ export default function ProjectDetailPage() {
   if (projectQuery.error || !project) {
     return (
       <div className="mx-auto flex min-h-[60vh] max-w-xl flex-col items-start justify-center gap-5 p-6">
-        <div>
-          <p className="text-destructive font-mono text-xs font-bold tracking-widest uppercase">
-            Project unavailable
-          </p>
-          <h1 className="mt-2 text-3xl font-black">
-            We could not open this project
-          </h1>
-          <p className="text-muted-foreground mt-2 text-sm">
-            The project may not exist, or its API record did not match the
-            current project contract.
-          </p>
-        </div>
+        <h1 className="text-3xl font-black">
+          {projectQuery.error ? "This project didn't load." : "Project not found"}
+        </h1>
         <Button asChild variant="outline">
           <Link href="/projects">
             <ArrowLeft className="size-4" />
@@ -196,7 +187,7 @@ export default function ProjectDetailPage() {
     );
   }
 
-  const creatorName = project.createdBy?.name ?? "Creator name unavailable";
+  const creatorName = project.createdBy?.name ?? "Unknown creator";
   const creatorInitial =
     project.createdBy?.name?.charAt(0).toUpperCase() ?? "?";
   const fundingGoal = project.fundingGoal;
@@ -296,11 +287,11 @@ export default function ProjectDetailPage() {
                 value={project.supportersCount.toLocaleString()}
               />
               <Metric
-                label="Votes recorded"
+                label="Votes"
                 value={project.votesCount.toLocaleString()}
               />
               <Metric
-                label="Views recorded"
+                label="Views"
                 value={project.viewsCount.toLocaleString()}
                 icon={<Eye className="size-3.5" aria-hidden="true" />}
               />

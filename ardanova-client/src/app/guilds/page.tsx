@@ -268,13 +268,13 @@ export default function GuildsPage() {
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-base">
                 <Sparkles className="text-warning size-4" />
-                Visible results
+                This view
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="flex justify-between">
                 <span className="text-muted-foreground text-sm">
-                  Guilds in this view
+                  Guilds
                 </span>
                 <span className="text-foreground font-medium">
                   {guildsError ? "—" : stats.total}
@@ -282,7 +282,7 @@ export default function GuildsPage() {
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground text-sm">
-                  Verified in this view
+                  Verified
                 </span>
                 <span className="text-success font-medium">
                   {guildsError ? "—" : stats.verified}
@@ -290,7 +290,7 @@ export default function GuildsPage() {
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground text-sm">
-                  Projects across visible guilds
+                  Projects
                 </span>
                 <span className="text-foreground font-medium">
                   {guildsError ? "—" : stats.totalProjects}
@@ -298,7 +298,7 @@ export default function GuildsPage() {
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground text-sm">
-                  Reviews across visible guilds
+                  Reviews
                 </span>
                 <span className="text-foreground font-medium">
                   {guildsError ? "—" : stats.totalReviews}
@@ -312,7 +312,7 @@ export default function GuildsPage() {
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-base">
                 <Award className="text-warning size-4" />
-                Highest rated in this view
+                Highest rated
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -382,7 +382,6 @@ export default function GuildsPage() {
           {/* Footer */}
           <div className="text-muted-foreground px-2 text-xs">
             <p>&copy; 2026 ArdaNova</p>
-            <p className="mt-1">Counts reflect the current filtered view.</p>
           </div>
         </>
       }
@@ -397,7 +396,7 @@ export default function GuildsPage() {
           <Button variant="neon" size="sm" asChild>
             <Link href="/guilds/create">
               <Plus className="mr-2 size-4" />
-              Create Guild
+              Create guild
             </Link>
           </Button>
         </div>
@@ -691,23 +690,13 @@ export default function GuildsPage() {
             role="alert"
             className="border-destructive bg-destructive/10 border-b-2 px-4 py-10 text-center"
           >
-            <p className="text-destructive font-medium">
-              Guilds could not be loaded.
-            </p>
-            <p className="text-muted-foreground mt-1 text-sm">
-              No guild counts or results are shown.
-            </p>
+            <p className="text-destructive font-medium">Guilds didn&apos;t load.</p>
           </div>
         ) : filteredGuilds.length === 0 ? (
           <div className="flex flex-col items-center justify-center px-4 py-20">
             <Users className="text-muted-foreground mb-4 size-12" />
             <p className="text-foreground text-lg font-medium">
-              No guilds found
-            </p>
-            <p className="text-muted-foreground mt-1">
-              {guilds.length > 0
-                ? "No guilds match the current view."
-                : "No guild records were returned."}
+              {guilds.length > 0 ? "No matches." : "No guilds yet."}
             </p>
             {guilds.length > 0 ? (
               <Button variant="outline" className="mt-4" onClick={clearFilters}>
@@ -717,7 +706,7 @@ export default function GuildsPage() {
               <Button variant="neon" className="mt-4" asChild>
                 <Link href="/guilds/create">
                   <Plus className="mr-2 size-4" />
-                  Create Guild
+                  Create guild
                 </Link>
               </Button>
             )}

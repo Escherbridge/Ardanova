@@ -216,7 +216,7 @@ function ProposalDiscussion({
     <div className="space-y-4">
       {!comments || comments.length === 0 ? (
         <div className="py-6 text-center text-sm text-gray-500">
-          No comments yet. Be the first to start the discussion.
+          No comments yet.
         </div>
       ) : (
         <div className="space-y-3">
@@ -600,7 +600,7 @@ export default function ProposalsTab({
   if (error) {
     return (
       <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-red-800">
-        Error loading proposals: {error.message}
+        Proposals didn&apos;t load: {error.message}
       </div>
     );
   }
@@ -613,7 +613,7 @@ export default function ProposalsTab({
             <div className="flex items-center justify-between">
               <CardTitle className="flex items-center gap-2">
                 <Vote className="h-5 w-5" />
-                Create New Proposal
+                New proposal
               </CardTitle>
               <Button
                 onClick={() => setShowCreateForm(!showCreateForm)}
@@ -930,14 +930,9 @@ export default function ProposalsTab({
         <Card>
           <CardContent className="py-12 text-center">
             <Vote className="mx-auto mb-4 h-12 w-12 text-gray-400" />
-            <h3 className="mb-2 text-lg font-medium text-gray-900">
-              No proposals yet
+            <h3 className="text-lg font-medium text-gray-900">
+              No proposals yet.
             </h3>
-            <p className="text-gray-600">
-              {isMember
-                ? "Create the first proposal to get started with project governance."
-                : "No proposals have been created for this project yet."}
-            </p>
           </CardContent>
         </Card>
       ) : (
@@ -1516,7 +1511,7 @@ export default function ProposalsTab({
                                     parsedOptions.length > 0 && (
                                       <div className="space-y-3 border-t pt-2">
                                         <h4 className="font-semibold">
-                                          Cast Your Vote
+                                          Cast your vote
                                         </h4>
                                         {!mayVote && (
                                           <p className="rounded-md border border-gray-200 bg-gray-50 p-3 text-sm text-gray-700">
@@ -1588,7 +1583,7 @@ export default function ProposalsTab({
                                       <Check className="mt-0.5 h-5 w-5 flex-shrink-0 text-blue-600" />
                                       <div>
                                         <p className="font-medium text-blue-900">
-                                          You have voted on this proposal
+                                          You voted
                                         </p>
                                         <p className="mt-1 text-sm text-blue-700">
                                           Your vote for{" "}

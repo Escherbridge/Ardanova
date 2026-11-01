@@ -558,16 +558,11 @@ export default function DashboardTasksPage() {
         <div className="p-4 pb-0">
           {/* Title row */}
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h1 className="text-foreground flex items-center gap-2 font-mono text-2xl font-bold">
-                <CheckSquare className="text-primary size-6" />
-                Tasks
-                <span className="bg-primary ml-1 inline-block h-5 w-3 animate-pulse" />
-              </h1>
-              <p className="text-muted-foreground mt-0.5 text-sm">
-                Track your work across all projects
-              </p>
-            </div>
+            <h1 className="text-foreground flex items-center gap-2 font-mono text-2xl font-bold">
+              <CheckSquare className="text-primary size-6" />
+              Tasks
+              <span className="bg-primary ml-1 inline-block h-5 w-3 animate-pulse" />
+            </h1>
 
             <div className="flex flex-wrap items-center gap-2">
               {/* View toggle */}
@@ -803,7 +798,7 @@ export default function DashboardTasksPage() {
             className="border-destructive bg-destructive/10 border-2 p-8 text-center"
           >
             <p className="text-destructive font-medium">
-              Tasks could not be loaded.
+              Tasks didn&apos;t load.
             </p>
             <Button
               type="button"
@@ -811,19 +806,18 @@ export default function DashboardTasksPage() {
               className="mt-4"
               onClick={() => void refetchActive()}
             >
-              Retry
+              Try again
             </Button>
           </div>
         ) : filtered.length === 0 ? (
           <div className="border-border border-2 border-dashed py-16 text-center">
             <Circle className="text-border mx-auto mb-3 size-8" />
             <p className="text-muted-foreground font-mono text-sm">
-              No tasks found
+              No tasks here.
             </p>
             <p className="text-muted-foreground mt-1 text-xs">
-              Try adjusting your filters or{" "}
               <Link href="/tasks/create" className="text-primary underline">
-                create a task
+                Create a task
               </Link>
             </p>
           </div>

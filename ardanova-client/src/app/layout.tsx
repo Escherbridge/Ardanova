@@ -10,7 +10,7 @@ import { isDevelopmentAuthPreviewEnabled } from "~/server/auth";
 
 export const metadata: Metadata = {
   title: {
-    default: "ArdaNova — Shared project workspace",
+    default: "ArdaNova",
     template: "%s — ArdaNova",
   },
   description:
@@ -30,17 +30,17 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     locale: "en_US",
-    title: "ArdaNova — Shared project workspace",
+    title: "ArdaNova",
     description:
-      "Where people who find a problem fund it, build it, and share in what it becomes.",
+      "Find a problem. Fund it. Build it. Share in what it becomes, on agreed terms.",
     siteName: "ArdaNova",
   },
   twitter: {
     // No share image ships yet; "summary_large_image" without one renders a broken card.
     card: "summary",
-    title: "ArdaNova — Shared project workspace",
+    title: "ArdaNova",
     description:
-      "A reviewable workspace for shared work, decisions, and contributor rights.",
+      "Find a problem. Fund it. Build it. Share in what it becomes, on agreed terms.",
   },
 };
 

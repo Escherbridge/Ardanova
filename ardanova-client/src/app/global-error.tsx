@@ -24,13 +24,12 @@ export default function GlobalError({
     <html lang="en" className={fontVariables}>
       <body className="bg-background min-h-screen font-sans antialiased">
         <StatusPage
-          eyebrow="Error / ArdaNova is unavailable"
-          title="ArdaNova could not start this page."
+          eyebrow="Error"
+          title="This page didn't load."
           body={
             <>
               <p>
-                The application stopped before this page could load. If you
-                were saving something, it was only saved if you saw a
+                If you were saving something, it was only saved if you saw a
                 confirmation; check before trying again.
               </p>
               {error.digest ? (
@@ -47,7 +46,7 @@ export default function GlobalError({
               </Button>
               <Button asChild variant="outline">
                 {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- global-error replaces the root layout and the client router may be what failed; a full document load is the point. */}
-                <a href="/">Back to the home page</a>
+                <a href="/">Go home</a>
               </Button>
             </>
           }

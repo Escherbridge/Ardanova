@@ -37,8 +37,6 @@ export default async function ErrorPage({ searchParams }: ErrorPageProps) {
           </p>
           <h1 className="max-w-3xl text-[clamp(3.5rem,9vw,8rem)] leading-[0.82] font-black tracking-[-0.075em] uppercase">
             Pause.
-            <br />
-            Keep the work safe.
           </h1>
         </div>
 

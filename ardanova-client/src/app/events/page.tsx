@@ -368,7 +368,7 @@ export default function EventsPage() {
               <CardContent className="p-4">
                 <h3 className="mb-4 flex items-center gap-2 font-semibold">
                   <CalendarDays className="text-neon-pink h-4 w-4" />
-                  First events in this page
+                  Up next
                 </h3>
                 <div className="space-y-3">
                   {eventCards.slice(0, 3).map((event) => (
@@ -440,7 +440,7 @@ export default function EventsPage() {
             <Button className="bg-neon hover:bg-neon/90 text-black" asChild>
               <Link href="/events/create">
                 <Plus className="mr-2 h-4 w-4" />
-                Create Event
+                Create event
               </Link>
             </Button>
           </div>
@@ -723,10 +723,7 @@ export default function EventsPage() {
             className="border-destructive bg-destructive/10 p-8 text-center"
           >
             <p className="text-destructive font-medium">
-              Events could not be loaded.
-            </p>
-            <p className="text-muted-foreground mt-1 text-sm">
-              No event records or registration actions are shown.
+              Events didn&apos;t load.
             </p>
           </div>
         ) : activeTab === "my-events" && registeredEventsError ? (
@@ -735,16 +732,13 @@ export default function EventsPage() {
             className="border-destructive bg-destructive/10 p-8 text-center"
           >
             <p className="text-destructive font-medium">
-              Your event registrations could not be loaded.
-            </p>
-            <p className="text-muted-foreground mt-1 text-sm">
-              No registration state is inferred from missing data.
+              Your registrations didn&apos;t load.
             </p>
           </div>
         ) : filteredEvents.length === 0 ? (
           <div className="text-muted-foreground p-8 text-center">
             <Calendar className="mx-auto mb-4 h-12 w-12 opacity-50" />
-            <p>No events found matching your criteria.</p>
+            <p>{hasActiveFilters ? "No matches." : "No events yet."}</p>
             {hasActiveFilters && (
               <Button
                 variant="link"
