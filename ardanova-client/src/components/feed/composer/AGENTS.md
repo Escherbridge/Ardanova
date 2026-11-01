@@ -101,7 +101,7 @@ screen changes a post's audience after publishing. The guild audience says "guil
   team, since an ask cannot be private). It used to fall back to PUBLIC, so "Project team" then detaching published
   to everyone. The picker shows the narrowed value, so nothing changes unseen.
 - **A DRAFT project (final-review M2).** Its cards stay hidden from outsiders until publish (`PostReadFilters
-  .OnAVisibleProject`), so PUBLIC on a draft reads "Anyone can read it once the project is published." The status comes
+.OnAVisibleProject`), so PUBLIC on a draft reads "Anyone can read it once the project is published." The status comes
   from the attach list's slim row, or the `projectStatus` prop where the page fixed the project (project page, work-item
   modal).
 
@@ -117,12 +117,12 @@ M4). Proof: `MembershipListFlowTests` (real Postgres) and `server/api/routers/me
 
 ## Reads
 
-| When                                                     | Reads                                                         |
-| -------------------------------------------------------- | ------------------------------------------------------------- |
-| Mounted without a fixed attachment                       | `project.getMyMemberships`, `guild.getMyMemberships`          |
-| "Who can help?" with a project                           | `task.getAll({ projectId, askable: true, limit: 100 })`       |
-| First `#`                                                | `taxonomy.getAll`                                             |
-| Publish with `onPublished`, subject not in a picker list | `project.getById` / `guild.getById`                           |
+| When                                                     | Reads                                                   |
+| -------------------------------------------------------- | ------------------------------------------------------- |
+| Mounted without a fixed attachment                       | `project.getMyMemberships`, `guild.getMyMemberships`    |
+| "Who can help?" with a project                           | `task.getAll({ projectId, askable: true, limit: 100 })` |
+| First `#`                                                | `taxonomy.getAll`                                       |
+| Publish with `onPublished`, subject not in a picker list | `project.getById` / `guild.getById`                     |
 
 The project page (fixed `projectId`) makes none of the first three until "Who can help?" or `#`; its `onPublished`
 names the project with one `project.getById` per publish. Escape inside the work-item modal closes an open `#` list

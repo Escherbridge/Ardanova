@@ -4,7 +4,7 @@ Every feedable event becomes ONE envelope row in `Post`: `type` (PostType), prov
 `(sourceType, sourceId)` (UNIQUE, CHECK both-or-neither), and nullable target FKs
 `projectId / guildId / opportunityId / eventId` (ON DELETE SET NULL). A post a person wrote keeps
 `sourceType` NULL. The read side (Phase 2: retraction, hashtags, quality score, ranker, paging, cards) is
-described from §Retraction on; the projector sections below it are Phase 1 unless marked.
+described from Â§Retraction on; the projector sections below it are Phase 1 unless marked.
 
 ## Why a pull projector
 
@@ -24,26 +24,26 @@ the advisory lock) and the hosted timer.
 `FeedProjectionRules.Enter` (does this row earn a card, for whom) and `Retain` (does a stored card stay,
 for whom). Retain is never narrower than Enter, and never wider on privacy.
 
-| source (FeedSourceType) | envelope type | audience | author | enters when | leaves when |
-|---|---|---|---|---|---|
-| Project (PROJECT) | PROJECT_LAUNCHED | PUBLIC | creator | `publishedAt` set | project deleted |
-| ProjectUpdate | PROJECT_UPDATE | PUBLIC | writer | created | deleted |
-| ProjectMilestone | MILESTONE | PUBLIC | `assigneeId`, else project creator | `completedAt` set | deleted / `completedAt` cleared |
-| ProjectTask | TASK_COMPLETED | PUBLIC | `assignedToId`, else project creator | `completedAt` set | deleted / reopened |
-| ProjectTokenConfig | FUNDING_PROGRESS, sourceId `{cfgId}:{25,50,75,100}` | PUBLIC | project creator | highest mark reached (only that one) | config deleted |
-| ProjectMember | MEMBER_JOINED | PUBLIC | the member | joined, unless they created the project | removed |
-| ProjectComment (root only) | DISCUSSION | PROJECT/MILESTONE target: PUBLIC; EPIC/SPRINT/FEATURE/PBI/TASK: PROJECT_MEMBERS | writer | created | deleted |
-| Guild | GUILD_FOUNDED | PUBLIC | owner | created | deleted |
-| GuildUpdate | GUILD_UPDATE | PUBLIC | writer | created | deleted |
-| GuildMember | MEMBER_JOINED | PUBLIC | the member | joined, unless they own the guild | removed |
-| Opportunity | OPPORTUNITY_OPENED | PUBLIC | poster | status OPEN | deleted / back to DRAFT |
-| OpportunityUpdate | OPPORTUNITY_UPDATE | PUBLIC | writer | created, opportunity not DRAFT | deleted / opportunity re-drafted |
-| OpportunityComment (root only) | DISCUSSION | PUBLIC | writer | created, opportunity not DRAFT | deleted / opportunity re-drafted |
-| Event | EVENT_SCHEDULED | the event's own: PUBLIC / PROJECT_MEMBERS / GUILD_MEMBERS | organizer | SCHEDULED or LIVE, not INVITE_ONLY | deleted / DRAFT / CANCELLED / INVITE_ONLY |
+| source (FeedSourceType)        | envelope type                                       | audience                                                                        | author                               | enters when                             | leaves when                               |
+| ------------------------------ | --------------------------------------------------- | ------------------------------------------------------------------------------- | ------------------------------------ | --------------------------------------- | ----------------------------------------- |
+| Project (PROJECT)              | PROJECT_LAUNCHED                                    | PUBLIC                                                                          | creator                              | `publishedAt` set                       | project deleted                           |
+| ProjectUpdate                  | PROJECT_UPDATE                                      | PUBLIC                                                                          | writer                               | created                                 | deleted                                   |
+| ProjectMilestone               | MILESTONE                                           | PUBLIC                                                                          | `assigneeId`, else project creator   | `completedAt` set                       | deleted / `completedAt` cleared           |
+| ProjectTask                    | TASK_COMPLETED                                      | PUBLIC                                                                          | `assignedToId`, else project creator | `completedAt` set                       | deleted / reopened                        |
+| ProjectTokenConfig             | FUNDING_PROGRESS, sourceId `{cfgId}:{25,50,75,100}` | PUBLIC                                                                          | project creator                      | highest mark reached (only that one)    | config deleted                            |
+| ProjectMember                  | MEMBER_JOINED                                       | PUBLIC                                                                          | the member                           | joined, unless they created the project | removed                                   |
+| ProjectComment (root only)     | DISCUSSION                                          | PROJECT/MILESTONE target: PUBLIC; EPIC/SPRINT/FEATURE/PBI/TASK: PROJECT_MEMBERS | writer                               | created                                 | deleted                                   |
+| Guild                          | GUILD_FOUNDED                                       | PUBLIC                                                                          | owner                                | created                                 | deleted                                   |
+| GuildUpdate                    | GUILD_UPDATE                                        | PUBLIC                                                                          | writer                               | created                                 | deleted                                   |
+| GuildMember                    | MEMBER_JOINED                                       | PUBLIC                                                                          | the member                           | joined, unless they own the guild       | removed                                   |
+| Opportunity                    | OPPORTUNITY_OPENED                                  | PUBLIC                                                                          | poster                               | status OPEN                             | deleted / back to DRAFT                   |
+| OpportunityUpdate              | OPPORTUNITY_UPDATE                                  | PUBLIC                                                                          | writer                               | created, opportunity not DRAFT          | deleted / opportunity re-drafted          |
+| OpportunityComment (root only) | DISCUSSION                                          | PUBLIC                                                                          | writer                               | created, opportunity not DRAFT          | deleted / opportunity re-drafted          |
+| Event                          | EVENT_SCHEDULED                                     | the event's own: PUBLIC / PROJECT_MEMBERS / GUILD_MEMBERS                       | organizer                            | SCHEDULED or LIVE, not INVITE_ONLY      | deleted / DRAFT / CANCELLED / INVITE_ONLY |
 
 Proposals and products are excluded for MVP.
 
-"Leaves when" splits in two since Phase 2 (§Retraction): a source that is **deleted** loses its card (hard
+"Leaves when" splits in two since Phase 2 (Â§Retraction): a source that is **deleted** loses its card (hard
 delete, with its engagement); a source that still exists but stops earning one (DRAFT, CANCELLED, INVITE_ONLY,
 `completedAt` cleared) has its card **retracted** - kept, hidden from every read, restored on re-entry.
 
@@ -54,9 +54,9 @@ field notes. Guilds have no draft state.
 Choices the data model forced (reported to the lane owner):
 
 - **No "opened at" / "scheduled at" columns.** Opportunity and Event entry is observed through `updatedAt`
-  plus status, and the card's time is the `updatedAt` at first projection. A DRAFT → OPEN → CLOSED flip
+  plus status, and the card's time is the `updatedAt` at first projection. A DRAFT â†’ OPEN â†’ CLOSED flip
   inside one look-back window is missed (rare; a backfill does not recover it either).
-- **Funding projects the HIGHEST mark only.** 10% → 60% in one sponsorship writes `:50`, not `:25` and
+- **Funding projects the HIGHEST mark only.** 10% â†’ 60% in one sponsorship writes `:50`, not `:25` and
   `:50`. A mark stays once reached (a refund does not retract "reached 50%"). Goal and raise are read
   through `ProjectFundingLedger` and never leave the rule: metadata is `{"percent":N}` and nothing else -
   no backer, no amount, whatever `showBackerName` says, because the reader never loads investments.
@@ -165,8 +165,8 @@ of which is indexed, so every cycle scans those tables. Fine at MVP sizes; add p
 database, so a Development default turned any laptop into the shared database's feed writer - and the first
 cycle sweeps, i.e. hard-deletes). The local stack (`.omc/scripts/local-stack.ps1`, local DB on 5433) sets it
 explicitly. `IntervalSeconds` (5), `LookBackMinutes` (10), `SweepIntervalMinutes` (60), `SweepBatchSize` (500,
-the sweep's full-table reconciliation batch; see §Cycle, sweep, backfill), `ScoreIntervalMinutes` (5, the quality
-pass; see §Quality score).
+the sweep's full-table reconciliation batch; see Â§Cycle, sweep, backfill), `ScoreIntervalMinutes` (5, the quality
+pass; see Â§Quality score).
 
 **A malformed value never stops the API** (owner decision, review M5): `AddFeedProjector` uses
 `TryFromConfiguration`; on a bad value the projector stays OFF (whatever `Enabled` says - a half-read
@@ -210,8 +210,8 @@ can be. A run longer than 40 is not truncated into a tag - it is not a tag.
   parent SECTOR. Anything else stays a free-form topic (`tag:x`) and still matches itself. **No aliases table** -
   revisit when two spellings of one subject both trend (e.g. `#permaculture` and `#permaculture-design` each in the
   top tags of a week); then add `TaxonomyTerm` rows or an alias column, not code.
-- **Known follow-up, no change yet: confusable scripts.** NFKC does not fold look-alikes across scripts, so `#сafe`
-  with a Cyrillic `с` is a different tag from `#cafe`. Harmless for privacy (a tag scope still re-applies visibility)
+- **Known follow-up, no change yet: confusable scripts.** NFKC does not fold look-alikes across scripts, so `#Ñafe`
+  with a Cyrillic `Ñ` is a different tag from `#cafe`. Harmless for privacy (a tag scope still re-applies visibility)
   but it can split or spoof a topic. Trigger: a spoofed tag reported, or a mixed-script tag in the weekly top tags;
   then reject mixed-script tags (Unicode TR39 "single script" check) at extraction.
 
@@ -282,11 +282,11 @@ The pass reads every live post id, then signals in `SweepBatchSize` batches, and
 
 Per scope (owner addenda 2-3):
 
-| scope | order | caps | discovery |
-|---|---|---|---|
-| home | ranked windows | 2/subject, 3/author | every 5th slot |
-| `tag:{tag}` | ranked windows | 3/author only | none |
-| `project:{id}`, `guild:{id}` | newest first, keyset `(createdAt, id)` | none | none |
+| scope                        | order                                  | caps                | discovery      |
+| ---------------------------- | -------------------------------------- | ------------------- | -------------- |
+| home                         | ranked windows                         | 2/subject, 3/author | every 5th slot |
+| `tag:{tag}`                  | ranked windows                         | 3/author only       | none           |
+| `project:{id}`, `guild:{id}` | newest first, keyset `(createdAt, id)` | none                | none           |
 
 **One `PolicyFor` arm per row (Phase 3, Q1).** Phase 2 shipped two arms (home / everything else), so project and
 guild shared the tag's author cap; it never bit only because the recency path did not read the policy. Now both
@@ -344,13 +344,13 @@ and the page refilled; the scroll does not end. A source kind whose read throws 
 - **Funding**: `Funding.Percent` from the envelope's `{"percent":N}` - never an amount, never a backer; the project
   summary on a card carries no funding fields.
 - **Opportunity** (`FeedLinkDto`): `id`, `title` and `slug` - the opportunity page resolves by slug, so an id-only
-  Apply link 404s (Phase 3). Every card with an opportunity carries it (OPPORTUNITY_* and an opportunity's DISCUSSION).
+  Apply link 404s (Phase 3). Every card with an opportunity carries it (`OPPORTUNITY_*` and an opportunity's DISCUSSION).
 - **Viewer** (`isMember`, `isFollowing`, `canClaim`): computed server-side; Phase 3 picks the primary action from
   it, never from reason text. `canClaim` is true only on a HELP_WANTED card the viewer may pick up in one tap
-  (§Help wanted).
+  (Â§Help wanted).
 - **Counters** (`Counters.Likes/Replies/Shares`) are the RAW post counters, for display only. Ranking ignores them
-  (distinct non-author people, §Quality score), but a card its author shared 50 times DISPLAYS 50 shares. Phase 3
-  must not present them as a quality signal; see §Deferred for the fix trigger.
+  (distinct non-author people, Â§Quality score), but a card its author shared 50 times DISPLAYS 50 shares. Phase 3
+  must not present them as a quality signal; see Â§Deferred for the fix trigger.
 - **Reasons**: stable `kind` + rendered `text` with live names (`FeedReasonText`).
 
 ## Help wanted (Phase 3, lane K2)
@@ -375,15 +375,15 @@ would be a second statement of the rule to drift. Cost: an orphaned ask is ranke
 fingerprinted as served, so never twice in one). Trigger to revisit: orphaned asks in the hundreds - then add
 `type <> HELP_WANTED OR taskId IS NOT NULL` to `Visible`, or have the task delete path remove its ask.
 
-| task facts | `task.state` | `assigneeName` |
-|---|---|---|
-| `status = COMPLETED` | `DONE` | assignee's name, if any |
-| assigned, not COMPLETED | `PICKED_UP` | assignee's name |
-| unassigned, not COMPLETED | `OPEN` | null |
+| task facts                | `task.state` | `assigneeName`          |
+| ------------------------- | ------------ | ----------------------- |
+| `status = COMPLETED`      | `DONE`       | assignee's name, if any |
+| assigned, not COMPLETED   | `PICKED_UP`  | assignee's name         |
+| unassigned, not COMPLETED | `OPEN`       | null                    |
 
 `task.paid` = `equityReward > 0`.
 
-**`canClaim` = `TaskClaimRule.CanClaimInPlace(facts, viewer ∈ MemberProjects(task.projectId))`** - the one rule the
+**`canClaim` = `TaskClaimRule.CanClaimInPlace(facts, viewer âˆˆ MemberProjects(task.projectId))`** - the one rule the
 claim write (K1's conditional UPDATE) also enforces, so a card never offers "Pick up task" on a task the claim then
 refuses (see `Application/Tasks/AGENTS.md`). Membership is the TASK's project (creator or ProjectMember, as
 `TasksController.Assign` checks it), never a guild. A paid task is never claimable in place: the card routes to the
