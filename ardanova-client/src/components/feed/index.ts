@@ -19,3 +19,12 @@ export {
 export { FeedCard, type FeedCardProps } from "./feed-card";
 export { ColdStartRow } from "./cold-start-row";
 export { SubjectChip, type FollowToggleHandler } from "./subject-chip";
+
+// SR-03 Phase 3 composer (Lane C); see ./composer/AGENTS.md.
+export type { FieldNoteComposerProps } from "./field-note-composer";
+export type { ComposerAuthor } from "./composer/published-card";
+export {
+  audienceDescriptionFor,
+  audienceOptionsFor,
+  type AudienceContext,
+} from "./field-note-audience";
