@@ -38,7 +38,7 @@ The upgrade typechecked cleanly and the full suite passed. Differences that affe
 
 Prisma 7 is a migration, not a version bump. It needs driver adapters, a `prisma.config.ts` datasource, changes to the DBML→Prisma generator, and re-proving `migrate deploy`. Overriding the one vulnerable package is much smaller:
 
-- **Reachability.** `deepmerge-ts` is called only by `@prisma/config` when it loads `prisma.config.ts` (`merger: deepmerge`), and only from the Prisma CLI. The Next runtime never loads it: the runner image has no `prisma` CLI, and the `@prisma/client` runtime neither imports `@prisma/config` nor bundles deepmerge. The input is a developer-authored config file, never a request.
+- **Reachability.** `deepmerge-ts` is called only by `@prisma/config` when it loads `prisma.config.ts` (`merger: deepmerge`), and only from the Prisma CLI. The Next runtime never loads it. `Dockerfile:71` copies all of `node_modules/@prisma` into the runner image (not "only `@prisma/client`" — `@prisma/config` is present too), so presence-in-the-image is not the reason this is unreachable. The real reason: `deepmerge-ts` is hoisted to top-level `node_modules/deepmerge-ts` (`package-lock.json` resolves it outside `@prisma/`, not nested under `@prisma/config`), and the runner image never copies generic top-level `node_modules` — only Next's traced `.next/standalone` plus the explicit `.prisma`/`@prisma` overlay. Nothing at runtime imports `deepmerge-ts`, so Next's standalone trace omits it, and the Dockerfile never re-adds it the way it re-adds `@prisma`. The input (`prisma.config.ts`) is a developer-authored config file, never a request, and the image has no `prisma` CLI to load it from.
 - **Compatibility.** Prisma 7.10.1's own `@prisma/config` ships `deepmerge-ts` 8.0.2. The 8.0 breaking changes (Map deep-merge, type renames, `deepmergeInto` no longer mutating its input) do not touch a plain-object `deepmerge(...)` call. `prisma generate`, `prisma format`, and `loadConfigFromFile` with and without a config file all work on 8.0.2.
 
 ## Overrides: why each exists and when to remove it
@@ -47,15 +47,61 @@ Prisma 7 is a migration, not a version bump. It needs driver adapters, a `prisma
 - `sharp` — next's range still admits vulnerable 0.34.x. Remove it once next's floor is 0.35.5 or higher.
 - `@prisma/config` → `deepmerge-ts` — remove it in the Prisma 7 migration, which brings 8.0.2 natively.
 
-## Residual risk (not covered by the audit)
+## Unbounded-array DoS: fixed 2026-10-31
 
-zod 4.6.7 stops early only on arrays that have a length limit. Untrusted router inputs with no `.max()` still produce one issue per bad element:
+zod 4.6.7 stops early only on arrays that have a length limit. Eight tRPC inputs — `governance.ts:101,112` (`options`), `opportunity.ts:31,55` (`skills`), `project.ts:39,64,228,246` (`categories` ×2, `options` ×2) — had none, so an attacker-sized array (all `protectedProcedure`, but sign-up is open to any verified Google email, so effectively public) produced one zod issue per element: a 2 MB body → ~1,000,000 issues, ~3.5 s event-loop block, ~816 MB heap, and a ~179 MB echoed error (`ZodError.message` is `JSON.stringify(issues)`; `flatten()` groups every element issue under one field key). This is fixed. Three independent layers, so a regression in one does not reopen the hole:
 
-- `governance.ts` `options` (×2)
-- `opportunity.ts` `skills` (×2)
-- `project.ts` `categories` (×2) and `options` (×2)
+1. **Every array now has `.max()`, every element string now has `.max()`, and every other free-text string in the same input objects now has `.max()`** (parsing a request this size was the amplification itself, not just the string values). Limits chosen below; `N` = array length, `M` = element/string length.
 
-Add a `.max()` to each, matching the limit the .NET API enforces. Revisit before any public, unauthenticated write surface ships.
+   | Field                                                                                                                                                                                                       | File:line              | Array max (N) | Element/string max (M)      | Source                                                                                                                                                                          |
+   | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------- | ------------- | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+   | `options` (create proposal)                                                                                                                                                                                 | `governance.ts:101`    | 20            | 200                         | Product default — `Proposal.options` is `jsonb`; .NET only requires ≥2 choices (`GovernanceServices.cs` `ValidateProposalShape`, ~line 911)                                     |
+   | `options` (update proposal)                                                                                                                                                                                 | `governance.ts:112`    | 20            | 200                         | same                                                                                                                                                                            |
+   | `title` / `description` / `projectId` (create/update proposal)                                                                                                                                              | `governance.ts:98-109` | —             | 200 / 20,000 / 100          | Product default (title ≈ existing `summary` cap; description long-text tier; id tier)                                                                                           |
+   | `skills` (create opportunity)                                                                                                                                                                               | `opportunity.ts:31`    | 20            | 200                         | Product default — `Opportunity.skills` is a free `text` column with no .NET validation (`database-architecture.dbml:2050`, `OpportunityServices.cs`)                            |
+   | `skills` (update opportunity)                                                                                                                                                                               | `opportunity.ts:55`    | 20            | 200                         | same                                                                                                                                                                            |
+   | `title` / `description` / `type` / `experienceLevel` / `compensationModel` / `location` / `deadline` / `projectId` / `guildId` / `taskId` (opportunity create/update)                                       | `opportunity.ts:28-62` | —             | 200 (100 for ids)           | Product default                                                                                                                                                                 |
+   | `categories` (create project)                                                                                                                                                                               | `project.ts:39`        | 20            | **50**                      | **Mirrors .NET exactly**: `ProjectServices.cs:512-513` (`ValidateCategories`) refuses a custom category over 50 characters; `ProjectCategory.cs` lists the 10 known enum values |
+   | `categories` (update project)                                                                                                                                                                               | `project.ts:64`        | 20            | **50**                      | same                                                                                                                                                                            |
+   | `title` / `description` / `problemStatement` / `solution` / `targetAudience` / `expectedImpact` / `timeline` / `tags` / `images` / `videos` / `documents` / `storefrontDescription` (project create/update) | `project.ts:30-94`     | —             | 200 (title) / 20,000 (rest) | Product default — 20,000 matches the sibling `mediaPaths` cap already in the same schema                                                                                        |
+   | `options` (project router create proposal)                                                                                                                                                                  | `project.ts:228`       | 20            | 200                         | Product default, same reasoning as `governance.ts` options                                                                                                                      |
+   | `options` (project router update proposal)                                                                                                                                                                  | `project.ts:246`       | 20            | 200                         | same                                                                                                                                                                            |
+   | `title` / `description` / `projectId` / `proposalId` (project router proposal create/update)                                                                                                                | `project.ts:223-250`   | —             | 200 / 20,000 / 100          | Product default                                                                                                                                                                 |
+
+   **Follow-up for the .NET side** (none of these are edited here; client-only fix):
+   - Add an explicit cap on the number of proposal options (`Proposal.options` jsonb) — today `ValidateProposalShape` only requires ≥2, no upper bound.
+   - Add an explicit cap on `Opportunity.skills` length/count — today it is an unvalidated free `text` column.
+   - Consider capping the _count_ of `Project.categories` (today `ValidateCategories` bounds each custom category to 50 chars but not how many may be submitted).
+   - None of `Project.title`, `description`, `problemStatement`, `solution`, `targetAudience`, `expectedImpact`, `timeline`, `tags`, `images`, `videos`, `documents`, `storefrontDescription` have a FluentValidation validator or DB column length limit (`varchar`/`text` unbounded in `database-architecture.dbml`); the 200/20,000 caps added here are a client-side product default, not a mirrored backend rule.
+
+2. **The request body is capped at the edge**, before tRPC/zod ever read it (`src/app/api/trpc/[trpc]/route.ts`): a `POST` whose `Content-Length` declares more than 1 MiB is rejected with 413 immediately; a body with no (or an understated/chunked) `Content-Length` is still bounded because the handler reads the stream itself and aborts once it has seen 1 MiB, never buffering more:
+
+   ```ts
+   const MAX_BODY_BYTES = 1 * 1024 * 1024; // 1 MiB
+
+   async function readBodyWithinLimit(stream, limitBytes) {
+     const reader = stream.getReader();
+     const chunks = [];
+     let total = 0;
+     for (;;) {
+       const { done, value } = await reader.read();
+       if (done) break;
+       total += value.byteLength;
+       if (total > limitBytes) {
+         await reader.cancel();
+         return null; // caller responds 413 without ever buffering the rest
+       }
+       chunks.push(value);
+     }
+     /* ...reassemble and hand to fetchRequestHandler via `new Request(...)`... */
+   }
+   ```
+
+   1 MiB was sized above the largest legitimate payload in this app today (a project create/update with every long-text field at its new 20,000-character cap is ≈230 KB; this app has no base64/data-URL upload path through tRPC — uploads go through `S3StorageService`/`LocalStorageService`, not the tRPC body) with headroom for `httpBatchStreamLink` batching a handful of calls into one request, while still rejecting the finding's 2 MB attack body before it is read into memory. `GET` requests carry tRPC's batch-query input in the URL, not a body; that is left to the platform's own URL-length limit, not covered by this cap.
+
+3. **The echoed error is capped regardless of how it was produced** (`src/server/api/trpc.ts` `errorFormatter`): `ZodError.message` (`JSON.stringify` of every issue) and `flatten().fieldErrors[field]` (every issue for that field) are both truncated to the first 10 issues, with an "…and N more issue(s) omitted" suffix on the message. Every invalid field's key is still present (so "check the X and Y fields" copy still works; see `src/server/api/root.test.ts`'s `idempotencyKey` assertion, unaffected since that failure has exactly one issue). `moneyCode`/`moneyIntentId` are untouched — they are read from the `TRPCError` itself, not from the zod issue list.
+
+Revisit before any public, unauthenticated write surface ships new unbounded collections.
 
 ## Changing a dependency
 

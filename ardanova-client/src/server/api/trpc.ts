@@ -13,7 +13,10 @@ import { ZodError } from "zod";
 
 import { auth } from "~/server/auth";
 import { runWithActorAssertion } from "~/server/actor-assertion";
-import { readMoneyCode, readMoneyIntentId } from "~/server/api/money-refusal-error";
+import {
+  readMoneyCode,
+  readMoneyIntentId,
+} from "~/server/api/money-refusal-error";
 import { InvalidApiPathError } from "~/lib/api/path";
 import {
   findApiFailure,
@@ -51,6 +54,34 @@ export const createTRPCContext = async (opts: { headers: Headers }) => {
 };
 
 /**
+ * zod's own `ZodError.message` is `JSON.stringify(issues)`, and `flatten()` groups every issue
+ * under its top-level field key — so an unbounded array that fails element-by-element turns into
+ * one huge `message` string and one huge `fieldErrors[field]` array (see SECURITY-DEPENDENCIES.md
+ * "unbounded array" entry: a 100,000-element array produced ~179 MB of echoed issue JSON). Capping
+ * both to a handful of issues keeps the error response small no matter how many issues zod
+ * produced, while every invalid field's key is still present for "check the X and Y fields" copy.
+ */
+const MAX_ECHOED_ZOD_ISSUES = 10;
+
+function summarizeZodError(zodError: ZodError) {
+  const total = zodError.issues.length;
+  const omitted = Math.max(0, total - MAX_ECHOED_ZOD_ISSUES);
+  const message = omitted
+    ? `${JSON.stringify(zodError.issues.slice(0, MAX_ECHOED_ZOD_ISSUES))} …and ${omitted} more issue(s) omitted`
+    : zodError.message;
+
+  const { formErrors, fieldErrors } = zodError.flatten();
+  const cappedFieldErrors: Record<string, string[]> = {};
+  for (const [field, messages] of Object.entries(
+    fieldErrors as Record<string, string[] | undefined>,
+  )) {
+    cappedFieldErrors[field] = (messages ?? []).slice(0, MAX_ECHOED_ZOD_ISSUES);
+  }
+
+  return { message, flattened: { formErrors, fieldErrors: cappedFieldErrors } };
+}
+
+/**
  * 2. INITIALIZATION
  *
  * This is where the tRPC API is initialized, connecting the context and transformer. We also parse
@@ -62,12 +93,14 @@ const t = initTRPC.context<typeof createTRPCContext>().create({
   errorFormatter({ shape, error }) {
     // Never ship server stack traces (absolute paths, bundle layout) to the browser.
     const { stack: _stack, ...data } = shape.data;
+    const zodError = error.cause instanceof ZodError ? error.cause : null;
+    const zodSummary = zodError ? summarizeZodError(zodError) : null;
     return {
       ...shape,
+      message: zodSummary?.message ?? shape.message,
       data: {
         ...data,
-        zodError:
-          error.cause instanceof ZodError ? error.cause.flatten() : null,
+        zodError: zodSummary?.flattened ?? null,
         // The BFF's money code, set only by a money procedure; the browser releases a saved
         // request key on this and never on `code` (see ~/lib/commerce/AGENTS.md).
         moneyCode: readMoneyCode(error),

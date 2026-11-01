@@ -26,56 +26,72 @@ const ProjectType = projectTypeSchema;
 const ProjectDuration = projectDurationSchema;
 const ProjectStatus = projectStatusSchema;
 
+// Array/string bounds below stop an unbounded-array request from producing one zod issue per
+// element (DoS via issue-count amplification); see SECURITY-DEPENDENCIES.md "unbounded array" entry.
+
 // Project creation input schema
 const createProjectSchema = z.object({
-  title: z.string().min(1, "Project title is required"),
-  description: z.string().min(10, "Description must be at least 10 characters"),
+  title: z.string().min(1, "Project title is required").max(200),
+  description: z
+    .string()
+    .min(10, "Description must be at least 10 characters")
+    .max(20_000),
   // The one-line public ask, capped to the length the wizard enforces client-side.
   summary: z.string().max(200).nullable().optional(),
   problemStatement: z
     .string()
-    .min(10, "Problem statement must be at least 10 characters"),
-  solution: z.string().min(10, "Solution must be at least 10 characters"),
-  categories: z.array(z.string()).min(1, "At least one category is required"),
+    .min(10, "Problem statement must be at least 10 characters")
+    .max(20_000),
+  solution: z
+    .string()
+    .min(10, "Solution must be at least 10 characters")
+    .max(20_000),
+  // Element cap of 50 mirrors ProjectServices.cs ValidateCategories, which refuses a custom
+  // category over 50 characters; the array cap of 20 is a product default (10 known categories
+  // plus headroom for custom ones).
+  categories: z
+    .array(z.string().max(50))
+    .min(1, "At least one category is required")
+    .max(20),
   projectType: ProjectType.optional(),
   duration: ProjectDuration.nullable().optional(),
   fundingGoal: z.number().nonnegative().nullable().optional(),
-  targetAudience: z.string().nullable().optional(),
-  expectedImpact: z.string().nullable().optional(),
-  timeline: z.string().nullable().optional(),
-  tags: z.string().nullable().optional(),
-  images: z.string().nullable().optional(),
-  videos: z.string().nullable().optional(),
-  documents: z.string().nullable().optional(),
+  targetAudience: z.string().max(20_000).nullable().optional(),
+  expectedImpact: z.string().max(20_000).nullable().optional(),
+  timeline: z.string().max(20_000).nullable().optional(),
+  tags: z.string().max(20_000).nullable().optional(),
+  images: z.string().max(20_000).nullable().optional(),
+  videos: z.string().max(20_000).nullable().optional(),
+  documents: z.string().max(20_000).nullable().optional(),
   // Typed media manifest (JSON array of bucket paths); supersedes images/videos/documents.
   mediaPaths: z.string().max(20000).nullable().optional(),
   commerceEnabled: z.boolean().optional(),
-  storefrontDescription: z.string().nullable().optional(),
+  storefrontDescription: z.string().max(20_000).nullable().optional(),
 });
 
 // Project update input schema
 const updateProjectSchema = z.object({
-  id: z.string(),
-  title: z.string().min(1).optional(),
-  description: z.string().min(10).optional(),
+  id: z.string().max(100),
+  title: z.string().min(1).max(200).optional(),
+  description: z.string().min(10).max(20_000).optional(),
   summary: z.string().max(200).nullable().optional(),
-  problemStatement: z.string().min(10).optional(),
-  solution: z.string().min(10).optional(),
-  categories: z.array(z.string()).min(1).optional(),
+  problemStatement: z.string().min(10).max(20_000).optional(),
+  solution: z.string().min(10).max(20_000).optional(),
+  categories: z.array(z.string().max(50)).min(1).max(20).optional(),
   projectType: ProjectType.optional(),
   duration: ProjectDuration.nullable().optional(),
   status: ProjectStatus.optional(),
-  targetAudience: z.string().nullable().optional(),
-  expectedImpact: z.string().nullable().optional(),
-  timeline: z.string().nullable().optional(),
-  tags: z.string().nullable().optional(),
-  images: z.string().nullable().optional(),
-  videos: z.string().nullable().optional(),
-  documents: z.string().nullable().optional(),
+  targetAudience: z.string().max(20_000).nullable().optional(),
+  expectedImpact: z.string().max(20_000).nullable().optional(),
+  timeline: z.string().max(20_000).nullable().optional(),
+  tags: z.string().max(20_000).nullable().optional(),
+  images: z.string().max(20_000).nullable().optional(),
+  videos: z.string().max(20_000).nullable().optional(),
+  documents: z.string().max(20_000).nullable().optional(),
   fundingGoal: z.number().nonnegative().nullable().optional(),
   mediaPaths: z.string().max(20000).nullable().optional(),
   commerceEnabled: z.boolean().optional(),
-  storefrontDescription: z.string().nullable().optional(),
+  storefrontDescription: z.string().max(20_000).nullable().optional(),
 });
 
 const projectArraySchema = z.array(projectDtoSchema);
@@ -219,13 +235,14 @@ const reviewApplicationSchema = z.object({
   reviewMessage: z.string().optional(),
 });
 
-// Proposal schemas
+// Proposal schemas. Array/string bounds stop an unbounded-array request from producing one zod
+// issue per element (DoS via issue-count amplification); see SECURITY-DEPENDENCIES.md.
 const createProposalSchema = z.object({
-  projectId: z.string(),
+  projectId: z.string().max(100),
   type: ProposalType,
-  title: z.string().min(1),
-  description: z.string().min(20),
-  options: z.array(z.string()).min(2),
+  title: z.string().min(1).max(200),
+  description: z.string().min(20).max(20_000),
+  options: z.array(z.string().max(200)).min(2).max(20),
   quorum: z.number().default(50),
   threshold: z.number().default(51),
   votingDays: z.number().default(7),
@@ -239,11 +256,11 @@ const castVoteSchema = z.object({
 });
 
 const updateProposalSchema = z.object({
-  projectId: z.string(),
-  proposalId: z.string(),
-  title: z.string().min(1).optional(),
-  description: z.string().min(20).optional(),
-  options: z.array(z.string()).min(2).optional(),
+  projectId: z.string().max(100),
+  proposalId: z.string().max(100),
+  title: z.string().min(1).max(200).optional(),
+  description: z.string().min(20).max(20_000).optional(),
+  options: z.array(z.string().max(200)).min(2).max(20).optional(),
   quorum: z.number().optional(),
   threshold: z.number().optional(),
   votingDays: z.number().optional(),
